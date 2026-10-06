@@ -35,7 +35,7 @@ public sealed class ConsoleEdgeIdentityBearerPersistenceTests
         var operatorContext = new ConsoleOperatorContext(accessor);
         var profiles = new OperatorScopedEnvironmentProfileStore(operatorContext);
         var sessions = new OperatorScopedAccountSessionStore(operatorContext);
-        var bridge = new ConsoleOperatorSessionBridge(profiles, sessions);
+        var bridge = new ConsoleOperatorSessionBridge(profiles, sessions, ServerOrigin);
 
         // Seed operator-a's partition as the BFF callback would: an active RBAC profile and a real,
         // non-sentinel operator bearer with a known expiry.
@@ -62,7 +62,7 @@ public sealed class ConsoleEdgeIdentityBearerPersistenceTests
         var operatorContext = new ConsoleOperatorContext(accessor);
         var profiles = new OperatorScopedEnvironmentProfileStore(operatorContext);
         var sessions = new OperatorScopedAccountSessionStore(operatorContext);
-        var bridge = new ConsoleOperatorSessionBridge(profiles, sessions);
+        var bridge = new ConsoleOperatorSessionBridge(profiles, sessions, ServerOrigin);
 
         await SeedProfileAndBearerAsync(accessor, profiles, sessions, "operator-a", "bearer-a", FarFuture);
 
@@ -79,6 +79,32 @@ public sealed class ConsoleEdgeIdentityBearerPersistenceTests
     }
 
     [Fact]
+    public async Task CON_004_EdgeBearer_IsNotReboundToAnOperatorAddedServer()
+    {
+        var accessor = new HttpContextAccessor();
+        var operatorContext = new ConsoleOperatorContext(accessor);
+        var profiles = new OperatorScopedEnvironmentProfileStore(operatorContext);
+        var sessions = new OperatorScopedAccountSessionStore(operatorContext);
+        var bridge = new ConsoleOperatorSessionBridge(profiles, sessions, ServerOrigin);
+
+        accessor.HttpContext = EdgeRequest("operator-a", authenticate: true);
+        await profiles.UpsertProfileAsync(Profile("other") with
+        {
+            ServerBaseUri = new Uri("https://other.example/")
+        });
+        await profiles.ActivateProfileAsync("other");
+
+        var request = EdgeRequest("operator-a", accessToken: "edge-secret");
+        accessor.HttpContext = request;
+        await InvokeEdgeMiddlewareAsync(request, bridge);
+
+        var session = await sessions.GetSessionAsync("other");
+        Assert.NotNull(session);
+        Assert.True(ConsoleAuthConstants.IsSessionSentinel(session!.AccessToken));
+        Assert.DoesNotContain("edge-secret", session.AccessToken, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task EdgeIdentity_NoPriorBearer_WritesNonForwardableSentinel()
     {
         var accessor = new HttpContextAccessor();
@@ -86,7 +112,7 @@ public sealed class ConsoleEdgeIdentityBearerPersistenceTests
         // Seed only an active profile — no prior session (the operator has not run the BFF exchange yet).
         var profiles = new OperatorScopedEnvironmentProfileStore(operatorContext);
         var sessions = new OperatorScopedAccountSessionStore(operatorContext);
-        var bridge = new ConsoleOperatorSessionBridge(profiles, sessions);
+        var bridge = new ConsoleOperatorSessionBridge(profiles, sessions, ServerOrigin);
 
         var seed = EdgeRequest("operator-a", authenticate: true);
         accessor.HttpContext = seed;
@@ -110,7 +136,7 @@ public sealed class ConsoleEdgeIdentityBearerPersistenceTests
         var operatorContext = new ConsoleOperatorContext(accessor);
         var profiles = new OperatorScopedEnvironmentProfileStore(operatorContext);
         var sessions = new OperatorScopedAccountSessionStore(operatorContext);
-        var bridge = new ConsoleOperatorSessionBridge(profiles, sessions);
+        var bridge = new ConsoleOperatorSessionBridge(profiles, sessions, ServerOrigin);
 
         // operator-a holds a BFF-exchanged bearer; operator-b has never exchanged one.
         await SeedProfileAndBearerAsync(accessor, profiles, sessions, "operator-a", "bearer-a", FarFuture);
@@ -140,7 +166,7 @@ public sealed class ConsoleEdgeIdentityBearerPersistenceTests
         var operatorContext = new ConsoleOperatorContext(accessor);
         var profiles = new OperatorScopedEnvironmentProfileStore(operatorContext);
         var sessions = new OperatorScopedAccountSessionStore(operatorContext);
-        var bridge = new ConsoleOperatorSessionBridge(profiles, sessions);
+        var bridge = new ConsoleOperatorSessionBridge(profiles, sessions, ServerOrigin);
         await using var serverSessions = new ConsoleServerSessionClientStore(
             TimeProvider.System,
             static (key, cookies) => new SimulatedServerAuthHandler(key, cookies));
