@@ -52,6 +52,9 @@ jobs:
             exit 1
           fi
 
+      - name: Enforce public-content boundary
+        run: npm run lint:public-content
+
       - name: Verify vendored honua-server ops parity map
         run: ./scripts/sync-ops-parity-map.sh --check
 
