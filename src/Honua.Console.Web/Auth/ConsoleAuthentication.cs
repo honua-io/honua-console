@@ -144,7 +144,10 @@ public static class ConsoleAuthentication
             new OperatorScopedAccountSessionStore(
                 serviceProvider.GetRequiredService<IConsoleOperatorContext>())));
 
-        builder.Services.AddSingleton<ConsoleOperatorSessionBridge>();
+        builder.Services.AddSingleton(serviceProvider => new ConsoleOperatorSessionBridge(
+            serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+            serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+            ConfiguredServerBaseUri(builder)));
         builder.Services.AddSingleton<IConfigureOptions<ConsoleEdgeAuthOptions>, ConsoleEdgeAuthOptionsSetup>();
 
         return builder;
@@ -285,6 +288,13 @@ public static class ConsoleAuthentication
             };
             return new InMemoryConsoleEnvironmentProfileStore([devProfile], activeProfileId: devProfile.Id);
         };
+    }
+
+    private static Uri? ConfiguredServerBaseUri(WebApplicationBuilder builder)
+    {
+        var value = builder.Configuration["Honua:Server:BaseUrl"]
+            ?? builder.Configuration["HONUA_SERVER_BASE_URL"];
+        return Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : null;
     }
 
     private static ClaimsPrincipal BuildDevPrincipal()

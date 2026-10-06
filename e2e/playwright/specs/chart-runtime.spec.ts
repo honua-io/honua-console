@@ -157,6 +157,41 @@ test('patched Vega rejects expression object coercion properties', async ({ page
   expect(results[2]).toMatch(/Illegal property: valueOf/);
 });
 
+test('CON-005 stored embed options cannot re-enable Vega actions', async ({ page }) => {
+  await page.goto('/studio', { waitUntil: 'domcontentloaded' });
+  const rendered = await page.evaluate(async modulePath => {
+    const mod = await import(modulePath);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    try {
+      const mounted = await mod.init(container, { spec: JSON.stringify({
+        $schema: 'https://vega.github.io/schema/vega-lite/v6.json',
+        usermeta: {
+          embedOptions: {
+            actions: true,
+            sourceHeader: '<script>window.__untrustedHeaderRan = true</script>',
+          },
+        },
+        data: { values: [{ category: 'east', amount: 12 }] },
+        mark: 'bar',
+        encoding: {
+          x: { field: 'category', type: 'nominal' },
+          y: { field: 'amount', type: 'quantitative' },
+        },
+      }) });
+      return {
+        mounted,
+        actions: container.querySelectorAll('.vega-actions').length,
+      };
+    } finally {
+      mod.dispose(container);
+      container.remove();
+    }
+  }, modulePath);
+
+  expect(rendered).toEqual({ mounted: true, actions: 0 });
+});
+
 test('an empty bound feature result does not fabricate chart values', async ({ page }) => {
   await page.route('**/map-proxy/features/chart-fixture/0', route =>
     route.fulfill({ json: { features: [] } }));

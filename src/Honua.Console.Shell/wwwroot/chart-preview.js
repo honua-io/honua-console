@@ -135,6 +135,13 @@ export async function init(container, options) {
         return false;
     }
 
+    // CON-005: vega-embed merges spec.usermeta.embedOptions over the options supplied below.
+    // Stored/model-authored specs must not be able to re-enable actions (whose source/editor
+    // features create or navigate documents), so remove that control plane before embedding.
+    if (spec.usermeta && typeof spec.usermeta === 'object') {
+        delete spec.usermeta.embedOptions;
+    }
+
     // Bind the bound layer's real rows. If the proxy returns nothing, honour any inline data the
     // server already put in the spec; if neither exists there is nothing real to chart — bail.
     const rows = await fetchRows(options.featuresUrl);

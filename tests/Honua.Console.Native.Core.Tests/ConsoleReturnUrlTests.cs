@@ -32,8 +32,18 @@ public sealed class ConsoleReturnUrlTests
     [InlineData("\\\\evil.com")]
     [InlineData("/path\\with\\backslash")]
     [InlineData("javascript:alert(1)")]
+    [InlineData("/\t/evil.com")]
+    [InlineData("/\n/evil.com")]
+    [InlineData("/\r/evil.com")]
+    [InlineData("/\u007f/evil.com")]
     public void Sanitize_RejectsNonSiteRelativeOrBypass(string? value)
     {
         Assert.Equal("/", ConsoleReturnUrl.Sanitize(value));
+    }
+
+    [Fact]
+    public void CON_002_Sanitize_RejectsDecodedTabThatBrowsersTreatAsProtocolRelative()
+    {
+        Assert.Equal("/", ConsoleReturnUrl.Sanitize("/\t/evil.example"));
     }
 }
