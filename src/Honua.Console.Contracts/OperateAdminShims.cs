@@ -1592,7 +1592,8 @@ public sealed record HonuaAdminFieldDomain
 /// <summary>A single code/label pair in a coded-value domain.</summary>
 public sealed record HonuaAdminCodedValue
 {
-    public string? Code { get; init; }
+    /// <summary>The scalar code, preserving the JSON type required by the field.</summary>
+    public JsonElement Code { get; init; }
 
     public string? Name { get; init; }
 }
@@ -1612,7 +1613,10 @@ public sealed record HonuaAdminLayerFieldUpdate
 
     public string? Alias { get; init; }
 
-    /// <summary>Set the domain (coded-value or range); null leaves the field's existing domain untouched.</summary>
+    /// <summary>
+    /// Replacement domain value (coded-value, range, or null to clear). Callers preserving a domain must
+    /// read its current value and include it in the update.
+    /// </summary>
     public HonuaAdminFieldDomain? Domain { get; init; }
 
     public bool? Hidden { get; init; }
