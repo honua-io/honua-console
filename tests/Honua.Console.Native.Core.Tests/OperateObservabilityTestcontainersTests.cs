@@ -66,6 +66,9 @@ public sealed class OperateObservabilityTestcontainersTests
                 .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Test")
                 .WithEnvironment("HONUA_DEV_AUTH", "true")
                 .WithEnvironment("HONUA_DEV_AUTH_ALLOW_BYPASS", "true")
+                // Alert processing refuses to start with tenant resolution on (the server
+                // default): its stores are instance-wide, so alerts need a single-tenant instance.
+                .WithEnvironment("MultiTenancy__Enabled", "false")
                 .WithEnvironment("Alerts__Enabled", "true")
                 .WithEnvironment("Alerts__Edition", "Enterprise")
                 .WithEnvironment("OperateObservabilityFixture__Enabled", "true")
