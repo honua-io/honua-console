@@ -186,3 +186,52 @@ jobs:
           name: console-nightly-contract-drift
           path: smoke-evidence/console-contract-drift.json
           if-no-files-found: warn
+
+  # One tracking issue for the scheduled lane: a failure opens it (or comments on the open one);
+  # a later green scheduled run comments so the owner can close it. Without this the lane ran red
+  # every night from 2026-09-07 with nobody told.
+  nightly-alert:
+    name: Nightly tracking issue
+    needs: live-integration
+    if: ${{ always() && github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      ISSUE_TITLE: Console Nightly Live Integration is failing
+      LANE_RESULT: ${{ needs.live-integration.result }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      CONSOLE_COMMIT: ${{ github.sha }}
+    steps:
+      - name: Create or update the nightly tracking issue
+        run: |
+          set -euo pipefail
+          existing="$(gh issue list --state open --search "\"${ISSUE_TITLE}\" in:title" --json number,title \
+            --jq "map(select(.title == \"${ISSUE_TITLE}\")) | .[0].number // empty")"
+
+          if [[ "${LANE_RESULT}" == "success" ]]; then
+            if [[ -n "${existing}" ]]; then
+              gh issue comment "${existing}" --body "Scheduled nightly passed again on ${RUN_URL} (Console \`${CONSOLE_COMMIT}\`). Close this issue once the cause is understood."
+            fi
+            exit 0
+          fi
+
+          body_file="${RUNNER_TEMP}/console-nightly.md"
+          {
+            echo "The scheduled \`Console Nightly Live Integration\` run finished with job result **\`${LANE_RESULT}\`**."
+            echo
+            echo "- Run: ${RUN_URL} (the \`console-nightly-trx\` artifact holds the TRX)"
+            echo "- Console commit: \`${CONSOLE_COMMIT}\`"
+            echo
+            echo "This lane runs the opt-in live-server/Testcontainers suites against the pinned honua-server image; a failure is usually a Console/server contract drift. Confirm a fix with workflow_dispatch."
+          } > "${body_file}"
+
+          if [[ -n "${existing}" ]]; then
+            gh issue comment "${existing}" --body-file "${body_file}"
+          else
+            gh issue create --title "${ISSUE_TITLE}" --body-file "${body_file}"
+          fi
