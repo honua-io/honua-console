@@ -221,8 +221,9 @@ test("scene-viewer loads Cesium from this origin", () => {
   assert.match(sceneViewer, /baseLayer:\s*false/, "Cesium Viewer must not create the default Ion base layer");
   assert.match(
     sceneViewer,
-    /\/scene-proxy\/scenes\//,
-    "server-owned 3D Tiles must be rewritten through the authenticated same-origin proxy",
+    /\/scene-proxy\/\$\{encodeURIComponent\(environmentId\)\}\$\{source\.pathname\}/,
+    "server-owned 3D Tiles must be rewritten through the authenticated same-origin proxy, " +
+      "pinned to the environment that produced the tileset URL",
   );
 });
 
