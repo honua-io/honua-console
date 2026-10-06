@@ -26,13 +26,16 @@ public sealed class ConsoleOperatorSessionBridge
 {
     private readonly IConsoleEnvironmentProfileStore _profiles;
     private readonly IConsoleAccountSessionStore _sessions;
+    private readonly Uri? _edgeBearerServerBaseUri;
 
     public ConsoleOperatorSessionBridge(
         IConsoleEnvironmentProfileStore profiles,
-        IConsoleAccountSessionStore sessions)
+        IConsoleAccountSessionStore sessions,
+        Uri? edgeBearerServerBaseUri = null)
     {
         _profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
+        _edgeBearerServerBaseUri = edgeBearerServerBaseUri;
     }
 
     public async Task SyncAsync(ClaimsPrincipal principal, CancellationToken cancellationToken = default)
@@ -80,7 +83,8 @@ public sealed class ConsoleOperatorSessionBridge
 
         // Which credential wins on this sign-in/identity request:
         //  1. A principal-supplied bearer (an edge X-Forwarded-Access-Token, or the cookie operator's
-        //     forwarded bearer) is the edge/IdP-owned credential and always takes precedence.
+        //     forwarded bearer) takes precedence only when the active profile has the configured
+        //     deployment server's origin. It must never be rebound to an operator-added origin.
         //  2. Otherwise the identity source manages the operator's identity but NOT their server
         //     credentials (an edge that forwards identity headers only). SyncAsync runs per request, so
         //     erasing the session here would wipe a bearer the operator obtained out-of-band via the
@@ -92,7 +96,8 @@ public sealed class ConsoleOperatorSessionBridge
         string accessToken;
         DateTimeOffset? accessTokenExpiresAt = null;
         Uri? credentialServer = profile.ServerBaseUri;
-        if (!string.IsNullOrWhiteSpace(bearer))
+        if (!string.IsNullOrWhiteSpace(bearer)
+            && IsSameOrigin(profile.ServerBaseUri, _edgeBearerServerBaseUri))
         {
             accessToken = bearer;
         }
@@ -123,4 +128,10 @@ public sealed class ConsoleOperatorSessionBridge
             AccessTokenExpiresAt = accessTokenExpiresAt
         }, cancellationToken).ConfigureAwait(false);
     }
+
+    private static bool IsSameOrigin(Uri profileServer, Uri? trustedServer) =>
+        trustedServer is not null
+        && string.Equals(profileServer.Scheme, trustedServer.Scheme, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(profileServer.Host, trustedServer.Host, StringComparison.OrdinalIgnoreCase)
+        && profileServer.Port == trustedServer.Port;
 }
