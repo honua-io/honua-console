@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build:metadata": "node scripts/write-build-metadata.mjs",
+    "lint:public-content": "node scripts/check-public-content.mjs",
     "test": "node --test scripts/__tests__/*.test.mjs smoke/parity/__tests__/*.test.mjs tests/workflows/*.test.mjs",
     "smoke:parity": "node smoke/parity/run.mjs",
     "smoke:workflow": "node smoke/parity/workflow.mjs",
