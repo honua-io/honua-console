@@ -152,6 +152,24 @@ public sealed class OperateLayerFieldRangeDomainTests
     }
 
     [Fact]
+    public async Task RealOperation_NullFieldsOnPrerequisiteRead_ReportsMissingWithoutPut()
+    {
+        // System.Text.Json overwrites the DTO's empty initializer when the server sends an explicit null.
+        var nullFields = JsonSerializer.Deserialize<HonuaAdminLayerFields>(
+            "{\"layerId\":7,\"fields\":null}", new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.Null(nullFields.Fields);
+        var client = new RecordingAdminClient(nullFields);
+        var operation = new HonuaServerConsoleLayerFieldsOperation(client);
+
+        var result = await operation.SetCodedValueDomainAsync(
+            LayerId, "elevation", "elevation_codes", [new ConsoleCodedValue("2", "High")]);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("Missing", result.State);
+        Assert.Null(client.LastUpdate);
+    }
+
+    [Fact]
     public async Task RealOperation_InvalidRange_RejectsWithoutPut()
     {
         var client = new RecordingAdminClient();
@@ -228,7 +246,7 @@ public sealed class OperateLayerFieldRangeDomainTests
 
     /// <summary>Minimal recording admin client: captures the PUT body for the fields endpoint and echoes it
     /// back; every other member is unused by these tests.</summary>
-    private sealed class RecordingAdminClient : IHonuaAdminOperateClient
+    private sealed class RecordingAdminClient(HonuaAdminLayerFields? fieldsOverride = null) : IHonuaAdminOperateClient
     {
         public HonuaAdminLayerFieldsUpdate? LastUpdate { get; private set; }
 
@@ -237,7 +255,7 @@ public sealed class OperateLayerFieldRangeDomainTests
         public Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> GetLayerFieldsAsync(
             int layerId, CancellationToken cancellationToken = default) =>
             Task.FromResult(HonuaAdminEndpointResult<HonuaAdminLayerFields>.FromData(
-                new HonuaAdminLayerFields
+                fieldsOverride ?? new HonuaAdminLayerFields
                 {
                     LayerId = layerId,
                     Fields =

@@ -277,7 +277,7 @@ public sealed class HonuaServerConsoleLayerFieldsOperation : IConsoleLayerFields
                 result.Issue?.Detail ?? "The current field configuration could not be read before updating it."));
         }
 
-        var field = result.Data.Fields.FirstOrDefault(candidate =>
+        var field = (result.Data.Fields ?? []).FirstOrDefault(candidate =>
             string.Equals(candidate.Name, fieldName, StringComparison.Ordinal));
         return field is null
             ? (null, Failure("Missing", $"Field '{fieldName}' was not returned by the field metadata endpoint."))
