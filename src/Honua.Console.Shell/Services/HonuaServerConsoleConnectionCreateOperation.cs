@@ -112,10 +112,10 @@ public sealed class HonuaServerConsoleConnectionCreateOperation : IConsoleConnec
         {
             Name = command.Name,
             Description = command.Description,
-            // With a secret reference the resolved secret holds the full connection string, so host/db/user/
+            // With a secret reference the resolved secret holds the full connection string, so host/port/db/user/
             // password are omitted; the server treats the secret as the source of truth.
             Host = usesSecret ? null : command.Host,
-            Port = command.Port,
+            Port = usesSecret ? null : command.Port,
             DatabaseName = usesSecret ? null : command.DatabaseName,
             Username = usesSecret ? null : command.Username,
             Password = usesSecret ? null : command.Password,
