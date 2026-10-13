@@ -85,6 +85,10 @@ services:
       # --- Secret-reference connection test (connections.live.spec.ts) ---
       # Filled in as env:HONUA_TEST_DB_DSN by the secret-reference spec.
       HONUA_TEST_DB_DSN: "Host=localhost;Port=5544;Database=honua_dev;Username=honua_user;Password=honua_password"
+      # Request-supplied references deny by default. Permit only this owned fixture variable.
+      Security__RequestSecretReferences__AllowedEnvironmentVariables__0: HONUA_TEST_DB_DSN
+      # Deliberately present but not allowlisted: the browser negative control must still refuse it.
+      HONUA_TEST_UNAPPROVED_DB_DSN: "Host=localhost;Port=5544;Database=honua_dev;Username=honua_user;Password=honua_password"
 
     healthcheck:
       # The honua-server image has busybox wget available.

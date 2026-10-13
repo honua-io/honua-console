@@ -1,4 +1,5 @@
-import { test, expect } from '../admin-api';
+import { test, expect, type AdminApi } from '../admin-api';
+import type { Page } from '@playwright/test';
 
 // Live e2e spec: destructive-action confirmation + toast feedback across the Operate admin surface.
 //
@@ -9,16 +10,59 @@ import { test, expect } from '../admin-api';
 //   4. Clicking the backdrop also cancels the dialog.
 //
 // The publishing page (OperatePublishingPage) is the reference implementation and the most reliable
-// test target because it always has rollback buttons once a publication exists. Tests that require
-// server-side data (versions, custom roles) skip gracefully when that data is absent.
+// test target after a publication lookup loads prior revisions. Tests that require server-side
+// data (versions, custom roles) explicitly skip when that fixture is absent.
 
-// A publishing page with no publications must still show its own empty/unbound state. Asserting it
-// keeps the "no rollback buttons" branch honest instead of silently passing.
+// A missing rollback fixture must expose its publication-specific state. A generic error,
+// a loading placeholder, or another surface's empty state is not acceptable evidence.
 async function expectPublicationsEmptyState(page: import('@playwright/test').Page) {
-  const emptyOrUnbound = page
-    .locator('[data-esri-missing-binding], .console-state, [data-publications-empty], [data-publish-tree-empty]')
-    .first();
-  await expect(emptyOrUnbound).toBeVisible();
+  const notConfigured = page.locator('article.console-panel')
+    .filter({ has: page.getByRole('heading', { name: 'Publishing', exact: true }) })
+    .filter({ has: page.getByText('Honua:Server:PublicationIds', { exact: true }) });
+  const empty = page.locator('article.console-panel')
+    .filter({ has: page.getByRole('heading', { name: 'No publications', exact: true }) });
+  await expect(notConfigured.or(empty)).toBeVisible();
+  if (await notConfigured.isVisible()) {
+    await expect(notConfigured.getByText('Not configured', { exact: true })).toBeVisible();
+    await expect(notConfigured).toContainText('no publication ids are configured');
+  } else {
+    await expect(empty).toContainText('No publications are available in this Operate environment.');
+  }
+}
+
+// Configured workspaces list reviews, but lifecycle controls appear only after lookup.
+// Confirm the server's version count before treating a publication as an insufficient fixture.
+async function loadRollbackFixture(page: Page, admin: AdminApi) {
+  await page.goto('/operate/publishing');
+  const review = page.locator('[data-publishing-review]').first();
+  const notConfigured = page.locator('article.console-panel')
+    .filter({ has: page.getByRole('heading', { name: 'Publishing', exact: true }) })
+    .filter({ has: page.getByText('Honua:Server:PublicationIds', { exact: true }) });
+  const empty = page.locator('article.console-panel')
+    .filter({ has: page.getByRole('heading', { name: 'No publications', exact: true }) });
+  await expect(review.or(notConfigured).or(empty).first()).toBeVisible();
+  if ((await review.count()) === 0) {
+    await expectPublicationsEmptyState(page);
+    return null;
+  }
+
+  const publicationId = await review.getAttribute('data-publication-id');
+  expect(publicationId).toBeTruthy();
+  await page.goto(`/operate/publishing?publicationId=${encodeURIComponent(publicationId!)}`);
+  const lookup = page.locator('[data-publication-lookup]');
+  await expect(lookup.locator('[data-publishing-review]')).toHaveAttribute('data-publication-id', publicationId!);
+  await expect(lookup.getByRole('button', { name: 'Republish', exact: true })).toBeVisible();
+  const detail = await admin.getJson(`/api/v1/console/publications/${encodeURIComponent(publicationId!)}`);
+  expect(detail.route.publicationId).toBe(publicationId);
+  expect(Array.isArray(detail.versions)).toBe(true);
+  expect(detail.versions.length).toBeGreaterThan(0);
+  const rollback = lookup.getByRole('button', { name: /Roll back to rev/ }).first();
+  if (detail.versions.length === 1) {
+    await expect(rollback).toHaveCount(0);
+    return null;
+  }
+  await expect(rollback).toBeVisible();
+  return rollback;
 }
 
 test.describe('Trust & feedback · confirm dialog (live)', () => {
@@ -31,15 +75,14 @@ test.describe('Trust & feedback · confirm dialog (live)', () => {
   });
 
   test.describe('publishing page · rollback confirm (reference implementation)', () => {
-    test('rollback button opens the confirm dialog', async ({ page }) => {
-      await page.goto('/operate/publishing');
+    test('publishing exposes revision actions or a verified missing revision fixture', async ({ page, admin }) => {
+      await loadRollbackFixture(page, admin);
+    });
 
-      const rollbackButton = page.getByRole('button', { name: /Roll back to rev/ }).first();
-      if ((await rollbackButton.count()) === 0) {
-        // Nothing published yet. Assert the page says so rather than skipping: a silent skip means a
-        // deployment with an empty registry reports "passed" for a surface nobody looked at, which is
-        // how the publish wizard's fixtures survived this lane for months.
-        await expectPublicationsEmptyState(page);
+    test('rollback button opens the confirm dialog', async ({ page, admin }) => {
+      const rollbackButton = await loadRollbackFixture(page, admin);
+      if (rollbackButton === null) {
+        test.skip(true, 'Publication state verified; no prior revision fixture is available for rollback confirmation.');
         return;
       }
 
@@ -54,15 +97,10 @@ test.describe('Trust & feedback · confirm dialog (live)', () => {
       await expect(page.locator('[data-console-confirm-accept]')).toBeVisible();
     });
 
-    test('Cancel closes the dialog without performing the rollback', async ({ page }) => {
-      await page.goto('/operate/publishing');
-
-      const rollbackButton = page.getByRole('button', { name: /Roll back to rev/ }).first();
-      if ((await rollbackButton.count()) === 0) {
-        // Nothing published yet. Assert the page says so rather than skipping: a silent skip means a
-        // deployment with an empty registry reports "passed" for a surface nobody looked at, which is
-        // how the publish wizard's fixtures survived this lane for months.
-        await expectPublicationsEmptyState(page);
+    test('Cancel closes the dialog without performing the rollback', async ({ page, admin }) => {
+      const rollbackButton = await loadRollbackFixture(page, admin);
+      if (rollbackButton === null) {
+        test.skip(true, 'Publication state verified; no prior revision fixture is available for rollback confirmation.');
         return;
       }
 
@@ -76,15 +114,10 @@ test.describe('Trust & feedback · confirm dialog (live)', () => {
       await expect(page.locator('[data-console-toast]')).toHaveCount(0);
     });
 
-    test('backdrop click cancels the dialog', async ({ page }) => {
-      await page.goto('/operate/publishing');
-
-      const rollbackButton = page.getByRole('button', { name: /Roll back to rev/ }).first();
-      if ((await rollbackButton.count()) === 0) {
-        // Nothing published yet. Assert the page says so rather than skipping: a silent skip means a
-        // deployment with an empty registry reports "passed" for a surface nobody looked at, which is
-        // how the publish wizard's fixtures survived this lane for months.
-        await expectPublicationsEmptyState(page);
+    test('backdrop click cancels the dialog', async ({ page, admin }) => {
+      const rollbackButton = await loadRollbackFixture(page, admin);
+      if (rollbackButton === null) {
+        test.skip(true, 'Publication state verified; no prior revision fixture is available for rollback confirmation.');
         return;
       }
 

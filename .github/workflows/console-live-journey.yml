@@ -4,6 +4,16 @@ on:
   schedule:
     - cron: '23 7 * * *'
   workflow_dispatch:
+    inputs:
+      server_image:
+        description: 'Optional immutable honua-server image@sha256 digest for diagnostic replay'
+        required: false
+        type: string
+      suite:
+        description: 'Publish journey or the complete authenticated live suite'
+        type: choice
+        options: [publish-query, full]
+        default: publish-query
   pull_request:
     paths:
       - '.github/workflows/console-live-journey.yml'
@@ -29,7 +39,7 @@ jobs:
       CI: 'true'
       HONUA_CONSOLE_E2E_OIDC: 'true'
       HONUA_CONSOLE_E2E_LIVE_PORT: '5274'
-      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-aot' }}
+      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image || vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-aot' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -47,6 +57,16 @@ jobs:
         run: |
           npm ci
           npx --no-install playwright install --with-deps chromium
+      - name: Validate explicit diagnostic image
+        env:
+          REQUESTED_IMAGE: ${{ inputs.server_image }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          requested = os.environ['REQUESTED_IMAGE']
+          if requested and not re.fullmatch(r'ghcr\.io/honua-io/honua-server(?::[A-Za-z0-9_.-]+)?@sha256:[0-9a-f]{64}', requested):
+              raise SystemExit('Explicit replay image must be an immutable honua-server GHCR digest')
+          PY
       - name: Start authenticated server and seeded PostGIS
         run: |
           mkdir -p e2e/playwright/live-auth/certs
@@ -67,9 +87,36 @@ jobs:
           docker image inspect "$HONUA_CONSOLE_E2E_SERVER_IMAGE" --format '{{json .RepoDigests}}' > artifacts/live-journey/server-digests.json
           status=$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8088/api/v1/admin/services)
           test "$status" = 401 || test "$status" = 403
+      - name: Record observed diagnostic source and image identity
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          image = os.environ['HONUA_CONSOLE_E2E_SERVER_IMAGE']
+          observed = json.loads(subprocess.check_output(['docker', 'image', 'inspect', image]))[0]
+          source = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          receipt = {
+              'scope': 'source-built Console diagnostic; not a published Console image qualification',
+              'consoleSourceRevision': source,
+              'serverImage': image,
+              'serverRepoDigests': observed.get('RepoDigests', []),
+              'serverSourceRevision': observed.get('Config', {}).get('Labels', {}).get('org.opencontainers.image.revision'),
+              'runUrl': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+          }
+          Path('artifacts/live-journey/replay-context.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          PY
       - name: Publish from Console and verify three seeded features
+        if: ${{ inputs.suite != 'full' }}
         working-directory: e2e/playwright
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ../../artifacts/live-journey/playwright-results.json
         run: npx --no-install playwright test --config playwright.live.config.ts services-layers.live.spec.ts --grep 'publish a PostGIS table and verify via catalog, metadata, and a live query' --reporter=list,json > ../../artifacts/live-journey/playwright.log
+      - name: Exercise the complete authenticated Console live suite
+        if: ${{ inputs.suite == 'full' }}
+        working-directory: e2e/playwright
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ../../artifacts/live-journey/playwright-results.json
+        run: npx --no-install playwright test --config playwright.live.config.ts --reporter=list,json > ../../artifacts/live-journey/playwright.log
       - name: Retain server diagnostics
         if: always()
         run: |

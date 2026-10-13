@@ -87,6 +87,8 @@ test.describe('Operate · Add Connection (live)', () => {
     // before the Blazor circuit wires the handler is dropped, so retry the whole interaction
     // until the pass message renders.
     await expect(async () => {
+      // Hydration can replace the prerendered form, including its name.
+      await page.getByPlaceholder('prod-postgis').fill(name);
       await page.locator('[data-secret-reference]').fill('env:HONUA_TEST_DB_DSN');
       await page.getByRole('button', { name: 'Test connection' }).click();
       await expect(page.getByText('Connection test passed')).toBeVisible({ timeout: 15_000 });
@@ -99,6 +101,22 @@ test.describe('Operate · Add Connection (live)', () => {
     const created = await admin.findConnectionByName(name);
     expect(created, 'secret-ref connection should exist on the server').toBeTruthy();
     expect(created!.storageType).toBe('external');
+  });
+
+  test('secret reference outside the fixture allowlist is refused without creating a connection', async ({ page, admin }) => {
+    const name = `e2e-secretref-denied-${stamp}`;
+    admin.trackConnectionName(name);
+    await page.goto('/operate/connections/new');
+    await expect(async () => {
+      await page.getByLabel('Credential source').selectOption('secret');
+      await page.getByPlaceholder('prod-postgis').fill(name);
+      await page.locator('[data-secret-reference]').fill('env:HONUA_TEST_UNAPPROVED_DB_DSN');
+      await page.getByRole('button', { name: 'Test connection' }).click();
+      await expect(page.getByText('SecretReference: The secret reference is not permitted or could not be resolved.', { exact: true }))
+        .toBeVisible({ timeout: 15_000 });
+    }).toPass({ timeout: 45_000 });
+    await expect(page.getByText('Connection test passed')).not.toBeVisible();
+    expect(await admin.findConnectionByName(name)).toBeFalsy();
   });
 
   test('duplicate connection name is blocked before any POST', async ({ page, admin }) => {

@@ -1397,7 +1397,8 @@ public sealed record HonuaAdminCreateConnectionRequest
     /// <summary>Optional with a secret reference (display metadata only); required with an inline password.</summary>
     public string? Host { get; init; }
 
-    public int Port { get; init; } = 5432;
+    /// <summary>Omit for a full secret reference; inline credentials default to 5432 on the server.</summary>
+    public int? Port { get; init; }
 
     public string? DatabaseName { get; init; }
 

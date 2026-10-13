@@ -11,7 +11,7 @@ import { test, expect } from '@playwright/test';
 //   2. The operate sections sidebar nav is present.
 //   3. The page renders a primary heading — proving it is a real, navigable surface.
 //   4. No AI-provider error surface is shown as the PRIMARY content. An AI entry in the
-//      sidebar is expected; an AI-only wall that blocks the rest of the page is not.
+//      deep link remains reachable; an AI-only wall that blocks manual pages is not.
 //
 // Capability-gated sections (sync, alerts/rules, releases, temporal) render their
 // ConsoleCapabilityGate "unsupported" surface rather than live data — that is correct
@@ -23,7 +23,7 @@ import { test, expect } from '@playwright/test';
 // config (playwright.live.config.ts) which boots the Console bound to a live honua-server,
 // so server-owned surfaces show real missing-binding states rather than demo data.
 
-// Non-capability-gated operate sections — always visible in the sidebar, always reachable.
+// Manual operate routes remain reachable as deep links, including preview authoring surfaces.
 const ungatedSections = [
   { path: '/operate/data', heading: 'Data & Layers' },
   { path: '/operate/connections', heading: 'Connections' },
@@ -67,7 +67,7 @@ test.describe('Operate nav · no AI provider required (live)', () => {
       ).toBeVisible();
 
       // The page must NOT show an AI-only wall as its primary content. An AI entry in the
-      // SIDEBAR is expected and correct; this guard catches any route that mistakenly
+      // deep links may exist; this guard catches any route that mistakenly
       // renders nothing but a "connect an AI provider" prompt as its page body.
       const main = page.locator('main.console-main');
       await expect(main).toBeVisible();
@@ -102,32 +102,21 @@ test.describe('Operate nav · no AI provider required (live)', () => {
     });
   }
 
-  test('AI entry is last in the operate sections sidebar and clearly labeled', async ({ page }) => {
+  test('focused operate navigation advertises recovery and inspection, not authoring or AI', async ({ page }) => {
     await page.goto('/operate', { waitUntil: 'domcontentloaded' });
-
     const nav = page.locator('nav[aria-label="Operate sections"]');
     await expect(nav).toBeVisible();
-
-    // The AI entry must exist and include the word "AI" in its label so the user knows
-    // it is an AI accelerator, not a required entry point.
-    const aiLink = nav.getByText('Ask Honua (AI)');
-    await expect(aiLink).toBeVisible();
-
-    // The AI link must point to /operate/ai.
-    const aiAnchor = nav.locator('a[href="/operate/ai"]');
-    await expect(aiAnchor).toBeVisible();
-
-    // The AI entry must be the LAST link in the operate sections sidebar, not the first.
-    const allLinks = nav.locator('a[href]');
-    const count = await allLinks.count();
-    expect(count, 'operate sections nav must have entries').toBeGreaterThan(0);
-    const lastHref = await allLinks.nth(count - 1).getAttribute('href');
-    expect(lastHref, 'Ask Honua (AI) must be the last operate section').toBe('/operate/ai');
-
-    // Manual operate surfaces must appear BEFORE the AI entry. Spot-check that the first
-    // link is a data/connections/publishing entry, not the AI prompt.
-    const firstHref = await allLinks.first().getAttribute('href');
-    expect(firstHref, 'first operate section must not be AI').not.toBe('/operate/ai');
+    await expect(nav.locator('a[href]')).toHaveCount(9);
+    expect(await nav.locator('a[href]').evaluateAll(links => links.map(link => link.getAttribute('href'))))
+      .toEqual([
+        '/operate/health', '/operate/data', '/operate/connections', '/operate/services',
+        '/operate/geoprocessing', '/operate/observability', '/operate/metrics',
+        '/operate/deploy', '/operate/releases',
+      ]);
+    for (const path of ['/operate/ai', '/operate/publishing', '/operate/access', '/operate/settings']) {
+      await expect(nav.locator(`a[href="${path}"]`)).toHaveCount(0);
+    }
+    // Preview publishing/access/settings routes remain covered by the direct-navigation tests above.
   });
 
   test('operate sidebar shows non-AI sections when AI provider is absent', async ({ page }) => {
@@ -138,7 +127,7 @@ test.describe('Operate nav · no AI provider required (live)', () => {
     await expect(nav).toBeVisible();
 
     // The core manual surfaces must be present in the sidebar.
-    const manualSurfaces = ['Data & Layers', 'Connections', 'Publishing', 'Access', 'Settings', 'Deploy'];
+    const manualSurfaces = ['Health', 'Data & Layers', 'Connections', 'Services', 'Geoprocessing', 'Observability', 'Metrics', 'Deploy', 'Releases'];
     for (const label of manualSurfaces) {
       await expect(nav.getByText(label), `sidebar must show "${label}"`).toBeVisible();
     }
