@@ -87,6 +87,8 @@ test.describe('Operate · Add Connection (live)', () => {
     // before the Blazor circuit wires the handler is dropped, so retry the whole interaction
     // until the pass message renders.
     await expect(async () => {
+      // Hydration can replace the prerendered form, including its name.
+      await page.getByPlaceholder('prod-postgis').fill(name);
       await page.locator('[data-secret-reference]').fill('env:HONUA_TEST_DB_DSN');
       await page.getByRole('button', { name: 'Test connection' }).click();
       await expect(page.getByText('Connection test passed')).toBeVisible({ timeout: 15_000 });
