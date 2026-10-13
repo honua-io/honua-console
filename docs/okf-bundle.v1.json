@@ -90,6 +90,14 @@
     {
       "path": "docs/validation/import-replacement-consent.md",
       "why": "Local verification evidence for one issue's authorization gate. The behaviour a reader needs is stated in the product itself; the evidence is for the reviewer."
+    },
+    {
+      "path": "docs/audit/platform-20261006/issue-420.md",
+      "why": "Dated issue 420 audit evidence for maintainers: finding disposition and regression-test receipts, not product documentation."
+    },
+    {
+      "path": "docs/audit/platform-20261006/issue-421.md",
+      "why": "Dated issue 421 audit evidence for maintainers: finding disposition and regression-test receipts, not product documentation."
     }
   ],
   "includedFiles": [],
