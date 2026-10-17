@@ -227,64 +227,85 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
     public async Task<OperateSectionResult<OperateRulesView>> GetRulesAsync(
         CancellationToken cancellationToken = default)
     {
-        var rulesFetch = await FetchAsync(
-            OperateAdminRoutes.AlertRules,
-            OperateObservabilityJsonContext.Default.AlertRuleListEnvelope,
+        // Use only the service catalog returned to this authenticated caller. Never fall back to
+        // the unscoped alert endpoints: they deliberately require an explicit serviceId.
+        var servicesFetch = await FetchAsync(
+            OperateAdminRoutes.Services,
+            OperateObservabilityJsonContext.Default.AdminServiceListEnvelope,
             cancellationToken).ConfigureAwait(false);
-
-        if (!rulesFetch.Ok)
+        if (!servicesFetch.Ok)
         {
-            return OperateSectionResult<OperateRulesView>.Denied(rulesFetch.Status, rulesFetch.Message);
+            return OperateSectionResult<OperateRulesView>.Denied(servicesFetch.Status, servicesFetch.Message);
         }
 
-        // A HTTP 200 response can still carry an envelope with success:false (and a null/absent Data) — a
-        // server-reported failure, not an empty rule set. Surface it as a denied section rather than
-        // collapsing it to an empty "no rules configured" list (honua-console#274; same "failure shown as
-        // empty success" shape fixed on the Catalog surface in #272/#273).
-        if (!rulesFetch.Value!.Success)
+        if (!servicesFetch.Value!.Success || servicesFetch.Value.Data is null ||
+            servicesFetch.Value.Data.Any(service => service is null || string.IsNullOrWhiteSpace(service.ServiceName)))
         {
             return OperateSectionResult<OperateRulesView>.Denied(
                 OperateSectionStatus.Unavailable,
-                FirstNonBlank(rulesFetch.Value.Message, "The server reported a failure loading alert rules."));
+                FirstNonBlank(servicesFetch.Value.Message, "The server did not return an available service catalog."));
         }
 
-        var rawRules = rulesFetch.Value.Data ?? [];
+        var services = servicesFetch.Value.Data.Select(service => service.ServiceName!)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var scoped = await BoundedFanOutAsync(services, async service =>
+        {
+            var query = $"?serviceId={Uri.EscapeDataString(service)}";
+            var rules = await FetchAsync(
+                OperateAdminRoutes.AlertRules + query,
+                OperateObservabilityJsonContext.Default.AlertRuleListEnvelope,
+                cancellationToken).ConfigureAwait(false);
+            var zones = await FetchAsync(
+                OperateAdminRoutes.AlertZones + query,
+                OperateObservabilityJsonContext.Default.AlertZoneListEnvelope,
+                cancellationToken).ConfigureAwait(false);
+            return (Service: service, Rules: rules, Zones: zones);
+        }, cancellationToken).ConfigureAwait(false);
 
-        // Rule health (delivery failures, recent triggers, validation signals)
-        // is a per-rule endpoint; fetch them in parallel rather than serially to
-        // avoid a request waterfall across the rule list.
+        var rawRules = new List<AlertRuleResponse>();
+        var rawZones = new List<AlertZoneResponse>();
+        var zonesStatus = OperateSectionStatus.Allowed;
+        var zonesMessage = string.Empty;
+        foreach (var scope in scoped)
+        {
+            if (!scope.Rules.Ok)
+            {
+                return OperateSectionResult<OperateRulesView>.Denied(scope.Rules.Status, scope.Rules.Message);
+            }
+
+            if (!scope.Rules.Value!.Success || (scope.Rules.Value.Data ?? [])
+                .Any(rule => rule is null || !string.Equals(rule.ServiceId, scope.Service, StringComparison.OrdinalIgnoreCase)))
+            {
+                return OperateSectionResult<OperateRulesView>.Denied(
+                    OperateSectionStatus.Unavailable,
+                    FirstNonBlank(scope.Rules.Value.Message, "The server returned unavailable or out-of-scope alert rules."));
+            }
+
+            rawRules.AddRange(scope.Rules.Value.Data ?? []);
+            var zonesOk = scope.Zones.Ok && scope.Zones.Value!.Success &&
+                !(scope.Zones.Value.Data ?? []).Any(zone =>
+                    zone is null || !string.Equals(zone.ServiceId, scope.Service, StringComparison.OrdinalIgnoreCase));
+            if (zonesOk)
+            {
+                rawZones.AddRange(scope.Zones.Value!.Data ?? []);
+            }
+            else if (zonesStatus == OperateSectionStatus.Allowed)
+            {
+                zonesStatus = scope.Zones.Ok ? OperateSectionStatus.Unavailable : scope.Zones.Status;
+                zonesMessage = FirstNonBlank(
+                    scope.Zones.Ok ? scope.Zones.Value!.Message : scope.Zones.Message,
+                    "Geofence zone metadata is unavailable or out of scope.");
+            }
+        }
+
         var healthByRule = await ResolveRuleHealthAsync(rawRules, cancellationToken).ConfigureAwait(false);
-        var rules = rawRules
-            .Select(rule => MapRuleWithHealth(rule, healthByRule.GetValueOrDefault(rule.RuleId)))
-            .ToArray();
-
-        var zonesFetch = await FetchAsync(
-            OperateAdminRoutes.AlertZones,
-            OperateObservabilityJsonContext.Default.AlertZoneListEnvelope,
-            cancellationToken).ConfigureAwait(false);
-
-        // Geofence zones are a sub-section of the rules view: a transport failure OR a HTTP 200 envelope with
-        // success:false both mean "zones unavailable", not "zero zones". Guard on the envelope success flag
-        // too so a server-reported failure is surfaced through the zones status/message failure path instead
-        // of rendering as an empty-but-successful zone list (honua-console#274).
-        var zonesOk = zonesFetch.Ok && zonesFetch.Value!.Success;
-        var zones = zonesOk
-            ? (zonesFetch.Value!.Data ?? []).Select(OperateObservabilityMapper.MapZone).ToArray()
+        var rules = rawRules.Select(rule => MapRuleWithHealth(rule, healthByRule.GetValueOrDefault(rule.RuleId))).ToArray();
+        // Do not present a partial zone list as complete when any scoped read failed.
+        var zones = zonesStatus == OperateSectionStatus.Allowed
+            ? rawZones.Select(OperateObservabilityMapper.MapZone).ToArray()
             : [];
-        var zonesStatus = zonesOk
-            ? zonesFetch.Status
-            : zonesFetch.Ok ? OperateSectionStatus.Unavailable : zonesFetch.Status;
-        var zonesMessage = zonesOk
-            ? string.Empty
-            : FirstNonBlank(
-                zonesFetch.Ok ? zonesFetch.Value!.Message : zonesFetch.Message,
-                "Geofence zone metadata is unavailable from the server.");
-
         return OperateSectionResult<OperateRulesView>.Allowed(new OperateRulesView(
-            rules,
-            zones,
-            zonesStatus,
-            zonesMessage));
+            rules, zones, zonesStatus, zonesMessage));
     }
 
     public Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(

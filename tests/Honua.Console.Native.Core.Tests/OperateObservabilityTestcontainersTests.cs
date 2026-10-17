@@ -4,6 +4,7 @@ using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Images;
 using DotNet.Testcontainers.Networks;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
@@ -86,6 +87,7 @@ public sealed class OperateObservabilityTestcontainersTests
 
             var baseUri = new Uri($"http://localhost:{server.GetMappedPublicPort(8080).ToString(System.Globalization.CultureInfo.InvariantCulture)}");
             using var seedClient = new HttpClient { BaseAddress = baseUri };
+            await PublishFixtureServiceAsync(seedClient, postgres, baseUri);
             var fixture = await SeedOperateFixtureAsync(seedClient);
             Assert.True(fixture.GetProperty("sourceHydrated").GetBoolean());
             Assert.Equal(FixtureServiceId, fixture.GetProperty("serviceId").GetString());
@@ -212,6 +214,52 @@ public sealed class OperateObservabilityTestcontainersTests
             .Build();
         await image.CreateAsync();
         return (imageName, image);
+    }
+
+    private static async Task PublishFixtureServiceAsync(HttpClient http, PostgreSqlContainer postgres, Uri baseUri)
+    {
+        // Alert fixture rows alone do not publish their service into the metadata catalog. Arrange a
+        // real service through the same connection/publish operation the Console uses, so service-scoped
+        // rule enumeration can discover it without guessed ids or an unscoped alert-list fallback.
+        var seed = await postgres.ExecScriptAsync("""
+            CREATE TABLE public.console_operate_points (
+                id BIGSERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                geom geometry(Point, 4326)
+            );
+            INSERT INTO public.console_operate_points (name, geom)
+            VALUES ('Harbor', ST_SetSRID(ST_MakePoint(-157.8650, 21.3030), 4326));
+            """);
+        Assert.True(seed.ExitCode == 0, seed.Stderr);
+        var admin = new HonuaAdminOperateHttpClient(http, new HonuaAdminOperateClientOptions(baseUri));
+        var connection = await admin.CreateConnectionAsync(new HonuaAdminCreateConnectionRequest
+        {
+            Name = "Operate observability fixture",
+            Host = "postgres",
+            Port = 5432,
+            DatabaseName = "honua_console_operate",
+            Username = "honua",
+            Password = "honua_password"
+        });
+        Assert.True(connection.Data is not null, connection.Issue?.Detail);
+        var published = await new HonuaServerServiceLayerPublishOperation(admin).PublishAsync(new ServiceLayerPublishCommand
+        {
+            ConnectionId = connection.Data!.ConnectionId.ToString("D"),
+            Schema = "public",
+            Table = "console_operate_points",
+            LayerName = "Harbor observations",
+            ServiceName = FixtureServiceId,
+            GeometryColumn = "geom",
+            GeometryType = "Point",
+            Srid = 4326,
+            PrimaryKey = "id",
+            Fields = ["id", "name"],
+            Enabled = true
+        });
+        Assert.True(published.Succeeded, published.Detail);
+        var catalog = await admin.ListServicesAsync();
+        Assert.True(catalog.Data is not null, catalog.Issue?.Detail);
+        Assert.Contains(catalog.Data!, service => service.ServiceName == FixtureServiceId);
     }
 
     private static async Task<JsonElement> SeedOperateFixtureAsync(HttpClient client)

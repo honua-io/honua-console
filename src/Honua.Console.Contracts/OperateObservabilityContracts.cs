@@ -23,10 +23,11 @@ namespace Honua.Console.Contracts;
 //   GET  /observability/audit               -> ObservabilityAuditPageResponse
 //   GET  /observability/alerts              -> ObservabilityAlertEventPageResponse
 //   POST /observability/alerts/{id}/acknowledge|suppress|resolve
-//   GET  /alerts/rules                       -> ApiResponse<AlertRuleResponse[]>
+//   GET  /services/                         -> ApiResponse<ServiceSummary[]>
+//   GET  /alerts/rules?serviceId={service}    -> ApiResponse<AlertRuleResponse[]>
 //   GET  /alerts/rules/{id}/health           -> ApiResponse<AlertRuleHealthResponse>
 //   POST /alerts/rules/test                  -> ApiResponse<AlertRuleTestResponse>
-//   GET  /alerts/zones                       -> ApiResponse<AlertZoneResponse[]>
+//   GET  /alerts/zones?serviceId={service}    -> ApiResponse<AlertZoneResponse[]>
 //   GET  /jobs                               -> ConsoleJobListResponse
 //   GET  /jobs/{id}                          -> ConsoleJobDetail
 //   GET  /jobs/{id}/logs|artifacts|actions
@@ -49,6 +50,7 @@ public static class OperateAdminRoutes
     public const string Logs = Prefix + "/observability/logs";
     public const string Audit = Prefix + "/observability/audit";
     public const string Alerts = Prefix + "/observability/alerts";
+    public const string Services = Prefix + "/services/";
     public const string AlertRules = Prefix + "/alerts/rules";
     public const string AlertZones = Prefix + "/alerts/zones";
     public const string Jobs = Prefix + "/jobs";
@@ -970,6 +972,7 @@ public sealed record InvestigationLinkResponse
 [JsonSerializable(typeof(OperateLogPageResponse))]
 [JsonSerializable(typeof(ObservabilityAuditPageResponse))]
 [JsonSerializable(typeof(ObservabilityAlertEventPageResponse))]
+[JsonSerializable(typeof(ConsoleApiEnvelope<HonuaAdminServiceSummary[]>), TypeInfoPropertyName = "AdminServiceListEnvelope")]
 [JsonSerializable(typeof(ConsoleApiEnvelope<AlertRuleResponse[]>), TypeInfoPropertyName = "AlertRuleListEnvelope")]
 [JsonSerializable(typeof(ConsoleApiEnvelope<AlertRuleResponse>), TypeInfoPropertyName = "AlertRuleEnvelope")]
 [JsonSerializable(typeof(ConsoleApiEnvelope<AlertRuleHealthResponse>), TypeInfoPropertyName = "AlertRuleHealthEnvelope")]

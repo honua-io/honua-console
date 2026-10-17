@@ -841,6 +841,7 @@ public sealed class ConsoleOperateObservabilityClientTests
     {
         var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
         {
+            "/api/v1/admin/services/" => ServicesResponse("svc-live"),
             "/api/v1/admin/alerts/rules" => JsonResponse(
                 new ConsoleApiEnvelope<AlertRuleResponse[]>
                 {
@@ -894,6 +895,7 @@ public sealed class ConsoleOperateObservabilityClientTests
         // fixed on the Catalog surface in #272/#273).
         var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
         {
+            "/api/v1/admin/services/" => ServicesResponse("svc-live"),
             "/api/v1/admin/alerts/rules" => JsonResponse(
                 new ConsoleApiEnvelope<AlertRuleResponse[]>
                 {
@@ -921,6 +923,7 @@ public sealed class ConsoleOperateObservabilityClientTests
         // zone list.
         var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
         {
+            "/api/v1/admin/services/" => ServicesResponse("svc-live"),
             "/api/v1/admin/alerts/rules" => JsonResponse(
                 new ConsoleApiEnvelope<AlertRuleResponse[]>
                 {
@@ -946,6 +949,164 @@ public sealed class ConsoleOperateObservabilityClientTests
         Assert.Empty(result.Value!.Zones);
         Assert.NotEqual(OperateSectionStatus.Allowed, result.Value.ZonesStatus);
         Assert.Contains("Geofence zone store is unavailable", result.Value.ZonesMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RulesSurfaceScopesEveryReadToReturnedServicesAndEscapesNames()
+    {
+        var names = new[] { "svc-a", "folder/harbor & coast" };
+        var handler = new RecordingHandler(request =>
+        {
+            var uri = request.RequestUri!;
+            if (uri.AbsolutePath == "/api/v1/admin/services/")
+            {
+                return ServicesResponse(names);
+            }
+
+            Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
+            Assert.Equal("live-token", request.Headers.Authorization?.Parameter);
+            var service = names.Single(name => uri.Query == $"?serviceId={Uri.EscapeDataString(name)}");
+            return uri.AbsolutePath switch
+            {
+                "/api/v1/admin/alerts/rules" => JsonResponse(
+                    new ConsoleApiEnvelope<AlertRuleResponse[]> { Success = true, Data = [] },
+                    OperateObservabilityJsonContext.Default.AlertRuleListEnvelope),
+                "/api/v1/admin/alerts/zones" => JsonResponse(
+                    new ConsoleApiEnvelope<AlertZoneResponse[]>
+                    {
+                        Success = true,
+                        Data = [new AlertZoneResponse { ZoneId = service == names[0] ? 1 : 2, ServiceId = service, ZoneName = service }]
+                    }, OperateObservabilityJsonContext.Default.AlertZoneListEnvelope),
+                _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+            };
+        });
+
+        var result = await CreateClient(handler).GetRulesAsync();
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        Assert.Equal(2, result.Value!.Zones.Count);
+        Assert.Equal(5, handler.Requests.Count);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task RulesSurfaceDoesNotProbeAlertsWhenServiceCatalogIsDenied(HttpStatusCode status)
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(status));
+
+        var result = await CreateClient(handler).GetRulesAsync();
+
+        Assert.NotEqual(OperateSectionStatus.Allowed, result.Status);
+        Assert.Null(result.Value);
+        Assert.Equal("/api/v1/admin/services/", Assert.Single(handler.Requests).RequestUri!.AbsolutePath);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task RulesSurfaceDoesNotTreatInvalidServiceCatalogAsEmptySuccess(bool success, bool missingData)
+    {
+        var handler = new RecordingHandler(_ => JsonResponse(
+            new ConsoleApiEnvelope<HonuaAdminServiceSummary[]>
+            {
+                Success = success,
+                Data = missingData ? null : [],
+                Message = "Catalog unavailable"
+            }, OperateObservabilityJsonContext.Default.AdminServiceListEnvelope));
+
+        var result = await CreateClient(handler).GetRulesAsync();
+
+        Assert.NotEqual(OperateSectionStatus.Allowed, result.Status);
+        Assert.Single(handler.Requests);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData(null)]
+    public async Task RulesSurfaceRejectsServiceCatalogWithoutExplicitNames(string? serviceName)
+    {
+        var handler = new RecordingHandler(_ => JsonResponse(
+            new ConsoleApiEnvelope<HonuaAdminServiceSummary[]>
+            {
+                Success = true,
+                Data = [new HonuaAdminServiceSummary { ServiceName = serviceName }]
+            }, OperateObservabilityJsonContext.Default.AdminServiceListEnvelope));
+
+        var result = await CreateClient(handler).GetRulesAsync();
+
+        Assert.NotEqual(OperateSectionStatus.Allowed, result.Status);
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task RulesSurfaceRejectsZonesOutsideRequestedService()
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/v1/admin/services/" => ServicesResponse("svc-live"),
+            "/api/v1/admin/alerts/rules" => JsonResponse(
+                new ConsoleApiEnvelope<AlertRuleResponse[]> { Success = true, Data = [] },
+                OperateObservabilityJsonContext.Default.AlertRuleListEnvelope),
+            "/api/v1/admin/alerts/zones" => JsonResponse(
+                new ConsoleApiEnvelope<AlertZoneResponse[]>
+                {
+                    Success = true,
+                    Data = [new AlertZoneResponse { ZoneId = 3, ServiceId = "not-authorized", ZoneName = "Other service" }]
+                }, OperateObservabilityJsonContext.Default.AlertZoneListEnvelope),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+
+        var result = await CreateClient(handler).GetRulesAsync();
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        Assert.Empty(result.Value!.Zones);
+        Assert.Equal(OperateSectionStatus.Unavailable, result.Value.ZonesStatus);
+    }
+
+    [Fact]
+    public async Task RulesSurfaceEmptyAuthorizedCatalogMakesNoAlertRequests()
+    {
+        var handler = new RecordingHandler(_ => ServicesResponse());
+
+        var result = await CreateClient(handler).GetRulesAsync();
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        Assert.Empty(result.Value!.Rules);
+        Assert.Empty(result.Value.Zones);
+        Assert.Single(handler.Requests);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RulesSurfacePreservesFailureFromOneServiceWithoutShowingPartialSuccess(bool wrongService)
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/v1/admin/services/" => ServicesResponse("svc-live", "svc-other"),
+            "/api/v1/admin/alerts/rules" when request.RequestUri.Query == "?serviceId=svc-other" => wrongService
+                ? JsonResponse(new ConsoleApiEnvelope<AlertRuleResponse[]>
+                {
+                    Success = true,
+                    Data = [new AlertRuleResponse { RuleId = 99, ServiceId = "not-authorized" }]
+                }, OperateObservabilityJsonContext.Default.AlertRuleListEnvelope)
+                : new HttpResponseMessage(HttpStatusCode.Forbidden),
+            "/api/v1/admin/alerts/rules" => JsonResponse(
+                new ConsoleApiEnvelope<AlertRuleResponse[]> { Success = true, Data = [] },
+                OperateObservabilityJsonContext.Default.AlertRuleListEnvelope),
+            "/api/v1/admin/alerts/zones" => JsonResponse(
+                new ConsoleApiEnvelope<AlertZoneResponse[]> { Success = true, Data = [] },
+                OperateObservabilityJsonContext.Default.AlertZoneListEnvelope),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+
+        var result = await CreateClient(handler).GetRulesAsync();
+
+        Assert.NotEqual(OperateSectionStatus.Allowed, result.Status);
+        Assert.Null(result.Value);
+        Assert.DoesNotContain(handler.Requests, request => request.RequestUri!.AbsolutePath.Contains("/health", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -993,6 +1154,13 @@ public sealed class ConsoleOperateObservabilityClientTests
         Assert.Empty(investigation.LinkedAlertIds);
         Assert.Empty(investigation.LinkedJobRunIds);
     }
+
+    private static HttpResponseMessage ServicesResponse(params string[] names) => JsonResponse(
+        new ConsoleApiEnvelope<HonuaAdminServiceSummary[]>
+        {
+            Success = true,
+            Data = names.Select(name => new HonuaAdminServiceSummary { ServiceName = name }).ToArray()
+        }, OperateObservabilityJsonContext.Default.AdminServiceListEnvelope);
 
     private static HttpConsoleOperateObservabilityClient CreateClient(HttpMessageHandler handler)
     {
