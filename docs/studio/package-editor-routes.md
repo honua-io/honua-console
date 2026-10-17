@@ -1,13 +1,18 @@
 # Studio Package Editor Routes
 
-> **SHELVED (`studio-builders` capability).** These Console-native builder routes are gated OFF by
-> default and removed from navigation: "Studio" is now the realtime, SDK-driven app builder, which is
-> not a Console surface. Nothing here was deleted — every route below still resolves and renders an
-> explicit *shelved* state (`ConsoleStateView Kind="unsupported"`, kicker `Shelved`) until a
-> deployment advertises `studio-builders` through `Honua:Console:Capabilities` /
-> `HONUA_CONSOLE_CAPABILITIES`, at which point the editors return unchanged. `/studio/form`,
-> `/studio/form/import`, and `/studio/report` are NOT shelved. See
-> [`docs/console-route-map.md`](../console-route-map.md) for the full shelved/live split.
+> **Product direction — 2026-10-16:** the approval-first Console Studio builders
+> are legacy and targeted for removal. [Honua Studio](https://github.com/honua-io/honua-studio) is the realtime
+> conversational authoring experience. The shelved routes and re-enable switch
+> described below are an inventory of remaining code, not a recommendation to
+> restore the old experience. Retained package/style editors and existing
+> workflow drafts remain Console tools. Code retirement is still outstanding.
+
+> **Legacy implementation inventory.** The old builder routes below are gated
+> off by default and removed from navigation. Their current fallback is the
+> `Shelved` state. Code and the `studio-builders` override remain pending removal;
+> re-enabling them is not the current product direction. `/studio/form`,
+> `/studio/form/import`, and `/studio/report` remain Console tools. See the
+> [route map](../console-route-map.md) for the full implementation inventory.
 
 Status: implemented for the remaining `honua-console#39` editor routes. `/studio/form` is server-bound by `honua-console#57` and `/studio/analysis` is server-bound by `honua-console#53`; the other editor routes retain stable Console mock lifecycle refs.
 

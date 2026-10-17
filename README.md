@@ -7,45 +7,41 @@
 
 Honua Console is the unified web console — and the admin/UI home — for the
 [Honua](https://honua.io) geospatial platform. It is one Blazor web app that gives a
-[honua-server](https://github.com/honua-io/honua-server) deployment its authoring,
+[honua-server](https://github.com/honua-io/honua-server) deployment its administration,
 catalog, operations, and sharing surfaces from a single origin and a single
 deployable artifact. If you run honua-server and want a UI on top of it — as an
 evaluator, self-hoster, or contributor — this is the repo.
 
 | Surface | Route | What it covers |
 |---|---|---|
-| **Studio** _(shelved)_ | `/studio` | AI-assisted authoring of spatial queries, analyses, maps, dashboards, reports, forms, apps, and workflows. **Gated off by default** — see "Studio builders are shelved" below |
 | **Catalog** | `/catalog` | Data, layers, services, saved maps/dashboards/reports/forms/workflows, generated apps, metadata, and provenance |
 | **Operate** | `/operate` | Publishing, jobs, service configuration, identity, connectors, deployment health, observability, and runtime administration |
 | **Share** | `/share` | Public links, embeds, open-data pages, exports, and external publishing |
 
-All four resolve from the same Blazor Web host (`src/Honua.Console.Web`): one
+These areas resolve from the same Blazor Web host (`src/Honua.Console.Web`): one
 build, one deploy, one origin. Decision source:
 [ADR-0001: Unified Honua Console Runtime](docs/adr/0001-unified-honua-console-runtime.md).
 
 ## Status
 
 Pre-1.0 and under active development. Console is the convergence target that
-replaces the previous split Portal/Admin web path; all Honua admin and UI work
+replaces the previous split Portal/Admin web path; Honua administration UI work
 lands here. Honest signal on maturity:
 
 - **Server-bound by design.** Routes that need live data bind to honua-server
   and render an explicit *missing-binding* state when no server is configured —
   never mock data. In-memory demo shells are opt-in and test/demo-only.
-- **Studio builders are shelved.** The Console's non-realtime Studio builder
-  surfaces — Studio home and the inline authoring shell (`/studio`,
-  `/studio/proof`, `/studio/drafts`, `/studio/apps/:itemId/preview`), the map,
-  app, dashboard, analysis, and query builders, and the report/form/workflow
-  "from prompt" surfaces — are **gated off by default** and removed from the
-  navigation. "Studio" is now the realtime, SDK-driven app builder, which is not
-  a Console surface; the Console keeps its back-office roles. Nothing was
-  deleted: a shelved route renders an explicit *shelved* state, and setting
-  `HONUA_CONSOLE_CAPABILITIES=studio-builders` (or `Honua:Console:Capabilities`)
-  restores every surface unchanged. `/studio/form`, `/studio/form/import`,
-  `/studio/report`, `/studio/styles`, `/studio/automations`, and existing
-  workflow drafts at `/studio/workflows/:draftId` stay live — see
-  [Studio Package Editor Routes](docs/studio/package-editor-routes.md) and
-  [the route map](docs/console-route-map.md).
+- **Studio authoring has moved to realtime composition.**
+  [Honua Studio](https://github.com/honua-io/honua-studio) is the conversational,
+  SDK-driven map/app builder: ask, see the canvas change, refine, and undo/redo.
+  The old Console approval-first builders are legacy and targeted for removal,
+  not an alternate authoring mode. Their code and `studio-builders` switch still
+  exist and are disabled by default; removing them is outstanding implementation
+  work. Do not use the switch as an onboarding or recovery path.
+  `/studio/form`, `/studio/form/import`, `/studio/report`, `/studio/styles`,
+  `/studio/automations`, and existing workflow drafts at
+  `/studio/workflows/:draftId` remain Console package/editor tools. See the
+  [route map](docs/console-route-map.md) for the current implementation inventory.
 - **Realtime alerting is capability-gated preview.** Operate jobs and events
   are first-release floor; alert/geofence rule surfaces light up only when the
   bound server advertises the capability.

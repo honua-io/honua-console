@@ -1,5 +1,12 @@
 # Honua Console Route Map, RBAC, and Navigation
 
+> **Product direction — 2026-10-16:** the approval-first Console Studio builders
+> are legacy and targeted for removal. [Honua Studio](https://github.com/honua-io/honua-studio) is the realtime
+> conversational authoring experience. The shelved routes and re-enable switch
+> described below are an inventory of remaining code, not a recommendation to
+> restore the old experience. Retained package/style editors and existing
+> workflow drafts remain Console tools. Code retirement is still outstanding.
+
 Status: filed 2026-05-23 for `honua-console#3`; reconciled
 2026-05-24 for the catalog/share route slice in `honua-console#34`
 and native host profile/trust routes in `honua-console#44`; reconciled
@@ -150,19 +157,13 @@ routes. Path prefixes are frozen for downstream tickets:
 *                              404 NotFound
 ```
 
-> **SHELVED (`studio-builders` capability).** The Console's *non-realtime* Studio builder
-> surfaces are gated OFF by default and removed from navigation. "Studio" is now the
-> realtime, SDK-driven app builder, which is **not** a Console surface; the Console keeps
-> its back-office roles — Catalog, Operate, Share, support, and the publish/approval flows.
->
-> Shelved is not deleted. The pages, their services, and the generation clients in
-> `Honua.Console.Contracts` stay in the tree behind `ConsoleCapabilityKeys.StudioBuilders`
-> (`ConsoleCapabilityGate`, the same first-release capability-manifest seam used by the
-> deferred Operate depth surfaces). A shelved route renders the first-class
-> `ConsoleStateView Kind="unsupported"` state with the kicker `Shelved` — never a blank
-> page and never fabricated data — and the Studio area is hidden from the primary nav.
-> Re-enable a deployment with `Honua:Console:Capabilities` /
-> `HONUA_CONSOLE_CAPABILITIES` = `studio-builders`; every surface returns unchanged.
+> **Legacy implementation inventory.** The old Console builder pages are still
+> gated off by default and hidden from navigation. Their current fallback is a
+> `ConsoleStateView Kind="unsupported"` with the kicker `Shelved`.
+> `ConsoleCapabilityKeys.StudioBuilders` and its configuration override remain
+> in code pending removal. They must not be used to restore the old authoring
+> experience. Realtime authoring belongs in `honua-studio`; Console owns Catalog,
+> Operate, Share, support, and its retained package/style editors.
 >
 > Shelved routes: `/studio`, `/studio/proof`, `/studio/drafts`,
 > `/studio/apps/:itemId/preview` (all four resolve to the same `StudioPage` component),

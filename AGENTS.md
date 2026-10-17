@@ -2,18 +2,23 @@
 
 ## Overview
 
-Honua Console is the unified web surface for Honua, bringing four product areas into one
-Blazor deployment runtime:
+Honua Console is the administration web surface for Honua, with three active
+product areas in one Blazor deployment:
 
-- **Studio** (SHELVED): AI-assisted spatial query, analysis, map, dashboard, report, form, app, and workflow authoring/publishing. The non-realtime builder surfaces are gated OFF by default behind the `studio-builders` capability and hidden from navigation — "Studio" is now the realtime, SDK-driven app builder that lives outside this repo. See Conventions.
-- **Catalog**: data, layers, services, saved maps/dashboards/reports/forms/workflows, generated apps, metadata, provenance.
-- **Operate**: publishing, jobs, service config, identity, connectors, deployment health, observability, licensing, admin.
+- **Catalog**: data, layers, services, saved content, metadata, provenance.
+- **Operate**: publishing, jobs, service configuration, identity, connectors,
+  deployment health, observability, licensing, and administration.
 - **Share**: public links, embeds, open-data pages, exports, external publishing.
 
-`/studio`, `/catalog`, `/operate`, and `/share` all resolve from the same Blazor Web host
-(`src/Honua.Console.Web`). This repo is the migration target for porting `honua-portal` and
-`honua-server-admin` behavior; many feature paths bind to a live honua-server and otherwise
-render an explicit missing-binding state (see Conventions).
+**Studio means the realtime, SDK-driven conversational builder in `honua-studio`.**
+The former approval-first Console builders are legacy and targeted for removal.
+Their pages and `studio-builders` switch still exist, disabled by default; this
+is an implementation remainder, not a supported alternative product direction.
+Console retains package/style editors and existing workflow drafts under some
+`/studio/*` URLs; route names alone do not make them the realtime Studio app.
+
+This repo replaces `honua-portal` and `honua-server-admin`. Live server features
+render an explicit missing-binding state when no server is configured.
 
 ## Tech Stack
 
@@ -102,13 +107,14 @@ bindings activate only when a server base URL is configured.
 
 ## Conventions & Gotchas
 
-- **Studio builders are shelved, not deleted.** The Console's non-realtime Studio builder surfaces
-  (`/studio`, `/studio/proof`, `/studio/drafts`, `/studio/apps/:itemId/preview`, `/studio/map`,
-  `/studio/app`, `/studio/dashboard`, `/studio/analysis`, `/studio/query`, `/studio/report/ai`,
-  `/studio/form/ai`, `/studio/workflows/new`) are gated OFF by default behind
-  `ConsoleCapabilityKeys.StudioBuilders` and hidden from nav; they render an explicit "shelved"
-  `ConsoleStateView`. Re-enable with `Honua:Console:Capabilities` / `HONUA_CONSOLE_CAPABILITIES` =
-  `studio-builders`. Do not delete these pages/services/clients — the decision is reversible.
+- **Retire the legacy Console builders.** The product decision supersedes the former
+  "shelved, not deleted" rule. Do not restore or extend the approval-first builders
+  or recommend `studio-builders` as an onboarding path. Current code still gates
+  the legacy pages behind `ConsoleCapabilityKeys.StudioBuilders`; removing those
+  pages, their exclusive dependencies, and the re-enable switch is outstanding.
+  Preserve the retained package/style editors and existing workflow drafts unless
+  their replacement is explicitly in scope. Realtime authoring belongs in
+  `honua-studio`; publication and operational policy remain separate contracts.
 - **Missing-binding is a first-class state.** When no honua-server base URL is configured, live
   routes (Operate transition, Studio `/studio/form`, workflow editor, etc.) render an explicit
   missing-binding surface — never mock/seeded data. In-memory/demo shells are test/demo-only and
