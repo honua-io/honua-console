@@ -138,12 +138,19 @@ export class AgentWorkspace {
         const binding = { generation: this.contextGeneration, workspaceId: this.workspaceId, viewId: this.viewId,
             principalId: this.session?.principalId, environmentId: this.session?.environmentId };
         this.capturing = (this.capturing || 0) + 1;
+        const requireSameAuthority = () => {
+            if (binding.workspaceId !== this.workspaceId || binding.viewId !== this.viewId
+                || binding.principalId !== this.session?.principalId || binding.environmentId !== this.session?.environmentId)
+                throw new Error('The workspace authority changed while submitting. Reconnect before retrying.');
+        };
         const previous = this.queue;
         const capture = async () => {
             await previous;
+            requireSameAuthority();
             if (!this.context) throw new Error('Connect a workspace first.');
             if (prepareContext) {
                 const task = await prepareContext();
+                requireSameAuthority();
                 if (task !== undefined) {
                     const sameTask = this.context.task?.id === task?.id && this.context.task?.kind === task?.kind;
                     const acceptedLocalSave = !this.context.task && task?.kind === 'local-process-workspace'
@@ -162,6 +169,7 @@ export class AgentWorkspace {
                 await this.saveDraft();
                 this.context = await this.api(`${this.workspaceId}?viewId=${this.viewId}`);
             }
+            requireSameAuthority();
             return this.api(`${this.workspaceId}/turns`, 'POST', {
                 turnId: this.uuid(), viewId: this.viewId, contextRevision: this.context.revision, prompt
             });

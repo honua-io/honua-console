@@ -290,3 +290,15 @@ for(const changed of ['principalId','environmentId','workspaceId','viewId']) tes
     saved();await assert.rejects(turn,/changed while submitting/);
     assert.equal(calls.length,0);
 });
+
+test('a retained Studio task cannot lend a pending prompt to a changed principal',async()=>{
+    let saved;const pending=new Promise(resolve=>{saved=resolve;});let calls=0;
+    const workspace=client(async()=>{calls++;return response({});});
+    workspace.workspaceId='workspace';workspace.session={principalId:'original',environmentId:'environment'};
+    const task={kind:'studio-composition',id:'draft',revision:1,packageKey:'map'};
+    workspace.context={revision:3,targetId:'target',task};
+    const turn=workspace.submit('style this map',{prepareContext:async()=>{await pending;return {...task,revision:2};}});
+    await new Promise(resolve=>setImmediate(resolve));
+    workspace.session={...workspace.session,principalId:'different'};saved();
+    await assert.rejects(turn,/authority changed while submitting/);assert.equal(calls,0);
+});

@@ -141,7 +141,7 @@ async function mountProcesses() {
         builtin.client = new module.ServerProcessWorkspace(options);
         const custom = document.createElement('honua-studio-custom-processes');
         custom.client = new module.LocalProcessWorkspace({...options,workspaceId:()=>window.honuaAgentWorkspace?.workspaceId});
-        const view = processView = {builtin,custom,host,mode:'builtin'};
+        const view = processView = {builtin,custom,host,mode:'builtin',session};
         const workspace=window.honuaAgentWorkspace;
         if(workspace) {
             workspace.prepareContextProvider=()=> location.pathname === '/studio/processes' ? processContextPreparation() : undefined;
@@ -266,7 +266,9 @@ function processContextPreparation() {
     const expected=window.honuaAgentWorkspace?.context?.task;
     const mode=view?.mode,projectId=view?.localProjectId;
     const requireSameView=()=>{
-        if(processView!==view || !view?.host.isConnected || view.mode!==mode || location.pathname!=='/studio/processes')
+        const current=window.honuaAgentWorkspace?.session;
+        if(processView!==view || !view?.host.isConnected || view.mode!==mode || location.pathname!=='/studio/processes'
+            || current?.environmentId!==view.session.environmentId || current?.principalId!==view.session.principalId)
             throw new Error('The process view changed while submitting. Review the current view before retrying.');
     };
     return async()=> {
