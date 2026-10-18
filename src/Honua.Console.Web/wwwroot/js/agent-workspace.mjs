@@ -260,7 +260,7 @@ export function mountWorkspace() {
             const submitted = input.value;
             status.textContent = `Submitting for target ${workspace.context?.targetId || 'unbound'} · ${workspace.context?.task?.id || 'no task'}.`;
             const result = await workspace.submit(submitted); if(input.value === submitted) input.value = ''; await refresh();
-            status.textContent = result.executionUnavailable ? 'Message saved. Native agent session is not configured; external agents can continue this workspace.' : result.status === 'failed' || result.status === 'blocked' ? (result.errorMessage || `Agent turn ${result.status}.`) : 'Turn saved. Check operation receipts for completion.';
+            status.textContent = result.executionUnavailable ? 'Message saved. Native agent session is not configured; external agents can continue this workspace.' : ['error', 'refused', 'cancelled', 'failed', 'blocked'].includes(result.status) ? (result.errorMessage || `Agent turn ${result.status}.`) : 'Turn saved. Check operation receipts for completion.';
         } catch (error) { report(error); }
     });
     // Navigation publishes only typed selections. Never forward a URL, query, fragment or page contents.
