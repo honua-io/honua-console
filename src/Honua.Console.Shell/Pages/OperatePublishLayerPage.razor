@@ -6,7 +6,7 @@
 @inject NavigationManager Nav
 @inject IConsoleNotificationService Notifications
 
-<section class="console-page">
+<section class="console-page" data-workspace-publish-form>
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Publishing</p>
         <h1>Publish a layer</h1>
@@ -28,7 +28,7 @@
             <div class="studio-field-grid">
                 <label>
                     <span>Connection</span>
-                    <select class="console-input" aria-label="Connection" @bind="_connectionId" @bind:after="OnConnectionChanged">
+                    <select class="console-input" aria-label="Connection" data-workspace-field="connectionId" @bind="_connectionId" @bind:after="OnConnectionChanged">
                         <option value="">Select a connection…</option>
                         @foreach (var connection in _connections)
                         {
@@ -38,22 +38,22 @@
                 </label>
                 <label>
                     <span>Table</span>
-                    <select class="console-input" aria-label="Table" @bind="_tableKey" @bind:after="OnTableChanged" disabled="@(_tables.Count == 0)">
+                    <select class="console-input" aria-label="Table" data-workspace-field="table" @bind="_tableKey" @bind:after="OnTableChanged" disabled="@(_tables.Count == 0)">
                         <option value="">@(_loadingTables ? "Loading tables…" : _tables.Count == 0 ? "No publishable tables" : "Select a table…")</option>
                         @foreach (var table in _tables)
                         {
-                            <option value="@table.QualifiedName">@table.QualifiedName @(table.GeometryType is { } gt ? $"· {gt}" : "")</option>
+                            <option value="@table.QualifiedName" data-schema="@table.Schema" data-table="@table.Table">@table.QualifiedName @(table.GeometryType is { } gt ? $"· {gt}" : "")</option>
                         }
                     </select>
                 </label>
                 <label>
                     <span>Service name</span>
-                    <input class="console-input" @bind="_serviceName" @bind:event="oninput" @bind:after="ClearResult" placeholder="parcels-fs" />
+                    <input class="console-input" data-workspace-field="serviceName" @bind="_serviceName" @bind:event="oninput" @bind:after="ClearResult" placeholder="parcels-fs" />
                     <small class="console-muted">Use <code>folder/service</code> to nest under a folder.</small>
                 </label>
                 <label>
                     <span>Layer name</span>
-                    <input class="console-input" @bind="_layerName" @bind:event="oninput" @bind:after="ClearResult" placeholder="Parcels" />
+                    <input class="console-input" data-workspace-field="layerName" @bind="_layerName" @bind:event="oninput" @bind:after="ClearResult" placeholder="Parcels" />
                 </label>
             </div>
 
@@ -109,7 +109,7 @@
             }
 
             <div class="console-action-row">
-                <button class="console-button" type="button" disabled="@_busy" @onclick="PublishAsync">
+                <button class="console-button" type="button" disabled="@_busy" data-workspace-publish @onclick="PublishAsync">
                     @(_busy ? "Publishing…" : "Publish layer")
                 </button>
                 <a href="/operate/services">View services</a>

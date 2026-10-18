@@ -23,6 +23,10 @@ builder.Services.Configure<Microsoft.AspNetCore.SignalR.HubOptions>(options =>
 // OpenTelemetry traces + metrics for the console host (honua-console#279 PA-234). Default-safe: only
 // exports when OTEL_EXPORTER_OTLP_ENDPOINT is configured.
 builder.AddConsoleObservability();
+builder.Services.AddSingleton<AgentMcpSessions>();
+builder.Services.AddHttpClient("honua-agent-workspace").ConfigurePrimaryHttpMessageHandler(() =>
+    new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
+builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-Token");
 
 builder.Services.AddHonuaConsoleShell(
     builder.Configuration["Honua:Server:BaseUrl"] ?? builder.Configuration["HONUA_SERVER_BASE_URL"],
@@ -147,6 +151,10 @@ app.UseAntiforgery();
 // Anonymous sign-in / sign-out endpoints (the cookie LoginPath target).
 app.MapConsoleAuthEndpoints();
 app.MapConsoleServerSessionBff();
+app.MapAgentWorkspaceBff();
+app.MapAgentSessionBff();
+app.MapLocalProcessBff();
+app.MapStudioReadBff();
 
 // Static assets and the build-metadata probe are public (no operator identity required).
 app.MapStaticAssets().AllowAnonymous();

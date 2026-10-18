@@ -5,11 +5,23 @@
 @inject IStudioAuthoringShell AuthoringShell
 @inject NavigationManager Navigation
 @inject IConsoleCapabilityManifest Capabilities
+@inject IServiceProvider WorkspaceServices
 
 @* SHELVED (studio-builders capability). Studio home, the inline authoring shell, and the generated-app
    preview route all render this one component, so the whole page is gated: "Studio" is now the realtime,
    SDK-driven app builder, which lives outside the Console. Nothing was deleted — advertising
    studio-builders in Honua:Console:Capabilities / HONUA_CONSOLE_CAPABILITIES restores it unchanged. *@
+@if (EmbedEnabled)
+{
+    <section class="console-page" data-studio-embed>
+        <h1>Studio</h1>
+        <p><a href="/studio/processes">Open Processes</a></p>
+        <p role="status" data-studio-status>Connecting the realtime Studio workspace…</p>
+        <div data-studio-mount></div>
+    </section>
+}
+else
+{
 <ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.StudioBuilders"
                        Kicker="Shelved"
                        Title="Console Studio is shelved"
@@ -341,8 +353,11 @@ else
 </section>
 }
 </ConsoleCapabilityGate>
+}
 
 @code {
+    private bool EmbedEnabled => bool.TryParse(WorkspaceServices.GetService<Microsoft.Extensions.Configuration.IConfiguration>()?["Studio:EmbedJsStudio"], out var enabled) && enabled
+        && (IsHome || Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/') == "studio/drafts");
     private StudioAuthoringSession _session = StudioAuthoringSession.Empty;
     private bool _loading = true;
     private bool _busy;
@@ -386,7 +401,7 @@ else
     {
         // Shelved surface: ConsoleCapabilityGate renders the shelved state instead of Studio, so the
         // authoring shell session is never created and honua-server is never read.
-        if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders))
+        if (EmbedEnabled || !Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders))
         {
             _loading = false;
             return;

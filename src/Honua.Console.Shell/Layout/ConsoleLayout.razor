@@ -4,6 +4,7 @@
 @inject Honua.Console.Shell.Services.IConsoleHostCapabilities Host
 @inject Honua.Console.Shell.Services.IConsoleCapabilityManifest Capabilities
 @inject Honua.Console.Shell.Services.IConsoleProductMode ProductMode
+@inject IServiceProvider WorkspaceServices
 
 @* Every Console route needs a descriptive document title (WCAG 2.4.2). The shell owns it rather than
    each of the ~100 pages repeating one, and names the area the operator is in so tabs and screen
@@ -112,6 +113,19 @@
             </Authorized>
         </AuthorizeView>
         @Body
+        <details class="console-panel" data-agent-workspace>
+            <summary>Honua agent workspace</summary>
+            <p data-workspace-target>No workspace connected</p>
+            <label>Workspace shared with your agent <input class="console-input" data-workspace-id maxlength="128" /></label>
+            <button type="button" class="console-button" data-workspace-connect>Connect workspace</button>
+            <label><input type="checkbox" checked data-workspace-follow /> Follow proposed task views</label>
+            <div data-workspace-messages role="log" aria-label="Workspace conversation"></div>
+            <form>
+                <label>Message <textarea class="console-input" data-workspace-prompt maxlength="16000"></textarea></label>
+                <button class="console-button" type="submit">Send</button>
+            </form>
+            <p role="status" data-workspace-status>Connect the workspace registered with your external or native agent.</p>
+        </details>
     </main>
 
     @* Shell-owned toast surface — rendered once so every page raises notifications through
@@ -191,16 +205,15 @@
 
     private string ModeName => ProductMode.Mode.ToString().ToLowerInvariant();
 
-    // The Studio area is the Console's non-realtime builder entry, shelved behind the studio-builders
-    // capability: "Studio" is now the realtime, SDK-driven app builder that lives outside the Console.
-    // Hide it from the primary rail until advertised so the nav never links to a shelved surface; the
-    // route itself still renders the first-class shelved state if reached by URL. ConsoleRouteMap.Areas
-    // stays the canonical IA list (Charter/route-map source of truth) — visibility is a shell concern.
+    private bool RealtimeStudioEnabled => bool.TryParse(
+        WorkspaceServices.GetService<Microsoft.Extensions.Configuration.IConfiguration>()?["Studio:EmbedJsStudio"], out var enabled) && enabled;
+
+    // Realtime Studio has its own embed flag; the shelved Blazor builders keep their capability gate.
     private IEnumerable<ConsoleWorkflowArea> VisibleAreas =>
         ConsoleRouteMap.Areas.Where(area =>
-            ProductMode.ShowsArea(area.Id)
+            (ProductMode.ShowsArea(area.Id) || (RealtimeStudioEnabled && area.Id == "studio"))
             && (!string.Equals(area.Id, "studio", StringComparison.OrdinalIgnoreCase)
-                || Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders)));
+                || RealtimeStudioEnabled || Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders)));
 
     private static IEnumerable<(string Path, string Label, string Icon)> VisibleOperateSections =>
         OperateSections;

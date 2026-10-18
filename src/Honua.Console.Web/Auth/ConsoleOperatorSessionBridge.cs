@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
@@ -18,6 +20,8 @@ namespace Honua.Console.Web.Auth;
 /// only when no forwardable bearer exists (authenticated to the Console; privileged server requests
 /// require exchange/reauthentication).</item>
 /// </list>
+/// An explicitly enabled Development-only local bridge can exchange its independent host secret for
+/// a bounded human bearer bound to the configured server and cookie principal.
 /// When no environment profile is active (browser host first-run) there is nothing to bridge; the
 /// operator is still authenticated for routing and Family-A/B surfaces render their missing-binding
 /// state until an environment is connected.
@@ -27,15 +31,20 @@ public sealed class ConsoleOperatorSessionBridge
     private readonly IConsoleEnvironmentProfileStore _profiles;
     private readonly IConsoleAccountSessionStore _sessions;
     private readonly Uri? _edgeBearerServerBaseUri;
+    private readonly IConfiguration? _configuration;
+    private readonly IHostEnvironment? _environment;
+    private readonly IHttpClientFactory? _clients;
 
     public ConsoleOperatorSessionBridge(
         IConsoleEnvironmentProfileStore profiles,
         IConsoleAccountSessionStore sessions,
-        Uri? edgeBearerServerBaseUri = null)
+        Uri? edgeBearerServerBaseUri = null, IConfiguration? configuration = null,
+        IHostEnvironment? environment = null, IHttpClientFactory? clients = null)
     {
         _profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         _edgeBearerServerBaseUri = edgeBearerServerBaseUri;
+        _configuration = configuration; _environment = environment; _clients = clients;
     }
 
     public async Task SyncAsync(ClaimsPrincipal principal, CancellationToken cancellationToken = default)
@@ -114,6 +123,27 @@ public sealed class ConsoleOperatorSessionBridge
             else
             {
                 accessToken = ConsoleAuthConstants.SessionSentinelPrefix + profile.Id;
+            }
+        }
+
+        if ((ConsoleAuthConstants.IsSessionSentinel(accessToken) || accessTokenExpiresAt <= DateTimeOffset.UtcNow.AddMinutes(3)) && _environment?.IsDevelopment() == true &&
+            _configuration?["Honua:Console:Auth:Mode"] == "Dev" &&
+            principal.Identity?.AuthenticationType == ConsoleAuthConstants.CookieScheme &&
+            _configuration.GetValue<bool>("Honua:Console:Auth:LocalHumanBridge:Enabled") &&
+            IsSameOrigin(profile.ServerBaseUri, _edgeBearerServerBaseUri) && _clients is not null &&
+            _configuration["HONUA_LOCAL_HUMAN_BRIDGE_KEY"] is { Length: >= 32 } bridgeKey)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post,
+                new Uri(_edgeBearerServerBaseUri!, "api/v1/admin/auth/local-console-session"));
+            request.Headers.Add("X-Honua-Local-Bridge", bridgeKey);
+            request.Content = new StringContent("{\"subject\":" + JsonSerializer.Serialize(accountId) + "}", Encoding.UTF8, "application/json");
+            using var response = await _clients.CreateClient("honua-agent-workspace").SendAsync(request, cancellationToken).ConfigureAwait(false);
+            if (response.IsSuccessStatusCode)
+            {
+                using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+                var root = body.RootElement;
+                accessToken = root.GetProperty("accessToken").GetString() ?? accessToken;
+                accessTokenExpiresAt = root.GetProperty("expiresAt").GetDateTimeOffset();
             }
         }
 

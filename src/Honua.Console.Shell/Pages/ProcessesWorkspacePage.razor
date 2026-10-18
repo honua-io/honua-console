@@ -1,0 +1,23 @@
+@page "/studio/processes"
+@inject IServiceProvider WorkspaceServices
+
+@if (Enabled)
+{
+    <section class="console-page" data-processes-embed>
+        <h1>Processes</h1>
+        <p>Build a governed workflow or develop an isolated local Python or .NET process.</p>
+        <p role="status" data-processes-status>Connecting the process workspace…</p>
+        <div data-processes-builtin></div>
+        <div data-processes-custom></div>
+    </section>
+}
+else
+{
+    <ConsoleStateView Kind="unsupported" Kicker="Processes" Title="Realtime Studio is not enabled"
+                      Message="Enable the realtime Studio embed for this deployment to use the Processes workspace." />
+}
+
+@code {
+    private bool Enabled => bool.TryParse(
+        WorkspaceServices.GetService<Microsoft.Extensions.Configuration.IConfiguration>()?["Studio:EmbedJsStudio"], out var enabled) && enabled;
+}
