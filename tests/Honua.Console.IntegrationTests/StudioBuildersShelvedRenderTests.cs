@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using System.Reflection;
 using Bunit;
 using Honua.Console.Shell.Layout;
@@ -9,15 +10,9 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Honua.Console.IntegrationTests;
 
 /// <summary>
-/// Docker-free coverage for the SHELVED Console Studio builder surfaces.
-///
-/// Product decision: "Studio" is now the realtime, SDK-driven app builder, which is not a Console
-/// surface. The Console's non-realtime builders are shelved — gated OFF by default behind the
-/// <c>studio-builders</c> capability and removed from navigation — but NOT deleted. These tests pin
-/// both halves of that contract: with the capability unadvertised (the shipped default) every gated
-/// route renders the first-class shelved state instead of the builder, and the Studio area is absent
-/// from the primary rail; advertising the capability restores the surfaces unchanged (which the
-/// existing builder suites already cover through <see cref="ConsoleCapabilityTestManifest"/>).
+/// Retired product navigation stays retired regardless of the old builder capability.
+/// Unrouted migration components retain direct compatibility coverage; the actual
+/// realtime Studio entry is controlled by the embed configuration.
 /// </summary>
 public sealed class StudioBuildersShelvedRenderTests
 {
@@ -65,7 +60,7 @@ public sealed class StudioBuildersShelvedRenderTests
 
         var page = ctx.Render<StudioPage>();
 
-        AssertShelved(page.Markup, "Console Studio is shelved");
+        Assert.Single(page.FindAll("[data-studio-unavailable]"));
         Assert.DoesNotContain("studio-home", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Generated Package Families", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("studio-prompt-input", page.Markup, StringComparison.Ordinal);
@@ -176,8 +171,10 @@ public sealed class StudioBuildersShelvedRenderTests
         Assert.Contains("href=\"/share/public\"", layout.Markup, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void PrimaryNav_WhenStudioBuildersAdvertised_RestoresTheStudioArea()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PrimaryNav_LegacyFlagCannotRestoreBuilders_AndRealtimeEmbedRemainsAvailable(bool embedEnabled)
     {
         using var ctx = new BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -188,9 +185,13 @@ public sealed class StudioBuildersShelvedRenderTests
             new ConfiguredConsoleProductMode(ConsoleProductMode.Full));
 
         ctx.AddAuthorization().SetAuthorized("synthetic-operator");
+        ctx.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?> { ["Studio:EmbedJsStudio"] = embedEnabled.ToString() }).Build());
         var layout = ctx.Render<ConsoleLayout>();
 
-        Assert.Contains("href=\"/studio\"", layout.Markup, StringComparison.Ordinal);
+        Assert.Equal(embedEnabled, layout.Markup.Contains("href=\"/studio\"", StringComparison.Ordinal));
+        Assert.DoesNotContain("href=\"/studio/map\"", layout.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=\"/studio/query\"", layout.Markup, StringComparison.Ordinal);
     }
 
     [Fact]

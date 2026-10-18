@@ -6,22 +6,10 @@
 
 <section class="console-page">
     <div class="console-page-heading">
-        <p class="console-kicker">Native host configuration</p>
-        <h1>Environment Profiles</h1>
-        <p>Manage multiple Honua Server environments. Each profile keeps its own server URL, account/RBAC binding, transport capabilities, mTLS certificate reference, trust state, and per-environment resume state.</p>
+        <p class="console-kicker">Workspace settings</p>
+        <h1>Environments</h1>
+        <p>Choose the Honua Server you want to work with. Each environment keeps its own connection and saved workspace.</p>
     </div>
-
-    @if (!Host.SupportsNativeTransports)
-    {
-        <article class="console-panel console-state-info" role="note">
-            <h2>Connect over HTTPS in this browser Console</h2>
-            <p class="console-muted">
-                This browser Console connects to a Honua Server over HTTPS and realtime transports. Native gRPC,
-                native mTLS, certificate selection, connect/disconnect, and server trust validation are added by
-                the optional desktop (MAUI) Console host.
-            </p>
-        </article>
-    }
 
     <div class="console-toolbar">
         <a class="console-button" href="/environments/new">@(Host.SupportsNativeTransports ? "Add Environment" : "Connect to a server")</a>
@@ -39,7 +27,7 @@
             else
             {
                 <h2>Connect to your first server</h2>
-                <p class="console-muted">No environment profiles exist yet. Point this Console at your Honua Server over HTTPS and bind an account to sign in and start working.</p>
+                <p class="console-muted">Add your server address, then sign in to access your data and maps.</p>
                 <a class="console-button" href="/environments/new">Connect to a server</a>
             }
         </article>
@@ -61,7 +49,10 @@
                             <h2>@profile.DisplayName</h2>
                         </div>
                         <div class="console-chip-row">
-                            <EnvironmentTrustBadge State="state" />
+                            @if (Host.SupportsNativeTransports || state?.Trust is not null || state?.TrustBlocked == true)
+                            {
+                                <EnvironmentTrustBadge State="state" />
+                            }
                             @if (isActive)
                             {
                                 <span class="console-status">Active</span>
@@ -77,17 +68,32 @@
                     <dl class="console-definition-list">
                         <dt>Server</dt>
                         <dd>@profile.ServerBaseUri</dd>
-                        <dt>Tenant</dt>
-                        <dd>@profile.TenantId</dd>
-                        <dt>Account model</dt>
-                        <dd>@profile.Account.AuthMode</dd>
-                        <dt>Certificate</dt>
-                        <dd>@FormatCertificate(profile)</dd>
-                        <dt>Last connected</dt>
+                        <dt>Last used</dt>
                         <dd>@FormatLastConnected(state, isActive)</dd>
                     </dl>
 
-                    <EnvironmentTransportIndicators Profile="profile" NativeAvailable="Host.SupportsNativeTransports" />
+                    <details class="console-connection-details">
+                        <summary>Connection details</summary>
+                        <dl class="console-definition-list">
+                            @if (!string.IsNullOrWhiteSpace(profile.TenantId))
+                            {
+                                <dt>Tenant</dt>
+                                <dd>@profile.TenantId</dd>
+                            }
+                            <dt>Access method</dt>
+                            <dd>@(profile.Account.AuthMode == ConsoleAccountAuthMode.AccountRbac ? "Account sign-in" : profile.Account.AuthMode.ToString())</dd>
+                            @if (Host.SupportsNativeTransports || profile.ClientCertificate.Enabled)
+                            {
+                                <dt>Certificate</dt>
+                                <dd>@FormatCertificate(profile)</dd>
+                            }
+                        </dl>
+                        <EnvironmentTransportIndicators Profile="profile" NativeAvailable="Host.SupportsNativeTransports" />
+                        @if (!Host.SupportsNativeTransports)
+                        {
+                            <p class="console-muted" data-native-only-note>Certificate and native transport settings are managed in the desktop Console.</p>
+                        }
+                    </details>
 
                     @if (state?.TrustBlocked == true)
                     {
@@ -131,11 +137,10 @@
                                dead end: it binds and uses the ACTIVE profile automatically over HTTPS. State the
                                browser-user path (Use Environment activates a profile) and where the native-only
                                actions live, instead of a bare disabled "Connect" (honua-console#313). *@
-                            <span class="console-status console-state-info" data-native-only-note>Native connect &amp; trust validation · desktop Console only</span>
                             <span class="console-muted" data-browser-alt-note>
                                 @(isActive
-                                    ? "This browser Console already uses this active profile automatically for catalog, data, and operate reads over HTTPS."
-                                    : "Use Environment makes this the active profile; the browser Console then uses it automatically over HTTPS.")
+                                    ? "Selected for this browser session. Server access depends on your sign-in and permissions."
+                                    : "Select this environment to use it in Console.")
                             </span>
                         }
                         <a href="@($"/environments/{profile.Id}")">Diagnostics</a>
@@ -261,11 +266,8 @@
         return reference is null ? "Client certificate bound" : $"{reference.Kind}: {reference.Value}";
     }
 
-    // "Last connected" must reflect actual live use, not just an explicit native connect (honua-console#313).
-    // A recorded connect timestamp always wins. Otherwise the ACTIVE profile on the browser host is the one
-    // Console binds and serves HTTP features (catalog / data / operate) with automatically — there is no
-    // separate connect step there — so "never" misrepresents it; it is live right now. A non-active profile
-    // (or a native profile never connected) genuinely reads "never".
+    // A selected browser profile is not evidence of a successful server connection.
+    // Prefer a recorded connection timestamp; otherwise describe selection only.
     private string FormatLastConnected(ConsoleEnvironmentState? state, bool isActive)
     {
         if (state?.LastConnectedAt is { } connectedAt)
@@ -273,6 +275,6 @@
             return connectedAt.ToString("yyyy-MM-dd HH:mm 'UTC'");
         }
 
-        return isActive && !Host.SupportsNativeTransports ? "In use now · this browser session" : "never";
+        return isActive && !Host.SupportsNativeTransports ? "Selected in this browser session" : "never";
     }
 }

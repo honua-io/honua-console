@@ -18,7 +18,14 @@
     @if (FilteredNodes.Count == 0)
     {
         <p class="console-muted" data-tree-empty>
-            No resources yet. <a href="/operate/data/new">Add data</a> — it becomes a resource you can publish.
+            @if (Nodes.Count > 0)
+            {
+                <span>No resources match this filter.</span> <button type="button" class="console-button console-button-secondary" @onclick="() => _filter = string.Empty">Clear filter</button>
+            }
+            else
+            {
+                <span>No resources yet.</span> <a href="/operate/data/new">Add data</a><span> — it becomes a resource you can publish.</span>
+            }
         </p>
     }
     else

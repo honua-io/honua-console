@@ -1,0 +1,40 @@
+@using Honua.Console.Shell.Models
+
+@if (States.Count > 0 || !string.IsNullOrWhiteSpace(Error))
+{
+    <article class="console-panel console-state-warning" role="alert" data-connection-notice>
+        <h2>@StatusHeading</h2>
+        <p>@StatusMessage</p>
+        <div class="console-action-row">
+            <a class="console-button-link" href="@ActionHref">@ActionLabel</a>
+            @if (OnRetry.HasDelegate)
+            {
+                <button type="button" class="console-button console-button-secondary" @onclick="OnRetry" disabled="@Busy">@(Busy ? "Reading…" : "Try again")</button>
+            }
+        </div>
+        <details><summary>Connection details</summary>
+            @if (!string.IsNullOrWhiteSpace(Error)) { <p>@Error</p> }
+            @foreach (var state in States.DistinctBy(state => state.Detail))
+            {
+                <p>@state.Surface: @state.Detail</p>
+            }
+        </details>
+    </article>
+}
+
+@code {
+    private string StateText => string.Join(" ", States.Select(state => state.State)).ToLowerInvariant();
+    private bool Forbidden => !SignIn && (States.Any(state => state.StatusCode == 403) || StateText.Contains("forbidden") || StateText.Contains("denied") || StateText.Contains("missing permission"));
+    private bool SignIn => States.Any(state => state.StatusCode == 401) || StateText.Contains("unauthorized") || StateText.Contains("unauthenticated");
+    private bool Missing => StateText.Contains("missing binding") || StateText.Contains("binding") || StateText.Contains("unconfigured");
+    private bool Unsupported => StateText.Contains("unsupported") && !Missing;
+    private string StatusHeading => Forbidden ? "Access to these resources was denied" : SignIn ? "Sign in to read this environment" : Missing ? "Connect an environment to continue" : Unsupported ? "This feature is unavailable on this deployment" : Heading;
+    private string StatusMessage => Forbidden ? "Ask your deployment administrator for the required access, or select an environment you can use." : SignIn ? "Your sign-in is missing or expired. Sign in again before reading data." : Missing ? "Select or configure your deployment before reading its data." : Unsupported ? "Check the deployment capabilities or choose a supported environment." : "The request did not complete. Check the connection and try again. Your data has not been confirmed empty.";
+    private string ActionHref => SignIn ? "/auth/login" : "/environments";
+    private string ActionLabel => SignIn ? "Sign in" : Forbidden ? "Choose environment" : Missing ? "Connect environment" : "Review connection";
+    [Parameter] public string Heading { get; set; } = "Could not read this environment";
+    [Parameter] public IReadOnlyList<OperateCapabilityState> States { get; set; } = [];
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public EventCallback OnRetry { get; set; }
+}

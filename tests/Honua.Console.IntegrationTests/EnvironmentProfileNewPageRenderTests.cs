@@ -39,13 +39,13 @@ public sealed class EnvironmentProfileNewPageRenderTests
         var page = Render();
 
         page.WaitForAssertion(
-            () => Assert.NotNull(page.Find("input[placeholder='Honua Production']")),
+            () => Assert.NotNull(page.Find("#environment-display-name")),
             TimeSpan.FromSeconds(5));
 
         // Server URL defaults to "https://" (no host) and display name is blank, so the form gates initially
         // only after an edit triggers validation. Fill a valid form -> Create enabled.
-        page.Find("input[placeholder='Honua Production']").Change("Honua Prod");
-        page.Find("input[placeholder='https://prod.honua.example']").Change("https://prod.honua.example");
+        page.Find("#environment-display-name").Change("Honua Prod");
+        page.Find("#environment-server-url").Change("https://prod.honua.example");
 
         page.WaitForAssertion(
             () => Assert.False(FindCreateButton(page).HasAttribute("disabled")),
@@ -58,11 +58,11 @@ public sealed class EnvironmentProfileNewPageRenderTests
         var page = Render();
 
         page.WaitForAssertion(
-            () => Assert.NotNull(page.Find("input[placeholder='Honua Production']")),
+            () => Assert.NotNull(page.Find("#environment-display-name")),
             TimeSpan.FromSeconds(5));
 
-        page.Find("input[placeholder='Honua Production']").Change("Honua Prod");
-        page.Find("input[placeholder='https://prod.honua.example']").Change("http://insecure.example");
+        page.Find("#environment-display-name").Change("Honua Prod");
+        page.Find("#environment-server-url").Change("http://insecure.example");
 
         page.WaitForAssertion(
             () => Assert.Contains("Server URL must be an absolute https URL", page.Markup, StringComparison.Ordinal),
@@ -80,8 +80,8 @@ public sealed class EnvironmentProfileNewPageRenderTests
             () => Assert.NotNull(page.Find("#native-mtls")),
             TimeSpan.FromSeconds(5));
 
-        page.Find("input[placeholder='Honua Production']").Change("Honua Prod");
-        page.Find("input[placeholder='https://prod.honua.example']").Change("https://prod.honua.example");
+        page.Find("#environment-display-name").Change("Honua Prod");
+        page.Find("#environment-server-url").Change("https://prod.honua.example");
         page.Find("#native-mtls").Change(true);
 
         page.WaitForAssertion(
@@ -104,10 +104,10 @@ public sealed class EnvironmentProfileNewPageRenderTests
         // The web-host first-run path is no longer a "runs on the desktop host" dead-end: the connect form
         // renders with the core fields, and the action reads "Connect and continue".
         page.WaitForAssertion(
-            () => Assert.NotNull(page.Find("input[placeholder='Honua Production']")),
+            () => Assert.NotNull(page.Find("#environment-display-name")),
             TimeSpan.FromSeconds(5));
         Assert.DoesNotContain("runs on the desktop host", page.Markup, StringComparison.Ordinal);
-        Assert.NotNull(page.Find("input[placeholder='https://prod.honua.example']"));
+        Assert.NotNull(page.Find("#environment-server-url"));
 
         // Native gRPC / mTLS / certificate selection are desktop-host only and must not render on the browser.
         Assert.Empty(page.FindAll("#native-mtls"));
@@ -127,11 +127,11 @@ public sealed class EnvironmentProfileNewPageRenderTests
         var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
 
         page.WaitForAssertion(
-            () => Assert.NotNull(page.Find("input[placeholder='Honua Production']")),
+            () => Assert.NotNull(page.Find("#environment-display-name")),
             TimeSpan.FromSeconds(5));
 
-        page.Find("input[placeholder='Honua Production']").Change("Acme Server");
-        page.Find("input[placeholder='https://prod.honua.example']").Change("https://gis.acme.example");
+        page.Find("#environment-display-name").Change("Acme Server");
+        page.Find("#environment-server-url").Change("https://gis.acme.example");
 
         var connect = page.FindAll("button").First(b => b.TextContent.Contains("Connect and continue", StringComparison.Ordinal));
         page.WaitForAssertion(() => Assert.False(connect.HasAttribute("disabled")), TimeSpan.FromSeconds(5));

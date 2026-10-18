@@ -21,7 +21,13 @@
         </div>
     </div>
 
-    <OperateCapabilityStateList States="@_states" />
+    @if (!_loaded)
+    {
+        <p role="status">Reading resources…</p>
+    }
+    <ConsoleConnectionNotice Heading="Could not read all resources" States="_states" Error="@_loadError" OnRetry="LoadAsync" Busy="@(!_loaded)" />
+    @if (_loaded && (_states.Count == 0 && _loadError is null || _nodes.Count > 0))
+    {
 
     <div class="operate-data-page__split">
         <ResourcePublicationsTree Nodes="@_nodes"
@@ -32,6 +38,7 @@
                           Protocols="@_previewProtocols"
                           OnProtocolSelected="OnPreviewProtocolChanged" />
     </div>
+    }
 </section>
 
 @code {
@@ -44,8 +51,22 @@
     private IReadOnlyList<LayerPreviewPane.PreviewSelection> _previewProtocols = [];
     private ResourceTreeNode? _selectedResource;
 
-    protected override async Task OnInitializedAsync()
+    private bool _loaded;
+    private string? _loadError;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
     {
+        _loaded = false;
+        _loadError = null;
+        _nodes = [];
+        _states = [];
+        _preview = null;
+        _previewProtocols = [];
+        _selectedResource = null;
+        try
+        {
         var resourcesView = await OperateData.GetResourcesViewAsync();
         var servicesView = await OperateData.GetServicesViewAsync();
 
@@ -62,6 +83,12 @@
                 SetPreviewFromResource(node, node.Publications[0]);
             }
         }
+        }
+        catch (Exception)
+        {
+            _loadError = "The resource request did not complete. Check the connection and try again.";
+        }
+        finally { _loaded = true; }
     }
 
     private void OnResourceSelected(ResourceTreeNode node) => _selectedResource = node;

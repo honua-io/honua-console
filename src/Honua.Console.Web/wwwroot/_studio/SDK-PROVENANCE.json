@@ -1,0 +1,9 @@
+{
+  "releaseQualified": false,
+  "kind": "review-artifact",
+  "version": "0.2.3",
+  "sourceCommit": "da4003fe2",
+  "packageSourceCommit": "4582b47db",
+  "tarballSha256": "306596b48f96291df65b54da8d7db24cf5d3c8edd6942e8424b53728dde6e8fa",
+  "sessionSha256": "6a648853c7343515b19c2ce652882f97e5a38dc4fb38da9412164cce49efc470"
+}

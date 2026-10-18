@@ -16,12 +16,12 @@ test('share degrades into an explicit missing-binding state, not a crash', async
   await expect(page.getByText('Share is not bound to honua-server')).toBeVisible();
 });
 
-test('studio map builder renders the missing-binding surface', async ({ page }) => {
+test('retired Studio builder route cannot restore the legacy product', async ({ page }) => {
   await page.goto('/studio/map', { waitUntil: 'domcontentloaded' });
 
-  // The map-package lifecycle is not bound — the surface states this rather than crashing.
-  await expect(page.getByRole('heading', { name: 'Map package lifecycle is not bound' })).toBeVisible();
-  await expect(page.locator('.console-state-error, .console-state-missing').first()).toBeVisible();
+  await expect(page.locator('[data-legacy-studio-retired]')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open Studio workspace' })).toHaveAttribute('href', '/studio');
+  await expect(page.locator('[data-map-builder], [data-authoring-contract]')).toHaveCount(0);
 });
 
 // Publishing and Esri import were the two surfaces this spec was written for and never covered.
@@ -35,11 +35,13 @@ test('studio map builder renders the missing-binding surface', async ({ page }) 
 //
 // Any route that claims a server binding must therefore prove it degrades here, not merely return 200.
 
-test('publishing workspace reports no bound services instead of a seeded service tree', async ({ page }) => {
+test('publishing workspace reports a connection failure without claiming an empty service tree', async ({ page }) => {
   await page.goto('/operate/publishing', { waitUntil: 'domcontentloaded' });
 
-  // The service picker states that nothing is bound, and offers no rows to pick.
-  await expect(page.locator('[data-publish-tree-empty]')).toBeVisible();
+  // A failed read is not evidence of an empty service catalog.
+  await expect(page.locator('[data-connection-notice]')).toHaveCount(1);
+  await expect(page.locator('[data-connection-notice]')).toBeVisible();
+  await expect(page.locator('[data-publish-tree-empty]')).toHaveCount(0);
   await expect(page.locator('[data-publish-tree-row]')).toHaveCount(0);
 
   // The retired fixtures must not reappear on any deployment, bound or not.

@@ -12,6 +12,22 @@ internal sealed class AgentMcpSessions
     private readonly ConcurrentDictionary<(string Operator, string Profile, string Workspace), (string Id, DateTimeOffset Expires)> _sessions = new();
     public string? Get((string Operator, string Profile, string Workspace) partition) => _sessions.TryGetValue(partition, out var value)
         && value.Expires > DateTimeOffset.UtcNow ? value.Id : null;
+    public string? ForRequest((string Operator, string Profile, string Workspace) partition, byte[] body)
+    {
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(body);
+            if (document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                && document.RootElement.TryGetProperty("method", out var method)
+                && method.ValueKind == System.Text.Json.JsonValueKind.String && method.GetString() == "initialize")
+            {
+                _sessions.TryRemove(partition, out _);
+                return null;
+            }
+        }
+        catch (System.Text.Json.JsonException) { /* The canonical upstream validates malformed requests. */ }
+        return Get(partition);
+    }
     public void Put((string Operator, string Profile, string Workspace) partition, string id)
     {
         foreach (var item in _sessions.Where(item => item.Value.Expires <= DateTimeOffset.UtcNow))
@@ -27,8 +43,8 @@ internal sealed class AgentMcpSessions
 
 internal static class AgentSessionBff
 {
-    internal static bool MatchesSessionPartition(Microsoft.Extensions.Primitives.StringValues partition, string operatorKey, string profileId) =>
-        partition.Count == 1 && string.Equals(partition[0], AgentGatewayBinding.OperatorPartition(operatorKey, profileId), StringComparison.Ordinal);
+    internal static bool MatchesSessionPartition(Microsoft.Extensions.Primitives.StringValues partition, string operatorKey, string profileId, Uri? serverBase = null) =>
+        partition.Count == 1 && string.Equals(partition[0], AgentGatewayBinding.OperatorPartition(operatorKey, profileId, serverBase), StringComparison.Ordinal);
 
     internal static async Task<string> ReadBoundedJsonAsync(HttpContent content, CancellationToken cancellationToken)
     {
@@ -74,7 +90,7 @@ internal static class AgentSessionBff
             // environment while this captured turn was running. Never borrow the new profile.
             var profile = await profiles.GetProfileAsync(environmentId, cancellationToken);
             if (profile is null) { return Results.StatusCode(403); }
-            if (!MatchesSessionPartition(context.Request.Headers["X-Honua-Session-Partition"], operators.RequireOperatorKey(), profile.Id))
+            if (!MatchesSessionPartition(context.Request.Headers["X-Honua-Session-Partition"], operators.RequireOperatorKey(), profile.Id, profile.ServerBaseUri))
             { return Results.StatusCode(403); }
             var configuredServer = configuration["HONUA_AGENT_SERVER_BASE_URL"]
                 ?? configuration["Honua:Server:BaseUrl"] ?? configuration["HONUA_SERVER_BASE_URL"];
@@ -121,14 +137,14 @@ internal static class AgentSessionBff
                         _ => "api/v1/studio/ai/chat"
                     }));
                 var operatorKey = operators.RequireOperatorKey();
-                var operatorPartition = AgentGatewayBinding.OperatorPartition(operatorKey, profile.Id);
+                var operatorPartition = AgentGatewayBinding.OperatorPartition(operatorKey, profile.Id, profile.ServerBaseUri);
                 if (endpoint == "mcp" && gateway is not null)
                 {
                     request.RequestUri = new Uri(gateway.BaseUri, "mcp");
                     gateway.Bind(request, operatorPartition);
                 }
-                var partition = (operatorKey, profile.Id, workspaceId);
-                if (endpoint == "mcp" && mcpSessions.Get(partition) is { } mcpSession)
+                var partition = (operatorPartition, profile.Id, workspaceId);
+                if (endpoint == "mcp" && mcpSessions.ForRequest(partition, buffer.ToArray()) is { } mcpSession)
                 {
                     request.Headers.Add("Mcp-Session-Id", mcpSession);
                 }

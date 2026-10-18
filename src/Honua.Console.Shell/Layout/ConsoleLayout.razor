@@ -33,27 +33,27 @@
         </div>
 
         <nav class="console-nav" aria-label="Primary">
-            @* The approval inbox (#193) is the human-in-the-loop centerpiece: the GIS
-               department's work queue. It is a top-level surface, not Operate-scoped. *@
-            <NavLink href="/inbox" Match="NavLinkMatch.Prefix" title="Approval inbox">
-                <span class="console-nav-icon">@Icon("inbox")</span>
-                <span class="console-nav-label">
-                    <span>Inbox</span>
-                    <small>Approvals</small>
-                </span>
-            </NavLink>
-            @foreach (var area in VisibleAreas)
+            <NavLink href="/" Match="NavLinkMatch.All" title="Home"><span class="console-nav-icon">@Icon("environments")</span><span class="console-nav-label">Home</span></NavLink>
+            <NavLink href="/operate/data" title="Data &amp; Layers"><span class="console-nav-icon">@Icon("layers")</span><span class="console-nav-label">Data &amp; Layers</span></NavLink>
+            @if (RealtimeStudioEnabled)
             {
-                <NavLink href="@area.Path" Match="NavLinkMatch.Prefix" title="@area.Name">
-                    <span class="console-nav-icon">@Icon(area.Name)</span>
-                    <span class="console-nav-label">
-                        <span>@area.Name</span>
-                        <small>@area.WorkflowBoundary</small>
-                    </span>
-                </NavLink>
+                <NavLink href="/studio" title="Studio"><span class="console-nav-icon">@Icon("studio")</span><span class="console-nav-label">Maps &amp; apps</span></NavLink>
             }
+            @if (RealtimeStudioEnabled)
+            {
+                <NavLink href="/studio/processes" title="Processes"><span class="console-nav-icon">@Icon("geoprocessing")</span><span class="console-nav-label">Processes</span></NavLink>
+            }
+            <NavLink href="/inbox" title="Approval inbox"><span class="console-nav-icon">@Icon("inbox")</span><span class="console-nav-label">Approvals</span></NavLink>
+            <NavLink href="/operate/observability" title="Activity"><span class="console-nav-icon">@Icon("observability")</span><span class="console-nav-label">Activity</span></NavLink>
         </nav>
-
+        <details class="console-more-tools">
+            <summary>More tools</summary>
+            <nav class="console-nav console-nav-secondary" aria-label="All work areas">
+                @foreach (var area in VisibleAreas)
+                {
+                    <NavLink href="@area.Path" title="@area.Name"><span class="console-nav-icon">@Icon(area.Name)</span><span class="console-nav-label">@area.Name</span></NavLink>
+                }
+            </nav>
         @if (ShowOperateNavigation)
         {
             <nav class="console-nav console-nav-secondary" aria-label="Operate sections">
@@ -71,6 +71,8 @@
                 }
             </nav>
         }
+
+        </details>
 
         @if (!ProductMode.IsWitness)
         {
@@ -100,6 +102,19 @@
         </nav>
     </aside>
 
+    <div class="console-workspace">
+        <header class="console-workspace-toolbar">
+            <nav aria-label="Workspace views">
+                <NavLink href="/operate/data">Console</NavLink>
+                @if (RealtimeStudioEnabled)
+                {
+                    <NavLink href="/studio" Match="NavLinkMatch.All">Studio</NavLink>
+                    <NavLink href="/studio/processes">Processes</NavLink>
+                }
+            </nav>
+            <a href="/environments" data-workspace-header-target>Choose an environment</a>
+        </header>
+        <div class="console-workspace-panes">
     <main class="console-main">
         @if (!ConsolePresentation.IsFocusedRoute(Navigation.ToBaseRelativePath(Navigation.Uri)))
         {
@@ -113,20 +128,33 @@
             </Authorized>
         </AuthorizeView>
         @Body
-        <details class="console-panel" data-agent-workspace>
-            <summary>Honua agent workspace</summary>
-            <p data-workspace-target>No workspace connected</p>
-            <label>Workspace shared with your agent <input class="console-input" data-workspace-id maxlength="128" /></label>
-            <button type="button" class="console-button" data-workspace-connect>Connect workspace</button>
+    </main>
+        <details class="console-panel console-conversation" data-agent-workspace>
+            <summary>Conversation</summary>
+            <p data-workspace-target>Start a conversation in your selected environment.</p>
+            <button type="button" class="console-button" data-workspace-start>Start conversation</button>
+            <details class="console-conversation-connection">
+                <summary>Join an existing workspace</summary>
+                <label>Workspace ID <input class="console-input" data-workspace-id maxlength="128" /></label>
+                <button type="button" class="console-button" data-workspace-connect>Connect workspace</button>
+                <p class="console-muted">Use the workspace ID shared by your agent.</p>
+            </details>
+            <details class="console-conversation-handoff">
+            <summary>Continue with an external agent</summary>
+            <button type="button" class="console-button console-button-secondary" data-workspace-copy-context>Copy context for my agent</button>
+            <p class="console-muted">Share this tab's context with your external agent. If you change the selected task, copy a new reference.</p>
+            <pre data-workspace-context-reference hidden></pre>
+            </details>
             <label><input type="checkbox" checked data-workspace-follow /> Follow proposed task views</label>
             <div data-workspace-messages role="log" aria-label="Workspace conversation"></div>
             <form>
                 <label>Message <textarea class="console-input" data-workspace-prompt maxlength="16000"></textarea></label>
                 <button class="console-button" type="submit">Send</button>
             </form>
-            <p role="status" data-workspace-status>Connect the workspace registered with your external or native agent.</p>
+            <p role="status" data-workspace-status>Start a conversation, or join an existing workspace.</p>
         </details>
-    </main>
+        </div>
+    </div>
 
     @* Shell-owned toast surface — rendered once so every page raises notifications through
        IConsoleNotificationService instead of inventing its own inline status. *@
@@ -208,12 +236,12 @@
     private bool RealtimeStudioEnabled => bool.TryParse(
         WorkspaceServices.GetService<Microsoft.Extensions.Configuration.IConfiguration>()?["Studio:EmbedJsStudio"], out var enabled) && enabled;
 
-    // Realtime Studio has its own embed flag; the shelved Blazor builders keep their capability gate.
+    // Only the realtime editor is a Studio product entry. Legacy capability flags cannot restore it.
     private IEnumerable<ConsoleWorkflowArea> VisibleAreas =>
         ConsoleRouteMap.Areas.Where(area =>
             (ProductMode.ShowsArea(area.Id) || (RealtimeStudioEnabled && area.Id == "studio"))
             && (!string.Equals(area.Id, "studio", StringComparison.OrdinalIgnoreCase)
-                || RealtimeStudioEnabled || Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders)));
+                || RealtimeStudioEnabled));
 
     private static IEnumerable<(string Path, string Label, string Icon)> VisibleOperateSections =>
         OperateSections;

@@ -12,7 +12,7 @@ describe("Console container publication contract", () => {
 
     assert.match(
       dockerfile,
-      /^FROM mcr\.microsoft\.com\/dotnet\/aspnet:10\.0@sha256:[0-9a-f]{64}$/m,
+      /^FROM mcr\.microsoft\.com\/dotnet\/aspnet:10\.0\.13@sha256:d5633778c754e89a386882eddf8dbee6942447a8a4b8267c19cf1e1158d0b0ac$/m,
     );
     assert.match(dockerfile, /COPY --chown=app:app artifacts\/honua-console-web\/ \.\//);
     assert.match(dockerfile, /^USER app$/m);

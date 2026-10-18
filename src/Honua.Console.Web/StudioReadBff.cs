@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Honua.Console.Shell.Services;
 using Honua.Console.Web.Auth;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Http.Features;
 
 namespace Honua.Console.Web;
 
@@ -34,29 +35,45 @@ internal static class StudioReadBff
         });
         app.MapGet("/api/studio/data/ogc/features/collections/{collectionId}/items", async (HttpContext context, string collectionId, CancellationToken token) =>
         {
+            if (!IsCanonicalReadPath(context.Features.Get<IHttpRequestFeature>()?.RawTarget)) return Results.BadRequest();
             var path = OgcReadPath(collectionId, context.Request.Query);
             return path is null ? Results.BadRequest() : await SendAsync(context, path, null, token);
         });
         app.MapGet("/api/studio/data/rest/services/{**path}", async (HttpContext context, string? path, CancellationToken token) =>
         {
-            if (path is null || !Regex.IsMatch(path, @"\A(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)+FeatureServer/[0-9]{1,9}/query\z")
-                || path.Split('/').Any(part => part is "." or "..")) { return Results.NotFound(); }
-            string[] allowed = ["f", "where", "outFields", "outSR", "returnGeometry", "resultOffset", "resultRecordCount", "geometry", "geometryType", "spatialRel", "inSR"];
-            var query = new List<string>();
-            foreach (var item in context.Request.Query)
-            {
-                if (!allowed.Contains(item.Key, StringComparer.Ordinal) || item.Value.Count != 1 || item.Value.ToString().Length > 8192)
-                { return Results.BadRequest(); }
-                if (item.Key == "resultRecordCount" && (!int.TryParse(item.Value, out var limit) || limit is < 1 or > 2000))
-                { return Results.BadRequest(); }
-                if (item.Key == "f" && !IsFeatureFormat(item.Value.ToString()))
-                { return Results.BadRequest(); }
-                query.Add(Uri.EscapeDataString(item.Key) + "=" + Uri.EscapeDataString(item.Value.ToString()));
-            }
-            if (!context.Request.Query.ContainsKey("f")) { query.Add("f=json"); }
-            if (!context.Request.Query.ContainsKey("resultRecordCount")) { query.Add("resultRecordCount=1000"); }
-            return await SendAsync(context, $"rest/services/{path}?{string.Join("&", query)}", null, token);
+            if (!IsCanonicalReadPath(context.Features.Get<IHttpRequestFeature>()?.RawTarget)) return Results.BadRequest();
+            var upstream = FeatureReadPath(path, context.Request.Query);
+            return upstream is null ? Results.BadRequest() : await SendAsync(context, upstream, null, token);
         });
+    }
+
+    internal static bool IsCanonicalReadPath(string? rawTarget)
+    {
+        var path = rawTarget?.Split('?', 2)[0];
+        return path is not null && !Regex.IsMatch(path, @"%(?:2f|5c|2e|25)", RegexOptions.IgnoreCase)
+            && !path.Contains('\\');
+    }
+
+    internal static string? FeatureReadPath(string? path, IQueryCollection queryValues)
+    {
+        if (path is null || !Regex.IsMatch(path, @"\A(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)+FeatureServer/[0-9]{1,9}(?:/query)?\z")
+            || path.Split('/').Any(part => part is "." or "..")) return null;
+        var isQuery = path.EndsWith("/query", StringComparison.Ordinal);
+        string[] allowed = isQuery ? ["f", "where", "outFields", "outSR", "returnGeometry", "resultOffset", "resultRecordCount", "geometry", "geometryType", "spatialRel", "inSR"] : ["f"];
+        var query = new List<string>();
+        foreach (var item in queryValues)
+        {
+            var value = item.Value.ToString();
+            if (!allowed.Contains(item.Key, StringComparer.Ordinal) || item.Value.Count != 1 || value.Length > 8192) return null;
+            if (item.Key == "resultRecordCount" && (!int.TryParse(value, out var limit) || limit is < 1 or > 2000)) return null;
+            if (item.Key == "resultOffset" && (!int.TryParse(value, out var offset) || offset is < 0 or > 10_000_000)) return null;
+            if (item.Key == "returnGeometry" && value is not ("true" or "false")) return null;
+            if (item.Key == "f" && (!IsFeatureFormat(value) || !isQuery && value != "json")) return null;
+            query.Add(Uri.EscapeDataString(item.Key) + "=" + Uri.EscapeDataString(value));
+        }
+        if (!queryValues.ContainsKey("f")) query.Add("f=json");
+        if (isQuery && !queryValues.ContainsKey("resultRecordCount")) query.Add("resultRecordCount=1000");
+        return $"rest/services/{path}?{string.Join("&", query)}";
     }
 
     internal static bool IsFeatureFormat(string value) => value is "json" or "geojson";
@@ -148,6 +165,7 @@ internal static class StudioReadBff
         var profile = await profiles.GetActiveProfileAsync(token);
         if (profile is null) { return Results.StatusCode(503); }
         if (context.Request.Headers["X-Honua-Environment"] != profile.Id) { return Results.StatusCode(409); }
+        if (!AgentGatewayBinding.MatchesBrowserPartition(context, profile)) return Results.StatusCode(409);
         var credential = await bearers.ResolveAsync(profile, token);
         var session = await sessions.GetSessionAsync(profile.Id, token);
         if (!credential.IsAvailable || session?.ServerBaseUri != profile.ServerBaseUri) { return Results.StatusCode(401); }
@@ -158,8 +176,8 @@ internal static class StudioReadBff
         if (body is not null) { body.Headers.ContentType = new("application/json"); }
         var mcpSessions = context.RequestServices.GetRequiredService<AgentMcpSessions>();
         var operators = context.RequestServices.GetRequiredService<IConsoleOperatorContext>();
-        var partition = (operators.RequireOperatorKey(), profile.Id, "catalog:");
-        if (catalog && mcpSessions.Get(partition) is { } id) { request.Headers.Add("Mcp-Session-Id", id); }
+        var partition = (AgentGatewayBinding.OperatorPartition(operators.RequireOperatorKey(), profile.Id, profile.ServerBaseUri), profile.Id, "catalog:");
+        if (catalog && body is not null && mcpSessions.ForRequest(partition, await body.ReadAsByteArrayAsync(token)) is { } id) { request.Headers.Add("Mcp-Session-Id", id); }
         try
         {
             using var response = await context.RequestServices.GetRequiredService<IHttpClientFactory>()

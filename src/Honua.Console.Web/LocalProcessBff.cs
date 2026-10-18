@@ -33,6 +33,7 @@ internal static partial class LocalProcessBff
             }
             var profile = await profiles.GetProfileAsync(environmentId, cancellationToken);
             if (profile is null) return Results.StatusCode(403);
+            if (!AgentGatewayBinding.MatchesBrowserPartition(context, profile)) return Results.StatusCode(409);
             var credential = await bearers.ResolveAsync(profile, cancellationToken);
             if (!credential.IsAvailable) return Results.StatusCode(401);
             using var request = new HttpRequestMessage(new HttpMethod(context.Request.Method),

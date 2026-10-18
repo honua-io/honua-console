@@ -24,7 +24,23 @@ namespace Honua.Console.Contracts;
 // Swap these wire records for honua-sdk-dotnet projections when a consumable OGC API - Styles projection
 // ships; until then this is the single Honua.Console.Contracts boundary for the styles list.
 
-public sealed record HonuaOgcStylesClientOptions(Uri BaseUri, string? ApiKey = null);
+public sealed record HonuaOgcStylesClientOptions(Uri BaseUri, string? ApiKey = null, bool AuthorityBindingSupported = false);
+
+/// <summary>Host-only request metadata; never serialized or taken from browser headers.</summary>
+public interface IConsoleAuthorityBindingValidator
+{
+    Task<bool> IsCurrentAsync(string binding, CancellationToken cancellationToken = default);
+    Task<string?> CaptureAsync(CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+}
+
+public static class ConsoleAuthorityRequestOptions
+{
+    /// <summary>Host-only canonical relative style route; never read from an HTTP header.</summary>
+    public static readonly HttpRequestOptionsKey<string> RelativeStylePath = new("Honua.Console.Authority.RelativeStylePath");
+    public static readonly HttpRequestOptionsKey<bool> Capture = new("Honua.Console.Authority.Capture");
+    public static readonly HttpRequestOptionsKey<string> Expected = new("Honua.Console.Authority.Expected");
+    public static readonly HttpRequestOptionsKey<string> Resolved = new("Honua.Console.Authority.Resolved");
+}
 
 /// <summary>
 /// Stylesheet encoding the dual-mode style editor reads/writes over <c>/ogc/styles/{styleId}</c>. The canonical
@@ -40,7 +56,13 @@ public enum HonuaOgcStyleEncoding
 }
 
 /// <summary>A stylesheet body fetched in a given encoding.</summary>
-public sealed record HonuaOgcStylesheet(string StyleId, HonuaOgcStyleEncoding Encoding, string Content);
+public sealed record HonuaOgcStylesheet(string StyleId, HonuaOgcStyleEncoding Encoding, string Content)
+{
+    /// <summary>Strong version token returned with these exact canonical bytes.</summary>
+    public string? EntityTag { get; init; }
+    [JsonIgnore]
+    public string? AuthorityBinding { get; init; }
+}
 
 /// <summary>
 /// Outcome of a stylesheet write. On success the canonical MapLibre was stored; <see cref="UnsupportedSymbolizers"/>
@@ -58,6 +80,17 @@ public sealed record HonuaOgcStyleSaveResult(
 
     public static HonuaOgcStyleSaveResult Fail(string state, string? detail) =>
         new(false, state, detail, Array.Empty<string>());
+}
+
+/// <summary>Authorized visible associations observed for one exact shared-style version.</summary>
+public sealed record HonuaSharedStyleAssociation(string ResourceId, string Name, string? Title, string? ServiceId = null);
+public sealed record HonuaSharedStyleConsumer(string Kind, string ItemId, string PackageKey, string ContentHash,
+    string PublicationState, string? VersionId = null, string? DraftId = null, long? Generation = null, bool IsCurrent = false);
+public sealed record HonuaSharedStyleImpact(string StyleId, long StyleVersion, string Etag,
+    string ContentHash, string ImpactHash, IReadOnlyList<HonuaSharedStyleAssociation> Associations, bool CanEdit = false)
+{
+    public IReadOnlyList<HonuaSharedStyleConsumer> Consumers { get; init; } = [];
+    public bool ImpactComplete { get; init; }
 }
 
 /// <summary>One styleId the server advertises on <c>GET /ogc/styles</c> (ADR-0048).</summary>
@@ -101,6 +134,24 @@ public interface IHonuaOgcStylesClient
         string content,
         bool strict,
         CancellationToken cancellationToken = default);
+    Task<HonuaAdminEndpointResult<HonuaSharedStyleImpact>> GetSharedStyleImpactAsync(string styleId,
+        CancellationToken cancellationToken = default) => Task.FromResult(
+            HonuaAdminEndpointResult<HonuaSharedStyleImpact>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unsupported", "GET /ogc/styles/{id}/impact", "Shared-style impact review is not supported by this client.")));
+
+    /// <summary>Conditional shared-style update; unsupported clients never fall back to an unconditional write.</summary>
+    Task<HonuaOgcStyleSaveResult> UpdateStylesheetConditionallyAsync(
+        string styleId, HonuaOgcStyleEncoding encoding, string content, bool strict, string expectedEntityTag, string expectedImpactHash,
+        CancellationToken cancellationToken = default) => Task.FromResult(
+            HonuaOgcStyleSaveResult.Fail("Unsupported", "Versioned shared-style updates are not supported by this client."));
+
+    Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetStylesheetBoundAsync(string styleId, HonuaOgcStyleEncoding encoding, string authorityBinding, CancellationToken cancellationToken = default) =>
+        Task.FromResult(HonuaAdminEndpointResult<HonuaOgcStylesheet>.FromIssue(new("Unsupported", "GET /ogc/styles/{id}", "Operator-bound style reading is unavailable.")));
+
+    Task<HonuaAdminEndpointResult<HonuaSharedStyleImpact>> GetSharedStyleImpactBoundAsync(string styleId, string authorityBinding, CancellationToken cancellationToken = default) =>
+        Task.FromResult(HonuaAdminEndpointResult<HonuaSharedStyleImpact>.FromIssue(new("Unsupported", "GET /ogc/styles/{id}/impact", "Operator-bound style editing is unavailable.")));
+    Task<HonuaOgcStyleSaveResult> UpdateStylesheetBoundAsync(string styleId, HonuaOgcStyleEncoding encoding, string content, bool strict, string expectedEntityTag, string expectedImpactHash, string authorityBinding, CancellationToken cancellationToken = default) =>
+        Task.FromResult(HonuaOgcStyleSaveResult.Fail("Unsupported", "Operator-bound style editing is unavailable."));
 }
 
 public sealed class HonuaOgcStylesHttpClient : IHonuaOgcStylesClient, IDisposable
@@ -116,6 +167,7 @@ public sealed class HonuaOgcStylesHttpClient : IHonuaOgcStylesClient, IDisposabl
 
     private readonly HttpClient _httpClient;
     private readonly string? _apiKey;
+    private readonly bool _authorityBindingSupported;
 
     public HonuaOgcStylesHttpClient(HttpClient httpClient, HonuaOgcStylesClientOptions options)
     {
@@ -124,6 +176,7 @@ public sealed class HonuaOgcStylesHttpClient : IHonuaOgcStylesClient, IDisposabl
 
         BaseUri = options.BaseUri;
         _apiKey = options.ApiKey;
+        _authorityBindingSupported = options.AuthorityBindingSupported;
         _httpClient = httpClient;
         _httpClient.BaseAddress ??= BaseUri;
     }
@@ -134,6 +187,7 @@ public sealed class HonuaOgcStylesHttpClient : IHonuaOgcStylesClient, IDisposabl
         CancellationToken cancellationToken = default)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, StylesPath);
+        if (_authorityBindingSupported) request.Options.Set(ConsoleAuthorityRequestOptions.RelativeStylePath, StylesPath.TrimStart('/'));
         request.Headers.TryAddWithoutValidation("Accept", "application/json");
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {
@@ -232,14 +286,29 @@ public sealed class HonuaOgcStylesHttpClient : IHonuaOgcStylesClient, IDisposabl
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(styleId);
         return ReadStylesheetAsync(styleId, encoding, $"{StylesPath}/{Uri.EscapeDataString(styleId)}",
-            "GET /ogc/styles/{styleId}", cancellationToken);
+            "GET /ogc/styles/{styleId}", cancellationToken, captureAuthority: true);
     }
 
+    public Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetStylesheetBoundAsync(string styleId, HonuaOgcStyleEncoding encoding, string authorityBinding, CancellationToken cancellationToken = default) =>
+        _authorityBindingSupported && !string.IsNullOrWhiteSpace(authorityBinding)
+            ? ReadStylesheetAsync(styleId, encoding, $"{StylesPath}/{Uri.EscapeDataString(styleId)}", "GET /ogc/styles/{styleId}", cancellationToken, authorityBinding: authorityBinding)
+            : Task.FromResult(HonuaAdminEndpointResult<HonuaOgcStylesheet>.FromIssue(new("Unsupported", "GET /ogc/styles/{id}", "Operator-bound style reading is unavailable.")));
+
     private async Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> ReadStylesheetAsync(
-        string styleId, HonuaOgcStyleEncoding encoding, string path, string contract, CancellationToken cancellationToken)
+        string styleId, HonuaOgcStyleEncoding encoding, string path, string contract, CancellationToken cancellationToken, bool captureAuthority = false, string? authorityBinding = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, path);
         request.Headers.TryAddWithoutValidation("Accept", MediaTypeFor(encoding));
+        if (authorityBinding is not null)
+        {
+            request.Options.Set(ConsoleAuthorityRequestOptions.Expected, authorityBinding);
+            request.Options.Set(ConsoleAuthorityRequestOptions.RelativeStylePath, path.TrimStart('/'));
+        }
+        else if (_authorityBindingSupported && captureAuthority)
+        {
+            request.Options.Set(ConsoleAuthorityRequestOptions.Capture, true);
+            request.Options.Set(ConsoleAuthorityRequestOptions.RelativeStylePath, path.TrimStart('/'));
+        }
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {
             request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
@@ -274,16 +343,77 @@ public sealed class HonuaOgcStylesHttpClient : IHonuaOgcStylesClient, IDisposabl
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             return HonuaAdminEndpointResult<HonuaOgcStylesheet>.FromData(
-                new HonuaOgcStylesheet(styleId, encoding, content));
+                new HonuaOgcStylesheet(styleId, encoding, content) { EntityTag = response.Headers.ETag?.ToString(), AuthorityBinding = request.Options.TryGetValue(ConsoleAuthorityRequestOptions.Resolved, out var binding) ? binding : null });
         }
     }
 
-    public async Task<HonuaOgcStyleSaveResult> UpdateStylesheetAsync(
-        string styleId,
-        HonuaOgcStyleEncoding encoding,
-        string content,
-        bool strict,
-        CancellationToken cancellationToken = default)
+    public Task<HonuaAdminEndpointResult<HonuaSharedStyleImpact>> GetSharedStyleImpactAsync(string styleId, CancellationToken cancellationToken = default) => GetSharedStyleImpactCoreAsync(styleId, null, cancellationToken);
+    public Task<HonuaAdminEndpointResult<HonuaSharedStyleImpact>> GetSharedStyleImpactBoundAsync(string styleId, string authorityBinding, CancellationToken cancellationToken = default) =>
+        _authorityBindingSupported && !string.IsNullOrWhiteSpace(authorityBinding) ? GetSharedStyleImpactCoreAsync(styleId, authorityBinding, cancellationToken)
+        : Task.FromResult(HonuaAdminEndpointResult<HonuaSharedStyleImpact>.FromIssue(new("Unsupported", "GET /ogc/styles/{id}/impact", "Operator-bound style editing is unavailable.")));
+    private async Task<HonuaAdminEndpointResult<HonuaSharedStyleImpact>> GetSharedStyleImpactCoreAsync(
+        string styleId, string? authorityBinding, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(styleId);
+        var path = $"{StylesPath}/{Uri.EscapeDataString(styleId)}/impact";
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        if (authorityBinding is not null)
+        {
+            request.Options.Set(ConsoleAuthorityRequestOptions.Expected, authorityBinding);
+            request.Options.Set(ConsoleAuthorityRequestOptions.RelativeStylePath, path.TrimStart('/'));
+        }
+        if (!string.IsNullOrWhiteSpace(_apiKey)) request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        try
+        {
+            using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var state = response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden ? "Missing permission"
+                    : response.StatusCode == HttpStatusCode.NotFound ? "Unsupported" : "Unavailable";
+                return HonuaAdminEndpointResult<HonuaSharedStyleImpact>.FromIssue(new HonuaAdminEndpointIssue(
+                    state, path, $"The shared-style impact could not be read (HTTP {(int)response.StatusCode}).", (int)response.StatusCode));
+            }
+            var impact = await JsonSerializer.DeserializeAsync<HonuaSharedStyleImpact>(
+                await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false), JsonOptions, cancellationToken).ConfigureAwait(false);
+            if (impact is null || impact.StyleId != styleId || impact.StyleVersion < 1 || impact.Associations is null || impact.Consumers is null
+                || string.IsNullOrWhiteSpace(impact.Etag) || response.Headers.ETag?.ToString() != impact.Etag || !IsHash(impact.ContentHash) || !IsHash(impact.ImpactHash))
+                return HonuaAdminEndpointResult<HonuaSharedStyleImpact>.FromIssue(new HonuaAdminEndpointIssue(
+                    "Unsupported", path, "The shared-style impact response did not identify a versioned review."));
+            return HonuaAdminEndpointResult<HonuaSharedStyleImpact>.FromData(impact);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or JsonException || exception is TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            return HonuaAdminEndpointResult<HonuaSharedStyleImpact>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable", path, "The shared-style impact request did not complete."));
+        }
+    }
+
+    private static bool IsHash(string? value) => value is { Length: 64 } && value.All(char.IsAsciiHexDigitLower);
+
+    public Task<HonuaOgcStyleSaveResult> UpdateStylesheetAsync(
+        string styleId, HonuaOgcStyleEncoding encoding, string content, bool strict,
+        CancellationToken cancellationToken = default) =>
+        UpdateStylesheetCoreAsync(styleId, encoding, content, strict, null, null, cancellationToken);
+
+    public Task<HonuaOgcStyleSaveResult> UpdateStylesheetConditionallyAsync(
+        string styleId, HonuaOgcStyleEncoding encoding, string content, bool strict, string expectedEntityTag, string expectedImpactHash,
+        CancellationToken cancellationToken = default) => UpdateStylesheetConditionallyCoreAsync(styleId, encoding, content, strict, expectedEntityTag, expectedImpactHash, null, cancellationToken);
+    public Task<HonuaOgcStyleSaveResult> UpdateStylesheetBoundAsync(string styleId, HonuaOgcStyleEncoding encoding, string content, bool strict, string expectedEntityTag, string expectedImpactHash, string authorityBinding, CancellationToken cancellationToken = default) =>
+        _authorityBindingSupported && !string.IsNullOrWhiteSpace(authorityBinding) ? UpdateStylesheetConditionallyCoreAsync(styleId, encoding, content, strict, expectedEntityTag, expectedImpactHash, authorityBinding, cancellationToken)
+        : Task.FromResult(HonuaOgcStyleSaveResult.Fail("Unsupported", "Operator-bound style editing is unavailable."));
+    private Task<HonuaOgcStyleSaveResult> UpdateStylesheetConditionallyCoreAsync(string styleId, HonuaOgcStyleEncoding encoding, string content, bool strict, string expectedEntityTag, string expectedImpactHash, string? authorityBinding, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(expectedEntityTag) || expectedEntityTag.Length > 128 || !EntityTagHeaderValue.TryParse(expectedEntityTag, out var version)
+            || version.IsWeak || version.Tag == "*")
+            return Task.FromResult(HonuaOgcStyleSaveResult.Fail("Version required", "Reload the shared style to obtain its current version before saving."));
+        if (expectedImpactHash is null || expectedImpactHash.Length != 64 || expectedImpactHash.Any(character => !char.IsAsciiHexDigitLower(character)))
+            return Task.FromResult(HonuaOgcStyleSaveResult.Fail("Impact review required", "Review the current shared-style associations before saving."));
+        return UpdateStylesheetCoreAsync(styleId, encoding, content, strict, version, expectedImpactHash, cancellationToken, authorityBinding);
+    }
+
+    private async Task<HonuaOgcStyleSaveResult> UpdateStylesheetCoreAsync(
+        string styleId, HonuaOgcStyleEncoding encoding, string content, bool strict, EntityTagHeaderValue? expectedVersion, string? expectedImpactHash,
+        CancellationToken cancellationToken, string? authorityBinding = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(styleId);
         ArgumentNullException.ThrowIfNull(content);
@@ -294,6 +424,13 @@ public sealed class HonuaOgcStylesHttpClient : IHonuaOgcStylesClient, IDisposabl
             Content = new StringContent(content, Encoding.UTF8)
         };
         request.Content.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeFor(encoding));
+        if (authorityBinding is not null)
+        {
+            request.Options.Set(ConsoleAuthorityRequestOptions.Expected, authorityBinding);
+            request.Options.Set(ConsoleAuthorityRequestOptions.RelativeStylePath, path.TrimStart('/'));
+        }
+        if (expectedVersion is not null) request.Headers.IfMatch.Add(expectedVersion);
+        if (expectedImpactHash is not null) request.Headers.Add("X-Honua-Style-Impact", expectedImpactHash);
         if (strict)
         {
             request.Headers.TryAddWithoutValidation("Prefer", "handling=strict");
@@ -324,12 +461,15 @@ public sealed class HonuaOgcStylesHttpClient : IHonuaOgcStylesClient, IDisposabl
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             var state = response.StatusCode switch
             {
+                HttpStatusCode.PreconditionFailed => "Conflict",
                 HttpStatusCode.BadRequest => "Rejected",
                 HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Missing permission",
                 HttpStatusCode.NotFound or HttpStatusCode.UnsupportedMediaType => "Unsupported",
                 _ => "Unavailable"
             };
-            return HonuaOgcStyleSaveResult.Fail(state, ParseProblemDetail(body) ?? $"HTTP {(int)response.StatusCode}");
+            return HonuaOgcStyleSaveResult.Fail(state, response.StatusCode == HttpStatusCode.PreconditionFailed
+                ? "The shared style changed. Your edits are retained. Review the current version before saving again."
+                : ParseProblemDetail(body) ?? $"HTTP {(int)response.StatusCode}");
         }
     }
 

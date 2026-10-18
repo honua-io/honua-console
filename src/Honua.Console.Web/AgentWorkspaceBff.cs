@@ -39,7 +39,8 @@ internal static partial class AgentWorkspaceBff
                 environmentId = profile.Id,
                 environmentName = profile.DisplayName,
                 tenantId = profile.TenantId,
-                principalId = AgentGatewayBinding.OperatorPartition(operators.RequireOperatorKey(), profile.Id)
+                sourcePathBase = profile.ServerBaseUri.AbsolutePath.TrimEnd('/'),
+                principalId = AgentGatewayBinding.OperatorPartition(operators.RequireOperatorKey(), profile.Id, profile.ServerBaseUri)
             });
         });
 
@@ -87,14 +88,19 @@ internal static partial class AgentWorkspaceBff
         {
             return Results.Json(new { message = "Environment changed. Reconnect the workspace." }, statusCode: 409);
         }
+        if (!AgentGatewayBinding.MatchesBrowserPartition(context, profile))
+            return Results.Json(new { message = "The editor connection changed. Reconnect before retrying." }, statusCode: 409);
         var credential = await bearers.ResolveAsync(profile, cancellationToken);
         var session = await sessions.GetSessionAsync(profile.Id, cancellationToken);
         if (!credential.IsAvailable || session?.ServerBaseUri != profile.ServerBaseUri)
         {
             return Results.StatusCode(401);
         }
+        var isStyleWrite = studio && Regex.IsMatch(path, @"\Av1/studio/package-drafts/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/style(?:/initialize)?\z");
+        if (studio && Regex.IsMatch(path, @"\Av1/studio/package-drafts/[^/]+/style(?:/|$)") && (!isStyleWrite || (path.EndsWith("/initialize", StringComparison.Ordinal) ? !HttpMethods.IsPost(context.Request.Method) : !HttpMethods.IsPut(context.Request.Method)))) { return Results.NotFound(); }
+        var bodyLimit = isStyleWrite ? 1024 * 1024 : 256 * 1024;
         var isImportUpload = processes && path == "admin/import/upload";
-        if (context.Request.ContentLength > (isImportUpload ? 20 * 1024 * 1024 : 256 * 1024)) { return Results.StatusCode(413); }
+        if (context.Request.ContentLength > (isImportUpload ? 20 * 1024 * 1024 : bodyLimit)) { return Results.StatusCode(413); }
         var upstreamPath = processes ? $"api/v1/{path}" : studio ? (path == "health" ? "health" : $"api/{path}") : $"api/v1/agent/workspaces/{path}";
         if (studio)
         {
@@ -117,6 +123,12 @@ internal static partial class AgentWorkspaceBff
         }
         using var request = new HttpRequestMessage(new HttpMethod(context.Request.Method),
             new Uri(new Uri(profile.ServerBaseUri.AbsoluteUri.TrimEnd('/') + "/"), upstreamPath));
+        if (isStyleWrite)
+        {
+            var key = context.Request.Headers["Idempotency-Key"].ToString();
+            if (!Regex.IsMatch(key, @"\A[A-Za-z0-9_-]{1,128}\z")) { return Results.BadRequest(); }
+            request.Headers.TryAddWithoutValidation("Idempotency-Key", key);
+        }
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credential.AccessToken);
         // Do not relay arbitrary query strings, identity headers, cookies, API keys or redirect destinations.
         if (isImportUpload)
@@ -142,7 +154,7 @@ internal static partial class AgentWorkspaceBff
             int count;
             while ((count = await context.Request.Body.ReadAsync(bytes, cancellationToken)) != 0)
             {
-                if (buffer.Length + count > 256 * 1024) { return Results.StatusCode(413); }
+                if (buffer.Length + count > bodyLimit) { return Results.StatusCode(413); }
                 buffer.Write(bytes, 0, count);
             }
             request.Content = new ByteArrayContent(buffer.ToArray());

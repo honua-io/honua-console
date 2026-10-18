@@ -8,11 +8,11 @@ namespace Honua.Console.Native.Core.Tests;
 public sealed class ConsoleRouteMapTests
 {
     [Fact]
-    public void SharedRouteMapKeepsBuilderAndOperatorAreasDistinct()
+    public void SharedRouteMapKeepsRealtimeWorkspaceAndOperatorAreasDistinct()
     {
         var areas = ConsoleRouteMap.Areas;
 
-        Assert.Contains(areas, area => area.Id == "studio" && area.WorkflowBoundary == "Builder");
+        Assert.Contains(areas, area => area.Id == "studio" && area.Path == "/studio" && area.WorkflowBoundary == "Workspace");
         Assert.Contains(areas, area => area.Id == "catalog" && area.WorkflowBoundary == "Builder");
         Assert.Contains(areas, area => area.Id == "operate" && area.WorkflowBoundary == "Operator");
         Assert.Contains(areas, area => area.Id == "share" && area.Path == "/share/public" && area.WorkflowBoundary == "Builder");

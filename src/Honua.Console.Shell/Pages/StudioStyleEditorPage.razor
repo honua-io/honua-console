@@ -4,15 +4,25 @@
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Services
 @inject IStudioMapStyleCatalogDataSource StyleData
+@implements IDisposable
 
-<section class="console-page studio-style-editor" data-style-editor>
+<UnsavedChangesGuard IsDirty="_dirty" Message="You have unsaved shared-style edits. Leave this page and discard them?" />
+
+<section class="console-page studio-style-editor" data-style-editor data-shared-style-editor
+         data-style-task-id="@(_fresh ? _impact?.StyleId : null)" data-style-task-revision="@(_fresh ? _impact?.StyleVersion : null)"
+         data-style-content-hash="@(_impact?.ContentHash)" data-style-impact-hash="@(_impact?.ImpactHash)"
+         data-style-authority-binding="@_authorityBinding" data-style-observation-epoch="@_observationEpoch" data-style-dirty="@(_dirty ? "true" : "false")" data-style-pending="@(_loading || _saving ? "true" : "false")">
     <div class="console-page-heading">
         <p class="console-kicker">Studio / Styles</p>
-        <h1>Style editor</h1>
+        <h1>Shared catalog style editor</h1>
         <p>Author a style in either MapLibre (canonical) or Esri renderer mode over one canonical style. Switching modes re-fetches the style in the target encoding — the server converts (ADR-0002), so the two views never diverge.</p>
     </div>
 
+    <article class="console-panel" role="note" data-shared-style-scope>
+        <h2>Shared catalog scope</h2><p>Saving changes this catalog style for its associated resources. Use the map draft editor for a change that applies only to one map.</p>
+    </article>
     <article class="console-panel">
+        @{ var renderedReview = CurrentReview; }
         <div class="studio-field-grid">
             <label>
                 <span>Style</span>
@@ -20,8 +30,8 @@
             </label>
             <label>
                 <span>Edit mode</span>
-                <select class="console-input" aria-label="Edit mode" @bind="_modeValue" @bind:after="OnModeChangedAsync" data-style-mode>
-                    <option value="MapLibre">MapLibre (visual canonical)</option>
+                <select class="console-input" aria-label="Edit mode" disabled="@_saving" @bind="_modeValue" @bind:after="OnModeChangedAsync" data-style-mode>
+                    <option value="MapLibre">MapLibre JSON (canonical)</option>
                     <option value="Esri">Esri renderer (drawingInfo)</option>
                 </select>
                 <small class="console-muted">Switching re-fetches the style in this encoding from the server.</small>
@@ -32,36 +42,69 @@
         {
             <p class="console-muted">Select a style to edit.</p>
         }
-        else if (_loadIssue is { } issue)
+        else if (_loadIssue is { } issue && !_dirty && !_writeAcceptedAwaitingReadback && !_unknownWriteOutcome)
         {
             <div class="console-panel console-state-warning" role="status" data-style-load-issue>
                 <p class="console-kicker">@issue.State</p>
                 <p>@issue.Detail</p>
+                <button class="console-button-link" type="button" disabled="@(_loading || _saving)" @onclick="ReloadAsync" data-style-reload>Try again</button>
+                <a class="console-button-link" href="/environments">Review connection</a>
             </div>
         }
         else
         {
+            @if (_writeAcceptedAwaitingReadback)
+            {
+                <p role="status" data-style-readback-pending>The update was accepted, but canonical readback is unavailable. Your candidate is retained below. Review the accepted update before editing or saving again.</p>
+            }
             <label>
                 <span>@(_mode == HonuaOgcStyleEncoding.Esri ? "Esri drawingInfo (JSON)" : "MapLibre style (JSON)")</span>
-                <textarea class="console-input console-mono" rows="18" @bind="_content" @bind:event="oninput"
-                          spellcheck="false" data-style-content></textarea>
+                <textarea class="console-input console-mono" rows="18" @bind="_content" @bind:event="oninput" @bind:after="MarkDirty"
+                          disabled="@(_saving || _loading)" readonly="@(!CanEditShared)" spellcheck="false" data-style-content></textarea>
             </label>
 
+            @if (string.IsNullOrWhiteSpace(_entityTag))
+            {
+                <p role="status" data-style-version-required>This server did not return a style version. Shared editing is unavailable until versioned updates are supported.</p>
+            }
+            @if (_impact is { } impact)
+            {
+                <section data-style-impact><h2>Visible data-layer and service associations</h2>
+                    @if (impact.Associations.Count == 0) { <p>No associations are visible to your account.</p> }
+                    else { <ul>@foreach (var association in impact.Associations) { <li>@(association.Title ?? association.Name) <code>@association.ResourceId</code></li> }</ul> }
+                    <h2>Visible dependent maps and apps</h2>
+                    @if (!impact.ImpactComplete)
+                    {
+                        <p role="status" data-style-impact-incomplete>The deployment has not provided a complete authorized impact review. Shared editing is unavailable.</p>
+                    }
+                    else if (impact.Consumers.Count == 0) { <p>No dependent maps or apps are visible to your account.</p> }
+                    else
+                    {
+                        <ul data-style-consumers>@foreach (var consumer in impact.Consumers)
+                        {
+                            <li>@consumer.PackageKey — @consumer.Kind, @consumer.PublicationState, @(consumer.IsCurrent ? "current" : "retained version")</li>
+                        }</ul>
+                    }
+                    @if (!impact.CanEdit) { <p role="status">This shared style cannot be edited with your current access.</p> }
+                    <p>Only resources your account can inspect are shown. The server checks current authority and the reviewed associations again when you save.</p>
+                </section>
+            }
+            else if (_impactIssue is not null) { <p role="status" data-style-impact-unavailable>@_impactIssue</p> }
             <div class="console-toolbar">
                 <label class="console-inline-check">
                     <input type="checkbox" @bind="_strict" data-style-strict />
                     <span>Strict validation (reject lossy/invalid)</span>
                 </label>
-                <button class="console-button" type="button" disabled="@(_saving || string.IsNullOrWhiteSpace(_content))"
-                        @onclick="SaveAsync" data-style-save>
-                    @(_saving ? "Saving…" : "Save style")
+                <button class="console-button" type="button" disabled="@(_saving || string.IsNullOrWhiteSpace(_content) || string.IsNullOrWhiteSpace(_entityTag) || !CanEditShared)"
+                        @onclick="() => SaveAsync(renderedReview)" data-style-save>
+                    @(_saving ? "Saving…" : "Save shared catalog style")
                 </button>
-                <button class="console-button-link" type="button" disabled="@_loading" @onclick="ReloadAsync">Reload</button>
+                <button class="console-button-link" type="button" disabled="@(_loading || _saving)" @onclick="ReloadAsync" data-style-reload>@(_writeAcceptedAwaitingReadback ? "Review accepted update" : _dirty ? "Discard edits and reload" : "Reload")</button>
             </div>
 
             @if (_saveResult is { } result)
             {
-                <div class="console-panel @(result.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-style-result>
+                <div class="console-panel @(_writeAcceptedAwaitingReadback ? "console-state-warning" : result.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-style-result>
                     <p class="console-kicker">@result.State</p>
                     @if (!string.IsNullOrWhiteSpace(result.Detail))
                     {
@@ -97,7 +140,40 @@
     private string _modeValue = "MapLibre";
     private HonuaOgcStyleEncoding _mode = HonuaOgcStyleEncoding.MapLibre;
     private string _content = string.Empty;
-    private bool _strict;
+    private HonuaSharedStyleImpact? _impact;
+    private bool CanEditShared => _fresh && !_writeAcceptedAwaitingReadback && !_unknownWriteOutcome && !string.IsNullOrWhiteSpace(_authorityBinding) && _impact is { CanEdit: true, ImpactComplete: true };
+    private string? _impactIssue;
+    private string? _entityTag;
+    private string? _authorityBinding;
+    private bool _dirty;
+    private string _loadedStyleId = string.Empty;
+    private HonuaOgcStyleEncoding _loadedMode = HonuaOgcStyleEncoding.MapLibre;
+    private void MarkDirty() { _dirty = true; _editEpoch++; }
+    private bool RetainDirtyEdits()
+    {
+        if (!_dirty && !_saving) return false;
+        _styleId = _loadedStyleId;
+        _mode = _loadedMode;
+        _modeValue = _mode.ToString();
+        _saveResult = _writeAcceptedAwaitingReadback && _acceptedWriteResult is { } accepted
+            ? accepted with { State = "Update accepted", Detail = "Review the accepted update before changing style or encoding. Your candidate is retained." }
+            : HonuaOgcStyleSaveResult.Fail("Unsaved edits", "Save your edits or explicitly discard and reload before changing style or encoding.");
+        return true;
+    }
+    private sealed record Review(string StyleId, HonuaOgcStyleEncoding Mode, string EntityTag, string ContentHash, string ImpactHash, string Authority, long ObservationEpoch);
+    private Review? CurrentReview => CanEditShared && _impact is { } impact && _entityTag is { } etag && _authorityBinding is { } authority
+        ? new(_loadedStyleId, _loadedMode, etag, impact.ContentHash, impact.ImpactHash, authority, _observationEpoch) : null;
+    private long _editEpoch;
+    private bool _fresh;
+    private bool _unknownWriteOutcome;
+    private bool _disposed;
+    private readonly CancellationTokenSource _observations = new();
+    private Task<string?>? _authorityCapture;
+    private long _loadGeneration;
+    private long _observationEpoch;
+    private bool _writeAcceptedAwaitingReadback;
+    private HonuaOgcStyleSaveResult? _acceptedWriteResult;
+    private bool _strict = true;
     private bool _loading;
     private bool _saving;
     private HonuaAdminEndpointIssue? _loadIssue;
@@ -105,22 +181,25 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _catalog = await StyleData.GetStyleCatalogAsync();
+        var catalog = await StyleData.GetStyleCatalogAsync(_observations.Token);
+        if (!_disposed) _catalog = catalog;
     }
 
     protected override async Task OnParametersSetAsync()
     {
         if (!string.IsNullOrWhiteSpace(StyleId) && !string.Equals(StyleId, _styleId, StringComparison.Ordinal))
         {
+            if (RetainDirtyEdits()) return;
             _styleId = StyleId;
             await LoadAsync();
         }
     }
 
-    private Task OnStyleSelectedAsync() => LoadAsync();
+    private Task OnStyleSelectedAsync() => RetainDirtyEdits() ? Task.CompletedTask : LoadAsync();
 
     private Task OnModeChangedAsync()
     {
+        if (RetainDirtyEdits()) return Task.CompletedTask;
         _mode = string.Equals(_modeValue, "Esri", StringComparison.OrdinalIgnoreCase)
             ? HonuaOgcStyleEncoding.Esri
             : HonuaOgcStyleEncoding.MapLibre;
@@ -128,66 +207,168 @@
         return LoadAsync();
     }
 
-    private Task ReloadAsync() => LoadAsync();
+    private Task ReloadAsync() { if (_saving) return Task.CompletedTask; return LoadAsync(); }
 
     private async Task LoadAsync()
     {
-        // A fresh selection / mode switch / explicit reload clears the previous save result.
-        _saveResult = null;
+        if (_styleId != _loadedStyleId || _mode != _loadedMode)
+        {
+            _acceptedWriteResult = null;
+            _writeAcceptedAwaitingReadback = false;
+        }
+        if (!_writeAcceptedAwaitingReadback && !_unknownWriteOutcome) _saveResult = null;
         await FetchContentAsync();
     }
 
-    private async Task FetchContentAsync()
+    private async Task<bool> FetchContentAsync()
     {
+        var generation = ++_loadGeneration;
+        var styleId = _styleId;
+        var mode = _mode;
+        var editEpoch = _editEpoch;
+        var retainCandidate = (_dirty || _writeAcceptedAwaitingReadback || _unknownWriteOutcome) && styleId == _loadedStyleId && mode == _loadedMode;
+        bool IsCurrent() => !_disposed && generation == _loadGeneration && styleId == _styleId && mode == _mode;
         _loadIssue = null;
-        if (string.IsNullOrWhiteSpace(_styleId))
+        _fresh = false;
+        _entityTag = null;
+        _impact = null;
+        _impactIssue = null;
+        if (string.IsNullOrWhiteSpace(styleId))
         {
-            _content = string.Empty;
-            return;
+            if (!retainCandidate) _content = string.Empty;
+            _loading = false;
+            return false;
         }
-
         _loading = true;
         try
         {
-            var result = await StyleData.GetStylesheetAsync(_styleId, _mode);
-            if (result.Data is { } sheet)
+            // Capture once. A retry must never silently adopt another active operator/profile.
+            _authorityCapture ??= StyleData.CaptureAuthorityAsync(_observations.Token);
+            var authority = await _authorityCapture;
+            if (!IsCurrent()) return false;
+            if (string.IsNullOrWhiteSpace(authority))
             {
-                _content = sheet.Content;
+                _loadIssue = new("Connection unavailable", "GET /ogc/styles/{id}", "Open this editor through an operator-bound connection.");
+                return false;
             }
-            else
+            _authorityBinding = authority;
+            var result = await StyleData.GetStylesheetBoundAsync(styleId, mode, authority, _observations.Token);
+            if (!IsCurrent()) return false;
+            if (result.Data is not { } sheet)
             {
                 _loadIssue = result.Issue;
-                _content = string.Empty;
+                if (!retainCandidate && editEpoch == _editEpoch) _content = string.Empty;
+                return false;
             }
+            if (!string.Equals(sheet.AuthorityBinding, authority, StringComparison.Ordinal))
+            {
+                _loadIssue = new("Connection changed", "GET /ogc/styles/{id}", "Your edits are retained. Restore the original operator connection before reviewing this style.");
+                return false;
+            }
+            var impactRead = await StyleData.GetSharedStyleImpactBoundAsync(styleId, authority, _observations.Token);
+            if (!IsCurrent()) return false;
+            var authorityCurrent = await StyleData.IsAuthorityCurrentAsync(authority, _observations.Token);
+            if (!IsCurrent()) return false;
+            if (!authorityCurrent)
+            {
+                _loadIssue = new("Connection changed", "GET /ogc/styles/{id}", "Your edits are retained. Restore the original operator connection before reviewing this style.");
+                return false;
+            }
+            if (editEpoch != _editEpoch)
+            {
+                _impactIssue = "New edits were made while this review was loading. Your edits are retained; explicitly reload to review the current style.";
+                return false;
+            }
+            _content = sheet.Content;
+            _entityTag = sheet.EntityTag;
+            _loadedStyleId = styleId;
+            _loadedMode = mode;
+            _dirty = false;
+            _observationEpoch++;
+            _writeAcceptedAwaitingReadback = false;
+            _unknownWriteOutcome = false;
+            if (_acceptedWriteResult is not null)
+            {
+                _saveResult = _acceptedWriteResult;
+                _acceptedWriteResult = null;
+            }
+            if (impactRead.Data is { } impact && impact.StyleId == styleId && impact.Etag == _entityTag)
+            {
+                _impact = impact;
+                _fresh = true;
+            }
+            else
+                _impactIssue = impactRead.Issue?.Detail ?? "The style or its associations changed during review. Reload before saving.";
+            return true;
         }
+        catch (OperationCanceledException) when (_disposed) { return false; }
         finally
         {
-            _loading = false;
+            if (IsCurrent()) _loading = false;
         }
     }
 
-    private async Task SaveAsync()
+    private async Task SaveAsync(Review? renderedReview)
     {
-        if (string.IsNullOrWhiteSpace(_styleId))
-        {
-            return;
-        }
-
+        if (_disposed || _loading || _saving || renderedReview is null || renderedReview != CurrentReview || string.IsNullOrWhiteSpace(_content)) return;
+        var review = renderedReview;
+        var content = _content;
+        var strict = _strict;
+        var generation = _loadGeneration;
+        var editEpoch = _editEpoch;
+        bool IsCurrent() => !_disposed && generation == _loadGeneration && review.StyleId == _styleId && review.Mode == _mode;
         _saving = true;
         _saveResult = null;
         try
         {
-            _saveResult = await StyleData.SaveStylesheetAsync(_styleId, _mode, _content, _strict);
-            if (_saveResult.Succeeded)
+            var authorityCurrent = await StyleData.IsAuthorityCurrentAsync(review.Authority);
+            if (!IsCurrent()) return;
+            if (!authorityCurrent)
             {
-                // Re-fetch the content so the editor reflects what the server stored/derived (round-trip truth),
-                // but keep _saveResult so its warnings stay visible.
-                await FetchContentAsync();
+                _fresh = false;
+                _saveResult = HonuaOgcStyleSaveResult.Fail("Connection changed", "Your edits are retained. Restore the original operator connection before reviewing this style.");
+                return;
+            }
+            // Body and target are immutable from the click, even if a later input event arrives.
+            var result = await StyleData.SaveStylesheetBoundAsync(review.StyleId, review.Mode, content, strict, review.EntityTag, review.ImpactHash, review.Authority);
+            if (!IsCurrent()) return;
+            _fresh = false;
+            _saveResult = result;
+            if (result.Succeeded)
+            {
+                _acceptedWriteResult = result;
+                _writeAcceptedAwaitingReadback = true;
+                _saveResult = result with { State = "Update accepted", Detail = "Waiting for canonical readback. Do not resubmit this update." };
+                _dirty = true;
+                if (editEpoch != _editEpoch)
+                {
+                    _saveResult = result with { State = "Update accepted", Detail = "Your submitted update was accepted. Later edits are retained; review the accepted update before saving again." };
+                    return;
+                }
+                var observed = await FetchContentAsync();
+                if (!_disposed && !observed && _writeAcceptedAwaitingReadback && review.StyleId == _styleId && review.Mode == _mode)
+                    _saveResult = result with { State = "Update accepted", Detail = "Canonical readback is unavailable. Your candidate is retained; review the accepted update before saving again." };
+            }
+            else
+            {
+                // A failed transport may conceal an accepted upstream response. Never replay it.
+                _unknownWriteOutcome = result.State == "Unavailable";
+                _dirty = true;
+                if (_unknownWriteOutcome)
+                    _saveResult = result with { State = "Update not confirmed", Detail = "The update could not be confirmed. Your candidate is retained. Reload the original style before considering another save." };
             }
         }
         finally
         {
-            _saving = false;
+            if (!_disposed) _saving = false;
         }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _loadGeneration++;
+        _observations.Cancel();
+        _observations.Dispose();
     }
 }

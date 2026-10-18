@@ -34,17 +34,17 @@ public sealed class OperatePublishingPageRenderTests
         Assert.DoesNotContain("Publication Matrix", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Publication Review", page.Markup, StringComparison.Ordinal);
 
-        // The design IA (mode bar, stepper, conceptual flow map) renders even unbound — it is
-        // static workflow guidance, not fabricated publication data.
+        // The mode bar and flow map remain available; failed reads show one recovery surface.
         Assert.Contains("publish-mode-bar", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Quick publish", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Author resource first", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("publish-stepper", page.Markup, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll("ol.publish-stepper"));
+        Assert.Single(page.FindAll("[data-connection-notice]"));
         Assert.Contains("publish-flow-map", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void OperatePublishingPage_ModeToggle_SwapsStepperBetweenQuickAndAuthorFirst()
+    public void OperatePublishingPage_ModeToggle_PreservesRecoveryAndDeclaresAuthorFirstUnsupported()
     {
         using var ctx = new Bunit.BunitContext();
         ctx.AddConsoleNotifications();
@@ -55,14 +55,9 @@ public sealed class OperatePublishingPageRenderTests
         var page = ctx.Render<OperatePublishingPage>();
 
         page.WaitForAssertion(
-            () => Assert.Contains("publish-stepper", page.Markup, StringComparison.Ordinal),
+            () => Assert.Single(page.FindAll("[data-connection-notice]")),
             TimeSpan.FromSeconds(5));
-
-        // Quick flow stepper: Service -> Layer -> Review.
-        var stepper = page.Find("ol.publish-stepper");
-        Assert.Contains("Service", stepper.TextContent, StringComparison.Ordinal);
-        Assert.Contains("Layer", stepper.TextContent, StringComparison.Ordinal);
-        Assert.DoesNotContain("Projection", stepper.TextContent, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll("ol.publish-stepper"));
 
         // Switch to the advanced author-first mode. Its seven steps were a mockup — a compatibility
         // matrix, a slot id, field aliases, an access summary and a projection preview, none of which

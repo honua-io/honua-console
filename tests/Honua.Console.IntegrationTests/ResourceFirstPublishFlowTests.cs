@@ -41,6 +41,33 @@ public sealed class ResourceFirstPublishFlowTests
         ctx.Services.AddSingleton<IAiPublishDriver>(new UnsupportedAiPublishDriver());
     }
 
+    [Fact]
+    public void SharedConversationFlow_HidesLegacyAiModesAndDoesNotStartGenerator()
+    {
+        using var ctx = NewContext();
+        RegisterMissingBinding(ctx);
+        var cut = ctx.Render<DataToPublishFlow>(parameters => parameters
+            .Add(component => component.SharedConversation, true)
+            .Add(component => component.InitialDriver, "ai"));
+        Assert.Empty(cut.FindAll("[data-driver], [data-ai-driver], [data-intake-mode='Ai'], textarea"));
+        Assert.Single(cut.FindAll("[data-workspace-open]"));
+        Assert.Single(cut.FindAll("[data-step-body='AddData']"));
+    }
+
+    [Fact]
+    public void ResourceReadFailure_ShowsOneRecoveryNoticeAndNeverAnEmptyTree()
+    {
+        using var ctx = NewContext();
+        RegisterMissingBinding(ctx);
+        var cut = ctx.Render<OperateDataPage>();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Single(cut.FindAll("[data-connection-notice]"));
+            Assert.Empty(cut.FindAll("[data-tree-empty], [data-resource-tree]"));
+            Assert.Contains("Connect environment", cut.Markup, StringComparison.Ordinal);
+        });
+    }
+
     // ----------------------------------------------------------------- mapping authority
 
     [Fact]

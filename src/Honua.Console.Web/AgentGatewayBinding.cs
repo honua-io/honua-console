@@ -21,8 +21,15 @@ internal sealed record AgentGatewayBinding(Uri BaseUri, string Key)
         return new AgentGatewayBinding(uri, bridgeKey);
     }
 
-    internal static string OperatorPartition(string operatorKey, string profileId) =>
-        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(operatorKey.Length + ":" + operatorKey + profileId)));
+    internal static string OperatorPartition(string operatorKey, string profileId, Uri? serverBase = null) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(operatorKey.Length + ":" + operatorKey + profileId.Length + ":" + profileId + ":" + (serverBase?.GetComponents(UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.UriEscaped).TrimEnd('/') ?? ""))));
+
+    internal static bool MatchesBrowserPartition(HttpContext context, Honua.Console.Shell.Models.ConsoleEnvironmentProfile profile)
+    {
+        var operators = context.RequestServices.GetRequiredService<Honua.Console.Web.Auth.IConsoleOperatorContext>();
+        return operators.HasOperator && AgentSessionBff.MatchesSessionPartition(context.Request.Headers["X-Honua-Session-Partition"],
+            operators.RequireOperatorKey(), profile.Id, profile.ServerBaseUri);
+    }
 
     internal void Bind(HttpRequestMessage request, string operatorPartition)
     {

@@ -1,3 +1,4 @@
+using Honua.Console.Contracts;
 using System.Net;
 using System.Net.Http;
 using System.Security.Claims;
@@ -153,6 +154,156 @@ public sealed class ConsoleServerBoundClientFactoryFailClosedTests
         await BindActiveAsync(harness, operatorKey, serverBaseUri, bearer);
     }
 
+    [Theory]
+    [InlineData("uri")]
+    [InlineData("profile")]
+    [InlineData("principal")]
+    public async Task StyleAuthorityPinRejectsProfileChangeBeforeTransport(string changed)
+    {
+        var context = new SwitchableOperatorContext { CurrentOperatorKey = "operator" };
+        using var harness = Harness.Build(context);
+        await BindActiveAsync(harness, "operator", "https://a.honua.test/", "bearer-A");
+        var factory = harness.Provider.GetRequiredService<IHonuaServerBoundClientFactory>();
+        using var client = factory.CreatePublicClient(new Uri("https://startup.honua.test/"));
+        using var read = new HttpRequestMessage(HttpMethod.Get, "/ogc/styles/shared");
+        read.Options.Set(ConsoleAuthorityRequestOptions.Capture, true);
+        using var observed = await client.SendAsync(read);
+        Assert.Equal(HttpStatusCode.OK, observed.StatusCode);
+        Assert.True(read.Options.TryGetValue(ConsoleAuthorityRequestOptions.Resolved, out var binding));
+        if (changed == "principal") { context.CurrentOperatorKey = "other"; await BindActiveAsync(harness, "other", "https://a.honua.test/", "bearer-B"); }
+        else if (changed == "profile")
+        {
+            await harness.Profiles.UpsertProfileAsync(new ConsoleEnvironmentProfile { Id = "other-profile", ServerBaseUri = new Uri("https://a.honua.test/") });
+            await harness.Profiles.ActivateProfileAsync("other-profile");
+        }
+        else await BindActiveAsync(harness, "operator", "https://b.honua.test/", "bearer-B");
+        using var write = new HttpRequestMessage(HttpMethod.Put, "/ogc/styles/shared");
+        write.Options.Set(ConsoleAuthorityRequestOptions.Expected, binding!);
+        using var rejected = await client.SendAsync(write);
+        Assert.Equal(HttpStatusCode.Conflict, rejected.StatusCode);
+        Assert.Null(Header(rejected, "X-Captured-Host"));
+        Assert.False(await harness.Provider.GetRequiredService<IConsoleAuthorityBindingValidator>().IsCurrentAsync(binding!));
+    }
+
+    [Fact]
+    public async Task CapturedAuthorityPinsFirstReadAndRetryToOriginalProfilePath()
+    {
+        var context = new SwitchableOperatorContext { CurrentOperatorKey = "operator" };
+        using var harness = Harness.Build(context);
+        await BindActiveAsync(harness, "operator", "https://a.honua.test/honua/", "bearer-A");
+        var validator = harness.Provider.GetRequiredService<IConsoleAuthorityBindingValidator>();
+        var binding = await validator.CaptureAsync();
+        Assert.False(string.IsNullOrWhiteSpace(binding));
+        using var client = harness.Provider.GetRequiredService<IHonuaServerBoundClientFactory>().CreatePublicClient(new Uri("https://startup.honua.test/"));
+        using var read = new HttpRequestMessage(HttpMethod.Get, "/ogc/styles/shared");
+        read.Options.Set(ConsoleAuthorityRequestOptions.Expected, binding!);
+        read.Options.Set(ConsoleAuthorityRequestOptions.RelativeStylePath, "ogc/styles/shared");
+        using var observed = await client.SendAsync(read);
+        Assert.Equal(HttpStatusCode.OK, observed.StatusCode);
+        Assert.Equal("/honua/ogc/styles/shared", Header(observed, "X-Captured-Path"));
+        Assert.Equal("Bearer bearer-A", Header(observed, "X-Captured-Authorization"));
+        await BindActiveAsync(harness, "operator", "https://b.honua.test/other/", "bearer-B");
+        using var retry = new HttpRequestMessage(HttpMethod.Get, "/ogc/styles/shared");
+        retry.Options.Set(ConsoleAuthorityRequestOptions.Expected, binding!);
+        retry.Options.Set(ConsoleAuthorityRequestOptions.RelativeStylePath, "ogc/styles/shared");
+        using var refused = await client.SendAsync(retry);
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Null(Header(refused, "X-Captured-Host"));
+        Assert.False(await validator.IsCurrentAsync(binding!));
+    }
+
+    [Fact]
+    public async Task TypedStyleRouteUsesExactProfilePathBaseAndRejectsChangedPath()
+    {
+        var context = new SwitchableOperatorContext { CurrentOperatorKey = "operator" };
+        using var harness = Harness.Build(context);
+        await BindActiveAsync(harness, "operator", "https://a.honua.test/honua/", "bearer-A");
+        using var client = harness.Provider.GetRequiredService<IHonuaServerBoundClientFactory>().CreatePublicClient(new Uri("https://startup.honua.test/"));
+        using var read = new HttpRequestMessage(HttpMethod.Get, "/ogc/styles/shared");
+        read.Options.Set(ConsoleAuthorityRequestOptions.Capture, true);
+        read.Options.Set(ConsoleAuthorityRequestOptions.RelativeStylePath, "ogc/styles/shared");
+        using var observed = await client.SendAsync(read);
+        Assert.Equal(HttpStatusCode.OK, observed.StatusCode);
+        Assert.Equal("/honua/ogc/styles/shared", Header(observed, "X-Captured-Path"));
+        Assert.True(read.Options.TryGetValue(ConsoleAuthorityRequestOptions.Resolved, out var binding));
+        using var impact = new HttpRequestMessage(HttpMethod.Get, "/ogc/styles/shared/impact");
+        impact.Options.Set(ConsoleAuthorityRequestOptions.Expected, binding!);
+        impact.Options.Set(ConsoleAuthorityRequestOptions.RelativeStylePath, "ogc/styles/shared/impact");
+        using var reviewed = await client.SendAsync(impact);
+        Assert.Equal("/honua/ogc/styles/shared/impact", Header(reviewed, "X-Captured-Path"));
+        await BindActiveAsync(harness, "operator", "https://a.honua.test/other/", "bearer-B");
+        using var write = new HttpRequestMessage(HttpMethod.Put, "/ogc/styles/shared");
+        write.Options.Set(ConsoleAuthorityRequestOptions.Expected, binding!);
+        write.Options.Set(ConsoleAuthorityRequestOptions.RelativeStylePath, "ogc/styles/shared");
+        using var rejected = await client.SendAsync(write);
+        Assert.Equal(HttpStatusCode.Conflict, rejected.StatusCode);
+        Assert.Null(Header(rejected, "X-Captured-Path"));
+    }
+
+    [Fact]
+    public async Task TypedPublicStyleListUsesPathBaseWithoutMintingEditorAuthority()
+    {
+        var context = new SwitchableOperatorContext { CurrentOperatorKey = "operator" };
+        using var harness = Harness.Build(context);
+        await BindActiveAsync(harness, "operator", "https://a.honua.test/honua/", "bearer-A");
+        using var client = harness.Provider.GetRequiredService<IHonuaServerBoundClientFactory>().CreatePublicClient(new Uri("https://startup.honua.test/"));
+        using var read = new HttpRequestMessage(HttpMethod.Get, "/ogc/styles");
+        read.Options.Set(ConsoleAuthorityRequestOptions.RelativeStylePath, "ogc/styles");
+        using var response = await client.SendAsync(read);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("/honua/ogc/styles", Header(response, "X-Captured-Path"));
+        Assert.False(read.Options.TryGetValue(ConsoleAuthorityRequestOptions.Resolved, out _));
+    }
+
+    [Theory]
+    [InlineData("../ogc/styles/shared")]
+    [InlineData("ogc/styles/%2E%2E")]
+    [InlineData("ogc/styles/a%2Fb")]
+    [InlineData("ogc/styles/shared?url=https://other.test")]
+    [InlineData("ogc/styles/shared/impact/extra")]
+    public async Task HostStylePathOptionCannotBroadenTheCanonicalRoute(string path)
+    {
+        var context = new SwitchableOperatorContext { CurrentOperatorKey = "operator" };
+        using var harness = Harness.Build(context);
+        await BindActiveAsync(harness, "operator", "https://a.honua.test/honua/", "bearer-A");
+        using var client = harness.Provider.GetRequiredService<IHonuaServerBoundClientFactory>().CreatePublicClient(new Uri("https://startup.honua.test/"));
+        using var read = new HttpRequestMessage(HttpMethod.Get, "/ogc/styles/shared");
+        read.Options.Set(ConsoleAuthorityRequestOptions.Capture, true);
+        read.Options.Set(ConsoleAuthorityRequestOptions.RelativeStylePath, path);
+        using var rejected = await client.SendAsync(read);
+        Assert.Equal(HttpStatusCode.Conflict, rejected.StatusCode);
+        Assert.Null(Header(rejected, "X-Captured-Path"));
+    }
+
+    [Fact]
+    public async Task CapturedStyleResponseIsRejectedAfterAuthorityChangesDuringRequest()
+    {
+        var context = new SwitchableOperatorContext { CurrentOperatorKey = "operator" };
+        Harness? active = null;
+        using var harness = Harness.Build(context, async () => await BindActiveAsync(active!, "operator", "https://b.honua.test/", "bearer-B"));
+        active = harness;
+        await BindActiveAsync(harness, "operator", "https://a.honua.test/", "bearer-A");
+        using var client = harness.Provider.GetRequiredService<IHonuaServerBoundClientFactory>().CreatePublicClient(new Uri("https://startup.honua.test/"));
+        using var read = new HttpRequestMessage(HttpMethod.Get, "/ogc/styles/shared");
+        read.Options.Set(ConsoleAuthorityRequestOptions.Capture, true);
+        using var result = await client.SendAsync(read);
+        Assert.Equal(HttpStatusCode.Conflict, result.StatusCode);
+        Assert.Null(Header(result, "X-Captured-Host"));
+    }
+
+    [Fact]
+    public async Task PublicCatalogCannotSupplyAnonymousEditorAuthority()
+    {
+        var context = new SwitchableOperatorContext { CurrentOperatorKey = ConsoleOperatorContext.AnonymousKey };
+        using var harness = Harness.Build(context);
+        using var client = harness.Provider.GetRequiredService<IHonuaServerBoundClientFactory>().CreatePublicClient(new Uri("https://startup.honua.test/"));
+        using var read = new HttpRequestMessage(HttpMethod.Get, "/ogc/styles/shared");
+        read.Options.Set(ConsoleAuthorityRequestOptions.Capture, true);
+        using var result = await client.SendAsync(read);
+        Assert.Equal(HttpStatusCode.Unauthorized, result.StatusCode);
+        Assert.False(read.Options.TryGetValue(ConsoleAuthorityRequestOptions.Resolved, out _));
+    }
+
     private static async Task BindActiveAsync(Harness harness, string operatorKey, string serverBaseUri, string bearer)
     {
         await harness.Profiles.UpsertProfileAsync(new ConsoleEnvironmentProfile
@@ -225,7 +376,7 @@ public sealed class ConsoleServerBoundClientFactoryFailClosedTests
         public required IConsoleEnvironmentProfileStore Profiles { get; init; }
         public required IConsoleAccountSessionStore Sessions { get; init; }
 
-        public static Harness Build(IConsoleOperatorContext context)
+        public static Harness Build(IConsoleOperatorContext context, Func<Task>? beforeResponse = null)
         {
             var profiles = new OperatorScopedEnvironmentProfileStore(context);
             var sessions = new OperatorScopedAccountSessionStore(context);
@@ -240,9 +391,9 @@ public sealed class ConsoleServerBoundClientFactoryFailClosedTests
             // ... with the pooled primary handler swapped for a capturing one that echoes what reached the
             // wire back as response headers (race-free under concurrency).
             services.AddHttpClient(ConsoleServerBoundClients.ServerBoundClientName)
-                .ConfigurePrimaryHttpMessageHandler(() => new CapturingHandler());
+                .ConfigurePrimaryHttpMessageHandler(() => new CapturingHandler(beforeResponse));
             services.AddHttpClient(ConsoleServerBoundClients.PublicClientName)
-                .ConfigurePrimaryHttpMessageHandler(() => new CapturingHandler());
+                .ConfigurePrimaryHttpMessageHandler(() => new CapturingHandler(beforeResponse));
 
             var provider = services.BuildServiceProvider();
             return new Harness { Provider = provider, Profiles = profiles, Sessions = sessions };
@@ -258,12 +409,13 @@ public sealed class ConsoleServerBoundClientFactoryFailClosedTests
         public string? Host { get; init; }
     }
 
-    private sealed class CapturingHandler : HttpMessageHandler
+    private sealed class CapturingHandler(Func<Task>? beforeResponse = null) : HttpMessageHandler
     {
-        protected override Task<HttpResponseMessage> SendAsync(
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var response = new HttpResponseMessage(HttpStatusCode.OK);
+            response.Headers.TryAddWithoutValidation("X-Captured-Path", request.RequestUri?.AbsolutePath);
             if (request.Headers.Authorization is { } auth)
             {
                 response.Headers.TryAddWithoutValidation("X-Captured-Authorization", auth.ToString());
@@ -279,7 +431,8 @@ public sealed class ConsoleServerBoundClientFactoryFailClosedTests
                 response.Headers.TryAddWithoutValidation("X-Captured-Host", host);
             }
 
-            return Task.FromResult(response);
+            if (beforeResponse is not null) await beforeResponse();
+            return response;
         }
     }
 

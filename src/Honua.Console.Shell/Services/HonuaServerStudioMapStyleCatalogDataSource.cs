@@ -17,10 +17,12 @@ public sealed class HonuaServerStudioMapStyleCatalogDataSource : IStudioMapStyle
     private const string Surface = "Map builder (style catalog)";
 
     private readonly IHonuaOgcStylesClient _client;
+    private readonly IConsoleAuthorityBindingValidator? _authority;
 
-    public HonuaServerStudioMapStyleCatalogDataSource(IHonuaOgcStylesClient client)
+    public HonuaServerStudioMapStyleCatalogDataSource(IHonuaOgcStylesClient client, IConsoleAuthorityBindingValidator? authority = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
+        _authority = authority;
     }
 
     public async Task<StudioMapStyleCatalog> GetStyleCatalogAsync(CancellationToken cancellationToken = default)
@@ -49,6 +51,12 @@ public sealed class HonuaServerStudioMapStyleCatalogDataSource : IStudioMapStyle
         CancellationToken cancellationToken = default) =>
         _client.GetStylesheetAsync(styleId, encoding, cancellationToken);
 
+    public Task<string?> CaptureAuthorityAsync(CancellationToken cancellationToken = default) =>
+        _authority?.CaptureAsync(cancellationToken) ?? Task.FromResult<string?>(null);
+
+    public Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetStylesheetBoundAsync(string styleId, HonuaOgcStyleEncoding encoding, string authorityBinding, CancellationToken cancellationToken = default) =>
+        _client.GetStylesheetBoundAsync(styleId, encoding, authorityBinding, cancellationToken);
+
     public Task<HonuaOgcStyleSaveResult> SaveStylesheetAsync(
         string styleId,
         HonuaOgcStyleEncoding encoding,
@@ -65,4 +73,17 @@ public sealed class HonuaServerStudioMapStyleCatalogDataSource : IStudioMapStyle
             issue.StatusCode is null
                 ? issue.Detail
                 : $"{issue.Detail} HTTP {issue.StatusCode.Value.ToString(CultureInfo.InvariantCulture)}.");
+    public Task<HonuaOgcStyleSaveResult> SaveStylesheetConditionallyAsync(
+        string styleId, HonuaOgcStyleEncoding encoding, string content, bool strict, string expectedEntityTag, string expectedImpactHash,
+        CancellationToken cancellationToken = default) =>
+        _client.UpdateStylesheetConditionallyAsync(styleId, encoding, content, strict, expectedEntityTag, expectedImpactHash, cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaSharedStyleImpact>> GetSharedStyleImpactAsync(string styleId,
+        CancellationToken cancellationToken = default) => _client.GetSharedStyleImpactAsync(styleId, cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaSharedStyleImpact>> GetSharedStyleImpactBoundAsync(string styleId, string authorityBinding, CancellationToken cancellationToken = default) =>
+        _client.GetSharedStyleImpactBoundAsync(styleId, authorityBinding, cancellationToken);
+    public Task<HonuaOgcStyleSaveResult> SaveStylesheetBoundAsync(string styleId, HonuaOgcStyleEncoding encoding, string content, bool strict, string expectedEntityTag, string expectedImpactHash, string authorityBinding, CancellationToken cancellationToken = default) =>
+        _client.UpdateStylesheetBoundAsync(styleId, encoding, content, strict, expectedEntityTag, expectedImpactHash, authorityBinding, cancellationToken);
+    public Task<bool> IsAuthorityCurrentAsync(string binding, CancellationToken cancellationToken = default) => _authority?.IsCurrentAsync(binding, cancellationToken) ?? Task.FromResult(false);
 }

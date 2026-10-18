@@ -1,0 +1,120 @@
+{
+  "schema": "honua.studio.console-assets/v1",
+  "sourceCommit": "e124758f265b4a0e0fdcd1cf13254cdb2d510021",
+  "releaseQualified": false,
+  "sdk": {
+    "releaseQualified": false,
+    "kind": "review-artifact",
+    "version": "0.2.3",
+    "sourceCommit": "da4003fe2",
+    "packageSourceCommit": "4582b47db",
+    "tarballSha256": "306596b48f96291df65b54da8d7db24cf5d3c8edd6942e8424b53728dde6e8fa",
+    "sessionSha256": "6a648853c7343515b19c2ce652882f97e5a38dc4fb38da9412164cce49efc470"
+  },
+  "validation": {
+    "typecheck": "passed",
+    "focusedUnitTests": 44,
+    "focusedUnitFiles": 3,
+    "biomeFiles": 296,
+    "productionConsoleBuild": "passed",
+    "fullSuite": "prior b15d066 hosted CI 1232 passed; five new regressions focused-qualified at this commit"
+  },
+  "files": {
+    "LICENSE": {
+      "bytes": 11335,
+      "sha256": "b354b971f0d9252a996e7cd4e72cd4e0d833cd0fe9068a5da3113b4a0ed53559"
+    },
+    "SDK-PROVENANCE.json": {
+      "bytes": 326,
+      "sha256": "3274dd3684a6626af73bd897466931f2fa0dd5574a8eab1bdfdd1999d45c0dce"
+    },
+    "THIRD-PARTY-NOTICES.txt": {
+      "bytes": 23564,
+      "sha256": "b861dedb6afdb16c537a210bf27f9005a58a44ae973643cf9701bdac009c3ce2"
+    },
+    "assets/maplibre-gl-worker-DYiEsT8h.js": {
+      "bytes": 509725,
+      "sha256": "f2af6529b6b6e7c6e466100f799d6a2f5fa3277994d60dc1203734d4def98ace"
+    },
+    "authenticated-source-protocol-Bnh3Pz5D.js": {
+      "bytes": 3495,
+      "sha256": "22e7cd99b82f180ff70ff5384822a8a9edbb8f56ceddf8b001fb0c2aad8759dc"
+    },
+    "basemap-BCNqaLJX.js": {
+      "bytes": 125108,
+      "sha256": "517cb0b3910e0f7f85ad097124a4adc70fce4f6d0acc08bf43cdc4618e582ee2"
+    },
+    "chart-data-D_N21dJs.js": {
+      "bytes": 4022,
+      "sha256": "f58dc36b56943066f3c8336cac3999d4b96353e87285ff3b0baba7eb4fcf96bf"
+    },
+    "chart-render-CNx5ysAO.js": {
+      "bytes": 4519,
+      "sha256": "19442269b766aee0f6b6b74b7046a5a1a41e26f8d1ccab640a329de0bf19df32"
+    },
+    "chart-spec-DAVCygiU.js": {
+      "bytes": 3928,
+      "sha256": "8dcf5f37f3942ac4fc2e076701be2d92d02d8f5d7bf3d06149da005efff906f4"
+    },
+    "composition-map-view-DrcqmVEq.js": {
+      "bytes": 20166,
+      "sha256": "423958ca97b84714301b7868136bc83b5ed177248b3f2c7bcf4cab3825c2c119"
+    },
+    "console.js": {
+      "bytes": 402399,
+      "sha256": "01be9915c45dcd9940f626a97755b547a47893c29592c257f67b261d2ccf83b3"
+    },
+    "constants-B8tqYbYF.js": {
+      "bytes": 149,
+      "sha256": "c033cc1eb62b068bac8e9c3d4af533cec62ef3a1d2dd576dc03dcf744434a28e"
+    },
+    "control-config-BF7Jjaev.js": {
+      "bytes": 16244,
+      "sha256": "8489b981139d2f3ade2b096c7d1e5d9471e6b4a8ae5e5c430019ee124208f3a7"
+    },
+    "error-envelope-C9J-pNSA.js": {
+      "bytes": 18610,
+      "sha256": "c5166837a355b7aa25c2bccf1c6144100129adc5192180c59216feb24a33e1cf"
+    },
+    "maplibre-gl-DJ17FOvK.js": {
+      "bytes": 1303013,
+      "sha256": "3f02776c59422d8ed52990190fb16af8c35447a6af6cffb1a05b1d435aaca230"
+    },
+    "maplibre-gl-worker-BzMe-xzf.js": {
+      "bytes": 162,
+      "sha256": "80379afcbb1da4a30f315214e0bc434476d274bf08388adbc3f5091a5ba5e852"
+    },
+    "maplibre-styles-DqdxD-wM.js": {
+      "bytes": 83076,
+      "sha256": "7047ae6fbdcbc32aeb30bd24f0770a4d5aa3a58221c628fa9bf82fba2d191c75"
+    },
+    "model-CqQ-US3h.js": {
+      "bytes": 1520,
+      "sha256": "549e92f89fab26569c0fa67cbcbf334452181c6718e04380e7859f683f812b50"
+    },
+    "palette-BSfbwTvA.js": {
+      "bytes": 669,
+      "sha256": "10a729f7cd0cc76b10a57f1cc80bcc4139cfbfc0a86daa842fa421556a5ddbb8"
+    },
+    "rolldown-runtime-Dy4uBu1J.js": {
+      "bytes": 248,
+      "sha256": "2ae529aa369ca927116393faa00287bf0d6597a6ebde8433800d196a9a19e007"
+    },
+    "source-resolution-DLJUVzYE.js": {
+      "bytes": 3908,
+      "sha256": "0bd42879c7eeccf0e1a9dd041e4f870b483a0381f783cc8498ec735a612f7598"
+    },
+    "studio-interactions-rKP_9PIT.js": {
+      "bytes": 33121,
+      "sha256": "5e1d903d6415c7dd69375dfe0b2cb0ad0ff8a29c72b55ff7b54245b2bd3d45e3"
+    },
+    "style.css": {
+      "bytes": 5067,
+      "sha256": "17236480fc3a0f3962c7d3ab7be9128a831451da3954e05ebe838033fa48943f"
+    },
+    "widget-config-BnNjdjF6.js": {
+      "bytes": 4625,
+      "sha256": "f62fe19025217f84d298c05d4711a840c71a88d27e33bb3c72a5025f14317eda"
+    }
+  }
+}

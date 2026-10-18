@@ -1,3 +1,4 @@
+import { readSharedStyleFocus, prepareSharedStyleFocus, watchSharedStyleEdits } from './shared-style-context.mjs';
 // The workspace is shared by chat, forms and Studio. Each tab has its own explicit view binding.
 const publishFields = new Set(['connectionId', 'schema', 'table', 'serviceName', 'layerName']);
 export class WorkspaceConflict extends Error {
@@ -13,11 +14,12 @@ export class AgentWorkspace {
         this.context = null; this.session = null; this.dirty = new Map(); this.follow = true;
         this.queue = Promise.resolve(); this.agentSession = null; this.contextGeneration = 0;
     }
-    async api(path, method = 'GET', body) {
+    async api(path, method = 'GET', body, binding = this.session) {
         const response = await this.request(`/api/agent-workspace/${path}`, {
             method, credentials: 'same-origin', headers: {
-                'Content-Type': 'application/json', 'X-CSRF-Token': this.session?.csrfToken || '',
-                'X-Honua-Environment': this.session?.environmentId || ''
+                'Content-Type': 'application/json', 'X-CSRF-Token': binding?.csrfToken || '',
+                'X-Honua-Environment': binding?.environmentId || '',
+                'X-Honua-Session-Partition': binding?.principalId || ''
             }, ...(body === undefined ? {} : { body: JSON.stringify(body) })
         });
         const value = response.status === 204 ? null : await response.json().catch(() => null);
@@ -29,32 +31,83 @@ export class AgentWorkspace {
         return value;
     }
     async create() {
-        this.session = await this.api('session');
-        const context = await this.api('', 'POST', { viewId: this.viewId });
+        if (this.capturing) throw new Error('Wait until the current context capture finishes.');
+        const generation=++this.contextGeneration;
+        const check=()=>{
+            if(generation!==this.contextGeneration) throw new Error('The selected context changed while creating a workspace. Review it before retrying.');
+            const style=this.sharedStyleProvider?.();
+            if(this.dirty.size || style?.dirty || style?.pending) throw new Error('Save or discard your edits before starting another workspace.');
+        };
+        check();await this.authorityChangeGuard?.();check();
+        const candidate = await this.api('session');check();
+        const context = await this.api('', 'POST', { viewId: this.viewId }, candidate);check();
         return this.connect(context.workspaceId);
     }
     async connect(workspaceId = this.workspaceId) {
         if (this.capturing) throw new Error('Wait until the submitted prompt has been bound before reconnecting.');
-        this.contextGeneration++;
-        if (this.dirty.size && workspaceId !== this.workspaceId) throw new Error('Save your shared draft before switching workspaces.');
-        const previousEnvironment = this.session?.environmentId;
-        const previousPrincipal = this.session?.principalId;
-        const previousWorkspace = this.workspaceId;
-        const session = await this.api('session');
-        if (previousEnvironment && previousEnvironment !== session.environmentId && this.dirty.size)
-            throw new Error('The environment changed while this draft has unsaved edits. Return to its environment before saving.');
-        if ((previousEnvironment && previousEnvironment !== session.environmentId) || previousWorkspace !== workspaceId || (previousPrincipal && previousPrincipal !== session.principalId)) {
+        const generation = ++this.contextGeneration;
+        if (!workspaceId || !/^[A-Za-z0-9_-]{1,128}$/.test(workspaceId)) throw new Error('Connect a valid workspace shared with your agent.');
+        const candidate = await this.api('session');
+        const changedAuthority = Boolean(this.session && ['environmentId','principalId','releaseId','sourcePathBase'].some(key => this.session[key] !== candidate[key]));
+        const changedWorkspace = this.workspaceId !== workspaceId;
+        if (changedAuthority || changedWorkspace) {
+            if (this.dirty.size) throw new Error('Save your shared draft before changing workspace authority.');
+            const style = this.sharedStyleProvider?.();
+            if (style?.dirty || style?.pending) throw new Error('Save or discard the style edit before changing connections.');
+            await this.authorityChangeGuard?.();
+        }
+        const checkAdoption = async () => {
+            if (generation !== this.contextGeneration) throw new Error('The selected context changed while connecting. Review it before retrying.');
+            if (changedAuthority || changedWorkspace) {
+                if (this.dirty.size) throw new Error('Save your shared draft before changing workspace authority.');
+                const style = this.sharedStyleProvider?.();
+                if (style?.dirty || style?.pending) throw new Error('Save or discard the style edit before changing connections.');
+                await this.authorityChangeGuard?.();
+                const latestStyle=this.sharedStyleProvider?.();
+                if (generation !== this.contextGeneration || this.dirty.size || latestStyle?.dirty || latestStyle?.pending)
+                    throw new Error('The editor changed while connecting. Save it before retrying.');
+            }
+        };
+        // Adopt nothing until the new cookie/profile binding has actually authorized this view.
+        const context = await this.api(`${workspaceId}?viewId=${encodeURIComponent(this.viewId)}`, 'GET', undefined, candidate);
+        await checkAdoption();
+        if (changedAuthority || changedWorkspace) {
             this.agentSession?.sdkSession?.close(); this.agentSession = null; this.draft = null; this.draftFields = null; this.presentedDraft = null;
         }
-        this.session = session;
-        if (!workspaceId) throw new Error('Connect an existing workspace shared with your agent.');
-        if (!/^[A-Za-z0-9_-]{1,128}$/.test(workspaceId)) throw new Error('Invalid workspace identifier.');
-        this.workspaceId = workspaceId;
-        this.context = await this.api(`${workspaceId}?viewId=${encodeURIComponent(this.viewId)}`);
+        this.session = candidate; this.workspaceId = workspaceId; this.context = context;
         this.storage.setItem('honua.workspace.id', workspaceId);
-        await attachNativeAgent(this).catch(() => { this.agentSession = null; });
+        await attachNativeAgent(this).catch(error => { if(generation===this.contextGeneration) this.nativeAgentIssue=error.message; });
+        if(generation!==this.contextGeneration) throw new Error('A newer workspace connection replaced this request.');
         await this.agentSession?.reconcilePending?.();
         this.notify(this); return this.context;
+    }
+    async contextReference() {
+        if (!this.context || !this.session) throw new Error('Start or connect a workspace first.');
+        const binding = {generation:this.contextGeneration,workspaceId:this.workspaceId,viewId:this.viewId,
+            principalId:this.session.principalId,environmentId:this.session.environmentId};
+        const check = () => {
+            if (binding.generation !== this.contextGeneration || binding.workspaceId !== this.workspaceId
+                || binding.viewId !== this.viewId || binding.principalId !== this.session?.principalId
+                || binding.environmentId !== this.session?.environmentId)
+                throw new Error('The selected context changed. Copy the context again when ready.');
+        };
+        this.capturing = (this.capturing || 0) + 1;
+        try {
+            await this.queue; check();
+            if (this.dirty.size) throw new Error('Save your draft before copying its context.');
+            const style = this.sharedStyleProvider?.();
+            const prepare = style ? async()=>prepareSharedStyleFocus(style, this.session?.principalId) : this.prepareContextProvider?.();
+            const task = prepare ? await prepare() : undefined;
+            check();
+            if (task !== undefined && JSON.stringify(task) !== JSON.stringify(this.context.task))
+                throw new Error('Wait for the accepted task context before copying it.');
+            if (this.dirty.size) throw new Error('Save your draft before copying its context.');
+            const observed = await this.api(`${this.workspaceId}?viewId=${encodeURIComponent(this.viewId)}`);
+            check();
+            if (observed.revision !== this.context.revision || observed.targetId !== this.context.targetId)
+                throw new Error('The server context changed. Review it before copying a new reference.');
+            return Object.freeze({workspaceId:this.workspaceId,viewId:this.viewId,contextRevision:observed.revision,targetId:observed.targetId});
+        } finally { this.capturing--; }
     }
     async observeContext() {
         const settled = this.queue;
@@ -128,9 +181,10 @@ export class AgentWorkspace {
     }
     async submit(prompt, options = {}) {
         if (!prompt.trim()) throw new Error('Enter a message.');
-        const selection = this.selectionProvider?.();
+        const styleFocus = this.sharedStyleProvider?.();
+        const selection = styleFocus ? [] : this.selectionProvider?.();
         const capturedResources = selection ?? this.context?.selectedResources ?? [];
-        const prepareContext = options.prepareContext || this.prepareContextProvider?.()
+        const prepareContext = options.prepareContext || (styleFocus ? async () => prepareSharedStyleFocus(styleFocus, this.session?.principalId) : undefined) || this.prepareContextProvider?.()
             || (typeof location !== 'undefined' && location.pathname === '/studio/processes' ? async()=>null : undefined);
         if (selection && JSON.stringify(selection) !== JSON.stringify(this.context?.selectedResources)) this.select(selection);
         // Enqueue capture synchronously. Navigation after this call queues behind the durable turn
@@ -225,17 +279,34 @@ export function mountWorkspace() {
     mountedWorkspaceHosts.add(host);
     host.dataset.mounted = 'true';
     const lifetime = new AbortController();
+    watchSharedStyleEdits(document, {signal:lifetime.signal});
     const status = host.querySelector('[data-workspace-status]');
     const messages = host.querySelector('[data-workspace-messages]');
     const target = host.querySelector('[data-workspace-target]');
     const workspaceInput = host.querySelector('[data-workspace-id]');
     const notify = state => {
-        target.textContent = state.context ? `${state.session.environmentName} · target ${state.context.targetId} · tenant ${state.context.tenantId ?? 'unbound'} · ${state.context.selectedResources?.map(r => `${r.kind}: ${r.id}`).join(', ') || 'No resource selected'} · ${state.context.task ? `${state.context.task.kind || 'publish-layer'}: ${state.context.task.id} @${state.context.task.revision}` : 'No task selected'} · revision ${state.context.revision}` : 'No workspace connected';
+        const taskLabel = state.context?.task ? ({'studio-composition':'Map draft','publish-layer':'Publish layer','workflow-package':'Process graph','local-process-workspace':'Local process','shared-style':'Shared style'}[state.context.task.kind] || 'Task') : 'No task selected';
+        const taskIdentity = state.context?.task?.packageKey || state.context?.task?.id;
+        const currentTask = taskIdentity ? `${taskLabel} ${taskIdentity}` : taskLabel;
+        const resources = state.context?.selectedResources?.map(resource => `${resource.kind} ${resource.id}`).join(', ');
+        target.textContent = state.context ? `${state.session.environmentName} · ${resources || 'No resource selected'} · ${currentTask}` : 'Choose an environment, then start a conversation.';
+        const header = document.querySelector('[data-workspace-header-target]');
+        if (header) header.textContent = state.context ? `${state.session.environmentName} · ${resources || currentTask}` : 'Choose an environment';
+        host.dataset.connected = String(Boolean(state.context));
+        const start = host.querySelector('[data-workspace-start]');
+        if (start) start.hidden = Boolean(state.context);
+        host.classList.toggle('console-first-run-conversation', !state.context && location.pathname === '/');
+        target.title = state.context ? `Target ${state.context.targetId}; tenant ${state.context.tenantId ?? 'unbound'}; revision ${state.context.revision}` : '';
+
     };
     const workspace = activeWorkspace ||= new AgentWorkspace();
     workspace.notify = notify; notify(workspace);
-    host.open = Boolean(workspace.open);
+    workspace.open ??= window.matchMedia('(min-width: 1100px)').matches;
+    host.open = workspace.open;
+    const connectionPanel = host.querySelector('.console-conversation-connection');
+    if (connectionPanel) connectionPanel.open = false;
     host.addEventListener('toggle', () => { workspace.open = host.open; }, { signal: lifetime.signal });
+    workspace.sharedStyleProvider ||= () => readSharedStyleFocus(document, workspace.session?.principalId);
     workspace.selectionProvider ||= () => selectedResource(location.pathname);
     // One session instance lives above route components; embedded Studio receives this same object.
     Object.defineProperty(window, 'honuaAgentWorkspace', { value: workspace, configurable: true });
@@ -249,9 +320,23 @@ export function mountWorkspace() {
             row.textContent = `${message.role}: ${message.content}`; messages.append(row);
         }
     };
+    host.querySelector('[data-workspace-start]')?.addEventListener('click', async () => {
+        try { await workspace.create(); workspaceInput.value = workspace.workspaceId; await workspace.select(workspace.selectionProvider?.() ?? selectedResource(location.pathname)); await refresh(); status.textContent = 'Connected'; }
+        catch (error) { report(error); }
+    });
     host.querySelector('[data-workspace-connect]').addEventListener('click', async () => {
         try { await (workspaceInput.value.trim() ? workspace.connect(workspaceInput.value.trim()) : workspace.create()); workspaceInput.value = workspace.workspaceId; await workspace.select(workspace.selectionProvider?.() ?? selectedResource(location.pathname)); await refresh(); status.textContent = 'Connected'; }
         catch (error) { report(error); }
+    });
+    host.querySelector('[data-workspace-copy-context]')?.addEventListener('click', async () => {
+        try {
+            const reference = await workspace.contextReference();
+            const text = JSON.stringify(reference, null, 2);
+            const output = host.querySelector('[data-workspace-context-reference]');
+            if (output) { output.textContent = text; output.hidden = false; }
+            try { await navigator.clipboard.writeText(text); status.textContent = 'Tab context copied. Give it to your agent with your next request.'; }
+            catch { status.textContent = 'Copy the tab context shown below and give it to your agent. It contains no credentials.'; }
+        } catch (error) { report(error); }
     });
     host.querySelector('[data-workspace-follow]').addEventListener('change', event => { workspace.follow = event.target.checked; });
     host.querySelector('form').addEventListener('submit', async event => {
@@ -265,12 +350,20 @@ export function mountWorkspace() {
     });
     // Navigation publishes only typed selections. Never forward a URL, query, fragment or page contents.
     let lastSelection = JSON.stringify(selectedResource(location.pathname));
+    let hadSharedStyle = false;
     const observer = new MutationObserver(() => {
         if (!host.isConnected) { observer.disconnect(); formObserver.disconnect(); lifetime.abort(); return; }
-        const selection = workspace.selectionProvider?.() ?? selectedResource(location.pathname); const key = JSON.stringify(selection);
-        if (workspace.context && key !== lastSelection) { lastSelection = key; workspace.select(selection).catch(report); }
+        const focus = workspace.sharedStyleProvider?.();
+        const selection = focus ? [] : workspace.selectionProvider?.() ?? selectedResource(location.pathname);
+        const key = JSON.stringify(focus ? {resources:selection,task:focus.task} : selection);
+        if (workspace.context && key !== lastSelection) {
+            lastSelection = key;
+            workspace.select(selection, focus ? focus.task : hadSharedStyle ? null : undefined).catch(report);
+        }
+        hadSharedStyle = Boolean(focus);
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true,
+        attributeFilter:['data-style-authority-binding','data-style-task-id','data-style-task-revision','data-style-content-hash','data-style-impact-hash'] });
     window.addEventListener('honua-agent-presentation', event => {
         const href = workspace.presentation(event.detail);
         if (href === location.pathname) return;
@@ -305,6 +398,17 @@ export function mountWorkspace() {
             return fields;
         };
         form.addEventListener('click', async event => {
+            if (event.target.closest('[data-workspace-save]')) {
+                event.preventDefault(); event.stopImmediatePropagation();
+                if (!workspace.context) { report(new Error('Start or connect a workspace before saving its draft.')); return; }
+                try {
+                    await workspace.ensureDraft(workspace.draftFields());
+                    await workspace.saveDraft();
+                    await workspace.observeContext(); workspace.notify(workspace);
+                    status.textContent = 'Draft saved. Nothing has been published.';
+                } catch (error) { report(error); }
+                return;
+            }
             if (!event.target.closest('[data-workspace-publish]') || !workspace.context) return;
             event.preventDefault(); event.stopImmediatePropagation();
             try {
@@ -377,12 +481,18 @@ if (typeof document !== 'undefined') {
 
 export async function attachNativeAgent(workspace, loadAssets = () => import('/_studio/console.js')) {
     if (!workspace.session?.nativeAgentAvailable || workspace.agentSession) return;
+    const generation=workspace.contextGeneration,workspaceId=workspace.workspaceId;
+    const authority=JSON.stringify(['principalId','environmentId','releaseId','sourcePathBase'].map(key=>workspace.session[key]));
     const module = await loadAssets();
+    if(generation!==workspace.contextGeneration || workspaceId!==workspace.workspaceId
+        || authority!==JSON.stringify(['principalId','environmentId','releaseId','sourcePathBase'].map(key=>workspace.session?.[key])) || workspace.agentSession) return;
+    if (module.workspaceAgentFeatures?.toolApproval !== true) throw new Error('The qualified native editor contract is unavailable.');
     const boundWorkspaceId = workspace.workspaceId;
     const boundSession = { ...workspace.session };
     let currentTurn;
     let currentOptions;
     let sdkSession;
+    let privateCatalogBinding = null;
     let priorConversation = [];
     let turnQueue = Promise.resolve();
     const agentFetch = async (input, init = {}) => {
@@ -433,7 +543,16 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
             // One queue protects the per-turn transport binding as well as the SDK conversation.
             const execute = async () => {
                 currentTurn = turn; currentOptions = options;
+                privateCatalogBinding = null;
+                const hadSession = Boolean(sdkSession);
+                sdkSession?.reconnect();
                 try {
+                    const latest = await workspace.api('session');
+                    if (['principalId','environmentId','releaseId','sourcePathBase'].some(key => latest[key] !== boundSession[key]))
+                        throw new Error('The workspace session changed. Save your work and reconnect before retrying.');
+                    // Renew only the lease after the immutable authority has matched.
+                    boundSession.csrfToken = latest.csrfToken;
+                    boundSession.expiresAt = latest.expiresAt;
                     await reconcilePending();
                     const agentTurnResponse = await agentFetch('turn');
                     if (!agentTurnResponse.ok) throw new Error('The agent is not authorized for this workspace turn.');
@@ -445,24 +564,29 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
                     const history = await historyResponse.json();
                     // Conversation from any workspace participant remains unverified explanatory context.
                     priorConversation = (history.messages || []).map(message => ({ role: message.role, content: message.content }));
+                    const capabilitiesResponse = await agentFetch('/api/v1/studio/ai/capabilities');
+                    if (!capabilitiesResponse.ok) throw new Error('Native agent capabilities are unavailable.');
+                    const capabilitiesRaw = await capabilitiesResponse.json();
+                    const capabilities = capabilitiesRaw.data || capabilitiesRaw;
+                    const gateway = capabilities.workspaceGateway;
+                    if (gateway?.schemaVersion === 'honua.agent-gateway.capabilities.v1'
+                        && gateway.targetId === currentTurn.context.targetId && gateway.workspaceId === boundWorkspaceId
+                        && gateway.turnId === currentTurn.turnId && gateway.toolFamilies?.includes('honua.workspace.devops'))
+                        privateCatalogBinding = {targetId:gateway.targetId,workspaceId:gateway.workspaceId,turnId:gateway.turnId,releaseId:latest.releaseId};
+                    if (!capabilities.transcriptSigning?.keys?.length || !boundSession.releaseId || !currentTurn.context?.tenantId)
+                        throw new Error('Native agent transcript verification is not configured for this environment.');
                     if (!sdkSession) {
-                        const capabilitiesResponse = await agentFetch('/api/v1/studio/ai/capabilities');
-                        if (!capabilitiesResponse.ok) throw new Error('Native agent capabilities are unavailable.');
-                        const capabilitiesRaw = await capabilitiesResponse.json();
-                        const capabilities = capabilitiesRaw.data || capabilitiesRaw;
-                        if (!capabilities.transcriptSigning?.keys?.length || !boundSession.releaseId || !currentTurn.context?.tenantId)
-                            throw new Error('Native agent transcript verification is not configured for this environment.');
                         sdkSession = module.createWorkspaceAgentSession({
                             certification,
                             transcriptVerifier: (module.createWorkspaceTranscriptVerifier ? module.createWorkspaceTranscriptVerifier(capabilities.transcriptSigning) : new module.StudioAiTranscriptVerifier({ manifest: capabilities.transcriptSigning, replayStore: new module.InMemoryStudioAiReplayStore() })),
                             onEvent: event => currentOptions?.onEvent?.(event),
-                            toolFamilies: ['honua.studio.composition', 'honua.workspace.canonical',
-                                ...(capabilities.workspaceGateway?.schemaVersion === 'honua.agent-gateway.capabilities.v1' &&
-                                    capabilities.workspaceGateway.targetId === currentTurn.context.targetId &&
-                                    capabilities.workspaceGateway.workspaceId === boundWorkspaceId &&
-                                    capabilities.workspaceGateway.turnId === currentTurn.turnId &&
-                                    capabilities.workspaceGateway.toolFamilies?.includes('honua.workspace.devops')
-                                    ? ['honua.workspace.devops'] : [])],
+                            toolFamilies: ['honua.studio.composition', 'honua.workspace.canonical', 'honua.workspace.local-process', 'honua.workspace.devops'],
+                            toolApproval: entry => entry.source === 'metadata' && Boolean(entry.classification)
+                                && (entry.classification.family !== 'honua.workspace.devops'
+                                    || privateCatalogBinding?.targetId === currentTurn?.context?.targetId
+                                    && privateCatalogBinding?.workspaceId === boundWorkspaceId
+                                    && privateCatalogBinding?.turnId === currentTurn?.turnId
+                                    && privateCatalogBinding?.releaseId === boundSession.releaseId),
                             system: () => 'You are the Honua workspace agent. Use only authorized canonical tools. ' +
                                 'Navigation and draft changes never approve or execute publication. Tool receipts alone establish operation status. ' +
                                 `This turn is bound to the authorized context ${JSON.stringify(currentTurn?.context || {})}. ` +
@@ -471,6 +595,9 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
                             fetchImpl: agentFetch
                         });
                     }
+                    if (!hadSession) sdkSession.reconnect();
+                    const discovery = await sdkSession.refreshTools();
+                    if (discovery.errorMessage) throw new Error('The authorized tool catalog could not be refreshed.');
                     sdkSession.attachDraft(currentTurn.context?.task?.kind === 'studio-composition'
                         ? {draftId:currentTurn.context.task.id,generation:currentTurn.context.task.revision} : undefined);
                     const result = await sdkSession.chat(turn.prompt, { signal: options.signal });
@@ -487,7 +614,7 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
                         await reconcilePending();
                     }
                     return result;
-                } finally { currentTurn = null; currentOptions = null; }
+                } finally { currentTurn = null; currentOptions = null; privateCatalogBinding = null; }
             };
             const pending = turnQueue.then(execute, execute);
             turnQueue = pending.catch(() => {}); return pending;
@@ -495,3 +622,18 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
     };
     if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('honua-agent-session-ready', { detail: workspace.agentSession }));
 }
+
+if (typeof document !== 'undefined') document.addEventListener('click', async event => {
+    const opener = event.target.closest?.('[data-workspace-open]');
+    if (opener) {
+        const host = document.querySelector('[data-agent-workspace]');
+        if (host) { host.open = true; host.querySelector('[data-workspace-prompt]')?.focus(); }
+    }
+    const handoff = event.target.closest?.('[data-agent-handoff]');
+    if (handoff) {
+        const text = document.querySelector('[data-local-agent-prompt]')?.textContent?.trim();
+        const status = document.querySelector('[data-agent-handoff-status]');
+        try { await navigator.clipboard.writeText(text || ''); if (status) status.textContent = 'Copied. Paste this into your local agent.'; }
+        catch { if (status) status.textContent = 'Select and copy the request above, then paste it into your local agent.'; }
+    }
+});

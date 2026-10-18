@@ -1250,3 +1250,11 @@ update to reflect that Console consumes the shared .NET and JS SDK
 projections rather than treating `honua-portal` helpers as behavior
 references. The Portal source rows in §4 remain as a historical pointer
 until `honua-console#10` retires Portal.
+
+## Unified workspace navigation (UX-001–007)
+
+The primary rail follows Home (`/`), Data & Layers (`/operate/data`), realtime Maps & apps (`/studio`), Processes (`/studio/processes`), Approvals (`/inbox`) and Activity (`/operate/observability`). Realtime entries retain their embed capability gate. More tools preserves the existing area and operational destinations; URLs and deep links are unchanged. The view bar switches Console/Studio/Processes alongside one host-owned conversation.
+
+`/setup/local` is the local-evaluation handoff guide. It explains external local-agent Docker inspection/install and copies an authored request; it cannot start Docker from the browser. `/environments/new` connects an existing deployment. `/operate/data/new` uses contextual source controls with the shared conversation, and its connected-table action opens the canonical shared-draft form at `/operate/publishing/quick`. See [the interaction model](design/unified-workspace-ux-implementation.md).
+
+Legacy Studio standalone builder URLs now show direct guidance to `/studio` or `/studio/processes`; the retired generated-package product is not restored by `studio-builders`. `/operate/ai` opens the same primary conversation rather than a separate classifier/generator. Real operations and automation routes remain available. The active editor dependency stays in `honua-studio` until a separately approved migration.

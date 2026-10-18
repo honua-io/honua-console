@@ -14,7 +14,7 @@ evaluator, self-hoster, or contributor — this is the repo.
 
 | Surface | Route | What it covers |
 |---|---|---|
-| **Studio** _(shelved)_ | `/studio` | AI-assisted authoring of spatial queries, analyses, maps, dashboards, reports, forms, apps, and workflows. **Gated off by default** — see "Studio builders are shelved" below |
+| **Studio** | `/studio` | Realtime visual editing alongside the shared Console conversation; active editor assets come from `honua-studio`. |
 | **Catalog** | `/catalog` | Data, layers, services, saved maps/dashboards/reports/forms/workflows, generated apps, metadata, and provenance |
 | **Operate** | `/operate` | Publishing, jobs, service configuration, identity, connectors, deployment health, observability, and runtime administration |
 | **Share** | `/share` | Public links, embeds, open-data pages, exports, and external publishing |
@@ -32,20 +32,10 @@ lands here. Honest signal on maturity:
 - **Server-bound by design.** Routes that need live data bind to honua-server
   and render an explicit *missing-binding* state when no server is configured —
   never mock data. In-memory demo shells are opt-in and test/demo-only.
-- **Studio builders are shelved.** The Console's non-realtime Studio builder
-  surfaces — Studio home and the inline authoring shell (`/studio`,
-  `/studio/proof`, `/studio/drafts`, `/studio/apps/:itemId/preview`), the map,
-  app, dashboard, analysis, and query builders, and the report/form/workflow
-  "from prompt" surfaces — are **gated off by default** and removed from the
-  navigation. "Studio" is now the realtime, SDK-driven app builder, which is not
-  a Console surface; the Console keeps its back-office roles. Nothing was
-  deleted: a shelved route renders an explicit *shelved* state, and setting
-  `HONUA_CONSOLE_CAPABILITIES=studio-builders` (or `Honua:Console:Capabilities`)
-  restores every surface unchanged. `/studio/form`, `/studio/form/import`,
-  `/studio/report`, `/studio/styles`, `/studio/automations`, and existing
-  workflow drafts at `/studio/workflows/:draftId` stay live — see
-  [Studio Package Editor Routes](docs/studio/package-editor-routes.md) and
-  [the route map](docs/console-route-map.md).
+- **Studio lives in Console.** `/studio` embeds the realtime editor beside one persistent Console
+  conversation. `honua-studio` is its active editor dependency, not a separate product to launch.
+  Legacy standalone generated-package builder routes provide direct workspace guidance; capability flags
+  cannot restore them. Real operations, automation and Processes authoring remain available.
 - **Realtime alerting is capability-gated preview.** Operate jobs and events
   are first-release floor; alert/geofence rule surfaces light up only when the
   bound server advertises the capability.
@@ -303,3 +293,26 @@ Report vulnerabilities to <security@honua.io>. See the organization
 ## License
 
 [Apache License 2.0](LICENSE). See also [NOTICE](NOTICE).
+
+### Shared workspace preview
+
+The host keeps operator and agent credentials separate. Realtime embedding uses `Studio:EmbedJsStudio`.
+Native transport requires the host-only `HONUA_AGENT_API_KEY`, a matching pinned
+`HONUA_AGENT_SERVER_BASE_URL`, and `HONUA_AGENT_RELEASE_ID`; missing signing/provider or membership
+bindings refuse native execution. An optional host-configured `HONUA_AGENT_GATEWAY_URL` and independent
+`HONUA_AGENT_GATEWAY_KEY` connect the same canonical gateway used by external clients. Keys never enter
+browser JavaScript or copied context references.
+
+Development local human sign-in additionally requires the explicitly enabled local human bridge and its
+independent host secret; it does not reuse the agent key. Cloud/OIDC sessions use the actual operator
+identity. The ordinary release/default installer profile is not qualified merely by a manually configured
+preview. Use qualified compatible server, Console and gateway artifacts together.
+
+To use an external agent with the selected browser tab, choose **Copy context for my agent** after saving
+edits. The reference contains only `workspaceId`, `viewId`, `contextRevision` and `targetId`. Verify the
+returned target and use the copied revision exactly; stale context requires a new human reference rather
+than selecting another tab or silently refreshing the target.
+
+See [the interaction model](docs/design/unified-workspace-ux-implementation.md) and
+[ADR 0002](docs/adr/0002-realtime-studio-agent-workspace.md). Component/browser-layout checks do not
+establish a complete installed native/model/publication journey or evaluator usability testing.

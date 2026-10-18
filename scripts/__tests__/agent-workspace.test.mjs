@@ -1,9 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AgentWorkspace, WorkspaceConflict, selectedResource } from '../../src/Honua.Console.Web/wwwroot/js/agent-workspace.mjs';
+import { AgentWorkspace, WorkspaceConflict, selectedResource, attachNativeAgent } from '../../src/Honua.Console.Web/wwwroot/js/agent-workspace.mjs';
 const storage = () => { const data = new Map(); return { getItem: k => data.get(k), setItem: (k,v) => data.set(k,v) }; };
 const response = (value, status = 200) => ({ ok: status < 300, status, json: async () => value });
 function client(request) { return new AgentWorkspace({ request, storage: storage(), uuid: () => 'fixed-id' }); }
+const nativeSession={nativeAgentAvailable:true,releaseId:'release',tenantId:'tenant',environmentId:'environment',csrfToken:'csrf',principalId:'original-session'};
+function qualifiedNativeModule(value) {
+ return {...value,workspaceAgentFeatures:{toolApproval:true},createWorkspaceAgentSession:options=>({reconnect(){},refreshTools:async()=>({}),...value.createWorkspaceAgentSession(options)})};
+}
+
 
 test('prompt binds original authorized revision while navigation changes in flight', async () => {
     let release; const calls = [];
@@ -79,14 +84,15 @@ test('one native SDK session serializes turns and sees only agent-authorized con
     let instances=0; let historyReads=0; const seen=[]; const requests=[]; const drafts=[]; let turnReads=0;
     const workspace=client(async(path,init)=>{
         requests.push({path,init});
+        if (path.endsWith('/session')) return response(nativeSession);
         if (path.endsWith('/turn')) return response({context:{targetId:'target',tenantId:'tenant',selectedResources:[{kind:'layer',id:'allowed'}],task:++turnReads===1?{kind:'studio-composition',id:'draft',revision:2}:null},localProcessSnapshot:turnReads===2?{projectId:'agent-project',snapshotId:'authorized-snapshot'}:undefined});
         if (path.endsWith('/capabilities')) return response({transcriptSigning:{keys:[{keyId:'trusted-key'}]}});
         if (path.endsWith('/conversation')&&init.method==='GET') return response({messages:++historyReads===1?[]:[{role:'assistant',content:'External participant update'}]});
         if (path.endsWith('/conversation')) return response({messages:[]});
         return response({});
     });
-    workspace.workspaceId='workspace'; workspace.session={nativeAgentAvailable:true,releaseId:'release',tenantId:'tenant',environmentId:'environment',csrfToken:'csrf',principalId:'original-session'};
-    await attachNativeAgent(workspace,async()=>({
+    workspace.workspaceId='workspace'; workspace.session={...nativeSession};
+    await attachNativeAgent(workspace,async()=>qualifiedNativeModule({
         createWorkspaceTranscriptVerifier:manifest=>({manifest}),
         createWorkspaceAgentSession:options=>{
             instances++;
@@ -144,6 +150,7 @@ test('assistant persistence retries its stable message without rerunning the mod
     const {attachNativeAgent}=await import('../../src/Honua.Console.Web/wwwroot/js/agent-workspace.mjs');
     let modelCalls=0; let writeCalls=0; const messages=[];
     const workspace=client(async(path,init)=>{
+        if (path.endsWith('/session')) return response(nativeSession);
         if (path.endsWith('/turn')) return response({context:{targetId:'target',tenantId:'tenant'}});
         if (path.endsWith('/capabilities')) return response({transcriptSigning:{keys:[{}]}});
         if (path.endsWith('/conversation')&&init.method==='POST') {
@@ -153,8 +160,8 @@ test('assistant persistence retries its stable message without rerunning the mod
         }
         return response({messages:[]});
     });
-    workspace.workspaceId='workspace'; workspace.session={nativeAgentAvailable:true,releaseId:'release',tenantId:'tenant'};
-    await attachNativeAgent(workspace,async()=>({
+    workspace.workspaceId='workspace'; workspace.session={...nativeSession};
+    await attachNativeAgent(workspace,async()=>qualifiedNativeModule({
         createWorkspaceTranscriptVerifier:()=>({}),
         createWorkspaceAgentSession:()=>({attachDraft(){},chat:async()=>{modelCalls++;return {status:'completed',text:'Assistant response'};}})
     }));
@@ -213,16 +220,18 @@ test('pending accepted Studio edit is flushed before capture without retargeting
 test('private native family is enabled only by the matching gateway capability binding',async()=>{
     const {attachNativeAgent}=await import('../../src/Honua.Console.Web/wwwroot/js/agent-workspace.mjs');
     for(const targetId of ['target','other-target']) {
-        let families;
+        let families,allowed;
         const workspace=client(async path=>{
+            if(path.endsWith('/session'))return response(nativeSession);
             if(path.endsWith('/turn'))return response({context:{targetId:'target',tenantId:'tenant'}});
             if(path.endsWith('/capabilities'))return response({transcriptSigning:{keys:[{}]},workspaceGateway:{schemaVersion:'honua.agent-gateway.capabilities.v1',targetId,workspaceId:'workspace',turnId:'turn',toolFamilies:['honua.workspace.devops']}});
             return response({messages:[]});
         });
-        workspace.workspaceId='workspace';workspace.session={nativeAgentAvailable:true,releaseId:'release'};
-        await attachNativeAgent(workspace,async()=>({createWorkspaceTranscriptVerifier:()=>({}),createWorkspaceAgentSession:options=>{families=options.toolFamilies;return {attachDraft(){},chat:async()=>({status:'completed'})};}}));
+        workspace.workspaceId='workspace';workspace.session={...nativeSession};
+        await attachNativeAgent(workspace,async()=>qualifiedNativeModule({createWorkspaceTranscriptVerifier:()=>({}),createWorkspaceAgentSession:options=>{families=options.toolFamilies;return {attachDraft(){},chat:async()=>{allowed=options.toolApproval({source:'metadata',classification:{family:'honua.workspace.devops'}});return {status:'completed'};}};}}));
         await workspace.agentSession.submitTurn({turnId:'turn',prompt:'inspect infrastructure'});
-        assert.equal(families.includes('honua.workspace.devops'),targetId==='target');
+        assert.ok(families.includes('honua.workspace.local-process'));
+        assert.equal(allowed,targetId==='target');
     }
 });
 
@@ -301,4 +310,186 @@ test('a retained Studio task cannot lend a pending prompt to a changed principal
     await new Promise(resolve=>setImmediate(resolve));
     workspace.session={...workspace.session,principalId:'different'};saved();
     await assert.rejects(turn,/authority changed while submitting/);assert.equal(calls,0);
+});
+
+test('shared style prompt cannot inherit retained map selections or a prior map task', async()=>{
+ const task={kind:'shared-style',id:'style',revision:7,contentHash:'a'.repeat(64),impactHash:'b'.repeat(64)};
+ const calls=[];const workspace=client(async(path,init)=>{
+  const body=JSON.parse(init.body);calls.push({path,body});
+  return response(path.endsWith('/context') ? {...workspace.context,revision:workspace.context.revision+1,task:body.task,selectedResources:body.selectedResources} : {turnId:'turn'});
+ });
+ workspace.workspaceId='workspace';workspace.context={revision:1,targetId:'target',selectedResources:[],task};
+ workspace.selectionProvider=()=>[{kind:'layer',id:'unrelated-map-layer'}];
+ workspace.sharedStyleProvider=()=>({task,authorityBinding:workspace.session?.principalId,dirty:false,pending:false});
+ await workspace.submit('change this style');
+ assert.deepEqual(calls[0].body.selectedResources,[]);assert.deepEqual(calls[0].body.task,task);
+ assert.equal(JSON.stringify(calls).includes('unrelated-map-layer'),false);
+ workspace.context.task={kind:'studio-composition',id:'old-map',revision:2};
+ calls.length=0;await assert.rejects(workspace.submit('this style'),/task changed/);
+ assert.equal(calls.length,0);
+});
+
+test('a slow connection cannot overwrite a later connection',async()=>{
+ let sessionReads=0,release;const initial={environmentId:'old',principalId:'old',releaseId:'r'};
+ const workspace=client(async(path)=>{
+  if(path.endsWith('/session'))return response({environmentId:++sessionReads===1?'a':'b',principalId:'user',releaseId:'r'});
+  if(path.includes('workspace-a?')){await new Promise(resolve=>release=resolve);return response({targetId:'a',revision:1});}
+  return response({targetId:'b',revision:1});
+ });
+ workspace.session=initial;workspace.workspaceId='old';workspace.context={targetId:'old',revision:1};
+ const first=workspace.connect('workspace-a');await new Promise(resolve=>setImmediate(resolve));
+ await workspace.connect('workspace-b');release();await assert.rejects(first,/context changed/);
+ assert.equal(workspace.workspaceId,'workspace-b');assert.equal(workspace.context.targetId,'b');assert.equal(workspace.session.environmentId,'b');
+});
+
+test('editing during a connection read preserves old authority and unsaved fields',async()=>{
+ let release;let closes=0;const initial={environmentId:'old',principalId:'old',releaseId:'r'};
+ const workspace=client(async(path)=>{
+  if(path.endsWith('/session'))return response({environmentId:'new',principalId:'new',releaseId:'r',sourcePathBase:'/honua'});
+  await new Promise(resolve=>release=resolve);return response({targetId:'new',revision:1});
+ });
+ workspace.session=initial;workspace.workspaceId='old';workspace.context={targetId:'old',revision:1};
+ workspace.agentSession={sdkSession:{close(){closes++;}}};
+ const pending=workspace.connect('new');await new Promise(resolve=>setImmediate(resolve));
+ workspace.edit('layerName','unsaved');release();await assert.rejects(pending,/Save your shared draft/);
+ assert.equal(workspace.session,initial);assert.equal(workspace.workspaceId,'old');assert.equal(workspace.context.targetId,'old');
+ assert.equal(workspace.dirty.get('layerName'),'unsaved');assert.equal(closes,0);
+});
+
+test('failed nonroot profile connection cannot relabel prior context or discard chat',async()=>{
+ const initial={environmentId:'old',principalId:'old',sourcePathBase:'/old'};let closes=0;
+ const workspace=client(async(path)=>response(path.endsWith('/session')?{environmentId:'new',principalId:'new',sourcePathBase:'/honua'}:{message:'Forbidden'},path.endsWith('/session')?200:403));
+ workspace.session=initial;workspace.workspaceId='old';workspace.context={targetId:'old',revision:1};
+ const chat=workspace.agentSession={sdkSession:{close(){closes++;}}};
+ await assert.rejects(workspace.connect('new'),/Forbidden/);
+ assert.equal(workspace.session,initial);assert.equal(workspace.workspaceId,'old');assert.equal(workspace.context.targetId,'old');assert.equal(workspace.agentSession,chat);assert.equal(closes,0);
+});
+
+test('copy context is read-only and dirty draft requires an explicit save',async()=>{
+ let requests=0,prepares=0;
+ const workspace=client(async()=>{requests++;return response({targetId:'target',revision:7});});
+ workspace.workspaceId='workspace';workspace.session={principalId:'user',environmentId:'env',csrfToken:'secret'};
+ workspace.context={targetId:'target',revision:7,task:null};workspace.prepareContextProvider=()=>async()=>{prepares++;return undefined;};
+ workspace.edit('layerName','unsaved');await assert.rejects(workspace.contextReference(),/Save your draft/);
+ assert.equal(requests,0);assert.equal(prepares,0);assert.equal(workspace.dirty.get('layerName'),'unsaved');
+ workspace.dirty.clear();const reference=await workspace.contextReference();
+ assert.deepEqual(reference,{workspaceId:'workspace',viewId:'fixed-id',contextRevision:7,targetId:'target'});
+ assert.equal(JSON.stringify(reference).includes('secret'),false);assert.equal(requests,1);
+});
+
+test('each native turn clears old catalog and rechecks private capabilities without resetting chat',async()=>{
+ const {attachNativeAgent}=await import('../../src/Honua.Console.Web/wwwroot/js/agent-workspace.mjs');
+ for(const invalid of ['absent','target','workspace','turn']) {
+  let capabilitiesReads=0,instances=0,created,turnNumber=0;let sessionMetadata={...nativeSession};const seen=[],methods=[];
+  const workspace=client(async(path,init)=>{
+   if(path.endsWith('/session'))return response(sessionMetadata);
+   if(path.endsWith('/turn'))return response({context:{targetId:'target',tenantId:'tenant'}});
+   if(path.endsWith('/capabilities')){
+    capabilitiesReads++;const second=capabilitiesReads===2;
+    const gateway={schemaVersion:'honua.agent-gateway.capabilities.v1',targetId:second&&invalid==='target'?'wrong':'target',workspaceId:second&&invalid==='workspace'?'wrong':'workspace',turnId:second&&invalid==='turn'?'wrong':second?'second':'first',toolFamilies:['honua.workspace.devops']};
+    return response({transcriptSigning:{keys:[{}]},...(second&&invalid==='absent'?{}:{workspaceGateway:gateway})});
+   }
+   if(path.endsWith('/mcp')){
+    methods.push(JSON.parse(init.body).method);
+    const descriptors=[{name:'canonical',family:'honua.workspace.canonical'},...(turnNumber===1?[{name:'local',family:'honua.workspace.local-process'}]:[]),{name:'private',family:'honua.workspace.devops'}];
+    return response({tools:descriptors});
+   }
+   return response({messages:[]});
+  });
+  workspace.workspaceId='workspace';workspace.session={...nativeSession};
+  await attachNativeAgent(workspace,async()=>qualifiedNativeModule({createWorkspaceTranscriptVerifier:()=>({}),createWorkspaceAgentSession:options=>{
+   instances++;const messages=[];
+   created={tools:[],messages,reconnect(){this.tools=[];},async refreshTools(){turnNumber++;const result=await (await options.fetchImpl('/api/mcp',{method:'POST',body:JSON.stringify({method:'tools/list'})})).json();this.tools=result.tools.filter(tool=>options.toolFamilies.includes(tool.family)&&options.toolApproval({source:'metadata',classification:{family:tool.family}}));return {};},attachDraft(){},async chat(prompt){messages.push(prompt);seen.push(this.tools.map(tool=>tool.name));return {status:'completed'};}};
+   return created;
+  }}));
+  await workspace.agentSession.submitTurn({turnId:'first',prompt:'first'});
+  await workspace.agentSession.submitTurn({turnId:'second',prompt:'second'});
+  assert.equal(instances,1);assert.deepEqual(seen,[['canonical','local','private'],['canonical']]);
+  assert.deepEqual(created.messages,['first','second']);assert.deepEqual(methods,['tools/list','tools/list']);assert.equal(capabilitiesReads,2);
+  sessionMetadata={...nativeSession,releaseId:'other-release'};
+  await assert.rejects(workspace.agentSession.submitTurn({turnId:'third',prompt:'stale'}),/session changed/);
+  assert.deepEqual(created.tools,[]);assert.deepEqual(created.messages,['first','second']);assert.equal(capabilitiesReads,2);
+ }
+});
+
+test('native discovery failure never falls back to a previous catalog',async()=>{
+ const {attachNativeAgent}=await import('../../src/Honua.Console.Web/wwwroot/js/agent-workspace.mjs');let chats=0;
+ const workspace=client(async path=>response(path.endsWith('/session')?nativeSession:path.endsWith('/turn')?{context:{targetId:'target',tenantId:'tenant'}}:path.endsWith('/capabilities')?{transcriptSigning:{keys:[{}]}}:{messages:[]}));
+ workspace.workspaceId='workspace';workspace.session={...nativeSession};
+ await attachNativeAgent(workspace,async()=>qualifiedNativeModule({createWorkspaceTranscriptVerifier:()=>({}),createWorkspaceAgentSession:()=>({attachDraft(){},refreshTools:async()=>({errorMessage:'unavailable'}),chat:async()=>{chats++;}})}));
+ await assert.rejects(workspace.agentSession.submitTurn({turnId:'turn',prompt:'hello'}),/catalog could not be refreshed/);assert.equal(chats,0);
+});
+
+test('legacy factory without explicit tool approval support fails closed',async()=>{
+ const {attachNativeAgent}=await import('../../src/Honua.Console.Web/wwwroot/js/agent-workspace.mjs');
+ const workspace=client(async()=>response({}));workspace.session={...nativeSession};
+ await assert.rejects(attachNativeAgent(workspace,async()=>({createWorkspaceAgentSession(){throw new Error('must not run');}})),/qualified native editor contract/);
+});
+
+test('copy context rejects navigation during its authorized read',async()=>{
+ let release;
+ const workspace=client(async(path,init)=>{
+  if(init.method==='PUT')return response({targetId:'target',revision:8,selectedResources:JSON.parse(init.body).selectedResources});
+  await new Promise(resolve=>release=resolve);return response({targetId:'target',revision:7});
+ });
+ workspace.workspaceId='workspace';workspace.session={principalId:'user',environmentId:'env'};workspace.context={targetId:'target',revision:7,selectedResources:[]};
+ const reference=workspace.contextReference();await new Promise(resolve=>setImmediate(resolve));
+ await workspace.select([{kind:'layer',id:'later'}]);release();await assert.rejects(reference,/context changed/);
+ assert.equal(workspace.context.revision,8);
+});
+
+const startupTick=()=>new Promise(resolve=>setImmediate(resolve));
+test('delayed creation cannot reconnect over an explicit later selection',async()=>{
+ let release;const workspace=client(async(path,init)=>{
+  if(path.endsWith('/session'))return response({environmentId:'environment',principalId:'user'});
+  if(init.method==='POST'){await new Promise(resolve=>release=resolve);return response({workspaceId:'created-a'});}
+  return response({targetId:'b',revision:1});
+ });
+ const creating=workspace.create();await startupTick();await workspace.connect('explicit-b');release();
+ await assert.rejects(creating,/context changed/);assert.equal(workspace.workspaceId,'explicit-b');
+});
+test('delayed asset import cannot install over another connection or wrapper',async()=>{
+ const workspace=client(async()=>response({}));workspace.session={nativeAgentAvailable:true,principalId:'a'};workspace.workspaceId='a';
+ let release;const loading=attachNativeAgent(workspace,()=>new Promise(resolve=>release=resolve));
+ workspace.contextGeneration++;workspace.workspaceId='b';workspace.session={nativeAgentAvailable:true,principalId:'b'};
+ const replacement={sentinel:true};workspace.agentSession=replacement;
+ release({workspaceAgentFeatures:{toolApproval:true}});await loading;assert.equal(workspace.agentSession,replacement);
+});
+test('style becoming dirty during final authority guard prevents adoption',async()=>{
+ const workspace=client(async path=>response(path.endsWith('/session')?{environmentId:'new',principalId:'new'}:{targetId:'new',revision:1}));
+ workspace.session={environmentId:'old',principalId:'old'};workspace.workspaceId='old';workspace.context={targetId:'old'};
+ let dirty=false,calls=0;workspace.sharedStyleProvider=()=>({dirty});workspace.authorityChangeGuard=async()=>{if(++calls===2)dirty=true;};
+ await assert.rejects(workspace.connect('new'),/editor changed/);assert.equal(workspace.workspaceId,'old');assert.equal(workspace.context.targetId,'old');
+});
+
+test('candidate connection sends its captured partition rather than the prior profile',async()=>{
+ const calls=[];const workspace=client(async(path,init)=>{calls.push([path,init.headers]);return response(path.endsWith('/session')?{environmentId:'new',principalId:'new-partition'}:{targetId:'new',revision:1});});
+ workspace.session={environmentId:'old',principalId:'old-partition'};workspace.workspaceId='old';
+ await workspace.connect('new');
+ assert.equal(calls[1][1]['X-Honua-Session-Partition'],'new-partition');
+ assert.equal(calls[1][1]['X-Honua-Environment'],'new');
+});
+
+
+test('native turns renew the same authority lease without borrowing a changed partition',async()=>{
+ const {attachNativeAgent}=await import('../../src/Honua.Console.Web/wwwroot/js/agent-workspace.mjs');
+ let lease={...nativeSession,csrfToken:'renewed-first'};const requests=[];
+ const workspace=client(async(path,init)=>{
+  if(path.endsWith('/session'))return response(lease);
+  requests.push({path,headers:init.headers});
+  if(path.endsWith('/turn'))return response({context:{targetId:'target',tenantId:'tenant'}});
+  if(path.endsWith('/capabilities'))return response({transcriptSigning:{keys:[{}]}});
+  return response({messages:[]});
+ });
+ workspace.workspaceId='workspace';workspace.session={...nativeSession};
+ await attachNativeAgent(workspace,async()=>qualifiedNativeModule({createWorkspaceTranscriptVerifier:()=>({}),createWorkspaceAgentSession:()=>({attachDraft(){},chat:async()=>({status:'completed'})})}));
+ await workspace.agentSession.submitTurn({turnId:'first',prompt:'first'});
+ const firstCount=requests.length;
+ assert.ok(firstCount>0);assert.ok(requests.every(row=>row.headers['X-CSRF-Token']==='renewed-first'));
+ lease={...lease,csrfToken:'renewed-second'};
+ await workspace.agentSession.submitTurn({turnId:'second',prompt:'second'});
+ assert.ok(requests.slice(firstCount).every(row=>row.headers['X-CSRF-Token']==='renewed-second'&&row.headers['X-Honua-Session-Partition']===nativeSession.principalId));
+ const priorCount=requests.length;lease={...lease,principalId:'different-operator',csrfToken:'must-not-borrow'};
+ await assert.rejects(workspace.agentSession.submitTurn({turnId:'third',prompt:'third'}),/session changed/);
+ assert.equal(requests.length,priorCount);
 });

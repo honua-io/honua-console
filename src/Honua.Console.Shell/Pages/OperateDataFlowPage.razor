@@ -8,7 +8,7 @@
         ?source=file|table|remoteservice|existingresource|ai
         ?driver=manual|ai
 *@
-<DataToPublishFlow InitialSource="@Source" InitialDriver="@Driver" />
+<DataToPublishFlow InitialSource="@Source" InitialDriver="@Driver" SharedConversation="true" />
 
 @code {
     [SupplyParameterFromQuery(Name = "source")]
