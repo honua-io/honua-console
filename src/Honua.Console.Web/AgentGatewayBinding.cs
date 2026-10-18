@@ -55,14 +55,14 @@ internal sealed record AgentGatewayBinding(Uri BaseUri, string Key)
         AddAgentBinding(turnRequest);
         using var turnResponse = await client.SendAsync(turnRequest, token);
         if (!turnResponse.IsSuccessStatusCode) throw new InvalidOperationException("The agent turn is unavailable.");
-        using var turn = JsonDocument.Parse(await turnResponse.Content.ReadAsStringAsync(token));
+        using var turn = JsonDocument.Parse(await AgentSessionBff.ReadBoundedJsonAsync(turnResponse.Content, token));
         var targetId = turn.RootElement.GetProperty("context").GetProperty("targetId").GetString();
         if (string.IsNullOrWhiteSpace(targetId)) throw new InvalidOperationException("The agent target is unavailable.");
         using var capabilitiesRequest = new HttpRequestMessage(HttpMethod.Get, new Uri(BaseUri, "capabilities"));
         AddAgentBinding(capabilitiesRequest); Bind(capabilitiesRequest, operatorPartition);
         using var response = await client.SendAsync(capabilitiesRequest, token);
         if (!response.IsSuccessStatusCode) throw new InvalidOperationException("The native gateway is unavailable.");
-        using var manifest = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
+        using var manifest = JsonDocument.Parse(await AgentSessionBff.ReadBoundedJsonAsync(response.Content, token));
         if (!MatchesManifest(manifest.RootElement, targetId, workspaceId, turnId))
             throw new InvalidOperationException("The native gateway capability binding changed.");
         var result = JsonNode.Parse(serverCapabilities) ?? throw new JsonException();

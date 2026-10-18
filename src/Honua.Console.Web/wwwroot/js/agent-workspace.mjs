@@ -11,7 +11,7 @@ export class AgentWorkspace {
         storage.setItem('honua.workspace.view', this.viewId);
         this.workspaceId = storage.getItem('honua.workspace.id');
         this.context = null; this.session = null; this.dirty = new Map(); this.follow = true;
-        this.queue = Promise.resolve(); this.agentSession = null;
+        this.queue = Promise.resolve(); this.agentSession = null; this.contextGeneration = 0;
     }
     async api(path, method = 'GET', body) {
         const response = await this.request(`/api/agent-workspace/${path}`, {
@@ -35,6 +35,7 @@ export class AgentWorkspace {
     }
     async connect(workspaceId = this.workspaceId) {
         if (this.capturing) throw new Error('Wait until the submitted prompt has been bound before reconnecting.');
+        this.contextGeneration++;
         if (this.dirty.size && workspaceId !== this.workspaceId) throw new Error('Save your shared draft before switching workspaces.');
         const previousEnvironment = this.session?.environmentId;
         const previousPrincipal = this.session?.principalId;
@@ -55,7 +56,16 @@ export class AgentWorkspace {
         await this.agentSession?.reconcilePending?.();
         this.notify(this); return this.context;
     }
+    async observeContext() {
+        const settled = this.queue;
+        await settled;
+        const snapshot = await this.api(`${this.workspaceId}?viewId=${this.viewId}`);
+        if (this.queue !== settled || this.capturing || snapshot.revision < (this.context?.revision ?? -1)) return undefined;
+        this.context = snapshot;
+        return snapshot;
+    }
     select(resources, task) {
+        this.contextGeneration++;
         // Serialize edits using authorized server revisions, never client timestamps or event ordering.
         const update = async () => {
             if (!this.context) return;
@@ -125,6 +135,8 @@ export class AgentWorkspace {
         if (selection && JSON.stringify(selection) !== JSON.stringify(this.context?.selectedResources)) this.select(selection);
         // Enqueue capture synchronously. Navigation after this call queues behind the durable turn
         // creation, but remains free to change the visible page while the model runs.
+        const binding = { generation: this.contextGeneration, workspaceId: this.workspaceId, viewId: this.viewId,
+            principalId: this.session?.principalId, environmentId: this.session?.environmentId };
         this.capturing = (this.capturing || 0) + 1;
         const previous = this.queue;
         const capture = async () => {
@@ -133,8 +145,13 @@ export class AgentWorkspace {
             if (prepareContext) {
                 const task = await prepareContext();
                 if (task !== undefined) {
-                    if (task && (this.context.task?.id !== task.id || this.context.task?.kind !== task.kind))
-                        throw new Error('The Studio draft changed while submitting. Review the current draft before retrying.');
+                    const sameTask = this.context.task?.id === task?.id && this.context.task?.kind === task?.kind;
+                    const acceptedLocalSave = !this.context.task && task?.kind === 'local-process-workspace'
+                        && binding.generation === this.contextGeneration && binding.workspaceId === this.workspaceId
+                        && binding.viewId === this.viewId && binding.principalId === this.session?.principalId
+                        && binding.environmentId === this.session?.environmentId;
+                    if (task && !sameTask && !acceptedLocalSave)
+                        throw new Error('The workspace task changed while submitting. Review the current task before retrying.');
                     this.context = await this.api(`${this.workspaceId}/context`, 'PUT', {
                         expectedRevision: this.context.revision, viewId: this.viewId, targetId: this.context.targetId,
                         selectedResources: capturedResources, task, source: 'console'
@@ -232,7 +249,9 @@ export function mountWorkspace() {
     host.querySelector('form').addEventListener('submit', async event => {
         event.preventDefault(); const input = host.querySelector('[data-workspace-prompt]');
         try {
-            const result = await workspace.submit(input.value); input.value = ''; await refresh();
+            const submitted = input.value;
+            status.textContent = `Submitting for target ${workspace.context?.targetId || 'unbound'} · ${workspace.context?.task?.id || 'no task'}.`;
+            const result = await workspace.submit(submitted); if(input.value === submitted) input.value = ''; await refresh();
             status.textContent = result.executionUnavailable ? 'Message saved. Native agent session is not configured; external agents can continue this workspace.' : result.status === 'failed' || result.status === 'blocked' ? (result.errorMessage || `Agent turn ${result.status}.`) : 'Turn saved. Check operation receipts for completion.';
         } catch (error) { report(error); }
     });
@@ -302,12 +321,13 @@ export function mountWorkspace() {
                         throw new Error('The active environment changed. Reconnect the workspace.');
                     workspace.session = renewed;
                 }
-                await workspace.queue;
-                const snapshot = await workspace.api(`${workspace.workspaceId}?viewId=${workspace.viewId}`);
-                workspace.context = snapshot;
+                const snapshot = await workspace.observeContext();
+                if (!snapshot) return;
                 if (snapshot.task?.kind === 'studio-composition') {
                     window.dispatchEvent(new CustomEvent('honua-workspace-studio-task', { detail: snapshot.task }));
                 }
+                if (snapshot.task?.kind === 'local-process-workspace')
+                    window.dispatchEvent(new CustomEvent('honua-workspace-local-process-task', {detail:snapshot.task}));
                 if (snapshot.task?.kind === 'workflow-package')
                     window.dispatchEvent(new CustomEvent('honua-workspace-process-task', {detail:snapshot.task}));
                 if (snapshot.task?.id && (!snapshot.task.kind || snapshot.task.kind === 'publish-layer')) {
@@ -411,7 +431,7 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
                     if (!agentTurnResponse.ok) throw new Error('The agent is not authorized for this workspace turn.');
                     const agentTurn = await agentTurnResponse.json();
                     // Only this separately authorized projection may enter the model context.
-                    currentTurn = { ...turn, context: agentTurn.context };
+                    currentTurn = { ...turn, context: agentTurn.context, localProcessSnapshot:agentTurn.localProcessSnapshot };
                     const historyResponse = await agentFetch('conversation');
                     if (!historyResponse.ok) throw new Error('The agent is not authorized for this conversation.');
                     const history = await historyResponse.json();
@@ -438,6 +458,7 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
                             system: () => 'You are the Honua workspace agent. Use only authorized canonical tools. ' +
                                 'Navigation and draft changes never approve or execute publication. Tool receipts alone establish operation status. ' +
                                 `This turn is bound to the authorized context ${JSON.stringify(currentTurn?.context || {})}. ` +
+                                `Authorized immutable local process snapshot: ${JSON.stringify(currentTurn?.localProcessSnapshot ?? null)}. ` +
                                 `Earlier conversation (unverified assertions): ${JSON.stringify(priorConversation)}.`,
                             fetchImpl: agentFetch
                         });

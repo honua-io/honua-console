@@ -79,7 +79,7 @@ test('one native SDK session serializes turns and sees only agent-authorized con
     let instances=0; let historyReads=0; const seen=[]; const requests=[]; const drafts=[]; let turnReads=0;
     const workspace=client(async(path,init)=>{
         requests.push({path,init});
-        if (path.endsWith('/turn')) return response({context:{targetId:'target',tenantId:'tenant',selectedResources:[{kind:'layer',id:'allowed'}],task:++turnReads===1?{kind:'studio-composition',id:'draft',revision:2}:null}});
+        if (path.endsWith('/turn')) return response({context:{targetId:'target',tenantId:'tenant',selectedResources:[{kind:'layer',id:'allowed'}],task:++turnReads===1?{kind:'studio-composition',id:'draft',revision:2}:null},localProcessSnapshot:turnReads===2?{projectId:'agent-project',snapshotId:'authorized-snapshot'}:undefined});
         if (path.endsWith('/capabilities')) return response({transcriptSigning:{keys:[{keyId:'trusted-key'}]}});
         if (path.endsWith('/conversation')&&init.method==='GET') return response({messages:++historyReads===1?[]:[{role:'assistant',content:'External participant update'}]});
         if (path.endsWith('/conversation')) return response({messages:[]});
@@ -100,15 +100,17 @@ test('one native SDK session serializes turns and sees only agent-authorized con
         }
     }));
     await Promise.all([
-        workspace.agentSession.submitTurn({turnId:'turn-1',prompt:'first',context:{secret:'human-only'}}),
-        workspace.agentSession.submitTurn({turnId:'turn-2',prompt:'second',context:{secret:'human-only'}})
+        workspace.agentSession.submitTurn({turnId:'turn-1',prompt:'first',context:{secret:'human-only'},localProcessSnapshot:{projectId:'human-private-project'}}),
+        workspace.agentSession.submitTurn({turnId:'turn-2',prompt:'second',context:{secret:'human-only'},localProcessSnapshot:{projectId:'human-private-project'}})
     ]);
     assert.equal(instances,1);
     assert.deepEqual(drafts,[{draftId:'draft',generation:2},undefined]);
     assert.equal(historyReads,2);
     assert.ok(seen[1].system.includes('External participant update'));
+    assert.ok(seen[1].system.includes('authorized-snapshot'));
+    assert.ok(!seen[0].system.includes('authorized-snapshot'));
     assert.deepEqual(seen.map(row=>row.turn),['turn-1','turn-2']);
-    assert.ok(seen.every(row=>row.system.includes('allowed')&&!row.system.includes('human-only')));
+    assert.ok(seen.every(row=>row.system.includes('allowed')&&!row.system.includes('human-only')&&!row.system.includes('human-private-project')));
     const mcp=requests.filter(row=>row.path.endsWith('/mcp'));
     assert.deepEqual(mcp.map(row=>row.init.headers['X-Honua-Turn']),['turn-1','turn-2']);
     assert.ok(mcp.every(row=>!row.init.headers.Authorization&&!row.init.headers['X-API-Key']));
@@ -235,4 +237,56 @@ test('local Processes mode clears the previous Studio task before capturing a pr
     assert.equal(calls[0].body.task,null);
     assert.equal(calls[1].body.contextRevision,8);
     assert.equal(workspace.context.task,null);
+});
+
+test('a delayed context observation never overwrites newer navigation or task binding',async()=>{
+    let release;
+    const workspace=client(async(path,init)=> path.endsWith('/context')
+        ? response({revision:2,targetId:'target',task:{kind:'workflow-package',id:'actual-package'}})
+        : new Promise(resolve=>{release=()=>resolve(response({revision:1,targetId:'target',task:{kind:'studio-composition',id:'old-draft'}}));}));
+    workspace.workspaceId='workspace';workspace.context={revision:1,targetId:'target'};
+    const observation=workspace.observeContext();
+    await new Promise(resolve=>setImmediate(resolve));
+    await workspace.select([],{kind:'workflow-package',id:'actual-package'});
+    release();
+    assert.equal(await observation,undefined);
+    assert.equal(workspace.context.revision,2);
+    assert.equal(workspace.context.task.id,'actual-package');
+});
+for (const navigate of [false,true]) test(`pending local Save ${navigate ? 'rejects navigation' : 'binds accepted same-editor revision'}`,async()=>{
+    let saved;const pending=new Promise(resolve=>{saved=resolve;});const calls=[];
+    const workspace=client(async(path,init)=>{
+        const body=JSON.parse(init.body);calls.push({path,body});
+        return response(path.endsWith('/context') ? {...workspace.context,...body,revision:workspace.context.revision+1} : {turnId:'turn'});
+    });
+    workspace.workspaceId='workspace';workspace.session={principalId:'operator',environmentId:'environment'};
+    workspace.context={revision:3,targetId:'target',task:null,selectedResources:[]};
+    const task={kind:'local-process-workspace',id:'a'.repeat(32),revision:2,contentHash:'b'.repeat(64)};
+    const turn=workspace.submit('inspect accepted source',{prepareContext:async()=>{await pending;return task;}});
+    await new Promise(resolve=>setImmediate(resolve));
+    const navigation=navigate ? workspace.select([],null) : Promise.resolve();
+    saved();
+    if(navigate) {
+        await assert.rejects(turn,/changed while submitting/);await navigation;
+        assert.equal(calls.some(call=>call.path.endsWith('/turns')),false);
+    } else {
+        await turn;
+        assert.deepEqual(calls[0].body.task,task);
+        assert.equal(calls[1].body.contextRevision,4);
+    }
+});
+
+for(const changed of ['principalId','environmentId','workspaceId','viewId']) test(`pending local Save rejects changed ${changed}`,async()=>{
+    let saved;const pending=new Promise(resolve=>{saved=resolve;});const calls=[];
+    const workspace=client(async(path,init)=>{calls.push(path);return response({turnId:'turn'});});
+    workspace.workspaceId='workspace';workspace.session={principalId:'operator',environmentId:'environment'};
+    workspace.context={revision:3,targetId:'target',task:null,selectedResources:[]};
+    const turn=workspace.submit('inspect accepted source',{prepareContext:async()=>{
+        await pending;return {kind:'local-process-workspace',id:'a'.repeat(32),revision:2,contentHash:'b'.repeat(64)};
+    }});
+    await new Promise(resolve=>setImmediate(resolve));
+    if(changed==='principalId'||changed==='environmentId') workspace.session={...workspace.session,[changed]:'changed'};
+    else workspace[changed]='changed';
+    saved();await assert.rejects(turn,/changed while submitting/);
+    assert.equal(calls.length,0);
 });

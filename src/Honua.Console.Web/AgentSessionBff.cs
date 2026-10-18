@@ -30,6 +30,20 @@ internal static class AgentSessionBff
     internal static bool MatchesSessionPartition(Microsoft.Extensions.Primitives.StringValues partition, string operatorKey, string profileId) =>
         partition.Count == 1 && string.Equals(partition[0], AgentGatewayBinding.OperatorPartition(operatorKey, profileId), StringComparison.Ordinal);
 
+    internal static async Task<string> ReadBoundedJsonAsync(HttpContent content, CancellationToken cancellationToken)
+    {
+        await using var input = await content.ReadAsStreamAsync(cancellationToken);
+        using var output = new MemoryStream();
+        var bytes = new byte[8192];
+        int count;
+        while ((count = await input.ReadAsync(bytes, cancellationToken)) != 0)
+        {
+            if (output.Length + count > 256 * 1024) throw new InvalidDataException("Native capability response too large.");
+            output.Write(bytes, 0, count);
+        }
+        return System.Text.Encoding.UTF8.GetString(output.ToArray());
+    }
+
     public static void MapAgentSessionBff(this WebApplication app)
     {
         app.MapMethods("/api/agent-workspace/agent/{endpoint}", ["GET", "POST"], async (string endpoint, HttpContext context,
@@ -118,19 +132,34 @@ internal static class AgentSessionBff
                 {
                     request.Headers.Add("Mcp-Session-Id", mcpSession);
                 }
+                if (endpoint is "ai" or "mcp") request.Headers.Accept.ParseAdd("application/json, text/event-stream");
                 request.Headers.Add("X-API-Key", key);
                 request.Headers.Add("X-Honua-Workspace", workspaceId);
                 request.Headers.Add("X-Honua-Turn", turnId);
                 request.Content = new ByteArrayContent(buffer.ToArray());
                 request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-                using var response = await client.SendAsync(request, cancellationToken);
+                using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 if (endpoint == "mcp" && response.Headers.TryGetValues("Mcp-Session-Id", out var mcpIds)
                     && mcpIds.FirstOrDefault() is { Length: > 0 and <= 256 } negotiatedId)
                 {
                     mcpSessions.Put(partition, negotiatedId);
                 }
                 if ((int)response.StatusCode is >= 300 and < 400) { return Results.StatusCode(502); }
-                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                if (response.IsSuccessStatusCode && (endpoint is "ai" or "mcp")
+                    && string.Equals(response.Content.Headers.ContentType?.MediaType, "text/event-stream", StringComparison.OrdinalIgnoreCase))
+                {
+                    context.Response.StatusCode = (int)response.StatusCode;
+                    context.Response.ContentType = response.Content.Headers.ContentType!.ToString();
+                    context.Response.Headers.CacheControl = "no-store, no-transform";
+                    context.Response.Headers["X-Accel-Buffering"] = "no";
+                    await context.Response.StartAsync(cancellationToken);
+                    await response.Content.CopyToAsync(context.Response.Body, cancellationToken);
+                    await context.Response.Body.FlushAsync(cancellationToken);
+                    return Results.Empty;
+                }
+                var body = endpoint == "capabilities"
+                    ? await ReadBoundedJsonAsync(response.Content, cancellationToken)
+                    : await response.Content.ReadAsStringAsync(cancellationToken);
                 if (endpoint == "capabilities" && gateway is not null && response.IsSuccessStatusCode)
                 {
                     try { body = await gateway.MergeCapabilitiesAsync(client, serverBase, body, key, workspaceId, turnId, operatorPartition, cancellationToken); }
@@ -140,7 +169,10 @@ internal static class AgentSessionBff
                 return Results.Content(body,
                     (response.Content.Headers.ContentType?.MediaType == "text/event-stream" ? "text/event-stream" : "application/json"), statusCode: (int)response.StatusCode);
             }
+            catch (InvalidDataException) { return Results.Json(new { message = "Native capabilities exceeded the bounded response contract." }, statusCode: 502); }
+            catch (HttpRequestException) when (context.Response.HasStarted) { context.Abort(); return Results.Empty; }
             catch (HttpRequestException) { return Results.StatusCode(502); }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested && context.Response.HasStarted) { context.Abort(); return Results.Empty; }
             catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.StatusCode(504); }
         });
     }

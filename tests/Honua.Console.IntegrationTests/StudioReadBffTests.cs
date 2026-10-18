@@ -57,4 +57,11 @@ public sealed class StudioReadBffTests
         context.Request.QueryString = new Microsoft.AspNetCore.Http.QueryString(query);
         Assert.Equal(accepted, StudioReadBff.OgcReadPath(collectionId, context.Request.Query) is not null);
     }
+    [Theory]
+    [InlineData("json",true)]
+    [InlineData("geojson",true)]
+    [InlineData("html",false)]
+    [InlineData("pjson",false)]
+    public void FeatureRenderingAcceptsOnlySupportedJsonFormats(string format,bool accepted) =>
+        Assert.Equal(accepted,StudioReadBff.IsFeatureFormat(format));
 }

@@ -49,7 +49,7 @@ internal static class StudioReadBff
                 { return Results.BadRequest(); }
                 if (item.Key == "resultRecordCount" && (!int.TryParse(item.Value, out var limit) || limit is < 1 or > 2000))
                 { return Results.BadRequest(); }
-                if (item.Key == "f" && !string.Equals(item.Value, "json", StringComparison.OrdinalIgnoreCase))
+                if (item.Key == "f" && !IsFeatureFormat(item.Value.ToString()))
                 { return Results.BadRequest(); }
                 query.Add(Uri.EscapeDataString(item.Key) + "=" + Uri.EscapeDataString(item.Value.ToString()));
             }
@@ -58,6 +58,8 @@ internal static class StudioReadBff
             return await SendAsync(context, $"rest/services/{path}?{string.Join("&", query)}", null, token);
         });
     }
+
+    internal static bool IsFeatureFormat(string value) => value is "json" or "geojson";
 
     internal static string? OgcReadPath(string collectionId, IQueryCollection query)
     {

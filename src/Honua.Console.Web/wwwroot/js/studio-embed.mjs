@@ -14,13 +14,21 @@ function studioElement(session) {
                 window.Blazor?.navigateTo(event.detail.path);
         });
         app.addEventListener('honua-workspace-draft-change', event => {
+            const detachedDraft=app.workspaceDraftIdentity;
             app.workspaceDraftIdentity = event.detail;
             app.workspaceTaskKey = event.detail ? `${event.detail.draftId}:${event.detail.generation}` : undefined;
             const workspace = window.honuaAgentWorkspace;
             if (workspace?.session?.environmentId === session.environmentId) {
                 workspace.agentSession?.attachDraft(event.detail ? {draftId:event.detail.draftId,generation:event.detail.generation} : undefined);
-                if (!event.detail) { workspace.select(undefined,null).catch(()=>{}); return; }
-                if (workspace.context && event.detail.packageKey)
+                if (!event.detail) {
+                    const staleAuthority=app.workspaceAuthorityChanged && workspace.session.principalId !== app.workspaceCookieBinding?.principalId;
+                    if(staleAuthority) {
+                        workspace.agentSession?.sdkSession?.close();workspace.agentSession=null;
+                    }
+                    if(staleAuthority || (app.isConnected && !app.workspaceAuthorityChanged && detachedDraft && detachedDraft.draftId === workspace.context?.task?.id && workspace.context?.task?.kind === 'studio-composition')) workspace.select(undefined,null).catch(()=>{});
+                    return;
+                }
+                if (app.isConnected && workspace.context && event.detail.packageKey)
                     workspace.select(undefined, {
                         id:event.detail.draftId,revision:event.detail.generation,
                         kind:'studio-composition',packageKey:event.detail.packageKey
@@ -45,6 +53,9 @@ function studioElement(session) {
         });
         elementsByEnvironment.set(session.environmentId, app);
     }
+    const previous=app.workspaceCookieBinding;
+    app.workspaceAuthorityChanged=Boolean(previous && (previous.principalId !== session.principalId || previous.environmentId !== session.environmentId));
+    app.workspaceCookieBinding={principalId:session.principalId,environmentId:session.environmentId};
     app.session = { kind: 'cookie', baseUrl: '/api/studio', expiresAt: session.expiresAt,
         csrfToken: session.csrfToken, environmentId: session.environmentId, principalId: session.principalId };
     app.workspace = window.honuaAgentWorkspace;
@@ -61,7 +72,8 @@ function studioElement(session) {
             return draft ? {id:draft.draftId,revision:draft.generation,kind:'studio-composition',packageKey:draft.packageKey} : undefined;
         };
     };
-    app.agentSessionAdapter = { submitTurn: (prompt, options) => window.honuaAgentWorkspace.submit(prompt, options) };
+    app.workspaceAgentAdapter ||= { submitTurn: (prompt, options) => window.honuaAgentWorkspace.submit(prompt, options) };
+    app.agentSessionAdapter = app.workspaceAgentAdapter;
     return app;
 }
 async function mount() {
@@ -94,6 +106,12 @@ async function mount() {
         const draft = task?.kind === 'studio-composition' ? {draftId:task.id}
             : !task ? element.workspace?.agentSession?.sdkSession?.draft : undefined;
         if (draft?.draftId) await element.attachWorkspaceDraft(draft.draftId);
+        else if(element.workspaceDraftIdentity) {
+            await element.prepareWorkspaceTurn();
+            await element.refreshWorkspaceDraft();
+            const visible=element.workspaceDraftIdentity;
+            await element.workspace.select(undefined,{kind:'studio-composition',id:visible.draftId,revision:visible.generation,packageKey:visible.packageKey});
+        }
         status.textContent = `Connected to ${session.environmentName}`;
         if (!document.querySelector('link[data-studio-style]')) {
             const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = '/_studio/style.css';
@@ -122,31 +140,50 @@ async function mountProcesses() {
         const builtin = document.createElement('honua-studio-processes');
         builtin.client = new module.ServerProcessWorkspace(options);
         const custom = document.createElement('honua-studio-custom-processes');
-        custom.client = new module.LocalProcessWorkspace(options);
-        processView = {builtin,custom,host,mode:'builtin'};
+        custom.client = new module.LocalProcessWorkspace({...options,workspaceId:()=>window.honuaAgentWorkspace?.workspaceId});
+        const view = processView = {builtin,custom,host,mode:'builtin'};
         const workspace=window.honuaAgentWorkspace;
         if(workspace) {
             workspace.prepareContextProvider=()=> location.pathname === '/studio/processes' ? processContextPreparation() : undefined;
             if(workspace.context?.task?.kind === 'workflow-package') {
                 const task=workspace.context.task;
-                if(await builtin.attachWorkspaceTask({packageId:task.id,version:task.revision,contentHash:task.contentHash}))
+                if(await builtin.attachWorkspaceTask({packageId:task.id,version:task.revision,contentHash:task.contentHash})) {
+                    view.builtinIdentity={packageId:task.id,version:task.revision,contentHash:task.contentHash};
                     await workspace.select([],task);
+                }
+            } else if(workspace.context?.task?.kind === 'local-process-workspace') {
+                const task=workspace.context.task;view.mode='custom';
+                if(await custom.attachWorkspaceTask({projectId:task.id,revision:task.revision,sourceDigest:task.contentHash})) {
+                    view.localIdentity={projectId:task.id,revision:task.revision,sourceDigest:task.contentHash};view.localProjectId=task.id;
+                    await workspace.select([],task);
+                }
             } else await workspace.select([],null);
         }
-        custom.addEventListener('focusin',()=>{processView.mode='custom';workspace?.select([],null).catch(()=>{});});
-        builtin.addEventListener('focusin',()=>{processView.mode='builtin';});
-        builtin.addEventListener('input',()=>workspace?.select(undefined,null).catch(()=>{}));
+        custom.addEventListener('focusin',()=>{
+            if(!host.isConnected || processView!==view) return;
+            view.mode='custom';
+            workspace?.select([],view.localIdentity ? localProcessTask(view.localIdentity) : null).catch(error=>{status.textContent=error.message;});
+        });
+        custom.addEventListener('honua-local-process-task-change',event=>{
+            view.localIdentity=event.detail;
+            if(event.detail) view.localProjectId=event.detail.projectId;
+            if(host.isConnected && processView===view && view.mode==='custom' && !workspace?.capturing) workspace?.select([],event.detail ? localProcessTask(event.detail) : null).catch(error=>{status.textContent=error.message;});
+        });
+        builtin.addEventListener('focusin',()=>{view.mode='builtin';workspace?.select([],view.builtinIdentity ? processTask(view.builtinIdentity) : null).catch(error=>{status.textContent=error.message;});});
+        builtin.addEventListener('input',()=>{view.builtinIdentity=undefined;workspace?.select(undefined,null).catch(()=>{});});
         const prepare=builtin.client.prepare.bind(builtin.client);
         builtin.client.prepare=async(...args)=>{
             const actual=await prepare(...args);
             const task=processTask(actual);
-            if(host.isConnected && processView.mode==='builtin') workspace?.select([],task).catch(error=>{status.textContent=error.message;});
+            view.builtinIdentity=actual;
+            if(host.isConnected && view.mode==='builtin') workspace?.select([],task).catch(error=>{status.textContent=error.message;});
             return actual;
         };
         host.querySelector('[data-processes-builtin]').append(builtin);
         host.querySelector('[data-processes-custom]').append(custom);
         custom.addEventListener('honua-processes-layer-ready', async event => {
             try {
+                if(!host.isConnected || window.honuaAgentWorkspace?.session?.environmentId !== session.environmentId) return;
                 const layer = event.detail?.layer;
                 if (!Number.isInteger(layer?.layerId) || typeof layer.serviceName !== 'string')
                     throw new Error('The operation returned no verified published layer identity.');
@@ -227,9 +264,21 @@ function processTask(value) {
 function processContextPreparation() {
     const view=processView;
     const expected=window.honuaAgentWorkspace?.context?.task;
+    const mode=view?.mode,projectId=view?.localProjectId;
+    const requireSameView=()=>{
+        if(processView!==view || !view?.host.isConnected || view.mode!==mode || location.pathname!=='/studio/processes')
+            throw new Error('The process view changed while submitting. Review the current view before retrying.');
+    };
     return async()=> {
-        if(!view?.host.isConnected || view.mode==='custom') return null;
+        requireSameView();
+        if(mode==='custom') {
+            const task=localProcessTask(await view.custom.prepareWorkspaceTask());
+            requireSameView();
+            if(!projectId || projectId!==task.id || view.localProjectId!==projectId) throw new Error('Load and review the current process project before submitting.');
+            return task;
+        }
         const task=processTask(await view.builtin.prepareWorkspaceTask());
+        requireSameView();
         if(expected?.kind!=='workflow-package' || expected.id!==task.id || expected.revision!==task.revision || expected.contentHash!==task.contentHash)
             throw new Error('Prepare and review the current Processes package before submitting.');
         return task;
@@ -241,4 +290,19 @@ window.addEventListener('honua-workspace-process-task',async event=>{
     const task=event.detail;
     try { await view.builtin.attachWorkspaceTask({packageId:task.id,version:task.revision,contentHash:task.contentHash}); }
     catch(error) { const status=view.host.querySelector('[data-processes-status]');if(status) status.textContent=error.message; }
+});
+
+function localProcessTask(value) {
+    if(!value || !/^[a-f0-9]{32}$/.test(value.projectId || '') || !Number.isInteger(value.revision) || value.revision < 1 || !/^[a-f0-9]{64}$/.test(value.sourceDigest || ''))
+        throw new Error('The process workspace returned no verified project identity.');
+    return {kind:'local-process-workspace',id:value.projectId,revision:value.revision,contentHash:value.sourceDigest};
+}
+window.addEventListener('honua-workspace-local-process-task',async event=>{
+    const view=processView,workspace=window.honuaAgentWorkspace;
+    if(!view?.host.isConnected || view.mode!=='custom' || workspace?.capturing || workspace?.agentSession?.busy) return;
+    const task=event.detail;
+    try {
+        if(view.localIdentity?.projectId===task.id) await view.custom.refreshWorkspaceTask();
+        else await view.custom.attachWorkspaceTask({projectId:task.id,revision:task.revision,sourceDigest:task.contentHash});
+    } catch(error) {const status=view.host.querySelector('[data-processes-status]');if(status) status.textContent=error.message;}
 });
