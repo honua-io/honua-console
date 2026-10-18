@@ -76,21 +76,21 @@ test('lost publication response reuses the persisted command identity', async ()
 
 test('one native SDK session serializes turns and sees only agent-authorized context', async () => {
     const {attachNativeAgent}=await import('../../src/Honua.Console.Web/wwwroot/js/agent-workspace.mjs');
-    let instances=0; let historyReads=0; const seen=[]; const requests=[];
+    let instances=0; let historyReads=0; const seen=[]; const requests=[]; const drafts=[]; let turnReads=0;
     const workspace=client(async(path,init)=>{
         requests.push({path,init});
-        if (path.endsWith('/turn')) return response({context:{targetId:'target',tenantId:'tenant',selectedResources:[{kind:'layer',id:'allowed'}]}});
+        if (path.endsWith('/turn')) return response({context:{targetId:'target',tenantId:'tenant',selectedResources:[{kind:'layer',id:'allowed'}],task:++turnReads===1?{kind:'studio-composition',id:'draft',revision:2}:null}});
         if (path.endsWith('/capabilities')) return response({transcriptSigning:{keys:[{keyId:'trusted-key'}]}});
         if (path.endsWith('/conversation')&&init.method==='GET') return response({messages:++historyReads===1?[]:[{role:'assistant',content:'External participant update'}]});
         if (path.endsWith('/conversation')) return response({messages:[]});
         return response({});
     });
-    workspace.workspaceId='workspace'; workspace.session={nativeAgentAvailable:true,releaseId:'release',tenantId:'tenant',environmentId:'environment',csrfToken:'csrf'};
+    workspace.workspaceId='workspace'; workspace.session={nativeAgentAvailable:true,releaseId:'release',tenantId:'tenant',environmentId:'environment',csrfToken:'csrf',principalId:'original-session'};
     await attachNativeAgent(workspace,async()=>({
         createWorkspaceTranscriptVerifier:manifest=>({manifest}),
         createWorkspaceAgentSession:options=>{
             instances++;
-            return {chat:async(prompt)=>{
+            return {attachDraft(value){drafts.push(value);},chat:async(prompt)=>{
                 seen.push({prompt,system:options.system(),turn:options.certification.actionId});
                 workspace.workspaceId='later-workspace';
                 workspace.session={environmentId:'later-environment',csrfToken:'later-csrf'};
@@ -104,6 +104,7 @@ test('one native SDK session serializes turns and sees only agent-authorized con
         workspace.agentSession.submitTurn({turnId:'turn-2',prompt:'second',context:{secret:'human-only'}})
     ]);
     assert.equal(instances,1);
+    assert.deepEqual(drafts,[{draftId:'draft',generation:2},undefined]);
     assert.equal(historyReads,2);
     assert.ok(seen[1].system.includes('External participant update'));
     assert.deepEqual(seen.map(row=>row.turn),['turn-1','turn-2']);
@@ -112,7 +113,7 @@ test('one native SDK session serializes turns and sees only agent-authorized con
     assert.deepEqual(mcp.map(row=>row.init.headers['X-Honua-Turn']),['turn-1','turn-2']);
     assert.ok(mcp.every(row=>!row.init.headers.Authorization&&!row.init.headers['X-API-Key']));
     assert.ok(mcp.every(row=>row.init.headers['X-Honua-Environment']==='environment' &&
-        row.init.headers['X-Honua-Workspace']==='workspace' && row.init.headers['X-CSRF-Token']==='csrf'));
+        row.init.headers['X-Honua-Workspace']==='workspace' && row.init.headers['X-Honua-Session-Partition']==='original-session' && row.init.headers['X-CSRF-Token']==='csrf'));
 });
 
 test('prompt flushes shared edits and captures advanced revision before queued navigation', async () => {
@@ -153,7 +154,7 @@ test('assistant persistence retries its stable message without rerunning the mod
     workspace.workspaceId='workspace'; workspace.session={nativeAgentAvailable:true,releaseId:'release',tenantId:'tenant'};
     await attachNativeAgent(workspace,async()=>({
         createWorkspaceTranscriptVerifier:()=>({}),
-        createWorkspaceAgentSession:()=>({chat:async()=>{modelCalls++;return {status:'completed',text:'Assistant response'};}})
+        createWorkspaceAgentSession:()=>({attachDraft(){},chat:async()=>{modelCalls++;return {status:'completed',text:'Assistant response'};}})
     }));
     await assert.rejects(workspace.agentSession.submitTurn({turnId:'turn',prompt:'hello'}),/response lost/);
     await workspace.agentSession.reconcilePending();
@@ -186,4 +187,52 @@ test('queued Studio task binding is retained when prompt selection follows immed
     await workspace.submit('change this layer');
     assert.deepEqual(calls[1].body.task,task);
     assert.equal(calls.at(-1).body.contextRevision,2);
+});
+
+test('pending accepted Studio edit is flushed before capture without retargeting later navigation', async()=>{
+    let resolveEdit; const edited=new Promise(resolve=>{resolveEdit=resolve;}); const calls=[];
+    const workspace=client(async(path,init)=>{
+        const body=init.body?JSON.parse(init.body):null;calls.push({path,body});
+        if(path.endsWith('/context'))return response({revision:body.expectedRevision+1,targetId:'target',selectedResources:body.selectedResources,task:body.task});
+        return response({turnId:'turn',status:'accepted'});
+    });
+    const task={id:'draft',revision:1,kind:'studio-composition',packageKey:'package'};
+    workspace.workspaceId='workspace';workspace.context={revision:1,targetId:'target',selectedResources:[{kind:'layer',id:'original'}],task};
+    workspace.prepareContextProvider=()=>async()=>{await edited;return {...task,revision:2};};
+    const turn=workspace.submit('change this layer');
+    const navigation=workspace.select([{kind:'layer',id:'later'}]);
+    resolveEdit();await Promise.all([turn,navigation]);
+    assert.equal(calls[0].body.task.revision,2);
+    assert.equal(calls[0].body.selectedResources[0].id,'original');
+    assert.equal(calls[1].body.contextRevision,2);
+    assert.equal(workspace.context.selectedResources[0].id,'later');
+});
+
+test('private native family is enabled only by the matching gateway capability binding',async()=>{
+    const {attachNativeAgent}=await import('../../src/Honua.Console.Web/wwwroot/js/agent-workspace.mjs');
+    for(const targetId of ['target','other-target']) {
+        let families;
+        const workspace=client(async path=>{
+            if(path.endsWith('/turn'))return response({context:{targetId:'target',tenantId:'tenant'}});
+            if(path.endsWith('/capabilities'))return response({transcriptSigning:{keys:[{}]},workspaceGateway:{schemaVersion:'honua.agent-gateway.capabilities.v1',targetId,workspaceId:'workspace',turnId:'turn',toolFamilies:['honua.workspace.devops']}});
+            return response({messages:[]});
+        });
+        workspace.workspaceId='workspace';workspace.session={nativeAgentAvailable:true,releaseId:'release'};
+        await attachNativeAgent(workspace,async()=>({createWorkspaceTranscriptVerifier:()=>({}),createWorkspaceAgentSession:options=>{families=options.toolFamilies;return {attachDraft(){},chat:async()=>({status:'completed'})};}}));
+        await workspace.agentSession.submitTurn({turnId:'turn',prompt:'inspect infrastructure'});
+        assert.equal(families.includes('honua.workspace.devops'),targetId==='target');
+    }
+});
+
+test('local Processes mode clears the previous Studio task before capturing a prompt',async()=>{
+    const calls=[];
+    const workspace=client(async(path,init)=>{
+        const body=JSON.parse(init.body);calls.push({path,body});
+        return response(path.endsWith('/context')?{targetId:'target',revision:8,task:null}:{turnId:'turn'});
+    });
+    workspace.workspaceId='workspace';workspace.context={targetId:'target',revision:7,task:{kind:'studio-composition',id:'old-draft',revision:2}};
+    await workspace.submit('explain the local process',{prepareContext:async()=>null});
+    assert.equal(calls[0].body.task,null);
+    assert.equal(calls[1].body.contextRevision,8);
+    assert.equal(workspace.context.task,null);
 });

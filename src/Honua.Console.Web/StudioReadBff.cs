@@ -32,6 +32,11 @@ internal static class StudioReadBff
             catch (JsonException) { return Results.BadRequest(); }
             return await SendAsync(context, "api/mcp", new ByteArrayContent(buffer.ToArray()), token, catalog: true);
         });
+        app.MapGet("/api/studio/data/ogc/features/collections/{collectionId}/items", async (HttpContext context, string collectionId, CancellationToken token) =>
+        {
+            var path = OgcReadPath(collectionId, context.Request.Query);
+            return path is null ? Results.BadRequest() : await SendAsync(context, path, null, token);
+        });
         app.MapGet("/api/studio/data/rest/services/{**path}", async (HttpContext context, string? path, CancellationToken token) =>
         {
             if (path is null || !Regex.IsMatch(path, @"\A(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)+FeatureServer/[0-9]{1,9}/query\z")
@@ -52,6 +57,21 @@ internal static class StudioReadBff
             if (!context.Request.Query.ContainsKey("resultRecordCount")) { query.Add("resultRecordCount=1000"); }
             return await SendAsync(context, $"rest/services/{path}?{string.Join("&", query)}", null, token);
         });
+    }
+
+    internal static string? OgcReadPath(string collectionId, IQueryCollection query)
+    {
+        if (collectionId.Length is < 1 or > 256 || collectionId is "." or ".."
+            || collectionId.Any(c => char.IsControl(c) || c is '/' or '\\' or '%')) { return null; }
+        var limit = 500;
+        foreach (var item in query)
+        {
+            if (item.Value.Count != 1) { return null; }
+            if (item.Key == "f" && item.Value.ToString() == "json") { continue; }
+            if (item.Key == "limit" && int.TryParse(item.Value, out limit) && limit is >= 1 and <= 2000) { continue; }
+            return null;
+        }
+        return $"ogc/features/collections/{Uri.EscapeDataString(collectionId)}/items?f=json&limit={limit}";
     }
 
     internal static bool IsCatalogRead(JsonElement root)

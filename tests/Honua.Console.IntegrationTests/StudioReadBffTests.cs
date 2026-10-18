@@ -43,4 +43,18 @@ public sealed class StudioReadBffTests
         Assert.Null(sessions.Get(("operator-a", "profile-b", "workspace-a")));
         Assert.Null(sessions.Get(("operator-a", "profile-a", "workspace-b")));
     }
+    [Theory]
+    [InlineData("collection", "?f=json&limit=2000", true)]
+    [InlineData("collection", "", true)]
+    [InlineData("collection", "?limit=2001", false)]
+    [InlineData("collection", "?limit=1&limit=2", false)]
+    [InlineData("collection", "?url=https://example.com", false)]
+    [InlineData("../secret", "", false)]
+    [InlineData("%2fsecret", "", false)]
+    public void OgcRead_IsBoundedToOneCollection(string collectionId, string query, bool accepted)
+    {
+        var context = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        context.Request.QueryString = new Microsoft.AspNetCore.Http.QueryString(query);
+        Assert.Equal(accepted, StudioReadBff.OgcReadPath(collectionId, context.Request.Query) is not null);
+    }
 }

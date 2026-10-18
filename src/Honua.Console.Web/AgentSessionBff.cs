@@ -27,6 +27,9 @@ internal sealed class AgentMcpSessions
 
 internal static class AgentSessionBff
 {
+    internal static bool MatchesSessionPartition(Microsoft.Extensions.Primitives.StringValues partition, string operatorKey, string profileId) =>
+        partition.Count == 1 && string.Equals(partition[0], AgentGatewayBinding.OperatorPartition(operatorKey, profileId), StringComparison.Ordinal);
+
     public static void MapAgentSessionBff(this WebApplication app)
     {
         app.MapMethods("/api/agent-workspace/agent/{endpoint}", ["GET", "POST"], async (string endpoint, HttpContext context,
@@ -48,12 +51,17 @@ internal static class AgentSessionBff
             {
                 return Results.Json(new { message = "The native agent session is not configured. External agents remain supported." }, statusCode: 503);
             }
+            AgentGatewayBinding? gateway;
+            try { gateway = AgentGatewayBinding.Resolve(configuration, key); }
+            catch (InvalidOperationException) { return Results.Json(new { message = "The native gateway is not configured correctly." }, statusCode: 503); }
             var environmentId = context.Request.Headers["X-Honua-Environment"].ToString();
             if (string.IsNullOrWhiteSpace(environmentId)) { return Results.BadRequest(); }
             // Resolve the original operator-owned profile, even if another view activated a new
             // environment while this captured turn was running. Never borrow the new profile.
             var profile = await profiles.GetProfileAsync(environmentId, cancellationToken);
             if (profile is null) { return Results.StatusCode(403); }
+            if (!MatchesSessionPartition(context.Request.Headers["X-Honua-Session-Partition"], operators.RequireOperatorKey(), profile.Id))
+            { return Results.StatusCode(403); }
             var configuredServer = configuration["HONUA_AGENT_SERVER_BASE_URL"]
                 ?? configuration["Honua:Server:BaseUrl"] ?? configuration["HONUA_SERVER_BASE_URL"];
             if (!Uri.TryCreate(configuredServer, UriKind.Absolute, out var agentServer)
@@ -98,7 +106,14 @@ internal static class AgentSessionBff
                         "conversation" => $"api/v1/agent/workspaces/{workspaceId}/conversation",
                         _ => "api/v1/studio/ai/chat"
                     }));
-                var partition = (operators.RequireOperatorKey(), profile.Id, workspaceId);
+                var operatorKey = operators.RequireOperatorKey();
+                var operatorPartition = AgentGatewayBinding.OperatorPartition(operatorKey, profile.Id);
+                if (endpoint == "mcp" && gateway is not null)
+                {
+                    request.RequestUri = new Uri(gateway.BaseUri, "mcp");
+                    gateway.Bind(request, operatorPartition);
+                }
+                var partition = (operatorKey, profile.Id, workspaceId);
                 if (endpoint == "mcp" && mcpSessions.Get(partition) is { } mcpSession)
                 {
                     request.Headers.Add("Mcp-Session-Id", mcpSession);
@@ -115,7 +130,14 @@ internal static class AgentSessionBff
                     mcpSessions.Put(partition, negotiatedId);
                 }
                 if ((int)response.StatusCode is >= 300 and < 400) { return Results.StatusCode(502); }
-                return Results.Content(await response.Content.ReadAsStringAsync(cancellationToken),
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                if (endpoint == "capabilities" && gateway is not null && response.IsSuccessStatusCode)
+                {
+                    try { body = await gateway.MergeCapabilitiesAsync(client, serverBase, body, key, workspaceId, turnId, operatorPartition, cancellationToken); }
+                    catch (Exception error) when (error is InvalidOperationException or System.Text.Json.JsonException or KeyNotFoundException)
+                    { return Results.Json(new { message = "The native gateway capabilities could not be verified." }, statusCode: 502); }
+                }
+                return Results.Content(body,
                     (response.Content.Headers.ContentType?.MediaType == "text/event-stream" ? "text/event-stream" : "application/json"), statusCode: (int)response.StatusCode);
             }
             catch (HttpRequestException) { return Results.StatusCode(502); }
