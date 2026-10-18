@@ -657,7 +657,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 var httpClient = HonuaServerClientFactory.CreatePublic(serviceProvider, baseUri);
                 return new HonuaOgcStylesHttpClient(
                     httpClient,
-                    new HonuaOgcStylesClientOptions(baseUri, honuaServerAdminApiKey));
+                    new HonuaOgcStylesClientOptions(baseUri, honuaServerAdminApiKey, AuthorityBindingSupported: serviceProvider.GetService<IHonuaServerBoundClientFactory>() is not null));
             });
             services.TryAddSingleton<IStudioMapStyleCatalogDataSource, HonuaServerStudioMapStyleCatalogDataSource>();
             return;

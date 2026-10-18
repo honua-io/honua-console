@@ -65,7 +65,7 @@ public sealed class StudioBuildersShelvedRenderTests
 
         var page = ctx.Render<StudioPage>();
 
-        AssertShelved(page.Markup, "Console Studio is shelved");
+        Assert.Single(page.FindAll("[data-studio-unavailable]"));
         Assert.DoesNotContain("studio-home", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Generated Package Families", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("studio-prompt-input", page.Markup, StringComparison.Ordinal);

@@ -16,12 +16,12 @@ test('share degrades into an explicit missing-binding state, not a crash', async
   await expect(page.getByText('Share is not bound to honua-server')).toBeVisible();
 });
 
-test('studio map builder renders the missing-binding surface', async ({ page }) => {
+test('retired Studio builder route cannot restore the legacy product', async ({ page }) => {
   await page.goto('/studio/map', { waitUntil: 'domcontentloaded' });
 
-  // The map-package lifecycle is not bound — the surface states this rather than crashing.
-  await expect(page.getByRole('heading', { name: 'Map package lifecycle is not bound' })).toBeVisible();
-  await expect(page.locator('.console-state-error, .console-state-missing').first()).toBeVisible();
+  await expect(page.locator('[data-legacy-studio-retired]')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open Studio workspace' })).toHaveAttribute('href', '/studio');
+  await expect(page.locator('[data-map-builder], [data-authoring-contract]')).toHaveCount(0);
 });
 
 // Publishing and Esri import were the two surfaces this spec was written for and never covered.

@@ -65,7 +65,7 @@ public sealed class StudioPackageLifecycleIntegrationTests
     }
 
     [SkippableFact]
-    public async Task StudioPage_RendersWorkflowFamilies_FromLiveServer()
+    public async Task StudioPage_LiveFamiliesDoNotRestoreLegacyProduct()
     {
         Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
 
@@ -84,11 +84,8 @@ public sealed class StudioPackageLifecycleIntegrationTests
 
         var page = ctx.Render<StudioPage>();
 
-        // The page hydrates its session from the live families; once loaded it must render the studio shell
-        // (not the missing-binding state) and a server-reported schema version.
-        page.WaitForAssertion(
-            () => Assert.Contains("data-authoring-contract", page.Markup, StringComparison.Ordinal),
-            TimeSpan.FromSeconds(10));
-        Assert.Contains(probe.SelectedWorkflowId, page.Markup, StringComparison.OrdinalIgnoreCase);
+        // Availability of the legacy families never restores the retired product UI.
+        Assert.Single(page.FindAll("[data-studio-unavailable]"));
+        Assert.Empty(page.FindAll("[data-authoring-contract]"));
     }
 }

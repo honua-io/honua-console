@@ -4,7 +4,7 @@ public static class ConsoleRouteMap
 {
     public static IReadOnlyList<ConsoleWorkflowArea> Areas { get; } =
     [
-        new("studio", "Studio", "/studio", "Builder", "AI-assisted map, dashboard, report, and app creation."),
+        new("studio", "Studio", "/studio", "Workspace", "Realtime visual editing alongside the shared Console conversation."),
         new("catalog", "Catalog", "/catalog", "Builder", "Data, services, maps, dashboards, apps, metadata, and provenance."),
         new("operate", "Operate", "/operate", "Operator", "Publishing, jobs, service configuration, identity, observability, and runtime administration."),
         new("share", "Share", "/share/public", "Builder", "Public links, embeds, open-data pages, exports, and external publishing flows.")

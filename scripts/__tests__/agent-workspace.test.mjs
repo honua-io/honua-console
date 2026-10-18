@@ -302,3 +302,20 @@ test('a retained Studio task cannot lend a pending prompt to a changed principal
     workspace.session={...workspace.session,principalId:'different'};saved();
     await assert.rejects(turn,/authority changed while submitting/);assert.equal(calls,0);
 });
+
+test('shared style prompt cannot inherit retained map selections or a prior map task', async()=>{
+ const task={kind:'shared-style',id:'style',revision:7,contentHash:'a'.repeat(64),impactHash:'b'.repeat(64)};
+ const calls=[];const workspace=client(async(path,init)=>{
+  const body=JSON.parse(init.body);calls.push({path,body});
+  return response(path.endsWith('/context') ? {...workspace.context,revision:workspace.context.revision+1,task:body.task,selectedResources:body.selectedResources} : {turnId:'turn'});
+ });
+ workspace.workspaceId='workspace';workspace.context={revision:1,targetId:'target',selectedResources:[],task};
+ workspace.selectionProvider=()=>[{kind:'layer',id:'unrelated-map-layer'}];
+ workspace.sharedStyleProvider=()=>({task,dirty:false,pending:false});
+ await workspace.submit('change this style');
+ assert.deepEqual(calls[0].body.selectedResources,[]);assert.deepEqual(calls[0].body.task,task);
+ assert.equal(JSON.stringify(calls).includes('unrelated-map-layer'),false);
+ workspace.context.task={kind:'studio-composition',id:'old-map',revision:2};
+ calls.length=0;await assert.rejects(workspace.submit('this style'),/task changed/);
+ assert.equal(calls.length,0);
+});

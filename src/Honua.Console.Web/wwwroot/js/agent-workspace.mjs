@@ -1,3 +1,4 @@
+import { readSharedStyleFocus, prepareSharedStyleFocus } from './shared-style-context.mjs';
 // The workspace is shared by chat, forms and Studio. Each tab has its own explicit view binding.
 const publishFields = new Set(['connectionId', 'schema', 'table', 'serviceName', 'layerName']);
 export class WorkspaceConflict extends Error {
@@ -128,9 +129,10 @@ export class AgentWorkspace {
     }
     async submit(prompt, options = {}) {
         if (!prompt.trim()) throw new Error('Enter a message.');
-        const selection = this.selectionProvider?.();
+        const styleFocus = this.sharedStyleProvider?.();
+        const selection = styleFocus ? [] : this.selectionProvider?.();
         const capturedResources = selection ?? this.context?.selectedResources ?? [];
-        const prepareContext = options.prepareContext || this.prepareContextProvider?.()
+        const prepareContext = options.prepareContext || (styleFocus ? async () => prepareSharedStyleFocus(styleFocus) : undefined) || this.prepareContextProvider?.()
             || (typeof location !== 'undefined' && location.pathname === '/studio/processes' ? async()=>null : undefined);
         if (selection && JSON.stringify(selection) !== JSON.stringify(this.context?.selectedResources)) this.select(selection);
         // Enqueue capture synchronously. Navigation after this call queues behind the durable turn
@@ -236,6 +238,7 @@ export function mountWorkspace() {
     workspace.notify = notify; notify(workspace);
     host.open = Boolean(workspace.open);
     host.addEventListener('toggle', () => { workspace.open = host.open; }, { signal: lifetime.signal });
+    workspace.sharedStyleProvider ||= () => readSharedStyleFocus(document);
     workspace.selectionProvider ||= () => selectedResource(location.pathname);
     // One session instance lives above route components; embedded Studio receives this same object.
     Object.defineProperty(window, 'honuaAgentWorkspace', { value: workspace, configurable: true });
@@ -265,12 +268,20 @@ export function mountWorkspace() {
     });
     // Navigation publishes only typed selections. Never forward a URL, query, fragment or page contents.
     let lastSelection = JSON.stringify(selectedResource(location.pathname));
+    let hadSharedStyle = false;
     const observer = new MutationObserver(() => {
         if (!host.isConnected) { observer.disconnect(); formObserver.disconnect(); lifetime.abort(); return; }
-        const selection = workspace.selectionProvider?.() ?? selectedResource(location.pathname); const key = JSON.stringify(selection);
-        if (workspace.context && key !== lastSelection) { lastSelection = key; workspace.select(selection).catch(report); }
+        const focus = workspace.sharedStyleProvider?.();
+        const selection = focus ? [] : workspace.selectionProvider?.() ?? selectedResource(location.pathname);
+        const key = JSON.stringify(focus ? {resources:selection,task:focus.task} : selection);
+        if (workspace.context && key !== lastSelection) {
+            lastSelection = key;
+            workspace.select(selection, focus ? focus.task : hadSharedStyle ? null : undefined).catch(report);
+        }
+        hadSharedStyle = Boolean(focus);
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true,
+        attributeFilter:['data-style-task-id','data-style-task-revision','data-style-content-hash','data-style-impact-hash'] });
     window.addEventListener('honua-agent-presentation', event => {
         const href = workspace.presentation(event.detail);
         if (href === location.pathname) return;

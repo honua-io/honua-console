@@ -2,19 +2,24 @@
 @page "/studio/proof"
 @page "/studio/drafts"
 @page "/studio/apps/{ItemId}/preview"
-@inject IStudioAuthoringShell AuthoringShell
 @inject NavigationManager Navigation
-@inject IConsoleCapabilityManifest Capabilities
 @inject IServiceProvider WorkspaceServices
 
-@* SHELVED (studio-builders capability). Studio home, the inline authoring shell, and the generated-app
-   preview route all render this one component, so the whole page is gated: "Studio" is now the realtime,
-   SDK-driven app builder, which lives outside the Console. Nothing was deleted — advertising
-   studio-builders in Honua:Console:Capabilities / HONUA_CONSOLE_CAPABILITIES restores it unchanged. *@
-@if (EmbedEnabled)
+@if (IsRetiredRoute)
+{
+    <section class="console-page" data-legacy-studio-retired>
+        <p class="console-kicker">Studio</p>
+        <h1>This view has moved to the Studio workspace</h1>
+        <p>Edit maps with visual controls and your Console conversation.</p>
+        <a class="console-button-link" href="/studio">Open Studio workspace</a>
+        <a class="console-button-link console-button-secondary" href="/catalog">Browse saved content</a>
+    </section>
+}
+else if (EmbedEnabled)
 {
     <section class="console-page" data-studio-embed>
         <h1>Studio</h1>
+        <p>Edit maps with visual controls and your Console conversation.</p>
         <p><a href="/studio/processes">Open Processes</a></p>
         <p role="status" data-studio-status>Connecting the realtime Studio workspace…</p>
         <div data-studio-mount></div>
@@ -22,465 +27,26 @@
 }
 else
 {
-<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.StudioBuilders"
-                       Kicker="Shelved"
-                       Title="Console Studio is shelved"
-                       Message="The Console's non-realtime Studio — the home landing, the inline authoring shell, and the per-family package builders — is shelved. Honua Studio is now the realtime, SDK-driven app builder, which is not a Console surface. The Console keeps its back-office roles: Catalog, Operate, Share, support, and the publish/approval flows. Nothing was deleted; these surfaces return as-is once the deployment advertises the studio-builders capability.">
-@if (IsHome)
-{
-    <section class="console-page studio-page studio-home-page">
-        <StudioHome />
-        <section class="studio-editor-directory" aria-labelledby="studio-editor-directory-heading">
-            <div class="console-page-heading">
-                <p class="console-kicker">Package editors</p>
-                <h2 id="studio-editor-directory-heading">Generated Package Families</h2>
-                <p class="console-muted">
-                    Console-native editors for generated query, analysis, map, dashboard, report, form, and app packages.
-                    Or open the
-                    <a href="/studio/proof">inline authoring shell</a>
-                    to author from a prompt and inspect the server package draft end to end.
-                </p>
-            </div>
-
-            <div class="console-panel-grid studio-editor-grid">
-                @foreach (var editor in StudioPackageEditorCatalog.Editors)
-                {
-                    <a class="console-panel console-area-link studio-editor-card" href="@editor.Path">
-                        <div class="console-panel-heading">
-                            <div>
-                                <h2>@editor.DisplayName</h2>
-                                <p class="console-muted">@editor.PackageType</p>
-                            </div>
-                            <span class="console-status">@editor.ContentType</span>
-                        </div>
-                        <p>@editor.Summary</p>
-                    </a>
-                }
-                <a class="console-panel console-area-link studio-editor-card" href="/studio/automations">
-                    <div class="console-panel-heading">
-                        <div>
-                            <h2>Automations</h2>
-                            <p class="console-muted">collect.automation</p>
-                        </div>
-                        <span class="console-status">automation</span>
-                    </div>
-                    <p>Author and version trigger-bound rules that drive Collect's shipped Data Events engine: conditions, set/compute/validate/tag/notify actions, and a deterministic cascade.</p>
-                </a>
-            </div>
-        </section>
+    <section class="console-page" data-studio-unavailable>
+        <p class="console-kicker">Studio</p>
+        <h1>Studio is unavailable on this deployment</h1>
+        <p>Connect a deployment that supports the realtime Console and Studio workspace, or ask your administrator to enable it.</p>
+        <a class="console-button-link" href="/environments">Review connection</a>
+        <a class="console-button-link console-button-secondary" href="/setup/local">Set up Honua locally</a>
     </section>
-}
-else
-{
-<section class="console-page studio-page">
-    <div class="console-page-heading studio-page-heading">
-        <div>
-            <p class="console-kicker">Builder workflow</p>
-            <h1>Studio</h1>
-            <p>Author from prompt, resolve open questions, inspect the server package draft, validate, plan a preview, save a version, and publish from one shared Console surface.</p>
-        </div>
-
-        @if (!_loading && _session.BindingState is null)
-        {
-            <StudioLifecycleRail CurrentState="_session.ActivePackage.LifecycleState" />
-        }
-    </div>
-
-    @if (_loading)
-    {
-        <ConsoleStateView Kind="loading"
-                          Kicker="Studio"
-                          Title="Loading package shell"
-                          Message="Reading the Studio package families and draft lifecycle from honua-server." />
-    }
-    else if (_session.BindingState is not null)
-    {
-        <ConsoleStateView Kind="error"
-                          Kicker="@_session.BindingState.State"
-                          Title="Studio package lifecycle is not bound"
-                          Message="@($"{_session.BindingState.Detail} (contract: {_session.BindingState.Contract})")" />
-    }
-    else
-    {
-        <div class="studio-shell" data-authoring-contract="@StudioAuthoringContract.Name" data-contract-version="@StudioAuthoringContract.Version">
-            <aside class="console-panel studio-workflow-panel" aria-labelledby="studio-workflows-heading">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">Artifact workflow</p>
-                        <h2 id="studio-workflows-heading">Workflow</h2>
-                    </div>
-                    <span class="console-status">@SelectedWorkflow.PackageType</span>
-                </div>
-
-                <div class="studio-workflow-grid" role="list">
-                    @foreach (var workflow in _session.Workflows)
-                    {
-                        var isSelected = string.Equals(_session.SelectedWorkflowId, workflow.Id, StringComparison.Ordinal);
-
-                        <button type="button"
-                                class="studio-workflow-button @(isSelected ? "studio-workflow-button-active" : string.Empty)"
-                                aria-pressed="@isSelected"
-                                disabled="@_busy"
-                                @onclick="() => SelectWorkflow(workflow.Id)">
-                            <strong>@workflow.Label</strong>
-                            <small>@workflow.PackageType</small>
-                            @if (!string.IsNullOrEmpty(workflow.SupportLevel))
-                            {
-                                <span class="studio-support-chip">@workflow.SupportLevel</span>
-                            }
-                        </button>
-                    }
-                </div>
-
-                <section class="studio-recent-section" aria-labelledby="studio-family-heading">
-                    <h3 id="studio-family-heading">Family capabilities</h3>
-                    <dl class="console-definition-list">
-                        <dt>Schema</dt>
-                        <dd>@(string.IsNullOrEmpty(SelectedWorkflow.SchemaVersion) ? "unknown" : SelectedWorkflow.SchemaVersion)</dd>
-                        <dt>Support level</dt>
-                        <dd>@(string.IsNullOrEmpty(SelectedWorkflow.SupportLevel) ? "unknown" : SelectedWorkflow.SupportLevel)</dd>
-                        <dt>Preview / Publish</dt>
-                        <dd>@(SelectedWorkflow.PreviewSupported ? "preview" : "no preview"), @(SelectedWorkflow.PublishSupported ? "publish" : "no publish")</dd>
-                    </dl>
-                    @if (SelectedWorkflow.Limitations.Count > 0)
-                    {
-                        <ul class="studio-compact-list">
-                            @foreach (var limitation in SelectedWorkflow.Limitations)
-                            {
-                                <li>@limitation</li>
-                            }
-                        </ul>
-                    }
-                    <div class="studio-action-row">
-                        <a class="console-button-link" href="/studio/workflows/new">Open workflow package editors</a>
-                    </div>
-                </section>
-            </aside>
-
-            <section class="console-panel studio-prompt-panel" aria-labelledby="studio-prompt-heading">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">Prompt and clarification</p>
-                        <h2 id="studio-prompt-heading">Conversation</h2>
-                    </div>
-                    @if (_session.Clarifications.Count > 0)
-                    {
-                        <span class="console-status">@_session.Clarifications.Count open</span>
-                    }
-                </div>
-
-                <label class="studio-prompt-label" for="studio-prompt">Prompt</label>
-                <textarea id="studio-prompt"
-                          class="studio-prompt-input"
-                          rows="6"
-                          @bind="_prompt"
-                          @bind:event="oninput"></textarea>
-
-                <div class="studio-action-row">
-                    <button class="console-button" type="button" disabled="@_busy" @onclick="GeneratePackage">Generate Package</button>
-                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || _session.Clarifications.Count == 0)" @onclick="AnswerFirstClarification">
-                        Apply First Answer
-                    </button>
-                </div>
-
-                <StudioPublicationApprovalNotice Pending="@(_session.PendingPublication ?? _session.PreviousPublication)" Refreshed="result => _session = result.Apply(_session)" />
-
-                @if (!string.IsNullOrEmpty(_session.StatusMessage))
-                {
-                    <p class="console-status studio-status-message" role="status" aria-live="polite">@_session.StatusMessage</p>
-                }
-
-                @if (_session.Clarifications.Count > 0)
-                {
-                    <section class="studio-clarification-panel" aria-labelledby="studio-clarification-heading" aria-live="polite">
-                        <p class="console-kicker">Structured clarification</p>
-                        <h3 id="studio-clarification-heading">Questions</h3>
-
-                        @foreach (var question in _session.Clarifications)
-                        {
-                            <fieldset class="studio-clarification-question">
-                                <legend>@question.Label</legend>
-                                <p class="console-muted">@question.Reason</p>
-
-                                <div class="studio-clarification-options">
-                                    @foreach (var choice in question.Choices)
-                                    {
-                                        <button type="button" class="studio-clarification-choice" disabled="@_busy" @onclick="() => ApplyClarification(question.Id, choice.Id)">
-                                            <strong>@choice.Label</strong>
-                                            <small>@choice.Effect</small>
-                                        </button>
-                                    }
-                                </div>
-                            </fieldset>
-                        }
-                    </section>
-                }
-                else
-                {
-                    <section class="studio-conversation-log" aria-labelledby="studio-conversation-log-heading">
-                        <h3 id="studio-conversation-log-heading">Conversation Log</h3>
-                        <ol>
-                            @foreach (var item in _session.ActivePackage.Provenance)
-                            {
-                                <li>
-                                    <strong>@item.Actor</strong>
-                                    <span>@item.Action</span>
-                                    <small>@item.Evidence</small>
-                                </li>
-                            }
-                        </ol>
-                    </section>
-                }
-            </section>
-
-            <section class="console-panel studio-preview-panel" aria-labelledby="studio-preview-heading">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">Package state</p>
-                        <h2 id="studio-preview-heading">Preview plan</h2>
-                    </div>
-                    <span class="@GetLifecycleClass(_session.ActivePackage.LifecycleState)">@FormatLifecycle(_session.ActivePackage.LifecycleState)</span>
-                </div>
-
-                <div class="studio-preview-stage @GetLifecycleClass(_session.ActivePackage.LifecycleState)">
-                    <div class="studio-preview-toolbar">
-                        <strong>@_session.ActivePackage.Title</strong>
-                        <small>@_session.ActivePackage.PackageRef</small>
-                    </div>
-                    <div class="studio-preview-details">
-                        @if (_session.PreviewPlan is { } plan)
-                        {
-                            <strong>@(plan.RequiresJob ? "Job-backed preview plan" : "Synchronous preview plan")</strong>
-                            <ol class="studio-compact-list">
-                                @foreach (var step in plan.Steps)
-                                {
-                                    <li>@step</li>
-                                }
-                            </ol>
-                        }
-                        else
-                        {
-                            <strong>@_session.ActivePackage.PackageType</strong>
-                            <span>@_session.ActivePackage.Summary</span>
-                        }
-                        <p class="console-muted studio-preview-binding-note">
-                            Rendered preview output and generated-app preview have no honua-server contract yet. Preview planning returns the server execution plan only.
-                        </p>
-                    </div>
-                </div>
-
-                <div class="studio-action-row">
-                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !_session.HasServerDraft || HasOpenClarifications)" @onclick="Validate">
-                        Validate
-                    </button>
-                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !_session.HasServerDraft || HasOpenClarifications)" @onclick="PreviewPlan">
-                        Preview plan
-                    </button>
-                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !_session.HasServerDraft || HasOpenClarifications)" @onclick="SaveVersion">
-                        Save Version
-                    </button>
-                    <button class="console-button" type="button" disabled="@(_busy || !HasSavedVersion || HasOpenClarifications)" @onclick="Publish">
-                        Publish
-                    </button>
-                </div>
-            </section>
-
-            <StudioPackageInspector Package="_session.ActivePackage" />
-        </div>
-    }
-
-    <section class="studio-editor-directory" aria-labelledby="studio-editor-directory-heading">
-        <div class="console-page-heading">
-            <p class="console-kicker">Package editors</p>
-            <h2 id="studio-editor-directory-heading">Generated Package Families</h2>
-            <p class="console-muted">
-                Console-native editors for generated query, analysis, map, dashboard, report, form, and app packages.
-            </p>
-        </div>
-
-        <div class="console-panel-grid studio-editor-grid">
-            @foreach (var editor in StudioPackageEditorCatalog.Editors)
-            {
-                <a class="console-panel console-area-link studio-editor-card" href="@editor.Path">
-                    <div class="console-panel-heading">
-                        <div>
-                            <h2>@editor.DisplayName</h2>
-                            <p class="console-muted">@editor.PackageType</p>
-                        </div>
-                        <span class="console-status">@editor.ContentType</span>
-                    </div>
-                    <p>@editor.Summary</p>
-                    <div class="console-chip-row">
-                        @foreach (var capability in editor.RequiredEditors.Take(3))
-                        {
-                            <span>@capability.Title</span>
-                        }
-                        @if (editor.UsesVegaLite)
-                        {
-                            <span>Vega-Lite</span>
-                        }
-                        @if (editor.RequiresOfflinePolicyBeforePublish)
-                        {
-                            <span>Offline policy required</span>
-                        }
-                        @if (editor.ReopenedEditsCreateNewContentVersions)
-                        {
-                            <span>Versioned reopen</span>
-                        }
-                    </div>
-                </a>
-            }
-        </div>
-
-        <article class="console-panel studio-runtime-note">
-            <div class="console-panel-heading">
-                <div>
-                    <h2>Package Lifecycle Boundary</h2>
-                    <p class="console-muted">
-                        The shared Studio shell binds draft, validation, preview-planning, content-version, and publication to honua-server (#1180/#1181). Form builder (#57) is server-bound; query, analysis, map, dashboard, report, app, and workflow/GP/ETL packages remain in a missing-binding state until their server contracts are bound; they do not report mock validation success.
-                    </p>
-                </div>
-                <span class="console-status">Single Console runtime</span>
-            </div>
-            <div class="console-chip-row">
-                @foreach (var operation in StudioPackageEditorCatalog.FullLifecycleOperations)
-                {
-                    <span>@operation</span>
-                }
-            </div>
-        </article>
-    </section>
-</section>
-}
-</ConsoleCapabilityGate>
 }
 
 @code {
-    private bool EmbedEnabled => bool.TryParse(WorkspaceServices.GetService<Microsoft.Extensions.Configuration.IConfiguration>()?["Studio:EmbedJsStudio"], out var enabled) && enabled
-        && (IsHome || Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/') == "studio/drafts");
-    private StudioAuthoringSession _session = StudioAuthoringSession.Empty;
-    private bool _loading = true;
-    private bool _busy;
-    private string _prompt = "Create a map of permit activity near schools.";
-
-    [Parameter]
-    public string? ItemId { get; set; }
-
-    [SupplyParameterFromQuery(Name = "source")]
-    public string? SourceKind { get; set; }
-
-    [SupplyParameterFromQuery(Name = "id")]
-    public string? SourceItemId { get; set; }
-
-    [SupplyParameterFromQuery(Name = "prompt")]
-    public string? SeedPrompt { get; set; }
-
-    // /studio is the Studio home landing (hero prompt + content-type grid + recent projects).
-    // /studio/proof, /studio/drafts, and /studio/apps/:itemId/preview keep the inline authoring shell.
-    private bool IsHome =>
-        string.Equals(
-            Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/'),
-            "studio",
-            StringComparison.OrdinalIgnoreCase);
-
-    private StudioWorkflowOption SelectedWorkflow =>
-        _session.Workflows.FirstOrDefault(workflow => string.Equals(workflow.Id, _session.SelectedWorkflowId, StringComparison.Ordinal))
-            ?? _session.Workflows.FirstOrDefault()
-            ?? new StudioWorkflowOption(string.Empty, "Workflow", "package", string.Empty);
-
-    private bool HasOpenClarifications => _session.Clarifications.Count > 0;
-
-    private bool HasSavedVersion =>
-        _session.Draft?.CurrentVersionId is not null
-        || _session.ActivePackage.LifecycleState != StudioPackageLifecycleState.Draft;
-
-    private bool _authoringSessionLoaded;
-    private string? _seededPromptValue;
-
-    protected override async Task OnParametersSetAsync()
+    [Parameter] public string? ItemId { get; set; }
+    private bool EmbedEnabled => bool.TryParse(
+        WorkspaceServices.GetService<Microsoft.Extensions.Configuration.IConfiguration>()?["Studio:EmbedJsStudio"], out var enabled) && enabled;
+    private bool IsRetiredRoute
     {
-        // Shelved surface: ConsoleCapabilityGate renders the shelved state instead of Studio, so the
-        // authoring shell session is never created and honua-server is never read.
-        if (EmbedEnabled || !Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders))
+        get
         {
-            _loading = false;
-            return;
-        }
-
-        // Route- and query-dependent initialization lives here (not OnInitializedAsync) because a
-        // client-side nav from /studio to /studio/proof?prompt=... reuses this same StudioPage instance,
-        // so OnInitializedAsync does not run again; only OnParametersSetAsync sees the new route/query.
-        // The home landing renders <StudioHome /> and never reads the authoring shell session.
-        if (IsHome)
-        {
-            _loading = false;
-            return;
-        }
-
-        // Apply the seeded prompt whenever the ?prompt= value actually changes (including the first
-        // navigation into the authoring shell), guarding so re-renders with the same value are a no-op.
-        if (!string.IsNullOrWhiteSpace(SeedPrompt) && !string.Equals(SeedPrompt, _seededPromptValue, StringComparison.Ordinal))
-        {
-            _prompt = SeedPrompt.Trim();
-            _seededPromptValue = SeedPrompt;
-        }
-
-        // Create the server-backed session once for the lifetime of this authoring-shell instance.
-        if (!_authoringSessionLoaded)
-        {
-            _authoringSessionLoaded = true;
-            _session = await AuthoringShell.CreateInitialSessionAsync();
-        }
-
-        _loading = false;
-    }
-
-    private Task SelectWorkflow(string workflowId) =>
-        RunAsync(() => AuthoringShell.SelectWorkflowAsync(_session, workflowId));
-
-    private Task GeneratePackage() =>
-        RunAsync(() => AuthoringShell.GeneratePackageAsync(_session, _session.SelectedWorkflowId, _prompt));
-
-    private Task ApplyClarification(string questionId, string choiceId) =>
-        RunAsync(() => AuthoringShell.ApplyClarificationAsync(_session, questionId, choiceId));
-
-    private Task AnswerFirstClarification()
-    {
-        var question = _session.Clarifications.FirstOrDefault();
-        return question is null
-            ? Task.CompletedTask
-            : ApplyClarification(question.Id, question.Choices[0].Id);
-    }
-
-    private Task Validate() => RunAsync(() => AuthoringShell.ValidateAsync(_session));
-
-    private Task PreviewPlan() => RunAsync(() => AuthoringShell.PreviewPlanAsync(_session));
-
-    private Task SaveVersion() => RunAsync(() => AuthoringShell.SaveVersionAsync(_session));
-
-    private Task Publish() => RunAsync(() => AuthoringShell.PublishAsync(_session));
-
-    private async Task RunAsync(Func<Task<StudioAuthoringSession>> operation)
-    {
-        if (_busy)
-        {
-            return;
-        }
-
-        _busy = true;
-        try
-        {
-            _session = await operation();
-        }
-        finally
-        {
-            _busy = false;
+            var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/');
+            return path.Equals("studio/proof", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("studio/apps/", StringComparison.OrdinalIgnoreCase);
         }
     }
-
-    private static string FormatLifecycle(StudioPackageLifecycleState state) =>
-        StudioAuthoringContract.LifecycleDescriptors.First(descriptor => descriptor.State == state).Label;
-
-    private static string GetLifecycleClass(StudioPackageLifecycleState state) =>
-        StudioAuthoringContract.LifecycleDescriptors.First(descriptor => descriptor.State == state).CssClass;
 }

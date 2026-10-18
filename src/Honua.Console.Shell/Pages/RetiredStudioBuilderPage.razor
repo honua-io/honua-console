@@ -1,0 +1,21 @@
+@page "/studio/workflows/new"
+@page "/studio/query"
+@page "/studio/analysis"
+@page "/studio/form/ai"
+@page "/studio/map"
+@page "/studio/report/ai"
+@page "/studio/app"
+@page "/studio/dashboard"
+
+<section class="console-page" data-legacy-studio-retired>
+    <p class="console-kicker">Studio</p>
+    <h1>This view has moved to the Studio workspace</h1>
+    <p>Edit maps with visual controls and your Console conversation. Use Processes for analysis and workflow authoring.</p>
+    <a class="console-button-link" href="/studio">Open Studio workspace</a>
+    <a class="console-button-link console-button-secondary" href="/studio/processes">Open Processes</a>
+</section>
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    [Parameter] public string? ItemId { get; set; }
+}
