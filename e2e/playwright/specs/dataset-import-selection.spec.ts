@@ -29,7 +29,7 @@ async function controlledSdk(page: Page, body: string, beforeServe?: () => Promi
         expect(matched,'Controlled SDK must replace an existing import-map integrity entry').toBeGreaterThan(0);
         // Await the real interactive boot before applying controlled workspace
         // state; otherwise hydration can replace the panel during an assertion.
-        const manualBoot=controlled.replace(/<script src="([^"]*\/_framework\/blazor\.web\.[^"]+)"/,
+        const manualBoot=controlled.replace(/<script src="([^"]*_framework\/blazor\.web\.[^"]+)"/,
             '<script autostart="false" src="$1"');
         expect(manualBoot).not.toBe(controlled);
         await route.fulfill({response,body:manualBoot});
