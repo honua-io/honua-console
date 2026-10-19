@@ -88,3 +88,17 @@ test('navigation before durable intent enters SDK prevents submission', async()=
     await assert.rejects(controller.prepare(review),/Return to the original/);
     assert.equal(calls.includes('POST'),false);
 });
+
+test('pending database outcome preserves original accepted job and exposes checking copy with GET only', async()=>{
+    const {controller,calls,setRemote} = setup();
+    const operationId = prepared().operationId;
+    setRemote({...prepared(),state:'accepted',job:{jobId:operationId,status:'queued',leaseId:'original-lease',outcomePending:true}});
+    await controller.recover();
+    assert.equal(controller.message(),'Confirming import outcome. Honua is checking whether the data was saved.');
+    assert.equal(controller.record.receipt.job.jobId,operationId);
+    assert.equal(controller.record.receipt.job.output,undefined);
+    assert.equal(controller.dirty(),false);
+    await controller.prepare(review);
+    assert.deepEqual(calls,['GET','GET']);
+    assert.equal(controller.record.receipt.job.status,'queued');
+});

@@ -273,6 +273,7 @@ public sealed class AgentWorkspaceDatasetImportBffTests
     [InlineData("detectedSrid")]
     [InlineData("completedAt")]
     [InlineData("percentComplete")]
+    [InlineData("outcomePending")]
     [InlineData("leaseId")]
     public async Task SubmissionRejectsNestedSecurityObjectsInEveryScalarReceiptSlot(string field)
     {
@@ -434,6 +435,33 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         host.Wire.Response = value.ToJsonString();
         using var response = await ProjectionRequest(host.Client, contract);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("queued", true, HttpStatusCode.OK)]
+    [InlineData("running", true, HttpStatusCode.OK)]
+    [InlineData("succeeded", false, HttpStatusCode.OK)]
+    [InlineData("succeeded", true, HttpStatusCode.BadGateway)]
+    [InlineData("failed", true, HttpStatusCode.BadGateway)]
+    [InlineData("cancelled", true, HttpStatusCode.BadGateway)]
+    public async Task PendingOutcomeIsStrictBooleanMetadataForOriginalNonterminalAcceptedJob(string status, bool pending, HttpStatusCode expected)
+    {
+        await using var host = await Host.Start();
+        host.Wire.Response = JsonSerializer.Serialize(new
+        {
+            taskId = "task", taskRevision = 1, taskContentHash = Hash, state = "accepted", operationId = new string('e', 32),
+            authorityRevision = 2, authorityFingerprint = Hash, policyContextFingerprint = Hash, acceptBefore = "2026-10-19T00:00:00Z",
+            job = new { jobId = new string('e', 32), leaseId = "actual-lease", status, outcomePending = pending,
+                createdAt = "2026-10-18T00:00:00Z", updatedAt = "2026-10-18T00:01:00Z" }
+        });
+        using var response = await host.Client.GetAsync(Root + "/submission?contentHash=" + Hash);
+        Assert.Equal(expected, response.StatusCode);
+        Assert.Equal(HttpMethod.Get, host.Wire.Method);
+        if (expected == HttpStatusCode.OK)
+        {
+            using var projected = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal(pending, projected.RootElement.GetProperty("job").GetProperty("outcomePending").GetBoolean());
+        }
     }
 
     private sealed class Host(WebApplication app, HttpClient client, Wire wire) : IAsyncDisposable

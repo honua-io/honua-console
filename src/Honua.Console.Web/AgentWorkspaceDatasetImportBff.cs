@@ -156,7 +156,7 @@ internal static partial class AgentWorkspaceBff
                         writer.WriteEndObject();
                     }
                     else if (name == "job" && property.ValueKind != JsonValueKind.Null)
-                        WriteFields(writer, property, ["jobId", "leaseId", "status", "createdAt", "updatedAt", "completedAt", "percentComplete", "output", "errorCode"]);
+                        WriteFields(writer, property, ["jobId", "leaseId", "status", "outcomePending", "createdAt", "updatedAt", "completedAt", "percentComplete", "output", "errorCode"]);
                     else if (name == "destination") WriteFields(writer, property, ["schema", "table"]);
                     else if (name == "options") WriteFields(writer, property, ["loadMode", "targetSrid", "sourceSrid"]);
                     else if (name == "source") WriteFields(writer, property, ["kind", "fileName", "totalBytes", "expectedSha256", "artifact", "browserSelectionId"]);
@@ -199,6 +199,9 @@ internal static partial class AgentWorkspaceBff
             !job.GetProperty("createdAt").TryGetDateTimeOffset(out _) || !job.GetProperty("updatedAt").TryGetDateTimeOffset(out _)) return false;
         if (job.TryGetProperty("errorCode", out var error) && error.ValueKind != JsonValueKind.Null &&
             (job.GetProperty("status").GetString() != "failed" || error.GetString() != "import-failed")) return false;
+        if (job.TryGetProperty("outcomePending", out var pendingOutcome) &&
+            (pendingOutcome.ValueKind is not (JsonValueKind.True or JsonValueKind.False) ||
+             pendingOutcome.GetBoolean() && job.GetProperty("status").GetString() is not ("queued" or "provisioning" or "running"))) return false;
         if (job.TryGetProperty("completedAt", out var completed) && completed.ValueKind != JsonValueKind.Null &&
             (!completed.TryGetDateTimeOffset(out _) || job.GetProperty("status").GetString() is not ("succeeded" or "failed" or "cancelled"))) return false;
         if (job.TryGetProperty("percentComplete", out var percent) && percent.ValueKind != JsonValueKind.Null &&

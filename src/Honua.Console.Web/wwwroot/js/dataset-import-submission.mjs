@@ -84,6 +84,7 @@ export class DatasetImportSubmissionController {
         if (receipt?.state === 'prepared') return 'Import prepared. Awaiting the actual agent to submit this original task.';
         if (receipt?.state !== 'accepted') return 'No accepted import job has been confirmed.';
         const job = receipt.job;
+        if (job.outcomePending === true) return 'Confirming import outcome. Honua is checking whether the data was saved.';
         if (job.status === 'succeeded' && job.output) return `Imported ${job.output.featureCount.toLocaleString()} features into ${job.output.schema}.${job.output.physicalTableName}.`;
         if (job.status === 'failed') return 'The accepted import failed. Its original job receipt is retained.';
         if (job.status === 'cancelled') return 'The accepted import was cancelled. Its original job receipt is retained.';
