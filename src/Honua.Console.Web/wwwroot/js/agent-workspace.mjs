@@ -632,7 +632,11 @@ export function mountWorkspace() {
                 workspace.notify(workspace); await refresh();
             }
         } catch (error) { report(error); }
-        setTimeout(reconcile, 2000);
+        finally {
+            // A superseded observation skips this snapshot, not future reads or
+            // lease renewal. Detached hosts leave polling to the new mount.
+            if (host.isConnected && !lifetime.signal.aborted) setTimeout(reconcile, 2000);
+        }
     };
     setTimeout(reconcile, 2000);
     workspaceInput.value = workspace.workspaceId || '';
