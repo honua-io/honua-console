@@ -95,3 +95,44 @@ for (const width of [390, 1440]) test(`advanced navigation is keyboard accessibl
   await summary.press('Space');
   await expect(nav).toBeHidden();
 });
+
+for (const width of [390, 1440]) test(`navigation preserves keyboard input during startup at ${width}px`, async ({page}) => {
+  let startBlazor!: () => void;
+  const bootstrap = new Promise<void>(resolve => { startBlazor = resolve; });
+  await page.route(/\/_framework\/blazor\.web(?:\.[^/]+)?\.js$/, async route => {
+    await bootstrap;
+    await route.continue();
+  });
+  try {
+    await page.setViewportSize({width, height:844});
+    await page.goto('/operate', {waitUntil:'commit'});
+    const toggle=page.getByRole('checkbox',{name:'Toggle navigation'});
+    if(width < 768) {
+      await toggle.press('Space');
+      await expect(toggle).toBeChecked();
+    }
+    const summary=page.locator('.console-more-tools > summary');
+    await summary.press('Enter');
+    const nav=page.getByRole('navigation',{name:'Operate sections'});
+    await expect(nav).toBeVisible();
+    await page.locator('.console-more-tools').evaluate(element => {
+      (window as unknown as {prerenderedNavigation: Element}).prerenderedNavigation=element;
+    });
+    startBlazor();
+    // Observe the actual interactive replacement; a timer cannot prove hydration happened.
+    await page.waitForFunction(() => document.querySelector('.console-more-tools') !==
+      (window as unknown as {prerenderedNavigation: Element}).prerenderedNavigation);
+    await expect(nav).toBeVisible();
+    await expect(summary).toBeFocused();
+    if(width < 768) await expect(toggle).toBeChecked();
+    await summary.press('Space');
+    await expect(nav).toBeHidden();
+    // Preserving startup input must not suppress focus on an actual route change.
+    await summary.press('Enter');
+    await nav.locator('a[href="/operate/health"]').press('Enter');
+    await expect(page).toHaveURL(/\/operate\/health$/);
+    await expect(page.getByRole('heading', {level:1})).toBeFocused();
+  } finally {
+    startBlazor();
+  }
+});
