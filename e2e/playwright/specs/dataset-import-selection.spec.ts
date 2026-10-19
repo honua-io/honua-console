@@ -169,3 +169,61 @@ test('accepted import polling rebinds a replaced workspace without resubmission'
     expect(await page.evaluate(()=>(window as any).__importClients)).toBe(2);
     expect(await page.evaluate(()=>(window as any).__unexpectedSubmissions)).toBe(0);
 });
+
+// Actual published Console asset and import map; controlled MCP responses isolate
+// packaging/session continuity from backend authorization qualification.
+test('published Studio switches workflow views on one MCP session with fresh credentials',async({page})=>{
+    const requests: {method:string,view?:string,session?:string,credential?:string}[]=[];
+    await page.route(url=>url.pathname==='/api/mcp',async route=>{
+        const request=route.request(), rpc=request.postDataJSON();
+        requests.push({method:rpc.method,view:rpc.params?.view ?? rpc.params?._meta?.['honua.io/workflow-view'],
+            session:request.headers()['mcp-session-id'],credential:request.headers()['x-test-agent']});
+        if(rpc.method==='notifications/initialized') {
+            await route.fulfill({status:202,body:''});return;
+        }
+        const view=rpc.params?.view ?? 'workspace', process=view==='processes';
+        const result=rpc.method==='initialize'
+            ? {protocolVersion:'2025-03-26',capabilities:{tools:{}}}
+            : {_meta:{view},tools:[{
+                name:process?'honua_workspace_local_process_get_run':'honua_workspace_get_turn',
+                description:'Read the authorized task',inputSchema:{type:'object',properties:{}},
+                _meta:{'honua.studio':{family:process?'honua.workspace.local-process':'honua.workspace.canonical',
+                    view,revision:`${view}.v1`}}
+            }]};
+        await route.fulfill({status:200,contentType:'application/json',headers:{'Mcp-Session-Id':'one-workspace-session'},
+            body:JSON.stringify({jsonrpc:'2.0',id:rpc.id,result})});
+    });
+    await interactiveDocument(page);
+    await openInteractiveImportPanel(page);
+    const result=await page.evaluate(async()=>{
+        const studio=await import('/_studio/console.js');
+        let credential=0;
+        const session=studio.createWorkspaceAgentSession({
+            fetchImpl:(input:RequestInfo|URL,init?:RequestInit)=>{
+                const headers=new Headers(init?.headers);headers.set('X-Test-Agent',`fresh-${++credential}`);
+                return fetch(input,{...init,headers});
+            },
+            system:()=> 'Use the captured Console context.',
+            toolFamilies:['honua.workspace.canonical','honua.workspace.local-process']
+        });
+        try {
+            await session.refreshTools();
+            const workspace=session.tools.map((tool:{name:string})=>tool.name);
+            await session.selectWorkflowView('processes');
+            const processes=session.tools.map((tool:{name:string})=>tool.name);
+            await session.selectWorkflowView('workspace');
+            return {workspace,processes,returned:session.tools.map((tool:{name:string})=>tool.name)};
+        } finally {session.close();}
+    });
+    expect(result.workspace).toContain('honua_client_select_workflow_view');
+    expect(result.workspace).toContain('honua_workspace_get_turn');
+    expect(result.processes).toContain('honua_workspace_local_process_get_run');
+    expect(result.processes).not.toContain('honua_workspace_get_turn');
+    expect(result.returned).toEqual(result.workspace);
+    expect(requests.filter(request=>request.method==='initialize')).toHaveLength(1);
+    expect(requests.filter(request=>request.method==='tools/list').map(request=>request.view)).toEqual(['workspace','processes','workspace']);
+    for(const [index,request] of requests.entries()) {
+        expect(request.credential).toBe(`fresh-${index+1}`);
+        if(request.method!=='initialize') expect(request.session).toBe('one-workspace-session');
+    }
+});

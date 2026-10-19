@@ -1,7 +1,7 @@
 {
   "schemaVersion": "honua.console.studio-artifact.v1",
-  "studioRevision": "151a8d2a6a1c808d7c3f6943f054b834df7a0cb5",
-  "sdkRevision": "4c879cad01288b2382f6664a1ac8c14fd0b9453d",
+  "studioRevision": "e6411388097063b823bb0c2bad2603f8a8709d0f",
+  "sdkRevision": "50d8f1d6fcbbcee89f666949722c6b7ac904e5c4",
   "files": [
     {
       "path": "LICENSE",
@@ -10,13 +10,13 @@
     },
     {
       "path": "SDK-PROVENANCE.json",
-      "bytes": 236476,
-      "sha256": "cf5fc13cdb7382cd97f99d39b22ea0109c7123fb4d353559dcf136c2bcb1951a"
+      "bytes": 236810,
+      "sha256": "7fae10f0724acee8f1e221bb6547f182552d27e9d28c08ec616f9f39019497c6"
     },
     {
       "path": "STUDIO-PROVENANCE.json",
-      "bytes": 245496,
-      "sha256": "90486625d4662954159f6118515f4e16b953ee25badc61509801728fa25bba71"
+      "bytes": 245540,
+      "sha256": "fa218824c4183b2e9d7967b0a7f083765639a6e9bc88e8021bc0d6957a699c27"
     },
     {
       "path": "THIRD-PARTY-NOTICES.txt",
@@ -55,8 +55,8 @@
     },
     {
       "path": "console.js",
-      "bytes": 800128,
-      "sha256": "2510ab88eafb7d515f930553d376920b5617d88cfdecbec64515adc2d007da88"
+      "bytes": 802359,
+      "sha256": "ead8b8aa1e07a740a42c56dfc786a7e91a31cda6684a2542adc47e5187e55c4e"
     },
     {
       "path": "control-config-DVC01Tzy.js",

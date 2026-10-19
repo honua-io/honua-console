@@ -2,8 +2,8 @@
   "releaseQualified": false,
   "kind": "review-artifact",
   "version": "0.2.3",
-  "sourceCommit": "4c879cad01288b2382f6664a1ac8c14fd0b9453d",
-  "artifactSha256": "fb58463d79ec75409ec18d6f0ef76f9f4fa3db57dc11e1d97a1dd33f499f634d",
+  "sourceCommit": "50d8f1d6fcbbcee89f666949722c6b7ac904e5c4",
+  "artifactSha256": "4592fae1917971394a54e33487b345476cdbfe40dddeb819e5661c30f41a1d8b",
   "files": {
     "CHANGELOG.md": "0d282dcc7e65e9bc8c2582eedf4a628023cf69ea82c176b331a537bc148c9c69",
     "LICENSE": "b354b971f0d9252a996e7cd4e72cd4e0d833cd0fe9068a5da3113b4a0ed53559",
@@ -14,6 +14,9 @@
     "config/root-surface.json": "3248e278cc2a8f64f01d98931ae0b5a49a4cefb5554a396b5899cd05e84837dd",
     "config/support-manifest.schema.json": "027a96f791e71e572ea91f5999eae3dff2a4c3149ae6d6dc471f0b6b0a6aa380",
     "config/support-manifest.v1.json": "ce82c04bf841701fdb4ba837526b14cdb2fc52cad09a7a2157ac68cbf243391a",
+    "dist/browser/honua-sdk.browser-artifacts.v1.json": "527000750826a4280fd34173477d9f8a7df71d6499d93ab726a9257e44fe919e",
+    "dist/browser/honua-sdk.esm.js": "db0e1ced55dc755b8b961116e9f29a08bc9cc4ae93fabadd4edf2972cd5d4c25",
+    "dist/browser/honua-sdk.min.js": "dacf3d08e8d2e78c5e6e854fa7cff366761fc863fed16da30a6c866804b0567b",
     "dist/config/raster-source-registry.v1.json": "3827c24c309a7b6ad1083f0985172ce36e0de303dba35567196131141c4d3e8c",
     "dist/src/_deprecated/app-controller.d.ts": "ddbe93adbdfc94b8a64d0ceb5f0439d056fa8bd722d79c401ed6c8f539d8e64a",
     "dist/src/_deprecated/app-controller.d.ts.map": "1c5673862c4e44778bbf24dac598ef560eeda9ffa19abb95313af79972f8bdaa",
@@ -1890,9 +1893,9 @@
     "dist/src/studio-agent/mcp-protocol.d.ts": "35397a5b04ee5b4cf6acaf279a7f8186de030ec693251b305714aa3278b24c48",
     "dist/src/studio-agent/mcp-protocol.d.ts.map": "b3d16a97f0e1169512b890c1d194659159d75162c0389bdb8182ffa119199e76",
     "dist/src/studio-agent/mcp-protocol.js": "23f2c6996b0c93ab289fbd3b2c7080631dc978abc2d5a08ec10ac1ee4188a495",
-    "dist/src/studio-agent/session.d.ts": "6e9bfaf7eedcef709d9662910fd4870d4180f6eabd336b9fddc1048a0849e3bb",
-    "dist/src/studio-agent/session.d.ts.map": "7b36f187d0c253a50a2a79f35c87931894bd372fce4afe28d14bf44dbbf51306",
-    "dist/src/studio-agent/session.js": "6a648853c7343515b19c2ce652882f97e5a38dc4fb38da9412164cce49efc470",
+    "dist/src/studio-agent/session.d.ts": "6a5214fa3835bd9e8ff73edd75205d6b2d589b87378de6720aed33f4ab4a14cf",
+    "dist/src/studio-agent/session.d.ts.map": "f4340fce04732f6fe522191f49d17b494ff07c2d22ff6b6b6419cdf5d655700b",
+    "dist/src/studio-agent/session.js": "1b5a3c70a4d72fa92d1ecf311f0deb67ae60795ca43b262b39d506f374ff9c1a",
     "dist/src/studio-agent/sse-parser.d.ts": "dca24a4c3294aac3e2f12ad24c793576f89eefa2ea3c9b759e321ddb23978d9d",
     "dist/src/studio-agent/sse-parser.d.ts.map": "0181adb8db43bff8c3bc040347ee3b6571d6113d611c1ac39e14d2de5395e1ee",
     "dist/src/studio-agent/sse-parser.js": "0e84f8dcd443ec3df32edb5e27436aa7e5946a6a43e110017f47bbba3dceb982",
@@ -2116,7 +2119,7 @@
     "support/projections/connect-discovery-inventory.v1.json": "cb6ff3dcc6b497a40d1470b7d044eeb93fa86922095845bc53aff5ed9c2da5ad",
     "support/projections/sdk-support.v1.json": "3ddebaf4677622f1e8245b134e8ddadc1821b2757e7e541bc359006146f3a24e"
   },
-  "receiptSha256": "b2c2fc1bb48386549c7083643cb7e09377e1170fe7d320489e69a2970068a401",
-  "tarballSha256": "fb58463d79ec75409ec18d6f0ef76f9f4fa3db57dc11e1d97a1dd33f499f634d",
-  "sessionSha256": "6a648853c7343515b19c2ce652882f97e5a38dc4fb38da9412164cce49efc470"
+  "receiptSha256": "4600a7db34cdf55b859786602e9a7757063eb4fb15066b690de73d667e3d4e33",
+  "tarballSha256": "4592fae1917971394a54e33487b345476cdbfe40dddeb819e5661c30f41a1d8b",
+  "sessionSha256": "1b5a3c70a4d72fa92d1ecf311f0deb67ae60795ca43b262b39d506f374ff9c1a"
 }
