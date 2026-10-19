@@ -1,5 +1,8 @@
 import {test,expect} from '@playwright/test';
 
+// Published ASP.NET assets use fingerprinted URLs through the import map.
+const importSdkUrl = (url: URL) => /^\/_studio\/console(?:\.[A-Za-z0-9_-]+)?\.js$/.test(url.pathname);
+
 // Controlled SDK loader exercises the actual mounted prehash click orchestration.
 // This is not a connected server, canonical SDK hash, or accepted import journey.
 test('paused file check cannot retarget to a later selection while the SDK import waits',async({page})=>{
@@ -7,7 +10,7 @@ test('paused file check cannot retarget to a later selection while the SDK impor
     const waiting = new Promise<void>(resolve=>release=resolve);
     let requested: (()=>void) | undefined;
     const importRequested = new Promise<void>(resolve=>requested=resolve);
-    await page.route('**/_studio/console.js',async route=>{
+    await page.route(importSdkUrl,async route=>{
         requested?.();await waiting;
         await route.fulfill({contentType:'text/javascript',body:`export async function hashDatasetImportFile(file) { window.__checkedImportFiles.push(file.name); return '${'a'.repeat(64)}'; }`});
     });
@@ -34,7 +37,7 @@ test('paused file check cannot retarget to a later selection while the SDK impor
 });
 
 test('accepted import polling rebinds a replaced workspace without resubmission',async({page})=>{
-    await page.route('**/_studio/console.js',async route=>{
+    await page.route(importSdkUrl,async route=>{
         await route.fulfill({contentType:'text/javascript',body:`
             export class DatasetImportTaskClient {}
             export class DatasetImportUploadClient {}
@@ -55,7 +58,13 @@ test('accepted import polling rebinds a replaced workspace without resubmission'
         workspace.session={environmentId:'env',principalId:'human',releaseId:'release',csrfToken:'controlled-test'};
         workspace.workspaceId='workspace';workspace.context={targetId:'target',revision:1,
             task:{kind:'dataset-import',id:'task',revision:1,contentHash:'a'.repeat(64)}};
-        workspace.api=async()=>{state.__sessionReads.push('original');return workspace.session;};
+        workspace.presentedImport=JSON.stringify(workspace.context.task);
+        workspace.api=async(path: string)=>{
+            if(path==='session'){state.__sessionReads.push('original');return workspace.session;}
+            if(path.startsWith(`${workspace.workspaceId}?viewId=`)) return workspace.context;
+            if(path===`${workspace.workspaceId}/conversation`) return {messages:[]};
+            throw new Error(`Unexpected controlled workspace call: ${path}`);
+        };
         window.dispatchEvent(new CustomEvent('honua-workspace-state'));
     });
     const status=page.locator('[data-import-status]');
@@ -67,9 +76,14 @@ test('accepted import polling rebinds a replaced workspace without resubmission'
     await expect(page.locator('[data-import-recover]')).toBeEnabled();
     await page.evaluate(()=>{
         const state=window as any, old=state.honuaAgentWorkspace;
-        const replacement={...old,presentationGuards:new Set()};
-        replacement.api=async()=>{state.__sessionReads.push('replacement');return replacement.session;};
-        state.honuaAgentWorkspace=replacement;
+        const replacement=Object.assign(Object.create(Object.getPrototypeOf(old)),old,{presentationGuards:new Set()});
+        replacement.api=async(path: string)=>{
+            if(path==='session'){state.__sessionReads.push('replacement');return replacement.session;}
+            if(path.startsWith(`${replacement.workspaceId}?viewId=`)) return replacement.context;
+            if(path===`${replacement.workspaceId}/conversation`) return {messages:[]};
+            throw new Error(`Unexpected controlled workspace call: ${path}`);
+        };
+        Object.defineProperty(window,'honuaAgentWorkspace',{value:replacement,configurable:true});
         window.dispatchEvent(new CustomEvent('honua-workspace-state'));
     });
     await expect.poll(()=>page.evaluate(()=>(window as any).__sessionReads.includes('replacement'))).toBe(true);
