@@ -15,6 +15,7 @@ internal static partial class AgentWorkspaceBff
         {
             "create" or "renew" or "seal" or "source" => HttpMethods.IsPost(method),
             "chunks" => HttpMethods.IsPut(method),
+            "submission" => HttpMethods.IsGet(method) || HttpMethods.IsPost(method),
             "upload" => HttpMethods.IsGet(method) || HttpMethods.IsPost(method) || HttpMethods.IsDelete(method),
             _ => HttpMethods.IsGet(method)
         };
@@ -28,6 +29,7 @@ internal static partial class AgentWorkspaceBff
         var revision = 0L;
         if (match.Groups["revision"].Success && (!long.TryParse(match.Groups["revision"].Value, out revision) || revision < 1)) return null;
         var action = match.Groups["intent"].Success ? "intent" : !match.Groups["task"].Success ? "create"
+            : match.Groups["submission"].Success ? "submission"
             : match.Groups["authority"].Success ? (match.Groups["renewal"].Success ? "renew" : "authority")
             : match.Groups["upload"].Success ? (match.Groups["action"].Success ? match.Groups["action"].Value : "upload") : "version";
         return new(match.Groups["workspace"].Value, match.Groups["task"].Success ? match.Groups["task"].Value : null, revision, action);
@@ -42,7 +44,7 @@ internal static partial class AgentWorkspaceBff
         {
             "authority" or "capabilities" => ["contentHash"],
             "chunks" => ["contentHash", "expectedVersion", "offset", "sha256"],
-            "upload" when HttpMethods.IsGet(method) => ["contentHash"],
+            "upload" or "submission" when HttpMethods.IsGet(method) => ["contentHash"],
             "upload" when HttpMethods.IsDelete(method) => ["contentHash", "expectedVersion"],
             _ => []
         };
@@ -86,7 +88,7 @@ internal static partial class AgentWorkspaceBff
             using var document = JsonDocument.Parse(responseBody);
             var value = document.RootElement;
             if (value.ValueKind != JsonValueKind.Object) return false;
-            if (contentHash is null && !requestBody.IsEmpty && route.Action is "upload" or "seal" or "source")
+            if (contentHash is null && !requestBody.IsEmpty && route.Action is "upload" or "seal" or "source" or "submission")
             {
                 using var request = JsonDocument.Parse(requestBody);
                 contentHash = request.RootElement.GetProperty("taskContentHash").GetString();
@@ -100,11 +102,18 @@ internal static partial class AgentWorkspaceBff
                 allowed = ["taskId", "taskRevision", "taskContentHash", "uploadId", "version", "state", "acceptedBytes", "totalBytes",
                     "chunkBytes", "chunkCount", "expiresAt", "contentSha256", "sourceRetention"];
             }
+            else if (route.Action == "submission")
+            {
+                if (!MatchesTask(value, route, contentHash) || !ValidSubmission(value, requestBody)) return false;
+                allowed = ["taskId", "taskRevision", "taskContentHash", "state", "operationId", "authorityRevision",
+                    "authorityFingerprint", "policyContextFingerprint", "acceptBefore", "job"];
+            }
             else if (route.Action == "capabilities")
             {
                 if (value.GetProperty("chunkBytes").GetInt32() != DatasetImportChunkMaximumBytes ||
                     !value.GetProperty("maximumFileBytes").TryGetInt64(out var maximum) || maximum < 1 ||
-                    maximum > (long)DatasetImportChunkMaximumBytes * 65536 || value.GetProperty("importAcceptanceSupported").GetBoolean()) return false;
+                    maximum > (long)DatasetImportChunkMaximumBytes * 65536 ||
+                    value.GetProperty("importAcceptanceSupported").ValueKind is not (JsonValueKind.True or JsonValueKind.False)) return false;
                 allowed = ["chunkBytes", "maximumFileBytes", "importAcceptanceSupported"];
             }
             else if (route.Action == "authority")
@@ -145,6 +154,8 @@ internal static partial class AgentWorkspaceBff
                             if (property.TryGetProperty(field, out var item)) { writer.WritePropertyName(field); item.WriteTo(writer); }
                         writer.WriteEndObject();
                     }
+                    else if (name == "job" && property.ValueKind != JsonValueKind.Null)
+                        WriteFields(writer, property, ["jobId", "leaseId", "status", "createdAt", "updatedAt", "completedAt", "percentComplete", "output", "errorCode"]);
                     else if (name == "destination") WriteFields(writer, property, ["schema", "table"]);
                     else if (name == "options") WriteFields(writer, property, ["loadMode", "targetSrid", "sourceSrid"]);
                     else if (name == "source") WriteFields(writer, property, ["kind", "fileName", "totalBytes", "expectedSha256", "artifact", "browserSelectionId"]);
@@ -161,6 +172,36 @@ internal static partial class AgentWorkspaceBff
         }
     }
 
+    private static bool ValidSubmission(JsonElement value, ReadOnlyMemory<byte> requestBody)
+    {
+        var state = value.GetProperty("state").GetString();
+        if (state is not ("not-prepared" or "prepared" or "accepted")) return false;
+        if (state == "not-prepared")
+            return requestBody.IsEmpty && new[] { "operationId", "authorityRevision", "authorityFingerprint", "policyContextFingerprint", "acceptBefore", "job" }
+                .All(name => !value.TryGetProperty(name, out var field) || field.ValueKind == JsonValueKind.Null);
+        var operationId = value.GetProperty("operationId").GetString();
+        if (operationId is not { Length: 32 } || !operationId.All(static character => char.IsAsciiHexDigitLower(character)) ||
+            value.GetProperty("authorityRevision").GetInt64() < 1 ||
+            !IsDatasetDigest(value.GetProperty("authorityFingerprint").GetString()) ||
+            !IsDatasetDigest(value.GetProperty("policyContextFingerprint").GetString()) ||
+            !value.GetProperty("acceptBefore").TryGetDateTimeOffset(out _)) return false;
+        if (!requestBody.IsEmpty)
+        {
+            using var request = JsonDocument.Parse(requestBody);
+            foreach (var name in new[] { "authorityRevision", "authorityFingerprint", "policyContextFingerprint" })
+                if (request.RootElement.GetProperty(name).GetRawText() != value.GetProperty(name).GetRawText()) return false;
+        }
+        if (state == "prepared") return !value.TryGetProperty("job", out var preparedJob) || preparedJob.ValueKind == JsonValueKind.Null;
+        var job = value.GetProperty("job");
+        if (job.GetProperty("jobId").GetString() != operationId || string.IsNullOrWhiteSpace(job.GetProperty("leaseId").GetString()) ||
+            job.GetProperty("status").GetString() is not ("queued" or "provisioning" or "running" or "succeeded" or "failed" or "cancelled") ||
+            !job.GetProperty("createdAt").TryGetDateTimeOffset(out _) || !job.GetProperty("updatedAt").TryGetDateTimeOffset(out _)) return false;
+        if (job.TryGetProperty("errorCode", out var error) && error.ValueKind != JsonValueKind.Null &&
+            (job.GetProperty("status").GetString() != "failed" || error.GetString() != "import-failed")) return false;
+        return !job.TryGetProperty("output", out var output) || output.ValueKind == JsonValueKind.Null ||
+            job.GetProperty("status").GetString() == "succeeded" && output.ValueKind == JsonValueKind.Object;
+    }
+
     private static bool IsDatasetIdentifier(string? value)
         => value is { Length: >= 1 and <= 128 } && value.All(static character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-');
 
@@ -173,6 +214,8 @@ internal static partial class AgentWorkspaceBff
             writer.WritePropertyName(name);
             if (name == "artifact" && property.ValueKind != JsonValueKind.Null)
                 WriteFields(writer, property, ["projectId", "snapshotId", "snapshotDigest", "runId", "path"]);
+            else if (name == "output" && property.ValueKind != JsonValueKind.Null)
+                WriteFields(writer, property, ["physicalTableName", "schema", "featureCount", "detectedSrid"]);
             else property.WriteTo(writer);
         }
         writer.WriteEndObject();
@@ -182,7 +225,7 @@ internal static partial class AgentWorkspaceBff
         => value.GetProperty("taskId").GetString() == route.TaskId && value.GetProperty("taskRevision").GetInt64() == route.Revision &&
             IsDatasetDigest(hash) && value.GetProperty("taskContentHash").GetString() == hash;
 
-    [GeneratedRegex(@"\A(?<workspace>[A-Za-z0-9_-]{1,128})/(?:dataset-import-task-intents/(?<intent>[A-Za-z0-9_-]{1,128})|dataset-import-tasks(?:/(?<task>[A-Za-z0-9_-]{1,128})/versions/(?<revision>[1-9][0-9]{0,18})(?:/(?:(?<authority>authority)(?<renewal>-renewals)?|(?<upload>upload)(?:/(?<action>capabilities|chunks|seal|source))?))?)?)\z", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\A(?<workspace>[A-Za-z0-9_-]{1,128})/(?:dataset-import-task-intents/(?<intent>[A-Za-z0-9_-]{1,128})|dataset-import-tasks(?:/(?<task>[A-Za-z0-9_-]{1,128})/versions/(?<revision>[1-9][0-9]{0,18})(?:/(?:(?<authority>authority)(?<renewal>-renewals)?|(?<submission>submission)|(?<upload>upload)(?:/(?<action>capabilities|chunks|seal|source))?))?)?)\z", RegexOptions.CultureInvariant)]
     private static partial Regex DatasetImportPath();
     [GeneratedRegex(@"\A(?:0|[1-9][0-9]{0,18})\z", RegexOptions.CultureInvariant)]
     private static partial Regex DatasetInteger();

@@ -192,6 +192,79 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         Assert.DoesNotContain("storageToken", await valid.Content.ReadAsStringAsync());
     }
 
+    [Fact]
+    public async Task SubmissionRelaysOriginalHumanPreparationAndProjectsActualJobOutputWithoutProviderAuthority()
+    {
+        await using var host = await Host.Start();
+        var operation = new string('e', 32);
+        host.Wire.Response = JsonSerializer.Serialize(new
+        {
+            taskId = "task", taskRevision = 1, taskContentHash = Hash, state = "accepted", operationId = operation,
+            authorityRevision = 2, authorityFingerprint = Hash, policyContextFingerprint = Hash, acceptBefore = "2026-10-19T00:00:00Z",
+            executorAuthority = "must-not-leak", job = new
+            {
+                jobId = operation, leaseId = "actual-lease", status = "succeeded", createdAt = "2026-10-18T00:00:00Z", updatedAt = "2026-10-18T00:01:00Z",
+                protectedAuthority = "must-not-leak", claims = new[] { "must-not-leak" },
+                output = new { schema = "actual_schema", physicalTableName = "actual_output", featureCount = 3, detectedSrid = 4326, cloudFileId = "must-not-leak" }
+            }
+        });
+        using var body = new StringContent(JsonSerializer.Serialize(new
+        {
+            taskContentHash = Hash, authorityRevision = 2, authorityFingerprint = Hash, policyContextFingerprint = Hash
+        }), Encoding.UTF8, "application/json");
+        using var response = await host.Client.PostAsync(Root + "/submission", body);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(host.Wire.HumanOnly);
+        Assert.Equal("/api/v1/agent/workspaces/workspace/dataset-import-tasks/task/versions/1/submission", host.Wire.Uri!.AbsolutePath);
+        var json = await response.Content.ReadAsStringAsync();
+        Assert.Contains("actual_output", json);
+        Assert.DoesNotContain("must-not-leak", json);
+        Assert.DoesNotContain("protectedAuthority", json);
+        using var recovered = await host.Client.GetAsync(Root + "/submission?contentHash=" + Hash);
+        Assert.Equal(HttpStatusCode.OK, recovered.StatusCode);
+        Assert.Equal(HttpMethod.Get, host.Wire.Method);
+        Assert.Equal("?contentHash=" + Hash, host.Wire.Uri.Query);
+    }
+
+    [Theory]
+    [InlineData("csrf")]
+    [InlineData("environment")]
+    [InlineData("session")]
+    public async Task SubmissionMutationRequiresCurrentHumanCsrfAndConnectionBinding(string missing)
+    {
+        await using var host = await Host.Start();
+        host.Client.DefaultRequestHeaders.Remove(missing switch
+        {
+            "csrf" => "X-CSRF-Token", "environment" => "X-Honua-Environment", _ => "X-Honua-Session-Partition"
+        });
+        using var body = new StringContent("{}", Encoding.UTF8, "application/json");
+        using var response = await host.Client.PostAsync(Root + "/submission", body);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(0, host.Wire.Calls);
+    }
+
+    [Theory]
+    [InlineData("task")]
+    [InlineData("authority")]
+    [InlineData("unaccepted-job")]
+    public async Task SubmissionRejectsRetargetedOrInventedAcceptanceReceipt(string scenario)
+    {
+        await using var host = await Host.Start();
+        host.Wire.Response = JsonSerializer.Serialize(new
+        {
+            taskId = scenario == "task" ? "foreign-task" : "task", taskRevision = 1, taskContentHash = Hash,
+            state = "prepared", operationId = new string('e', 32), authorityRevision = scenario == "authority" ? 3 : 2,
+            authorityFingerprint = Hash, policyContextFingerprint = Hash, acceptBefore = "2026-10-19T00:00:00Z",
+            job = scenario == "unaccepted-job" ? new { jobId = "invented" } : null
+        });
+        using var body = new StringContent(JsonSerializer.Serialize(new
+        {
+            taskContentHash = Hash, authorityRevision = 2, authorityFingerprint = Hash, policyContextFingerprint = Hash
+        }), Encoding.UTF8, "application/json");
+        using var response = await host.Client.PostAsync(Root + "/submission", body);
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+    }
+
     private sealed class Host(WebApplication app, HttpClient client, Wire wire) : IAsyncDisposable
     {
         internal HttpClient Client => client;
