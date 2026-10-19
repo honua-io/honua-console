@@ -71,10 +71,12 @@ internal static partial class AgentWorkspaceBff
         CancellationToken cancellationToken, bool processes = false)
     {
         context.Response.Headers.CacheControl = "no-store";
-        if (path is null || (path.Length == 0 ? !HttpMethods.IsPost(context.Request.Method) : !(processes ? ProcessPath() : studio ? StudioPath() : WorkspacePath()).IsMatch(path)))
+        string? processPath = null;
+        if (path is null || (path.Length == 0 ? !HttpMethods.IsPost(context.Request.Method) : !(processes ? TryBuildProcessPath(path, out processPath) : (studio ? StudioPath() : WorkspacePath()).IsMatch(path))))
         {
             return Results.NotFound();
         }
+        if (processes && !AllowsProcessMethod(path, context.Request.Method)) return Results.StatusCode(405);
         if (!HttpMethods.IsGet(context.Request.Method))
         {
             try { await antiforgery.ValidateRequestAsync(context); }
@@ -101,7 +103,7 @@ internal static partial class AgentWorkspaceBff
         var bodyLimit = isStyleWrite ? 1024 * 1024 : 256 * 1024;
         var isImportUpload = processes && path == "admin/import/upload";
         if (context.Request.ContentLength > (isImportUpload ? 20 * 1024 * 1024 : bodyLimit)) { return Results.StatusCode(413); }
-        var upstreamPath = processes ? $"api/v1/{path}" : studio ? (path == "health" ? "health" : $"api/{path}") : $"api/v1/agent/workspaces/{path}";
+        var upstreamPath = processes ? $"api/v1/{processPath}" : studio ? (path == "health" ? "health" : $"api/{path}") : $"api/v1/agent/workspaces/{path}";
         if (studio)
         {
             string[] allowedQueryKeys = ["family", "workspaceId", "owner", "state", "q", "cursor", "limit"];
@@ -116,9 +118,22 @@ internal static partial class AgentWorkspaceBff
             }
             if (query.Count > 0) { upstreamPath += "?" + string.Join("&", query); }
         }
-        if (!studio && !processes && HttpMethods.IsGet(context.Request.Method) && context.Request.Query.TryGetValue("viewId", out var viewId))
+        if (!studio && !processes && HttpMethods.IsGet(context.Request.Method)
+            && path.Contains("/commands/", StringComparison.Ordinal) && context.Request.Query.Count > 0)
         {
-            if (!System.Text.RegularExpressions.Regex.IsMatch(viewId.ToString(), "^[A-Za-z0-9_-]{1,128}$")) { return Results.BadRequest(); }
+            var query = context.Request.Query;
+            if (query.Count != 2 || !query.TryGetValue("draftId", out var draftId) || draftId.Count != 1
+                || !Regex.IsMatch(draftId.ToString(), @"\A[A-Za-z0-9_-]{1,128}\z")
+                || !query.TryGetValue("draftRevision", out var draftRevision) || draftRevision.Count != 1
+                || !Regex.IsMatch(draftRevision.ToString(), @"\A[0-9]{1,19}\z")
+                || !long.TryParse(draftRevision.ToString(), out var revision) || revision < 0)
+                return Results.BadRequest();
+            upstreamPath += "?draftId=" + Uri.EscapeDataString(draftId.ToString())
+                + "&draftRevision=" + Uri.EscapeDataString(draftRevision.ToString());
+        }
+        else if (!studio && !processes && HttpMethods.IsGet(context.Request.Method) && context.Request.Query.TryGetValue("viewId", out var viewId))
+        {
+            if (!System.Text.RegularExpressions.Regex.IsMatch(viewId.ToString(), @"\A[A-Za-z0-9_-]{1,128}\z")) { return Results.BadRequest(); }
             upstreamPath += "?viewId=" + Uri.EscapeDataString(viewId.ToString());
         }
         using var request = new HttpRequestMessage(new HttpMethod(context.Request.Method),
@@ -136,7 +151,9 @@ internal static partial class AgentWorkspaceBff
             if (!context.Request.HasFormContentType) { return Results.StatusCode(415); }
             var form = await context.Request.ReadFormAsync(cancellationToken);
             if (form.Files.Count != 1 || form.Files[0].Name != "File" || form.Files[0].Length > 20 * 1024 * 1024
-                || form.Keys.Any(key => key != "TableName") || !Regex.IsMatch(form["TableName"].ToString(), "^[A-Za-z_][A-Za-z0-9_]{0,62}$"))
+                || form.Keys.Any(key => key is not ("TableName" or "UploadId")) || form["TableName"].Count != 1
+                || !Regex.IsMatch(form["TableName"].ToString(), @"\A[A-Za-z_][A-Za-z0-9_]{0,62}\z")
+                || form.ContainsKey("UploadId") && (form["UploadId"].Count != 1 || !Regex.IsMatch(form["UploadId"].ToString(), @"\A[A-Za-z0-9_-]{1,128}\z")))
             {
                 return Results.BadRequest();
             }
@@ -145,6 +162,8 @@ internal static partial class AgentWorkspaceBff
             fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
             multipart.Add(fileContent, "File", Path.GetFileName(form.Files[0].FileName));
             multipart.Add(new StringContent(form["TableName"].ToString()), "TableName");
+            // Correlation only: this value does not make upload replay safe or imply job acceptance.
+            if (form.ContainsKey("UploadId")) multipart.Add(new StringContent(form["UploadId"].ToString()), "UploadId");
             request.Content = multipart;
         }
         else if (!HttpMethods.IsGet(context.Request.Method))
@@ -174,7 +193,43 @@ internal static partial class AgentWorkspaceBff
     [GeneratedRegex(@"\A(?:[A-Za-z0-9_-]{1,128})(?:/(?:context|conversation|turns|commands/[A-Za-z0-9_-]{1,128}|drafts(?:/[A-Za-z0-9_-]{1,128}(?:/submit)?)?))?\z", RegexOptions.CultureInvariant)]
     private static partial Regex WorkspacePath();
 
-    [GeneratedRegex(@"\A(?:admin/import/upload|admin/import/jobs/[A-Za-z0-9_-]{1,128}|admin/connections/[A-Za-z0-9_-]{1,128}/layers/?|console/workflow-node-registry|console/workflow-packages(?:/[A-Za-z0-9_-]{1,256}/versions(?:/[1-9][0-9]{0,8}(?:/(?:validate|dry-run|publish))?)?)?|console/workflow-publications(?:/[A-Za-z0-9_-]{1,128}/runs)?|admin/operations/[A-Za-z0-9_-]{1,128}(?:/cancel)?)\z", RegexOptions.CultureInvariant)]
+    internal static bool TryBuildProcessPath(string path, out string? upstream)
+    {
+        upstream = null;
+        var package = WorkflowPackagePath().Match(path);
+        if (package.Success)
+        {
+            var id = package.Groups["packageId"].Value;
+            if (id != id.Trim() || id.Any(char.IsControl) || id is "." or ".." || id.Contains('\\')) return false;
+            var version = package.Groups["version"].Value;
+            if (version.Length > 0 && (!int.TryParse(version, out var number) || number < 1)) return false;
+            upstream = "console/workflow-packages/" + Uri.EscapeDataString(id) + "/versions";
+            if (version.Length > 0) upstream += "/" + version;
+            if (package.Groups["action"].Success) upstream += "/" + package.Groups["action"].Value;
+            return true;
+        }
+        if (!ProcessPath().IsMatch(path)) return false;
+        upstream = path;
+        return true;
+    }
+
+    internal static bool AllowsProcessMethod(string path, string method)
+    {
+        if (path == "admin/import/upload" || path.EndsWith("/cancel", StringComparison.Ordinal) || path.EndsWith("/runs", StringComparison.Ordinal))
+            return HttpMethods.IsPost(method);
+        var package = WorkflowPackagePath().Match(path);
+        if (package.Success)
+            return package.Groups["action"].Success ? HttpMethods.IsPost(method)
+                : package.Groups["version"].Success ? HttpMethods.IsGet(method)
+                : HttpMethods.IsGet(method) || HttpMethods.IsPost(method);
+        if (path == "console/workflow-packages") return HttpMethods.IsGet(method) || HttpMethods.IsPost(method);
+        return HttpMethods.IsGet(method);
+    }
+
+    [GeneratedRegex(@"\Aconsole/workflow-packages/(?<packageId>[^/]{1,256})/versions(?:/(?<version>[1-9][0-9]{0,9})(?:/(?<action>validate|dry-run|publish))?)?\z", RegexOptions.CultureInvariant)]
+    private static partial Regex WorkflowPackagePath();
+
+    [GeneratedRegex(@"\A(?:admin/import/upload|admin/import/jobs/[A-Za-z0-9_-]{1,128}(?:/cancel)?|admin/connections/[A-Za-z0-9_-]{1,128}/layers/?|console/workflow-node-registry|console/workflow-packages|console/workflow-publications(?:/[A-Za-z0-9_-]{1,128}/runs)?|admin/operations/[A-Za-z0-9_-]{1,128}(?:/cancel)?)\z", RegexOptions.CultureInvariant)]
     private static partial Regex ProcessPath();
 
     [GeneratedRegex(@"\A(?:health|v1/studio/(?:catalog|packages|package-families|package-drafts|content-items)(?:/[A-Za-z0-9_-]{1,128}){0,4})\z", RegexOptions.CultureInvariant)]

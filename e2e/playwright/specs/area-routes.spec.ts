@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 // Spec 2: the four product-area routes all resolve from the same Blazor Web host
 // and render their area heading. These are the IA anchors from docs/console-route-map.md.
 const areas = [
-  { path: '/studio', heading: 'Studio' },
+  { path: '/studio', heading: 'Studio is unavailable on this deployment' },
   { path: '/catalog', heading: 'Catalog' },
   { path: '/operate', heading: 'Operate' },
   { path: '/share', heading: 'Share' },
@@ -54,7 +54,9 @@ for (const section of operateSections) {
     // Route must not redirect to the 404 surface.
     await expect(page).not.toHaveURL(/\/not-found/);
 
-    // The operate sidebar secondary nav appears on any /operate/* route.
+    // Advanced navigation stays available through its keyboard-operable disclosure.
+    const disclosure = page.locator('.console-more-tools > summary');
+    await disclosure.press('Enter');
     await expect(
       page.locator('nav[aria-label="Operate sections"]'),
     ).toBeVisible();
@@ -64,6 +66,7 @@ for (const section of operateSections) {
 test('operate sections sidebar advertises only the focused human-client boundary', async ({ page }) => {
   await page.goto('/operate', { waitUntil: 'domcontentloaded' });
 
+  await page.locator('.console-more-tools > summary').click();
   const nav = page.locator('nav[aria-label="Operate sections"]');
   await expect(nav).toBeVisible();
 
@@ -74,4 +77,21 @@ test('operate sections sidebar advertises only the focused human-client boundary
   for (const hidden of ['/operate/scenes', '/operate/publishing', '/operate/ai', '/operate/settings']) {
     await expect(nav.locator(`a[href="${hidden}"]`)).toHaveCount(0);
   }
+});
+
+for (const width of [390, 1440]) test(`advanced navigation is keyboard accessible at ${width}px`, async ({page}) => {
+  await page.setViewportSize({width,height:844});
+  await page.goto('/operate');
+  if(width < 768) {
+    const toggle=page.getByRole('checkbox',{name:'Toggle navigation'});
+    await toggle.press('Space');
+    await expect(toggle).toBeChecked();
+  }
+  const summary=page.locator('.console-more-tools > summary');
+  await summary.press('Enter');
+  const nav=page.getByRole('navigation',{name:'Operate sections'});
+  await expect(nav).toBeVisible();
+  for(const section of operateSections) await expect(nav.locator(`a[href="${section.path}"]`)).toBeVisible();
+  await summary.press('Space');
+  await expect(nav).toBeHidden();
 });

@@ -1,3 +1,4 @@
+import {processTask} from './workflow-task.mjs';
 import { capturedProcessFetch, sameCookieAuthority } from './cookie-workspace-transport.mjs';
 import { captureWorkspaceFollow, queueWorkspaceFollow } from './workspace-follow.mjs';
 import { selectedResource, studioResourceRefs } from './agent-workspace.mjs';
@@ -15,6 +16,7 @@ async function studioElement(session) {
     let app = elementsByEnvironment.get(session.environmentId);
     if (!app) {
         app = document.createElement('honua-studio-app');
+        app.styleEditorAssetsUrl = '/_studio/maputnik/index.html';
         app.routingMode = 'host'; app.setAttribute('base-path', '/studio');
         app.addEventListener('honua-studio-navigate', event => {
             if (/^\/studio(?:\/[A-Za-z0-9_-]+)*$/.test(event.detail?.path || ''))
@@ -288,12 +290,6 @@ window.addEventListener('honua-workspace-studio-task', event => {
     });
 });
 
-function processTask(value) {
-    if (!value || typeof value.packageId !== 'string' || !/^[A-Za-z0-9_-]{1,256}$/.test(value.packageId)
-        || !Number.isInteger(value.version) || value.version < 1 || !/^[a-f0-9]{64}$/.test(value.contentHash || ''))
-        throw new Error('Processes returned no verified immutable package identity.');
-    return {kind:'workflow-package',id:value.packageId,revision:value.version,contentHash:value.contentHash};
-}
 function processContextPreparation() {
     const view=processView;
     const expected=window.honuaAgentWorkspace?.context?.task;
