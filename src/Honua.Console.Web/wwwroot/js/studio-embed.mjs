@@ -3,6 +3,7 @@ import { capturedProcessFetch, sameCookieAuthority } from './cookie-workspace-tr
 import { captureWorkspaceFollow, queueWorkspaceFollow } from './workspace-follow.mjs';
 import { selectedResource, studioResourceRefs } from './agent-workspace.mjs';
 import { mountStudioVersionControls } from './studio-version-controls.mjs';
+import { mountStudioStyleControls } from './studio-style-controls.mjs';
 let assets;
 let element;
 const elementsByEnvironment = new Map();
@@ -120,6 +121,8 @@ async function mount() {
         });
         createApp.workspaceVersionControls?.dispose();
         createApp.workspaceVersionControls = mountStudioVersionControls({ app:createApp, host, status });
+        createApp.workspaceStyleControls?.dispose();
+        createApp.workspaceStyleControls = mountStudioStyleControls({ app:createApp, host, status });
         const task = element.workspace?.context?.task;
         const draft = task?.kind === 'studio-composition' ? {draftId:task.id}
             : !task ? element.workspace?.agentSession?.sdkSession?.draft : undefined;
