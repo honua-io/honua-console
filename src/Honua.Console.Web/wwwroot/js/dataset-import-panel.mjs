@@ -57,7 +57,7 @@ function mount() {
     async function connect(force = false) {
         const nextWorkspace = window.honuaAgentWorkspace, next = datasetImportBinding(nextWorkspace);
         const nextScope = browserSelectionScope(nextWorkspace);
-        if (!force && next && binding && datasetImportKey(next) === datasetImportKey(binding) && (connecting || controller || submission)) {
+        if (!force && workspace === nextWorkspace && next && binding && datasetImportKey(next) === datasetImportKey(binding) && (connecting || controller || submission)) {
             if (!connecting && submission && !submission.busy && (submission.record?.pending ||
                 ['prepared','accepted'].includes(submission.record?.receipt?.state))) {
                 await submission.recover({background:true}); renderSubmission();
