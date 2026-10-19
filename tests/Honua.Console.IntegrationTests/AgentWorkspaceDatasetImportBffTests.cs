@@ -150,7 +150,7 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         {
             taskId = "task", revision = 1, contentHash = Hash, ownerActorId = "actual-executor", targetId = "target",
             workspaceId = "workspace", destination = new { schema = "public", table = "roads", password = "not-a-destination-field" },
-            source = new { kind = "browser-file", fileName = "roads.geojson", totalBytes = 3, expectedSha256 = Hash, token = "not-a-source-field" },
+            source = new { kind = "browser-file", fileName = "roads.geojson", totalBytes = 3, expectedSha256 = Hash, browserSelectionId = "original-human-selection", token = "not-a-source-field" },
             options = new { loadMode = 1, targetSrid = 4326 }, uploadAdmissionDeadline = "2026-10-19T00:00:00Z", executorAuthority = "never-browser-data"
         });
         using var body = new StringContent("{}", Encoding.UTF8, "application/json");
@@ -158,6 +158,7 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         Assert.Equal(HttpStatusCode.OK, created.StatusCode);
         var task = await created.Content.ReadAsStringAsync();
         Assert.DoesNotContain("not-a-", task);
+        Assert.Contains("original-human-selection", task);
         Assert.DoesNotContain("never-browser-data", task);
         host.Wire.Response = JsonSerializer.Serialize(new
         {
