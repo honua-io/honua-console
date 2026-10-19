@@ -13,21 +13,14 @@ import type { Page } from '@playwright/test';
 // test target after a publication lookup loads prior revisions. Tests that require server-side
 // data (versions, custom roles) explicitly skip when that fixture is absent.
 
-// A missing rollback fixture must expose its publication-specific state. A generic error,
-// a loading placeholder, or another surface's empty state is not acceptable evidence.
+// A missing rollback fixture must expose the publication-list empty state. A generic error,
+// a loading placeholder, or a demand for hand-configured publication ids is not acceptable.
 async function expectPublicationsEmptyState(page: import('@playwright/test').Page) {
-  const notConfigured = page.locator('article.console-panel')
-    .filter({ has: page.getByRole('heading', { name: 'Publishing', exact: true }) })
-    .filter({ has: page.getByText('Honua:Server:PublicationIds', { exact: true }) });
   const empty = page.locator('article.console-panel')
     .filter({ has: page.getByRole('heading', { name: 'No publications', exact: true }) });
-  await expect(notConfigured.or(empty)).toBeVisible();
-  if (await notConfigured.isVisible()) {
-    await expect(notConfigured.getByText('Not configured', { exact: true })).toBeVisible();
-    await expect(notConfigured).toContainText('no publication ids are configured');
-  } else {
-    await expect(empty).toContainText('No publications are available in this Operate environment.');
-  }
+  await expect(empty).toBeVisible();
+  await expect(empty).toContainText('No publications are available in this Operate environment.');
+  await expect(page.getByText('Honua:Server:PublicationIds', { exact: true })).toHaveCount(0);
 }
 
 // Configured workspaces list reviews, but lifecycle controls appear only after lookup.
@@ -35,12 +28,9 @@ async function expectPublicationsEmptyState(page: import('@playwright/test').Pag
 async function loadRollbackFixture(page: Page, admin: AdminApi) {
   await page.goto('/operate/publishing');
   const review = page.locator('[data-publishing-review]').first();
-  const notConfigured = page.locator('article.console-panel')
-    .filter({ has: page.getByRole('heading', { name: 'Publishing', exact: true }) })
-    .filter({ has: page.getByText('Honua:Server:PublicationIds', { exact: true }) });
   const empty = page.locator('article.console-panel')
     .filter({ has: page.getByRole('heading', { name: 'No publications', exact: true }) });
-  await expect(review.or(notConfigured).or(empty).first()).toBeVisible();
+  await expect(review.or(empty).first()).toBeVisible();
   if ((await review.count()) === 0) {
     await expectPublicationsEmptyState(page);
     return null;

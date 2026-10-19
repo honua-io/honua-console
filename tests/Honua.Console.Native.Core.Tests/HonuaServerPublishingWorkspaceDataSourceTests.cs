@@ -6,15 +6,15 @@ namespace Honua.Console.Native.Core.Tests;
 
 /// <summary>
 /// Behaviour coverage for <see cref="HonuaServerPublishingWorkspaceDataSource"/> against a recording
-/// <see cref="IHonuaContentPublicationClient"/>. Asserts the workspace is keyed by configured
-/// publication ids (the registry has no list endpoint), endpoint issues surface as capability states
-/// rather than throwing or fabricating data, and the republish/rollback lifecycle drives the live
-/// verbs and refreshes the review.
+/// <see cref="IHonuaContentPublicationClient"/>. Asserts the workspace enumerates the publication
+/// list (honua-server#3357) instead of requiring configured ids, endpoint issues surface as capability
+/// states rather than throwing or fabricating data, and the republish/rollback lifecycle drives the
+/// live verbs and refreshes the review.
 /// </summary>
 public sealed class HonuaServerPublishingWorkspaceDataSourceTests
 {
     [Fact]
-    public async Task GetWorkspace_WhenNoPublicationIdsConfigured_RendersNotConfiguredStateWithoutData()
+    public async Task GetWorkspace_WhenRegistryIsEmpty_ReturnsEmptyWorkspaceWithoutConfigurationState()
     {
         var client = new RecordingPublicationClient();
         var source = new HonuaServerPublishingWorkspaceDataSource(
@@ -25,30 +25,167 @@ public sealed class HonuaServerPublishingWorkspaceDataSourceTests
 
         Assert.Empty(workspace.Matrix);
         Assert.Empty(workspace.Reviews);
-        var state = Assert.Single(workspace.CapabilityStates);
-        Assert.Equal("Not configured", state.State);
+        Assert.Empty(workspace.CapabilityStates);
+        Assert.Equal(1, client.ListCalls);
         Assert.Equal(0, client.GetCalls);
+        Assert.DoesNotContain(workspace.CapabilityStates, state => state.Detail.Contains("PublicationIds", StringComparison.Ordinal));
     }
 
     [Fact]
-    public async Task GetWorkspace_ReadsEachConfiguredId_AndSurfacesIssuesAsCapabilityStates()
+    public async Task GetWorkspace_ListsPublications_WithoutConfiguredIds()
     {
         var client = new RecordingPublicationClient();
         client.Details["pub-ok"] = Detail("pub-ok", "ok", 1, "ver-1");
-        client.Issues["pub-denied"] = new HonuaAdminEndpointIssue("Missing permission", "GET", "no access", 403);
 
         var source = new HonuaServerPublishingWorkspaceDataSource(
             client,
-            PublishingWorkspaceOptions.FromConfiguredList("pub-ok, pub-denied"));
+            PublishingWorkspaceOptions.FromConfiguredList(null));
 
         var workspace = await source.GetWorkspaceAsync();
 
         Assert.Single(workspace.Matrix);
         Assert.Single(workspace.Reviews);
+        Assert.Empty(workspace.CapabilityStates);
+        Assert.Equal("pub-ok", workspace.Matrix[0].ResourceId);
+        Assert.Equal(0, client.GetCalls);
+    }
+
+    [Fact]
+    public async Task GetWorkspace_WhenPublicationIdsConfigured_ReadsOnlySelectedItems()
+    {
+        var client = new RecordingPublicationClient();
+        client.Details["pub-ok"] = Detail("pub-ok", "ok", 1, "ver-1");
+        client.Details["pub-other"] = Detail("pub-other", "other", 1, "ver-other");
+
+        var source = new HonuaServerPublishingWorkspaceDataSource(
+            client,
+            PublishingWorkspaceOptions.FromConfiguredList("pub-ok"));
+
+        var workspace = await source.GetWorkspaceAsync();
+
+        var row = Assert.Single(workspace.Matrix);
+        Assert.Equal("pub-ok", row.ResourceId);
+        Assert.Empty(workspace.CapabilityStates);
+        Assert.Equal(0, client.ListCalls);
+        Assert.Equal(1, client.GetCalls);
+    }
+
+    [Fact]
+    public async Task GetWorkspace_WhenSelectedPublicationIsMissing_PreservesItsFailureState()
+    {
+        var client = new RecordingPublicationClient
+        {
+            ListIssue = new HonuaAdminEndpointIssue("Unsupported", "GET list", "Old server"),
+        };
+        client.Details["pub-ok"] = Detail("pub-ok", "ok", 1, "ver-1");
+        client.Issues["missing"] = new HonuaAdminEndpointIssue("Unsupported", "GET", "not found", 404);
+        var source = new HonuaServerPublishingWorkspaceDataSource(client, PublishingWorkspaceOptions.FromConfiguredList("pub-ok,missing"));
+
+        var workspace = await source.GetWorkspaceAsync();
+
+        Assert.Single(workspace.Matrix);
+        Assert.Contains("missing", Assert.Single(workspace.CapabilityStates).Detail, StringComparison.Ordinal);
+        Assert.Equal(0, client.ListCalls);
+    }
+
+    [Fact]
+    public async Task GetWorkspace_WhenPublicationRepeatsAcrossPages_ProducesOneRow()
+    {
+        var client = new RecordingPublicationClient();
+        client.Pages.Enqueue(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromData(
+            new HonuaContentPublicationListPage { Items = [Detail("pub-1", "one", 1, "ver-1")], NextCursor = "next" }));
+        client.Pages.Enqueue(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromData(
+            new HonuaContentPublicationListPage { Items = [Detail("pub-1", "one", 1, "ver-1")] }));
+        var source = new HonuaServerPublishingWorkspaceDataSource(client, PublishingWorkspaceOptions.FromConfiguredList(null));
+
+        Assert.Single((await source.GetWorkspaceAsync()).Matrix);
+    }
+
+    [Fact]
+    public async Task GetWorkspace_FollowsNextCursor()
+    {
+        var client = new RecordingPublicationClient();
+        client.Pages.Enqueue(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromData(
+            new HonuaContentPublicationListPage
+            {
+                Items = [Detail("pub-1", "one", 1, "ver-1")],
+                Total = 2,
+                NextCursor = "page-2",
+            }));
+        client.Pages.Enqueue(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromData(
+            new HonuaContentPublicationListPage
+            {
+                Items = [Detail("pub-2", "two", 1, "ver-2")],
+                Total = 2,
+            }));
+
+        var source = new HonuaServerPublishingWorkspaceDataSource(
+            client,
+            PublishingWorkspaceOptions.FromConfiguredList(null));
+
+        var workspace = await source.GetWorkspaceAsync();
+
+        Assert.Equal(2, workspace.Matrix.Count);
+        Assert.Equal(new[] { "pub-1", "pub-2" }, workspace.Matrix.Select(row => row.ResourceId));
+        Assert.Equal(2, client.ListCalls);
+        Assert.Equal(new string?[] { null, "page-2" }, client.ListCursors);
+    }
+
+    [Fact]
+    public async Task GetWorkspace_WhenCursorRepeats_DoesNotPresentPartialSuccess()
+    {
+        var client = new RecordingPublicationClient();
+        for (var page = 0; page < 2; page++)
+        {
+            client.Pages.Enqueue(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromData(
+                new HonuaContentPublicationListPage { Items = [Detail("pub-1", "one", 1, "ver-1")], NextCursor = "repeat" }));
+        }
+
+        var source = new HonuaServerPublishingWorkspaceDataSource(client, PublishingWorkspaceOptions.FromConfiguredList(null));
+        var workspace = await source.GetWorkspaceAsync();
+
+        Assert.Empty(workspace.Matrix);
+        Assert.Empty(workspace.Reviews);
+        Assert.Contains("repeated", Assert.Single(workspace.CapabilityStates).Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetWorkspace_WhenPageLimitReached_DoesNotPresentPartialSuccess()
+    {
+        var client = new RecordingPublicationClient();
+        for (var page = 0; page < 100; page++)
+        {
+            client.Pages.Enqueue(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromData(
+                new HonuaContentPublicationListPage { Items = [Detail("pub-" + page, "one", 1, "ver-1")], NextCursor = "cursor-" + page }));
+        }
+
+        var source = new HonuaServerPublishingWorkspaceDataSource(client, PublishingWorkspaceOptions.FromConfiguredList(null));
+        var workspace = await source.GetWorkspaceAsync();
+
+        Assert.Empty(workspace.Matrix);
+        Assert.Contains("page limit", Assert.Single(workspace.CapabilityStates).Detail, StringComparison.Ordinal);
+        Assert.Equal(100, client.ListCalls);
+    }
+
+    [Fact]
+    public async Task GetWorkspace_WhenListFails_SurfacesCapabilityState()
+    {
+        var client = new RecordingPublicationClient
+        {
+            ListIssue = new HonuaAdminEndpointIssue("Missing permission", "GET /api/v1/console/publications", "no access", 403),
+        };
+        var source = new HonuaServerPublishingWorkspaceDataSource(
+            client,
+            PublishingWorkspaceOptions.FromConfiguredList(null));
+
+        var workspace = await source.GetWorkspaceAsync();
+
+        Assert.Empty(workspace.Matrix);
         var state = Assert.Single(workspace.CapabilityStates);
         Assert.Equal("Missing permission", state.State);
-        Assert.Contains("pub-denied", state.Detail, StringComparison.Ordinal);
-        Assert.Equal(new[] { "pub-ok", "pub-denied" }, client.RequestedIds);
+        Assert.Equal("GET /api/v1/console/publications", state.Contract);
+        Assert.Contains("HTTP 403", state.Detail, StringComparison.Ordinal);
+        Assert.Equal(0, client.GetCalls);
     }
 
     [Fact]
@@ -169,6 +306,37 @@ public sealed class HonuaServerPublishingWorkspaceDataSourceTests
         public List<string> RequestedIds { get; } = [];
 
         public int GetCalls { get; private set; }
+
+        public int ListCalls { get; private set; }
+
+        public List<string?> ListCursors { get; } = [];
+
+        public Queue<HonuaAdminEndpointResult<HonuaContentPublicationListPage>> Pages { get; } = new();
+
+        public HonuaAdminEndpointIssue? ListIssue { get; init; }
+
+        public Task<HonuaAdminEndpointResult<HonuaContentPublicationListPage>> ListAsync(
+            string? cursor = null,
+            int limit = 100,
+            string? lifecycle = null,
+            CancellationToken cancellationToken = default)
+        {
+            ListCalls++;
+            ListCursors.Add(cursor);
+            if (ListIssue is not null)
+            {
+                return Task.FromResult(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromIssue(ListIssue));
+            }
+
+            if (Pages.Count > 0)
+            {
+                return Task.FromResult(Pages.Dequeue());
+            }
+
+            var items = Details.Values.ToArray();
+            return Task.FromResult(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromData(
+                new HonuaContentPublicationListPage { Items = items, Total = items.Length }));
+        }
 
         public HonuaPublishContentRequest? LastPublish { get; private set; }
 

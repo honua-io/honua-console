@@ -15,6 +15,20 @@ public sealed class ContentPublicationHttpClientTests
     private static readonly Uri BaseAddress = new("https://honua.test");
 
     [Fact]
+    public async Task List_WhenItemsPropertyIsAbsent_DoesNotReturnFalseEmptySuccess()
+    {
+        using var client = CreateClient(new StaticResponseHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json"),
+        }));
+
+        var result = await client.ListAsync();
+
+        Assert.Null(result.Data);
+        Assert.NotNull(result.Issue);
+    }
+
+    [Fact]
     public async Task Get_WhenCallerCancels_PropagatesCancellation()
     {
         using var cts = new CancellationTokenSource();
@@ -106,6 +120,46 @@ public sealed class ContentPublicationHttpClientTests
         Assert.Equal(HonuaContentPublicationKinds.Report, result.Data.Route.Kind);
         var version = Assert.Single(result.Data.Versions);
         Assert.Equal("Monthly infrastructure report", version.Title);
+    }
+
+    [Fact]
+    public async Task List_OnSuccess_DeserializesThePageAndTargetsTheCollectionRoute()
+    {
+        string? requested = null;
+        var page = new HonuaContentPublicationListPage
+        {
+            Items =
+            [
+                new HonuaContentPublicationDetail
+                {
+                    Route = new HonuaContentPublicationRouteState
+                    {
+                        PublicationId = "pub-report-1",
+                        RouteSlug = "monthly-infrastructure",
+                        Lifecycle = HonuaContentPublicationLifecycles.Active,
+                    },
+                    Versions = [new HonuaContentPublicationVersion { Title = "Monthly infrastructure report" }],
+                },
+            ],
+            Total = 2,
+            NextCursor = "next",
+        };
+        using var client = CreateClient(new StaticResponseHandler(request =>
+        {
+            requested = request.RequestUri?.PathAndQuery;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(page) };
+        }));
+
+        var result = await client.ListAsync(cursor: "page-1", limit: 25, lifecycle: "active");
+
+        Assert.Null(result.Issue);
+        Assert.NotNull(result.Data);
+        Assert.Equal("/api/v1/console/publications?limit=25&cursor=page-1&lifecycle=active", requested);
+        Assert.Equal(2, result.Data!.Total);
+        Assert.Equal("next", result.Data.NextCursor);
+        var item = Assert.Single(result.Data.Items);
+        Assert.Equal("pub-report-1", item.Route.PublicationId);
+        Assert.Equal("Monthly infrastructure report", Assert.Single(item.Versions).Title);
     }
 
     [Fact]

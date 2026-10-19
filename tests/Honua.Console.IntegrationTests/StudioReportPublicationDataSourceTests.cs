@@ -499,6 +499,14 @@ public sealed class StudioReportPublicationDataSourceTests
             return Task.FromResult(GetResult ?? throw new InvalidOperationException("GetResult not configured."));
         }
 
+        public Task<HonuaAdminEndpointResult<HonuaContentPublicationListPage>> ListAsync(
+            string? cursor = null,
+            int limit = 100,
+            string? lifecycle = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "GET /api/v1/console/publications", "Not exercised by this fake.")));
+
         public Task<HonuaAdminEndpointResult<HonuaContentPublicationVersion>> GetVersionAsync(
             string publicationId,
             string versionSelector,
