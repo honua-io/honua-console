@@ -31,6 +31,8 @@ internal static partial class AgentWorkspaceBff
             return Results.Json(new
             {
                 authenticated = true,
+                maxArtifactUploadBytes = ProcessArtifactFileMaximumBytes,
+                importTransportResumable = false,
                 nativeAgentAvailable = !string.IsNullOrWhiteSpace(configuration["HONUA_AGENT_API_KEY"]),
                 releaseId = configuration["Honua:Agent:ReleaseId"] ?? configuration["HONUA_AGENT_RELEASE_ID"],
                 // A bounded browser transport lease; upstream credentials are checked on every request.
@@ -86,6 +88,7 @@ internal static partial class AgentWorkspaceBff
         if (processes && !AllowsProcessMethod(path, context.Request.Method)) return Results.StatusCode(405);
         if (!HttpMethods.IsGet(context.Request.Method))
         {
+            if (processes && path == "admin/import/upload" && !HasProcessImportAntiforgeryHeader(context)) return Results.StatusCode(403);
             try { await antiforgery.ValidateRequestAsync(context); }
             catch (AntiforgeryValidationException) { return Results.StatusCode(403); }
         }
@@ -111,7 +114,7 @@ internal static partial class AgentWorkspaceBff
             ? (datasetRoute.IsChunk ? DatasetImportChunkMaximumBytes : DatasetImportJsonMaximumBytes)
             : isStyleWrite ? 1024 * 1024 : 256 * 1024;
         var isImportUpload = processes && path == "admin/import/upload";
-        if (context.Request.ContentLength > (isImportUpload ? 20 * 1024 * 1024 : bodyLimit)) { return Results.StatusCode(413); }
+        if (context.Request.ContentLength > (isImportUpload ? ProcessImportBodyMaximumBytes : bodyLimit)) { return Results.StatusCode(413); }
         var upstreamPath = processes ? $"api/v1/{processPath}" : studio ? (path == "health" ? "health" : $"api/{path}") : $"api/v1/agent/workspaces/{path}";
         if (datasetRoute is not null) upstreamPath += datasetQuery;
         if (studio)
@@ -173,8 +176,18 @@ internal static partial class AgentWorkspaceBff
         else if (isImportUpload)
         {
             if (!context.Request.HasFormContentType) { return Results.StatusCode(415); }
-            var form = await context.Request.ReadFormAsync(cancellationToken);
-            if (form.Files.Count != 1 || form.Files[0].Name != "File" || form.Files[0].Length > 20 * 1024 * 1024
+            IFormCollection form;
+            var originalBody = context.Request.Body;
+            try
+            {
+                context.Request.Body = new DatasetImportBoundedStream(originalBody, ProcessImportBodyMaximumBytes);
+                form = await context.Request.ReadFormAsync(cancellationToken);
+            }
+            catch (Exception exception) when (IsDatasetBodyTooLarge(exception)) { return Results.StatusCode(413); }
+            catch (InvalidDataException) { return Results.BadRequest(); }
+            finally { context.Request.Body = originalBody; }
+            if (form.Files.Count == 1 && form.Files[0].Length > ProcessArtifactFileMaximumBytes) return Results.StatusCode(413);
+            if (form.Files.Count != 1 || form.Files[0].Name != "File"
                 || form.Keys.Any(key => key is not ("TableName" or "UploadId")) || form["TableName"].Count != 1
                 || !Regex.IsMatch(form["TableName"].ToString(), @"\A[A-Za-z_][A-Za-z0-9_]{0,62}\z")
                 || form.ContainsKey("UploadId") && (form["UploadId"].Count != 1 || !Regex.IsMatch(form["UploadId"].ToString(), @"\A[A-Za-z0-9_-]{1,128}\z")))

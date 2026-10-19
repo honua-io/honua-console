@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Claims;
+using System.Text.Json;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 using Honua.Console.Web;
@@ -150,6 +151,74 @@ public sealed class AgentWorkspaceProcessBffTests
         using var refused = await host.Client.GetAsync("/api/agent-workspace/workspace/commands/original?" + query);
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
         Assert.Equal(0, host.Wire.Calls);
+    }
+
+    [Fact]
+    public async Task AuthenticatedSessionAdvertisesEffectiveFileBytesWithFramingHeadroom()
+    {
+        await using var host = await Host.Start();
+        using var response = await host.Client.GetAsync("/api/agent-workspace/session");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.True(document.RootElement.GetProperty("authenticated").GetBoolean());
+        Assert.Equal(AgentWorkspaceBff.ProcessArtifactFileMaximumBytes, document.RootElement.GetProperty("maxArtifactUploadBytes").GetInt32());
+        Assert.False(document.RootElement.GetProperty("importTransportResumable").GetBoolean());
+        Assert.True(AgentWorkspaceBff.ProcessArtifactFileMaximumBytes < AgentWorkspaceBff.ProcessImportBodyMaximumBytes);
+    }
+
+    [Fact]
+    public async Task CanonicalUnknownLengthMultipartAtEffectiveFileLimitReachesServer()
+    {
+        await using var host = await Host.Start();
+        using var body = SizedUpload(AgentWorkspaceBff.ProcessArtifactFileMaximumBytes);
+        using var response = await host.Client.PostAsync("/api/processes/admin/import/upload", body);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(1, host.Wire.Calls);
+        Assert.True(host.Wire.HumanOnly);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(165536)]
+    public async Task UnknownLengthFileAboveEffectiveOrRawBodyLimitCannotReachServer(int excess)
+    {
+        await using var host = await Host.Start();
+        using var body = SizedUpload(AgentWorkspaceBff.ProcessArtifactFileMaximumBytes + excess);
+        using var response = await host.Client.PostAsync("/api/processes/admin/import/upload", body);
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        Assert.Equal(0, host.Wire.Calls);
+    }
+
+    [Fact]
+    public async Task FormTokenCannotTriggerMultipartParsingInsteadOfRequiredHeader()
+    {
+        await using var host = await Host.Start();
+        host.Client.DefaultRequestHeaders.Remove("X-CSRF-Token");
+        using var body = Upload(null);
+        body.Add(new StringContent(host.Csrf), "__RequestVerificationToken");
+        using var response = await host.Client.PostAsync("/api/processes/admin/import/upload", body);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(0, host.Wire.Calls);
+    }
+
+    private static MultipartFormDataContent SizedUpload(int bytes)
+    {
+        var body = new MultipartFormDataContent();
+        body.Add(new UnknownLengthRepeatedContent(bytes), "File", "fixture.geojson");
+        body.Add(new StringContent("fixture_table"), "TableName");
+        body.Add(new StringContent(Guid.NewGuid().ToString()), "UploadId");
+        return body;
+    }
+
+    private sealed class UnknownLengthRepeatedContent(int bytes) : HttpContent
+    {
+        protected override bool TryComputeLength(out long length) { length = 0; return false; }
+        protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+        {
+            var buffer = new byte[65536];
+            for (var offset = 0; offset < bytes; offset += buffer.Length)
+                await stream.WriteAsync(buffer.AsMemory(0, Math.Min(buffer.Length, bytes - offset)));
+        }
     }
 
     private static MultipartFormDataContent Upload(string? uploadId)

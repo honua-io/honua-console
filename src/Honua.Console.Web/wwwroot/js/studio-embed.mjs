@@ -155,7 +155,7 @@ async function mountProcesses() {
         const builtin = document.createElement('honua-studio-processes');
         builtin.client = new module.ServerProcessWorkspace(options);
         const custom = document.createElement('honua-studio-custom-processes');
-        custom.client = new module.LocalProcessWorkspace({...options,workspaceId:()=>window.honuaAgentWorkspace?.workspaceId});
+        custom.client = new module.LocalProcessWorkspace({...options,maxArtifactUploadBytes:session.maxArtifactUploadBytes,workspaceId:()=>window.honuaAgentWorkspace?.workspaceId});
         view = processView = {builtin,custom,host,mode:'builtin',session};
         const sourceApp=await studioElement(session);
         const pickerApp=async()=>{
