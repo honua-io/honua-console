@@ -57,6 +57,33 @@ public sealed class StudioPublicationBffTests
         Assert.Equal(1, host.Wire.Calls);
     }
 
+    [Fact]
+    public async Task ApprovalStatusReadUsesCurrentOperatorAndCannotApproveOrReject()
+    {
+        await using var host = await Host.Start();
+        const string path = "/api/processes/admin/proposals/proposal";
+        host.Wire.ResponseBody = """{"proposalId":"proposal","status":"Rejected"}""";
+        using var response = await host.Client.GetAsync(path);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(host.Wire.ResponseBody, await response.Content.ReadAsStringAsync());
+        Assert.Equal("/api/v1/admin/proposals/proposal", host.Wire.Uri!.AbsolutePath);
+        Assert.True(host.Wire.HumanOnly);
+        Assert.Null(host.Wire.IdempotencyKey);
+        using var write = await host.Client.PostAsync(path, new StringContent("{}"));
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, write.StatusCode);
+        foreach (var action in new[] { "approve", "reject" })
+        {
+            using var forbiddenRoute = await host.Client.PostAsync(path + "/" + action, new StringContent("{}"));
+            Assert.Equal(HttpStatusCode.NotFound, forbiddenRoute.StatusCode);
+        }
+        Assert.Equal(1, host.Wire.Calls);
+        host.Client.DefaultRequestHeaders.Remove("X-Honua-Environment");
+        host.Client.DefaultRequestHeaders.Add("X-Honua-Environment", "other-environment");
+        using var stale = await host.Client.GetAsync(path);
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        Assert.Equal(1, host.Wire.Calls);
+    }
+
     [Theory]
     [InlineData(Publication)]
     [InlineData(Rollback)]

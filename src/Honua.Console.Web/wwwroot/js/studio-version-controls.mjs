@@ -1,5 +1,8 @@
 /** Human actions over the embedded Studio's canonical draft lifecycle. */
+import { mountStudioPublicationControls } from './studio-publication-controls.mjs';
+
 export function mountStudioVersionControls({ app, host, status }) {
+    const publication = mountStudioPublicationControls({ app, host, status });
     const section = document.createElement('section');
     section.setAttribute('aria-label', 'Saved map versions');
     section.dataset.studioVersions = '';
@@ -59,7 +62,18 @@ export function mountStudioVersionControls({ app, host, status }) {
                 if (!active(captured) || !versions.contains(reopen)) return;
                 void run(() => app.reopenWorkspaceVersion(version.versionId));
             });
-            row.append(label, reopen); versions.append(row);
+            const publish = document.createElement('button');
+            publish.type = 'button'; publish.textContent = 'Review publication';
+            publish.className = 'console-button console-button-secondary console-button-small';
+            publish.setAttribute('aria-label', `Review publication of version ${version.versionNumber}`);
+            publish.addEventListener('click', () => {
+                if (!active(captured) || !versions.contains(publish)) return;
+                void publication.review(version.versionId);
+            });
+            row.append(label, reopen);
+            if (typeof app.reviewWorkspacePublication === 'function' && typeof app.publishWorkspaceVersion === 'function'
+                && typeof app.readWorkspacePublication === 'function') row.append(publish);
+            versions.append(row);
         }
         if (!items.length) status.textContent = 'This map has no saved versions yet.';
     }));
@@ -69,6 +83,7 @@ export function mountStudioVersionControls({ app, host, status }) {
         dispose() {
             disposed = true;
             app.removeEventListener('honua-workspace-draft-change', update);
+            publication.dispose();
             section.remove();
         }
     };

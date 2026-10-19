@@ -289,7 +289,7 @@ internal static partial class AgentWorkspaceBff
     [GeneratedRegex(@"\Aconsole/workflow-packages/(?<packageId>[^/]{1,256})/versions(?:/(?<version>[1-9][0-9]{0,9})(?:/(?<action>validate|dry-run|publish))?)?\z", RegexOptions.CultureInvariant)]
     private static partial Regex WorkflowPackagePath();
 
-    [GeneratedRegex(@"\A(?:admin/import/upload|admin/import/jobs/[A-Za-z0-9_-]{1,128}(?:/cancel)?|admin/connections/[A-Za-z0-9_-]{1,128}/layers/?|console/workflow-node-registry|console/workflow-packages|console/workflow-publications(?:/[A-Za-z0-9_-]{1,128}/runs)?|admin/operations/[A-Za-z0-9_-]{1,128}(?:/cancel)?)\z", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\A(?:admin/import/upload|admin/import/jobs/[A-Za-z0-9_-]{1,128}(?:/cancel)?|admin/connections/[A-Za-z0-9_-]{1,128}/layers/?|console/workflow-node-registry|console/workflow-packages|console/workflow-publications(?:/[A-Za-z0-9_-]{1,128}/runs)?|admin/operations/[A-Za-z0-9_-]{1,128}(?:/cancel)?|admin/proposals/[A-Za-z0-9_-]{1,128})\z", RegexOptions.CultureInvariant)]
     private static partial Regex ProcessPath();
 
     [GeneratedRegex(@"\A(?:health|v1/studio/(?:catalog|packages|package-families|package-drafts|content-items)(?:/[A-Za-z0-9_-]{1,128}){0,4})\z", RegexOptions.CultureInvariant)]
