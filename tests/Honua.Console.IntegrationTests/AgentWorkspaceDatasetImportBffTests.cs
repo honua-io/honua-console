@@ -26,10 +26,20 @@ public sealed class AgentWorkspaceDatasetImportBffTests
     private const string Root = "/api/agent-workspace/workspace/dataset-import-tasks/task/versions/1";
     private static string Receipt => JsonSerializer.Serialize(new
     {
-        taskId = "task", taskRevision = 1, taskContentHash = Hash, uploadId = new string('b', 32),
-        version = 2, state = "sealed", acceptedBytes = AgentWorkspaceBff.DatasetImportChunkMaximumBytes, totalBytes = AgentWorkspaceBff.DatasetImportChunkMaximumBytes, chunkBytes = AgentWorkspaceBff.DatasetImportChunkMaximumBytes,
-        chunkCount = 1, expiresAt = "2026-10-19T00:00:00Z", contentSha256 = Hash,
-        fileId = "must-not-leak-provider-key", eTag = "must-not-leak-generation",
+        taskId = "task",
+        taskRevision = 1,
+        taskContentHash = Hash,
+        uploadId = new string('b', 32),
+        version = 2,
+        state = "sealed",
+        acceptedBytes = AgentWorkspaceBff.DatasetImportChunkMaximumBytes,
+        totalBytes = AgentWorkspaceBff.DatasetImportChunkMaximumBytes,
+        chunkBytes = AgentWorkspaceBff.DatasetImportChunkMaximumBytes,
+        chunkCount = 1,
+        expiresAt = "2026-10-19T00:00:00Z",
+        contentSha256 = Hash,
+        fileId = "must-not-leak-provider-key",
+        eTag = "must-not-leak-generation",
         sourceRetention = new { bytes = AgentWorkspaceBff.DatasetImportChunkMaximumBytes, sha256 = Hash, expiresAt = (string?)null, fileId = "nested-storage-key" }
     });
 
@@ -104,7 +114,7 @@ public sealed class AgentWorkspaceDatasetImportBffTests
     {
         await using var host = await Host.Start();
         host.Client.DefaultRequestHeaders.Remove(missing switch
-            { "csrf" => "X-CSRF-Token", "environment" => "X-Honua-Environment", _ => "X-Honua-Session-Partition" });
+        { "csrf" => "X-CSRF-Token", "environment" => "X-Honua-Environment", _ => "X-Honua-Session-Partition" });
         using var response = await host.Client.DeleteAsync(Root + $"/upload?contentHash={Hash}&expectedVersion=1");
         Assert.Equal(missing == "csrf" ? HttpStatusCode.Forbidden : HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal(0, host.Wire.Calls);
@@ -149,10 +159,17 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         await using var host = await Host.Start();
         host.Wire.Response = JsonSerializer.Serialize(new
         {
-            taskId = "task", revision = 1, contentHash = Hash, ownerActorId = "actual-executor", targetId = "target",
-            workspaceId = "workspace", destination = new { schema = "public", table = "roads", password = "not-a-destination-field" },
+            taskId = "task",
+            revision = 1,
+            contentHash = Hash,
+            ownerActorId = "actual-executor",
+            targetId = "target",
+            workspaceId = "workspace",
+            destination = new { schema = "public", table = "roads", password = "not-a-destination-field" },
             source = new { kind = "browser-file", fileName = "roads.geojson", totalBytes = 3, expectedSha256 = Hash, browserSelectionId = "original-human-selection", token = "not-a-source-field" },
-            options = new { loadMode = 1, targetSrid = 4326 }, uploadAdmissionDeadline = "2026-10-19T00:00:00Z", executorAuthority = "never-browser-data"
+            options = new { loadMode = 1, targetSrid = 4326 },
+            uploadAdmissionDeadline = "2026-10-19T00:00:00Z",
+            executorAuthority = "never-browser-data"
         });
         using var body = new StringContent("{}", Encoding.UTF8, "application/json");
         using var created = await host.Client.PostAsync("/api/agent-workspace/workspace/dataset-import-tasks", body);
@@ -163,17 +180,25 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         Assert.DoesNotContain("never-browser-data", task);
         host.Wire.Response = JsonSerializer.Serialize(new
         {
-            taskId = "task", taskRevision = 1, taskContentHash = Hash, executorActorId = "actual-executor",
-            originatingTurnId = "original-turn", originalTurnHash = Hash, authorityRevision = 4, authorityFingerprint = Hash,
-            policyContextFingerprint = Hash, uploadAdmissionDeadline = "2026-10-19T00:00:00Z", executorAuthority = "never-browser-data"
+            taskId = "task",
+            taskRevision = 1,
+            taskContentHash = Hash,
+            executorActorId = "actual-executor",
+            originatingTurnId = "original-turn",
+            originalTurnHash = Hash,
+            authorityRevision = 4,
+            authorityFingerprint = Hash,
+            policyContextFingerprint = Hash,
+            uploadAdmissionDeadline = "2026-10-19T00:00:00Z",
+            executorAuthority = "never-browser-data"
         });
         using var descriptor = await host.Client.GetAsync(Root + "/authority?contentHash=" + Hash);
         Assert.Equal(HttpStatusCode.OK, descriptor.StatusCode);
         Assert.DoesNotContain("executorAuthority", await descriptor.Content.ReadAsStringAsync());
         host.Wire.Response = JsonSerializer.Serialize(new
-            { renewalId = "original-renewal", previousAuthorityRevision = 4, authorityRevision = 5, authorityFingerprint = Hash, renewedAt = "2026-10-18T00:00:00Z" });
+        { renewalId = "original-renewal", previousAuthorityRevision = 4, authorityRevision = 5, authorityFingerprint = Hash, renewedAt = "2026-10-18T00:00:00Z" });
         using var renewalBody = new StringContent(JsonSerializer.Serialize(new
-            { renewalId = "original-renewal", expectedAuthorityRevision = 4, taskContentHash = Hash }), Encoding.UTF8, "application/json");
+        { renewalId = "original-renewal", expectedAuthorityRevision = 4, taskContentHash = Hash }), Encoding.UTF8, "application/json");
         using var renewal = await host.Client.PostAsync(Root + "/authority-renewals", renewalBody);
         Assert.Equal(HttpStatusCode.OK, renewal.StatusCode);
     }
@@ -183,11 +208,11 @@ public sealed class AgentWorkspaceDatasetImportBffTests
     {
         await using var host = await Host.Start();
         host.Wire.Response = JsonSerializer.Serialize(new
-            { chunkBytes = 4 * 1024 * 1024, maximumFileBytes = 1024L * 1024 * 1024 * 1024, importAcceptanceSupported = false });
+        { chunkBytes = 4 * 1024 * 1024, maximumFileBytes = 1024L * 1024 * 1024 * 1024, importAcceptanceSupported = false });
         using var oversized = await host.Client.GetAsync(Root + "/upload/capabilities?contentHash=" + Hash);
         Assert.Equal(HttpStatusCode.BadGateway, oversized.StatusCode);
         host.Wire.Response = JsonSerializer.Serialize(new
-            { chunkBytes = 4 * 1024 * 1024, maximumFileBytes = 256L * 1024 * 1024 * 1024, importAcceptanceSupported = false, storageToken = "not-browser-data" });
+        { chunkBytes = 4 * 1024 * 1024, maximumFileBytes = 256L * 1024 * 1024 * 1024, importAcceptanceSupported = false, storageToken = "not-browser-data" });
         using var valid = await host.Client.GetAsync(Root + "/upload/capabilities?contentHash=" + Hash);
         Assert.Equal(HttpStatusCode.OK, valid.StatusCode);
         Assert.DoesNotContain("storageToken", await valid.Content.ReadAsStringAsync());
@@ -200,18 +225,34 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         var operation = new string('e', 32);
         host.Wire.Response = JsonSerializer.Serialize(new
         {
-            taskId = "task", taskRevision = 1, taskContentHash = Hash, state = "accepted", operationId = operation,
-            authorityRevision = 2, authorityFingerprint = Hash, policyContextFingerprint = Hash, acceptBefore = "2026-10-19T00:00:00Z",
-            executorAuthority = "must-not-leak", job = new
+            taskId = "task",
+            taskRevision = 1,
+            taskContentHash = Hash,
+            state = "accepted",
+            operationId = operation,
+            authorityRevision = 2,
+            authorityFingerprint = Hash,
+            policyContextFingerprint = Hash,
+            acceptBefore = "2026-10-19T00:00:00Z",
+            executorAuthority = "must-not-leak",
+            job = new
             {
-                jobId = operation, leaseId = "actual-lease", status = "succeeded", createdAt = "2026-10-18T00:00:00Z", updatedAt = "2026-10-18T00:01:00Z",
-                protectedAuthority = "must-not-leak", claims = new[] { "must-not-leak" },
+                jobId = operation,
+                leaseId = "actual-lease",
+                status = "succeeded",
+                createdAt = "2026-10-18T00:00:00Z",
+                updatedAt = "2026-10-18T00:01:00Z",
+                protectedAuthority = "must-not-leak",
+                claims = new[] { "must-not-leak" },
                 output = new { schema = "actual_schema", physicalTableName = "actual_output", featureCount = 3, detectedSrid = 4326, cloudFileId = "must-not-leak" }
             }
         });
         using var body = new StringContent(JsonSerializer.Serialize(new
         {
-            taskContentHash = Hash, authorityRevision = 2, authorityFingerprint = Hash, policyContextFingerprint = Hash
+            taskContentHash = Hash,
+            authorityRevision = 2,
+            authorityFingerprint = Hash,
+            policyContextFingerprint = Hash
         }), Encoding.UTF8, "application/json");
         using var response = await host.Client.PostAsync(Root + "/submission", body);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -236,7 +277,9 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         await using var host = await Host.Start();
         host.Client.DefaultRequestHeaders.Remove(missing switch
         {
-            "csrf" => "X-CSRF-Token", "environment" => "X-Honua-Environment", _ => "X-Honua-Session-Partition"
+            "csrf" => "X-CSRF-Token",
+            "environment" => "X-Honua-Environment",
+            _ => "X-Honua-Session-Partition"
         });
         using var body = new StringContent("{}", Encoding.UTF8, "application/json");
         using var response = await host.Client.PostAsync(Root + "/submission", body);
@@ -253,14 +296,23 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         await using var host = await Host.Start();
         host.Wire.Response = JsonSerializer.Serialize(new
         {
-            taskId = scenario == "task" ? "foreign-task" : "task", taskRevision = 1, taskContentHash = Hash,
-            state = "prepared", operationId = new string('e', 32), authorityRevision = scenario == "authority" ? 3 : 2,
-            authorityFingerprint = Hash, policyContextFingerprint = Hash, acceptBefore = "2026-10-19T00:00:00Z",
+            taskId = scenario == "task" ? "foreign-task" : "task",
+            taskRevision = 1,
+            taskContentHash = Hash,
+            state = "prepared",
+            operationId = new string('e', 32),
+            authorityRevision = scenario == "authority" ? 3 : 2,
+            authorityFingerprint = Hash,
+            policyContextFingerprint = Hash,
+            acceptBefore = "2026-10-19T00:00:00Z",
             job = scenario == "unaccepted-job" ? new { jobId = "invented" } : null
         });
         using var body = new StringContent(JsonSerializer.Serialize(new
         {
-            taskContentHash = Hash, authorityRevision = 2, authorityFingerprint = Hash, policyContextFingerprint = Hash
+            taskContentHash = Hash,
+            authorityRevision = 2,
+            authorityFingerprint = Hash,
+            policyContextFingerprint = Hash
         }), Encoding.UTF8, "application/json");
         using var response = await host.Client.PostAsync(Root + "/submission", body);
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
@@ -280,10 +332,24 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         await using var host = await Host.Start();
         var value = JsonNode.Parse(JsonSerializer.Serialize(new
         {
-            taskId = "task", taskRevision = 1, taskContentHash = Hash, state = "accepted", operationId = new string('e', 32),
-            authorityRevision = 2, authorityFingerprint = Hash, policyContextFingerprint = Hash, acceptBefore = "2026-10-19T00:00:00Z",
-            job = new { jobId = new string('e', 32), leaseId = "actual-lease", status = "succeeded", createdAt = "2026-10-18T00:00:00Z", updatedAt = "2026-10-18T00:01:00Z",
-                output = new { schema = "public", physicalTableName = "actual_output", featureCount = 3, detectedSrid = 4326 } }
+            taskId = "task",
+            taskRevision = 1,
+            taskContentHash = Hash,
+            state = "accepted",
+            operationId = new string('e', 32),
+            authorityRevision = 2,
+            authorityFingerprint = Hash,
+            policyContextFingerprint = Hash,
+            acceptBefore = "2026-10-19T00:00:00Z",
+            job = new
+            {
+                jobId = new string('e', 32),
+                leaseId = "actual-lease",
+                status = "succeeded",
+                createdAt = "2026-10-18T00:00:00Z",
+                updatedAt = "2026-10-18T00:01:00Z",
+                output = new { schema = "public", physicalTableName = "actual_output", featureCount = 3, detectedSrid = 4326 }
+            }
         }))!;
         var job = value["job"]!.AsObject();
         var target = field is "schema" or "physicalTableName" or "featureCount" or "detectedSrid" ? job["output"]!.AsObject() : job;
@@ -376,7 +442,7 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         if (contract == "upload") return await client.GetAsync(Root + "/upload?contentHash=" + Hash);
         if (contract == "authority") return await client.GetAsync(Root + "/authority?contentHash=" + Hash);
         using var body = new StringContent(contract == "renew" ? JsonSerializer.Serialize(new
-            { renewalId = "renewal", expectedAuthorityRevision = 2, taskContentHash = Hash }) : "{}", Encoding.UTF8, "application/json");
+        { renewalId = "renewal", expectedAuthorityRevision = 2, taskContentHash = Hash }) : "{}", Encoding.UTF8, "application/json");
         return await client.PostAsync(contract == "renew" ? Root + "/authority-renewals" : "/api/agent-workspace/workspace/dataset-import-tasks", body);
     }
 
@@ -385,17 +451,40 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         if (contract == "upload") return JsonNode.Parse(Receipt)!;
         if (contract == "authority") return JsonNode.Parse(JsonSerializer.Serialize(new
         {
-            taskId = "task", taskRevision = 1, taskContentHash = Hash, executorActorId = "actual-agent", initiatingHumanActorId = "human",
-            originatingTurnId = "original-turn", originalTurnHash = Hash, authorityRevision = 2, authorityFingerprint = Hash,
-            policyContextFingerprint = Hash, uploadAdmissionDeadline = "2026-10-19T00:00:00Z", preparedOperationId = new string('e', 32)
+            taskId = "task",
+            taskRevision = 1,
+            taskContentHash = Hash,
+            executorActorId = "actual-agent",
+            initiatingHumanActorId = "human",
+            originatingTurnId = "original-turn",
+            originalTurnHash = Hash,
+            authorityRevision = 2,
+            authorityFingerprint = Hash,
+            policyContextFingerprint = Hash,
+            uploadAdmissionDeadline = "2026-10-19T00:00:00Z",
+            preparedOperationId = new string('e', 32)
         }))!;
         if (contract == "renew") return JsonNode.Parse(JsonSerializer.Serialize(new
-            { renewalId = "renewal", previousAuthorityRevision = 2, authorityRevision = 3, authorityFingerprint = Hash, renewedAt = "2026-10-18T00:00:00Z" }))!;
+        { renewalId = "renewal", previousAuthorityRevision = 2, authorityRevision = 3, authorityFingerprint = Hash, renewedAt = "2026-10-18T00:00:00Z" }))!;
         var value = JsonNode.Parse(JsonSerializer.Serialize(new
         {
-            taskId = "task", revision = 1, contentHash = Hash, ownerActorId = "actual-agent", tenantId = "tenant", targetId = "target", workspaceId = "workspace",
-            destination = new { schema = "public", table = "roads" }, source = new { kind = "browser-file", fileName = "roads.geojson", totalBytes = 3,
-                expectedSha256 = Hash, browserSelectionId = "original-selection" }, options = new { loadMode = 1, targetSrid = 4326, sourceSrid = 4326 },
+            taskId = "task",
+            revision = 1,
+            contentHash = Hash,
+            ownerActorId = "actual-agent",
+            tenantId = "tenant",
+            targetId = "target",
+            workspaceId = "workspace",
+            destination = new { schema = "public", table = "roads" },
+            source = new
+            {
+                kind = "browser-file",
+                fileName = "roads.geojson",
+                totalBytes = 3,
+                expectedSha256 = Hash,
+                browserSelectionId = "original-selection"
+            },
+            options = new { loadMode = 1, targetSrid = 4326, sourceSrid = 4326 },
             uploadAdmissionDeadline = "2026-10-19T00:00:00Z"
         }))!;
         if (contract == "artifact")
@@ -403,7 +492,7 @@ public sealed class AgentWorkspaceDatasetImportBffTests
             value["source"]!["kind"] = "local-process-artifact";
             value["source"]!.AsObject().Remove("browserSelectionId");
             value["source"]!["artifact"] = JsonNode.Parse(JsonSerializer.Serialize(new
-                { projectId = "project", snapshotId = "snapshot", snapshotDigest = Hash, runId = "run", path = "out/roads.geojson" }));
+            { projectId = "project", snapshotId = "snapshot", snapshotDigest = Hash, runId = "run", path = "out/roads.geojson" }));
         }
         return value;
     }
@@ -449,10 +538,24 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         await using var host = await Host.Start();
         host.Wire.Response = JsonSerializer.Serialize(new
         {
-            taskId = "task", taskRevision = 1, taskContentHash = Hash, state = "accepted", operationId = new string('e', 32),
-            authorityRevision = 2, authorityFingerprint = Hash, policyContextFingerprint = Hash, acceptBefore = "2026-10-19T00:00:00Z",
-            job = new { jobId = new string('e', 32), leaseId = "actual-lease", status, outcomePending = pending,
-                createdAt = "2026-10-18T00:00:00Z", updatedAt = "2026-10-18T00:01:00Z" }
+            taskId = "task",
+            taskRevision = 1,
+            taskContentHash = Hash,
+            state = "accepted",
+            operationId = new string('e', 32),
+            authorityRevision = 2,
+            authorityFingerprint = Hash,
+            policyContextFingerprint = Hash,
+            acceptBefore = "2026-10-19T00:00:00Z",
+            job = new
+            {
+                jobId = new string('e', 32),
+                leaseId = "actual-lease",
+                status,
+                outcomePending = pending,
+                createdAt = "2026-10-18T00:00:00Z",
+                updatedAt = "2026-10-18T00:01:00Z"
+            }
         });
         using var response = await host.Client.GetAsync(Root + "/submission?contentHash=" + Hash);
         Assert.Equal(expected, response.StatusCode);
