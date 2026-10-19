@@ -7,7 +7,9 @@ async function mount(page: Page, clear = true, fail = false) {
     await page.evaluate(async ({ clear, fail }) => {
         const { mountStudioVersionControls } = await import('/js/studio-version-controls.mjs');
         const key = 'honua.workspace.studio-publication.publication-test';
-        if (clear) sessionStorage.removeItem(key);
+        if (clear) for (const stored of Object.keys(sessionStorage)) {
+            if (stored === key || stored.startsWith(key + '.') || stored.startsWith('honua.studio.publication.')) sessionStorage.removeItem(stored);
+        }
         const host = document.createElement('div'), status = document.createElement('p');
         const app = document.createElement('div') as any;
         status.dataset.publicationTestStatus = ''; status.setAttribute('role', 'status');
@@ -78,9 +80,39 @@ test('a retained refresh button cannot read or submit after the operator changes
         app.workspaceCookieBinding = { principalId: 'other-human', environmentId: 'local' };
     });
     await page.getByRole('button', { name: 'Refresh publication status', exact: true }).click();
-    await expect(page.getByRole('region', { name: 'Map publication' })).toContainText('Restore the original map, account and environment');
+    await expect(page.locator('[data-publication-test-status]')).toContainText('Restore the original map, account and environment');
+    await expect(page.getByRole('region', { name: 'Map publication' })).toBeHidden();
     expect(await page.evaluate(() => (window as any).publicationFixture.calls.length)).toBe(1);
     expect(await page.evaluate(() => (window as any).publicationFixture.reads.length)).toBe(0);
+});
+
+test('a pending publication does not block another operator and returns when its original operator reconnects', async ({ page }) => {
+    await mount(page);
+    const review = async () => {
+        await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
+        await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+        await page.getByRole('button', { name: 'Publish reviewed version', exact: true }).click();
+        await expect(page.getByRole('region', { name: 'Map publication' })).toContainText('Awaiting separate human approval');
+    };
+    await review();
+    const original = await page.evaluate(() => (window as any).publicationFixture.calls[0]);
+    await page.evaluate(() => {
+        const app = (window as any).publicationFixture.app;
+        app.workspaceCookieBinding = { principalId: 'other-human', environmentId: 'local' };
+        app.dispatchEvent(new CustomEvent('honua-workspace-draft-change'));
+    });
+    await expect(page.getByRole('region', { name: 'Map publication' })).toBeHidden();
+    await review();
+    const calls = await page.evaluate(() => (window as any).publicationFixture.calls);
+    expect(calls).toHaveLength(2);
+    expect(calls[1].command).not.toBe(original.command);
+    await page.evaluate(() => {
+        const app = (window as any).publicationFixture.app;
+        app.workspaceCookieBinding = { principalId: 'human', environmentId: 'local' };
+        app.dispatchEvent(new CustomEvent('honua-workspace-draft-change'));
+    });
+    await expect(page.getByRole('region', { name: 'Map publication' })).toContainText('Awaiting separate human approval');
+    expect(await page.evaluate(() => (window as any).publicationFixture.calls)).toEqual(calls);
 });
 
 test('reload refreshes a completed publication without another submission', async ({ page }) => {
@@ -100,6 +132,44 @@ test('reload refreshes a completed publication without another submission', asyn
     expect(await page.evaluate(() => (window as any).publicationFixture.calls)).toEqual([]);
     expect(await page.evaluate(() => (window as any).publicationFixture.reads)).toEqual([{ versionId: 'version', requestId: 'request' }]);
     await expect(page.getByRole('button', { name: 'Acknowledge publication outcome', exact: true })).toBeVisible();
+});
+
+test('changing conversations on the same map retains the pending command and prevents a second publication', async ({ page }) => {
+    await mount(page);
+    await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
+    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Publish reviewed version', exact: true }).click();
+    const calls = await page.evaluate(() => (window as any).publicationFixture.calls);
+    await page.evaluate(() => {
+        const app = (window as any).publicationFixture.app;
+        app.workspace.workspaceId = 'another-conversation';
+        app.dispatchEvent(new CustomEvent('honua-workspace-draft-change'));
+    });
+    await expect(page.getByRole('region', { name: 'Map publication' })).toContainText('Awaiting separate human approval');
+    await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
+    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await expect(page.locator('[data-publication-test-status]')).toContainText('Resolve the original publication');
+    expect(await page.evaluate(() => (window as any).publicationFixture.calls)).toEqual(calls);
+});
+
+test('clearing map selection hides publication controls and restores the retained outcome on return', async ({ page }) => {
+    await mount(page);
+    await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
+    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Publish reviewed version', exact: true }).click();
+    await page.evaluate(() => {
+        const app = (window as any).publicationFixture.app;
+        app.workspaceDraftIdentity = undefined;
+        app.dispatchEvent(new CustomEvent('honua-workspace-draft-change'));
+    });
+    await expect(page.getByRole('region', { name: 'Map publication' })).toBeHidden();
+    await page.evaluate(() => {
+        const app = (window as any).publicationFixture.app;
+        app.workspaceDraftIdentity = { draftId: 'draft' };
+        app.dispatchEvent(new CustomEvent('honua-workspace-draft-change'));
+    });
+    await expect(page.getByRole('region', { name: 'Map publication' })).toContainText('Awaiting separate human approval');
+    expect(await page.evaluate(() => (window as any).publicationFixture.calls)).toHaveLength(1);
 });
 
 test('read-only approval rejection is shown without claiming publication or sending another mutation', async ({ page }) => {

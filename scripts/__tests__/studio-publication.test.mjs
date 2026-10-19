@@ -4,7 +4,8 @@ import { StudioPublicationSession } from '../../src/Honua.Console.Web/wwwroot/js
 
 function fixture() {
     const records = new Map();
-    const storage = { getItem: key => records.get(key) ?? null, setItem: (key, value) => records.set(key, value), removeItem: key => records.delete(key) };
+    const storage = { get length() { return records.size; }, key: index => [...records.keys()][index] ?? null,
+        getItem: key => records.get(key) ?? null, setItem: (key, value) => records.set(key, value), removeItem: key => records.delete(key) };
     const version = { itemId: 'item', versionId: 'version', contentHash: 'hash', versionNumber: 1, packageKey: 'map' };
     const calls = [];
     const app = {
@@ -12,7 +13,7 @@ function fixture() {
         workspaceCookieBinding: { principalId: 'human', environmentId: 'local', sourcePathBase: '/honua' },
         reviewWorkspacePublication: async id => { assert.equal(id, version.versionId); return version; },
         publishWorkspaceVersion: async (selected, input, command) => {
-            assert.equal(records.size, 1, 'persist the command before dispatch');
+            assert.ok([...records.values()].some(raw => JSON.parse(raw).commandId === command), 'persist the command before dispatch');
             calls.push({ selected, input, command });
             return { status: 'awaiting-approval', operationInstanceId: 'operation', proposalId: 'proposal' };
         },
@@ -21,6 +22,85 @@ function fixture() {
     return { app, records, calls, session, version, storage };
 }
 const input = { intent: { route: '/maps/parcels', visibility: 'organization' } };
+
+for (const change of ['principal', 'environment', 'source-path', 'map']) {
+    test(`pending publication permits independent work after changing ${change} and recovers on return`, async () => {
+        const { session, app, calls } = fixture();
+        await session.review('version'); await session.submit(input);
+        const original = session.read();
+        const originalBinding = { ...app.workspaceCookieBinding };
+        if (change === 'map') app.workspaceDraftIdentity.draftId = 'other-draft';
+        else app.workspaceCookieBinding[change === 'principal' ? 'principalId' : change === 'environment' ? 'environmentId' : 'sourcePathBase'] = 'other';
+        const independent = new StudioPublicationSession(app, { uuid: () => 'other-command' });
+        assert.equal(independent.read(), null);
+        await independent.review('version'); await independent.submit(input);
+        assert.equal(independent.read().commandId, 'other-command');
+        app.workspaceCookieBinding = originalBinding; app.workspaceDraftIdentity.draftId = 'draft';
+        assert.deepEqual(session.read(), original);
+        await assert.rejects(session.review('version'), /original publication/);
+        assert.equal(calls.length, 2);
+    });
+}
+
+test('legacy workspace journal is recoverable only by its original account and acknowledgement clears both locations', async () => {
+    const { session, app, storage, calls, records } = fixture();
+    await session.review('version'); await session.submit(input);
+    const legacyKey = 'honua.workspace.studio-publication.workspace';
+    const raw = JSON.stringify({ ...session.read(), context: JSON.stringify([legacyKey, session.authority(), 'draft']) });
+    storage.removeItem(session.key());
+    storage.setItem(legacyKey, raw);
+    app.workspace.workspaceId = 'another-conversation';
+    app.workspaceCookieBinding.principalId = 'other-human';
+    const independent = new StudioPublicationSession(app);
+    assert.equal(independent.read(), null);
+    await independent.review('version');
+    assert.equal(storage.getItem(legacyKey), raw);
+    assert.equal(calls.length, 1);
+    app.workspaceCookieBinding.principalId = 'human';
+    assert.equal(session.read().commandId, 'original-command');
+    app.publishWorkspaceVersion = async (_version, _input, command) => {
+        assert.equal(command, 'original-command');
+        return { status: 'accepted', itemId: 'item', versionId: 'version', requestId: 'request' };
+    };
+    await session.retry(); session.acknowledge();
+    assert.equal(session.read(), null); assert.equal(records.size, 0);
+});
+
+test('a new conversation recovers the same map command without opening a second proposal', async () => {
+    const { session, app, calls } = fixture();
+    await session.review('version');
+    const publish = app.publishWorkspaceVersion;
+    app.publishWorkspaceVersion = async (...args) => { await publish(...args); throw new Error('response lost'); };
+    await assert.rejects(session.submit(input), /response lost/);
+    app.workspace.workspaceId = 'new-conversation';
+    const restored = new StudioPublicationSession(app, { uuid: () => { throw new Error('must retain original command'); } });
+    assert.equal(restored.read().commandId, 'original-command');
+    await assert.rejects(restored.review('version'), /original publication/);
+    app.publishWorkspaceVersion = publish;
+    await restored.retry();
+    assert.deepEqual(calls[0], calls[1]);
+});
+
+test('changing conversation invalidates an unsubmitted review ticket', async () => {
+    const { session, app, calls } = fixture();
+    await session.review('version');
+    app.workspace.workspaceId = 'new-conversation';
+    await assert.rejects(session.submit(input), /Review this saved version/);
+    assert.equal(calls.length, 0);
+});
+
+test('conflicting legacy commands for the same map refuse another submission', async () => {
+    const { session, app, storage, calls } = fixture();
+    await session.review('version'); await session.submit(input);
+    const original = session.read(); storage.removeItem(session.key());
+    for (const [workspace, commandId] of [['workspace', 'original-command'], ['other-workspace', 'other-command']]) {
+        const key = `honua.workspace.studio-publication.${workspace}`;
+        storage.setItem(key, JSON.stringify({ ...original, commandId, context: JSON.stringify([key, session.authority(), 'draft']) }));
+    }
+    app.workspace.workspaceId = 'new-conversation';
+    await assert.rejects(session.review('version'), /Multiple original publication/);
+    assert.equal(calls.length, 1);
+});
 
 test('review is read-only; publication stores its command and pending receipt without claiming completion', async () => {
     const { session, calls, records } = fixture();
@@ -92,6 +172,8 @@ test('double clicks dispatch once and ignore a response after authority changes'
     app.workspaceCookieBinding.principalId = 'another'; finish();
     await Promise.all(refusals);
     assert.equal(calls.length, 1);
+    assert.equal(session.read(), null);
+    app.workspaceCookieBinding.principalId = 'human';
     assert.equal(session.read().receipt, undefined);
 });
 
@@ -190,6 +272,8 @@ test('an authority change during status read cannot overwrite the retained recor
         return { status: 'accepted', itemId: 'item', versionId: 'version', requestId: 'request' };
     };
     await assert.rejects(session.refresh(), /workspace changed/);
+    assert.equal(session.read(), null);
+    app.workspaceCookieBinding.principalId = 'human';
     assert.deepEqual(session.read(), original); assert.equal(calls.length, 1);
 });
 

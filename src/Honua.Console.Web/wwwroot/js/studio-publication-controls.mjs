@@ -21,18 +21,53 @@ export class StudioPublicationSession {
         return JSON.stringify([binding.principalId, binding.environmentId, binding.sourcePathBase || '']);
     }
     key() {
-        const workspaceId = this.app.workspace?.workspaceId;
-        if (!id(workspaceId) || !this.storage) throw new Error('Connect a persistent workspace before publishing.');
-        return `honua.workspace.studio-publication.${workspaceId}`;
+        const draftId = this.app.workspaceDraftIdentity?.draftId;
+        if (!id(draftId)) throw new Error('Select a map draft before publishing.');
+        if (!this.storage) throw new Error('Connect a persistent workspace before publishing.');
+        return `honua.studio.publication.${encodeURIComponent(this.context())}`;
     }
-    context() { return JSON.stringify([this.key(), this.authority(), this.app.workspaceDraftIdentity?.draftId]); }
+    // A conversation can change without changing the publication's owner/target/map.
+    context() { return JSON.stringify([this.authority(), this.app.workspaceDraftIdentity?.draftId]); }
+    viewContext() {
+        const workspaceId = this.app.workspace?.workspaceId;
+        if (!id(workspaceId)) throw new Error('Connect a persistent workspace before publishing.');
+        return JSON.stringify([this.context(), workspaceId]);
+    }
+    legacyEntries() {
+        const prefix = 'honua.workspace.studio-publication.';
+        if (!Number.isInteger(this.storage.length) || this.storage.length > 10000 || typeof this.storage.key !== 'function')
+            throw new Error('Persistent browser storage is required to recover publication references.');
+        const entries = [];
+        for (let index = 0; index < this.storage.length; index++) {
+            const key = this.storage.key(index);
+            if (!key?.startsWith(prefix) || !id(key.slice(prefix.length))) continue;
+            const raw = this.storage.getItem(key);
+            if (!raw) continue;
+            const record = this.decode(raw);
+            let context;
+            try { context = JSON.parse(record.context); } catch { throw new Error('The original publication context is unreadable.'); }
+            if (!Array.isArray(context) || context.length !== 3 || context[0] !== key)
+                throw new Error('The original publication context is invalid.');
+            if (context[1] === this.authority() && context[2] === this.app.workspaceDraftIdentity?.draftId
+                && record.draftId === context[2]) entries.push({ key, record: { ...record, context: this.context() } });
+        }
+        return entries;
+    }
     read() {
-        const key = this.key();
-        const raw = this.storage.getItem(key);
+        const raw = this.storage.getItem(this.key());
+        if (raw) return this.decode(raw);
+        const legacy = this.legacyEntries();
+        const identities = new Set(legacy.map(({ record }) => JSON.stringify([
+            record.commandId, record.itemId, record.versionId, record.contentHash, record.input
+        ])));
+        if (identities.size > 1) throw new Error('Multiple original publication references exist for this map. Resolve them before publishing again.');
+        return legacy[0]?.record ?? null;
+    }
+    decode(raw) {
         if (!raw) return null;
         let record;
         try { if (raw.length > 16384) throw new Error(); record = JSON.parse(raw); } catch { throw new Error('The original publication reference is unreadable. Restore it before submitting another publication.'); }
-        if (record.schemaVersion !== 1 || !['draftId', 'itemId', 'versionId', 'commandId'].every(key => id(record[key]))
+        if (!record || record.schemaVersion !== 1 || !['draftId', 'itemId', 'versionId', 'commandId'].every(key => id(record[key]))
             || typeof record.context !== 'string' || typeof record.contentHash !== 'string' || !record.contentHash
             || !this.validInput(record.input)) throw new Error('The original publication reference is invalid. Review it before publishing again.');
         return record;
@@ -46,9 +81,9 @@ export class StudioPublicationSession {
     bound(record) { return record.context === this.context(); }
     async review(versionId) {
         if (this.read()) throw new Error('Resolve the original publication before starting another.');
-        const context = this.context();
+        const context = this.viewContext();
         const version = await this.app.reviewWorkspacePublication(versionId);
-        if (context !== this.context()) throw new Error('The selected map or session changed during review.');
+        if (context !== this.viewContext()) throw new Error('The selected map or session changed during review.');
         this.reviewed = { version, context };
         return version;
     }
@@ -57,12 +92,12 @@ export class StudioPublicationSession {
         return this.run(async () => {
             if (this.read()) throw new Error('Use the original submission to recover its outcome.');
             const reviewed = this.reviewed;
-            if (!reviewed || reviewed.context !== this.context()) throw new Error('Review this saved version before publishing.');
+            if (!reviewed || reviewed.context !== this.viewContext()) throw new Error('Review this saved version before publishing.');
             const canonical = { intent: { route: input.intent?.route, visibility: input.intent?.visibility },
                 ...(input.warningAcknowledgement ? { warningAcknowledgement: input.warningAcknowledgement } : {}) };
             if (!this.validInput(canonical)) throw new Error('Choose an audience and a local publication route beginning with /.');
             const version = reviewed.version;
-            const record = { schemaVersion: 1, context: reviewed.context, draftId: this.app.workspaceDraftIdentity.draftId,
+            const record = { schemaVersion: 1, context: this.context(), draftId: this.app.workspaceDraftIdentity.draftId,
                 itemId: version.itemId, versionId: version.versionId, contentHash: version.contentHash,
                 commandId: this.uuid(), input: canonical };
             if (!id(record.commandId)) throw new Error('The publication command identity is invalid.');
@@ -75,9 +110,10 @@ export class StudioPublicationSession {
         return this.run(async () => {
             const record = this.read();
             if (!record || !this.bound(record)) throw new Error('Restore the original map, account and environment before retrying.');
-            const version = this.reviewed?.context === record.context && this.reviewed.version.versionId === record.versionId
+            const context = this.viewContext();
+            const version = this.reviewed?.context === context && this.reviewed.version.versionId === record.versionId
                 ? this.reviewed.version : await this.app.reviewWorkspacePublication(record.versionId);
-            if (!this.bound(record) || version.itemId !== record.itemId || version.contentHash !== record.contentHash || version.versionId !== record.versionId)
+            if (context !== this.viewContext() || !this.bound(record) || version.itemId !== record.itemId || version.contentHash !== record.contentHash || version.versionId !== record.versionId)
                 throw new Error('The original saved version could not be verified. No new publication was submitted.');
             return this.dispatch(record, version);
         });
@@ -152,6 +188,8 @@ export class StudioPublicationSession {
     acknowledge() {
         const record = this.read();
         if (!record || !this.bound(record) || !terminal(record.receipt)) throw new Error('The original publication has not reached a confirmed outcome.');
+        for (const { key, record: original } of this.legacyEntries())
+            if (original.commandId === record.commandId) this.storage.removeItem(key);
         this.storage.removeItem(this.key());
         this.reviewed = undefined;
     }
@@ -196,14 +234,18 @@ export function mountStudioPublicationControls({ app, host, status }) {
     if (canvas) canvas.before(section); else host.append(section);
     let busy = false, disposed = false, selectedContext, hasReview = false;
     const active = captured => {
-        try { return !disposed && host.isConnected && app.isConnected && session.context() === captured; }
+        try { return !disposed && host.isConnected && app.isConnected && session.viewContext() === captured; }
         catch { return false; }
     };
     function update() {
         if (disposed) return;
         form.hidden = retry.hidden = refresh.hidden = acknowledge.hidden = inbox.hidden = true;
+        if (!id(app.workspaceDraftIdentity?.draftId) || !['reviewWorkspacePublication', 'publishWorkspaceVersion', 'readWorkspacePublication']
+            .every(name => typeof app[name] === 'function')) {
+            section.hidden = true; hasReview = false; selectedContext = undefined; return;
+        }
         try {
-            const context = session.context(), record = session.read();
+            const context = session.viewContext(), record = session.read();
             if (selectedContext !== context) { hasReview = false; selectedContext = context; }
             section.hidden = !record && !hasReview;
             notice.textContent = '';
@@ -238,7 +280,7 @@ export function mountStudioPublicationControls({ app, host, status }) {
         if (busy || disposed || !host.isConnected || !app.isConnected) return;
         let captured;
         try {
-            captured = session.context(); busy = true; update();
+            captured = session.viewContext(); busy = true; update();
             await action(() => active(captured));
         } catch (error) { if (captured && active(captured)) status.textContent = error.message || 'The publication action failed.'; }
         finally { busy = false; if (!disposed) update(); }
