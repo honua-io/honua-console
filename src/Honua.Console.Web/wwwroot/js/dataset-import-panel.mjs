@@ -86,25 +86,28 @@ function mount() {
     }
     const dirty = () => preparing || Boolean(controller?.dirty()) || Boolean(!controller && browserImportSelection.record && !browserImportSelection.record.turnId);
     const action = async work => {
+        const epoch = generation;
         try { await work(); }
-        catch (error) { if (current()) { if (controller) render(controller); status(error.message); } }
+        catch (error) { if (epoch === generation && current()) { if (controller) render(controller); status(error.message); } }
     };
     controls.file.addEventListener('change', () => { if (controller) { controller.file = null; render(controller); } else { browserImportSelection.clear(); controls.check.disabled = !controls.file.files?.length; controls.clear.disabled = false; } }, {signal:lifetime.signal});
     controls.check.addEventListener('click', () => action(async () => {
         if (controller) return controller.verifyFile(controls.file.files[0]);
         if (preparing || !current()) return;
-        preparing = true; selectionAbort = new AbortController(); controls.check.disabled = true; controls.file.disabled = true; controls.pause.disabled = false;
+        const selectedFile = controls.file.files[0], selectedWorkspace = workspace, epoch = generation;
+        const requestAbort = new AbortController();
+        preparing = true; selectionAbort = requestAbort; controls.check.disabled = true; controls.file.disabled = true; controls.pause.disabled = false;
         try {
-            const module = await sdk(); if (!current()) return;
+            const module = await sdk(); if (epoch !== generation || requestAbort.signal.aborted || !current()) return;
             if (!module.hashDatasetImportFile) throw new Error('The pinned complete-file checker is unavailable in this Console build.');
-            const selected = await browserImportSelection.prepare(controls.file.files[0], workspace, {hashFile:module.hashDatasetImportFile,signal:selectionAbort.signal,
-                onProgress:(bytes,total)=>{if(current()){controls.progress.value=bytes/total;status('Checking the complete file…');}}});
-            if (!current()) return;
+            const selected = await browserImportSelection.prepare(selectedFile, selectedWorkspace, {hashFile:module.hashDatasetImportFile,signal:requestAbort.signal,
+                onProgress:(bytes,total)=>{if(epoch === generation && !requestAbort.signal.aborted && current()){controls.progress.value=bytes/total;status('Checking the complete file…');}}});
+            if (epoch !== generation || requestAbort.signal.aborted || !current()) return;
             controls.source.textContent = `${selected.fileName} · ${selected.totalBytes.toLocaleString()} bytes`;
             status('File checked. Describe the destination in the shared conversation; your next message will capture this exact selection.');
             const conversation = document.querySelector('[data-agent-workspace]'); if (conversation) conversation.open = true;
             document.querySelector('[data-workspace-prompt]')?.focus();
-        } finally { preparing = false; if(current()){controls.file.disabled=false;controls.check.disabled=!controls.file.files?.length;controls.pause.disabled=true;controls.clear.disabled=false;} }
+        } finally { if(epoch === generation && selectionAbort === requestAbort){preparing = false;if(current()){controls.file.disabled=false;controls.check.disabled=!controls.file.files?.length;controls.pause.disabled=true;controls.clear.disabled=false;}} }
     }), {signal:lifetime.signal});
     controls.clear.addEventListener('click', () => { browserImportSelection.clear(); controls.file.value = ''; if(controller){controller.file=null;controller.present();}else{controls.check.disabled=true;controls.clear.disabled=true;status('Selected file cleared. Choose a dataset to prepare another import.');} }, {signal:lifetime.signal});
     controls.transfer.addEventListener('click', () => action(() => controller.transfer()), {signal:lifetime.signal});
