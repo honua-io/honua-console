@@ -5756,78 +5756,78 @@ var ts = {
 };
 //#endregion
 //#region node_modules/proj4/lib/common/mlfn.js
-function F(e, t, n, r, i) {
+function ns(e, t, n, r, i) {
 	return e * i - t * Math.sin(2 * i) + n * Math.sin(4 * i) - r * Math.sin(6 * i);
 }
 //#endregion
 //#region node_modules/proj4/lib/common/e0fn.js
-function ns(e) {
+function rs(e) {
 	return 1 - .25 * e * (1 + e / 16 * (3 + 1.25 * e));
 }
 //#endregion
 //#region node_modules/proj4/lib/common/e1fn.js
-function rs(e) {
+function is(e) {
 	return .375 * e * (1 + .25 * e * (1 + .46875 * e));
 }
 //#endregion
 //#region node_modules/proj4/lib/common/e2fn.js
-function is(e) {
+function as(e) {
 	return .05859375 * e * e * (1 + .75 * e);
 }
 //#endregion
 //#region node_modules/proj4/lib/common/e3fn.js
-function as(e) {
+function os(e) {
 	return e * e * e * (35 / 3072);
 }
 //#endregion
 //#region node_modules/proj4/lib/common/gN.js
-function os(e, t, n) {
+function ss(e, t, n) {
 	var r = t * n;
 	return e / Math.sqrt(1 - r * r);
 }
 //#endregion
 //#region node_modules/proj4/lib/common/adjust_lat.js
-function ss(e) {
+function cs(e) {
 	return Math.abs(e) < k ? e : e - ri(e) * Math.PI;
 }
 //#endregion
 //#region node_modules/proj4/lib/common/imlfn.js
-function cs(e, t, n, r, i) {
+function ls(e, t, n, r, i) {
 	for (var a = e / t, o, s = 0; s < 15; s++) if (o = (e - (t * a - n * Math.sin(2 * a) + r * Math.sin(4 * a) - i * Math.sin(6 * a))) / (t - 2 * n * Math.cos(2 * a) + 4 * r * Math.cos(4 * a) - 6 * i * Math.cos(6 * a)), a += o, Math.abs(o) <= 1e-10) return a;
 	return NaN;
 }
 //#endregion
 //#region node_modules/proj4/lib/projections/cass.js
-function ls() {
-	this.sphere || (this.e0 = ns(this.es), this.e1 = rs(this.es), this.e2 = is(this.es), this.e3 = as(this.es), this.ml0 = this.a * F(this.e0, this.e1, this.e2, this.e3, this.lat0));
+function us() {
+	this.sphere || (this.e0 = rs(this.es), this.e1 = is(this.es), this.e2 = as(this.es), this.e3 = os(this.es), this.ml0 = this.a * ns(this.e0, this.e1, this.e2, this.e3, this.lat0));
 }
-function us(e) {
+function ds(e) {
 	var t, n, r = e.x, i = e.y;
 	if (r = P(r - this.long0, this.over), this.sphere) t = this.a * Math.asin(Math.cos(i) * Math.sin(r)), n = this.a * (Math.atan2(Math.tan(i), Math.cos(r)) - this.lat0);
 	else {
-		var a = Math.sin(i), o = Math.cos(i), s = os(this.a, this.e, a), c = Math.tan(i) * Math.tan(i), l = r * Math.cos(i), u = l * l, d = this.es * o * o / (1 - this.es), f = this.a * F(this.e0, this.e1, this.e2, this.e3, i);
+		var a = Math.sin(i), o = Math.cos(i), s = ss(this.a, this.e, a), c = Math.tan(i) * Math.tan(i), l = r * Math.cos(i), u = l * l, d = this.es * o * o / (1 - this.es), f = this.a * ns(this.e0, this.e1, this.e2, this.e3, i);
 		t = s * l * (1 - u * c * (1 / 6 - (8 - c + 8 * d) * u / 120)), n = f - this.ml0 + s * a / o * u * (.5 + (5 - c + 6 * d) * u / 24);
 	}
 	return e.x = t + this.x0, e.y = n + this.y0, e;
 }
-function ds(e) {
+function fs(e) {
 	e.x -= this.x0, e.y -= this.y0;
 	var t = e.x / this.a, n = e.y / this.a, r, i;
 	if (this.sphere) {
 		var a = n + this.lat0;
 		r = Math.asin(Math.sin(a) * Math.cos(t)), i = Math.atan2(Math.tan(t), Math.cos(a));
 	} else {
-		var o = cs(this.ml0 / this.a + n, this.e0, this.e1, this.e2, this.e3);
+		var o = ls(this.ml0 / this.a + n, this.e0, this.e1, this.e2, this.e3);
 		if (Math.abs(Math.abs(o) - k) <= 1e-10) return e.x = this.long0, e.y = k, n < 0 && (e.y *= -1), e;
-		var s = os(this.a, this.e, Math.sin(o)), c = s * s * s / this.a / this.a * (1 - this.es), l = Math.tan(o) ** 2, u = t * this.a / s, d = u * u;
+		var s = ss(this.a, this.e, Math.sin(o)), c = s * s * s / this.a / this.a * (1 - this.es), l = Math.tan(o) ** 2, u = t * this.a / s, d = u * u;
 		r = o - s * Math.tan(o) / c * u * u * (.5 - (1 + 3 * l) * u * u / 24), i = u * (1 - d * (l / 3 + (1 + 3 * l) * l * d / 15)) / Math.cos(o);
 	}
-	return e.x = P(i + this.long0, this.over), e.y = ss(r), e;
+	return e.x = P(i + this.long0, this.over), e.y = cs(r), e;
 }
-var fs = {
-	init: ls,
-	forward: us,
-	inverse: ds,
+var ps = {
+	init: us,
+	forward: ds,
+	inverse: fs,
 	names: [
 		"Cassini",
 		"Cassini_Soldner",
@@ -5836,28 +5836,28 @@ var fs = {
 };
 //#endregion
 //#region node_modules/proj4/lib/common/qsfnz.js
-function ps(e, t) {
+function ms(e, t) {
 	var n;
 	return e > 1e-7 ? (n = e * t, (1 - e * e) * (t / (1 - n * n) - .5 / e * Math.log((1 - n) / (1 + n)))) : 2 * t;
 }
 //#endregion
 //#region node_modules/proj4/lib/common/authset.js
-var ms = .3333333333333333, hs = .17222222222222222, gs = .10257936507936508, _s = .06388888888888888, vs = .0664021164021164, ys = .016415012942191543;
-function bs(e) {
+var hs = .3333333333333333, gs = .17222222222222222, _s = .10257936507936508, vs = .06388888888888888, ys = .0664021164021164, bs = .016415012942191543;
+function xs(e) {
 	var t, n = [];
-	return n[0] = e * ms, t = e * e, n[0] += t * hs, n[1] = t * _s, t *= e, n[0] += t * gs, n[1] += t * vs, n[2] = t * ys, n;
+	return n[0] = e * hs, t = e * e, n[0] += t * gs, n[1] = t * vs, t *= e, n[0] += t * _s, n[1] += t * ys, n[2] = t * bs, n;
 }
 //#endregion
 //#region node_modules/proj4/lib/common/authlat.js
-function xs(e, t) {
+function Ss(e, t) {
 	var n = e + e;
 	return e + t[0] * Math.sin(n) + t[1] * Math.sin(n + n) + t[2] * Math.sin(n + n + n);
 }
-function Ss() {
+function Cs() {
 	var e = Math.abs(this.lat0);
 	if (Math.abs(e - k) < 1e-10 ? this.mode = this.lat0 < 0 ? 1 : 2 : Math.abs(e) < 1e-10 ? this.mode = 3 : this.mode = 4, this.es > 0) {
 		var t;
-		switch (this.qp = ps(this.e, 1), this.mmf = .5 / (1 - this.es), this.apa = bs(this.es), this.mode) {
+		switch (this.qp = ms(this.e, 1), this.mmf = .5 / (1 - this.es), this.apa = xs(this.es), this.mode) {
 			case 2:
 				this.dd = 1;
 				break;
@@ -5868,12 +5868,12 @@ function Ss() {
 				this.rq = Math.sqrt(.5 * this.qp), this.dd = 1 / this.rq, this.xmf = 1, this.ymf = .5 * this.qp;
 				break;
 			case 4:
-				this.rq = Math.sqrt(.5 * this.qp), t = Math.sin(this.lat0), this.sinb1 = ps(this.e, t) / this.qp, this.cosb1 = Math.sqrt(1 - this.sinb1 * this.sinb1), this.dd = Math.cos(this.lat0) / (Math.sqrt(1 - this.es * t * t) * this.rq * this.cosb1), this.ymf = (this.xmf = this.rq) / this.dd, this.xmf *= this.dd;
+				this.rq = Math.sqrt(.5 * this.qp), t = Math.sin(this.lat0), this.sinb1 = ms(this.e, t) / this.qp, this.cosb1 = Math.sqrt(1 - this.sinb1 * this.sinb1), this.dd = Math.cos(this.lat0) / (Math.sqrt(1 - this.es * t * t) * this.rq * this.cosb1), this.ymf = (this.xmf = this.rq) / this.dd, this.xmf *= this.dd;
 				break;
 		}
 	} else this.mode === 4 && (this.sinph0 = Math.sin(this.lat0), this.cosph0 = Math.cos(this.lat0));
 }
-function Cs(e) {
+function ws(e) {
 	var t, n, r, i, a, o, s, c, l, u, d = e.x, f = e.y;
 	if (d = P(d - this.long0, this.over), this.sphere) {
 		if (a = Math.sin(f), u = Math.cos(f), r = Math.cos(d), this.mode === this.OBLIQ || this.mode === this.EQUIT) {
@@ -5884,7 +5884,7 @@ function Cs(e) {
 			n = j - f * .5, n = 2 * (this.mode === this.S_POLE ? Math.cos(n) : Math.sin(n)), t = n * Math.sin(d), n *= r;
 		}
 	} else {
-		switch (s = 0, c = 0, l = 0, r = Math.cos(d), i = Math.sin(d), a = Math.sin(f), o = ps(this.e, a), (this.mode === this.OBLIQ || this.mode === this.EQUIT) && (s = o / this.qp, c = Math.sqrt(1 - s * s)), this.mode) {
+		switch (s = 0, c = 0, l = 0, r = Math.cos(d), i = Math.sin(d), a = Math.sin(f), o = ms(this.e, a), (this.mode === this.OBLIQ || this.mode === this.EQUIT) && (s = o / this.qp, c = Math.sqrt(1 - s * s)), this.mode) {
 			case this.OBLIQ:
 				l = 1 + this.sinb1 * s + this.cosb1 * c * r;
 				break;
@@ -5912,7 +5912,7 @@ function Cs(e) {
 	}
 	return e.x = this.a * t + this.x0, e.y = this.a * n + this.y0, e;
 }
-function ws(e) {
+function Ts(e) {
 	e.x -= this.x0, e.y -= this.y0;
 	var t = e.x / this.a, n = e.y / this.a, r, i, a, o, s, c, l;
 	if (this.sphere) {
@@ -5941,14 +5941,14 @@ function ws(e) {
 			if (this.mode === this.N_POLE && (n = -n), s = t * t + n * n, !s) return e.x = this.long0, e.y = this.lat0, e;
 			l = 1 - s / this.qp, this.mode === this.S_POLE && (l = -l);
 		}
-		r = Math.atan2(t, n), i = xs(Math.asin(l), this.apa);
+		r = Math.atan2(t, n), i = Ss(Math.asin(l), this.apa);
 	}
 	return e.x = P(this.long0 + r, this.over), e.y = i, e;
 }
-var Ts = {
-	init: Ss,
-	forward: Cs,
-	inverse: ws,
+var Es = {
+	init: Cs,
+	forward: ws,
+	inverse: Ts,
 	names: [
 		"Lambert Azimuthal Equal Area",
 		"Lambert_Azimuthal_Equal_Area",
@@ -5961,64 +5961,64 @@ var Ts = {
 };
 //#endregion
 //#region node_modules/proj4/lib/common/asinz.js
-function Es(e) {
+function Ds(e) {
 	return Math.abs(e) > 1 && (e = e > 1 ? 1 : -1), Math.asin(e);
 }
 //#endregion
 //#region node_modules/proj4/lib/projections/aea.js
-function Ds() {
-	Math.abs(this.lat1 + this.lat2) < 1e-10 || (this.temp = this.b / this.a, this.es = 1 - this.temp ** 2, this.e3 = Math.sqrt(this.es), this.sin_po = Math.sin(this.lat1), this.cos_po = Math.cos(this.lat1), this.t1 = this.sin_po, this.con = this.sin_po, this.ms1 = ni(this.e3, this.sin_po, this.cos_po), this.qs1 = ps(this.e3, this.sin_po), this.sin_po = Math.sin(this.lat2), this.cos_po = Math.cos(this.lat2), this.t2 = this.sin_po, this.ms2 = ni(this.e3, this.sin_po, this.cos_po), this.qs2 = ps(this.e3, this.sin_po), this.sin_po = Math.sin(this.lat0), this.cos_po = Math.cos(this.lat0), this.t3 = this.sin_po, this.qs0 = ps(this.e3, this.sin_po), Math.abs(this.lat1 - this.lat2) > 1e-10 ? this.ns0 = (this.ms1 * this.ms1 - this.ms2 * this.ms2) / (this.qs2 - this.qs1) : this.ns0 = this.con, this.c = this.ms1 * this.ms1 + this.ns0 * this.qs1, this.rh = this.a * Math.sqrt(this.c - this.ns0 * this.qs0) / this.ns0);
-}
-function Os(e) {
-	var t = e.x, n = e.y;
-	this.sin_phi = Math.sin(n), this.cos_phi = Math.cos(n);
-	var r = ps(this.e3, this.sin_phi), i = this.a * Math.sqrt(this.c - this.ns0 * r) / this.ns0, a = this.ns0 * P(t - this.long0, this.over), o = i * Math.sin(a) + this.x0, s = this.rh - i * Math.cos(a) + this.y0;
-	return e.x = o, e.y = s, e;
+function Os() {
+	Math.abs(this.lat1 + this.lat2) < 1e-10 || (this.temp = this.b / this.a, this.es = 1 - this.temp ** 2, this.e3 = Math.sqrt(this.es), this.sin_po = Math.sin(this.lat1), this.cos_po = Math.cos(this.lat1), this.t1 = this.sin_po, this.con = this.sin_po, this.ms1 = ni(this.e3, this.sin_po, this.cos_po), this.qs1 = ms(this.e3, this.sin_po), this.sin_po = Math.sin(this.lat2), this.cos_po = Math.cos(this.lat2), this.t2 = this.sin_po, this.ms2 = ni(this.e3, this.sin_po, this.cos_po), this.qs2 = ms(this.e3, this.sin_po), this.sin_po = Math.sin(this.lat0), this.cos_po = Math.cos(this.lat0), this.t3 = this.sin_po, this.qs0 = ms(this.e3, this.sin_po), Math.abs(this.lat1 - this.lat2) > 1e-10 ? this.ns0 = (this.ms1 * this.ms1 - this.ms2 * this.ms2) / (this.qs2 - this.qs1) : this.ns0 = this.con, this.c = this.ms1 * this.ms1 + this.ns0 * this.qs1, this.rh = this.a * Math.sqrt(this.c - this.ns0 * this.qs0) / this.ns0);
 }
 function ks(e) {
+	var t = e.x, n = e.y;
+	this.sin_phi = Math.sin(n), this.cos_phi = Math.cos(n);
+	var r = ms(this.e3, this.sin_phi), i = this.a * Math.sqrt(this.c - this.ns0 * r) / this.ns0, a = this.ns0 * P(t - this.long0, this.over), o = i * Math.sin(a) + this.x0, s = this.rh - i * Math.cos(a) + this.y0;
+	return e.x = o, e.y = s, e;
+}
+function As(e) {
 	var t, n, r, i, a, o;
 	return e.x -= this.x0, e.y = this.rh - e.y + this.y0, this.ns0 >= 0 ? (t = Math.sqrt(e.x * e.x + e.y * e.y), r = 1) : (t = -Math.sqrt(e.x * e.x + e.y * e.y), r = -1), i = 0, t !== 0 && (i = Math.atan2(r * e.x, r * e.y)), r = t * this.ns0 / this.a, this.sphere ? o = Math.asin((this.c - r * r) / (2 * this.ns0)) : (n = (this.c - r * r) / this.ns0, o = this.phi1z(this.e3, n)), a = P(i / this.ns0 + this.long0, this.over), e.x = a, e.y = o, e;
 }
-function As(e, t) {
-	var n, r, i, a, o, s = Es(.5 * t);
+function js(e, t) {
+	var n, r, i, a, o, s = Ds(.5 * t);
 	if (e < 1e-10) return s;
 	for (var c = e * e, l = 1; l <= 25; l++) if (n = Math.sin(s), r = Math.cos(s), i = e * n, a = 1 - i * i, o = .5 * a * a / r * (t / (1 - c) - n / a + .5 / e * Math.log((1 - i) / (1 + i))), s += o, Math.abs(o) <= 1e-7) return s;
 	return null;
 }
-var js = {
-	init: Ds,
-	forward: Os,
-	inverse: ks,
+var Ms = {
+	init: Os,
+	forward: ks,
+	inverse: As,
 	names: [
 		"Albers_Conic_Equal_Area",
 		"Albers_Equal_Area",
 		"Albers",
 		"aea"
 	],
-	phi1z: As
+	phi1z: js
 };
 //#endregion
 //#region node_modules/proj4/lib/projections/gnom.js
-function Ms() {
+function Ns() {
 	this.sin_p14 = Math.sin(this.lat0), this.cos_p14 = Math.cos(this.lat0), this.infinity_dist = 1e3 * this.a, this.rc = 1;
 }
-function Ns(e) {
+function Ps(e) {
 	var t, n, r, i, a, o, s, c, l = e.x, u = e.y;
 	return r = P(l - this.long0, this.over), t = Math.sin(u), n = Math.cos(u), i = Math.cos(r), o = this.sin_p14 * t + this.cos_p14 * n * i, a = 1, o > 0 || Math.abs(o) <= 1e-10 ? (s = this.x0 + this.a * a * n * Math.sin(r) / o, c = this.y0 + this.a * a * (this.cos_p14 * t - this.sin_p14 * n * i) / o) : (s = this.x0 + this.infinity_dist * n * Math.sin(r), c = this.y0 + this.infinity_dist * (this.cos_p14 * t - this.sin_p14 * n * i)), e.x = s, e.y = c, e;
 }
-function Ps(e) {
+function Fs(e) {
 	var t, n, r, i, a, o;
-	return e.x = (e.x - this.x0) / this.a, e.y = (e.y - this.y0) / this.a, e.x /= this.k0, e.y /= this.k0, (t = Math.sqrt(e.x * e.x + e.y * e.y)) ? (i = Math.atan2(t, this.rc), n = Math.sin(i), r = Math.cos(i), o = Es(r * this.sin_p14 + e.y * n * this.cos_p14 / t), a = Math.atan2(e.x * n, t * this.cos_p14 * r - e.y * this.sin_p14 * n), a = P(this.long0 + a, this.over)) : (o = this.phic0, a = 0), e.x = a, e.y = o, e;
+	return e.x = (e.x - this.x0) / this.a, e.y = (e.y - this.y0) / this.a, e.x /= this.k0, e.y /= this.k0, (t = Math.sqrt(e.x * e.x + e.y * e.y)) ? (i = Math.atan2(t, this.rc), n = Math.sin(i), r = Math.cos(i), o = Ds(r * this.sin_p14 + e.y * n * this.cos_p14 / t), a = Math.atan2(e.x * n, t * this.cos_p14 * r - e.y * this.sin_p14 * n), a = P(this.long0 + a, this.over)) : (o = this.phic0, a = 0), e.x = a, e.y = o, e;
 }
-var Fs = {
-	init: Ms,
-	forward: Ns,
-	inverse: Ps,
+var Is = {
+	init: Ns,
+	forward: Ps,
+	inverse: Fs,
 	names: ["gnom"]
 };
 //#endregion
 //#region node_modules/proj4/lib/common/iqsfnz.js
-function Is(e, t) {
+function Ls(e, t) {
 	var n = 1 - (1 - e * e) / (2 * e) * Math.log((1 - e) / (1 + e));
 	if (Math.abs(Math.abs(t) - n) < 1e-6) return t < 0 ? -1 * k : k;
 	for (var r = Math.asin(.5 * t), i, a, o, s, c = 0; c < 30; c++) if (a = Math.sin(r), o = Math.cos(r), s = e * a, i = (1 - s * s) ** 2 / (2 * o) * (t / (1 - e * e) - a / (1 - s * s) + .5 / e * Math.log((1 - s) / (1 + s))), r += i, Math.abs(i) <= 1e-10) return r;
@@ -6026,73 +6026,73 @@ function Is(e, t) {
 }
 //#endregion
 //#region node_modules/proj4/lib/projections/cea.js
-function Ls() {
+function Rs() {
 	this.sphere || (this.k0 = ni(this.e, Math.sin(this.lat_ts), Math.cos(this.lat_ts)));
 }
-function Rs(e) {
+function zs(e) {
 	var t = e.x, n = e.y, r, i, a = P(t - this.long0, this.over);
 	if (this.sphere) r = this.x0 + this.a * a * Math.cos(this.lat_ts), i = this.y0 + this.a * Math.sin(n) / Math.cos(this.lat_ts);
 	else {
-		var o = ps(this.e, Math.sin(n));
+		var o = ms(this.e, Math.sin(n));
 		r = this.x0 + this.a * this.k0 * a, i = this.y0 + this.a * o * .5 / this.k0;
 	}
 	return e.x = r, e.y = i, e;
 }
-function zs(e) {
+function Bs(e) {
 	e.x -= this.x0, e.y -= this.y0;
 	var t, n;
-	return this.sphere ? (t = P(this.long0 + e.x / this.a / Math.cos(this.lat_ts), this.over), n = Math.asin(e.y / this.a * Math.cos(this.lat_ts))) : (n = Is(this.e, 2 * e.y * this.k0 / this.a), t = P(this.long0 + e.x / (this.a * this.k0), this.over)), e.x = t, e.y = n, e;
+	return this.sphere ? (t = P(this.long0 + e.x / this.a / Math.cos(this.lat_ts), this.over), n = Math.asin(e.y / this.a * Math.cos(this.lat_ts))) : (n = Ls(this.e, 2 * e.y * this.k0 / this.a), t = P(this.long0 + e.x / (this.a * this.k0), this.over)), e.x = t, e.y = n, e;
 }
-var Bs = {
-	init: Ls,
-	forward: Rs,
-	inverse: zs,
+var Vs = {
+	init: Rs,
+	forward: zs,
+	inverse: Bs,
 	names: ["cea"]
 };
 //#endregion
 //#region node_modules/proj4/lib/projections/eqc.js
-function Vs() {
+function Hs() {
 	this.x0 = this.x0 || 0, this.y0 = this.y0 || 0, this.lat0 = this.lat0 || 0, this.long0 = this.long0 || 0, this.lat_ts = this.lat_ts || 0, this.title = this.title || "Equidistant Cylindrical (Plate Carre)", this.rc = Math.cos(this.lat_ts);
 }
-function Hs(e) {
-	var t = e.x, n = e.y, r = P(t - this.long0, this.over), i = ss(n - this.lat0);
+function Us(e) {
+	var t = e.x, n = e.y, r = P(t - this.long0, this.over), i = cs(n - this.lat0);
 	return e.x = this.x0 + this.a * r * this.rc, e.y = this.y0 + this.a * i, e;
 }
-function Us(e) {
+function Ws(e) {
 	var t = e.x, n = e.y;
-	return e.x = P(this.long0 + (t - this.x0) / (this.a * this.rc), this.over), e.y = ss(this.lat0 + (n - this.y0) / this.a), e;
+	return e.x = P(this.long0 + (t - this.x0) / (this.a * this.rc), this.over), e.y = cs(this.lat0 + (n - this.y0) / this.a), e;
 }
-var Ws = {
-	init: Vs,
-	forward: Hs,
-	inverse: Us,
+var Gs = {
+	init: Hs,
+	forward: Us,
+	inverse: Ws,
 	names: [
 		"Equirectangular",
 		"Equidistant_Cylindrical",
 		"Equidistant_Cylindrical_Spherical",
 		"eqc"
 	]
-}, Gs = 20;
-function Ks() {
-	this.temp = this.b / this.a, this.es = 1 - this.temp ** 2, this.e = Math.sqrt(this.es), this.e0 = ns(this.es), this.e1 = rs(this.es), this.e2 = is(this.es), this.e3 = as(this.es), this.ml0 = this.a * F(this.e0, this.e1, this.e2, this.e3, this.lat0);
+}, Ks = 20;
+function qs() {
+	this.temp = this.b / this.a, this.es = 1 - this.temp ** 2, this.e = Math.sqrt(this.es), this.e0 = rs(this.es), this.e1 = is(this.es), this.e2 = as(this.es), this.e3 = os(this.es), this.ml0 = this.a * ns(this.e0, this.e1, this.e2, this.e3, this.lat0);
 }
-function qs(e) {
+function Js(e) {
 	var t = e.x, n = e.y, r, i, a, o = P(t - this.long0, this.over);
-	if (a = o * Math.sin(n), this.sphere) Math.abs(n) <= 1e-10 ? (r = this.a * o, i = -1 * this.a * this.lat0) : (r = this.a * Math.sin(a) / Math.tan(n), i = this.a * (ss(n - this.lat0) + (1 - Math.cos(a)) / Math.tan(n)));
+	if (a = o * Math.sin(n), this.sphere) Math.abs(n) <= 1e-10 ? (r = this.a * o, i = -1 * this.a * this.lat0) : (r = this.a * Math.sin(a) / Math.tan(n), i = this.a * (cs(n - this.lat0) + (1 - Math.cos(a)) / Math.tan(n)));
 	else if (Math.abs(n) <= 1e-10) r = this.a * o, i = -1 * this.ml0;
 	else {
-		var s = os(this.a, this.e, Math.sin(n)) / Math.tan(n);
-		r = s * Math.sin(a), i = this.a * F(this.e0, this.e1, this.e2, this.e3, n) - this.ml0 + s * (1 - Math.cos(a));
+		var s = ss(this.a, this.e, Math.sin(n)) / Math.tan(n);
+		r = s * Math.sin(a), i = this.a * ns(this.e0, this.e1, this.e2, this.e3, n) - this.ml0 + s * (1 - Math.cos(a));
 	}
 	return e.x = r + this.x0, e.y = i + this.y0, e;
 }
-function Js(e) {
+function Ys(e) {
 	var t, n, r = e.x - this.x0, i = e.y - this.y0, a, o, s, c, l;
 	if (this.sphere) if (Math.abs(i + this.a * this.lat0) <= 1e-10) t = P(r / this.a + this.long0, this.over), n = 0;
 	else {
 		o = this.lat0 + i / this.a, s = r * r / this.a / this.a + o * o, c = o;
 		var u;
-		for (a = Gs; a; --a) if (u = Math.tan(c), l = -1 * (o * (c * u + 1) - c - .5 * (c * c + s) * u) / ((c - o) / u - 1), c += l, Math.abs(l) <= 1e-10) {
+		for (a = Ks; a; --a) if (u = Math.tan(c), l = -1 * (o * (c * u + 1) - c - .5 * (c * c + s) * u) / ((c - o) / u - 1), c += l, Math.abs(l) <= 1e-10) {
 			n = c;
 			break;
 		}
@@ -6102,7 +6102,7 @@ function Js(e) {
 	else {
 		o = (this.ml0 + i) / this.a, s = r * r / this.a / this.a + o * o, c = o;
 		var d, f, p, m, h;
-		for (a = Gs; a; --a) if (h = this.e * Math.sin(c), d = Math.sqrt(1 - h * h) * Math.tan(c), f = this.a * F(this.e0, this.e1, this.e2, this.e3, c), p = this.e0 - 2 * this.e1 * Math.cos(2 * c) + 4 * this.e2 * Math.cos(4 * c) - 6 * this.e3 * Math.cos(6 * c), m = f / this.a, l = (o * (d * m + 1) - m - .5 * d * (m * m + s)) / (this.es * Math.sin(2 * c) * (m * m + s - 2 * o * m) / (4 * d) + (o - m) * (d * p - 2 / Math.sin(2 * c)) - p), c -= l, Math.abs(l) <= 1e-10) {
+		for (a = Ks; a; --a) if (h = this.e * Math.sin(c), d = Math.sqrt(1 - h * h) * Math.tan(c), f = this.a * ns(this.e0, this.e1, this.e2, this.e3, c), p = this.e0 - 2 * this.e1 * Math.cos(2 * c) + 4 * this.e2 * Math.cos(4 * c) - 6 * this.e3 * Math.cos(6 * c), m = f / this.a, l = (o * (d * m + 1) - m - .5 * d * (m * m + s)) / (this.es * Math.sin(2 * c) * (m * m + s - 2 * o * m) / (4 * d) + (o - m) * (d * p - 2 / Math.sin(2 * c)) - p), c -= l, Math.abs(l) <= 1e-10) {
 			n = c;
 			break;
 		}
@@ -6110,27 +6110,27 @@ function Js(e) {
 	}
 	return e.x = t, e.y = n, e;
 }
-var Ys = {
-	init: Ks,
-	forward: qs,
-	inverse: Js,
+var Xs = {
+	init: qs,
+	forward: Js,
+	inverse: Ys,
 	names: [
 		"Polyconic",
 		"American_Polyconic",
 		"poly"
 	]
 };
-function Xs() {
+function Zs() {
 	this.A = [], this.A[1] = .6399175073, this.A[2] = -.1358797613, this.A[3] = .063294409, this.A[4] = -.02526853, this.A[5] = .0117879, this.A[6] = -.0055161, this.A[7] = .0026906, this.A[8] = -.001333, this.A[9] = 67e-5, this.A[10] = -34e-5, this.B_re = [], this.B_im = [], this.B_re[1] = .7557853228, this.B_im[1] = 0, this.B_re[2] = .249204646, this.B_im[2] = .003371507, this.B_re[3] = -.001541739, this.B_im[3] = .04105856, this.B_re[4] = -.10162907, this.B_im[4] = .01727609, this.B_re[5] = -.26623489, this.B_im[5] = -.36249218, this.B_re[6] = -.6870983, this.B_im[6] = -1.1651967, this.C_re = [], this.C_im = [], this.C_re[1] = 1.3231270439, this.C_im[1] = 0, this.C_re[2] = -.577245789, this.C_im[2] = -.007809598, this.C_re[3] = .508307513, this.C_im[3] = -.112208952, this.C_re[4] = -.15094762, this.C_im[4] = .18200602, this.C_re[5] = 1.01418179, this.C_im[5] = 1.64497696, this.C_re[6] = 1.9660549, this.C_im[6] = 2.5127645, this.D = [], this.D[1] = 1.5627014243, this.D[2] = .5185406398, this.D[3] = -.03333098, this.D[4] = -.1052906, this.D[5] = -.0368594, this.D[6] = .007317, this.D[7] = .0122, this.D[8] = .00394, this.D[9] = -.0013;
 }
-function Zs(e) {
+function Qs(e) {
 	var t, n = e.x, r = e.y - this.lat0, i = n - this.long0, a = r / ir * 1e-5, o = i, s = 1, c = 0;
 	for (t = 1; t <= 10; t++) s *= a, c += this.A[t] * s;
 	var l = c, u = o, d = 1, f = 0, p, m, h = 0, g = 0;
 	for (t = 1; t <= 6; t++) p = d * l - f * u, m = f * l + d * u, d = p, f = m, h = h + this.B_re[t] * d - this.B_im[t] * f, g = g + this.B_im[t] * d + this.B_re[t] * f;
 	return e.x = g * this.a + this.x0, e.y = h * this.a + this.y0, e;
 }
-function Qs(e) {
+function $s(e) {
 	var t, n = e.x, r = e.y, i = n - this.x0, a = (r - this.y0) / this.a, o = i / this.a, s = 1, c = 0, l, u, d = 0, f = 0;
 	for (t = 1; t <= 6; t++) l = s * a - c * o, u = c * a + s * o, s = l, c = u, d = d + this.C_re[t] * s - this.C_im[t] * c, f = f + this.C_im[t] * s + this.C_re[t] * c;
 	for (var p = 0; p < this.iterations; p++) {
@@ -6147,39 +6147,39 @@ function Qs(e) {
 	var ne = this.lat0 + te * ir * 1e5;
 	return e.x = this.long0 + ee, e.y = ne, e;
 }
-var $s = {
-	init: Xs,
-	forward: Zs,
-	inverse: Qs,
+var ec = {
+	init: Zs,
+	forward: Qs,
+	inverse: $s,
 	names: ["New_Zealand_Map_Grid", "nzmg"],
 	iterations: 1
 };
 //#endregion
 //#region node_modules/proj4/lib/projections/mill.js
-function ec() {}
-function tc(e) {
+function tc() {}
+function nc(e) {
 	var t = e.x, n = e.y, r = P(t - this.long0, this.over), i = this.x0 + this.a * r, a = this.y0 + this.a * Math.log(Math.tan(Math.PI / 4 + n / 2.5)) * 1.25;
 	return e.x = i, e.y = a, e;
 }
-function nc(e) {
+function rc(e) {
 	e.x -= this.x0, e.y -= this.y0;
 	var t = P(this.long0 + e.x / this.a, this.over), n = 2.5 * (Math.atan(Math.exp(.8 * e.y / this.a)) - Math.PI / 4);
 	return e.x = t, e.y = n, e;
 }
-var rc = {
-	init: ec,
-	forward: tc,
-	inverse: nc,
+var ic = {
+	init: tc,
+	forward: nc,
+	inverse: rc,
 	names: ["Miller_Cylindrical", "mill"]
-}, ic = 20;
-function ac() {
+}, ac = 20;
+function oc() {
 	this.long0 = this.long0 || 0, this.sphere ? (this.n = 1, this.m = 0, this.es = 0, this.C_y = Math.sqrt((this.m + 1) / this.n), this.C_x = this.C_y / (this.m + 1)) : this.en = Qa(this.es);
 }
-function oc(e) {
+function sc(e) {
 	var t, n, r = e.x, i = e.y;
 	if (r = P(r - this.long0, this.over), this.sphere) {
 		if (!this.m) i = this.n === 1 ? i : Math.asin(this.n * Math.sin(i));
-		else for (var a = this.n * Math.sin(i), o = ic; o; --o) {
+		else for (var a = this.n * Math.sin(i), o = ac; o; --o) {
 			var s = (this.m * i + Math.sin(i) - a) / (this.m + Math.cos(i));
 			if (i -= s, Math.abs(s) < 1e-10) break;
 		}
@@ -6190,33 +6190,33 @@ function oc(e) {
 	}
 	return e.x = t, e.y = n, e;
 }
-function sc(e) {
+function cc(e) {
 	var t, n, r, i;
-	return e.x -= this.x0, r = e.x / this.a, e.y -= this.y0, t = e.y / this.a, this.sphere ? (t /= this.C_y, r /= this.C_x * (this.m + Math.cos(t)), this.m ? t = Es((this.m * t + Math.sin(t)) / this.n) : this.n !== 1 && (t = Es(Math.sin(t) / this.n)), r = P(r + this.long0, this.over), t = ss(t)) : (t = to(e.y / this.a, this.es, this.en), i = Math.abs(t), i < k ? (i = Math.sin(t), n = this.long0 + e.x * Math.sqrt(1 - this.es * i * i) / (this.a * Math.cos(t)), r = P(n, this.over)) : i - 1e-10 < k && (r = this.long0)), e.x = r, e.y = t, e;
+	return e.x -= this.x0, r = e.x / this.a, e.y -= this.y0, t = e.y / this.a, this.sphere ? (t /= this.C_y, r /= this.C_x * (this.m + Math.cos(t)), this.m ? t = Ds((this.m * t + Math.sin(t)) / this.n) : this.n !== 1 && (t = Ds(Math.sin(t) / this.n)), r = P(r + this.long0, this.over), t = cs(t)) : (t = to(e.y / this.a, this.es, this.en), i = Math.abs(t), i < k ? (i = Math.sin(t), n = this.long0 + e.x * Math.sqrt(1 - this.es * i * i) / (this.a * Math.cos(t)), r = P(n, this.over)) : i - 1e-10 < k && (r = this.long0)), e.x = r, e.y = t, e;
 }
-var cc = {
-	init: ac,
-	forward: oc,
-	inverse: sc,
+var lc = {
+	init: oc,
+	forward: sc,
+	inverse: cc,
 	names: ["Sinusoidal", "sinu"]
 };
 //#endregion
 //#region node_modules/proj4/lib/projections/eck6.js
-function lc() {
+function uc() {
 	this.sphere = !0, this.b = this.a, this.m = 1, this.n = 2.5707963267948966, this.es = 0, this.C_y = Math.sqrt((this.m + 1) / this.n), this.C_x = this.C_y / (this.m + 1);
 }
-var uc = {
-	init: lc,
-	forward: oc,
-	inverse: sc,
+var dc = {
+	init: uc,
+	forward: sc,
+	inverse: cc,
 	names: ["Eckert_VI", "eck6"]
 };
 //#endregion
 //#region node_modules/proj4/lib/projections/moll.js
-function dc() {
+function fc() {
 	this.x0 = this.x0 === void 0 ? 0 : this.x0, this.y0 = this.y0 === void 0 ? 0 : this.y0, this.long0 = this.long0 === void 0 ? 0 : this.long0;
 }
-function fc(e) {
+function pc(e) {
 	for (var t = e.x, n = e.y, r = P(t - this.long0, this.over), i = n, a = Math.PI * Math.sin(n);;) {
 		var o = -(i + Math.sin(i) - a) / (1 + Math.cos(i));
 		if (i += o, Math.abs(o) < 1e-10) break;
@@ -6225,7 +6225,7 @@ function fc(e) {
 	var s = .900316316158 * this.a * r * Math.cos(i) + this.x0, c = 1.4142135623731 * this.a * Math.sin(i) + this.y0;
 	return e.x = s, e.y = c, e;
 }
-function pc(e) {
+function mc(e) {
 	var t, n;
 	e.x -= this.x0, e.y -= this.y0, n = e.y / (1.4142135623731 * this.a), Math.abs(n) > .999999999999 && (n = .999999999999), t = Math.asin(n);
 	var r = P(this.long0 + e.x / (.900316316158 * this.a * Math.cos(t)), this.over);
@@ -6233,63 +6233,63 @@ function pc(e) {
 	var i = Math.asin(n);
 	return e.x = r, e.y = i, e;
 }
-var mc = {
-	init: dc,
-	forward: fc,
-	inverse: pc,
+var hc = {
+	init: fc,
+	forward: pc,
+	inverse: mc,
 	names: ["Mollweide", "moll"]
 };
 //#endregion
 //#region node_modules/proj4/lib/projections/eqdc.js
-function hc() {
-	Math.abs(this.lat1 + this.lat2) < 1e-10 || (this.lat2 = this.lat2 || this.lat1, this.temp = this.b / this.a, this.es = 1 - this.temp ** 2, this.e = Math.sqrt(this.es), this.e0 = ns(this.es), this.e1 = rs(this.es), this.e2 = is(this.es), this.e3 = as(this.es), this.sin_phi = Math.sin(this.lat1), this.cos_phi = Math.cos(this.lat1), this.ms1 = ni(this.e, this.sin_phi, this.cos_phi), this.ml1 = F(this.e0, this.e1, this.e2, this.e3, this.lat1), Math.abs(this.lat1 - this.lat2) < 1e-10 ? this.ns = this.sin_phi : (this.sin_phi = Math.sin(this.lat2), this.cos_phi = Math.cos(this.lat2), this.ms2 = ni(this.e, this.sin_phi, this.cos_phi), this.ml2 = F(this.e0, this.e1, this.e2, this.e3, this.lat2), this.ns = (this.ms1 - this.ms2) / (this.ml2 - this.ml1)), this.g = this.ml1 + this.ms1 / this.ns, this.ml0 = F(this.e0, this.e1, this.e2, this.e3, this.lat0), this.rh = this.a * (this.g - this.ml0));
+function gc() {
+	Math.abs(this.lat1 + this.lat2) < 1e-10 || (this.lat2 = this.lat2 || this.lat1, this.temp = this.b / this.a, this.es = 1 - this.temp ** 2, this.e = Math.sqrt(this.es), this.e0 = rs(this.es), this.e1 = is(this.es), this.e2 = as(this.es), this.e3 = os(this.es), this.sin_phi = Math.sin(this.lat1), this.cos_phi = Math.cos(this.lat1), this.ms1 = ni(this.e, this.sin_phi, this.cos_phi), this.ml1 = ns(this.e0, this.e1, this.e2, this.e3, this.lat1), Math.abs(this.lat1 - this.lat2) < 1e-10 ? this.ns = this.sin_phi : (this.sin_phi = Math.sin(this.lat2), this.cos_phi = Math.cos(this.lat2), this.ms2 = ni(this.e, this.sin_phi, this.cos_phi), this.ml2 = ns(this.e0, this.e1, this.e2, this.e3, this.lat2), this.ns = (this.ms1 - this.ms2) / (this.ml2 - this.ml1)), this.g = this.ml1 + this.ms1 / this.ns, this.ml0 = ns(this.e0, this.e1, this.e2, this.e3, this.lat0), this.rh = this.a * (this.g - this.ml0));
 }
-function gc(e) {
+function _c(e) {
 	var t = e.x, n = e.y, r;
 	if (this.sphere) r = this.a * (this.g - n);
 	else {
-		var i = F(this.e0, this.e1, this.e2, this.e3, n);
+		var i = ns(this.e0, this.e1, this.e2, this.e3, n);
 		r = this.a * (this.g - i);
 	}
 	var a = this.ns * P(t - this.long0, this.over), o = this.x0 + r * Math.sin(a), s = this.y0 + this.rh - r * Math.cos(a);
 	return e.x = o, e.y = s, e;
 }
-function _c(e) {
+function vc(e) {
 	e.x -= this.x0, e.y = this.rh - e.y + this.y0;
 	var t, n, r, i;
 	this.ns >= 0 ? (n = Math.sqrt(e.x * e.x + e.y * e.y), t = 1) : (n = -Math.sqrt(e.x * e.x + e.y * e.y), t = -1);
 	var a = 0;
-	return n !== 0 && (a = Math.atan2(t * e.x, t * e.y)), this.sphere ? (i = P(this.long0 + a / this.ns, this.over), r = ss(this.g - n / this.a), e.x = i, e.y = r, e) : (r = cs(this.g - n / this.a, this.e0, this.e1, this.e2, this.e3), i = P(this.long0 + a / this.ns, this.over), e.x = i, e.y = r, e);
+	return n !== 0 && (a = Math.atan2(t * e.x, t * e.y)), this.sphere ? (i = P(this.long0 + a / this.ns, this.over), r = cs(this.g - n / this.a), e.x = i, e.y = r, e) : (r = ls(this.g - n / this.a, this.e0, this.e1, this.e2, this.e3), i = P(this.long0 + a / this.ns, this.over), e.x = i, e.y = r, e);
 }
-var vc = {
-	init: hc,
-	forward: gc,
-	inverse: _c,
+var yc = {
+	init: gc,
+	forward: _c,
+	inverse: vc,
 	names: ["Equidistant_Conic", "eqdc"]
 };
 //#endregion
 //#region node_modules/proj4/lib/projections/vandg.js
-function yc() {
+function bc() {
 	this.R = this.a;
 }
-function bc(e) {
+function xc(e) {
 	var t = e.x, n = e.y, r = P(t - this.long0, this.over), i, a;
 	if (Math.abs(n) <= 1e-10) return i = this.x0 + this.R * r, a = this.y0, e.x = i, e.y = a, e;
-	var o = Es(2 * Math.abs(n / Math.PI));
+	var o = Ds(2 * Math.abs(n / Math.PI));
 	if (Math.abs(r) <= 1e-10 || Math.abs(Math.abs(n) - k) <= 1e-10) return i = this.x0, a = n >= 0 ? this.y0 + Math.PI * this.R * Math.tan(.5 * o) : this.y0 + Math.PI * this.R * -Math.tan(.5 * o), e.x = i, e.y = a, e;
 	var s = .5 * Math.abs(Math.PI / r - r / Math.PI), c = s * s, l = Math.sin(o), u = Math.cos(o), d = u / (l + u - 1), f = d * d, p = d * (2 / l - 1), m = p * p, h = Math.PI * this.R * (s * (d - m) + Math.sqrt(c * (d - m) * (d - m) - (m + c) * (f - m))) / (m + c);
 	r < 0 && (h = -h), i = this.x0 + h;
 	var g = c + d;
 	return h = Math.PI * this.R * (p * g - s * Math.sqrt((m + c) * (c + 1) - g * g)) / (m + c), a = n >= 0 ? this.y0 + h : this.y0 - h, e.x = i, e.y = a, e;
 }
-function xc(e) {
+function Sc(e) {
 	var t, n, r, i, a, o, s, c, l, u, d, f, p;
 	return e.x -= this.x0, e.y -= this.y0, d = Math.PI * this.R, r = e.x / d, i = e.y / d, a = r * r + i * i, o = -Math.abs(i) * (1 + a), s = o - 2 * i * i + r * r, c = -2 * o + 1 + 2 * i * i + a * a, p = i * i / c + (2 * s * s * s / c / c / c - 9 * o * s / c / c) / 27, l = (o - s * s / 3 / c) / c, u = 2 * Math.sqrt(-l / 3), d = 3 * p / l / u, Math.abs(d) > 1 && (d = d >= 0 ? 1 : -1), f = Math.acos(d) / 3, n = e.y >= 0 ? (-u * Math.cos(f + Math.PI / 3) - s / 3 / c) * Math.PI : -(-u * Math.cos(f + Math.PI / 3) - s / 3 / c) * Math.PI, t = Math.abs(r) < 1e-10 ? this.long0 : P(this.long0 + Math.PI * (a - 1 + Math.sqrt(1 + 2 * (r * r - i * i) + a * a)) / 2 / r, this.over), e.x = t, e.y = n, e;
 }
-var Sc = {
-	init: yc,
-	forward: bc,
-	inverse: xc,
+var Cc = {
+	init: bc,
+	forward: xc,
+	inverse: Sc,
 	names: [
 		"Van_der_Grinten_I",
 		"VanDerGrinten",
@@ -6299,7 +6299,7 @@ var Sc = {
 };
 //#endregion
 //#region node_modules/proj4/lib/common/vincenty.js
-function Cc(e, t, n, r, i, a) {
+function wc(e, t, n, r, i, a) {
 	let o = r - t, s = Math.atan((1 - a) * Math.tan(e)), c = Math.atan((1 - a) * Math.tan(n)), l = Math.sin(s), u = Math.cos(s), d = Math.sin(c), f = Math.cos(c), p = o, m, h = 100, g, _, v, y, b, x, S, C, ee, w, te, ne, re, ie;
 	do {
 		if (g = Math.sin(p), _ = Math.cos(p), v = Math.sqrt(f * g * (f * g) + (u * d - l * f * _) * (u * d - l * f * _)), v === 0) return {
@@ -6316,7 +6316,7 @@ function Cc(e, t, n, r, i, a) {
 		s12: ie
 	});
 }
-function wc(e, t, n, r, i, a) {
+function Tc(e, t, n, r, i, a) {
 	let o = Math.atan((1 - a) * Math.tan(e)), s = Math.sin(o), c = Math.cos(o), l = Math.sin(n), u = Math.cos(n), d = Math.atan2(s, c * u), f = c * l, p = 1 - f * f, m = p * (i * i - i * (1 - a) * (i * (1 - a))) / (i * (1 - a) * (i * (1 - a))), h = 1 + m / 16384 * (4096 + m * (-768 + m * (320 - 175 * m))), g = m / 1024 * (256 + m * (-128 + m * (74 - 47 * m))), _ = r / (i * (1 - a) * h), v, y = 100, b, x, S, C;
 	do
 		b = Math.cos(2 * d + _), x = Math.sin(_), S = Math.cos(_), C = g * x * (b + g / 4 * (S * (-1 + 2 * b * b) - g / 6 * b * (-3 + 4 * x * x) * (-3 + 4 * b * b))), v = _, _ = r / (i * (1 - a) * h) + C;
@@ -6333,81 +6333,81 @@ function wc(e, t, n, r, i, a) {
 }
 //#endregion
 //#region node_modules/proj4/lib/projections/aeqd.js
-function Tc() {
+function Ec() {
 	this.sin_p12 = Math.sin(this.lat0), this.cos_p12 = Math.cos(this.lat0), this.x0 = this.x0 || 0, this.y0 = this.y0 || 0, this.long0 = this.long0 || 0, this.f = this.es / (1 + Math.sqrt(1 - this.es));
 }
-function Ec(e) {
-	var t = e.x, n = e.y, r = Math.sin(e.y), i = Math.cos(e.y), a = P(t - this.long0, this.over), o, s, c, l, u, d, f, p, m, h, g;
-	return this.sphere ? Math.abs(this.sin_p12 - 1) <= 1e-10 ? (e.x = this.x0 + this.a * (k - n) * Math.sin(a), e.y = this.y0 - this.a * (k - n) * Math.cos(a), e) : Math.abs(this.sin_p12 + 1) <= 1e-10 ? (e.x = this.x0 + this.a * (k + n) * Math.sin(a), e.y = this.y0 + this.a * (k + n) * Math.cos(a), e) : (m = this.sin_p12 * r + this.cos_p12 * i * Math.cos(a), f = Math.acos(m), p = f ? f / Math.sin(f) : 1, e.x = this.x0 + this.a * p * i * Math.sin(a), e.y = this.y0 + this.a * p * (this.cos_p12 * r - this.sin_p12 * i * Math.cos(a)), e) : (o = ns(this.es), s = rs(this.es), c = is(this.es), l = as(this.es), Math.abs(this.sin_p12 - 1) <= 1e-10 ? (u = this.a * F(o, s, c, l, k), d = this.a * F(o, s, c, l, n), e.x = this.x0 + (u - d) * Math.sin(a), e.y = this.y0 - (u - d) * Math.cos(a), e) : Math.abs(this.sin_p12 + 1) <= 1e-10 ? (u = this.a * F(o, s, c, l, k), d = this.a * F(o, s, c, l, n), e.x = this.x0 + (u + d) * Math.sin(a), e.y = this.y0 + (u + d) * Math.cos(a), e) : Math.abs(t) < 1e-10 && Math.abs(n - this.lat0) < 1e-10 ? (e.x = this.x0, e.y = this.y0, e) : (h = Cc(this.lat0, this.long0, n, t, this.a, this.f), g = h.azi1, e.x = this.x0 + h.s12 * Math.sin(g), e.y = this.y0 + h.s12 * Math.cos(g), e));
-}
 function Dc(e) {
+	var t = e.x, n = e.y, r = Math.sin(e.y), i = Math.cos(e.y), a = P(t - this.long0, this.over), o, s, c, l, u, d, f, p, m, h, g;
+	return this.sphere ? Math.abs(this.sin_p12 - 1) <= 1e-10 ? (e.x = this.x0 + this.a * (k - n) * Math.sin(a), e.y = this.y0 - this.a * (k - n) * Math.cos(a), e) : Math.abs(this.sin_p12 + 1) <= 1e-10 ? (e.x = this.x0 + this.a * (k + n) * Math.sin(a), e.y = this.y0 + this.a * (k + n) * Math.cos(a), e) : (m = this.sin_p12 * r + this.cos_p12 * i * Math.cos(a), f = Math.acos(m), p = f ? f / Math.sin(f) : 1, e.x = this.x0 + this.a * p * i * Math.sin(a), e.y = this.y0 + this.a * p * (this.cos_p12 * r - this.sin_p12 * i * Math.cos(a)), e) : (o = rs(this.es), s = is(this.es), c = as(this.es), l = os(this.es), Math.abs(this.sin_p12 - 1) <= 1e-10 ? (u = this.a * ns(o, s, c, l, k), d = this.a * ns(o, s, c, l, n), e.x = this.x0 + (u - d) * Math.sin(a), e.y = this.y0 - (u - d) * Math.cos(a), e) : Math.abs(this.sin_p12 + 1) <= 1e-10 ? (u = this.a * ns(o, s, c, l, k), d = this.a * ns(o, s, c, l, n), e.x = this.x0 + (u + d) * Math.sin(a), e.y = this.y0 + (u + d) * Math.cos(a), e) : Math.abs(t) < 1e-10 && Math.abs(n - this.lat0) < 1e-10 ? (e.x = this.x0, e.y = this.y0, e) : (h = wc(this.lat0, this.long0, n, t, this.a, this.f), g = h.azi1, e.x = this.x0 + h.s12 * Math.sin(g), e.y = this.y0 + h.s12 * Math.cos(g), e));
+}
+function Oc(e) {
 	e.x -= this.x0, e.y -= this.y0;
 	var t, n, r, i, a, o, s, c, l, u, d, f, p, m, h, g;
-	return this.sphere ? (t = Math.sqrt(e.x * e.x + e.y * e.y), t > 2 * k * this.a ? void 0 : (n = t / this.a, r = Math.sin(n), i = Math.cos(n), a = this.long0, Math.abs(t) <= 1e-10 ? o = this.lat0 : (o = Es(i * this.sin_p12 + e.y * r * this.cos_p12 / t), s = Math.abs(this.lat0) - k, a = Math.abs(s) <= 1e-10 ? this.lat0 >= 0 ? P(this.long0 + Math.atan2(e.x, -e.y), this.over) : P(this.long0 - Math.atan2(-e.x, e.y), this.over) : P(this.long0 + Math.atan2(e.x * r, t * this.cos_p12 * i - e.y * this.sin_p12 * r), this.over)), e.x = a, e.y = o, e)) : (c = ns(this.es), l = rs(this.es), u = is(this.es), d = as(this.es), Math.abs(this.sin_p12 - 1) <= 1e-10 ? (f = this.a * F(c, l, u, d, k), t = Math.sqrt(e.x * e.x + e.y * e.y), p = f - t, o = cs(p / this.a, c, l, u, d), a = P(this.long0 + Math.atan2(e.x, -1 * e.y), this.over), e.x = a, e.y = o, e) : Math.abs(this.sin_p12 + 1) <= 1e-10 ? (f = this.a * F(c, l, u, d, k), t = Math.sqrt(e.x * e.x + e.y * e.y), p = t - f, o = cs(p / this.a, c, l, u, d), a = P(this.long0 + Math.atan2(e.x, e.y), this.over), e.x = a, e.y = o, e) : (m = Math.atan2(e.x, e.y), h = Math.sqrt(e.x * e.x + e.y * e.y), g = wc(this.lat0, this.long0, m, h, this.a, this.f), e.x = g.lon2, e.y = g.lat2, e));
+	return this.sphere ? (t = Math.sqrt(e.x * e.x + e.y * e.y), t > 2 * k * this.a ? void 0 : (n = t / this.a, r = Math.sin(n), i = Math.cos(n), a = this.long0, Math.abs(t) <= 1e-10 ? o = this.lat0 : (o = Ds(i * this.sin_p12 + e.y * r * this.cos_p12 / t), s = Math.abs(this.lat0) - k, a = Math.abs(s) <= 1e-10 ? this.lat0 >= 0 ? P(this.long0 + Math.atan2(e.x, -e.y), this.over) : P(this.long0 - Math.atan2(-e.x, e.y), this.over) : P(this.long0 + Math.atan2(e.x * r, t * this.cos_p12 * i - e.y * this.sin_p12 * r), this.over)), e.x = a, e.y = o, e)) : (c = rs(this.es), l = is(this.es), u = as(this.es), d = os(this.es), Math.abs(this.sin_p12 - 1) <= 1e-10 ? (f = this.a * ns(c, l, u, d, k), t = Math.sqrt(e.x * e.x + e.y * e.y), p = f - t, o = ls(p / this.a, c, l, u, d), a = P(this.long0 + Math.atan2(e.x, -1 * e.y), this.over), e.x = a, e.y = o, e) : Math.abs(this.sin_p12 + 1) <= 1e-10 ? (f = this.a * ns(c, l, u, d, k), t = Math.sqrt(e.x * e.x + e.y * e.y), p = t - f, o = ls(p / this.a, c, l, u, d), a = P(this.long0 + Math.atan2(e.x, e.y), this.over), e.x = a, e.y = o, e) : (m = Math.atan2(e.x, e.y), h = Math.sqrt(e.x * e.x + e.y * e.y), g = Tc(this.lat0, this.long0, m, h, this.a, this.f), e.x = g.lon2, e.y = g.lat2, e));
 }
-var Oc = {
-	init: Tc,
-	forward: Ec,
-	inverse: Dc,
+var kc = {
+	init: Ec,
+	forward: Dc,
+	inverse: Oc,
 	names: ["Azimuthal_Equidistant", "aeqd"]
 };
 //#endregion
 //#region node_modules/proj4/lib/projections/ortho.js
-function kc() {
+function Ac() {
 	this.sin_p14 = Math.sin(this.lat0 || 0), this.cos_p14 = Math.cos(this.lat0 || 0);
 }
-function Ac(e) {
+function jc(e) {
 	var t, n, r, i, a, o, s, c, l = e.x, u = e.y;
 	return r = P(l - (this.long0 || 0), this.over), t = Math.sin(u), n = Math.cos(u), i = Math.cos(r), o = this.sin_p14 * t + this.cos_p14 * n * i, a = 1, (o > 0 || Math.abs(o) <= 1e-10) && (s = (this.x0 || 0) + this.a * a * n * Math.sin(r), c = (this.y0 || 0) + this.a * a * (this.cos_p14 * t - this.sin_p14 * n * i)), e.x = s, e.y = c, e;
 }
-function jc(e) {
+function Mc(e) {
 	var t, n, r, i, a, o, s, c, l;
-	return e.x -= this.x0 || 0, e.y -= this.y0 || 0, t = Math.sqrt(e.x * e.x + e.y * e.y), n = Es(t / this.a), r = Math.sin(n), i = Math.cos(n), c = this.long0 || 0, l = this.lat0 || 0, o = c, Math.abs(t) <= 1e-10 ? (s = l, e.x = o, e.y = s, e) : (s = Es(i * this.sin_p14 + e.y * r * this.cos_p14 / t), a = Math.abs(l) - k, Math.abs(a) <= 1e-10 ? (o = P(l >= 0 ? c + Math.atan2(e.x, -e.y) : c - Math.atan2(-e.x, e.y), this.over), e.x = o, e.y = s, e) : (o = P(c + Math.atan2(e.x * r, t * this.cos_p14 * i - e.y * this.sin_p14 * r), this.over), e.x = o, e.y = s, e));
+	return e.x -= this.x0 || 0, e.y -= this.y0 || 0, t = Math.sqrt(e.x * e.x + e.y * e.y), n = Ds(t / this.a), r = Math.sin(n), i = Math.cos(n), c = this.long0 || 0, l = this.lat0 || 0, o = c, Math.abs(t) <= 1e-10 ? (s = l, e.x = o, e.y = s, e) : (s = Ds(i * this.sin_p14 + e.y * r * this.cos_p14 / t), a = Math.abs(l) - k, Math.abs(a) <= 1e-10 ? (o = P(l >= 0 ? c + Math.atan2(e.x, -e.y) : c - Math.atan2(-e.x, e.y), this.over), e.x = o, e.y = s, e) : (o = P(c + Math.atan2(e.x * r, t * this.cos_p14 * i - e.y * this.sin_p14 * r), this.over), e.x = o, e.y = s, e));
 }
-var Mc = {
-	init: kc,
-	forward: Ac,
-	inverse: jc,
+var Nc = {
+	init: Ac,
+	forward: jc,
+	inverse: Mc,
 	names: ["ortho"]
-}, I = {
+}, F = {
 	FRONT: 1,
 	RIGHT: 2,
 	BACK: 3,
 	LEFT: 4,
 	TOP: 5,
 	BOTTOM: 6
-}, L = {
+}, I = {
 	AREA_0: 1,
 	AREA_1: 2,
 	AREA_2: 3,
 	AREA_3: 4
 };
-function Nc() {
-	this.x0 = this.x0 || 0, this.y0 = this.y0 || 0, this.lat0 = this.lat0 || 0, this.long0 = this.long0 || 0, this.lat_ts = this.lat_ts || 0, this.title = this.title || "Quadrilateralized Spherical Cube", this.lat0 >= k - j / 2 ? this.face = I.TOP : this.lat0 <= -(k - j / 2) ? this.face = I.BOTTOM : Math.abs(this.long0) <= j ? this.face = I.FRONT : Math.abs(this.long0) <= k + j ? this.face = this.long0 > 0 ? I.RIGHT : I.LEFT : this.face = I.BACK, this.es !== 0 && (this.one_minus_f = 1 - (this.a - this.b) / this.a, this.one_minus_f_squared = this.one_minus_f * this.one_minus_f);
+function Pc() {
+	this.x0 = this.x0 || 0, this.y0 = this.y0 || 0, this.lat0 = this.lat0 || 0, this.long0 = this.long0 || 0, this.lat_ts = this.lat_ts || 0, this.title = this.title || "Quadrilateralized Spherical Cube", this.lat0 >= k - j / 2 ? this.face = F.TOP : this.lat0 <= -(k - j / 2) ? this.face = F.BOTTOM : Math.abs(this.long0) <= j ? this.face = F.FRONT : Math.abs(this.long0) <= k + j ? this.face = this.long0 > 0 ? F.RIGHT : F.LEFT : this.face = F.BACK, this.es !== 0 && (this.one_minus_f = 1 - (this.a - this.b) / this.a, this.one_minus_f_squared = this.one_minus_f * this.one_minus_f);
 }
-function Pc(e) {
+function Fc(e) {
 	var t = {
 		x: 0,
 		y: 0
 	}, n, r, i, a, o, s, c = { value: 0 };
-	if (e.x -= this.long0, n = this.es === 0 ? e.y : Math.atan(this.one_minus_f_squared * Math.tan(e.y)), r = e.x, this.face === I.TOP) a = k - n, r >= j && r <= k + j ? (c.value = L.AREA_0, i = r - k) : r > k + j || r <= -(k + j) ? (c.value = L.AREA_1, i = r > 0 ? r - M : r + M) : r > -(k + j) && r <= -j ? (c.value = L.AREA_2, i = r + k) : (c.value = L.AREA_3, i = r);
-	else if (this.face === I.BOTTOM) a = k + n, r >= j && r <= k + j ? (c.value = L.AREA_0, i = -r + k) : r < j && r >= -j ? (c.value = L.AREA_1, i = -r) : r < -j && r >= -(k + j) ? (c.value = L.AREA_2, i = -r - k) : (c.value = L.AREA_3, i = r > 0 ? -r + M : -r - M);
+	if (e.x -= this.long0, n = this.es === 0 ? e.y : Math.atan(this.one_minus_f_squared * Math.tan(e.y)), r = e.x, this.face === F.TOP) a = k - n, r >= j && r <= k + j ? (c.value = I.AREA_0, i = r - k) : r > k + j || r <= -(k + j) ? (c.value = I.AREA_1, i = r > 0 ? r - M : r + M) : r > -(k + j) && r <= -j ? (c.value = I.AREA_2, i = r + k) : (c.value = I.AREA_3, i = r);
+	else if (this.face === F.BOTTOM) a = k + n, r >= j && r <= k + j ? (c.value = I.AREA_0, i = -r + k) : r < j && r >= -j ? (c.value = I.AREA_1, i = -r) : r < -j && r >= -(k + j) ? (c.value = I.AREA_2, i = -r - k) : (c.value = I.AREA_3, i = r > 0 ? -r + M : -r - M);
 	else {
 		var l, u, d, f, p, m, h;
-		this.face === I.RIGHT ? r = Lc(r, +k) : this.face === I.BACK ? r = Lc(r, +M) : this.face === I.LEFT && (r = Lc(r, -k)), f = Math.sin(n), p = Math.cos(n), m = Math.sin(r), h = Math.cos(r), l = p * h, u = p * m, d = f, this.face === I.FRONT ? (a = Math.acos(l), i = Ic(a, d, u, c)) : this.face === I.RIGHT ? (a = Math.acos(u), i = Ic(a, d, -l, c)) : this.face === I.BACK ? (a = Math.acos(-l), i = Ic(a, d, -u, c)) : this.face === I.LEFT ? (a = Math.acos(-u), i = Ic(a, d, l, c)) : (a = i = 0, c.value = L.AREA_0);
+		this.face === F.RIGHT ? r = Rc(r, +k) : this.face === F.BACK ? r = Rc(r, +M) : this.face === F.LEFT && (r = Rc(r, -k)), f = Math.sin(n), p = Math.cos(n), m = Math.sin(r), h = Math.cos(r), l = p * h, u = p * m, d = f, this.face === F.FRONT ? (a = Math.acos(l), i = Lc(a, d, u, c)) : this.face === F.RIGHT ? (a = Math.acos(u), i = Lc(a, d, -l, c)) : this.face === F.BACK ? (a = Math.acos(-l), i = Lc(a, d, -u, c)) : this.face === F.LEFT ? (a = Math.acos(-u), i = Lc(a, d, l, c)) : (a = i = 0, c.value = I.AREA_0);
 	}
-	return s = Math.atan(12 / M * (i + Math.acos(Math.sin(i) * Math.cos(j)) - k)), o = Math.sqrt((1 - Math.cos(a)) / (Math.cos(s) * Math.cos(s)) / (1 - Math.cos(Math.atan(1 / Math.cos(i))))), c.value === L.AREA_1 ? s += k : c.value === L.AREA_2 ? s += M : c.value === L.AREA_3 && (s += 1.5 * M), t.x = o * Math.cos(s), t.y = o * Math.sin(s), t.x = t.x * this.a + this.x0, t.y = t.y * this.a + this.y0, e.x = t.x, e.y = t.y, e;
+	return s = Math.atan(12 / M * (i + Math.acos(Math.sin(i) * Math.cos(j)) - k)), o = Math.sqrt((1 - Math.cos(a)) / (Math.cos(s) * Math.cos(s)) / (1 - Math.cos(Math.atan(1 / Math.cos(i))))), c.value === I.AREA_1 ? s += k : c.value === I.AREA_2 ? s += M : c.value === I.AREA_3 && (s += 1.5 * M), t.x = o * Math.cos(s), t.y = o * Math.sin(s), t.x = t.x * this.a + this.x0, t.y = t.y * this.a + this.y0, e.x = t.x, e.y = t.y, e;
 }
-function Fc(e) {
+function Ic(e) {
 	var t = {
 		lam: 0,
 		phi: 0
 	}, n, r, i, a, o, s, c, l, u, d = { value: 0 };
-	if (e.x = (e.x - this.x0) / this.a, e.y = (e.y - this.y0) / this.a, r = Math.atan(Math.sqrt(e.x * e.x + e.y * e.y)), n = Math.atan2(e.y, e.x), e.x >= 0 && e.x >= Math.abs(e.y) ? d.value = L.AREA_0 : e.y >= 0 && e.y >= Math.abs(e.x) ? (d.value = L.AREA_1, n -= k) : e.x < 0 && -e.x >= Math.abs(e.y) ? (d.value = L.AREA_2, n = n < 0 ? n + M : n - M) : (d.value = L.AREA_3, n += k), u = M / 12 * Math.tan(n), o = Math.sin(u) / (Math.cos(u) - 1 / Math.sqrt(2)), s = Math.atan(o), i = Math.cos(n), a = Math.tan(r), c = 1 - i * i * a * a * (1 - Math.cos(Math.atan(1 / Math.cos(s)))), c < -1 ? c = -1 : c > 1 && (c = 1), this.face === I.TOP) l = Math.acos(c), t.phi = k - l, d.value === L.AREA_0 ? t.lam = s + k : d.value === L.AREA_1 ? t.lam = s < 0 ? s + M : s - M : d.value === L.AREA_2 ? t.lam = s - k : t.lam = s;
-	else if (this.face === I.BOTTOM) l = Math.acos(c), t.phi = l - k, d.value === L.AREA_0 ? t.lam = -s + k : d.value === L.AREA_1 ? t.lam = -s : d.value === L.AREA_2 ? t.lam = -s - k : t.lam = s < 0 ? -s - M : -s + M;
+	if (e.x = (e.x - this.x0) / this.a, e.y = (e.y - this.y0) / this.a, r = Math.atan(Math.sqrt(e.x * e.x + e.y * e.y)), n = Math.atan2(e.y, e.x), e.x >= 0 && e.x >= Math.abs(e.y) ? d.value = I.AREA_0 : e.y >= 0 && e.y >= Math.abs(e.x) ? (d.value = I.AREA_1, n -= k) : e.x < 0 && -e.x >= Math.abs(e.y) ? (d.value = I.AREA_2, n = n < 0 ? n + M : n - M) : (d.value = I.AREA_3, n += k), u = M / 12 * Math.tan(n), o = Math.sin(u) / (Math.cos(u) - 1 / Math.sqrt(2)), s = Math.atan(o), i = Math.cos(n), a = Math.tan(r), c = 1 - i * i * a * a * (1 - Math.cos(Math.atan(1 / Math.cos(s)))), c < -1 ? c = -1 : c > 1 && (c = 1), this.face === F.TOP) l = Math.acos(c), t.phi = k - l, d.value === I.AREA_0 ? t.lam = s + k : d.value === I.AREA_1 ? t.lam = s < 0 ? s + M : s - M : d.value === I.AREA_2 ? t.lam = s - k : t.lam = s;
+	else if (this.face === F.BOTTOM) l = Math.acos(c), t.phi = l - k, d.value === I.AREA_0 ? t.lam = -s + k : d.value === I.AREA_1 ? t.lam = -s : d.value === I.AREA_2 ? t.lam = -s - k : t.lam = s < 0 ? -s - M : -s + M;
 	else {
 		var f = c, p, m;
-		u = f * f, m = u >= 1 ? 0 : Math.sqrt(1 - u) * Math.sin(s), u += m * m, p = u >= 1 ? 0 : Math.sqrt(1 - u), d.value === L.AREA_1 ? (u = p, p = -m, m = u) : d.value === L.AREA_2 ? (p = -p, m = -m) : d.value === L.AREA_3 && (u = p, p = m, m = -u), this.face === I.RIGHT ? (u = f, f = -p, p = u) : this.face === I.BACK ? (f = -f, p = -p) : this.face === I.LEFT && (u = f, f = p, p = -u), t.phi = Math.acos(-m) - k, t.lam = Math.atan2(p, f), this.face === I.RIGHT ? t.lam = Lc(t.lam, -k) : this.face === I.BACK ? t.lam = Lc(t.lam, -M) : this.face === I.LEFT && (t.lam = Lc(t.lam, +k));
+		u = f * f, m = u >= 1 ? 0 : Math.sqrt(1 - u) * Math.sin(s), u += m * m, p = u >= 1 ? 0 : Math.sqrt(1 - u), d.value === I.AREA_1 ? (u = p, p = -m, m = u) : d.value === I.AREA_2 ? (p = -p, m = -m) : d.value === I.AREA_3 && (u = p, p = m, m = -u), this.face === F.RIGHT ? (u = f, f = -p, p = u) : this.face === F.BACK ? (f = -f, p = -p) : this.face === F.LEFT && (u = f, f = p, p = -u), t.phi = Math.acos(-m) - k, t.lam = Math.atan2(p, f), this.face === F.RIGHT ? t.lam = Rc(t.lam, -k) : this.face === F.BACK ? t.lam = Rc(t.lam, -M) : this.face === F.LEFT && (t.lam = Rc(t.lam, +k));
 	}
 	if (this.es !== 0) {
 		var h = +(t.phi < 0), g = Math.tan(t.phi), _ = this.b / Math.sqrt(g * g + this.one_minus_f_squared);
@@ -6415,24 +6415,24 @@ function Fc(e) {
 	}
 	return t.lam += this.long0, e.x = t.lam, e.y = t.phi, e;
 }
-function Ic(e, t, n, r) {
+function Lc(e, t, n, r) {
 	var i;
-	return e < 1e-10 ? (r.value = L.AREA_0, i = 0) : (i = Math.atan2(t, n), Math.abs(i) <= j ? r.value = L.AREA_0 : i > j && i <= k + j ? (r.value = L.AREA_1, i -= k) : i > k + j || i <= -(k + j) ? (r.value = L.AREA_2, i = i >= 0 ? i - M : i + M) : (r.value = L.AREA_3, i += k)), i;
+	return e < 1e-10 ? (r.value = I.AREA_0, i = 0) : (i = Math.atan2(t, n), Math.abs(i) <= j ? r.value = I.AREA_0 : i > j && i <= k + j ? (r.value = I.AREA_1, i -= k) : i > k + j || i <= -(k + j) ? (r.value = I.AREA_2, i = i >= 0 ? i - M : i + M) : (r.value = I.AREA_3, i += k)), i;
 }
-function Lc(e, t) {
+function Rc(e, t) {
 	var n = e + t;
 	return n < -3.14159265359 ? n += ur : n > 3.14159265359 && (n -= ur), n;
 }
-var Rc = {
-	init: Nc,
-	forward: Pc,
-	inverse: Fc,
+var zc = {
+	init: Pc,
+	forward: Fc,
+	inverse: Ic,
 	names: [
 		"Quadrilateralized Spherical Cube",
 		"Quadrilateralized_Spherical_Cube",
 		"qsc"
 	]
-}, zc = [
+}, Bc = [
 	[
 		1,
 		22199e-21,
@@ -6547,7 +6547,7 @@ var Rc = {
 		275608e-9,
 		624051e-11
 	]
-], Bc = [
+], Vc = [
 	[
 		-520417e-23,
 		.0124,
@@ -6662,81 +6662,81 @@ var Rc = {
 		-319159e-9,
 		-42106e-10
 	]
-], Vc = .8487, Hc = 1.3523, Uc = lr / 5, Wc = 1 / Uc, Gc = 18, Kc = function(e, t) {
+], Hc = .8487, Uc = 1.3523, Wc = lr / 5, Gc = 1 / Wc, Kc = 18, qc = function(e, t) {
 	return e[0] + t * (e[1] + t * (e[2] + t * e[3]));
-}, qc = function(e, t) {
+}, Jc = function(e, t) {
 	return e[1] + t * (2 * e[2] + t * 3 * e[3]);
 };
-function Jc(e, t, n, r) {
+function Yc(e, t, n, r) {
 	for (var i = t; r; --r) {
 		var a = e(i);
 		if (i -= a, Math.abs(a) < n) break;
 	}
 	return i;
 }
-function Yc() {
+function Xc() {
 	this.x0 = this.x0 || 0, this.y0 = this.y0 || 0, this.long0 = this.long0 || 0, this.es = 0, this.title = this.title || "Robinson";
 }
-function Xc(e) {
-	var t = P(e.x - this.long0, this.over), n = Math.abs(e.y), r = Math.floor(n * Uc);
-	r < 0 ? r = 0 : r >= Gc && (r = Gc - 1), n = lr * (n - Wc * r);
-	var i = {
-		x: Kc(zc[r], n) * t,
-		y: Kc(Bc[r], n)
-	};
-	return e.y < 0 && (i.y = -i.y), i.x = i.x * this.a * Vc + this.x0, i.y = i.y * this.a * Hc + this.y0, e.z !== void 0 && (i.z = e.z), e.m !== void 0 && (i.m = e.m), i;
-}
 function Zc(e) {
-	var t = {
-		x: (e.x - this.x0) / (this.a * Vc),
-		y: Math.abs(e.y - this.y0) / (this.a * Hc)
+	var t = P(e.x - this.long0, this.over), n = Math.abs(e.y), r = Math.floor(n * Wc);
+	r < 0 ? r = 0 : r >= Kc && (r = Kc - 1), n = lr * (n - Gc * r);
+	var i = {
+		x: qc(Bc[r], n) * t,
+		y: qc(Vc[r], n)
 	};
-	if (t.y >= 1) t.x /= zc[Gc][0], t.y = e.y < 0 ? -k : k;
+	return e.y < 0 && (i.y = -i.y), i.x = i.x * this.a * Hc + this.x0, i.y = i.y * this.a * Uc + this.y0, e.z !== void 0 && (i.z = e.z), e.m !== void 0 && (i.m = e.m), i;
+}
+function Qc(e) {
+	var t = {
+		x: (e.x - this.x0) / (this.a * Hc),
+		y: Math.abs(e.y - this.y0) / (this.a * Uc)
+	};
+	if (t.y >= 1) t.x /= Bc[Kc][0], t.y = e.y < 0 ? -k : k;
 	else {
-		var n = Math.floor(t.y * Gc);
-		for (n < 0 ? n = 0 : n >= Gc && (n = Gc - 1);;) if (Bc[n][0] > t.y) --n;
-		else if (Bc[n + 1][0] <= t.y) ++n;
+		var n = Math.floor(t.y * Kc);
+		for (n < 0 ? n = 0 : n >= Kc && (n = Kc - 1);;) if (Vc[n][0] > t.y) --n;
+		else if (Vc[n + 1][0] <= t.y) ++n;
 		else break;
-		var r = Bc[n], i = 5 * (t.y - r[0]) / (Bc[n + 1][0] - r[0]);
-		i = Jc(function(e) {
-			return (Kc(r, e) - t.y) / qc(r, e);
-		}, i, cr, 100), t.x /= Kc(zc[n], i), t.y = (5 * n + i) * A, e.y < 0 && (t.y = -t.y);
+		var r = Vc[n], i = 5 * (t.y - r[0]) / (Vc[n + 1][0] - r[0]);
+		i = Yc(function(e) {
+			return (qc(r, e) - t.y) / Jc(r, e);
+		}, i, cr, 100), t.x /= qc(Bc[n], i), t.y = (5 * n + i) * A, e.y < 0 && (t.y = -t.y);
 	}
 	return t.x = P(t.x + this.long0, this.over), e.z !== void 0 && (t.z = e.z), e.m !== void 0 && (t.m = e.m), t;
 }
-var Qc = {
-	init: Yc,
-	forward: Xc,
-	inverse: Zc,
+var $c = {
+	init: Xc,
+	forward: Zc,
+	inverse: Qc,
 	names: ["Robinson", "robin"]
 };
 //#endregion
 //#region node_modules/proj4/lib/projections/geocent.js
-function $c() {
+function el() {
 	this.name = "geocent";
 }
-function el(e) {
+function tl(e) {
 	return Ki(e, this.es, this.a);
 }
-function tl(e) {
+function nl(e) {
 	return qi(e, this.es, this.a, this.b);
 }
-var nl = {
-	init: $c,
-	forward: el,
-	inverse: tl,
+var rl = {
+	init: el,
+	forward: tl,
+	inverse: nl,
 	names: [
 		"Geocentric",
 		"geocentric",
 		"geocent",
 		"Geocent"
 	]
-}, R = {
+}, L = {
 	N_POLE: 0,
 	S_POLE: 1,
 	EQUIT: 2,
 	OBLIQ: 3
-}, rl = {
+}, il = {
 	h: {
 		def: 1e5,
 		num: !0
@@ -6760,52 +6760,52 @@ var nl = {
 		num: !0
 	}
 };
-function il() {
-	if (Object.keys(rl).forEach(function(e) {
-		if (this[e] === void 0) this[e] = rl[e].def;
-		else if (rl[e].num && isNaN(this[e])) throw Error("Invalid parameter value, must be numeric " + e + " = " + this[e]);
-		else rl[e].num && (this[e] = parseFloat(this[e]));
-		rl[e].degrees && (this[e] = this[e] * A);
-	}.bind(this)), Math.abs(Math.abs(this.lat0) - k) < 1e-10 ? this.mode = this.lat0 < 0 ? R.S_POLE : R.N_POLE : Math.abs(this.lat0) < 1e-10 ? this.mode = R.EQUIT : (this.mode = R.OBLIQ, this.sinph0 = Math.sin(this.lat0), this.cosph0 = Math.cos(this.lat0)), this.pn1 = this.h / this.a, this.pn1 <= 0 || this.pn1 > 1e10) throw Error("Invalid height");
+function al() {
+	if (Object.keys(il).forEach(function(e) {
+		if (this[e] === void 0) this[e] = il[e].def;
+		else if (il[e].num && isNaN(this[e])) throw Error("Invalid parameter value, must be numeric " + e + " = " + this[e]);
+		else il[e].num && (this[e] = parseFloat(this[e]));
+		il[e].degrees && (this[e] = this[e] * A);
+	}.bind(this)), Math.abs(Math.abs(this.lat0) - k) < 1e-10 ? this.mode = this.lat0 < 0 ? L.S_POLE : L.N_POLE : Math.abs(this.lat0) < 1e-10 ? this.mode = L.EQUIT : (this.mode = L.OBLIQ, this.sinph0 = Math.sin(this.lat0), this.cosph0 = Math.cos(this.lat0)), this.pn1 = this.h / this.a, this.pn1 <= 0 || this.pn1 > 1e10) throw Error("Invalid height");
 	this.p = 1 + this.pn1, this.rp = 1 / this.p, this.h1 = 1 / this.pn1, this.pfact = (this.p + 1) * this.h1, this.es = 0;
 	var e = this.tilt, t = this.azi;
 	this.cg = Math.cos(t), this.sg = Math.sin(t), this.cw = Math.cos(e), this.sw = Math.sin(e);
 }
-function al(e) {
+function ol(e) {
 	e.x -= this.long0;
 	var t = Math.sin(e.y), n = Math.cos(e.y), r = Math.cos(e.x), i, a;
 	switch (this.mode) {
-		case R.OBLIQ:
+		case L.OBLIQ:
 			a = this.sinph0 * t + this.cosph0 * n * r;
 			break;
-		case R.EQUIT:
+		case L.EQUIT:
 			a = n * r;
 			break;
-		case R.S_POLE:
+		case L.S_POLE:
 			a = -t;
 			break;
-		case R.N_POLE:
+		case L.N_POLE:
 			a = t;
 			break;
 	}
 	switch (a = this.pn1 / (this.p - a), i = a * n * Math.sin(e.x), this.mode) {
-		case R.OBLIQ:
+		case L.OBLIQ:
 			a *= this.cosph0 * t - this.sinph0 * n * r;
 			break;
-		case R.EQUIT:
+		case L.EQUIT:
 			a *= t;
 			break;
-		case R.N_POLE:
+		case L.N_POLE:
 			a *= -(n * r);
 			break;
-		case R.S_POLE:
+		case L.S_POLE:
 			a *= n * r;
 			break;
 	}
 	var o = a * this.cg + i * this.sg, s = 1 / (o * this.sw * this.h1 + this.cw);
 	return i = (i * this.cg - a * this.sg) * this.cw * s, a = o * s, e.x = i * this.a, e.y = a * this.a, e;
 }
-function ol(e) {
+function sl(e) {
 	e.x /= this.a, e.y /= this.a;
 	var t = {
 		x: e.x,
@@ -6817,16 +6817,16 @@ function ol(e) {
 	else {
 		var o, s = 1 - a * a * this.pfact;
 		switch (s = (this.p - Math.sqrt(s)) / (this.pn1 / a + a / this.pn1), o = Math.sqrt(1 - s * s), this.mode) {
-			case R.OBLIQ:
+			case L.OBLIQ:
 				t.y = Math.asin(o * this.sinph0 + e.y * s * this.cosph0 / a), e.y = (o - this.sinph0 * Math.sin(t.y)) * a, e.x *= s * this.cosph0;
 				break;
-			case R.EQUIT:
+			case L.EQUIT:
 				t.y = Math.asin(e.y * s / a), e.y = o * a, e.x *= s;
 				break;
-			case R.N_POLE:
+			case L.N_POLE:
 				t.y = Math.asin(o), e.y = -e.y;
 				break;
-			case R.S_POLE:
+			case L.S_POLE:
 				t.y = -Math.asin(o);
 				break;
 		}
@@ -6834,15 +6834,15 @@ function ol(e) {
 	}
 	return e.x = t.x + this.long0, e.y = t.y, e;
 }
-var sl = {
-	init: il,
-	forward: al,
-	inverse: ol,
+var cl = {
+	init: al,
+	forward: ol,
+	inverse: sl,
 	names: ["Tilted_Perspective", "tpers"]
 };
 //#endregion
 //#region node_modules/proj4/lib/projections/geos.js
-function cl() {
+function ll() {
 	if (this.flip_axis = +(this.sweep === "x"), this.h = Number(this.h), this.radius_g_1 = this.h / this.a, this.radius_g_1 <= 0 || this.radius_g_1 > 1e10) throw Error();
 	if (this.radius_g = 1 + this.radius_g_1, this.C = this.radius_g * this.radius_g - 1, this.es !== 0) {
 		var e = 1 - this.es, t = 1 / e;
@@ -6850,7 +6850,7 @@ function cl() {
 	} else this.radius_p = 1, this.radius_p2 = 1, this.radius_p_inv2 = 1, this.shape = "sphere";
 	this.title ||= "Geostationary Satellite View";
 }
-function ll(e) {
+function ul(e) {
 	var t = e.x, n = e.y, r, i, a, o;
 	if (t -= this.long0, this.shape === "ellipse") {
 		n = Math.atan(this.radius_p2 * Math.tan(n));
@@ -6860,7 +6860,7 @@ function ll(e) {
 	} else this.shape === "sphere" && (r = Math.cos(n), i = Math.cos(t) * r, a = Math.sin(t) * r, o = Math.sin(n), r = this.radius_g - i, this.flip_axis ? (e.x = this.radius_g_1 * Math.atan(a / so(o, r)), e.y = this.radius_g_1 * Math.atan(o / r)) : (e.x = this.radius_g_1 * Math.atan(a / r), e.y = this.radius_g_1 * Math.atan(o / so(a, r))));
 	return e.x *= this.a, e.y *= this.a, e;
 }
-function ul(e) {
+function dl(e) {
 	var t = -1, n = 0, r = 0, i, a, o, s;
 	if (e.x /= this.a, e.y /= this.a, this.shape === "ellipse") {
 		this.flip_axis ? (r = Math.tan(e.y / this.radius_g_1), n = Math.tan(e.x / this.radius_g_1) * so(1, r)) : (n = Math.tan(e.x / this.radius_g_1), r = Math.tan(e.y / this.radius_g_1) * so(1, n));
@@ -6873,81 +6873,81 @@ function ul(e) {
 	}
 	return e.x += this.long0, e;
 }
-var dl = {
-	init: cl,
-	forward: ll,
-	inverse: ul,
+var fl = {
+	init: ll,
+	forward: ul,
+	inverse: dl,
 	names: [
 		"Geostationary Satellite View",
 		"Geostationary_Satellite",
 		"geos"
 	]
-}, fl = 1.340264, pl = -.081106, ml = 893e-6, hl = .003796, gl = Math.sqrt(3) / 2;
-function _l() {
-	this.long0 = this.long0 === void 0 ? 0 : this.long0, this.x0 = this.x0 === void 0 ? 0 : this.x0, this.y0 = this.y0 === void 0 ? 0 : this.y0, this.es !== 0 && (this.apa = bs(this.es), this.qp = ps(this.e, 1), this.rqda = Math.sqrt(.5 * this.qp));
-}
-function vl(e) {
-	var t = P(e.x - this.long0, this.over), n = e.y, r = Math.sin(n);
-	this.es !== 0 && (r = ps(this.e, r) / this.qp);
-	var i = Math.asin(gl * r), a = i * i, o = a * a * a;
-	return e.x = t * Math.cos(i) / (gl * (fl + 3 * pl * a + o * (7 * ml + 9 * hl * a))), e.y = i * (fl + pl * a + o * (ml + hl * a)), this.es !== 0 && (e.x *= this.rqda, e.y *= this.rqda), e.x = this.a * e.x + this.x0, e.y = this.a * e.y + this.y0, e;
+}, pl = 1.340264, ml = -.081106, hl = 893e-6, gl = .003796, _l = Math.sqrt(3) / 2;
+function vl() {
+	this.long0 = this.long0 === void 0 ? 0 : this.long0, this.x0 = this.x0 === void 0 ? 0 : this.x0, this.y0 = this.y0 === void 0 ? 0 : this.y0, this.es !== 0 && (this.apa = xs(this.es), this.qp = ms(this.e, 1), this.rqda = Math.sqrt(.5 * this.qp));
 }
 function yl(e) {
+	var t = P(e.x - this.long0, this.over), n = e.y, r = Math.sin(n);
+	this.es !== 0 && (r = ms(this.e, r) / this.qp);
+	var i = Math.asin(_l * r), a = i * i, o = a * a * a;
+	return e.x = t * Math.cos(i) / (_l * (pl + 3 * ml * a + o * (7 * hl + 9 * gl * a))), e.y = i * (pl + ml * a + o * (hl + gl * a)), this.es !== 0 && (e.x *= this.rqda, e.y *= this.rqda), e.x = this.a * e.x + this.x0, e.y = this.a * e.y + this.y0, e;
+}
+function bl(e) {
 	e.x = (e.x - this.x0) / this.a, e.y = (e.y - this.y0) / this.a, this.es !== 0 && (e.x /= this.rqda, e.y /= this.rqda);
 	var t = 1e-9, n = 12, r = e.y, i, a, o, s, c, l;
-	for (l = 0; l < n && (i = r * r, a = i * i * i, o = r * (fl + pl * i + a * (ml + hl * i)) - e.y, s = fl + 3 * pl * i + a * (7 * ml + 9 * hl * i), r -= c = o / s, !(Math.abs(c) < t)); ++l);
-	return i = r * r, a = i * i * i, e.x = gl * e.x * (fl + 3 * pl * i + a * (7 * ml + 9 * hl * i)) / Math.cos(r), e.y = Math.asin(Math.sin(r) / gl), this.es !== 0 && (e.y = xs(e.y, this.apa)), e.x = P(e.x + this.long0, this.over), e;
+	for (l = 0; l < n && (i = r * r, a = i * i * i, o = r * (pl + ml * i + a * (hl + gl * i)) - e.y, s = pl + 3 * ml * i + a * (7 * hl + 9 * gl * i), r -= c = o / s, !(Math.abs(c) < t)); ++l);
+	return i = r * r, a = i * i * i, e.x = _l * e.x * (pl + 3 * ml * i + a * (7 * hl + 9 * gl * i)) / Math.cos(r), e.y = Math.asin(Math.sin(r) / _l), this.es !== 0 && (e.y = Ss(e.y, this.apa)), e.x = P(e.x + this.long0, this.over), e;
 }
-var bl = {
-	init: _l,
-	forward: vl,
-	inverse: yl,
+var xl = {
+	init: vl,
+	forward: yl,
+	inverse: bl,
 	names: [
 		"eqearth",
 		"Equal Earth",
 		"Equal_Earth"
 	]
-}, xl = 1e-10;
-function Sl() {
+}, Sl = 1e-10;
+function Cl() {
 	var e;
-	if (this.phi1 = this.lat1, Math.abs(this.phi1) < xl) throw Error();
-	this.es ? (this.en = Qa(this.es), this.m1 = $a(this.phi1, this.am1 = Math.sin(this.phi1), e = Math.cos(this.phi1), this.en), this.am1 = e / (Math.sqrt(1 - this.es * this.am1 * this.am1) * this.am1), this.inverse = wl, this.forward = Cl) : (Math.abs(this.phi1) + xl >= k ? this.cphi1 = 0 : this.cphi1 = 1 / Math.tan(this.phi1), this.inverse = El, this.forward = Tl);
+	if (this.phi1 = this.lat1, Math.abs(this.phi1) < Sl) throw Error();
+	this.es ? (this.en = Qa(this.es), this.m1 = $a(this.phi1, this.am1 = Math.sin(this.phi1), e = Math.cos(this.phi1), this.en), this.am1 = e / (Math.sqrt(1 - this.es * this.am1 * this.am1) * this.am1), this.inverse = Tl, this.forward = wl) : (Math.abs(this.phi1) + Sl >= k ? this.cphi1 = 0 : this.cphi1 = 1 / Math.tan(this.phi1), this.inverse = Dl, this.forward = El);
 }
-function Cl(e) {
+function wl(e) {
 	var t = P(e.x - (this.long0 || 0), this.over), n = e.y, r = this.am1 + this.m1 - $a(n, i = Math.sin(n), a = Math.cos(n), this.en), i = a * t / (r * Math.sqrt(1 - this.es * i * i)), a;
 	return e.x = r * Math.sin(i), e.y = this.am1 - r * Math.cos(i), e.x = this.a * e.x + (this.x0 || 0), e.y = this.a * e.y + (this.y0 || 0), e;
 }
-function wl(e) {
+function Tl(e) {
 	e.x = (e.x - (this.x0 || 0)) / this.a, e.y = (e.y - (this.y0 || 0)) / this.a;
 	var t, n = so(e.x, e.y = this.am1 - e.y), r, i = to(this.am1 + this.m1 - n, this.es, this.en);
 	if ((t = Math.abs(i)) < k) t = Math.sin(i), r = n * Math.atan2(e.x, e.y) * Math.sqrt(1 - this.es * t * t) / Math.cos(i);
-	else if (Math.abs(t - k) <= xl) r = 0;
+	else if (Math.abs(t - k) <= Sl) r = 0;
 	else throw Error();
-	return e.x = P(r + (this.long0 || 0), this.over), e.y = ss(i), e;
-}
-function Tl(e) {
-	var t = P(e.x - (this.long0 || 0), this.over), n = e.y, r, i = this.cphi1 + this.phi1 - n;
-	return Math.abs(i) > xl ? (e.x = i * Math.sin(r = t * Math.cos(n) / i), e.y = this.cphi1 - i * Math.cos(r)) : e.x = e.y = 0, e.x = this.a * e.x + (this.x0 || 0), e.y = this.a * e.y + (this.y0 || 0), e;
+	return e.x = P(r + (this.long0 || 0), this.over), e.y = cs(i), e;
 }
 function El(e) {
+	var t = P(e.x - (this.long0 || 0), this.over), n = e.y, r, i = this.cphi1 + this.phi1 - n;
+	return Math.abs(i) > Sl ? (e.x = i * Math.sin(r = t * Math.cos(n) / i), e.y = this.cphi1 - i * Math.cos(r)) : e.x = e.y = 0, e.x = this.a * e.x + (this.x0 || 0), e.y = this.a * e.y + (this.y0 || 0), e;
+}
+function Dl(e) {
 	e.x = (e.x - (this.x0 || 0)) / this.a, e.y = (e.y - (this.y0 || 0)) / this.a;
 	var t, n, r = so(e.x, e.y = this.cphi1 - e.y);
 	if (n = this.cphi1 + this.phi1 - r, Math.abs(n) > k) throw Error();
-	return t = Math.abs(Math.abs(n) - k) <= xl ? 0 : r * Math.atan2(e.x, e.y) / Math.cos(n), e.x = P(t + (this.long0 || 0), this.over), e.y = ss(n), e;
+	return t = Math.abs(Math.abs(n) - k) <= Sl ? 0 : r * Math.atan2(e.x, e.y) / Math.cos(n), e.x = P(t + (this.long0 || 0), this.over), e.y = cs(n), e;
 }
-var Dl = {
-	init: Sl,
+var Ol = {
+	init: Cl,
 	names: ["bonne", "Bonne (Werner lat_1=90)"]
-}, Ol = {
+}, kl = {
 	OBLIQUE: {
-		forward: Pl,
-		inverse: Il
-	},
-	TRANSVERSE: {
 		forward: Fl,
 		inverse: Ll
+	},
+	TRANSVERSE: {
+		forward: Il,
+		inverse: Rl
 	}
-}, kl = {
+}, Al = {
 	ROTATE: {
 		o_alpha: "oAlpha",
 		o_lon_c: "oLongC",
@@ -6964,20 +6964,20 @@ var Dl = {
 		o_lat_2: "oLat2"
 	}
 };
-function Al() {
+function jl() {
 	if (this.x0 = this.x0 || 0, this.y0 = this.y0 || 0, this.long0 = this.long0 || 0, this.title = this.title || "General Oblique Transformation", this.isIdentity = fi.includes(this.o_proj), !this.o_proj) throw Error("Missing parameter: o_proj");
 	if (this.o_proj === "ob_tran") throw Error("Invalid value for o_proj: " + this.o_proj);
 	let e = Wi(this.projStr.replace("+proj=ob_tran", "").replace("+o_proj=", "+proj=").trim());
 	if (!e) throw Error("Invalid parameter: o_proj. Unknown projection " + this.o_proj);
 	e.long0 = 0, this.obliqueProjection = e;
-	let t, n = Object.keys(kl), r = (e) => {
+	let t, n = Object.keys(Al), r = (e) => {
 		if (this[e] === void 0) return;
 		let t = parseFloat(this[e]) * A;
 		if (isNaN(t)) throw Error("Invalid value for " + e + ": " + this[e]);
 		return t;
 	};
 	for (let e = 0; e < n.length; e++) {
-		let i = kl[n[e]], a = Object.entries(i);
+		let i = Al[n[e]], a = Object.entries(i);
 		if (a.some(([e]) => this[e] !== void 0)) {
 			t = i;
 			for (let e = 0; e < a.length; e++) {
@@ -6989,22 +6989,22 @@ function Al() {
 		}
 	}
 	if (!t) throw Error("No valid parameters provided for ob_tran projection.");
-	let { lamp: i, phip: a } = Nl(this, t);
-	this.lamp = i, Math.abs(a) > 1e-10 ? (this.cphip = Math.cos(a), this.sphip = Math.sin(a), this.projectionType = Ol.OBLIQUE) : this.projectionType = Ol.TRANSVERSE;
-}
-function jl(e) {
-	return this.projectionType.forward(this, e);
+	let { lamp: i, phip: a } = Pl(this, t);
+	this.lamp = i, Math.abs(a) > 1e-10 ? (this.cphip = Math.cos(a), this.sphip = Math.sin(a), this.projectionType = kl.OBLIQUE) : this.projectionType = kl.TRANSVERSE;
 }
 function Ml(e) {
+	return this.projectionType.forward(this, e);
+}
+function Nl(e) {
 	return this.projectionType.inverse(this, e);
 }
-function Nl(e, t) {
+function Pl(e, t) {
 	let n, r;
-	if (t === kl.ROTATE) {
+	if (t === Al.ROTATE) {
 		let t = e.oLongC, i = e.oLatC, a = e.oAlpha;
 		if (Math.abs(Math.abs(i) - k) <= 1e-10) throw Error("Invalid value for o_lat_c: " + e.o_lat_c + " should be < 90°");
 		r = t + Math.atan2(-1 * Math.cos(a), -1 * Math.sin(a) * Math.sin(i)), n = Math.asin(Math.cos(i) * Math.sin(a));
-	} else if (t === kl.NEW_POLE) r = e.oLongP, n = e.oLatP;
+	} else if (t === Al.NEW_POLE) r = e.oLongP, n = e.oLatP;
 	else {
 		let t = e.oLong1, i = e.oLat1, a = e.oLong2, o = e.oLat2, s = Math.abs(i);
 		if (Math.abs(i) > k - 1e-10) throw Error("Invalid value for o_lat_1: " + e.o_lat_1 + " should be < 90°");
@@ -7018,7 +7018,7 @@ function Nl(e, t) {
 		phip: n
 	};
 }
-function Pl(e, t) {
+function Fl(e, t) {
 	let { x: n, y: r } = t;
 	n = P(n - e.long0, e.over);
 	let i = Math.cos(n), a = Math.sin(r), o = Math.cos(r);
@@ -7026,7 +7026,7 @@ function Pl(e, t) {
 	let s = e.obliqueProjection.forward(t);
 	return e.isIdentity && (s.x *= lr, s.y *= lr), s;
 }
-function Fl(e, t) {
+function Il(e, t) {
 	let { x: n, y: r } = t;
 	n = P(n - e.long0, e.over);
 	let i = Math.cos(r), a = Math.cos(n);
@@ -7034,7 +7034,7 @@ function Fl(e, t) {
 	let o = e.obliqueProjection.forward(t);
 	return e.isIdentity && (o.x *= lr, o.y *= lr), o;
 }
-function Il(e, t) {
+function Ll(e, t) {
 	e.isIdentity && (t.x *= A, t.y *= A);
 	let { x: n, y: r } = e.obliqueProjection.inverse(t);
 	if (n < Number.MAX_VALUE) {
@@ -7044,7 +7044,7 @@ function Il(e, t) {
 	}
 	return t.x = P(t.x + e.long0), t;
 }
-function Ll(e, t) {
+function Rl(e, t) {
 	e.isIdentity && (t.x *= A, t.y *= A);
 	let { x: n, y: r } = e.obliqueProjection.inverse(t);
 	if (n < Number.MAX_VALUE) {
@@ -7053,10 +7053,10 @@ function Ll(e, t) {
 	}
 	return t.x = P(t.x + e.long0), t;
 }
-var Rl = {
-	init: Al,
-	forward: jl,
-	inverse: Ml,
+var zl = {
+	init: jl,
+	forward: Ml,
+	inverse: Nl,
 	names: [
 		"General Oblique Transformation",
 		"General_Oblique_Transformation",
@@ -7065,12 +7065,12 @@ var Rl = {
 };
 //#endregion
 //#region node_modules/proj4/projs.js
-function zl(e) {
-	e.Proj.projections.add(ao), e.Proj.projections.add(vo), e.Proj.projections.add(So), e.Proj.projections.add(Mo), e.Proj.projections.add(Lo), e.Proj.projections.add(Vo), e.Proj.projections.add(qo), e.Proj.projections.add(Zo), e.Proj.projections.add(ts), e.Proj.projections.add(fs), e.Proj.projections.add(Ts), e.Proj.projections.add(js), e.Proj.projections.add(Fs), e.Proj.projections.add(Bs), e.Proj.projections.add(Ws), e.Proj.projections.add(Ys), e.Proj.projections.add($s), e.Proj.projections.add(rc), e.Proj.projections.add(cc), e.Proj.projections.add(uc), e.Proj.projections.add(mc), e.Proj.projections.add(vc), e.Proj.projections.add(Sc), e.Proj.projections.add(Oc), e.Proj.projections.add(Mc), e.Proj.projections.add(Rc), e.Proj.projections.add(Qc), e.Proj.projections.add(nl), e.Proj.projections.add(sl), e.Proj.projections.add(dl), e.Proj.projections.add(bl), e.Proj.projections.add(Dl), e.Proj.projections.add(Rl);
+function Bl(e) {
+	e.Proj.projections.add(ao), e.Proj.projections.add(vo), e.Proj.projections.add(So), e.Proj.projections.add(Mo), e.Proj.projections.add(Lo), e.Proj.projections.add(Vo), e.Proj.projections.add(qo), e.Proj.projections.add(Zo), e.Proj.projections.add(ts), e.Proj.projections.add(ps), e.Proj.projections.add(Es), e.Proj.projections.add(Ms), e.Proj.projections.add(Is), e.Proj.projections.add(Vs), e.Proj.projections.add(Gs), e.Proj.projections.add(Xs), e.Proj.projections.add(ec), e.Proj.projections.add(ic), e.Proj.projections.add(lc), e.Proj.projections.add(dc), e.Proj.projections.add(hc), e.Proj.projections.add(yc), e.Proj.projections.add(Cc), e.Proj.projections.add(kc), e.Proj.projections.add(Nc), e.Proj.projections.add(zc), e.Proj.projections.add($c), e.Proj.projections.add(rl), e.Proj.projections.add(cl), e.Proj.projections.add(fl), e.Proj.projections.add(xl), e.Proj.projections.add(Ol), e.Proj.projections.add(zl);
 }
 //#endregion
 //#region node_modules/proj4/lib/index.js
-var Bl = Object.assign(pa, {
+var Vl = Object.assign(pa, {
 	defaultDatum: "WGS84",
 	Proj: Wi,
 	WGS84: new Wi("WGS84"),
@@ -7082,24 +7082,24 @@ var Bl = Object.assign(pa, {
 	mgrs: Sa,
 	version: "__VERSION__"
 });
-zl(Bl);
+Bl(Vl);
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/geometry/project.js
-var Vl = /* @__PURE__ */ new Set([
+var Hl = /* @__PURE__ */ new Set([
 	3857,
 	3785,
 	900913,
 	102100,
 	102113
 ]);
-function Hl(e) {
-	if (typeof e == "number") return Vl.has(e) ? "EPSG:3857" : `EPSG:${e}`;
+function Ul(e) {
+	if (typeof e == "number") return Hl.has(e) ? "EPSG:3857" : `EPSG:${e}`;
 	let t = e.trim();
 	if (t.includes("+proj") || t.includes("PROJCS") || t.includes("GEOGCS")) return t;
 	let n = /^epsg:(\d+)$/i.exec(t);
-	return n ? Hl(Number(n[1])) : t;
+	return n ? Ul(Number(n[1])) : t;
 }
-function Ul(e, t) {
+function Wl(e, t) {
 	let [n, r, ...i] = e, a = t.forward([n, r]);
 	return [
 		a[0],
@@ -7107,27 +7107,27 @@ function Ul(e, t) {
 		...i
 	];
 }
-function Wl(e, t) {
-	return Array.isArray(e) ? typeof e[0] == "number" ? Ul(e, t) : e.map((e) => Wl(e, t)) : e;
+function Gl(e, t) {
+	return Array.isArray(e) ? typeof e[0] == "number" ? Wl(e, t) : e.map((e) => Gl(e, t)) : e;
 }
-function Gl(e, t, n) {
-	let r = $n(e), i = Hl(t), a = Hl(n);
+function Kl(e, t, n) {
+	let r = $n(e), i = Ul(t), a = Ul(n);
 	if (i === a) return structuredClone(r);
-	let o = Bl(i, a);
+	let o = Vl(i, a);
 	return {
 		...r,
-		coordinates: Wl(r.coordinates, o)
+		coordinates: Gl(r.coordinates, o)
 	};
 }
-function Kl(e, t) {
-	return Gl(e, t, "EPSG:4326");
+function ql(e, t) {
+	return Kl(e, t, "EPSG:4326");
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/style/specification.js
-function ql(e) {
+function Jl(e) {
 	return e.type.startsWith("honua-");
 }
-function Jl(e) {
+function Yl(e) {
 	let t = [];
 	if (typeof e != "object" || !e) return t.push({
 		path: "",
@@ -7157,7 +7157,7 @@ function Jl(e) {
 			});
 			continue;
 		}
-		ql(n) && typeof n.url != "string" && t.push({
+		Jl(n) && typeof n.url != "string" && t.push({
 			path: `sources.${e}.url`,
 			message: "Honua source must have a string url"
 		});
@@ -7186,14 +7186,14 @@ function Jl(e) {
 	}
 	return t;
 }
-var Yl = [
+var Xl = [
 	"table",
 	"chart",
 	"compare",
 	"time",
 	"legend",
 	"toc"
-], Xl = [
+], Zl = [
 	"navigation",
 	"scale",
 	"fullscreen",
@@ -7208,30 +7208,30 @@ var Yl = [
 	"opacity",
 	"attribution",
 	"basemapSwitcher"
-], Zl = [
+], Ql = [
 	"featureSelect",
 	"featureHover",
 	"selection",
 	"change",
 	"viewportChange"
-], Ql = [
+], $l = [
 	"setFilter",
 	"setViewport",
 	"selectFeature",
 	"runWidgetQuery",
 	"setVisibility"
-], $l = [
+], eu = [
 	"region",
 	"point",
 	"note"
-], eu = [
+], tu = [
 	"layer",
 	"feature",
 	"region",
 	"component",
 	"control"
 ];
-function tu() {
+function nu() {
 	return {
 		version: 1,
 		layers: [],
@@ -7243,48 +7243,48 @@ function tu() {
 		pins: []
 	};
 }
-function nu(e, t) {
+function ru(e, t) {
 	let n = `control:${t}`;
 	return e.interactions.filter((e) => e.on.ref === n || e.do.ref === n);
 }
-function ru(e) {
+function iu(e) {
 	return e.kind === "feature" ? `feature:${e.sourceId}:${String(e.featureId)}` : `${e.kind}:${e.id}`;
 }
-function iu(e, t) {
-	return ru(e) === ru(t);
+function au(e, t) {
+	return iu(e) === iu(t);
 }
-function z(e, t = {}) {
-	let n = au(e);
+function R(e, t = {}) {
+	let n = ou(e);
 	return t.pretty ? JSON.stringify(n, null, 2) : JSON.stringify(n);
 }
-function au(e) {
-	if (Array.isArray(e)) return e.map(au);
-	if (ou(e)) {
+function ou(e) {
+	if (Array.isArray(e)) return e.map(ou);
+	if (su(e)) {
 		let t = {};
-		for (let n of Object.keys(e).sort()) t[n] = au(e[n]);
+		for (let n of Object.keys(e).sort()) t[n] = ou(e[n]);
 		return t;
 	}
 	return e;
 }
-function ou(e) {
+function su(e) {
 	if (typeof e != "object" || !e) return !1;
 	let t = Object.getPrototypeOf(e);
 	return t === Object.prototype || t === null;
 }
 //#endregion
 //#region src/mcp/errors.ts
-var su = class extends Error {
+var cu = class extends Error {
 	cause;
 	constructor(e, t) {
 		super(e), this.cause = t, this.name = "McpTransportError";
 	}
-}, cu = class extends Error {
+}, lu = class extends Error {
 	code;
 	data;
 	constructor(e, t, n) {
 		super(e), this.name = "McpProtocolError", this.code = t, this.data = n;
 	}
-}, lu = class extends Error {
+}, uu = class extends Error {
 	code;
 	toolName;
 	data;
@@ -7292,22 +7292,22 @@ var su = class extends Error {
 		super(e), this.name = "McpToolError", this.code = t, this.toolName = n, this.data = r;
 	}
 };
-function uu(e) {
-	return e instanceof lu && e.code === "failed_precondition";
+function du(e) {
+	return e instanceof uu && e.code === "failed_precondition";
 }
 //#endregion
 //#region src/mcp/protocol.ts
-var du = "2025-03-26";
-function fu(e) {
+var fu = "2025-03-26";
+function pu(e) {
 	return "error" in e && e.error !== void 0;
 }
 //#endregion
 //#region src/mcp/client.ts
-var pu = 0;
-function mu() {
-	return pu += 1, `honua-studio-mcp-${pu}`;
+var mu = 0;
+function hu() {
+	return mu += 1, `honua-studio-mcp-${mu}`;
 }
-var hu = class {
+var gu = class {
 	#e;
 	#t;
 	#n;
@@ -7332,7 +7332,7 @@ var hu = class {
 	}
 	async #c() {
 		let e = await this.#l("initialize", {
-			protocolVersion: du,
+			protocolVersion: fu,
 			capabilities: {},
 			clientInfo: {
 				name: this.#n,
@@ -7350,7 +7350,7 @@ var hu = class {
 			name: e,
 			arguments: t
 		}, r = await this.#l("tools/call", n);
-		if (r.isError) throw gu(r, e);
+		if (r.isError) throw _u(r, e);
 		return r;
 	}
 	async #l(e, t) {
@@ -7364,7 +7364,7 @@ var hu = class {
 		}
 		let r = JSON.stringify({
 			jsonrpc: "2.0",
-			id: mu(),
+			id: hu(),
 			method: e,
 			params: t
 		}), i;
@@ -7375,7 +7375,7 @@ var hu = class {
 				body: r
 			});
 		} catch (e) {
-			throw new su(`Could not reach the MCP endpoint at ${this.#e}/mcp.`, e);
+			throw new cu(`Could not reach the MCP endpoint at ${this.#e}/mcp.`, e);
 		}
 		let a = i.headers.get("mcp-session-id");
 		if (a && (this.#a = a), !i.ok && i.status !== 200) {
@@ -7385,48 +7385,48 @@ var hu = class {
 			} catch {
 				t = void 0;
 			}
-			throw new su(`MCP endpoint responded ${i.status} for "${e}"${t ? `: ${t}` : "."}`);
+			throw new cu(`MCP endpoint responded ${i.status} for "${e}"${t ? `: ${t}` : "."}`);
 		}
 		let o = await this.#u(i, e);
-		if (fu(o)) throw new cu(o.error.message, o.error.code, o.error.data);
+		if (pu(o)) throw new lu(o.error.message, o.error.code, o.error.data);
 		return o.result;
 	}
 	async #u(e, t) {
 		let n = e.headers.get("content-type") ?? "", r = await e.text();
 		if (n.includes("text/event-stream")) {
 			let e = r.split("\n").find((e) => e.startsWith("data:"));
-			if (!e) throw new su(`MCP endpoint returned an empty SSE response for "${t}".`);
+			if (!e) throw new cu(`MCP endpoint returned an empty SSE response for "${t}".`);
 			return JSON.parse(e.slice(5).trim());
 		}
 		try {
 			return JSON.parse(r);
 		} catch (e) {
-			throw new su(`MCP endpoint returned a malformed response for "${t}".`, e);
+			throw new cu(`MCP endpoint returned a malformed response for "${t}".`, e);
 		}
 	}
 };
-function gu(e, t) {
+function _u(e, t) {
 	let n = e.structuredContent;
-	if (n && typeof n.code == "string" && typeof n.message == "string") return new lu(n.message, n.code, t, n);
+	if (n && typeof n.code == "string" && typeof n.message == "string") return new uu(n.message, n.code, t, n);
 	let r = e.content?.find((e) => e.type === "text")?.text;
 	if (r) {
 		try {
 			let e = JSON.parse(r);
-			if (typeof e.code == "string" && typeof e.message == "string") return new lu(e.message, e.code, t, e);
+			if (typeof e.code == "string" && typeof e.message == "string") return new uu(e.message, e.code, t, e);
 		} catch {}
-		return new lu(r, "unknown", t, e);
+		return new uu(r, "unknown", t, e);
 	}
-	return new lu(`Tool "${t}" failed with no structured error detail.`, "unknown", t, e);
+	return new uu(`Tool "${t}" failed with no structured error detail.`, "unknown", t, e);
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/runtime/errors.js
-var _u = class extends r {
+var vu = class extends r {
 	packageId;
 	stage;
 	detail;
 	cause;
 	constructor(e, n) {
-		super(vu[n.stage], e, {
+		super(yu[n.stage], e, {
 			cause: n.cause,
 			operationId: n.operationId,
 			requestId: n.requestId,
@@ -7436,7 +7436,7 @@ var _u = class extends r {
 			})
 		}), this.name = "HonuaMapPackageError", this.packageId = n.packageId, this.stage = n.stage, this.detail = n.detail, this.cause = n.cause;
 	}
-}, vu = {
+}, yu = {
 	fetch: "runtime.map-package.fetch",
 	load: "runtime.map-package.load",
 	export: "runtime.map-package.export",
@@ -7448,51 +7448,51 @@ var _u = class extends r {
 	view: "runtime.map-package.view",
 	popup: "runtime.map-package.popup",
 	dispose: "runtime.map-package.dispose"
-}, yu = [
+}, bu = [
 	"paint",
 	"layout",
 	"filter",
 	"minzoom",
 	"maxzoom",
 	"metadata"
-], bu = /* @__PURE__ */ new Set([...yu, "visibility"]), xu = /* @__PURE__ */ new Set([
+], xu = /* @__PURE__ */ new Set([...bu, "visibility"]), Su = /* @__PURE__ */ new Set([
 	"filter",
 	"minzoom",
 	"maxzoom",
 	"visibility"
 ]);
-function Su(e) {
-	throw new _u(e, { stage: "style-compose" });
-}
 function Cu(e) {
+	throw new vu(e, { stage: "style-compose" });
+}
+function wu(e) {
 	if (e === void 0) return;
-	(!Array.isArray(e) || e.length === 0 || e.length > 256) && Su("Style layer bindings must contain between 1 and 256 mappings.");
+	(!Array.isArray(e) || e.length === 0 || e.length > 256) && Cu("Style layer bindings must contain between 1 and 256 mappings.");
 	let t = /* @__PURE__ */ new Set();
 	for (let n of e) {
-		(!n || typeof n != "object" || Array.isArray(n)) && Su("Invalid style layer binding.");
+		(!n || typeof n != "object" || Array.isArray(n)) && Cu("Invalid style layer binding.");
 		for (let e of [
 			"styleLayerId",
 			"targetLayerId",
 			"layerType"
-		]) (typeof n[e] != "string" || !n[e].trim() || n[e].length > 256) && Su(`Style layer binding requires a bounded ${e}.`);
-		t.has(n.targetLayerId) && Su("A style reference cannot map multiple overrides to one target layer."), t.add(n.targetLayerId), n.properties !== void 0 && (!Array.isArray(n.properties) || n.properties.length === 0 || n.properties.length > bu.size || new Set(n.properties).size !== n.properties.length || n.properties.some((e) => typeof e != "string" || !bu.has(e))) && Su("Invalid shared style binding properties.");
+		]) (typeof n[e] != "string" || !n[e].trim() || n[e].length > 256) && Cu(`Style layer binding requires a bounded ${e}.`);
+		t.has(n.targetLayerId) && Cu("A style reference cannot map multiple overrides to one target layer."), t.add(n.targetLayerId), n.properties !== void 0 && (!Array.isArray(n.properties) || n.properties.length === 0 || n.properties.length > xu.size || new Set(n.properties).size !== n.properties.length || n.properties.some((e) => typeof e != "string" || !xu.has(e))) && Cu("Invalid shared style binding properties.");
 	}
 	return e;
 }
-function wu(e, t) {
-	(!t || !Array.isArray(t.layers)) && Su("A shared style binding requires a map render-layer list.");
+function Tu(e, t) {
+	(!t || !Array.isArray(t.layers)) && Cu("A shared style binding requires a map render-layer list.");
 	for (let n of e) {
 		let e = t.layers.filter((e) => e && e.id === n.targetLayerId);
-		e.length !== 1 && Su(`Shared style target "${n.targetLayerId}" is missing or ambiguous.`), e[0].type !== n.layerType && (n.properties ?? yu).some((e) => !xu.has(e)) && Su(`Shared style target "${n.targetLayerId}" has an incompatible render type.`);
+		e.length !== 1 && Cu(`Shared style target "${n.targetLayerId}" is missing or ambiguous.`), e[0].type !== n.layerType && (n.properties ?? bu).some((e) => !Su.has(e)) && Cu(`Shared style target "${n.targetLayerId}" has an incompatible render type.`);
 	}
 }
-function Tu(e, t) {
-	let n = new Set(e.map((e) => e.targetLayerId));
-	(!t || typeof t != "object" || Array.isArray(t) || Object.keys(t).length !== n.size || Object.keys(t).some((e) => !n.has(e)) || [...n].some((e) => !Object.hasOwn(t, e) || !t[e] || typeof t[e] != "object" || Array.isArray(t[e]))) && Su("Shared style resolution did not return the selected map layers.");
-}
 function Eu(e, t) {
+	let n = new Set(e.map((e) => e.targetLayerId));
+	(!t || typeof t != "object" || Array.isArray(t) || Object.keys(t).length !== n.size || Object.keys(t).some((e) => !n.has(e)) || [...n].some((e) => !Object.hasOwn(t, e) || !t[e] || typeof t[e] != "object" || Array.isArray(t[e]))) && Cu("Shared style resolution did not return the selected map layers.");
+}
+function Du(e, t) {
 	let n = {};
-	for (let r of t.properties ?? yu) r === "visibility" ? e.layout?.visibility !== void 0 && (n.layout = {
+	for (let r of t.properties ?? bu) r === "visibility" ? e.layout?.visibility !== void 0 && (n.layout = {
 		...n.layout,
 		visibility: e.layout.visibility
 	}) : r === "metadata" ? e.metadata !== void 0 && (n.metadata = Object.fromEntries(Object.entries(e.metadata).filter(([e]) => e !== "honua:compositionLayerId" && e !== "honua:compositionSourceId"))) : e[r] !== void 0 && Object.defineProperty(n, r, {
@@ -7505,51 +7505,51 @@ function Eu(e, t) {
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/runtime/ogc-styles.js
-function Du(e, t) {
-	let n = Cu(t);
+function Ou(e, t) {
+	let n = wu(t);
 	if (n) return Object.fromEntries(n.map((t) => {
 		let n = e.layers.filter((e) => e.id === t.styleLayerId);
-		if (n.length !== 1 || n[0].type !== t.layerType) throw new _u("The selected shared style render layer changed; rebind the style.", {
+		if (n.length !== 1 || n[0].type !== t.layerType) throw new vu("The selected shared style render layer changed; rebind the style.", {
 			stage: "style-compose",
 			detail: { styleLayerId: t.styleLayerId }
 		});
-		return [t.targetLayerId, Eu(Ou(n[0]) ?? {}, t)];
+		return [t.targetLayerId, Du(ku(n[0]) ?? {}, t)];
 	}));
 	let r = {};
 	for (let t of e.layers ?? []) {
 		if (!t || typeof t.id != "string") continue;
-		let e = Ou(t);
+		let e = ku(t);
 		e && (r[t.id] = e);
 	}
 	return r;
 }
-function Ou(e) {
+function ku(e) {
 	let t = {}, n = !1;
 	return e.paint !== void 0 && (t.paint = e.paint, n = !0), e.layout !== void 0 && (t.layout = e.layout, n = !0), e.minzoom !== void 0 && (t.minzoom = e.minzoom, n = !0), e.maxzoom !== void 0 && (t.maxzoom = e.maxzoom, n = !0), e.filter !== void 0 && (t.filter = e.filter, n = !0), e.metadata !== void 0 && (t.metadata = e.metadata, n = !0), n ? t : void 0;
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/runtime/style-compose.js
-async function ku(e, t, n) {
+async function Au(e, t, n) {
 	try {
-		let r = await Au(t, e, n.resolveStyleRef), i = await Mu(e, n.resolveTheme);
-		return Lu(i ? ju(r, i) : r);
+		let r = await ju(t, e, n.resolveStyleRef), i = await Nu(e, n.resolveTheme);
+		return Ru(i ? Mu(r, i) : r);
 	} catch (t) {
-		throw t instanceof _u ? t : new _u("style composition failed", {
+		throw t instanceof vu ? t : new vu("style composition failed", {
 			packageId: e.mapPackageId,
 			stage: "style-compose",
 			cause: t
 		});
 	}
 }
-async function Au(e, t, n) {
+async function ju(e, t, n) {
 	let r = t.styleRefs ?? [];
 	if (r.length === 0) return e;
-	let i = e.layers.map((e) => Pu(e)), a = /* @__PURE__ */ new Set(), o = r.map((n) => {
-		let r = Cu(n.layerBindings);
+	let i = e.layers.map((e) => Fu(e)), a = /* @__PURE__ */ new Set(), o = r.map((n) => {
+		let r = wu(n.layerBindings);
 		if (r) {
-			wu(r, e);
+			Tu(r, e);
 			for (let e of r) {
-				if (a.has(e.targetLayerId)) throw new _u("Multiple shared styles claim the same explicit target layer.", {
+				if (a.has(e.targetLayerId)) throw new vu("Multiple shared styles claim the same explicit target layer.", {
 					packageId: t.mapPackageId,
 					stage: "style-compose"
 				});
@@ -7563,20 +7563,20 @@ async function Au(e, t, n) {
 	});
 	for (let { ref: r, bindings: a } of o) {
 		let o = r.body ?? (n ? await n(r.styleId, r.presetId, a) : void 0);
-		if (!o) throw new _u(`StyleRef "${r.styleId}" has no inline body and no resolver was provided`, {
+		if (!o) throw new vu(`StyleRef "${r.styleId}" has no inline body and no resolver was provided`, {
 			packageId: t.mapPackageId,
 			stage: "style-compose",
 			detail: { styleId: r.styleId }
 		});
-		a && Tu(a, o);
+		a && Eu(a, o);
 		for (let [t, n] of Object.entries(o)) {
 			let r = i.findIndex((e) => e.id === t);
 			if (r === -1) continue;
-			let o = a?.find((e) => e.targetLayerId === t), s = o ? Eu(n, o) : n;
+			let o = a?.find((e) => e.targetLayerId === t), s = o ? Du(n, o) : n;
 			o && e.layers[r].layout?.visibility === "none" && (s.layout = {
 				...s.layout,
 				visibility: "none"
-			}), i[r] = Nu(i[r], s);
+			}), i[r] = Pu(i[r], s);
 		}
 	}
 	return {
@@ -7584,21 +7584,21 @@ async function Au(e, t, n) {
 		layers: i
 	};
 }
-function ju(e, t) {
+function Mu(e, t) {
 	let n = t.tokens;
 	if (!n) return e;
-	let r = e.layers.map((e) => Fu(e, n));
+	let r = e.layers.map((e) => Iu(e, n));
 	return {
 		...e,
 		layers: r
 	};
 }
-async function Mu(e, t) {
+async function Nu(e, t) {
 	if (e.theme) return e.theme;
 	if (e.themeId && t) try {
 		return await t(e.themeId);
 	} catch (t) {
-		throw new _u(`theme resolution failed for themeId "${e.themeId}"`, {
+		throw new vu(`theme resolution failed for themeId "${e.themeId}"`, {
 			packageId: e.mapPackageId,
 			stage: "style-compose",
 			detail: { themeId: e.themeId },
@@ -7606,106 +7606,106 @@ async function Mu(e, t) {
 		});
 	}
 }
-function Nu(e, t) {
+function Pu(e, t) {
 	return {
 		...e,
 		...t.filter === void 0 ? {} : { filter: t.filter },
 		...t.minzoom === void 0 ? {} : { minzoom: t.minzoom },
 		...t.maxzoom === void 0 ? {} : { maxzoom: t.maxzoom },
-		...Iu("paint", {
+		...Lu("paint", {
 			...e.paint ?? {},
 			...t.paint ?? {}
 		}),
-		...Iu("layout", {
+		...Lu("layout", {
 			...e.layout ?? {},
 			...t.layout ?? {}
 		}),
-		...Iu("metadata", {
+		...Lu("metadata", {
 			...e.metadata ?? {},
 			...t.metadata ?? {}
 		})
 	};
 }
-function Pu(e) {
+function Fu(e) {
 	return {
 		...e,
-		...Iu("paint", e.paint ? { ...e.paint } : void 0),
-		...Iu("layout", e.layout ? { ...e.layout } : void 0),
-		...Iu("metadata", e.metadata ? { ...e.metadata } : void 0)
-	};
-}
-function Fu(e, t) {
-	return {
-		...e,
-		...Iu("paint", e.paint ? Bu(e.paint, t) : void 0),
-		...Iu("layout", e.layout ? Bu(e.layout, t) : void 0)
+		...Lu("paint", e.paint ? { ...e.paint } : void 0),
+		...Lu("layout", e.layout ? { ...e.layout } : void 0),
+		...Lu("metadata", e.metadata ? { ...e.metadata } : void 0)
 	};
 }
 function Iu(e, t) {
+	return {
+		...e,
+		...Lu("paint", e.paint ? Vu(e.paint, t) : void 0),
+		...Lu("layout", e.layout ? Vu(e.layout, t) : void 0)
+	};
+}
+function Lu(e, t) {
 	return !t || Object.keys(t).length === 0 ? {} : { [e]: t };
 }
-function Lu(e) {
-	return Ru(e);
-}
 function Ru(e) {
+	return zu(e);
+}
+function zu(e) {
 	if (Array.isArray(e)) {
 		let t = !1, n = e.map((e) => {
-			let n = Ru(e);
+			let n = zu(e);
 			return n !== e && (t = !0), n;
 		});
 		return t ? n : e;
 	}
-	if (!zu(e)) return e;
+	if (!Bu(e)) return e;
 	let t = !1, n = {};
 	for (let [r, i] of Object.entries(e)) {
 		if (i === void 0) {
 			t = !0;
 			continue;
 		}
-		let e = Ru(i);
+		let e = zu(i);
 		e !== i && (t = !0), n[r] = e;
 	}
 	return t ? n : e;
 }
-function zu(e) {
+function Bu(e) {
 	if (typeof e != "object" || !e) return !1;
 	let t = Object.getPrototypeOf(e);
 	return t === Object.prototype || t === null;
 }
-function Bu(e, t) {
+function Vu(e, t) {
 	let n = {};
-	for (let [r, i] of Object.entries(e)) n[r] = Hu(i, t);
+	for (let [r, i] of Object.entries(e)) n[r] = Uu(i, t);
 	return n;
 }
-var Vu = /^\{theme:([^}]+)\}$/;
-function Hu(e, t) {
+var Hu = /^\{theme:([^}]+)\}$/;
+function Uu(e, t) {
 	if (typeof e == "string") {
-		let n = e.match(Vu);
+		let n = e.match(Hu);
 		if (n) {
 			let r = t[n[1]];
 			return r === void 0 ? e : r;
 		}
 		return e;
 	}
-	return Array.isArray(e) ? e.map((e) => Hu(e, t)) : e && typeof e == "object" ? Bu(e, t) : e;
+	return Array.isArray(e) ? e.map((e) => Uu(e, t)) : e && typeof e == "object" ? Vu(e, t) : e;
 }
 //#endregion
 //#region src/styles/style-ref-body.ts
-function Uu(e, t) {
-	if (t !== void 0 && Du.length < 2) throw Error("Explicit shared style bindings require the qualified binding-aware SDK. Reopen in the unified workspace.");
-	return Du(e, t);
+function Wu(e, t) {
+	if (t !== void 0 && Ou.length < 2) throw Error("Explicit shared style bindings require the qualified binding-aware SDK. Reopen in the unified workspace.");
+	return Ou(e, t);
 }
 //#endregion
 //#region src/styles/authoritative-style-provider.ts
-function Wu(e) {
+function Gu(e) {
 	if (!e || typeof e != "object" || Array.isArray(e)) throw Error("Invalid authoritative style response.");
 	return e;
 }
-async function Gu(e) {
+async function Ku(e) {
 	let t = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(e));
 	return Array.from(new Uint8Array(t), (e) => e.toString(16).padStart(2, "0")).join("");
 }
-function Ku(e) {
+function qu(e) {
 	if (!Array.isArray(e)) return;
 	let [t, n] = e;
 	if ([
@@ -7725,22 +7725,22 @@ function Ku(e) {
 		"all",
 		"any",
 		"!"
-	].includes(t)) for (let t of e.slice(1)) Ku(t);
+	].includes(t)) for (let t of e.slice(1)) qu(t);
 }
-function qu(e) {
+function Ju(e) {
 	if (new TextEncoder().encode(e).length > 262144) throw Error("Stylesheet exceeds the 256 KiB limit.");
-	let t = Wu(JSON.parse(e));
+	let t = Gu(JSON.parse(e));
 	if (t.version !== 8 || !Array.isArray(t.layers) || t.layers.length === 0 || t.layers.length > 100) throw Error("Expected a bounded MapLibre v8 stylesheet.");
 	if (t.sprite !== void 0 || t.glyphs !== void 0 || t.imports !== void 0) throw Error("External stylesheet assets are not supported.");
-	for (let e of Object.values(Wu(t.sources ?? {}))) {
-		let t = Wu(e);
+	for (let e of Object.values(Gu(t.sources ?? {}))) {
+		let t = Gu(e);
 		if (t.type !== "geojson" || typeof t.data != "object" || t.data === null || t.url || t.tiles) throw Error("Only inline GeoJSON stylesheet sources are supported.");
 	}
-	let n = Jl(t);
+	let n = Yl(t);
 	if (n.length > 0) throw Error(`Invalid canonical stylesheet: ${n[0]?.message}`);
 	let r = /* @__PURE__ */ new Set();
 	return t.layers.map((e) => {
-		let t = Wu(e);
+		let t = Gu(e);
 		if (typeof t.id != "string" || !t.id || r.has(t.id) || ![
 			"fill",
 			"line",
@@ -7748,14 +7748,14 @@ function qu(e) {
 			"symbol"
 		].includes(String(t.type))) throw Error("Stylesheet layers must have unique ids and supported vector types.");
 		r.add(t.id);
-		let n = Wu(t.paint ?? {}), i = Wu(t.layout ?? {});
+		let n = Gu(t.paint ?? {}), i = Gu(t.layout ?? {});
 		if (Object.keys(n).some((e) => e.endsWith("-pattern")) || i["icon-image"] !== void 0) throw Error("Stylesheet image resources are not supported.");
-		Ku(t.filter);
+		qu(t.filter);
 		for (let e of [...Object.values(n), ...Object.values(i)]) if (typeof e == "object" && e && !Array.isArray(e)) throw Error("Legacy stylesheet property functions are not supported; use expressions.");
 		return t;
 	});
 }
-var Ju = class {
+var Yu = class {
 	options;
 	serverRoot;
 	constructor(e) {
@@ -7781,7 +7781,7 @@ var Ju = class {
 		return this.options.getAuth();
 	}
 	async #n(e, t) {
-		let n = this.options.getAuth(), r = `${this.serverRoot}/mcp`, i = this.options.fetchImpl ?? n?.fetchRequest ?? fetch, a = await new hu({
+		let n = this.options.getAuth(), r = `${this.serverRoot}/mcp`, i = this.options.fetchImpl ?? n?.fetchRequest ?? fetch, a = await new gu({
 			baseUrl: this.serverRoot,
 			fetchImpl: async (e, t) => {
 				if (String(e) !== r) throw Error("Untrusted style discovery endpoint.");
@@ -7808,14 +7808,14 @@ var Ju = class {
 		}).callTool(e, t);
 		if (n !== this.options.getAuth()) throw Error("Studio session changed during style discovery.");
 		let o = a.content?.find((e) => e.type === "text")?.text;
-		return Wu(a.structuredContent ?? (o ? JSON.parse(o) : void 0));
+		return Gu(a.structuredContent ?? (o ? JSON.parse(o) : void 0));
 	}
 	async list() {
 		let e = await this.#n("honua_get_style", {});
 		if (!Array.isArray(e.styles) || e.styles.length > 1e3) throw Error("Invalid bounded style catalog.");
 		let t = /* @__PURE__ */ new Set();
 		return e.styles.map((e) => {
-			let n = Wu(e);
+			let n = Gu(e);
 			if (typeof n.styleId != "string" || !n.styleId || t.has(n.styleId)) throw Error("Invalid or duplicate style catalog identity.");
 			return t.add(n.styleId), {
 				styleId: n.styleId,
@@ -7830,9 +7830,9 @@ var Ju = class {
 			encoding: "mapbox-style"
 		});
 		if (n.styleId !== e || !Number.isSafeInteger(n.styleVersion) || Number(n.styleVersion) < 0 || !Array.isArray(n.encodings)) throw Error("Style identity or revision is invalid.");
-		let r = n.encodings.map(Wu).filter((e) => e.encoding === "mapbox-style");
+		let r = n.encodings.map(Gu).filter((e) => e.encoding === "mapbox-style");
 		if (r.length !== 1 || typeof r[0]?.inlineBody != "string") throw Error("Canonical inline stylesheet is unavailable.");
-		let i = r[0].inlineBody, a = qu(i), o = Wu(JSON.parse(i)), s = Wu(o.metadata ?? {}), c = await Gu(i);
+		let i = r[0].inlineBody, a = Ju(i), o = Gu(JSON.parse(i)), s = Gu(o.metadata ?? {}), c = await Ku(i);
 		if (t !== this.options.getAuth()) throw Error("Studio session changed during style readback.");
 		return {
 			styleId: e,
@@ -7865,7 +7865,7 @@ var Ju = class {
 		if (!a.every((e) => typeof e == "number" && Number.isFinite(e))) return;
 		let [o, s, c, l] = a;
 		if (o > c || s > l) return;
-		let [u, d] = Kl({
+		let [u, d] = ql({
 			type: "MultiPoint",
 			coordinates: [[o, s], [c, l]]
 		}, Number(n)).coordinates;
@@ -7900,7 +7900,7 @@ var Ju = class {
 		return {
 			descriptor: r,
 			fields: r.fields.map((e) => {
-				let t = Wu(e);
+				let t = Gu(e);
 				if (typeof t.name != "string" || !t.name || t.name.length > 256 || a.has(t.name)) throw Error("Invalid actual source field.");
 				return a.add(t.name), {
 					name: t.name,
@@ -7927,7 +7927,7 @@ var Ju = class {
 		if (typeof c.serviceName != "string") throw Error("Source descriptor service name is missing.");
 		if (!this.#t(o, c.serviceName, Number(a))) throw Error("Source locator does not match the actual descriptor.");
 		let l = c.fields.map((e) => {
-			let t = Wu(e);
+			let t = Gu(e);
 			if (typeof t.name != "string" || !t.name) throw Error("Invalid source descriptor field.");
 			return t.name;
 		}), u = n?.layerBindings.filter((e) => e.targetLayerId === n.primaryTargetId);
@@ -7936,14 +7936,14 @@ var Ju = class {
 		if (d.length !== 1) throw Error("Stylesheet must identify exactly one compatible vector layer.");
 		let f = d[0];
 		if (!f) throw Error("Compatible stylesheet layer is missing.");
-		let p = s.layers.filter((e) => (e.id === f.id || e.type === "symbol") && e.source === f.source && e["source-layer"] === f["source-layer"]), m = n ? Uu(JSON.parse(s.inlineBody), n.layerBindings) : void 0;
+		let p = s.layers.filter((e) => (e.id === f.id || e.type === "symbol") && e.source === f.source && e["source-layer"] === f["source-layer"]), m = n ? Wu(JSON.parse(s.inlineBody), n.layerBindings) : void 0;
 		for (let e of m ? Object.values(m) : p) {
 			let t = Object.fromEntries([
 				"paint",
 				"layout",
 				"filter"
 			].filter((t) => e[t] !== void 0).map((t) => [t, e[t]]));
-			for (let e of Yu(t)) if (!l.includes(e)) throw Error(`Stylesheet references missing field "${e}".`);
+			for (let e of Xu(t)) if (!l.includes(e)) throw Error(`Stylesheet references missing field "${e}".`);
 		}
 		let h = {};
 		for (let e of [
@@ -7966,7 +7966,7 @@ var Ju = class {
 				...t.metadata,
 				..._
 			}
-		}])) : void 0, y = z(c), b = await Gu(y);
+		}])) : void 0, y = R(c), b = await Ku(y);
 		if (r !== this.options.getAuth()) throw Error("Studio session changed during style binding.");
 		return {
 			definition: s,
@@ -7983,7 +7983,7 @@ var Ju = class {
 		};
 	}
 };
-function Yu(e) {
+function Xu(e) {
 	let t = /* @__PURE__ */ new Set(), n = (e) => {
 		if (Array.isArray(e)) {
 			if (e[0] === "literal") return;
@@ -8002,11 +8002,11 @@ function Yu(e) {
 }
 //#endregion
 //#region src/styles/map-style-edit.ts
-function Xu(e) {
+function Zu(e) {
 	return typeof e == "object" && !!e && !Array.isArray(e);
 }
-function Zu(e, t) {
-	if (!Xu(t)) return ["Style overrides must be an object."];
+function Qu(e, t) {
+	if (!Zu(t)) return ["Style overrides must be an object."];
 	let n = /* @__PURE__ */ new Set([
 		"paint",
 		"layout",
@@ -8017,19 +8017,19 @@ function Zu(e, t) {
 	]);
 	for (let [r, i] of Object.entries(t)) {
 		if (r !== e && r !== `${e}__outline`) return ["Style overrides must target the selected layer only."];
-		if (!Xu(i) || Object.keys(i).some((e) => !n.has(e))) return ["Style overrides cannot change layer identity or sources."];
+		if (!Zu(i) || Object.keys(i).some((e) => !n.has(e))) return ["Style overrides cannot change layer identity or sources."];
 	}
 	return JSON.stringify(t).length <= 262144 ? [] : ["Style overrides exceed the 256 KiB limit."];
 }
-function Qu(e, t) {
+function $u(e, t) {
 	try {
-		return $u(e, t);
+		return ed(e, t);
 	} catch {
 		return ["Expected bounded JSON style data."];
 	}
 }
-function $u(e, t) {
-	if (!Xu(t) || t.version !== 8 || !Xu(t.sources) || !Array.isArray(t.layers)) return ["Expected a MapLibre v8 style document."];
+function ed(e, t) {
+	if (!Zu(t) || t.version !== 8 || !Zu(t.sources) || !Array.isArray(t.layers)) return ["Expected a MapLibre v8 style document."];
 	if (new TextEncoder().encode(JSON.stringify(t)).length > 1048576) return ["Map style exceeds the 1 MiB limit."];
 	let n = /* @__PURE__ */ new Set([
 		"layers",
@@ -8040,23 +8040,23 @@ function $u(e, t) {
 		"lights",
 		"fog"
 	]);
-	for (let r of /* @__PURE__ */ new Set([...Object.keys(e), ...Object.keys(t)])) if (!n.has(r) && z(e[r] ?? null) !== z(t[r] ?? null)) return [`The editor cannot change protected style member '${r}'.`];
-	let r = new Map((Array.isArray(e.layers) ? e.layers : []).filter(Xu).map((e) => [e.id, e]));
+	for (let r of /* @__PURE__ */ new Set([...Object.keys(e), ...Object.keys(t)])) if (!n.has(r) && R(e[r] ?? null) !== R(t[r] ?? null)) return [`The editor cannot change protected style member '${r}'.`];
+	let r = new Map((Array.isArray(e.layers) ? e.layers : []).filter(Zu).map((e) => [e.id, e]));
 	for (let e of t.layers) {
-		if (!Xu(e) || typeof e.id != "string") return ["Every render layer needs an identity."];
+		if (!Zu(e) || typeof e.id != "string") return ["Every render layer needs an identity."];
 		let n = r.get(e.id);
 		if (n && (e.source !== n.source || e["source-layer"] !== n["source-layer"] || n.metadata?.["honua:compositionLayerId"] !== e.metadata?.["honua:compositionLayerId"])) return ["Existing render-layer source bindings cannot change."];
 		if (e.source !== void 0 && (typeof e.source != "string" || !Object.hasOwn(t.sources, e.source))) return ["Render layers must use an existing authorized source."];
 	}
-	return Jl(t).map((e) => e.message);
+	return Yl(t).map((e) => e.message);
 }
-function ed(e, t, n, r) {
+function td(e, t, n, r) {
 	let i = structuredClone(t);
 	if (!Array.isArray(i.layers)) throw Error("The style has no render-layer array.");
-	let a = new Set((Array.isArray(e.layers) ? e.layers : []).filter(Xu).map((e) => e.id));
+	let a = new Set((Array.isArray(e.layers) ? e.layers : []).filter(Zu).map((e) => e.id));
 	return i.layers = i.layers.map((e) => {
-		if (!Xu(e) || a.has(e.id) || typeof e.source != "string") return e;
-		let t = Xu(e.metadata) ? e.metadata : {};
+		if (!Zu(e) || a.has(e.id) || typeof e.source != "string") return e;
+		let t = Zu(e.metadata) ? e.metadata : {};
 		if (t["honua:compositionLayerId"] !== void 0) return e;
 		let i = n.filter((t) => t.sourceId === e.source), o = i.find((e) => e.id === r) ?? (i.length === 1 ? i[0] : void 0);
 		if (!o) throw Error("Select the composed owner for the new render layer.");
@@ -8069,7 +8069,7 @@ function ed(e, t, n, r) {
 		};
 	}), i;
 }
-function td(e, t, n, r, i, a) {
+function nd(e, t, n, r, i, a) {
 	if (!Array.isArray(i) || i.length === 0 || i.length > 5 || a.length < i.length + 1) throw Error("Provide one to five explicit categories or numeric breaks.");
 	if (a.some((e) => !/^#[a-fA-F0-9]{6}$/.test(e))) throw Error("Choose a valid thematic palette.");
 	let o;
@@ -8094,7 +8094,7 @@ function td(e, t, n, r, i, a) {
 	if (!Array.isArray(s.layers)) throw Error("The style has no render-layer array.");
 	let c = !1;
 	if (s.layers = s.layers.map((e) => {
-		if (!Xu(e) || e.id !== t.id || e.source !== t.sourceId) return e;
+		if (!Zu(e) || e.id !== t.id || e.source !== t.sourceId) return e;
 		let n = e.type === "symbol" ? "text-color" : [
 			"fill",
 			"line",
@@ -8104,7 +8104,7 @@ function td(e, t, n, r, i, a) {
 		return c = !0, {
 			...e,
 			paint: {
-				...Xu(e.paint) ? e.paint : {},
+				...Zu(e.paint) ? e.paint : {},
 				[n]: o
 			}
 		};
@@ -8113,7 +8113,7 @@ function td(e, t, n, r, i, a) {
 }
 //#endregion
 //#region src/styles/map-style-editor.ts
-var nd = class {
+var rd = class {
 	#e;
 	#t;
 	#n;
@@ -8188,17 +8188,17 @@ var nd = class {
 		this.#h(!0);
 		let n;
 		try {
-			n = this.#e.scope.kind === "shared-style" ? structuredClone(e.data.style) : ed(this.#a, e.data.style, this.#e.layers ?? [], this.#u);
+			n = this.#e.scope.kind === "shared-style" ? structuredClone(e.data.style) : td(this.#a, e.data.style, this.#e.layers ?? [], this.#u);
 		} catch (e) {
 			this.#l = e instanceof Error ? e.message : String(e), this.#n.textContent = this.#l, this.#r.disabled = !0;
 			return;
 		}
-		let r = Qu(this.#a, n);
+		let r = $u(this.#a, n);
 		if (this.#l = r[0], r.length) {
 			this.#r.disabled = !0, this.#n.textContent = r[0];
 			return;
 		}
-		this.#o = structuredClone(n), this.#h(z(this.#a) !== z(this.#o)), this.#n.textContent = this.#s ? "Unsaved visual edits. Preview only." : "Map style matches the saved draft.", this.#e.onPreview(this.#s ? this.#o : void 0);
+		this.#o = structuredClone(n), this.#h(R(this.#a) !== R(this.#o)), this.#n.textContent = this.#s ? "Unsaved visual edits. Preview only." : "Map style matches the saved draft.", this.#e.onPreview(this.#s ? this.#o : void 0);
 	}
 	save() {
 		if (this.#d) return this.#d;
@@ -8228,10 +8228,10 @@ var nd = class {
 					}, "*");
 				});
 				if (!this.#m()) throw Error("Shared style editing requires complete authorized impact and edit permission.");
-				this.#o = this.#e.scope.kind === "shared-style" ? structuredClone(e) : ed(this.#a, e, this.#e.layers ?? [], this.#u);
-				let t = Qu(this.#a, this.#o);
+				this.#o = this.#e.scope.kind === "shared-style" ? structuredClone(e) : td(this.#a, e, this.#e.layers ?? [], this.#u);
+				let t = $u(this.#a, this.#o);
 				if (t.length) throw Error(t[0]);
-				let n = await this.#e.onSave(structuredClone(this.#o)), r = Qu(this.#o, n);
+				let n = await this.#e.onSave(structuredClone(this.#o)), r = $u(this.#o, n);
 				if (r.length) throw Error(`No valid canonical style readback: ${r[0]}`);
 				this.#a = structuredClone(n), this.#o = this.#a, this.#l = void 0, this.#g(), this.#h(!1), this.#e.onPreview(void 0), this.#n.textContent = this.#e.scope.kind === "shared-style" ? "Shared style saved; canonical readback loaded." : "Map style saved to the authorized draft.";
 			} catch (e) {
@@ -8297,14 +8297,14 @@ var nd = class {
 			try {
 				let e = this.#e.layers?.find((e) => e.id === t.value), a = o.find((e) => e.name === n.value);
 				if (!e || !a) throw Error("Choose an actual described field.");
-				let s = td(this.#o, e, a, r.value, JSON.parse(i.value), [
+				let s = nd(this.#o, e, a, r.value, JSON.parse(i.value), [
 					"#eff3ff",
 					"#c6dbef",
 					"#9ecae1",
 					"#6baed6",
 					"#3182bd",
 					"#08519c"
-				]), c = Qu(this.#a, s);
+				]), c = $u(this.#a, s);
 				if (c.length) throw Error(c[0]);
 				this.#o = s, this.#l = void 0, this.#h(!0), this.#e.onPreview(s), this.#g(), this.#n.textContent = "Unsaved thematic preview over the selected actual field.";
 			} catch (e) {
@@ -8315,7 +8315,7 @@ var nd = class {
 	#x(e) {
 		this.#n.textContent = e instanceof Error ? e.message : String(e);
 	}
-}, rd = {
+}, id = {
 	schemaVersion: "honua.studio.runtime-config.v1",
 	serverBaseUrl: "/api",
 	mcpBaseUrl: "",
@@ -8330,15 +8330,15 @@ var nd = class {
 		]
 	},
 	model: { mode: "server-proxy" }
-}, id;
-function ad() {
-	return id ?? (typeof window > "u" ? rd : window.__honuaStudioRuntimeConfig ?? rd);
-}
+}, ad;
 function od() {
-	return ad().serverBaseUrl;
+	return ad ?? (typeof window > "u" ? id : window.__honuaStudioRuntimeConfig ?? id);
+}
+function z() {
+	return od().serverBaseUrl;
 }
 function B() {
-	return ad().mcpBaseUrl;
+	return od().mcpBaseUrl;
 }
 //#endregion
 //#region src/auth/config.ts
@@ -8353,7 +8353,7 @@ function dd(e = {
 	PROD: !0,
 	SSR: !1
 }, t = ud()) {
-	let n = ad(), r = n.oidc.issuer.startsWith("/") ? `${t}${n.oidc.issuer}` : n.oidc.issuer;
+	let n = od(), r = n.oidc.issuer.startsWith("/") ? `${t}${n.oidc.issuer}` : n.oidc.issuer;
 	return {
 		issuer: fd(e, "HONUA_OIDC_ISSUER") || r || `${t}${sd}`,
 		clientId: fd(e, "HONUA_OIDC_CLIENT_ID") || n.oidc.clientId || cd,
@@ -9042,7 +9042,7 @@ function Xd(e) {
 }
 function Zd(e) {
 	let t = [], n = lf(e.target, t, "setLayerStyleRef.target");
-	return t.push(...uf(e.styleRef, "setLayerStyleRef.styleRef")), e.styleBody !== void 0 && (e.styleRef !== void 0 && t.push("Inline styling cannot also select a shared style."), t.push(...Zu(n && n.kind !== "feature" ? n.id : "", e.styleBody))), t.length > 0 || !n ? V(t) : {
+	return t.push(...uf(e.styleRef, "setLayerStyleRef.styleRef")), e.styleBody !== void 0 && (e.styleRef !== void 0 && t.push("Inline styling cannot also select a shared style."), t.push(...Qu(n && n.kind !== "feature" ? n.id : "", e.styleBody))), t.length > 0 || !n ? V(t) : {
 		ok: !0,
 		command: {
 			name: "setLayerStyleRef",
@@ -9075,7 +9075,7 @@ function $d(e) {
 }
 function ef(e) {
 	let t = [], n = e.widget;
-	return H(n) ? (df(n.id) || t.push("addWidget.widget.id must be a non-empty string"), (typeof n.kind != "string" || !Yl.includes(n.kind)) && t.push(`addWidget.widget.kind must be one of ${Yl.join(", ")}`), n.title !== void 0 && typeof n.title != "string" && t.push("addWidget.widget.title must be a string"), n.sourceId !== void 0 && typeof n.sourceId != "string" && t.push("addWidget.widget.sourceId must be a string"), n.config !== void 0 && !H(n.config) && t.push("addWidget.widget.config must be an object"), t.length > 0 ? V(t) : {
+	return H(n) ? (df(n.id) || t.push("addWidget.widget.id must be a non-empty string"), (typeof n.kind != "string" || !Xl.includes(n.kind)) && t.push(`addWidget.widget.kind must be one of ${Xl.join(", ")}`), n.title !== void 0 && typeof n.title != "string" && t.push("addWidget.widget.title must be a string"), n.sourceId !== void 0 && typeof n.sourceId != "string" && t.push("addWidget.widget.sourceId must be a string"), n.config !== void 0 && !H(n.config) && t.push("addWidget.widget.config must be an object"), t.length > 0 ? V(t) : {
 		ok: !0,
 		command: {
 			name: "addWidget",
@@ -9085,7 +9085,7 @@ function ef(e) {
 }
 function tf(e) {
 	let t = [], n = e.control;
-	return H(n) ? (df(n.id) || t.push("addControl.control.id must be a non-empty string"), (typeof n.kind != "string" || !Xl.includes(n.kind)) && t.push(`addControl.control.kind must be one of ${Xl.join(", ")}`), n.title !== void 0 && typeof n.title != "string" && t.push("addControl.control.title must be a string"), n.sourceId !== void 0 && !df(n.sourceId) && t.push("addControl.control.sourceId must be a non-empty string when present"), n.config !== void 0 && !H(n.config) && t.push("addControl.control.config must be an object"), t.length > 0 ? V(t) : {
+	return H(n) ? (df(n.id) || t.push("addControl.control.id must be a non-empty string"), (typeof n.kind != "string" || !Zl.includes(n.kind)) && t.push(`addControl.control.kind must be one of ${Zl.join(", ")}`), n.title !== void 0 && typeof n.title != "string" && t.push("addControl.control.title must be a string"), n.sourceId !== void 0 && !df(n.sourceId) && t.push("addControl.control.sourceId must be a non-empty string when present"), n.config !== void 0 && !H(n.config) && t.push("addControl.control.config must be an object"), t.length > 0 ? V(t) : {
 		ok: !0,
 		command: {
 			name: "addControl",
@@ -9110,9 +9110,9 @@ function af(e) {
 	if (!H(n)) return V(["bindInteraction.interaction must be an object"]);
 	df(n.id) || t.push("bindInteraction.interaction.id must be a non-empty string");
 	let r = n.on;
-	H(r) ? ((!df(r.ref) || !rf.test(r.ref)) && t.push("bindInteraction.interaction.on.ref must match \"map\", \"layer:{id}\", \"widget:{id}\", or \"control:{id}\""), (typeof r.event != "string" || !Zl.includes(r.event)) && t.push(`bindInteraction.interaction.on.event must be one of ${Zl.join(", ")}`)) : t.push("bindInteraction.interaction.on must be an object");
+	H(r) ? ((!df(r.ref) || !rf.test(r.ref)) && t.push("bindInteraction.interaction.on.ref must match \"map\", \"layer:{id}\", \"widget:{id}\", or \"control:{id}\""), (typeof r.event != "string" || !Ql.includes(r.event)) && t.push(`bindInteraction.interaction.on.event must be one of ${Ql.join(", ")}`)) : t.push("bindInteraction.interaction.on must be an object");
 	let i = n.do;
-	return H(i) ? ((!df(i.ref) || !rf.test(i.ref)) && t.push("bindInteraction.interaction.do.ref must match \"map\", \"layer:{id}\", \"widget:{id}\", or \"control:{id}\""), (typeof i.verb != "string" || !Ql.includes(i.verb)) && t.push(`bindInteraction.interaction.do.verb must be one of ${Ql.join(", ")}`), i.args !== void 0 && !H(i.args) && t.push("bindInteraction.interaction.do.args must be an object")) : t.push("bindInteraction.interaction.do must be an object"), n.disabled !== void 0 && typeof n.disabled != "boolean" && t.push("bindInteraction.interaction.disabled must be a boolean"), t.length > 0 ? V(t) : {
+	return H(i) ? ((!df(i.ref) || !rf.test(i.ref)) && t.push("bindInteraction.interaction.do.ref must match \"map\", \"layer:{id}\", \"widget:{id}\", or \"control:{id}\""), (typeof i.verb != "string" || !$l.includes(i.verb)) && t.push(`bindInteraction.interaction.do.verb must be one of ${$l.join(", ")}`), i.args !== void 0 && !H(i.args) && t.push("bindInteraction.interaction.do.args must be an object")) : t.push("bindInteraction.interaction.do must be an object"), n.disabled !== void 0 && typeof n.disabled != "boolean" && t.push("bindInteraction.interaction.disabled must be a boolean"), t.length > 0 ? V(t) : {
 		ok: !0,
 		command: {
 			name: "bindInteraction",
@@ -9131,7 +9131,7 @@ function of(e) {
 }
 function sf(e) {
 	let t = [], n = e.annotation;
-	return H(n) ? (df(n.id) || t.push("addAnnotation.annotation.id must be a non-empty string"), (typeof n.kind != "string" || !$l.includes(n.kind)) && t.push(`addAnnotation.annotation.kind must be one of ${$l.join(", ")}`), n.label !== void 0 && typeof n.label != "string" && t.push("addAnnotation.annotation.label must be a string"), n.text !== void 0 && typeof n.text != "string" && t.push("addAnnotation.annotation.text must be a string"), n.bbox !== void 0 && !pf(n.bbox, 4) && t.push("addAnnotation.annotation.bbox must be [x,y,x,y]"), n.coordinate !== void 0 && !pf(n.coordinate, 2) && t.push("addAnnotation.annotation.coordinate must be [x,y]"), t.length > 0 ? V(t) : {
+	return H(n) ? (df(n.id) || t.push("addAnnotation.annotation.id must be a non-empty string"), (typeof n.kind != "string" || !eu.includes(n.kind)) && t.push(`addAnnotation.annotation.kind must be one of ${eu.join(", ")}`), n.label !== void 0 && typeof n.label != "string" && t.push("addAnnotation.annotation.label must be a string"), n.text !== void 0 && typeof n.text != "string" && t.push("addAnnotation.annotation.text must be a string"), n.bbox !== void 0 && !pf(n.bbox, 4) && t.push("addAnnotation.annotation.bbox must be [x,y,x,y]"), n.coordinate !== void 0 && !pf(n.coordinate, 2) && t.push("addAnnotation.annotation.coordinate must be [x,y]"), t.length > 0 ? V(t) : {
 		ok: !0,
 		command: {
 			name: "addAnnotation",
@@ -9155,8 +9155,8 @@ function lf(e, t, n) {
 		return;
 	}
 	let r = e.kind;
-	if (typeof r != "string" || !eu.includes(r)) {
-		t.push(`${n}.kind must be one of ${eu.join(", ")}`);
+	if (typeof r != "string" || !tu.includes(r)) {
+		t.push(`${n}.kind must be one of ${tu.join(", ")}`);
 		return;
 	}
 	let i = r;
@@ -9217,10 +9217,10 @@ function hf(e) {
 function gf() {
 	return [
 		"Studio host composition contracts (use only tools actually discovered):",
-		`Widget kinds: ${Yl.join(", ")}. The layer list is kind toc; layerList and filter are not widget kinds.`,
+		`Widget kinds: ${Xl.join(", ")}. The layer list is kind toc; layerList and filter are not widget kinds.`,
 		"Charts use kind chart, sourceId from the trusted catalog, and config {groupBy: \"<actual field>\", chartType: \"bar\"}. Use the requested chart type and actual field; groupBy is the canonical category axis. Existing categoryField and other documented renderer aliases remain supported. A count needs no measure; other aggregates use measure {fn, field}. Histograms use binField and optional bins.",
 		"Tables require sourceId from the trusted catalog; optional config.fields chooses columns. Compare widgets require config.left and config.right as actual layer IDs. A time widget steps through layer visibility using config.steps: [{label, layerId}]; it is distinct from a timeSlider control over an attribute. toc and legend can read the composition without a sourceId.",
-		`Control kinds: ${Xl.join(", ")}. Controls are separate from widgets.`,
+		`Control kinds: ${Zl.join(", ")}. Controls are separate from widgets.`,
 		"Numeric thresholds, including numeric year fields, use filterSlider with config {field: \"<actual field>\", min: <known numeric domain>, max: <known numeric domain>, step: <positive step>, operator: \">=\"}. max must exceed min. Never invent a field or domain; inspect source metadata or ask when unavailable.",
 		"timeSlider is temporal and needs config.field plus config.from and config.to as actual calendar dates, with to on or after from and optional stepDays. It is not a numeric year threshold slider.",
 		"Data controls emit change. For an explicit declarative filter binding, add the control first, then bind on {ref: \"control:<actual control id>\", event: \"change\"} to do {ref: \"layer:<actual layer id>\", verb: \"setFilter\", args: {field: \"<actual field>\", operator: \">=\", value: \"$event.value\"}}. Choose the requested operator and matching control config. References use existing component IDs, not source IDs.",
@@ -9496,7 +9496,7 @@ var Nf = class {
 	lifecycle;
 	dataBaseUrl;
 	constructor(e = "/api", t, n = e.replace(/\/api\/?$/, "")) {
-		this.baseUrl = e, this.auth = t, this.dataBaseUrl = n.replace(/\/$/, ""), this.mcp = new hu({
+		this.baseUrl = e, this.auth = t, this.dataBaseUrl = n.replace(/\/$/, ""), this.mcp = new gu({
 			baseUrl: this.dataBaseUrl,
 			fetchImpl: (e, t) => kf(String(e), this.auth, t)
 		}), this.lifecycle = new Ef({
@@ -9542,7 +9542,7 @@ var Nf = class {
 			}
 			throw new U("Layer catalog exceeded the bounded page limit.");
 		} catch (e) {
-			throw e instanceof U ? e : e instanceof su && e.cause instanceof U ? e.cause : new U(`Could not load the layer catalog: ${e instanceof Error ? e.message : String(e)}`, e);
+			throw e instanceof U ? e : e instanceof cu && e.cause instanceof U ? e.cause : new U(`Could not load the layer catalog: ${e instanceof Error ? e.message : String(e)}`, e);
 		}
 	}
 	async listPackages() {
@@ -9589,7 +9589,7 @@ function Pf(e) {
 	return e instanceof W;
 }
 function Ff(e, t) {
-	return e.pins.some((e) => iu(e, t));
+	return e.pins.some((e) => au(e, t));
 }
 function If(e, t) {
 	if (t.kind === "layer") {
@@ -9699,7 +9699,7 @@ function zf(e, t) {
 				id: n.id
 			}, "layer", t), t);
 			if (!e.mapSpec) throw Error("Initialize the authorized map style before editing it.");
-			let n = Qu(e.mapSpec, t.mapSpec);
+			let n = $u(e.mapSpec, t.mapSpec);
 			if (n.length) throw Error(n[0]);
 			return {
 				...e,
@@ -9809,7 +9809,7 @@ function Hf(e, t, n) {
 }
 function Uf(e, t) {
 	Zf(Xf(e, t.target, "control", t), t);
-	let n = Qf(t.target), r = nu(e, n);
+	let n = Qf(t.target), r = ru(e, n);
 	if (r.length > 0 && t.cascadeInteractions !== !0) throw new W("interaction-conflict", `removeControl: control "${n}" is still referenced by ${r.map((e) => `"${e.id}"`).join(", ")} — remove those bindings first, or pass cascadeInteractions: true`, {
 		command: t,
 		details: r.map((e) => e.id)
@@ -9858,7 +9858,7 @@ function Kf(e, t, n) {
 	};
 }
 function qf(e, t) {
-	if (t.kind !== "feature" && !If(e, t).exists) throw new W("target-not-found", `pin: target ${ru(t)} does not exist`, { command: {
+	if (t.kind !== "feature" && !If(e, t).exists) throw new W("target-not-found", `pin: target ${iu(t)} does not exist`, { command: {
 		name: "pin",
 		target: t
 	} });
@@ -9870,7 +9870,7 @@ function qf(e, t) {
 function Jf(e, t) {
 	return Ff(e, t) ? {
 		...e,
-		pins: e.pins.filter((e) => !iu(e, t))
+		pins: e.pins.filter((e) => !au(e, t))
 	} : e;
 }
 function Yf(e, t) {
@@ -9886,11 +9886,11 @@ function Yf(e, t) {
 function Xf(e, t, n, r) {
 	if (t.kind !== n) throw new W("invalid-command", `${r.name}: target must be kind "${n}", got "${t.kind}"`, { command: r });
 	let i = If(e, t);
-	if (!i.exists) throw new W("target-not-found", `${r.name}: target ${ru(t)} does not exist`, { command: r });
+	if (!i.exists) throw new W("target-not-found", `${r.name}: target ${iu(t)} does not exist`, { command: r });
 	return i;
 }
 function Zf(e, t) {
-	if (e.pinned) throw new W("pin-violation", `${t.name}: target ${ru(e.target)} is pinned — unpin it first`, { command: t });
+	if (e.pinned) throw new W("pin-violation", `${t.name}: target ${iu(e.target)} is pinned — unpin it first`, { command: t });
 }
 function Qf(e) {
 	if (e.kind === "feature") throw Error("unreachable: feature target has no scalar id");
@@ -9898,13 +9898,13 @@ function Qf(e) {
 }
 function $f(e, t) {
 	return [
-		...z(e.mapSpec ?? null) === z(t.mapSpec ?? null) ? [] : [{
+		...R(e.mapSpec ?? null) === R(t.mapSpec ?? null) ? [] : [{
 			path: "mapSpec",
 			kind: "replace",
 			before: e.mapSpec,
 			after: t.mapSpec
 		}],
-		...z(e.styleRefs ?? null) === z(t.styleRefs ?? null) ? [] : [{
+		...R(e.styleRefs ?? null) === R(t.styleRefs ?? null) ? [] : [{
 			path: "styleRefs",
 			kind: "replace",
 			before: e.styleRefs,
@@ -9916,7 +9916,7 @@ function $f(e, t) {
 		...ep(e.controls, t.controls, (e) => e.id, (e) => `controls[${e}]`),
 		...ep(e.interactions, t.interactions, (e) => e.id, (e) => `interactions[${e}]`),
 		...ep(e.annotations, t.annotations, (e) => e.id, (e) => `annotations[${e}]`),
-		...ep(e.pins, t.pins, (e) => ru(e), (e) => `pins[${e}]`)
+		...ep(e.pins, t.pins, (e) => iu(e), (e) => `pins[${e}]`)
 	];
 }
 function ep(e, t, n, r) {
@@ -9932,7 +9932,7 @@ function ep(e, t, n, r) {
 			path: r(e),
 			kind: "add",
 			after: t
-		}) : z(n) !== z(t) && o.push({
+		}) : R(n) !== R(t) && o.push({
 			path: r(e),
 			kind: "replace",
 			before: n,
@@ -9944,7 +9944,7 @@ function ep(e, t, n, r) {
 function tp(e, t) {
 	let n = /* @__PURE__ */ new Set([...Object.keys(e), ...Object.keys(t)]), r = [];
 	for (let i of n) {
-		let n = e[i], a = t[i], o = n === void 0 ? void 0 : z(n), s = a === void 0 ? void 0 : z(a);
+		let n = e[i], a = t[i], o = n === void 0 ? void 0 : R(n), s = a === void 0 ? void 0 : R(a);
 		o !== s && (o === void 0 ? r.push({
 			path: `view.${i}`,
 			kind: "add",
@@ -10052,7 +10052,7 @@ var np = class {
 		}], this.#i = [], this.#o = void 0;
 	}
 	replaceState(e) {
-		this.#l(), z(e) !== z(this.current) && (this.#i = [], this.#u({
+		this.#l(), R(e) !== R(this.current) && (this.#i = [], this.#u({
 			state: e,
 			timestamp: this.#e()
 		}));
@@ -10506,7 +10506,7 @@ function pp(e) {
 	return e.id;
 }
 function mp(e, t) {
-	let n = t ?? tu();
+	let n = t ?? nu();
 	return e ? {
 		...n,
 		sourceBindings: e.sourceBindings,
@@ -10869,10 +10869,10 @@ function jp(e, t) {
 		name: "setView",
 		view: t.view
 	});
-	let r = z(vp(t));
+	let r = R(vp(t));
 	return n.find((t) => {
 		try {
-			return z(vp(Lf(e, t).state)) === r;
+			return R(vp(Lf(e, t).state)) === r;
 		} catch {
 			return !1;
 		}
@@ -10985,8 +10985,8 @@ var Np = class {
 			try {
 				let { draftId: r } = await this.#h(), s = await t.getDraft(r);
 				if (o !== this.#o || this.#n !== n || this.#e.state !== a) return !1;
-				if (z(vp(hp(s))) !== z(vp(a))) throw Error("The server draft changed outside this history; reload before undo or redo.");
-				if (z(vp(a)) === z(vp(i))) return e === "undo" ? this.#e.undo() : this.#e.redo();
+				if (R(vp(hp(s))) !== R(vp(a))) throw Error("The server draft changed outside this history; reload before undo or redo.");
+				if (R(vp(a)) === R(vp(i))) return e === "undo" ? this.#e.undo() : this.#e.redo();
 				let c = jp(a, i);
 				if (!c) throw Error("This history revision has no single bounded inverse tool; no state was changed.");
 				let { name: l, ...u } = c, d = dp({
@@ -10999,7 +10999,7 @@ var Np = class {
 				if (!f) throw Error("This history revision has no server mutation tool.");
 				let p = Mp(await n.client.callTool(f.name, f.arguments));
 				if (o !== this.#o) return !1;
-				if (this.#a = p.generation, this.#e.state !== a || z(vp(hp(p))) !== z(vp(i))) throw this.#e.replaceState(hp(p, this.#e.state)), Error("History changed during synchronization; showing the authoritative server draft.");
+				if (this.#a = p.generation, this.#e.state !== a || R(vp(hp(p))) !== R(vp(i))) throw this.#e.replaceState(hp(p, this.#e.state)), Error("History changed during synchronization; showing the authoritative server draft.");
 				return e === "undo" ? this.#e.undo() : this.#e.redo();
 			} catch (t) {
 				return this.#t?.append("assistant_turn_error", {
@@ -11098,7 +11098,7 @@ var Np = class {
 		try {
 			return Mp(await t.client.callTool(e.name, e.arguments));
 		} catch (e) {
-			if (!uu(e) || !this.#i || !this.#r) throw e;
+			if (!du(e) || !this.#i || !this.#r) throw e;
 			let t = await this.#r.getDraft(this.#i);
 			throw this.#a = t.generation, this.#e.replaceState(hp(t, this.#e.state)), e;
 		}
@@ -11464,7 +11464,7 @@ var mm = class extends ve {
 					...n,
 					pins: this.composition.state.pins,
 					annotations: this.composition.state.annotations
-				}), this.#B();
+				}), this.#H();
 			});
 			this.#S = n.catch(() => void 0), await n;
 		}
@@ -11475,7 +11475,7 @@ var mm = class extends ve {
 		let i = await t.editableMapStyle();
 		if (n !== this.#b || r.draftId !== this.#y?.identity?.draftId) throw Error("The workspace draft changed while opening the style editor.");
 		let a = window.document.createElement("section");
-		a.setAttribute("aria-label", "Map style editor"), this.shadowRoot?.querySelector(".app-slots")?.prepend(a), this.#g = a, this.shadowRoot?.querySelector(".app-slots")?.setAttribute("data-style-mode", ""), this.#h = new nd({
+		a.setAttribute("aria-label", "Map style editor"), this.shadowRoot?.querySelector(".app-slots")?.prepend(a), this.#g = a, this.shadowRoot?.querySelector(".app-slots")?.setAttribute("data-style-mode", ""), this.#h = new rd({
 			container: a,
 			document: i,
 			assetsUrl: this.styleEditorAssetsUrl,
@@ -11492,7 +11492,7 @@ var mm = class extends ve {
 			getFields: async (e) => {
 				let r = this.#O?.find((t) => t.id === e);
 				if (!r) throw Error("Refresh the authorized source catalog before selecting thematic fields.");
-				let i = await new Ju({
+				let i = await new Yu({
 					baseUrl: t.sourceAuthBaseUrl,
 					...t.sourceAuthBaseUrl === B() ? {} : { catalogAliasBaseUrl: B() },
 					documentUrl: window.document.baseURI,
@@ -11514,7 +11514,7 @@ var mm = class extends ve {
 			},
 			onSave: async (e) => {
 				if (n !== this.#b || r.draftId !== this.#y?.identity?.draftId) throw Error("The workspace authority changed. Reopen the visual editor.");
-				let i = await this.#Z([{
+				let i = await this.#$([{
 					name: "setMapStyle",
 					mapSpec: e
 				}]);
@@ -11584,13 +11584,13 @@ var mm = class extends ve {
 		return this.#N ?? ((e) => e.tools.filter((e) => e.mode === "read" || e.name === "selectFeature"));
 	}
 	set agentToolDefinitions(e) {
-		this.#N = e, this.#T?.isLive && this.#q();
+		this.#N = e, this.#T?.isLive && this.#Y();
 	}
 	get agentCertification() {
 		return this.#P;
 	}
 	set agentCertification(e) {
-		this.#P = e, this.#T?.isLive && this.#q();
+		this.#P = e, this.#T?.isLive && this.#Y();
 	}
 	async createWorkspaceDraft(e) {
 		let t = e.trim();
@@ -11598,13 +11598,13 @@ var mm = class extends ve {
 		let n = this.#b;
 		if (await this.prepareWorkspaceTurn(), n !== this.#b) throw Error("The workspace session changed.");
 		let r = await new Ef({
-			baseUrl: od(),
+			baseUrl: z(),
 			auth: this.auth
 		}).createDraft({
 			packageKey: t,
 			envelope: {
 				...Sp,
-				body: Cp(tu(), t)
+				body: Cp(nu(), t)
 			}
 		});
 		if (n !== this.#b) throw Error("The workspace session changed.");
@@ -11614,44 +11614,81 @@ var mm = class extends ve {
 		return i;
 	}
 	attachWorkspaceDraft(e) {
-		let t = this.#b, n = this.#S.then(async () => {
-			if (t !== this.#b) throw Error("The workspace session changed.");
-			if (this.#z()) throw Error("Save pending Studio edits before attaching a draft.");
-			let n = this.#y?.identity, r = new Ep(new Ef({
-				baseUrl: od(),
-				auth: this.auth
-			})), i = await r.observe(e);
-			if (t !== this.#b) throw Error("The workspace session changed.");
-			if (this.#z()) throw Error("Save pending Studio edits before attaching a draft.");
-			r.rebind(new Ef({
-				baseUrl: od(),
-				auth: this.auth
-			})), this.#y = r, this.#x = !1, (n?.draftId !== e || n?.generation !== r.identity?.generation ? this.composition.resetBaseline.bind(this.composition) : this.composition.replaceState.bind(this.composition))({
-				...i,
-				pins: this.composition.state.pins,
-				annotations: this.composition.state.annotations
-			}), this.#B();
-		});
+		let t = this.#b, n = this.#S.then(() => this.#B(e, t));
 		return this.#S = n.catch(() => void 0), n;
+	}
+	saveWorkspaceVersion() {
+		return this.#z(async (e, t, n) => {
+			let r = await e.saveAsVersion(t.draftId);
+			return n(), r;
+		});
+	}
+	listWorkspaceVersions() {
+		return this.#z(async (e, t, n) => {
+			let r = await e.getDraft(t.draftId);
+			n();
+			let i = await e.listVersions(r.itemId);
+			return n(), i.versions;
+		});
+	}
+	reopenWorkspaceVersion(e) {
+		return this.#z(async (t, n, r, i) => {
+			let a = await t.getDraft(n.draftId);
+			r();
+			let o = await t.reopenVersion(a.itemId, e);
+			if (r(), o.itemId !== a.itemId || o.packageKey !== n.packageKey) throw Error("The reopened version does not belong to the active map.");
+			await this.#B(o.draftId, i);
+		});
+	}
+	async #z(e) {
+		let t = this.#y, n = this.#b, r = t?.identity;
+		if (!t || !r) throw Error("Open a map draft before using saved versions.");
+		await this.prepareWorkspaceTurn();
+		let i = () => {
+			if (n !== this.#b || t !== this.#y) throw Error("The workspace session or map changed.");
+			if (this.#w || this.#x || this.#V()) throw Error("Save or explicitly reload pending Studio edits before using saved versions.");
+		}, a = this.#S.then(async () => (i(), e(new Ef({
+			baseUrl: z(),
+			auth: this.auth
+		}), r, i, n)));
+		return this.#S = a.then(() => void 0, () => void 0), a;
+	}
+	async #B(e, t) {
+		if (t !== this.#b) throw Error("The workspace session changed.");
+		if (this.#V()) throw Error("Save pending Studio edits before attaching a draft.");
+		let n = this.#y?.identity, r = new Ep(new Ef({
+			baseUrl: z(),
+			auth: this.auth
+		})), i = await r.observe(e);
+		if (t !== this.#b) throw Error("The workspace session changed.");
+		if (this.#V()) throw Error("Save pending Studio edits before attaching a draft.");
+		r.rebind(new Ef({
+			baseUrl: z(),
+			auth: this.auth
+		})), this.#y = r, this.#x = !1, (n?.draftId !== e || n?.generation !== r.identity?.generation ? this.composition.resetBaseline.bind(this.composition) : this.composition.replaceState.bind(this.composition))({
+			...i,
+			pins: this.composition.state.pins,
+			annotations: this.composition.state.annotations
+		}), this.#H();
 	}
 	async refreshWorkspaceDraft() {
 		let e = this.#y, t = this.#b;
 		await this.#S;
 		let n = e?.identity;
-		if (!n || e !== this.#y || this.#w || this.#x || this.#z()) return !1;
+		if (!n || e !== this.#y || this.#w || this.#x || this.#V()) return !1;
 		try {
 			await this.attachWorkspaceDraft(n.draftId);
 		} catch (e) {
-			if (t !== this.#b || this.#w || this.#x || this.#z()) return !1;
+			if (t !== this.#b || this.#w || this.#x || this.#V()) return !1;
 			throw e;
 		}
-		return t === this.#b && !this.#z();
+		return t === this.#b && !this.#V();
 	}
 	async prepareWorkspaceTurn() {
-		if (await this.#h?.settled(), await this.#S, this.#w || this.#x || this.#z()) throw Error("Save or explicitly reload the pending Studio edits before sending a workspace turn.");
+		if (await this.#h?.settled(), await this.#S, this.#w || this.#x || this.#V()) throw Error("Save or explicitly reload the pending Studio edits before sending a workspace turn.");
 		return this.#y?.identity;
 	}
-	#z() {
+	#V() {
 		if (this.hasUnsavedStyleChanges) return !0;
 		let e = (t) => {
 			for (let n of t.querySelectorAll("*")) if (!(n.tagName === "HONUA-STUDIO-CHAT" || this.#g?.contains(n))) {
@@ -11666,7 +11703,7 @@ var mm = class extends ve {
 		};
 		return e(this) || !!(this.shadowRoot && e(this.shadowRoot));
 	}
-	#B() {
+	#H() {
 		this.dispatchEvent(new CustomEvent("honua-workspace-draft-change", {
 			bubbles: !0,
 			composed: !0,
@@ -11687,7 +11724,7 @@ var mm = class extends ve {
 					let t = await r.replace(n);
 					if (i !== this.#b) throw Error("The workspace session changed.");
 					let a = e === "undo" ? this.composition.undo() : this.composition.redo();
-					return this.composition.replaceState(t), this.#B(), a;
+					return this.composition.replaceState(t), this.#H(), a;
 				});
 				this.#S = a.catch(() => void 0), t = await a;
 			} else t = await this.toolCallOrchestrator.applyHistoryAction(e);
@@ -11728,7 +11765,7 @@ var mm = class extends ve {
 				let e = this.querySelector("honua-studio-canvas");
 				e && (e.sourceCatalog = void 0);
 			}
-			this.#y = void 0, this.#x = !1, this.composition.resetBaseline(tu()), n && this.#B();
+			this.#y = void 0, this.#x = !1, this.composition.resetBaseline(nu()), n && this.#H();
 		}
 		this.#e = e, this.#i();
 		let i = this.querySelector("honua-studio-canvas");
@@ -11738,19 +11775,19 @@ var mm = class extends ve {
 		}
 		this.resetAuth();
 		for (let e of this.querySelectorAll("honua-studio-canvas")) e.widgetDeck?.refreshSession();
-		this.#T?.isLive && this.#R && this.#K(this.#R), r || (this.#p = !1), this.renderChrome(), this.routingMode === "hash" ? this.#Y() : this.renderView(), this.#W();
+		this.#T?.isLive && this.#R && this.#J(this.#R), r || (this.#p = !1), this.renderChrome(), this.routingMode === "hash" ? this.#Z() : this.renderView(), this.#K();
 	}
 	get auth() {
 		return this.#a ?? this.resetAuth();
 	}
 	get studioClient() {
-		return this.#c ||= new Nf(od(), this.auth, B()), this.#c;
+		return this.#c ||= new Nf(z(), this.auth, B()), this.#c;
 	}
 	set studioClient(e) {
 		this.#c = e, this.#l = !0, this.renderView();
 	}
 	get composition() {
-		return this.#m ||= new ip(tu()), this.#m;
+		return this.#m ||= new ip(nu()), this.#m;
 	}
 	get toolCallOrchestrator() {
 		if (!this.#T) {
@@ -11763,9 +11800,9 @@ var mm = class extends ve {
 		return this.#T;
 	}
 	async listProcessSources() {
-		let e = this.#b, t = this.auth, n = await (this.#l ? this.studioClient : new Nf(od(), t, B())).listCatalog();
+		let e = this.#b, t = this.auth, n = await (this.#l ? this.studioClient : new Nf(z(), t, B())).listCatalog();
 		if (e !== this.#b || t !== this.auth) throw Error("The workspace authority changed.");
-		return this.#H(n), this.#k = e, n.filter((e) => typeof e.locator?.serviceId == "string" && Number.isSafeInteger(e.locator?.layerId)).map((e) => ({
+		return this.#W(n), this.#k = e, n.filter((e) => typeof e.locator?.serviceId == "string" && Number.isSafeInteger(e.locator?.layerId)).map((e) => ({
 			id: e.id,
 			title: e.title ?? e.id
 		}));
@@ -11773,7 +11810,7 @@ var mm = class extends ve {
 	async resolveProcessSource(e) {
 		let t = this.#b, n = this.#O?.find((t) => t.id === e);
 		if (!n || this.#k !== t) throw Error("Refresh the authorized source choices before selecting a process layer.");
-		let r = this.#e && "kind" in this.#e && this.#e.kind === "cookie" ? Xn(this.#e.sourcePathBase) : B(), i = await new Ju({
+		let r = this.#e && "kind" in this.#e && this.#e.kind === "cookie" ? Xn(this.#e.sourcePathBase) : B(), i = await new Yu({
 			baseUrl: r,
 			...r === B() ? {} : { catalogAliasBaseUrl: B() },
 			documentUrl: window.document.baseURI,
@@ -11785,7 +11822,7 @@ var mm = class extends ve {
 	}
 	createWorkspaceStyleProvider(e = {}) {
 		let t = this.#b, n = e.getAuthority?.(), r = this.#e && "kind" in this.#e && this.#e.kind === "cookie" ? Xn(this.#e.sourcePathBase) : B();
-		return new Ju({
+		return new Yu({
 			baseUrl: r,
 			...r === B() ? {} : { catalogAliasBaseUrl: B() },
 			documentUrl: window.document.baseURI,
@@ -11799,11 +11836,11 @@ var mm = class extends ve {
 		return this.#O;
 	}
 	set sourceCatalog(e) {
-		this.#j = !0, this.#A = !0, this.#H(e);
+		this.#j = !0, this.#A = !0, this.#W(e);
 	}
-	async #V(e) {
-		this.#O?.some((t) => t.id === e.id) || this.#H([...this.#O ?? [], e]);
-		let t = await this.#Z([{
+	async #U(e) {
+		this.#O?.some((t) => t.id === e.id) || this.#W([...this.#O ?? [], e]);
+		let t = await this.#$([{
 			name: "addLayer",
 			layer: {
 				id: e.id,
@@ -11813,12 +11850,12 @@ var mm = class extends ve {
 		}]);
 		if (!t.ok) throw Error(t.reason);
 	}
-	#H(e) {
+	#W(e) {
 		this.#O = e, this.#D = void 0;
 		let t = this.querySelector("honua-studio-canvas");
-		t && (t.sourceCatalog = e), this.isConnected && this.#T?.isLive && this.#q();
+		t && (t.sourceCatalog = e), this.isConnected && this.#T?.isLive && this.#Y();
 	}
-	async #U() {
+	async #G() {
 		if (this.#A || this.#O !== void 0) return;
 		let e = this.auth.getState().status;
 		if (!(e !== "fresh" && e !== "refreshing")) {
@@ -11826,17 +11863,17 @@ var mm = class extends ve {
 			try {
 				let e = this.#b, t = this.auth, n = await this.studioClient.listCatalog();
 				if (!this.isConnected || e !== this.#b || t !== this.auth) return;
-				this.#H(n);
+				this.#W(n);
 			} catch {}
 		}
 	}
-	#W() {
-		this.#j || (this.#O = void 0, this.#A = !1, this.#U());
+	#K() {
+		this.#j || (this.#O = void 0, this.#A = !1, this.#G());
 	}
-	#G() {
+	#q() {
 		if (!this.isConnected) return;
 		let e = this.#a?.getState().status;
-		e !== this.#M && (this.#M = e, !(e !== "fresh" || this.#O !== void 0) && this.#W());
+		e !== this.#M && (this.#M = e, !(e !== "fresh" || this.#O !== void 0) && this.#K());
 	}
 	get aiMapKit() {
 		return this.#D ||= Ap({
@@ -11851,25 +11888,25 @@ var mm = class extends ve {
 			...e.family === void 0 ? {} : { family: e.family },
 			...e.schemaVersion === void 0 ? {} : { schemaVersion: e.schemaVersion }
 		};
-		this.#R = t, this.#K(t), this.#E = e.packageKey, this.#J({
+		this.#R = t, this.#J(t), this.#E = e.packageKey, this.#X({
 			mode: "live",
 			packageKey: e.packageKey,
 			...e.family === void 0 ? {} : { family: e.family }
 		});
 	}
-	#K(e) {
+	#J(e) {
 		this.#F += 1, this.querySelector("honua-studio-chat")?.detachAgentSession(), this.#L = e.baseUrl, this.toolCallOrchestrator.attachLiveSession({
-			client: new hu({
+			client: new gu({
 				baseUrl: e.baseUrl,
 				auth: this.auth
 			}),
 			packageKey: e.packageKey,
 			...e.family === void 0 ? {} : { family: e.family },
 			...e.schemaVersion === void 0 ? {} : { schemaVersion: e.schemaVersion }
-		}), this.#q();
+		}), this.#Y();
 	}
-	#q() {
-		let e = this.#X(this.#L), t = this.#F;
+	#Y() {
+		let e = this.#Q(this.#L), t = this.#F;
 		e.catch((e) => {
 			t === this.#F && (this.disableLiveComposition(), this.querySelector("honua-studio-chat")?.activityLog.append("assistant_turn_error", {
 				errorMessage: e instanceof Error ? e.message : String(e),
@@ -11881,9 +11918,9 @@ var mm = class extends ve {
 		if (!this.toolCallOrchestrator.isLive) return;
 		this.toolCallOrchestrator.detachLiveSession(), this.#F += 1, this.querySelector("honua-studio-chat")?.detachAgentSession();
 		let e = this.querySelector("honua-studio-chat");
-		e && (e.agentSessionPending = !1), this.#E = void 0, this.#R = void 0, this.#J({ mode: "fixture" });
+		e && (e.agentSessionPending = !1), this.#E = void 0, this.#R = void 0, this.#X({ mode: "fixture" });
 	}
-	#J(e) {
+	#X(e) {
 		this.paintLiveCompositionControls(), this.querySelector("honua-studio-chat")?.activityLog.append("composition_mode_changed", { ...e }), this.dispatchTypedEvent("honua-studio-composition-mode-change", e);
 	}
 	get routingMode() {
@@ -11924,10 +11961,10 @@ var mm = class extends ve {
 		this.#o?.(), this.#o = void 0, pm(this.#a), this.#l || (this.#c = void 0);
 		let e = Ld({ hostAdapter: this.#e });
 		return this.#a = e, this.#y?.rebind(new Ef({
-			baseUrl: od(),
+			baseUrl: z(),
 			auth: e
 		})), this.#o = e.subscribe(() => {
-			this.paintAuthControls(), this.#G();
+			this.paintAuthControls(), this.#q();
 		}), this.isConnected && this.completeStandaloneRedirectCallback(e), e;
 	}
 	async completeStandaloneRedirectCallback(e) {
@@ -11939,16 +11976,16 @@ var mm = class extends ve {
 			window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
 		}
 	}
-	#Y() {
+	#Z() {
 		this.routingMode !== "hash" || this.#r() || (this.#d?.stop(), this.#d = new Hp(this.viewRoot(), rm.map((e) => ({
 			path: e.path,
 			render: (t) => {
-				this.#f = e.path, e.render(t, this.studioClient, this.auth, (e) => this.#V(e)), this.syncNavCurrent();
+				this.#f = e.path, e.render(t, this.studioClient, this.auth, (e) => this.#U(e)), this.syncNavCurrent();
 			}
 		})), {
 			path: "*",
 			render: (e) => {
-				this.#f = "/", rm[0]?.render(e, this.studioClient, this.auth, (e) => this.#V(e)), this.syncNavCurrent();
+				this.#f = "/", rm[0]?.render(e, this.studioClient, this.auth, (e) => this.#U(e)), this.syncNavCurrent();
 			}
 		}), this.#d.start());
 	}
@@ -11966,7 +12003,7 @@ var mm = class extends ve {
 		let t = this.ensureThemeLoader();
 		!this.hasAttribute("data-theme-set") && !this.hasAttribute("data-theme") && t.boot();
 		let n = this.getAttribute("base-path");
-		if (this.routingMode === "hash" ? this.#Y() : this.#f = dm(um(this.getAttribute("current-path") ?? "/"), n), !this.querySelector("honua-studio-chat")) {
+		if (this.routingMode === "hash" ? this.#Z() : this.#f = dm(um(this.getAttribute("current-path") ?? "/"), n), !this.querySelector("honua-studio-chat")) {
 			let e = document.createElement("honua-studio-chat");
 			e.slot = "chat", e.setAttribute("label", "Chat"), this.appendChild(e);
 		}
@@ -11976,9 +12013,9 @@ var mm = class extends ve {
 		}
 		this.#t && (this.agentSessionAdapter = this.#t);
 		let r = this.querySelector("honua-studio-canvas");
-		r && (r.sourceAuthBaseUrl = this.#e && "kind" in this.#e && this.#e.kind === "cookie" ? Xn(this.#e.sourcePathBase) : B()), r && !r.composition && (r.composition = this.composition), r && !r.commandDispatch && (r.commandDispatch = (e) => this.#Z(e)), r && this.#O ? r.sourceCatalog = this.#O : this.#U(), this.toolCallOrchestrator, this.#Q(), this.listen(this, "honua-studio-chat-tool-call-result", (e) => {
+		r && (r.sourceAuthBaseUrl = this.#e && "kind" in this.#e && this.#e.kind === "cookie" ? Xn(this.#e.sourcePathBase) : B()), r && !r.composition && (r.composition = this.composition), r && !r.commandDispatch && (r.commandDispatch = (e) => this.#$(e)), r && this.#O ? r.sourceCatalog = this.#O : this.#G(), this.toolCallOrchestrator, this.#ee(), this.listen(this, "honua-studio-chat-tool-call-result", (e) => {
 			let t = e.detail;
-			this.#$(t);
+			this.#te(t);
 		}), this.listen(this, "honua-studio-lifecycle-activity", (e) => {
 			let t = e.detail;
 			this.querySelector("honua-studio-chat")?.activityLog.append("lifecycle_action", { ...t });
@@ -11997,7 +12034,7 @@ var mm = class extends ve {
 			});
 		});
 	}
-	async #X(e) {
+	async #Q(e) {
 		let t = this.querySelector("honua-studio-chat");
 		if (t && this.#t && (t.agentSessionAdapter = this.#t), !t || t.agentSessionAdapter || t.hasCustomTransport || this.auth.fetchRequest || !this.toolCallOrchestrator.isLive) return;
 		let n = ++this.#F;
@@ -12005,7 +12042,7 @@ var mm = class extends ve {
 		let r = await this.toolCallOrchestrator.ensureLiveDraft();
 		if (n !== this.#F || !this.toolCallOrchestrator.isLive) return;
 		t.agentSessionPending = !1;
-		let i = this.aiMapKit, a = this.auth, o = new Ju({
+		let i = this.aiMapKit, a = this.auth, o = new Yu({
 			baseUrl: B(),
 			documentUrl: document.baseURI,
 			getAuth: () => this.auth,
@@ -12063,7 +12100,7 @@ var mm = class extends ve {
 					if (e.result.draft && this.toolCallOrchestrator.acceptServerDraft(e.result.draft), e.result.ok && e.result.toolName === "honua_studio_propose_publication") try {
 						let n = JSON.parse(e.result.content);
 						if (n.status !== "ok") return;
-						let r = new URL(od(), document.baseURI).href, i = zd(n.result, r);
+						let r = new URL(z(), document.baseURI).href, i = zd(n.result, r);
 						i && (this.#I += 1, t.shareNote = i.text);
 					} catch {}
 				}
@@ -12076,7 +12113,7 @@ var mm = class extends ve {
 		let r = `/rest/services/${e.serviceName.split("/").map(encodeURIComponent).join("/")}/FeatureServer`, i = n.filter((t) => t.locator?.layerId === e.layerId && typeof t.locator.url == "string" && t.locator.url.endsWith(r));
 		if (i.length !== 1) throw Error("The published layer has no unique verified catalog source.");
 		let a = i[0];
-		return this.#H(n), this.#Z([{
+		return this.#W(n), this.#$([{
 			name: "addLayer",
 			layer: {
 				id: a.id,
@@ -12085,7 +12122,7 @@ var mm = class extends ve {
 			}
 		}]);
 	}
-	async #Z(e) {
+	async #$(e) {
 		if (this.hasUnsavedStyleChanges && e.some((e) => e.name !== "setMapStyle")) return {
 			ok: !1,
 			reason: "Save or discard visual style edits before changing the map."
@@ -12094,6 +12131,7 @@ var mm = class extends ve {
 			let t = this.#y, n = this.#b, r = this.#S.then(async () => {
 				try {
 					if (n !== this.#b) throw Error("The workspace session changed.");
+					if (t !== this.#y) throw Error("The active map changed before the edit began.");
 					let r = Rf(this.composition.state, e).state, i = e.length === 1 && e[0]?.name === "setMapStyle" ? {
 						...await t.replaceStyle(e[0].mapSpec),
 						pins: r.pins,
@@ -12101,9 +12139,9 @@ var mm = class extends ve {
 					} : await t.replace(r);
 					if (n !== this.#b) throw Error("The workspace session changed.");
 					for (let t of e) this.composition.apply(t);
-					return this.composition.replaceState(i), this.#B(), { ok: !0 };
+					return this.composition.replaceState(i), this.#H(), { ok: !0 };
 				} catch (e) {
-					return n === this.#b && (this.#x = !0), {
+					return n === this.#b && t === this.#y && (this.#x = !0), {
 						ok: !1,
 						reason: e instanceof Error ? e.message : String(e)
 					};
@@ -12127,7 +12165,7 @@ var mm = class extends ve {
 		}
 		return { ok: !0 };
 	}
-	async #Q() {
+	async #ee() {
 		let e = this.#I;
 		try {
 			let t = Hd(Vd());
@@ -12140,12 +12178,12 @@ var mm = class extends ve {
 			}).text;
 			let r = await this.auth?.getAccessToken();
 			if (!r) return;
-			let i = await Gd(od(), t.proposalId, r);
+			let i = await Gd(z(), t.proposalId, r);
 			if (!i || e !== this.#I || !this.isConnected) return;
 			n.shareNote = Ud(t, i).text;
 		} catch {}
 	}
-	async #$(e) {
+	async #te(e) {
 		if (!e.toolName) return;
 		let t = tm(e.arguments) ? e.arguments : {};
 		await this.toolCallOrchestrator.handleToolCall({
@@ -12354,7 +12392,7 @@ var mm = class extends ve {
 				this.viewRoot().replaceChildren();
 				return;
 			}
-			(rm.find((e) => e.path === this.#f) ?? rm[0])?.render(this.viewRoot(), this.studioClient, this.auth, (e) => this.#V(e)), this.syncNavCurrent();
+			(rm.find((e) => e.path === this.#f) ?? rm[0])?.render(this.viewRoot(), this.studioClient, this.auth, (e) => this.#U(e)), this.syncNavCurrent();
 		}
 	}
 };
@@ -12389,7 +12427,7 @@ var _m = ["map", "details"], vm = {
 	#o;
 	#s;
 	#c;
-	#l = od();
+	#l = z();
 	#u = B();
 	#d;
 	#f;
@@ -12638,7 +12676,7 @@ var _m = ["map", "details"], vm = {
 			let o = new n({
 				container: t,
 				controller: e,
-				...this.#o?.some((e) => e.locator?.serviceId) ? { styleProvider: new Ju({
+				...this.#o?.some((e) => e.locator?.serviceId) ? { styleProvider: new Yu({
 					baseUrl: this.#u,
 					...this.#u === B() ? {} : { catalogAliasBaseUrl: B() },
 					documentUrl: document.baseURI,
@@ -13148,7 +13186,7 @@ var Gm = class {
 	}
 	get transport() {
 		return this.#n ||= new Gm({
-			baseUrl: od(),
+			baseUrl: z(),
 			auth: this.#e
 		}), this.#n;
 	}
@@ -13598,7 +13636,7 @@ var Qm = class extends ve {
 	}
 	get client() {
 		return this.#t ||= new Ef({
-			baseUrl: od(),
+			baseUrl: z(),
 			auth: this.#e
 		}), this.#t;
 	}
@@ -14841,7 +14879,7 @@ var Nh = class extends ve {
 	}
 	get client() {
 		return this.#t ||= new Ef({
-			baseUrl: od(),
+			baseUrl: z(),
 			auth: this.#e
 		}), this.#t;
 	}
@@ -14850,7 +14888,7 @@ var Nh = class extends ve {
 	}
 	get jobClient() {
 		return this.#n ||= new Oh({
-			baseUrl: od(),
+			baseUrl: z(),
 			auth: this.#e
 		}), this.#n;
 	}
@@ -15230,7 +15268,7 @@ var Ih = class extends ve {
 	}
 	get client() {
 		return this.#t ||= new Ef({
-			baseUrl: od(),
+			baseUrl: z(),
 			auth: this.#e
 		}), this.#t;
 	}
@@ -16309,7 +16347,7 @@ var Xh = {
 	#e;
 	#t;
 	#n;
-	#r = od();
+	#r = z();
 	#i;
 	#a;
 	#o;
@@ -22208,7 +22246,7 @@ var j_ = class {
 	async editableMapStyle() {
 		await this.settled();
 		let e = this.#v(!1);
-		return structuredClone(await ku(e.mapPackage, e.mapPackage.mapSpec, {}));
+		return structuredClone(await Au(e.mapPackage, e.mapPackage.mapSpec, {}));
 	}
 	#s = Promise.resolve();
 	#c = 0;
@@ -22370,7 +22408,7 @@ var j_ = class {
 					let u = s?.layerBindings ? {
 						primaryTargetId: r.id,
 						layerBindings: s.layerBindings.filter((e) => c.has(e.targetLayerId))
-					} : void 0, d = z({
+					} : void 0, d = R({
 						styleId: r.styleRef.styleId,
 						source: o,
 						owner: r.id,
@@ -22417,7 +22455,7 @@ var j_ = class {
 	}
 	async #y(e) {
 		try {
-			return await ku(e, e.mapSpec, {});
+			return await Au(e, e.mapSpec, {});
 		} catch (t) {
 			return this.#i = `Style composition fell back to the base style: ${t instanceof Error ? t.message : String(t)}`, e.mapSpec;
 		}
@@ -22525,7 +22563,7 @@ function F_(e, t) {
 function I_(e) {
 	let t = structuredClone(e.consumer), n = structuredClone(e.document), r = 0, i = !1, a, s = Promise.resolve(), c = e.getAuthority ?? e.getAuth, l = c(), u = (e) => !i && e === r && c() === l, d = t.kind === "source" ? [t.source] : [...e.catalog ?? []];
 	async function f(r) {
-		let i = Qu(n, r);
+		let i = $u(n, r);
 		if (i.length) throw Error(i[0]);
 		let a;
 		if (t.kind === "source") {
@@ -22567,12 +22605,12 @@ function I_(e) {
 					if (t.styleId === e.styleId && !i) throw Error("This map needs canonical shared-style bindings before visual preview.");
 					return {
 						...t,
-						body: Uu(n, i)
+						body: Wu(n, i)
 					};
 				}))
 			};
 		}
-		let s = await ku(a, a.mapSpec, {});
+		let s = await Au(a, a.mapSpec, {});
 		if (s.sprite || s.glyphs || s.imports) throw Error("External preview assets are not supported.");
 		for (let t of Object.values(s.sources)) {
 			if (t.type !== "geojson" || t.url || t.tiles) throw Error("Preview requires authorized feature sources.");
@@ -22674,4 +22712,4 @@ function I_(e) {
 	});
 }
 //#endregion
-export { Ju as AuthoritativeStyleProvider, Xg as DatasetImportSubmissionClient, Fg as DatasetImportTaskClient, Vg as DatasetImportUploadClient, wh as HonuaStudioCustomProcessesElement, Uh as HonuaStudioProcessesElement, Ne as InMemoryStudioAiReplayStore, f_ as LocalProcessWorkspace, nd as MapStyleEditor, Hh as ServerProcessWorkspace, Ve as StudioAiTranscriptVerifier, I_ as createSharedStylePreview, fg as createWorkspaceAgentSession, p_ as createWorkspaceLifecycleReader, Og as hashDatasetImportFile, m_ as readSharedStyleMapConsumer, lg as registerAllStudioElements, dg as workspaceAgentFeatures };
+export { Yu as AuthoritativeStyleProvider, Xg as DatasetImportSubmissionClient, Fg as DatasetImportTaskClient, Vg as DatasetImportUploadClient, wh as HonuaStudioCustomProcessesElement, Uh as HonuaStudioProcessesElement, Ne as InMemoryStudioAiReplayStore, f_ as LocalProcessWorkspace, rd as MapStyleEditor, Hh as ServerProcessWorkspace, Ve as StudioAiTranscriptVerifier, I_ as createSharedStylePreview, fg as createWorkspaceAgentSession, p_ as createWorkspaceLifecycleReader, Og as hashDatasetImportFile, m_ as readSharedStyleMapConsumer, lg as registerAllStudioElements, dg as workspaceAgentFeatures };

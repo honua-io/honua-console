@@ -1,6 +1,6 @@
 {
   "schemaVersion": "honua.console.studio-artifact.v1",
-  "studioRevision": "e6411388097063b823bb0c2bad2603f8a8709d0f",
+  "studioRevision": "e97ea0bf26f8d174e429bd9de3d86ed39980ace6",
   "sdkRevision": "50d8f1d6fcbbcee89f666949722c6b7ac904e5c4",
   "files": [
     {
@@ -15,8 +15,8 @@
     },
     {
       "path": "STUDIO-PROVENANCE.json",
-      "bytes": 245540,
-      "sha256": "fa218824c4183b2e9d7967b0a7f083765639a6e9bc88e8021bc0d6957a699c27"
+      "bytes": 245628,
+      "sha256": "6c66992cb2ad73de8986b15a28fe7c920467fec9e7cd02d3efac95a6c367b5d1"
     },
     {
       "path": "THIRD-PARTY-NOTICES.txt",
@@ -55,8 +55,8 @@
     },
     {
       "path": "console.js",
-      "bytes": 802359,
-      "sha256": "ead8b8aa1e07a740a42c56dfc786a7e91a31cda6684a2542adc47e5187e55c4e"
+      "bytes": 803735,
+      "sha256": "3561eab8ec6631d675e80b45cc4c4981240171c7b629a7c75dd67059a1289920"
     },
     {
       "path": "control-config-DVC01Tzy.js",

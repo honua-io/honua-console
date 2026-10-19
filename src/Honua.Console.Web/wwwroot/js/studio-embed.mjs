@@ -2,6 +2,7 @@ import {processTask} from './workflow-task.mjs';
 import { capturedProcessFetch, sameCookieAuthority } from './cookie-workspace-transport.mjs';
 import { captureWorkspaceFollow, queueWorkspaceFollow } from './workspace-follow.mjs';
 import { selectedResource, studioResourceRefs } from './agent-workspace.mjs';
+import { mountStudioVersionControls } from './studio-version-controls.mjs';
 let assets;
 let element;
 const elementsByEnvironment = new Map();
@@ -117,6 +118,8 @@ async function mount() {
             try { await createApp.createWorkspaceDraft(key.value.trim());status.textContent='Shared server draft opened.'; }
             catch(error) {status.textContent=error.message;} finally {button.disabled=false;}
         });
+        createApp.workspaceVersionControls?.dispose();
+        createApp.workspaceVersionControls = mountStudioVersionControls({ app:createApp, host, status });
         const task = element.workspace?.context?.task;
         const draft = task?.kind === 'studio-composition' ? {draftId:task.id}
             : !task ? element.workspace?.agentSession?.sdkSession?.draft : undefined;
