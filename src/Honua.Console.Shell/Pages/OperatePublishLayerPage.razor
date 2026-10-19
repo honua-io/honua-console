@@ -6,14 +6,15 @@
 @inject NavigationManager Nav
 @inject IConsoleNotificationService Notifications
 
-<section class="console-page">
+<section class="console-page" data-workspace-publish-form>
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Publishing</p>
         <h1>Publish a layer</h1>
         <p>Publish an existing table from a data connection as a queryable service layer. Pick the connection and table, name the service (use <code>folder/service</code> to nest under a folder), and publish — the layer becomes live on honua-server and queryable through its FeatureServer slot.</p>
     </div>
 
-    @if (_connections.Count == 0)
+    <ConsoleConnectionNotice Heading="Could not read data connections" States="_connectionStates" OnRetry="LoadConnectionsAsync" />
+    @if (_connections.Count == 0 && _connectionStates.Count == 0)
     {
         <article class="console-panel console-state-warning" role="note">
             <p class="console-kicker">No connections</p>
@@ -22,13 +23,13 @@
             <a class="console-button" href="/operate/connections/new">Add Connection</a>
         </article>
     }
-    else
+    else if (_connections.Count > 0)
     {
         <article class="console-panel">
             <div class="studio-field-grid">
                 <label>
                     <span>Connection</span>
-                    <select class="console-input" aria-label="Connection" @bind="_connectionId" @bind:after="OnConnectionChanged">
+                    <select class="console-input" aria-label="Connection" data-workspace-field="connectionId" @bind="_connectionId" @bind:after="OnConnectionChanged">
                         <option value="">Select a connection…</option>
                         @foreach (var connection in _connections)
                         {
@@ -38,22 +39,22 @@
                 </label>
                 <label>
                     <span>Table</span>
-                    <select class="console-input" aria-label="Table" @bind="_tableKey" @bind:after="OnTableChanged" disabled="@(_tables.Count == 0)">
+                    <select class="console-input" aria-label="Table" data-workspace-field="table" @bind="_tableKey" @bind:after="OnTableChanged" disabled="@(_tables.Count == 0)">
                         <option value="">@(_loadingTables ? "Loading tables…" : _tables.Count == 0 ? "No publishable tables" : "Select a table…")</option>
                         @foreach (var table in _tables)
                         {
-                            <option value="@table.QualifiedName">@table.QualifiedName @(table.GeometryType is { } gt ? $"· {gt}" : "")</option>
+                            <option value="@table.QualifiedName" data-schema="@table.Schema" data-table="@table.Table">@table.QualifiedName @(table.GeometryType is { } gt ? $"· {gt}" : "")</option>
                         }
                     </select>
                 </label>
                 <label>
                     <span>Service name</span>
-                    <input class="console-input" @bind="_serviceName" @bind:event="oninput" @bind:after="ClearResult" placeholder="parcels-fs" />
+                    <input class="console-input" data-workspace-field="serviceName" @bind="_serviceName" @bind:event="oninput" @bind:after="ClearResult" placeholder="parcels-fs" />
                     <small class="console-muted">Use <code>folder/service</code> to nest under a folder.</small>
                 </label>
                 <label>
                     <span>Layer name</span>
-                    <input class="console-input" @bind="_layerName" @bind:event="oninput" @bind:after="ClearResult" placeholder="Parcels" />
+                    <input class="console-input" data-workspace-field="layerName" @bind="_layerName" @bind:event="oninput" @bind:after="ClearResult" placeholder="Parcels" />
                 </label>
             </div>
 
@@ -108,8 +109,15 @@
                 </article>
             }
 
+            <section class="console-panel console-state-warning" data-workspace-publication-review hidden>
+                <p role="status" data-workspace-publication-state></p>
+                <button class="console-button console-button-secondary" type="button" data-workspace-publication-check>Check original publication</button>
+                <button class="console-button console-button-secondary" type="button" data-workspace-publication-acknowledge hidden>I reviewed the previous result and current draft</button>
+                <a href="/inbox">Review approvals</a>
+            </section>
             <div class="console-action-row">
-                <button class="console-button" type="button" disabled="@_busy" @onclick="PublishAsync">
+                <button class="console-button console-button-secondary" type="button" disabled="@_busy" data-workspace-save>Save draft</button>
+                <button class="console-button" type="button" disabled="@_busy" data-workspace-publish @onclick="PublishAsync">
                     @(_busy ? "Publishing…" : "Publish layer")
                 </button>
                 <a href="/operate/services">View services</a>
@@ -133,10 +141,15 @@
     private string? _clientError;
     private ServiceLayerPublishResult? _result;
 
-    protected override async Task OnInitializedAsync()
+    private IReadOnlyList<OperateCapabilityState> _connectionStates = [];
+
+    protected override Task OnInitializedAsync() => LoadConnectionsAsync();
+
+    private async Task LoadConnectionsAsync()
     {
         var view = await OperateData.GetConnectionsViewAsync();
         _connections = view.Connections;
+        _connectionStates = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Connections");
     }
 
     private async Task OnConnectionChanged()

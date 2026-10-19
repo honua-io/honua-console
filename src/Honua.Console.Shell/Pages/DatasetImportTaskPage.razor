@@ -1,0 +1,27 @@
+@page "/operate/resources/import/task"
+
+<PageTitle>Dataset import · Honua Console</PageTitle>
+<section class="console-page" data-dataset-import-panel>
+    <h1>Import dataset</h1>
+    <p>Contribute the original file to the import task in this conversation.</p>
+    <p role="status" aria-live="polite" data-import-status>Checking the current task…</p>
+    <dl>
+        <dt>Destination</dt><dd data-import-destination>Not bound</dd>
+        <dt>Source</dt><dd data-import-source>Not bound</dd>
+    </dl>
+    <div class="console-form-grid">
+        <label for="dataset-import-file">Original dataset file</label>
+        <input id="dataset-import-file" type="file" data-import-file disabled />
+        <progress data-import-progress max="1" value="0" aria-label="File transfer progress"></progress>
+        <div class="console-button-row">
+            <button type="button" data-import-check disabled>Check complete file</button>
+            <button type="button" data-import-clear disabled>Clear selected file</button>
+            <button type="button" data-import-transfer disabled>Upload and verify</button>
+            <button type="button" data-import-submit disabled>Prepare import for agent</button>
+            <button type="button" data-import-recover disabled>Check original status</button>
+            <button type="button" data-import-pause disabled>Pause</button>
+            <button type="button" data-import-cancel disabled>Cancel upload</button>
+        </div>
+    </div>
+    <p>The file is checked in bounded chunks. A retained source is separate from an accepted import job.</p>
+</section>

@@ -44,12 +44,9 @@
                       ActionLabel="Back to quick publish"
                       ActionHref="/operate/publishing" />
 }
-else if (_loadFailure is { } failure)
+else if (_loadFailure is not null || _loadStates.Count > 0)
 {
-    <ConsoleStateView Kind="unsupported"
-                      Kicker="Publishing"
-                      Title="Couldn't read the publishing workspace"
-                      Message="@failure" />
+    <ConsoleConnectionNotice States="_loadStates" Error="_loadFailure" OnRetry="LoadWorkspaceAsync" Busy="_loading" />
 }
 else
 {
@@ -72,6 +69,7 @@ else
     private bool _loading = true;
     private bool _loadingTables;
     private string? _loadFailure;
+    private IReadOnlyList<OperateCapabilityState> _loadStates = [];
 
     // ---- Operator selection ----
     private int _quickCurrent;
@@ -95,14 +93,29 @@ else
     private string EffectiveServiceName =>
         (_createNewService ? _newServiceName : _selectedServiceName ?? string.Empty).Trim();
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => LoadWorkspaceAsync();
+
+    private async Task LoadWorkspaceAsync()
     {
+        _loading = true;
+        _loadFailure = null;
+        _loadStates = [];
+        _services = [];
+        _connections = [];
+        _selectedServiceName = null;
+        _connectionId = null;
+        _tables = [];
+        _tableKey = null;
         try
         {
             var services = await OperateData.GetServicesViewAsync();
             var connections = await OperateData.GetConnectionsViewAsync();
-            _services = services.Services;
-            _connections = connections.Connections;
+            _loadStates = services.CapabilityStates.Concat(connections.CapabilityStates).ToArray();
+            if (_loadStates.Count == 0)
+            {
+                _services = services.Services;
+                _connections = connections.Connections;
+            }
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
         {
@@ -299,7 +312,7 @@ else
             }
             else if (_services.Count == 0)
             {
-                <p class="console-muted" data-publish-tree-empty>No services are bound. Create a new service instead, or check the environment binding under Environments.</p>
+                <p class="console-muted" data-publish-tree-empty>No services were returned. Create a new service to publish your layer.</p>
             }
             else
             {

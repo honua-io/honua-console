@@ -162,7 +162,8 @@ public sealed class HonuaServerPublishingWorkspaceDataSource : IPublishingWorksp
             Surface,
             issue.State,
             issue.Contract ?? contract,
-            $"Publication '{publicationId}': {detail}");
+            $"Publication '{publicationId}': {detail}")
+        { StatusCode = issue.StatusCode };
     }
 }
 

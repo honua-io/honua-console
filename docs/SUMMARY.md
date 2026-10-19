@@ -17,6 +17,8 @@
 
 ## Reference
 
+* [Unified agent workspace host](agent-workspace.md)
 * [Build artifact contract](deployment/BUILD_ARTIFACT.md)
+* [.NET SDK and runtime provenance](dotnet-runtime-provenance.md)
 * [Embedding contract](operate/embed-contract.md)
 * [Shared Razor component API](reference/SHARED_COMPONENT_API.md)

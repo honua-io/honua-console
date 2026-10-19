@@ -1,0 +1,21 @@
+@page "/setup/local"
+
+<section class="console-page console-local-setup" data-local-setup>
+    <div class="console-page-heading">
+        <p class="console-kicker">Set up Honua locally</p>
+        <h1>Start Honua with your local agent</h1>
+        <p>Open your local agent to check Docker and start Honua on this computer. It will check prerequisites and run the installer with your permission.</p>
+    </div>
+    <ol class="console-setup-steps">
+        <li><h2>Open your local agent</h2><p>Your browser cannot install software or inspect Docker. Use the agent where you registered Honua. If you have not connected one, follow the <a href="https://honua.gitbook.io/honuaio/start-here/with-ai" target="_blank" rel="noopener noreferrer">Honua agent setup instructions</a>.</p></li>
+        <li><h2>Ask it to start Honua</h2>
+            <blockquote data-local-agent-prompt>Check Docker on this computer and install a compatible Honua release locally with the shared Console and Studio workspace. If no qualified compatible release is available, tell me before installing. Use the Honua installer, keep credentials outside the conversation, and give me the Console address when it is ready. Ask before changing anything that needs my permission.</blockquote>
+            <button class="console-button" type="button" data-agent-handoff>Copy request for my local agent</button>
+            <p role="status" data-agent-handoff-status></p>
+            <p class="console-muted">The agent reports prerequisites and actual installation results. Copying this request does not install or start anything.</p>
+        </li>
+        <li><h2>Open the Console address it returns</h2><p>Sign in, start a workspace, then add data. A running container alone does not confirm that your session or agent is connected.</p>
+            <a class="console-button-link" href="/environments/new">Connect an existing deployment instead</a>
+        </li>
+    </ol>
+</section>

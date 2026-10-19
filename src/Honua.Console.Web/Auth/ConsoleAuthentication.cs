@@ -147,7 +147,8 @@ public static class ConsoleAuthentication
         builder.Services.AddSingleton(serviceProvider => new ConsoleOperatorSessionBridge(
             serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
             serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-            ConfiguredServerBaseUri(builder)));
+            ConfiguredServerBaseUri(builder), builder.Configuration, builder.Environment,
+            serviceProvider.GetRequiredService<IHttpClientFactory>()));
         builder.Services.AddSingleton<IConfigureOptions<ConsoleEdgeAuthOptions>, ConsoleEdgeAuthOptionsSetup>();
 
         return builder;

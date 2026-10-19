@@ -28,6 +28,18 @@ public sealed class ConsoleHomePageRenderTests
     }
 
     [Fact]
+    public void Home_OffersLocalAgentSetupAndExistingConnectionBeforeOperations()
+    {
+        using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []));
+        var page = ctx.Render<ConsoleHomePage>();
+        Assert.Equal("/setup/local", page.Find("[data-start-local]").GetAttribute("href"));
+        Assert.Equal("/environments/new", page.Find("[data-connect-existing]").GetAttribute("href"));
+        Assert.True(page.Markup.IndexOf("data-first-run-actions", StringComparison.Ordinal)
+            < page.Markup.IndexOf("data-open-inbox", StringComparison.Ordinal));
+        Assert.False(page.Find(".console-home-operations").HasAttribute("open"));
+    }
+
+    [Fact]
     public void Home_LeadsWithInboxSummary_AndDeepLinksToInbox()
     {
         using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []));

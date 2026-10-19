@@ -41,7 +41,10 @@ public sealed record OperateCapabilityState(
     string Surface,
     string State,
     string Contract,
-    string Detail);
+    string Detail)
+{
+    public int? StatusCode { get; init; }
+}
 
 public static class OperateCapabilityStateFilters
 {

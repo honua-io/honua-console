@@ -15,13 +15,13 @@
         <a class="console-button-link" href="/operate/import/service">Import from a service</a>
     </div>
 
-    <OperateCapabilityStateList States="@_states" />
+    <ConsoleConnectionNotice Heading="Could not read data connections" States="_states" OnRetry="LoadAsync" />
 
     @if (_connections.Count == 0 && _states.Count == 0)
     {
         <EmptyState Area="operate" Subject="connections" ActionHref="/operate/connections/new" ActionText="Add Connection" />
     }
-    else
+    else if (_connections.Count > 0)
     {
         <div class="console-table-wrap">
             <table class="console-table">
@@ -69,7 +69,9 @@
     private IReadOnlyList<OperateConnectionSummary> _connections = Array.Empty<OperateConnectionSummary>();
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
     {
         var view = await OperateData.GetConnectionsViewAsync();
         _connections = view.Connections;

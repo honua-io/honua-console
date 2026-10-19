@@ -805,7 +805,8 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
                 surface,
                 issue.State,
                 issue.Contract,
-                issue.StatusCode is null ? issue.Detail : $"{issue.Detail} HTTP {issue.StatusCode.Value.ToString(CultureInfo.InvariantCulture)}."));
+                issue.StatusCode is null ? issue.Detail : $"{issue.Detail} HTTP {issue.StatusCode.Value.ToString(CultureInfo.InvariantCulture)}.")
+            { StatusCode = issue.StatusCode });
     }
 
     private static void AddStateOnce(

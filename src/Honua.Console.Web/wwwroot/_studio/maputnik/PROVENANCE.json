@@ -1,0 +1,42 @@
+{
+  "upstream": "https://github.com/maplibre/maputnik",
+  "version": "3.1.0",
+  "revision": "66377f5dcf14275e205869f0c6549b2e86d7d879",
+  "patches": [
+    "host-store.ts",
+    "host-entry.jsx",
+    "host-layout.css",
+    "host-persistence-only",
+    "blank-provider-tokens",
+    "opaque-frame-network-denied"
+  ],
+  "integration": {
+    "scripts/maputnik/host-store.ts": "32cb94f7a2e65a1f74a6b85cbd026dcee8a671188fd7a679b1c45cd886419707",
+    "scripts/maputnik/host-entry.jsx": "a93e8867cdc4659e1cb7f93d5fe197fdbace0fe30d02803bc7f389bcdaf928e9",
+    "scripts/maputnik/host-layout.css": "5092d72e08391ab7366dc00e608b74265816552ddc414dfa24b7a028315a0703",
+    "scripts/maputnik/dependency-overlay.json": "78139b75f0a0d98b5a46664adacb4daf7fb5d43d6621ac2b872484111fce3d6d",
+    "scripts/vendor-maputnik.mjs": "ac74d942e658ded23a06c84f8380b075499b6a7f9dcfa92d51bb4d3a6ac8cc59"
+  },
+  "files": {
+    "LICENSE": {
+      "bytes": 1124,
+      "sha256": "1a155f965254b65d1aa9f44a618e2258f2c0cd6b85c096b0e72cb8ca3eb507ce"
+    },
+    "THIRD-PARTY-NOTICES.txt": {
+      "bytes": 1948675,
+      "sha256": "40e7bcabfeac691ba1a6cf1c33dbd561007046e9f93085ec837b70bb48c165f8"
+    },
+    "editor.js": {
+      "bytes": 1794367,
+      "sha256": "1d96eb3c3872d160693e750ba344321dc29c07819d8742f6404e419084afdd67"
+    },
+    "index.html": {
+      "bytes": 486,
+      "sha256": "9629e97ee12a08d5977d25e8cfcee0a7dff905f412c5ee640a60069a6c726976"
+    },
+    "maputnik.css": {
+      "bytes": 932099,
+      "sha256": "0026ae432ded84cd421ea70d545accba7326f3a33f4c08324a0ef33445296e48"
+    }
+  }
+}

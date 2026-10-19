@@ -168,7 +168,7 @@ public sealed class StudioHomeRenderTests
     }
 
     [Fact]
-    public void StudioPage_AtStudioRoot_RendersHomeLanding()
+    public void StudioPage_AtStudioRoot_DoesNotRestoreLegacyHome()
     {
         using var ctx = NewContext(new StubCatalogClient([]));
         ctx.Services.AddSingleton<IStudioAuthoringShell>(new ThrowingAuthoringShell());
@@ -177,15 +177,9 @@ public sealed class StudioHomeRenderTests
 
         var page = ctx.Render<StudioPage>();
 
-        page.WaitForAssertion(
-            () => Assert.NotEmpty(page.FindAll("[data-studio-home='true']")),
-            TimeSpan.FromSeconds(5));
-
-        // The home landing exposes the inline-authoring shell as a secondary entry.
-        Assert.NotEmpty(page.FindAll("a[href='/studio/proof']"));
-        // The content-type picker is gone; the omni-prompt AI console is the single entry (honua-console#203).
-        Assert.Empty(page.FindAll("[data-content-type]"));
-        Assert.NotEmpty(page.FindAll("[data-studio-home-omni='true']"));
+        Assert.Single(page.FindAll("[data-studio-unavailable]"));
+        Assert.Empty(page.FindAll("[data-studio-home], [data-authoring-contract], textarea"));
+        Assert.NotEmpty(page.FindAll("a[href='/environments']"));
     }
 
     private static Bunit.BunitContext NewContext(IConsoleCatalogClient catalog)

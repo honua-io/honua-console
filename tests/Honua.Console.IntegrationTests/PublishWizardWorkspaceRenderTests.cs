@@ -60,13 +60,24 @@ public sealed class PublishWizardWorkspaceRenderTests
     }
 
     [Fact]
-    public void ServiceStep_WithNoServicesBound_RendersAnEmptyStateRatherThanSampleRows()
+    public void ServiceStep_WithFailedBinding_RendersRecoveryInsteadOfClaimingEmpty()
     {
         using var ctx = NewContext();
         var cut = ctx.Render<PublishWizardWorkspace>();
 
         Assert.Empty(cut.FindAll("[data-publish-tree-row]"));
-        Assert.NotNull(cut.Find("[data-publish-tree-empty]"));
+        Assert.Empty(cut.FindAll("[data-publish-tree-empty]"));
+        Assert.Single(cut.FindAll("[data-connection-notice]"));
+    }
+
+    [Fact]
+    public void ServiceStep_SuccessfulEmptyReadCanShowEmptyCatalog()
+    {
+        using var ctx = NewContext(StubOperateData.Empty());
+        var cut = ctx.Render<PublishWizardWorkspace>();
+        Assert.Single(cut.FindAll("[data-publish-tree-empty]"));
+        Assert.Empty(cut.FindAll("[data-connection-notice]"));
+        Assert.Empty(cut.FindAll("[data-publish-tree-row]"));
     }
 
     [Fact]
@@ -273,6 +284,8 @@ public sealed class PublishWizardWorkspaceRenderTests
         private readonly OperateTransitionWorkspace _workspace;
 
         private StubOperateData(OperateTransitionWorkspace workspace) => _workspace = workspace;
+
+        public static StubOperateData Empty() => new(new OperateTransitionWorkspace([], [], [], [], []));
 
         public static StubOperateData WithFixtures()
         {

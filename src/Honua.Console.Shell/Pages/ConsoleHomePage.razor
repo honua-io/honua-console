@@ -25,15 +25,37 @@
 
 <section class="console-page">
     <div class="console-page-heading">
-        <p class="console-kicker">Information + approval surface</p>
-        <h1>Honua Console</h1>
-        <p>
-            Agents and APIs do the writing. The console is where you witness service status,
-            review agent-proposed plans, and authorize the outcome. Studio, Catalog, Operate,
-            and Share run in one route surface while preserving builder and operator boundaries.
-        </p>
+        <p class="console-kicker">Your GIS workspace</p>
+        <h1>Start with your data. Keep the conversation.</h1>
+        <p>Connect Honua, add a dataset, and build a map. Work through the forms or ask in the shared conversation.</p>
     </div>
-
+    <div class="console-start-options" data-first-run-actions>
+        <a class="console-panel console-start-option" href="/setup/local" data-start-local>
+            <span class="console-kicker">New to Honua</span><h2>Set up Honua locally</h2>
+            <p>Use your local agent to check Docker and start Honua on your computer.</p><strong>Start with Docker →</strong>
+        </a>
+        <a class="console-panel console-start-option" href="/environments/new" data-connect-existing>
+            <span class="console-kicker">Already have a server?</span><h2>Connect an existing deployment</h2>
+            <p>Choose your server address and sign in with your own account.</p><strong>Connect →</strong>
+        </a>
+        @if (_profiles.Count > 0)
+        {
+            <a class="console-panel console-start-option" href="/operate/data" data-continue-work>
+                <span class="console-kicker">Welcome back</span><h2>Continue your work</h2>
+                <p>Open your data and resume the shared conversation in @ServerName.</p><strong>Open workspace →</strong>
+            </a>
+        }
+    </div>
+    @if (_profiles.Count > 0 && _inboxLoaded && !_inbox.IsAllowed)
+    {
+        <article class="console-panel console-state-info" data-home-connection-state role="status">
+            <h2>Check your connection and access</h2>
+            <p>The approval queue could not be read from @ServerName. Sign in or review the selected server before continuing.</p>
+            <a class="console-button-link" href="/environments">Review connection</a>
+        </article>
+    }
+    <details class="console-home-operations">
+        <summary>Operations, approvals and work areas</summary>
     @* Ops-summary strip (console#292, founder decision 2026-07-07: ships on home, not hub-only):
        the landing's "is my server healthy, what needs me?" glance — overall health, awaiting
        approvals, open findings, and SLO breaches, each deep-linking to its actionable surface. *@
@@ -122,22 +144,9 @@
             <a class="console-button-link console-home-inbox-cta" href="/inbox" data-open-inbox>Open inbox</a>
         </section>
 
-        @* ── Recent activity (operation timeline) ────────────────────────────── *@
-        <section class="console-panel console-home-inbox" aria-labelledby="home-activity-heading">
-            <div>
-                <p class="console-kicker">Information</p>
-                <h2 id="home-activity-heading">Recent activity</h2>
-            </div>
-            <p class="console-muted">
-                The agent-operation timeline — what agents proposed and did, with status from
-                the deploy-control lifecycle — surfaces on the Operate observability surface and
-                the release timeline. A single consolidated cross-source activity feed is on the
-                roadmap.
-            </p>
-            <ConsoleDiagnostics DisclosureLabel="Roadmap" IssueRef="#193" />
-            <a class="console-button-link console-home-inbox-cta" href="/operate/observability" data-open-activity>
-                View observability
-            </a>
+        <section class="console-panel" aria-labelledby="home-activity-heading">
+            <h2 id="home-activity-heading">Activity</h2><p>Inspect operations, service health and recent changes.</p>
+            <a class="console-button-link" href="/operate/observability" data-open-activity>View activity</a>
         </section>
     </div>
 
@@ -173,6 +182,7 @@
         <div class="console-profile-count">@_profiles.Count</div>
         <a class="console-button-link" href="/environments">Manage</a>
     </section>
+    </details>
 </section>
 
 @code {

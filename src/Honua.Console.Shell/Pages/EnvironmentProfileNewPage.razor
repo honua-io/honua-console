@@ -9,48 +9,48 @@
 
 <section class="console-page">
     <div class="console-page-heading">
-        <p class="console-kicker">@(Host.SupportsNativeTransports ? "Native host configuration" : "Connect to a server")</p>
-        <h1>@(Host.SupportsNativeTransports ? "Add Environment" : "Connect to a Honua Server")</h1>
-        @if (Host.SupportsNativeTransports)
-        {
-            <p>Create a self-hosted Honua Server connection profile. The profile stores server URL, account binding, transport capabilities, and an optional client-certificate reference. Private keys are never stored - only a certificate reference.</p>
-        }
-        else
-        {
-            <p>Point this Console at your Honua Server over HTTPS and bind an account to start working. The browser host connects over HTTPS and realtime transports; native gRPC, client-certificate (mTLS), and trust validation are added by the optional desktop host.</p>
-        }
+        <p class="console-kicker">Environments</p>
+        <h1>Connect to a Honua Server</h1>
+        <p>@(Host.SupportsNativeTransports
+            ? "Name your connection and enter your server's HTTPS address. Then connect and verify the server from its environment page."
+            : "Name your connection and enter your server's HTTPS address. You will sign in before accessing its data.")</p>
     </div>
-
-    <TenancyPreviewNotice />
 
     <article class="console-panel">
         <div class="studio-field-grid">
-                <label>
-                    <span>Display name</span>
-                    <input class="console-input" @bind="_displayName" @bind:after="OnEdit" placeholder="Honua Production" />
-                    <ValidationMessageInline FieldKey="@EnvironmentProfileFieldKeys.DisplayName" State="_validation" />
-                </label>
-                <label>
-                    <span>Server URL</span>
-                    <input class="console-input" @bind="_serverBaseUri" @bind:after="OnEdit" placeholder="https://prod.honua.example" />
-                    <ValidationMessageInline FieldKey="@EnvironmentProfileFieldKeys.ServerBaseUri" State="_validation" />
-                </label>
-                <label>
-                    <span>Environment kind</span>
-                    <select class="console-input" @bind="_environmentKind" @bind:after="OnEdit">
-                        <option value="development">development</option>
-                        <option value="staging">staging</option>
-                        <option value="production">production</option>
-                    </select>
-                </label>
+            <label>
+                <span>Display name</span>
+                <input class="console-input" @bind="_displayName" @bind:after="OnEdit" id="environment-display-name" placeholder="My Honua server" />
+                <ValidationMessageInline FieldKey="@EnvironmentProfileFieldKeys.DisplayName" State="_validation" />
+            </label>
+            <label>
+                <span>Server URL</span>
+                <input class="console-input" @bind="_serverBaseUri" @bind:after="OnEdit" id="environment-server-url" placeholder="https://gis.example.com" />
+                <ValidationMessageInline FieldKey="@EnvironmentProfileFieldKeys.ServerBaseUri" State="_validation" />
+            </label>
+            <label>
+                <span>Environment kind</span>
+                <select class="console-input" @bind="_environmentKind" @bind:after="OnEdit">
+                    <option value="development">development</option>
+                    <option value="staging">staging</option>
+                    <option value="production">production</option>
+                </select>
+            </label>
+        </div>
+
+        <details class="console-connection-details">
+            <summary>Account and tenant settings</summary>
+            <p class="console-muted">Use these settings if your administrator supplied an account or tenant identifier. Sign-in still determines your access.</p>
+            <TenancyPreviewNotice />
+            <div class="studio-field-grid">
                 <label>
                     <span>Tenant ID (Preview/trial only)</span>
                     <input class="console-input" @bind="_tenantId" @bind:after="OnEdit" placeholder="trial-a" />
                 </label>
                 <label>
-                    <span>Account model</span>
+                    <span>Access method</span>
                     <select class="console-input" @bind="_authMode" @bind:after="OnEdit">
-                        <option value="@nameof(ConsoleAccountAuthMode.AccountRbac)">Account / RBAC</option>
+                        <option value="@nameof(ConsoleAccountAuthMode.AccountRbac)">Sign in with an account</option>
                         <option value="@nameof(ConsoleAccountAuthMode.Anonymous)">Anonymous</option>
                     </select>
                 </label>
@@ -59,9 +59,13 @@
                     <input class="console-input" @bind="_accountId" @bind:after="OnEdit" placeholder="operator.prod" />
                 </label>
             </div>
+        </details>
 
-            @if (Host.SupportsNativeTransports)
-            {
+        @if (Host.SupportsNativeTransports)
+        {
+            <details class="console-connection-details" open="@(_mtlsEnabled && _validation.HasBlockingClientErrors)">
+                <summary>Desktop transport and certificate settings</summary>
+                <p class="console-muted">Configure gRPC or a client certificate when your server requires it. Only certificate references are stored here.</p>
                 <div class="studio-check-row">
                     <input id="native-grpc" type="checkbox" @bind="_nativeGrpc" @bind:after="OnEdit" />
                     <label for="native-grpc"><span>Enable native gRPC transport</span></label>
@@ -70,66 +74,61 @@
                     <input id="native-mtls" type="checkbox" @bind="_mtlsEnabled" @bind:after="OnEdit" />
                     <label for="native-mtls"><span>Require client certificate (native mTLS)</span></label>
                 </div>
-            }
-            else
-            {
-                <article class="console-panel console-state-info" role="note">
-                    <p class="console-muted">Native gRPC, client certificates (mTLS), and server-trust validation are added by the optional desktop (MAUI) Console host. This profile connects over HTTPS.</p>
-                </article>
-            }
+                @if (_mtlsEnabled)
+                {
+                    <div class="studio-field-grid">
+                        <label>
+                            <span>Certificate reference kind</span>
+                            <select class="console-input" @bind="_certKind" @bind:after="OnEdit">
+                                <option value="@nameof(ConsoleClientCertificateReferenceKind.StoreSubject)">Store subject</option>
+                                <option value="@nameof(ConsoleClientCertificateReferenceKind.StoreThumbprint)">Store thumbprint</option>
+                                <option value="@nameof(ConsoleClientCertificateReferenceKind.FilePath)">File path</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span>Reference value</span>
+                            <input class="console-input" @bind="_certValue" @bind:after="OnEdit" placeholder="CN=Honua Operator" />
+                            <ValidationMessageInline FieldKey="@EnvironmentProfileFieldKeys.CertValue" State="_validation" />
+                        </label>
+                        <label>
+                            <span>Store name</span>
+                            <input class="console-input" @bind="_storeName" @bind:after="OnEdit" placeholder="My" />
+                        </label>
+                        <label>
+                            <span>Store location</span>
+                            <input class="console-input" @bind="_storeLocation" @bind:after="OnEdit" placeholder="CurrentUser" />
+                        </label>
+                        <label>
+                            <span>Secret name (file password, optional)</span>
+                            <input class="console-input" @bind="_secretName" @bind:after="OnEdit" placeholder="secret://certs/prod/[redacted]" />
+                        </label>
+                        <label>
+                            <span>Trust profile ID (optional)</span>
+                            <input class="console-input" @bind="_trustProfileId" @bind:after="OnEdit" placeholder="operators-prod" />
+                        </label>
+                    </div>
+                }
 
-            @if (Host.SupportsNativeTransports && _mtlsEnabled)
-            {
-                <div class="studio-field-grid">
-                    <label>
-                        <span>Certificate reference kind</span>
-                        <select class="console-input" @bind="_certKind" @bind:after="OnEdit">
-                            <option value="@nameof(ConsoleClientCertificateReferenceKind.StoreSubject)">Store subject</option>
-                            <option value="@nameof(ConsoleClientCertificateReferenceKind.StoreThumbprint)">Store thumbprint</option>
-                            <option value="@nameof(ConsoleClientCertificateReferenceKind.FilePath)">File path</option>
-                        </select>
-                    </label>
-                    <label>
-                        <span>Reference value</span>
-                        <input class="console-input" @bind="_certValue" @bind:after="OnEdit" placeholder="CN=Honua Operator" />
-                        <ValidationMessageInline FieldKey="@EnvironmentProfileFieldKeys.CertValue" State="_validation" />
-                    </label>
-                    <label>
-                        <span>Store name</span>
-                        <input class="console-input" @bind="_storeName" @bind:after="OnEdit" placeholder="My" />
-                    </label>
-                    <label>
-                        <span>Store location</span>
-                        <input class="console-input" @bind="_storeLocation" @bind:after="OnEdit" placeholder="CurrentUser" />
-                    </label>
-                    <label>
-                        <span>Secret name (file password, optional)</span>
-                        <input class="console-input" @bind="_secretName" @bind:after="OnEdit" placeholder="secret://certs/prod/[redacted]" />
-                    </label>
-                    <label>
-                        <span>Trust profile ID (optional)</span>
-                        <input class="console-input" @bind="_trustProfileId" @bind:after="OnEdit" placeholder="operators-prod" />
-                    </label>
-                </div>
-            }
+            </details>
+        }
 
-            @if (_validation.HasBlockingClientErrors)
-            {
-                <div class="console-validation-summary" data-environment-validation="blocking" role="alert">
-                    <p class="console-kicker">Resolve before creating</p>
-                    <ul>
-                        @foreach (var error in _validation.Summary.Where(e => e.IsBlocking))
-                        {
-                            <li>@error.Message</li>
-                        }
-                    </ul>
-                </div>
-            }
-
-            <div class="console-action-row">
-                <button class="console-button" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="CreateAsync">@(Host.SupportsNativeTransports ? "Create environment" : "Connect and continue")</button>
-                <a href="/environments">Cancel</a>
+        @if (_validation.HasBlockingClientErrors)
+        {
+            <div class="console-validation-summary" data-environment-validation="blocking" role="alert">
+                <p class="console-kicker">Resolve before creating</p>
+                <ul>
+                    @foreach (var error in _validation.Summary.Where(e => e.IsBlocking))
+                    {
+                        <li>@error.Message</li>
+                    }
+                </ul>
             </div>
+        }
+
+        <div class="console-action-row">
+            <button class="console-button" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="CreateAsync">@(Host.SupportsNativeTransports ? "Create environment" : "Connect and continue")</button>
+            <a href="/environments">Cancel</a>
+        </div>
     </article>
 </section>
 

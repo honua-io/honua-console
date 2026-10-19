@@ -9765,3 +9765,96 @@ button.console-chip:focus-visible {
     border-color: var(--honua-accent);
     color: var(--honua-accent-strong);
 }
+
+/* One native conversation remains available beside every Console and realtime Studio route. */
+[data-agent-workspace] {
+    position: fixed;
+    inset-inline-end: 1rem;
+    bottom: 1rem;
+    z-index: 40;
+    width: min(24rem, calc(100vw - 2rem));
+    max-height: calc(100dvh - 2rem);
+    overflow: auto;
+    background: var(--honua-surface);
+    border: 1px solid var(--honua-border);
+    box-shadow: 0 8px 28px #17211d20;
+}
+[data-agent-workspace]:not([open]) { width: auto; }
+[data-agent-workspace][open] { top: 1rem; }
+[data-agent-workspace] summary { cursor: pointer; font-weight: 650; }
+[data-agent-workspace] label { display: block; margin-block: .75rem; }
+[data-workspace-messages] { max-height: 42dvh; overflow-y: auto; overflow-wrap: anywhere; }
+[data-workspace-prompt] { min-height: 5rem; resize: vertical; }
+@media (min-width: 1200px) {
+    .console-main:has([data-agent-workspace][open]) { padding-inline-end: 26rem; }
+}
+
+/* Unified workspace: conversation takes its own column and never covers task controls. */
+.console-workspace { min-width: 0; }
+.console-workspace-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem clamp(20px, 3vw, 44px); border-bottom: 1px solid var(--honua-border); background: var(--honua-surface); }
+.console-workspace-toolbar nav { display: flex; flex-wrap: wrap; gap: .4rem; }
+.console-workspace-toolbar nav a { padding: .55rem .8rem; border-radius: .5rem; text-decoration: none; }
+.console-workspace-toolbar nav a.active { background: var(--honua-accent-soft); font-weight: 650; }
+[data-workspace-header-target] { max-width: 28rem; overflow-wrap: anywhere; color: var(--honua-muted); font-size: .85rem; }
+.console-workspace-panes { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+.console-workspace-panes > [data-agent-workspace] { position: sticky; inset: auto; top: .75rem; z-index: auto; margin: .75rem .75rem .75rem 0; width: 20rem; max-height: calc(100dvh - 1.5rem); box-shadow: none; }
+.console-workspace-panes > [data-agent-workspace]:not([open]) { width: auto; }
+.console-workspace-panes > [data-agent-workspace][open] { top: .75rem; }
+.console-workspace-panes .console-main { padding-inline-end: clamp(20px, 3vw, 44px); }
+[data-workspace-target] { overflow-wrap: anywhere; font-size: .9rem; color: var(--honua-muted); }
+.console-conversation-connection { padding-block: .5rem; border-block: 1px solid var(--honua-border); }
+.console-conversation [data-workspace-messages] { max-height: 40dvh; }
+.console-conversation > summary { padding-block: .35rem; }
+.console-more-tools { margin-top: 1rem; }
+.console-more-tools > summary { padding: .7rem; cursor: pointer; }
+.console-start-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 1rem; margin-bottom: 2rem; }
+.console-start-option { text-decoration: none; display: flex; flex-direction: column; gap: .6rem; }
+.console-start-option h2,.console-start-option p { margin: 0; }
+.console-start-option strong { margin-top: auto; color: var(--honua-accent-strong); }
+.console-start-option:hover { border-color: var(--honua-accent); }
+.console-home-operations > summary { cursor: pointer; font-weight: 650; padding: 1rem 0; }
+.console-setup-steps { display: grid; gap: 1.5rem; padding-inline-start: 1.4rem; }
+.console-setup-steps blockquote { margin-inline: 0; padding: 1rem; border-inline-start: 3px solid var(--honua-accent); background: var(--honua-surface); }
+.console-sidebar { position: sticky; top: 0; max-height: 100dvh; overflow-y: auto; }
+@media (max-width: 1099px) {
+    .console-workspace-panes { display: flex; flex-direction: column; }
+    .console-workspace-panes > [data-agent-workspace] { position: static; width: calc(100% - 2rem); margin: 1rem; max-height: 55dvh; order: -1; box-sizing: border-box; }
+    .console-workspace-panes > [data-agent-workspace]:not([open]) { width: calc(100% - 2rem); }
+    .console-workspace-panes > .console-main { width: 100%; box-sizing: border-box; }
+}
+@media (max-width: 760px) {
+    .console-shell,.console-shell:has(.console-collapse-toggle:checked) { grid-template-columns: minmax(0, 1fr); }
+    .console-sidebar { position: static; max-height: none; padding: .65rem 1rem; }
+    .console-sidebar-head { margin: 0; justify-content: space-between; }
+    .console-sidebar .console-brand-label,.console-shell:has(.console-collapse-toggle:checked) .console-brand-label { display: block; }
+    .console-sidebar nav,.console-sidebar .console-more-tools { display: none; }
+    .console-shell:has(.console-collapse-toggle:checked) .console-sidebar nav { display: grid; }
+    .console-shell:has(.console-collapse-toggle:checked) .console-sidebar .console-more-tools { display: block; }
+    .console-shell:has(.console-collapse-toggle:checked) .console-nav-label { display: block; }
+    .console-workspace-toolbar { padding: .75rem 1rem; gap: .6rem; }
+    .console-workspace-toolbar nav a { padding: .5rem; }
+    .console-main { padding-inline: 1rem; }
+    .console-page { width: 100%; }
+    .console-collapse-button { min-width: 44px; min-height: 44px; }
+}
+.console-connection-details { margin-block: 1.2rem; border-top: 1px solid var(--honua-border); padding-block: .8rem; }
+.console-connection-details > summary { cursor: pointer; font-weight: 600; padding-block: .4rem; }
+.console-connection-details > summary:focus-visible,.console-more-tools > summary:focus-visible,.console-home-operations > summary:focus-visible { outline: 2px solid var(--honua-accent); outline-offset: 3px; }
+
+.console-conversation-handoff { margin-block: .75rem; }
+.console-conversation-handoff > summary,.console-conversation-connection > summary { cursor: pointer; padding-block: .5rem; }
+@media (max-width: 1099px) {
+    .console-workspace-panes > .console-first-run-conversation { order: 1; }
+}
+
+[data-dataset-import-panel] input[type="file"],
+[data-dataset-import-panel] progress {
+    display: block;
+    width: 100%;
+    max-width: 36rem;
+    min-width: 0;
+}
+
+[data-dataset-import-panel] dd {
+    overflow-wrap: anywhere;
+}

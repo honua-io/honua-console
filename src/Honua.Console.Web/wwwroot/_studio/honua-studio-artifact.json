@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "honua.console.studio-artifact.v1",
+  "studioRevision": "87b3194816e73237878bd3902195c9ac3a775c2b",
+  "sdkRevision": "50d8f1d6fcbbcee89f666949722c6b7ac904e5c4",
+  "files": [
+    {
+      "path": "LICENSE",
+      "bytes": 11335,
+      "sha256": "b354b971f0d9252a996e7cd4e72cd4e0d833cd0fe9068a5da3113b4a0ed53559"
+    },
+    {
+      "path": "SDK-PROVENANCE.json",
+      "bytes": 236810,
+      "sha256": "7fae10f0724acee8f1e221bb6547f182552d27e9d28c08ec616f9f39019497c6"
+    },
+    {
+      "path": "STUDIO-PROVENANCE.json",
+      "bytes": 245636,
+      "sha256": "45a2db9636746a6095d9e1d39dcf6e95d5eb07c19a58fc196f1fc3a08e79a9ec"
+    },
+    {
+      "path": "THIRD-PARTY-NOTICES.txt",
+      "bytes": 80920,
+      "sha256": "e3dce39a330f1e68b329076ef50abbbceb31ad7ee2c7159432f0e0ab0ff98f10"
+    },
+    {
+      "path": "assets/maplibre-gl-worker-BRmM5V8w.js",
+      "bytes": 509004,
+      "sha256": "5420da18c04dbefda660133d62583f6abe709233ca45a01139db121fe172f107"
+    },
+    {
+      "path": "authenticated-source-protocol-Dt4qQhdg.js",
+      "bytes": 267871,
+      "sha256": "8956880daf78da68ce9e6680f4388ed8d4089e8b42f5907ed57e4d11104e04a4"
+    },
+    {
+      "path": "basemap-CjR__Zyy.js",
+      "bytes": 125189,
+      "sha256": "438782e50b2d914d039ce859dee321d687ba4d96d27a9389bcf92bd6c8e635c2"
+    },
+    {
+      "path": "chart-data-f1eyBzQS.js",
+      "bytes": 4054,
+      "sha256": "5006cec50ec2bf5ed0d367da418891fea7aab2da6ce5eb2a3b0a3d8e770554ce"
+    },
+    {
+      "path": "chart-render-yr_0V0Zx.js",
+      "bytes": 4569,
+      "sha256": "2ba84835349c5145eaf8c9739c9aae2fd9a0a94c51fc7c855098b8ab7453ca69"
+    },
+    {
+      "path": "chart-spec-DAVCygiU.js",
+      "bytes": 3928,
+      "sha256": "8dcf5f37f3942ac4fc2e076701be2d92d02d8f5d7bf3d06149da005efff906f4"
+    },
+    {
+      "path": "console.js",
+      "bytes": 803901,
+      "sha256": "4ea28452d6c93581b7dd9e1060d34056b9ee119def62610976b49c59e80e95e4"
+    },
+    {
+      "path": "control-config-DVC01Tzy.js",
+      "bytes": 15602,
+      "sha256": "a2be54dfd0ce7d1af9413ca2239d64678a2574725defde08550c817d770ca5b4"
+    },
+    {
+      "path": "errors-BIfuuju7.js",
+      "bytes": 25487,
+      "sha256": "de56d94a5c8f20db687767e2e01719fa69465bfe40e19aca7b7a5633575e904c"
+    },
+    {
+      "path": "maplibre-gl-D8l5aSvm.js",
+      "bytes": 1304259,
+      "sha256": "22f45992fbbac596986073bf39f15834c5e37df78e338b10fde48d3bdf316caa"
+    },
+    {
+      "path": "maplibre-gl-worker-D_S8443I.js",
+      "bytes": 162,
+      "sha256": "479c395b051174f2af8f9b9af3c5d402e636bedd08e5974496e616584104736a"
+    },
+    {
+      "path": "maplibre-styles-DqdxD-wM.js",
+      "bytes": 83076,
+      "sha256": "7047ae6fbdcbc32aeb30bd24f0770a4d5aa3a58221c628fa9bf82fba2d191c75"
+    },
+    {
+      "path": "maputnik/LICENSE",
+      "bytes": 1124,
+      "sha256": "1a155f965254b65d1aa9f44a618e2258f2c0cd6b85c096b0e72cb8ca3eb507ce"
+    },
+    {
+      "path": "maputnik/PROVENANCE.json",
+      "bytes": 1568,
+      "sha256": "0111f337437caf0cc26ad2c0a8f0b445a9ce9499c3d004418dacc49761a49560"
+    },
+    {
+      "path": "maputnik/THIRD-PARTY-NOTICES.txt",
+      "bytes": 1948675,
+      "sha256": "40e7bcabfeac691ba1a6cf1c33dbd561007046e9f93085ec837b70bb48c165f8"
+    },
+    {
+      "path": "maputnik/editor.js",
+      "bytes": 1794367,
+      "sha256": "1d96eb3c3872d160693e750ba344321dc29c07819d8742f6404e419084afdd67"
+    },
+    {
+      "path": "maputnik/index.html",
+      "bytes": 486,
+      "sha256": "9629e97ee12a08d5977d25e8cfcee0a7dff905f412c5ee640a60069a6c726976"
+    },
+    {
+      "path": "maputnik/maputnik.css",
+      "bytes": 932099,
+      "sha256": "0026ae432ded84cd421ea70d545accba7326f3a33f4c08324a0ef33445296e48"
+    },
+    {
+      "path": "palette-BSfbwTvA.js",
+      "bytes": 669,
+      "sha256": "10a729f7cd0cc76b10a57f1cc80bcc4139cfbfc0a86daa842fa421556a5ddbb8"
+    },
+    {
+      "path": "rolldown-runtime-Dy4uBu1J.js",
+      "bytes": 248,
+      "sha256": "2ae529aa369ca927116393faa00287bf0d6597a6ebde8433800d196a9a19e007"
+    },
+    {
+      "path": "source-resolution-DLJUVzYE.js",
+      "bytes": 3908,
+      "sha256": "0bd42879c7eeccf0e1a9dd041e4f870b483a0381f783cc8498ec735a612f7598"
+    },
+    {
+      "path": "studio-interactions-Dt_Q3VCB.js",
+      "bytes": 33178,
+      "sha256": "613d90c4a883582145282989dbfda0bcfd3c721ab53649218d1c30c823997bde"
+    },
+    {
+      "path": "style.css",
+      "bytes": 5067,
+      "sha256": "17236480fc3a0f3962c7d3ab7be9128a831451da3954e05ebe838033fa48943f"
+    },
+    {
+      "path": "widget-config-BnNjdjF6.js",
+      "bytes": 4625,
+      "sha256": "f62fe19025217f84d298c05d4711a840c71a88d27e33bb3c72a5025f14317eda"
+    }
+  ]
+}

@@ -8,7 +8,7 @@ namespace Honua.Console.IntegrationTests;
 
 /// <summary>
 /// Docker-free render coverage for the Environment Profiles card affordances hardened in the UCD sweep
-/// (honua-console#313): the active browser profile reports live use instead of "Last connected: never", and
+/// (honua-console#313): the active browser profile reports selection without claiming a verified connection, and
 /// the browser host states what a browser user can do rather than leaving a bare native-only "Connect" dead end.
 /// </summary>
 public sealed class EnvironmentProfilesPageRenderTests
@@ -23,10 +23,9 @@ public sealed class EnvironmentProfilesPageRenderTests
         };
 
     [Fact]
-    public void ActiveBrowserProfile_ReportsLiveUse_NotLastConnectedNever()
+    public void ActiveBrowserProfile_ReportsSelectionWithoutClaimingConnection()
     {
-        // The active profile the browser Console binds and serves automatically is live now; "never"
-        // misrepresented it (honua-console#313 item 6, "Last connected reflects actual live use").
+        // Selection is visible even before a successful authenticated server read.
         var store = new InMemoryConsoleEnvironmentProfileStore(
             [Profile("dev", "Local honua-server")],
             states: null,
@@ -36,7 +35,7 @@ public sealed class EnvironmentProfilesPageRenderTests
         var page = ctx.Render<EnvironmentProfilesPage>();
 
         page.WaitForAssertion(
-            () => Assert.Contains("In use now", page.Markup, StringComparison.Ordinal),
+            () => Assert.Contains("Selected in this browser session", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.DoesNotContain(">never<", page.Markup, StringComparison.Ordinal);
     }
@@ -76,7 +75,7 @@ public sealed class EnvironmentProfilesPageRenderTests
         var page = ctx.Render<EnvironmentProfilesPage>();
 
         page.WaitForAssertion(
-            () => Assert.Contains("In use now", page.Markup, StringComparison.Ordinal),
+            () => Assert.Contains("Selected in this browser session", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.Empty(page.FindAll("[data-tenancy-preview]"));
     }
@@ -96,11 +95,10 @@ public sealed class EnvironmentProfilesPageRenderTests
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll("[data-browser-alt-note]")),
             TimeSpan.FromSeconds(5));
-        // Native connect/validation is labelled desktop-only, and the active browser profile explains it is
-        // already used automatically over HTTPS — an explanation of what the browser user CAN do.
+        // Specialist settings remain discoverable, and the primary action explains browser access.
         Assert.NotEmpty(page.FindAll("[data-native-only-note]"));
-        Assert.Contains("desktop Console only", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("automatically", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("desktop Console", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("sign-in and permissions", page.Markup, StringComparison.Ordinal);
         // The bare, guidance-free "Connect · Native host only" dead end is gone.
         Assert.DoesNotContain("Connect · Native host only", page.Markup, StringComparison.Ordinal);
     }

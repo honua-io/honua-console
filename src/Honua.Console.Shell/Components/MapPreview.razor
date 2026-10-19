@@ -455,7 +455,7 @@
 
         try
         {
-            await _module.InvokeAsync<bool>("recenter", _canvas, Center, (double)Zoom);
+            await _module.InvokeAsync<bool>("recenter", _canvas, Center, CameraZoom);
         }
         catch (JSException)
         {

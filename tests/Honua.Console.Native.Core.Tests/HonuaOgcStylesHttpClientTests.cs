@@ -172,6 +172,139 @@ public sealed class HonuaOgcStylesHttpClientTests
         Assert.Equal("Unsupported", result.Issue!.State);
     }
 
+    [Fact]
+    public async Task ConditionalSaveUsesVersionFromSameReadAndPreservesStrictValidation()
+    {
+        var handler = new RecordingHandler(request =>
+        {
+            if (request.Method == HttpMethod.Get)
+            {
+                var response = Json(HttpStatusCode.OK, "{\"version\":8}");
+                response.Headers.ETag = new System.Net.Http.Headers.EntityTagHeaderValue("\"style-v7\"");
+                return response;
+            }
+            Assert.Equal("\"style-v7\"", Assert.Single(request.Headers.IfMatch).ToString());
+            Assert.Contains("handling=strict", request.Headers.GetValues("Prefer"));
+            Assert.Equal(new string('a', 64), Assert.Single(request.Headers.GetValues("X-Honua-Style-Impact")));
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        });
+        var client = CreateClient(handler);
+        var read = await client.GetStylesheetAsync("shared", HonuaOgcStyleEncoding.MapLibre);
+        Assert.Equal("{\"version\":8}", read.Data!.Content);
+        var saved = await client.UpdateStylesheetConditionallyAsync("shared", HonuaOgcStyleEncoding.MapLibre,
+            "{\"version\":8}", true, read.Data.EntityTag!, new string('a', 64));
+        Assert.True(saved.Succeeded);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task StaleConditionalSaveReportsConflictWithoutRetry()
+    {
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.PreconditionFailed, "{}"));
+        var result = await CreateClient(handler).UpdateStylesheetConditionallyAsync("shared", HonuaOgcStyleEncoding.MapLibre,
+            "{}", false, "\"style-v7\"", new string('a', 64));
+        Assert.False(result.Succeeded);
+        Assert.Equal("Conflict", result.State);
+        Assert.Contains("edits are retained", result.Detail, StringComparison.Ordinal);
+        Assert.Single(handler.Requests);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("*")]
+    [InlineData("W/\"style-v7\"")]
+    [InlineData("\"style-v7\", \"style-v8\"")]
+    public async Task ConditionalSaveNeverSendsMissingWeakOrMultipleVersion(string version)
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var result = await CreateClient(handler).UpdateStylesheetConditionallyAsync("shared", HonuaOgcStyleEncoding.MapLibre,
+            "{}", false, version, new string('a', 64));
+        Assert.False(result.Succeeded);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public async Task ImpactReadRequiresVersionAndRetainsOnlyReturnedAssociations()
+    {
+        var handler = new RecordingHandler(request =>
+        {
+            Assert.Equal("/ogc/styles/shared/impact", request.RequestUri!.AbsolutePath);
+            var response = Json(HttpStatusCode.OK, $$"""
+                {"styleId":"shared","styleVersion":7,"etag":"\"style-v7\"",
+                 "contentHash":"{{new string('a', 64)}}","impactHash":"{{new string('b', 64)}}",
+                 "canEdit":false,"associations":[{"resourceId":"visible","name":"Visible resource"}]}
+                """);
+            response.Headers.ETag = new System.Net.Http.Headers.EntityTagHeaderValue("\"style-v7\"");
+            return response;
+        });
+        var result = await CreateClient(handler).GetSharedStyleImpactAsync("shared");
+        Assert.Null(result.Issue);
+        Assert.False(result.Data!.CanEdit);
+        Assert.False(result.Data.ImpactComplete);
+        Assert.Empty(result.Data.Consumers);
+        Assert.Equal("visible", Assert.Single(result.Data.Associations).ResourceId);
+    }
+
+    [Fact]
+    public async Task BoundWriteRequiresExplicitHostTransportSupport()
+    {
+        var handler = new RecordingHandler(_ => throw new InvalidOperationException("Must not send."));
+        var result = await CreateClient(handler).UpdateStylesheetBoundAsync("shared", HonuaOgcStyleEncoding.MapLibre, "{}", true, "\"style-v7\"", new string('a', 64), "operator-binding");
+        Assert.False(result.Succeeded);
+        Assert.Equal("Unsupported", result.State);
+    }
+
+    [Fact]
+    public async Task BoundStyleReadCapturesHostOnlyAuthorityAndWriteCarriesItAsOptions()
+    {
+        var handler = new RecordingHandler(request =>
+        {
+            Assert.False(request.Headers.Contains("X-Honua-Session-Partition"));
+            if (request.Method == HttpMethod.Get)
+            {
+                Assert.True(request.Options.TryGetValue(ConsoleAuthorityRequestOptions.RelativeStylePath, out var relativePath));
+                Assert.Equal("ogc/styles/shared", relativePath);
+                Assert.True(request.Options.TryGetValue(ConsoleAuthorityRequestOptions.Capture, out var capture) && capture);
+                request.Options.Set(ConsoleAuthorityRequestOptions.Resolved, "operator-binding");
+                var response = Json(HttpStatusCode.OK, "{\"version\":8}");
+                response.Headers.ETag = new("\"style-v7\""); return response;
+            }
+            Assert.True(request.Options.TryGetValue(ConsoleAuthorityRequestOptions.RelativeStylePath, out var writePath));
+            Assert.Equal("ogc/styles/shared", writePath);
+            Assert.True(request.Options.TryGetValue(ConsoleAuthorityRequestOptions.Expected, out var expected));
+            Assert.Equal("operator-binding", expected);
+            return new HttpResponseMessage(HttpStatusCode.PreconditionFailed);
+        });
+        using var client = new HonuaOgcStylesHttpClient(new HttpClient(handler), new HonuaOgcStylesClientOptions(BaseUri, AuthorityBindingSupported: true));
+        var read = await client.GetStylesheetAsync("shared", HonuaOgcStyleEncoding.MapLibre);
+        Assert.Equal("operator-binding", read.Data?.AuthorityBinding);
+        var saved = await client.UpdateStylesheetBoundAsync("shared", HonuaOgcStyleEncoding.MapLibre, "{}", true, "\"style-v7\"", new string('a', 64), read.Data!.AuthorityBinding!);
+        Assert.False(saved.Succeeded); Assert.Equal("Conflict", saved.State);
+    }
+
+    [Fact]
+    public async Task PinnedReadCarriesOriginalAuthorityWithoutRecapturingActiveConnection()
+    {
+        var handler = new RecordingHandler(request =>
+        {
+            Assert.True(request.Options.TryGetValue(ConsoleAuthorityRequestOptions.Expected, out var expected));
+            Assert.Equal("original-binding", expected);
+            Assert.False(request.Options.TryGetValue(ConsoleAuthorityRequestOptions.Capture, out _));
+            Assert.True(request.Options.TryGetValue(ConsoleAuthorityRequestOptions.RelativeStylePath, out var path));
+            Assert.Equal("ogc/styles/shared", path);
+            Assert.False(request.Headers.Contains("X-Honua-Session-Partition"));
+            request.Options.Set(ConsoleAuthorityRequestOptions.Resolved, expected);
+            return Json(HttpStatusCode.OK, "{}");
+        });
+        using var client = new HonuaOgcStylesHttpClient(new HttpClient(handler), new HonuaOgcStylesClientOptions(BaseUri, AuthorityBindingSupported: true));
+        var read = await client.GetStylesheetBoundAsync("shared", HonuaOgcStyleEncoding.MapLibre, "original-binding");
+        Assert.Equal("original-binding", read.Data?.AuthorityBinding);
+        Assert.Single(handler.Requests);
+        var unsupported = await CreateClient(handler).GetStylesheetBoundAsync("shared", HonuaOgcStyleEncoding.MapLibre, "original-binding");
+        Assert.Equal("Unsupported", unsupported.Issue?.State);
+        Assert.Single(handler.Requests);
+    }
+
     private static HonuaOgcStylesHttpClient CreateClient(HttpMessageHandler handler, string? apiKey = null)
     {
         var httpClient = new HttpClient(handler) { BaseAddress = BaseUri };

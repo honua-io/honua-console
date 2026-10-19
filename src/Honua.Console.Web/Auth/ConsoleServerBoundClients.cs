@@ -67,6 +67,7 @@ public static class ConsoleServerBoundClients
                     serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()))
             .AddHttpMessageHandler(serviceProvider => CreateCredentialHandler(serviceProvider, allowAnonymous: true));
 
+        services.TryAddSingleton<Honua.Console.Contracts.IConsoleAuthorityBindingValidator, ConsoleAuthorityBindingValidator>();
         services.TryAddSingleton<IHonuaServerBoundClientFactory, HttpClientFactoryServerBoundClientFactory>();
 
         return services;

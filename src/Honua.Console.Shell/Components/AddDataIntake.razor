@@ -30,7 +30,7 @@
 <div class="add-data-intake" data-add-data-intake>
     <div class="add-data-intake__bar">
         <div class="add-data-intake__modes" role="tablist" aria-label="Add data source">
-            @foreach (var option in ModeOptions)
+            @foreach (var option in ModeOptions.Where(option => AllowAi || option.Mode != AddDataMode.Ai))
             {
                 <button type="button"
                         role="tab"
@@ -69,11 +69,15 @@
                         }
                     </select>
                 </label>
-                @if (Connections.Count == 0)
+                @if (!Loaded)
+                {
+                    <p class="console-muted">Data connections have not been read. Review your connection before choosing a table.</p>
+                }
+                else if (Connections.Count == 0)
                 {
                     <p class="console-muted">
-                        No data connections yet. <a href="/operate/connections/new">Add a connection</a>,
-                        then choose a table here. (BlueSpatial B6: connect-then-pick the live table list.)
+                        No data connections are available. <a href="/operate/connections/new">Add a connection</a>,
+                        then choose a table here.
                     </p>
                 }
                 else
@@ -135,6 +139,8 @@
 </div>
 
 @code {
+    [Parameter] public bool AllowAi { get; set; } = true;
+    [Parameter] public bool Loaded { get; set; } = true;
     private AddDataMode _mode = AddDataMode.File;
     private string _connectionId = string.Empty;
     private string _resourceId = string.Empty;

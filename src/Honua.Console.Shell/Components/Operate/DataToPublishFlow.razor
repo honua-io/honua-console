@@ -53,6 +53,8 @@
             }
         </ol>
 
+        @if (!SharedConversation)
+        {
         <div class="data-publish-flow__driver" role="group" aria-label="Flow driver">
             <button type="button"
                     class="data-publish-flow__driver-btn @(_flow.Driver == FlowDriver.Ai ? "data-publish-flow__driver-btn--on" : "")"
@@ -61,14 +63,20 @@
                     class="data-publish-flow__driver-btn @(_flow.Driver == FlowDriver.Manual ? "data-publish-flow__driver-btn--on" : "")"
                     data-driver="manual" disabled="@_busy" @onclick="() => SetDriver(FlowDriver.Manual)">Manual</button>
         </div>
+        }
+        else
+        {
+            <button type="button" class="console-button console-button-secondary" data-workspace-open>Ask in the conversation</button>
+        }
     </div>
 
     @if (_missingBinding is { } binding)
     {
         <article class="console-panel console-state-warning" role="note" data-flow-missing-binding>
-            <p class="console-kicker">Unsupported — binding required</p>
-            <h2>This step needs a configured honua-server</h2>
+            <p class="console-kicker">Connect to your data</p>
+            <h2>Check the data connection</h2>
             <p>@binding</p>
+            <a class="console-button-link" href="/environments">Review connection</a>
         </article>
     }
 
@@ -175,8 +183,15 @@
                                    ExistingResources="_resourceOptions"
                                    SupportedExtensions="_supportedExtensions"
                                    InitialMode="_flow.Source.Mode"
+                                   AllowAi="@(!SharedConversation)"
+                                   Loaded="@_intakeLoaded"
                                    OnSourceChosen="OnSourceChosen" />
-                    @if (_flow.Source.Mode == AddDataMode.File)
+                    @if (SharedConversation && _flow.Source.Mode == AddDataMode.File)
+                    {
+                        <p>Choose the original dataset, then describe its destination in the shared conversation.</p>
+                        <a class="console-button" href="/operate/resources/import/task">Choose dataset file</a>
+                    }
+                    else if (_flow.Source.Mode == AddDataMode.File)
                     {
                         <label class="studio-form-label">
                             <span>File to import</span>
@@ -214,7 +229,7 @@
                     @StepError()
                     <div class="console-action-row">
                         <a href="/operate/data">Cancel</a>
-                        @if (_flow.Source.Mode != AddDataMode.RemoteService)
+                        @if (_flow.Source.Mode != AddDataMode.RemoteService && !(SharedConversation && _flow.Source.Mode == AddDataMode.File))
                         {
                             <button type="button" class="console-button" disabled="@(_busy || !CanContinueFromAddData())" @onclick="ContinueFromAddData">
                                 @(_busy ? "Working…" : "Continue →")
@@ -293,7 +308,7 @@
                             <legend class="studio-form-label"><span>Encoding</span></legend>
                             <label class="publish-protocol-picker__option">
                                 <input type="radio" name="style-encoding" checked="@(_flow.StyleEncoding == StyleEncoding.MapLibre)" @onchange="() => _flow.StyleEncoding = StyleEncoding.MapLibre" />
-                                <span>MapLibre / Maputnik</span>
+                                <span>MapLibre</span>
                             </label>
                             <label class="publish-protocol-picker__option">
                                 <input type="radio" name="style-encoding" checked="@(_flow.StyleEncoding == StyleEncoding.Esri)" @onchange="() => _flow.StyleEncoding = StyleEncoding.Esri" />
@@ -307,7 +322,7 @@
                     }
                     @if (!string.IsNullOrWhiteSpace(_flow.StyleId))
                     {
-                        <p><a class="console-link" href="@StyleEditorHref" target="_blank">Open the full dual-mode editor →</a></p>
+                        <p><a class="console-link" href="@StyleEditorHref">Edit this shared catalog style →</a></p>
                     }
                     <div class="console-action-row">
                         <button type="button" @onclick="() => GoToStep(FlowStep.Publish)">Back</button>
@@ -371,7 +386,9 @@
 @code {
     private const long MaxFileBytes = 100L * 1024 * 1024;
 
+    [Parameter] public bool SharedConversation { get; set; }
     [Parameter] public string? InitialSource { get; set; }
+    private bool _intakeLoaded;
     [Parameter] public string? InitialDriver { get; set; }
 
     /// <summary>
@@ -434,6 +451,11 @@
         }
 
         ApplyInitialSource(InitialSource);
+        if (SharedConversation)
+        {
+            _flow.Driver = FlowDriver.Manual;
+            if (_flow.Source.Mode == AddDataMode.Ai) _flow.Source.Mode = AddDataMode.File;
+        }
 
         _supportedExtensions = await FileImport.GetSupportedExtensionsAsync();
 
@@ -446,6 +468,9 @@
         _resourceOptions = resourcesView.ResourceEdits
             .Select(resource => new AddDataIntake.IntakeOption(resource.ResourceId, resource.Name))
             .ToArray();
+
+        _intakeLoaded = connectionsView.CapabilityStates.Count == 0 && resourcesView.CapabilityStates.Count == 0;
+        if (SharedConversation && !_intakeLoaded) _missingBinding = "The data sources could not be read. Review your connection or sign in again before choosing data.";
 
         var styleCatalog = await StyleData.GetStyleCatalogAsync();
         _styles = styleCatalog.Styles;
@@ -504,6 +529,12 @@
 
     private async Task OnSourceChosen(AddDataIntake.DataSourceIntake intake)
     {
+        if (SharedConversation && intake.Mode == AddDataMode.Table)
+        {
+            // The canonical publish-layer form is bound to the same server draft as chat.
+            Nav.NavigateTo("/operate/publishing/quick");
+            return;
+        }
         _stepError = null;
 
         // Choosing the "Describe it (AI)" intake mode flips the flow to the AI driver: the same flow object,
@@ -554,7 +585,7 @@
 
     private bool CanContinueFromAddData() => _flow.Source.Mode switch
     {
-        AddDataMode.File => _selectedFile is not null,
+        AddDataMode.File => !SharedConversation && _selectedFile is not null,
         AddDataMode.Table => !string.IsNullOrWhiteSpace(_flow.Source.TableKey),
         AddDataMode.ExistingResource => !string.IsNullOrWhiteSpace(_flow.Source.Reference),
         _ => false,
@@ -562,6 +593,7 @@
 
     private async Task ContinueFromAddData()
     {
+        if (SharedConversation && _flow.Source.Mode == AddDataMode.File) return;
         _stepError = null;
         _missingBinding = null;
         _busy = true;
