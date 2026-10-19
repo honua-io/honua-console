@@ -14,7 +14,7 @@ namespace Honua.Console.Shell.Services;
 /// <c>Honua:Server:PublicationIds</c> is an optional selection: when it is empty every listed publication
 /// is shown, and when it is set those ids are read individually. Lookup, republish, and rollback still drive
 /// the author-first / quick-publish flow against the live lifecycle verbs. Endpoint issues (missing
-/// permission, not found, conflict, unsupported verb, transport) surface as explicit capability states
+/// permission, not found, conflict, unsupported verb, transport, incomplete pagination) surface as explicit capability states
 /// instead of throwing or fabricating data.
 /// </summary>
 public sealed class HonuaServerPublishingWorkspaceDataSource : IPublishingWorkspaceDataSource
@@ -132,14 +132,17 @@ public sealed class HonuaServerPublishingWorkspaceDataSource : IPublishingWorksp
 
             if (!seenCursors.Add(next))
             {
-                return ([], new HonuaAdminEndpointIssue("Unavailable", ListContract, "The publication list repeated a pagination cursor; reload to retry."));
+                return ([], IncompletePagination("The publication list repeated a pagination cursor; reload to retry."));
             }
 
             cursor = next;
         }
 
-        return ([], new HonuaAdminEndpointIssue("Unavailable", ListContract, "The publication list exceeded the page limit; narrow the publication selection and retry."));
+        return ([], IncompletePagination("The publication list exceeded the page limit; select specific publication IDs and retry."));
     }
+
+    private static HonuaAdminEndpointIssue IncompletePagination(string detail) =>
+        new("Incomplete pagination", ListContract, detail);
 
     public async Task<PublishingLookupResult> LookupAsync(
         string publicationId,

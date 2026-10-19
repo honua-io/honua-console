@@ -132,38 +132,49 @@ public sealed class HonuaServerPublishingWorkspaceDataSourceTests
     }
 
     [Fact]
-    public async Task GetWorkspace_WhenCursorRepeats_DoesNotPresentPartialSuccess()
+    public async Task GetWorkspace_WhenCursorRepeats_SurfacesIncompletePagination()
     {
         var client = new RecordingPublicationClient();
-        for (var page = 0; page < 2; page++)
-        {
-            client.Pages.Enqueue(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromData(
-                new HonuaContentPublicationListPage { Items = [Detail("pub-1", "one", 1, "ver-1")], NextCursor = "repeat" }));
-        }
+        client.Pages.Enqueue(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromData(
+            new HonuaContentPublicationListPage
+            {
+                Items = [Detail("pub-1", "one", 1, "ver-1")],
+                Total = 2,
+                NextCursor = "again",
+            }));
+        client.Pages.Enqueue(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromData(
+            new HonuaContentPublicationListPage
+            {
+                Items = [Detail("pub-2", "two", 1, "ver-2")],
+                Total = 2,
+                NextCursor = "again",
+            }));
+        var source = new HonuaServerPublishingWorkspaceDataSource(
+            client,
+            PublishingWorkspaceOptions.FromConfiguredList(null));
 
-        var source = new HonuaServerPublishingWorkspaceDataSource(client, PublishingWorkspaceOptions.FromConfiguredList(null));
         var workspace = await source.GetWorkspaceAsync();
 
         Assert.Empty(workspace.Matrix);
-        Assert.Empty(workspace.Reviews);
-        Assert.Contains("repeated", Assert.Single(workspace.CapabilityStates).Detail, StringComparison.Ordinal);
+        var state = Assert.Single(workspace.CapabilityStates);
+        Assert.Equal("Incomplete pagination", state.State);
+        Assert.Equal("GET /api/v1/console/publications", state.Contract);
     }
 
     [Fact]
-    public async Task GetWorkspace_WhenPageLimitReached_DoesNotPresentPartialSuccess()
+    public async Task GetWorkspace_WhenListNeverEnds_SurfacesIncompletePagination()
     {
-        var client = new RecordingPublicationClient();
-        for (var page = 0; page < 100; page++)
-        {
-            client.Pages.Enqueue(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromData(
-                new HonuaContentPublicationListPage { Items = [Detail("pub-" + page, "one", 1, "ver-1")], NextCursor = "cursor-" + page }));
-        }
+        var client = new RecordingPublicationClient { ContinueUntilCapped = true };
+        var source = new HonuaServerPublishingWorkspaceDataSource(
+            client,
+            PublishingWorkspaceOptions.FromConfiguredList(null));
 
-        var source = new HonuaServerPublishingWorkspaceDataSource(client, PublishingWorkspaceOptions.FromConfiguredList(null));
         var workspace = await source.GetWorkspaceAsync();
 
         Assert.Empty(workspace.Matrix);
-        Assert.Contains("page limit", Assert.Single(workspace.CapabilityStates).Detail, StringComparison.Ordinal);
+        var state = Assert.Single(workspace.CapabilityStates);
+        Assert.Equal("Incomplete pagination", state.State);
+        Assert.Contains("exceeded", state.Detail, StringComparison.Ordinal);
         Assert.Equal(100, client.ListCalls);
     }
 
@@ -315,6 +326,8 @@ public sealed class HonuaServerPublishingWorkspaceDataSourceTests
 
         public HonuaAdminEndpointIssue? ListIssue { get; init; }
 
+        public bool ContinueUntilCapped { get; init; }
+
         public Task<HonuaAdminEndpointResult<HonuaContentPublicationListPage>> ListAsync(
             string? cursor = null,
             int limit = 100,
@@ -326,6 +339,18 @@ public sealed class HonuaServerPublishingWorkspaceDataSourceTests
             if (ListIssue is not null)
             {
                 return Task.FromResult(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromIssue(ListIssue));
+            }
+
+            if (ContinueUntilCapped)
+            {
+                var id = "pub-" + ListCalls.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return Task.FromResult(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromData(
+                    new HonuaContentPublicationListPage
+                    {
+                        Items = [Detail(id, id, 1, "ver-" + id)],
+                        Total = 100_000,
+                        NextCursor = "cursor-" + id,
+                    }));
             }
 
             if (Pages.Count > 0)
