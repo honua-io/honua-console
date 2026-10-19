@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Unified agent workspace host"
+description: "Console and embedded Studio workspace composition, credential boundaries, and deployment requirements."
+---
 # Unified agent workspace host
 
 The Console host shares one server-owned workspace and one native SDK agent session with the realtime Studio custom element. Enable `Studio:EmbedJsStudio=true` to render the pinned Studio element at `/studio` and `/studio/drafts`; the legacy standalone builders are retired and cannot be restored by a capability flag.

@@ -1,3 +1,8 @@
+---
+type: reference
+title: ".NET SDK and runtime provenance"
+description: "Exact SDK and ASP.NET Core runtime pins with upstream provenance for the Console build."
+---
 # .NET SDK and runtime pins
 
 Console uses SDK **10.0.402** and ASP.NET Core packages/runtime **10.0.13**, released
