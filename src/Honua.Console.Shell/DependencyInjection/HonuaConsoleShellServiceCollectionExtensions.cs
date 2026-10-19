@@ -1191,8 +1191,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     // honua-server's temporal data history API (#1166 slice 1: capability discovery + as-of read) and the
     // disconnected replica management API (#1167 slice 1: replica list + detail; slice 2: conflict review +
     // resolution) through the IHonuaTemporalClient shim when a server base address is configured. The
-    // temporal API is per service/layer with no enumeration verb, so — like the publishing workspace keying
-    // off configured publication ids — the viewer is keyed by a configured list of candidate sources
+    // temporal API is per service/layer with no enumeration verb, so the viewer is keyed by a configured
+    // list of candidate sources
     // (Honua:Server:TemporalSources / HONUA_SERVER_TEMPORAL_SOURCES, "serviceId:layerId"). The deferred
     // server slice (diff/timeline/rollback execution #1285) is NOT merged; the live client binds what
     // exists and renders the rest as the established not-yet-available state, never fabricated (Console
@@ -1277,9 +1277,10 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     // lifecycle to the real honua-server content publication registry (honua-server#1183, shipped)
     // through the IHonuaContentPublicationClient shim when a server base address is configured;
     // otherwise the workspace renders a missing-binding state (never mock publishing data — Console
-    // Patterns Charter section 11 — no standing in-memory publishing data source). The registry exposes
-    // no list endpoint, so the matrix is keyed by the configured publication ids
-    // (Honua:Server:PublicationIds / HONUA_SERVER_PUBLICATION_IDS).
+    // Patterns Charter section 11 — no standing in-memory publishing data source). The workspace
+    // discovers publications from GET /api/v1/console/publications (honua-server#3357). Configured
+    // publication ids (Honua:Server:PublicationIds / HONUA_SERVER_PUBLICATION_IDS) are an optional
+    // filter, not a requirement.
     private static void AddPublishingWorkspaceDataSource(
         IServiceCollection services,
         string? honuaServerBaseUrl,
