@@ -13,6 +13,9 @@ async function controlledSdk(page: Page, body: string, beforeServe?: () => Promi
     await page.route(url=>url.pathname==='/operate/resources/import/task',async route=>{
         const response=await route.fetch();
         const html=await response.text();
+        const baseHref=html.match(/<base\s+href="([^"]+)"/i)?.[1];
+        const documentBase=new URL(baseHref ?? route.request().url(),route.request().url());
+        let matched=0;
         // The published import map protects its modules with SRI. Bind only this
         // controlled fixture's entry to its actual digest; preserve every other
         // asset's integrity. Production assets and headers are unchanged.
@@ -20,9 +23,10 @@ async function controlledSdk(page: Page, body: string, beforeServe?: () => Promi
             (_match,start,json,end)=>{
                 const map=JSON.parse(json);
                 for(const key of Object.keys(map.integrity || {}))
-                    if(importSdkUrl(new URL(key,route.request().url()))) map.integrity[key]=integrity;
+                    if(importSdkUrl(new URL(key,documentBase))) {map.integrity[key]=integrity;matched++;}
                 return start+JSON.stringify(map)+end;
             });
+        expect(matched,'Controlled SDK must replace an existing import-map integrity entry').toBeGreaterThan(0);
         await route.fulfill({response,body:controlled});
     });
 }
