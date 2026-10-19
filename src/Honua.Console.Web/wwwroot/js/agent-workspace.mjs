@@ -413,16 +413,18 @@ export function mountWorkspace() {
     const messages = host.querySelector('[data-workspace-messages]');
     const target = host.querySelector('[data-workspace-target]');
     const workspaceInput = host.querySelector('[data-workspace-id]');
+    const targetDescription = document.createTextNode(''), taskSeparator = document.createTextNode('');
+    const importTaskLink = document.createElement('a');
+    importTaskLink.href = '/operate/resources/import/task'; importTaskLink.textContent = 'Open import task';
+    target.replaceChildren(targetDescription, taskSeparator, importTaskLink);
     const notify = state => {
         const taskLabel = state.context?.task ? ({'studio-composition':'Map draft','publish-layer':'Publish layer','workflow-package':'Process graph','local-process-workspace':'Local process','shared-style':'Shared style','dataset-import':'Dataset import'}[state.context.task.kind] || 'Task') : 'No task selected';
         const taskIdentity = state.context?.task?.packageKey || state.context?.task?.id;
         const currentTask = taskIdentity ? `${taskLabel} ${taskIdentity}` : taskLabel;
         const resources = state.context?.selectedResources?.map(resource => `${resource.kind} ${resource.id}`).join(', ');
-        target.textContent = state.context ? `${state.session.environmentName} · ${resources || 'No resource selected'} · ${currentTask}` : 'Choose an environment, then start a conversation.';
-        if (state.context?.task?.kind === 'dataset-import') {
-            const link = document.createElement('a'); link.href = '/operate/resources/import/task'; link.textContent = 'Open import task';
-            target.append(document.createTextNode(' · '), link);
-        }
+        targetDescription.nodeValue = state.context ? `${state.session.environmentName} · ${resources || 'No resource selected'} · ${currentTask}` : 'Choose an environment, then start a conversation.';
+        importTaskLink.hidden = state.context?.task?.kind !== 'dataset-import';
+        taskSeparator.nodeValue = importTaskLink.hidden ? '' : ' · ';
         const header = document.querySelector('[data-workspace-header-target]');
         if (header) header.textContent = state.context ? `${state.session.environmentName} · ${resources || currentTask}` : 'Choose an environment';
         host.dataset.connected = String(Boolean(state.context));

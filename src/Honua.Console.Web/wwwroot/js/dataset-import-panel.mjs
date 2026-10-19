@@ -15,6 +15,7 @@ function mount() {
     let controller, submission, workspace, binding, generation = 0, prepareScope, preparing = false, selectionAbort;
     const sdk = () => import('/_studio/console.js');
     const status = message => { controls.status.textContent = message; };
+    const errorMessage = error => error instanceof TypeError ? 'This import action could not finish. Check the original status before continuing.' : error?.message || 'Check the original import status before continuing.';
     const current = () => host.isConnected && window.honuaAgentWorkspace === workspace &&
         (binding ? datasetImportKey(datasetImportBinding(workspace) || {task:{}}) === datasetImportKey(binding)
             : JSON.stringify(browserSelectionScope(workspace)) === JSON.stringify(prepareScope));
@@ -112,13 +113,13 @@ function mount() {
             await controller.initialize();
             const originalFile = browserImportSelection.matchingFile(workspace, controller);
             if (originalFile && !controller.record?.receipt?.sourceRetention) await controller.verifyFile(originalFile);
-        } catch (error) { if (epoch === generation && current()) status(error.message); }
+        } catch (error) { if (epoch === generation && current()) status(errorMessage(error)); }
     }
     const dirty = () => preparing || Boolean(submission?.dirty()) || Boolean(controller?.dirty()) || Boolean(!controller && browserImportSelection.record && !browserImportSelection.record.turnId);
     const action = async work => {
         const epoch = generation;
         try { await work(); }
-        catch (error) { if (epoch === generation && current()) { if (controller) render(controller); status(error.message); } }
+        catch (error) { if (epoch === generation && current()) { if (controller) render(controller); status(errorMessage(error)); } }
     };
     controls.file.addEventListener('change', () => { if (controller) { controller.file = null; render(controller); } else { browserImportSelection.clear(); controls.check.disabled = !controls.file.files?.length; controls.clear.disabled = false; } }, {signal:lifetime.signal});
     controls.check.addEventListener('click', () => action(async () => {
