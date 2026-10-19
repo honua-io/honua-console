@@ -9,6 +9,10 @@ internal static partial class AgentWorkspaceBff
             text.Trim() == text && !text.Any(char.IsControl);
     private static bool DatasetTextField(JsonElement value, string name, int maximum = 256)
         => DatasetText(value.GetProperty(name), maximum);
+    // Actor/tenant/target limits belong to the canonical authority, not this relay.
+    // The entire response is already bounded to 64 KiB before projection.
+    private static bool DatasetAuthorityString(JsonElement value)
+        => value.ValueKind == JsonValueKind.String;
     private static bool DatasetDate(JsonElement value)
         => value.ValueKind == JsonValueKind.String && value.TryGetDateTimeOffset(out _);
     private static bool DatasetHash(JsonElement value)
@@ -38,8 +42,8 @@ internal static partial class AgentWorkspaceBff
     }
 
     private static bool ValidDatasetAuthority(JsonElement value)
-        => DatasetTextField(value, "executorActorId") && DatasetTextField(value, "originatingTurnId") &&
-            DatasetOptional(value, "initiatingHumanActorId", field => DatasetText(field)) && DatasetHash(value.GetProperty("originalTurnHash")) &&
+        => DatasetAuthorityString(value.GetProperty("executorActorId")) && DatasetTextField(value, "originatingTurnId") &&
+            DatasetOptional(value, "initiatingHumanActorId", DatasetAuthorityString) && DatasetHash(value.GetProperty("originalTurnHash")) &&
             DatasetLong(value.GetProperty("authorityRevision")) && DatasetHash(value.GetProperty("authorityFingerprint")) &&
             DatasetHash(value.GetProperty("policyContextFingerprint")) && DatasetDate(value.GetProperty("uploadAdmissionDeadline")) &&
             DatasetOptional(value, "preparedOperationId", DatasetOperation);
@@ -61,8 +65,8 @@ internal static partial class AgentWorkspaceBff
         var destination = value.GetProperty("destination");
         var source = value.GetProperty("source");
         var options = value.GetProperty("options");
-        return DatasetTextField(value, "ownerActorId") && DatasetTextField(value, "targetId") &&
-            DatasetOptional(value, "tenantId", field => DatasetText(field)) && DatasetDate(value.GetProperty("uploadAdmissionDeadline")) &&
+        return DatasetAuthorityString(value.GetProperty("ownerActorId")) && DatasetAuthorityString(value.GetProperty("targetId")) &&
+            DatasetOptional(value, "tenantId", DatasetAuthorityString) && DatasetDate(value.GetProperty("uploadAdmissionDeadline")) &&
             destination.ValueKind == JsonValueKind.Object && DatasetDatabaseIdentifier(destination.GetProperty("schema"), true) &&
             DatasetDatabaseIdentifier(destination.GetProperty("table"), false) && ValidDatasetSource(source) &&
             options.ValueKind == JsonValueKind.Object && DatasetLong(options.GetProperty("loadMode"), 0, 1) &&
@@ -82,8 +86,8 @@ internal static partial class AgentWorkspaceBff
         var artifact = source.GetProperty("artifact");
         return artifact.ValueKind == JsonValueKind.Object && source.TryGetProperty("expectedSha256", out var hash) && DatasetHash(hash) &&
             new[] { "projectId", "snapshotId", "runId" }.All(name => artifact.GetProperty(name).ValueKind == JsonValueKind.String && IsDatasetIdentifier(artifact.GetProperty(name).GetString())) &&
-            DatasetHash(artifact.GetProperty("snapshotDigest")) && DatasetTextField(artifact, "path", 1024) &&
-            artifact.GetProperty("path").GetString() is { } path && !path.Contains('\\') && !path.StartsWith('/') &&
+            DatasetHash(artifact.GetProperty("snapshotDigest")) && artifact.GetProperty("path").ValueKind == JsonValueKind.String &&
+            artifact.GetProperty("path").GetString() is { Length: > 0 and <= 1024 } path && !path.Any(char.IsControl) && !path.Contains('\\') && !path.StartsWith('/') &&
             path.Split('/').All(segment => segment.Length > 0 && segment is not ("." or ".."));
     }
 }

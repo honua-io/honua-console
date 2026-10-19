@@ -407,6 +407,35 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         return value;
     }
 
+    [Fact]
+    public async Task ArtifactPathWhitespaceMatchesCanonicalSourceContractWithoutRelayNormalization()
+    {
+        await using var host = await Host.Start();
+        var value = ValidProjectionFixture("artifact");
+        value["source"]!["artifact"]!["path"] = " out/roads.geojson ";
+        host.Wire.Response = value.ToJsonString();
+        using var response = await ProjectionRequest(host.Client, "artifact");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var projected = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(" out/roads.geojson ", projected.RootElement.GetProperty("source").GetProperty("artifact").GetProperty("path").GetString());
+    }
+
+    [Theory]
+    [InlineData("task", "ownerActorId")]
+    [InlineData("task", "targetId")]
+    [InlineData("task", "tenantId")]
+    [InlineData("authority", "executorActorId")]
+    [InlineData("authority", "initiatingHumanActorId")]
+    public async Task AuthorityStringsDoNotAcquireInventedRelayLengthLimits(string contract, string field)
+    {
+        await using var host = await Host.Start();
+        var value = ValidProjectionFixture(contract);
+        value[field] = new string('a', 512);
+        host.Wire.Response = value.ToJsonString();
+        using var response = await ProjectionRequest(host.Client, contract);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
     private sealed class Host(WebApplication app, HttpClient client, Wire wire) : IAsyncDisposable
     {
         internal HttpClient Client => client;
