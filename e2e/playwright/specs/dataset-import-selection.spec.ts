@@ -1,7 +1,31 @@
-import {test,expect} from '@playwright/test';
+import {createHash} from 'node:crypto';
+import {test,expect,type Page} from '@playwright/test';
 
 // Published ASP.NET assets use fingerprinted URLs through the import map.
 const importSdkUrl = (url: URL) => /^\/_studio\/console(?:\.[A-Za-z0-9_-]+)?\.js$/.test(url.pathname);
+
+async function controlledSdk(page: Page, body: string, beforeServe?: () => Promise<void>) {
+    const integrity = `sha256-${createHash('sha256').update(body).digest('base64')}`;
+    await page.route(importSdkUrl,async route=>{
+        await beforeServe?.();
+        await route.fulfill({contentType:'text/javascript',body});
+    });
+    await page.route(url=>url.pathname==='/operate/resources/import/task',async route=>{
+        const response=await route.fetch();
+        const html=await response.text();
+        // The published import map protects its modules with SRI. Bind only this
+        // controlled fixture's entry to its actual digest; preserve every other
+        // asset's integrity. Production assets and headers are unchanged.
+        const controlled=html.replace(/(<script[^>]*\btype="importmap"[^>]*>)([\s\S]*?)(<\/script>)/g,
+            (_match,start,json,end)=>{
+                const map=JSON.parse(json);
+                for(const key of Object.keys(map.integrity || {}))
+                    if(importSdkUrl(new URL(key,route.request().url()))) map.integrity[key]=integrity;
+                return start+JSON.stringify(map)+end;
+            });
+        await route.fulfill({response,body:controlled});
+    });
+}
 
 // Controlled SDK loader exercises the actual mounted prehash click orchestration.
 // This is not a connected server, canonical SDK hash, or accepted import journey.
@@ -10,9 +34,8 @@ test('paused file check cannot retarget to a later selection while the SDK impor
     const waiting = new Promise<void>(resolve=>release=resolve);
     let requested: (()=>void) | undefined;
     const importRequested = new Promise<void>(resolve=>requested=resolve);
-    await page.route(importSdkUrl,async route=>{
+    await controlledSdk(page,`window.__importSdkLoaded=true; export async function hashDatasetImportFile(file) { window.__checkedImportFiles.push(file.name); return '${'a'.repeat(64)}'; }`,async()=>{
         requested?.();await waiting;
-        await route.fulfill({contentType:'text/javascript',body:`export async function hashDatasetImportFile(file) { window.__checkedImportFiles.push(file.name); return '${'a'.repeat(64)}'; }`});
     });
     await page.goto('/operate/resources/import/task');
     await page.evaluate(()=>{
@@ -31,14 +54,15 @@ test('paused file check cannot retarget to a later selection while the SDK impor
     await expect(file).toBeEnabled();
     await file.setInputFiles({name:'later.geojson',mimeType:'application/geo+json',buffer:Buffer.from('later')});
     release?.();
+    await expect.poll(()=>page.evaluate(()=>(window as any).__importSdkLoaded)).toBe(true);
     await expect(page.locator('[data-import-status]')).toContainText('Choose your dataset');
     await expect.poll(()=>page.evaluate(()=>(window as any).__checkedImportFiles)).toEqual([]);
     await expect(page.getByRole('button',{name:'Check complete file',exact:true})).toBeEnabled();
 });
 
 test('accepted import polling rebinds a replaced workspace without resubmission',async({page})=>{
-    await page.route(importSdkUrl,async route=>{
-        await route.fulfill({contentType:'text/javascript',body:`
+    await controlledSdk(page,`
+            window.__importSdkLoaded=true;
             export class DatasetImportTaskClient {}
             export class DatasetImportUploadClient {}
             export async function hashDatasetImportFile() { throw new Error('No file check expected'); }
@@ -49,8 +73,7 @@ test('accepted import polling rebinds a replaced workspace without resubmission'
                 receipt() { return {state:'accepted',operationId:'original-job',job:{jobId:'original-job',leaseId:'original-lease',status:'queued',outcomePending:true}}; }
                 async submit() { window.__unexpectedSubmissions++; throw new Error('No submission expected'); }
             }
-        `});
-    });
+        `);
     await page.goto('/operate/resources/import/task');
     await page.evaluate(()=>{
         const state=window as any, workspace=state.honuaAgentWorkspace;
@@ -68,6 +91,7 @@ test('accepted import polling rebinds a replaced workspace without resubmission'
         window.dispatchEvent(new CustomEvent('honua-workspace-state'));
     });
     const status=page.locator('[data-import-status]');
+    await expect.poll(()=>page.evaluate(()=>(window as any).__importSdkLoaded)).toBe(true);
     await expect(status).toHaveText('Confirming import outcome. Honua is checking whether the data was saved.');
     await expect(page.locator('[data-import-recover]')).toBeEnabled();
     await page.evaluate(()=>window.dispatchEvent(new CustomEvent('honua-workspace-state')));
