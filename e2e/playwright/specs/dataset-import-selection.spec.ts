@@ -31,7 +31,7 @@ async function controlledSdk(page: Page, body: string, beforeServe?: () => Promi
         // state; otherwise hydration can replace the panel during an assertion.
         const manualBoot=controlled.replace(/<script src="([^"]*_framework\/blazor\.web\.[^"]+)"/,
             '<script autostart="false" src="$1"');
-        expect(manualBoot).not.toBe(controlled);
+        expect(manualBoot!==controlled,'The published Blazor script must allow an awaited boot').toBe(true);
         await route.fulfill({response,body:manualBoot});
     });
 }
