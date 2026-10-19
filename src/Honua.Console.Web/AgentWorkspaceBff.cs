@@ -75,17 +75,19 @@ internal static partial class AgentWorkspaceBff
         context.Response.Headers.CacheControl = "no-store";
         string? processPath = null;
         var datasetRoute = !studio && !processes ? ReadDatasetImportRoute(path) : null;
+        var isPublicationReceipt = studio && path is not null && StudioPublicationReceiptPath().IsMatch(path);
         string datasetQuery = "";
         string? datasetContentHash = null;
         if (datasetRoute is not null && !datasetRoute.Allows(context.Request.Method)) return Results.StatusCode(405);
         if (datasetRoute is null && !studio && !processes && HttpMethods.IsDelete(context.Request.Method)) return Results.StatusCode(405);
         if (datasetRoute is not null && !TryDatasetImportQuery(datasetRoute, context.Request.Method, context.Request.Query,
                 out datasetQuery, out datasetContentHash)) return Results.BadRequest();
-        if (path is null || (path.Length == 0 ? !HttpMethods.IsPost(context.Request.Method) : !(processes ? TryBuildProcessPath(path, out processPath) : (studio ? StudioPath() : WorkspacePath()).IsMatch(path) || datasetRoute is not null)))
+        if (path is null || (path.Length == 0 ? !HttpMethods.IsPost(context.Request.Method) : !(processes ? TryBuildProcessPath(path, out processPath) : (studio ? StudioPath() : WorkspacePath()).IsMatch(path) || datasetRoute is not null || isPublicationReceipt)))
         {
             return Results.NotFound();
         }
         if (processes && !AllowsProcessMethod(path, context.Request.Method)) return Results.StatusCode(405);
+        if (isPublicationReceipt && !HttpMethods.IsGet(context.Request.Method)) return Results.StatusCode(405);
         if (!HttpMethods.IsGet(context.Request.Method))
         {
             if (processes && path == "admin/import/upload" && !HasProcessImportAntiforgeryHeader(context)) return Results.StatusCode(403);
@@ -151,7 +153,10 @@ internal static partial class AgentWorkspaceBff
         }
         using var request = new HttpRequestMessage(new HttpMethod(context.Request.Method),
             new Uri(new Uri(profile.ServerBaseUri.AbsoluteUri.TrimEnd('/') + "/"), upstreamPath));
-        if (isStyleWrite)
+        // Publication/rollback retries must retain the caller's original operation identity.
+        // Older clients may omit it; never invent a new identity in the proxy.
+        var isStudioPointerWrite = studio && HttpMethods.IsPost(context.Request.Method) && StudioPointerWritePath().IsMatch(path);
+        if (isStyleWrite || isStudioPointerWrite && context.Request.Headers.ContainsKey("Idempotency-Key"))
         {
             var key = context.Request.Headers["Idempotency-Key"].ToString();
             if (!Regex.IsMatch(key, @"\A[A-Za-z0-9_-]{1,128}\z")) { return Results.BadRequest(); }
@@ -289,4 +294,10 @@ internal static partial class AgentWorkspaceBff
 
     [GeneratedRegex(@"\A(?:health|v1/studio/(?:catalog|packages|package-families|package-drafts|content-items)(?:/[A-Za-z0-9_-]{1,128}){0,4})\z", RegexOptions.CultureInvariant)]
     private static partial Regex StudioPath();
+
+    [GeneratedRegex(@"\Av1/studio/content-items/[A-Za-z0-9_-]{1,128}/versions/[A-Za-z0-9_-]{1,128}/publish-requests/[A-Za-z0-9_-]{1,128}\z", RegexOptions.CultureInvariant)]
+    private static partial Regex StudioPublicationReceiptPath();
+
+    [GeneratedRegex(@"\Av1/studio/content-items/[A-Za-z0-9_-]{1,128}/(?:versions/[A-Za-z0-9_-]{1,128}/publish-requests|rollback-requests)\z", RegexOptions.CultureInvariant)]
+    private static partial Regex StudioPointerWritePath();
 }
