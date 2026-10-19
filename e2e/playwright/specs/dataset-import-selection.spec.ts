@@ -10,6 +10,10 @@ async function controlledSdk(page: Page, body: string, beforeServe?: () => Promi
         await beforeServe?.();
         await route.fulfill({contentType:'text/javascript',body});
     });
+    await interactiveDocument(page,integrity);
+}
+
+async function interactiveDocument(page: Page, integrity?: string) {
     await page.route(url=>url.pathname==='/operate/resources/import/task',async route=>{
         const response=await route.fetch();
         const html=await response.text();
@@ -19,14 +23,14 @@ async function controlledSdk(page: Page, body: string, beforeServe?: () => Promi
         // The published import map protects its modules with SRI. Bind only this
         // controlled fixture's entry to its actual digest; preserve every other
         // asset's integrity. Production assets and headers are unchanged.
-        const controlled=html.replace(/(<script[^>]*\btype="importmap"[^>]*>)([\s\S]*?)(<\/script>)/g,
+        const controlled=integrity ? html.replace(/(<script[^>]*\btype="importmap"[^>]*>)([\s\S]*?)(<\/script>)/g,
             (_match,start,json,end)=>{
                 const map=JSON.parse(json);
                 for(const key of Object.keys(map.integrity || {}))
                     if(importSdkUrl(new URL(key,documentBase))) {map.integrity[key]=integrity;matched++;}
                 return start+JSON.stringify(map)+end;
-            });
-        expect(matched,'Controlled SDK must replace an existing import-map integrity entry').toBeGreaterThan(0);
+            }) : html;
+        if(integrity) expect(matched,'Controlled SDK must replace an existing import-map integrity entry').toBeGreaterThan(0);
         // Await the real interactive boot before applying controlled workspace
         // state; otherwise hydration can replace the panel during an assertion.
         const manualBoot=controlled.replace(/<script src="([^"]*_framework\/blazor\.web\.[^"]+)"/,
@@ -78,6 +82,36 @@ test('paused file check cannot retarget to a later selection while the SDK impor
     await expect(page.locator('[data-import-status]')).toContainText('Choose your dataset');
     await expect.poll(()=>page.evaluate(()=>(window as any).__checkedImportFiles)).toEqual([]);
     await expect(page.getByRole('button',{name:'Check complete file',exact:true})).toBeEnabled();
+});
+
+test('published import panel checks a real file through the canonical Studio SDK bundle',async({page})=>{
+    const mutations: string[]=[];
+    page.on('request',request=>{
+        if(new URL(request.url()).pathname.startsWith('/api/agent-workspace/') && request.method()!=='GET')
+            mutations.push(`${request.method()} ${new URL(request.url()).pathname}`);
+    });
+    // Keep the actual module bytes and their production integrity entries.
+    await interactiveDocument(page);
+    await openInteractiveImportPanel(page);
+    await page.evaluate(()=>{
+        const workspace=(window as any).honuaAgentWorkspace;
+        workspace.session={environmentId:'env',principalId:'human',environmentName:'Packaging test',releaseId:'release'};
+        workspace.workspaceId='workspace';workspace.context={targetId:'target',revision:0,selectedResources:[]};
+        window.dispatchEvent(new CustomEvent('honua-workspace-state'));
+    });
+    const bytes=Buffer.from('{"type":"FeatureCollection","features":[]}');
+    const file=page.locator('[data-import-file]');
+    await expect(file).toBeEnabled();
+    await file.setInputFiles({name:'canonical.geojson',mimeType:'application/geo+json',buffer:bytes});
+    await page.getByRole('button',{name:'Check complete file',exact:true}).click();
+    await expect(page.locator('[data-import-status]')).toContainText('File checked. Describe the destination');
+    const selection=await page.evaluate(async()=>{
+        const {browserImportSelection}=await import('/js/dataset-import-selection.mjs');
+        return browserImportSelection.forTurn((window as any).honuaAgentWorkspace);
+    });
+    expect(selection?.metadata).toMatchObject({fileName:'canonical.geojson',totalBytes:bytes.length,
+        expectedSha256:createHash('sha256').update(bytes).digest('hex')});
+    expect(mutations).toEqual([]);
 });
 
 test('accepted import polling rebinds a replaced workspace without resubmission',async({page})=>{
