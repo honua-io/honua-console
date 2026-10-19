@@ -174,14 +174,17 @@ test('accepted import polling rebinds a replaced workspace without resubmission'
 // packaging/session continuity from backend authorization qualification.
 test('published Studio switches workflow views on one MCP session with fresh credentials',async({page})=>{
     const requests: {method:string,view?:string,session?:string,credential?:string}[]=[];
+    let sessionView: string|undefined;
     await page.route(url=>url.pathname==='/api/mcp',async route=>{
         const request=route.request(), rpc=request.postDataJSON();
-        requests.push({method:rpc.method,view:rpc.params?.view ?? rpc.params?._meta?.['honua.io/workflow-view'],
+        if(rpc.method==='initialize') sessionView=rpc.params?._meta?.['honua.io/workflow-view'];
+        const view=rpc.params?.view ?? sessionView;
+        requests.push({method:rpc.method,view,
             session:request.headers()['mcp-session-id'],credential:request.headers()['x-test-agent']});
         if(rpc.method==='notifications/initialized') {
             await route.fulfill({status:202,body:''});return;
         }
-        const view=rpc.params?.view ?? 'workspace', process=view==='processes';
+        const process=view==='processes';
         const result=rpc.method==='initialize'
             ? {protocolVersion:'2025-03-26',capabilities:{tools:{}}}
             : {_meta:{view},tools:[{
@@ -221,6 +224,7 @@ test('published Studio switches workflow views on one MCP session with fresh cre
     expect(result.processes).not.toContain('honua_workspace_get_turn');
     expect(result.returned).toEqual(result.workspace);
     expect(requests.filter(request=>request.method==='initialize')).toHaveLength(1);
+    expect(requests[0].view).toBe('workspace');
     expect(requests.filter(request=>request.method==='tools/list').map(request=>request.view)).toEqual(['workspace','processes','workspace']);
     for(const [index,request] of requests.entries()) {
         expect(request.credential).toBe(`fresh-${index+1}`);
