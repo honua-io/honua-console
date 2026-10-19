@@ -12,9 +12,9 @@ function mount() {
     const lifetime = new AbortController(), controls = {};
     for (const name of ['status','destination','source','file','progress','check','clear','transfer','submit','recover','pause','cancel'])
         controls[name] = host.querySelector(`[data-import-${name}]`);
-    let controller, submission, workspace, binding, generation = 0, prepareScope, preparing = false, selectionAbort;
+    let controller, submission, workspace, binding, generation = 0, prepareScope, preparing = false, selectionAbort, connecting = false;
     const sdk = () => import('/_studio/console.js');
-    const status = message => { controls.status.textContent = message; };
+    const status = message => { if (controls.status.textContent !== message) controls.status.textContent = message; };
     const errorMessage = error => error instanceof TypeError ? 'This import action could not finish. Check the original status before continuing.' : error?.message || 'Check the original import status before continuing.';
     const current = () => host.isConnected && window.honuaAgentWorkspace === workspace &&
         (binding ? datasetImportKey(datasetImportBinding(workspace) || {task:{}}) === datasetImportKey(binding)
@@ -57,8 +57,14 @@ function mount() {
     async function connect(force = false) {
         const nextWorkspace = window.honuaAgentWorkspace, next = datasetImportBinding(nextWorkspace);
         const nextScope = browserSelectionScope(nextWorkspace);
-        if (!force && (next && binding && datasetImportKey(next) === datasetImportKey(binding) && controller ||
-            !next && !binding && workspace === nextWorkspace && prepareScope && JSON.stringify(prepareScope) === JSON.stringify(nextScope))) return;
+        if (!force && next && binding && datasetImportKey(next) === datasetImportKey(binding) && (connecting || controller || submission)) {
+            if (!connecting && submission && !submission.busy && (submission.record?.pending ||
+                ['prepared','accepted'].includes(submission.record?.receipt?.state))) {
+                await submission.recover({background:true}); renderSubmission();
+            }
+            return;
+        }
+        if (!force && !next && !binding && workspace === nextWorkspace && prepareScope && JSON.stringify(prepareScope) === JSON.stringify(nextScope)) return;
         controller?.dispose(); submission?.dispose(); submission = null; selectionAbort?.abort(); preparing = false; workspace?.presentationGuards?.delete(dirty); controller = null; workspace = nextWorkspace; binding = next; prepareScope = nextScope; const epoch = ++generation;
         controls.file.value = ''; controls.destination.textContent = 'Not bound'; controls.source.textContent = 'Not bound';
         for (const name of ['file','check','clear','transfer','submit','recover','pause','cancel']) controls[name].disabled = true;
@@ -74,7 +80,7 @@ function mount() {
             status('Choose your dataset and check the complete file. Then describe its destination in this conversation.');
             return;
         }
-        status('Checking this deployment’s import transport…');
+        connecting = true; status('Checking this deployment’s import transport…');
         try {
             const module = await sdk();
             if (epoch !== generation || !current()) return;
@@ -114,6 +120,7 @@ function mount() {
             const originalFile = browserImportSelection.matchingFile(workspace, controller);
             if (originalFile && !controller.record?.receipt?.sourceRetention) await controller.verifyFile(originalFile);
         } catch (error) { if (epoch === generation && current()) status(errorMessage(error)); }
+        finally { if (epoch === generation) connecting = false; }
     }
     const dirty = () => preparing || Boolean(submission?.dirty()) || Boolean(controller?.dirty()) || Boolean(!controller && browserImportSelection.record && !browserImportSelection.record.turnId);
     const action = async work => {

@@ -36,8 +36,9 @@ export class DatasetImportSubmissionController {
             this.record = latest; this.available = false; this.notify(this); return null;
         }
         const resolved = !original.pending || sameReviewedReceipt(original.pending.reviewed, receipt);
-        this.record = await this.store.save(this.key, latest.revision, {...latest, receipt:receipt ?? latest.receipt,
-            pending:resolved ? null : latest.pending});
+        const next = {...latest, receipt:receipt ?? latest.receipt, pending:resolved ? null : latest.pending};
+        this.record = JSON.stringify(next.receipt) === JSON.stringify(latest.receipt) && JSON.stringify(next.pending) === JSON.stringify(latest.pending)
+            ? latest : await this.store.save(this.key, latest.revision, next);
         this.current(); this.available = true; this.notify(this); return receipt;
     }
     async prepare(reviewed) {
@@ -71,15 +72,15 @@ export class DatasetImportSubmissionController {
             this.current(); this.available = true; return receipt;
         } finally { this.busy = false; if (!this.abort.signal.aborted && this.isCurrent()) this.notify(this); }
     }
-    async recover() {
+    async recover({background = false} = {}) {
         if (this.busy) throw new DatasetImportPaused('Wait for the current submission action.');
-        this.busy = true; this.notify(this);
+        this.busy = true; this.background = background; if (!background) this.notify(this);
         try { return await this.read(); }
-        finally { this.busy = false; if (!this.abort.signal.aborted && this.isCurrent()) this.notify(this); }
+        finally { this.busy = false; this.background = false; if (!this.abort.signal.aborted && this.isCurrent()) this.notify(this); }
     }
     message() {
         const receipt = this.record?.receipt;
-        if (this.busy) return 'Checking the original import submission…';
+        if (this.busy && !this.background) return 'Checking the original import submission…';
         if (this.record?.pending || this.available === false) return 'The submission outcome is unresolved. Check this original task’s status; do not submit again.';
         if (receipt?.state === 'prepared') return 'Import prepared. Awaiting the actual agent to submit this original task.';
         if (receipt?.state !== 'accepted') return 'No accepted import job has been confirmed.';

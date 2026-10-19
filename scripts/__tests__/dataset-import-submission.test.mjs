@@ -102,3 +102,13 @@ test('pending database outcome preserves original accepted job and exposes check
     assert.deepEqual(calls,['GET','GET']);
     assert.equal(controller.record.receipt.job.status,'queued');
 });
+
+test('unchanged background status preserves metadata CAS revision and original status wording', async()=>{
+    const {controller,store,setRemote} = setup();
+    setRemote({...prepared(),state:'accepted',job:{jobId:prepared().operationId,status:'queued',leaseId:'original-lease',outcomePending:true}});
+    await controller.recover();
+    const originalRevision = store.value.revision;
+    await controller.recover({background:true});
+    assert.equal(store.value.revision,originalRevision);
+    assert.equal(controller.message(),'Confirming import outcome. Honua is checking whether the data was saved.');
+});
