@@ -147,7 +147,7 @@ internal static partial class AgentWorkspaceBff
                     }
                     else if (name == "destination") WriteFields(writer, property, ["schema", "table"]);
                     else if (name == "options") WriteFields(writer, property, ["loadMode", "targetSrid", "sourceSrid"]);
-                    else if (name == "source") WriteFields(writer, property, ["kind", "fileName", "totalBytes", "expectedSha256", "artifact"]);
+                    else if (name == "source") WriteFields(writer, property, ["kind", "fileName", "totalBytes", "expectedSha256", "artifact", "browserSelectionId"]);
                     else property.WriteTo(writer);
                 }
                 writer.WriteEndObject();

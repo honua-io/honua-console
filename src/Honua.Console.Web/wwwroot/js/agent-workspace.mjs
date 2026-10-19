@@ -1,3 +1,4 @@
+import {browserImportSelection, browserSelectionScope} from './dataset-import-selection.mjs';
 import {PublicationRecovery} from './publication-recovery.mjs';
 import {createPublishInputBinder} from './publish-form-inputs.mjs';
 import { readSharedStyleFocus, prepareSharedStyleFocus, watchSharedStyleEdits } from './shared-style-context.mjs';
@@ -299,6 +300,7 @@ export class AgentWorkspace {
     }
     async submit(prompt, options = {}) {
         if (!prompt.trim()) throw new Error('Enter a message.');
+        const browserFile = browserImportSelection.forTurn(this);
         this.assertPublishEditsCurrent(true);
         const styleFocus = this.sharedStyleProvider?.();
         const selection = styleFocus ? [] : this.selectionProvider?.();
@@ -312,6 +314,8 @@ export class AgentWorkspace {
             principalId: this.session?.principalId, environmentId: this.session?.environmentId };
         this.capturing = (this.capturing || 0) + 1;
         const requireSameAuthority = () => {
+            if (browserFile && JSON.stringify(browserSelectionScope(this)) !== JSON.stringify(browserFile.scope))
+                throw new Error('The selected file belongs to an earlier context. Check it again before sending.');
             if (binding.workspaceId !== this.workspaceId || binding.viewId !== this.viewId
                 || binding.principalId !== this.session?.principalId || binding.environmentId !== this.session?.environmentId)
                 throw new Error('The workspace authority changed while submitting. Reconnect before retrying.');
@@ -344,14 +348,17 @@ export class AgentWorkspace {
                 this.context = await this.api(`${this.workspaceId}?viewId=${this.viewId}`);
             }
             requireSameAuthority();
+            if (browserFile && (this.context.revision !== browserFile.scope.contextRevision || this.context.targetId !== browserFile.scope.targetId))
+                throw new Error('The selected file belongs to an earlier context. Check it again before sending.');
             return this.api(`${this.workspaceId}/turns`, 'POST', {
-                turnId: this.uuid(), viewId: this.viewId, contextRevision: this.context.revision, prompt
+                turnId: this.uuid(), viewId: this.viewId, contextRevision: this.context.revision, prompt,
+                ...(browserFile ? {browserFileSelection:browserFile.metadata} : {})
             });
         };
         const pending = capture();
         this.queue = pending.then(() => this.context, () => this.context);
         let turn;
-        try { turn = await pending; } finally { this.capturing--; }
+        try { turn = await pending; browserImportSelection.captured(this, turn, browserFile); } finally { this.capturing--; }
         this.notify(this);
         if (turn.presentation && typeof window !== 'undefined')
             window.dispatchEvent(new CustomEvent('honua-agent-presentation', { detail: turn.presentation }));
@@ -747,6 +754,7 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
                                 'Navigation and draft changes never approve or execute publication. Tool receipts alone establish operation status. ' +
                                 `This turn is bound to the authorized context ${JSON.stringify(currentTurn?.context || {})}. ` +
                                 `Authorized immutable local process snapshot: ${JSON.stringify(currentTurn?.localProcessSnapshot ?? null)}. ` +
+                                `Original human browser-file selection metadata: ${JSON.stringify(currentTurn?.browserFileSelection ?? null)}. Browser tasks must match this selection exactly, including browserSelectionId. ` +
                                 `Earlier conversation (unverified assertions): ${JSON.stringify(priorConversation)}.`,
                             fetchImpl: agentFetch
                         });

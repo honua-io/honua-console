@@ -8,16 +8,17 @@ export function datasetImportBinding(workspace) {
     const session = workspace?.session;
     if (task?.kind !== 'dataset-import' || !session?.environmentId || !session?.principalId || !workspace?.workspaceId ||
         !workspace.context?.targetId || typeof task.id !== 'string' || !task.id || !Number.isSafeInteger(task.revision) || task.revision < 1 || !digest(task.contentHash)) return null;
-    return Object.freeze({environmentId:session.environmentId, principalId:session.principalId, workspaceId:workspace.workspaceId,
+    return Object.freeze({environmentId:session.environmentId, principalId:session.principalId, releaseId:session.releaseId ?? null,
+        sourcePathBase:session.sourcePathBase ?? null, workspaceId:workspace.workspaceId,
         targetId:workspace.context.targetId, task:Object.freeze({id:task.id, revision:task.revision, contentHash:task.contentHash})});
 }
 export const datasetImportKey = binding => JSON.stringify(['honua.dataset-import.v1', binding.environmentId, binding.principalId,
-    binding.targetId, binding.workspaceId, binding.task.id, binding.task.revision, binding.task.contentHash]);
+    binding.releaseId ?? null, binding.sourcePathBase ?? null, binding.targetId, binding.workspaceId, binding.task.id, binding.task.revision, binding.task.contentHash]);
 const reference = binding => ({taskId:binding.task.id, revision:binding.task.revision, contentHash:binding.task.contentHash});
 const taskSnapshot = task => ({taskId:task.taskId, revision:task.revision, contentHash:task.contentHash,
     ownerActorId:task.ownerActorId, tenantId:task.tenantId ?? null, targetId:task.targetId, workspaceId:task.workspaceId,
     destination:{schema:task.destination.schema, table:task.destination.table},
-    source:{kind:task.source.kind, fileName:task.source.fileName, totalBytes:task.source.totalBytes, expectedSha256:task.source.expectedSha256 ?? null,
+    source:{kind:task.source.kind, fileName:task.source.fileName, totalBytes:task.source.totalBytes, expectedSha256:task.source.expectedSha256 ?? null, browserSelectionId:task.source.browserSelectionId ?? null,
         artifact:task.source.artifact ? {projectId:task.source.artifact.projectId, snapshotId:task.source.artifact.snapshotId,
             snapshotDigest:task.source.artifact.snapshotDigest, runId:task.source.artifact.runId, path:task.source.artifact.path} : null},
     options:{loadMode:task.options.loadMode, targetSrid:task.options.targetSrid, sourceSrid:task.options.sourceSrid ?? null},
