@@ -198,9 +198,9 @@ internal static partial class AgentWorkspaceBff
             var fileContent = new StreamContent(form.Files[0].OpenReadStream());
             fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
             multipart.Add(fileContent, "File", Path.GetFileName(form.Files[0].FileName));
-            multipart.Add(new StringContent(form["TableName"].ToString()), "TableName");
+            multipart.Add(new StringContent(form["TableName"].ToString(), System.Text.Encoding.UTF8, "text/plain"), "TableName");
             // Correlation only: this value does not make upload replay safe or imply job acceptance.
-            if (form.ContainsKey("UploadId")) multipart.Add(new StringContent(form["UploadId"].ToString()), "UploadId");
+            if (form.ContainsKey("UploadId")) multipart.Add(new StringContent(form["UploadId"].ToString(), System.Text.Encoding.UTF8, "text/plain"), "UploadId");
             request.Content = multipart;
         }
         else if (!HttpMethods.IsGet(context.Request.Method))

@@ -58,6 +58,9 @@ public sealed class AgentWorkspaceProcessBffTests
         Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
         Assert.Contains(uploadId, host.Wire.Body, StringComparison.Ordinal);
         Assert.Contains("UploadId", host.Wire.Body, StringComparison.Ordinal);
+        Assert.Equal(2, host.Wire.TextParts.Count);
+        Assert.Equal(("fixture_table", "text/plain", "utf-8"), host.Wire.TextParts["TableName"]);
+        Assert.Equal((uploadId, "text/plain", "utf-8"), host.Wire.TextParts["UploadId"]);
         Assert.True(host.Wire.HumanOnly);
         Assert.False(host.Wire.IdempotencyKey);
         var calls = host.Wire.Calls;
@@ -282,6 +285,7 @@ public sealed class AgentWorkspaceProcessBffTests
     {
         public Uri? Uri { get; private set; }
         public string Body { get; private set; } = string.Empty;
+        public Dictionary<string, (string Value, string? MediaType, string? Charset)> TextParts { get; } = [];
         public bool HumanOnly { get; private set; }
         public bool IdempotencyKey { get; private set; }
         public int Calls { get; private set; }
@@ -291,6 +295,17 @@ public sealed class AgentWorkspaceProcessBffTests
             Calls++;
             Uri = request.RequestUri;
             Body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
+            TextParts.Clear();
+            if (request.Content is MultipartFormDataContent multipart)
+            {
+                foreach (var part in multipart)
+                {
+                    var name = part.Headers.ContentDisposition?.Name?.Trim('"');
+                    if (name is "TableName" or "UploadId")
+                        TextParts.Add(name, (await part.ReadAsStringAsync(cancellationToken),
+                            part.Headers.ContentType?.MediaType, part.Headers.ContentType?.CharSet));
+                }
+            }
             HumanOnly = request.Headers.Authorization?.Scheme == "Bearer" && request.Headers.Authorization.Parameter == "human-bearer"
                 && !request.Headers.Contains("X-API-Key") && !request.Headers.Contains("Cookie");
             IdempotencyKey = request.Headers.Contains("Idempotency-Key");
