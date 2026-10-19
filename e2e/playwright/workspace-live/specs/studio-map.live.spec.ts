@@ -11,11 +11,16 @@ type StudioApp = HTMLElement & {
   sourceCatalog?: CatalogSource[];
 };
 type WorkspaceWindow = Window & { honuaAgentWorkspace?: { workspaceId?: string } };
+type RenderLayer = { id: string; type: string; paint?: Record<string, unknown> };
 type Draft = {
   draftId: string;
   itemId: string;
   packageKey: string;
-  envelope: { body: { layers?: Array<{ id: string; sourceId?: string }>; [key: string]: unknown } };
+  envelope: { body: {
+    layers?: Array<{ id: string; sourceId?: string }>;
+    mapSpec?: { layers: RenderLayer[] };
+    [key: string]: unknown;
+  } };
 };
 
 async function identity(page: Page) {
@@ -29,7 +34,7 @@ async function workspaceId(page: Page) {
 
 // Mutations are real UI actions. Browser evaluation below only observes runtime
 // state; it never injects a draft, fake session, tool result, or composition.
-test('installed workspace: prompt adds real data, renders it, saves and reopens the same map', async ({ page }, info) => {
+test('installed workspace: visual and prompted styling persist on the same rendered map', async ({ page }, info) => {
   const service = process.env.HONUA_WORKSPACE_E2E_SERVICE?.trim();
   const layerText = process.env.HONUA_WORKSPACE_E2E_LAYER;
   expect(service, 'Select a service on the dedicated evaluation deployment.').toBeTruthy();
@@ -124,6 +129,80 @@ test('installed workspace: prompt adds real data, renders it, saves and reopens 
   }, layerIds);
   await expect.poll(paintedCount, { timeout: 45_000 }).toBeGreaterThan(0);
 
+  // Choose two values from an actual authorized field, rather than supplying
+  // invented thematic classes or writing a style through browser evaluation.
+  const metadata = await read(`/api/studio/data${featurePath}?f=json`);
+  const sample = await read(`/api/studio/data${featurePath}/query?where=1%3D1&outFields=*&returnGeometry=false&resultRecordCount=20&f=json`);
+  const candidates = (metadata.fields as Array<{ name: string }>).map(field => ({
+    name: field.name,
+    values: [...new Set<string | number>((sample.features as Array<{ attributes: Record<string, unknown> }>)
+      .map(feature => feature.attributes[field.name])
+      .filter((value): value is string | number => typeof value === 'string' ||
+        (typeof value === 'number' && Number.isFinite(value))))],
+  }));
+  const thematic = candidates.find(candidate => candidate.values.length >= 2);
+  expect(thematic, 'The qualification layer needs two observed values in an authorized string or numeric field.').toBeTruthy();
+  const layerIdForStyle = layerIds[0];
+  await page.getByRole('button', { name: 'Edit map style', exact: true }).click();
+  const editor = page.getByRole('region', { name: 'Map style editor', exact: true });
+  await expect(editor).toBeVisible();
+  await expect(editor.locator('iframe[title="Maputnik visual map style editor"]')).toBeVisible();
+  await expect(editor.frameLocator('iframe[title="Maputnik visual map style editor"]')
+    .locator('.maputnik-layout')).toBeVisible();
+  await editor.getByRole('combobox', { name: 'Map layer for styling', exact: true }).selectOption(layerIdForStyle);
+  const field = editor.getByRole('combobox', { name: 'Actual source field', exact: true });
+  await expect(field.locator('option')).toContainText([thematic!.name]);
+  await field.selectOption(thematic!.name);
+  await editor.getByRole('combobox', { name: 'Thematic method', exact: true }).selectOption('categories');
+  const values = editor.getByRole('textbox', { name: 'Explicit thematic values as JSON array', exact: true });
+  const renderLayer = async () => (await readDraft(originalDraft.draftId)).envelope.body.mapSpec?.layers
+    .find(layer => layer.id === layerIdForStyle);
+  const initialRenderLayer = (await renderLayer())!;
+  expect(['fill', 'line', 'circle', 'symbol']).toContain(initialRenderLayer.type);
+  const paintPrefix = initialRenderLayer.type === 'symbol' ? 'text' : initialRenderLayer.type;
+  const colorProperty = `${paintPrefix}-color`, opacityProperty = `${paintPrefix}-opacity`;
+  const colorExpression = (value: string | number) => ['match', ['get', thematic!.name], value, '#eff3ff', '#c6dbef'];
+  const livePaint = (property: string) => page.locator('honua-studio-canvas').evaluate((element, args) => {
+    const canvas = element as HTMLElement & {
+      mapView?: { map?: { getPaintProperty(id: string, property: string): unknown } };
+    };
+    return canvas.mapView?.map?.getPaintProperty(args.layerId, args.property);
+  }, { layerId: layerIdForStyle, property });
+
+  await values.fill(JSON.stringify([thematic!.values[0]]));
+  await editor.getByRole('button', { name: 'Preview thematic colors', exact: true }).click();
+  await expect.poll(() => livePaint(colorProperty)).toEqual(colorExpression(thematic!.values[0]));
+  await editor.getByRole('button', { name: 'Save map style', exact: true }).click();
+  await expect.poll(async () => (await renderLayer())?.paint?.[colorProperty])
+    .toEqual(colorExpression(thematic!.values[0]));
+  await expect(editor.getByRole('status')).toHaveText('Map style saved to the authorized draft.');
+
+  const stylePrompt = `In current map ${packageKey}, change only render layer ${layerIdForStyle} ` +
+    `paint property ${opacityProperty} to 0.55. Preserve its existing ${colorProperty} thematic expression ` +
+    `over field ${thematic!.name}, all sources and all other layers. Save to this same draft; do not publish.`;
+  await conversation.getByRole('textbox', { name: 'Message', exact: true }).fill(stylePrompt);
+  await conversation.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(conversation.getByRole('log')).toContainText(stylePrompt, { timeout: 180_000 });
+  await expect(conversation.locator('[data-workspace-status]')).toHaveText(
+    'Turn saved. Check operation receipts for completion.', { timeout: 180_000 });
+  await expect.poll(async () => (await renderLayer())?.paint?.[opacityProperty]).toBe(0.55);
+  expect((await renderLayer())?.paint?.[colorProperty]).toEqual(colorExpression(thematic!.values[0]));
+  await expect.poll(() => livePaint(opacityProperty)).toBe(0.55);
+
+  // A subsequent visual edit must start from the agent's current saved style.
+  // Save flushes the real sandboxed Maputnik frame and persists through Studio.
+  await values.fill(JSON.stringify([thematic!.values[1]]));
+  await editor.getByRole('button', { name: 'Preview thematic colors', exact: true }).click();
+  await editor.getByRole('button', { name: 'Save map style', exact: true }).click();
+  await expect.poll(async () => (await renderLayer())?.paint?.[colorProperty])
+    .toEqual(colorExpression(thematic!.values[1]));
+  expect((await renderLayer())?.paint?.[opacityProperty]).toBe(0.55);
+  await expect.poll(() => livePaint(colorProperty)).toEqual(colorExpression(thematic!.values[1]));
+  await expect.poll(() => livePaint(opacityProperty)).toBe(0.55);
+  await page.getByRole('button', { name: 'Return to map', exact: true }).click();
+  await expect(editor).toHaveCount(0);
+  await expect.poll(paintedCount, { timeout: 45_000 }).toBeGreaterThan(0);
+
   await page.getByRole('button', { name: 'Save version', exact: true }).click();
   await expect(page.locator('[data-studio-status]')).toHaveText('Saved version 1.');
   const persisted = await readDraft(originalDraft.draftId);
@@ -151,18 +230,21 @@ test('installed workspace: prompt adds real data, renders it, saves and reopens 
   expect(reopened.itemId).toBe(persisted.itemId);
   expect(reopened.envelope.body).toEqual(persisted.envelope.body);
   await expect.poll(paintedCount, { timeout: 45_000 }).toBeGreaterThan(0);
+  await expect.poll(() => livePaint(colorProperty)).toEqual(colorExpression(thematic!.values[1]));
+  await expect.poll(() => livePaint(opacityProperty)).toBe(0.55);
   expect(await workspaceId(page)).toBe(originalWorkspace);
 
   await info.attach('workspace-map-receipt.json', {
     contentType: 'application/json',
     body: Buffer.from(JSON.stringify({
-      scope: 'installed native prompt → existing data → rendered map → save → navigate → reopen',
+      scope: 'installed native prompt → existing data → rendered map → visual/AI/visual style → save → navigate → reopen',
       packageKey, service, layerId, sourceId: source.id, featureCount: count.count,
       workspaceId: originalWorkspace, draftId: originalDraft.draftId,
       reopenedDraftId: reopenedIdentity.draftId, itemId: persisted.itemId,
       versionId: versions.versions[0].versionId,
+      styling: { scope: 'map-local', field: thematic!.name, layerId: layerIdForStyle, colorProperty, opacityProperty },
       bodySha256: createHash('sha256').update(JSON.stringify(persisted.envelope.body)).digest('hex'),
-      remainingQualification: ['fresh installation and pairing', 'import', 'styling', 'publication and audience',
+      remainingQualification: ['fresh installation and pairing', 'import', 'shared-style governance', 'publication and audience',
         'recovery', 'external MCP clients', 'immutable release artifact provenance'],
     }, null, 2)),
   });
