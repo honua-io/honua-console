@@ -351,7 +351,7 @@ test('editing during a connection read preserves old authority and unsaved field
  workspace.session=initial;workspace.workspaceId='old';workspace.context={targetId:'old',revision:1};
  workspace.agentSession={sdkSession:{close(){closes++;}}};
  const pending=workspace.connect('new');await new Promise(resolve=>setImmediate(resolve));
- workspace.edit('layerName','unsaved');release();await assert.rejects(pending,/Save your shared draft/);
+ workspace.edit('layerName','unsaved');release();await assert.rejects(pending,/Save or pause your work/);
  assert.equal(workspace.session,initial);assert.equal(workspace.workspaceId,'old');assert.equal(workspace.context.targetId,'old');
  assert.equal(workspace.dirty.get('layerName'),'unsaved');assert.equal(closes,0);
 });
@@ -653,4 +653,37 @@ test('mounted Publish refuses an unreviewed newer canonical draft revision',asyn
  await assert.rejects(action,/changed|review/);
  assert.equal(calls.some(call=>call.operation==='patch'||call.operation==='submit'),false);
  assert.equal(workspace.dirty.get('layerName'),'Clicked');
+});
+
+test('actual chat submission captures verified human file metadata in its original retained turn', async () => {
+    const {browserImportSelection}=await import('../../src/Honua.Console.Web/wwwroot/js/dataset-import-selection.mjs');
+    browserImportSelection.clear();
+    try {
+        const calls=[]; const workspace=client(async(path,init)=>{
+            const body=JSON.parse(init.body);calls.push({path,body});
+            return response({turnId:body.turnId,context:{workspaceId:'workspace',targetId:'target',viewId:workspace.viewId,revision:7},
+                browserFileSelection:body.browserFileSelection});
+        });
+        workspace.workspaceId='workspace';workspace.session={...nativeSession};workspace.context={revision:7,targetId:'target'};
+        const file=new File(['data'],'places.geojson');
+        const selected=await browserImportSelection.prepare(file,workspace,{hashFile:async()=> 'a'.repeat(64)});
+        await workspace.submit('Import this file into public.places');
+        assert.equal(calls.length,1);assert.deepEqual(calls[0].body.browserFileSelection,selected);
+        assert.equal(browserImportSelection.record.turnId,'fixed-id');
+        assert.equal(JSON.stringify(calls[0].body).includes('csrf'),false);
+        assert.equal(calls[0].body.browserFileSelection.totalBytes,4);
+    } finally {browserImportSelection.clear();}
+});
+
+test('actual chat refuses selected-file capture after authority changes while queued', async () => {
+    const {browserImportSelection}=await import('../../src/Honua.Console.Web/wwwroot/js/dataset-import-selection.mjs');
+    browserImportSelection.clear();
+    try {
+        const calls=[];const workspace=client(async(...args)=>{calls.push(args);return response({});});
+        workspace.workspaceId='workspace';workspace.session={...nativeSession};workspace.context={revision:7,targetId:'target'};
+        await browserImportSelection.prepare(new File(['data'],'places.geojson'),workspace,{hashFile:async()=> 'a'.repeat(64)});
+        let release;workspace.queue=new Promise(resolve=>release=resolve);
+        const submitting=workspace.submit('Import this file');workspace.session={...workspace.session,releaseId:'changed-release'};release();
+        await assert.rejects(submitting,/earlier context/);assert.equal(calls.length,0);
+    } finally {browserImportSelection.clear();}
 });

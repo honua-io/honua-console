@@ -186,7 +186,12 @@
                                    AllowAi="@(!SharedConversation)"
                                    Loaded="@_intakeLoaded"
                                    OnSourceChosen="OnSourceChosen" />
-                    @if (_flow.Source.Mode == AddDataMode.File)
+                    @if (SharedConversation && _flow.Source.Mode == AddDataMode.File)
+                    {
+                        <p>Choose the original dataset, then describe its destination in the shared conversation.</p>
+                        <a class="console-button" href="/operate/resources/import/task">Choose dataset file</a>
+                    }
+                    else if (_flow.Source.Mode == AddDataMode.File)
                     {
                         <label class="studio-form-label">
                             <span>File to import</span>
@@ -224,7 +229,7 @@
                     @StepError()
                     <div class="console-action-row">
                         <a href="/operate/data">Cancel</a>
-                        @if (_flow.Source.Mode != AddDataMode.RemoteService)
+                        @if (_flow.Source.Mode != AddDataMode.RemoteService && !(SharedConversation && _flow.Source.Mode == AddDataMode.File))
                         {
                             <button type="button" class="console-button" disabled="@(_busy || !CanContinueFromAddData())" @onclick="ContinueFromAddData">
                                 @(_busy ? "Working…" : "Continue →")
@@ -580,7 +585,7 @@
 
     private bool CanContinueFromAddData() => _flow.Source.Mode switch
     {
-        AddDataMode.File => _selectedFile is not null,
+        AddDataMode.File => !SharedConversation && _selectedFile is not null,
         AddDataMode.Table => !string.IsNullOrWhiteSpace(_flow.Source.TableKey),
         AddDataMode.ExistingResource => !string.IsNullOrWhiteSpace(_flow.Source.Reference),
         _ => false,
@@ -588,6 +593,7 @@
 
     private async Task ContinueFromAddData()
     {
+        if (SharedConversation && _flow.Source.Mode == AddDataMode.File) return;
         _stepError = null;
         _missingBinding = null;
         _busy = true;
