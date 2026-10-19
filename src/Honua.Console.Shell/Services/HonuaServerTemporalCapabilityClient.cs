@@ -7,8 +7,7 @@ namespace Honua.Console.Shell.Services;
 /// <summary>
 /// Configured candidate temporal source (serviceId + service-local layer index) the temporal viewer probes
 /// for capability. The temporal data history API (honua-server#1166) is per service/layer and exposes no
-/// enumeration verb, so — exactly like the publishing workspace keying off configured publication ids —
-/// the viewer is keyed by a configured list of candidate sources
+/// enumeration verb, so the viewer is keyed by a configured list of candidate sources
 /// (Honua:Server:TemporalSources / HONUA_SERVER_TEMPORAL_SOURCES, "serviceId:layerId" comma/space
 /// separated). Each candidate's capability is then read live from the server.
 /// </summary>
