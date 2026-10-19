@@ -109,6 +109,46 @@ public sealed class ContentPublicationHttpClientTests
     }
 
     [Fact]
+    public async Task List_OnSuccess_DeserializesThePageAndTargetsTheCollectionRoute()
+    {
+        string? requested = null;
+        var page = new HonuaContentPublicationListPage
+        {
+            Items =
+            [
+                new HonuaContentPublicationDetail
+                {
+                    Route = new HonuaContentPublicationRouteState
+                    {
+                        PublicationId = "pub-report-1",
+                        RouteSlug = "monthly-infrastructure",
+                        Lifecycle = HonuaContentPublicationLifecycles.Active,
+                    },
+                    Versions = [new HonuaContentPublicationVersion { Title = "Monthly infrastructure report" }],
+                },
+            ],
+            Total = 2,
+            NextCursor = "next",
+        };
+        using var client = CreateClient(new StaticResponseHandler(request =>
+        {
+            requested = request.RequestUri?.PathAndQuery;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(page) };
+        }));
+
+        var result = await client.ListAsync(cursor: "page-1", limit: 25, lifecycle: "active");
+
+        Assert.Null(result.Issue);
+        Assert.NotNull(result.Data);
+        Assert.Equal("/api/v1/console/publications?limit=25&cursor=page-1&lifecycle=active", requested);
+        Assert.Equal(2, result.Data!.Total);
+        Assert.Equal("next", result.Data.NextCursor);
+        var item = Assert.Single(result.Data.Items);
+        Assert.Equal("pub-report-1", item.Route.PublicationId);
+        Assert.Equal("Monthly infrastructure report", Assert.Single(item.Versions).Title);
+    }
+
+    [Fact]
     public async Task Republish_OnSuccess_PostsRequestBodyAndDeserializesDetail()
     {
         string? requestedPath = null;

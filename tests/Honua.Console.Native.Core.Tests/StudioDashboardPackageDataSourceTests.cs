@@ -668,6 +668,10 @@ public sealed class StudioDashboardPackageDataSourceTests
             string publicationId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<HonuaAdminEndpointResult<HonuaContentPublicationListPage>> ListAsync(
+            string? cursor = null, int limit = 100, string? lifecycle = null, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<HonuaAdminEndpointResult<HonuaContentPublicationVersion>> GetVersionAsync(
             string publicationId, string versionSelector, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
