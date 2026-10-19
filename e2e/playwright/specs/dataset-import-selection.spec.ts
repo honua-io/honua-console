@@ -36,6 +36,17 @@ async function controlledSdk(page: Page, body: string, beforeServe?: () => Promi
     });
 }
 
+async function openInteractiveImportPanel(page: Page) {
+    await page.goto('/operate/resources/import/task');
+    const prerendered=await page.locator('[data-dataset-import-panel]').elementHandle();
+    expect(prerendered).not.toBeNull();
+    await page.evaluate(()=>(window as any).Blazor.start());
+    // start() establishes the circuit before its first render reaches the DOM.
+    // Observe replacement of the actual prerendered panel, not a timed sleep.
+    await expect.poll(()=>prerendered!.evaluate(element=>element.isConnected)).toBe(false);
+    await expect(page.locator('[data-dataset-import-panel]')).toBeVisible();
+}
+
 // Controlled SDK loader exercises the actual mounted prehash click orchestration.
 // This is not a connected server, canonical SDK hash, or accepted import journey.
 test('paused file check cannot retarget to a later selection while the SDK import waits',async({page})=>{
@@ -46,8 +57,7 @@ test('paused file check cannot retarget to a later selection while the SDK impor
     await controlledSdk(page,`window.__importSdkLoaded=true; export async function hashDatasetImportFile(file) { window.__checkedImportFiles.push(file.name); return '${'a'.repeat(64)}'; }`,async()=>{
         requested?.();await waiting;
     });
-    await page.goto('/operate/resources/import/task');
-    await page.evaluate(()=>(window as any).Blazor.start());
+    await openInteractiveImportPanel(page);
     await page.evaluate(()=>{
         const workspace=(window as any).honuaAgentWorkspace;
         workspace.session={environmentId:'env',principalId:'human',environmentName:'Controlled test',releaseId:'release'};
@@ -84,8 +94,7 @@ test('accepted import polling rebinds a replaced workspace without resubmission'
                 async submit() { window.__unexpectedSubmissions++; throw new Error('No submission expected'); }
             }
         `);
-    await page.goto('/operate/resources/import/task');
-    await page.evaluate(()=>(window as any).Blazor.start());
+    await openInteractiveImportPanel(page);
     await page.evaluate(()=>{
         const state=window as any, workspace=state.honuaAgentWorkspace;
         state.__importClients=0;state.__unexpectedSubmissions=0;state.__sessionReads=[];
