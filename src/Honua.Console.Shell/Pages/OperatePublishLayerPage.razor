@@ -109,6 +109,12 @@
                 </article>
             }
 
+            <section class="console-panel console-state-warning" data-workspace-publication-review hidden>
+                <p role="status" data-workspace-publication-state></p>
+                <button class="console-button console-button-secondary" type="button" data-workspace-publication-check>Check original publication</button>
+                <button class="console-button console-button-secondary" type="button" data-workspace-publication-acknowledge hidden>I reviewed the previous result and current draft</button>
+                <a href="/inbox">Review approvals</a>
+            </section>
             <div class="console-action-row">
                 <button class="console-button console-button-secondary" type="button" disabled="@_busy" data-workspace-save>Save draft</button>
                 <button class="console-button" type="button" disabled="@_busy" data-workspace-publish @onclick="PublishAsync">

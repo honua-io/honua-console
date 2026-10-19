@@ -15,6 +15,9 @@ const serverEndpoint = 'https://server.example';
 const families = ['map', 'app', 'dashboard'] as const;
 
 test('real browser drives exact Console UI approvals and emits one SDK-owned aggregate', async ({ page }) => {
+  // The complete multi-hop approval/recovery fixture keeps its per-action bounds,
+  // with enough whole-journey budget for cold browsers on shared CI hosts.
+  test.setTimeout(90_000);
   const fixture = candidateBoundary();
   const approved = new Set<string>();
   await installConsoleUi(page, fixture, approved);

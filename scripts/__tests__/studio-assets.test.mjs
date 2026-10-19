@@ -32,3 +32,8 @@ test('production Studio assets are complete and pinned to reviewed source bytes'
     assert.ok(main.includes('createWorkspaceAgentSession'));
     assert.ok(!main.includes('__honuaStudioFixtureToken'));
 });
+
+test('embedded Studio initializes Maputnik from the pinned Console asset root',async()=>{
+ const source=await readFile(new URL('../../src/Honua.Console.Web/wwwroot/js/studio-embed.mjs',import.meta.url),'utf8');
+ assert.match(source,/app = document\.createElement\('honua-studio-app'\);\s*app\.styleEditorAssetsUrl = '\/_studio\/maputnik\/index\.html';/);
+});

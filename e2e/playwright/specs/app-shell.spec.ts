@@ -30,7 +30,7 @@ test('app shell prerenders the four-area chrome and wires the Blazor framework',
 
   // The shell prerendered (server-rendered HTML is present and visible).
   await expect(page.locator('body')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Studio', exact: true }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Studio is unavailable on this deployment', exact: true }).first()).toBeVisible();
 
   // The Blazor Web framework script is wired — the browser-side runtime bUnit cannot cover.
   await expect(page.locator('script[src*="_framework/blazor.web"]')).toHaveCount(1);

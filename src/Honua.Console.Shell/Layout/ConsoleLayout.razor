@@ -24,7 +24,7 @@
                 <span class="console-brand-mark">H</span>
                 <span class="console-brand-label">
                     <strong>Honua Console</strong>
-                    <small>@(ProductMode.IsWitness ? "Witness mode" : "Focused console")</small>
+                    <small>@(ProductMode.IsWitness ? "Witness mode" : "GIS workspace")</small>
                 </span>
             </a>
             <label for="console-collapse" class="console-collapse-button" title="Collapse navigation">
@@ -133,6 +133,13 @@
             <summary>Conversation</summary>
             <p data-workspace-target>Start a conversation in your selected environment.</p>
             <button type="button" class="console-button" data-workspace-start>Start conversation</button>
+            <div data-workspace-messages role="log" aria-label="Workspace conversation"></div>
+            <form>
+                <label>Message <textarea class="console-input" data-workspace-prompt maxlength="16000"></textarea></label>
+                <button class="console-button" type="submit">Send</button>
+            </form>
+            <label><input type="checkbox" checked data-workspace-follow /> Follow proposed task views</label>
+            <p role="status" data-workspace-status>Start a conversation, or join an existing workspace.</p>
             <details class="console-conversation-connection">
                 <summary>Join an existing workspace</summary>
                 <label>Workspace ID <input class="console-input" data-workspace-id maxlength="128" /></label>
@@ -145,13 +152,6 @@
             <p class="console-muted">Share this tab's context with your external agent. If you change the selected task, copy a new reference.</p>
             <pre data-workspace-context-reference hidden></pre>
             </details>
-            <label><input type="checkbox" checked data-workspace-follow /> Follow proposed task views</label>
-            <div data-workspace-messages role="log" aria-label="Workspace conversation"></div>
-            <form>
-                <label>Message <textarea class="console-input" data-workspace-prompt maxlength="16000"></textarea></label>
-                <button class="console-button" type="submit">Send</button>
-            </form>
-            <p role="status" data-workspace-status>Start a conversation, or join an existing workspace.</p>
         </details>
         </div>
     </div>

@@ -43,7 +43,7 @@ test('save uses field patch and keeps edits made while request is pending', asyn
     const workspace = client(async (_path, init) => { body=JSON.parse(init.body); await new Promise(resolve=>{release=resolve;}); return response({id:'draft',revision:2,fields:{serviceName:'first'}}); });
     workspace.workspaceId='workspace'; workspace.draft={id:'draft',revision:1,fields:{}};
     workspace.edit('serviceName','first'); const save=workspace.saveDraft();
-    workspace.edit('serviceName','second'); release(); await save;
+    workspace.edit('serviceName','second'); await new Promise(resolve=>setImmediate(resolve)); release(); await save;
     assert.deepEqual(body.changes,{serviceName:'first'});
     assert.equal(workspace.dirty.get('serviceName'),'second');
 });
@@ -67,14 +67,14 @@ test('views are scoped to a tab and workspace conversation survives reconnection
 test('lost publication response reuses the persisted command identity', async () => {
     let calls=0; const identifiers=[];
     const workspace=client(async (_path,init)=>{
-        if (init.method==='GET') return response({status:'published'});
+        if (init.method==='GET') return response({data:{operationId:'service.publish',operationInstanceId:'operation',status:'Completed'}});
         identifiers.push(JSON.parse(init.body).commandId);
         if (++calls===1) throw new Error('connection lost after commit');
-        return response({status:'published'});
+        return response({data:{operationId:'service.publish',operationInstanceId:'operation',status:'Completed'}});
     });
-    workspace.workspaceId='workspace'; workspace.draft={id:'draft',revision:3,fields:{}};
+    workspace.workspaceId='workspace'; workspace.context={targetId:'target'}; workspace.session={...nativeSession}; workspace.draft={id:'draft',revision:3,fields:{}};
     await assert.rejects(workspace.submitDraft(),/connection lost/);
-    assert.equal((await workspace.submitDraft()).status,'published');
+    assert.equal((await workspace.submitDraft()).data.status,'Completed');
     assert.equal(identifiers.length,1);
     assert.equal(identifiers[0],'fixed-id');
 });
@@ -492,4 +492,165 @@ test('native turns renew the same authority lease without borrowing a changed pa
  const priorCount=requests.length;lease={...lease,principalId:'different-operator',csrfToken:'must-not-borrow'};
  await assert.rejects(workspace.agentSession.submitTurn({turnId:'third',prompt:'third'}),/session changed/);
  assert.equal(requests.length,priorCount);
+});
+
+test('visible publish form rebinds its latest canonical draft before prompt and preserves local edits',async()=>{
+ const calls=[];
+ const workspace=client(async(path,init)=>{
+  const body=init.body?JSON.parse(init.body):undefined;calls.push({path,body,method:init.method});
+  if(init.method==='GET') return response({id:'draft',kind:'publish-layer',revision:2,fields:{layerName:'Remote'}});
+  if(init.method==='PATCH') return response({id:'draft',kind:'publish-layer',revision:3,fields:{layerName:'Local'}});
+  if(path.endsWith('/turns')) return response({turnId:'bound',status:'accepted'});
+  return response({revision:11,targetId:'target',task:body.task,selectedResources:body.selectedResources});
+ });
+ workspace.workspaceId='workspace';workspace.session={...nativeSession};
+ workspace.context={revision:10,targetId:'target',task:{kind:'studio-composition',id:'map',revision:1}};
+ workspace.draft={id:'draft',kind:'publish-layer',revision:1,fields:{layerName:'Old'}};
+ workspace.edit('layerName','Local');workspace.publishViewCurrent=()=>true;
+ // No edit is saved by changing focus; the dirty candidate remains until prompt/Save.
+ await workspace.focusPublishDraft();assert.equal(workspace.draft.revision,2);assert.equal(workspace.dirty.get('layerName'),'Local');
+ assert.equal(workspace.context.task.kind,'publish-layer');
+ assert.deepEqual(calls[1].body.task,{id:'draft',revision:2,kind:'publish-layer'});
+ assert.equal(calls[1].body.expectedRevision,10);assert.equal(calls.some(call=>call.method==='PATCH'),false);
+ // Independently observed post-patch context is what the turn must capture.
+ workspace.request=async(path,init)=>{
+  if(init.method==='PATCH') return response({id:'draft',kind:'publish-layer',revision:3,fields:{layerName:'Local'}});
+  if(init.method==='GET') return response({revision:12,targetId:'target',task:{kind:'publish-layer',id:'draft',revision:3}});
+  calls.push({path,body:JSON.parse(init.body)});return response({turnId:'bound',status:'accepted'});
+ };
+ await workspace.submit('Use my saved layer draft');assert.equal(calls.at(-1).body.contextRevision,12);
+});
+
+for(const replacement of ['navigation','principal','remote-context']) test(`delayed publish focus cannot reclaim ${replacement}`,async()=>{
+ let release,started;const waiting=new Promise(resolve=>started=resolve),calls=[];
+ const workspace=client(async(path,init)=>{
+  const body=init.body?JSON.parse(init.body):undefined;calls.push({path,body});
+  if(init.method==='GET') {started();await new Promise(resolve=>release=resolve);return response({id:'draft',kind:'publish-layer',revision:2,fields:{}});}
+  return response({revision:12,targetId:'target',task:body.task,selectedResources:body.selectedResources});
+ });
+ workspace.workspaceId='workspace';workspace.session={...nativeSession};
+ workspace.context={revision:10,targetId:'target',task:{kind:'studio-composition',id:'map',revision:1}};
+ workspace.draft={id:'draft',kind:'publish-layer',revision:1,fields:{}};let visible=true;
+ const focus=workspace.focusPublishDraft(()=>visible);await waiting;
+ let later;
+ if(replacement==='navigation'){visible=false;later=workspace.select([{kind:'layer',id:'other'}]);}
+ if(replacement==='principal') workspace.session={...workspace.session,principalId:'other'};
+ if(replacement==='remote-context') workspace.context={...workspace.context,revision:11,task:{kind:'workflow-package',id:'newer',revision:1}};
+ release();assert.equal(await focus,false);await later;
+ assert.equal(calls.filter(call=>call.body?.task?.kind==='publish-layer').length,0);
+ assert.equal(workspace.draft.revision,1);
+});
+
+test('a new publish form clears a retained Studio task without creating or saving a draft',async()=>{
+ const calls=[];const workspace=client(async(path,init)=>{const body=JSON.parse(init.body);calls.push({path,body});return response({revision:4,targetId:'target',task:body.task,selectedResources:body.selectedResources});});
+ workspace.workspaceId='workspace';workspace.context={revision:3,targetId:'target',task:{kind:'studio-composition',id:'map',revision:1}};
+ assert.equal(await workspace.focusPublishDraft(),true);assert.equal(workspace.context.task,null);assert.equal(workspace.draft,undefined);assert.equal(calls.length,1);
+});
+
+test('retained dirty publish fields cannot be silently saved by a prompt from another task',async()=>{
+ let requests=0;const workspace=client(async()=>{requests++;throw Error('No request allowed');});
+ workspace.workspaceId='workspace';workspace.context={revision:3,targetId:'target',task:{kind:'studio-composition',id:'map',revision:1}};
+ workspace.draft={id:'draft',revision:1,fields:{}};workspace.edit('layerName','Unsaved');
+ await assert.rejects(workspace.submit('Change the map'),/Return to the publish form/);
+ assert.equal(requests,0);assert.equal(workspace.dirty.get('layerName'),'Unsaved');
+});
+
+test('first draft Save snapshots fields before its asynchronous creation and retains later typing',async()=>{
+ let release,started;const waiting=new Promise(resolve=>started=resolve),patches=[];
+ const workspace=client(async(path,init)=>{
+  if(path.endsWith('/drafts')){started();await new Promise(resolve=>release=resolve);return response({id:'draft',kind:'publish-layer',revision:1,fields:{layerName:'Clicked'}});}
+  if(init.method==='GET') return response({revision:2,targetId:'target',task:{kind:'publish-layer',id:'draft',revision:1}});
+  patches.push(JSON.parse(init.body));return response({id:'draft',kind:'publish-layer',revision:2,fields:{layerName:'Clicked'}});
+ });
+ workspace.workspaceId='workspace';workspace.context={revision:1,targetId:'target'};
+ workspace.edit('layerName','Clicked');const save=workspace.saveDraft();await waiting;
+ workspace.edit('layerName','Later typing');release();await save;
+ assert.deepEqual(patches[0].changes,{layerName:'Clicked'});assert.equal(workspace.dirty.get('layerName'),'Later typing');
+});
+
+test('remote draft selection cannot transfer unsaved fields to another canonical draft',async()=>{
+ let requests=0;const workspace=client(async()=>{requests++;throw Error('No mutation allowed');});
+ workspace.workspaceId='workspace';workspace.draft={id:'draft-a',revision:1,fields:{layerName:'Original'}};
+ workspace.edit('layerName','Unsaved A');
+ await assert.rejects(workspace.reconcileDraft({id:'draft-b',revision:3,fields:{layerName:'Remote B'}}),/Another publish draft/);
+ assert.equal(workspace.draft.id,'draft-a');assert.equal(workspace.projectDraft().layerName,'Unsaved A');
+ workspace.context={revision:4,targetId:'target',task:{kind:'publish-layer',id:'draft-b',revision:3}};
+ workspace.publishViewCurrent=()=>true;
+ await assert.rejects(workspace.submit('Use these fields'),/Return to the publish form/);
+ assert.equal(requests,0);
+ // Same-ID canonical observations may still advance while retaining that draft's field candidate.
+ await workspace.reconcileDraft({id:'draft-a',revision:2,fields:{layerName:'Remote A'}});
+ assert.equal(workspace.draft.revision,2);assert.equal(workspace.projectDraft().layerName,'Unsaved A');
+});
+
+test('unsaved first-form fields cannot attach themselves to a newly observed remote draft',async()=>{
+ const workspace=client(async()=>{throw Error('No request allowed');});workspace.edit('layerName','Not yet saved');
+ await assert.rejects(workspace.reconcileDraft({id:'remote',revision:1,fields:{}}),/Another publish draft/);
+ assert.equal(workspace.draft,undefined);assert.equal(workspace.dirty.get('layerName'),'Not yet saved');
+});
+
+function publishClickFixture(phase,{existing=false}={}) {
+ let release,started;const waiting=new Promise(resolve=>started=resolve),calls=[];
+ let revision=existing?4:1,contextRevision=10;
+ const workspace=client(async(path,init)=>{
+  const body=init.body?JSON.parse(init.body):undefined;
+  const operation=path.endsWith('/submit')?'submit':init.method==='PATCH'?'patch':path.endsWith('/drafts')?'create'
+   :path.includes('/drafts/')?'focus-read':path.endsWith('/context')?'focus':'context-read';
+  calls.push({operation,path,body});
+  if(operation===phase){started();await new Promise(resolve=>release=resolve);}
+  if(operation==='create') return response({id:'draft',kind:'publish-layer',revision,fields:{...body.fields}});
+  if(operation==='focus-read') return response({id:'draft',kind:'publish-layer',revision,fields:{layerName:'Before'}});
+  if(operation==='patch'){revision++;return response({id:'draft',kind:'publish-layer',revision,fields:{...body.changes}});}
+  if(operation==='submit') return response({data:{operationId:'service.publish',status:'RequiresApproval',operationInstanceId:'operation'}});
+  contextRevision++;
+  return response({revision:contextRevision,targetId:'target',task:operation==='focus'&&!existing?null:{kind:'publish-layer',id:'draft',revision},selectedResources:[]});
+ });
+ workspace.workspaceId='workspace';workspace.session={...nativeSession};
+ workspace.context={revision:10,targetId:'target',task:existing?{kind:'publish-layer',id:'draft',revision}:null};
+ if(existing) workspace.draft={id:'draft',kind:'publish-layer',revision,fields:{layerName:'Before'}};
+ workspace.edit('layerName','Clicked');let visible=true;
+ return {workspace,calls,waiting,release:()=>release(),isCurrentView:()=>visible,leave:()=>visible=false};
+}
+
+for(const phase of ['focus','create','patch']) test(`mounted Save/Publish orchestration freezes original fields before ${phase}`,async()=>{
+ const fixture=publishClickFixture(phase),{workspace,calls}=fixture;
+ const fields={layerName:'Clicked',serviceName:'original-service'};
+ const action=workspace.savePublishForm(fields,{publish:true,isCurrentView:fixture.isCurrentView});
+ await fixture.waiting;fields.layerName='Changed caller object';workspace.edit('layerName','Later typing');
+ fixture.release();const receipt=await action;
+ assert.equal(receipt.data.status,'RequiresApproval');
+ assert.equal(calls.find(call=>call.operation==='create').body.fields.layerName,'Clicked');
+ assert.equal(calls.find(call=>call.operation==='patch').body.changes.layerName,'Clicked');
+ assert.equal(workspace.dirty.get('layerName'),'Later typing');
+ assert.equal(calls.filter(call=>call.operation==='patch').length,1,'publication must not auto-save later typing');
+ assert.equal(calls.find(call=>call.operation==='submit').body.expectedRevision,2);
+});
+
+for(const phase of ['focus-read','create','context-read']) for(const replacement of ['navigation','principal','environment','release','source-path','workspace','view'])
+ test(`mounted action refuses ${replacement} during ${phase}`,async()=>{
+  const fixture=publishClickFixture(phase,{existing:phase==='focus-read'}),{workspace,calls}=fixture;
+  const action=workspace.savePublishForm({layerName:'Clicked'},{publish:true,isCurrentView:fixture.isCurrentView});
+  await fixture.waiting;
+  if(replacement==='navigation') fixture.leave();
+  if(replacement==='principal') workspace.session={...workspace.session,principalId:'different'};
+  if(replacement==='environment') workspace.session={...workspace.session,environmentId:'different'};
+  if(replacement==='release') workspace.session={...workspace.session,releaseId:'different'};
+  if(replacement==='source-path') workspace.session={...workspace.session,sourcePathBase:'/different'};
+  if(replacement==='workspace') workspace.workspaceId='different';
+  if(replacement==='view') workspace.viewId='different';
+  fixture.release();await assert.rejects(action,/changed|Review|review/);
+  assert.equal(calls.some(call=>call.operation==='patch'||call.operation==='submit'),false);
+  assert.equal(workspace.dirty.get('layerName'),'Clicked');
+  if(phase!=='focus-read') assert.equal(workspace.draft,undefined);
+ });
+
+test('mounted Publish refuses an unreviewed newer canonical draft revision',async()=>{
+ const fixture=publishClickFixture('focus-read',{existing:true}),{workspace,calls}=fixture;
+ const action=workspace.savePublishForm({layerName:'Clicked'},{publish:true,isCurrentView:fixture.isCurrentView});
+ await fixture.waiting;
+ // A current canonical observation advances while this click is waiting.
+ workspace.draft={...workspace.draft,revision:5};fixture.release();
+ await assert.rejects(action,/changed|review/);
+ assert.equal(calls.some(call=>call.operation==='patch'||call.operation==='submit'),false);
+ assert.equal(workspace.dirty.get('layerName'),'Clicked');
 });
