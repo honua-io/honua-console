@@ -1,11 +1,19 @@
+import { capturedProcessFetch } from './cookie-workspace-transport.mjs';
+
 const id = value => typeof value === 'string' && value.length > 0 && value.length <= 128 && !/[^A-Za-z0-9_-]/.test(value);
 const audiences = new Set(['personal', 'team', 'organization', 'public']);
-const terminal = receipt => receipt?.status === 'accepted' || receipt?.status === 'rejected';
+const terminal = receipt => ['accepted', 'rejected', 'approval-rejected', 'approval-failed', 'approval-cancelled', 'approval-rolled-back'].includes(receipt?.status);
 
 /** Retains submission identity before dispatch, including across a document reload. No credentials are stored. */
 export class StudioPublicationSession {
-    constructor(app, { storage = app.workspace?.storage, uuid = () => crypto.randomUUID() } = {}) {
+    constructor(app, { storage = app.workspace?.storage, uuid = () => crypto.randomUUID(), readProposal } = {}) {
         this.app = app; this.storage = storage; this.uuid = uuid;
+        this.readProposal = readProposal ?? (async proposalId => {
+            const request = capturedProcessFetch(app.workspaceCookieBinding, { current: () => app.workspaceCookieBinding });
+            const response = await request(`/api/processes/admin/proposals/${encodeURIComponent(proposalId)}`);
+            if (!response.ok) throw new Error(`Approval status could not be read (${response.status}). The original submission is retained.`);
+            return response.json();
+        });
     }
     authority() {
         const binding = this.app.workspaceCookieBinding;
@@ -74,16 +82,64 @@ export class StudioPublicationSession {
             return this.dispatch(record, version);
         });
     }
+    refresh() {
+        if (this.pending) return this.pending;
+        return this.run(async () => {
+            const record = this.read();
+            if (!record || !this.bound(record)) throw new Error('Restore the original map, account and environment before refreshing.');
+            const current = () => {
+                if (!this.bound(record) || this.read()?.commandId !== record.commandId)
+                    throw new Error('The workspace changed. The original submission reference is retained for recovery.');
+            };
+            if (id(record.receipt?.requestId) && this.app.readWorkspacePublication) {
+                try {
+                    const receipt = await this.app.readWorkspacePublication(record.versionId, record.receipt.requestId);
+                    current();
+                    if (receipt?.itemId !== record.itemId || receipt.versionId !== record.versionId
+                        || receipt.requestId !== record.receipt.requestId || !['accepted', 'pending', 'rejected'].includes(receipt.status))
+                        throw new Error('The publication status does not match the original submission.');
+                    this.storage.setItem(this.key(), JSON.stringify({ ...record, receipt: {
+                        ...record.receipt, status: receipt.status === 'pending' ? 'publication-pending' : receipt.status,
+                    } }));
+                    return receipt;
+                } catch (error) {
+                    current();
+                    // The publication row does not exist until the approved actuator runs.
+                    // A missing row never proves either rejection or successful publication.
+                    if (error?.status !== 404) throw error;
+                }
+            }
+            if (!id(record.receipt?.proposalId))
+                throw new Error('No readable publication or approval reference was returned. Recover the original submission before trying another.');
+            const proposal = await this.readProposal(record.receipt.proposalId);
+            current();
+            if (proposal?.proposalId !== record.receipt.proposalId || typeof proposal.status !== 'string')
+                throw new Error('The approval status does not match the original submission.');
+            const statuses = { planned: 'awaiting-approval', awaitingapproval: 'awaiting-approval',
+                executing: 'approval-executing', submitted: 'approval-executing', reconciling: 'approval-executing',
+                succeeded: 'approval-completed', rejected: 'approval-rejected', failed: 'approval-failed',
+                cancelled: 'approval-cancelled', rolledback: 'approval-rolled-back' };
+            const statusKey = proposal.status.toLowerCase().replaceAll('-', '');
+            const status = Object.hasOwn(statuses, statusKey) ? statuses[statusKey] : undefined;
+            if (!status) throw new Error('The approval outcome is unknown. The original submission is retained.');
+            this.storage.setItem(this.key(), JSON.stringify({ ...record, receipt: { ...record.receipt, status } }));
+            return { status, proposalId: proposal.proposalId };
+        });
+    }
     async dispatch(record, version) {
         const key = this.key();
         const receipt = await this.app.publishWorkspaceVersion(version, record.input, record.commandId);
         if (!this.bound(record) || this.read()?.commandId !== record.commandId)
             throw new Error('The workspace changed. The original submission reference is retained for recovery.');
         const pending = receipt?.status === 'awaiting-approval' && id(receipt.operationInstanceId) && id(receipt.proposalId);
-        const completed = terminal(receipt) && receipt.itemId === record.itemId && receipt.versionId === record.versionId && id(receipt.requestId);
+        const completed = ['accepted', 'rejected'].includes(receipt?.status) && receipt.itemId === record.itemId && receipt.versionId === record.versionId && id(receipt.requestId);
+        if (pending && [receipt.itemId, receipt.versionId, receipt.requestId].some(value => value !== undefined)
+            && (receipt.itemId !== record.itemId || receipt.versionId !== record.versionId || !id(receipt.requestId)))
+            throw new Error('The publication outcome is unknown. Its resource references do not match the original submission.');
         if (!pending && !completed) throw new Error('The publication outcome is unknown. Retain and retry the original submission.');
         const retained = { status: receipt.status, ...(pending
-            ? { operationInstanceId: receipt.operationInstanceId, proposalId: receipt.proposalId }
+            ? { operationInstanceId: receipt.operationInstanceId, proposalId: receipt.proposalId,
+                ...(id(receipt.requestId) ? { requestId: receipt.requestId } : {}) }
             : { requestId: receipt.requestId }) };
         this.storage.setItem(key, JSON.stringify({ ...record, receipt: retained }));
         return receipt;
@@ -124,17 +180,18 @@ export function mountStudioPublicationControls({ app, host, status }) {
     const diagnostics = document.createElement('ul'); diagnostics.setAttribute('aria-label', 'Publication validation warnings');
     const publish = document.createElement('button'); publish.type = 'submit'; publish.textContent = 'Publish reviewed version';
     const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = 'Retry original submission';
+    const refresh = document.createElement('button'); refresh.type = 'button'; refresh.textContent = 'Refresh publication status';
     const acknowledge = document.createElement('button'); acknowledge.type = 'button'; acknowledge.textContent = 'Acknowledge publication outcome';
     const inbox = document.createElement('a'); inbox.href = '/inbox'; inbox.textContent = 'Review approvals';
     const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel publication review';
     for (const field of [route, audience, warning]) field.className = 'console-input';
     for (const label of [routeField, audienceField, warningField]) label.className = 'publish-field';
-    for (const button of [publish, retry, acknowledge, cancel]) button.className = 'console-button console-button-secondary';
+    for (const button of [publish, retry, refresh, acknowledge, cancel]) button.className = 'console-button console-button-secondary';
     publish.className = 'console-button';
     const fields = document.createElement('div'); fields.className = 'publish-field-grid'; fields.append(routeField, audienceField);
     const actions = document.createElement('div'); actions.className = 'console-action-row'; actions.append(publish, cancel);
     form.append(summary, fields, diagnostics, warningField, actions);
-    section.append(notice, form, retry, acknowledge, inbox);
+    section.append(notice, form, refresh, retry, acknowledge, inbox);
     const canvas = host.querySelector('[data-studio-mount]');
     if (canvas) canvas.before(section); else host.append(section);
     let busy = false, disposed = false, selectedContext, hasReview = false;
@@ -144,7 +201,7 @@ export function mountStudioPublicationControls({ app, host, status }) {
     };
     function update() {
         if (disposed) return;
-        form.hidden = retry.hidden = acknowledge.hidden = inbox.hidden = true;
+        form.hidden = retry.hidden = refresh.hidden = acknowledge.hidden = inbox.hidden = true;
         try {
             const context = session.context(), record = session.read();
             if (selectedContext !== context) { hasReview = false; selectedContext = context; }
@@ -157,10 +214,21 @@ export function mountStudioPublicationControls({ app, host, status }) {
                         ? `Awaiting separate human approval. Proposal ${record.receipt.proposalId}.`
                         : record.receipt?.status === 'accepted' ? 'The reviewed version was published.'
                         : record.receipt?.status === 'rejected' ? 'The publication was rejected.'
+                        : record.receipt?.status === 'approval-rejected' ? 'A human approver rejected the publication.'
+                        : record.receipt?.status === 'approval-failed' ? 'Approval execution failed. Inspect the approval and publication before submitting again.'
+                        : record.receipt?.status === 'approval-cancelled' ? 'The approval was cancelled.'
+                        : record.receipt?.status === 'approval-rolled-back' ? 'The approved operation was rolled back.'
+                        : record.receipt?.status === 'approval-completed' ? (id(record.receipt.requestId)
+                            ? 'Approval completed. Publication has not yet been verified; refresh its status.'
+                            : 'Approval completed. Recover its publication receipt with the original submission.')
+                        : ['approval-executing', 'publication-pending'].includes(record.receipt?.status) ? 'Publication is processing. Refresh its status for a confirmed outcome.'
                         : 'The submission outcome is unknown. Its original command and settings are retained.';
-                    retry.hidden = terminal(record.receipt);
+                    const canRefresh = id(record.receipt?.requestId) || id(record.receipt?.proposalId);
+                    refresh.hidden = terminal(record.receipt) || !canRefresh;
+                    retry.hidden = terminal(record.receipt) || canRefresh && !(record.receipt?.status === 'approval-completed' && !id(record.receipt.requestId));
                     acknowledge.hidden = !terminal(record.receipt);
-                    inbox.hidden = record.receipt?.status !== 'awaiting-approval';
+                    inbox.hidden = !id(record.receipt?.proposalId);
+                    if (!inbox.hidden) inbox.href = `/inbox?proposalId=${encodeURIComponent(record.receipt.proposalId)}`;
                 }
             } else form.hidden = !hasReview;
         } catch (error) { section.hidden = false; notice.textContent = error.message; }
@@ -182,6 +250,7 @@ export function mountStudioPublicationControls({ app, host, status }) {
             ...(warning.value.trim() ? { warningAcknowledgement: warning.value.trim() } : {}) }));
     });
     retry.addEventListener('click', () => void run(() => session.retry()));
+    refresh.addEventListener('click', () => void run(() => session.refresh()));
     acknowledge.addEventListener('click', () => void run(() => { session.acknowledge(); hasReview = false; }));
     cancel.addEventListener('click', () => { if (!busy) { hasReview = false; update(); } });
     app.addEventListener('honua-workspace-draft-change', update);

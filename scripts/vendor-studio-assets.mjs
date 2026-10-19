@@ -11,10 +11,15 @@ const main = await readFile(join(source, 'console.js'), 'utf8');
 if (!main.includes('createWorkspaceAgentSession') || main.includes('__honuaStudioFixtureToken'))
     throw new Error('The source is not a production Console Studio entry.');
 await readFile(join(source, 'style.css'));
+const sdk = JSON.parse(await readFile(join(source, 'SDK-PROVENANCE.json'), 'utf8'));
+if (sdk.sourceCommit !== sdkRevision)
+    throw new Error('The SDK provenance does not match the requested source revision.');
 if (source === destination) throw new Error('Source must be separate from the managed vendor directory.');
 await rm(destination, { recursive: true, force: true });
 await mkdir(destination, { recursive: true });
 await cp(source, destination, { recursive: true });
+// Provenance describes this vendoring operation, never a previous bundle's review.
+await rm(join(destination, 'STUDIO-PROVENANCE.json'), { force: true });
 async function files(directory) {
     const names = [];
     for (const item of await readdir(directory, { withFileTypes: true })) {
@@ -31,6 +36,15 @@ for (const path of (await files(destination)).sort()) {
     entries.push({ path: relative(destination, path).replaceAll('\\', '/'), bytes: content.length,
         sha256: createHash('sha256').update(content).digest('hex') });
 }
+const provenance = Buffer.from(JSON.stringify({
+    schema: 'honua.studio.console-assets/v1', sourceCommit: studioRevision,
+    releaseQualified: false, integrationQualification: 'pending-installed-workspace-journey',
+    sdk, files: Object.fromEntries(entries.map(({ path, bytes, sha256 }) => [path, { bytes, sha256 }]))
+}, null, 2) + '\n');
+await writeFile(join(destination, 'STUDIO-PROVENANCE.json'), provenance);
+entries.push({ path: 'STUDIO-PROVENANCE.json', bytes: provenance.length,
+    sha256: createHash('sha256').update(provenance).digest('hex') });
+entries.sort((a, b) => a.path.localeCompare(b.path));
 await writeFile(join(destination, 'honua-studio-artifact.json'), JSON.stringify({
     schemaVersion: 'honua.console.studio-artifact.v1', studioRevision, sdkRevision, files: entries
 }, null, 2) + '\n');

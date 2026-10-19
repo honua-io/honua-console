@@ -3,18 +3,21 @@ using System.Text.Json;
 using Bunit;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Components.Studio;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 
 namespace Honua.Console.IntegrationTests;
 
 /// <summary>
 /// Console end-to-end smoke against a REAL honua-server (issue #59). Boots ONE live honua-server +
-/// PostgreSQL via Testcontainers and drives the core cross-surface chain — catalog list, a Studio package
-/// render, and an operate/publishing surface — against that single server, asserting live responses at
-/// every step and rendering each Console page from the live server-bound client (never an in-memory
-/// adapter; Console Patterns Charter section 11). This supersedes the in-memory-only <c>smoke/parity</c>
+/// PostgreSQL via Testcontainers and checks the catalog, retained package inspector, and publishing
+/// backend contracts against that single server. The Studio route is independently checked as the
+/// embedded realtime host; bUnit cannot execute its JavaScript editor. The installed browser journey
+/// in workspace-live/specs/studio-map.live.spec.ts owns realtime map authoring qualification.
+/// Backend responses use live server-bound clients (Console Patterns Charter section 11). This supersedes the in-memory-only <c>smoke/parity</c>
 /// behaviour for the <c>honua-console#9</c> gate: it emits evidence recording the server image, the seed
 /// profile, and <c>sourceHydrated: true</c>.
 ///
@@ -102,16 +105,15 @@ public sealed class ConsoleEndToEndSmokeTests
             $"itemId={catalogItemId}"));
 
         // ---------------------------------------------------------------------------------------------
-        // Flow 2 — Studio package render against the live server. Discover families, generate a real
-        // draft, run server validation, and render the live draft through the Studio page (#1180/#1181).
+        // Flow 2 — Preserve the retained package inspector/validation contract against live data,
+        // then verify /studio hosts the current realtime editor rather than the retired builder.
         // ---------------------------------------------------------------------------------------------
         var studioClient = _fixture.CreateStudioClient();
         IStudioAuthoringShell shell = new ServerStudioAuthoringShell(studioClient);
 
         var session = await shell.CreateInitialSessionAsync();
-        Skip.If(
-            session.BindingState is not null,
-            $"The live server did not return Studio package families: {session.BindingState?.Detail}");
+        Assert.True(session.BindingState is null,
+            $"The configured live server did not return Studio package families: {session.BindingState?.Detail}");
         Assert.NotEmpty(session.Workflows);
 
         session = await shell.GeneratePackageAsync(
@@ -128,42 +130,39 @@ public sealed class ConsoleEndToEndSmokeTests
         Assert.Null(session.BindingState);
         Assert.NotEmpty(session.ActivePackage.ValidationItems);
 
-        // Render the Studio page against the draft we just generated and validated against the live
-        // server — not a fresh, empty session. The page calls IStudioAuthoringShell.CreateInitialSessionAsync
-        // on init, so we hand it a shell that seeds the prepared live session; the assertions then prove the
-        // generated package ref and its server validation state actually render through the Studio UI
-        // (inspector + validation panel), so a regression in the draft/inspector/validate render path fails
-        // this step instead of staying green on workflow-family chrome alone.
-        var seededShell = new PreparedSessionAuthoringShell(shell, session);
-        var renderedPackageRef = session.ActivePackage.PackageRef;
-        var renderedValidationDetail = session.ActivePackage.ValidationItems[0].Detail;
+        // The retained inspector still has a live backend contract, but is no longer
+        // mounted at /studio. Preserve its actual draft and validation assertions in
+        // isolation rather than restoring the legacy authoring page to satisfy a test.
+        using (var inspectorContext = new Bunit.BunitContext())
+        {
+            var inspector = inspectorContext.Render<StudioPackageInspector>(parameters =>
+                parameters.Add(component => component.Package, session.ActivePackage));
+            Assert.Equal(session.ActivePackage.PackageRef,
+                inspector.Find("[data-package-ref]").GetAttribute("data-package-ref"));
+            Assert.Contains(session.ActivePackage.ValidationItems[0].Detail,
+                inspector.Find(".studio-validation-list").TextContent, StringComparison.Ordinal);
+        }
 
         using (var studioContext = new Bunit.BunitContext())
         {
-            studioContext.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
-            studioContext.AddConsoleNotifications();
-            studioContext.Services.AddSingleton<IStudioAuthoringShell>(seededShell);
+            studioContext.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["Studio:EmbedJsStudio"] = "true" })
+                .Build());
+            studioContext.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+                .NavigateTo("/studio");
             var studioPage = studioContext.Render<StudioPage>();
-            studioPage.WaitForAssertion(
-                () =>
-                {
-                    Assert.Contains("data-authoring-contract", studioPage.Markup, StringComparison.Ordinal);
-                    // The generated draft must render through the package inspector (data-package-ref) and
-                    // its live validation state through the validation panel.
-                    Assert.Contains(
-                        $"data-package-ref=\"{renderedPackageRef}\"",
-                        studioPage.Markup,
-                        StringComparison.Ordinal);
-                    Assert.Contains(renderedValidationDetail, studioPage.Markup, StringComparison.Ordinal);
-                },
-                TimeSpan.FromSeconds(10));
+            Assert.Single(studioPage.FindAll("[data-studio-embed] [data-studio-mount]"));
+            Assert.Contains("Connecting", studioPage.Find("[data-studio-status]").TextContent, StringComparison.Ordinal);
+            Assert.Single(studioPage.FindAll("a[href='/studio/processes']"));
+            Assert.Empty(studioPage.FindAll("[data-authoring-contract], [data-legacy-studio-retired], [data-studio-unavailable]"));
+            Assert.Empty(studioPage.FindAll("[data-package-ref]"));
         }
 
         steps.Add(new ConsoleEndToEndSmokeStep(
             "studio-package-render",
             "server",
-            "Generated and validated a real Studio package draft and rendered it through the Studio page.",
-            $"packageRef={session.ActivePackage.PackageRef};schema={session.ActivePackage.SchemaVersion}"));
+            "Rendered the live validated draft in the retained inspector; separately verified the realtime Studio host. JavaScript editor execution requires the installed browser journey.",
+            $"packageRef={session.ActivePackage.PackageRef};schema={session.ActivePackage.SchemaVersion};host=embedded;browserExecuted=false"));
 
         // ---------------------------------------------------------------------------------------------
         // Flow 3 — Operate surface against the live server. Seed a publication via the real publish POST,
@@ -261,64 +260,4 @@ public sealed class ConsoleEndToEndSmokeTests
             Task.FromResult(CatalogReadContext.Authenticated);
     }
 
-    /// <summary>
-    /// Wraps the live <see cref="IStudioAuthoringShell"/> but seeds the Studio page with a session that has
-    /// already been generated and validated against the real server, so <see cref="StudioPage"/> renders that
-    /// concrete draft (package inspector + validation panel) on init instead of recreating a fresh, empty
-    /// session. Every other operation delegates to the real shell, keeping the rendered surface server-bound.
-    /// </summary>
-    private sealed class PreparedSessionAuthoringShell : IStudioAuthoringShell
-    {
-        private readonly IStudioAuthoringShell _inner;
-        private readonly StudioAuthoringSession _prepared;
-
-        public PreparedSessionAuthoringShell(IStudioAuthoringShell inner, StudioAuthoringSession prepared)
-        {
-            _inner = inner;
-            _prepared = prepared;
-        }
-
-        public Task<StudioAuthoringSession> CreateInitialSessionAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(_prepared);
-
-        public Task<StudioAuthoringSession> SelectWorkflowAsync(
-            StudioAuthoringSession session,
-            string workflowId,
-            CancellationToken cancellationToken = default) =>
-            _inner.SelectWorkflowAsync(session, workflowId, cancellationToken);
-
-        public Task<StudioAuthoringSession> GeneratePackageAsync(
-            StudioAuthoringSession session,
-            string workflowId,
-            string prompt,
-            CancellationToken cancellationToken = default) =>
-            _inner.GeneratePackageAsync(session, workflowId, prompt, cancellationToken);
-
-        public Task<StudioAuthoringSession> ApplyClarificationAsync(
-            StudioAuthoringSession session,
-            string questionId,
-            string choiceId,
-            CancellationToken cancellationToken = default) =>
-            _inner.ApplyClarificationAsync(session, questionId, choiceId, cancellationToken);
-
-        public Task<StudioAuthoringSession> ValidateAsync(
-            StudioAuthoringSession session,
-            CancellationToken cancellationToken = default) =>
-            _inner.ValidateAsync(session, cancellationToken);
-
-        public Task<StudioAuthoringSession> PreviewPlanAsync(
-            StudioAuthoringSession session,
-            CancellationToken cancellationToken = default) =>
-            _inner.PreviewPlanAsync(session, cancellationToken);
-
-        public Task<StudioAuthoringSession> SaveVersionAsync(
-            StudioAuthoringSession session,
-            CancellationToken cancellationToken = default) =>
-            _inner.SaveVersionAsync(session, cancellationToken);
-
-        public Task<StudioAuthoringSession> PublishAsync(
-            StudioAuthoringSession session,
-            CancellationToken cancellationToken = default) =>
-            _inner.PublishAsync(session, cancellationToken);
-    }
 }

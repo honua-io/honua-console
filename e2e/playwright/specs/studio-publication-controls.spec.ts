@@ -16,18 +16,25 @@ async function mount(page: Page, clear = true, fail = false) {
             envelope: { publicationIntent: { route: '/maps/parcels', visibility: 'organization' } },
             validation: { status: 'valid', diagnostics: [] } };
         const calls: any[] = [];
+        const reads: any[] = [];
         app.workspace = { storage: sessionStorage, workspaceId: 'publication-test' };
         app.workspaceCookieBinding = { principalId: 'human', environmentId: 'local' };
         app.workspaceDraftIdentity = { draftId: 'draft' };
         app.listWorkspaceVersions = async () => [version];
         app.reviewWorkspacePublication = async () => structuredClone(version);
+        app.readWorkspacePublication = async (versionId: string, requestId: string) => {
+            reads.push({ versionId, requestId });
+            if (app.publicationReceipt) return app.publicationReceipt;
+            throw Object.assign(new Error('Publication is not created yet.'), { status: 404 });
+        };
         app.publishWorkspaceVersion = async (review: any, input: any, command: string) => {
             calls.push({ versionId: review.versionId, input, command });
             if (fail) throw new Error('Response lost. The original submission is retained.');
-            return { status: 'awaiting-approval', operationInstanceId: 'operation', proposalId: 'proposal' };
+            return { status: 'awaiting-approval', operationInstanceId: 'operation', proposalId: 'proposal',
+                requestId: 'request', itemId: 'item', versionId: 'version' };
         };
         const controls = mountStudioVersionControls({ app, host, status });
-        (window as any).publicationFixture = { app, calls, controls };
+        (window as any).publicationFixture = { app, calls, reads, controls };
     }, { clear, fail });
 }
 
@@ -42,7 +49,7 @@ test('reviewing a saved version does not publish; explicit submission shows pend
     const panel = page.getByRole('region', { name: 'Map publication', exact: true });
     await expect(panel).toContainText('Awaiting separate human approval. Proposal proposal.');
     await expect(panel).not.toContainText('was published');
-    await expect(page.getByRole('link', { name: 'Review approvals' })).toHaveAttribute('href', '/inbox');
+    await expect(page.getByRole('link', { name: 'Review approvals' })).toHaveAttribute('href', '/inbox?proposalId=proposal');
     expect(await page.evaluate(() => (window as any).publicationFixture.calls.length)).toBe(1);
 });
 
@@ -61,7 +68,7 @@ test('reload retains unknown submission and explicitly retries the original iden
     expect(await page.evaluate(() => (window as any).publicationFixture.calls)).toEqual([original]);
 });
 
-test('a retained retry button cannot submit after the operator changes', async ({ page }) => {
+test('a retained refresh button cannot read or submit after the operator changes', async ({ page }) => {
     await mount(page);
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
     await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
@@ -70,7 +77,48 @@ test('a retained retry button cannot submit after the operator changes', async (
         const app = (window as any).publicationFixture.app;
         app.workspaceCookieBinding = { principalId: 'other-human', environmentId: 'local' };
     });
-    await page.getByRole('button', { name: 'Retry original submission', exact: true }).click();
+    await page.getByRole('button', { name: 'Refresh publication status', exact: true }).click();
     await expect(page.getByRole('region', { name: 'Map publication' })).toContainText('Restore the original map, account and environment');
+    expect(await page.evaluate(() => (window as any).publicationFixture.calls.length)).toBe(1);
+    expect(await page.evaluate(() => (window as any).publicationFixture.reads.length)).toBe(0);
+});
+
+test('reload refreshes a completed publication without another submission', async ({ page }) => {
+    await mount(page);
+    await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
+    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Publish reviewed version', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Map publication' })).toContainText('Awaiting separate human approval');
+    await mount(page, false);
+    await page.evaluate(() => {
+        (window as any).publicationFixture.app.publicationReceipt = {
+            status: 'accepted', itemId: 'item', versionId: 'version', requestId: 'request',
+        };
+    });
+    await page.getByRole('button', { name: 'Refresh publication status', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Map publication' })).toContainText('The reviewed version was published.');
+    expect(await page.evaluate(() => (window as any).publicationFixture.calls)).toEqual([]);
+    expect(await page.evaluate(() => (window as any).publicationFixture.reads)).toEqual([{ versionId: 'version', requestId: 'request' }]);
+    await expect(page.getByRole('button', { name: 'Acknowledge publication outcome', exact: true })).toBeVisible();
+});
+
+test('read-only approval rejection is shown without claiming publication or sending another mutation', async ({ page }) => {
+    let reads = 0;
+    await page.route('**/api/processes/admin/proposals/proposal', async route => {
+        expect(route.request().method()).toBe('GET');
+        expect(route.request().headers()['x-honua-environment']).toBe('local');
+        expect(route.request().headers()['x-honua-session-partition']).toBe('human');
+        reads++;
+        await route.fulfill({ json: { proposalId: 'proposal', status: 'Rejected' } });
+    });
+    await mount(page);
+    await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
+    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Publish reviewed version', exact: true }).click();
+    await page.getByRole('button', { name: 'Refresh publication status', exact: true }).click();
+    const panel = page.getByRole('region', { name: 'Map publication' });
+    await expect(panel).toContainText('A human approver rejected the publication.');
+    await expect(panel).not.toContainText('was published');
+    expect(reads).toBe(1);
     expect(await page.evaluate(() => (window as any).publicationFixture.calls.length)).toBe(1);
 });

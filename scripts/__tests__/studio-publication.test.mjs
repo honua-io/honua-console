@@ -121,3 +121,82 @@ test('corrupt recovery records and invalid routes do not dispatch', async () => 
     await assert.rejects(session.retry(), /unreadable/);
     assert.equal(calls.length, 0);
 });
+
+async function submittedWithResources() {
+    const f = fixture();
+    f.app.publishWorkspaceVersion = async (...args) => {
+        f.calls.push(args);
+        return { status: 'awaiting-approval', operationInstanceId: 'operation', proposalId: 'proposal',
+            itemId: 'item', versionId: 'version', requestId: 'request' };
+    };
+    await f.session.review('version'); await f.session.submit(input);
+    return f;
+}
+
+test('after reload, refreshing a known receipt reads the original version without a review or publish', async () => {
+    const { session, app, calls } = await submittedWithResources();
+    assert.equal(session.read().receipt.requestId, 'request');
+    app.reviewWorkspacePublication = async () => { throw new Error('refresh must not flush draft edits'); };
+    let reads = 0;
+    app.readWorkspacePublication = async (version, request) => {
+        reads++; assert.equal(version, 'version'); assert.equal(request, 'request');
+        return { status: 'accepted', itemId: 'item', versionId: 'version', requestId: 'request' };
+    };
+    const restored = new StudioPublicationSession(app, { uuid: () => { throw new Error('refresh must not mint a command'); } });
+    assert.equal((await restored.refresh()).status, 'accepted');
+    assert.equal(restored.read().commandId, 'original-command');
+    assert.equal(reads, 1); assert.equal(calls.length, 1);
+    restored.acknowledge(); assert.equal(restored.read(), null);
+});
+
+for (const [proposalStatus, expected, resolved] of [
+    ['AwaitingApproval', 'awaiting-approval', false], ['Executing', 'approval-executing', false],
+    ['Succeeded', 'approval-completed', false], ['Rejected', 'approval-rejected', true],
+    ['Failed', 'approval-failed', true], ['Cancelled', 'approval-cancelled', true], ['RolledBack', 'approval-rolled-back', true],
+]) {
+    test(`missing publication reads ${proposalStatus} approval without inventing publication success`, async () => {
+        const { session, app, calls } = await submittedWithResources();
+        app.readWorkspacePublication = async () => { throw Object.assign(new Error('not created'), { status: 404 }); };
+        session.readProposal = async id => { assert.equal(id, 'proposal'); return { proposalId: id, status: proposalStatus }; };
+        assert.equal((await session.refresh()).status, expected);
+        assert.equal(session.read().receipt.status, expected);
+        assert.equal(calls.length, 1);
+        if (resolved) { session.acknowledge(); assert.equal(session.read(), null); }
+        else assert.throws(() => session.acknowledge(), /confirmed outcome/);
+    });
+}
+
+test('unavailable, unknown or mismatched status reads retain the original pending record', async () => {
+    const { session, app, calls } = await submittedWithResources();
+    const original = session.read();
+    app.readWorkspacePublication = async () => { throw Object.assign(new Error('forbidden'), { status: 403 }); };
+    session.readProposal = async () => { throw new Error('must not bypass forbidden publication reads'); };
+    await assert.rejects(session.refresh(), /forbidden/);
+    app.readWorkspacePublication = async () => ({ status: 'accepted', itemId: 'other', versionId: 'version', requestId: 'request' });
+    await assert.rejects(session.refresh(), /does not match/);
+    app.readWorkspacePublication = async () => { throw Object.assign(new Error('missing'), { status: 404 }); };
+    for (const proposal of [{ proposalId: 'other', status: 'Succeeded' }, ...['FutureStatus', 'constructor', '__proto__', 'toString'].map(status => ({ proposalId: 'proposal', status }))]) {
+        session.readProposal = async () => proposal;
+        await assert.rejects(session.refresh(), /does not match|outcome is unknown/);
+    }
+    assert.deepEqual(session.read(), original); assert.equal(calls.length, 1);
+});
+
+test('an authority change during status read cannot overwrite the retained record', async () => {
+    const { session, app, calls } = await submittedWithResources();
+    const original = session.read();
+    app.readWorkspacePublication = async () => {
+        app.workspaceCookieBinding.principalId = 'other-human';
+        return { status: 'accepted', itemId: 'item', versionId: 'version', requestId: 'request' };
+    };
+    await assert.rejects(session.refresh(), /workspace changed/);
+    assert.deepEqual(session.read(), original); assert.equal(calls.length, 1);
+});
+
+test('a pending receipt cannot attach another version or incomplete resource identifiers', async () => {
+    const { session, app } = fixture(); await session.review('version');
+    app.publishWorkspaceVersion = async () => ({ status: 'awaiting-approval', operationInstanceId: 'operation', proposalId: 'proposal',
+        requestId: 'request', itemId: 'item', versionId: 'other' });
+    await assert.rejects(session.submit(input), /resource references do not match/);
+    assert.equal(session.read().receipt, undefined);
+});

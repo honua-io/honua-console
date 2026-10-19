@@ -71,7 +71,8 @@ export function mountStudioVersionControls({ app, host, status }) {
                 void publication.review(version.versionId);
             });
             row.append(label, reopen);
-            if (typeof app.reviewWorkspacePublication === 'function' && typeof app.publishWorkspaceVersion === 'function') row.append(publish);
+            if (typeof app.reviewWorkspacePublication === 'function' && typeof app.publishWorkspaceVersion === 'function'
+                && typeof app.readWorkspacePublication === 'function') row.append(publish);
             versions.append(row);
         }
         if (!items.length) status.textContent = 'This map has no saved versions yet.';

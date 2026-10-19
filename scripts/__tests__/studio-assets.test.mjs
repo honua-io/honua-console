@@ -18,6 +18,16 @@ test('production Studio assets are complete and pinned to reviewed source bytes'
         assert.equal(createHash('sha256').update(bytes).digest('hex'),entry.sha256,entry.path);
     }
     for(const path of ['console.js','style.css','LICENSE','THIRD-PARTY-NOTICES.txt','STUDIO-PROVENANCE.json','SDK-PROVENANCE.json'])assert.ok(paths.has(path),path);
+    const provenance=JSON.parse(await readFile(join(root,'STUDIO-PROVENANCE.json'),'utf8'));
+    const sdk=JSON.parse(await readFile(join(root,'SDK-PROVENANCE.json'),'utf8'));
+    assert.equal(provenance.schema,'honua.studio.console-assets/v1');
+    assert.equal(provenance.sourceCommit,manifest.studioRevision);
+    assert.equal(provenance.sdk.sourceCommit,manifest.sdkRevision);
+    assert.deepEqual(provenance.sdk,sdk);
+    assert.equal(provenance.releaseQualified,false);
+    assert.deepEqual(provenance.files,Object.fromEntries(manifest.files
+        .filter(entry=>entry.path!=='STUDIO-PROVENANCE.json')
+        .map(({path,bytes,sha256})=>[path,{bytes,sha256}])));
     async function walk(directory,prefix=''){
         const found=[];
         for(const entry of await readdir(directory,{withFileTypes:true})){

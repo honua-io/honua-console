@@ -2402,7 +2402,7 @@ var Ln = class {
 			if (i.pending.length === 0) return d("completed");
 			let f = !1;
 			for (let t of i.pending) {
-				let n = e === this.#f ? f ? Rn(t, "unknown", "A previous command encountered a draft conflict. Review the refreshed draft before continuing this batch.", "failed_precondition") : await this.#N(() => this.#P(t)) : Rn(t, "unknown", "The workflow tool view changed. Plan again using the refreshed tools.", "failed_precondition");
+				let n = e === this.#f ? f ? Rn(t, "unknown", "A previous command encountered a draft conflict. Review the refreshed draft before continuing this batch.", "failed_precondition") : await this.#N(() => this.#P(t, e)) : Rn(t, "unknown", "The workflow tool view changed. Plan again using the refreshed tools.", "failed_precondition");
 				!n.ok && n.errorCode === "failed_precondition" && (f = !0), o.push(n), this.#e.onEvent?.({
 					type: "toolResult",
 					result: n
@@ -2556,7 +2556,8 @@ var Ln = class {
 		let t = this.#x.then(e, e);
 		return this.#x = t.then(() => void 0, () => void 0), t;
 	}
-	async #P(e) {
+	async #P(e, t) {
+		if (t !== this.#f) return Rn(e, "unknown", "The workflow tool view changed. Plan again using the refreshed tools.", "failed_precondition");
 		if (this.#r.has(e.toolName)) return this.#F(e);
 		if (this.#p && e.toolName === jn) {
 			let t = Wn(e.args);
@@ -2579,8 +2580,8 @@ var Ln = class {
 			}
 		}
 		if (this.#s.has(e.toolName)) return this.#I(e);
-		let t = this.#s.rejections.find((t) => t.name === e.toolName);
-		return t ? Rn(e, "composition", `Tool "${e.toolName}" is not routable by this session: ${t.detail}`) : Rn(e, "unknown", `No tool named "${e.toolName}" is available to this session.`);
+		let n = this.#s.rejections.find((t) => t.name === e.toolName);
+		return n ? Rn(e, "composition", `Tool "${e.toolName}" is not routable by this session: ${n.detail}`) : Rn(e, "unknown", `No tool named "${e.toolName}" is available to this session.`);
 	}
 	async #F(e) {
 		let t = this.#i;
@@ -9285,33 +9286,62 @@ function yf(e) {
 	].filter(Boolean).join("\n");
 }
 //#endregion
+//#region src/lifecycle/approval-pending.ts
+function bf(e) {
+	if (!e || typeof e != "object" || Array.isArray(e)) return;
+	let t = e;
+	if (![
+		4,
+		"RequiresApproval",
+		"requiresApproval"
+	].includes(t.status) || typeof t.operationInstanceId != "string" || !t.operationInstanceId.trim() || typeof t.proposalId != "string" || !t.proposalId.trim()) return;
+	let n = t.resourceIds, r = {};
+	if (n && typeof n == "object" && !Array.isArray(n)) for (let e of [
+		"requestId",
+		"itemId",
+		"versionId"
+	]) {
+		let t = n[e];
+		typeof t == "string" && /^[A-Za-z0-9_-]{1,128}$/.test(t) && (r[e] = t);
+	}
+	return {
+		status: "awaiting-approval",
+		operationInstanceId: t.operationInstanceId,
+		proposalId: t.proposalId,
+		...r,
+		...typeof t.auditId == "string" ? { auditId: t.auditId } : {},
+		...typeof t.correlationId == "string" ? { correlationId: t.correlationId } : {},
+		...typeof t.proposalUri == "string" ? { proposalUri: t.proposalUri } : {}
+	};
+}
+//#endregion
 //#region src/lifecycle/lifecycle-errors.ts
-var bf = class extends Error {
+var xf = class extends Error {
 	code;
 	status;
 	problem;
 	constructor(e, t, n = {}) {
 		super(t, "cause" in n ? { cause: n.cause } : void 0), this.name = "StudioLifecycleError", this.code = e, this.status = n.status, this.problem = n.problem;
 	}
-}, xf = class extends bf {
+}, Sf = class extends xf {
 	constructor(e, t = {}) {
 		super("generation-conflict", e, t), this.name = "StudioLifecycleConflictError";
 	}
-}, Sf = class extends bf {
+}, Cf = class extends xf {
 	constructor(e) {
 		super("session-expired", `Your session has expired. Sign in again to reach ${e}.`), this.name = "StudioLifecycleSessionExpiredError";
 	}
-}, Cf = class extends bf {
+}, wf = class extends xf {
 	constructor(e, t) {
 		super("unknown", e, { cause: t }), this.name = "StudioLifecycleTransportError";
 	}
 };
 //#endregion
 //#region src/lifecycle/lifecycle-client.ts
-function wf(e) {
+function Tf(e) {
 	return typeof e == "object" && !!e && typeof e.title == "string" && typeof e.status == "number";
 }
-function Tf(e) {
+function Ef(e) {
 	let t = new URLSearchParams();
 	for (let [n, r] of Object.entries(e)) if (r !== void 0) if (Array.isArray(r)) {
 		if (r.length === 0) continue;
@@ -9320,7 +9350,7 @@ function Tf(e) {
 	let n = t.toString();
 	return n ? `?${n}` : "";
 }
-var Ef = class {
+var Df = class {
 	#e;
 	#t;
 	#n;
@@ -9331,7 +9361,7 @@ var Ef = class {
 		return this.#i("GET", "/package-families");
 	}
 	listContentItems(e = {}) {
-		let t = Tf({
+		let t = Ef({
 			family: e.families,
 			workspaceId: e.workspaceId,
 			owner: e.owner,
@@ -9343,7 +9373,7 @@ var Ef = class {
 		return this.#i("GET", `/content-items${t}`);
 	}
 	listPackageDrafts(e = {}) {
-		let t = Tf({
+		let t = Ef({
 			family: e.families,
 			workspaceId: e.workspaceId,
 			owner: e.owner,
@@ -9395,11 +9425,14 @@ var Ef = class {
 	reopenVersion(e, t) {
 		return this.#i("POST", `/content-items/${encodeURIComponent(e)}/versions/${encodeURIComponent(t)}/reopen`);
 	}
-	requestPublish(e, t, n = {}) {
-		return this.#i("POST", `/content-items/${encodeURIComponent(e)}/versions/${encodeURIComponent(t)}/publish-requests`, n);
+	requestPublish(e, t, n = {}, r) {
+		return this.#i("POST", `/content-items/${encodeURIComponent(e)}/versions/${encodeURIComponent(t)}/publish-requests`, n, r, !0);
 	}
-	requestRollback(e, t) {
-		return this.#i("POST", `/content-items/${encodeURIComponent(e)}/rollback-requests`, t);
+	getPublicationRequest(e, t, n) {
+		return this.#i("GET", `/content-items/${encodeURIComponent(e)}/versions/${encodeURIComponent(t)}/publish-requests/${encodeURIComponent(n)}`);
+	}
+	requestRollback(e, t, n) {
+		return this.#i("POST", `/content-items/${encodeURIComponent(e)}/rollback-requests`, t, n, !0);
 	}
 	async #r(e, t, n, r, i) {
 		let a = { accept: "application/json" };
@@ -9413,23 +9446,31 @@ var Ef = class {
 			...n === void 0 ? {} : { body: JSON.stringify(n) }
 		});
 	}
-	async #i(e, t, n, r) {
-		let i = `${this.#e}/v1/studio${t}`, a;
+	async #i(e, t, n, r, i = !1) {
+		let a = `${this.#e}/v1/studio${t}`, o;
 		try {
-			a = await this.#r(t, e, n, !1, r);
+			o = await this.#r(t, e, n, !1, r);
 		} catch (e) {
-			throw new Cf(`Could not reach the Studio lifecycle API at ${i}.`, e);
+			throw new wf(`Could not reach the Studio lifecycle API at ${a}.`, e);
 		}
-		if (a.status === 401 && this.#t) try {
-			a = await this.#r(t, e, n, !0, r);
+		if (o.status === 401 && this.#t) try {
+			o = await this.#r(t, e, n, !0, r);
 		} catch (e) {
-			throw new Cf(`Could not reach the Studio lifecycle API at ${i}.`, e);
+			throw new wf(`Could not reach the Studio lifecycle API at ${a}.`, e);
 		}
-		if (a.status === 401) throw new Sf(i);
-		if (!a.ok) throw await this.#a(a);
-		if (a.status === 204) return;
-		let o = await a.text();
-		if (o) return JSON.parse(o).data;
+		if (o.status === 401) throw new Cf(a);
+		if (!o.ok) throw await this.#a(o);
+		if (o.status === 204) return;
+		let s = await o.text();
+		if (!s && o.status !== 202) return;
+		if (!s) throw new xf("unknown", "The pending action returned no operation receipt.", { status: 202 });
+		let c = JSON.parse(s);
+		if (o.status === 202) {
+			let e = bf(c.data);
+			if (i && e) return e;
+			throw new xf("unknown", "The action is pending; no completed result was returned.", { status: 202 });
+		}
+		return c.data;
 	}
 	async #a(e) {
 		let t;
@@ -9438,11 +9479,11 @@ var Ef = class {
 		} catch {
 			t = void 0;
 		}
-		let n = wf(t) ? t : void 0, r = n?.detail ?? n?.title ?? `Studio lifecycle API responded ${e.status}.`;
-		return e.status === 409 ? new xf(r, {
+		let n = Tf(t) ? t : void 0, r = n?.detail ?? n?.title ?? `Studio lifecycle API responded ${e.status}.`;
+		return e.status === 409 ? new Sf(r, {
 			status: e.status,
 			problem: n
-		}) : new bf(e.status === 404 ? "not-found" : e.status === 400 ? "validation" : "internal", r, {
+		}) : new xf(e.status === 404 ? "not-found" : e.status === 400 ? "validation" : "internal", r, {
 			status: e.status,
 			problem: n
 		});
@@ -9452,12 +9493,12 @@ var Ef = class {
 	constructor(e, t) {
 		super(e), this.cause = t, this.name = "StudioClientError";
 	}
-}, Df = class extends U {
+}, Of = class extends U {
 	constructor(e) {
 		super(`Your session has expired. Sign in again to reach ${e}.`), this.name = "StudioSessionExpiredError";
 	}
 };
-async function Of(e, t, n, r) {
+async function kf(e, t, n, r) {
 	let i = new Headers(r?.headers);
 	if (i.has("accept") || i.set("accept", "application/json"), t) {
 		let e = await t.getAccessToken({ forceRefresh: n });
@@ -9468,28 +9509,28 @@ async function Of(e, t, n, r) {
 		headers: i
 	});
 }
-async function kf(e, t, n) {
+async function Af(e, t, n) {
 	let r;
 	try {
-		r = await Of(e, t, !1, n);
+		r = await kf(e, t, !1, n);
 	} catch (t) {
 		throw new U(`Could not reach the Studio server at ${e}.`, t);
 	}
 	if (r.status === 401 && t) try {
-		r = await Of(e, t, !0, n);
+		r = await kf(e, t, !0, n);
 	} catch (t) {
 		throw new U(`Could not reach the Studio server at ${e}.`, t);
 	}
-	if (r.status === 401) throw new Df(e);
+	if (r.status === 401) throw new Of(e);
 	if (!r.ok) throw new U(`Studio server responded ${r.status} for ${e}.`);
 	return r;
 }
-var Af = 100, jf = 100;
-function Mf(e) {
+var jf = 100, Mf = 100;
+function Nf(e) {
 	if (!e || typeof e != "object" || Array.isArray(e)) throw new U("Invalid catalog response.");
 	return e;
 }
-var Nf = class {
+var Pf = class {
 	baseUrl;
 	auth;
 	mcp;
@@ -9498,26 +9539,26 @@ var Nf = class {
 	constructor(e = "/api", t, n = e.replace(/\/api\/?$/, "")) {
 		this.baseUrl = e, this.auth = t, this.dataBaseUrl = n.replace(/\/$/, ""), this.mcp = new gu({
 			baseUrl: this.dataBaseUrl,
-			fetchImpl: (e, t) => kf(String(e), this.auth, t)
-		}), this.lifecycle = new Ef({
+			fetchImpl: (e, t) => Af(String(e), this.auth, t)
+		}), this.lifecycle = new Df({
 			baseUrl: e,
 			auth: t
 		});
 	}
 	async health() {
-		return (await kf(`${this.baseUrl}/health`, this.auth)).json();
+		return (await Af(`${this.baseUrl}/health`, this.auth)).json();
 	}
 	async listCatalog() {
 		let e = [], t = /* @__PURE__ */ new Map(), n = 0;
 		try {
-			for (let r = 0; r < jf; r++) {
+			for (let r = 0; r < Mf; r++) {
 				let r = await this.mcp.callTool("honua_list_layers", {
 					offset: n,
-					limit: Af
-				}), i = r.content?.find((e) => e.type === "text")?.text, a = Mf(r.structuredContent ?? (i ? JSON.parse(i) : void 0));
-				if (!Array.isArray(a.layers) || a.layers.length > Af || a.offset !== n || typeof a.hasMore != "boolean" || a.layerCount !== a.layers.length) throw new U("Invalid layer catalog page.");
+					limit: jf
+				}), i = r.content?.find((e) => e.type === "text")?.text, a = Nf(r.structuredContent ?? (i ? JSON.parse(i) : void 0));
+				if (!Array.isArray(a.layers) || a.layers.length > jf || a.offset !== n || typeof a.hasMore != "boolean" || a.layerCount !== a.layers.length) throw new U("Invalid layer catalog page.");
 				for (let n of a.layers) {
-					let r = Mf(n);
+					let r = Nf(n);
 					if (typeof r.serviceId != "string" || !r.serviceId || typeof r.serviceName != "string" || !r.serviceName || !Number.isSafeInteger(r.layerId) || Number(r.layerId) < 0 || typeof r.name != "string" || typeof r.geometryType != "string") throw new U("Invalid layer catalog identity.");
 					let i = `${encodeURIComponent(r.serviceId)}/${r.layerId}`, a = {
 						id: i,
@@ -9548,12 +9589,12 @@ var Nf = class {
 	async listPackages() {
 		let e = [], t = /* @__PURE__ */ new Set(), n;
 		try {
-			for (let r = 0; r < jf; r++) {
+			for (let r = 0; r < Mf; r++) {
 				let r = await this.lifecycle.listContentItems({
-					limit: Af,
+					limit: jf,
 					cursor: n
 				});
-				if (!Array.isArray(r.items) || r.items.length > Af || r.nextCursor !== null && r.nextCursor !== void 0 && typeof r.nextCursor != "string") throw new U("Invalid content item page.");
+				if (!Array.isArray(r.items) || r.items.length > jf || r.nextCursor !== null && r.nextCursor !== void 0 && typeof r.nextCursor != "string") throw new U("Invalid content item page.");
 				for (let t of r.items) {
 					if (typeof t.itemId != "string" || typeof t.packageKey != "string" || typeof t.family != "string" || typeof t.updatedAt != "string" || ![
 						"draft",
@@ -9574,7 +9615,7 @@ var Nf = class {
 			}
 			throw new U("Content items exceeded the bounded page limit.");
 		} catch (e) {
-			throw e instanceof Sf ? new Df(`${this.baseUrl}/v1/studio/content-items`) : e instanceof U ? e : new U(`Could not load Studio content items: ${e instanceof Error ? e.message : String(e)}`, e);
+			throw e instanceof Cf ? new Of(`${this.baseUrl}/v1/studio/content-items`) : e instanceof U ? e : new U(`Could not load Studio content items: ${e instanceof Error ? e.message : String(e)}`, e);
 		}
 	}
 }, W = class extends Error {
@@ -9585,19 +9626,19 @@ var Nf = class {
 		super(t), this.name = "CompositionCommandError", this.code = e, this.command = n.command, this.details = n.details ?? [];
 	}
 };
-function Pf(e) {
+function Ff(e) {
 	return e instanceof W;
 }
-function Ff(e, t) {
+function If(e, t) {
 	return e.pins.some((e) => au(e, t));
 }
-function If(e, t) {
+function Lf(e, t) {
 	if (t.kind === "layer") {
 		let n = e.layers.find((e) => e.id === t.id);
 		return {
 			target: t,
 			exists: n !== void 0,
-			pinned: Ff(e, t),
+			pinned: If(e, t),
 			entity: n
 		};
 	}
@@ -9606,7 +9647,7 @@ function If(e, t) {
 		return {
 			target: t,
 			exists: n !== void 0,
-			pinned: Ff(e, t),
+			pinned: If(e, t),
 			entity: n
 		};
 	}
@@ -9615,7 +9656,7 @@ function If(e, t) {
 		return {
 			target: t,
 			exists: n !== void 0,
-			pinned: Ff(e, t),
+			pinned: If(e, t),
 			entity: n
 		};
 	}
@@ -9624,32 +9665,32 @@ function If(e, t) {
 		return {
 			target: t,
 			exists: n !== void 0,
-			pinned: Ff(e, t),
+			pinned: If(e, t),
 			entity: n
 		};
 	}
 	return {
 		target: t,
 		exists: !0,
-		pinned: Ff(e, t)
+		pinned: If(e, t)
 	};
 }
-function Lf(e, t) {
+function Rf(e, t) {
 	let n = Jd(t);
 	if (!n.ok) throw new W("invalid-command", `Invalid composition command: ${n.errors.join("; ")}`, { details: n.errors });
-	let r = n.command, i = zf(e, r);
+	let r = n.command, i = Bf(e, r);
 	return {
 		state: i,
 		diff: {
 			command: r,
-			changes: $f(e, i)
+			changes: ep(e, i)
 		}
 	};
 }
-function Rf(e, t) {
+function zf(e, t) {
 	let n = e, r = [];
 	for (let e of t) {
-		let t = Lf(n, e);
+		let t = Rf(n, e);
 		n = t.state, r.push(t.diff);
 	}
 	return {
@@ -9657,12 +9698,12 @@ function Rf(e, t) {
 		diffs: r
 	};
 }
-function zf(e, t) {
+function Bf(e, t) {
 	switch (t.name) {
-		case "addLayer": return Bf(e, t.layer, t, t.beforeId);
+		case "addLayer": return Vf(e, t.layer, t, t.beforeId);
 		case "removeLayer": {
-			Zf(Xf(e, t.target, "layer", t), t);
-			let n = Qf(t.target);
+			Qf(Zf(e, t.target, "layer", t), t);
+			let n = $f(t.target);
 			return {
 				...e,
 				layers: e.layers.filter((e) => e.id !== n),
@@ -9679,22 +9720,22 @@ function zf(e, t) {
 			};
 		}
 		case "setLayerStyleRef": {
-			Zf(Xf(e, t.target, "layer", t), t);
-			let n = Qf(t.target), r = `honua-inline:${n}`;
+			Qf(Zf(e, t.target, "layer", t), t);
+			let n = $f(t.target), r = `honua-inline:${n}`;
 			return {
 				...e,
 				...t.styleBody === void 0 ? {} : { styleRefs: [...(e.styleRefs ?? []).filter((e) => e.styleId !== r), {
 					styleId: r,
 					body: t.styleBody
 				}] },
-				layers: e.layers.map((e) => e.id === n ? Yf(e, t.styleBody === void 0 ? t.styleRef : {
+				layers: e.layers.map((e) => e.id === n ? Xf(e, t.styleBody === void 0 ? t.styleRef : {
 					kind: "style-ref",
 					styleId: r
 				}) : e)
 			};
 		}
 		case "setMapStyle": {
-			for (let n of e.layers) Zf(Xf(e, {
+			for (let n of e.layers) Qf(Zf(e, {
 				kind: "layer",
 				id: n.id
 			}, "layer", t), t);
@@ -9705,12 +9746,12 @@ function zf(e, t) {
 				...e,
 				mapSpec: structuredClone(t.mapSpec),
 				styleRefs: [],
-				layers: e.layers.map((e) => Yf(e, void 0))
+				layers: e.layers.map((e) => Xf(e, void 0))
 			};
 		}
 		case "setVisibility": {
-			Zf(Xf(e, t.target, "layer", t), t);
-			let n = Qf(t.target);
+			Qf(Zf(e, t.target, "layer", t), t);
+			let n = $f(t.target);
 			return {
 				...e,
 				layers: e.layers.map((e) => e.id === n && e.visible !== t.visible ? {
@@ -9721,40 +9762,40 @@ function zf(e, t) {
 		}
 		case "setView": return {
 			...e,
-			view: Kf(e.view, t.view, t)
+			view: qf(e.view, t.view, t)
 		};
-		case "addWidget": return Vf(e, t.widget, t);
+		case "addWidget": return Hf(e, t.widget, t);
 		case "removeWidget": {
-			Zf(Xf(e, t.target, "component", t), t);
-			let n = Qf(t.target);
+			Qf(Zf(e, t.target, "component", t), t);
+			let n = $f(t.target);
 			return {
 				...e,
 				widgets: e.widgets.filter((e) => e.id !== n)
 			};
 		}
-		case "addControl": return Hf(e, t.control, t);
-		case "removeControl": return Uf(e, t);
-		case "bindInteraction": return Wf(e, t.interaction);
+		case "addControl": return Uf(e, t.control, t);
+		case "removeControl": return Wf(e, t);
+		case "bindInteraction": return Gf(e, t.interaction);
 		case "removeInteraction":
 			if (!e.interactions.some((e) => e.id === t.interactionId)) throw new W("target-not-found", `removeInteraction: interaction "${t.interactionId}" does not exist`, { command: t });
 			return {
 				...e,
 				interactions: e.interactions.filter((e) => e.id !== t.interactionId)
 			};
-		case "addAnnotation": return Gf(e, t.annotation, t);
+		case "addAnnotation": return Kf(e, t.annotation, t);
 		case "removeAnnotation": {
-			Zf(Xf(e, t.target, "region", t), t);
-			let n = Qf(t.target);
+			Qf(Zf(e, t.target, "region", t), t);
+			let n = $f(t.target);
 			return {
 				...e,
 				annotations: e.annotations.filter((e) => e.id !== n)
 			};
 		}
-		case "pin": return qf(e, t.target);
-		case "unpin": return Jf(e, t.target);
+		case "pin": return Jf(e, t.target);
+		case "unpin": return Yf(e, t.target);
 	}
 }
-function Bf(e, t, n, r) {
+function Vf(e, t, n, r) {
 	if (e.layers.some((e) => e.id === t.id)) throw new W("duplicate-id", `addLayer: layer "${t.id}" already exists`, { command: n });
 	let i = {
 		id: t.id,
@@ -9779,7 +9820,7 @@ function Bf(e, t, n, r) {
 		]
 	};
 }
-function Vf(e, t, n) {
+function Hf(e, t, n) {
 	if (e.widgets.some((e) => e.id === t.id)) throw new W("duplicate-id", `addWidget: widget "${t.id}" already exists`, { command: n });
 	let r = {
 		id: t.id,
@@ -9793,7 +9834,7 @@ function Vf(e, t, n) {
 		widgets: [...e.widgets, r]
 	};
 }
-function Hf(e, t, n) {
+function Uf(e, t, n) {
 	if (e.controls.some((e) => e.id === t.id)) throw new W("duplicate-id", `addControl: control "${t.id}" already exists`, { command: n });
 	let r = {
 		id: t.id,
@@ -9807,9 +9848,9 @@ function Hf(e, t, n) {
 		controls: [...e.controls, r]
 	};
 }
-function Uf(e, t) {
-	Zf(Xf(e, t.target, "control", t), t);
-	let n = Qf(t.target), r = ru(e, n);
+function Wf(e, t) {
+	Qf(Zf(e, t.target, "control", t), t);
+	let n = $f(t.target), r = ru(e, n);
 	if (r.length > 0 && t.cascadeInteractions !== !0) throw new W("interaction-conflict", `removeControl: control "${n}" is still referenced by ${r.map((e) => `"${e.id}"`).join(", ")} — remove those bindings first, or pass cascadeInteractions: true`, {
 		command: t,
 		details: r.map((e) => e.id)
@@ -9821,7 +9862,7 @@ function Uf(e, t) {
 		interactions: i.size === 0 ? e.interactions : e.interactions.filter((e) => !i.has(e.id))
 	};
 }
-function Wf(e, t) {
+function Gf(e, t) {
 	let n = e.interactions.findIndex((e) => e.id === t.id);
 	if (n === -1) return {
 		...e,
@@ -9833,7 +9874,7 @@ function Wf(e, t) {
 		interactions: r
 	};
 }
-function Gf(e, t, n) {
+function Kf(e, t, n) {
 	if (e.annotations.some((e) => e.id === t.id)) throw new W("duplicate-id", `addAnnotation: annotation "${t.id}" already exists`, { command: n });
 	let r = {
 		id: t.id,
@@ -9848,7 +9889,7 @@ function Gf(e, t, n) {
 		annotations: [...e.annotations, r]
 	};
 }
-function Kf(e, t, n) {
+function qf(e, t, n) {
 	if (t.zoom !== void 0 && (t.zoom < 0 || t.zoom > 24)) throw new W("out-of-bounds", `setView: zoom ${t.zoom} is out of bounds [0, 24]`, { command: n });
 	if (t.pitch !== void 0 && (t.pitch < 0 || t.pitch > 85)) throw new W("out-of-bounds", `setView: pitch ${t.pitch} is out of bounds [0, 85]`, { command: n });
 	if (t.bearing !== void 0 && (t.bearing < 0 || t.bearing >= 360)) throw new W("out-of-bounds", `setView: bearing ${t.bearing} is out of bounds [0, 360)`, { command: n });
@@ -9857,23 +9898,23 @@ function Kf(e, t, n) {
 		...t
 	};
 }
-function qf(e, t) {
-	if (t.kind !== "feature" && !If(e, t).exists) throw new W("target-not-found", `pin: target ${iu(t)} does not exist`, { command: {
+function Jf(e, t) {
+	if (t.kind !== "feature" && !Lf(e, t).exists) throw new W("target-not-found", `pin: target ${iu(t)} does not exist`, { command: {
 		name: "pin",
 		target: t
 	} });
-	return Ff(e, t) ? e : {
+	return If(e, t) ? e : {
 		...e,
 		pins: [...e.pins, t]
 	};
 }
-function Jf(e, t) {
-	return Ff(e, t) ? {
+function Yf(e, t) {
+	return If(e, t) ? {
 		...e,
 		pins: e.pins.filter((e) => !au(e, t))
 	} : e;
 }
-function Yf(e, t) {
+function Xf(e, t) {
 	if (t === void 0) {
 		let { styleRef: t, ...n } = e;
 		return n;
@@ -9883,20 +9924,20 @@ function Yf(e, t) {
 		styleRef: t
 	};
 }
-function Xf(e, t, n, r) {
+function Zf(e, t, n, r) {
 	if (t.kind !== n) throw new W("invalid-command", `${r.name}: target must be kind "${n}", got "${t.kind}"`, { command: r });
-	let i = If(e, t);
+	let i = Lf(e, t);
 	if (!i.exists) throw new W("target-not-found", `${r.name}: target ${iu(t)} does not exist`, { command: r });
 	return i;
 }
-function Zf(e, t) {
+function Qf(e, t) {
 	if (e.pinned) throw new W("pin-violation", `${t.name}: target ${iu(e.target)} is pinned — unpin it first`, { command: t });
 }
-function Qf(e) {
+function $f(e) {
 	if (e.kind === "feature") throw Error("unreachable: feature target has no scalar id");
 	return e.id;
 }
-function $f(e, t) {
+function ep(e, t) {
 	return [
 		...R(e.mapSpec ?? null) === R(t.mapSpec ?? null) ? [] : [{
 			path: "mapSpec",
@@ -9910,16 +9951,16 @@ function $f(e, t) {
 			before: e.styleRefs,
 			after: t.styleRefs
 		}],
-		...ep(e.layers, t.layers, (e) => e.id, (e) => `layers[${e}]`),
-		...tp(e.view, t.view),
-		...ep(e.widgets, t.widgets, (e) => e.id, (e) => `widgets[${e}]`),
-		...ep(e.controls, t.controls, (e) => e.id, (e) => `controls[${e}]`),
-		...ep(e.interactions, t.interactions, (e) => e.id, (e) => `interactions[${e}]`),
-		...ep(e.annotations, t.annotations, (e) => e.id, (e) => `annotations[${e}]`),
-		...ep(e.pins, t.pins, (e) => iu(e), (e) => `pins[${e}]`)
+		...tp(e.layers, t.layers, (e) => e.id, (e) => `layers[${e}]`),
+		...np(e.view, t.view),
+		...tp(e.widgets, t.widgets, (e) => e.id, (e) => `widgets[${e}]`),
+		...tp(e.controls, t.controls, (e) => e.id, (e) => `controls[${e}]`),
+		...tp(e.interactions, t.interactions, (e) => e.id, (e) => `interactions[${e}]`),
+		...tp(e.annotations, t.annotations, (e) => e.id, (e) => `annotations[${e}]`),
+		...tp(e.pins, t.pins, (e) => iu(e), (e) => `pins[${e}]`)
 	];
 }
-function ep(e, t, n, r) {
+function tp(e, t, n, r) {
 	let i = new Map(e.map((e) => [n(e), e])), a = new Map(t.map((e) => [n(e), e])), o = [];
 	for (let [e, t] of i) a.has(e) || o.push({
 		path: r(e),
@@ -9941,7 +9982,7 @@ function ep(e, t, n, r) {
 	}
 	return o.sort((e, t) => e.path.localeCompare(t.path));
 }
-function tp(e, t) {
+function np(e, t) {
 	let n = /* @__PURE__ */ new Set([...Object.keys(e), ...Object.keys(t)]), r = [];
 	for (let i of n) {
 		let n = e[i], a = t[i], o = n === void 0 ? void 0 : R(n), s = a === void 0 ? void 0 : R(a);
@@ -9964,7 +10005,7 @@ function tp(e, t) {
 }
 //#endregion
 //#region src/composition/history.ts
-var np = class {
+var rp = class {
 	#e;
 	#t;
 	#n;
@@ -9989,7 +10030,7 @@ var np = class {
 		return this.#o;
 	}
 	async reconcile(e) {
-		if (this.#l(), !this.#n) throw new rp("generation-conflict", "No draft sync is attached.");
+		if (this.#l(), !this.#n) throw new ip("generation-conflict", "No draft sync is attached.");
 		this.#s = !0;
 		try {
 			await this.flush();
@@ -10021,7 +10062,7 @@ var np = class {
 	}
 	apply(e) {
 		this.#l();
-		let t = Lf(this.current, e);
+		let t = Rf(this.current, e);
 		return this.#i = [], this.#u({
 			state: t.state,
 			command: t.diff.command,
@@ -10063,7 +10104,7 @@ var np = class {
 		return e;
 	}
 	#l() {
-		if (this.#s) throw new rp("generation-conflict", "Draft reconciliation is in progress.");
+		if (this.#s) throw new ip("generation-conflict", "Draft reconciliation is in progress.");
 	}
 	#u(e) {
 		this.#r.push(e), this.#t !== void 0 && this.#r.length > this.#t && this.#r.splice(0, this.#r.length - this.#t);
@@ -10077,17 +10118,17 @@ var np = class {
 			}
 		}));
 	}
-}, rp = class extends Error {
+}, ip = class extends Error {
 	code;
 	constructor(e, t, n = {}) {
 		super(t, "cause" in n ? { cause: n.cause } : void 0), this.name = "CompositionDraftError", this.code = e;
 	}
-}, ip = class {
+}, ap = class {
 	#e;
 	#t = /* @__PURE__ */ new Set();
 	#n = [];
 	constructor(e, t = {}) {
-		this.#e = new np(e, t);
+		this.#e = new rp(e, t);
 	}
 	get history() {
 		return this.#e;
@@ -10137,7 +10178,7 @@ var np = class {
 };
 //#endregion
 //#region src/mcp/tool-bridge.ts
-function ap(e, t, n) {
+function op(e, t, n) {
 	return {
 		ok: !1,
 		toolName: e,
@@ -10145,7 +10186,7 @@ function ap(e, t, n) {
 		reason: n
 	};
 }
-function op(e) {
+function sp(e) {
 	if (typeof e != "object" || !e) return !1;
 	let t = Object.getPrototypeOf(e);
 	return t === Object.prototype || t === null;
@@ -10153,7 +10194,7 @@ function op(e) {
 function G(e) {
 	return typeof e == "string" && e.length > 0;
 }
-function sp(e, t) {
+function cp(e, t) {
 	let n = Jd({
 		name: e,
 		...t
@@ -10166,13 +10207,13 @@ function sp(e, t) {
 		reason: n.errors.join("; ")
 	};
 }
-function cp(e) {
+function lp(e) {
 	return G(e) ? {
 		kind: "style-ref",
 		styleId: e
 	} : void 0;
 }
-var lp = {
+var up = {
 	filter_layer: "filter_layer has no composition-engine counterpart yet — the v0 command set (see commands.ts's COMPOSITION_COMMAND_NAMES) has no \"filter\" concept.",
 	get_feature_attributes: "get_feature_attributes is a read-only data query, not a composition mutation — it does not map to any composition command."
 };
@@ -10180,10 +10221,10 @@ function K(e, t) {
 	return {
 		vocabulary: "composition",
 		serverToolName: t,
-		build: (t) => sp(e, t)
+		build: (t) => cp(e, t)
 	};
 }
-var up = {
+var dp = {
 	addLayer: K("addLayer", "honua_studio_add_layer"),
 	removeLayer: K("removeLayer", "honua_studio_remove_layer"),
 	setLayerStyleRef: K("setLayerStyleRef", "honua_studio_set_layer_style"),
@@ -10191,7 +10232,7 @@ var up = {
 	honua_studio_set_map_style: {
 		vocabulary: "server-mcp",
 		serverToolName: "honua_studio_set_map_style",
-		build: (e) => sp("setMapStyle", { mapSpec: e.mapSpec })
+		build: (e) => cp("setMapStyle", { mapSpec: e.mapSpec })
 	},
 	setVisibility: K("setVisibility", "honua_studio_set_layer_visibility"),
 	setView: K("setView", "honua_studio_set_view"),
@@ -10220,8 +10261,8 @@ var up = {
 			let t = {
 				id: e.datasetId,
 				sourceId: e.sourceId ?? e.datasetId
-			}, n = cp(e.styleBy);
-			return n && (t.styleRef = n), sp("addLayer", { layer: t });
+			}, n = lp(e.styleBy);
+			return n && (t.styleRef = n), cp("addLayer", { layer: t });
 		}
 	},
 	add_chart: {
@@ -10242,7 +10283,7 @@ var up = {
 				kind: "chart",
 				sourceId: e.sourceId ?? e.datasetId
 			};
-			return Object.keys(i).length > 0 && (a.config = i), sp("addWidget", { widget: a });
+			return Object.keys(i).length > 0 && (a.config = i), cp("addWidget", { widget: a });
 		}
 	},
 	honua_studio_add_layer: {
@@ -10250,7 +10291,7 @@ var up = {
 		serverToolName: "honua_studio_add_layer",
 		build: (e) => {
 			let t = e.layer;
-			if (!op(t) || !G(t.id)) return {
+			if (!sp(t) || !G(t.id)) return {
 				ok: !1,
 				reason: "honua_studio_add_layer requires \"layer.id\"."
 			};
@@ -10259,16 +10300,16 @@ var up = {
 				sourceId: G(t.sourceId) ? t.sourceId : t.id
 			};
 			typeof t.title == "string" && (n.title = t.title), typeof t.visible == "boolean" && (n.visible = t.visible);
-			let r = cp(t.styleRef);
-			r && (n.styleRef = r), op(t.metadata) && (n.metadata = t.metadata);
+			let r = lp(t.styleRef);
+			r && (n.styleRef = r), sp(t.metadata) && (n.metadata = t.metadata);
 			let i = { layer: n };
-			return typeof e.beforeId == "string" && (i.beforeId = e.beforeId), sp("addLayer", i);
+			return typeof e.beforeId == "string" && (i.beforeId = e.beforeId), cp("addLayer", i);
 		}
 	},
 	honua_studio_remove_layer: {
 		vocabulary: "server-mcp",
 		serverToolName: "honua_studio_remove_layer",
-		build: (e) => G(e.layerId) ? sp("removeLayer", { target: {
+		build: (e) => G(e.layerId) ? cp("removeLayer", { target: {
 			kind: "layer",
 			id: e.layerId
 		} }) : {
@@ -10287,8 +10328,8 @@ var up = {
 			let t = { target: {
 				kind: "layer",
 				id: e.layerId
-			} }, n = cp(e.styleRef);
-			return n && (t.styleRef = n), e.styleBody !== void 0 && (t.styleBody = e.styleBody), sp("setLayerStyleRef", t);
+			} }, n = lp(e.styleRef);
+			return n && (t.styleRef = n), e.styleBody !== void 0 && (t.styleBody = e.styleBody), cp("setLayerStyleRef", t);
 		}
 	},
 	honua_studio_set_layer_visibility: {
@@ -10297,7 +10338,7 @@ var up = {
 		build: (e) => !G(e.layerId) || typeof e.visible != "boolean" ? {
 			ok: !1,
 			reason: "honua_studio_set_layer_visibility requires \"layerId\" and boolean \"visible\"."
-		} : sp("setVisibility", {
+		} : cp("setVisibility", {
 			target: {
 				kind: "layer",
 				id: e.layerId
@@ -10309,12 +10350,12 @@ var up = {
 		vocabulary: "server-mcp",
 		serverToolName: "honua_studio_set_view",
 		build: (e) => {
-			if (!op(e.view)) return {
+			if (!sp(e.view)) return {
 				ok: !1,
 				reason: "honua_studio_set_view requires a \"view\" object."
 			};
 			let { bbox: t, center: n, zoom: r, pitch: i, bearing: a } = e.view, o = {};
-			return t !== void 0 && (o.bbox = t), n !== void 0 && (o.center = n), r !== void 0 && (o.zoom = r), i !== void 0 && (o.pitch = i), a !== void 0 && (o.bearing = a), sp("setView", { view: o });
+			return t !== void 0 && (o.bbox = t), n !== void 0 && (o.center = n), r !== void 0 && (o.zoom = r), i !== void 0 && (o.pitch = i), a !== void 0 && (o.bearing = a), cp("setView", { view: o });
 		}
 	},
 	honua_studio_add_widget: {
@@ -10322,16 +10363,16 @@ var up = {
 		serverToolName: "honua_studio_add_widget",
 		build: (e) => {
 			let t = e.widget;
-			return !op(t) || !G(t.id) || !G(t.kind) ? {
+			return !sp(t) || !G(t.id) || !G(t.kind) ? {
 				ok: !1,
 				reason: "honua_studio_add_widget requires \"widget.id\" and \"widget.kind\"."
-			} : sp("addWidget", { widget: t });
+			} : cp("addWidget", { widget: t });
 		}
 	},
 	honua_studio_remove_widget: {
 		vocabulary: "server-mcp",
 		serverToolName: "honua_studio_remove_widget",
-		build: (e) => G(e.widgetId) ? sp("removeWidget", { target: {
+		build: (e) => G(e.widgetId) ? cp("removeWidget", { target: {
 			kind: "component",
 			id: e.widgetId
 		} }) : {
@@ -10344,16 +10385,16 @@ var up = {
 		serverToolName: "honua_studio_add_control",
 		build: (e) => {
 			let t = e.control;
-			return !op(t) || !G(t.id) || !G(t.kind) ? {
+			return !sp(t) || !G(t.id) || !G(t.kind) ? {
 				ok: !1,
 				reason: "honua_studio_add_control requires \"control.id\" and \"control.kind\"."
-			} : sp("addControl", { control: t });
+			} : cp("addControl", { control: t });
 		}
 	},
 	honua_studio_remove_control: {
 		vocabulary: "server-mcp",
 		serverToolName: "honua_studio_remove_control",
-		build: (e) => G(e.controlId) ? sp("removeControl", {
+		build: (e) => G(e.controlId) ? cp("removeControl", {
 			target: {
 				kind: "control",
 				id: e.controlId
@@ -10369,7 +10410,7 @@ var up = {
 		serverToolName: "honua_studio_bind_interaction",
 		build: (e) => {
 			let t = e.interaction;
-			return op(t) ? sp("bindInteraction", { interaction: t }) : {
+			return sp(t) ? cp("bindInteraction", { interaction: t }) : {
 				ok: !1,
 				reason: "honua_studio_bind_interaction requires an \"interaction\" object."
 			};
@@ -10378,27 +10419,27 @@ var up = {
 	honua_studio_remove_interaction: {
 		vocabulary: "server-mcp",
 		serverToolName: "honua_studio_remove_interaction",
-		build: (e) => G(e.interactionId) ? sp("removeInteraction", { interactionId: e.interactionId }) : {
+		build: (e) => G(e.interactionId) ? cp("removeInteraction", { interactionId: e.interactionId }) : {
 			ok: !1,
 			reason: "honua_studio_remove_interaction requires a non-empty string \"interactionId\"."
 		}
 	}
 };
-function dp(e) {
-	let t = lp[e.toolName];
-	if (t) return ap(e.toolName, "unsupported", t);
-	let n = up[e.toolName];
-	if (!n) return ap(e.toolName, "unknown-tool", `"${e.toolName}" is not a tool this bridge (fixture, honua_studio_*, or this engine's own vocabulary) recognizes.`);
-	let r = op(e.arguments) ? e.arguments : {}, i = n.build(r);
+function fp(e) {
+	let t = up[e.toolName];
+	if (t) return op(e.toolName, "unsupported", t);
+	let n = dp[e.toolName];
+	if (!n) return op(e.toolName, "unknown-tool", `"${e.toolName}" is not a tool this bridge (fixture, honua_studio_*, or this engine's own vocabulary) recognizes.`);
+	let r = sp(e.arguments) ? e.arguments : {}, i = n.build(r);
 	return i.ok ? {
 		ok: !0,
 		toolName: e.toolName,
 		vocabulary: n.vocabulary,
 		command: i.command,
 		serverToolName: n.serverToolName
-	} : ap(e.toolName, "invalid-arguments", i.reason);
+	} : op(e.toolName, "invalid-arguments", i.reason);
 }
-function fp(e, t) {
+function pp(e, t) {
 	let { command: n } = e, r = {
 		draftId: t.draftId,
 		generation: t.generation
@@ -10422,14 +10463,14 @@ function fp(e, t) {
 			name: "honua_studio_remove_layer",
 			arguments: {
 				...r,
-				layerId: pp(n.target)
+				layerId: mp(n.target)
 			}
 		};
 		case "setLayerStyleRef": return {
 			name: "honua_studio_set_layer_style",
 			arguments: {
 				...r,
-				layerId: pp(n.target),
+				layerId: mp(n.target),
 				...n.styleBody === void 0 ? { styleRef: n.styleRef?.styleId ?? null } : { styleBody: n.styleBody }
 			}
 		};
@@ -10466,7 +10507,7 @@ function fp(e, t) {
 			name: "honua_studio_remove_widget",
 			arguments: {
 				...r,
-				widgetId: pp(n.target)
+				widgetId: mp(n.target)
 			}
 		};
 		case "addControl": return {
@@ -10501,39 +10542,39 @@ function fp(e, t) {
 		default: return;
 	}
 }
-function pp(e) {
+function mp(e) {
 	if (e.kind === "feature") throw Error("unreachable: feature target has no scalar id");
 	return e.id;
 }
-function mp(e, t) {
+function hp(e, t) {
 	let n = t ?? nu();
 	return e ? {
 		...n,
 		sourceBindings: e.sourceBindings,
 		styleRefs: e.styleRefs,
 		mapSpec: e.mapSpec,
-		layers: (e.layers ?? []).map((e) => gp(e)),
-		view: _p(e.view),
-		widgets: (e.widgets ?? []).map((e) => xp(e)),
-		controls: e.controls ? e.controls.map((e) => yp(e)) : n.controls,
-		interactions: e.interactions ? e.interactions.map((e) => bp(e)) : n.interactions
+		layers: (e.layers ?? []).map((e) => _p(e)),
+		view: vp(e.view),
+		widgets: (e.widgets ?? []).map((e) => Sp(e)),
+		controls: e.controls ? e.controls.map((e) => bp(e)) : n.controls,
+		interactions: e.interactions ? e.interactions.map((e) => xp(e)) : n.interactions
 	} : n;
 }
-function hp(e, t) {
+function gp(e, t) {
 	let n = e.envelope.body;
-	return mp(n, t);
+	return hp(n, t);
 }
-function gp(e) {
+function _p(e) {
 	return {
 		id: e.id,
 		sourceId: e.sourceId ?? e.id,
 		visible: e.visible ?? !0,
 		...e.title === void 0 ? {} : { title: e.title },
-		...cp(e.styleRef) ? { styleRef: cp(e.styleRef) } : {},
+		...lp(e.styleRef) ? { styleRef: lp(e.styleRef) } : {},
 		...e.metadata === void 0 ? {} : { metadata: e.metadata }
 	};
 }
-function _p(e) {
+function vp(e) {
 	if (!e) return {};
 	let { bbox: t, center: n, zoom: r, pitch: i, bearing: a } = e;
 	return {
@@ -10544,7 +10585,7 @@ function _p(e) {
 		...a === void 0 ? {} : { bearing: a }
 	};
 }
-function vp(e) {
+function yp(e) {
 	return {
 		...e.sourceBindings === void 0 ? {} : { sourceBindings: e.sourceBindings },
 		...e.styleRefs === void 0 ? {} : { styleRefs: e.styleRefs },
@@ -10584,7 +10625,7 @@ function vp(e) {
 		})) } : {}
 	};
 }
-function yp(e) {
+function bp(e) {
 	return {
 		id: e.id,
 		kind: e.kind,
@@ -10593,7 +10634,7 @@ function yp(e) {
 		...e.config === void 0 ? {} : { config: e.config }
 	};
 }
-function bp(e) {
+function xp(e) {
 	return {
 		id: e.id,
 		on: {
@@ -10608,7 +10649,7 @@ function bp(e) {
 		...e.disabled === void 0 ? {} : { disabled: e.disabled }
 	};
 }
-function xp(e) {
+function Sp(e) {
 	return {
 		id: e.id,
 		kind: e.kind,
@@ -10619,12 +10660,12 @@ function xp(e) {
 }
 //#endregion
 //#region src/mcp/composition-envelope.ts
-var Sp = {
+var Cp = {
 	family: "map",
 	schemaVersion: "1.0",
 	format: "honua_map_package.v1"
 };
-function Cp(e, t, n = "map", r = {}, i = Sp.format) {
+function wp(e, t, n = "map", r = {}, i = Cp.format) {
 	let a = { ...r };
 	for (let e of [
 		"layers",
@@ -10639,29 +10680,29 @@ function Cp(e, t, n = "map", r = {}, i = Sp.format) {
 			format: i
 		} : {},
 		...a,
-		...vp(e)
+		...yp(e)
 	};
 }
 //#endregion
 //#region src/lifecycle/composition-draft-store.ts
-function wp(e) {
+function Tp(e) {
 	return {
 		draftId: e.draftId,
 		...e.itemId === void 0 ? {} : { itemId: e.itemId },
 		packageKey: e.packageKey,
 		generation: e.generation,
-		envelope: { body: Tp(e.envelope?.body) }
+		envelope: { body: Ep(e.envelope?.body) }
 	};
 }
-function Tp(e) {
-	if (typeof e != "object" || !e) throw new rp("validation", "The draft envelope carries no composition body.");
+function Ep(e) {
+	if (typeof e != "object" || !e) throw new ip("validation", "The draft envelope carries no composition body.");
 	let t = e;
-	if (!Array.isArray(t.layers)) throw new rp("validation", `The draft envelope's body has no \`layers\` array${typeof t.format == "string" ? ` (its \`format\` is "${t.format}")` : ""}, so it is not a Studio composition body. A map-package body is a rendering artifact, not a composition — this client will not read one as an empty map.`);
-	return mp(e);
+	if (!Array.isArray(t.layers)) throw new ip("validation", `The draft envelope's body has no \`layers\` array${typeof t.format == "string" ? ` (its \`format\` is "${t.format}")` : ""}, so it is not a Studio composition body. A map-package body is a rendering artifact, not a composition — this client will not read one as an empty map.`);
+	return hp(e);
 }
 //#endregion
 //#region src/lifecycle/workspace-draft.ts
-var Ep = class {
+var Dp = class {
 	client;
 	#e;
 	constructor(e) {
@@ -10678,7 +10719,7 @@ var Ep = class {
 		};
 	}
 	async observe(e) {
-		let t = await this.client.getDraft(e), n = wp(t).envelope.body;
+		let t = await this.client.getDraft(e), n = Tp(t).envelope.body;
 		return this.#e = t, n;
 	}
 	async initializeStyle() {
@@ -10693,7 +10734,7 @@ var Ep = class {
 	}
 	#t(e, t) {
 		if (e?.draftId !== t.draftId || e.packageKey !== t.packageKey || !Number.isSafeInteger(e.generation) || e.generation <= t.generation) throw Error("The style command did not return an accepted authoritative draft.");
-		let n = wp(e).envelope.body;
+		let n = Tp(e).envelope.body;
 		return this.#e = e, n;
 	}
 	async replace(e) {
@@ -10706,9 +10747,9 @@ var Ep = class {
 			...t.ownerId === void 0 ? {} : { ownerId: t.ownerId },
 			envelope: {
 				...t.envelope,
-				body: Cp(e, t.packageKey, t.envelope.family, t.envelope.body, t.envelope.format)
+				body: wp(e, t.packageKey, t.envelope.family, t.envelope.body, t.envelope.format)
 			}
-		}), r = wp(n).envelope.body;
+		}), r = Tp(n).envelope.body;
 		return this.#e = n, {
 			...r,
 			pins: e.pins,
@@ -10718,15 +10759,6 @@ var Ep = class {
 };
 //#endregion
 //#region src/map/agent-map-kit.ts
-function Dp(e) {
-	return {
-		...e.bbox === void 0 ? {} : { bbox: e.bbox },
-		...e.center === void 0 ? {} : { center: e.center },
-		...e.zoom === void 0 ? {} : { zoom: e.zoom },
-		...e.pitch === void 0 ? {} : { pitch: e.pitch },
-		...e.bearing === void 0 ? {} : { bearing: e.bearing }
-	};
-}
 function Op(e) {
 	return {
 		...e.bbox === void 0 ? {} : { bbox: e.bbox },
@@ -10737,6 +10769,15 @@ function Op(e) {
 	};
 }
 function kp(e) {
+	return {
+		...e.bbox === void 0 ? {} : { bbox: e.bbox },
+		...e.center === void 0 ? {} : { center: e.center },
+		...e.zoom === void 0 ? {} : { zoom: e.zoom },
+		...e.pitch === void 0 ? {} : { pitch: e.pitch },
+		...e.bearing === void 0 ? {} : { bearing: e.bearing }
+	};
+}
+function Ap(e) {
 	let { controller: t } = e, n = () => (e.catalog ?? []).map((e) => ({
 		id: e.id,
 		...e.title === void 0 ? {} : { title: e.title },
@@ -10753,7 +10794,7 @@ function kp(e) {
 		id: e.featureId
 	})), a = () => ({
 		mapPackageId: e.mapPackageId ?? "honua-studio-composition",
-		viewport: Dp(t.state.view),
+		viewport: Op(t.state.view),
 		sources: n(),
 		layers: r(),
 		selection: i()
@@ -10764,11 +10805,11 @@ function kp(e) {
 		snapshot: () => a(),
 		listSources: n,
 		listLayers: r,
-		getViewport: () => Dp(t.state.view),
+		getViewport: () => Op(t.state.view),
 		setViewport: (e) => {
 			t.apply({
 				name: "setView",
-				view: Op(e)
+				view: kp(e)
 			});
 		},
 		addLayer: (e) => {
@@ -10796,9 +10837,9 @@ function kp(e) {
 		}
 	};
 }
-function Ap(e) {
+function jp(e) {
 	return zt({
-		runtime: kp(e),
+		runtime: Ap(e),
 		policy: {
 			allowActions: !0,
 			...e.policy ?? {}
@@ -10807,7 +10848,7 @@ function Ap(e) {
 }
 //#endregion
 //#region src/composition/history-command.ts
-function jp(e, t) {
+function Mp(e, t) {
 	let n = [];
 	for (let r of e.layers) t.layers.some((e) => e.id === r.id) || n.push({
 		name: "removeLayer",
@@ -10869,10 +10910,10 @@ function jp(e, t) {
 		name: "setView",
 		view: t.view
 	});
-	let r = R(vp(t));
+	let r = R(yp(t));
 	return n.find((t) => {
 		try {
-			return R(vp(Lf(e, t).state)) === r;
+			return R(yp(Rf(e, t).state)) === r;
 		} catch {
 			return !1;
 		}
@@ -10886,10 +10927,10 @@ function q(e) {
 	if (t !== void 0) return JSON.parse(t);
 	throw Error("MCP tool call succeeded but returned no structuredContent or text content to parse.");
 }
-function Mp(e) {
+function Np(e) {
 	return q(e);
 }
-var Np = class {
+var Pp = class {
 	client;
 	constructor(e) {
 		this.client = e;
@@ -10948,7 +10989,7 @@ var Np = class {
 	async proposePublication(e) {
 		return q(await this.client.callTool("honua_studio_propose_publication", { ...e }));
 	}
-}, Pp = class {
+}, Fp = class {
 	#e;
 	#t;
 	#n;
@@ -10985,44 +11026,44 @@ var Np = class {
 			try {
 				let { draftId: r } = await this.#h(), s = await t.getDraft(r);
 				if (o !== this.#o || this.#n !== n || this.#e.state !== a) return !1;
-				if (R(vp(hp(s))) !== R(vp(a))) throw Error("The server draft changed outside this history; reload before undo or redo.");
-				if (R(vp(a)) === R(vp(i))) return e === "undo" ? this.#e.undo() : this.#e.redo();
-				let c = jp(a, i);
+				if (R(yp(gp(s))) !== R(yp(a))) throw Error("The server draft changed outside this history; reload before undo or redo.");
+				if (R(yp(a)) === R(yp(i))) return e === "undo" ? this.#e.undo() : this.#e.redo();
+				let c = Mp(a, i);
 				if (!c) throw Error("This history revision has no single bounded inverse tool; no state was changed.");
-				let { name: l, ...u } = c, d = dp({
+				let { name: l, ...u } = c, d = fp({
 					toolName: l,
 					arguments: u
-				}), f = d.ok ? fp(d, {
+				}), f = d.ok ? pp(d, {
 					draftId: r,
 					generation: s.generation
 				}) : void 0;
 				if (!f) throw Error("This history revision has no server mutation tool.");
-				let p = Mp(await n.client.callTool(f.name, f.arguments));
+				let p = Np(await n.client.callTool(f.name, f.arguments));
 				if (o !== this.#o) return !1;
-				if (this.#a = p.generation, this.#e.state !== a || R(vp(hp(p))) !== R(vp(i))) throw this.#e.replaceState(hp(p, this.#e.state)), Error("History changed during synchronization; showing the authoritative server draft.");
+				if (this.#a = p.generation, this.#e.state !== a || R(yp(gp(p))) !== R(yp(i))) throw this.#e.replaceState(gp(p, this.#e.state)), Error("History changed during synchronization; showing the authoritative server draft.");
 				return e === "undo" ? this.#e.undo() : this.#e.redo();
 			} catch (t) {
 				return this.#t?.append("assistant_turn_error", {
 					phase: "history-sync",
 					action: e,
-					errorMessage: Fp(t)
+					errorMessage: Ip(t)
 				}), !1;
 			}
 		});
 		return this.#c = t.catch(() => void 0), t;
 	}
 	acceptServerDraft(e) {
-		this.#n && (this.#i = e.draftId, this.#a = e.generation, this.#e.replaceState(hp(e, this.#e.state)));
+		this.#n && (this.#i = e.draftId, this.#a = e.generation, this.#e.replaceState(gp(e, this.#e.state)));
 	}
 	attachLiveSession(e) {
-		this.#o += 1, this.#s = void 0, this.#n = e, this.#r = new Np(e.client), this.#i = e.draftId, this.#a = e.generation;
+		this.#o += 1, this.#s = void 0, this.#n = e, this.#r = new Pp(e.client), this.#i = e.draftId, this.#a = e.generation;
 	}
 	detachLiveSession() {
 		this.#o += 1, this.#s = void 0, this.#n = void 0, this.#r = void 0, this.#i = void 0, this.#a = void 0;
 		for (let e of this.#l.splice(0)) e.resolve(this.#u(e.toolName, e.command));
 	}
 	async handleToolCall(e) {
-		let t = dp(e);
+		let t = fp(e);
 		if (!t.ok) return this.#_(e.toolName, t.code, t.reason);
 		if (!(this.#n !== void 0 && t.serverToolName !== void 0)) return this.#u(e.toolName, t.command);
 		if (t.command.name === "addControl" && t.command.control.sourceId !== void 0 && !this.#f(t.command.control.sourceId)) return new Promise((n) => {
@@ -11040,25 +11081,25 @@ var Np = class {
 		try {
 			this.#e.apply(t);
 		} catch (t) {
-			let n = Pf(t) ? t.message : String(t);
+			let n = Ff(t) ? t.message : String(t);
 			return this.#_(e, "reducer-rejected", n);
 		}
 		return this.#g(e, "local", t);
 	}
 	async #d(e, t, n) {
 		try {
-			Lf(this.#e.state, t);
+			Rf(this.#e.state, t);
 		} catch (t) {
-			let n = Pf(t) ? t.message : String(t);
+			let n = Ff(t) ? t.message : String(t);
 			return this.#_(e, "reducer-rejected", n);
 		}
 		let r, i;
 		try {
 			({draftId: r, generation: i} = await this.#h());
 		} catch (t) {
-			return this.#_(e, "server-error", Fp(t));
+			return this.#_(e, "server-error", Ip(t));
 		}
-		let a = fp({
+		let a = pp({
 			ok: !0,
 			toolName: e,
 			vocabulary: "composition",
@@ -11073,9 +11114,9 @@ var Np = class {
 		try {
 			o = await this.#m(a);
 		} catch (t) {
-			return this.#_(e, "server-error", Fp(t));
+			return this.#_(e, "server-error", Ip(t));
 		}
-		this.#a = o.generation, this.#e.replaceState(hp(o, this.#e.state));
+		this.#a = o.generation, this.#e.replaceState(gp(o, this.#e.state));
 		let s = this.#g(e, "server", t, o);
 		return t.name === "addLayer" && await this.#p(), s;
 	}
@@ -11096,11 +11137,11 @@ var Np = class {
 		let t = this.#n;
 		if (!t) throw Error("ToolCallOrchestrator: no live session attached.");
 		try {
-			return Mp(await t.client.callTool(e.name, e.arguments));
+			return Np(await t.client.callTool(e.name, e.arguments));
 		} catch (e) {
 			if (!du(e) || !this.#i || !this.#r) throw e;
 			let t = await this.#r.getDraft(this.#i);
-			throw this.#a = t.generation, this.#e.replaceState(hp(t, this.#e.state)), e;
+			throw this.#a = t.generation, this.#e.replaceState(gp(t, this.#e.state)), e;
 		}
 	}
 	async #h() {
@@ -11115,11 +11156,11 @@ var Np = class {
 			this.#s = t.createDraft({
 				packageKey: e.packageKey,
 				family: e.family ?? "map",
-				schemaVersion: e.schemaVersion ?? ((e.family ?? "map") === "map" ? Sp.schemaVersion : "1"),
-				body: Cp(this.#e.state, e.packageKey, e.family)
+				schemaVersion: e.schemaVersion ?? ((e.family ?? "map") === "map" ? Cp.schemaVersion : "1"),
+				body: wp(this.#e.state, e.packageKey, e.family)
 			}).then((t) => {
 				if (n !== this.#o || this.#n !== e) throw Error("Live Studio composition session changed while its draft was being created.");
-				return this.#i = t.draftId, this.#a = t.generation, this.#e.replaceState(hp(t, this.#e.state)), {
+				return this.#i = t.draftId, this.#a = t.generation, this.#e.replaceState(gp(t, this.#e.state)), {
 					draftId: t.draftId,
 					generation: t.generation
 				};
@@ -11159,18 +11200,18 @@ var Np = class {
 		};
 	}
 };
-function Fp(e) {
+function Ip(e) {
 	return e instanceof Error ? e.message : String(e);
 }
 //#endregion
 //#region src/pages/about.ts
-function Ip(e) {
+function Lp(e) {
 	e.innerHTML = "\n    <section class=\"hn-panel view-section\" data-testid=\"about-section\">\n      <h2 class=\"hn-panel-title\">About Honua Studio</h2>\n      <p>\n        Honua Studio is an open-source, model-agnostic builder for geospatial\n        applications: describe the app you want in conversation, and an agent\n        composes it through typed, bounded, auditable commands built on the\n        Honua JS SDK.\n      </p>\n      <p class=\"hn-muted\">\n        Status: Phase 0 — app scaffold, CI, and design tokens\n        (<a href=\"https://github.com/honua-io/honua-studio/issues/3\">honua-studio#3</a>).\n      </p>\n    </section>\n  ";
 }
 //#endregion
 //#region src/pages/content.ts
-function Lp(e, t) {
-	cg("honua-studio-content-browser"), cg("honua-studio-lifecycle-panel"), e.innerHTML = "\n    <section class=\"hn-panel view-section\" aria-labelledby=\"content-heading\" data-testid=\"content-route\">\n      <h2 id=\"content-heading\" class=\"hn-panel-title\">Content</h2>\n      <p class=\"hn-muted\">Studio content items and drafts — package lifecycle: draft, version, publish, rollback.</p>\n      <div data-testid=\"content-route-browser\"></div>\n      <div data-testid=\"content-route-panel\" hidden>\n        <button type=\"button\" class=\"hn-btn hn-btn--sm\" data-testid=\"content-route-back\">&larr; Back to content</button>\n      </div>\n    </section>\n  ";
+function Rp(e, t) {
+	lg("honua-studio-content-browser"), lg("honua-studio-lifecycle-panel"), e.innerHTML = "\n    <section class=\"hn-panel view-section\" aria-labelledby=\"content-heading\" data-testid=\"content-route\">\n      <h2 id=\"content-heading\" class=\"hn-panel-title\">Content</h2>\n      <p class=\"hn-muted\">Studio content items and drafts — package lifecycle: draft, version, publish, rollback.</p>\n      <div data-testid=\"content-route-browser\"></div>\n      <div data-testid=\"content-route-panel\" hidden>\n        <button type=\"button\" class=\"hn-btn hn-btn--sm\" data-testid=\"content-route-back\">&larr; Back to content</button>\n      </div>\n    </section>\n  ";
 	let n = e.querySelector("[data-testid=\"content-route-browser\"]"), r = e.querySelector("[data-testid=\"content-route-panel\"]");
 	if (!n || !r) return;
 	let i = document.createElement("honua-studio-content-browser");
@@ -11192,22 +11233,22 @@ function Lp(e, t) {
 }
 //#endregion
 //#region src/pages/home.ts
-function Rp(e) {
+function zp(e) {
 	return e.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("\"", "&quot;").replaceAll("'", "&#39;");
 }
-function zp(e) {
-	return Rp(e instanceof Error ? e.message : String(e));
+function Bp(e) {
+	return zp(e instanceof Error ? e.message : String(e));
 }
-function Bp(e, t, n) {
+function Vp(e, t, n) {
 	e.innerHTML = `<li class="hn-muted" data-testid="${t}">${n}</li>`;
 }
-function Vp(e, t, n, r) {
+function Hp(e, t, n, r) {
 	e.innerHTML = "\n    <section class=\"hn-panel view-section\" aria-labelledby=\"catalog-heading\" data-testid=\"catalog-section\">\n      <h2 id=\"catalog-heading\" class=\"hn-panel-title\">Catalog</h2>\n      <p class=\"hn-muted\">Datasets discovered from the connected honua-server.</p>\n      <ul class=\"entity-list\" data-testid=\"catalog-list\"></ul>\n    </section>\n    <section class=\"hn-panel view-section\" aria-labelledby=\"packages-heading\" data-testid=\"packages-section\">\n      <h2 id=\"packages-heading\" class=\"hn-panel-title\">Studio packages</h2>\n      <p class=\"hn-muted\">Draft and published Studio package lifecycle entries.</p>\n      <ul class=\"entity-list\" data-testid=\"packages-list\"></ul>\n    </section>\n  ";
 	let i = e.querySelector("[data-testid=\"catalog-list\"]"), a = e.querySelector("[data-testid=\"packages-list\"]");
 	if (!i || !a) return;
 	let o = (e) => n.mode === "host-adapter" ? e === "expired" ? "The host session expired." : "Waiting for the host session…" : e === "expired" ? "Your session expired. Sign in again to load this." : "Sign in to load this from the connected honua-server.", s = !1, c = () => {
 		s || (s = !0, i.innerHTML = "<li class=\"hn-muted\">Loading…</li>", a.innerHTML = "<li class=\"hn-muted\">Loading…</li>", t.listCatalog().then((e) => {
-			i.innerHTML = e.length ? e.map((e, t) => `<li><span class="hn-badge">${Rp(e.protocol)}</span> ${Rp(e.title)} <span class="hn-muted">(${Rp(e.geometryType)})</span> ${r ? `<button type="button" class="hn-btn hn-btn--sm" data-catalog-index="${t}" aria-label="Add ${Rp(e.title)} to map">Add to map</button><span role="status"></span>` : ""}</li>`).join("") : "<li class=\"hn-muted\" data-testid=\"catalog-empty\">No datasets yet.</li>";
+			i.innerHTML = e.length ? e.map((e, t) => `<li><span class="hn-badge">${zp(e.protocol)}</span> ${zp(e.title)} <span class="hn-muted">(${zp(e.geometryType)})</span> ${r ? `<button type="button" class="hn-btn hn-btn--sm" data-catalog-index="${t}" aria-label="Add ${zp(e.title)} to map">Add to map</button><span role="status"></span>` : ""}</li>`).join("") : "<li class=\"hn-muted\" data-testid=\"catalog-empty\">No datasets yet.</li>";
 			for (let t of i.querySelectorAll("button[data-catalog-index]")) {
 				let n = e[Number(t.dataset.catalogIndex)];
 				!n || !r || t.addEventListener("click", async () => {
@@ -11221,19 +11262,19 @@ function Vp(e, t, n, r) {
 				});
 			}
 		}).catch((e) => {
-			if (s = !1, e instanceof Df) {
-				i.innerHTML = `<li class="hn-error" data-testid="catalog-session-expired">${zp(e)}</li>`;
+			if (s = !1, e instanceof Of) {
+				i.innerHTML = `<li class="hn-error" data-testid="catalog-session-expired">${Bp(e)}</li>`;
 				return;
 			}
-			i.innerHTML = `<li class="hn-error" data-testid="catalog-error">Could not load the catalog: ${zp(e)}</li>`;
+			i.innerHTML = `<li class="hn-error" data-testid="catalog-error">Could not load the catalog: ${Bp(e)}</li>`;
 		}), t.listPackages().then((e) => {
-			a.innerHTML = e.length ? e.map((e) => `<li><span class="hn-badge hn-badge--status">${Rp(e.state)}</span> ${Rp(e.title)} <span class="hn-muted">${Rp(e.family)}</span></li>`).join("") : "<li class=\"hn-muted\" data-testid=\"packages-empty\">No packages yet.</li>";
+			a.innerHTML = e.length ? e.map((e) => `<li><span class="hn-badge hn-badge--status">${zp(e.state)}</span> ${zp(e.title)} <span class="hn-muted">${zp(e.family)}</span></li>`).join("") : "<li class=\"hn-muted\" data-testid=\"packages-empty\">No packages yet.</li>";
 		}).catch((e) => {
-			if (s = !1, e instanceof Df) {
-				a.innerHTML = `<li class="hn-error" data-testid="packages-session-expired">${zp(e)}</li>`;
+			if (s = !1, e instanceof Of) {
+				a.innerHTML = `<li class="hn-error" data-testid="packages-session-expired">${Bp(e)}</li>`;
 				return;
 			}
-			a.innerHTML = `<li class="hn-error" data-testid="packages-error">Could not load Studio packages: ${zp(e)}</li>`;
+			a.innerHTML = `<li class="hn-error" data-testid="packages-error">Could not load Studio packages: ${Bp(e)}</li>`;
 		}));
 	}, l = {};
 	l.unsubscribe = n.subscribe((e) => {
@@ -11248,12 +11289,12 @@ function Vp(e, t, n, r) {
 		if (e.status === "refreshing") return;
 		s = !1;
 		let t = o(e.status);
-		Bp(i, "catalog-signed-out", t), Bp(a, "packages-signed-out", t);
+		Vp(i, "catalog-signed-out", t), Vp(a, "packages-signed-out", t);
 	});
 }
 //#endregion
 //#region src/router/router.ts
-var Hp = class {
+var Up = class {
 	routes;
 	fallback;
 	root;
@@ -11278,47 +11319,47 @@ var Hp = class {
 	stop() {
 		window.removeEventListener("hashchange", this.onHashChange);
 	}
-}, Up = "standalone", Wp = "auto", Gp = "honua-studio:theme-set", Kp = "honua-studio:theme-mode";
-function qp(e) {
+}, Wp = "standalone", Gp = "auto", Kp = "honua-studio:theme-set", qp = "honua-studio:theme-mode";
+function Jp(e) {
 	return e === "standalone" || e === "console";
 }
-function Jp(e) {
-	return e === "light" || e === "dark" || e === "auto";
-}
 function Yp(e) {
-	let t = e?.getItem(Gp) ?? null;
-	return qp(t) ? t : Up;
+	return e === "light" || e === "dark" || e === "auto";
 }
 function Xp(e) {
 	let t = e?.getItem(Kp) ?? null;
 	return Jp(t) ? t : Wp;
 }
-function Zp(e, t, n) {
-	e.dataset.themeSet = t, n?.setItem(Gp, t);
+function Zp(e) {
+	let t = e?.getItem(qp) ?? null;
+	return Yp(t) ? t : Gp;
 }
 function Qp(e, t, n) {
-	t === "auto" ? delete e.dataset.theme : e.dataset.theme = t, n?.setItem(Kp, t);
+	e.dataset.themeSet = t, n?.setItem(Kp, t);
 }
-var $p = class {
+function $p(e, t, n) {
+	t === "auto" ? delete e.dataset.theme : e.dataset.theme = t, n?.setItem(qp, t);
+}
+var em = class {
 	target;
 	storage;
 	constructor(e, t = null) {
 		this.target = e, this.storage = t;
 	}
 	boot() {
-		let e = Yp(this.storage), t = Xp(this.storage);
-		return Zp(this.target, e, this.storage), Qp(this.target, t, this.storage), {
+		let e = Xp(this.storage), t = Zp(this.storage);
+		return Qp(this.target, e, this.storage), $p(this.target, t, this.storage), {
 			themeSet: e,
 			mode: t
 		};
 	}
 	setThemeSet(e) {
-		Zp(this.target, e, this.storage);
-	}
-	setThemeMode(e) {
 		Qp(this.target, e, this.storage);
 	}
-}, em = {
+	setThemeMode(e) {
+		$p(this.target, e, this.storage);
+	}
+}, tm = {
 	"signed-out": "Signed out",
 	"signing-in": "Signing in…",
 	authenticating: "Completing sign-in…",
@@ -11328,12 +11369,12 @@ var $p = class {
 };
 //#endregion
 //#region src/elements/studio-app-element.ts
-function tm(e) {
+function nm(e) {
 	if (typeof e != "object" || !e) return !1;
 	let t = Object.getPrototypeOf(e);
 	return t === Object.prototype || t === null;
 }
-function nm(e, t) {
+function rm(e, t) {
 	let n = t.ok ? "ok" : "error", r = t.ok ? void 0 : t.reason;
 	return {
 		tool: e.name,
@@ -11352,58 +11393,58 @@ function nm(e, t) {
 		}
 	};
 }
-var rm = [
+var im = [
 	{
 		path: "/",
 		navTestId: "nav-home",
 		label: "Home",
-		render: (e, t, n, r) => Vp(e, t, n, r)
+		render: (e, t, n, r) => Hp(e, t, n, r)
 	},
 	{
 		path: "/content",
 		navTestId: "nav-content",
 		label: "Content",
-		render: (e, t, n) => Lp(e, n)
+		render: (e, t, n) => Rp(e, n)
 	},
 	{
 		path: "/about",
 		navTestId: "nav-about",
 		label: "About",
-		render: (e) => Ip(e)
+		render: (e) => Lp(e)
 	}
-], im = ["map", "app"], am = "Fixture mode", om = ["standalone", "console"], sm = [
+], am = ["map", "app"], om = "Fixture mode", sm = ["standalone", "console"], cm = [
 	"light",
 	"dark",
 	"auto"
-], cm = {
+], lm = {
 	standalone: "Standalone",
 	console: "Console"
-}, lm = {
+}, um = {
 	light: "Light",
 	dark: "Dark",
 	auto: "Auto"
 };
-function um(e) {
+function dm(e) {
 	return !e || e === "" ? "/" : e.startsWith("/") ? e : `/${e}`;
-}
-function dm(e, t) {
-	if (!t) return e;
-	let n = t.replace(/\/$/, "");
-	if (n && e.startsWith(n)) {
-		let t = e.slice(n.length);
-		return um(t === "" ? "/" : t);
-	}
-	return e;
 }
 function fm(e, t) {
 	if (!t) return e;
 	let n = t.replace(/\/$/, "");
+	if (n && e.startsWith(n)) {
+		let t = e.slice(n.length);
+		return dm(t === "" ? "/" : t);
+	}
+	return e;
+}
+function pm(e, t) {
+	if (!t) return e;
+	let n = t.replace(/\/$/, "");
 	return e === "/" ? n || "/" : `${n}${e}`;
 }
-function pm(e) {
+function mm(e) {
 	e?.dispose?.();
 }
-var mm = class extends ve {
+var hm = class extends ve {
 	static get observedAttributes() {
 		return [
 			"data-theme-set",
@@ -11457,23 +11498,23 @@ var mm = class extends ve {
 		if (this.#h) return;
 		if (await this.prepareWorkspaceTurn(), !this.#y) throw Error("Attach an authorized map draft before editing its style.");
 		if (!this.composition.state.mapSpec) {
-			let e = this.#y, t = this.#b, n = this.#S.then(async () => {
+			let e = this.#y, t = this.#x, n = this.#C.then(async () => {
 				let n = await e.initializeStyle();
-				if (t !== this.#b || this.#y !== e) throw Error("The workspace authority changed.");
+				if (t !== this.#x || this.#y !== e) throw Error("The workspace authority changed.");
 				this.composition.resetBaseline({
 					...n,
 					pins: this.composition.state.pins,
 					annotations: this.composition.state.annotations
-				}), this.#H();
+				}), this.#U();
 			});
-			this.#S = n.catch(() => void 0), await n;
+			this.#C = n.catch(() => void 0), await n;
 		}
 		let t = this.querySelector("honua-studio-canvas");
 		if (!t) throw Error("Open the map canvas before its style editor.");
-		let n = this.#b, r = this.#y?.identity;
+		let n = this.#x, r = this.#y?.identity;
 		if (!r) throw Error("The workspace draft is unavailable.");
 		let i = await t.editableMapStyle();
-		if (n !== this.#b || r.draftId !== this.#y?.identity?.draftId) throw Error("The workspace draft changed while opening the style editor.");
+		if (n !== this.#x || r.draftId !== this.#y?.identity?.draftId) throw Error("The workspace draft changed while opening the style editor.");
 		let a = window.document.createElement("section");
 		a.setAttribute("aria-label", "Map style editor"), this.shadowRoot?.querySelector(".app-slots")?.prepend(a), this.#g = a, this.shadowRoot?.querySelector(".app-slots")?.setAttribute("data-style-mode", ""), this.#h = new rd({
 			container: a,
@@ -11490,7 +11531,7 @@ var mm = class extends ve {
 			})),
 			selectedLayerId: e?.layerId,
 			getFields: async (e) => {
-				let r = this.#O?.find((t) => t.id === e);
+				let r = this.#k?.find((t) => t.id === e);
 				if (!r) throw Error("Refresh the authorized source catalog before selecting thematic fields.");
 				let i = await new Yu({
 					baseUrl: t.sourceAuthBaseUrl,
@@ -11499,7 +11540,7 @@ var mm = class extends ve {
 					getAuth: () => this.auth,
 					signal: AbortSignal.timeout(8e3)
 				}).describeSource(r);
-				if (n !== this.#b) throw Error("The workspace authority changed.");
+				if (n !== this.#x) throw Error("The workspace authority changed.");
 				return i;
 			},
 			onPreview: (e) => {
@@ -11513,34 +11554,34 @@ var mm = class extends ve {
 				}));
 			},
 			onSave: async (e) => {
-				if (n !== this.#b || r.draftId !== this.#y?.identity?.draftId) throw Error("The workspace authority changed. Reopen the visual editor.");
-				let i = await this.#$([{
+				if (n !== this.#x || r.draftId !== this.#y?.identity?.draftId) throw Error("The workspace authority changed. Reopen the visual editor.");
+				let i = await this.#ee([{
 					name: "setMapStyle",
 					mapSpec: e
 				}]);
 				if (!i.ok) throw Error(i.reason);
-				if (n !== this.#b) throw Error("The workspace authority changed.");
+				if (n !== this.#x) throw Error("The workspace authority changed.");
 				return t.editableMapStyle();
 			},
 			onDiscard: async () => {
 				t.stylePreview = void 0;
 				let e = this.#y?.identity?.draftId;
-				if (!e || n !== this.#b) throw Error("The workspace authority changed.");
+				if (!e || n !== this.#x) throw Error("The workspace authority changed.");
 				let r = this.#h;
 				this.#h = void 0;
 				try {
 					await this.attachWorkspaceDraft(e);
 				} finally {
-					n === this.#b ? this.#h = r : r?.dispose();
+					n === this.#x ? this.#h = r : r?.dispose();
 				}
-				if (n !== this.#b) throw Error("The workspace authority changed.");
+				if (n !== this.#x) throw Error("The workspace authority changed.");
 				return t.editableMapStyle();
 			}
 		});
 		let o = this.#h;
 		this.#_ = this.composition.subscribe(() => {
 			o.dirty || t.editableMapStyle().then((e) => {
-				this.#h === o && n === this.#b && o.observeSavedDocument(e);
+				this.#h === o && n === this.#x && o.observeSavedDocument(e);
 			}).catch(() => {});
 		});
 	}
@@ -11561,134 +11602,200 @@ var mm = class extends ve {
 		}));
 	}
 	#y;
-	#b = 0;
-	#x = !1;
-	#S = Promise.resolve();
-	#C;
-	#w = !1;
-	#T;
+	#b = /* @__PURE__ */ new WeakMap();
+	#x = 0;
+	#S = !1;
+	#C = Promise.resolve();
+	#w;
+	#T = !1;
 	#E;
 	#D;
 	#O;
 	#k;
-	#A = !1;
+	#A;
 	#j = !1;
-	#M;
+	#M = !1;
 	#N;
 	#P;
-	#F = 0;
+	#F;
 	#I = 0;
-	#L = "/api";
-	#R;
+	#L = 0;
+	#R = "/api";
+	#z;
 	get agentToolDefinitions() {
-		return this.#N ?? ((e) => e.tools.filter((e) => e.mode === "read" || e.name === "selectFeature"));
+		return this.#P ?? ((e) => e.tools.filter((e) => e.mode === "read" || e.name === "selectFeature"));
 	}
 	set agentToolDefinitions(e) {
-		this.#N = e, this.#T?.isLive && this.#Y();
+		this.#P = e, this.#E?.isLive && this.#X();
 	}
 	get agentCertification() {
-		return this.#P;
+		return this.#F;
 	}
 	set agentCertification(e) {
-		this.#P = e, this.#T?.isLive && this.#Y();
+		this.#F = e, this.#E?.isLive && this.#X();
 	}
 	async createWorkspaceDraft(e) {
 		let t = e.trim();
 		if (!/^[A-Za-z0-9._-]{1,200}$/.test(t)) throw Error("Use 1–200 letters, numbers, dots, dashes or underscores for the package key.");
-		let n = this.#b;
-		if (await this.prepareWorkspaceTurn(), n !== this.#b) throw Error("The workspace session changed.");
-		let r = await new Ef({
+		let n = this.#x;
+		if (await this.prepareWorkspaceTurn(), n !== this.#x) throw Error("The workspace session changed.");
+		let r = await new Df({
 			baseUrl: z(),
 			auth: this.auth
 		}).createDraft({
 			packageKey: t,
 			envelope: {
-				...Sp,
-				body: Cp(nu(), t)
+				...Cp,
+				body: wp(nu(), t)
 			}
 		});
-		if (n !== this.#b) throw Error("The workspace session changed.");
+		if (n !== this.#x) throw Error("The workspace session changed.");
 		await this.attachWorkspaceDraft(r.draftId);
 		let i = this.#y?.identity;
 		if (!i || i.draftId !== r.draftId) throw Error("The created draft was not attached.");
 		return i;
 	}
 	attachWorkspaceDraft(e) {
-		let t = this.#b, n = this.#S.then(() => this.#B(e, t));
-		return this.#S = n.catch(() => void 0), n;
+		let t = this.#x, n = this.#C.then(() => this.#V(e, t));
+		return this.#C = n.catch(() => void 0), n;
 	}
 	saveWorkspaceVersion() {
-		return this.#z(async (e, t, n) => {
+		return this.#B(async (e, t, n) => {
 			let r = await e.saveAsVersion(t.draftId);
 			return n(), r;
 		});
 	}
 	listWorkspaceVersions() {
-		return this.#z(async (e, t, n) => {
+		return this.#B(async (e, t, n) => {
 			let r = await e.getDraft(t.draftId);
 			n();
 			let i = await e.listVersions(r.itemId);
 			return n(), i.versions;
 		});
 	}
+	reviewWorkspacePublication(e) {
+		return this.#B(async (t, n, r, i) => {
+			let a = await t.getDraft(n.draftId);
+			r();
+			let o = await t.getVersion(a.itemId, e);
+			if (r(), o.itemId !== a.itemId || o.versionId !== e || o.packageKey !== n.packageKey || !o.contentHash) throw Error("The publication version does not belong to the active map.");
+			let s = Object.freeze(structuredClone(o));
+			return this.#b.set(s, {
+				binding: this.#y,
+				generation: i,
+				itemId: o.itemId,
+				versionId: o.versionId,
+				contentHash: o.contentHash
+			}), s;
+		});
+	}
+	async publishWorkspaceVersion(e, t, n) {
+		let r = this.#b.get(e);
+		if (!r) throw Error("Review the saved version in the current workspace before publishing.");
+		let i = () => {
+			if (r.binding !== this.#y || r.generation !== this.#x) throw Error("Review the saved version again in the original workspace session before publishing.");
+		};
+		if (i(), typeof n != "string" || n.trim() !== n || !/^[A-Za-z0-9_-]{1,128}$/.test(n)) throw Error("A stable publication command ID is required.");
+		let a = JSON.stringify({
+			intent: t.intent,
+			warningAcknowledgement: t.warningAcknowledgement
+		});
+		if (r.submission && (r.submission.commandId !== n || r.submission.requestJson !== a)) throw Error("Check the original publication before changing its command or publication settings.");
+		r.submission ??= {
+			commandId: n,
+			requestJson: a
+		};
+		let o = r.submission;
+		if (o.pending) return o.pending;
+		let s = this.#B(async (e, t, n) => {
+			i();
+			let a = await e.getVersion(r.itemId, r.versionId);
+			if (n(), i(), a.itemId !== r.itemId || a.versionId !== r.versionId || a.contentHash !== r.contentHash) throw Error("The saved version changed after publication review.");
+			let s = await e.requestPublish(r.itemId, r.versionId, JSON.parse(o.requestJson), o.commandId);
+			return n(), i(), s;
+		});
+		o.pending = s;
+		try {
+			return await s;
+		} finally {
+			o.pending = void 0;
+		}
+	}
+	async readWorkspacePublication(e, t) {
+		let n = this.#y, r = this.#x, i = n?.identity;
+		if (!n || !i) throw Error("Open a map draft before reading its publication.");
+		if (![e, t].every((e) => typeof e == "string" && /^[A-Za-z0-9_-]{1,128}$/.test(e))) throw Error("Version and publication request IDs are required.");
+		let a = () => {
+			if (n !== this.#y || r !== this.#x) throw Error("The workspace session or map changed.");
+		};
+		a();
+		let o = new Df({
+			baseUrl: z(),
+			auth: this.auth
+		}), s = await o.getDraft(i.draftId);
+		if (a(), s.draftId !== i.draftId || s.packageKey !== i.packageKey) throw Error("The publication draft does not belong to the active map.");
+		let c = await o.getPublicationRequest(s.itemId, e, t);
+		if (a(), c.itemId !== s.itemId || c.versionId !== e || c.requestId !== t) throw Error("The publication receipt does not belong to the selected version.");
+		return c;
+	}
 	reopenWorkspaceVersion(e) {
-		return this.#z(async (t, n, r, i) => {
+		return this.#B(async (t, n, r, i) => {
 			let a = await t.getDraft(n.draftId);
 			r();
 			let o = await t.reopenVersion(a.itemId, e);
 			if (r(), o.itemId !== a.itemId || o.packageKey !== n.packageKey) throw Error("The reopened version does not belong to the active map.");
-			await this.#B(o.draftId, i);
+			await this.#V(o.draftId, i);
 		});
 	}
-	async #z(e) {
-		let t = this.#y, n = this.#b, r = t?.identity;
+	async #B(e) {
+		let t = this.#y, n = this.#x, r = t?.identity;
 		if (!t || !r) throw Error("Open a map draft before using saved versions.");
 		await this.prepareWorkspaceTurn();
 		let i = () => {
-			if (n !== this.#b || t !== this.#y) throw Error("The workspace session or map changed.");
-			if (this.#w || this.#x || this.#V()) throw Error("Save or explicitly reload pending Studio edits before using saved versions.");
-		}, a = this.#S.then(async () => (i(), e(new Ef({
+			if (n !== this.#x || t !== this.#y) throw Error("The workspace session or map changed.");
+			if (this.#T || this.#S || this.#H()) throw Error("Save or explicitly reload pending Studio edits before using saved versions.");
+		}, a = this.#C.then(async () => (i(), e(new Df({
 			baseUrl: z(),
 			auth: this.auth
 		}), r, i, n)));
-		return this.#S = a.then(() => void 0, () => void 0), a;
+		return this.#C = a.then(() => void 0, () => void 0), a;
 	}
-	async #B(e, t) {
-		if (t !== this.#b) throw Error("The workspace session changed.");
-		if (this.#V()) throw Error("Save pending Studio edits before attaching a draft.");
-		let n = this.#y?.identity, r = new Ep(new Ef({
+	async #V(e, t) {
+		if (t !== this.#x) throw Error("The workspace session changed.");
+		if (this.#H()) throw Error("Save pending Studio edits before attaching a draft.");
+		let n = this.#y?.identity, r = new Dp(new Df({
 			baseUrl: z(),
 			auth: this.auth
 		})), i = await r.observe(e);
-		if (t !== this.#b) throw Error("The workspace session changed.");
-		if (this.#V()) throw Error("Save pending Studio edits before attaching a draft.");
-		r.rebind(new Ef({
+		if (t !== this.#x) throw Error("The workspace session changed.");
+		if (this.#H()) throw Error("Save pending Studio edits before attaching a draft.");
+		r.rebind(new Df({
 			baseUrl: z(),
 			auth: this.auth
-		})), this.#y = r, this.#x = !1, (n?.draftId !== e || n?.generation !== r.identity?.generation ? this.composition.resetBaseline.bind(this.composition) : this.composition.replaceState.bind(this.composition))({
+		})), this.#y = r, this.#S = !1, (n?.draftId !== e || n?.generation !== r.identity?.generation ? this.composition.resetBaseline.bind(this.composition) : this.composition.replaceState.bind(this.composition))({
 			...i,
 			pins: this.composition.state.pins,
 			annotations: this.composition.state.annotations
-		}), this.#H();
+		}), this.#U();
 	}
 	async refreshWorkspaceDraft() {
-		let e = this.#y, t = this.#b;
-		await this.#S;
+		let e = this.#y, t = this.#x;
+		await this.#C;
 		let n = e?.identity;
-		if (!n || e !== this.#y || this.#w || this.#x || this.#V()) return !1;
+		if (!n || e !== this.#y || this.#T || this.#S || this.#H()) return !1;
 		try {
 			await this.attachWorkspaceDraft(n.draftId);
 		} catch (e) {
-			if (t !== this.#b || this.#w || this.#x || this.#V()) return !1;
+			if (t !== this.#x || this.#T || this.#S || this.#H()) return !1;
 			throw e;
 		}
-		return t === this.#b && !this.#V();
+		return t === this.#x && !this.#H();
 	}
 	async prepareWorkspaceTurn() {
-		if (await this.#h?.settled(), await this.#S, this.#w || this.#x || this.#V()) throw Error("Save or explicitly reload the pending Studio edits before sending a workspace turn.");
+		if (await this.#h?.settled(), await this.#C, this.#T || this.#S || this.#H()) throw Error("Save or explicitly reload the pending Studio edits before sending a workspace turn.");
 		return this.#y?.identity;
 	}
-	#V() {
+	#H() {
 		if (this.hasUnsavedStyleChanges) return !0;
 		let e = (t) => {
 			for (let n of t.querySelectorAll("*")) if (!(n.tagName === "HONUA-STUDIO-CHAT" || this.#g?.contains(n))) {
@@ -11703,7 +11810,7 @@ var mm = class extends ve {
 		};
 		return e(this) || !!(this.shadowRoot && e(this.shadowRoot));
 	}
-	#H() {
+	#U() {
 		this.dispatchEvent(new CustomEvent("honua-workspace-draft-change", {
 			bubbles: !0,
 			composed: !0,
@@ -11711,22 +11818,22 @@ var mm = class extends ve {
 		}));
 	}
 	async applyHistoryAction(e) {
-		if (this.#w || this.hasUnsavedStyleChanges) return !1;
-		let t = this.#b;
-		this.#w = !0, this.paintHistoryControls();
+		if (this.#T || this.hasUnsavedStyleChanges) return !1;
+		let t = this.#x;
+		this.#T = !0, this.paintHistoryControls();
 		try {
 			let t;
 			if (this.#y) {
 				let n = e === "undo" ? this.composition.history.peekUndo() : this.composition.history.peekRedo();
 				if (!n) return !1;
-				let r = this.#y, i = this.#b, a = this.#S.then(async () => {
-					if (i !== this.#b) throw Error("The workspace session changed.");
+				let r = this.#y, i = this.#x, a = this.#C.then(async () => {
+					if (i !== this.#x) throw Error("The workspace session changed.");
 					let t = await r.replace(n);
-					if (i !== this.#b) throw Error("The workspace session changed.");
+					if (i !== this.#x) throw Error("The workspace session changed.");
 					let a = e === "undo" ? this.composition.undo() : this.composition.redo();
-					return this.composition.replaceState(t), this.#H(), a;
+					return this.composition.replaceState(t), this.#U(), a;
 				});
-				this.#S = a.catch(() => void 0), t = await a;
+				this.#C = a.catch(() => void 0), t = await a;
 			} else t = await this.toolCallOrchestrator.applyHistoryAction(e);
 			let { draftId: n, generation: r } = this.toolCallOrchestrator;
 			t && n && r !== void 0 && this.querySelector("honua-studio-chat")?.agentSession?.attachDraft({
@@ -11736,11 +11843,11 @@ var mm = class extends ve {
 			let i = this.shadowRoot?.querySelector("[data-testid=\"history-status\"]");
 			return i && (i.textContent = t ? e === "undo" ? "Undone" : "Redone" : `Unable to ${e}. Review the activity log.`), t;
 		} catch (n) {
-			this.#y && t === this.#b && (this.#x = !0);
+			this.#y && t === this.#x && (this.#S = !0);
 			let r = this.shadowRoot?.querySelector("[data-testid=\"history-status\"]");
 			return r && (r.textContent = n instanceof Error ? n.message : `Unable to ${e}.`), !1;
 		} finally {
-			this.#w = !1, this.paintHistoryControls();
+			this.#T = !1, this.paintHistoryControls();
 		}
 	}
 	configureAgentTranscriptVerification(e, t) {
@@ -11760,56 +11867,56 @@ var mm = class extends ve {
 		e && "kind" in e && e.kind === "cookie" && Xn(e.sourcePathBase);
 		let t = this.#e, n = !!(t || this.#a || this.#y), r = t && e && "kind" in t && t.kind === "cookie" && "kind" in e && e.kind === "cookie" && t.principalId && t.principalId === e.principalId && t.environmentId === e.environmentId && Xn(t.sourcePathBase) === Xn(e.sourcePathBase);
 		if (!r) {
-			if (this.#v(), this.#b++, n) {
-				this.#O = void 0, this.#k = void 0, this.#A = !1, this.#D = void 0;
+			if (this.#v(), this.#x++, n) {
+				this.#k = void 0, this.#A = void 0, this.#j = !1, this.#O = void 0;
 				let e = this.querySelector("honua-studio-canvas");
 				e && (e.sourceCatalog = void 0);
 			}
-			this.#y = void 0, this.#x = !1, this.composition.resetBaseline(nu()), n && this.#H();
+			this.#y = void 0, this.#S = !1, this.composition.resetBaseline(nu()), n && this.#U();
 		}
 		this.#e = e, this.#i();
 		let i = this.querySelector("honua-studio-canvas");
 		if (i && (i.sourceAuthBaseUrl = e && "kind" in e && e.kind === "cookie" ? Xn(e.sourcePathBase) : B()), !this.isConnected) {
-			this.#o?.(), this.#o = void 0, pm(this.#a), this.#a = void 0, this.#l || (this.#c = void 0);
+			this.#o?.(), this.#o = void 0, mm(this.#a), this.#a = void 0, this.#l || (this.#c = void 0);
 			return;
 		}
 		this.resetAuth();
 		for (let e of this.querySelectorAll("honua-studio-canvas")) e.widgetDeck?.refreshSession();
-		this.#T?.isLive && this.#R && this.#J(this.#R), r || (this.#p = !1), this.renderChrome(), this.routingMode === "hash" ? this.#Z() : this.renderView(), this.#K();
+		this.#E?.isLive && this.#z && this.#Y(this.#z), r || (this.#p = !1), this.renderChrome(), this.routingMode === "hash" ? this.#Q() : this.renderView(), this.#q();
 	}
 	get auth() {
 		return this.#a ?? this.resetAuth();
 	}
 	get studioClient() {
-		return this.#c ||= new Nf(z(), this.auth, B()), this.#c;
+		return this.#c ||= new Pf(z(), this.auth, B()), this.#c;
 	}
 	set studioClient(e) {
 		this.#c = e, this.#l = !0, this.renderView();
 	}
 	get composition() {
-		return this.#m ||= new ip(nu()), this.#m;
+		return this.#m ||= new ap(nu()), this.#m;
 	}
 	get toolCallOrchestrator() {
-		if (!this.#T) {
+		if (!this.#E) {
 			let e = this.querySelector("honua-studio-chat");
-			this.#T = new Pp({
+			this.#E = new Fp({
 				controller: this.composition,
 				activityLog: e?.activityLog
 			});
 		}
-		return this.#T;
+		return this.#E;
 	}
 	async listProcessSources() {
-		let e = this.#b, t = this.auth, n = await (this.#l ? this.studioClient : new Nf(z(), t, B())).listCatalog();
-		if (e !== this.#b || t !== this.auth) throw Error("The workspace authority changed.");
-		return this.#W(n), this.#k = e, n.filter((e) => typeof e.locator?.serviceId == "string" && Number.isSafeInteger(e.locator?.layerId)).map((e) => ({
+		let e = this.#x, t = this.auth, n = await (this.#l ? this.studioClient : new Pf(z(), t, B())).listCatalog();
+		if (e !== this.#x || t !== this.auth) throw Error("The workspace authority changed.");
+		return this.#G(n), this.#A = e, n.filter((e) => typeof e.locator?.serviceId == "string" && Number.isSafeInteger(e.locator?.layerId)).map((e) => ({
 			id: e.id,
 			title: e.title ?? e.id
 		}));
 	}
 	async resolveProcessSource(e) {
-		let t = this.#b, n = this.#O?.find((t) => t.id === e);
-		if (!n || this.#k !== t) throw Error("Refresh the authorized source choices before selecting a process layer.");
+		let t = this.#x, n = this.#k?.find((t) => t.id === e);
+		if (!n || this.#A !== t) throw Error("Refresh the authorized source choices before selecting a process layer.");
 		let r = this.#e && "kind" in this.#e && this.#e.kind === "cookie" ? Xn(this.#e.sourcePathBase) : B(), i = await new Yu({
 			baseUrl: r,
 			...r === B() ? {} : { catalogAliasBaseUrl: B() },
@@ -11817,30 +11924,30 @@ var mm = class extends ve {
 			getAuth: () => this.auth,
 			signal: AbortSignal.timeout(8e3)
 		}).resolveProcessSource(n);
-		if (t !== this.#b) throw Error("The workspace authority changed.");
+		if (t !== this.#x) throw Error("The workspace authority changed.");
 		return i;
 	}
 	createWorkspaceStyleProvider(e = {}) {
-		let t = this.#b, n = e.getAuthority?.(), r = this.#e && "kind" in this.#e && this.#e.kind === "cookie" ? Xn(this.#e.sourcePathBase) : B();
+		let t = this.#x, n = e.getAuthority?.(), r = this.#e && "kind" in this.#e && this.#e.kind === "cookie" ? Xn(this.#e.sourcePathBase) : B();
 		return new Yu({
 			baseUrl: r,
 			...r === B() ? {} : { catalogAliasBaseUrl: B() },
 			documentUrl: window.document.baseURI,
 			getAuth: () => {
-				if (t !== this.#b || e.getAuthority?.() !== n) throw Error("The selected style workspace authority changed.");
+				if (t !== this.#x || e.getAuthority?.() !== n) throw Error("The selected style workspace authority changed.");
 				return this.auth;
 			}
 		});
 	}
 	get sourceCatalog() {
-		return this.#O;
+		return this.#k;
 	}
 	set sourceCatalog(e) {
-		this.#j = !0, this.#A = !0, this.#W(e);
+		this.#M = !0, this.#j = !0, this.#G(e);
 	}
-	async #U(e) {
-		this.#O?.some((t) => t.id === e.id) || this.#W([...this.#O ?? [], e]);
-		let t = await this.#$([{
+	async #W(e) {
+		this.#k?.some((t) => t.id === e.id) || this.#G([...this.#k ?? [], e]);
+		let t = await this.#ee([{
 			name: "addLayer",
 			layer: {
 				id: e.id,
@@ -11850,36 +11957,36 @@ var mm = class extends ve {
 		}]);
 		if (!t.ok) throw Error(t.reason);
 	}
-	#W(e) {
-		this.#O = e, this.#D = void 0;
+	#G(e) {
+		this.#k = e, this.#O = void 0;
 		let t = this.querySelector("honua-studio-canvas");
-		t && (t.sourceCatalog = e), this.isConnected && this.#T?.isLive && this.#Y();
+		t && (t.sourceCatalog = e), this.isConnected && this.#E?.isLive && this.#X();
 	}
-	async #G() {
-		if (this.#A || this.#O !== void 0) return;
+	async #K() {
+		if (this.#j || this.#k !== void 0) return;
 		let e = this.auth.getState().status;
 		if (!(e !== "fresh" && e !== "refreshing")) {
-			this.#A = !0;
+			this.#j = !0;
 			try {
-				let e = this.#b, t = this.auth, n = await this.studioClient.listCatalog();
-				if (!this.isConnected || e !== this.#b || t !== this.auth) return;
-				this.#W(n);
+				let e = this.#x, t = this.auth, n = await this.studioClient.listCatalog();
+				if (!this.isConnected || e !== this.#x || t !== this.auth) return;
+				this.#G(n);
 			} catch {}
 		}
 	}
-	#K() {
-		this.#j || (this.#O = void 0, this.#A = !1, this.#G());
-	}
 	#q() {
+		this.#M || (this.#k = void 0, this.#j = !1, this.#K());
+	}
+	#J() {
 		if (!this.isConnected) return;
 		let e = this.#a?.getState().status;
-		e !== this.#M && (this.#M = e, !(e !== "fresh" || this.#O !== void 0) && this.#K());
+		e !== this.#N && (this.#N = e, !(e !== "fresh" || this.#k !== void 0) && this.#q());
 	}
 	get aiMapKit() {
-		return this.#D ||= Ap({
+		return this.#O ||= jp({
 			controller: this.composition,
-			...this.#O === void 0 ? {} : { catalog: this.#O }
-		}), this.#D;
+			...this.#k === void 0 ? {} : { catalog: this.#k }
+		}), this.#O;
 	}
 	enableLiveComposition(e) {
 		let t = {
@@ -11888,14 +11995,14 @@ var mm = class extends ve {
 			...e.family === void 0 ? {} : { family: e.family },
 			...e.schemaVersion === void 0 ? {} : { schemaVersion: e.schemaVersion }
 		};
-		this.#R = t, this.#J(t), this.#E = e.packageKey, this.#X({
+		this.#z = t, this.#Y(t), this.#D = e.packageKey, this.#Z({
 			mode: "live",
 			packageKey: e.packageKey,
 			...e.family === void 0 ? {} : { family: e.family }
 		});
 	}
-	#J(e) {
-		this.#F += 1, this.querySelector("honua-studio-chat")?.detachAgentSession(), this.#L = e.baseUrl, this.toolCallOrchestrator.attachLiveSession({
+	#Y(e) {
+		this.#I += 1, this.querySelector("honua-studio-chat")?.detachAgentSession(), this.#R = e.baseUrl, this.toolCallOrchestrator.attachLiveSession({
 			client: new gu({
 				baseUrl: e.baseUrl,
 				auth: this.auth
@@ -11903,12 +12010,12 @@ var mm = class extends ve {
 			packageKey: e.packageKey,
 			...e.family === void 0 ? {} : { family: e.family },
 			...e.schemaVersion === void 0 ? {} : { schemaVersion: e.schemaVersion }
-		}), this.#Y();
+		}), this.#X();
 	}
-	#Y() {
-		let e = this.#Q(this.#L), t = this.#F;
+	#X() {
+		let e = this.#$(this.#R), t = this.#I;
 		e.catch((e) => {
-			t === this.#F && (this.disableLiveComposition(), this.querySelector("honua-studio-chat")?.activityLog.append("assistant_turn_error", {
+			t === this.#I && (this.disableLiveComposition(), this.querySelector("honua-studio-chat")?.activityLog.append("assistant_turn_error", {
 				errorMessage: e instanceof Error ? e.message : String(e),
 				phase: "agent-session-setup"
 			}));
@@ -11916,11 +12023,11 @@ var mm = class extends ve {
 	}
 	disableLiveComposition() {
 		if (!this.toolCallOrchestrator.isLive) return;
-		this.toolCallOrchestrator.detachLiveSession(), this.#F += 1, this.querySelector("honua-studio-chat")?.detachAgentSession();
+		this.toolCallOrchestrator.detachLiveSession(), this.#I += 1, this.querySelector("honua-studio-chat")?.detachAgentSession();
 		let e = this.querySelector("honua-studio-chat");
-		e && (e.agentSessionPending = !1), this.#E = void 0, this.#R = void 0, this.#X({ mode: "fixture" });
+		e && (e.agentSessionPending = !1), this.#D = void 0, this.#z = void 0, this.#Z({ mode: "fixture" });
 	}
-	#X(e) {
+	#Z(e) {
 		this.paintLiveCompositionControls(), this.querySelector("honua-studio-chat")?.activityLog.append("composition_mode_changed", { ...e }), this.dispatchTypedEvent("honua-studio-composition-mode-change", e);
 	}
 	get routingMode() {
@@ -11955,16 +12062,16 @@ var mm = class extends ve {
 		this.setAttribute("theme-switcher", e);
 	}
 	ensureThemeLoader() {
-		return this.#u ||= new $p(this, hm()), this.#u;
+		return this.#u ||= new em(this, gm()), this.#u;
 	}
 	resetAuth() {
-		this.#o?.(), this.#o = void 0, pm(this.#a), this.#l || (this.#c = void 0);
+		this.#o?.(), this.#o = void 0, mm(this.#a), this.#l || (this.#c = void 0);
 		let e = Ld({ hostAdapter: this.#e });
-		return this.#a = e, this.#y?.rebind(new Ef({
+		return this.#a = e, this.#y?.rebind(new Df({
 			baseUrl: z(),
 			auth: e
 		})), this.#o = e.subscribe(() => {
-			this.paintAuthControls(), this.#q();
+			this.paintAuthControls(), this.#J();
 		}), this.isConnected && this.completeStandaloneRedirectCallback(e), e;
 	}
 	async completeStandaloneRedirectCallback(e) {
@@ -11976,16 +12083,16 @@ var mm = class extends ve {
 			window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
 		}
 	}
-	#Z() {
-		this.routingMode !== "hash" || this.#r() || (this.#d?.stop(), this.#d = new Hp(this.viewRoot(), rm.map((e) => ({
+	#Q() {
+		this.routingMode !== "hash" || this.#r() || (this.#d?.stop(), this.#d = new Up(this.viewRoot(), im.map((e) => ({
 			path: e.path,
 			render: (t) => {
-				this.#f = e.path, e.render(t, this.studioClient, this.auth, (e) => this.#U(e)), this.syncNavCurrent();
+				this.#f = e.path, e.render(t, this.studioClient, this.auth, (e) => this.#W(e)), this.syncNavCurrent();
 			}
 		})), {
 			path: "*",
 			render: (e) => {
-				this.#f = "/", rm[0]?.render(e, this.studioClient, this.auth, (e) => this.#U(e)), this.syncNavCurrent();
+				this.#f = "/", im[0]?.render(e, this.studioClient, this.auth, (e) => this.#W(e)), this.syncNavCurrent();
 			}
 		}), this.#d.start());
 	}
@@ -12003,7 +12110,7 @@ var mm = class extends ve {
 		let t = this.ensureThemeLoader();
 		!this.hasAttribute("data-theme-set") && !this.hasAttribute("data-theme") && t.boot();
 		let n = this.getAttribute("base-path");
-		if (this.routingMode === "hash" ? this.#Z() : this.#f = dm(um(this.getAttribute("current-path") ?? "/"), n), !this.querySelector("honua-studio-chat")) {
+		if (this.routingMode === "hash" ? this.#Q() : this.#f = fm(dm(this.getAttribute("current-path") ?? "/"), n), !this.querySelector("honua-studio-chat")) {
 			let e = document.createElement("honua-studio-chat");
 			e.slot = "chat", e.setAttribute("label", "Chat"), this.appendChild(e);
 		}
@@ -12013,9 +12120,9 @@ var mm = class extends ve {
 		}
 		this.#t && (this.agentSessionAdapter = this.#t);
 		let r = this.querySelector("honua-studio-canvas");
-		r && (r.sourceAuthBaseUrl = this.#e && "kind" in this.#e && this.#e.kind === "cookie" ? Xn(this.#e.sourcePathBase) : B()), r && !r.composition && (r.composition = this.composition), r && !r.commandDispatch && (r.commandDispatch = (e) => this.#$(e)), r && this.#O ? r.sourceCatalog = this.#O : this.#G(), this.toolCallOrchestrator, this.#ee(), this.listen(this, "honua-studio-chat-tool-call-result", (e) => {
+		r && (r.sourceAuthBaseUrl = this.#e && "kind" in this.#e && this.#e.kind === "cookie" ? Xn(this.#e.sourcePathBase) : B()), r && !r.composition && (r.composition = this.composition), r && !r.commandDispatch && (r.commandDispatch = (e) => this.#ee(e)), r && this.#k ? r.sourceCatalog = this.#k : this.#K(), this.toolCallOrchestrator, this.#te(), this.listen(this, "honua-studio-chat-tool-call-result", (e) => {
 			let t = e.detail;
-			this.#te(t);
+			this.#ne(t);
 		}), this.listen(this, "honua-studio-lifecycle-activity", (e) => {
 			let t = e.detail;
 			this.querySelector("honua-studio-chat")?.activityLog.append("lifecycle_action", { ...t });
@@ -12034,13 +12141,13 @@ var mm = class extends ve {
 			});
 		});
 	}
-	async #Q(e) {
+	async #$(e) {
 		let t = this.querySelector("honua-studio-chat");
 		if (t && this.#t && (t.agentSessionAdapter = this.#t), !t || t.agentSessionAdapter || t.hasCustomTransport || this.auth.fetchRequest || !this.toolCallOrchestrator.isLive) return;
-		let n = ++this.#F;
+		let n = ++this.#I;
 		t.agentSessionPending = !0;
 		let r = await this.toolCallOrchestrator.ensureLiveDraft();
-		if (n !== this.#F || !this.toolCallOrchestrator.isLive) return;
+		if (n !== this.#I || !this.toolCallOrchestrator.isLive) return;
 		t.agentSessionPending = !1;
 		let i = this.aiMapKit, a = this.auth, o = new Yu({
 			baseUrl: B(),
@@ -12053,8 +12160,8 @@ var mm = class extends ve {
 				s.push(await o.read(e.styleId));
 			} catch {}
 		} catch {}
-		if (n !== this.#F || !this.toolCallOrchestrator.isLive || this.auth !== a) return;
-		let c = {}, l = this.#P;
+		if (n !== this.#I || !this.toolCallOrchestrator.isLive || this.auth !== a) return;
+		let c = {}, l = this.#F;
 		c.current = t.attachAgentSession({
 			...l?.certification ? { certification: l.certification } : {},
 			...l?.transcriptVerifier ? { transcriptVerifier: l.transcriptVerifier } : {},
@@ -12076,7 +12183,7 @@ var mm = class extends ve {
 					return e.ok && this.toolCallOrchestrator.draftId && this.toolCallOrchestrator.generation !== void 0 && c.current?.attachDraft({
 						draftId: this.toolCallOrchestrator.draftId,
 						generation: this.toolCallOrchestrator.generation
-					}), nm(t, e);
+					}), rm(t, e);
 				}
 				return i.execute(e);
 			},
@@ -12084,7 +12191,7 @@ var mm = class extends ve {
 			system: () => yf({
 				draftId: this.toolCallOrchestrator.draftId,
 				generation: this.toolCallOrchestrator.generation,
-				catalog: this.#O,
+				catalog: this.#k,
 				styles: s.map(({ styleId: e, title: t, description: n, styleVersion: r, sha256: i }) => ({
 					styleId: e,
 					title: t,
@@ -12096,12 +12203,12 @@ var mm = class extends ve {
 			}),
 			onEvent: (e) => {
 				if (e.type === "toolResult") {
-					if (n !== this.#F || c.current !== t.agentSession || !this.toolCallOrchestrator.isLive) return;
+					if (n !== this.#I || c.current !== t.agentSession || !this.toolCallOrchestrator.isLive) return;
 					if (e.result.draft && this.toolCallOrchestrator.acceptServerDraft(e.result.draft), e.result.ok && e.result.toolName === "honua_studio_propose_publication") try {
 						let n = JSON.parse(e.result.content);
 						if (n.status !== "ok") return;
 						let r = new URL(z(), document.baseURI).href, i = zd(n.result, r);
-						i && (this.#I += 1, t.shareNote = i.text);
+						i && (this.#L += 1, t.shareNote = i.text);
 					} catch {}
 				}
 			}
@@ -12113,7 +12220,7 @@ var mm = class extends ve {
 		let r = `/rest/services/${e.serviceName.split("/").map(encodeURIComponent).join("/")}/FeatureServer`, i = n.filter((t) => t.locator?.layerId === e.layerId && typeof t.locator.url == "string" && t.locator.url.endsWith(r));
 		if (i.length !== 1) throw Error("The published layer has no unique verified catalog source.");
 		let a = i[0];
-		return this.#W(n), this.#$([{
+		return this.#G(n), this.#ee([{
 			name: "addLayer",
 			layer: {
 				id: a.id,
@@ -12122,32 +12229,32 @@ var mm = class extends ve {
 			}
 		}]);
 	}
-	async #$(e) {
+	async #ee(e) {
 		if (this.hasUnsavedStyleChanges && e.some((e) => e.name !== "setMapStyle")) return {
 			ok: !1,
 			reason: "Save or discard visual style edits before changing the map."
 		};
 		if (this.#y) {
-			let t = this.#y, n = this.#b, r = this.#S.then(async () => {
+			let t = this.#y, n = this.#x, r = this.#C.then(async () => {
 				try {
-					if (n !== this.#b) throw Error("The workspace session changed.");
+					if (n !== this.#x) throw Error("The workspace session changed.");
 					if (t !== this.#y) throw Error("The active map changed before the edit began.");
-					let r = Rf(this.composition.state, e).state, i = e.length === 1 && e[0]?.name === "setMapStyle" ? {
+					let r = zf(this.composition.state, e).state, i = e.length === 1 && e[0]?.name === "setMapStyle" ? {
 						...await t.replaceStyle(e[0].mapSpec),
 						pins: r.pins,
 						annotations: r.annotations
 					} : await t.replace(r);
-					if (n !== this.#b) throw Error("The workspace session changed.");
+					if (n !== this.#x) throw Error("The workspace session changed.");
 					for (let t of e) this.composition.apply(t);
-					return this.composition.replaceState(i), this.#H(), { ok: !0 };
+					return this.composition.replaceState(i), this.#U(), { ok: !0 };
 				} catch (e) {
-					return n === this.#b && t === this.#y && (this.#x = !0), {
+					return n === this.#x && t === this.#y && (this.#S = !0), {
 						ok: !1,
 						reason: e instanceof Error ? e.message : String(e)
 					};
 				}
 			});
-			return this.#S = r.catch(() => void 0), r;
+			return this.#C = r.catch(() => void 0), r;
 		}
 		if (this.#e && "kind" in this.#e && this.#e.kind === "cookie") return {
 			ok: !1,
@@ -12165,8 +12272,8 @@ var mm = class extends ve {
 		}
 		return { ok: !0 };
 	}
-	async #ee() {
-		let e = this.#I;
+	async #te() {
+		let e = this.#L;
 		try {
 			let t = Hd(Vd());
 			if (!t) return;
@@ -12179,20 +12286,20 @@ var mm = class extends ve {
 			let r = await this.auth?.getAccessToken();
 			if (!r) return;
 			let i = await Gd(z(), t.proposalId, r);
-			if (!i || e !== this.#I || !this.isConnected) return;
+			if (!i || e !== this.#L || !this.isConnected) return;
 			n.shareNote = Ud(t, i).text;
 		} catch {}
 	}
-	async #te(e) {
+	async #ne(e) {
 		if (!e.toolName) return;
-		let t = tm(e.arguments) ? e.arguments : {};
+		let t = nm(e.arguments) ? e.arguments : {};
 		await this.toolCallOrchestrator.handleToolCall({
 			toolName: e.toolName,
 			arguments: t
 		});
 	}
 	onDisconnect() {
-		this.#C?.(), this.#C = void 0, this.#t || this.querySelector("honua-studio-chat")?.detachAgentSession(), this.#F += 1, this.#d?.stop(), this.#d = void 0, this.#o?.(), this.#o = void 0, pm(this.#a), this.#a = void 0, this.#u = void 0, this.#p = !1;
+		this.#w?.(), this.#w = void 0, this.#t || this.querySelector("honua-studio-chat")?.detachAgentSession(), this.#I += 1, this.#d?.stop(), this.#d = void 0, this.#o?.(), this.#o = void 0, mm(this.#a), this.#a = void 0, this.#u = void 0, this.#p = !1;
 	}
 	attributeChangedCallback(e, t, n) {
 		if (!(!this.isConnected || t === n)) {
@@ -12205,7 +12312,7 @@ var mm = class extends ve {
 			}
 			if (e === "current-path" && this.routingMode === "host") {
 				let e = this.getAttribute("base-path");
-				this.#f = dm(um(n ?? "/"), e), this.renderView();
+				this.#f = fm(dm(n ?? "/"), e), this.renderView();
 				return;
 			}
 			if (e === "theme-switcher") {
@@ -12242,7 +12349,7 @@ var mm = class extends ve {
             <h1 class="app-title">Natural language to map app.</h1>
           </div>
           <nav class="app-nav" aria-label="Studio">
-            ${rm.map((e) => `<a href="#${e.path}" data-path="${e.path}" data-testid="${e.navTestId}">${e.label}</a>`).join("")}
+            ${im.map((e) => `<a href="#${e.path}" data-path="${e.path}" data-testid="${e.navTestId}">${e.label}</a>`).join("")}
           </nav>
           <div class="app-auth" data-testid="auth-controls" role="group" aria-label="Session">
             <span class="hn-muted" data-testid="auth-status"></span>
@@ -12254,7 +12361,7 @@ var mm = class extends ve {
                user should be able to see which one they are in without
                opening a console. -->
           <div class="app-composition-mode" data-testid="live-composition" role="group" aria-label="Composition mode">
-            <span class="hn-badge" data-testid="live-composition-status">${am}</span>
+            <span class="hn-badge" data-testid="live-composition-status">${om}</span>
             <button type="button" class="hn-btn hn-btn--sm" data-testid="history-undo" disabled>Undo</button>
             <button type="button" class="hn-btn hn-btn--sm" data-testid="history-redo" disabled>Redo</button>
             <span class="hn-muted" data-testid="history-status" role="status"></span>
@@ -12273,7 +12380,7 @@ var mm = class extends ve {
               <label class="live-field">
                 <span class="hn-muted">Family</span>
                 <select data-testid="live-composition-family">
-                  ${im.map((e) => `<option value="${e}">${e}</option>`).join("")}
+                  ${am.map((e) => `<option value="${e}">${e}</option>`).join("")}
                 </select>
               </label>
               <div class="live-actions">
@@ -12287,10 +12394,10 @@ var mm = class extends ve {
           </div>
           <div class="app-theme-controls" data-testid="theme-controls" ${e ? "hidden" : ""}>
             <div class="theme-group" role="group" aria-label="Theme set">
-              ${om.map((e) => `<button type="button" class="hn-btn hn-btn--sm" data-theme-set-option="${e}" data-testid="theme-set-${e}">${cm[e]}</button>`).join("")}
+              ${sm.map((e) => `<button type="button" class="hn-btn hn-btn--sm" data-theme-set-option="${e}" data-testid="theme-set-${e}">${lm[e]}</button>`).join("")}
             </div>
             <div class="theme-group" role="group" aria-label="Theme mode">
-              ${sm.map((e) => `<button type="button" class="hn-btn hn-btn--sm" data-theme-mode-option="${e}" data-testid="theme-mode-${e}">${lm[e]}</button>`).join("")}
+              ${cm.map((e) => `<button type="button" class="hn-btn hn-btn--sm" data-theme-mode-option="${e}" data-testid="theme-mode-${e}">${um[e]}</button>`).join("")}
             </div>
           </div>
         </header>
@@ -12313,7 +12420,7 @@ var mm = class extends ve {
 			if (n && this.routingMode === "host") {
 				t.preventDefault();
 				let e = this.getAttribute("base-path");
-				this.dispatchTypedEvent("honua-studio-navigate", { path: fm(n, e) });
+				this.dispatchTypedEvent("honua-studio-navigate", { path: pm(n, e) });
 			}
 		}, { signal: r });
 		n?.querySelector("[data-testid=\"auth-signin\"]")?.addEventListener("click", () => {
@@ -12324,7 +12431,7 @@ var mm = class extends ve {
 		for (let e of ["undo", "redo"]) n?.querySelector(`[data-testid="history-${e}"]`)?.addEventListener("click", () => {
 			this.applyHistoryAction(e);
 		}, { signal: r });
-		this.#C?.(), this.#C = this.composition.subscribe(() => this.paintHistoryControls()), this.paintHistoryControls(), this.syncThemeControls(), this.syncNavCurrent(), this.paintAuthControls(), this.paintLiveCompositionControls();
+		this.#w?.(), this.#w = this.composition.subscribe(() => this.paintHistoryControls()), this.paintHistoryControls(), this.syncThemeControls(), this.syncNavCurrent(), this.paintAuthControls(), this.paintLiveCompositionControls();
 	}
 	bindLiveCompositionControls() {
 		let e = this.shadowRoot, t = this.connectedSignal;
@@ -12352,8 +12459,8 @@ var mm = class extends ve {
 	paintLiveCompositionControls() {
 		let e = this.shadowRoot;
 		if (!e) return;
-		let t = this.#T?.isLive === !0, n = e.querySelector("[data-testid=\"live-composition-status\"]");
-		n && (n.textContent = t ? `Live · ${this.#E ?? "connected"}` : am, n.setAttribute("data-mode", t ? "live" : "fixture"));
+		let t = this.#E?.isLive === !0, n = e.querySelector("[data-testid=\"live-composition-status\"]");
+		n && (n.textContent = t ? `Live · ${this.#D ?? "connected"}` : om, n.setAttribute("data-mode", t ? "live" : "fixture"));
 		let r = e.querySelector("[data-testid=\"live-composition-toggle\"]");
 		if (r && (r.textContent = t ? "Return to fixture" : "Go live…"), t) {
 			let t = e.querySelector("[data-testid=\"live-composition-form\"]");
@@ -12363,7 +12470,7 @@ var mm = class extends ve {
 	paintHistoryControls() {
 		for (let e of ["undo", "redo"]) {
 			let t = this.shadowRoot?.querySelector(`[data-testid="history-${e}"]`);
-			t && (t.disabled = this.#w || this.hasUnsavedStyleChanges || !(e === "undo" ? this.composition.canUndo() : this.composition.canRedo()));
+			t && (t.disabled = this.#T || this.hasUnsavedStyleChanges || !(e === "undo" ? this.composition.canUndo() : this.composition.canRedo()));
 		}
 	}
 	syncThemeControls() {
@@ -12382,7 +12489,7 @@ var mm = class extends ve {
 		let e = this.shadowRoot;
 		if (!e) return;
 		let t = this.#a?.getState() ?? { status: "signed-out" }, n = e.querySelector("[data-testid=\"auth-status\"]");
-		n && (n.textContent = em[t.status]);
+		n && (n.textContent = tm[t.status]);
 		let r = e.querySelector("[data-testid=\"auth-signin\"]"), i = e.querySelector("[data-testid=\"auth-signout\"]"), a = t.status === "fresh" || t.status === "refreshing";
 		r && (r.hidden = a), i && (i.hidden = !a);
 	}
@@ -12392,11 +12499,11 @@ var mm = class extends ve {
 				this.viewRoot().replaceChildren();
 				return;
 			}
-			(rm.find((e) => e.path === this.#f) ?? rm[0])?.render(this.viewRoot(), this.studioClient, this.auth, (e) => this.#U(e)), this.syncNavCurrent();
+			(im.find((e) => e.path === this.#f) ?? im[0])?.render(this.viewRoot(), this.studioClient, this.auth, (e) => this.#W(e)), this.syncNavCurrent();
 		}
 	}
 };
-function hm() {
+function gm() {
 	try {
 		return typeof window < "u" ? window.localStorage : null;
 	} catch {
@@ -12405,21 +12512,21 @@ function hm() {
 }
 //#endregion
 //#region src/elements/session.ts
-function gm(e) {
+function _m(e) {
 	return e.auth ? e.auth : e.closest("honua-studio-app")?.auth ?? void 0;
 }
 //#endregion
 //#region src/elements/studio-canvas-element.ts
-var _m = ["map", "details"], vm = {
+var vm = ["map", "details"], ym = {
 	map: "Map",
 	details: "Details"
-}, ym = class e extends ve {
+}, bm = class e extends ve {
 	static get observedAttributes() {
 		return ["label", "surface"];
 	}
 	static instanceCount = 0;
 	#e;
-	#t = () => gm(this);
+	#t = () => _m(this);
 	#n;
 	#r;
 	#i;
@@ -12534,7 +12641,7 @@ var _m = ["map", "details"], vm = {
 		}
 	}
 	onConnect() {
-		e.instanceCount += 1, this.#e || gm(this) || this.dispatchTypedEvent("honua-studio-session-required", { reason: "honua-studio-canvas has no session" }), this.#r && !this.#a && (this.#a = this.#r.subscribe(() => this.#k())), typeof ResizeObserver < "u" && (this.#n = new ResizeObserver((e) => {
+		e.instanceCount += 1, this.#e || _m(this) || this.dispatchTypedEvent("honua-studio-session-required", { reason: "honua-studio-canvas has no session" }), this.#r && !this.#a && (this.#a = this.#r.subscribe(() => this.#k())), typeof ResizeObserver < "u" && (this.#n = new ResizeObserver((e) => {
 			let t = e[0];
 			t && (this.#f?.resize(), this.dispatchTypedEvent("honua-studio-canvas-resize", {
 				width: t.contentRect.width,
@@ -12553,11 +12660,11 @@ var _m = ["map", "details"], vm = {
 		let t = this.getAttribute("label") ?? "Canvas";
 		if (this.setShadowHtml(`
       <style>${ye()}${we()}</style>
-      <section class="canvas hn-panel" part="panel" aria-label="${jm(t)}" data-testid="studio-canvas">
+      <section class="canvas hn-panel" part="panel" aria-label="${Mm(t)}" data-testid="studio-canvas">
         <div class="canvas-head">
-          <h2 class="hn-panel-title" data-testid="studio-canvas-title">${jm(t)}</h2>
+          <h2 class="hn-panel-title" data-testid="studio-canvas-title">${Mm(t)}</h2>
           ${e === "composition" ? `<div class="canvas-surfaces" role="group" aria-label="Canvas surface">
-                   ${_m.map((e) => `<button type="button" class="hn-btn hn-btn--sm" data-surface-option="${e}" data-testid="studio-canvas-mode-${e}">${vm[e]}</button>`).join("")}
+                   ${vm.map((e) => `<button type="button" class="hn-btn hn-btn--sm" data-surface-option="${e}" data-testid="studio-canvas-mode-${e}">${ym[e]}</button>`).join("")}
                  </div>` : ""}
         </div>
         ${e === "placeholder" ? "<div class=\"canvas-surface\" data-testid=\"studio-canvas-surface\" tabindex=\"0\">\n                 <span>Composition canvas placeholder — honua-studio#8.</span>\n               </div>" : "<honua-studio-control-bar\n                 class=\"canvas-controls\"\n                 data-testid=\"studio-canvas-control-bar\"\n                 label=\"Composed controls\"\n               ></honua-studio-control-bar>\n               <div\n                 class=\"canvas-map\"\n                 data-testid=\"studio-canvas-map\"\n                 role=\"region\"\n                 aria-label=\"Composition map\"\n                 aria-describedby=\"composition-readout\"\n               ></div>\n               <p class=\"canvas-map-status hn-muted\" data-testid=\"studio-canvas-map-status\" role=\"status\"></p>\n               <honua-studio-widget-deck\n                 class=\"canvas-widgets\"\n                 data-testid=\"studio-canvas-widget-deck\"\n                 label=\"Composed widgets\"\n               ></honua-studio-widget-deck>\n               <div class=\"composition-readout\" id=\"composition-readout\" data-testid=\"studio-canvas-readout\" tabindex=\"0\" role=\"region\" aria-label=\"Composition details\"></div>"}
@@ -12657,7 +12764,7 @@ var _m = ["map", "details"], vm = {
 		if (!e || e.status === "idle" || e.status === "starting") return "Preparing the map…";
 		if (e.status === "unavailable") return `Map unavailable — showing the composition details instead.${e.statusDetail ? ` (${e.statusDetail})` : ""}`;
 		let t = e.projection?.unresolved ?? [];
-		return t.length > 0 ? bm(t) : e.statusDetail ?? "";
+		return t.length > 0 ? xm(t) : e.statusDetail ?? "";
 	}
 	async #F() {
 		if (this.#f || this.#g) return;
@@ -12666,7 +12773,7 @@ var _m = ["map", "details"], vm = {
 		let n = this.#h, r = () => this.#h !== n || !this.isConnected || this.#r !== e;
 		this.#g = !0;
 		try {
-			let [{ CompositionMapView: n, isWebglAvailable: i }, { MAPLIBRE_CSS: a }] = await Promise.all([Promise.resolve().then(() => E_), import("./maplibre-styles-DqdxD-wM.js")]);
+			let [{ CompositionMapView: n, isWebglAvailable: i }, { MAPLIBRE_CSS: a }] = await Promise.all([Promise.resolve().then(() => D_), import("./maplibre-styles-DqdxD-wM.js")]);
 			if (r()) return;
 			if (!this.#c && !i()) {
 				this.#I("This browser has no WebGL context available.");
@@ -12680,9 +12787,9 @@ var _m = ["map", "details"], vm = {
 					baseUrl: this.#u,
 					...this.#u === B() ? {} : { catalogAliasBaseUrl: B() },
 					documentUrl: document.baseURI,
-					getAuth: () => gm(this)
+					getAuth: () => _m(this)
 				}) } : {},
-				getAuth: () => gm(this),
+				getAuth: () => _m(this),
 				sourceAuthBaseUrl: this.#u,
 				...this.#u === B() ? {} : { sourceCatalogBaseUrl: B() },
 				projection: {
@@ -12737,14 +12844,14 @@ var _m = ["map", "details"], vm = {
 		!e || !t || (e.innerHTML = this.#H(t), this.#U());
 	}
 	#H(e) {
-		let t = e.state, n = new Set(e.selection.map(xm)), r = new Map((this.#f?.projection?.unresolved ?? []).map((e) => [e.layerId, e.reason]));
+		let t = e.state, n = new Set(e.selection.map(Sm)), r = new Map((this.#f?.projection?.unresolved ?? []).map((e) => [e.layerId, e.reason]));
 		return `
-        ${Cm("Layers", "layers", t.layers, (e) => e.id, (e) => wm(e, n, t.pins.some((t) => Sm(t, "layer", e.id)), r.get(e.id)))}
-        ${km(t.view)}
-        ${Cm("Widgets", "widgets", t.widgets, (e) => e.id, (e) => Tm(e, n, t.pins.some((t) => Sm(t, "component", e.id))))}
-        ${Cm("Controls", "controls", t.controls, (e) => e.id, (e) => Em(e, n, t.pins.some((t) => Sm(t, "control", e.id)), c(t, e)))}
-        ${Cm("Annotations", "annotations", t.annotations, (e) => e.id, (e) => Dm(e, n, t.pins.some((t) => Sm(t, "region", e.id))))}
-        ${Am(t.pins)}
+        ${wm("Layers", "layers", t.layers, (e) => e.id, (e) => Tm(e, n, t.pins.some((t) => Cm(t, "layer", e.id)), r.get(e.id)))}
+        ${Am(t.view)}
+        ${wm("Widgets", "widgets", t.widgets, (e) => e.id, (e) => Em(e, n, t.pins.some((t) => Cm(t, "component", e.id))))}
+        ${wm("Controls", "controls", t.controls, (e) => e.id, (e) => Dm(e, n, t.pins.some((t) => Cm(t, "control", e.id)), c(t, e)))}
+        ${wm("Annotations", "annotations", t.annotations, (e) => e.id, (e) => Om(e, n, t.pins.some((t) => Cm(t, "region", e.id))))}
+        ${jm(t.pins)}
     `;
 	}
 	#U() {
@@ -12760,96 +12867,96 @@ var _m = ["map", "details"], vm = {
 		}, { signal: t });
 	}
 };
-function bm(e) {
+function xm(e) {
 	let t = e[0];
 	return e.length === 1 && t ? `1 layer is not renderable: ${t.reason}` : `${e.length} layers are not renderable — see Details.`;
 }
-function xm(e) {
+function Sm(e) {
 	return e.kind === "feature" ? `feature:${e.sourceId}:${String(e.featureId)}` : `${e.kind}:${e.id}`;
 }
-function Sm(e, t, n) {
+function Cm(e, t, n) {
 	return e.kind === t && e.id === n;
 }
-function Cm(e, t, n, r, i) {
+function wm(e, t, n, r, i) {
 	return `
     <div class="composition-section" data-testid="studio-canvas-${t}">
-      <h3>${jm(e)}</h3>
-      ${n.length === 0 ? "<p class=\"composition-empty hn-muted\">None yet.</p>" : `<ul class="composition-list">${n.map((e) => `<li data-key="${jm(r(e))}">${i(e)}</li>`).join("")}</ul>`}
+      <h3>${Mm(e)}</h3>
+      ${n.length === 0 ? "<p class=\"composition-empty hn-muted\">None yet.</p>" : `<ul class="composition-list">${n.map((e) => `<li data-key="${Mm(r(e))}">${i(e)}</li>`).join("")}</ul>`}
     </div>
   `;
 }
-function wm(e, t, n, r) {
+function Tm(e, t, n, r) {
 	let i = {
 		kind: "layer",
 		id: e.id
-	}, a = t.has(xm(i)), o = [
+	}, a = t.has(Sm(i)), o = [
 		e.sourceId,
 		e.visible ? "visible" : "hidden",
 		e.styleRef ? e.styleRef.styleId : void 0
 	].filter((e) => !!e).join(" · ");
-	return Om("layer", e.id, e.title ?? e.id, o, a, n, r);
+	return km("layer", e.id, e.title ?? e.id, o, a, n, r);
 }
-function Tm(e, t, n) {
+function Em(e, t, n) {
 	let r = {
 		kind: "component",
 		id: e.id
-	}, i = t.has(xm(r)), a = [e.kind, e.sourceId].filter((e) => !!e).join(" · ");
-	return Om("component", e.id, e.title ?? e.id, a, i, n);
+	}, i = t.has(Sm(r)), a = [e.kind, e.sourceId].filter((e) => !!e).join(" · ");
+	return km("component", e.id, e.title ?? e.id, a, i, n);
 }
-function Em(e, t, n, r) {
+function Dm(e, t, n, r) {
 	let i = {
 		kind: "control",
 		id: e.id
-	}, a = t.has(xm(i)), o = [e.kind, e.sourceId].filter((e) => !!e).join(" · ");
-	return Om("control", e.id, e.title ?? e.id, o, a, n, r.state === "unsupported" ? r.reason : void 0, "not rendered");
+	}, a = t.has(Sm(i)), o = [e.kind, e.sourceId].filter((e) => !!e).join(" · ");
+	return km("control", e.id, e.title ?? e.id, o, a, n, r.state === "unsupported" ? r.reason : void 0, "not rendered");
 }
-function Dm(e, t, n) {
+function Om(e, t, n) {
 	let r = {
 		kind: "region",
 		id: e.id
-	}, i = t.has(xm(r)), a = [e.kind, e.text].filter((e) => !!e).join(" · ");
-	return Om("region", e.id, e.label ?? e.id, a, i, n);
+	}, i = t.has(Sm(r)), a = [e.kind, e.text].filter((e) => !!e).join(" · ");
+	return km("region", e.id, e.label ?? e.id, a, i, n);
 }
-function Om(e, t, n, r, i, a, o, s = "not on map") {
+function km(e, t, n, r, i, a, o, s = "not on map") {
 	return `
     <button
       type="button"
       class="composition-row"
       data-testid="studio-canvas-row"
-      data-target-kind="${jm(e)}"
-      data-target-id="${jm(t)}"
+      data-target-kind="${Mm(e)}"
+      data-target-id="${Mm(t)}"
       aria-pressed="${i}"
       data-pinned="${a}"
-      ${o ? `data-unrendered="true" title="${jm(o)}"` : ""}
+      ${o ? `data-unrendered="true" title="${Mm(o)}"` : ""}
     >
-      <span>${jm(n)}${a ? " <span aria-label=\"pinned\">📌</span>" : ""}${o ? ` <span class="composition-flag" data-testid="studio-canvas-unrendered">${jm(s)}</span>` : ""}</span>
-      ${r ? `<span class="hn-muted">${jm(r)}</span>` : ""}
+      <span>${Mm(n)}${a ? " <span aria-label=\"pinned\">📌</span>" : ""}${o ? ` <span class="composition-flag" data-testid="studio-canvas-unrendered">${Mm(s)}</span>` : ""}</span>
+      ${r ? `<span class="hn-muted">${Mm(r)}</span>` : ""}
     </button>
   `;
 }
-function km(e) {
+function Am(e) {
 	let t = [];
 	return e.center && t.push(`center [${e.center[0]}, ${e.center[1]}]`), e.zoom !== void 0 && t.push(`zoom ${e.zoom}`), e.pitch !== void 0 && t.push(`pitch ${e.pitch}`), e.bearing !== void 0 && t.push(`bearing ${e.bearing}`), e.bbox && t.push(`bbox [${e.bbox.join(", ")}]`), `
     <div class="composition-section" data-testid="studio-canvas-view">
       <h3>View</h3>
-      ${t.length === 0 ? "<p class=\"composition-empty hn-muted\">Unset.</p>" : `<ul class="composition-view-fields">${t.map((e) => `<li>${jm(e)}</li>`).join("")}</ul>`}
-    </div>
-  `;
-}
-function Am(e) {
-	return `
-    <div class="composition-section" data-testid="studio-canvas-pins">
-      <h3>Pins</h3>
-      ${e.length === 0 ? "<p class=\"composition-empty hn-muted\">Nothing pinned.</p>" : `<ul class="composition-list">${e.map((e) => `<li class="hn-badge" data-testid="studio-canvas-pin">${jm(xm(e))}</li>`).join("")}</ul>`}
+      ${t.length === 0 ? "<p class=\"composition-empty hn-muted\">Unset.</p>" : `<ul class="composition-view-fields">${t.map((e) => `<li>${Mm(e)}</li>`).join("")}</ul>`}
     </div>
   `;
 }
 function jm(e) {
+	return `
+    <div class="composition-section" data-testid="studio-canvas-pins">
+      <h3>Pins</h3>
+      ${e.length === 0 ? "<p class=\"composition-empty hn-muted\">Nothing pinned.</p>" : `<ul class="composition-list">${e.map((e) => `<li class="hn-badge" data-testid="studio-canvas-pin">${Mm(Sm(e))}</li>`).join("")}</ul>`}
+    </div>
+  `;
+}
+function Mm(e) {
 	return e.replace(/[&<>"']/g, (e) => `&#${e.charCodeAt(0)};`);
 }
 //#endregion
 //#region src/chat/ai-contract.ts
-var Mm = {
+var Nm = {
 	message_start: "messageStart",
 	text_delta: "textDelta",
 	tool_call_start: "toolCallStart",
@@ -12859,10 +12966,10 @@ var Mm = {
 	error: "error",
 	transcript_provenance: "transcriptProvenance"
 };
-Object.fromEntries(Object.entries(Mm).map(([e, t]) => [t, e]));
+Object.fromEntries(Object.entries(Nm).map(([e, t]) => [t, e]));
 //#endregion
 //#region src/chat/annotation.ts
-function Nm(e) {
+function Pm(e) {
 	return {
 		id: e.id,
 		kind: e.kind,
@@ -12871,7 +12978,7 @@ function Nm(e) {
 		...e.label === void 0 ? {} : { label: e.label }
 	};
 }
-function Pm(e) {
+function Fm(e) {
 	if (e.label) return e.label;
 	switch (e.kind) {
 		case "layer": return `Layer ${e.payload.layerId}`;
@@ -12887,27 +12994,27 @@ function Pm(e) {
 		default: return "Annotation";
 	}
 }
-function Fm(e) {
-	return e.length === 0 ? "" : `Context (user-selected references):\n${e.map((e) => `- [${e.kind}] ${Pm(e)} :: ${JSON.stringify(e.payload)}`).join("\n")}`;
+function Im(e) {
+	return e.length === 0 ? "" : `Context (user-selected references):\n${e.map((e) => `- [${e.kind}] ${Fm(e)} :: ${JSON.stringify(e.payload)}`).join("\n")}`;
 }
-function Im(e, t) {
-	let n = Fm(t);
+function Lm(e, t) {
+	let n = Im(t);
 	return n ? `${e}\n\n${n}` : e;
 }
 //#endregion
 //#region src/chat/message-reducer.ts
-var Lm = {
+var Rm = {
 	messages: [],
 	pendingAnnotations: [],
 	streaming: !1
 };
-function Rm(e, t, n) {
+function zm(e, t, n) {
 	return e.map((e) => e.id === t ? n(e) : e);
 }
-function zm(e, t, n) {
+function Bm(e, t, n) {
 	return t ? e.map((e) => e.id === t ? n(e) : e) : e;
 }
-function Bm(e, t) {
+function Vm(e, t) {
 	switch (t.type) {
 		case "messageStart": return {
 			...e,
@@ -12931,14 +13038,14 @@ function Bm(e, t) {
 		}
 		case "toolCallDelta": return {
 			...e,
-			toolCalls: zm(e.toolCalls, t.toolCallId, (e) => ({
+			toolCalls: Bm(e.toolCalls, t.toolCallId, (e) => ({
 				...e,
 				argumentsText: e.argumentsText + (t.toolArgumentsDelta ?? "")
 			}))
 		};
 		case "toolCallStop": return {
 			...e,
-			toolCalls: zm(e.toolCalls, t.toolCallId, (e) => ({
+			toolCalls: Bm(e.toolCalls, t.toolCallId, (e) => ({
 				...e,
 				args: t.toolArguments,
 				status: "complete"
@@ -12958,7 +13065,7 @@ function Bm(e, t) {
 		default: return e;
 	}
 }
-function Vm(e, t) {
+function Hm(e, t) {
 	switch (t.type) {
 		case "user-message-sent": {
 			let n = {
@@ -12991,7 +13098,7 @@ function Vm(e, t) {
 			};
 		}
 		case "ai-event": {
-			let n = Rm(e.messages, t.id, (e) => Bm(e, t.event)), r = t.event.type !== "messageStop" && t.event.type !== "error";
+			let n = zm(e.messages, t.id, (e) => Vm(e, t.event)), r = t.event.type !== "messageStop" && t.event.type !== "error";
 			return {
 				...e,
 				messages: n,
@@ -12999,9 +13106,9 @@ function Vm(e, t) {
 			};
 		}
 		case "tool-result": {
-			let n = Rm(e.messages, t.id, (e) => ({
+			let n = zm(e.messages, t.id, (e) => ({
 				...e,
-				toolCalls: zm(e.toolCalls, t.toolCallId, (e) => ({
+				toolCalls: Bm(e.toolCalls, t.toolCallId, (e) => ({
 					...e,
 					status: t.ok ? "complete" : "error",
 					...t.errorMessage ? { errorMessage: t.errorMessage } : {}
@@ -13013,7 +13120,7 @@ function Vm(e, t) {
 			};
 		}
 		case "turn-cancelled": {
-			let n = Rm(e.messages, t.id, (e) => e.status === "streaming" ? {
+			let n = zm(e.messages, t.id, (e) => e.status === "streaming" ? {
 				...e,
 				status: "cancelled"
 			} : e);
@@ -13031,18 +13138,18 @@ function Vm(e, t) {
 			...e,
 			pendingAnnotations: e.pendingAnnotations.filter((e) => e.id !== t.id)
 		};
-		case "reset": return Lm;
+		case "reset": return Rm;
 		default: return e;
 	}
 }
 //#endregion
 //#region src/chat/transport.ts
-var Hm = class extends Error {
+var Um = class extends Error {
 	cause;
 	constructor(e, t) {
 		super(e), this.cause = t, this.name = "ChatTransportError";
 	}
-}, Um = class {
+}, Wm = class {
 	#e = "";
 	#t = "";
 	#n = [];
@@ -13076,8 +13183,8 @@ var Hm = class extends Error {
 };
 //#endregion
 //#region src/chat/sse-transport.ts
-function Wm(e, t) {
-	let n = Mm[t];
+function Gm(e, t) {
+	let n = Nm[t];
 	if (n) {
 		if (!e) return { type: n };
 		try {
@@ -13093,7 +13200,7 @@ function Wm(e, t) {
 		}
 	}
 }
-var Gm = class {
+var Km = class {
 	options;
 	constructor(e = {}) {
 		this.options = e;
@@ -13117,31 +13224,31 @@ var Gm = class {
 			});
 		} catch (e) {
 			if (t.aborted) return;
-			throw new Hm(`Could not reach the Studio AI proxy at ${n}/v1/studio/ai/chat.`, e);
+			throw new Um(`Could not reach the Studio AI proxy at ${n}/v1/studio/ai/chat.`, e);
 		}
-		if (!a.ok) throw new Hm(`Studio AI proxy responded ${a.status} for the chat request.`);
-		if (!a.body) throw new Hm("Studio AI proxy response had no body to stream.");
-		let o = a.body.getReader(), s = new TextDecoder(), c = new Um();
+		if (!a.ok) throw new Um(`Studio AI proxy responded ${a.status} for the chat request.`);
+		if (!a.body) throw new Um("Studio AI proxy response had no body to stream.");
+		let o = a.body.getReader(), s = new TextDecoder(), c = new Wm();
 		try {
 			for (;;) {
 				let { value: e, done: t } = await o.read();
 				if (t) break;
 				let n = s.decode(e, { stream: !0 });
 				for (let e of c.push(n)) {
-					let t = Wm(e.data, e.event);
+					let t = Gm(e.data, e.event);
 					t && (yield t);
 				}
 			}
 		} catch (e) {
 			if (t.aborted) return;
-			throw new Hm("Studio AI proxy stream failed.", e);
+			throw new Um("Studio AI proxy stream failed.", e);
 		} finally {
 			try {
 				o.releaseLock();
 			} catch {}
 		}
 	}
-}, Km = class extends ve {
+}, qm = class extends ve {
 	static get observedAttributes() {
 		return ["label", "placeholder"];
 	}
@@ -13150,7 +13257,7 @@ var Gm = class {
 	#n;
 	#r = !1;
 	#i;
-	#a = Lm;
+	#a = Rm;
 	#o = [];
 	#s = 0;
 	#c = 0;
@@ -13185,7 +13292,7 @@ var Gm = class {
 		this.#e !== e && (this.#t?.(), this.#t = void 0, this.#e = e, this.#t = e?.subscribe(() => this.render()), this.#r || (this.#n = void 0), this.render());
 	}
 	get transport() {
-		return this.#n ||= new Gm({
+		return this.#n ||= new Km({
 			baseUrl: z(),
 			auth: this.#e
 		}), this.#n;
@@ -13243,7 +13350,7 @@ var Gm = class {
 	}
 	onConnect() {
 		if (!this.#e) {
-			let e = gm(this);
+			let e = _m(this);
 			e ? this.auth = e : this.dispatchTypedEvent("honua-studio-session-required", { reason: "honua-studio-chat has no session" });
 		}
 		this.listen(window, "honua-studio-annotate", (e) => {
@@ -13255,14 +13362,14 @@ var Gm = class {
 		this.#t?.(), this.#t = void 0, this.agentSessionAdapter || (this.#l?.abort(), this.#l = void 0);
 	}
 	addAnnotation(e) {
-		let t = e.id ?? this.#_(), n = e.createdAt ?? (/* @__PURE__ */ new Date()).toISOString(), r = Nm({
+		let t = e.id ?? this.#_(), n = e.createdAt ?? (/* @__PURE__ */ new Date()).toISOString(), r = Pm({
 			id: t,
 			kind: e.kind,
 			payload: e.payload,
 			label: e.label,
 			createdAt: n
 		});
-		return this.#a = Vm(this.#a, {
+		return this.#a = Hm(this.#a, {
 			type: "annotation-added",
 			annotation: r
 		}), this.activityLog.append("annotation_added", {
@@ -13273,7 +13380,7 @@ var Gm = class {
 		}), this.dispatchTypedEvent("honua-studio-chat-annotation-added", { annotation: r }), this.render(), r;
 	}
 	removeAnnotation(e) {
-		this.#a.pendingAnnotations.some((t) => t.id === e) && (this.#a = Vm(this.#a, {
+		this.#a.pendingAnnotations.some((t) => t.id === e) && (this.#a = Hm(this.#a, {
 			type: "annotation-removed",
 			id: e
 		}), this.activityLog.append("annotation_removed", { id: e }), this.dispatchTypedEvent("honua-studio-chat-annotation-removed", { id: e }), this.render());
@@ -13284,13 +13391,13 @@ var Gm = class {
 	async sendMessage(e) {
 		let t = e.trim();
 		if (!t || this.#p || (this.#u || this.agentSessionAdapter) && this.streaming) return;
-		let n = this.#a.pendingAnnotations, r = this.agentSessionAdapter ? t : Im(t, n);
+		let n = this.#a.pendingAnnotations, r = this.agentSessionAdapter ? t : Lm(t, n);
 		!this.#u && !this.agentSessionAdapter && this.#o.push({
 			role: "user",
 			content: r
 		});
 		let i = this.#g();
-		this.#a = Vm(this.#a, {
+		this.#a = Hm(this.#a, {
 			type: "user-message-sent",
 			id: i,
 			text: t,
@@ -13305,7 +13412,7 @@ var Gm = class {
 	}
 	async #m(e) {
 		let t = this.#g();
-		this.#a = Vm(this.#a, {
+		this.#a = Hm(this.#a, {
 			type: "assistant-turn-started",
 			id: t
 		}), this.activityLog.append("assistant_turn_started", { messageId: t }), this.render();
@@ -13325,7 +13432,7 @@ var Gm = class {
 						type: "messageStop",
 						stopReason: i.stopReason ?? "endTurn"
 					};
-					this.#a = Vm(this.#a, {
+					this.#a = Hm(this.#a, {
 						type: "ai-event",
 						id: t,
 						event: e
@@ -13340,7 +13447,7 @@ var Gm = class {
 				} else if (i.status !== "cancelled") {
 					r = !0;
 					let e = i.errorMessage ?? `Studio agent turn ${i.status}.`;
-					this.#a = Vm(this.#a, {
+					this.#a = Hm(this.#a, {
 						type: "ai-event",
 						id: t,
 						event: {
@@ -13358,7 +13465,7 @@ var Gm = class {
 			} catch (e) {
 				r = !0;
 				let n = e instanceof Error ? e.message : String(e);
-				this.#a = Vm(this.#a, {
+				this.#a = Hm(this.#a, {
 					type: "ai-event",
 					id: t,
 					event: {
@@ -13373,7 +13480,7 @@ var Gm = class {
 					errorMessage: n
 				});
 			} finally {
-				this.#d = void 0, this.#l === n && (this.#l = void 0), r || (this.#a = Vm(this.#a, {
+				this.#d = void 0, this.#l === n && (this.#l = void 0), r || (this.#a = Hm(this.#a, {
 					type: "turn-cancelled",
 					id: t
 				}), this.activityLog.append("assistant_turn_cancelled", { messageId: t }), this.dispatchTypedEvent("honua-studio-chat-turn-cancelled", { messageId: t })), this.render();
@@ -13382,7 +13489,7 @@ var Gm = class {
 		}
 		try {
 			for await (let e of this.transport.streamChat({ messages: this.#o }, n.signal)) {
-				if (this.#a = Vm(this.#a, {
+				if (this.#a = Hm(this.#a, {
 					type: "ai-event",
 					id: t,
 					event: e
@@ -13443,7 +13550,7 @@ var Gm = class {
 		} catch (e) {
 			r = !0;
 			let n = e instanceof Error ? e.message : "The Studio AI proxy stream failed.";
-			this.#a = Vm(this.#a, {
+			this.#a = Hm(this.#a, {
 				type: "ai-event",
 				id: t,
 				event: {
@@ -13458,7 +13565,7 @@ var Gm = class {
 				errorMessage: n
 			});
 		} finally {
-			this.#l === n && (this.#l = void 0), r || (this.#a = Vm(this.#a, {
+			this.#l === n && (this.#l = void 0), r || (this.#a = Hm(this.#a, {
 				type: "turn-cancelled",
 				id: t
 			}), this.activityLog.append("assistant_turn_cancelled", { messageId: t }), this.dispatchTypedEvent("honua-studio-chat-turn-cancelled", { messageId: t })), this.render();
@@ -13468,7 +13575,7 @@ var Gm = class {
 		let t = this.#d;
 		if (!t) return;
 		if (e.type === "toolResult") {
-			this.#a = Vm(this.#a, {
+			this.#a = Hm(this.#a, {
 				type: "tool-result",
 				id: t,
 				toolCallId: e.result.toolCallId,
@@ -13493,7 +13600,7 @@ var Gm = class {
 		}
 		if (e.type !== "chat") return;
 		let n = e.event;
-		n.type === "messageStop" || n.type === "error" || n.type === "transcriptProvenance" || (this.#a = Vm(this.#a, {
+		n.type === "messageStop" || n.type === "error" || n.type === "transcriptProvenance" || (this.#a = Hm(this.#a, {
 			type: "ai-event",
 			id: t,
 			event: n
@@ -13518,7 +13625,7 @@ var Gm = class {
 		return this.#c += 1, `annotation-${this.#c}`;
 	}
 	render() {
-		let e = this.getAttribute("label") ?? "Chat", t = this.getAttribute("placeholder") ?? "Describe the app you want…", n = this.#e ? em[this.#e.getState().status] : "Signed out", r = this.#a.streaming;
+		let e = this.getAttribute("label") ?? "Chat", t = this.getAttribute("placeholder") ?? "Describe the app you want…", n = this.#e ? tm[this.#e.getState().status] : "Signed out", r = this.#a.streaming;
 		this.setShadowHtml(`
       <style>${ye()}${xe()}</style>
       <section class="chat hn-panel" part="panel" aria-label="${J(e)}" data-testid="studio-chat">
@@ -13527,7 +13634,7 @@ var Gm = class {
           <p class="hn-register" data-testid="studio-chat-session-status">${J(n)}</p>
         </div>
         <ul class="chat-log" aria-live="polite" data-testid="studio-chat-log">
-          ${this.#a.messages.length === 0 && !this.#f ? "<li class=\"hn-muted\">No messages yet.</li>" : this.#a.messages.map((e) => qm(e)).join("")}
+          ${this.#a.messages.length === 0 && !this.#f ? "<li class=\"hn-muted\">No messages yet.</li>" : this.#a.messages.map((e) => Jm(e)).join("")}
           ${this.#f ? `<li class="chat-message chat-message--assistant" data-testid="studio-chat-share-status" data-role="assistant">${J(this.#f)}</li>` : ""}
         </ul>
         <form data-testid="studio-chat-form">
@@ -13535,8 +13642,8 @@ var Gm = class {
           ${this.#a.pendingAnnotations.length > 0 ? `<ul class="chat-annotations" data-testid="studio-chat-pending-annotations">
                   ${this.#a.pendingAnnotations.map((e) => `
                     <li class="chat-annotation-chip" data-testid="studio-chat-annotation-chip" data-annotation-id="${J(e.id)}">
-                      <span>${J(Pm(e))}</span>
-                      <button type="button" aria-label="Remove annotation ${J(Pm(e))}" data-testid="studio-chat-annotation-remove" data-annotation-id="${J(e.id)}">×</button>
+                      <span>${J(Fm(e))}</span>
+                      <button type="button" aria-label="Remove annotation ${J(Fm(e))}" data-testid="studio-chat-annotation-remove" data-annotation-id="${J(e.id)}">×</button>
                     </li>`).join("")}
                 </ul>` : ""}
           <div class="chat-composer-row">
@@ -13559,13 +13666,13 @@ var Gm = class {
 		}, { signal: a });
 	}
 };
-function qm(e) {
+function Jm(e) {
 	let t = e.status === "streaming" ? " chat-message--streaming" : "", n = e.status === "error" ? " chat-message--error" : "", r = e.role === "user" ? " chat-message--user" : " chat-message--assistant", i = e.role === "user" ? "You" : "Assistant";
 	return `
     <li class="chat-message${r}${t}${n}" data-testid="studio-chat-message" data-message-id="${J(e.id)}" data-role="${e.role}" data-status="${e.status}">
       <span class="chat-message-role">${i}${e.status === "cancelled" ? " · cancelled" : ""}</span>
       ${e.annotations.length > 0 ? `<ul class="chat-message-annotations">
-              ${e.annotations.map((e) => `<li class="chat-annotation-chip" data-testid="studio-chat-message-annotation">${J(Pm(e))}</li>`).join("")}
+              ${e.annotations.map((e) => `<li class="chat-annotation-chip" data-testid="studio-chat-message-annotation">${J(Fm(e))}</li>`).join("")}
             </ul>` : ""}
       <p class="chat-message-text" data-testid="studio-chat-message-text">${J(e.text)}</p>
       ${e.toolCalls.length > 0 ? `<ul class="chat-tool-calls" data-testid="studio-chat-tool-calls">
@@ -13585,7 +13692,7 @@ function J(e) {
 }
 //#endregion
 //#region src/lifecycle/lifecycle-types.ts
-var Jm = [
+var Ym = [
 	"query",
 	"analysis",
 	"map",
@@ -13596,19 +13703,19 @@ var Jm = [
 	"workflow",
 	"gp",
 	"etl"
-], Ym = [
+], Xm = [
 	"all",
 	"draft",
 	"current",
 	"published"
-], Xm = 250;
+], Zm = 250;
 function Y(e) {
 	return e.replace(/[&<>"']/g, (e) => `&#${e.charCodeAt(0)};`);
 }
-function Zm(e) {
+function Qm(e) {
 	return e instanceof Error ? e.message : String(e);
 }
-var Qm = class extends ve {
+var $m = class extends ve {
 	static get observedAttributes() {
 		return ["label"];
 	}
@@ -13635,7 +13742,7 @@ var Qm = class extends ve {
 		this.#e = e, this.#t = void 0, this.isConnected && this.refresh();
 	}
 	get client() {
-		return this.#t ||= new Ef({
+		return this.#t ||= new Df({
 			baseUrl: z(),
 			auth: this.#e
 		}), this.#t;
@@ -13645,7 +13752,7 @@ var Qm = class extends ve {
 	}
 	onConnect() {
 		if (!this.#e) {
-			let e = gm(this);
+			let e = _m(this);
 			e && (this.#e = e);
 		}
 		this.refresh();
@@ -13668,7 +13775,7 @@ var Qm = class extends ve {
 			});
 			this.#o = e ? t.items : [...this.#o, ...t.items], this.#s = t.nextCursor, this.#c = t.total;
 		} catch (e) {
-			this.#u = Zm(e);
+			this.#u = Qm(e);
 		} finally {
 			this.#l = !1, this.render();
 		}
@@ -13684,7 +13791,7 @@ var Qm = class extends ve {
 			});
 			this.#d = e ? t.items : [...this.#d, ...t.items], this.#f = t.nextCursor, this.#p = t.total;
 		} catch (e) {
-			this.#h = Zm(e);
+			this.#h = Qm(e);
 		} finally {
 			this.#m = !1, this.render();
 		}
@@ -13692,7 +13799,7 @@ var Qm = class extends ve {
 	#v(e) {
 		this.#i = e, this.#a && clearTimeout(this.#a), this.#a = setTimeout(() => {
 			this.#s = null, this.#f = null, this.#g(!0), this.#_(!0);
-		}, Xm);
+		}, Zm);
 	}
 	#y(e) {
 		this.dispatchTypedEvent("honua-studio-open-item", e);
@@ -13712,10 +13819,10 @@ var Qm = class extends ve {
           />
           <select data-testid="content-browser-family-filter" aria-label="Family">
             <option value="all" ${this.#n === "all" ? "selected" : ""}>All families</option>
-            ${Jm.map((e) => `<option value="${e}" ${this.#n === e ? "selected" : ""}>${e}</option>`).join("")}
+            ${Ym.map((e) => `<option value="${e}" ${this.#n === e ? "selected" : ""}>${e}</option>`).join("")}
           </select>
           <select data-testid="content-browser-state-filter" aria-label="State">
-            ${Ym.map((e) => `<option value="${e}" ${this.#r === e ? "selected" : ""}>${e}</option>`).join("")}
+            ${Xm.map((e) => `<option value="${e}" ${this.#r === e ? "selected" : ""}>${e}</option>`).join("")}
           </select>
         </div>
         ${this.#b()}
@@ -13816,49 +13923,49 @@ var Qm = class extends ve {
 			});
 		}, { signal: t });
 	}
-}, $m = 6371008.8, eh = Math.PI / 180;
-function th(e, t) {
-	let n = e.lat * eh, r = t.lat * eh, i = r - n, a = (t.lng - e.lng) * eh, o = Math.sin(i / 2) ** 2 + Math.cos(n) * Math.cos(r) * Math.sin(a / 2) ** 2;
-	return 2 * $m * Math.asin(Math.min(1, Math.sqrt(o)));
+}, eh = 6371008.8, th = Math.PI / 180;
+function nh(e, t) {
+	let n = e.lat * th, r = t.lat * th, i = r - n, a = (t.lng - e.lng) * th, o = Math.sin(i / 2) ** 2 + Math.cos(n) * Math.cos(r) * Math.sin(a / 2) ** 2;
+	return 2 * eh * Math.asin(Math.min(1, Math.sqrt(o)));
 }
-function nh(e) {
+function rh(e) {
 	let t = 0;
 	for (let n = 1; n < e.length; n += 1) {
 		let r = e[n - 1], i = e[n];
-		r && i && (t += th(r, i));
+		r && i && (t += nh(r, i));
 	}
 	return t;
 }
-function rh(e) {
+function ih(e) {
 	if (e.length < 3) return 0;
 	let t = 0;
 	for (let n = 0; n < e.length; n += 1) {
 		let r = e[n], i = e[(n + 1) % e.length];
-		!r || !i || (t += (i.lng - r.lng) * eh * (2 + Math.sin(r.lat * eh) + Math.sin(i.lat * eh)));
+		!r || !i || (t += (i.lng - r.lng) * th * (2 + Math.sin(r.lat * th) + Math.sin(i.lat * th)));
 	}
-	return Math.abs(t * $m * $m / 2);
+	return Math.abs(t * eh * eh / 2);
 }
-var ih = 3.280839895, ah = 1609.344, oh = 4046.8564224, sh = 2589988.110336;
-function ch(e) {
+var ah = 3.280839895, oh = 1609.344, sh = 4046.8564224, ch = 2589988.110336;
+function lh(e) {
 	if (!Number.isFinite(e)) return "—";
 	if (e === 0) return "0";
 	let t = Math.min(Math.max(0, 2 - Math.floor(Math.log10(Math.abs(e)))), 3), n = e.toFixed(t);
 	return t === 0 ? n : n.replace(/\.?0+$/, "");
 }
-function lh(e, t) {
-	if (t === "imperial") {
-		let t = e * ih;
-		return e >= ah ? `${ch(e / ah)} mi` : `${ch(t)} ft`;
-	}
-	return e >= 1e3 ? `${ch(e / 1e3)} km` : `${ch(e)} m`;
-}
 function uh(e, t) {
-	return t === "imperial" ? e >= sh ? `${ch(e / sh)} sq mi` : `${ch(e / oh)} acres` : e >= 1e6 ? `${ch(e / 1e6)} km²` : `${ch(e)} m²`;
+	if (t === "imperial") {
+		let t = e * ah;
+		return e >= oh ? `${lh(e / oh)} mi` : `${lh(t)} ft`;
+	}
+	return e >= 1e3 ? `${lh(e / 1e3)} km` : `${lh(e)} m`;
 }
 function dh(e, t) {
-	return 2 * Math.PI * $m * Math.cos(Math.min(Math.abs(e), 85) * eh) / (512 * 2 ** t);
+	return t === "imperial" ? e >= ch ? `${lh(e / ch)} sq mi` : `${lh(e / sh)} acres` : e >= 1e6 ? `${lh(e / 1e6)} km²` : `${lh(e)} m²`;
 }
-var fh = [
+function fh(e, t) {
+	return 2 * Math.PI * eh * Math.cos(Math.min(Math.abs(e), 85) * th) / (512 * 2 ** t);
+}
+var ph = [
 	1,
 	2,
 	3,
@@ -13872,47 +13979,47 @@ var fh = [
 	300,
 	500
 ];
-function ph(e, t, n) {
+function mh(e, t, n) {
 	if (!e || !Number.isFinite(e.zoom)) return;
-	let r = dh(e.center[1], e.zoom);
+	let r = fh(e.center[1], e.zoom);
 	if (!Number.isFinite(r) || r <= 0) return;
 	let i = r * Math.max(t, 24);
 	if (n === "imperial") {
-		let e = i * ih;
-		if (i >= ah) {
-			let e = mh(i / ah);
+		let e = i * ah;
+		if (i >= oh) {
+			let e = hh(i / oh);
 			return {
-				widthPx: e * ah / r,
-				label: `${ch(e)} mi`
+				widthPx: e * oh / r,
+				label: `${lh(e)} mi`
 			};
 		}
-		let t = mh(e);
+		let t = hh(e);
 		return {
-			widthPx: t / ih / r,
-			label: `${ch(t)} ft`
+			widthPx: t / ah / r,
+			label: `${lh(t)} ft`
 		};
 	}
 	if (i >= 1e3) {
-		let e = mh(i / 1e3);
+		let e = hh(i / 1e3);
 		return {
 			widthPx: e * 1e3 / r,
-			label: `${ch(e)} km`
+			label: `${lh(e)} km`
 		};
 	}
-	let a = mh(i);
+	let a = hh(i);
 	return {
 		widthPx: a / r,
-		label: `${ch(a)} m`
+		label: `${lh(a)} m`
 	};
 }
-function mh(e) {
+function hh(e) {
 	if (!(e > 0)) return 0;
 	let t = 10 ** Math.floor(Math.log10(e)), n = t;
-	for (let r of fh) {
+	for (let r of ph) {
 		let i = r * t * .1;
 		i <= e && i > n && (n = i);
 	}
-	for (let r of fh) {
+	for (let r of ph) {
 		let i = r * t;
 		i <= e && i > n && (n = i);
 	}
@@ -13920,10 +14027,10 @@ function mh(e) {
 }
 //#endregion
 //#region src/elements/studio-control-bar-element.ts
-var hh = {
+var gh = {
 	active: !1,
 	points: []
-}, gh = class e extends ve {
+}, _h = class e extends ve {
 	static get observedAttributes() {
 		return ["label"];
 	}
@@ -14045,7 +14152,7 @@ var hh = {
 	#d(e, t, n) {
 		if (!this.#r?.available) return {
 			html: "",
-			status: _h("Navigation")
+			status: vh("Navigation")
 		};
 		let r = this.#r.camera()?.bearing ?? 0, i = (t, n, r) => `
       <button type="button" class="hn-btn hn-btn--sm control-icon" data-action="${t}"
@@ -14060,7 +14167,7 @@ var hh = {
       ` };
 	}
 	#f(e, t) {
-		let n = ph(this.#r?.camera(), t, e);
+		let n = mh(this.#r?.camera(), t, e);
 		return n ? { html: `
         <div class="control-scale" data-testid="studio-control-scale" aria-label="Map scale">
           <span class="control-scale-bar" style="width:${Math.round(n.widthPx)}px" aria-hidden="true"></span>
@@ -14068,7 +14175,7 @@ var hh = {
         </div>
       ` } : {
 			html: "",
-			status: _h("Scale")
+			status: vh("Scale")
 		};
 	}
 	#p(e) {
@@ -14089,7 +14196,7 @@ var hh = {
           data-control-id="${X(e.id)}" data-testid="studio-control-geolocate">Find me</button>
       ` } : {
 			html: "",
-			status: _h("My location")
+			status: vh("My location")
 		} : {
 			html: "",
 			status: "This browser exposes no geolocation API."
@@ -14105,7 +14212,7 @@ var hh = {
 	#g(e, t) {
 		if (!this.#r?.available) return {
 			html: "",
-			status: _h("Basemap")
+			status: vh("Basemap")
 		};
 		let n = this.#s.get(e.id) ?? t[0]?.id;
 		return { html: `
@@ -14132,9 +14239,9 @@ var hh = {
 	#v(e, t, n) {
 		if (!this.#r?.available) return {
 			html: "",
-			status: _h("Measure")
+			status: vh("Measure")
 		};
-		let r = this.#a.get(e.id) ?? hh, i = t === "area" ? uh(rh(r.points), n) : lh(nh(r.points), n), a = t === "area" ? r.points.length >= 3 : r.points.length >= 2;
+		let r = this.#a.get(e.id) ?? gh, i = t === "area" ? dh(ih(r.points), n) : uh(rh(r.points), n), a = t === "area" ? r.points.length >= 3 : r.points.length >= 2;
 		return {
 			html: `
         <div class="control-measure" data-testid="studio-control-measure" data-active="${r.active}">
@@ -14154,7 +14261,7 @@ var hh = {
 		let n = this.#n;
 		if (!n) return {
 			html: "",
-			status: vh("Opacity")
+			status: yh("Opacity")
 		};
 		let r = n.clauseFor(e.id), i = typeof r?.value == "number" ? r.value : t;
 		return { html: `
@@ -14171,7 +14278,7 @@ var hh = {
 		let n = this.#n;
 		if (!n) return {
 			html: "",
-			status: vh("Filter")
+			status: yh("Filter")
 		};
 		let r = t.options, i;
 		if (r.length === 0) {
@@ -14208,7 +14315,7 @@ var hh = {
 		let n = this.#n;
 		if (!n) return {
 			html: "",
-			status: vh("Range filter")
+			status: yh("Range filter")
 		};
 		let r = n.clauseFor(e.id), i = typeof r?.value == "number" ? r.value : t.min;
 		return { html: `
@@ -14225,7 +14332,7 @@ var hh = {
 		let n = this.#n;
 		if (!n) return {
 			html: "",
-			status: vh("Date filter")
+			status: yh("Date filter")
 		};
 		let r = n.clauseFor(e.id), i = Array.isArray(r?.value) ? r?.value : [], a = typeof i[0] == "string" ? i[0] : t.from ?? "", o = typeof i[1] == "string" ? i[1] : t.to ?? "";
 		return { html: `
@@ -14245,7 +14352,7 @@ var hh = {
 		let n = this.#n;
 		if (!n) return {
 			html: "",
-			status: vh("Time slider")
+			status: yh("Time slider")
 		};
 		let r = Date.parse(`${t.from}T00:00:00Z`), i = Date.parse(`${t.to}T00:00:00Z`), a = 864e5, o = Math.max(Math.floor((i - r) / (a * t.stepDays)), 1), s = n.clauseFor(e.id), c = typeof s?.value == "string" ? s.value : t.from;
 		return { html: `
@@ -14308,7 +14415,7 @@ var hh = {
 		};
 	}
 	#T(e) {
-		let t = Ch(e, [
+		let t = wh(e, [
 			"zoom-in",
 			"zoom-out",
 			"reset-north",
@@ -14344,7 +14451,7 @@ var hh = {
 				this.#j(n, t.dataset.bookmarkId);
 				return;
 			case "measure-toggle": {
-				let e = this.#a.get(n) ?? hh;
+				let e = this.#a.get(n) ?? gh;
 				this.#a.set(n, {
 					active: !e.active,
 					points: e.points
@@ -14358,7 +14465,7 @@ var hh = {
 		}
 	}
 	#E(e) {
-		let t = Ch(e, [
+		let t = wh(e, [
 			"opacity",
 			"filter-select",
 			"filter-slider",
@@ -14378,7 +14485,7 @@ var hh = {
 				return;
 			}
 			case "filter-select": {
-				let e = yh(i);
+				let e = bh(i);
 				if (!e) return;
 				let t = a.value;
 				r.publishControlChange(n, t === "" ? void 0 : {
@@ -14389,9 +14496,9 @@ var hh = {
 				return;
 			}
 			case "filter-slider": {
-				let e = yh(i), t = Number(a.value);
+				let e = bh(i), t = Number(a.value);
 				if (!e || !Number.isFinite(t)) return;
-				let o = bh(i);
+				let o = xh(i);
 				r.publishControlChange(n, {
 					field: e,
 					operator: o,
@@ -14401,9 +14508,9 @@ var hh = {
 			}
 			case "date-from":
 			case "date-to": {
-				let e = yh(i);
+				let e = bh(i);
 				if (!e) return;
-				let t = this.shadowRoot, a = t?.querySelector(`#from-${Sh(n)}`)?.value ?? "", o = t?.querySelector(`#to-${Sh(n)}`)?.value ?? "";
+				let t = this.shadowRoot, a = t?.querySelector(`#from-${Ch(n)}`)?.value ?? "", o = t?.querySelector(`#to-${Ch(n)}`)?.value ?? "";
 				if (!a && !o) {
 					r.publishControlChange(n, void 0), this.#D(i, void 0);
 					return;
@@ -14425,7 +14532,7 @@ var hh = {
 				return;
 			}
 			case "time-slider": {
-				let e = yh(i), o = Number(t.dataset.start), s = Number(t.dataset.stepDays), c = Number(a.value);
+				let e = bh(i), o = Number(t.dataset.start), s = Number(t.dataset.stepDays), c = Number(a.value);
 				if (!e || !Number.isFinite(o) || !Number.isFinite(c)) return;
 				let l = new Date(o + c * (s || 1) * 864e5).toISOString().slice(0, 10);
 				r.publishControlChange(n, {
@@ -14457,7 +14564,7 @@ var hh = {
 				name: "setView",
 				view: {
 					center: [e.coords.longitude, e.coords.latitude],
-					zoom: xh(t) ?? 13
+					zoom: Sh(t) ?? 13
 				}
 			});
 		}, () => {
@@ -14506,13 +14613,13 @@ var hh = {
 		}
 	}
 };
-function _h(e) {
+function vh(e) {
 	return `${e} needs a live map — this canvas has not started one (no WebGL, or the map is still loading).`;
 }
-function vh(e) {
+function yh(e) {
 	return `${e} emits change, but no interaction runtime is attached to publish it to.`;
 }
-function yh(e) {
+function bh(e) {
 	let t = e.config;
 	for (let e of [
 		"field",
@@ -14525,18 +14632,18 @@ function yh(e) {
 		if (typeof n == "string" && n.length > 0) return n;
 	}
 }
-function bh(e) {
+function xh(e) {
 	let t = e.config?.operator;
 	return t === "<=" || t === "=" ? t : ">=";
 }
-function xh(e) {
+function Sh(e) {
 	let t = e.config?.zoom;
 	return typeof t == "number" && Number.isFinite(t) ? t : void 0;
 }
-function Sh(e) {
+function Ch(e) {
 	return typeof CSS < "u" && typeof CSS.escape == "function" ? CSS.escape(e) : e.replace(/[^\w-]/g, "\\$&");
 }
-function Ch(e, t) {
+function wh(e, t) {
 	for (let n of e.composedPath()) {
 		if (!(n instanceof HTMLElement)) continue;
 		let e = n.dataset.action;
@@ -14548,7 +14655,7 @@ function X(e) {
 }
 //#endregion
 //#region src/elements/studio-custom-processes-element.ts
-var wh = class extends ve {
+var Th = class extends ve {
 	#e;
 	#t;
 	#n = Promise.resolve();
@@ -14760,22 +14867,22 @@ var wh = class extends ve {
 };
 //#endregion
 //#region src/gp/gp-model.ts
-function Th() {
+function Eh() {
 	return "honua-server's GP support is limited today: validation is envelope-only (the envelope's shape is checked; the operation graph, parameter types, and dataset refs below are not independently verified by the server), and preview-plan for GP is planning-only — it reports the steps a real execution would take without running any of them.";
 }
 //#endregion
 //#region src/gp/job-client.ts
-var Eh = class extends Error {
+var Dh = class extends Error {
 	code;
 	status;
 	constructor(e, t, n) {
 		super(t), this.name = "GpJobClientError", this.code = e, this.status = n;
 	}
 };
-function Dh(e) {
+function Oh(e) {
 	return typeof e == "object" && !!e && typeof e.title == "string" && typeof e.status == "number";
 }
-var Oh = class {
+var kh = class {
 	#e;
 	#t;
 	#n;
@@ -14808,14 +14915,14 @@ var Oh = class {
 		try {
 			i = await this.#r(t, e, n, !1);
 		} catch {
-			throw new Eh("unknown", `Could not reach the Studio GP job API at ${r}.`, void 0);
+			throw new Dh("unknown", `Could not reach the Studio GP job API at ${r}.`, void 0);
 		}
 		if (i.status === 401 && this.#t) try {
 			i = await this.#r(t, e, n, !0);
 		} catch {
-			throw new Eh("unknown", `Could not reach the Studio GP job API at ${r}.`, void 0);
+			throw new Dh("unknown", `Could not reach the Studio GP job API at ${r}.`, void 0);
 		}
-		if (i.status === 401) throw new Eh("session-expired", `Your session has expired. Sign in again to reach ${r}.`, 401);
+		if (i.status === 401) throw new Dh("session-expired", `Your session has expired. Sign in again to reach ${r}.`, 401);
 		if (!i.ok) throw await this.#a(i);
 		let a = await i.text();
 		if (a) return JSON.parse(a).data;
@@ -14827,8 +14934,8 @@ var Oh = class {
 		} catch {
 			t = void 0;
 		}
-		let n = Dh(t) ? t : void 0, r = n?.detail ?? n?.title ?? `Studio GP job API responded ${e.status}.`;
-		return new Eh(e.status === 404 ? "not-found" : e.status === 400 ? "validation" : "internal", r, e.status);
+		let n = Oh(t) ? t : void 0, r = n?.detail ?? n?.title ?? `Studio GP job API responded ${e.status}.`;
+		return new Dh(e.status === 404 ? "not-found" : e.status === 400 ? "validation" : "internal", r, e.status);
 	}
 };
 //#endregion
@@ -14836,23 +14943,23 @@ var Oh = class {
 function Z(e) {
 	return e.replace(/[&<>"']/g, (e) => `&#${e.charCodeAt(0)};`);
 }
-function kh(e) {
+function Ah(e) {
 	return e instanceof Error ? e.message : String(e);
 }
-function Ah(e) {
+function jh(e) {
 	return `honua-studio-gp-job:${e}`;
 }
-function jh() {
+function Mh() {
 	try {
 		return typeof window < "u" ? window.sessionStorage : void 0;
 	} catch {
 		return;
 	}
 }
-function Mh(e) {
+function Nh(e) {
 	return typeof e == "object" && !!e && Array.isArray(e.inputs);
 }
-var Nh = class extends ve {
+var Ph = class extends ve {
 	static get observedAttributes() {
 		return ["label", "draft-id"];
 	}
@@ -14878,7 +14985,7 @@ var Nh = class extends ve {
 		this.#e = e, this.#t = void 0, this.#n = void 0, this.isConnected && this.#g();
 	}
 	get client() {
-		return this.#t ||= new Ef({
+		return this.#t ||= new Df({
 			baseUrl: z(),
 			auth: this.#e
 		}), this.#t;
@@ -14887,7 +14994,7 @@ var Nh = class extends ve {
 		this.#t = e, this.isConnected && this.#g();
 	}
 	get jobClient() {
-		return this.#n ||= new Oh({
+		return this.#n ||= new kh({
 			baseUrl: z(),
 			auth: this.#e
 		}), this.#n;
@@ -14912,7 +15019,7 @@ var Nh = class extends ve {
 	}
 	onConnect() {
 		if (!this.#e) {
-			let e = gm(this);
+			let e = _m(this);
 			e && (this.#e = e);
 		}
 		this.#g();
@@ -14947,18 +15054,18 @@ var Nh = class extends ve {
 			}), this.#_(t);
 		} catch (t) {
 			if (e !== this.#m) return;
-			this.#l = kh(t);
+			this.#l = Ah(t);
 		} finally {
 			e === this.#m && (this.#i = !1);
 		}
 		e === this.#m && this.render();
 	}
 	#_(e) {
-		let t = jh()?.getItem(Ah(e));
+		let t = Mh()?.getItem(jh(e));
 		t && this.#S(t);
 	}
 	#v(e, t) {
-		jh()?.setItem(Ah(e), t);
+		Mh()?.setItem(jh(e), t);
 	}
 	async validateDraft() {
 		if (this.#r) {
@@ -14968,7 +15075,7 @@ var Nh = class extends ve {
 					draftId: this.#r.draftId
 				}), this.#u = `Validation: ${this.#r.validation?.status ?? "unknown"}.`;
 			} catch (e) {
-				this.#l = kh(e);
+				this.#l = Ah(e);
 			}
 			this.render();
 		}
@@ -14982,7 +15089,7 @@ var Nh = class extends ve {
 					draftId: this.#r.draftId
 				}), this.#u = this.#a.requiresJob ? "Preview plan ready — this package requires a batch job to execute." : "Preview plan ready.";
 			} catch (e) {
-				this.#l = kh(e);
+				this.#l = Ah(e);
 			} finally {
 				this.#o = !1;
 			}
@@ -15010,10 +15117,10 @@ var Nh = class extends ve {
 					jobId: n.jobId
 				}), this.#u = `Batch job ${n.jobId} submitted.`, this.#d = !1, this.#f = "";
 			} catch (e) {
-				this.#l = kh(e), this.#h({
+				this.#l = Ah(e), this.#h({
 					kind: "error",
 					draftId: t.draftId,
-					message: kh(e)
+					message: Ah(e)
 				});
 			} finally {
 				this.#p = !1, this.render();
@@ -15045,7 +15152,7 @@ var Nh = class extends ve {
 				message: t.status
 			});
 		} catch (e) {
-			this.#l = kh(e);
+			this.#l = Ah(e);
 		} finally {
 			this.#c = !1;
 		}
@@ -15064,7 +15171,7 @@ var Nh = class extends ve {
 					message: t.status
 				});
 			} catch (e) {
-				this.#l = kh(e);
+				this.#l = Ah(e);
 			} finally {
 				this.#c = !1;
 			}
@@ -15083,7 +15190,7 @@ var Nh = class extends ve {
       <style>${ye()}${Ce()}${De()}</style>
       <section class="lifecycle hn-panel" part="panel" aria-label="${Z(e)}" data-testid="gp-panel">
         <h2 class="hn-panel-title">${Z(e)}</h2>
-        <p class="gp-caveat" data-testid="gp-validation-caveat">${Z(Th())}</p>
+        <p class="gp-caveat" data-testid="gp-validation-caveat">${Z(Eh())}</p>
         ${this.#l ? `<p class="hn-error" data-testid="gp-panel-error">${Z(this.#l)}</p>` : ""}
         ${this.#u ? `<p class="hn-muted" data-testid="gp-panel-message">${Z(this.#u)}</p>` : ""}
         ${this.#w()}
@@ -15117,7 +15224,7 @@ var Nh = class extends ve {
 	}
 	#T() {
 		let e = this.#r?.envelope.body;
-		if (!Mh(e)) return "";
+		if (!Nh(e)) return "";
 		let t = (e, t) => t.length === 0 ? "<p class=\"lifecycle-empty\">None declared.</p>" : `<ul class="gp-fields" data-testid="${e}">${t.map((e) => `<li class="gp-field-row"><span>${Z(e.title ?? e.id)}</span><span class="hn-muted">${Z(e.id)}</span></li>`).join("")}</ul>`;
 		return `
       <div class="lifecycle-section" data-testid="gp-package-section">
@@ -15230,13 +15337,13 @@ var Nh = class extends ve {
 function Q(e) {
 	return e.replace(/[&<>"']/g, (e) => `&#${e.charCodeAt(0)};`);
 }
-function Ph(e) {
+function Fh(e) {
 	return e instanceof Error ? e.message : String(e);
 }
-function Fh(e) {
+function Ih(e) {
 	return e.length > 12 ? `${e.slice(0, 12)}…` : e;
 }
-var Ih = class extends ve {
+var Lh = class extends ve {
 	static get observedAttributes() {
 		return [
 			"label",
@@ -15267,7 +15374,7 @@ var Ih = class extends ve {
 		this.#e = e, this.#t = void 0, this.isConnected && this.#_();
 	}
 	get client() {
-		return this.#t ||= new Ef({
+		return this.#t ||= new Df({
 			baseUrl: z(),
 			auth: this.#e
 		}), this.#t;
@@ -15295,7 +15402,7 @@ var Ih = class extends ve {
 	}
 	onConnect() {
 		if (!this.#e) {
-			let e = gm(this);
+			let e = _m(this);
 			e && (this.#e = e);
 		}
 		this.#_();
@@ -15328,7 +15435,7 @@ var Ih = class extends ve {
 				});
 			} catch (t) {
 				if (e !== this.#h) return;
-				this.#s = Ph(t);
+				this.#s = Fh(t);
 			} finally {
 				e === this.#h && (this.#a = !1);
 			}
@@ -15347,7 +15454,7 @@ var Ih = class extends ve {
 			this.#i = t.versions;
 		} catch (t) {
 			if (e !== this.#h) return;
-			this.#s = Ph(t);
+			this.#s = Fh(t);
 		} finally {
 			e === this.#h && (this.#o = !1);
 		}
@@ -15360,7 +15467,7 @@ var Ih = class extends ve {
 					draftId: this.#r.draftId
 				}), this.#c = `Validation: ${this.#r.validation?.status ?? "unknown"}.`;
 			} catch (e) {
-				this.#s = Ph(e);
+				this.#s = Fh(e);
 			}
 			this.render();
 		}
@@ -15375,7 +15482,7 @@ var Ih = class extends ve {
 					versionId: e.versionId
 				}), this.#c = `Saved version ${e.versionNumber}.`;
 			} catch (e) {
-				this.#s = Ph(e);
+				this.#s = Fh(e);
 			}
 			this.render();
 		}
@@ -15390,7 +15497,7 @@ var Ih = class extends ve {
 				draftId: t.draftId
 			}), this.draftId = t.draftId;
 		} catch (e) {
-			this.#s = Ph(e), this.render();
+			this.#s = Fh(e), this.render();
 		}
 	}
 	#y(e, t) {
@@ -15407,7 +15514,7 @@ var Ih = class extends ve {
 					itemId: this.#n
 				});
 			} catch (e) {
-				this.#s = Ph(e);
+				this.#s = Fh(e);
 			}
 			this.render();
 		}
@@ -15440,30 +15547,42 @@ var Ih = class extends ve {
 			try {
 				if (e.kind === "publish") {
 					let t = await this.client.requestPublish(this.#n, e.versionId, { intent: e.intent });
-					this.#g({
+					t.status === "awaiting-approval" ? (this.#g({
+						...t,
+						kind: "publish-requested",
+						itemId: this.#n,
+						versionId: e.versionId,
+						message: "AwaitingApproval"
+					}), this.#c = `Publication is awaiting separate human approval. Proposal ${t.proposalId}.`) : (this.#g({
 						kind: t.status === "accepted" ? "publish-requested" : "publish-rejected",
 						itemId: this.#n,
 						versionId: e.versionId,
 						message: t.status
-					}), this.#c = t.status === "accepted" ? `Published version ${e.versionId}.` : `Publish request rejected (${t.status}) — the version's validation status must be valid or warning.`;
+					}), this.#c = t.status === "accepted" ? `Published version ${e.versionId}.` : `Publish request rejected (${t.status}) — the version's validation status must be valid or warning.`);
 				} else {
 					let t = await this.client.requestRollback(this.#n, {
 						targetVersionId: e.targetVersionId,
 						pointer: e.pointer
 					});
-					this.#g({
+					"status" in t ? (this.#g({
+						...t,
+						kind: "rollback-requested",
+						itemId: this.#n,
+						versionId: e.targetVersionId,
+						message: "AwaitingApproval"
+					}), this.#c = `Rollback is awaiting separate human approval. Proposal ${t.proposalId}.`) : (this.#g({
 						kind: "rollback-requested",
 						itemId: this.#n,
 						versionId: e.targetVersionId,
 						message: e.pointer
-					}), this.#c = `Rolled back (${e.pointer}) to version ${t.targetVersionId}.`;
+					}), this.#c = `Rolled back (${e.pointer}) to version ${t.targetVersionId}.`);
 				}
 				this.#f = void 0, this.#p = "", this.#r &&= await this.client.getDraft(this.#r.draftId), await this.#v();
 			} catch (e) {
-				this.#s = Ph(e), this.#g({
+				this.#s = Fh(e), this.#g({
 					kind: "error",
 					itemId: this.#n,
-					message: Ph(e)
+					message: Fh(e)
 				});
 			} finally {
 				this.#m = !1, this.render();
@@ -15536,7 +15655,7 @@ var Ih = class extends ve {
         <ul class="lifecycle-table" data-testid="lifecycle-versions-list">${this.#i.map((e) => `
           <li class="lifecycle-row" data-testid="lifecycle-version-row" data-version-id="${Q(e.versionId)}">
             <div class="lifecycle-row-main">
-              <span class="lifecycle-row-title">v${e.versionNumber} · ${Q(Fh(e.contentHash))}</span>
+              <span class="lifecycle-row-title">v${e.versionNumber} · ${Q(Ih(e.contentHash))}</span>
               <span class="lifecycle-row-meta hn-muted">
                 <span class="hn-badge hn-badge--status">${Q(e.validation.status)}</span>
                 <span>${Q(e.createdAt)}</span>
@@ -15632,7 +15751,7 @@ var Ih = class extends ve {
 };
 //#endregion
 //#region src/gp/process-workspace.ts
-function Lh(e, t) {
+function Rh(e, t) {
 	let n = [], r = /* @__PURE__ */ new Set(), i = new Map(t.nodes.map((e) => [e.nodeTypeId, e]));
 	for (let t of e.nodes) (!t.nodeId || r.has(t.nodeId)) && n.push({
 		nodeId: t.nodeId,
@@ -15706,13 +15825,13 @@ function Lh(e, t) {
 		message: "Add a built-in process node."
 	}), n;
 }
-function Rh(e) {
+function zh(e) {
 	let t = structuredClone(e);
 	for (let e of t.nodes) Object.freeze(e.parameters), Object.freeze(e.metadata), Object.freeze(e);
 	for (let e of t.edges) Object.freeze(e);
 	return Object.freeze(t.nodes), Object.freeze(t.edges), Object.freeze(t);
 }
-function zh(e, t) {
+function Bh(e, t) {
 	let n = t.nodes.map((e) => e.nodeId).sort((e, t) => t.length - e.length);
 	return e.map((e) => {
 		let t = n.find((t) => e.nodeId === t || ["graph.nodes", "steps"].some((n) => {
@@ -15725,17 +15844,17 @@ function zh(e, t) {
 		};
 	});
 }
-var Bh = class extends Error {
+var Vh = class extends Error {
 	diagnostics;
 	constructor(e) {
 		super(e.map((e) => `${e.nodeId ?? "graph"}: ${e.message}`).join("\n")), this.diagnostics = e;
 	}
-}, Vh = class extends Error {
+}, Hh = class extends Error {
 	status;
 	constructor(e) {
 		super(`Processes server returned ${e}.`), this.status = e;
 	}
-}, Hh = class {
+}, Uh = class {
 	options;
 	#e = /* @__PURE__ */ new Set();
 	constructor(e) {
@@ -15754,7 +15873,7 @@ var Bh = class extends Error {
 			redirect: "error",
 			...n === void 0 ? {} : { body: JSON.stringify(n) }
 		});
-		if (!i.ok) throw new Vh(i.status);
+		if (!i.ok) throw new Hh(i.status);
 		let a = await i.json();
 		if (a.success === !1) throw Error("Processes server refused the request.");
 		return a.data ?? a;
@@ -15763,13 +15882,13 @@ var Bh = class extends Error {
 		return this.#t("GET", "console/workflow-node-registry");
 	}
 	async prepare(e, t) {
-		let n = Rh(t), r = Lh(n, await this.registry());
-		if (r.length) throw new Bh(r);
+		let n = zh(t), r = Rh(n, await this.registry());
+		if (r.length) throw new Vh(r);
 		let i = await this.#t("POST", "console/workflow-packages", {
 			name: e,
 			graph: n
 		}), a = await this.#t("POST", `console/workflow-packages/${encodeURIComponent(i.packageId)}/versions`), o = await this.#t("POST", `console/workflow-packages/${encodeURIComponent(i.packageId)}/versions/${a.version}/validate`);
-		if (!o.isValid) throw new Bh(zh(o.failures ?? [{
+		if (!o.isValid) throw new Vh(Bh(o.failures ?? [{
 			code: "VALIDATION",
 			message: "Server validation refused this graph."
 		}], n));
@@ -15789,7 +15908,7 @@ var Bh = class extends Error {
 			packageId: e,
 			version: t,
 			contentHash: n,
-			graph: Rh(r.graph),
+			graph: zh(r.graph),
 			validation: r.validation
 		};
 	}
@@ -15826,7 +15945,7 @@ var Bh = class extends Error {
 				publicationId: a
 			});
 		} catch (n) {
-			if (!(n instanceof Vh) || n.status !== 409) throw n;
+			if (!(n instanceof Hh) || n.status !== 409) throw n;
 			let r = (await this.#t("GET", "console/workflow-publications")).items.find((e) => e.publicationId === a);
 			if (!r || r.packageId !== e || r.packageVersion !== t || r.target !== "Job") throw Error("The command publication identity is bound to another immutable package.");
 		}
@@ -15852,7 +15971,7 @@ var Bh = class extends Error {
 		if (!t) throw Error("Server returned no operation identity.");
 		return this.#t("POST", `admin/operations/${encodeURIComponent(t)}/cancel`);
 	}
-}, Uh = class extends ve {
+}, Wh = class extends ve {
 	#e;
 	#t;
 	#n = 0;
@@ -15919,7 +16038,7 @@ var Bh = class extends Error {
 			this.#_ = "Apply or restore advanced JSON before editing visually.", this.render();
 			return;
 		}
-		this.#r++, this.#a = e, this.#o = JSON.stringify(e, null, 2), this.#s = !0, this.#c = !1, this.#m = void 0, this.#f = this.#d ? Lh(e, this.#d) : [], this.dispatchEvent(new CustomEvent("honua-process-graph-change", {
+		this.#r++, this.#a = e, this.#o = JSON.stringify(e, null, 2), this.#s = !0, this.#c = !1, this.#m = void 0, this.#f = this.#d ? Rh(e, this.#d) : [], this.dispatchEvent(new CustomEvent("honua-process-graph-change", {
 			bubbles: !0,
 			composed: !0
 		})), t && this.render();
@@ -16084,7 +16203,7 @@ var Bh = class extends Error {
 			}, t = {
 				...this.#a,
 				edges: [...this.#a.edges, e]
-			}, n = this.#d ? Lh(t, this.#d) : [];
+			}, n = this.#d ? Rh(t, this.#d) : [];
 			if (n.some((e) => e.code === "CYCLE")) {
 				this.#f = n, this.#_ = "Connection would create a cycle.", this.render();
 				return;
@@ -16202,7 +16321,7 @@ var Bh = class extends Error {
 		try {
 			if (e === "registry") {
 				let e = await t.registry();
-				r(), this.#d = e, this.#f = Lh(this.#a, this.#d), this.#_ = `Registry ${this.#d.registryVersion} loaded.`;
+				r(), this.#d = e, this.#f = Rh(this.#a, this.#d), this.#_ = `Registry ${this.#d.registryVersion} loaded.`;
 			}
 			if (e === "prepare") {
 				this.#r++;
@@ -16219,23 +16338,23 @@ var Bh = class extends Error {
 			}
 		} catch (e) {
 			if (t !== this.client || n !== this.#i) return;
-			e instanceof Bh && (this.#f = e.diagnostics), this.#_ = e instanceof Error ? e.message : String(e);
+			e instanceof Vh && (this.#f = e.diagnostics), this.#_ = e instanceof Error ? e.message : String(e);
 		} finally {
 			this.#g = !1, this.render();
 		}
 	}
-}, Wh = 500;
-function Gh(e) {
+}, Gh = 500;
+function Kh(e) {
 	return typeof e == "object" && !!e && !Array.isArray(e);
 }
-function Kh(e) {
-	if (!Gh(e) || e.type !== "FeatureCollection") return;
+function qh(e) {
+	if (!Kh(e) || e.type !== "FeatureCollection") return;
 	let t = e.features;
 	if (!Array.isArray(t)) return;
 	let n = [];
 	for (let e of t) {
-		if (!Gh(e)) continue;
-		let t = Gh(e.properties) ? e.properties : {}, r = e.id;
+		if (!Kh(e)) continue;
+		let t = Kh(e.properties) ? e.properties : {}, r = e.id;
 		n.push({
 			properties: t,
 			...typeof r == "string" || typeof r == "number" ? { featureId: r } : {}
@@ -16247,8 +16366,8 @@ function Kh(e) {
 		...typeof r == "number" ? { total: r } : {}
 	};
 }
-function qh(e = {}) {
-	let t = /* @__PURE__ */ new Map(), n = e.featureLimit ?? Wh, r = e.getAuth?.();
+function Jh(e = {}) {
+	let t = /* @__PURE__ */ new Map(), n = e.featureLimit ?? Gh, r = e.getAuth?.();
 	return (n, a) => {
 		let o = e.getAuth?.();
 		if (o !== r && (t.clear(), r = o), a?.signal?.aborted) return Promise.resolve({
@@ -16312,7 +16431,7 @@ function qh(e = {}) {
 			};
 			m = await e.json(), p.throwIfAborted();
 		}
-		let h = Kh(m);
+		let h = qh(m);
 		return h ? {
 			ok: !0,
 			rows: h.rows,
@@ -16324,12 +16443,12 @@ function qh(e = {}) {
 		};
 	}
 }
-function Jh(e, t = 8) {
+function Yh(e, t = 8) {
 	let n = [];
 	for (let r of e) for (let e of Object.keys(r.properties)) if (n.includes(e) || n.push(e), n.length >= t) return n;
 	return n;
 }
-function Yh(e) {
+function Xh(e) {
 	if (e == null) return "";
 	if (typeof e == "string") return e;
 	if (typeof e == "number" || typeof e == "boolean") return String(e);
@@ -16341,14 +16460,14 @@ function Yh(e) {
 }
 //#endregion
 //#region src/elements/studio-widget-deck-element.ts
-var Xh = {
+var Zh = {
 	toc: "Layers",
 	table: "Grid",
 	chart: "Chart",
 	legend: "Legend",
 	compare: "Compare",
 	time: "Time"
-}, Zh = class e extends ve {
+}, Qh = class e extends ve {
 	static get observedAttributes() {
 		return ["label"];
 	}
@@ -16467,7 +16586,7 @@ var Xh = {
       >
         <header class="widget-head">
           <h4 class="widget-title" data-testid="studio-widget-title">${$(t.title ?? t.id)}${r ? " <span aria-label=\"pinned\">📌</span>" : ""}</h4>
-          <span class="hn-badge widget-kind">${$(Xh[t.kind] ?? t.kind)}</span>
+          <span class="hn-badge widget-kind">${$(Zh[t.kind] ?? t.kind)}</span>
         </header>
         <div class="widget-body">${n.html}</div>
         ${n.status ? `<p class="widget-status hn-muted" data-testid="studio-widget-status" role="status">${$(n.status)}</p>` : ""}
@@ -16494,7 +16613,7 @@ var Xh = {
 			html: "",
 			status: n.reason
 		};
-		let r = e.state, i = new Map(this.#h.map((e) => [e.layerId, e.reason])), a = new Set(e.selection.map(eg)), o = n.config.layerIds.length ? n.config.layerIds.map((e) => r.layers.find((t) => t.id === e)).filter((e) => e !== void 0) : r.layers, s = n.config.showUnrenderable ? o : o.filter((e) => !i.has(e.id));
+		let r = e.state, i = new Map(this.#h.map((e) => [e.layerId, e.reason])), a = new Set(e.selection.map(tg)), o = n.config.layerIds.length ? n.config.layerIds.map((e) => r.layers.find((t) => t.id === e)).filter((e) => e !== void 0) : r.layers, s = n.config.showUnrenderable ? o : o.filter((e) => !i.has(e.id));
 		return s.length === 0 ? { html: "<p class=\"widget-empty hn-muted\" data-testid=\"studio-widget-toc-empty\">No layers yet — this list fills in as layers are added.</p>" } : {
 			html: `<ul class="widget-toc" data-testid="studio-widget-toc">${s.map((e) => {
 				let n = r.pins.some((t) => t.kind === "layer" && t.id === e.id), o = i.get(e.id), s = a.has(`layer:${e.id}`), c = e.title ?? e.id, l = `toc-${t.id}--${e.id}`;
@@ -16557,7 +16676,7 @@ var Xh = {
 				status: `Compare "${t.id}" references layers not in the composition: ${e}.`
 			};
 		}
-		let o = ng(i.visible, a.visible), s = (e, n) => `
+		let o = rg(i.visible, a.visible), s = (e, n) => `
       <button
         type="button"
         class="hn-btn hn-btn--sm widget-compare-option"
@@ -16590,7 +16709,7 @@ var Xh = {
 			html: "",
 			status: `Time "${t.id}" steps through layers that are not in the composition yet.`
 		};
-		let a = rg(e, r), o = i[a] ?? i[0];
+		let a = ig(e, r), o = i[a] ?? i[0];
 		return {
 			html: `
         <div class="widget-time" data-testid="studio-widget-time">
@@ -16639,8 +16758,8 @@ var Xh = {
 			html: "",
 			status: `${r} returned no features.`
 		};
-		let s = a.fields.length > 0 ? a.fields : Jh(o), c = Math.max(Math.ceil(o.length / a.pageSize), 1), l = Math.min(this.#_.get(t.id) ?? 0, c - 1), u = l * a.pageSize, d = o.slice(u, u + a.pageSize), f = new Set(e.selection.map(eg)), p = s.map((e) => `<th scope="col">${$(e)}</th>`).join(""), m = d.map((e) => {
-			let t = tg(e, a.primaryKey), n = t !== void 0 && f.has(`feature:${r}:${String(t)}`), i = s.map((t) => `<td role="gridcell">${$(Yh(e.properties[t]))}</td>`).join("");
+		let s = a.fields.length > 0 ? a.fields : Yh(o), c = Math.max(Math.ceil(o.length / a.pageSize), 1), l = Math.min(this.#_.get(t.id) ?? 0, c - 1), u = l * a.pageSize, d = o.slice(u, u + a.pageSize), f = new Set(e.selection.map(tg)), p = s.map((e) => `<th scope="col">${$(e)}</th>`).join(""), m = d.map((e) => {
+			let t = ng(e, a.primaryKey), n = t !== void 0 && f.has(`feature:${r}:${String(t)}`), i = s.map((t) => `<td role="gridcell">${$(Xh(e.properties[t]))}</td>`).join("");
 			return `
           <tr
             role="row"
@@ -16695,7 +16814,7 @@ var Xh = {
 		let a = n.chartSeriesFromSpec(i.spec), o = n.renderChartSvg(i.spec, a);
 		return {
 			html: `
-        <figure class="widget-chart" data-testid="studio-widget-chart" data-mark="${$($h(i.spec))}">
+        <figure class="widget-chart" data-testid="studio-widget-chart" data-mark="${$(eg(i.spec))}">
           ${o.svg}
           <figcaption class="hn-muted" data-testid="studio-widget-chart-summary">${$(o.summary)}</figcaption>
         </figure>
@@ -16739,7 +16858,7 @@ var Xh = {
 		}), n;
 	}
 	#j() {
-		return this.#i ? this.#i : (this.#a ??= qh({
+		return this.#i ? this.#i : (this.#a ??= Jh({
 			baseUrl: this.#r,
 			sourceAuthBaseUrl: this.#d,
 			sourceCatalogBaseUrl: this.#f,
@@ -16752,7 +16871,7 @@ var Xh = {
 		this.#u.abort(), this.#u = new AbortController(), this.#g.clear(), this.#a = void 0, this.isConnected && this.render();
 	}
 	#N(e) {
-		let t = Qh(e, [
+		let t = $h(e, [
 			"select-layer",
 			"select-feature",
 			"compare",
@@ -16779,7 +16898,7 @@ var Xh = {
 		}
 	}
 	#P(e) {
-		let t = Qh(e, ["toggle-visibility", "time-step"]);
+		let t = $h(e, ["toggle-visibility", "time-step"]);
 		if (t) {
 			if (t.dataset.action === "toggle-visibility") {
 				let e = t.dataset.layerId;
@@ -16799,7 +16918,7 @@ var Xh = {
 	}
 	#F(e) {
 		if (!(e instanceof KeyboardEvent) || e.key !== "Enter" && e.key !== " ") return;
-		let t = Qh(e, ["select-feature"]);
+		let t = $h(e, ["select-feature"]);
 		t && (e.preventDefault(), this.#I(t));
 	}
 	#I(e) {
@@ -16875,29 +16994,29 @@ var Xh = {
 		}
 	}
 };
-function Qh(e, t) {
+function $h(e, t) {
 	for (let n of e.composedPath()) {
 		if (!(n instanceof HTMLElement)) continue;
 		let e = n.dataset.action;
 		if (e && t.includes(e)) return n;
 	}
 }
-function $h(e) {
+function eg(e) {
 	return typeof e.mark == "string" ? e.mark : e.mark.type;
 }
-function eg(e) {
+function tg(e) {
 	return e.kind === "feature" ? `feature:${e.sourceId}:${String(e.featureId)}` : `${e.kind}:${e.id}`;
 }
-function tg(e, t) {
+function ng(e, t) {
 	if (e.featureId !== void 0) return e.featureId;
 	if (!t) return;
 	let n = e.properties[t];
 	return typeof n == "string" || typeof n == "number" ? n : void 0;
 }
-function ng(e, t) {
+function rg(e, t) {
 	return e && t ? "both" : e ? "left" : t ? "right" : "none";
 }
-function rg(e, t) {
+function ig(e, t) {
 	let n = t.steps.filter((t) => e.state.layers.some((e) => e.id === t.layerId)).findIndex((t) => e.state.layers.some((e) => e.id === t.layerId && e.visible));
 	return n === -1 ? 0 : n;
 }
@@ -16906,52 +17025,52 @@ function $(e) {
 }
 //#endregion
 //#region src/elements/registry.ts
-var ig = /* @__PURE__ */ new Map([
-	["honua-studio-chat", Km],
+var ag = /* @__PURE__ */ new Map([
+	["honua-studio-chat", qm],
 	["honua-studio-activity-log", Oe],
-	["honua-studio-widget-deck", Zh],
-	["honua-studio-control-bar", gh],
-	["honua-studio-canvas", ym],
-	["honua-studio-content-browser", Qm],
-	["honua-studio-lifecycle-panel", Ih],
-	["honua-studio-gp-panel", Nh],
-	["honua-studio-processes", Uh],
-	["honua-studio-custom-processes", wh],
-	["honua-studio-app", mm]
+	["honua-studio-widget-deck", Qh],
+	["honua-studio-control-bar", _h],
+	["honua-studio-canvas", bm],
+	["honua-studio-content-browser", $m],
+	["honua-studio-lifecycle-panel", Lh],
+	["honua-studio-gp-panel", Ph],
+	["honua-studio-processes", Wh],
+	["honua-studio-custom-processes", Th],
+	["honua-studio-app", hm]
 ]);
-Array.from(ig.keys());
-var ag = /* @__PURE__ */ new Map([["honua-studio-canvas", ["honua-studio-widget-deck", "honua-studio-control-bar"]]]);
-function og(e, t, n) {
+Array.from(ag.keys());
+var og = /* @__PURE__ */ new Map([["honua-studio-canvas", ["honua-studio-widget-deck", "honua-studio-control-bar"]]]);
+function sg(e, t, n) {
 	e.get(t) || e.define(t, n);
 }
-var sg = class extends Error {
+var cg = class extends Error {
 	constructor(e) {
 		super(`Unknown Honua Studio element tag "${e}".`), this.name = "HonuaStudioElementRegistryError";
 	}
 };
-function cg(e, t = ug()) {
-	let n = ig.get(e);
-	if (!n) throw new sg(e);
-	og(t, e, n);
-	for (let n of ag.get(e) ?? []) {
-		let e = ig.get(n);
-		e && og(t, n, e);
+function lg(e, t = dg()) {
+	let n = ag.get(e);
+	if (!n) throw new cg(e);
+	sg(t, e, n);
+	for (let n of og.get(e) ?? []) {
+		let e = ag.get(n);
+		e && sg(t, n, e);
 	}
 }
-function lg(e = ug()) {
-	for (let [t, n] of ig) og(e, t, n);
+function ug(e = dg()) {
+	for (let [t, n] of ag) sg(e, t, n);
 }
-function ug() {
+function dg() {
 	if (typeof customElements > "u") throw Error("honua-studio elements require a DOM with window.customElements (no server-side registration).");
 	return customElements;
 }
 //#endregion
 //#region src/workspace-agent.ts
-var dg = Object.freeze({
+var fg = Object.freeze({
 	toolApproval: !0,
 	visualStyleScopes: !0
 });
-function fg(e) {
+function pg(e) {
 	return In({
 		baseUrl: "/api",
 		mcpWorkflowView: "workspace",
@@ -16967,7 +17086,7 @@ function fg(e) {
 		onEvent: e.onEvent
 	});
 }
-var pg = {
+var mg = {
 	acknowledgeObservabilityAlert: {
 		method: "POST",
 		path: "/observability/alerts/{eventId}/acknowledge",
@@ -20933,16 +21052,16 @@ var pg = {
 		requestContentTypes: [],
 		responseContentTypes: ["application/json"]
 	}
-}, mg = class extends Error {
+}, hg = class extends Error {
 	operationId;
 	statusCode;
 	body;
 	constructor(e, t, n) {
-		let r = hg(n);
+		let r = gg(n);
 		super(`Admin operation ${e} failed with HTTP ${t.status}.${r ? ` ${r}` : ""}`), this.name = "HonuaAdminApiError", this.operationId = e, this.statusCode = t.status, this.body = n;
 	}
 };
-function hg(e) {
+function gg(e) {
 	if (typeof e != "object" || !e) return;
 	let t = e, n = [
 		t.detail,
@@ -20956,7 +21075,7 @@ function hg(e) {
 		return "The server returned structured validation errors.";
 	}
 }
-var gg = class {
+var _g = class {
 	#e;
 	#t;
 	#n;
@@ -20966,22 +21085,22 @@ var gg = class {
 		let t = new URL(e.baseUrl);
 		if (t.protocol !== "http:" && t.protocol !== "https:") throw Error("Admin client baseUrl must use http or https.");
 		if (t.username || t.password || t.search || t.hash) throw Error("Admin client baseUrl must not include credentials, query parameters, or a fragment.");
-		if (t.protocol === "http:" && !_g(t.hostname)) throw Error("Admin client requires HTTPS except for exact loopback HTTP development endpoints.");
-		this.#e = t.toString().replace(/\/+$/, ""), this.#t = yg(e.basePath ?? "/api/v1/admin"), this.#n = e.fetchFn ?? fetch, this.#r = new Headers(e.headers), this.#i = e.adminKey ?? e.apiKey, this.#i && this.#r.set("X-API-Key", this.#i);
+		if (t.protocol === "http:" && !vg(t.hostname)) throw Error("Admin client requires HTTPS except for exact loopback HTTP development endpoints.");
+		this.#e = t.toString().replace(/\/+$/, ""), this.#t = bg(e.basePath ?? "/api/v1/admin"), this.#n = e.fetchFn ?? fetch, this.#r = new Headers(e.headers), this.#i = e.adminKey ?? e.apiKey, this.#i && this.#r.set("X-API-Key", this.#i);
 	}
 	async call(e, t) {
-		let n = pg[e], r = bg(n.path, t.path), i = new URL(`${this.#e}${this.#t}${r}`);
-		xg(i, t.query);
+		let n = mg[e], r = xg(n.path, t.path), i = new URL(`${this.#e}${this.#t}${r}`);
+		Sg(i, t.query);
 		let a = new Headers(this.#r);
-		Sg(a, t.headers), this.#i && a.set("X-API-Key", this.#i);
-		let o = Cg(t.body, t.contentType, a, n.requestContentTypes), s = await this.#n(i, {
+		Cg(a, t.headers), this.#i && a.set("X-API-Key", this.#i);
+		let o = wg(t.body, t.contentType, a, n.requestContentTypes), s = await this.#n(i, {
 			method: n.method,
 			headers: a,
 			body: o,
 			signal: t.signal,
 			redirect: "manual"
-		}), c = await Dg(s);
-		if (!s.ok) throw new mg(e, s, c);
+		}), c = await Og(s);
+		if (!s.ok) throw new hg(e, s, c);
 		return {
 			operationId: e,
 			data: c,
@@ -20989,17 +21108,17 @@ var gg = class {
 		};
 	}
 };
-function _g(e) {
+function vg(e) {
 	let t = e.toLowerCase();
 	return t === "localhost" || t === "127.0.0.1" || t === "::1" || t === "[::1]";
 }
-function vg(e) {
-	return new gg(e);
-}
 function yg(e) {
+	return new _g(e);
+}
+function bg(e) {
 	return i(e.startsWith("/") ? e : `/${e}`);
 }
-function bg(e, t) {
+function xg(e, t) {
 	let n = /* @__PURE__ */ new Set(), r = e.replace(/\{([^}]+)\}/g, (e, r) => {
 		let i = t?.[r];
 		if (i == null || i === "") throw Error(`Missing required admin path parameter: ${r}`);
@@ -21008,40 +21127,40 @@ function bg(e, t) {
 	for (let r of Object.keys(t ?? {})) if (!n.has(r)) throw Error(`Unknown admin path parameter for ${e}: ${r}`);
 	return r;
 }
-function xg(e, t) {
+function Sg(e, t) {
 	for (let [n, r] of Object.entries(t ?? {})) if (r != null) if (Array.isArray(r)) for (let t of r) e.searchParams.append(n, String(t));
 	else e.searchParams.set(n, String(r));
 }
-function Sg(e, t) {
+function Cg(e, t) {
 	if (t) for (let [n, r] of new Headers(t)) e.set(n, r);
 }
-function Cg(e, t, n, r) {
+function wg(e, t, n, r) {
 	if (e === void 0) return null;
-	let i = t ?? wg(r);
-	return i === "multipart/form-data" ? Tg(e) : (n.set("Content-Type", i), i.includes("json") ? JSON.stringify(e) : typeof e == "string" || e instanceof Uint8Array || e instanceof Blob || e instanceof FormData || e instanceof URLSearchParams ? e : String(e));
-}
-function wg(e) {
-	return e.includes("application/json") ? "application/json" : e[0] ?? "application/json";
+	let i = t ?? Tg(r);
+	return i === "multipart/form-data" ? Eg(e) : (n.set("Content-Type", i), i.includes("json") ? JSON.stringify(e) : typeof e == "string" || e instanceof Uint8Array || e instanceof Blob || e instanceof FormData || e instanceof URLSearchParams ? e : String(e));
 }
 function Tg(e) {
+	return e.includes("application/json") ? "application/json" : e[0] ?? "application/json";
+}
+function Eg(e) {
 	if (e instanceof FormData) return e;
 	if (typeof e != "object" || !e) throw Error("multipart/form-data body must be an object.");
 	let t = new FormData();
-	for (let [n, r] of Object.entries(e)) if (r != null) if (Array.isArray(r)) for (let e of r) t.append(n, Eg(e));
-	else t.append(n, Eg(r));
+	for (let [n, r] of Object.entries(e)) if (r != null) if (Array.isArray(r)) for (let e of r) t.append(n, Dg(e));
+	else t.append(n, Dg(r));
 	return t;
 }
-function Eg(e) {
+function Dg(e) {
 	return e instanceof Blob || typeof e == "string" ? e : JSON.stringify(e);
 }
-async function Dg(e) {
+async function Og(e) {
 	if (e.status === 204) return;
 	let t = e.headers.get("content-type") ?? "";
 	return t.includes("json") ? e.json() : t.startsWith("text/") || t.includes("xml") ? e.text() : e.arrayBuffer();
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/file-hash.js
-async function Og(e, t = {}) {
+async function kg(e, t = {}) {
 	let n = t.chunkBytes ?? 1024 * 1024;
 	if (!Number.isSafeInteger(n) || n < 65536 || n > 8 * 1024 * 1024) throw RangeError("chunkBytes must be an integer between 64 KiB and 8 MiB.");
 	if (!Number.isSafeInteger(e.size) || e.size < 0) throw RangeError("File size must be a nonnegative safe integer.");
@@ -21058,11 +21177,11 @@ async function Og(e, t = {}) {
 		let t = 0;
 		for (; t < e.length;) {
 			if (o === 0 && e.length - t >= 64) {
-				kg(r, i, e.subarray(t, t + 64)), t += 64;
+				Ag(r, i, e.subarray(t, t + 64)), t += 64;
 				continue;
 			}
 			let n = Math.min(64 - o, e.length - t);
-			a.set(e.subarray(t, t + n), o), t += n, o += n, o === 64 && (kg(r, i, a), o = 0);
+			a.set(e.subarray(t, t + n), o), t += n, o += n, o === 64 && (Ag(r, i, a), o = 0);
 		}
 	};
 	t.signal?.throwIfAborted(), t.onProgress?.(0, e.size);
@@ -21080,24 +21199,24 @@ async function Og(e, t = {}) {
 	let l = new DataView(c.buffer);
 	return l.setUint32(c.length - 8, Math.floor(e.size / 536870912), !1), l.setUint32(c.length - 4, e.size % 536870912 * 8, !1), s(c), Array.from(r, (e) => e.toString(16).padStart(8, "0")).join("");
 }
-function kg(e, t, n) {
+function Ag(e, t, n) {
 	let r = new DataView(n.buffer, n.byteOffset, n.byteLength);
 	for (let e = 0; e < 16; e++) t[e] = r.getUint32(e * 4, !1);
 	for (let e = 16; e < 64; e++) {
-		let n = t[e - 15] ?? 0, r = t[e - 2] ?? 0, i = Ag(n, 7) ^ Ag(n, 18) ^ n >>> 3, a = Ag(r, 17) ^ Ag(r, 19) ^ r >>> 10;
+		let n = t[e - 15] ?? 0, r = t[e - 2] ?? 0, i = jg(n, 7) ^ jg(n, 18) ^ n >>> 3, a = jg(r, 17) ^ jg(r, 19) ^ r >>> 10;
 		t[e] = (t[e - 16] ?? 0) + i + (t[e - 7] ?? 0) + a >>> 0;
 	}
 	let i = e[0] ?? 0, a = e[1] ?? 0, o = e[2] ?? 0, s = e[3] ?? 0, c = e[4] ?? 0, l = e[5] ?? 0, u = e[6] ?? 0, d = e[7] ?? 0;
 	for (let e = 0; e < 64; e++) {
-		let n = Ag(c, 6) ^ Ag(c, 11) ^ Ag(c, 25), r = c & l ^ ~c & u, f = d + n + r + (jg[e] ?? 0) + (t[e] ?? 0) >>> 0, p = (Ag(i, 2) ^ Ag(i, 13) ^ Ag(i, 22)) + (i & a ^ i & o ^ a & o) >>> 0;
+		let n = jg(c, 6) ^ jg(c, 11) ^ jg(c, 25), r = c & l ^ ~c & u, f = d + n + r + (Mg[e] ?? 0) + (t[e] ?? 0) >>> 0, p = (jg(i, 2) ^ jg(i, 13) ^ jg(i, 22)) + (i & a ^ i & o ^ a & o) >>> 0;
 		d = u, u = l, l = c, c = s + f >>> 0, s = o, o = a, a = i, i = f + p >>> 0;
 	}
 	e[0] = (e[0] ?? 0) + i >>> 0, e[1] = (e[1] ?? 0) + a >>> 0, e[2] = (e[2] ?? 0) + o >>> 0, e[3] = (e[3] ?? 0) + s >>> 0, e[4] = (e[4] ?? 0) + c >>> 0, e[5] = (e[5] ?? 0) + l >>> 0, e[6] = (e[6] ?? 0) + u >>> 0, e[7] = (e[7] ?? 0) + d >>> 0;
 }
-function Ag(e, t) {
+function jg(e, t) {
 	return e >>> t | e << 32 - t;
 }
-var jg = new Uint32Array([
+var Mg = new Uint32Array([
 	1116352408,
 	1899447441,
 	3049323471,
@@ -21162,12 +21281,12 @@ var jg = new Uint32Array([
 	2756734187,
 	3204031479,
 	3329325298
-]), Mg = class extends Error {
+]), Ng = class extends Error {
 	status;
 	constructor(e) {
 		super(`Dataset import request failed (${e}).`), this.status = e, this.name = "DatasetImportTaskApiError";
 	}
-}, Ng = class {
+}, Pg = class {
 	base;
 	workspaceId;
 	originatingTurnId;
@@ -21176,7 +21295,7 @@ var jg = new Uint32Array([
 	constructor(e) {
 		let t = new URL(e.baseUrl);
 		if (!/^https?:$/.test(t.protocol) || t.username || t.password || t.search || t.hash) throw TypeError("A deployment HTTP(S) URL without credentials, query or fragment is required.");
-		Pg(e.workspaceId), Pg(e.targetId), e.originatingTurnId !== void 0 && Pg(e.originatingTurnId), this.base = `${t.href.replace(/\/$/, "")}/api/v1/agent/workspaces/${encodeURIComponent(e.workspaceId)}`, this.workspaceId = e.workspaceId, this.originatingTurnId = e.originatingTurnId, this.fetcher = e.fetch ?? globalThis.fetch.bind(globalThis), this.headers = e.headers;
+		Fg(e.workspaceId), Fg(e.targetId), e.originatingTurnId !== void 0 && Fg(e.originatingTurnId), this.base = `${t.href.replace(/\/$/, "")}/api/v1/agent/workspaces/${encodeURIComponent(e.workspaceId)}`, this.workspaceId = e.workspaceId, this.originatingTurnId = e.originatingTurnId, this.fetcher = e.fetch ?? globalThis.fetch.bind(globalThis), this.headers = e.headers;
 	}
 	async request(e, t, n, r, i = !1, a = "application/json") {
 		let o = new Headers(await this.headers?.());
@@ -21189,11 +21308,11 @@ var jg = new Uint32Array([
 			redirect: "error"
 		});
 		if (i && s.status === 404) return null;
-		if (!s.ok) throw new Mg(s.status);
+		if (!s.ok) throw new Ng(s.status);
 		return await s.json();
 	}
 };
-function Pg(e) {
+function Fg(e) {
 	if (typeof e != "string" || e.length < 1 || e.length > 256 || e.trim() !== e || Array.from(e).some((e) => {
 		let t = e.charCodeAt(0);
 		return t <= 31 || t >= 127 && t <= 159;
@@ -21201,91 +21320,91 @@ function Pg(e) {
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/client.js
-var Fg = class {
+var Ig = class {
 	workspaceId;
 	targetId;
 	transport;
 	constructor(e) {
-		this.transport = new Ng(e), this.workspaceId = e.workspaceId, this.targetId = e.targetId;
+		this.transport = new Pg(e), this.workspaceId = e.workspaceId, this.targetId = e.targetId;
 	}
 	async createTask(e, t) {
 		let n = JSON.stringify(e), r = await this.transport.request("/dataset-import-tasks", "POST", n, t);
 		return this.assertTask(r), r;
 	}
 	async readIntent(e, t) {
-		Pg(e);
+		Fg(e);
 		let n = await this.transport.request(`/dataset-import-task-intents/${encodeURIComponent(e)}`, "GET", void 0, t, !0);
 		return n !== null && this.assertTask(n), n;
 	}
 	async readTask(e, t) {
-		let n = Ig(e), r = await this.transport.request(Lg(n), "GET", void 0, t, !0);
+		let n = Lg(e), r = await this.transport.request(Rg(n), "GET", void 0, t, !0);
 		if (r !== null && (this.assertTask(r), r.taskId !== n.taskId || r.revision !== n.revision || r.contentHash !== n.contentHash)) throw Error("Import task response changed the immutable task binding.");
 		return r;
 	}
 	async readAuthority(e, t) {
-		let n = Ig(e), r = await this.transport.request(`${Lg(n)}/authority?contentHash=${n.contentHash}`, "GET", void 0, t, !0);
-		if (r !== null && (r.taskId !== n.taskId || r.taskRevision !== n.revision || r.taskContentHash !== n.contentHash || !Number.isSafeInteger(r.authorityRevision) || r.authorityRevision < 1 || !Rg(r.authorityFingerprint) || !Rg(r.policyContextFingerprint) || !Rg(r.originalTurnHash) || typeof r.executorActorId != "string" || r.executorActorId.length < 1 || typeof r.originatingTurnId != "string" || r.originatingTurnId.length < 1 || !Number.isFinite(Date.parse(r.uploadAdmissionDeadline)) || r.preparedOperationId != null && (r.preparedOperationId.length !== 32 || !/^[a-f0-9]{32}$/.test(r.preparedOperationId)))) throw Error("Import authority response changed the immutable task binding.");
+		let n = Lg(e), r = await this.transport.request(`${Rg(n)}/authority?contentHash=${n.contentHash}`, "GET", void 0, t, !0);
+		if (r !== null && (r.taskId !== n.taskId || r.taskRevision !== n.revision || r.taskContentHash !== n.contentHash || !Number.isSafeInteger(r.authorityRevision) || r.authorityRevision < 1 || !zg(r.authorityFingerprint) || !zg(r.policyContextFingerprint) || !zg(r.originalTurnHash) || typeof r.executorActorId != "string" || r.executorActorId.length < 1 || typeof r.originatingTurnId != "string" || r.originatingTurnId.length < 1 || !Number.isFinite(Date.parse(r.uploadAdmissionDeadline)) || r.preparedOperationId != null && (r.preparedOperationId.length !== 32 || !/^[a-f0-9]{32}$/.test(r.preparedOperationId)))) throw Error("Import authority response changed the immutable task binding.");
 		return r;
 	}
 	async renewAuthority(e, t, n) {
-		let r = Ig(e);
-		if (Pg(t.renewalId), t.taskContentHash !== r.contentHash || !Number.isSafeInteger(t.expectedAuthorityRevision) || t.expectedAuthorityRevision < 1) throw TypeError("An exact task hash and positive authority revision are required.");
-		let i = JSON.stringify(t), a = t.renewalId, o = t.expectedAuthorityRevision, s = await this.transport.request(`${Lg(r)}/authority-renewals`, "POST", i, n);
-		if (s.renewalId !== a || s.previousAuthorityRevision !== o || s.authorityRevision !== o + 1 || !Rg(s.authorityFingerprint) || !Number.isFinite(Date.parse(s.renewedAt))) throw Error("Import renewal response changed the original renewal binding.");
+		let r = Lg(e);
+		if (Fg(t.renewalId), t.taskContentHash !== r.contentHash || !Number.isSafeInteger(t.expectedAuthorityRevision) || t.expectedAuthorityRevision < 1) throw TypeError("An exact task hash and positive authority revision are required.");
+		let i = JSON.stringify(t), a = t.renewalId, o = t.expectedAuthorityRevision, s = await this.transport.request(`${Rg(r)}/authority-renewals`, "POST", i, n);
+		if (s.renewalId !== a || s.previousAuthorityRevision !== o || s.authorityRevision !== o + 1 || !zg(s.authorityFingerprint) || !Number.isFinite(Date.parse(s.renewedAt))) throw Error("Import renewal response changed the original renewal binding.");
 		return s;
 	}
 	assertTask(e) {
 		if (!e || e.workspaceId !== this.workspaceId || e.targetId !== this.targetId) throw Error("Import task response changed workspace or deployment target.");
-		Ig({
+		Lg({
 			taskId: e.taskId,
 			revision: e.revision,
 			contentHash: e.contentHash
 		});
 	}
 };
-function Ig(e) {
-	if (Pg(e.taskId), !Number.isSafeInteger(e.revision) || e.revision < 1 || typeof e.contentHash != "string" || e.contentHash.length !== 64 || !/^[a-f0-9]{64}$/.test(e.contentHash)) throw TypeError("A positive revision and lowercase whole SHA-256 task hash are required.");
+function Lg(e) {
+	if (Fg(e.taskId), !Number.isSafeInteger(e.revision) || e.revision < 1 || typeof e.contentHash != "string" || e.contentHash.length !== 64 || !/^[a-f0-9]{64}$/.test(e.contentHash)) throw TypeError("A positive revision and lowercase whole SHA-256 task hash are required.");
 	return {
 		taskId: e.taskId,
 		revision: e.revision,
 		contentHash: e.contentHash
 	};
 }
-function Lg(e) {
+function Rg(e) {
 	return `/dataset-import-tasks/${encodeURIComponent(e.taskId)}/versions/${e.revision}`;
 }
-function Rg(e) {
+function zg(e) {
 	return typeof e == "string" && e.length === 64 && /^[a-f0-9]{64}$/.test(e);
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/upload-client.js
-var zg = 4 * 1024 * 1024, Bg = 65536, Vg = class {
+var Bg = 4 * 1024 * 1024, Vg = 65536, Hg = class {
 	transport;
 	constructor(e) {
-		this.transport = new Ng(e);
+		this.transport = new Pg(e);
 	}
 	async capabilities(e, t) {
-		let n = Hg(e), r = await this.transport.request(`${Gg(n)}/capabilities?contentHash=${n.contentHash}`, "GET", void 0, t, !0);
-		if (r !== null && (!Wg(r.chunkBytes) || !Number.isSafeInteger(r.maximumFileBytes) || r.maximumFileBytes < 1 || r.maximumFileBytes > r.chunkBytes * Bg || typeof r.importAcceptanceSupported != "boolean")) throw Error("The host returned an unsupported transfer capability contract.");
+		let n = Ug(e), r = await this.transport.request(`${Kg(n)}/capabilities?contentHash=${n.contentHash}`, "GET", void 0, t, !0);
+		if (r !== null && (!Gg(r.chunkBytes) || !Number.isSafeInteger(r.maximumFileBytes) || r.maximumFileBytes < 1 || r.maximumFileBytes > r.chunkBytes * Vg || typeof r.importAcceptanceSupported != "boolean")) throw Error("The host returned an unsupported transfer capability contract.");
 		return r;
 	}
 	async read(e, t) {
-		let n = Hg(e), r = await this.transport.request(`${Gg(n)}?contentHash=${n.contentHash}`, "GET", void 0, t, !0);
-		return r !== null && Kg(r, n), r;
+		let n = Ug(e), r = await this.transport.request(`${Kg(n)}?contentHash=${n.contentHash}`, "GET", void 0, t, !0);
+		return r !== null && qg(r, n), r;
 	}
 	async reconcile(e, t, n) {
-		let r = Hg(e), i = qg(t, r), a = await this.transport.request(`${Gg(r)}?contentHash=${r.contentHash}`, "GET", void 0, n, !0);
-		return a !== null && Kg(a, r, i), a;
+		let r = Ug(e), i = Jg(t, r), a = await this.transport.request(`${Kg(r)}?contentHash=${r.contentHash}`, "GET", void 0, n, !0);
+		return a !== null && qg(a, r, i), a;
 	}
 	async create(e, t) {
-		let n = Hg(e), r = JSON.stringify({ taskContentHash: n.contentHash }), i = await this.transport.request(Gg(n), "POST", r, t);
-		return Kg(i, n), i;
+		let n = Ug(e), r = JSON.stringify({ taskContentHash: n.contentHash }), i = await this.transport.request(Kg(n), "POST", r, t);
+		return qg(i, n), i;
 	}
 	async appendChunk(e, t, n, r) {
-		let i = Hg(e), a = qg(t, i), { version: o, acceptedBytes: s, totalBytes: c, chunkBytes: l, state: u } = a, d = Math.min(l, c - s);
+		let i = Ug(e), a = Jg(t, i), { version: o, acceptedBytes: s, totalBytes: c, chunkBytes: l, state: u } = a, d = Math.min(l, c - s);
 		if (u !== "receiving" || d < 1 || n.size !== d) throw TypeError("Exactly one original next chunk is required.");
-		let f = await Og(n, { signal: r }), p = await this.transport.request(`${Gg(i)}/chunks?contentHash=${i.contentHash}&expectedVersion=${o}&offset=${s}&sha256=${f}`, "PUT", n, r, !1, "application/octet-stream");
-		return Kg(p, i, a), p;
+		let f = await kg(n, { signal: r }), p = await this.transport.request(`${Kg(i)}/chunks?contentHash=${i.contentHash}&expectedVersion=${o}&offset=${s}&sha256=${f}`, "PUT", n, r, !1, "application/octet-stream");
+		return qg(p, i, a), p;
 	}
 	async seal(e, t, n) {
 		return await this.mutate(e, t, "/seal", n);
@@ -21294,45 +21413,45 @@ var zg = 4 * 1024 * 1024, Bg = 65536, Vg = class {
 		return await this.mutate(e, t, "/source", n);
 	}
 	async cancel(e, t, n) {
-		let r = Hg(e), i = qg(t, r), { version: a } = i, o = await this.transport.request(`${Gg(r)}?contentHash=${r.contentHash}&expectedVersion=${a}`, "DELETE", void 0, n);
-		return Kg(o, r, i), o;
+		let r = Ug(e), i = Jg(t, r), { version: a } = i, o = await this.transport.request(`${Kg(r)}?contentHash=${r.contentHash}&expectedVersion=${a}`, "DELETE", void 0, n);
+		return qg(o, r, i), o;
 	}
 	async mutate(e, t, n, r) {
-		let i = Hg(e), a = qg(t, i), { version: o } = a, s = JSON.stringify({
+		let i = Ug(e), a = Jg(t, i), { version: o } = a, s = JSON.stringify({
 			taskContentHash: i.contentHash,
 			expectedVersion: o
-		}), c = await this.transport.request(`${Gg(i)}${n}`, "POST", s, r);
-		return Kg(c, i, a), c;
+		}), c = await this.transport.request(`${Kg(i)}${n}`, "POST", s, r);
+		return qg(c, i, a), c;
 	}
 };
-function Hg(e) {
-	if (Pg(e.taskId), !Number.isSafeInteger(e.revision) || e.revision < 1 || !Ug(e.contentHash)) throw TypeError("An exact immutable task reference is required.");
+function Ug(e) {
+	if (Fg(e.taskId), !Number.isSafeInteger(e.revision) || e.revision < 1 || !Wg(e.contentHash)) throw TypeError("An exact immutable task reference is required.");
 	return {
 		taskId: e.taskId,
 		revision: e.revision,
 		contentHash: e.contentHash
 	};
 }
-function Ug(e) {
+function Wg(e) {
 	return typeof e == "string" && e.length === 64 && /^[a-f0-9]{64}$/.test(e);
 }
-function Wg(e) {
-	return Number.isSafeInteger(e) && e >= 65536 && e <= zg;
-}
 function Gg(e) {
+	return Number.isSafeInteger(e) && e >= 65536 && e <= Bg;
+}
+function Kg(e) {
 	return `/dataset-import-tasks/${encodeURIComponent(e.taskId)}/versions/${e.revision}/upload`;
 }
-function Kg(e, t, n) {
-	if (!e || e.taskId !== t.taskId || e.taskRevision !== t.revision || e.taskContentHash !== t.contentHash || typeof e.uploadId != "string" || e.uploadId.length !== 32 || !/^[a-f0-9]{32}$/.test(e.uploadId) || n !== void 0 && !Jg(e, n) || !Number.isSafeInteger(e.version) || e.version < 1 || !Number.isSafeInteger(e.totalBytes) || e.totalBytes < 1 || !Wg(e.chunkBytes) || e.totalBytes > e.chunkBytes * Bg || !Number.isSafeInteger(e.acceptedBytes) || e.acceptedBytes < 0 || e.acceptedBytes > e.totalBytes || e.chunkCount !== Math.ceil(e.acceptedBytes / e.chunkBytes) || e.acceptedBytes !== Math.min(e.chunkCount * e.chunkBytes, e.totalBytes) || ![
+function qg(e, t, n) {
+	if (!e || e.taskId !== t.taskId || e.taskRevision !== t.revision || e.taskContentHash !== t.contentHash || typeof e.uploadId != "string" || e.uploadId.length !== 32 || !/^[a-f0-9]{32}$/.test(e.uploadId) || n !== void 0 && !Yg(e, n) || !Number.isSafeInteger(e.version) || e.version < 1 || !Number.isSafeInteger(e.totalBytes) || e.totalBytes < 1 || !Gg(e.chunkBytes) || e.totalBytes > e.chunkBytes * Vg || !Number.isSafeInteger(e.acceptedBytes) || e.acceptedBytes < 0 || e.acceptedBytes > e.totalBytes || e.chunkCount !== Math.ceil(e.acceptedBytes / e.chunkBytes) || e.acceptedBytes !== Math.min(e.chunkCount * e.chunkBytes, e.totalBytes) || ![
 		"receiving",
 		"sealed",
 		"cancelled"
-	].includes(e.state) || !Number.isFinite(Date.parse(e.expiresAt)) || (e.state === "sealed" ? e.acceptedBytes !== e.totalBytes || !Ug(e.contentSha256) : e.contentSha256 != null)) throw Error("The transfer receipt changed its immutable task/session binding or canonical byte range.");
+	].includes(e.state) || !Number.isFinite(Date.parse(e.expiresAt)) || (e.state === "sealed" ? e.acceptedBytes !== e.totalBytes || !Wg(e.contentSha256) : e.contentSha256 != null)) throw Error("The transfer receipt changed its immutable task/session binding or canonical byte range.");
 	if (n?.sourceRetention !== void 0 && (e.sourceRetention == null || e.sourceRetention.bytes !== n.sourceRetention.bytes || e.sourceRetention.sha256 !== n.sourceRetention.sha256 || (e.sourceRetention.expiresAt ?? null) !== n.sourceRetention.expiresAt)) throw Error("The original retained source receipt changed.");
 	if (e.sourceRetention != null && (e.state !== "sealed" || e.sourceRetention.bytes !== e.totalBytes || e.sourceRetention.sha256 !== e.contentSha256 || e.sourceRetention.expiresAt != null && !Number.isFinite(Date.parse(e.sourceRetention.expiresAt)))) throw Error("The retained source receipt does not match the sealed original bytes.");
 }
-function qg(e, t) {
-	return Kg(e, t), {
+function Jg(e, t) {
+	return qg(e, t), {
 		uploadId: e.uploadId,
 		version: e.version,
 		state: e.state,
@@ -21348,32 +21467,32 @@ function qg(e, t) {
 		} }
 	};
 }
-function Jg(e, t) {
-	return e.uploadId !== t.uploadId || e.totalBytes !== t.totalBytes || e.chunkBytes !== t.chunkBytes || e.expiresAt !== t.expiresAt || e.version < t.version || e.acceptedBytes < t.acceptedBytes || t.state !== "receiving" && e.state !== t.state || t.state === "cancelled" && e.acceptedBytes !== t.acceptedBytes || t.contentSha256 != null && e.contentSha256 !== t.contentSha256 ? !1 : e.version !== t.version || e.acceptedBytes === t.acceptedBytes && e.state === t.state && (e.contentSha256 ?? null) === (t.contentSha256 ?? null) && Yg(e.sourceRetention, t.sourceRetention);
-}
 function Yg(e, t) {
+	return e.uploadId !== t.uploadId || e.totalBytes !== t.totalBytes || e.chunkBytes !== t.chunkBytes || e.expiresAt !== t.expiresAt || e.version < t.version || e.acceptedBytes < t.acceptedBytes || t.state !== "receiving" && e.state !== t.state || t.state === "cancelled" && e.acceptedBytes !== t.acceptedBytes || t.contentSha256 != null && e.contentSha256 !== t.contentSha256 ? !1 : e.version !== t.version || e.acceptedBytes === t.acceptedBytes && e.state === t.state && (e.contentSha256 ?? null) === (t.contentSha256 ?? null) && Xg(e.sourceRetention, t.sourceRetention);
+}
+function Xg(e, t) {
 	return e == null || t == null ? e == null && t == null : e.bytes === t.bytes && e.sha256 === t.sha256 && (e.expiresAt ?? null) === (t.expiresAt ?? null);
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/submission-client.js
-var Xg = class {
+var Zg = class {
 	transport;
 	constructor(e) {
-		this.transport = new Ng(e);
+		this.transport = new Pg(e);
 	}
 	async read(e, t) {
-		let n = Zg(e), r = await this.transport.request(`${Qg(n)}?contentHash=${n.contentHash}`, "GET", void 0, t, !0);
-		return r !== null && c_(r, n), r;
+		let n = Qg(e), r = await this.transport.request(`${$g(n)}?contentHash=${n.contentHash}`, "GET", void 0, t, !0);
+		return r !== null && l_(r, n), r;
 	}
 	async reconcile(e, t, n) {
-		let r = Zg(e), i = structuredClone(t);
-		c_(i, r);
+		let r = Qg(e), i = structuredClone(t);
+		l_(i, r);
 		let a = await this.read(r, n);
-		return a !== null && (i.state !== "not-prepared" && s_(i, a), i.state === "accepted" && ((a.state !== "accepted" || a.job.jobId !== i.job.jobId || a.job.leaseId !== i.job.leaseId || a.job.createdAt !== i.job.createdAt) && o_(), a_(i.job.status) && (a.job.status !== i.job.status || i_(a.job.output) !== i_(i.job.output) || a.job.completedAt !== i.job.completedAt || a.job.errorCode !== i.job.errorCode) && o_())), a;
+		return a !== null && (i.state !== "not-prepared" && c_(i, a), i.state === "accepted" && ((a.state !== "accepted" || a.job.jobId !== i.job.jobId || a.job.leaseId !== i.job.leaseId || a.job.createdAt !== i.job.createdAt) && s_(), o_(i.job.status) && (a.job.status !== i.job.status || a_(a.job.output) !== a_(i.job.output) || a.job.completedAt !== i.job.completedAt || a.job.errorCode !== i.job.errorCode) && s_())), a;
 	}
 	async submit(e, t, n) {
-		let r = Zg(e);
-		if (!t || t.taskId !== r.taskId || t.taskRevision !== r.revision || t.taskContentHash !== r.contentHash || !t_(t.authorityRevision) || !$g(t.authorityFingerprint) || !$g(t.policyContextFingerprint) || !n_(t.uploadAdmissionDeadline) || t.preparedOperationId != null && !e_(t.preparedOperationId)) throw TypeError("An exact reviewed task authority and original admission deadline are required.");
+		let r = Qg(e);
+		if (!t || t.taskId !== r.taskId || t.taskRevision !== r.revision || t.taskContentHash !== r.contentHash || !n_(t.authorityRevision) || !e_(t.authorityFingerprint) || !e_(t.policyContextFingerprint) || !r_(t.uploadAdmissionDeadline) || t.preparedOperationId != null && !t_(t.preparedOperationId)) throw TypeError("An exact reviewed task authority and original admission deadline are required.");
 		let i = {
 			authorityRevision: t.authorityRevision,
 			authorityFingerprint: t.authorityFingerprint,
@@ -21385,40 +21504,40 @@ var Xg = class {
 			authorityRevision: i.authorityRevision,
 			authorityFingerprint: i.authorityFingerprint,
 			policyContextFingerprint: i.policyContextFingerprint
-		}), o = await this.transport.request(Qg(r), "POST", a, n);
-		return c_(o, r), (o.state === "not-prepared" || o.authorityRevision !== i.authorityRevision || o.authorityFingerprint !== i.authorityFingerprint || o.policyContextFingerprint !== i.policyContextFingerprint || Date.parse(o.acceptBefore) !== Date.parse(i.acceptBefore) || i.operationId != null && o.operationId !== i.operationId) && o_(), o;
+		}), o = await this.transport.request($g(r), "POST", a, n);
+		return l_(o, r), (o.state === "not-prepared" || o.authorityRevision !== i.authorityRevision || o.authorityFingerprint !== i.authorityFingerprint || o.policyContextFingerprint !== i.policyContextFingerprint || Date.parse(o.acceptBefore) !== Date.parse(i.acceptBefore) || i.operationId != null && o.operationId !== i.operationId) && s_(), o;
 	}
 };
-function Zg(e) {
-	if (!e || (Pg(e.taskId), !t_(e.revision) || !$g(e.contentHash))) throw TypeError("An immutable task reference is required.");
+function Qg(e) {
+	if (!e || (Fg(e.taskId), !n_(e.revision) || !e_(e.contentHash))) throw TypeError("An immutable task reference is required.");
 	return {
 		taskId: e.taskId,
 		revision: e.revision,
 		contentHash: e.contentHash
 	};
 }
-function Qg(e) {
+function $g(e) {
 	return `/dataset-import-tasks/${encodeURIComponent(e.taskId)}/versions/${e.revision}/submission`;
 }
-function $g(e) {
+function e_(e) {
 	return typeof e == "string" && e.length === 64 && /^[a-f0-9]{64}$/.test(e);
 }
-function e_(e) {
+function t_(e) {
 	return typeof e == "string" && e.length === 32 && /^[a-f0-9]{32}$/.test(e);
 }
-function t_(e) {
+function n_(e) {
 	return Number.isSafeInteger(e) && e > 0;
 }
-function n_(e) {
+function r_(e) {
 	return typeof e == "string" && Number.isFinite(Date.parse(e));
 }
-function r_(e) {
+function i_(e) {
 	return typeof e == "string" && e.length > 0 && e.length <= 256 && e.trim() === e && !Array.from(e).some((e) => {
 		let t = e.charCodeAt(0);
 		return t <= 31 || t >= 127 && t <= 159;
 	});
 }
-function i_(e) {
+function a_(e) {
 	return e == null ? "null" : JSON.stringify([
 		e.schema,
 		e.physicalTableName,
@@ -21426,25 +21545,25 @@ function i_(e) {
 		e.detectedSrid ?? null
 	]);
 }
-function a_(e) {
+function o_(e) {
 	return [
 		"succeeded",
 		"failed",
 		"cancelled"
 	].includes(e);
 }
-function o_() {
+function s_() {
 	throw Error("Submission response changed the original task, authority, operation or accepted job receipt.");
 }
-function s_(e, t) {
-	(t.state === "not-prepared" || t.operationId !== e.operationId || t.authorityRevision !== e.authorityRevision || t.authorityFingerprint !== e.authorityFingerprint || t.policyContextFingerprint !== e.policyContextFingerprint || t.acceptBefore !== e.acceptBefore) && o_();
-}
 function c_(e, t) {
+	(t.state === "not-prepared" || t.operationId !== e.operationId || t.authorityRevision !== e.authorityRevision || t.authorityFingerprint !== e.authorityFingerprint || t.policyContextFingerprint !== e.policyContextFingerprint || t.acceptBefore !== e.acceptBefore) && s_();
+}
+function l_(e, t) {
 	if ((!e || e.taskId !== t.taskId || e.taskRevision !== t.revision || e.taskContentHash !== t.contentHash || ![
 		"not-prepared",
 		"prepared",
 		"accepted"
-	].includes(e.state)) && o_(), e.state === "not-prepared") {
+	].includes(e.state)) && s_(), e.state === "not-prepared") {
 		[
 			e.operationId,
 			e.authorityRevision,
@@ -21452,28 +21571,28 @@ function c_(e, t) {
 			e.policyContextFingerprint,
 			e.acceptBefore,
 			e.job
-		].some((e) => e != null) && o_();
+		].some((e) => e != null) && s_();
 		return;
 	}
-	if ((!e_(e.operationId) || !t_(e.authorityRevision) || !$g(e.authorityFingerprint) || !$g(e.policyContextFingerprint) || !n_(e.acceptBefore)) && o_(), e.state === "prepared") {
-		e.job != null && o_();
+	if ((!t_(e.operationId) || !n_(e.authorityRevision) || !e_(e.authorityFingerprint) || !e_(e.policyContextFingerprint) || !r_(e.acceptBefore)) && s_(), e.state === "prepared") {
+		e.job != null && s_();
 		return;
 	}
 	let n = e.job;
-	(!n || n.jobId !== e.operationId || !r_(n.leaseId) || ![
+	(!n || n.jobId !== e.operationId || !i_(n.leaseId) || ![
 		"queued",
 		"provisioning",
 		"running",
 		"succeeded",
 		"failed",
 		"cancelled"
-	].includes(n.status) || !n_(n.createdAt) || !n_(n.updatedAt) || Date.parse(n.updatedAt) < Date.parse(n.createdAt) || n.completedAt != null && (!n_(n.completedAt) || !a_(n.status)) || n.percentComplete != null && (!Number.isFinite(n.percentComplete) || n.percentComplete < 0 || n.percentComplete > 100) || n.errorCode != null && (n.status !== "failed" || n.errorCode !== "import-failed")) && o_(), n.outcomePending !== void 0 && (typeof n.outcomePending != "boolean" || n.outcomePending && a_(n.status)) && o_();
+	].includes(n.status) || !r_(n.createdAt) || !r_(n.updatedAt) || Date.parse(n.updatedAt) < Date.parse(n.createdAt) || n.completedAt != null && (!r_(n.completedAt) || !o_(n.status)) || n.percentComplete != null && (!Number.isFinite(n.percentComplete) || n.percentComplete < 0 || n.percentComplete > 100) || n.errorCode != null && (n.status !== "failed" || n.errorCode !== "import-failed")) && s_(), n.outcomePending !== void 0 && (typeof n.outcomePending != "boolean" || n.outcomePending && o_(n.status)) && s_();
 	let r = n.output;
-	r != null && (n.status !== "succeeded" || !r_(r.schema) || !r_(r.physicalTableName) || !Number.isSafeInteger(r.featureCount) || r.featureCount < 0 || r.featureCount > 2147483647 || r.detectedSrid != null && (!Number.isInteger(r.detectedSrid) || r.detectedSrid < -2147483648 || r.detectedSrid > 2147483647)) && o_();
+	n.status === "succeeded" && r == null && s_(), r != null && (n.status !== "succeeded" || !i_(r.schema) || !i_(r.physicalTableName) || !Number.isSafeInteger(r.featureCount) || r.featureCount < 0 || r.featureCount > 2147483647 || r.detectedSrid != null && (!Number.isInteger(r.detectedSrid) || r.detectedSrid < -2147483648 || r.detectedSrid > 2147483647)) && s_();
 }
 //#endregion
 //#region src/gp/artifact-import.ts
-function l_(e) {
+function u_(e) {
 	if (![
 		"tableName",
 		"physicalTableName",
@@ -21487,7 +21606,7 @@ function l_(e) {
 		schema: e.schema
 	};
 }
-var u_ = class {
+var d_ = class {
 	options;
 	constructor(e) {
 		this.options = e;
@@ -21548,7 +21667,7 @@ var u_ = class {
 		this.assertAuthority(e), this.options.storage.setItem(e.key, "");
 	}
 	#r() {
-		return vg({
+		return yg({
 			baseUrl: "https://honua.invalid",
 			fetchFn: async (e, t) => {
 				let n = new URL(String(e));
@@ -21603,7 +21722,7 @@ var u_ = class {
 				message: `Import ${String(a.status).toLowerCase()}.`
 			};
 			case "Completed": {
-				let e = l_(a);
+				let e = u_(a);
 				return {
 					status: "completed",
 					jobId: o,
@@ -21638,12 +21757,12 @@ var u_ = class {
 			message: "Import cancellation requested; waiting for its actual terminal status."
 		} : i;
 	}
-}, d_ = class extends Error {
+}, f_ = class extends Error {
 	status;
 	constructor(e) {
 		super(e === 409 ? "Project changed or a run is active; observe its actual state before retrying." : `Processes returned ${e}.`), this.status = e;
 	}
-}, f_ = class {
+}, p_ = class {
 	options;
 	#e;
 	constructor(e) {
@@ -21661,7 +21780,7 @@ var u_ = class {
 			redirect: "error"
 		});
 		if (n !== this.options.workspaceId()) throw Error("The workspace changed during the request.");
-		if (!i.ok) throw new d_(i.status);
+		if (!i.ok) throw new f_(i.status);
 		return i;
 	}
 	async #n(e, t) {
@@ -21728,7 +21847,7 @@ var u_ = class {
 					run: e
 				})}`), e;
 			} catch (e) {
-				if (!(e instanceof d_) || e.status !== 404) throw e;
+				if (!(e instanceof f_) || e.status !== 404) throw e;
 			}
 		} else {
 			let e = await this.#n("local/snapshots", {
@@ -21815,7 +21934,7 @@ var u_ = class {
 			status: "failed",
 			message: "The server reported that the import failed."
 		};
-		let h = m.success ? l_(m) : void 0;
+		let h = m.success ? u_(m) : void 0;
 		if (!h) throw Error("Import did not return a verified dataset identity.");
 		return i.completeSynchronous(f), {
 			status: "completed",
@@ -21846,7 +21965,7 @@ var u_ = class {
 	#s() {
 		let e = this.options.commandStorage ?? globalThis.localStorage;
 		if (!e || !this.options.principalId) throw Error("A signed-in owner and durable import storage are required.");
-		return new u_({
+		return new d_({
 			storage: e,
 			scope: () => JSON.stringify([
 				this.options.environmentId,
@@ -21880,8 +21999,8 @@ var u_ = class {
 };
 //#endregion
 //#region src/lifecycle/workspace-reader.ts
-function p_(e) {
-	let t = new Ef({
+function m_(e) {
+	let t = new Df({
 		baseUrl: "/api/studio",
 		fetchImpl: e.fetchImpl
 	});
@@ -21892,7 +22011,7 @@ function p_(e) {
 }
 //#endregion
 //#region src/styles/shared-style-consumer.ts
-async function m_(e, t) {
+async function h_(e, t) {
 	if (!t.itemId || !t.packageKey) throw Error("Select an actual map consumer identity.");
 	if (t.publicationState === "draft") {
 		if (!t.draftId || t.versionId || !Number.isSafeInteger(t.generation) || Number(t.generation) < 0) throw Error("The map draft consumer generation is missing or ambiguous.");
@@ -21927,7 +22046,7 @@ async function m_(e, t) {
 }
 //#endregion
 //#region src/styles/composition-style-override.ts
-function h_(e, t, n, r) {
+function g_(e, t, n, r) {
 	let i = { ...e.paint };
 	if (r?.opacity !== void 0) {
 		let e = Math.min(1, Math.max(0, r.opacity));
@@ -21957,7 +22076,7 @@ function h_(e, t, n, r) {
 }
 //#endregion
 //#region src/map/style-presets.ts
-function g_(e, t) {
+function __(e, t) {
 	switch (e) {
 		case "fill": return {
 			"fill-color": t,
@@ -21976,7 +22095,7 @@ function g_(e, t) {
 		case "raster": return { "raster-opacity": 1 };
 	}
 }
-function __(e, t) {
+function v_(e, t) {
 	let n = Math.min(Math.max(t, 0), 1);
 	switch (e) {
 		case "fill": return { "fill-opacity": .45 * n };
@@ -21988,42 +22107,42 @@ function __(e, t) {
 		case "raster": return { "raster-opacity": n };
 	}
 }
-function v_(e) {
+function y_(e) {
 	return {
 		"line-color": e,
 		"line-width": 1
 	};
 }
-function y_(e, t, n) {
+function b_(e, t, n) {
 	return {
 		paint: {
-			...g_(t, oe(e)),
-			...n === void 0 ? {} : __(t, n)
+			...__(t, oe(e)),
+			...n === void 0 ? {} : v_(t, n)
 		},
 		metadata: { "honua:styleRefFallback": e }
 	};
 }
 //#endregion
 //#region src/map/map-package-projection.ts
-function b_(e) {
+function x_(e) {
 	return {
 		...e,
 		sources: { ...e.sources },
 		layers: e.layers.map((e) => ({ ...e }))
 	};
 }
-function x_(e) {
+function S_(e) {
 	return e;
 }
-function S_(e, t, n, r) {
+function C_(e, t, n, r) {
 	let i = ae(e.id), a = r?.opacity?.[e.id], o = r?.filters?.[e.id], s = {
 		id: e.id,
-		type: x_(t),
+		type: S_(t),
 		source: n,
 		...o === void 0 ? {} : { filter: o },
 		paint: {
-			...g_(t, i),
-			...a === void 0 ? {} : __(t, a)
+			...__(t, i),
+			...a === void 0 ? {} : v_(t, a)
 		},
 		metadata: {
 			"honua:compositionLayerId": e.id,
@@ -22033,8 +22152,8 @@ function S_(e, t, n, r) {
 	};
 	return e.visible || (s.layout = { visibility: "none" }), s;
 }
-function C_(e, t = {}) {
-	let n = b_(e.mapSpec ? e.mapSpec : t.basemap ?? re()), r = new Set(n.layers.map((e) => e.id)), i = Object.fromEntries((e.styleRefs ?? []).map((e) => [e.styleId, e.body])), a = [], o = [], s = /* @__PURE__ */ new Set(), c = [], l = [], u = /* @__PURE__ */ new Set();
+function w_(e, t = {}) {
+	let n = x_(e.mapSpec ? e.mapSpec : t.basemap ?? re()), r = new Set(n.layers.map((e) => e.id)), i = Object.fromEntries((e.styleRefs ?? []).map((e) => [e.styleId, e.body])), a = [], o = [], s = /* @__PURE__ */ new Set(), c = [], l = [], u = /* @__PURE__ */ new Set();
 	for (let d of e.layers) {
 		let f = h(d, {
 			...t.catalog === void 0 ? {} : { catalog: t.catalog },
@@ -22072,7 +22191,7 @@ function C_(e, t = {}) {
 			let t = e.sourceBindings?.find((e) => e.sourceId === g);
 			t ? a.push(structuredClone(t)) : f.binding && a.push(f.binding);
 		}
-		if (!e.mapSpec && !r.has(d.id) ? n.layers.push(S_(d, f.layerType, g, t.appearance)) : n.layers = n.layers.map((e) => {
+		if (!e.mapSpec && !r.has(d.id) ? n.layers.push(C_(d, f.layerType, g, t.appearance)) : n.layers = n.layers.map((e) => {
 			let n = e.metadata?.["honua:compositionLayerId"];
 			if (e.id !== d.id && e.id !== `${d.id}__outline` && n !== d.id) return e;
 			let r = d.visible && e.layout?.visibility !== "none", i = { ...e.paint }, a = t.appearance?.opacity?.[d.id];
@@ -22106,7 +22225,7 @@ function C_(e, t = {}) {
 				source: g,
 				...e === void 0 ? {} : { filter: e },
 				paint: {
-					...v_(ae(d.id)),
+					...y_(ae(d.id)),
 					...r === void 0 ? {} : { "line-opacity": Math.min(Math.max(r, 0), 1) }
 				},
 				...d.visible ? {} : { layout: { visibility: "none" } }
@@ -22117,7 +22236,7 @@ function C_(e, t = {}) {
 			if (p && !("reason" in p) && p.mappedBody) {
 				let e = Object.fromEntries(Object.entries(p.mappedBody).map(([e, r]) => {
 					let i = n.layers.find((t) => t.id === e);
-					return [e, i ? h_(r, i.type, d.visible, {
+					return [e, i ? g_(r, i.type, d.visible, {
 						filter: t.appearance?.filters?.[d.id],
 						opacity: t.appearance?.opacity?.[d.id]
 					}) : r];
@@ -22136,7 +22255,7 @@ function C_(e, t = {}) {
 				}));
 				continue;
 			}
-			let a = p && !("reason" in p) ? h_(p.override, f.layerType, d.visible, {
+			let a = p && !("reason" in p) ? g_(p.override, f.layerType, d.visible, {
 				filter: t.appearance?.filters?.[d.id],
 				opacity: t.appearance?.opacity?.[d.id]
 			}) : void 0, c = (a ? {
@@ -22147,14 +22266,14 @@ function C_(e, t = {}) {
 					...a.minzoom === void 0 ? {} : { minzoom: a.minzoom },
 					...a.maxzoom === void 0 ? {} : { maxzoom: a.maxzoom }
 				} } : {}
-			} : i[d.styleRef.styleId] ?? t.styleRefBodies?.[d.styleRef.styleId]) ?? { [d.id]: y_(d.styleRef.styleId, f.layerType, t.appearance?.opacity?.[d.id]) };
+			} : i[d.styleRef.styleId] ?? t.styleRefBodies?.[d.styleRef.styleId]) ?? { [d.id]: b_(d.styleRef.styleId, f.layerType, t.appearance?.opacity?.[d.id]) };
 			o.push({
 				styleId: d.styleRef.styleId,
 				body: c
 			});
 		}
 	}
-	let d = w_(e);
+	let d = T_(e);
 	return {
 		mapPackage: {
 			mapPackageId: t.mapPackageId ?? "honua-studio-composition",
@@ -22172,7 +22291,7 @@ function C_(e, t = {}) {
 		unresolved: c
 	};
 }
-function w_(e) {
+function T_(e) {
 	let { bbox: t, center: n, zoom: r, pitch: i, bearing: a } = e.view;
 	if (!(t === void 0 && n === void 0 && r === void 0 && i === void 0 && a === void 0)) return {
 		...t === void 0 ? {} : { bbox: t },
@@ -22182,24 +22301,24 @@ function w_(e) {
 		...a === void 0 ? {} : { bearing: a }
 	};
 }
-function T_(e) {
+function E_(e) {
 	return e.startsWith(ie);
 }
 //#endregion
 //#region src/map/composition-map-view.ts
-var E_ = /* @__PURE__ */ e({
-	CompositionMapView: () => j_,
-	compositionTargetsFromFeatures: () => M_,
-	defaultCompositionMapFactory: () => k_,
-	isWebglAvailable: () => A_
-}), D_ = {
+var D_ = /* @__PURE__ */ e({
+	CompositionMapView: () => M_,
+	compositionTargetsFromFeatures: () => N_,
+	defaultCompositionMapFactory: () => A_,
+	isWebglAvailable: () => j_
+}), O_ = {
 	center: [0, 20],
 	zoom: 1
 };
-function O_(e) {
+function k_(e) {
 	return typeof e == "object" && !!e;
 }
-var k_ = async (e) => {
+var A_ = async (e) => {
 	let [t, n] = await Promise.all([import("./maplibre-gl-D8l5aSvm.js"), import("./maplibre-gl-worker-D_S8443I.js")]), r = t.default ?? t, i = r.setWorkerUrl;
 	typeof i == "function" && i(n.default);
 	let o = r.Map;
@@ -22232,7 +22351,7 @@ var k_ = async (e) => {
 		throw c?.dispose(), e;
 	}
 };
-function A_() {
+function j_() {
 	if (typeof document > "u" || typeof document.createElement != "function") return !1;
 	try {
 		let e = document.createElement("canvas");
@@ -22241,7 +22360,7 @@ function A_() {
 		return !1;
 	}
 }
-var j_ = class {
+var M_ = class {
 	#e;
 	#t;
 	#n;
@@ -22354,12 +22473,12 @@ var j_ = class {
 		if (await this.#_(), this.#f) return;
 		let t = this.#v(), n = t.mapPackage.initialView, r = await this.#y(t.mapPackage);
 		try {
-			let e = this.#e.mapFactory ?? k_;
+			let e = this.#e.mapFactory ?? A_;
 			this.#t = await e({
 				container: this.#e.container,
 				style: r,
-				center: n?.center ?? D_.center,
-				zoom: n?.zoom ?? D_.zoom,
+				center: n?.center ?? O_.center,
+				zoom: n?.zoom ?? O_.zoom,
 				attributionText: "Honua",
 				getAuth: this.#e.getAuth,
 				sourceBaseUrl: this.#e.sourceAuthBaseUrl ?? this.#e.projection?.baseUrl,
@@ -22436,7 +22555,7 @@ var j_ = class {
 		this.#h = r === e.sessionIdentity && i === this.#m && !this.#f ? a : /* @__PURE__ */ new Map(), this.#g = n === this.#e.controller.state && r === e.sessionIdentity ? t : {};
 	}
 	#v(e = !0) {
-		let t = C_(this.#e.controller.state, {
+		let t = w_(this.#e.controller.state, {
 			...this.#e.projection ?? {},
 			...this.#g === void 0 ? {} : { authoritativeStyles: this.#g },
 			...this.#d === void 0 ? {} : { basemap: this.#d },
@@ -22491,7 +22610,7 @@ var j_ = class {
 			return;
 		}
 		let r = this.#e.controller.state.view;
-		P_(r, this.#l) || (this.#l = r, this.#S(e, r, !1)), this.#w();
+		F_(r, this.#l) || (this.#l = r, this.#S(e, r, !1)), this.#w();
 	}
 	#S(e, t, n) {
 		let r = n ? 0 : this.#e.viewTransitionMs ?? 700;
@@ -22516,14 +22635,14 @@ var j_ = class {
 	}
 	#C(e) {
 		e.on("click", (t) => {
-			if (!O_(t)) return;
-			let n = N_(t.lngLat);
+			if (!k_(t)) return;
+			let n = P_(t.lngLat);
 			n && this.#e.onMapClick?.(n);
 			let r = this.#e.onSelection;
 			if (!r) return;
 			let i = this.#a?.renderedLayerIds ?? [];
 			if (i.length === 0) return;
-			let a = M_(e.queryRenderedFeatures?.(t.point, { layers: [...i] }) ?? []);
+			let a = N_(e.queryRenderedFeatures?.(t.point, { layers: [...i] }) ?? []);
 			a.length > 0 && r(a);
 		});
 	}
@@ -22531,11 +22650,11 @@ var j_ = class {
 		this.#e.onChange?.(this);
 	}
 };
-function M_(e) {
+function N_(e) {
 	let t = e[0];
-	if (!O_(t)) return [];
-	let n = O_(t.layer) && typeof t.layer.id == "string" ? t.layer.id : void 0;
-	if (!n || T_(n)) return [];
+	if (!k_(t)) return [];
+	let n = k_(t.layer) && typeof t.layer.id == "string" ? t.layer.id : void 0;
+	if (!n || E_(n)) return [];
 	let r = [], i = typeof t.source == "string" ? t.source : void 0, a = t.id;
 	return i && (typeof a == "string" || typeof a == "number") && r.push({
 		kind: "feature",
@@ -22546,7 +22665,7 @@ function M_(e) {
 		id: n
 	}), r;
 }
-function N_(e) {
+function P_(e) {
 	if (Array.isArray(e) && e.length >= 2) {
 		let [t, n] = e;
 		return Number.isFinite(t) && Number.isFinite(n) ? {
@@ -22554,22 +22673,22 @@ function N_(e) {
 			lat: Number(n)
 		} : void 0;
 	}
-	if (!O_(e)) return;
+	if (!k_(e)) return;
 	let { lng: t, lat: n } = e;
 	return typeof t == "number" && typeof n == "number" && Number.isFinite(t) && Number.isFinite(n) ? {
 		lng: t,
 		lat: n
 	} : void 0;
 }
-function P_(e, t) {
-	return t ? e.zoom === t.zoom && e.pitch === t.pitch && e.bearing === t.bearing && F_(e.center, t.center) && F_(e.bbox, t.bbox) : !1;
-}
 function F_(e, t) {
+	return t ? e.zoom === t.zoom && e.pitch === t.pitch && e.bearing === t.bearing && I_(e.center, t.center) && I_(e.bbox, t.bbox) : !1;
+}
+function I_(e, t) {
 	return e === t ? !0 : !e || !t || e.length !== t.length ? !1 : e.every((e, n) => e === t[n]);
 }
 //#endregion
 //#region src/styles/shared-style-preview.ts
-function I_(e) {
+function L_(e) {
 	let t = structuredClone(e.consumer), n = structuredClone(e.document), r = 0, i = !1, a, s = Promise.resolve(), c = e.getAuthority ?? e.getAuth, l = c(), u = (e) => !i && e === r && c() === l, d = t.kind === "source" ? [t.source] : [...e.catalog ?? []];
 	async function f(r) {
 		let i = $u(n, r);
@@ -22597,7 +22716,7 @@ function I_(e) {
 			let n = t.envelope.body;
 			if (!n || typeof n != "object") throw Error("The selected map consumer has no map body.");
 			if (Array.isArray(n.layers)) {
-				let t = C_(mp(n), {
+				let t = w_(hp(n), {
 					catalog: d,
 					baseUrl: e.sourceBaseUrl
 				});
@@ -22639,7 +22758,7 @@ function I_(e) {
 				if (!u(d)) return;
 				if (a) a.setStyle(n, { diff: !0 });
 				else {
-					let t = await (e.mapFactory ?? k_)({
+					let t = await (e.mapFactory ?? A_)({
 						container: e.container,
 						style: n,
 						center: r?.center ?? [0, 20],
@@ -22721,4 +22840,4 @@ function I_(e) {
 	});
 }
 //#endregion
-export { Yu as AuthoritativeStyleProvider, Xg as DatasetImportSubmissionClient, Fg as DatasetImportTaskClient, Vg as DatasetImportUploadClient, wh as HonuaStudioCustomProcessesElement, Uh as HonuaStudioProcessesElement, Ne as InMemoryStudioAiReplayStore, f_ as LocalProcessWorkspace, rd as MapStyleEditor, Hh as ServerProcessWorkspace, Ve as StudioAiTranscriptVerifier, I_ as createSharedStylePreview, fg as createWorkspaceAgentSession, p_ as createWorkspaceLifecycleReader, Og as hashDatasetImportFile, m_ as readSharedStyleMapConsumer, lg as registerAllStudioElements, dg as workspaceAgentFeatures };
+export { Yu as AuthoritativeStyleProvider, Zg as DatasetImportSubmissionClient, Ig as DatasetImportTaskClient, Hg as DatasetImportUploadClient, Th as HonuaStudioCustomProcessesElement, Wh as HonuaStudioProcessesElement, Ne as InMemoryStudioAiReplayStore, p_ as LocalProcessWorkspace, rd as MapStyleEditor, Uh as ServerProcessWorkspace, Ve as StudioAiTranscriptVerifier, L_ as createSharedStylePreview, pg as createWorkspaceAgentSession, m_ as createWorkspaceLifecycleReader, kg as hashDatasetImportFile, h_ as readSharedStyleMapConsumer, ug as registerAllStudioElements, fg as workspaceAgentFeatures };
