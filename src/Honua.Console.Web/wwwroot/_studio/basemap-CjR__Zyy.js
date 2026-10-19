@@ -1,6 +1,6 @@
 import { t as e } from "./rolldown-runtime-Dy4uBu1J.js";
-import { t } from "./constants-B8tqYbYF.js";
-var n = {
+//#region src/map/constants.ts
+var t = "honua-basemap-", n = "__outline", r = "honua-studio-composition", i = {
 	type: "FeatureCollection",
 	features: [{
 		type: "Feature",
@@ -5398,27 +5398,27 @@ var n = {
 			]
 		}
 	}]
-}, r = /* @__PURE__ */ e({
+}, a = /* @__PURE__ */ e({
 	BASEMAP_ID_PREFIX: () => t,
-	OFFLINE_BASEMAP_ATTRIBUTION: () => i,
-	basemapPaletteFor: () => s,
-	createGraticule: () => c,
-	createOfflineBasemapStyle: () => l
-}), i = "Natural Earth (public domain) · vendored offline", a = {
+	OFFLINE_BASEMAP_ATTRIBUTION: () => o,
+	basemapPaletteFor: () => l,
+	createGraticule: () => u,
+	createOfflineBasemapStyle: () => d
+}), o = "Natural Earth (public domain) · vendored offline", s = {
 	water: "#cfdfea",
 	land: "#eeeade",
 	coast: "#8b9a8f",
 	graticule: "#bccbd6"
-}, o = {
+}, c = {
 	water: "#0b161d",
 	land: "#212e26",
 	coast: "#546a5b",
 	graticule: "#243642"
 };
-function s(e) {
-	return e === "dark" ? o : a;
+function l(e) {
+	return e === "dark" ? c : s;
 }
-function c(e = 10) {
+function u(e = 10) {
 	let t = Number.isFinite(e) && e > 0 ? e : 10, n = [];
 	for (let e = -180; e <= 180; e += t) n.push([[e, -85], [e, 85]]);
 	for (let e = -80; e <= 80; e += t) {
@@ -5435,46 +5435,46 @@ function c(e = 10) {
 		}
 	};
 }
-function l(e = {}) {
-	let r = s(e.theme ?? "light"), a = e.graticuleStepDegrees ?? 10, o = { [`${t}land`]: {
+function d(e = {}) {
+	let n = l(e.theme ?? "light"), r = e.graticuleStepDegrees ?? 10, a = { [`${t}land`]: {
 		type: "geojson",
-		data: n,
-		attribution: i
-	} }, l = [{
+		data: i,
+		attribution: o
+	} }, s = [{
 		id: `${t}water`,
 		type: "background",
-		paint: { "background-color": r.water }
+		paint: { "background-color": n.water }
 	}, {
 		id: `${t}land`,
 		type: "fill",
 		source: `${t}land`,
-		paint: { "fill-color": r.land }
+		paint: { "fill-color": n.land }
 	}];
-	return a > 0 && (o[`${t}graticule`] = {
+	return r > 0 && (a[`${t}graticule`] = {
 		type: "geojson",
-		data: c(a)
-	}, l.push({
+		data: u(r)
+	}, s.push({
 		id: `${t}graticule`,
 		type: "line",
 		source: `${t}graticule`,
 		paint: {
-			"line-color": r.graticule,
+			"line-color": n.graticule,
 			"line-width": .6
 		}
-	})), l.push({
+	})), s.push({
 		id: `${t}coast`,
 		type: "line",
 		source: `${t}land`,
 		paint: {
-			"line-color": r.coast,
+			"line-color": n.coast,
 			"line-width": 1
 		}
 	}), {
 		version: 8,
 		name: "Honua Studio offline basemap",
-		sources: o,
-		layers: l
+		sources: a,
+		layers: s
 	};
 }
 //#endregion
-export { l as n, r as t };
+export { n as a, r as i, d as n, t as r, a as t };

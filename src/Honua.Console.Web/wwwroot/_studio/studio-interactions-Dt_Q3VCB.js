@@ -1,4 +1,5 @@
-import { a as e, c as t, d as n, f as r, g as i, l as a, m as o, r as s, t as c } from "./control-config-BF7Jjaev.js";
+import { i as e } from "./errors-BIfuuju7.js";
+import { a as t, c as n, d as r, f as i, l as a, m as o, r as s, t as c } from "./control-config-DVC01Tzy.js";
 //#region node_modules/@honua/sdk-js/dist/src/exploration/types.js
 var l = {
 	filters: {},
@@ -207,14 +208,14 @@ function h(e, t) {
 				},
 				changedSlices: _("selection")
 			};
-			let n = new Set(t.ids.map((e) => r(e))), i = e.selection.filter((e) => !n.has(r(e)));
-			return i.length === e.selection.length ? {
+			let n = new Set(t.ids.map((e) => i(e))), r = e.selection.filter((e) => !n.has(i(e)));
+			return r.length === e.selection.length ? {
 				state: e,
 				changedSlices: g
 			} : {
 				state: {
 					...e,
-					selection: i
+					selection: r
 				},
 				changedSlices: _("selection")
 			};
@@ -301,12 +302,10 @@ function v(e, t) {
 }
 function y(e, t) {
 	if (e.field !== t.field || e.operator !== t.operator) return !1;
-	if (e.value !== t.value) {
-		if (Array.isArray(e.value) && Array.isArray(t.value)) {
-			if (e.value.length !== t.value.length) return !1;
-			for (let n = 0; n < e.value.length; n++) if (e.value[n] !== t.value[n]) return !1;
-		} else return !1;
-	}
+	if (e.value !== t.value) if (Array.isArray(e.value) && Array.isArray(t.value)) {
+		if (e.value.length !== t.value.length) return !1;
+		for (let n = 0; n < e.value.length; n++) if (e.value[n] !== t.value[n]) return !1;
+	} else return !1;
 	return !((e.appliesTo ?? null) !== (t.appliesTo ?? null) && (!e.appliesTo || !t.appliesTo || !T(e.appliesTo, t.appliesTo)));
 }
 function b(e, t) {
@@ -349,14 +348,14 @@ function T(e, t) {
 function E(e, t) {
 	if (e === t) return !0;
 	if (e.length !== t.length) return !1;
-	for (let n = 0; n < e.length; n++) if (r(e[n]) !== r(t[n])) return !1;
+	for (let n = 0; n < e.length; n++) if (i(e[n]) !== i(t[n])) return !1;
 	return !0;
 }
 function D(e) {
 	let t = /* @__PURE__ */ new Set(), n = [];
-	for (let i of e) {
-		let e = r(i);
-		t.has(e) || (t.add(e), n.push(i));
+	for (let r of e) {
+		let e = i(r);
+		t.has(e) || (t.add(e), n.push(r));
 	}
 	return n;
 }
@@ -387,10 +386,10 @@ function A(e, t) {
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/exploration/context.js
-function ee(e) {
-	let { datasetId: t, sourceIds: n } = e, r = [...n], a = te(e.initialState, e.preset), o = f[a.preset], s = !1, c = /* @__PURE__ */ new Map(), l = /* @__PURE__ */ new Map(), u = !1, d = a, p = /* @__PURE__ */ new Set(), m = /* @__PURE__ */ new Set(), g;
-	function _(e) {
-		if (s) throw new i("disposed", `ExplorationContext("${t}") cannot ${e} after dispose()`);
+function ee(t) {
+	let { datasetId: n, sourceIds: r } = t, i = [...r], a = te(t.initialState, t.preset), o = f[a.preset], s = !1, c = /* @__PURE__ */ new Map(), l = /* @__PURE__ */ new Map(), u = !1, d = a, p = /* @__PURE__ */ new Set(), m = /* @__PURE__ */ new Set(), g;
+	function _(t) {
+		if (s) throw new e("disposed", `ExplorationContext("${n}") cannot ${t} after dispose()`);
 	}
 	function v() {
 		u || (u = !0, queueMicrotask(() => {
@@ -418,43 +417,43 @@ function ee(e) {
 		}));
 	}
 	return {
-		datasetId: t,
-		sourceIds: r,
+		datasetId: n,
+		sourceIds: i,
 		get state() {
 			return a;
 		},
 		get policy() {
 			return o;
 		},
-		bind(e) {
+		bind(t) {
 			_("bind");
-			let n = {
-				id: e.id,
-				role: e.role
+			let r = {
+				id: t.id,
+				role: t.role
 			};
-			if (c.has(n.id)) throw new i("duplicate-binding", `ExplorationContext("${t}"): a view is already bound with id "${n.id}"`);
-			c.set(n.id, n);
-			let r = !1;
+			if (c.has(r.id)) throw new e("duplicate-binding", `ExplorationContext("${n}"): a view is already bound with id "${r.id}"`);
+			c.set(r.id, r);
+			let i = !1;
 			return {
-				id: n.id,
+				id: r.id,
 				unbind() {
-					r || (r = !0, c.delete(n.id));
+					i || (i = !0, c.delete(r.id));
 				}
 			};
 		},
-		connectView(e) {
+		connectView(t) {
 			_("connectView");
-			let n = this, r = n.bind(e), a = c.get(r.id) ?? {
-				id: r.id,
-				role: e.role
+			let r = this, i = r.bind(t), a = c.get(i.id) ?? {
+				id: i.id,
+				role: t.role
 			}, o = /* @__PURE__ */ new Set(), s = !1;
-			function l(e) {
-				if (_(e), s) throw new i("unbound-view", `ExplorationContext("${t}"): view "${a.id}" cannot ${e} after unbind()`);
+			function l(t) {
+				if (_(t), s) throw new e("unbound-view", `ExplorationContext("${n}"): view "${a.id}" cannot ${t} after unbind()`);
 			}
 			function u(e) {
-				l("dispatch"), n.dispatch(N(e, a.id));
+				l("dispatch"), r.dispatch(N(e, a.id));
 			}
-			function d(e, t, r = {}) {
+			function d(e, t, n = {}) {
 				l("subscribe");
 				let i = ne(e);
 				if (i.length === 0) return () => {};
@@ -472,13 +471,13 @@ function ee(e) {
 					});
 				}
 				function p(e) {
-					if (s && (e.origin?.viewId !== a.id || r.includeSelf)) {
+					if (s && !(e.origin?.viewId === a.id && !n.includeSelf)) {
 						u = e;
 						for (let t of e.changedSlices) d.add(t);
 						c || (c = !0, queueMicrotask(f));
 					}
 				}
-				let m = i.map((e) => n.subscribe(e, p)), h = () => {
+				let m = i.map((e) => r.subscribe(e, p)), h = () => {
 					if (s) {
 						s = !1;
 						for (let e of m) e();
@@ -491,10 +490,10 @@ function ee(e) {
 				id: a.id,
 				role: a.role,
 				get state() {
-					return n.state;
+					return r.state;
 				},
 				get policy() {
-					return n.policy;
+					return r.policy;
 				},
 				dispatch: u,
 				subscribe: d,
@@ -573,16 +572,16 @@ function ee(e) {
 					});
 				},
 				snapshot() {
-					return l("snapshot"), n.snapshot();
+					return l("snapshot"), r.snapshot();
 				},
 				restore(e) {
-					l("restore"), n.restore(e);
+					l("restore"), r.restore(e);
 				},
 				unbind() {
 					if (!s) {
 						s = !0;
 						for (let e of [...o]) e();
-						o.clear(), r.unbind();
+						o.clear(), i.unbind();
 					}
 				}
 			};
@@ -611,13 +610,13 @@ function ee(e) {
 				state: j(a)
 			};
 		},
-		restore(e) {
-			if (_("restore"), e.version !== 1) throw new i("incompatible-snapshot", `ExplorationContext("${t}"): snapshot version ${String(e.version)} is not supported`);
+		restore(t) {
+			if (_("restore"), t.version !== 1) throw new e("incompatible-snapshot", `ExplorationContext("${n}"): snapshot version ${String(t.version)} is not supported`);
 			this.dispatch({
 				kind: "snapshot-restore",
 				snapshot: {
 					version: 1,
-					state: j(e.state)
+					state: j(t.state)
 				}
 			});
 		},
@@ -809,7 +808,7 @@ var z = {
 	disabled: []
 };
 function B(e, t) {
-	let r = n(e, { ...t.fanOutCap === void 0 ? {} : { fanOutCap: t.fanOutCap } }), i = t.components ?? {}, a = Array.isArray(e) ? e : [], o = r.ok ? V(a, i) : [], s = [...r.issues, ...o];
+	let n = r(e, { ...t.fanOutCap === void 0 ? {} : { fanOutCap: t.fanOutCap } }), i = t.components ?? {}, a = Array.isArray(e) ? e : [], o = n.ok ? V(a, i) : [], s = [...n.issues, ...o];
 	if (s.length > 0) return {
 		ok: !1,
 		issues: s,
@@ -835,18 +834,18 @@ function V(e, t) {
 		}
 	}), n;
 }
-function H(e, n) {
-	let r = t(e);
+function H(e, t) {
+	let r = n(e);
 	if (!r) return;
-	if (r.kind === "map") return n.map ? {
+	if (r.kind === "map") return t.map ? {
 		kind: "map",
 		id: "map",
-		component: n.map
+		component: t.map
 	} : void 0;
 	let i = r.id, a = {
-		layer: n.layers,
-		widget: n.widgets,
-		control: n.controls
+		layer: t.layers,
+		widget: t.widgets,
+		control: t.controls
 	}[r.kind]?.[i];
 	if (a) return {
 		kind: r.kind,
@@ -1013,8 +1012,8 @@ var U = class {
 						n.clearSelection(), i(s);
 						return;
 					}
-					let l = typeof s.sourceId == "string" ? s.sourceId : e, u = o(l, c);
-					n.select([u], { replace: s.replace !== !1 }), i(s);
+					let l = o(typeof s.sourceId == "string" ? s.sourceId : e, c);
+					n.select([l], { replace: s.replace !== !1 }), i(s);
 				};
 			}
 			case "runWidgetQuery": {
@@ -1120,7 +1119,7 @@ function oe(e) {
 			...Array.isArray(e.appliesTo) ? { appliesTo: e.appliesTo } : {}
 		};
 	}
-	if (typeof e.field == "string" && (e.value !== void 0 || se(e.operator))) return {
+	if (typeof e.field == "string" && !(e.value === void 0 && !se(e.operator))) return {
 		field: e.field,
 		operator: Y.has(e.operator) ? e.operator : "=",
 		value: e.value,
@@ -1141,7 +1140,7 @@ function ce(e) {
 	};
 }
 function X(e, t) {
-	if (Array.isArray(e) && e.length === t) return e.every((e) => typeof e == "number" && Number.isFinite(e)) ? e : void 0;
+	if (!(!Array.isArray(e) || e.length !== t)) return e.every((e) => typeof e == "number" && Number.isFinite(e)) ? e : void 0;
 }
 function Z(e) {
 	return e ? {
@@ -1358,7 +1357,7 @@ var fe = "$honua:opacity", pe = {
 	#y(e) {
 		if (this.#m) return;
 		let t = [];
-		for (let n of e) typeof n == "object" && n && t.push({
+		for (let n of e) typeof n != "object" || !n || t.push({
 			kind: "feature",
 			sourceId: n.sourceId,
 			featureId: n.id
@@ -1380,11 +1379,14 @@ var fe = "$honua:opacity", pe = {
 		for (let i of e.controls) {
 			let a = t[i.id];
 			if (a) {
-				if (a.field === "$honua:opacity") for (let t of he(e, i)) {
-					let e = typeof a.value == "number" ? a.value : Number(a.value);
-					Number.isFinite(e) && (r[t] = Math.min(Math.max(e, 0), 1));
+				if (a.field === "$honua:opacity") {
+					for (let t of he(e, i)) {
+						let e = typeof a.value == "number" ? a.value : Number(a.value);
+						Number.isFinite(e) && (r[t] = Math.min(Math.max(e, 0), 1));
+					}
+					continue;
 				}
-				else if (c[i.kind]) for (let t of s(e, i.sourceId)) {
+				if (c[i.kind]) for (let t of s(e, i.sourceId)) {
 					let e = n.get(t) ?? [];
 					e.push(a), n.set(t, e);
 				}
@@ -1406,10 +1408,10 @@ var fe = "$honua:opacity", pe = {
 		ge(a, this.#f) || (this.#f = a, this.#o.onAppearanceChange?.(a));
 	}
 };
-function he(t, n) {
+function he(e, n) {
 	if (n.kind !== "opacity") return [];
-	let r = e(n);
-	return !r.ok || r.config.kind !== "opacity" ? [] : r.config.config.layerIds.filter((e) => t.layers.some((t) => t.id === e));
+	let r = t(n);
+	return !r.ok || r.config.kind !== "opacity" ? [] : r.config.config.layerIds.filter((t) => e.layers.some((e) => e.id === t));
 }
 function ge(e, t) {
 	return JSON.stringify(e) === JSON.stringify(t);

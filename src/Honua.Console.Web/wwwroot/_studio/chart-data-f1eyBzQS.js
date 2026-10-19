@@ -67,7 +67,11 @@ function d(e, n, r, a, s) {
 	let l = n.field, u = (typeof n.bin == "object" ? n.bin.maxbins : void 0) ?? t, d = [], f = 0;
 	for (let t of e) {
 		let e = i(t[l]);
-		e === void 0 ? f += 1 : d.push({
+		if (e === void 0) {
+			f += 1;
+			continue;
+		}
+		d.push({
 			bucketValue: e,
 			measured: r?.field ? i(t[r.field]) : void 0
 		});
@@ -135,7 +139,7 @@ function f(e, t, n, r, s) {
 }
 function p(e, t) {
 	if (t || e.length <= n) return e;
-	let r = e.slice(0, 23), i = e.slice(23), a = i.reduce((e, t) => e + t.value, 0);
+	let r = e.slice(0, n - 1), i = e.slice(n - 1), a = i.reduce((e, t) => e + t.value, 0);
 	return [...r, {
 		label: `Other (${i.length})`,
 		value: a,
