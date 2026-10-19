@@ -97,7 +97,7 @@ internal static partial class AgentWorkspaceBff
             string[] allowed;
             if (route.Action is "upload" or "chunks" or "seal" or "source")
             {
-                if (!MatchesTask(value, route, contentHash) || !value.TryGetProperty("uploadId", out var id) ||
+                if (!MatchesTask(value, route, contentHash) || !ValidDatasetUpload(value) || !value.TryGetProperty("uploadId", out var id) ||
                     id.GetString() is not { Length: 32 } uploadId || !uploadId.All(static character => char.IsAsciiHexDigitLower(character))) return false;
                 allowed = ["taskId", "taskRevision", "taskContentHash", "uploadId", "version", "state", "acceptedBytes", "totalBytes",
                     "chunkBytes", "chunkCount", "expiresAt", "contentSha256", "sourceRetention"];
@@ -118,12 +118,13 @@ internal static partial class AgentWorkspaceBff
             }
             else if (route.Action == "authority")
             {
-                if (!MatchesTask(value, route, contentHash)) return false;
+                if (!MatchesTask(value, route, contentHash) || !ValidDatasetAuthority(value)) return false;
                 allowed = ["taskId", "taskRevision", "taskContentHash", "executorActorId", "initiatingHumanActorId", "originatingTurnId",
                     "originalTurnHash", "authorityRevision", "authorityFingerprint", "policyContextFingerprint", "uploadAdmissionDeadline", "preparedOperationId"];
             }
             else if (route.Action == "renew")
             {
+                if (!ValidDatasetRenewal(value)) return false;
                 using var request = JsonDocument.Parse(requestBody);
                 if (value.GetProperty("renewalId").GetString() != request.RootElement.GetProperty("renewalId").GetString() ||
                     value.GetProperty("previousAuthorityRevision").GetInt64() != request.RootElement.GetProperty("expectedAuthorityRevision").GetInt64()) return false;
@@ -131,7 +132,7 @@ internal static partial class AgentWorkspaceBff
             }
             else
             {
-                if (value.GetProperty("workspaceId").GetString() != route.WorkspaceId ||
+                if (!ValidDatasetTask(value) || value.GetProperty("workspaceId").GetString() != route.WorkspaceId ||
                     !IsDatasetIdentifier(value.GetProperty("taskId").GetString()) ||
                     !IsDatasetDigest(value.GetProperty("contentHash").GetString()) ||
                     value.GetProperty("revision").GetInt64() < 1 ||

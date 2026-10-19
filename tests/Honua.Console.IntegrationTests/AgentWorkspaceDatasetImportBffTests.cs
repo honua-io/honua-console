@@ -293,6 +293,120 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         Assert.DoesNotContain("must-not-leak", await response.Content.ReadAsStringAsync());
     }
 
+    [Theory]
+    [InlineData("upload", "version")]
+    [InlineData("upload", "state")]
+    [InlineData("upload", "acceptedBytes")]
+    [InlineData("upload", "totalBytes")]
+    [InlineData("upload", "chunkBytes")]
+    [InlineData("upload", "chunkCount")]
+    [InlineData("upload", "expiresAt")]
+    [InlineData("upload", "contentSha256")]
+    [InlineData("upload", "sourceRetention.bytes")]
+    [InlineData("upload", "sourceRetention.sha256")]
+    [InlineData("upload", "sourceRetention.expiresAt")]
+    [InlineData("authority", "executorActorId")]
+    [InlineData("authority", "initiatingHumanActorId")]
+    [InlineData("authority", "originatingTurnId")]
+    [InlineData("authority", "originalTurnHash")]
+    [InlineData("authority", "authorityRevision")]
+    [InlineData("authority", "authorityFingerprint")]
+    [InlineData("authority", "policyContextFingerprint")]
+    [InlineData("authority", "uploadAdmissionDeadline")]
+    [InlineData("authority", "preparedOperationId")]
+    [InlineData("renew", "renewalId")]
+    [InlineData("renew", "previousAuthorityRevision")]
+    [InlineData("renew", "authorityRevision")]
+    [InlineData("renew", "authorityFingerprint")]
+    [InlineData("renew", "renewedAt")]
+    [InlineData("task", "ownerActorId")]
+    [InlineData("task", "tenantId")]
+    [InlineData("task", "targetId")]
+    [InlineData("task", "uploadAdmissionDeadline")]
+    [InlineData("task", "destination.schema")]
+    [InlineData("task", "destination.table")]
+    [InlineData("task", "source.kind")]
+    [InlineData("task", "source.fileName")]
+    [InlineData("task", "source.totalBytes")]
+    [InlineData("task", "source.expectedSha256")]
+    [InlineData("task", "source.browserSelectionId")]
+    [InlineData("task", "options.loadMode")]
+    [InlineData("task", "options.targetSrid")]
+    [InlineData("task", "options.sourceSrid")]
+    [InlineData("artifact", "source.artifact.projectId")]
+    [InlineData("artifact", "source.artifact.snapshotId")]
+    [InlineData("artifact", "source.artifact.snapshotDigest")]
+    [InlineData("artifact", "source.artifact.runId")]
+    [InlineData("artifact", "source.artifact.path")]
+    public async Task EveryImportDtoScalarRejectsNestedSecurityObjects(string contract, string field)
+    {
+        await using var host = await Host.Start();
+        var value = ValidProjectionFixture(contract);
+        var pieces = field.Split('.');
+        var target = value.AsObject();
+        foreach (var piece in pieces[..^1]) target = target[piece]!.AsObject();
+        target[pieces[^1]] = new JsonObject { ["providerCredential"] = "must-not-leak" };
+        host.Wire.Response = value.ToJsonString();
+        using var response = await ProjectionRequest(host.Client, contract);
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.DoesNotContain("must-not-leak", await response.Content.ReadAsStringAsync());
+    }
+
+    [Theory]
+    [InlineData("upload")]
+    [InlineData("authority")]
+    [InlineData("renew")]
+    [InlineData("task")]
+    [InlineData("artifact")]
+    public async Task ValidCanonicalShapesKeepUnknownSiblingFieldsOutOfProjection(string contract)
+    {
+        await using var host = await Host.Start();
+        var value = ValidProjectionFixture(contract);
+        value["unknownSecurityField"] = new JsonObject { ["secret"] = "must-not-leak" };
+        if (contract is "task" or "artifact") value["source"]!["unknownSecurityField"] = new JsonObject { ["secret"] = "must-not-leak" };
+        host.Wire.Response = value.ToJsonString();
+        using var response = await ProjectionRequest(host.Client, contract);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("must-not-leak", await response.Content.ReadAsStringAsync());
+    }
+
+    private static async Task<HttpResponseMessage> ProjectionRequest(HttpClient client, string contract)
+    {
+        if (contract == "upload") return await client.GetAsync(Root + "/upload?contentHash=" + Hash);
+        if (contract == "authority") return await client.GetAsync(Root + "/authority?contentHash=" + Hash);
+        using var body = new StringContent(contract == "renew" ? JsonSerializer.Serialize(new
+            { renewalId = "renewal", expectedAuthorityRevision = 2, taskContentHash = Hash }) : "{}", Encoding.UTF8, "application/json");
+        return await client.PostAsync(contract == "renew" ? Root + "/authority-renewals" : "/api/agent-workspace/workspace/dataset-import-tasks", body);
+    }
+
+    private static JsonNode ValidProjectionFixture(string contract)
+    {
+        if (contract == "upload") return JsonNode.Parse(Receipt)!;
+        if (contract == "authority") return JsonNode.Parse(JsonSerializer.Serialize(new
+        {
+            taskId = "task", taskRevision = 1, taskContentHash = Hash, executorActorId = "actual-agent", initiatingHumanActorId = "human",
+            originatingTurnId = "original-turn", originalTurnHash = Hash, authorityRevision = 2, authorityFingerprint = Hash,
+            policyContextFingerprint = Hash, uploadAdmissionDeadline = "2026-10-19T00:00:00Z", preparedOperationId = new string('e', 32)
+        }))!;
+        if (contract == "renew") return JsonNode.Parse(JsonSerializer.Serialize(new
+            { renewalId = "renewal", previousAuthorityRevision = 2, authorityRevision = 3, authorityFingerprint = Hash, renewedAt = "2026-10-18T00:00:00Z" }))!;
+        var value = JsonNode.Parse(JsonSerializer.Serialize(new
+        {
+            taskId = "task", revision = 1, contentHash = Hash, ownerActorId = "actual-agent", tenantId = "tenant", targetId = "target", workspaceId = "workspace",
+            destination = new { schema = "public", table = "roads" }, source = new { kind = "browser-file", fileName = "roads.geojson", totalBytes = 3,
+                expectedSha256 = Hash, browserSelectionId = "original-selection" }, options = new { loadMode = 1, targetSrid = 4326, sourceSrid = 4326 },
+            uploadAdmissionDeadline = "2026-10-19T00:00:00Z"
+        }))!;
+        if (contract == "artifact")
+        {
+            value["source"]!["kind"] = "local-process-artifact";
+            value["source"]!.AsObject().Remove("browserSelectionId");
+            value["source"]!["artifact"] = JsonNode.Parse(JsonSerializer.Serialize(new
+                { projectId = "project", snapshotId = "snapshot", snapshotDigest = Hash, runId = "run", path = "out/roads.geojson" }));
+        }
+        return value;
+    }
+
     private sealed class Host(WebApplication app, HttpClient client, Wire wire) : IAsyncDisposable
     {
         internal HttpClient Client => client;
