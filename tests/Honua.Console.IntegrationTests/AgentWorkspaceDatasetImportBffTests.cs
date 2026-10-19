@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 using Honua.Console.Web;
@@ -263,6 +264,33 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         }), Encoding.UTF8, "application/json");
         using var response = await host.Client.PostAsync(Root + "/submission", body);
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("schema")]
+    [InlineData("physicalTableName")]
+    [InlineData("featureCount")]
+    [InlineData("detectedSrid")]
+    [InlineData("completedAt")]
+    [InlineData("percentComplete")]
+    [InlineData("leaseId")]
+    public async Task SubmissionRejectsNestedSecurityObjectsInEveryScalarReceiptSlot(string field)
+    {
+        await using var host = await Host.Start();
+        var value = JsonNode.Parse(JsonSerializer.Serialize(new
+        {
+            taskId = "task", taskRevision = 1, taskContentHash = Hash, state = "accepted", operationId = new string('e', 32),
+            authorityRevision = 2, authorityFingerprint = Hash, policyContextFingerprint = Hash, acceptBefore = "2026-10-19T00:00:00Z",
+            job = new { jobId = new string('e', 32), leaseId = "actual-lease", status = "succeeded", createdAt = "2026-10-18T00:00:00Z", updatedAt = "2026-10-18T00:01:00Z",
+                output = new { schema = "public", physicalTableName = "actual_output", featureCount = 3, detectedSrid = 4326 } }
+        }))!;
+        var job = value["job"]!.AsObject();
+        var target = field is "schema" or "physicalTableName" or "featureCount" or "detectedSrid" ? job["output"]!.AsObject() : job;
+        target[field] = new JsonObject { ["providerKey"] = "must-not-leak" };
+        host.Wire.Response = value.ToJsonString();
+        using var response = await host.Client.GetAsync(Root + "/submission?contentHash=" + Hash);
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.DoesNotContain("must-not-leak", await response.Content.ReadAsStringAsync());
     }
 
     private sealed class Host(WebApplication app, HttpClient client, Wire wire) : IAsyncDisposable

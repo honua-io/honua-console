@@ -193,14 +193,25 @@ internal static partial class AgentWorkspaceBff
         }
         if (state == "prepared") return !value.TryGetProperty("job", out var preparedJob) || preparedJob.ValueKind == JsonValueKind.Null;
         var job = value.GetProperty("job");
-        if (job.GetProperty("jobId").GetString() != operationId || string.IsNullOrWhiteSpace(job.GetProperty("leaseId").GetString()) ||
+        if (job.GetProperty("jobId").GetString() != operationId || !IsDatasetReceiptText(job.GetProperty("leaseId")) ||
             job.GetProperty("status").GetString() is not ("queued" or "provisioning" or "running" or "succeeded" or "failed" or "cancelled") ||
             !job.GetProperty("createdAt").TryGetDateTimeOffset(out _) || !job.GetProperty("updatedAt").TryGetDateTimeOffset(out _)) return false;
         if (job.TryGetProperty("errorCode", out var error) && error.ValueKind != JsonValueKind.Null &&
             (job.GetProperty("status").GetString() != "failed" || error.GetString() != "import-failed")) return false;
-        return !job.TryGetProperty("output", out var output) || output.ValueKind == JsonValueKind.Null ||
-            job.GetProperty("status").GetString() == "succeeded" && output.ValueKind == JsonValueKind.Object;
+        if (job.TryGetProperty("completedAt", out var completed) && completed.ValueKind != JsonValueKind.Null &&
+            (!completed.TryGetDateTimeOffset(out _) || job.GetProperty("status").GetString() is not ("succeeded" or "failed" or "cancelled"))) return false;
+        if (job.TryGetProperty("percentComplete", out var percent) && percent.ValueKind != JsonValueKind.Null &&
+            (!percent.TryGetDouble(out var progress) || !double.IsFinite(progress) || progress < 0 || progress > 100)) return false;
+        if (!job.TryGetProperty("output", out var output) || output.ValueKind == JsonValueKind.Null) return true;
+        return job.GetProperty("status").GetString() == "succeeded" && output.ValueKind == JsonValueKind.Object &&
+            IsDatasetReceiptText(output.GetProperty("schema")) && IsDatasetReceiptText(output.GetProperty("physicalTableName")) &&
+            output.GetProperty("featureCount").TryGetInt32(out var count) && count >= 0 &&
+            (!output.TryGetProperty("detectedSrid", out var srid) || srid.ValueKind == JsonValueKind.Null || srid.TryGetInt32(out _));
     }
+
+    private static bool IsDatasetReceiptText(JsonElement element)
+        => element.ValueKind == JsonValueKind.String && element.GetString() is { Length: >= 1 and <= 256 } text &&
+            text.Trim() == text && !text.Any(char.IsControl);
 
     private static bool IsDatasetIdentifier(string? value)
         => value is { Length: >= 1 and <= 128 } && value.All(static character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-');
