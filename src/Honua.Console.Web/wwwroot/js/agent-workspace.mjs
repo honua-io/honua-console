@@ -1,3 +1,5 @@
+import {PublicationRecovery} from './publication-recovery.mjs';
+import {createPublishInputBinder} from './publish-form-inputs.mjs';
 import { readSharedStyleFocus, prepareSharedStyleFocus, watchSharedStyleEdits } from './shared-style-context.mjs';
 // The workspace is shared by chat, forms and Studio. Each tab has its own explicit view binding.
 const publishFields = new Set(['connectionId', 'schema', 'table', 'serviceName', 'layerName']);
@@ -13,6 +15,7 @@ export class AgentWorkspace {
         this.workspaceId = storage.getItem('honua.workspace.id');
         this.context = null; this.session = null; this.dirty = new Map(); this.follow = true;
         this.queue = Promise.resolve(); this.agentSession = null; this.contextGeneration = 0;
+        this.publications = new PublicationRecovery(this);
     }
     async api(path, method = 'GET', body, binding = this.session) {
         const response = await this.request(`/api/agent-workspace/${path}`, {
@@ -137,50 +140,165 @@ export class AgentWorkspace {
     edit(field, value) {
         if (!publishFields.has(field))
             throw new Error('This field is not part of the shared publish-layer draft.');
-        this.dirty.set(field, value); this.notify(this);
+        this.dirty.set(field, value); this.publications.persistCandidate(); this.notify(this);
     }
     async reconcileDraft(draft) {
-        // An authorized snapshot never overwrites local unsaved fields.
+        // Local field candidates belong to one draft; another task cannot inherit them.
+        if (this.dirty.size && draft?.id !== this.draft?.id)
+            throw new Error('Another publish draft is selected. Return to your original form and save or discard its unsaved edits.');
+        // A newer observation of that same draft preserves local unsaved fields.
         this.draft = draft; this.notify(this); return this.projectDraft();
     }
     projectDraft() { return { ...this.draft?.fields, ...Object.fromEntries(this.dirty) }; }
-    async ensureDraft(fields) {
-        if (this.draft) return this.draft;
-        this.draft = await this.api(`${this.workspaceId}/drafts`, 'POST', {
-            kind: 'publish-layer', fields, viewId: this.viewId, contextRevision: this.context.revision
-        });
-        this.context = await this.api(`${this.workspaceId}?viewId=${this.viewId}`);
-        return this.draft;
+    focusPublishDraft(isCurrentView = () => true) {
+        const generation = ++this.contextGeneration;
+        const binding = {workspaceId:this.workspaceId,viewId:this.viewId,authority:this.authorityKey()};
+        const sameAuthority = () => binding.workspaceId === this.workspaceId && binding.viewId === this.viewId
+            && binding.authority === this.authorityKey();
+        const current = () => sameAuthority() && generation === this.contextGeneration && isCurrentView();
+        const update = async () => {
+            if (!this.context || !current()) return false;
+            const revision = this.context.revision;
+            const cachedDraftId = this.draft?.id;
+            const draftId = cachedDraftId || this.publications.draftReference();
+            const draft = draftId ? await this.api(`${this.workspaceId}/drafts/${encodeURIComponent(draftId)}`) : null;
+            if (!current() || revision !== this.context.revision || cachedDraftId !== this.draft?.id) return false;
+            if (draft && (draft.kind !== 'publish-layer' || draft.id !== draftId))
+                throw new Error('The publish draft changed. Review the current form before continuing.');
+            const task = draft ? {id:draft.id,revision:draft.revision,kind:'publish-layer'} : null;
+            const context = await this.api(`${this.workspaceId}/context`, 'PUT', {
+                expectedRevision:revision,viewId:this.viewId,targetId:this.context.targetId,
+                selectedResources:[],task,source:'console'
+            });
+            // Later queued navigation needs this accepted CAS revision; another authority must never adopt it.
+            if (!sameAuthority()) return false;
+            if (draft) { this.draft = draft; this.publications.restoreCandidate(draft); }
+            this.context = context; this.notify(this);
+            return current();
+        };
+        this.queue = this.queue.then(update, update); return this.queue;
     }
-    async saveDraft() {
-        if (!this.dirty.size) return;
-        if (!this.draft) await this.ensureDraft({ ...this.draftFields?.(), ...Object.fromEntries(this.dirty) });
-        const submitted = new Map(this.dirty);
-        const result = await this.api(`${this.workspaceId}/drafts/${encodeURIComponent(this.draft.id)}`, 'PATCH', {
-            expectedRevision: this.draft.revision, viewId: this.viewId,
-            changes: Object.fromEntries(submitted)
+    authorityKey() {
+        return JSON.stringify(['principalId','environmentId','releaseId','sourcePathBase'].map(key => this.session?.[key]));
+    }
+    async ensureDraft(fields, isCurrent = () => true) {
+        if (!isCurrent()) throw new Error('The publish form changed. Review it before saving.');
+        if (this.draft) return this.draft;
+        await this.publications.requireResolved(isCurrent);
+        const workspaceId = this.workspaceId, viewId = this.viewId, authority = this.authorityKey();
+        const current = () => isCurrent() && this.workspaceId === workspaceId && this.viewId === viewId
+            && this.authorityKey() === authority && !this.draft;
+        const draft = await this.api(`${workspaceId}/drafts`, 'POST', {
+            kind:'publish-layer',fields,viewId,contextRevision:this.context.revision
         });
+        if (!current()) throw new Error('The publish form changed while creating its draft. Review the original workspace before retrying.');
+        const context = await this.api(`${workspaceId}?viewId=${viewId}`);
+        if (!current()) throw new Error('The publish form changed while reading its draft. Review the original workspace before retrying.');
+        this.draft = draft; this.context = context;
+        return draft;
+    }
+    async saveDraft(submitted = new Map(this.dirty), isCurrent = () => true) {
+        if (!submitted.size) return this.draft;
+        if (!isCurrent()) throw new Error('The publish form changed. Review it before saving.');
+        const initialFields = !this.draft ? {...this.draftFields?.(),...Object.fromEntries(submitted)} : null;
+        const originalAuthority = this.authorityKey(), originalWorkspace = this.workspaceId, originalView = this.viewId;
+        const originalCurrent = () => isCurrent() && this.authorityKey() === originalAuthority
+            && this.workspaceId === originalWorkspace && this.viewId === originalView;
+        await this.publications.requireResolved(originalCurrent);
+        if (!originalCurrent()) throw new Error('The publish connection changed. Review it before saving.');
+        if (!this.draft) await this.ensureDraft(initialFields, isCurrent);
+        if (!isCurrent()) throw new Error('The publish form changed. Review its canonical draft before retrying.');
+        const workspaceId = this.workspaceId, viewId = this.viewId, authority = this.authorityKey();
+        const draftId = this.draft.id, revision = this.draft.revision;
+        const current = () => isCurrent() && this.workspaceId === workspaceId && this.viewId === viewId
+            && this.authorityKey() === authority && this.draft?.id === draftId && this.draft?.revision === revision;
+        const result = await this.api(`${workspaceId}/drafts/${encodeURIComponent(draftId)}`, 'PATCH', {
+            expectedRevision:revision,viewId,changes:Object.fromEntries(submitted)
+        });
+        if (!current()) throw new Error('The original draft save may have been accepted. Review it before retrying.');
         for (const [field, value] of submitted) if (this.dirty.get(field) === value) this.dirty.delete(field);
         this.draft = result; this.notify(this); return result;
     }
-    async submitDraft() {
+    async submitDraft({save = true, isCurrent = () => true} = {}) {
+        // Pending identity is independent of the mutable draft revision, including after reload.
+        if (this.publications.read()) {
+            const receipt = await this.publications.reconcile(isCurrent);
+            return {data:receipt};
+        }
         if (!this.draft) throw new Error('No shared draft selected.');
-        await this.saveDraft();
-        const key = `honua.workspace.command.${this.workspaceId}.${this.draft.id}.${this.draft.revision}`;
+        if (save) await this.saveDraft(undefined, isCurrent);
+        if (!isCurrent()) throw new Error('The publish form changed. Review the original command before retrying.');
+        const workspaceId = this.workspaceId, viewId = this.viewId;
+        const draftId = this.draft.id, revision = this.draft.revision;
+        const key = this.publications.commandKey(this.draft);
         const existing = this.storage.getItem(key);
         const commandId = existing || this.uuid();
+        const record = this.publications.create(commandId, this.draft);
         if (existing) {
-            try { return await this.api(`${this.workspaceId}/commands/${commandId}`); }
-            catch (error) { if (error.status !== 404) throw error; }
+            const receipt = await this.publications.reconcile(isCurrent);
+            return {data:receipt};
         }
         this.storage.setItem(key, commandId);
-        // Retain this id after failures/lost responses: retry reconciles the same canonical command.
-        return this.api(`${this.workspaceId}/drafts/${this.draft.id}/submit`, 'POST', {
-            commandId, expectedRevision: this.draft.revision, viewId: this.viewId
+        const receipt = await this.api(`${workspaceId}/drafts/${draftId}/submit`, 'POST', {
+            commandId,expectedRevision:revision,viewId
         });
+        this.publications.observe(record,receipt);
+        if (!isCurrent()) throw new Error('The original publication may have been submitted. Review its recorded command before retrying.');
+        return receipt;
+    }
+    async savePublishForm(fields, {publish = false, isCurrentView = () => true} = {}) {
+        // This is the mounted Save/Publish click boundary, before any asynchronous focus or creation.
+        const submitted = new Map(this.dirty);
+        const snapshot = Object.fromEntries(Object.entries({...fields,...Object.fromEntries(submitted)})
+            .filter(([field]) => publishFields.has(field)));
+        const workspaceId = this.workspaceId, viewId = this.viewId, authority = this.authorityKey();
+        let draftId = this.draft?.id;
+        let draftRevision = this.draft?.revision;
+        let generation = this.contextGeneration;
+        const current = () => isCurrentView() && this.workspaceId === workspaceId && this.viewId === viewId
+            && this.authorityKey() === authority && this.contextGeneration === generation
+            && this.draft?.id === draftId && this.draft?.revision === draftRevision;
+        const requireCurrent = () => { if (!current()) throw new Error('The selected form or connection changed. Your original fields are retained; review before retrying.'); };
+        requireCurrent();
+        await this.publications.requireResolved(current);
+        requireCurrent();
+        const focus = this.focusPublishDraft(() => isCurrentView() && this.workspaceId === workspaceId
+            && this.viewId === viewId && this.authorityKey() === authority
+            && this.draft?.id === draftId && this.draft?.revision === draftRevision);
+        generation = this.contextGeneration;
+        if (!await focus) throw new Error('The selected task changed. Your original fields are retained; review before retrying.');
+        requireCurrent();
+        const draft = await this.ensureDraft(snapshot, current);
+        if (draftId === undefined) { draftId = draft.id; draftRevision = draft.revision; }
+        requireCurrent();
+        if ((this.context.task?.kind || 'publish-layer') !== 'publish-layer' || this.context.task?.id !== draftId)
+            throw new Error('The canonical task changed. Review the original publish draft before saving.');
+        const saved = await this.saveDraft(submitted, current);
+        draftRevision = saved.revision;
+        requireCurrent();
+        const revision = this.draft.revision;
+        const observed = await this.api(`${workspaceId}?viewId=${encodeURIComponent(viewId)}`);
+        requireCurrent();
+        if (observed.task?.id !== draftId || observed.task?.revision !== revision || (observed.task?.kind || 'publish-layer') !== 'publish-layer')
+            throw new Error('The canonical draft changed after saving. Review it before submitting a publication.');
+        this.context = observed; this.notify(this);
+        if (publish) return this.submitDraft({save:false,isCurrent:current});
+        return this.draft;
+    }
+    assertPublishEditsCurrent(allowPendingFormFocus = false) {
+        if (!this.dirty.size) return;
+        const refuse = () => { throw new Error('Return to the publish form and save or discard its unsaved edits before sending from another task.'); };
+        if (this.publishViewCurrent) {
+            if (!this.publishViewCurrent()) refuse();
+            // The route-owned focus is already queued ahead of capture and will be checked again after it settles.
+            if (allowPendingFormFocus) return;
+        }
+        const task = this.context?.task;
+        if (task && ((task.kind || 'publish-layer') !== 'publish-layer' || this.draft && task.id !== this.draft.id)) refuse();
     }
     async submit(prompt, options = {}) {
         if (!prompt.trim()) throw new Error('Enter a message.');
+        this.assertPublishEditsCurrent(true);
         const styleFocus = this.sharedStyleProvider?.();
         const selection = styleFocus ? [] : this.selectionProvider?.();
         const capturedResources = selection ?? this.context?.selectedResources ?? [];
@@ -220,6 +338,7 @@ export class AgentWorkspace {
                 }
             }
             if (this.dirty.size) {
+                this.assertPublishEditsCurrent();
                 await this.saveDraft();
                 this.context = await this.api(`${this.workspaceId}?viewId=${this.viewId}`);
             }
@@ -296,6 +415,7 @@ export function mountWorkspace() {
         const start = host.querySelector('[data-workspace-start]');
         if (start) start.hidden = Boolean(state.context);
         host.classList.toggle('console-first-run-conversation', !state.context && location.pathname === '/');
+        state.renderPublicationReview?.();
         target.title = state.context ? `Target ${state.context.targetId}; tenant ${state.context.tenantId ?? 'unbound'}; revision ${state.context.revision}` : '';
 
     };
@@ -372,23 +492,38 @@ export function mountWorkspace() {
     }, { signal: lifetime.signal });
     window.addEventListener('beforeunload', event => { if (workspace.dirty.size) { event.preventDefault(); event.returnValue = ''; } }, { signal: lifetime.signal });
     const bound = new WeakSet();
+    let focusedPublishForm;
+    let focusedPublishAuthority;
     let reconcilingForm = false;
+    const bindPublishInputs = createPublishInputBinder(workspace, {signal:lifetime.signal,shouldIgnore:()=>reconcilingForm});
+    workspace.renderPublicationReview = () => {
+        const form = document.querySelector('[data-workspace-publish-form]');
+        const notice = form?.querySelector('[data-workspace-publication-review]');
+        if (!notice) return;
+        try {
+            const pending = workspace.publications.read();
+            notice.hidden = !pending;
+            if (!pending) return;
+            const bound = workspace.publications.bound(pending);
+            notice.querySelector('[data-workspace-publication-state]').textContent = !bound
+                ? 'Restore the original publication connection to review its unresolved command.'
+                : `Last observed publication: ${pending.lastStatus || 'acceptance unknown'}. Save and Publish are paused; later typing is retained.`;
+            notice.querySelector('[data-workspace-publication-acknowledge]').hidden = !bound || !workspace.publications.isTerminal(pending);
+        } catch (error) { notice.hidden = false; notice.querySelector('[data-workspace-publication-state]').textContent = error.message; }
+    };
     const bindForm = () => {
         if (!host.isConnected) return;
         const form = document.querySelector('[data-workspace-publish-form]');
-        if (!form || bound.has(form)) return;
-        bound.add(form);
-        for (const input of form.querySelectorAll('[data-workspace-field]')) {
-            input.addEventListener('input', () => {
-                if (!workspace.context || reconcilingForm) return;
-                const field = input.dataset.workspaceField;
-                if (field === 'table') {
-                    const option = input.selectedOptions[0];
-                    workspace.edit('schema', option?.dataset.schema || '');
-                    workspace.edit('table', option?.dataset.table || '');
-                } else workspace.edit(field, input.value);
-            }, { signal: lifetime.signal });
+        if (!form) { focusedPublishForm = null; focusedPublishAuthority = null; return; }
+        workspace.publishViewCurrent = () => document.querySelector('[data-workspace-publish-form]') === form;
+        if (workspace.context && (focusedPublishForm !== form || focusedPublishAuthority !== workspace.authorityKey())) {
+            focusedPublishForm = form; focusedPublishAuthority = workspace.authorityKey();
+            workspace.focusPublishDraft(() => document.querySelector('[data-workspace-publish-form]') === form).catch(report);
         }
+        bindPublishInputs(form);
+        workspace.renderPublicationReview();
+        if (bound.has(form)) return;
+        bound.add(form);
         workspace.draftFields = () => {
             const fields = {};
             for (const input of form.querySelectorAll('[data-workspace-field]'))
@@ -398,13 +533,21 @@ export function mountWorkspace() {
             return fields;
         };
         form.addEventListener('click', async event => {
+            if (event.target.closest('[data-workspace-publication-check]') || event.target.closest('[data-workspace-publication-acknowledge]')) {
+                event.preventDefault(); event.stopImmediatePropagation();
+                try {
+                    const receipt = event.target.closest('[data-workspace-publication-acknowledge]')
+                        ? await workspace.publications.acknowledge({readFields:workspace.draftFields,isCurrentView:()=>document.querySelector('[data-workspace-publish-form]') === form})
+                        : await workspace.publications.reconcile();
+                    status.textContent = receipt ? `Original publication ${receipt.status}. Review the current draft before another action.` : 'No publication is awaiting review.';
+                } catch (error) { report(error); }
+                return;
+            }
             if (event.target.closest('[data-workspace-save]')) {
                 event.preventDefault(); event.stopImmediatePropagation();
                 if (!workspace.context) { report(new Error('Start or connect a workspace before saving its draft.')); return; }
                 try {
-                    await workspace.ensureDraft(workspace.draftFields());
-                    await workspace.saveDraft();
-                    await workspace.observeContext(); workspace.notify(workspace);
+                    await workspace.savePublishForm(workspace.draftFields(), {isCurrentView:()=>document.querySelector('[data-workspace-publish-form]') === form});
                     status.textContent = 'Draft saved. Nothing has been published.';
                 } catch (error) { report(error); }
                 return;
@@ -412,9 +555,7 @@ export function mountWorkspace() {
             if (!event.target.closest('[data-workspace-publish]') || !workspace.context) return;
             event.preventDefault(); event.stopImmediatePropagation();
             try {
-                await workspace.ensureDraft(workspace.draftFields());
-                await workspace.saveDraft();
-                const result = await workspace.submitDraft();
+                const result = await workspace.savePublishForm(workspace.draftFields(), {publish:true,isCurrentView:()=>document.querySelector('[data-workspace-publish-form]') === form});
                 const receipt = result.data || result;
                 status.textContent = `Publication ${receipt.status || receipt.state || 'submitted'}. Check the canonical operation receipt.`;
             } catch (error) { report(error); }
