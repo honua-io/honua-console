@@ -1,6 +1,6 @@
 import { t as e } from "./rolldown-runtime-Dy4uBu1J.js";
 import { d as t, n, u as r } from "./errors-BIfuuju7.js";
-import { i, n as a, r as o } from "./authenticated-source-protocol-fQ5kzJ7e.js";
+import { i, n as a, r as o } from "./authenticated-source-protocol-Dt4qQhdg.js";
 import { a as s, i as c, m as l, n as u, o as d, p as f, s as p, u as m } from "./control-config-DVC01Tzy.js";
 import { a as h, i as g, n as _, r as v, s as y, t as b } from "./source-resolution-DLJUVzYE.js";
 import { a as x, i as S, n as C, o as ee, r as w, t as te } from "./widget-config-BnNjdjF6.js";
@@ -15793,10 +15793,19 @@ var Bh = class extends Error {
 			validation: r.validation
 		};
 	}
+	#n(e, t) {
+		if (!this.options.principalId?.trim()) throw Error("A stable principal partition is required before submitting a run.");
+		return `honua.processes.command:${JSON.stringify([
+			this.options.environmentId,
+			this.options.principalId,
+			e,
+			t
+		])}`;
+	}
 	reserveCommand(e, t) {
 		let n = this.options.commandStorage ?? globalThis.localStorage;
 		if (!n) throw Error("Durable command storage is required before submitting a run.");
-		let r = `honua.processes.command:${this.options.environmentId}:${e}:${t}`, i = n.getItem(r), a = i && !i.startsWith("accepted:") ? i : null, o = a ?? crypto.randomUUID();
+		let r = this.#n(e, t), i = n.getItem(r), a = i && !i.startsWith("accepted:") ? i : null, o = a ?? crypto.randomUUID();
 		if (!/^[a-zA-Z0-9-]{1,80}$/.test(o)) throw Error("Invalid retained process command.");
 		return n.setItem(r, o), {
 			commandId: o,
@@ -15806,32 +15815,32 @@ var Bh = class extends Error {
 	async run(e, t, n, r = !1) {
 		if (!Number.isSafeInteger(t) || t < 1 || !n) throw Error("Run requires an immutable version and command ID.");
 		if (!/^[a-zA-Z0-9-]{1,80}$/.test(n)) throw Error("Use a bounded command identity.");
-		let i = `wfp-${n}`, a = r || this.#e.has(n);
-		if (a) {
-			let n = (await this.#t("GET", "console/workflow-publications")).items.find((e) => e.publicationId === i);
+		let i = this.#n(e, t), a = `wfp-${n}`, o = r || this.#e.has(n);
+		if (o) {
+			let n = (await this.#t("GET", "console/workflow-publications")).items.find((e) => e.publicationId === a);
 			if (!n || n.packageId !== e || n.packageVersion !== t || n.target !== "Job") throw Error("Command acceptance is unknown or belongs to another package. No new run was submitted.");
 		}
 		try {
 			await this.#t("POST", `console/workflow-packages/${encodeURIComponent(e)}/versions/${t}/publish`, {
 				target: "Job",
-				publicationId: i
+				publicationId: a
 			});
 		} catch (n) {
 			if (!(n instanceof Vh) || n.status !== 409) throw n;
-			let r = (await this.#t("GET", "console/workflow-publications")).items.find((e) => e.publicationId === i);
+			let r = (await this.#t("GET", "console/workflow-publications")).items.find((e) => e.publicationId === a);
 			if (!r || r.packageId !== e || r.packageVersion !== t || r.target !== "Job") throw Error("The command publication identity is bound to another immutable package.");
 		}
 		this.#e.add(n);
-		let o = await this.#t("POST", `console/workflow-publications/${encodeURIComponent(i)}/runs`, {
+		let s = await this.#t("POST", `console/workflow-publications/${encodeURIComponent(a)}/runs`, {
 			idempotencyKey: n,
-			reconcileOnly: a
+			reconcileOnly: o
 		});
-		if (o.publicationId !== i || o.packageId !== e || o.packageVersion !== t || !(o.workflowRunId || o.jobId)) throw Error("Server returned no matching operation receipt.");
-		let s = this.options.commandStorage ?? globalThis.localStorage, c = `honua.processes.command:${this.options.environmentId}:${e}:${t}`;
-		return s?.getItem(c) === n && s.setItem(c, `accepted:${JSON.stringify({
+		if (s.publicationId !== a || s.packageId !== e || s.packageVersion !== t || !(s.workflowRunId || s.jobId)) throw Error("Server returned no matching operation receipt.");
+		let c = this.options.commandStorage ?? globalThis.localStorage;
+		return c?.getItem(i) === n && c.setItem(i, `accepted:${JSON.stringify({
 			commandId: n,
-			run: o
-		})}`), o;
+			run: s
+		})}`), s;
 	}
 	status(e) {
 		let t = e.workflowRunId ?? e.jobId;
@@ -16278,7 +16287,7 @@ function qh(e = {}) {
 			ok: !1,
 			reason: "No fetch implementation is available to load widget data."
 		};
-		let { trustedSourceUrl: l, fetchAuthenticatedFeatureCollection: u } = await import("./authenticated-source-protocol-fQ5kzJ7e.js").then((e) => e.t), d = e.documentUrl ?? globalThis.document?.baseURI, f = {
+		let { trustedSourceUrl: l, fetchAuthenticatedFeatureCollection: u } = await import("./authenticated-source-protocol-Dt4qQhdg.js").then((e) => e.t), d = e.documentUrl ?? globalThis.document?.baseURI, f = {
 			sourceBaseUrl: e.sourceAuthBaseUrl ?? e.baseUrl ?? "/api",
 			legacySourceBaseUrl: e.sourceCatalogBaseUrl ?? e.baseUrl ?? "/api",
 			documentUrl: d ?? "",

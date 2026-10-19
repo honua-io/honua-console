@@ -1,6 +1,6 @@
 {
   "schema": "honua.studio.console-assets/v1",
-  "sourceCommit": "e97ea0bf26f8d174e429bd9de3d86ed39980ace6",
+  "sourceCommit": "87b3194816e73237878bd3902195c9ac3a775c2b",
   "releaseQualified": false,
   "sdk": {
     "releaseQualified": false,
@@ -2130,11 +2130,11 @@
   "validation": {
     "typecheck": "passed",
     "biome": "328 files passed",
-    "unit": "1355 tests across 121 files passed with 4 workers",
+    "unit": "1365 tests across 121 files passed with 4 workers",
     "consoleBundleBrowser": "2 passed: actual bundled SDK import transport and bounded shared MCP workflow views",
     "evidence": {
-      "studio-versions-v2.log": "7454b936c3b697c5da4aae75fd150f3e671e0686099b4cb509757e85f6052c6c",
-      "studio-versions-v2-source.json": "1dbcba9a5d1d9529cb87ecc8a5c6c38858e0c92d73e8b1f920e2434434115aee"
+      "studio-review-fixes-v1.log": "db84ea77761c5d0807de929cf29e617162415d37a6f641e9c3c5c20ee9d76aee",
+      "studio-review-fixes-v1-source.json": "848939979799e14936850acf32e07cca9f24bb629390ed6d06ea9990073f8d1f"
     }
   },
   "files": {
@@ -2154,9 +2154,9 @@
       "bytes": 509004,
       "sha256": "5420da18c04dbefda660133d62583f6abe709233ca45a01139db121fe172f107"
     },
-    "authenticated-source-protocol-fQ5kzJ7e.js": {
-      "bytes": 267417,
-      "sha256": "f459451a2b82ff0d6dff977c8573011ba5b399871db2dfb60ef6d2733982f3c5"
+    "authenticated-source-protocol-Dt4qQhdg.js": {
+      "bytes": 267871,
+      "sha256": "8956880daf78da68ce9e6680f4388ed8d4089e8b42f5907ed57e4d11104e04a4"
     },
     "basemap-CjR__Zyy.js": {
       "bytes": 125189,
@@ -2175,8 +2175,8 @@
       "sha256": "8dcf5f37f3942ac4fc2e076701be2d92d02d8f5d7bf3d06149da005efff906f4"
     },
     "console.js": {
-      "bytes": 803735,
-      "sha256": "3561eab8ec6631d675e80b45cc4c4981240171c7b629a7c75dd67059a1289920"
+      "bytes": 803901,
+      "sha256": "4ea28452d6c93581b7dd9e1060d34056b9ee119def62610976b49c59e80e95e4"
     },
     "control-config-DVC01Tzy.js": {
       "bytes": 15602,

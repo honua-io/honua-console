@@ -1,6 +1,6 @@
 {
   "schemaVersion": "honua.console.studio-artifact.v1",
-  "studioRevision": "e97ea0bf26f8d174e429bd9de3d86ed39980ace6",
+  "studioRevision": "87b3194816e73237878bd3902195c9ac3a775c2b",
   "sdkRevision": "50d8f1d6fcbbcee89f666949722c6b7ac904e5c4",
   "files": [
     {
@@ -15,8 +15,8 @@
     },
     {
       "path": "STUDIO-PROVENANCE.json",
-      "bytes": 245628,
-      "sha256": "6c66992cb2ad73de8986b15a28fe7c920467fec9e7cd02d3efac95a6c367b5d1"
+      "bytes": 245636,
+      "sha256": "45a2db9636746a6095d9e1d39dcf6e95d5eb07c19a58fc196f1fc3a08e79a9ec"
     },
     {
       "path": "THIRD-PARTY-NOTICES.txt",
@@ -29,9 +29,9 @@
       "sha256": "5420da18c04dbefda660133d62583f6abe709233ca45a01139db121fe172f107"
     },
     {
-      "path": "authenticated-source-protocol-fQ5kzJ7e.js",
-      "bytes": 267417,
-      "sha256": "f459451a2b82ff0d6dff977c8573011ba5b399871db2dfb60ef6d2733982f3c5"
+      "path": "authenticated-source-protocol-Dt4qQhdg.js",
+      "bytes": 267871,
+      "sha256": "8956880daf78da68ce9e6680f4388ed8d4089e8b42f5907ed57e4d11104e04a4"
     },
     {
       "path": "basemap-CjR__Zyy.js",
@@ -55,8 +55,8 @@
     },
     {
       "path": "console.js",
-      "bytes": 803735,
-      "sha256": "3561eab8ec6631d675e80b45cc4c4981240171c7b629a7c75dd67059a1289920"
+      "bytes": 803901,
+      "sha256": "4ea28452d6c93581b7dd9e1060d34056b9ee119def62610976b49c59e80e95e4"
     },
     {
       "path": "control-config-DVC01Tzy.js",

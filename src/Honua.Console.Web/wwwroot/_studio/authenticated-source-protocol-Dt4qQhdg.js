@@ -8091,25 +8091,30 @@ async function Wl(e, t, n) {
 			if (u instanceof Request) throw Error("The SDK source adapter requires an explicit URL.");
 			let f = new URL(String(u), i);
 			if (f.origin !== e.origin || ![`${r[1]}${a}`, `${r[1]}${a}/query`].includes(f.pathname) || (d?.method ?? "GET").toUpperCase() !== "GET") throw Error("The SDK source adapter requested an unsupported route or method.");
-			let p = await o?.getAccessToken();
-			if (o !== t.getAuth()) throw Error("The Studio source authority changed.");
-			let m = new Headers(d?.headers);
-			m.delete("authorization"), m.delete("x-api-key"), p && m.set("Authorization", `Bearer ${p}`);
-			let h = await (t.fetchImpl ?? o?.fetchRequest ?? fetch)(f.href, {
-				...d,
-				headers: m,
-				signal: n,
-				credentials: "omit",
-				redirect: "error",
-				cache: "no-store"
-			});
-			if (h.redirected || o !== t.getAuth()) throw Error("The Studio source authority changed or redirected.");
-			if (h.ok) {
-				let e = await h.clone().json();
-				if (e.error) throw Error("The source server refused the SDK query.");
-				f.pathname.endsWith("/query") ? (s++, c = e.exceededTransferLimit === !0 || e.exceededTransferLimit === void 0 && e.features?.length === 2e3) : l = !0;
+			for (let e = 0; e < 2; e++) {
+				let r = await o?.getAccessToken(e === 1 ? { forceRefresh: !0 } : void 0);
+				if (n.throwIfAborted(), o !== t.getAuth()) throw Error("The Studio source authority changed.");
+				let i = new Headers(d?.headers);
+				i.delete("authorization"), i.delete("x-api-key"), r && i.set("Authorization", `Bearer ${r}`);
+				let a = await (t.fetchImpl ?? o?.fetchRequest ?? fetch)(f.href, {
+					...d,
+					headers: i,
+					signal: n,
+					credentials: "omit",
+					redirect: "error",
+					cache: "no-store"
+				});
+				if (a.redirected || o !== t.getAuth()) throw Error("The Studio source authority changed or redirected.");
+				let u = a.ok ? await a.clone().json() : void 0;
+				if (n.throwIfAborted(), o !== t.getAuth()) throw Error("The Studio source authority changed.");
+				if (a.status === 401 || u?.error?.code === 499) {
+					if (e === 0 && o) continue;
+					throw Error("The Studio session cannot authorize this source query.");
+				}
+				if (u?.error) throw Error("The source server refused the SDK query.");
+				return u && (f.pathname.endsWith("/query") ? (s++, c = u.exceededTransferLimit === !0 || u.exceededTransferLimit === void 0 && u.features?.length === 2e3) : l = !0), a;
 			}
-			return h;
+			throw Error("The Studio session cannot authorize this source query.");
 		}
 	}), `${i}${a}`, {
 		definitionExpression: e.searchParams.get("where") ?? "1=1",
