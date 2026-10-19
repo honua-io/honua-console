@@ -53,7 +53,7 @@ export class DatasetImportController {
             descriptor.uploadAdmissionDeadline !== task.uploadAdmissionDeadline)
             throw new DatasetImportPaused('This import needs current executor authority. Ask the agent to check or renew the original task.');
         const capability = await this.uploads.capabilities(this.reference, this.abort.signal); this.current();
-        if (!capability || capability.importAcceptanceSupported !== false || !Number.isSafeInteger(capability.maximumFileBytes) ||
+        if (!capability || typeof capability.importAcceptanceSupported !== 'boolean' || !Number.isSafeInteger(capability.maximumFileBytes) ||
             task.source.totalBytes > capability.maximumFileBytes)
             throw new DatasetImportPaused('This deployment cannot transfer this task’s file with its current limits.');
         if (!Number.isSafeInteger(task.source.totalBytes) || task.source.totalBytes < 1 || !Number.isFinite(Date.parse(task.uploadAdmissionDeadline)))
@@ -127,6 +127,7 @@ export class DatasetImportController {
             return this.emit('paused', 'The retained source receipt expired. Check the original task with the agent.');
         if (receipt?.sourceRetention) return this.emit('retained', 'Upload verified and a retained-source receipt recorded. Import acceptance has not been confirmed.');
         if (receipt?.state === 'sealed') return this.emit('sealed', 'File verified. Continue to retain it for import; no import job has been accepted here.');
+        if (this.task?.source.kind !== 'browser-file') return this.emit('paused', 'This task uses a Processes artifact. Its direct streaming transfer is not available in this panel yet.');
         this.emit(this.file ? 'ready' : 'idle', this.file ? 'File checked. Ready to upload to the original destination.' : 'Choose the file for this import task.');
     }
     async verifyFile(file) {

@@ -1,5 +1,6 @@
 import {browserImportSelection, browserSelectionScope} from './dataset-import-selection.mjs';
 import {DatasetImportController, datasetImportBinding, datasetImportKey} from './dataset-import-controller.mjs';
+import {DatasetImportSubmissionController} from './dataset-import-submission.mjs';
 import {DatasetImportStore} from './dataset-import-store.mjs';
 const store = new DatasetImportStore();
 let mounted;
@@ -9,16 +10,32 @@ function mount() {
     mounted?.dispose(); mounted = null;
     if (!host) return;
     const lifetime = new AbortController(), controls = {};
-    for (const name of ['status','destination','source','file','progress','check','clear','transfer','recover','pause','cancel'])
+    for (const name of ['status','destination','source','file','progress','check','clear','transfer','submit','recover','pause','cancel'])
         controls[name] = host.querySelector(`[data-import-${name}]`);
-    let controller, workspace, binding, generation = 0, prepareScope, preparing = false, selectionAbort;
+    let controller, submission, workspace, binding, generation = 0, prepareScope, preparing = false, selectionAbort;
     const sdk = () => import('/_studio/console.js');
     const status = message => { controls.status.textContent = message; };
     const current = () => host.isConnected && window.honuaAgentWorkspace === workspace &&
         (binding ? datasetImportKey(datasetImportBinding(workspace) || {task:{}}) === datasetImportKey(binding)
             : JSON.stringify(browserSelectionScope(workspace)) === JSON.stringify(prepareScope));
+    const renderSubmission = () => {
+        if (!current() || !submission) return false;
+        const receipt = submission.record?.receipt;
+        const blocked = Boolean(submission.busy || submission.record?.pending || submission.available === false || receipt?.state === 'prepared' || receipt?.state === 'accepted');
+        controls.submit.disabled = submission.busy || blocked || !controller?.record?.receipt?.sourceRetention ||
+            controller?.capability?.importAcceptanceSupported !== true;
+        if (!blocked) return false;
+        status(submission.message());
+        controls.clear.disabled = submission.busy || (!controller?.file && !browserImportSelection.record);
+        for (const name of ['file','check','transfer','submit','cancel']) controls[name].disabled = true;
+        controls.recover.disabled = submission.busy;
+        controls.pause.disabled = !submission.busy;
+        if (receipt?.state === 'accepted' && receipt.job?.output) controls.destination.textContent = `${receipt.job.output.schema}.${receipt.job.output.physicalTableName}`;
+        return true;
+    };
     const render = state => {
         if (!current()) return;
+        if (renderSubmission()) return;
         status(state.message);
         controls.destination.textContent = state.task ? `${state.task.destination.schema}.${state.task.destination.table}` : 'Not bound';
         controls.source.textContent = state.task ? `${state.task.source.fileName} · ${state.task.source.totalBytes.toLocaleString()} bytes` : 'Not bound';
@@ -34,19 +51,25 @@ function mount() {
         controls.recover.disabled = state.busy;
         controls.pause.disabled = !state.busy;
         controls.cancel.disabled = state.busy || !allowed || state.record?.receipt?.state !== 'receiving';
+        controls.submit.disabled = state.busy || submission?.busy || !submission || !allowed || !state.record?.receipt?.sourceRetention || state.capability.importAcceptanceSupported !== true;
     };
     async function connect(force = false) {
         const nextWorkspace = window.honuaAgentWorkspace, next = datasetImportBinding(nextWorkspace);
         const nextScope = browserSelectionScope(nextWorkspace);
         if (!force && (next && binding && datasetImportKey(next) === datasetImportKey(binding) && controller ||
             !next && !binding && workspace === nextWorkspace && prepareScope && JSON.stringify(prepareScope) === JSON.stringify(nextScope))) return;
-        controller?.dispose(); selectionAbort?.abort(); preparing = false; workspace?.presentationGuards?.delete(dirty); controller = null; workspace = nextWorkspace; binding = next; prepareScope = nextScope; const epoch = ++generation;
+        controller?.dispose(); submission?.dispose(); submission = null; selectionAbort?.abort(); preparing = false; workspace?.presentationGuards?.delete(dirty); controller = null; workspace = nextWorkspace; binding = next; prepareScope = nextScope; const epoch = ++generation;
         controls.file.value = ''; controls.destination.textContent = 'Not bound'; controls.source.textContent = 'Not bound';
-        for (const name of ['file','check','clear','transfer','recover','pause','cancel']) controls[name].disabled = true;
+        for (const name of ['file','check','clear','transfer','submit','recover','pause','cancel']) controls[name].disabled = true;
         if (!next) {
             if (!prepareScope) { status('Connect this conversation before choosing an import file.'); return; }
             workspace.presentationGuards ||= new Set(); workspace.presentationGuards.add(dirty);
             controls.file.disabled = false;
+            if (browserImportSelection.record) {
+                const selected = browserImportSelection.record;
+                controls.source.textContent = `${selected.fileName} · ${selected.totalBytes.toLocaleString()} bytes`;
+                controls.clear.disabled = false;
+            }
             status('Choose your dataset and check the complete file. Then describe its destination in this conversation.');
             return;
         }
@@ -74,6 +97,13 @@ function mount() {
                 return response;
             };
             const options = {baseUrl:location.origin,workspaceId:next.workspaceId,targetId:next.targetId,headers,fetch:relay};
+            if (module.DatasetImportSubmissionClient) {
+                submission = new DatasetImportSubmissionController({binding:next, submissions:new module.DatasetImportSubmissionClient(options), store,
+                    isCurrent:current, notify:()=>renderSubmission()});
+                workspace.presentationGuards ||= new Set(); workspace.presentationGuards.add(dirty);
+                await submission.recover();
+                if (epoch !== generation || !current() || renderSubmission()) return;
+            }
             const uploads = new module.DatasetImportUploadClient(options);
             if (typeof uploads.reconcile !== 'function') throw new Error('Original-session recovery is unavailable in this Console build.');
             controller = new DatasetImportController({binding:next,tasks:new module.DatasetImportTaskClient(options),uploads,
@@ -84,7 +114,7 @@ function mount() {
             if (originalFile && !controller.record?.receipt?.sourceRetention) await controller.verifyFile(originalFile);
         } catch (error) { if (epoch === generation && current()) status(error.message); }
     }
-    const dirty = () => preparing || Boolean(controller?.dirty()) || Boolean(!controller && browserImportSelection.record && !browserImportSelection.record.turnId);
+    const dirty = () => preparing || Boolean(submission?.dirty()) || Boolean(controller?.dirty()) || Boolean(!controller && browserImportSelection.record && !browserImportSelection.record.turnId);
     const action = async work => {
         const epoch = generation;
         try { await work(); }
@@ -111,11 +141,19 @@ function mount() {
     }), {signal:lifetime.signal});
     controls.clear.addEventListener('click', () => { browserImportSelection.clear(); controls.file.value = ''; if(controller){controller.file=null;controller.present();}else{controls.check.disabled=true;controls.clear.disabled=true;status('Selected file cleared. Choose a dataset to prepare another import.');} }, {signal:lifetime.signal});
     controls.transfer.addEventListener('click', () => action(() => controller.transfer()), {signal:lifetime.signal});
-    controls.recover.addEventListener('click', () => action(() => controller.recover()), {signal:lifetime.signal});
+    controls.submit.addEventListener('click', () => action(async () => {
+        if (!controller || !submission || controller.capability?.importAcceptanceSupported !== true || !controller.record?.receipt?.sourceRetention) return;
+        const review = {...controller.record.authority, taskId:binding.task.id, taskRevision:binding.task.revision, taskContentHash:binding.task.contentHash};
+        await submission.prepare(review); renderSubmission();
+    }), {signal:lifetime.signal});
+    controls.recover.addEventListener('click', () => action(async () => {
+        if (submission) { await submission.recover(); if (renderSubmission()) return; }
+        await controller?.recover();
+    }), {signal:lifetime.signal});
     controls.cancel.addEventListener('click', () => action(() => controller.cancel()), {signal:lifetime.signal});
     controls.pause.addEventListener('click', () => { controller?.dispose(); selectionAbort?.abort(); action(() => connect(true)); }, {signal:lifetime.signal});
     window.addEventListener('honua-workspace-state', () => { action(() => connect()); }, {signal:lifetime.signal});
-    mounted = {host,dispose:()=>{++generation;controller?.dispose();selectionAbort?.abort();workspace?.presentationGuards?.delete(dirty);lifetime.abort();}};
+    mounted = {host,dispose:()=>{++generation;controller?.dispose();submission?.dispose();selectionAbort?.abort();workspace?.presentationGuards?.delete(dirty);lifetime.abort();}};
     action(() => connect());
 }
 if (typeof document !== 'undefined') {
