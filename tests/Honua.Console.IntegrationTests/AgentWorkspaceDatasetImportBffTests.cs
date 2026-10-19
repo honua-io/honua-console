@@ -228,10 +228,10 @@ public sealed class AgentWorkspaceDatasetImportBffTests
     }
 
     [Theory]
-    [InlineData("csrf")]
-    [InlineData("environment")]
-    [InlineData("session")]
-    public async Task SubmissionMutationRequiresCurrentHumanCsrfAndConnectionBinding(string missing)
+    [InlineData("csrf", HttpStatusCode.Forbidden)]
+    [InlineData("environment", HttpStatusCode.Conflict)]
+    [InlineData("session", HttpStatusCode.Conflict)]
+    public async Task SubmissionMutationRequiresCurrentHumanCsrfAndConnectionBinding(string missing, HttpStatusCode expectedStatus)
     {
         await using var host = await Host.Start();
         host.Client.DefaultRequestHeaders.Remove(missing switch
@@ -240,7 +240,7 @@ public sealed class AgentWorkspaceDatasetImportBffTests
         });
         using var body = new StringContent("{}", Encoding.UTF8, "application/json");
         using var response = await host.Client.PostAsync(Root + "/submission", body);
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(expectedStatus, response.StatusCode);
         Assert.Equal(0, host.Wire.Calls);
     }
 
