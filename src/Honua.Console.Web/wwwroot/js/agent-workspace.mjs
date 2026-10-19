@@ -14,6 +14,7 @@ export class AgentWorkspace {
         storage.setItem('honua.workspace.view', this.viewId);
         this.workspaceId = storage.getItem('honua.workspace.id');
         this.context = null; this.session = null; this.dirty = new Map(); this.follow = true;
+        this.presentationGuards = new Set();
         this.queue = Promise.resolve(); this.agentSession = null; this.contextGeneration = 0;
         this.publications = new PublicationRecovery(this);
     }
@@ -39,7 +40,7 @@ export class AgentWorkspace {
         const check=()=>{
             if(generation!==this.contextGeneration) throw new Error('The selected context changed while creating a workspace. Review it before retrying.');
             const style=this.sharedStyleProvider?.();
-            if(this.dirty.size || style?.dirty || style?.pending) throw new Error('Save or discard your edits before starting another workspace.');
+            if(this.hasUnsavedWork() || style?.dirty || style?.pending) throw new Error('Save or discard your edits before starting another workspace.');
         };
         check();await this.authorityChangeGuard?.();check();
         const candidate = await this.api('session');check();
@@ -54,7 +55,7 @@ export class AgentWorkspace {
         const changedAuthority = Boolean(this.session && ['environmentId','principalId','releaseId','sourcePathBase'].some(key => this.session[key] !== candidate[key]));
         const changedWorkspace = this.workspaceId !== workspaceId;
         if (changedAuthority || changedWorkspace) {
-            if (this.dirty.size) throw new Error('Save your shared draft before changing workspace authority.');
+            if (this.hasUnsavedWork()) throw new Error('Save or pause your work before changing workspace authority.');
             const style = this.sharedStyleProvider?.();
             if (style?.dirty || style?.pending) throw new Error('Save or discard the style edit before changing connections.');
             await this.authorityChangeGuard?.();
@@ -62,12 +63,12 @@ export class AgentWorkspace {
         const checkAdoption = async () => {
             if (generation !== this.contextGeneration) throw new Error('The selected context changed while connecting. Review it before retrying.');
             if (changedAuthority || changedWorkspace) {
-                if (this.dirty.size) throw new Error('Save your shared draft before changing workspace authority.');
+                if (this.hasUnsavedWork()) throw new Error('Save or pause your work before changing workspace authority.');
                 const style = this.sharedStyleProvider?.();
                 if (style?.dirty || style?.pending) throw new Error('Save or discard the style edit before changing connections.');
                 await this.authorityChangeGuard?.();
                 const latestStyle=this.sharedStyleProvider?.();
-                if (generation !== this.contextGeneration || this.dirty.size || latestStyle?.dirty || latestStyle?.pending)
+                if (generation !== this.contextGeneration || this.hasUnsavedWork() || latestStyle?.dirty || latestStyle?.pending)
                     throw new Error('The editor changed while connecting. Save it before retrying.');
             }
         };
@@ -358,8 +359,10 @@ export class AgentWorkspace {
         return this.agentSession.submitTurn({ ...turn, prompt }, options);
     }
     async conversation() { return this.api(`${this.workspaceId}/conversation`); }
+    hasUnsavedWork() { return this.dirty.size > 0 || [...this.presentationGuards].some(guard => guard()); }
     presentation(intent) {
-        if (!this.follow || this.dirty.size) return null;
+        if (!this.follow || this.hasUnsavedWork()) return null;
+        if (intent?.view === 'dataset-import' && this.context?.task?.kind === 'dataset-import') return '/operate/resources/import/task';
         if (intent?.view === 'studio') return '/studio';
         if (intent?.view === 'publish-layer') return '/operate/publishing/quick';
         if (intent?.view === 'layer' && /^[A-Za-z0-9_-]{1,128}$/.test(intent.resourceId))
@@ -404,11 +407,15 @@ export function mountWorkspace() {
     const target = host.querySelector('[data-workspace-target]');
     const workspaceInput = host.querySelector('[data-workspace-id]');
     const notify = state => {
-        const taskLabel = state.context?.task ? ({'studio-composition':'Map draft','publish-layer':'Publish layer','workflow-package':'Process graph','local-process-workspace':'Local process','shared-style':'Shared style'}[state.context.task.kind] || 'Task') : 'No task selected';
+        const taskLabel = state.context?.task ? ({'studio-composition':'Map draft','publish-layer':'Publish layer','workflow-package':'Process graph','local-process-workspace':'Local process','shared-style':'Shared style','dataset-import':'Dataset import'}[state.context.task.kind] || 'Task') : 'No task selected';
         const taskIdentity = state.context?.task?.packageKey || state.context?.task?.id;
         const currentTask = taskIdentity ? `${taskLabel} ${taskIdentity}` : taskLabel;
         const resources = state.context?.selectedResources?.map(resource => `${resource.kind} ${resource.id}`).join(', ');
         target.textContent = state.context ? `${state.session.environmentName} · ${resources || 'No resource selected'} · ${currentTask}` : 'Choose an environment, then start a conversation.';
+        if (state.context?.task?.kind === 'dataset-import') {
+            const link = document.createElement('a'); link.href = '/operate/resources/import/task'; link.textContent = 'Open import task';
+            target.append(document.createTextNode(' · '), link);
+        }
         const header = document.querySelector('[data-workspace-header-target]');
         if (header) header.textContent = state.context ? `${state.session.environmentName} · ${resources || currentTask}` : 'Choose an environment';
         host.dataset.connected = String(Boolean(state.context));
@@ -416,6 +423,7 @@ export function mountWorkspace() {
         if (start) start.hidden = Boolean(state.context);
         host.classList.toggle('console-first-run-conversation', !state.context && location.pathname === '/');
         state.renderPublicationReview?.();
+        window.dispatchEvent(new CustomEvent('honua-workspace-state'));
         target.title = state.context ? `Target ${state.context.targetId}; tenant ${state.context.tenantId ?? 'unbound'}; revision ${state.context.revision}` : '';
 
     };
@@ -490,7 +498,7 @@ export function mountWorkspace() {
         if (href) { if (window.Blazor?.navigateTo) window.Blazor.navigateTo(href); else { const link = document.createElement('a'); link.href = href; link.textContent = 'Open proposed task'; status.replaceChildren(link); } }
         else status.textContent = 'Proposed view paused. Save unsaved edits or enable follow navigation to continue.';
     }, { signal: lifetime.signal });
-    window.addEventListener('beforeunload', event => { if (workspace.dirty.size) { event.preventDefault(); event.returnValue = ''; } }, { signal: lifetime.signal });
+    window.addEventListener('beforeunload', event => { if (workspace.hasUnsavedWork()) { event.preventDefault(); event.returnValue = ''; } }, { signal: lifetime.signal });
     const bound = new WeakSet();
     let focusedPublishForm;
     let focusedPublishAuthority;
@@ -581,6 +589,13 @@ export function mountWorkspace() {
                 }
                 if (snapshot.task?.kind === 'local-process-workspace')
                     window.dispatchEvent(new CustomEvent('honua-workspace-local-process-task', {detail:snapshot.task}));
+                if (snapshot.task?.kind === 'dataset-import') {
+                    const identity = JSON.stringify(snapshot.task);
+                    if (workspace.presentedImport !== identity && workspace.follow && !workspace.hasUnsavedWork()) {
+                        workspace.presentedImport = identity;
+                        window.dispatchEvent(new CustomEvent('honua-agent-presentation', {detail:{view:'dataset-import'}}));
+                    }
+                }
                 if (snapshot.task?.kind === 'workflow-package')
                     window.dispatchEvent(new CustomEvent('honua-workspace-process-task', {detail:snapshot.task}));
                 if (snapshot.task?.id && (!snapshot.task.kind || snapshot.task.kind === 'publish-layer')) {

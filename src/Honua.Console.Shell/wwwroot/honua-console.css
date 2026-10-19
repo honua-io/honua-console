@@ -9846,3 +9846,15 @@ button.console-chip:focus-visible {
 @media (max-width: 1099px) {
     .console-workspace-panes > .console-first-run-conversation { order: 1; }
 }
+
+[data-dataset-import-panel] input[type="file"],
+[data-dataset-import-panel] progress {
+    display: block;
+    width: 100%;
+    max-width: 36rem;
+    min-width: 0;
+}
+
+[data-dataset-import-panel] dd {
+    overflow-wrap: anywhere;
+}
