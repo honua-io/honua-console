@@ -1,4 +1,4 @@
-@honua/sdk-js@0.2.4
+@honua/sdk-js@0.2.7
 License: "Apache-2.0"
 LICENSE
                                  Apache License

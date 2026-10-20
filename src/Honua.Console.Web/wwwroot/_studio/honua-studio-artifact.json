@@ -1,7 +1,7 @@
 {
   "schemaVersion": "honua.console.studio-artifact.v1",
-  "studioRevision": "cf163a723b54452f6d4cf3ca2e6420e692ae90c4",
-  "sdkRevision": "1b098478f710861a5b861bcd7d4598601d30fcb6",
+  "studioRevision": "9009d34c3b2bca4d210cddaf0439e16f0609e2d4",
+  "sdkRevision": "5765b427f421dca9c42832ae450fa1c5aad882c2",
   "files": [
     {
       "path": "assets/maplibre-gl-worker-BRmM5V8w.js",
@@ -9,9 +9,9 @@
       "sha256": "5420da18c04dbefda660133d62583f6abe709233ca45a01139db121fe172f107"
     },
     {
-      "path": "authenticated-source-protocol-Dt4qQhdg.js",
-      "bytes": 267871,
-      "sha256": "8956880daf78da68ce9e6680f4388ed8d4089e8b42f5907ed57e4d11104e04a4"
+      "path": "authenticated-source-protocol-BBAWDhOy.js",
+      "bytes": 275858,
+      "sha256": "36c0268d0122cb04c769a7f6a255c68cfbf3aa686e5dbc38b3651f58df485011"
     },
     {
       "path": "basemap-CjR__Zyy.js",
@@ -35,8 +35,8 @@
     },
     {
       "path": "console.js",
-      "bytes": 809055,
-      "sha256": "ce418bd7f770e536ccaea275e84c85533272accda4c56d265d384befc2cffab7"
+      "bytes": 822691,
+      "sha256": "eff482e145a3ede439bddfc824daad65246e61975723b3d81761fb2cd890eb4b"
     },
     {
       "path": "control-config-DVC01Tzy.js",
@@ -44,9 +44,9 @@
       "sha256": "a2be54dfd0ce7d1af9413ca2239d64678a2574725defde08550c817d770ca5b4"
     },
     {
-      "path": "errors-BIfuuju7.js",
-      "bytes": 25487,
-      "sha256": "de56d94a5c8f20db687767e2e01719fa69465bfe40e19aca7b7a5633575e904c"
+      "path": "errors-VvMCLBue.js",
+      "bytes": 25513,
+      "sha256": "ec175a4d07f0c13302828513699e46e49cc9c4914a6426cc43ee1d72e88cbb96"
     },
     {
       "path": "LICENSE",
@@ -110,23 +110,23 @@
     },
     {
       "path": "SDK-PROVENANCE.json",
-      "bytes": 237137,
-      "sha256": "3e3ed299d5281a739dfcd6165ad94ea52cc7c2011a54934e1afe1a58504f1d29"
+      "bytes": 238268,
+      "sha256": "f5ddc270f0d71c8327301e4e7b30b83cf51a7571e8fa7d8e7fd219246a34da18"
     },
     {
-      "path": "source-resolution-DLJUVzYE.js",
-      "bytes": 3908,
-      "sha256": "0bd42879c7eeccf0e1a9dd041e4f870b483a0381f783cc8498ec735a612f7598"
+      "path": "source-resolution-B2gJnwzs.js",
+      "bytes": 4155,
+      "sha256": "4e52bf4c2fcefe841edc9ae70d98ea300dd72a8b6a15e6120b4fa5d6a8ba185a"
     },
     {
-      "path": "studio-interactions-Dt_Q3VCB.js",
+      "path": "studio-interactions-DZ8pPzFp.js",
       "bytes": 33178,
-      "sha256": "613d90c4a883582145282989dbfda0bcfd3c721ab53649218d1c30c823997bde"
+      "sha256": "279fcff352ea7b07f46ca016f5ac6133664949478d859197d8e20abac9b0a462"
     },
     {
       "path": "STUDIO-PROVENANCE.json",
-      "bytes": 245540,
-      "sha256": "b460fbf144c620a99e081aaf1932c3a5559562e3fca271f49259d1d5c96f3ad3"
+      "bytes": 246689,
+      "sha256": "8b007cd73b52c293f9a042340853c7b99c06cd6baf78edbcb645a8433c39e83a"
     },
     {
       "path": "style.css",
@@ -136,7 +136,7 @@
     {
       "path": "THIRD-PARTY-NOTICES.txt",
       "bytes": 80920,
-      "sha256": "aa396b3719158244540b9e62bbb5e927156f9d0c7d3281707f41a36e0ff547e7"
+      "sha256": "1f9dc5486f5cb5430cdf7228072f340c6c2944bfc68b79d549be4d49edfb1e2a"
     },
     {
       "path": "widget-config-BnNjdjF6.js",
