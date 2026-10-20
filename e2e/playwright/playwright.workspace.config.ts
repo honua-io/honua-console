@@ -15,7 +15,8 @@ if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.
 // This lane consumes an already installed Console and an actual paired/signed-in
 // human session. It never starts a source checkout or substitutes an admin key.
 export default defineConfig({
-  testDir: './workspace-live/specs',
+  testDir: '.',
+  testMatch: ['**/workspace-live/specs/*.spec.ts', '**/workspace/*.spec.ts'],
   fullyParallel: false,
   workers: 1,
   retries: 0,
