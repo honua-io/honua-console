@@ -1,5 +1,6 @@
 const API = '/api/studio/viewer';
 const PARTITION = 'X-Honua-Viewer-Partition';
+const COMPOSITION_FAMILIES = new Set(['map', 'dashboard', 'app']);
 
 export function publishedMapPath(route) {
     const key = route.replace(/^\//, '');
@@ -69,7 +70,9 @@ export function createPublishedMapViewer({route, container, widgetContainer, sta
             if (!/^[0-9a-f]{64}$/.test(partition ?? '')) throw new Error('The viewer connection is unavailable.');
             const payload = await response.json();
             const artifact = payload.success === true ? payload.data : undefined;
-            if (artifact?.family !== 'map' || artifact.envelope?.family !== 'map' || !artifact.envelope.body)
+            if (!COMPOSITION_FAMILIES.has(artifact?.family) || artifact.envelope?.family !== artifact.family
+                || !artifact.envelope.body || typeof artifact.envelope.body !== 'object'
+                || Array.isArray(artifact.envelope.body) || !Array.isArray(artifact.envelope.body.layers))
                 throw new Error('This publication requires a different viewer.');
             const catalog = audienceCatalog(artifact.sourceCatalog, origin);
             const reads = new Set(catalog.flatMap(source => {

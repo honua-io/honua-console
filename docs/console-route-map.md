@@ -1270,6 +1270,9 @@ from the older content-map `/maps/:mapId` and its ShareAccess query tokens. Stud
 visibility and each source's current server authorization govern access; a public
 map definition does not make its data sources public.
 
+The reader accepts canonical composition bodies in the `map`, `dashboard`, and `app`
+families. A different family or a render-only package body gets a visible refusal.
+
 The page is rendered independently of the operator shell and mounts the embedded
 Studio bundle's read-only map and widget view with a private composition controller.
 It creates no editor, agent session or lifecycle writer. Reload reads the same route

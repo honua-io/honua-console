@@ -99,6 +99,20 @@ test('an unavailable renderer never announces a ready map', async () => {
     h.viewer.dispose();
 });
 
+test('canonical dashboard and app compositions open in the same read-only map and widget view', async () => {
+    const body = {layers: [], widgets: [{id: 'layer-list', kind: 'toc'}], view: {zoom: 4}};
+    for (const family of ['dashboard', 'app']) {
+        const value = {...artifact(), family, envelope: {family, body}, sourceCatalog: []};
+        const h = harness(() => publishedResponse(value));
+        await h.viewer.reload();
+        assert.equal(h.renders.length, 1);
+        assert.deepEqual(h.renders[0].body, body);
+        assert.equal(h.renders[0].widgetContainer, h.widgetContainer);
+        assert.equal(h.status.textContent, 'Map ready.');
+        h.viewer.dispose();
+    }
+});
+
 test('data reads use only same-origin cookie and viewer partition, dropping injected credentials', async () => {
     const h = harness((url) => url === publicationUrl ? publishedResponse() :
         new Response('{}', {status: 200, headers: {'X-Honua-Viewer-Partition': partition}}));
@@ -173,6 +187,18 @@ test('denied, missing, changed and incompatible publications show honest states'
     await wrongFamily.viewer.reload();
     assert.match(wrongFamily.status.textContent, /different viewer/);
     assert.equal(wrongFamily.renders.length, 0);
+
+    for (const value of [
+        {...artifact(), family: 'query', envelope: {family: 'query', body: {layers: []}}},
+        {...artifact(), envelope: {family: 'map', body: {format: 'honua_map_package.v1', mapSpec: {}}}},
+        {...artifact(), family: 'dashboard', envelope: {family: 'dashboard', body: {dashboard: {widgets: []}}}},
+        {...artifact(), family: 'app', envelope: {family: 'app', body: {layers: {}}}},
+    ]) {
+        const h = harness(() => publishedResponse(value));
+        await h.viewer.reload();
+        assert.match(h.status.textContent, /different viewer/);
+        assert.equal(h.renders.length, 0);
+    }
 });
 
 test('a missing source projection and missing partition stop before the renderer', async () => {
