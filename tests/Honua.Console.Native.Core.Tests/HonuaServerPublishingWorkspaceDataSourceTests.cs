@@ -51,7 +51,7 @@ public sealed class HonuaServerPublishingWorkspaceDataSourceTests
     }
 
     [Fact]
-    public async Task GetWorkspace_WhenPublicationIdsConfigured_FiltersTheListedRows()
+    public async Task GetWorkspace_WhenPublicationIdsConfigured_ReadsOnlySelectedItems()
     {
         var client = new RecordingPublicationClient();
         client.Details["pub-ok"] = Detail("pub-ok", "ok", 1, "ver-1");
@@ -66,6 +66,39 @@ public sealed class HonuaServerPublishingWorkspaceDataSourceTests
         var row = Assert.Single(workspace.Matrix);
         Assert.Equal("pub-ok", row.ResourceId);
         Assert.Empty(workspace.CapabilityStates);
+        Assert.Equal(0, client.ListCalls);
+        Assert.Equal(1, client.GetCalls);
+    }
+
+    [Fact]
+    public async Task GetWorkspace_WhenSelectedPublicationIsMissing_PreservesItsFailureState()
+    {
+        var client = new RecordingPublicationClient
+        {
+            ListIssue = new HonuaAdminEndpointIssue("Unsupported", "GET list", "Old server"),
+        };
+        client.Details["pub-ok"] = Detail("pub-ok", "ok", 1, "ver-1");
+        client.Issues["missing"] = new HonuaAdminEndpointIssue("Unsupported", "GET", "not found", 404);
+        var source = new HonuaServerPublishingWorkspaceDataSource(client, PublishingWorkspaceOptions.FromConfiguredList("pub-ok,missing"));
+
+        var workspace = await source.GetWorkspaceAsync();
+
+        Assert.Single(workspace.Matrix);
+        Assert.Contains("missing", Assert.Single(workspace.CapabilityStates).Detail, StringComparison.Ordinal);
+        Assert.Equal(0, client.ListCalls);
+    }
+
+    [Fact]
+    public async Task GetWorkspace_WhenPublicationRepeatsAcrossPages_ProducesOneRow()
+    {
+        var client = new RecordingPublicationClient();
+        client.Pages.Enqueue(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromData(
+            new HonuaContentPublicationListPage { Items = [Detail("pub-1", "one", 1, "ver-1")], NextCursor = "next" }));
+        client.Pages.Enqueue(HonuaAdminEndpointResult<HonuaContentPublicationListPage>.FromData(
+            new HonuaContentPublicationListPage { Items = [Detail("pub-1", "one", 1, "ver-1")] }));
+        var source = new HonuaServerPublishingWorkspaceDataSource(client, PublishingWorkspaceOptions.FromConfiguredList(null));
+
+        Assert.Single((await source.GetWorkspaceAsync()).Matrix);
     }
 
     [Fact]

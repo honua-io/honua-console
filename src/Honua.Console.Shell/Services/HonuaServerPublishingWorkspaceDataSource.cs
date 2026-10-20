@@ -11,8 +11,8 @@ namespace Honua.Console.Shell.Services;
 /// in the merged result (Console Patterns Charter section 11).
 ///
 /// The workspace discovers publications from <c>GET /api/v1/console/publications</c> (honua-server#3357).
-/// <c>Honua:Server:PublicationIds</c> is an optional filter: when it is empty every listed publication
-/// is shown, and when it is set only those ids are kept. Lookup, republish, and rollback still drive
+/// <c>Honua:Server:PublicationIds</c> is an optional selection: when it is empty every listed publication
+/// is shown, and when it is set those ids are read individually. Lookup, republish, and rollback still drive
 /// the author-first / quick-publish flow against the live lifecycle verbs. Endpoint issues (missing
 /// permission, not found, conflict, unsupported verb, transport, incomplete pagination) surface as explicit capability states
 /// instead of throwing or fabricating data.
@@ -41,6 +41,30 @@ public sealed class HonuaServerPublishingWorkspaceDataSource : IPublishingWorksp
 
     public async Task<PublishingWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
     {
+        // Explicit selections retain their per-item authorization/error behavior,
+        // including against servers that predate collection discovery.
+        if (_publicationIds.Count > 0)
+        {
+            var selectedMatrix = new List<PublishingMatrixRow>();
+            var selectedReviews = new List<PublishingReview>();
+            var states = new List<OperateCapabilityState>();
+            foreach (var publicationId in _publicationIds)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var result = await _client.GetAsync(publicationId, cancellationToken).ConfigureAwait(false);
+                if (result.Issue is { } selectedIssue)
+                {
+                    states.Add(ToCapabilityState(GetContract, selectedIssue, publicationId));
+                    continue;
+                }
+
+                selectedMatrix.Add(PublishingWorkspaceMapper.ToMatrixRow(result.Data!));
+                selectedReviews.Add(PublishingWorkspaceMapper.ToReview(result.Data!));
+            }
+
+            return new PublishingWorkspace(selectedMatrix, selectedReviews, states);
+        }
+
         var listed = await ListAllAsync(cancellationToken).ConfigureAwait(false);
         if (listed.Issue is { } issue)
         {
@@ -51,14 +75,6 @@ public sealed class HonuaServerPublishingWorkspaceDataSource : IPublishingWorksp
         }
 
         var details = listed.Items;
-        if (_publicationIds.Count > 0)
-        {
-            var allowed = new HashSet<string>(_publicationIds, StringComparer.Ordinal);
-            details = details
-                .Where(detail => allowed.Contains(detail.Route?.PublicationId ?? string.Empty))
-                .ToArray();
-        }
-
         var matrix = new List<PublishingMatrixRow>(details.Count);
         var reviews = new List<PublishingReview>(details.Count);
         foreach (var detail in details)
@@ -75,6 +91,7 @@ public sealed class HonuaServerPublishingWorkspaceDataSource : IPublishingWorksp
     {
         var items = new List<HonuaContentPublicationDetail>();
         var seenCursors = new HashSet<string>(StringComparer.Ordinal);
+        var seenPublications = new HashSet<string>(StringComparer.Ordinal);
         string? cursor = null;
         for (var page = 0; page < MaxListPages; page++)
         {
@@ -86,9 +103,25 @@ public sealed class HonuaServerPublishingWorkspaceDataSource : IPublishingWorksp
             }
 
             var payload = result.Data;
-            if (payload?.Items is { Count: > 0 } pageItems)
+            if (payload?.Items is null)
             {
-                items.AddRange(pageItems);
+                return ([], new HonuaAdminEndpointIssue("Unavailable", ListContract, "The publication list returned an invalid page."));
+            }
+
+            if (payload.Items is { Count: > 0 } pageItems)
+            {
+                foreach (var item in pageItems)
+                {
+                    if (string.IsNullOrEmpty(item?.Route?.PublicationId))
+                    {
+                        return ([], new HonuaAdminEndpointIssue("Unavailable", ListContract, "The publication list returned an invalid item."));
+                    }
+
+                    if (seenPublications.Add(item.Route.PublicationId))
+                    {
+                        items.Add(item);
+                    }
+                }
             }
 
             var next = payload?.NextCursor;
@@ -99,16 +132,13 @@ public sealed class HonuaServerPublishingWorkspaceDataSource : IPublishingWorksp
 
             if (!seenCursors.Add(next))
             {
-                return ([], IncompletePagination("The publication list repeated a cursor."));
+                return ([], IncompletePagination("The publication list repeated a pagination cursor; reload to retry."));
             }
 
             cursor = next;
         }
 
-        return ([], IncompletePagination(
-            "The publication list exceeded "
-            + MaxListPages.ToString(CultureInfo.InvariantCulture)
-            + " pages."));
+        return ([], IncompletePagination("The publication list exceeded the page limit; select specific publication IDs and retry."));
     }
 
     private static HonuaAdminEndpointIssue IncompletePagination(string detail) =>
@@ -216,7 +246,7 @@ public sealed class HonuaServerPublishingWorkspaceDataSource : IPublishingWorksp
 
 /// <summary>
 /// Composition options for the server-bound publishing workspace. Publication ids are an optional
-/// filter over <c>GET /api/v1/console/publications</c> (comma-separated
+/// selection instead of collection discovery (comma-separated
 /// <c>Honua:Server:PublicationIds</c> / <c>HONUA_SERVER_PUBLICATION_IDS</c>). An empty list shows
 /// every publication the registry returns.
 /// </summary>

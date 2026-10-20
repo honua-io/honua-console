@@ -691,6 +691,7 @@ public sealed record HonuaContentPublicationDetail
 /// </summary>
 public sealed record HonuaContentPublicationListPage
 {
+    [JsonRequired]
     [JsonPropertyName("items")]
     public IReadOnlyList<HonuaContentPublicationDetail> Items { get; init; } = [];
 

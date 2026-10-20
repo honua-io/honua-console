@@ -15,6 +15,20 @@ public sealed class ContentPublicationHttpClientTests
     private static readonly Uri BaseAddress = new("https://honua.test");
 
     [Fact]
+    public async Task List_WhenItemsPropertyIsAbsent_DoesNotReturnFalseEmptySuccess()
+    {
+        using var client = CreateClient(new StaticResponseHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json"),
+        }));
+
+        var result = await client.ListAsync();
+
+        Assert.Null(result.Data);
+        Assert.NotNull(result.Issue);
+    }
+
+    [Fact]
     public async Task Get_WhenCallerCancels_PropagatesCancellation()
     {
         using var cts = new CancellationTokenSource();
