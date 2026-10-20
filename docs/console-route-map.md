@@ -62,6 +62,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /catalog/:idOrSlug             Catalog item detail
 
 /maps/:mapId                   Interactive map viewer (Catalog/Studio/Share target; anonymous-capable via ShareAccess + ?token=)
+/maps/published/*route         Active Studio publication viewer; current-reader sources and data, separate from content-map ShareAccess links
 /maps/new                      New-map flow (from=:itemId)
 
 /groups                        Workspace groups (authenticated; any scope — member, operator, or admin)
@@ -1260,3 +1261,29 @@ The primary rail follows Home (`/`), Data & Layers (`/operate/data`), realtime M
 Legacy Studio standalone builder URLs now show direct guidance to `/studio` or `/studio/processes`; the retired generated-package product is not restored by `studio-builders`. `/operate/ai` opens the same primary conversation rather than a separate classifier/generator. Real operations and automation routes remain available. The active editor dependency stays in `honua-studio` until a separately approved migration.
 
 `/operate/resources/import/task` contributes a browser file to the immutable dataset-import task selected in the shared conversation. It uses the pinned SDK and authenticated bounded chunk capability, verifies the complete file digest, and reconciles original transfer receipts after interrupted requests. A retained source receipt does not establish import acceptance. The surface refuses when the deployment or pinned SDK does not expose the canonical transport.
+
+### Active Studio publication maps
+
+`/maps/published/*route` is the reader for the Studio lifecycle's active publication
+route, resolved through `/api/v1/studio/published/*route`. It is a separate family
+from the older content-map `/maps/:mapId` and its ShareAccess query tokens. Studio
+visibility and each source's current server authorization govern access; a public
+map definition does not make its data sources public.
+
+The page is rendered independently of the operator shell and mounts the embedded
+Studio bundle's read-only map and widget view with a private composition controller.
+It creates no editor, agent session or lifecycle writer. Reload reads the same route
+again, so republishing or rolling back its active version does not require a new
+audience URL. Widget data and shared styles use the same current-reader transport.
+
+The same-origin audience BFF pins the configured Honua server. Anonymous visitors
+make unauthenticated reads; authenticated visitors must have a current matching
+server account and bearer. It never substitutes a configured admin key or agent
+credential. The browser receives an opaque viewer partition rather than a server
+credential. Each bounded FeatureServer metadata/query or stylesheet GET must carry that partition;
+account, credential or target changes invalidate stale replies. Redirects, oversized
+and non-JSON upstream responses fail visibly.
+
+Implementation tracking: honua-console#445. This route is not qualified until the
+accepted renderer bundle, actual server source projection, normal checks and real
+audience/browser evidence have all been integrated.

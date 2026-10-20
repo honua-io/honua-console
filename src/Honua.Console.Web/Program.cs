@@ -26,6 +26,8 @@ builder.AddConsoleObservability();
 builder.Services.AddSingleton<AgentMcpSessions>();
 builder.Services.AddHttpClient("honua-agent-workspace").ConfigurePrimaryHttpMessageHandler(() =>
     new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
+builder.Services.AddHttpClient("honua-studio-audience").ConfigurePrimaryHttpMessageHandler(() =>
+    new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
 builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-Token");
 
 builder.Services.AddHonuaConsoleShell(
@@ -130,7 +132,8 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.Use(async (context, next) =>
 {
-    if ((context.Request.Path.StartsWithSegments("/map-proxy") || context.Request.Path.StartsWithSegments("/scene-proxy"))
+    if ((context.Request.Path.StartsWithSegments("/map-proxy") || context.Request.Path.StartsWithSegments("/scene-proxy")
+        || context.Request.Path.StartsWithSegments("/api/studio/viewer"))
         && context.Features.Get<Microsoft.AspNetCore.Diagnostics.IStatusCodePagesFeature>() is { } statusPages)
     {
         // Fetch clients must receive the original 401/403, never a rendered not-found page.
@@ -155,6 +158,7 @@ app.MapAgentWorkspaceBff();
 app.MapAgentSessionBff();
 app.MapLocalProcessBff();
 app.MapStudioReadBff();
+app.MapStudioAudienceBff();
 
 // Static assets and the build-metadata probe are public (no operator identity required).
 app.MapStaticAssets().AllowAnonymous();

@@ -1,4 +1,5 @@
 import { capturedProcessFetch } from './cookie-workspace-transport.mjs';
+import { publishedMapPath } from './published-map-viewer.mjs';
 
 const id = value => typeof value === 'string' && value.length > 0 && value.length <= 128 && !/[^A-Za-z0-9_-]/.test(value);
 const audiences = new Set(['personal', 'team', 'organization', 'public']);
@@ -79,6 +80,12 @@ export class StudioPublicationSession {
             && (input.warningAcknowledgement === undefined || typeof input.warningAcknowledgement === 'string' && input.warningAcknowledgement.length <= 2000);
     }
     bound(record) { return record.context === this.context(); }
+    audienceLinks() {
+        const record = this.read();
+        if (!record || !this.bound(record) || record.receipt?.status !== 'accepted') return undefined;
+        const map = publishedMapPath(record.input.intent.route);
+        return {map, definition: '/api/studio/viewer/published/' + map.slice('/maps/published/'.length)};
+    }
     async review(versionId) {
         if (this.read()) throw new Error('Resolve the original publication before starting another.');
         const context = this.viewContext();
@@ -221,6 +228,11 @@ export function mountStudioPublicationControls({ app, host, status }) {
     const refresh = document.createElement('button'); refresh.type = 'button'; refresh.textContent = 'Refresh publication status';
     const acknowledge = document.createElement('button'); acknowledge.type = 'button'; acknowledge.textContent = 'Acknowledge publication outcome';
     const inbox = document.createElement('a'); inbox.href = '/inbox'; inbox.textContent = 'Review approvals';
+    const openMap = document.createElement('a'); openMap.textContent = 'Open published map';
+    const definition = document.createElement('a'); definition.textContent = 'View map definition (JSON)';
+    for (const link of [openMap, definition]) { link.target = '_blank'; link.rel = 'noopener noreferrer'; }
+    const audienceActions = document.createElement('div'); audienceActions.className = 'console-action-row';
+    audienceActions.append(openMap, definition);
     const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel publication review';
     for (const field of [route, audience, warning]) field.className = 'console-input';
     for (const label of [routeField, audienceField, warningField]) label.className = 'publish-field';
@@ -229,7 +241,7 @@ export function mountStudioPublicationControls({ app, host, status }) {
     const fields = document.createElement('div'); fields.className = 'publish-field-grid'; fields.append(routeField, audienceField);
     const actions = document.createElement('div'); actions.className = 'console-action-row'; actions.append(publish, cancel);
     form.append(summary, fields, diagnostics, warningField, actions);
-    section.append(notice, form, refresh, retry, acknowledge, inbox);
+    section.append(notice, form, refresh, retry, acknowledge, inbox, audienceActions);
     const canvas = host.querySelector('[data-studio-mount]');
     if (canvas) canvas.before(section); else host.append(section);
     let busy = false, disposed = false, selectedContext, hasReview = false;
@@ -239,7 +251,8 @@ export function mountStudioPublicationControls({ app, host, status }) {
     };
     function update() {
         if (disposed) return;
-        form.hidden = retry.hidden = refresh.hidden = acknowledge.hidden = inbox.hidden = true;
+        form.hidden = retry.hidden = refresh.hidden = acknowledge.hidden = inbox.hidden = openMap.hidden = definition.hidden = true;
+        openMap.removeAttribute('href'); definition.removeAttribute('href');
         if (!id(app.workspaceDraftIdentity?.draftId) || !['reviewWorkspacePublication', 'publishWorkspaceVersion', 'readWorkspacePublication']
             .every(name => typeof app[name] === 'function')) {
             section.hidden = true; hasReview = false; selectedContext = undefined; return;
@@ -271,6 +284,11 @@ export function mountStudioPublicationControls({ app, host, status }) {
                     acknowledge.hidden = !terminal(record.receipt);
                     inbox.hidden = !id(record.receipt?.proposalId);
                     if (!inbox.hidden) inbox.href = `/inbox?proposalId=${encodeURIComponent(record.receipt.proposalId)}`;
+                    const links = session.audienceLinks();
+                    if (links) {
+                        openMap.href = links.map; definition.href = links.definition;
+                        openMap.hidden = definition.hidden = false;
+                    }
                 }
             } else form.hidden = !hasReview;
         } catch (error) { section.hidden = false; notice.textContent = error.message; }
