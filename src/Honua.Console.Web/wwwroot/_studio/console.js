@@ -2,7 +2,7 @@ import { t as e } from "./rolldown-runtime-Dy4uBu1J.js";
 import { d as t, n, u as r } from "./errors-VvMCLBue.js";
 import { i, n as a, r as o } from "./authenticated-source-protocol-BBAWDhOy.js";
 import { a as s, i as c, m as l, n as u, o as d, p as f, s as p, u as m } from "./control-config-DVC01Tzy.js";
-import { a as h, i as g, n as _, r as v, s as y, t as b } from "./source-resolution-B2gJnwzs.js";
+import { a as h, i as g, n as _, r as v, s as y, t as b } from "./source-resolution-jeK7H4XR.js";
 import { a as x, i as S, n as C, o as ee, r as w, t as te } from "./widget-config-BnNjdjF6.js";
 import { a as ne, n as re, r as ie } from "./basemap-CjR__Zyy.js";
 import { n as ae, r as oe, t as se } from "./palette-BSfbwTvA.js";
@@ -16684,7 +16684,7 @@ function Yh(e = {}) {
 		return t.set(n, c), c;
 	};
 	async function i(t, r) {
-		let { isCompositionSourceResolution: i, resolveCompositionSource: a } = await import("./source-resolution-B2gJnwzs.js").then((e) => e.o), o = a({
+		let { isCompositionSourceResolution: i, resolveCompositionSource: a } = await import("./source-resolution-jeK7H4XR.js").then((e) => e.o), o = a({
 			id: t,
 			sourceId: t,
 			visible: !0
@@ -23147,4 +23147,58 @@ function R_(e) {
 	});
 }
 //#endregion
-export { Xu as AuthoritativeStyleProvider, Qg as DatasetImportSubmissionClient, Lg as DatasetImportTaskClient, Ug as DatasetImportUploadClient, Eh as HonuaStudioCustomProcessesElement, Gh as HonuaStudioProcessesElement, Ne as InMemoryStudioAiReplayStore, m_ as LocalProcessWorkspace, id as MapStyleEditor, Wh as ServerProcessWorkspace, Ve as StudioAiTranscriptVerifier, R_ as createSharedStylePreview, mg as createWorkspaceAgentSession, h_ as createWorkspaceLifecycleReader, Ag as hashDatasetImportFile, g_ as readSharedStyleMapConsumer, dg as registerAllStudioElements, pg as workspaceAgentFeatures };
+//#region src/map/read-only-map-canvas.ts
+async function z_(e) {
+	let t = Dp(structuredClone(e.body)), n = e.projection ? structuredClone(e.projection) : void 0;
+	for (let r of t.layers) {
+		if (!r.styleRef || t.styleRefs?.some((e) => e.styleId === r.styleRef?.styleId && e.body !== void 0)) continue;
+		let i = b(r.sourceId, n?.catalog);
+		if (_(r) || !e.styleProvider || !y(i)) throw Error("Published style references require an embedded body or an authoritative style reader for their source; a preset is not a substitute.");
+	}
+	let r = new op(t), i = !1, a = () => {
+		i || e.onChange?.(s);
+	}, o = new N_({
+		container: e.container,
+		controller: r,
+		projection: n,
+		styleProvider: e.styleProvider,
+		getAuth: e.getAuth ?? (() => void 0),
+		sourceAuthBaseUrl: e.sourceAuthBaseUrl,
+		sourceCatalogBaseUrl: e.sourceCatalogBaseUrl,
+		mapFactory: e.mapFactory,
+		onChange: a
+	}), s = Object.freeze({
+		get status() {
+			return o.status;
+		},
+		get statusDetail() {
+			return o.statusDetail;
+		},
+		get projection() {
+			return o.projection ? structuredClone(o.projection) : void 0;
+		},
+		get renderedFeatureCount() {
+			let e = o.map, t = o.projection;
+			if (!t?.renderedLayerIds.length || !e?.queryRenderedFeatures) return 0;
+			let n = new Set(t.renderedLayerIds), r = ((e.getStyle ? e.getStyle()?.layers : t.mapPackage.mapSpec.layers) ?? []).flatMap((e) => {
+				if (typeof e.id != "string") return [];
+				let t = e.metadata, r = t && typeof t == "object" ? t["honua:compositionLayerId"] : void 0;
+				return n.has(e.id) || typeof r == "string" && n.has(r) ? [e.id] : [];
+			});
+			return r.length ? e.queryRenderedFeatures(void 0, { layers: r }).length : 0;
+		},
+		settled: () => o.settled(),
+		resize: () => o.resize(),
+		dispose: () => {
+			i = !0, o.map?.off?.("idle", a), o.dispose();
+		}
+	});
+	try {
+		await o.start(), o.map?.on("idle", a);
+	} catch (e) {
+		throw o.dispose(), e;
+	}
+	return s;
+}
+//#endregion
+export { Xu as AuthoritativeStyleProvider, Qg as DatasetImportSubmissionClient, Lg as DatasetImportTaskClient, Ug as DatasetImportUploadClient, Eh as HonuaStudioCustomProcessesElement, Gh as HonuaStudioProcessesElement, Ne as InMemoryStudioAiReplayStore, m_ as LocalProcessWorkspace, id as MapStyleEditor, Wh as ServerProcessWorkspace, Ve as StudioAiTranscriptVerifier, z_ as createReadOnlyMapCanvas, R_ as createSharedStylePreview, mg as createWorkspaceAgentSession, h_ as createWorkspaceLifecycleReader, Ag as hashDatasetImportFile, g_ as readSharedStyleMapConsumer, dg as registerAllStudioElements, pg as workspaceAgentFeatures };

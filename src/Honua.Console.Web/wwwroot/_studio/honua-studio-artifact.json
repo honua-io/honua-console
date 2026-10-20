@@ -1,6 +1,6 @@
 {
   "schemaVersion": "honua.console.studio-artifact.v1",
-  "studioRevision": "9009d34c3b2bca4d210cddaf0439e16f0609e2d4",
+  "studioRevision": "56558e2dc0953a186337dea89e5ca497171ff980",
   "sdkRevision": "5765b427f421dca9c42832ae450fa1c5aad882c2",
   "files": [
     {
@@ -35,8 +35,8 @@
     },
     {
       "path": "console.js",
-      "bytes": 822691,
-      "sha256": "eff482e145a3ede439bddfc824daad65246e61975723b3d81761fb2cd890eb4b"
+      "bytes": 824647,
+      "sha256": "571ec006f8906fd0afc080d31da5183cd9b04ea9f78526ae4253d7fb670ead63"
     },
     {
       "path": "control-config-DVC01Tzy.js",
@@ -114,9 +114,9 @@
       "sha256": "f5ddc270f0d71c8327301e4e7b30b83cf51a7571e8fa7d8e7fd219246a34da18"
     },
     {
-      "path": "source-resolution-B2gJnwzs.js",
-      "bytes": 4155,
-      "sha256": "4e52bf4c2fcefe841edc9ae70d98ea300dd72a8b6a15e6120b4fa5d6a8ba185a"
+      "path": "source-resolution-jeK7H4XR.js",
+      "bytes": 4179,
+      "sha256": "c832e35e20e0c2168728b2ea0ab2717fe95af48166f728a1334001f303aa8b22"
     },
     {
       "path": "studio-interactions-DZ8pPzFp.js",
@@ -126,7 +126,7 @@
     {
       "path": "STUDIO-PROVENANCE.json",
       "bytes": 246689,
-      "sha256": "8b007cd73b52c293f9a042340853c7b99c06cd6baf78edbcb645a8433c39e83a"
+      "sha256": "d9e24218aea5448de832abb81a402a35a8c384db06bf50e4348436cad31af263"
     },
     {
       "path": "style.css",
