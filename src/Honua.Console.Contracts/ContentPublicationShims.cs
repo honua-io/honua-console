@@ -34,6 +34,16 @@ public interface IHonuaContentPublicationClient
         string publicationId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Lists publications (honua-server#3357). Each item is the same detail record as <see cref="GetAsync"/>.
+    /// Pass <paramref name="cursor"/> from the previous page's <c>nextCursor</c>; null starts at the first page.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaContentPublicationListPage>> ListAsync(
+        string? cursor = null,
+        int limit = 100,
+        string? lifecycle = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Reads one immutable version of a publication by revision number, "v{n}", or version id.</summary>
     Task<HonuaAdminEndpointResult<HonuaContentPublicationVersion>> GetVersionAsync(
         string publicationId,
@@ -131,6 +141,33 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
             HttpMethod.Get,
             $"{Base}/{Uri.EscapeDataString(publicationId)}",
             "GET /api/v1/console/publications/{publicationId}",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaContentPublicationListPage>> ListAsync(
+        string? cursor = null,
+        int limit = 100,
+        string? lifecycle = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = new List<string>
+        {
+            "limit=" + (limit <= 0 ? 100 : limit).ToString(CultureInfo.InvariantCulture),
+        };
+        if (!string.IsNullOrEmpty(cursor))
+        {
+            query.Add("cursor=" + Uri.EscapeDataString(cursor));
+        }
+
+        if (!string.IsNullOrWhiteSpace(lifecycle))
+        {
+            query.Add("lifecycle=" + Uri.EscapeDataString(lifecycle.Trim()));
+        }
+
+        return SendAsync<HonuaContentPublicationListPage>(
+            HttpMethod.Get,
+            Base + "?" + string.Join('&', query),
+            "GET /api/v1/console/publications",
             cancellationToken);
     }
 
@@ -647,6 +684,22 @@ public sealed record HonuaContentPublicationDetail
 
     [JsonPropertyName("versions")]
     public HonuaContentPublicationVersion[] Versions { get; init; } = [];
+}
+
+/// <summary>
+/// Cursor page from <c>GET /api/v1/console/publications</c>. Items use the same detail record as the item GET.
+/// </summary>
+public sealed record HonuaContentPublicationListPage
+{
+    [JsonRequired]
+    [JsonPropertyName("items")]
+    public IReadOnlyList<HonuaContentPublicationDetail> Items { get; init; } = [];
+
+    [JsonPropertyName("total")]
+    public int Total { get; init; }
+
+    [JsonPropertyName("nextCursor")]
+    public string? NextCursor { get; init; }
 }
 
 // --- Mutation request/response records mirroring ContentPublicationRequests.cs (#1183). ---
