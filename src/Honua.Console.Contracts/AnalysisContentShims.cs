@@ -337,6 +337,11 @@ public sealed class HonuaAnalysisContentHttpClient : IHonuaAnalysisContentClient
         object? body = null,
         CancellationToken cancellationToken = default)
     {
+        if (UnregisteredServerRoutes.Contains(contract))
+        {
+            return UnregisteredServerRoutes.Admin<T>(contract);
+        }
+
         using var request = new HttpRequestMessage(method, path);
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {

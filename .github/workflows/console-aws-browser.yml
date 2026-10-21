@@ -26,10 +26,11 @@ jobs:
           HONUA_CONSOLE_AWS_OPERATOR_PASSWORD: ${{ secrets.HONUA_CONSOLE_AWS_OPERATOR_PASSWORD }}
         run: |
           if [[ -z "$HONUA_CONSOLE_AWS_OPERATOR_USERNAME" || -z "$HONUA_CONSOLE_AWS_OPERATOR_PASSWORD" ]]; then
-            reason="SKIPPED: live-aws-browser requires HONUA_CONSOLE_AWS_OPERATOR_USERNAME and HONUA_CONSOLE_AWS_OPERATOR_PASSWORD; configure both repository secrets for a provisioned AWS operator, then rerun the workflow."
-            echo "::notice::$reason"
+            reason="FAILED: live-aws-browser requires HONUA_CONSOLE_AWS_OPERATOR_USERNAME and HONUA_CONSOLE_AWS_OPERATOR_PASSWORD. Missing operator secrets are not a pass. Configure both repository secrets for a provisioned AWS operator, then rerun the workflow."
+            echo "::error::$reason"
             echo "$reason" >> "$GITHUB_STEP_SUMMARY"
             echo "provisioned=false" >> "$GITHUB_OUTPUT"
+            exit 1
           else
             echo "provisioned=true" >> "$GITHUB_OUTPUT"
           fi

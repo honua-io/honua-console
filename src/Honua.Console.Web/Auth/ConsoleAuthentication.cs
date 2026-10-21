@@ -36,6 +36,9 @@ namespace Honua.Console.Web.Auth;
 /// </summary>
 public static class ConsoleAuthentication
 {
+    internal static CookieSecurePolicy CookieSecurePolicyFor(bool isDevelopment) =>
+        isDevelopment ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+
     public static WebApplicationBuilder AddConsoleAuthentication(this WebApplicationBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -47,7 +50,10 @@ public static class ConsoleAuthentication
                 options.Cookie.Name = "honua_console_auth";
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Lax;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                // Kestrel sees HTTP behind TLS termination. SameAsRequest would leave the operator
+                // cookie non-Secure and UseHsts would not match the browser scheme. Always outside
+                // Development; Development keeps SameAsRequest so a local http login still sets it.
+                options.Cookie.SecurePolicy = CookieSecurePolicyFor(builder.Environment.IsDevelopment());
                 options.LoginPath = "/auth/login";
                 options.LogoutPath = "/auth/logout";
                 // The framework's automatic challenge redirect and the rest of the Console

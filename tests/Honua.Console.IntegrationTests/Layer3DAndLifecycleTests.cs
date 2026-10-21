@@ -11,244 +11,41 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Honua.Console.IntegrationTests;
 
 /// <summary>
-/// Docker-free coverage for the layer 3D-extrusion / 3D-symbology + lifecycle-status authoring OPERATION and its
-/// page (<c>/operate/layers/{id}/extrusion</c>). Asserts the real route/verb/body each read+write issues
-/// (GET/PUT /api/v1/admin/metadata/layers/{id}/extrusion|status) over a recording handler behind the real
-/// <see cref="HonuaAdminOperateHttpClient"/>, the result mapping, the missing-binding
-/// <see cref="UnsupportedConsoleLayer3DOperation"/> (no network call), and that the page renders bound +
-/// missing-binding and that the saves issue the right PUT. No mocks of metadata — every assertion is over the
-/// wire the operation actually sends, or what a recorded server response maps to.
+/// Docker-free coverage for the layer 3D-extrusion / lifecycle-status operation and its page.
+/// The pinned server does not register those routes, so the live client returns Unsupported and
+/// issues no HTTP. The missing-binding operation still names HONUA_SERVER_BASE_URL, and the page
+/// tests cover a bound fake plus that missing-binding surface.
 /// </summary>
 public sealed class Layer3DAndLifecycleTests
 {
     private const string ResourceId = "conn-1-layer-1";
     private static readonly Uri BaseAddress = new("https://honua.test");
 
-    // ---- Extrusion + 3D symbology ----
-
     [Fact]
-    public async Task GetExtrusion_IssuesGetToExtrusionRoute_AndMapsSections()
+    public async Task UnregisteredExtrusionAndStatusRoutes_FailClosedWithoutHttp()
     {
-        string? path = null;
-        HttpMethod? method = null;
-        var data = new HonuaAdminLayerExtrusion
-        {
-            LayerId = 1,
-            Extrusion = new HonuaAdminLayerExtrusionSettings
-            {
-                HeightField = "building_height",
-                BaseHeightField = "ground_elevation",
-                Unit = "meters",
-                DefaultHeight = 12.5,
-                MaterialHint = "concrete",
-            },
-            Symbology3D = new HonuaAdminSymbology3D
-            {
-                DefaultColor = new HonuaAdminRgbColor { Red = 10, Green = 20, Blue = 30 },
-                DefaultOpacity = 0.8,
-                Rules =
-                [
-                    new HonuaAdminSymbology3DRule
-                    {
-                        Attribute = "status",
-                        Comparison = "equals",
-                        Value = JsonSerializer.SerializeToElement("active"),
-                        Color = new HonuaAdminRgbColor { Red = 1, Green = 2, Blue = 3 },
-                        Opacity = 0.5,
-                        Visible = true,
-                    },
-                ],
-            },
-        };
-        var operation = new HonuaServerConsoleLayer3DOperation(CreateClient(request =>
-        {
-            path = request.RequestUri?.AbsolutePath;
-            method = request.Method;
-            return Ok(data);
-        }));
-
-        var result = await operation.GetExtrusionAsync(1);
-
-        Assert.True(result.Bound);
-        Assert.Equal(HttpMethod.Get, method);
-        Assert.Equal("/api/v1/admin/metadata/layers/1/extrusion", path);
-        Assert.Equal("building_height", result.Extrusion!.HeightField);
-        Assert.Equal("meters", result.Extrusion.Unit);
-        Assert.Equal(12.5, result.Extrusion.DefaultHeight);
-        Assert.Equal(0.8, result.Symbology3D!.DefaultOpacity);
-        Assert.Equal(30, result.Symbology3D.DefaultColor!.Blue);
-        var rule = Assert.Single(result.Symbology3D.Rules);
-        Assert.Equal("status", rule.Attribute);
-        Assert.Equal("active", rule.Value);
-        Assert.True(rule.Visible);
-    }
-
-    [Fact]
-    public async Task SetExtrusion_IssuesPutWithBothSections_AndMapsUpdated()
-    {
-        string? path = null;
-        HttpMethod? method = null;
-        string? body = null;
-        var operation = new HonuaServerConsoleLayer3DOperation(CreateClient(request =>
-        {
-            path = request.RequestUri?.AbsolutePath;
-            method = request.Method;
-            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
-            return Ok(new HonuaAdminLayerExtrusion { LayerId = 1 });
-        }));
-
-        var result = await operation.SetExtrusionAsync(
-            1,
-            new ConsoleLayerExtrusionSettings { HeightField = "h", Unit = "feet", DefaultHeight = 9 },
-            clearExtrusion: false,
-            new ConsoleSymbology3D
-            {
-                DefaultColor = new ConsoleRgbColor { Red = 255, Green = 128, Blue = 0 },
-                DefaultOpacity = 0.6,
-                Rules =
-                [
-                    new ConsoleSymbology3DRule
-                    {
-                        Attribute = "height",
-                        Comparison = "greaterThan",
-                        Value = "100",
-                        Color = new ConsoleRgbColor { Red = 1, Green = 2, Blue = 3 },
-                        Opacity = 0.9,
-                        Visible = false,
-                    },
-                ],
-            },
-            clearSymbology3D: false);
-
-        Assert.True(result.Succeeded);
-        Assert.Equal("Updated", result.State);
-        Assert.Equal(HttpMethod.Put, method);
-        Assert.Equal("/api/v1/admin/metadata/layers/1/extrusion", path);
-
-        using var doc = JsonDocument.Parse(body!);
-        var root = doc.RootElement;
-        Assert.Equal("h", root.GetProperty("extrusion").GetProperty("heightField").GetString());
-        Assert.Equal("feet", root.GetProperty("extrusion").GetProperty("unit").GetString());
-        Assert.False(root.GetProperty("clearExtrusion").GetBoolean());
-        var sym = root.GetProperty("symbology3D");
-        Assert.Equal(255, sym.GetProperty("defaultColor").GetProperty("red").GetInt32());
-        Assert.Equal(0.6, sym.GetProperty("defaultOpacity").GetDouble());
-        var wireRule = sym.GetProperty("rules")[0];
-        Assert.Equal("height", wireRule.GetProperty("attribute").GetString());
-        Assert.Equal("greaterThan", wireRule.GetProperty("comparison").GetString());
-        // "100" parses to a JSON number scalar on the wire.
-        Assert.Equal(100, wireRule.GetProperty("value").GetDouble());
-        Assert.False(wireRule.GetProperty("visible").GetBoolean());
-        Assert.False(root.GetProperty("clearSymbology3D").GetBoolean());
-    }
-
-    [Fact]
-    public async Task SetExtrusion_WithClearFlags_OmitsSections_AndSetsClearFlags()
-    {
-        string? body = null;
-        var operation = new HonuaServerConsoleLayer3DOperation(CreateClient(request =>
-        {
-            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
-            return Ok(new HonuaAdminLayerExtrusion { LayerId = 1 });
-        }));
-
-        await operation.SetExtrusionAsync(
-            1,
-            extrusion: null,
-            clearExtrusion: true,
-            symbology3D: null,
-            clearSymbology3D: true);
-
-        using var doc = JsonDocument.Parse(body!);
-        var root = doc.RootElement;
-        Assert.True(root.GetProperty("clearExtrusion").GetBoolean());
-        Assert.True(root.GetProperty("clearSymbology3D").GetBoolean());
-        // Null sections are omitted on the wire so a clear flag is unambiguous.
-        Assert.False(root.TryGetProperty("extrusion", out _));
-        Assert.False(root.TryGetProperty("symbology3D", out _));
-    }
-
-    // ---- Lifecycle status ----
-
-    [Fact]
-    public async Task GetStatus_IssuesGetToStatusRoute_AndMapsFields()
-    {
-        string? path = null;
-        HttpMethod? method = null;
-        var operation = new HonuaServerConsoleLayer3DOperation(CreateClient(request =>
-        {
-            path = request.RequestUri?.AbsolutePath;
-            method = request.Method;
-            return Ok(new HonuaAdminLayerStatus { LayerId = 1, Lifecycle = "active", State = "ready" });
-        }));
-
-        var result = await operation.GetStatusAsync(1);
-
-        Assert.True(result.Bound);
-        Assert.Equal(HttpMethod.Get, method);
-        Assert.Equal("/api/v1/admin/metadata/layers/1/status", path);
-        Assert.Equal("active", result.Lifecycle);
-        Assert.Equal("ready", result.State);
-    }
-
-    [Fact]
-    public async Task SetStatus_IssuesPutWithBody_AndMapsUpdated()
-    {
-        string? path = null;
-        HttpMethod? method = null;
-        string? body = null;
-        var operation = new HonuaServerConsoleLayer3DOperation(CreateClient(request =>
-        {
-            path = request.RequestUri?.AbsolutePath;
-            method = request.Method;
-            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
-            return Ok(new HonuaAdminLayerStatus { LayerId = 1 });
-        }));
-
-        var result = await operation.SetStatusAsync(1, "deprecated", "degraded");
-
-        Assert.True(result.Succeeded);
-        Assert.Equal(HttpMethod.Put, method);
-        Assert.Equal("/api/v1/admin/metadata/layers/1/status", path);
-
-        using var doc = JsonDocument.Parse(body!);
-        var root = doc.RootElement;
-        Assert.Equal("deprecated", root.GetProperty("lifecycle").GetString());
-        Assert.Equal("degraded", root.GetProperty("state").GetString());
-    }
-
-    [Fact]
-    public async Task SetStatus_WithOnlyLifecycle_OmitsState_SoStateIsLeftUnchanged()
-    {
-        string? body = null;
-        var operation = new HonuaServerConsoleLayer3DOperation(CreateClient(request =>
-        {
-            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
-            return Ok(new HonuaAdminLayerStatus { LayerId = 1 });
-        }));
-
-        await operation.SetStatusAsync(1, "archived", state: null);
-
-        using var doc = JsonDocument.Parse(body!);
-        var root = doc.RootElement;
-        Assert.Equal("archived", root.GetProperty("lifecycle").GetString());
-        // null state is omitted on the wire so the server leaves it unchanged.
-        Assert.False(root.TryGetProperty("state", out _));
-    }
-
-    [Fact]
-    public async Task SetStatus_WhenServerRejects_MapsFailureWithDetail()
-    {
+        var calls = 0;
         var operation = new HonuaServerConsoleLayer3DOperation(CreateClient(_ =>
-            new HttpResponseMessage(HttpStatusCode.BadRequest)
-            {
-                Content = JsonContent.Create(new { success = false, message = "lifecycle 'nope' is not a valid stage." }),
-            }));
+        {
+            calls++;
+            throw new InvalidOperationException("unregistered route must not send HTTP");
+        }));
 
-        var result = await operation.SetStatusAsync(1, "nope", null);
+        var readExtrusion = await operation.GetExtrusionAsync(1);
+        var readStatus = await operation.GetStatusAsync(1);
+        var writeExtrusion = await operation.SetExtrusionAsync(
+            1, new ConsoleLayerExtrusionSettings { HeightField = "h" }, false, null, false);
+        var writeStatus = await operation.SetStatusAsync(1, "archived", null);
 
-        Assert.False(result.Succeeded);
-        Assert.Contains("not a valid stage", result.Detail!, StringComparison.Ordinal);
+        Assert.Equal(0, calls);
+        Assert.False(readExtrusion.Bound);
+        Assert.False(readStatus.Bound);
+        Assert.Contains(UnregisteredServerRoutes.Detail, readExtrusion.Detail, StringComparison.Ordinal);
+        Assert.Contains(UnregisteredServerRoutes.Detail, readStatus.Detail, StringComparison.Ordinal);
+        Assert.False(writeExtrusion.Succeeded);
+        Assert.Equal(UnregisteredServerRoutes.State, writeExtrusion.State);
+        Assert.False(writeStatus.Succeeded);
+        Assert.Equal(UnregisteredServerRoutes.State, writeStatus.State);
     }
 
     [Fact]

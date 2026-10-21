@@ -978,6 +978,11 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         string relativePath,
         CancellationToken cancellationToken = default)
     {
+        if (UnregisteredServerRoutes.Contains(contract))
+        {
+            return UnregisteredServerRoutes.Admin<bool>(contract);
+        }
+
         using var request = new HttpRequestMessage(HttpMethod.Get, BuildRequestUri(relativePath));
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {
@@ -1009,6 +1014,11 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         string contract,
         CancellationToken cancellationToken)
     {
+        if (UnregisteredServerRoutes.Contains(contract))
+        {
+            return UnregisteredServerRoutes.Admin<T>(contract);
+        }
+
         using var request = new HttpRequestMessage(HttpMethod.Get, BuildRequestUri(path));
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {
@@ -1096,6 +1106,11 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         string contract,
         CancellationToken cancellationToken)
     {
+        if (UnregisteredServerRoutes.Contains(contract))
+        {
+            return UnregisteredServerRoutes.Admin<TResponse>(contract);
+        }
+
         using var request = requestFactory();
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {
@@ -1170,6 +1185,11 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         string contract,
         CancellationToken cancellationToken)
     {
+        if (UnregisteredServerRoutes.Contains(contract))
+        {
+            return UnregisteredServerRoutes.Admin<TResponse>(contract);
+        }
+
         using var request = new HttpRequestMessage(HttpMethod.Put, BuildRequestUri(path))
         {
             Content = JsonContent.Create(body, options: JsonOptions)

@@ -28,16 +28,18 @@ for (const [label, user, pass, provisioned] of [
         env: { ...process.env, [username]: user, [password]: pass,
           GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary },
       });
-      assert.equal(result.status, 0, result.stderr);
       assert.equal(readFileSync(output, "utf8"), `provisioned=${provisioned}\n`);
       if (!provisioned) {
+        assert.equal(result.status, 1, result.stderr);
         const reason = readFileSync(summary, "utf8");
         assert.equal(reason.trim().split("\n").length, 1);
-        assert.match(reason, /SKIPPED: live-aws-browser/);
+        assert.match(reason, /FAILED: live-aws-browser/);
+        assert.match(reason, /Missing operator secrets are not a pass/);
         assert.ok(reason.includes(username) && reason.includes(password));
-        assert.match(reason, /configure both repository secrets.*rerun the workflow/);
-        assert.equal(result.stdout, `::notice::${reason}`);
+        assert.match(reason, /[Cc]onfigure both repository secrets.*rerun the workflow/);
+        assert.equal(result.stdout, `::error::${reason}`);
       } else {
+        assert.equal(result.status, 0, result.stderr);
         assert.equal(result.stdout, "");
       }
       assert.ok(!result.stdout.includes("test-password"));
