@@ -42,22 +42,27 @@ function u(e) {
 	return e.endsWith("/") ? e.slice(0, -1) : e;
 }
 function d(e, t = {}) {
-	let r = u(t.baseUrl ?? i), c = t.featureLimit ?? a, d = s(e), f = d?.source;
-	if (o(f)) return {
-		source: f,
-		layerType: (typeof d?.layerType == "string" ? d.layerType : void 0) ?? l(typeof d?.geometryType == "string" ? d.geometryType : void 0) ?? "fill"
-	};
-	let p = n(e.sourceId, t.catalog);
-	if (!p) return { reason: `Source "${e.sourceId}" is not in the catalog, and the layer carries no metadata.honua.source override.` };
-	let m = l(p.geometryType);
-	if (m === "raster") return { reason: `Source "${e.sourceId}" is raster (${p.geometryType}); the composition map renders vector sources only so far.` };
-	if (!m) return { reason: `Source "${e.sourceId}" has no supported geometry type in the catalog.` };
-	let h = p.locator;
-	if (h && (typeof h.url != "string" || !/^(?:https?:\/\/|\/)/.test(h.url))) return { reason: `Source "${e.sourceId}" has an invalid catalog locator URL.` };
-	let g = p.protocol;
-	if (g === "ogc-features") {
-		if (h && (typeof h.collectionId != "string" || !h.collectionId)) return { reason: `Source "${e.sourceId}" has no collection id in its catalog locator.` };
-		let t = h ? String(h.collectionId) : e.sourceId, n = h ? u(String(h.url)) : `${r}/ogc/features`;
+	let r = u(t.baseUrl ?? i), c = t.featureLimit ?? a, d = e.type, f = s(e), p = f?.source;
+	if (d !== void 0 && d !== "fill" && d !== "line" && d !== "circle" && !(d === "raster" && o(p))) return { reason: `Source "${e.sourceId}" requests layer type "${d}", which the composition map cannot render yet.` };
+	if (o(p)) {
+		let e = typeof f?.layerType == "string" ? f.layerType : void 0;
+		return {
+			source: p,
+			layerType: d ?? e ?? l(typeof f?.geometryType == "string" ? f.geometryType : void 0) ?? "fill"
+		};
+	}
+	let m = n(e.sourceId, t.catalog);
+	if (!m) return { reason: `Source "${e.sourceId}" is not in the catalog, and the layer carries no metadata.honua.source override.` };
+	let h = l(m.geometryType);
+	if (h === "raster") return { reason: `Source "${e.sourceId}" is raster (${m.geometryType}); the composition map renders vector sources only so far.` };
+	let g = d ?? h;
+	if (!g) return { reason: `Source "${e.sourceId}" has no supported geometry type in the catalog.` };
+	let _ = m.locator;
+	if (_ && (typeof _.url != "string" || !/^(?:https?:\/\/|\/)/.test(_.url))) return { reason: `Source "${e.sourceId}" has an invalid catalog locator URL.` };
+	let v = m.protocol;
+	if (v === "ogc-features") {
+		if (_ && (typeof _.collectionId != "string" || !_.collectionId)) return { reason: `Source "${e.sourceId}" has no collection id in its catalog locator.` };
+		let t = _ ? String(_.collectionId) : e.sourceId, n = _ ? u(String(_.url)) : `${r}/ogc/features`;
 		return {
 			binding: {
 				sourceId: e.sourceId,
@@ -71,12 +76,12 @@ function d(e, t = {}) {
 				type: "geojson",
 				data: `${n}/collections/${encodeURIComponent(t)}/items?f=json&limit=${c}`
 			},
-			layerType: m
+			layerType: g
 		};
 	}
-	if (g === "geoservices-feature-service") {
-		if (h && (!Number.isSafeInteger(h.layerId) || Number(h.layerId) < 0)) return { reason: `Source "${e.sourceId}" has no valid layer id in its catalog locator.` };
-		let t = h ? Number(h.layerId) : 0, n = h ? u(String(h.url)) : void 0, i = n?.match(/\/FeatureServer\/(\d+)$/i);
+	if (v === "geoservices-feature-service") {
+		if (_ && (!Number.isSafeInteger(_.layerId) || Number(_.layerId) < 0)) return { reason: `Source "${e.sourceId}" has no valid layer id in its catalog locator.` };
+		let t = _ ? Number(_.layerId) : 0, n = _ ? u(String(_.url)) : void 0, i = n?.match(/\/FeatureServer\/(\d+)$/i);
 		if (i && Number(i[1]) !== t) return { reason: `Source "${e.sourceId}" has conflicting layer identities in its catalog locator.` };
 		let a = n ? i ? n : `${n}/${t}` : `${r}/rest/services/${encodeURIComponent(e.sourceId)}/FeatureServer/${t}`;
 		return {
@@ -92,10 +97,10 @@ function d(e, t = {}) {
 				type: "geojson",
 				data: `${a}/query?where=1%3D1&outFields=*&f=geojson&resultRecordCount=${c}`
 			},
-			layerType: m
+			layerType: g
 		};
 	}
-	return { reason: `Source "${e.sourceId}" advertises protocol "${g ?? "unknown"}", which the composition map cannot render yet.` };
+	return { reason: `Source "${e.sourceId}" advertises protocol "${v ?? "unknown"}", which the composition map cannot render yet.` };
 }
 function f(e) {
 	return e.source !== void 0;
