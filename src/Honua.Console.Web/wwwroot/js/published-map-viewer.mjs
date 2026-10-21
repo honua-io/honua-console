@@ -52,7 +52,13 @@ export function createPublishedMapViewer({route, container, widgetContainer, sta
     let canvas;
     let disposed = false;
     const message = text => { status.textContent = text; };
-    const clear = () => { lifetime?.abort(); canvas?.dispose(); canvas = undefined; };
+    const resetRenderCount = () => { container.dataset.renderedFeatureCount = '0'; };
+    const updateRenderCount = view => {
+        container.dataset.renderedFeatureCount = view.status === 'ready'
+            && Number.isSafeInteger(view.renderedFeatureCount) && view.renderedFeatureCount >= 0
+            ? String(view.renderedFeatureCount) : '0';
+    };
+    const clear = () => { lifetime?.abort(); canvas?.dispose(); canvas = undefined; resetRenderCount(); };
     async function reload() {
         if (disposed) return;
         clear();
@@ -116,7 +122,7 @@ export function createPublishedMapViewer({route, container, widgetContainer, sta
                 getAudienceTransport: () => isCurrent() ? transport : undefined,
                 sourceAuthBaseUrl: `${origin}${API}/data`, styleProvider,
                 onChange: view => {
-                    if (isCurrent()) message(canvasMessage(view));
+                    if (isCurrent()) { updateRenderCount(view); message(canvasMessage(view)); }
                 },
             });
             if (!isCurrent()) { rendered.dispose(); return; }
@@ -124,9 +130,10 @@ export function createPublishedMapViewer({route, container, widgetContainer, sta
             await rendered.settled();
             if (!isCurrent()) return;
             title.textContent = artifact.envelope.title || artifact.envelope.body.title || 'Published map';
+            updateRenderCount(canvas);
             message(canvasMessage(canvas));
         } catch (error) {
-            if (isCurrent()) { canvas?.dispose(); canvas = undefined; message(error instanceof Error ? error.message : 'The map is unavailable.'); }
+            if (isCurrent()) { canvas?.dispose(); canvas = undefined; resetRenderCount(); message(error instanceof Error ? error.message : 'The map is unavailable.'); }
         }
     }
     return Object.freeze({reload, dispose() { disposed = true; generation++; clear(); }});

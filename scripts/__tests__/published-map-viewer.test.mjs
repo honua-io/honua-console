@@ -30,7 +30,7 @@ function deferred() {
 function harness(responder = () => publishedResponse()) {
     const calls = [];
     const renders = [];
-    const container = {};
+    const container = {dataset: {}};
     const widgetContainer = {};
     const status = {textContent: ''};
     const title = {textContent: ''};
@@ -42,7 +42,8 @@ function harness(responder = () => publishedResponse()) {
     const runtime = {AudienceStyleProvider: class { constructor(options) { Object.assign(this, options); } },
         createReadOnlyCompositionView: options => {
         renders.push(options);
-        return {status: 'ready', statusDetail: '', settled: async () => {}, dispose() { disposed++; }};
+        return {status: 'ready', statusDetail: '', renderedFeatureCount: 3,
+            settled: async () => {}, dispose() { disposed++; }};
     }};
     const viewer = createPublishedMapViewer({route: 'map/map-1', container, widgetContainer, status, title,
         origin, fetchImpl, loadRenderer: async () => runtime});
@@ -88,6 +89,25 @@ test('loads canonical envelope body untouched into the read-only canvas with cur
     assert.equal(options.styleProvider.getTransport(), options.getAudienceTransport());
     assert.equal(h.title.textContent, 'Map first');
     assert.equal(h.status.textContent, 'Map ready.');
+    assert.equal(h.container.dataset.renderedFeatureCount, '3');
+    h.viewer.dispose();
+    assert.equal(h.container.dataset.renderedFeatureCount, '0');
+});
+
+test('only a current ready SDK view exposes a safe rendered count; reload and failure clear it', async () => {
+    const h = harness();
+    await h.viewer.reload();
+    assert.equal(h.container.dataset.renderedFeatureCount, '3');
+    h.renders[0].onChange({status: 'loading', renderedFeatureCount: 9});
+    assert.equal(h.container.dataset.renderedFeatureCount, '0');
+    h.renders[0].onChange({status: 'ready', renderedFeatureCount: Number.MAX_SAFE_INTEGER + 1});
+    assert.equal(h.container.dataset.renderedFeatureCount, '0');
+    h.renders[0].onChange({status: 'ready', renderedFeatureCount: 2});
+    assert.equal(h.container.dataset.renderedFeatureCount, '2');
+    h.viewer.reload();
+    assert.equal(h.container.dataset.renderedFeatureCount, '0');
+    h.renders[0].onChange({status: 'ready', renderedFeatureCount: 99});
+    assert.equal(h.container.dataset.renderedFeatureCount, '0');
     h.viewer.dispose();
 });
 
