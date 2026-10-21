@@ -42,9 +42,8 @@ function u(e) {
 	return e.endsWith("/") ? e.slice(0, -1) : e;
 }
 function d(e, t = {}) {
-	let r = u(t.baseUrl ?? i), c = t.featureLimit ?? a, d = e.type;
-	if (d !== void 0 && d !== "fill" && d !== "line" && d !== "circle") return { reason: `Source "${e.sourceId}" requests layer type "${d}", which the composition map cannot render yet.` };
-	let f = s(e), p = f?.source;
+	let r = u(t.baseUrl ?? i), c = t.featureLimit ?? a, d = e.type, f = s(e), p = f?.source;
+	if (d !== void 0 && d !== "fill" && d !== "line" && d !== "circle" && !(d === "raster" && o(p))) return { reason: `Source "${e.sourceId}" requests layer type "${d}", which the composition map cannot render yet.` };
 	if (o(p)) {
 		let e = typeof f?.layerType == "string" ? f.layerType : void 0;
 		return {
