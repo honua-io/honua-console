@@ -54,7 +54,8 @@ public static class HonuaServerClientFactory
     {
         var bindingHandler = new HonuaServerBindingHandler(
             serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-            serviceProvider.GetRequiredService<IConsoleAccountSessionStore>())
+            serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+            baseUri)
         {
             InnerHandler = new SocketsHttpHandler
             {

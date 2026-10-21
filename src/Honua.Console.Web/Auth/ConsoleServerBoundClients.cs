@@ -1,5 +1,6 @@
 using System.Net.Http;
 using Honua.Console.Shell.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -36,10 +37,7 @@ public static class ConsoleServerBoundClients
 
         services.AddHttpClient("honua-map-proxy")
             .ConfigurePrimaryHttpMessageHandler(CreatePooledPrimaryHandler)
-            .AddHttpMessageHandler(serviceProvider =>
-                new HonuaServerBindingHandler(
-                    serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                    serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()))
+            .AddHttpMessageHandler(serviceProvider => CreateBindingHandler(serviceProvider))
             .AddHttpMessageHandler(serviceProvider => CreateCredentialHandler(serviceProvider));
 
         // The privileged chain: operator guard (fail-closed) OUTERMOST, then the shared profile/session
@@ -50,10 +48,7 @@ public static class ConsoleServerBoundClients
             .AddHttpMessageHandler(serviceProvider =>
                 new ConsoleServerBoundOperatorGuardHandler(
                     serviceProvider.GetRequiredService<IConsoleOperatorContext>()))
-            .AddHttpMessageHandler(serviceProvider =>
-                new HonuaServerBindingHandler(
-                    serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                    serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()))
+            .AddHttpMessageHandler(serviceProvider => CreateBindingHandler(serviceProvider))
             .AddHttpMessageHandler(serviceProvider => CreateCredentialHandler(serviceProvider));
 
         // The anonymous-capable chain: same binding (forwards the operator bearer WHEN resolved) but NO
@@ -61,16 +56,29 @@ public static class ConsoleServerBoundClients
         // anonymous visitors. The final credential boundary strips all shared keys.
         services.AddHttpClient(PublicClientName)
             .ConfigurePrimaryHttpMessageHandler(CreatePooledPrimaryHandler)
-            .AddHttpMessageHandler(serviceProvider =>
-                new HonuaServerBindingHandler(
-                    serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                    serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()))
+            .AddHttpMessageHandler(serviceProvider => CreateBindingHandler(serviceProvider))
             .AddHttpMessageHandler(serviceProvider => CreateCredentialHandler(serviceProvider, allowAnonymous: true));
 
         services.TryAddSingleton<Honua.Console.Contracts.IConsoleAuthorityBindingValidator, ConsoleAuthorityBindingValidator>();
         services.TryAddSingleton<IHonuaServerBoundClientFactory, HttpClientFactoryServerBoundClientFactory>();
 
         return services;
+    }
+
+    private static HonuaServerBindingHandler CreateBindingHandler(IServiceProvider services) =>
+        new(
+            services.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+            services.GetRequiredService<IConsoleAccountSessionStore>(),
+            StartupServerBase(services));
+
+    private static Uri? StartupServerBase(IServiceProvider services)
+    {
+        var configuration = services.GetService<IConfiguration>();
+        var raw = configuration?["Honua:Server:BaseUrl"] ?? configuration?["HONUA_SERVER_BASE_URL"];
+        return Uri.TryCreate(raw, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+            ? uri
+            : null;
     }
 
     private static ConsoleOperatorCredentialHandler CreateCredentialHandler(IServiceProvider services, bool allowAnonymous = false) =>
