@@ -9,11 +9,13 @@ namespace Honua.Console.Web;
 /// <summary>Human-only bounded transport to the canonical workspace process gateway.</summary>
 internal static partial class LocalProcessBff
 {
+    private const long MaximumArtifactBytes = 128L * 1024 * 1024;
+
     public static void MapLocalProcessBff(this WebApplication app)
     {
         app.MapMethods("/api/processes/local/{**path}", ["GET", "PUT", "POST", "DELETE"], async (
             HttpContext context, string? path, IConsoleEnvironmentProfileStore profiles,
-            IConsoleOperatorBearerProvider bearers, IAntiforgery antiforgery,
+            IConsoleOperatorBearerProvider bearers, IConsoleAccountSessionStore sessions, IAntiforgery antiforgery,
             IHttpClientFactory clients, CancellationToken cancellationToken) =>
         {
             context.Response.Headers.CacheControl = "no-store";
@@ -36,6 +38,13 @@ internal static partial class LocalProcessBff
             if (!AgentGatewayBinding.MatchesBrowserPartition(context, profile)) return Results.StatusCode(409);
             var credential = await bearers.ResolveAsync(profile, cancellationToken);
             if (!credential.IsAvailable) return Results.StatusCode(401);
+            var isArtifact = HttpMethods.IsGet(context.Request.Method)
+                && path.Contains("/artifacts/", StringComparison.Ordinal);
+            var account = isArtifact ? await sessions.GetSessionAsync(profile.Id, cancellationToken) : null;
+            if (isArtifact && (account is null || string.IsNullOrWhiteSpace(account.AccountId)
+                || account.ServerBaseUri != profile.ServerBaseUri
+                || !string.Equals(account.AccessToken, credential.AccessToken, StringComparison.Ordinal)))
+                return Results.StatusCode(401);
             using var request = new HttpRequestMessage(new HttpMethod(context.Request.Method),
                 new Uri(new Uri(profile.ServerBaseUri.AbsoluteUri.TrimEnd('/') + "/"),
                     $"api/v1/agent/workspaces/{workspaceId}/processes/local/{path}"));
@@ -59,22 +68,93 @@ internal static partial class LocalProcessBff
                 request.Content = new ByteArrayContent(buffer.ToArray());
                 request.Content.Headers.ContentType = new("application/json");
             }
+            IResult BeforeStartFailure(int status)
+            {
+                context.Response.ContentLength = null;
+                context.Response.Headers.Remove("Content-Disposition");
+                context.Response.Headers.Remove("ETag");
+                return Results.StatusCode(status);
+            }
+
             try
             {
-                using var response = await clients.CreateClient("honua-agent-workspace").SendAsync(request,
-                    HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                // ResponseHeadersRead stops HttpClient.Timeout at the headers.
+                // Keep the artifact deadline active throughout the response body.
+                using var artifactDeadline = isArtifact
+                    ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken) : null;
+                artifactDeadline?.CancelAfter(TimeSpan.FromMinutes(6));
+                var upstreamToken = artifactDeadline?.Token ?? cancellationToken;
+                using var client = clients.CreateClient("honua-agent-workspace");
+                if (isArtifact) client.Timeout = TimeSpan.FromMinutes(6);
+                using var response = await client.SendAsync(request,
+                    HttpCompletionOption.ResponseHeadersRead, upstreamToken);
                 if ((int)response.StatusCode is >= 300 and < 400) return Results.StatusCode(502);
+                var artifactLength = isArtifact && response.IsSuccessStatusCode
+                    ? response.Content.Headers.ContentLength : null;
+                if (isArtifact && response.IsSuccessStatusCode
+                    && (artifactLength is null or < 0 or > MaximumArtifactBytes)) return Results.StatusCode(502);
                 context.Response.StatusCode = (int)response.StatusCode;
                 context.Response.ContentType = response.Content.Headers.ContentType?.ToString() ?? "application/json";
-                if (response.IsSuccessStatusCode && path.Contains("/artifacts/", StringComparison.Ordinal))
+                if (artifactLength is not null)
+                {
                     context.Response.Headers.ContentDisposition = "attachment";
+                    context.Response.Headers.XContentTypeOptions = "nosniff";
+                    context.Response.ContentLength = artifactLength;
+                }
                 if (response.Headers.ETag is { } responseEtag) context.Response.Headers.ETag = responseEtag.ToString();
-                await response.Content.CopyToAsync(context.Response.Body, cancellationToken);
+                if (artifactLength is { } length)
+                {
+                    async Task<bool> CurrentReaderAsync(CancellationToken token)
+                    {
+                        var current = await profiles.GetActiveProfileAsync(token);
+                        if (current?.Id != profile.Id || current.ServerBaseUri != profile.ServerBaseUri
+                            || !AgentGatewayBinding.MatchesBrowserPartition(context, current)) return false;
+                        var currentCredential = await bearers.ResolveAsync(current, token);
+                        if (!currentCredential.IsAvailable) return false;
+                        var currentAccount = await sessions.GetSessionAsync(current.Id, token);
+                        if (currentAccount?.AccountId != account!.AccountId
+                            || currentAccount.TenantId != account.TenantId
+                            || currentAccount.ServerBaseUri != account.ServerBaseUri) return false;
+                        return string.Equals(currentCredential.AccessToken, currentAccount.AccessToken,
+                            StringComparison.Ordinal);
+                    }
+
+                    await using var upstream = await response.Content.ReadAsStreamAsync(upstreamToken);
+                    await TransferArtifactAsync(upstream, context.Response.Body, length,
+                        CurrentReaderAsync, upstreamToken);
+                }
+                else await response.Content.CopyToAsync(context.Response.Body, cancellationToken);
                 return Results.Empty;
             }
-            catch (HttpRequestException) { return Results.StatusCode(502); }
-            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.StatusCode(504); }
+            catch (Exception error) when (context.Response.HasStarted && error is
+                HttpRequestException or OperationCanceledException or IOException or InvalidDataException or InvalidOperationException)
+            { context.Abort(); return Results.Empty; }
+            catch (InvalidDataException) { return BeforeStartFailure(502); }
+            catch (InvalidOperationException) { return BeforeStartFailure(409); }
+            catch (IOException) { return BeforeStartFailure(502); }
+            catch (HttpRequestException) { return BeforeStartFailure(502); }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return BeforeStartFailure(504); }
         });
+    }
+
+    internal static async Task TransferArtifactAsync(Stream upstream, Stream output, long expectedBytes,
+        Func<CancellationToken, Task<bool>> currentReader, CancellationToken token)
+    {
+        if (expectedBytes is < 0 or > MaximumArtifactBytes) throw new InvalidDataException("Artifact size is unsupported.");
+        var buffer = new byte[1024 * 1024];
+        long copied = 0;
+        while (true)
+        {
+            if (!await currentReader(token)) throw new InvalidOperationException("Artifact reader changed.");
+            var count = await upstream.ReadAsync(buffer, token);
+            if (count == 0) break;
+            if (copied + count > expectedBytes) throw new InvalidDataException("Artifact exceeded its verified length.");
+            if (!await currentReader(token)) throw new InvalidOperationException("Artifact reader changed.");
+            await output.WriteAsync(buffer.AsMemory(0, count), token);
+            copied += count;
+        }
+        if (copied != expectedBytes) throw new InvalidDataException("Artifact ended before its verified length.");
+        if (!await currentReader(token)) throw new InvalidOperationException("Artifact reader changed.");
     }
 
     internal static bool AllowsMethod(string path, string method) =>

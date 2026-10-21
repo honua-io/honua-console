@@ -132,6 +132,11 @@
         <details class="console-panel console-conversation" data-agent-workspace>
             <summary>Conversation</summary>
             <p data-workspace-target>Start a conversation in your selected environment.</p>
+            <label>Deployment target
+                <select class="console-input" data-workspace-deploy-target aria-label="Deployment target">
+                    <option value="">No deployment selected</option>
+                </select>
+            </label>
             <button type="button" class="console-button" data-workspace-start>Start conversation</button>
             <div data-workspace-messages role="log" aria-label="Workspace conversation"></div>
             <form>

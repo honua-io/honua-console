@@ -35,10 +35,38 @@ The credential-free receipt identifies the content and saved body. Network
 traces and videos are disabled. Run only against a disposable evaluation
 deployment: drafts and the saved content item remain available for inspection.
 
-This is one part of the full qualification journey. It does not certify fresh
-installation/pairing, imports, shared-style governance, arbitrary edits inside
-Maputnik's own controls, publication/audience, crash recovery,
-external MCP clients, or artifact provenance. Record exact released artifacts
+For the fresh native Docker first-use harness, the same spec accepts
+`HONUA_WORKSPACE_E2E_IMPORT_FILE` (a real GeoJSON file) and
+`HONUA_WORKSPACE_E2E_CONNECTION` (the newly created, tested managed PostGIS
+connection). It imports the file and publishes one service through Console,
+then feeds that observed service/layer to the native map flow. With
+`HONUA_WORKSPACE_E2E_CONSOLE_SHA`, it verifies the running Console's
+`/version.json` source revision. With `HONUA_WORKSPACE_E2E_PUBLICATION_ROUTE`
+and `HONUA_WORKSPACE_E2E_PUBLICATION_HANDOFF`, the paired human session reviews
+the saved version and submits one publication proposal. It writes a private
+0600 handoff containing the actual proposal, operation, deterministic request,
+item, version, source and content identifiers, including the original submitting
+human identity observed from the pending server proposal. The native prompt never
+approves or publishes. A missing canonical request identity fails the producer.
+
+After a distinct human approves that exact proposal in Console's normal inbox,
+run `publication-witness.live.spec.ts` with the same private operator storage
+state, origin, handoff path, and a new `HONUA_WORKSPACE_E2E_PUBLICATION_WITNESS`
+path. It only reads the proposal, canonical publication request and anonymous
+published route. It requires the original server-recorded proposer from the
+paired submission to remain unchanged and the nonempty approving actor to differ
+from that proposer. The public artifact must match the original immutable version
+and hash. The
+release runner in `honua-release/certification/native-docker-first` orchestrates
+these paths and binds them to the published candidate artifacts; this browser
+test alone still does not prove a fresh installation. The joined runner does not
+qualify one external-agent conversation through setup, data, service, map, and publish;
+its external Claude session currently ends after installation.
+
+This is one part of the full qualification journey. The standalone browser spec
+does not certify fresh installation/pairing, shared-style governance, arbitrary
+edits inside Maputnik's own controls, crash recovery, an external MCP client
+performing all workflows, or artifact provenance. Record exact released artifacts
 in the encompassing installation receipt. The older builder tests remain
 unqualified and must be replaced by coverage of their current product outcomes;
 passing this test alone does not replace those outcomes or complete a milestone.
