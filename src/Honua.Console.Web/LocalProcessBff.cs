@@ -78,10 +78,16 @@ internal static partial class LocalProcessBff
 
             try
             {
+                // ResponseHeadersRead stops HttpClient.Timeout at the headers.
+                // Keep the artifact deadline active throughout the response body.
+                using var artifactDeadline = isArtifact
+                    ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken) : null;
+                artifactDeadline?.CancelAfter(TimeSpan.FromMinutes(6));
+                var upstreamToken = artifactDeadline?.Token ?? cancellationToken;
                 using var client = clients.CreateClient("honua-agent-workspace");
                 if (isArtifact) client.Timeout = TimeSpan.FromMinutes(6);
                 using var response = await client.SendAsync(request,
-                    HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                    HttpCompletionOption.ResponseHeadersRead, upstreamToken);
                 if ((int)response.StatusCode is >= 300 and < 400) return Results.StatusCode(502);
                 var artifactLength = isArtifact && response.IsSuccessStatusCode
                     ? response.Content.Headers.ContentLength : null;
@@ -113,9 +119,9 @@ internal static partial class LocalProcessBff
                             StringComparison.Ordinal);
                     }
 
-                    await using var upstream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                    await using var upstream = await response.Content.ReadAsStreamAsync(upstreamToken);
                     await TransferArtifactAsync(upstream, context.Response.Body, length,
-                        CurrentReaderAsync, cancellationToken);
+                        CurrentReaderAsync, upstreamToken);
                 }
                 else await response.Content.CopyToAsync(context.Response.Body, cancellationToken);
                 return Results.Empty;
