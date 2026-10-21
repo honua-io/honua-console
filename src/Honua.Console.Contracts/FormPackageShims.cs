@@ -313,6 +313,11 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
         CancellationToken cancellationToken = default,
         Func<HttpResponseMessage, CancellationToken, Task<HonuaAdminEndpointResult<T>?>>? errorHandler = null)
     {
+        if (UnregisteredServerRoutes.Contains(contract))
+        {
+            return UnregisteredServerRoutes.Admin<T>(contract);
+        }
+
         using var request = new HttpRequestMessage(method, path);
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {

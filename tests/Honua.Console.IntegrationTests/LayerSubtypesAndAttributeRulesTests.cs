@@ -10,13 +10,9 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Honua.Console.IntegrationTests;
 
 /// <summary>
-/// Docker-free coverage for the layer subtypes + attribute-rules authoring surface (gapc/subtypes-rules): a new
-/// <c>GET/PUT /api/v1/admin/metadata/layers/{id}/subtypes</c> and <c>.../attribute-rules</c> client + operation
-/// + page. These assert the real route/verb/body the Save mutations issue (over a recording admin client), the
-/// result mapping, and — critically — that a missing-binding result is surfaced HONESTLY through real DI rather
-/// than fabricated (Console Patterns Charter section 11). The page tests prove the GET load renders bound rows
-/// and the merged-build Unsupported* source renders the honest missing-binding state. They run in PR CI (no
-/// Docker).
+/// Docker-free coverage for layer subtypes and attribute rules. The pinned server does not register
+/// those routes, so the live client returns Unsupported and issues no HTTP. Page tests still prove a
+/// bound fake renders rows, and the missing-binding operation names HONUA_SERVER_BASE_URL.
 /// </summary>
 public sealed class LayerSubtypesAndAttributeRulesTests
 {
@@ -26,188 +22,28 @@ public sealed class LayerSubtypesAndAttributeRulesTests
     // ---- Client: subtypes route + body ----
 
     [Fact]
-    public async Task UpdateSubtypes_IssuesPutToSubtypesRoute_WithSubtypeBody()
+    public async Task UnregisteredSubtypeAndAttributeRuleRoutes_FailClosedWithoutHttp()
     {
-        string? path = null;
-        HttpMethod? method = null;
-        string? body = null;
-        var operation = new HonuaServerConsoleLayerSubtypesOperation(CreateClient(request =>
-        {
-            path = request.RequestUri?.AbsolutePath;
-            method = request.Method;
-            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
-            return Ok(new HonuaAdminLayerSubtypes { LayerId = 1 });
-        }));
-
-        var result = await operation.SetSubtypesAsync(
-            layerId: 1,
-            subtypeField: "status",
-            defaultSubtypeCode: "1",
-            clear: false,
-            subtypes:
-            [
-                new ConsoleLayerSubtype
-                {
-                    Code = "1",
-                    Name = "Active",
-                    FieldOverrides = [new ConsoleSubtypeFieldOverride { FieldName = "phase", DefaultValueJson = "\"start\"" }],
-                }
-            ]);
-
-        Assert.True(result.Succeeded);
-        Assert.Equal("Updated", result.State);
-        Assert.Equal(HttpMethod.Put, method);
-        Assert.Equal("/api/v1/admin/metadata/layers/1/subtypes", path);
-        Assert.Contains("\"clear\":false", body!, StringComparison.Ordinal);
-        Assert.Contains("\"subtypeField\":\"status\"", body!, StringComparison.Ordinal);
-        Assert.Contains("\"defaultSubtypeCode\":1", body!, StringComparison.Ordinal);
-        Assert.Contains("\"code\":1", body!, StringComparison.Ordinal);
-        Assert.Contains("\"name\":\"Active\"", body!, StringComparison.Ordinal);
-        // The field override is keyed by field name with its JSON-typed default passthrough.
-        Assert.Contains("\"phase\":", body!, StringComparison.Ordinal);
-        Assert.Contains("\"defaultValue\":\"start\"", body!, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task ClearSubtypes_IssuesPutWithClearTrue_AndNoSubtypes()
-    {
-        string? body = null;
-        var operation = new HonuaServerConsoleLayerSubtypesOperation(CreateClient(request =>
-        {
-            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
-            return Ok(new HonuaAdminLayerSubtypes { LayerId = 1 });
-        }));
-
-        var result = await operation.SetSubtypesAsync(1, null, null, clear: true, subtypes: []);
-
-        Assert.True(result.Succeeded);
-        Assert.Contains("\"clear\":true", body!, StringComparison.Ordinal);
-        // clear:true keeps the body minimal — subtypes is omitted entirely (WhenWritingNull).
-        Assert.DoesNotContain("\"subtypes\":", body!, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task GetSubtypes_ProjectsBoundSubtypesForEditor()
-    {
-        var client = CreateClient(_ => Ok(new HonuaAdminLayerSubtypes
-        {
-            LayerId = 1,
-            SubtypeField = "status",
-            DefaultSubtypeCode = ParseJson("1"),
-            Subtypes =
-            [
-                new HonuaAdminLayerSubtype
-                {
-                    Code = ParseJson("1"),
-                    Name = "Active",
-                    FieldOverrides = new Dictionary<string, HonuaAdminSubtypeFieldOverride>
-                    {
-                        ["phase"] = new() { DefaultValue = ParseJson("\"start\"") },
-                    },
-                }
-            ],
-        }));
-        var operation = new HonuaServerConsoleLayerSubtypesOperation(client);
-
-        var view = await operation.GetSubtypesAsync(1);
-
-        Assert.True(view.Bound);
-        Assert.Equal("status", view.SubtypeField);
-        Assert.Equal("1", view.DefaultSubtypeCode);
-        var subtype = Assert.Single(view.Subtypes);
-        Assert.Equal("1", subtype.Code);
-        Assert.Equal("Active", subtype.Name);
-        var ovr = Assert.Single(subtype.FieldOverrides);
-        Assert.Equal("phase", ovr.FieldName);
-        Assert.Equal("start", ovr.DefaultValueJson);
-    }
-
-    // ---- Client: attribute-rules route + body ----
-
-    [Fact]
-    public async Task UpdateAttributeRules_IssuesPutToAttributeRulesRoute_WithRuleBody()
-    {
-        string? path = null;
-        HttpMethod? method = null;
-        string? body = null;
-        var operation = new HonuaServerConsoleLayerSubtypesOperation(CreateClient(request =>
-        {
-            path = request.RequestUri?.AbsolutePath;
-            method = request.Method;
-            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
-            return Ok(new HonuaAdminLayerAttributeRules { LayerId = 1 });
-        }));
-
-        var result = await operation.SetAttributeRulesAsync(1,
-        [
-            new ConsoleAttributeRule
-            {
-                Name = "calc_area",
-                Type = "calculation",
-                FieldName = "area",
-                ScriptExpression = "$feature.area * 2",
-                TriggeringEvents = ["insert", "update"],
-                ErrorMessage = "Area must be positive",
-                IsEnabled = true,
-            }
-        ]);
-
-        Assert.True(result.Succeeded);
-        Assert.Equal("Updated", result.State);
-        Assert.Equal(HttpMethod.Put, method);
-        Assert.Equal("/api/v1/admin/metadata/layers/1/attribute-rules", path);
-        Assert.Contains("\"name\":\"calc_area\"", body!, StringComparison.Ordinal);
-        Assert.Contains("\"type\":\"calculation\"", body!, StringComparison.Ordinal);
-        Assert.Contains("\"fieldName\":\"area\"", body!, StringComparison.Ordinal);
-        Assert.Contains("\"scriptExpression\":\"$feature.area * 2\"", body!, StringComparison.Ordinal);
-        Assert.Contains("\"triggeringEvents\":[\"insert\",\"update\"]", body!, StringComparison.Ordinal);
-        Assert.Contains("\"errorMessage\":\"Area must be positive\"", body!, StringComparison.Ordinal);
-        Assert.Contains("\"isEnabled\":true", body!, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task UpdateAttributeRules_Empty_IssuesPutWithEmptyRules_ToClear()
-    {
-        string? body = null;
-        var operation = new HonuaServerConsoleLayerSubtypesOperation(CreateClient(request =>
-        {
-            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
-            return Ok(new HonuaAdminLayerAttributeRules { LayerId = 1 });
-        }));
-
-        var result = await operation.SetAttributeRulesAsync(1, []);
-
-        Assert.True(result.Succeeded);
-        Assert.Contains("\"rules\":[]", body!, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task UpdateAttributeRules_WhenServerRejectsDuplicateName_DoesNotClaimSuccess()
-    {
+        var calls = 0;
         var operation = new HonuaServerConsoleLayerSubtypesOperation(CreateClient(_ =>
-            new HttpResponseMessage(HttpStatusCode.BadRequest)
-            {
-                Content = JsonContent.Create(new { success = false, message = "Duplicate rule name 'calc_area'." })
-            }));
+        {
+            calls++;
+            throw new InvalidOperationException("unregistered route must not send HTTP");
+        }));
 
-        var result = await operation.SetAttributeRulesAsync(1,
-            [new ConsoleAttributeRule { Name = "calc_area", Type = "calculation" }]);
+        var subtypes = await operation.GetSubtypesAsync(1);
+        var rules = await operation.GetAttributeRulesAsync(1);
+        var saveSubtypes = await operation.SetSubtypesAsync(1, "status", "1", clear: false, subtypes: []);
+        var saveRules = await operation.SetAttributeRulesAsync(1, []);
 
-        Assert.False(result.Succeeded);
-        Assert.NotEqual("Updated", result.State);
-        Assert.Contains("Duplicate rule name", result.Detail!, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task UpdateSubtypes_OnTransportError_DoesNotClaimSuccess()
-    {
-        var operation = new HonuaServerConsoleLayerSubtypesOperation(CreateClient(_ =>
-            throw new HttpRequestException("connection refused")));
-
-        var result = await operation.SetSubtypesAsync(1, "status", "1", clear: false, subtypes: []);
-
-        Assert.False(result.Succeeded);
-        Assert.False(string.IsNullOrWhiteSpace(result.Detail));
+        Assert.Equal(0, calls);
+        Assert.False(subtypes.Bound);
+        Assert.False(rules.Bound);
+        Assert.Contains(UnregisteredServerRoutes.Detail, subtypes.Detail, StringComparison.Ordinal);
+        Assert.False(saveSubtypes.Succeeded);
+        Assert.Equal(UnregisteredServerRoutes.State, saveSubtypes.State);
+        Assert.False(saveRules.Succeeded);
+        Assert.Equal(UnregisteredServerRoutes.State, saveRules.State);
     }
 
     // ---- Unsupported (missing-binding) ----

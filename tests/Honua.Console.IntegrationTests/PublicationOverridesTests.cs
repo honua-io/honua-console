@@ -11,15 +11,9 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Honua.Console.IntegrationTests;
 
 /// <summary>
-/// Docker-free coverage for the publication-overrides authoring slice (gapc/pub-overrides): the
-/// <see cref="HonuaServerConsolePublicationOverridesOperation"/> over a stubbed admin client, the
-/// missing-binding <see cref="UnsupportedConsolePublicationOverridesOperation"/>, and the
-/// <see cref="OperatePublicationOverridesPage"/> render/save round-trip. Asserts the real route/verb/body each
-/// read+write issues for the publication overrides endpoint
-/// (<c>GET/PUT /api/v1/admin/metadata/publications/{publicationId}/overrides</c>) — including the fieldAliases
-/// map and the capabilities/supportedFormats arrays plus the isPrimary flag — the result mapping, and that the
-/// unconfigured surface never performs a network call. No mocks of overrides data: every assertion is over the
-/// wire the operation actually sends, or what a recorded server response maps to.
+/// Docker-free coverage for publication overrides. The pinned server does not register that route,
+/// so the live client returns Unsupported and issues no HTTP. Page tests still prove a bound fake,
+/// and the missing-binding operation names HONUA_SERVER_BASE_URL.
 /// </summary>
 public sealed class PublicationOverridesTests
 {
@@ -27,139 +21,24 @@ public sealed class PublicationOverridesTests
     private static readonly Uri BaseAddress = new("https://honua.test");
 
     [Fact]
-    public async Task GetOverrides_IssuesGetToOverridesRoute_AndMapsFields()
+    public async Task UnregisteredPublicationOverrideRoutes_FailClosedWithoutHttp()
     {
-        string? path = null;
-        HttpMethod? method = null;
-        var operation = new HonuaServerConsolePublicationOverridesOperation(CreateClient(request =>
-        {
-            path = request.RequestUri?.AbsolutePath;
-            method = request.Method;
-            return Ok(SampleOverrides());
-        }));
-
-        var result = await operation.GetOverridesAsync(PublicationId);
-
-        Assert.True(result.Bound);
-        Assert.Equal(HttpMethod.Get, method);
-        Assert.Equal("/api/v1/admin/metadata/publications/pub-123/overrides", path);
-        Assert.Equal("Public parcels", result.TitleOverride);
-        Assert.True(result.IsPrimary);
-        Assert.Equal(new[] { "Query", "Create" }, result.Capabilities);
-        Assert.Equal(new[] { "json", "geojson" }, result.SupportedFormats);
-        var alias = Assert.Single(result.FieldAliases);
-        Assert.Equal("OBJECTID", alias.Field);
-        Assert.Equal("Record ID", alias.Alias);
-    }
-
-    [Fact]
-    public async Task SaveOverrides_IssuesPutWithAliasMapAndArrays_ToOverridesRoute()
-    {
-        string? path = null;
-        HttpMethod? method = null;
-        string? body = null;
-        var operation = new HonuaServerConsolePublicationOverridesOperation(CreateClient(request =>
-        {
-            path = request.RequestUri?.AbsolutePath;
-            method = request.Method;
-            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
-            return Ok(SampleOverrides());
-        }));
-
-        var result = await operation.SaveOverridesAsync(PublicationId, new ConsolePublicationOverrides
-        {
-            Bound = true,
-            TitleOverride = "Public parcels",
-            IsPrimary = true,
-            Capabilities = new[] { "Query", "Create" },
-            SupportedFormats = new[] { "json", "geojson" },
-            FieldAliases = new[]
-            {
-                new ConsolePublicationFieldAlias { Field = "OBJECTID", Alias = "Record ID" },
-                new ConsolePublicationFieldAlias { Field = "GEOM", Alias = "Shape" },
-            },
-        });
-
-        Assert.True(result.Succeeded);
-        Assert.Equal("Updated", result.State);
-        Assert.Equal(HttpMethod.Put, method);
-        Assert.Equal("/api/v1/admin/metadata/publications/pub-123/overrides", path);
-
-        using var doc = JsonDocument.Parse(body!);
-        var root = doc.RootElement;
-        Assert.Equal("Public parcels", root.GetProperty("titleOverride").GetString());
-        Assert.True(root.GetProperty("isPrimary").GetBoolean());
-
-        var aliases = root.GetProperty("fieldAliases");
-        Assert.Equal(JsonValueKind.Object, aliases.ValueKind);
-        Assert.Equal("Record ID", aliases.GetProperty("OBJECTID").GetString());
-        Assert.Equal("Shape", aliases.GetProperty("GEOM").GetString());
-
-        var capabilities = root.GetProperty("capabilities");
-        Assert.Equal(2, capabilities.GetArrayLength());
-        Assert.Equal("Query", capabilities[0].GetString());
-
-        var formats = root.GetProperty("supportedFormats");
-        Assert.Equal(2, formats.GetArrayLength());
-        Assert.Equal("json", formats[0].GetString());
-    }
-
-    [Fact]
-    public async Task SaveOverrides_WithBlankTitleAndNoRows_ClearsTitleAndSendsEmptyMapAndArrays()
-    {
-        string? body = null;
-        var operation = new HonuaServerConsolePublicationOverridesOperation(CreateClient(request =>
-        {
-            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
-            return Ok(new HonuaAdminPublicationOverrides { PublicationId = PublicationId });
-        }));
-
-        var result = await operation.SaveOverridesAsync(PublicationId, new ConsolePublicationOverrides
-        {
-            Bound = true,
-            TitleOverride = string.Empty,
-            Capabilities = Array.Empty<string>(),
-            SupportedFormats = Array.Empty<string>(),
-            FieldAliases = Array.Empty<ConsolePublicationFieldAlias>(),
-        });
-
-        Assert.True(result.Succeeded);
-        // Empty string clears the title; empty map/arrays clear those server-side.
-        Assert.Contains("\"titleOverride\":\"\"", body!, StringComparison.Ordinal);
-        Assert.Contains("\"fieldAliases\":{}", body!, StringComparison.Ordinal);
-        Assert.Contains("\"capabilities\":[]", body!, StringComparison.Ordinal);
-        Assert.Contains("\"supportedFormats\":[]", body!, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task GetOverrides_WhenPublicationUnknown_MapsMissingBinding()
-    {
+        var calls = 0;
         var operation = new HonuaServerConsolePublicationOverridesOperation(CreateClient(_ =>
-            new HttpResponseMessage(HttpStatusCode.NotFound)));
-
-        var result = await operation.GetOverridesAsync("nope");
-
-        Assert.False(result.Bound);
-        Assert.False(string.IsNullOrWhiteSpace(result.Detail));
-    }
-
-    [Fact]
-    public async Task SaveOverrides_WhenServerRejects_MapsFailureWithDetail()
-    {
-        var operation = new HonuaServerConsolePublicationOverridesOperation(CreateClient(_ =>
-            new HttpResponseMessage(HttpStatusCode.BadRequest)
-            {
-                Content = JsonContent.Create(new { success = false, message = "capability 'Frobnicate' is not recognized." })
-            }));
-
-        var result = await operation.SaveOverridesAsync(PublicationId, new ConsolePublicationOverrides
         {
-            Bound = true,
-            Capabilities = new[] { "Frobnicate" },
-        });
+            calls++;
+            throw new InvalidOperationException("unregistered route must not send HTTP");
+        }));
 
-        Assert.False(result.Succeeded);
-        Assert.Contains("not recognized", result.Detail!, StringComparison.Ordinal);
+        var read = await operation.GetOverridesAsync(PublicationId);
+        var write = await operation.SaveOverridesAsync(PublicationId, new ConsolePublicationOverrides { Bound = true });
+
+        Assert.Equal(0, calls);
+        Assert.False(read.Bound);
+        Assert.Contains(UnregisteredServerRoutes.Detail, read.Detail, StringComparison.Ordinal);
+        Assert.False(write.Succeeded);
+        Assert.Equal(UnregisteredServerRoutes.State, write.State);
+        Assert.Contains(UnregisteredServerRoutes.Detail, write.Detail, StringComparison.Ordinal);
     }
 
     [Fact]

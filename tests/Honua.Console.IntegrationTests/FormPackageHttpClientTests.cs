@@ -74,19 +74,13 @@ public sealed class FormPackageHttpClientTests
     }
 
     [Fact]
-    public async Task ImportXlsForm_PostsWorkbook_ToImportEndpoint_AndReadsResult()
+    public async Task ImportXlsForm_UnregisteredRoute_FailsClosedWithoutHttp()
     {
-        HttpRequestMessage? captured = null;
-        var result = new HonuaFormXlsFormImportResult
+        var calls = 0;
+        using var client = CreateClient(new StaticResponseHandler(_ =>
         {
-            Title = "Survey",
-            FieldCount = 1,
-            Package = new HonuaFormPackageDocument { Title = "Survey" }
-        };
-        using var client = CreateClient(new StaticResponseHandler(request =>
-        {
-            captured = request;
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(result) };
+            calls++;
+            return new HttpResponseMessage(HttpStatusCode.OK);
         }));
 
         var response = await client.ImportXlsFormAsync(new ImportXlsFormRequest
@@ -96,23 +90,10 @@ public sealed class FormPackageHttpClientTests
             Content = Convert.ToBase64String([1, 2, 3])
         });
 
-        Assert.NotNull(captured);
-        Assert.Equal(HttpMethod.Post, captured!.Method);
-        Assert.Equal("/api/v1/admin/forms/packages/import-xlsform", captured.RequestUri!.AbsolutePath);
-        Assert.Null(response.Issue);
-        Assert.Equal("Survey", response.Data!.Title);
-    }
-
-    [Fact]
-    public async Task ImportXlsForm_WhenServerLacksContract_MapsNotFoundToUnsupported()
-    {
-        using var client = CreateClient(new StaticResponseHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound)));
-
-        var response = await client.ImportXlsFormAsync(new ImportXlsFormRequest { FileName = "f.xlsx", Content = "AQ==" });
-
-        Assert.NotNull(response.Issue);
-        Assert.Equal("Unsupported", response.Issue!.State);
-        Assert.Equal(404, response.Issue.StatusCode);
+        Assert.Equal(0, calls);
+        Assert.Equal(UnregisteredServerRoutes.State, response.Issue!.State);
+        Assert.Equal(UnregisteredServerRoutes.StatusCode, response.Issue.StatusCode);
+        Assert.Equal(UnregisteredServerRoutes.Detail, response.Issue.Detail);
     }
 
     private static HonuaFormPackageHttpClient CreateClient(HttpMessageHandler handler, TimeSpan? timeout = null)

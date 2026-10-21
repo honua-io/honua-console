@@ -8,17 +8,16 @@ title: Live AWS browser smoke
 The scheduled and manually dispatched `.github/workflows/console-aws-browser.yml`
 workflow runs the `live-aws-browser` check against `https://demo.honua.io`.
 
-Before checkout, tool installation, or publishing, `operator-preflight` checks
-whether both `HONUA_CONSOLE_AWS_OPERATOR_USERNAME` and
-`HONUA_CONSOLE_AWS_OPERATOR_PASSWORD` repository secrets are present. If either
-is absent, `live-aws-browser` concludes **skipped**. The preflight notice and job
-summary name both secrets and direct the operator to configure both for a
-provisioned AWS operator, then rerun the workflow. This is an explicit missing
-precondition, not successful browser certification.
+Before checkout, tool installation, or publishing, `operator-preflight` reads
+`HONUA_CONSOLE_AWS_OPERATOR_USERNAME` and
+`HONUA_CONSOLE_AWS_OPERATOR_PASSWORD`. It does not print the values. If either
+secret is absent, the step writes `provisioned=false`, records an error that
+missing operator secrets are not a pass, and exits non-zero. `live-aws-browser`
+does not run. The workflow is red until both repository secrets exist.
 
 With both secrets present, the existing publish, AWS-bound journeys, and evidence
 upload run unchanged. Invalid credentials, backend errors, browser assertions,
-and missing evidence still fail; only absent operator secrets permit a skip.
+and missing evidence still fail. There is no skip for absent operator secrets.
 The check name remains `live-aws-browser` for the release environment-gated
 classification in `honua-release/certification/env-gated-checks.yaml`.
 

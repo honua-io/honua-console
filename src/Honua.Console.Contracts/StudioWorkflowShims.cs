@@ -829,6 +829,11 @@ public sealed class HttpWorkflowPackageApiClient : IWorkflowPackageApiClient, ID
         string contract,
         CancellationToken cancellationToken)
     {
+        if (UnregisteredServerRoutes.Contains(contract))
+        {
+            return UnregisteredServerRoutes.Workflow<TResponse>(contract);
+        }
+
         using var request = new HttpRequestMessage(method, path);
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {

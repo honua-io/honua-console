@@ -2,6 +2,7 @@ using Honua.Console.Shell.DependencyInjection;
 using Honua.Console.Web;
 using Honua.Console.Web.Auth;
 using Honua.Console.Web.Components;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -69,8 +70,13 @@ static bool ParseFlag(string? value) =>
 // fallback policy so no Console route is reachable anonymously. See ConsoleAuthentication for the model.
 builder.AddConsoleAuthentication();
 builder.AddConsoleServerSessionBff();
+builder.Services.Configure<ForwardedHeadersOptions>(ConsoleForwardedHeaders.Apply);
 
 var app = builder.Build();
+
+// Before HSTS, HTTPS redirection, auth, and the map-proxy tile origin. The ingress peer is a
+// private address; see ConsoleForwardedHeaders.
+app.UseForwardedHeaders();
 
 // Development testbed convenience: the browser host cannot create environment profiles (profile
 // creation runs on the native MAUI host), so a "Local honua-server" profile is seeded per-operator
@@ -254,7 +260,8 @@ app.MapGet("/map-proxy/{environmentId}/styles/{layerId:int}.json", async (
         // here, not in the page. The URL MUST be ABSOLUTE: MapLibre loads vector tiles in a web worker that
         // calls new Request(url) with no document base, so a root-relative "/map-proxy/tiles/..." throws
         // "Failed to parse URL" and no feature tile ever loads. Build the absolute origin from the incoming
-        // request so it works behind any host/scheme. Parse the style sources rather than string-replacing a
+        // request after forwarded proto/host are applied, so a TLS-terminating ingress yields https.
+        // Parse the style sources rather than string-replacing a
         // single prefix, so absolute server-emitted tile URLs are rewritten too (honua-console#213).
         // The rewritten tile URLs keep the style's environment pin, so tiles never outlive their environment.
         var absoluteTileBase = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}"
