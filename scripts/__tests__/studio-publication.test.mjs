@@ -23,6 +23,25 @@ function fixture() {
 }
 const input = { intent: { route: '/maps/parcels', visibility: 'organization' } };
 
+test('audience and definition links appear only for a confirmed publication in its original context', async () => {
+    const {session, app} = fixture();
+    assert.equal(session.audienceLinks(), undefined);
+    await session.review('version');
+    await session.submit(input);
+    assert.equal(session.audienceLinks(), undefined, 'a pending approval is not a published map');
+    app.publishWorkspaceVersion = async () => ({status: 'accepted', itemId: 'item', versionId: 'version', requestId: 'request'});
+    await session.retry();
+    assert.deepEqual(session.audienceLinks(), {
+        map: '/maps/published/maps/parcels', definition: '/api/studio/viewer/published/maps/parcels',
+    });
+    app.workspaceCookieBinding.environmentId = 'another-target';
+    assert.equal(session.audienceLinks(), undefined);
+    app.workspaceCookieBinding.environmentId = 'local';
+    assert.ok(session.audienceLinks());
+    session.acknowledge();
+    assert.equal(session.audienceLinks(), undefined);
+});
+
 for (const change of ['principal', 'environment', 'source-path', 'map']) {
     test(`pending publication permits independent work after changing ${change} and recovers on return`, async () => {
         const { session, app, calls } = fixture();

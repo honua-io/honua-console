@@ -1,0 +1,8 @@
+:root { color-scheme: light; font-family: system-ui, sans-serif; color: #16302c; background: #f5f8f7; }
+body { margin: 0; }
+.published-map-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem 1rem; }
+.published-map-header h1 { font-size: 1.1rem; margin: 0; }
+.published-map-header button { font: inherit; padding: .45rem .75rem; border: 1px solid #426b62; border-radius: .35rem; color: inherit; background: white; cursor: pointer; }
+[data-map-status] { margin: 0; min-height: 1.5rem; padding: .25rem 1rem .75rem; }
+.published-map-canvas { width: 100%; height: calc(100dvh - 13rem); min-height: 20rem; }
+.published-map-widgets { padding: .5rem 1rem 1rem; }

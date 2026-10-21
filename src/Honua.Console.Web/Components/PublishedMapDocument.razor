@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Published map · Honua</title>
+    <link rel="stylesheet" href="/_studio/style.css" />
+    <link rel="stylesheet" href="/css/published-map-viewer.css" />
+</head>
+<body>
+    <main data-published-map data-published-route="@PublishedRoute">
+        <header class="published-map-header">
+            <h1 data-map-title>Published map</h1>
+            <button type="button" data-map-reload>Reload map</button>
+        </header>
+        <p role="status" aria-live="polite" data-map-status>Loading map…</p>
+        <div class="published-map-canvas" data-map-canvas aria-label="Published map"></div>
+        <div class="published-map-widgets" data-map-widgets aria-label="Map controls and data"></div>
+        <noscript>Enable JavaScript to view this map.</noscript>
+    </main>
+    <script type="module" src="/js/published-map-viewer.mjs"></script>
+</body>
+</html>
+
+@code {
+    [Parameter, EditorRequired]
+    public string PublishedRoute { get; set; } = string.Empty;
+}

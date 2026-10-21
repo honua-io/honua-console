@@ -33,7 +33,10 @@ internal static partial class AgentWorkspaceBff
                 authenticated = true,
                 maxArtifactUploadBytes = ProcessArtifactFileMaximumBytes,
                 importTransportResumable = false,
-                nativeAgentAvailable = !string.IsNullOrWhiteSpace(configuration["HONUA_AGENT_API_KEY"]),
+                // The scoped transport key remains installed for an external MCP agent even when
+                // this Console must only save human turns and must not launch a second model.
+                nativeAgentAvailable = bool.TryParse(configuration["HONUA_NATIVE_MODEL_ENABLED"], out var nativeModelEnabled)
+                    && nativeModelEnabled && !string.IsNullOrWhiteSpace(configuration["HONUA_AGENT_API_KEY"]),
                 releaseId = configuration["Honua:Agent:ReleaseId"] ?? configuration["HONUA_AGENT_RELEASE_ID"],
                 // A bounded browser transport lease; upstream credentials are checked on every request.
                 expiresAt = credential.ExpiresAt ?? DateTimeOffset.UtcNow.AddMinutes(5),
@@ -250,7 +253,7 @@ internal static partial class AgentWorkspaceBff
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.StatusCode(504); }
     }
 
-    [GeneratedRegex(@"\A(?:[A-Za-z0-9_-]{1,128})(?:/(?:context|conversation|turns|commands/[A-Za-z0-9_-]{1,128}|drafts(?:/[A-Za-z0-9_-]{1,128}(?:/submit)?)?))?\z", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\A(?:[A-Za-z0-9_-]{1,128})(?:/(?:context|conversation|turns|deploy-targets|commands/[A-Za-z0-9_-]{1,128}|drafts(?:/[A-Za-z0-9_-]{1,128}(?:/submit)?)?))?\z", RegexOptions.CultureInvariant)]
     private static partial Regex WorkspacePath();
 
     internal static bool TryBuildProcessPath(string path, out string? upstream)

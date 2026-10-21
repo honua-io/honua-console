@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -169,6 +170,23 @@ public sealed class AgentWorkspaceProcessBffTests
         Assert.True(AgentWorkspaceBff.ProcessArtifactFileMaximumBytes < AgentWorkspaceBff.ProcessImportBodyMaximumBytes);
     }
 
+    [Theory]
+    [InlineData("true", "scoped-agent-key", true)]
+    [InlineData("false", "scoped-agent-key", false)]
+    [InlineData(null, "scoped-agent-key", false)]
+    [InlineData("unknown", "scoped-agent-key", false)]
+    [InlineData("true", null, false)]
+    public async Task SessionOffersNativeChatOnlyWithExplicitModelAndTransportKey(
+        string? modelEnabled, string? agentKey, bool expected)
+    {
+        await using var host = await Host.Start(modelEnabled, agentKey);
+        using var response = await host.Client.GetAsync("/api/agent-workspace/session");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.True(document.RootElement.GetProperty("authenticated").GetBoolean());
+        Assert.Equal(expected, document.RootElement.GetProperty("nativeAgentAvailable").GetBoolean());
+    }
+
     [Fact]
     public async Task CanonicalUnknownLengthMultipartAtEffectiveFileLimitReachesServer()
     {
@@ -238,11 +256,16 @@ public sealed class AgentWorkspaceProcessBffTests
         public HttpClient Client => client;
         public Wire Wire => wire;
         public string Csrf => csrf;
-        public static async Task<Host> Start()
+        public static async Task<Host> Start(string? nativeModelEnabled = null, string? agentKey = null)
         {
             var builder = WebApplication.CreateSlimBuilder();
             builder.Logging.ClearProviders();
             builder.WebHost.UseUrls("http://127.0.0.1:0");
+            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["HONUA_NATIVE_MODEL_ENABLED"] = nativeModelEnabled,
+                ["HONUA_AGENT_API_KEY"] = agentKey
+            });
             builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-Token");
             var profile = new ConsoleEnvironmentProfile { Id = "environment", ServerBaseUri = new Uri("https://upstream.test/") };
             var profiles = new InMemoryConsoleEnvironmentProfileStore([profile]);

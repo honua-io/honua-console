@@ -10,13 +10,13 @@ function u(e) {
 		...e.staleIfErrorMs === void 0 ? {} : { staleIfErrorMs: Math.max(0, Math.trunc(e.staleIfErrorMs)) },
 		...e.revalidatedAt ? { revalidatedAt: e.revalidatedAt } : {},
 		...e.sourceUpdatedAt ? { sourceUpdatedAt: e.sourceUpdatedAt } : {},
-		...te(e.validator) ? { validator: e.validator } : {},
+		..._(e.validator) ? { validator: e.validator } : {},
 		...e.invalidationReason ? { invalidationReason: e.invalidationReason } : {},
 		...e.refreshErrorId ? { refreshErrorId: e.refreshErrorId } : {}
 	};
 }
 function d(e = {}) {
-	let t = g(e.ttlMs) ?? 3e5, n = g(e.staleIfErrorMs) ?? 36e5, r = ne(e.maxResponseBytes);
+	let t = ee(e.ttlMs) ?? 3e5, n = ee(e.staleIfErrorMs) ?? 36e5, r = te(e.maxResponseBytes);
 	return {
 		...e.signal ? { signal: e.signal } : {},
 		refresh: e.refresh === !0,
@@ -32,7 +32,7 @@ function f(e, t, n) {
 }
 function p(e) {
 	let t = e.get("etag") ?? void 0, n = e.get("last-modified") ?? void 0;
-	return te({
+	return _({
 		etag: t,
 		lastModified: n
 	}) ? {
@@ -50,18 +50,18 @@ function h(e, t) {
 		cache: t
 	};
 }
-function ee(e) {
+function g(e) {
 	if (typeof e != "object" || !e || Array.isArray(e)) return e;
 	let { cache: t, ...n } = e;
 	return n;
 }
-function te(e) {
+function _(e) {
 	return !!(e?.etag || e?.lastModified);
 }
-function g(e) {
+function ee(e) {
 	if (!(typeof e != "number" || !Number.isFinite(e))) return Math.max(0, Math.trunc(e));
 }
-function ne(e) {
+function te(e) {
 	if (e !== void 0) {
 		if (!Number.isSafeInteger(e) || e <= 0) throw TypeError("maxResponseBytes must be a positive safe integer.");
 		return e;
@@ -69,7 +69,7 @@ function ne(e) {
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/odata-key-path.js
-function re(e) {
+function ne(e) {
 	let t = String(e), n = "", r = !1;
 	for (let e of t) {
 		if (e === "'") {
@@ -86,24 +86,24 @@ function re(e) {
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/path-utils.js
-function ie(e) {
+function re(e) {
 	let t = e.length;
 	for (; t > 0 && e.charCodeAt(t - 1) === 47;) --t;
 	return t === e.length ? e : e.slice(0, t);
 }
-function ae(e) {
+function ie(e) {
 	let t = e.indexOf("?");
 	return t < 0 ? e : e.slice(0, t);
 }
-function _(e) {
+function v(e) {
 	return e.includes("/") ? e.split("/").filter((e) => e.length > 0).map((e) => encodeURIComponent(e)).join("/") : encodeURIComponent(e);
 }
-function oe(e) {
+function ae(e) {
 	return e.includes("/") ? e.split("/").map((e) => encodeURIComponent(e)).join("/") : encodeURIComponent(e);
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/odata.js
-var se = 4 * 1024 * 1024, ce = Symbol("honua.odata.source-schema-projection-safety"), le = Symbol("honua.odata.source-schema-projection-details"), ue = class {
+var oe = 4 * 1024 * 1024, se = Symbol("honua.odata.source-schema-projection-safety"), ce = Symbol("honua.odata.source-schema-projection-details"), le = class {
 	client;
 	entitySet;
 	entitySetName;
@@ -111,11 +111,11 @@ var se = 4 * 1024 * 1024, ce = Symbol("honua.odata.source-schema-projection-safe
 	cachedMetadata;
 	inflightMetadata;
 	constructor(e) {
-		this.client = e.client, this.entitySet = e.entitySet, this.entitySetName = me(e.entitySet), this.basePath = pe(e.basePath);
+		this.client = e.client, this.entitySet = e.entitySet, this.entitySetName = pe(e.entitySet), this.basePath = fe(e.basePath);
 	}
 	async metadata(e = {}) {
 		let t = d(e), n = t.cache === "bypass", r = Date.now(), i = this.cachedMetadata ? f(this.cachedMetadata.cachedAtMs, r, t.ttlMs) : !1;
-		if (!n && !t.refresh && this.cachedMetadata && i) return de(this.cachedMetadata, "hit", {
+		if (!n && !t.refresh && this.cachedMetadata && i) return ue(this.cachedMetadata, "hit", {
 			now: r,
 			ttlMs: t.ttlMs,
 			staleIfErrorMs: t.staleIfErrorMs
@@ -124,18 +124,18 @@ var se = 4 * 1024 * 1024, ce = Symbol("honua.odata.source-schema-projection-safe
 		let a = this.cachedMetadata, o = this.fetchMetadata(t, a).then((e) => {
 			n || (this.cachedMetadata = e);
 			let r = n ? "bypass" : e.status;
-			return de(e, r, {
+			return ue(e, r, {
 				now: Date.now(),
 				ttlMs: t.ttlMs,
 				staleIfErrorMs: t.staleIfErrorMs,
 				...r === "refreshed" ? { revalidatedAt: (/* @__PURE__ */ new Date()).toISOString() } : {}
 			});
 		}), s = (e) => {
-			if (!n && t.staleIfError && a) return de(a, "stale", {
+			if (!n && t.staleIfError && a) return ue(a, "stale", {
 				now: Date.now(),
 				ttlMs: t.ttlMs,
 				staleIfErrorMs: t.staleIfErrorMs,
-				refreshErrorId: fe(e)
+				refreshErrorId: de(e)
 			});
 			throw e;
 		};
@@ -152,7 +152,7 @@ var se = 4 * 1024 * 1024, ce = Symbol("honua.odata.source-schema-projection-safe
 		}
 	}
 	async query(e = {}) {
-		let t = this.entitySetPath(), n = _e(e), r = await this.requestJson("GET", t, n, e.signal);
+		let t = this.entitySetPath(), n = ge(e), r = await this.requestJson("GET", t, n, e.signal);
 		return {
 			rows: r.value ?? [],
 			...typeof r["@odata.count"] == "number" ? { totalCount: r["@odata.count"] } : {},
@@ -185,11 +185,11 @@ var se = 4 * 1024 * 1024, ce = Symbol("honua.odata.source-schema-projection-safe
 		return this.requestJson("POST", n, void 0, t.signal, JSON.stringify(e), { "Content-Type": t.contentType ?? "application/json" });
 	}
 	async update(e, t, n = {}) {
-		let r = `${this.entitySetPath()}(${re(e)})`;
+		let r = `${this.entitySetPath()}(${ne(e)})`;
 		return this.requestJson("PATCH", r, void 0, n.signal, JSON.stringify(t), { "Content-Type": n.contentType ?? "application/json" });
 	}
 	async delete(e, t = {}) {
-		let n = `${this.entitySetPath()}(${re(e)})`;
+		let n = `${this.entitySetPath()}(${ne(e)})`;
 		await this.requestJson("DELETE", n, void 0, t.signal);
 	}
 	async batch(e, t = {}) {
@@ -197,7 +197,7 @@ var se = 4 * 1024 * 1024, ce = Symbol("honua.odata.source-schema-projection-safe
 		let n = t.atomicity === "all" ? "g1" : void 0, r = e.map((e, t) => ({
 			id: e.id ?? String(t + 1),
 			method: e.method,
-			url: ge(e.url),
+			url: he(e.url),
 			...e.headers ? { headers: {
 				"Content-Type": "application/json",
 				...e.headers
@@ -208,7 +208,7 @@ var se = 4 * 1024 * 1024, ce = Symbol("honua.odata.source-schema-projection-safe
 		return { responses: (await this.requestJson("POST", `${this.basePath}/$batch`, void 0, t.signal, JSON.stringify({ requests: r }), { "Content-Type": "application/json" })).responses ?? [] };
 	}
 	async apply(e, t = {}) {
-		let n = this.entitySetPath(), r = _e({
+		let n = this.entitySetPath(), r = ge({
 			apply: e,
 			filter: t.filter
 		}), i = await this.requestJson("GET", n, r, t.signal);
@@ -241,7 +241,7 @@ var se = 4 * 1024 * 1024, ce = Symbol("honua.odata.source-schema-projection-safe
 	}
 	async raw(e, t, n = {}) {
 		let r = e.toUpperCase();
-		return this.client.pipelineFetch(r, he(t), n);
+		return this.client.pipelineFetch(r, me(t), n);
 	}
 	entitySetPath() {
 		return `${this.basePath}/${this.entitySet}`;
@@ -264,7 +264,7 @@ var se = 4 * 1024 * 1024, ce = Symbol("honua.odata.source-schema-projection-safe
 		}
 		let r = await n.text(), i = p(n.headers), a = n.headers.get("last-modified") ?? void 0;
 		return {
-			metadata: ee(be(r)),
+			metadata: g(ye(r)),
 			cachedAtMs: Date.now(),
 			keyFingerprint: `metadata:odata:${this.basePath}:$metadata`,
 			status: e.cache === "bypass" ? "bypass" : t ? "refreshed" : "miss",
@@ -273,12 +273,12 @@ var se = 4 * 1024 * 1024, ce = Symbol("honua.odata.source-schema-projection-safe
 		};
 	}
 	checkNextLink(e, t) {
-		let { path: n, query: r } = ve(e, this.client.serverBaseUrl, this.basePath), i = JSON.stringify([n, Object.entries(r ?? {}).sort(([e], [t]) => e.localeCompare(t))]);
+		let { path: n, query: r } = _e(e, this.client.serverBaseUrl, this.basePath), i = JSON.stringify([n, Object.entries(r ?? {}).sort(([e], [t]) => e.localeCompare(t))]);
 		if (t.has(i)) throw new a(200, "OData paging returned a repeated nextLink.", { reason: "repeated-next-link" });
 		t.add(i);
 	}
 	async followNextLink(e, t) {
-		let { path: n, query: r } = ve(e, this.client.serverBaseUrl, this.basePath), i = await this.requestJson("GET", n, r, t);
+		let { path: n, query: r } = _e(e, this.client.serverBaseUrl, this.basePath), i = await this.requestJson("GET", n, r, t);
 		return {
 			rows: i.value ?? [],
 			...typeof i["@odata.count"] == "number" ? { totalCount: i["@odata.count"] } : {},
@@ -296,7 +296,7 @@ var se = 4 * 1024 * 1024, ce = Symbol("honua.odata.source-schema-projection-safe
 		}, r);
 	}
 };
-function de(e, t, n) {
+function ue(e, t, n) {
 	return h(e.metadata, u({
 		scope: "metadata",
 		status: t,
@@ -310,42 +310,42 @@ function de(e, t, n) {
 		...n.refreshErrorId ? { refreshErrorId: n.refreshErrorId } : {}
 	}));
 }
-function fe(e) {
+function de(e) {
 	return e instanceof Error && e.name ? e.name : "unknown";
 }
-function pe(e) {
-	return e === void 0 || e === "" ? "/odata" : e.startsWith("/") ? ie(e) || "/" : `/${ie(e)}`;
+function fe(e) {
+	return e === void 0 || e === "" ? "/odata" : e.startsWith("/") ? re(e) || "/" : `/${re(e)}`;
 }
-function me(e) {
+function pe(e) {
 	let t = e.lastIndexOf("/");
 	return t === -1 ? e : e.slice(t + 1);
 }
-function he(e) {
+function me(e) {
 	return e.startsWith("/") ? e : `/${e}`;
 }
-function ge(e) {
+function he(e) {
 	return e.startsWith("/") ? e.slice(1) : e;
 }
-function _e(e) {
+function ge(e) {
 	let t = {};
 	return e.filter !== void 0 && e.filter !== "" && (t.$filter = e.filter), e.select && e.select.length > 0 && (t.$select = e.select.join(",")), e.orderBy && e.orderBy.length > 0 && (t.$orderby = e.orderBy.join(",")), typeof e.top == "number" && Number.isFinite(e.top) && (t.$top = e.top), typeof e.skip == "number" && Number.isFinite(e.skip) && e.skip > 0 && (t.$skip = e.skip), e.expand && e.expand.length > 0 && (t.$expand = e.expand.join(",")), e.count && (t.$count = "true"), e.skiptoken !== void 0 && e.skiptoken !== "" && (t.$skiptoken = e.skiptoken), e.search !== void 0 && e.search !== "" && (t.$search = e.search), e.apply !== void 0 && e.apply !== "" && (t.$apply = e.apply), e.deltatoken !== void 0 && e.deltatoken !== "" && (t.$deltatoken = e.deltatoken), e.extra && Object.assign(t, e.extra), t;
 }
-function ve(e, t, n) {
-	let r = e.startsWith("http://") || e.startsWith("https://") ? new URL(e) : new URL(e, `${ye(t)}${ge(n)}/`), i = ie(new URL(t).pathname), a = i && r.pathname.startsWith(`${i}/`) ? r.pathname.slice(i.length) : r.pathname, o = {};
+function _e(e, t, n) {
+	let r = e.startsWith("http://") || e.startsWith("https://") ? new URL(e) : new URL(e, `${ve(t)}${he(n)}/`), i = re(new URL(t).pathname), a = i && r.pathname.startsWith(`${i}/`) ? r.pathname.slice(i.length) : r.pathname, o = {};
 	for (let [e, t] of r.searchParams) o[e] = t;
 	return {
 		path: a,
 		query: o
 	};
 }
-function ye(e) {
+function ve(e) {
 	return e.endsWith("/") ? e : `${e}/`;
 }
-function be(e) {
-	if (e.length > se) throw RangeError(`OData metadata exceeds ${se} characters`);
+function ye(e) {
+	if (e.length > oe) throw RangeError(`OData metadata exceeds ${oe} characters`);
 	let t = Object.create(null), n = Object.create(null), r = Object.create(null), i = Object.create(null), a = Object.create(null), o = Object.create(null), s = Object.create(null), c = Object.create(null), l = /* @__PURE__ */ new Map();
-	for (let t of y(e, "Annotations")) {
-		let e = t.attributes, n = v(e, "Target");
+	for (let t of b(e, "Annotations")) {
+		let e = t.attributes, n = y(e, "Target");
 		if (!n) continue;
 		let r = n.lastIndexOf("/");
 		if (r === -1) continue;
@@ -354,40 +354,40 @@ function be(e) {
 		let a = t.body, o = l.get(i);
 		l.set(i, o === void 0 ? a : `${o}\n${a}`);
 	}
-	for (let n of y(e, "EntitySet")) {
-		let e = n.attributes, r = v(e, "Name"), i = v(e, "EntityType");
+	for (let n of b(e, "EntitySet")) {
+		let e = n.attributes, r = y(e, "Name"), i = y(e, "EntityType");
 		if (!r || !i) continue;
 		t[r] = Me(i);
 		let a = n.body;
-		c[r] = Ee(`${a}\n${l.get(r) ?? ""}`), l.delete(r);
+		c[r] = Te(`${a}\n${l.get(r) ?? ""}`), l.delete(r);
 	}
-	for (let [e, t] of l) c[e] = Ee(t);
-	for (let t of y(e, "EntityType")) {
-		let e = t.attributes, a = t.body, o = v(e, "Name");
+	for (let [e, t] of l) c[e] = Te(t);
+	for (let t of b(e, "EntityType")) {
+		let e = t.attributes, a = t.body, o = y(e, "Name");
 		if (!o) continue;
-		v(e, "OpenType")?.toLowerCase() === "true" && (s[o] = !0);
-		let c = [], l = y(a, "Key").next();
-		if (!l.done) for (let e of De(l.value.body, "PropertyRef")) {
-			let t = v(e, "Name");
+		y(e, "OpenType")?.toLowerCase() === "true" && (s[o] = !0);
+		let c = [], l = b(a, "Key").next();
+		if (!l.done) for (let e of Ee(l.value.body, "PropertyRef")) {
+			let t = y(e, "Name");
 			t && c.push(t);
 		}
 		n[o] = c;
-		let u = we(a);
-		i[o] = u, r[o] = u.map(Te);
+		let u = Ce(a);
+		i[o] = u, r[o] = u.map(we);
 	}
-	for (let t of y(e, "ComplexType")) {
-		let e = v(t.attributes, "Name");
-		e && (a[e] = we(t.body));
+	for (let t of b(e, "ComplexType")) {
+		let e = y(t.attributes, "Name");
+		e && (a[e] = Ce(t.body));
 	}
-	for (let t of y(e, "EnumType")) {
-		let e = t.attributes, n = v(e, "Name");
+	for (let t of b(e, "EnumType")) {
+		let e = t.attributes, n = y(e, "Name");
 		if (!n) continue;
-		let r = v(e, "UnderlyingType") ?? "Edm.Int32", i = v(e, "IsFlags")?.toLowerCase() === "true", a = [...De(t.body, "Member")].map((e) => ({
-			name: v(e, "Name"),
-			rawValue: v(e, "Value")
+		let r = y(e, "UnderlyingType") ?? "Edm.Int32", i = y(e, "IsFlags")?.toLowerCase() === "true", a = [...Ee(t.body, "Member")].map((e) => ({
+			name: y(e, "Name"),
+			rawValue: y(e, "Value")
 		})), s = a.some((e) => e.rawValue !== void 0), c = a.some((e) => e.rawValue === void 0), l = s ? c ? "mixed" : "explicit" : "implicit", u, d = (e) => {
 			u ??= e;
-		}, f = Se(r);
+		}, f = xe(r);
 		a.length === 0 && d("empty-declaration"), f || d("invalid-underlying-type"), i && c && d("flags-require-explicit-values");
 		let p = [], m = /* @__PURE__ */ new Set(), h;
 		for (let [e, t] of a.entries()) {
@@ -398,7 +398,7 @@ function be(e) {
 			} catch {
 				n = void 0;
 			}
-			if (n === void 0 ? d("invalid-member-value") : i && n < 0n ? d("negative-flags-value") : f && (n < f.minimum || n > f.maximum) && d("out-of-range"), h = n, !t.name || !Ce(t.name)) {
+			if (n === void 0 ? d("invalid-member-value") : i && n < 0n ? d("negative-flags-value") : f && (n < f.minimum || n > f.maximum) && d("out-of-range"), h = n, !t.name || !Se(t.name)) {
 				d("invalid-member-name");
 				continue;
 			}
@@ -428,7 +428,7 @@ function be(e) {
 		fields: r,
 		capabilities: c
 	};
-	return Object.defineProperty(u, le, {
+	return Object.defineProperty(u, ce, {
 		value: {
 			fields: i,
 			complexTypes: a,
@@ -436,24 +436,24 @@ function be(e) {
 			openTypes: s
 		},
 		enumerable: !0
-	}), Object.defineProperty(u, ce, {
-		value: xe(e),
+	}), Object.defineProperty(u, se, {
+		value: be(e),
 		enumerable: !0
 	}), u;
 }
-function xe(e) {
-	let t = Oe(e, "Edmx"), n = t === void 0 ? void 0 : v(t, "Version"), r = /* @__PURE__ */ new Map(), i = /* @__PURE__ */ new Set(), a = /* @__PURE__ */ new Set(), o = /* @__PURE__ */ new Set();
-	for (let t of y(e, "Schema")) {
-		let e = v(t.attributes, "Namespace");
+function be(e) {
+	let t = De(e, "Edmx"), n = t === void 0 ? void 0 : y(t, "Version"), r = /* @__PURE__ */ new Map(), i = /* @__PURE__ */ new Set(), a = /* @__PURE__ */ new Set(), o = /* @__PURE__ */ new Set();
+	for (let t of b(e, "Schema")) {
+		let e = y(t.attributes, "Namespace");
 		for (let n of [
 			"EntityType",
 			"ComplexType",
 			"EnumType"
-		]) for (let s of De(t.body, n)) {
-			let t = v(s, "Name");
+		]) for (let s of Ee(t.body, n)) {
+			let t = y(s, "Name");
 			if (!t) continue;
 			let c = `${n}:${e ? `${e}.${t}` : t}`, l = r.get(t) ?? /* @__PURE__ */ new Map();
-			l.set(c, (l.get(c) ?? 0) + 1), r.set(t, l), e || o.add(t), n !== "EnumType" && v(s, "BaseType") && i.add(t), n === "ComplexType" && v(s, "OpenType")?.toLowerCase() === "true" && a.add(t);
+			l.set(c, (l.get(c) ?? 0) + 1), r.set(t, l), e || o.add(t), n !== "EnumType" && y(s, "BaseType") && i.add(t), n === "ComplexType" && y(s, "OpenType")?.toLowerCase() === "true" && a.add(t);
 		}
 	}
 	let s = [...r].filter(([, e]) => e.size > 1 || [...e.values()].some((e) => e > 1)).map(([e]) => e).sort();
@@ -465,7 +465,7 @@ function xe(e) {
 		unqualifiedTypeNames: Object.freeze([...o].sort())
 	});
 }
-function Se(e) {
+function xe(e) {
 	switch (e) {
 		case "Edm.Byte": return {
 			minimum: 0n,
@@ -490,18 +490,18 @@ function Se(e) {
 		default: return;
 	}
 }
-function Ce(e) {
+function Se(e) {
 	if (e.length > 256) return !1;
 	let t = 0;
 	for (let n of e) if (t += 1, t > 128) return !1;
 	return /^[\p{L}\p{Nl}_][\p{L}\p{Nl}\p{Nd}\p{Mn}\p{Mc}\p{Pc}\p{Cf}]*$/u.test(e);
 }
-function we(e) {
+function Ce(e) {
 	let t = [];
-	for (let n of De(e, "Property")) {
-		let e = v(n, "Name"), r = v(n, "Type");
+	for (let n of Ee(e, "Property")) {
+		let e = y(n, "Name"), r = y(n, "Type");
 		if (!e || !r) continue;
-		let i = v(n, "Nullable"), a = v(n, "MaxLength"), o = v(n, "Precision"), s = v(n, "Scale"), c = v(n, "SRID"), l = r.startsWith("Edm.Geography") || r.startsWith("Edm.Geometry"), u = {
+		let i = y(n, "Nullable"), a = y(n, "MaxLength"), o = y(n, "Precision"), s = y(n, "Scale"), c = y(n, "SRID"), l = r.startsWith("Edm.Geography") || r.startsWith("Edm.Geometry"), u = {
 			name: e,
 			type: r
 		};
@@ -528,7 +528,7 @@ function we(e) {
 	}
 	return t;
 }
-function Te(e) {
+function we(e) {
 	return {
 		name: e.name,
 		type: e.type,
@@ -537,34 +537,34 @@ function Te(e) {
 		...typeof e.srid == "number" ? { srid: e.srid } : {}
 	};
 }
-function Ee(e) {
+function Te(e) {
 	let t = {};
-	for (let n of y(e, "Annotation")) {
-		let e = n.attributes, r = v(e, "Term");
+	for (let n of b(e, "Annotation")) {
+		let e = n.attributes, r = y(e, "Term");
 		if (!r || !r.includes("Capabilities.")) continue;
-		let i = n.body.trim(), a = v(e, "Bool") ?? Ne(i) ?? x(i, "Insertable") ?? x(i, "Updatable") ?? x(i, "Deletable") ?? x(i, "Searchable") ?? x(i, "Filterable") ?? x(i, "Expandable") ?? x(i, "Selectable") ?? x(i, "Countable") ?? x(i, "Supported");
+		let i = n.body.trim(), a = y(e, "Bool") ?? Ne(i) ?? x(i, "Insertable") ?? x(i, "Updatable") ?? x(i, "Deletable") ?? x(i, "Searchable") ?? x(i, "Filterable") ?? x(i, "Expandable") ?? x(i, "Selectable") ?? x(i, "Countable") ?? x(i, "Supported");
 		r.endsWith("InsertRestrictions") ? t.insert = x(i, "Insertable") !== "false" : r.endsWith("UpdateRestrictions") ? t.update = x(i, "Updatable") !== "false" : r.endsWith("DeleteRestrictions") ? t.delete = x(i, "Deletable") !== "false" : r.endsWith("BatchSupported") || r.endsWith("BatchSupport") ? t.batch = a !== "false" : r.endsWith("FilterRestrictions") || r.endsWith("FilterFunctions") ? t.filter = a !== "false" : r.endsWith("ExpandRestrictions") ? t.expand = a !== "false" : r.endsWith("SelectSupport") ? t.select = a !== "false" : r.endsWith("SearchRestrictions") ? t.search = a !== "false" : r.endsWith("CountRestrictions") ? t.count = a !== "false" : r.endsWith("ChangeTracking") ? t.delta = a !== "false" : (r.endsWith("ApplySupported") || r.endsWith("ApplyRestrictions")) && (t.apply = a !== "false");
 	}
 	return t;
 }
-function v(e, t) {
+function y(e, t) {
 	let n = 0;
 	for (; n < e.length;) {
-		for (; n < e.length && b(e.charCodeAt(n));) n += 1;
+		for (; n < e.length && je(e.charCodeAt(n));) n += 1;
 		if (n >= e.length || e.charCodeAt(n) === 47) return;
 		let r = n;
 		for (; n < e.length;) {
 			let t = e.charCodeAt(n);
-			if (b(t) || t === 61 || t === 47 || t === 62) break;
+			if (je(t) || t === 61 || t === 47 || t === 62) break;
 			n += 1;
 		}
 		let i = e.slice(r, n);
-		for (; n < e.length && b(e.charCodeAt(n));) n += 1;
+		for (; n < e.length && je(e.charCodeAt(n));) n += 1;
 		if (e.charCodeAt(n) !== 61) {
 			n += 1;
 			continue;
 		}
-		for (n += 1; n < e.length && b(e.charCodeAt(n));) n += 1;
+		for (n += 1; n < e.length && je(e.charCodeAt(n));) n += 1;
 		let a = e.charCodeAt(n);
 		if (a !== 34 && a !== 39) {
 			n += 1;
@@ -577,15 +577,15 @@ function v(e, t) {
 		n += 1;
 	}
 }
-function* y(e, t) {
+function* b(e, t) {
 	let n = `<${t}`, r = `</${t}>`, i = 0;
 	for (; i < e.length;) {
-		let t = ke(e, n, i);
+		let t = Oe(e, n, i);
 		if (t === -1) return;
-		let a = Ae(e, t + n.length);
+		let a = ke(e, t + n.length);
 		if (a === -1) return;
 		let o = e.slice(t + n.length, a);
-		if (je(o)) {
+		if (Ae(o)) {
 			yield {
 				attributes: o,
 				body: ""
@@ -600,17 +600,17 @@ function* y(e, t) {
 		}, i = s + r.length;
 	}
 }
-function* De(e, t) {
+function* Ee(e, t) {
 	let n = `<${t}`, r = 0;
 	for (; r < e.length;) {
-		let t = ke(e, n, r);
+		let t = Oe(e, n, r);
 		if (t === -1) return;
-		let i = Ae(e, t + n.length);
+		let i = ke(e, t + n.length);
 		if (i === -1) return;
 		yield e.slice(t + n.length, i), r = i + 1;
 	}
 }
-function Oe(e, t) {
+function De(e, t) {
 	let n = 0;
 	for (; n < e.length;) {
 		let r = e.indexOf("<", n);
@@ -623,29 +623,29 @@ function Oe(e, t) {
 		let o = i;
 		for (; o < e.length;) {
 			let t = e.charCodeAt(o);
-			if (b(t) || t === 47 || t === 62) break;
+			if (je(t) || t === 47 || t === 62) break;
 			o += 1;
 		}
 		let s = e.slice(i, o), c = s.lastIndexOf(":");
 		if (s.slice(c + 1) === t) {
-			let t = Ae(e, o);
+			let t = ke(e, o);
 			return t === -1 ? void 0 : e.slice(o, t);
 		}
 		n = o > i ? o : i + 1;
 	}
 }
-function ke(e, t, n) {
+function Oe(e, t, n) {
 	let r = n;
 	for (; r < e.length;) {
 		let n = e.indexOf(t, r);
 		if (n === -1) return -1;
 		let i = e.charCodeAt(n + t.length);
-		if (b(i) || i === 47 || i === 62) return n;
+		if (je(i) || i === 47 || i === 62) return n;
 		r = n + t.length;
 	}
 	return -1;
 }
-function Ae(e, t) {
+function ke(e, t) {
 	let n = 0;
 	for (let r = t; r < e.length; r += 1) {
 		let t = e.charCodeAt(r);
@@ -655,12 +655,12 @@ function Ae(e, t) {
 	}
 	return -1;
 }
-function je(e) {
+function Ae(e) {
 	let t = e.length - 1;
-	for (; t >= 0 && b(e.charCodeAt(t));) --t;
+	for (; t >= 0 && je(e.charCodeAt(t));) --t;
 	return t >= 0 && e.charCodeAt(t) === 47;
 }
-function b(e) {
+function je(e) {
 	return e === 9 || e === 10 || e === 13 || e === 32;
 }
 function Me(e) {
@@ -668,13 +668,13 @@ function Me(e) {
 	return t === -1 ? e : e.slice(t + 1);
 }
 function Ne(e) {
-	let t = y(e, "Bool").next();
+	let t = b(e, "Bool").next();
 	if (!t.done) return t.value.body === "true" || t.value.body === "false" ? t.value.body : void 0;
 }
 function x(e, t) {
-	for (let n of De(e, "PropertyValue")) {
-		if (v(n, "Property") !== t) continue;
-		let e = v(n, "Bool");
+	for (let n of Ee(e, "PropertyValue")) {
+		if (y(n, "Property") !== t) continue;
+		let e = y(n, "Bool");
 		if (e === "true" || e === "false") return e;
 	}
 }
@@ -1388,7 +1388,7 @@ var qt = class {
 		return this.client.fetchOgcTile(this.withBase(e));
 	}
 	getMapLibreVectorSource(e, t = {}) {
-		let n = t.tileMatrixSetId ?? "WebMercatorQuad", r = ie(this.client.serverBaseUrl), i = oe(e), a = encodeURIComponent(n), o = {
+		let n = t.tileMatrixSetId ?? "WebMercatorQuad", r = re(this.client.serverBaseUrl), i = ae(e), a = encodeURIComponent(n), o = {
 			type: "vector",
 			tiles: [`${r}${w({ ...this.basePath === void 0 ? {} : { basePath: this.basePath } })}/collections/${i}/tiles/${a}/{z}/{y}/{x}`],
 			scheme: "xyz"
@@ -1968,7 +1968,7 @@ var Bn = class {
 	async request(e) {
 		return this.client.request({
 			...e,
-			path: `/rest/services/${_(this.serviceId)}/${Pr(e.path)}`
+			path: `/rest/services/${v(this.serviceId)}/${Pr(e.path)}`
 		});
 	}
 	mapService() {
@@ -2098,7 +2098,7 @@ var Bn = class {
 			sourceId: t
 		};
 		Be(n);
-		let r = fr(n, e.kRingDistance), i = `/rest/services/${_(this.serviceId)}/FeatureServer/${this.layerId}/queryH3`, a = e.method ?? "POST";
+		let r = fr(n, e.kRingDistance), i = `/rest/services/${v(this.serviceId)}/FeatureServer/${this.layerId}/queryH3`, a = e.method ?? "POST";
 		return pr(a === "GET" ? await this.client.request({
 			method: a,
 			path: i,
@@ -2132,7 +2132,7 @@ var Bn = class {
 		});
 	}
 	async queryAttachments(e = {}) {
-		let t = e.method ?? "GET", n = `/rest/services/${_(this.serviceId)}/FeatureServer/${this.layerId}/queryAttachments`, r = {
+		let t = e.method ?? "GET", n = `/rest/services/${v(this.serviceId)}/FeatureServer/${this.layerId}/queryAttachments`, r = {
 			...e.objectIds === void 0 ? {} : { objectIds: jr(e.objectIds) },
 			...e.where === void 0 ? {} : { where: e.where },
 			...e.extraParams ?? {}
@@ -2159,7 +2159,7 @@ var Bn = class {
 	async listAttachments(e) {
 		return this.client.request({
 			method: "GET",
-			path: `/rest/services/${_(this.serviceId)}/FeatureServer/${this.layerId}/${e.objectId}/attachments`,
+			path: `/rest/services/${v(this.serviceId)}/FeatureServer/${this.layerId}/${e.objectId}/attachments`,
 			responseFormat: e.responseFormat ?? "json",
 			query: e.extraParams,
 			signal: e.signal
@@ -2173,7 +2173,7 @@ var Bn = class {
 		});
 		return this.client.request({
 			method: "POST",
-			path: `/rest/services/${_(this.serviceId)}/FeatureServer/${this.layerId}/${e.objectId}/deleteAttachments`,
+			path: `/rest/services/${v(this.serviceId)}/FeatureServer/${this.layerId}/${e.objectId}/deleteAttachments`,
 			headers: { "Content-Type": "application/x-www-form-urlencoded" },
 			body: t,
 			signal: e.signal
@@ -2183,7 +2183,7 @@ var Bn = class {
 		let t = Zr(e);
 		return this.client.request({
 			method: "POST",
-			path: `/rest/services/${_(this.serviceId)}/FeatureServer/${this.layerId}/${e.objectId}/addAttachment`,
+			path: `/rest/services/${v(this.serviceId)}/FeatureServer/${this.layerId}/${e.objectId}/addAttachment`,
 			responseFormat: e.responseFormat ?? "json",
 			query: e.extraParams,
 			body: t,
@@ -2194,7 +2194,7 @@ var Bn = class {
 		let t = Zr(e);
 		return t.set("attachmentId", String(e.attachmentId)), this.client.request({
 			method: "POST",
-			path: `/rest/services/${_(this.serviceId)}/FeatureServer/${this.layerId}/${e.objectId}/updateAttachment`,
+			path: `/rest/services/${v(this.serviceId)}/FeatureServer/${this.layerId}/${e.objectId}/updateAttachment`,
 			responseFormat: e.responseFormat ?? "json",
 			query: e.extraParams,
 			body: t,
@@ -2204,7 +2204,7 @@ var Bn = class {
 	async request(e) {
 		return this.client.request({
 			...e,
-			path: `/rest/services/${_(this.serviceId)}/FeatureServer/${this.layerId}/${Nr(e.path)}`
+			path: `/rest/services/${v(this.serviceId)}/FeatureServer/${this.layerId}/${Nr(e.path)}`
 		});
 	}
 }, Hn = class {
@@ -2348,7 +2348,7 @@ var Bn = class {
 	async request(e) {
 		return this.client.request({
 			...e,
-			path: `/rest/services/${_(this.serviceId)}/MapServer/${Pr(e.path)}`
+			path: `/rest/services/${v(this.serviceId)}/MapServer/${Pr(e.path)}`
 		});
 	}
 }, Un = class {
@@ -2452,7 +2452,7 @@ var Bn = class {
 	async request(e) {
 		return this.client.request({
 			...e,
-			path: `/rest/services/${_(this.serviceId)}/MapServer/${this.layerId}/${Nr(e.path)}`
+			path: `/rest/services/${v(this.serviceId)}/MapServer/${this.layerId}/${Nr(e.path)}`
 		});
 	}
 };
@@ -2662,7 +2662,7 @@ var Gn = class {
 	async metadata() {
 		return this.client.request({
 			method: "GET",
-			path: `/rest/services/${_(this.serviceId)}/ImageServer`,
+			path: `/rest/services/${v(this.serviceId)}/ImageServer`,
 			responseFormat: "json"
 		});
 	}
@@ -2684,7 +2684,7 @@ var Gn = class {
 		return this.dispatch("identify", e, Xn(e));
 	}
 	async dispatch(e, t, n) {
-		let r = t.method ?? "GET", i = `/rest/services/${_(this.serviceId)}/ImageServer/${e}`, a = t.responseFormat ?? "json";
+		let r = t.method ?? "GET", i = `/rest/services/${v(this.serviceId)}/ImageServer/${e}`, a = t.responseFormat ?? "json";
 		return r === "GET" ? this.client.request({
 			method: "GET",
 			path: i,
@@ -2703,13 +2703,13 @@ var Gn = class {
 		});
 	}
 	tileUrl(e, t, n, r = "png") {
-		let i = `/rest/services/${_(this.serviceId)}/ImageServer/tile/${e}/${t}/${n}`;
+		let i = `/rest/services/${v(this.serviceId)}/ImageServer/tile/${e}/${t}/${n}`;
 		return `${this.client.serverBaseUrl}${i}?f=${r}`;
 	}
 	async legend() {
 		return this.client.request({
 			method: "GET",
-			path: `/rest/services/${_(this.serviceId)}/ImageServer/legend`,
+			path: `/rest/services/${v(this.serviceId)}/ImageServer/legend`,
 			responseFormat: "json"
 		});
 	}
@@ -2870,7 +2870,7 @@ var ir = class {
 	}
 	taskPath(e) {
 		let t = this.taskName ? `/${encodeURIComponent(this.taskName)}` : "";
-		return `/rest/services/${_(this.serviceId)}/GPServer${t}/${e}`;
+		return `/rest/services/${v(this.serviceId)}/GPServer${t}/${e}`;
 	}
 }, ar = 1e3, or = class {
 	id;
@@ -3692,7 +3692,7 @@ function Di(e) {
 	try {
 		let t = ci(e, "WMS");
 		if (t.localName !== "WMS_Capabilities" && t.localName !== "WMT_MS_Capabilities") throw Error("missing <WMS_Capabilities> root element (received WMS Capabilities XML?)");
-		let n = M(t, "version") ?? "", r = [], i = A(t, "Service"), a = Ii({
+		let n = M(t, "version") ?? "", r = [], i = A(t, "Service"), a = Li({
 			title: N(A(i, "Title")),
 			abstract: N(A(i, "Abstract"))
 		}), o = A(t, "Capability"), s = Oi(A(o, "Request")), c = (e) => s.find((t) => t.name === e), l = Object.freeze({
@@ -3773,8 +3773,8 @@ function Ai(e, t, n, r) {
 	}, f = Object.freeze(j(e, "Layer").map((e) => Ai(e, d, n + 1, r)));
 	return Object.freeze({
 		name: N(A(e, "Name")) ?? "",
-		...I("title", N(A(e, "Title"))),
-		...I("abstract", N(A(e, "Abstract"))),
+		...Ii("title", N(A(e, "Title"))),
+		...Ii("abstract", N(A(e, "Abstract"))),
 		crs: a,
 		bbox: o,
 		styles: s,
@@ -3815,9 +3815,9 @@ function Mi(e, t) {
 		let r = A(e, "LegendURL"), i = A(r, "OnlineResource");
 		return [Object.freeze({
 			name: n,
-			...I("title", N(A(e, "Title"))),
-			...I("legendUrl", i ? M(i, "href") : void 0),
-			...I("legendFormat", N(A(r, "Format")))
+			...Ii("title", N(A(e, "Title"))),
+			...Ii("legendUrl", i ? M(i, "href") : void 0),
+			...Ii("legendFormat", N(A(r, "Format")))
 		})];
 	});
 }
@@ -3828,8 +3828,8 @@ function Ni(e, t) {
 		let r = N(e), i = r ? r.split(",").map((e) => e.trim()).filter(Boolean) : [];
 		return [Object.freeze({
 			name: n,
-			...I("units", M(e, "units")),
-			...I("default", M(e, "default")),
+			...Ii("units", M(e, "units")),
+			...Ii("default", M(e, "default")),
 			values: Object.freeze(Pi(i))
 		})];
 	});
@@ -3846,25 +3846,25 @@ function Fi(e, t, n) {
 	let r = new Set(t.map(n));
 	return [...t, ...e.filter((e) => !r.has(n(e)))];
 }
-function I(e, t) {
+function Ii(e, t) {
 	return t === void 0 ? {} : { [e]: t };
 }
-function Ii(e) {
+function Li(e) {
 	return Object.freeze(Object.fromEntries(Object.entries(e).filter(([, e]) => e !== void 0)));
 }
-function* Li(e) {
+function* Ri(e) {
 	let t = [...e.layers];
 	for (; t.length > 0;) {
 		let e = t.shift();
 		e.name.length > 0 && (yield e), t.unshift(...e.children);
 	}
 }
-function Ri(e, t) {
-	for (let n of Li(e)) if (n.name === t) return n;
+function zi(e, t) {
+	for (let n of Ri(e)) if (n.name === t) return n;
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/wms.js
-var zi = class {
+var Bi = class {
 	client;
 	serviceId;
 	capabilitiesPromise;
@@ -3877,7 +3877,7 @@ var zi = class {
 			serviceId: this.serviceId,
 			layerName: e
 		};
-		return t !== void 0 && (n.defaultStyleId = t), new Bi(n);
+		return t !== void 0 && (n.defaultStyleId = t), new Vi(n);
 	}
 	async capabilities(e) {
 		return this.client.getWmsCapabilities({
@@ -3909,7 +3909,7 @@ var zi = class {
 			throw this.capabilitiesPromise = void 0, e;
 		}), this.capabilitiesPromise;
 	}
-}, Bi = class {
+}, Vi = class {
 	client;
 	serviceId;
 	layerName;
@@ -3925,7 +3925,7 @@ var zi = class {
 		});
 	}
 	describe(e) {
-		return Ri(e, this.layerName);
+		return zi(e, this.layerName);
 	}
 	stylesIn(e) {
 		return this.describe(e)?.styles ?? [];
@@ -3965,47 +3965,47 @@ var zi = class {
 		}), this.capabilitiesPromise;
 	}
 };
-function Vi(e) {
-	return `/rest/services/${_(e)}/MapServer/WMS`;
+function Hi(e) {
+	return `/rest/services/${v(e)}/MapServer/WMS`;
 }
-async function Hi(e, t) {
+async function Ui(e, t) {
 	let n = new URLSearchParams();
 	if (n.set("SERVICE", "WMS"), n.set("REQUEST", "GetCapabilities"), n.set("VERSION", t.version ?? "1.3.0"), t.extraParams) for (let [e, r] of Object.entries(t.extraParams)) n.set(e, String(r));
-	let r = `${Vi(t.serviceId)}?${n.toString()}`, { text: i } = await e.requestText("GET", r, {
+	let r = `${Hi(t.serviceId)}?${n.toString()}`, { text: i } = await e.requestText("GET", r, {
 		accept: "text/xml,application/xml",
 		signal: t.signal
 	});
 	return Di(i);
 }
-async function Ui(e, t) {
-	let n = qi(t);
+async function Wi(e, t) {
+	let n = Ji(t);
 	n.set("REQUEST", "GetMap");
-	let r = `${Vi(t.serviceId)}?${n.toString()}`, i = t.format ?? "image/png", a = await e.requestBytes("GET", r, i, void 0, t.signal);
+	let r = `${Hi(t.serviceId)}?${n.toString()}`, i = t.format ?? "image/png", a = await e.requestBytes("GET", r, i, void 0, t.signal);
 	return {
 		bytes: a.bytes,
 		contentType: a.contentType
 	};
 }
-async function Wi(e, t) {
-	let n = Gi(t), r = n.get("INFO_FORMAT"), i = `${Vi(t.serviceId)}?${n.toString()}`, a = await e.requestBytes("GET", i, r, void 0, t.signal);
-	return Ji(a.bytes, a.contentType, r);
+async function Gi(e, t) {
+	let n = Ki(t), r = n.get("INFO_FORMAT"), i = `${Hi(t.serviceId)}?${n.toString()}`, a = await e.requestBytes("GET", i, r, void 0, t.signal);
+	return Yi(a.bytes, a.contentType, r);
 }
-function Gi(e) {
-	let t = qi(e);
+function Ki(e) {
+	let t = Ji(e);
 	return t.set("REQUEST", "GetFeatureInfo"), t.set("QUERY_LAYERS", e.queryLayers.join(",")), t.set("I", String(Math.trunc(e.i))), t.set("J", String(Math.trunc(e.j))), t.set("INFO_FORMAT", e.infoFormat ?? "application/json"), e.featureCount !== void 0 && t.set("FEATURE_COUNT", String(Math.trunc(e.featureCount))), t;
 }
-async function Ki(e, t) {
+async function qi(e, t) {
 	let n = new URLSearchParams();
 	n.set("SERVICE", "WMS"), n.set("VERSION", "1.3.0"), n.set("REQUEST", "GetLegendGraphic"), n.set("LAYER", t.layer), t.style && n.set("STYLE", t.style);
 	let r = t.format ?? "image/png";
 	if (n.set("FORMAT", r), t.width !== void 0 && n.set("WIDTH", String(Math.trunc(t.width))), t.height !== void 0 && n.set("HEIGHT", String(Math.trunc(t.height))), t.extraParams) for (let [e, r] of Object.entries(t.extraParams)) n.set(e, String(r));
-	let i = `${Vi(t.serviceId)}?${n.toString()}`, a = await e.requestBytes("GET", i, r, void 0, t.signal);
+	let i = `${Hi(t.serviceId)}?${n.toString()}`, a = await e.requestBytes("GET", i, r, void 0, t.signal);
 	return {
 		bytes: a.bytes,
 		contentType: a.contentType
 	};
 }
-function qi(e) {
+function Ji(e) {
 	let t = new URLSearchParams();
 	t.set("SERVICE", "WMS"), t.set("VERSION", "1.3.0"), t.set("LAYERS", e.layers.join(",")), t.set("STYLES", e.styles ? e.styles.join(",") : "");
 	let n = e.crs ?? "EPSG:3857";
@@ -4024,7 +4024,7 @@ function qi(e) {
 	if (t.set("BBOX", s.join(",")), t.set("WIDTH", String(Math.trunc(e.width))), t.set("HEIGHT", String(Math.trunc(e.height))), t.set("FORMAT", e.format ?? "image/png"), t.set("TRANSPARENT", String(e.transparent ?? !0).toUpperCase()), e.bgcolor !== void 0 && t.set("BGCOLOR", e.bgcolor), e.time !== void 0 && t.set("TIME", e.time), e.elevation !== void 0 && t.set("ELEVATION", e.elevation), e.extraParams) for (let [n, r] of Object.entries(e.extraParams)) t.set(n, String(r));
 	return t;
 }
-function Ji(e, t, n) {
+function Yi(e, t, n) {
 	if (!(t.toLowerCase().includes("application/json") || n.toLowerCase().includes("application/json"))) return {
 		contentType: t,
 		bytes: e
@@ -4045,10 +4045,10 @@ function Ji(e, t, n) {
 	}
 	return {
 		contentType: t,
-		features: Yi(i)
+		features: Xi(i)
 	};
 }
-function Yi(e) {
+function Xi(e) {
 	if (!e || typeof e != "object") return [];
 	let t = e, n = Array.isArray(t.features) ? t.features : [], r = [];
 	for (let e of n) {
@@ -4063,43 +4063,43 @@ function Yi(e) {
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/wms-types.js
-var Xi = /* @__PURE__ */ new Map([
+var Zi = /* @__PURE__ */ new Map([
 	["image/png", "png"],
 	["image/jpeg", "jpeg"],
 	["image/jpg", "jpeg"],
 	["image/webp", "webp"]
 ]);
-function Zi(e) {
-	return Xi.get(e.toLowerCase()) ?? "png";
+function Qi(e) {
+	return Zi.get(e.toLowerCase()) ?? "png";
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/wmts-capabilities.js
-var Qi = /* @__PURE__ */ new WeakSet(), $i = class extends l {
+var $i = /* @__PURE__ */ new WeakSet(), ea = class extends l {
 	constructor(e, t = {}) {
 		super("core.wmts-capabilities-parse", e, t), this.name = "HonuaWmtsCapabilitiesParseError";
 	}
 };
-function ea(e) {
+function ta(e) {
 	try {
 		let t = ci(e, "WMTS");
 		if (t.localName !== "Capabilities") throw Error("missing <Capabilities> root element");
-		let n = [], r = A(t, "ServiceIdentification"), i = A(t, "Contents"), a = fa({
+		let n = [], r = A(t, "ServiceIdentification"), i = A(t, "Contents"), a = pa({
 			title: N(A(r, "Title")),
 			abstract: N(A(r, "Abstract"))
-		}), o = Object.freeze(j(i, "Layer").flatMap((e) => na(e, n))), s = Object.freeze(j(i, "TileMatrixSet").flatMap((e) => sa(e, n))), c = Object.freeze(ta(A(t, "OperationsMetadata")));
+		}), o = Object.freeze(j(i, "Layer").flatMap((e) => ra(e, n))), s = Object.freeze(j(i, "TileMatrixSet").flatMap((e) => ca(e, n))), c = Object.freeze(na(A(t, "OperationsMetadata")));
 		return Object.freeze({
 			version: M(t, "version") ?? "",
 			service: a,
 			layers: o,
 			tileMatrixSets: s,
 			operations: c,
-			warnings: Object.freeze(L(n))
+			warnings: Object.freeze(I(n))
 		});
 	} catch (e) {
-		throw e instanceof $i ? e : new $i(e instanceof Error ? e.message : "WMTS Capabilities XML is malformed", { cause: e });
+		throw e instanceof ea ? e : new ea(e instanceof Error ? e.message : "WMTS Capabilities XML is malformed", { cause: e });
 	}
 }
-function ta(e) {
+function na(e) {
 	let t = /* @__PURE__ */ new Set();
 	return j(e, "Operation").flatMap((e) => {
 		let n = M(e, "name");
@@ -4120,30 +4120,30 @@ function ta(e) {
 		return [Object.freeze({
 			name: n,
 			methods: Object.freeze(r),
-			getUrls: Object.freeze(L(i)),
-			postUrls: Object.freeze(L(a))
+			getUrls: Object.freeze(I(i)),
+			postUrls: Object.freeze(I(a))
 		})];
 	});
 }
-function na(e, t) {
+function ra(e, t) {
 	let n = N(A(e, "Identifier"));
 	if (!n) return t.push("WMTS Layer metadata without an identifier was ignored."), [];
-	let r = oa(A(e, "WGS84BoundingBox"), t);
+	let r = sa(A(e, "WGS84BoundingBox"), t);
 	return [Object.freeze({
 		identifier: n,
-		...R("title", N(A(e, "Title"))),
-		...R("abstract", N(A(e, "Abstract"))),
-		formats: Object.freeze(L(j(e, "Format").flatMap((e) => N(e) ?? []))),
-		infoFormats: Object.freeze(L(j(e, "InfoFormat").flatMap((e) => N(e) ?? []))),
-		styles: Object.freeze(j(e, "Style").flatMap((e) => ra(e, t))),
-		dimensions: Object.freeze(j(e, "Dimension").flatMap((e) => ia(e, t))),
-		tileMatrixSetIds: Object.freeze(L(j(e, "TileMatrixSetLink").flatMap((e) => N(A(e, "TileMatrixSet")) ?? []))),
-		resourceTemplates: Object.freeze(aa(e, "tile", t)),
-		featureInfoTemplates: Object.freeze(aa(e, "FeatureInfo", t)),
+		...L("title", N(A(e, "Title"))),
+		...L("abstract", N(A(e, "Abstract"))),
+		formats: Object.freeze(I(j(e, "Format").flatMap((e) => N(e) ?? []))),
+		infoFormats: Object.freeze(I(j(e, "InfoFormat").flatMap((e) => N(e) ?? []))),
+		styles: Object.freeze(j(e, "Style").flatMap((e) => ia(e, t))),
+		dimensions: Object.freeze(j(e, "Dimension").flatMap((e) => aa(e, t))),
+		tileMatrixSetIds: Object.freeze(I(j(e, "TileMatrixSetLink").flatMap((e) => N(A(e, "TileMatrixSet")) ?? []))),
+		resourceTemplates: Object.freeze(oa(e, "tile", t)),
+		featureInfoTemplates: Object.freeze(oa(e, "FeatureInfo", t)),
 		...r ? { bbox: r } : {}
 	})];
 }
-function ra(e, t) {
+function ia(e, t) {
 	let n = N(A(e, "Identifier"));
 	if (!n) return t.push("WMTS Style metadata without an identifier was ignored."), [];
 	let r = A(e, "LegendURL"), i = M(e, "isDefault")?.toLowerCase();
@@ -4154,13 +4154,13 @@ function ra(e, t) {
 		"true"
 	].includes(i) && t.push("WMTS Style isDefault metadata was malformed and treated as false."), [Object.freeze({
 		identifier: n,
-		...R("title", N(A(e, "Title"))),
+		...L("title", N(A(e, "Title"))),
 		isDefault: i === "true" || i === "1",
-		...R("legendUrl", r ? M(r, "href") : void 0),
-		...R("legendFormat", r ? M(r, "format") : void 0)
+		...L("legendUrl", r ? M(r, "href") : void 0),
+		...L("legendFormat", r ? M(r, "format") : void 0)
 	})];
 }
-function ia(e, t) {
+function aa(e, t) {
 	let n = N(A(e, "Identifier"));
 	if (!n) return t.push("WMTS Dimension metadata without an identifier was ignored."), [];
 	let r = N(A(e, "Current"))?.toLowerCase();
@@ -4171,12 +4171,12 @@ function ia(e, t) {
 		"true"
 	].includes(r) && t.push("WMTS Dimension Current metadata was malformed and treated as false."), [Object.freeze({
 		identifier: n,
-		...R("default", N(A(e, "Default"))),
+		...L("default", N(A(e, "Default"))),
 		current: r === "true" || r === "1",
-		values: Object.freeze(L(j(e, "Value").flatMap((e) => N(e) ?? [])))
+		values: Object.freeze(I(j(e, "Value").flatMap((e) => N(e) ?? [])))
 	})];
 }
-function aa(e, t, n) {
+function oa(e, t, n) {
 	return j(e, "ResourceURL").flatMap((e) => {
 		if (M(e, "resourceType")?.toLowerCase() !== t.toLowerCase()) return [];
 		let r = M(e, "template"), i = M(e, "format");
@@ -4186,9 +4186,9 @@ function aa(e, t, n) {
 		})];
 	});
 }
-function oa(e, t) {
+function sa(e, t) {
 	if (!e) return;
-	let n = la(N(A(e, "LowerCorner"))), r = la(N(A(e, "UpperCorner")));
+	let n = ua(N(A(e, "LowerCorner"))), r = ua(N(A(e, "UpperCorner")));
 	if (!n || !r || n[0] > r[0] || n[1] > r[1] || n[0] < -180 || r[0] > 180 || n[1] < -90 || r[1] > 90) {
 		t.push("WMTS WGS84BoundingBox metadata was malformed and ignored.");
 		return;
@@ -4200,19 +4200,19 @@ function oa(e, t) {
 		north: r[1]
 	});
 }
-function sa(e, t) {
-	let n = N(A(e, "Identifier")), r = j(e, "TileMatrix"), i = Object.freeze(r.flatMap((e) => ca(e, t)));
+function ca(e, t) {
+	let n = N(A(e, "Identifier")), r = j(e, "TileMatrix"), i = Object.freeze(r.flatMap((e) => la(e, t)));
 	if (!n || i.length === 0) return t.push("WMTS TileMatrixSet metadata without an identifier or valid matrices was ignored."), [];
 	let a = Object.freeze({
 		identifier: n,
-		...R("supportedCrs", N(A(e, "SupportedCRS"))),
-		...R("wellKnownScaleSet", N(A(e, "WellKnownScaleSet"))),
+		...L("supportedCrs", N(A(e, "SupportedCRS"))),
+		...L("wellKnownScaleSet", N(A(e, "WellKnownScaleSet"))),
 		matrices: i
 	});
-	return i.length !== r.length && Qi.add(a), [a];
+	return i.length !== r.length && $i.add(a), [a];
 }
-function ca(e, t) {
-	let n = N(A(e, "Identifier")), r = ua(N(A(e, "ScaleDenominator"))), i = da(N(A(e, "TileWidth"))), a = da(N(A(e, "TileHeight"))), o = da(N(A(e, "MatrixWidth"))), s = da(N(A(e, "MatrixHeight"))), c = la(N(A(e, "TopLeftCorner")));
+function la(e, t) {
+	let n = N(A(e, "Identifier")), r = da(N(A(e, "ScaleDenominator"))), i = fa(N(A(e, "TileWidth"))), a = fa(N(A(e, "TileHeight"))), o = fa(N(A(e, "MatrixWidth"))), s = fa(N(A(e, "MatrixHeight"))), c = ua(N(A(e, "TopLeftCorner")));
 	return !n || r === void 0 || i === void 0 || a === void 0 || o === void 0 || s === void 0 || !c ? (t.push("WMTS TileMatrix metadata with invalid numeric fields was ignored."), []) : [Object.freeze({
 		identifier: n,
 		scaleDenominator: r,
@@ -4223,39 +4223,39 @@ function ca(e, t) {
 		topLeftCorner: Object.freeze(c)
 	})];
 }
-function la(e) {
+function ua(e) {
 	if (!e) return;
 	let t = e.trim().split(/\s+/).map(Number);
 	return t.length === 2 && t.every(Number.isFinite) ? [t[0], t[1]] : void 0;
 }
-function ua(e) {
+function da(e) {
 	if (!e) return;
 	let t = Number(e);
 	return Number.isFinite(t) && t > 0 ? t : void 0;
 }
-function da(e) {
+function fa(e) {
 	if (!e) return;
 	let t = Number(e);
 	return Number.isSafeInteger(t) && t > 0 ? t : void 0;
 }
-function L(e) {
+function I(e) {
 	return [...new Set(e)];
 }
-function R(e, t) {
+function L(e, t) {
 	return t === void 0 ? {} : { [e]: t };
 }
-function fa(e) {
+function pa(e) {
 	return Object.freeze(Object.fromEntries(Object.entries(e).filter(([, e]) => e !== void 0)));
 }
-function pa(e, t) {
+function ma(e, t) {
 	return e.layers.find((e) => e.identifier === t);
 }
-function ma(e, t) {
+function ha(e, t) {
 	return e.tileMatrixSets.find((e) => e.identifier === t);
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/wmts.js
-var ha = class {
+var ga = class {
 	client;
 	serviceId;
 	constructor(e) {
@@ -4267,10 +4267,10 @@ var ha = class {
 			serviceId: this.serviceId,
 			layerName: e
 		};
-		return t?.styleId !== void 0 && (n.defaultStyleId = t.styleId), t?.tileMatrixSetId !== void 0 && (n.defaultTileMatrixSetId = t.tileMatrixSetId), new ga(n);
+		return t?.styleId !== void 0 && (n.defaultStyleId = t.styleId), t?.tileMatrixSetId !== void 0 && (n.defaultTileMatrixSetId = t.tileMatrixSetId), new _a(n);
 	}
 	tileset(e, t, n) {
-		return new _a({
+		return new va({
 			client: this.client,
 			serviceId: this.serviceId,
 			layerName: e,
@@ -4296,7 +4296,7 @@ var ha = class {
 			...e
 		});
 	}
-}, ga = class {
+}, _a = class {
 	client;
 	serviceId;
 	layerName;
@@ -4306,11 +4306,11 @@ var ha = class {
 		this.client = e.client, this.serviceId = e.serviceId, this.layerName = e.layerName, this.defaultStyleId = e.defaultStyleId, this.defaultTileMatrixSetId = e.defaultTileMatrixSetId;
 	}
 	describe(e) {
-		return pa(e, this.layerName);
+		return ma(e, this.layerName);
 	}
 	tileset(e, t) {
 		let n = e ?? this.defaultStyleId ?? "default", r = t ?? this.defaultTileMatrixSetId ?? "WebMercatorQuad";
-		return new _a({
+		return new va({
 			client: this.client,
 			serviceId: this.serviceId,
 			layerName: this.layerName,
@@ -4351,7 +4351,7 @@ var ha = class {
 			...e.extraParams === void 0 ? {} : { extraParams: e.extraParams }
 		});
 	}
-}, _a = class {
+}, va = class {
 	client;
 	serviceId;
 	layerName;
@@ -4361,7 +4361,7 @@ var ha = class {
 		this.client = e.client, this.serviceId = e.serviceId, this.layerName = e.layerName, this.styleId = e.styleId, this.tileMatrixSetId = e.tileMatrixSetId;
 	}
 	describe(e) {
-		return ma(e, this.tileMatrixSetId);
+		return ha(e, this.tileMatrixSetId);
 	}
 	async tile(e) {
 		return this.client.fetchWmtsTile({
@@ -4397,50 +4397,50 @@ var ha = class {
 		});
 	}
 };
-function va(e) {
-	return `/rest/services/${_(e)}/MapServer/WMTS`;
+function ya(e) {
+	return `/rest/services/${v(e)}/MapServer/WMTS`;
 }
-async function ya(e, t) {
+async function ba(e, t) {
 	let n = new URLSearchParams();
 	n.set("SERVICE", "WMTS"), n.set("REQUEST", "GetCapabilities"), n.set("VERSION", "1.0.0");
-	let r = `${va(t.serviceId)}?${n.toString()}`, { text: i } = await e.requestText("GET", r, {
+	let r = `${ya(t.serviceId)}?${n.toString()}`, { text: i } = await e.requestText("GET", r, {
 		accept: "text/xml,application/xml",
 		signal: t.signal
 	});
-	return ea(i);
+	return ta(i);
 }
-async function ba(e, t) {
+async function xa(e, t) {
 	let n = t.mode ?? "rest", r = t.format ?? "image/png", i = t.style ?? "default", a = t.tileMatrixSet ?? "WebMercatorQuad";
 	if (n === "kvp") {
 		let n = new URLSearchParams();
 		if (n.set("SERVICE", "WMTS"), n.set("VERSION", "1.0.0"), n.set("REQUEST", "GetTile"), n.set("LAYER", t.layer), n.set("STYLE", i), n.set("FORMAT", r), n.set("TILEMATRIXSET", a), n.set("TILEMATRIX", String(t.tileMatrix)), n.set("TILEROW", String(t.tileRow)), n.set("TILECOL", String(t.tileCol)), t.extraParams) for (let [e, r] of Object.entries(t.extraParams)) n.set(e, String(r));
-		let o = `${va(t.serviceId)}?${n.toString()}`;
+		let o = `${ya(t.serviceId)}?${n.toString()}`;
 		return e.requestBytes("GET", o, r, void 0, t.signal);
 	}
-	let o = Zi(r), s = `${va(t.serviceId)}/${encodeURIComponent(t.layer)}/${encodeURIComponent(i)}/${encodeURIComponent(a)}/${encodeURIComponent(String(t.tileMatrix))}/${encodeURIComponent(String(t.tileRow))}/${encodeURIComponent(String(t.tileCol))}.${o}${Ta(t.extraParams)}`;
+	let o = Qi(r), s = `${ya(t.serviceId)}/${encodeURIComponent(t.layer)}/${encodeURIComponent(i)}/${encodeURIComponent(a)}/${encodeURIComponent(String(t.tileMatrix))}/${encodeURIComponent(String(t.tileRow))}/${encodeURIComponent(String(t.tileCol))}.${o}${Ea(t.extraParams)}`;
 	return e.requestBytes("GET", s, r, void 0, t.signal);
 }
-async function xa(e, t) {
+async function Sa(e, t) {
 	let n = t.mode ?? "rest", r = t.infoFormat ?? "application/json", i = t.format ?? "image/png", a = t.style ?? "default", o = t.tileMatrixSet ?? "WebMercatorQuad";
 	if (n === "kvp") {
 		let n = new URLSearchParams();
 		if (n.set("SERVICE", "WMTS"), n.set("VERSION", "1.0.0"), n.set("REQUEST", "GetFeatureInfo"), n.set("LAYER", t.layer), n.set("STYLE", a), n.set("FORMAT", i), n.set("TILEMATRIXSET", o), n.set("TILEMATRIX", String(t.tileMatrix)), n.set("TILEROW", String(t.tileRow)), n.set("TILECOL", String(t.tileCol)), n.set("I", String(Math.trunc(t.i))), n.set("J", String(Math.trunc(t.j))), n.set("INFOFORMAT", r), t.extraParams) for (let [e, r] of Object.entries(t.extraParams)) n.set(e, String(r));
-		let s = `${va(t.serviceId)}?${n.toString()}`, c = await e.requestBytes("GET", s, r, void 0, t.signal);
-		return Ji(c.bytes, c.contentType, r);
+		let s = `${ya(t.serviceId)}?${n.toString()}`, c = await e.requestBytes("GET", s, r, void 0, t.signal);
+		return Yi(c.bytes, c.contentType, r);
 	}
-	let s = Ca(r), c = `${va(t.serviceId)}/${encodeURIComponent(t.layer)}/${encodeURIComponent(a)}/${encodeURIComponent(o)}/${encodeURIComponent(String(t.tileMatrix))}/${encodeURIComponent(String(t.tileRow))}/${encodeURIComponent(String(t.tileCol))}/${encodeURIComponent(String(Math.trunc(t.j)))}/${encodeURIComponent(String(Math.trunc(t.i)))}.${s}${Ta(t.extraParams)}`, l = await e.requestBytes("GET", c, r, void 0, t.signal);
-	return Ji(l.bytes, l.contentType, r);
+	let s = wa(r), c = `${ya(t.serviceId)}/${encodeURIComponent(t.layer)}/${encodeURIComponent(a)}/${encodeURIComponent(o)}/${encodeURIComponent(String(t.tileMatrix))}/${encodeURIComponent(String(t.tileRow))}/${encodeURIComponent(String(t.tileCol))}/${encodeURIComponent(String(Math.trunc(t.j)))}/${encodeURIComponent(String(Math.trunc(t.i)))}.${s}${Ea(t.extraParams)}`, l = await e.requestBytes("GET", c, r, void 0, t.signal);
+	return Yi(l.bytes, l.contentType, r);
 }
-var Sa = /* @__PURE__ */ new Map([
+var Ca = /* @__PURE__ */ new Map([
 	["application/json", "json"],
 	["text/plain", "txt"],
 	["text/html", "html"],
 	["application/geo+json", "geojson"]
 ]);
-function Ca(e) {
-	return Sa.get(e.toLowerCase()) ?? "txt";
+function wa(e) {
+	return Ca.get(e.toLowerCase()) ?? "txt";
 }
-var wa = /* @__PURE__ */ new Set([
+var Ta = /* @__PURE__ */ new Set([
 	"service",
 	"version",
 	"request",
@@ -4455,18 +4455,18 @@ var wa = /* @__PURE__ */ new Set([
 	"i",
 	"j"
 ]);
-function Ta(e) {
+function Ea(e) {
 	if (!e) return "";
 	let t = new URLSearchParams();
-	for (let [n, r] of Object.entries(e)) r != null && (wa.has(n.toLowerCase()) || t.set(n, String(r)));
+	for (let [n, r] of Object.entries(e)) r != null && (Ta.has(n.toLowerCase()) || t.set(n, String(r)));
 	let n = t.toString();
 	return n.length > 0 ? `?${n}` : "";
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/esri-compat/url.js
-var Ea = /^[A-Za-z][A-Za-z\d+.-]*:\/\//, Da = /^\/\//, Oa = "https://honua.invalid", ka = /^(?<prefix>.*)\/rest\/services\/(?<serviceId>[^/]+(?:\/[^/]+)*)\/FeatureServer\/(?<layerId>\d+)\/?$/;
-function Aa(e) {
-	let { parsed: t, absolute: n } = ja(e), r = t.pathname.match(ka);
+var Da = /^[A-Za-z][A-Za-z\d+.-]*:\/\//, Oa = /^\/\//, ka = "https://honua.invalid", Aa = /^(?<prefix>.*)\/rest\/services\/(?<serviceId>[^/]+(?:\/[^/]+)*)\/FeatureServer\/(?<layerId>\d+)\/?$/;
+function ja(e) {
+	let { parsed: t, absolute: n } = Ma(e), r = t.pathname.match(Aa);
 	if (!r || !r.groups) throw Error("Invalid FeatureLayer URL. Expected .../rest/services/{serviceId}/FeatureServer/{layerId}");
 	let i = decodeURIComponent(r.groups.serviceId), a = Number.parseInt(r.groups.layerId, 10);
 	if (Number.isNaN(a)) throw Error("FeatureLayer URL contains an invalid numeric layerId.");
@@ -4477,24 +4477,24 @@ function Aa(e) {
 		layerId: a
 	};
 }
-function ja(e) {
-	if (Ea.test(e)) return {
+function Ma(e) {
+	if (Da.test(e)) return {
 		parsed: new URL(e),
 		absolute: !0
 	};
-	if (Da.test(e)) return {
+	if (Oa.test(e)) return {
 		parsed: new URL(`https:${e}`),
 		absolute: !0
 	};
 	let t = e.startsWith("/") ? e : `/${e}`;
 	return {
-		parsed: new URL(t, Oa),
+		parsed: new URL(t, ka),
 		absolute: !1
 	};
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/map/feature-service-adapter.js
-function Ma(e) {
+function Na(e) {
 	let t = [
 		"x" in e || "y" in e,
 		"points" in e,
@@ -4508,14 +4508,14 @@ function Ma(e) {
 		].some((t) => t in e)
 	];
 	if (t.filter(Boolean).length !== 1) return !1;
-	if (t[0]) return z(e.x) !== void 0 && z(e.y) !== void 0;
-	if (t[1]) return Array.isArray(e.points) && e.points.length > 0 && e.points.every((e) => Ia(e) !== void 0);
+	if (t[0]) return R(e.x) !== void 0 && R(e.y) !== void 0;
+	if (t[1]) return Array.isArray(e.points) && e.points.length > 0 && e.points.every((e) => La(e) !== void 0);
 	if (t[2] || t[3]) {
 		let n = t[2] ? e.paths : e.rings, r = t[3];
 		return Array.isArray(n) && n.length > 0 && n.every((e) => {
-			if (!Array.isArray(e) || e.length < (r ? 4 : 2) || !e.every((e) => Ia(e) !== void 0)) return !1;
+			if (!Array.isArray(e) || e.length < (r ? 4 : 2) || !e.every((e) => La(e) !== void 0)) return !1;
 			if (!r) return !0;
-			let t = Ia(e[0]), n = Ia(e[e.length - 1]);
+			let t = La(e[0]), n = La(e[e.length - 1]);
 			return t[0] === n[0] && t[1] === n[1];
 		});
 	}
@@ -4524,10 +4524,10 @@ function Ma(e) {
 		e.ymin,
 		e.xmax,
 		e.ymax
-	].map(z);
+	].map(R);
 	return n.every((e) => e !== void 0) && n[0] <= n[2] && n[1] <= n[3];
 }
-function Na(e, t, n) {
+function Pa(e, t, n) {
 	if (!e || typeof e != "object" || Array.isArray(e)) return null;
 	let r;
 	if (t == null || t === "esriGeometryNull") r = e;
@@ -4546,13 +4546,13 @@ function Na(e, t, n) {
 		ymax: e.ymax
 	};
 	else return null;
-	if (!Ma(r)) return null;
+	if (!Na(r)) return null;
 	let i = ot({
 		...r,
-		z: z(r.z)
+		z: R(r.z)
 	});
 	if (!i || !("coordinates" in i)) return null;
-	let a = z(r.z) !== void 0 || (e.hasZ ?? n?.hasZ) === !0, o = La(i.coordinates, a), s = i.type === "Polygon" ? [o] : i.type === "MultiPolygon" ? o : [];
+	let a = R(r.z) !== void 0 || (e.hasZ ?? n?.hasZ) === !0, o = Ra(i.coordinates, a), s = i.type === "Polygon" ? [o] : i.type === "MultiPolygon" ? o : [];
 	for (let e of s) for (let t of e) {
 		let e = t[0], n = t[t.length - 1];
 		e && n && (e.length !== n.length || e.some((e, t) => e !== n[t])) && t.push([...e]);
@@ -4562,18 +4562,18 @@ function Na(e, t, n) {
 		coordinates: o
 	};
 }
-function Pa(e, t, n) {
+function Fa(e, t, n) {
 	return {
 		type: "FeatureCollection",
 		features: e.map((e) => ({
 			type: "Feature",
-			geometry: Na(e.geometry ?? null, t, n),
+			geometry: Pa(e.geometry ?? null, t, n),
 			properties: { ...e.attributes ?? {} }
 		}))
 	};
 }
-async function Fa(e, t, n = {}) {
-	let r = Aa(t), i = new Vn({
+async function Ia(e, t, n = {}) {
+	let r = ja(t), i = new Vn({
 		client: e,
 		serviceId: r.serviceId,
 		layerId: r.layerId
@@ -4588,22 +4588,22 @@ async function Fa(e, t, n = {}) {
 	}, s = i.metadata(n.signal ? { signal: n.signal } : {}).catch(() => void 0), c = await i.queryFeaturesAll(o), l = await s;
 	return {
 		type: "geojson",
-		data: Pa(c, l?.geometryType, l),
+		data: Fa(c, l?.geometryType, l),
 		...n.attribution ? { attribution: n.attribution } : {}
 	};
 }
-function z(e) {
+function R(e) {
 	return typeof e == "number" && Number.isFinite(e) ? e : void 0;
 }
-function Ia(e) {
-	return Array.isArray(e) && e.length >= 2 && z(e[0]) !== void 0 && z(e[1]) !== void 0 ? e : void 0;
+function La(e) {
+	return Array.isArray(e) && e.length >= 2 && R(e[0]) !== void 0 && R(e[1]) !== void 0 ? e : void 0;
 }
-function La(e, t) {
-	return Array.isArray(e) ? Array.isArray(e[0]) ? e.map((e) => La(e, t)) : e.slice(0, t && z(e[2]) !== void 0 ? 3 : 2) : e;
+function Ra(e, t) {
+	return Array.isArray(e) ? Array.isArray(e[0]) ? e.map((e) => Ra(e, t)) : e.slice(0, t && R(e[2]) !== void 0 ? 3 : 2) : e;
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/geometry-input-sr.js
-function Ra(e) {
+function za(e) {
 	if (typeof e == "string") try {
 		e = JSON.parse(e);
 	} catch {
@@ -4622,80 +4622,121 @@ function Ra(e) {
 	});
 }
 //#endregion
+//#region src/map/bounded-feature-response.ts
+var Ba = 16 * 1024 * 1024;
+async function Va(e, t, n) {
+	let r = e.headers.get("content-length");
+	if (r !== null && Number(r) > Ba) throw await e.body?.cancel().catch(() => void 0), Error("Feature response exceeds the 16 MiB size limit.");
+	if (!e.body) {
+		if (t.throwIfAborted(), !n()) throw Error("The Studio session changed during the source request.");
+		return /* @__PURE__ */ new ArrayBuffer(0);
+	}
+	let i = e.body.getReader(), a = /* @__PURE__ */ new Uint8Array(), o = 0, s = () => {
+		i.cancel().catch(() => void 0);
+	};
+	t.addEventListener("abort", s, { once: !0 });
+	try {
+		for (;;) {
+			if (t.throwIfAborted(), !n()) throw Error("The Studio session changed during the source request.");
+			let { done: e, value: r } = await i.read();
+			if (t.throwIfAborted(), !n()) throw Error("The Studio session changed during the source request.");
+			if (e) break;
+			let s = o + r.byteLength;
+			if (s > Ba) throw Error("Feature response exceeds the 16 MiB size limit.");
+			if (s > a.byteLength) {
+				let e = Math.max(a.byteLength, 1024);
+				for (; e < s;) e = Math.min(e * 2, Ba);
+				let t = new Uint8Array(e);
+				t.set(a.subarray(0, o)), a = t;
+			}
+			a.set(r, o), o = s;
+		}
+	} catch (e) {
+		throw await i.cancel().catch(() => void 0), e;
+	} finally {
+		t.removeEventListener("abort", s), i.releaseLock();
+	}
+	if (t.throwIfAborted(), !n()) throw Error("The Studio session changed during the source request.");
+	return a.buffer.slice(0, o);
+}
+function Ha(e) {
+	return JSON.parse(new TextDecoder("utf-8", { fatal: !0 }).decode(e));
+}
+//#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/compatibility.js
-var za = "1.0.0", Ba = "preview", Va = 1, Ha = "/api/v1/admin";
-function Ua(e) {
+var Ua = "1.0.0", Wa = "preview", Ga = 1, Ka = "/api/v1/admin";
+function qa(e) {
 	return typeof e == "object" && !!e && !Array.isArray(e);
 }
-function Wa(e) {
-	if (!Ua(e)) throw TypeError("Server capabilities response must be a JSON object.");
+function Ja(e) {
+	if (!qa(e)) throw TypeError("Server capabilities response must be a JSON object.");
 	if (e.success === !1) {
 		let t = typeof e.message == "string" ? e.message : "Server capabilities request failed.";
 		throw Error(t);
 	}
-	if (!Ua(e.data)) throw TypeError("Server capabilities response is missing a data object.");
-	return Ga(e.data.compatibility);
+	if (!qa(e.data)) throw TypeError("Server capabilities response is missing a data object.");
+	return Ya(e.data.compatibility);
 }
-function Ga(e) {
-	if (!Ua(e)) throw TypeError("Server capabilities response is missing data.compatibility.");
+function Ya(e) {
+	if (!qa(e)) throw TypeError("Server capabilities response is missing data.compatibility.");
 	return {
-		serverVersion: Ya(e.serverVersion, "data.compatibility.serverVersion"),
-		releaseChannel: Ya(e.releaseChannel, "data.compatibility.releaseChannel"),
-		controlPlaneApi: Ka(e.controlPlaneApi),
-		metadataSchemas: qa(e.metadataSchemas),
-		features: Ja(e.features)
+		serverVersion: $a(e.serverVersion, "data.compatibility.serverVersion"),
+		releaseChannel: $a(e.releaseChannel, "data.compatibility.releaseChannel"),
+		controlPlaneApi: Xa(e.controlPlaneApi),
+		metadataSchemas: Za(e.metadataSchemas),
+		features: Qa(e.features)
 	};
 }
-function Ka(e) {
-	if (!Ua(e)) throw TypeError("Server capabilities response is missing data.compatibility.controlPlaneApi.");
+function Xa(e) {
+	if (!qa(e)) throw TypeError("Server capabilities response is missing data.compatibility.controlPlaneApi.");
 	return {
-		major: Xa(e.major, "data.compatibility.controlPlaneApi.major"),
-		basePath: Ya(e.basePath, "data.compatibility.controlPlaneApi.basePath"),
-		deprecated: B(e.deprecated, "data.compatibility.controlPlaneApi.deprecated")
+		major: eo(e.major, "data.compatibility.controlPlaneApi.major"),
+		basePath: $a(e.basePath, "data.compatibility.controlPlaneApi.basePath"),
+		deprecated: z(e.deprecated, "data.compatibility.controlPlaneApi.deprecated")
 	};
 }
-function qa(e) {
+function Za(e) {
 	if (!Array.isArray(e)) throw TypeError("Server capabilities response is missing data.compatibility.metadataSchemas.");
 	return e.map((e, t) => {
-		if (!Ua(e)) throw TypeError(`Server capabilities response metadataSchemas[${t}] must be an object.`);
+		if (!qa(e)) throw TypeError(`Server capabilities response metadataSchemas[${t}] must be an object.`);
 		return {
-			version: Ya(e.version, `data.compatibility.metadataSchemas[${t}].version`),
-			deprecated: B(e.deprecated, `data.compatibility.metadataSchemas[${t}].deprecated`)
+			version: $a(e.version, `data.compatibility.metadataSchemas[${t}].version`),
+			deprecated: z(e.deprecated, `data.compatibility.metadataSchemas[${t}].deprecated`)
 		};
 	});
 }
-function Ja(e) {
-	if (!Ua(e)) throw TypeError("Server capabilities response is missing data.compatibility.features.");
+function Qa(e) {
+	if (!qa(e)) throw TypeError("Server capabilities response is missing data.compatibility.features.");
 	return {
-		metadataResources: B(e.metadataResources, "data.compatibility.features.metadataResources"),
-		manifestExport: B(e.manifestExport, "data.compatibility.features.manifestExport"),
-		manifestApply: B(e.manifestApply, "data.compatibility.features.manifestApply"),
-		manifestDryRun: B(e.manifestDryRun, "data.compatibility.features.manifestDryRun"),
-		manifestPrune: B(e.manifestPrune, "data.compatibility.features.manifestPrune")
+		metadataResources: z(e.metadataResources, "data.compatibility.features.metadataResources"),
+		manifestExport: z(e.manifestExport, "data.compatibility.features.manifestExport"),
+		manifestApply: z(e.manifestApply, "data.compatibility.features.manifestApply"),
+		manifestDryRun: z(e.manifestDryRun, "data.compatibility.features.manifestDryRun"),
+		manifestPrune: z(e.manifestPrune, "data.compatibility.features.manifestPrune")
 	};
 }
-function Ya(e, t) {
+function $a(e, t) {
 	if (typeof e != "string") throw TypeError(`${t} must be a string.`);
 	let n = e.trim();
 	if (n.length === 0) throw TypeError(`${t} must not be empty.`);
 	return n;
 }
-function B(e, t) {
+function z(e, t) {
 	if (typeof e != "boolean") throw TypeError(`${t} must be a boolean.`);
 	return e;
 }
-function Xa(e, t) {
+function eo(e, t) {
 	if (typeof e != "number" || !Number.isInteger(e)) throw TypeError(`${t} must be an integer.`);
 	return e;
 }
-function Za(e) {
-	let t = [], n = Qa(za), r = Qa(e.serverVersion);
-	if (!n) return t.push(`SDK minimum supported version '${za}' is not parseable for compatibility checks.`), t;
-	r ? $a(r, n) < 0 && t.push(`Server version ${e.serverVersion} is older than the minimum supported ${za}.`) : t.push(`Server version '${e.serverVersion}' is not parseable for compatibility checks.`), e.controlPlaneApi.major !== Va && t.push(`Control-plane API major ${e.controlPlaneApi.major} is unsupported; expected ${Va}.`), to(e.controlPlaneApi.basePath) !== Ha && t.push(`Control-plane API base path ${e.controlPlaneApi.basePath} is unsupported; expected ${Ha}.`), e.controlPlaneApi.deprecated && t.push(`Control-plane API major ${e.controlPlaneApi.major} is marked deprecated by the server.`);
-	let i = no(e.releaseChannel), a = no("preview") ?? 0;
-	return i === void 0 ? t.push(`Server release channel '${e.releaseChannel}' is not recognized by this SDK baseline.`) : i < a && t.push(`Server release channel '${e.releaseChannel}' is below the minimum supported '${Ba}'.`), t;
+function to(e) {
+	let t = [], n = no(Ua), r = no(e.serverVersion);
+	if (!n) return t.push(`SDK minimum supported version '${Ua}' is not parseable for compatibility checks.`), t;
+	r ? ro(r, n) < 0 && t.push(`Server version ${e.serverVersion} is older than the minimum supported ${Ua}.`) : t.push(`Server version '${e.serverVersion}' is not parseable for compatibility checks.`), e.controlPlaneApi.major !== Ga && t.push(`Control-plane API major ${e.controlPlaneApi.major} is unsupported; expected ${Ga}.`), ao(e.controlPlaneApi.basePath) !== Ka && t.push(`Control-plane API base path ${e.controlPlaneApi.basePath} is unsupported; expected ${Ka}.`), e.controlPlaneApi.deprecated && t.push(`Control-plane API major ${e.controlPlaneApi.major} is marked deprecated by the server.`);
+	let i = oo(e.releaseChannel), a = oo("preview") ?? 0;
+	return i === void 0 ? t.push(`Server release channel '${e.releaseChannel}' is not recognized by this SDK baseline.`) : i < a && t.push(`Server release channel '${e.releaseChannel}' is below the minimum supported '${Wa}'.`), t;
 }
-function Qa(e) {
+function no(e) {
 	let t = e.trim().replace(/^v/i, "");
 	if (t.length === 0) return;
 	let [n, r = ""] = (t.split("+", 1)[0] ?? t).split("-", 2), i = n.split(".").map((e) => Number.parseInt(e, 10));
@@ -4704,7 +4745,7 @@ function Qa(e) {
 		prerelease: r.length > 0 ? r.split(".").map((e) => e.trim()).filter((e) => e.length > 0) : []
 	};
 }
-function $a(e, t) {
+function ro(e, t) {
 	let n = Math.max(e.numbers.length, t.numbers.length);
 	for (let r = 0; r < n; r += 1) {
 		let n = e.numbers[r] ?? 0, i = t.numbers[r] ?? 0;
@@ -4724,14 +4765,14 @@ function $a(e, t) {
 	}
 	return 0;
 }
-function eo(e) {
+function io(e) {
 	return e instanceof a && e.statusCode === 404 ? "Server does not expose GET /api/v1/admin/capabilities." : e instanceof Error ? e.message : String(e);
 }
-function to(e) {
+function ao(e) {
 	let t = e.trim();
-	return t.length === 0 ? "" : ie(t.startsWith("/") ? t : `/${t}`);
+	return t.length === 0 ? "" : re(t.startsWith("/") ? t : `/${t}`);
 }
-function no(e) {
+function oo(e) {
 	switch (e.trim().toLowerCase()) {
 		case "nightly": return 0;
 		case "dev": return 1;
@@ -4746,114 +4787,114 @@ function no(e) {
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/geoservices.js
-async function ro(e, t, n = {}) {
+async function so(e, t, n = {}) {
 	let r = `/rest/services?${new URLSearchParams({ f: t }).toString()}`;
 	return e.requestCachedMetadataJson(`geoservices:services:${t}`, r, n);
 }
-async function io(e, t, n, r = {}) {
-	let i = new URLSearchParams({ f: "json" }), a = `/rest/services/${_(t)}/FeatureServer/${n}?${i.toString()}`;
+async function co(e, t, n, r = {}) {
+	let i = new URLSearchParams({ f: "json" }), a = `/rest/services/${v(t)}/FeatureServer/${n}?${i.toString()}`;
 	return e.requestCachedMetadataJson(`geoservices-feature:${t}:${n}`, a, r);
 }
-async function ao(e, t, n = {}) {
-	let r = new URLSearchParams({ f: "json" }), i = `/rest/services/${_(t)}/FeatureServer?${r.toString()}`;
+async function lo(e, t, n = {}) {
+	let r = new URLSearchParams({ f: "json" }), i = `/rest/services/${v(t)}/FeatureServer?${r.toString()}`;
 	return e.requestCachedMetadataJson(`geoservices-feature:${t}:service`, i, n);
 }
-async function oo(e, t, n = {}) {
-	let r = new URLSearchParams({ f: "json" }), i = `/rest/services/${_(t)}/MapServer?${r.toString()}`;
+async function uo(e, t, n = {}) {
+	let r = new URLSearchParams({ f: "json" }), i = `/rest/services/${v(t)}/MapServer?${r.toString()}`;
 	return e.requestCachedMetadataJson(`geoservices-map:${t}:service`, i, n);
 }
-async function so(e, t, n, r = {}) {
-	let i = new URLSearchParams({ f: "json" }), a = `/rest/services/${_(t)}/MapServer/${n}?${i.toString()}`;
+async function fo(e, t, n, r = {}) {
+	let i = new URLSearchParams({ f: "json" }), a = `/rest/services/${v(t)}/MapServer/${n}?${i.toString()}`;
 	return e.requestCachedMetadataJson(`geoservices-map:${t}:${n}`, a, r);
 }
-function co(e, t, n, r) {
+function po(e, t, n, r) {
 	if (e !== void 0) return e;
 	let i = new URL(`${r}${t}?${n.toString()}`, globalThis.location?.href ?? "https://honua.invalid");
 	return i.pathname.length + i.search.length > 2e3 ? "POST" : "GET";
 }
-async function lo(e, t, n) {
+async function mo(e, t, n) {
 	let r = new URLSearchParams();
-	r.set("f", n && (t.method === void 0 || t.method === "GET") ? "pbf" : "json"), r.set("where", t.where ?? "1=1"), So(r, t), r.set("returnGeometry", String(t.returnGeometry ?? !0)), Mo(r, t), No(r, t);
-	let i = `/rest/services/${_(t.serviceId)}/FeatureServer/${t.layerId}/query`, a = co(t.method, i, r, e.baseUrl), o = n && a === "GET";
+	r.set("f", n && (t.method === void 0 || t.method === "GET") ? "pbf" : "json"), r.set("where", t.where ?? "1=1"), Eo(r, t), r.set("returnGeometry", String(t.returnGeometry ?? !0)), Io(r, t), Lo(r, t);
+	let i = `/rest/services/${v(t.serviceId)}/FeatureServer/${t.layerId}/query`, a = po(t.method, i, r, e.baseUrl), o = n && a === "GET";
 	return t.method === void 0 && a === "POST" && r.get("f") === "pbf" && r.set("f", "json"), o ? e.requestBinaryWithJsonFallback("GET", `${i}?${r.toString()}`, r, t.signal) : a === "GET" ? e.requestJson("GET", `${i}?${r.toString()}`, void 0, t.signal) : e.requestJson("POST", i, {
 		headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		body: r.toString()
 	}, t.signal, t.method === void 0 ? { readOnlyQuery: !0 } : void 0);
 }
-async function uo(e, t) {
+async function ho(e, t) {
 	let n = new URLSearchParams();
-	n.set("f", "json"), n.set("where", t.where ?? "1=1"), So(n, t), n.set("returnGeometry", String(t.returnGeometry ?? !0)), Mo(n, t), No(n, t);
-	let r = `/rest/services/${_(t.serviceId)}/MapServer/${t.layerId}/query`;
-	return co(t.method, r, n, e.baseUrl) === "GET" ? e.requestJson("GET", `${r}?${n.toString()}`, void 0, t.signal) : e.requestJson("POST", r, {
+	n.set("f", "json"), n.set("where", t.where ?? "1=1"), Eo(n, t), n.set("returnGeometry", String(t.returnGeometry ?? !0)), Io(n, t), Lo(n, t);
+	let r = `/rest/services/${v(t.serviceId)}/MapServer/${t.layerId}/query`;
+	return po(t.method, r, n, e.baseUrl) === "GET" ? e.requestJson("GET", `${r}?${n.toString()}`, void 0, t.signal) : e.requestJson("POST", r, {
 		headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		body: n.toString()
 	}, t.signal, t.method === void 0 ? { readOnlyQuery: !0 } : void 0);
 }
-async function fo(e, t) {
-	let n = `/rest/services/${_(t.serviceId)}/FeatureServer/${t.layerId}/applyEdits`, r = new URLSearchParams();
-	return r.set("f", "json"), r.set("rollbackOnFailure", String(t.rollbackOnFailure ?? !0)), t.adds !== void 0 && r.set("adds", Co(t.adds)), t.updates !== void 0 && r.set("updates", Co(t.updates)), t.deletes !== void 0 && r.set("deletes", wo(t.deletes)), e.requestJson("POST", n, {
-		headers: { "Content-Type": "application/x-www-form-urlencoded" },
-		body: r.toString()
-	}, t.signal);
-}
-async function po(e, t) {
-	let n = t.method ?? "GET", r = new URLSearchParams();
-	if (r.set("f", "json"), r.set("relationshipId", String(t.relationshipId)), t.objectIds !== void 0 && r.set("objectIds", Array.isArray(t.objectIds) ? t.objectIds.join(",") : String(t.objectIds)), r.set("where", t.where ?? "1=1"), r.set("outFields", yo(t.outFields)), r.set("returnGeometry", String(t.returnGeometry ?? !0)), t.extraParams) for (let [e, n] of Object.entries(t.extraParams)) r.set(e, String(n));
-	let i = `/rest/services/${_(t.serviceId)}/FeatureServer/${t.layerId}/queryRelatedRecords`;
-	return n === "GET" ? e.requestJson("GET", `${i}?${r.toString()}`, void 0, t.signal) : e.requestJson("POST", i, {
-		headers: { "Content-Type": "application/x-www-form-urlencoded" },
-		body: r.toString()
-	}, t.signal);
-}
-async function mo(e, t) {
-	let n = t.method ?? "GET", r = new URLSearchParams();
-	if (r.set("f", "json"), r.set("relationshipId", String(t.relationshipId)), t.objectIds !== void 0 && r.set("objectIds", Array.isArray(t.objectIds) ? t.objectIds.join(",") : String(t.objectIds)), r.set("where", t.where ?? "1=1"), r.set("outFields", yo(t.outFields)), r.set("returnGeometry", String(t.returnGeometry ?? !0)), t.extraParams) for (let [e, n] of Object.entries(t.extraParams)) r.set(e, String(n));
-	let i = `/rest/services/${_(t.serviceId)}/MapServer/${t.layerId}/queryRelatedRecords`;
-	return n === "GET" ? e.requestJson("GET", `${i}?${r.toString()}`, void 0, t.signal) : e.requestJson("POST", i, {
-		headers: { "Content-Type": "application/x-www-form-urlencoded" },
-		body: r.toString()
-	}, t.signal);
-}
-async function ho(e, t) {
-	let n = t.method ?? "GET", r = new URLSearchParams();
-	if (r.set("f", t.responseFormat ?? "json"), r.set("bbox", To(t.bbox)), r.set("size", Eo(t.size)), t.format !== void 0 && r.set("format", t.format), t.dpi !== void 0 && r.set("dpi", String(t.dpi)), t.transparent !== void 0 && r.set("transparent", String(t.transparent)), t.layers !== void 0 && r.set("layers", t.layers), t.bboxSr !== void 0 && r.set("bboxSR", String(t.bboxSr)), t.imageSr !== void 0 && r.set("imageSR", String(t.imageSr)), t.backgroundColor !== void 0 && r.set("backgroundColor", t.backgroundColor), t.extraParams) for (let [e, n] of Object.entries(t.extraParams)) r.set(e, String(n));
-	let i = `/rest/services/${_(t.serviceId)}/MapServer/export`;
-	return n === "GET" ? e.requestJson("GET", `${i}?${r.toString()}`) : e.requestJson("POST", i, {
-		headers: { "Content-Type": "application/x-www-form-urlencoded" },
-		body: r.toString()
-	});
-}
 async function go(e, t) {
-	let n = new URLSearchParams();
-	if (n.set("f", t.responseFormat ?? "json"), t.size !== void 0 && n.set("size", Do(t.size)), t.dynamicLayers !== void 0 && n.set("dynamicLayers", t.dynamicLayers), t.extraParams) for (let [e, r] of Object.entries(t.extraParams)) n.set(e, String(r));
-	let r = `/rest/services/${_(t.serviceId)}/MapServer/legend`;
-	return e.requestJson("GET", `${r}?${n.toString()}`);
+	let n = `/rest/services/${v(t.serviceId)}/FeatureServer/${t.layerId}/applyEdits`, r = new URLSearchParams();
+	return r.set("f", "json"), r.set("rollbackOnFailure", String(t.rollbackOnFailure ?? !0)), t.adds !== void 0 && r.set("adds", Do(t.adds)), t.updates !== void 0 && r.set("updates", Do(t.updates)), t.deletes !== void 0 && r.set("deletes", Oo(t.deletes)), e.requestJson("POST", n, {
+		headers: { "Content-Type": "application/x-www-form-urlencoded" },
+		body: r.toString()
+	}, t.signal);
 }
 async function _o(e, t) {
 	let n = t.method ?? "GET", r = new URLSearchParams();
-	if (r.set("f", t.responseFormat ?? "json"), r.set("geometry", Oo(t.geometry)), r.set("geometryType", t.geometryType ?? "esriGeometryPoint"), r.set("mapExtent", ko(t.mapExtent)), r.set("imageDisplay", Ao(t.imageDisplay)), r.set("returnGeometry", String(t.returnGeometry ?? !0)), r.set("tolerance", String(t.tolerance ?? 3)), t.sr !== void 0 && r.set("sr", String(t.sr)), t.layers !== void 0 && r.set("layers", t.layers), t.maxAllowableOffset !== void 0 && r.set("maxAllowableOffset", String(t.maxAllowableOffset)), t.layerDefs !== void 0 && r.set("layerDefs", t.layerDefs), t.dynamicLayers !== void 0 && r.set("dynamicLayers", t.dynamicLayers), t.time !== void 0 && r.set("time", t.time), t.extraParams) for (let [e, n] of Object.entries(t.extraParams)) r.set(e, String(n));
-	let i = `/rest/services/${_(t.serviceId)}/MapServer/identify`;
-	return n === "GET" ? e.requestJson("GET", `${i}?${r.toString()}`) : e.requestJson("POST", i, {
+	if (r.set("f", "json"), r.set("relationshipId", String(t.relationshipId)), t.objectIds !== void 0 && r.set("objectIds", Array.isArray(t.objectIds) ? t.objectIds.join(",") : String(t.objectIds)), r.set("where", t.where ?? "1=1"), r.set("outFields", Co(t.outFields)), r.set("returnGeometry", String(t.returnGeometry ?? !0)), t.extraParams) for (let [e, n] of Object.entries(t.extraParams)) r.set(e, String(n));
+	let i = `/rest/services/${v(t.serviceId)}/FeatureServer/${t.layerId}/queryRelatedRecords`;
+	return n === "GET" ? e.requestJson("GET", `${i}?${r.toString()}`, void 0, t.signal) : e.requestJson("POST", i, {
 		headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		body: r.toString()
-	});
+	}, t.signal);
 }
 async function vo(e, t) {
 	let n = t.method ?? "GET", r = new URLSearchParams();
-	if (r.set("f", t.responseFormat ?? "json"), r.set("searchText", t.searchText), r.set("contains", String(t.contains ?? !0)), t.searchFields !== void 0 && r.set("searchFields", jo(t.searchFields)), t.layers !== void 0 && r.set("layers", t.layers), t.sr !== void 0 && r.set("sr", String(t.sr)), t.layerDefs !== void 0 && r.set("layerDefs", t.layerDefs), t.returnGeometry !== void 0 && r.set("returnGeometry", String(t.returnGeometry)), t.maxAllowableOffset !== void 0 && r.set("maxAllowableOffset", String(t.maxAllowableOffset)), t.dynamicLayers !== void 0 && r.set("dynamicLayers", t.dynamicLayers), t.returnZ !== void 0 && r.set("returnZ", String(t.returnZ)), t.returnM !== void 0 && r.set("returnM", String(t.returnM)), t.gdbVersion !== void 0 && r.set("gdbVersion", t.gdbVersion), t.time !== void 0 && r.set("time", t.time), t.relationParam !== void 0 && r.set("relationParam", t.relationParam), t.extraParams) for (let [e, n] of Object.entries(t.extraParams)) r.set(e, String(n));
-	let i = `/rest/services/${_(t.serviceId)}/MapServer/find`;
+	if (r.set("f", "json"), r.set("relationshipId", String(t.relationshipId)), t.objectIds !== void 0 && r.set("objectIds", Array.isArray(t.objectIds) ? t.objectIds.join(",") : String(t.objectIds)), r.set("where", t.where ?? "1=1"), r.set("outFields", Co(t.outFields)), r.set("returnGeometry", String(t.returnGeometry ?? !0)), t.extraParams) for (let [e, n] of Object.entries(t.extraParams)) r.set(e, String(n));
+	let i = `/rest/services/${v(t.serviceId)}/MapServer/${t.layerId}/queryRelatedRecords`;
+	return n === "GET" ? e.requestJson("GET", `${i}?${r.toString()}`, void 0, t.signal) : e.requestJson("POST", i, {
+		headers: { "Content-Type": "application/x-www-form-urlencoded" },
+		body: r.toString()
+	}, t.signal);
+}
+async function yo(e, t) {
+	let n = t.method ?? "GET", r = new URLSearchParams();
+	if (r.set("f", t.responseFormat ?? "json"), r.set("bbox", ko(t.bbox)), r.set("size", Ao(t.size)), t.format !== void 0 && r.set("format", t.format), t.dpi !== void 0 && r.set("dpi", String(t.dpi)), t.transparent !== void 0 && r.set("transparent", String(t.transparent)), t.layers !== void 0 && r.set("layers", t.layers), t.bboxSr !== void 0 && r.set("bboxSR", String(t.bboxSr)), t.imageSr !== void 0 && r.set("imageSR", String(t.imageSr)), t.backgroundColor !== void 0 && r.set("backgroundColor", t.backgroundColor), t.extraParams) for (let [e, n] of Object.entries(t.extraParams)) r.set(e, String(n));
+	let i = `/rest/services/${v(t.serviceId)}/MapServer/export`;
 	return n === "GET" ? e.requestJson("GET", `${i}?${r.toString()}`) : e.requestJson("POST", i, {
 		headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		body: r.toString()
 	});
 }
-function yo(e) {
+async function bo(e, t) {
+	let n = new URLSearchParams();
+	if (n.set("f", t.responseFormat ?? "json"), t.size !== void 0 && n.set("size", jo(t.size)), t.dynamicLayers !== void 0 && n.set("dynamicLayers", t.dynamicLayers), t.extraParams) for (let [e, r] of Object.entries(t.extraParams)) n.set(e, String(r));
+	let r = `/rest/services/${v(t.serviceId)}/MapServer/legend`;
+	return e.requestJson("GET", `${r}?${n.toString()}`);
+}
+async function xo(e, t) {
+	let n = t.method ?? "GET", r = new URLSearchParams();
+	if (r.set("f", t.responseFormat ?? "json"), r.set("geometry", Mo(t.geometry)), r.set("geometryType", t.geometryType ?? "esriGeometryPoint"), r.set("mapExtent", No(t.mapExtent)), r.set("imageDisplay", Po(t.imageDisplay)), r.set("returnGeometry", String(t.returnGeometry ?? !0)), r.set("tolerance", String(t.tolerance ?? 3)), t.sr !== void 0 && r.set("sr", String(t.sr)), t.layers !== void 0 && r.set("layers", t.layers), t.maxAllowableOffset !== void 0 && r.set("maxAllowableOffset", String(t.maxAllowableOffset)), t.layerDefs !== void 0 && r.set("layerDefs", t.layerDefs), t.dynamicLayers !== void 0 && r.set("dynamicLayers", t.dynamicLayers), t.time !== void 0 && r.set("time", t.time), t.extraParams) for (let [e, n] of Object.entries(t.extraParams)) r.set(e, String(n));
+	let i = `/rest/services/${v(t.serviceId)}/MapServer/identify`;
+	return n === "GET" ? e.requestJson("GET", `${i}?${r.toString()}`) : e.requestJson("POST", i, {
+		headers: { "Content-Type": "application/x-www-form-urlencoded" },
+		body: r.toString()
+	});
+}
+async function So(e, t) {
+	let n = t.method ?? "GET", r = new URLSearchParams();
+	if (r.set("f", t.responseFormat ?? "json"), r.set("searchText", t.searchText), r.set("contains", String(t.contains ?? !0)), t.searchFields !== void 0 && r.set("searchFields", Fo(t.searchFields)), t.layers !== void 0 && r.set("layers", t.layers), t.sr !== void 0 && r.set("sr", String(t.sr)), t.layerDefs !== void 0 && r.set("layerDefs", t.layerDefs), t.returnGeometry !== void 0 && r.set("returnGeometry", String(t.returnGeometry)), t.maxAllowableOffset !== void 0 && r.set("maxAllowableOffset", String(t.maxAllowableOffset)), t.dynamicLayers !== void 0 && r.set("dynamicLayers", t.dynamicLayers), t.returnZ !== void 0 && r.set("returnZ", String(t.returnZ)), t.returnM !== void 0 && r.set("returnM", String(t.returnM)), t.gdbVersion !== void 0 && r.set("gdbVersion", t.gdbVersion), t.time !== void 0 && r.set("time", t.time), t.relationParam !== void 0 && r.set("relationParam", t.relationParam), t.extraParams) for (let [e, n] of Object.entries(t.extraParams)) r.set(e, String(n));
+	let i = `/rest/services/${v(t.serviceId)}/MapServer/find`;
+	return n === "GET" ? e.requestJson("GET", `${i}?${r.toString()}`) : e.requestJson("POST", i, {
+		headers: { "Content-Type": "application/x-www-form-urlencoded" },
+		body: r.toString()
+	});
+}
+function Co(e) {
 	return e === void 0 ? "*" : Array.isArray(e) ? e.length > 0 ? e.join(",") : "" : e;
 }
-function bo(e) {
-	return xo(e, "returnCountOnly") || xo(e, "returnIdsOnly");
+function wo(e) {
+	return To(e, "returnCountOnly") || To(e, "returnIdsOnly");
 }
-function xo(e, t) {
+function To(e, t) {
 	if (e === void 0) return !1;
 	let n = e[t];
 	if (typeof n == "boolean") return n;
@@ -4862,26 +4903,14 @@ function xo(e, t) {
 	let r = n.trim().toLowerCase();
 	return r === "true" || r === "1" || r === "yes";
 }
-function So(e, t) {
-	bo(t.extraParams) || e.set("outFields", yo(t.outFields));
-}
-function Co(e) {
-	return typeof e == "string" ? e : typeof e == "number" || typeof e == "boolean" ? String(e) : JSON.stringify(e);
-}
-function wo(e) {
-	return Array.isArray(e) ? e.join(",") : String(e);
-}
-function To(e) {
-	return Array.isArray(e) ? e.join(",") : e;
-}
-function Eo(e) {
-	return Array.isArray(e) ? e.join(",") : e;
+function Eo(e, t) {
+	wo(t.extraParams) || e.set("outFields", Co(t.outFields));
 }
 function Do(e) {
-	return typeof e == "number" ? String(e) : Array.isArray(e) ? e.join(",") : e;
+	return typeof e == "string" ? e : typeof e == "number" || typeof e == "boolean" ? String(e) : JSON.stringify(e);
 }
 function Oo(e) {
-	return typeof e == "string" ? e : JSON.stringify(e);
+	return Array.isArray(e) ? e.join(",") : String(e);
 }
 function ko(e) {
 	return Array.isArray(e) ? e.join(",") : e;
@@ -4890,54 +4919,66 @@ function Ao(e) {
 	return Array.isArray(e) ? e.join(",") : e;
 }
 function jo(e) {
+	return typeof e == "number" ? String(e) : Array.isArray(e) ? e.join(",") : e;
+}
+function Mo(e) {
+	return typeof e == "string" ? e : JSON.stringify(e);
+}
+function No(e) {
+	return Array.isArray(e) ? e.join(",") : e;
+}
+function Po(e) {
+	return Array.isArray(e) ? e.join(",") : e;
+}
+function Fo(e) {
 	return e ? Array.isArray(e) ? e.join(",") : e : "";
 }
-function Mo(e, t) {
-	t.outSr !== void 0 && e.set("outSR", typeof t.outSr == "object" && t.outSr !== null ? JSON.stringify(t.outSr) : String(t.outSr)), t.orderByFields !== void 0 && e.set("orderByFields", t.orderByFields), t.objectIds !== void 0 && e.set("objectIds", Array.isArray(t.objectIds) ? t.objectIds.join(",") : String(t.objectIds)), t.geometry !== void 0 && (e.set("inSR", String(t.extraParams?.inSR ?? Ra(t.geometry))), e.set("geometry", typeof t.geometry == "object" && t.geometry !== null ? JSON.stringify(t.geometry) : String(t.geometry))), t.geometryType !== void 0 && e.set("geometryType", t.geometryType), t.spatialRel !== void 0 && e.set("spatialRel", t.spatialRel), t.distance !== void 0 && e.set("distance", String(t.distance)), t.units !== void 0 && e.set("units", t.units), t.nearestCount !== void 0 && e.set("nearestCount", String(t.nearestCount)), t.returnDistance !== void 0 && e.set("returnDistance", String(t.returnDistance)), t.returnDistinctValues !== void 0 && e.set("returnDistinctValues", String(t.returnDistinctValues)), t.returnCentroid !== void 0 && e.set("returnCentroid", String(t.returnCentroid)), t.groupByFieldsForStatistics !== void 0 && e.set("groupByFieldsForStatistics", t.groupByFieldsForStatistics), t.outStatistics !== void 0 && e.set("outStatistics", Array.isArray(t.outStatistics) ? JSON.stringify(t.outStatistics) : String(t.outStatistics)), t.resultOffset !== void 0 && e.set("resultOffset", String(t.resultOffset)), t.resultRecordCount !== void 0 && e.set("resultRecordCount", String(t.resultRecordCount));
+function Io(e, t) {
+	t.outSr !== void 0 && e.set("outSR", typeof t.outSr == "object" && t.outSr !== null ? JSON.stringify(t.outSr) : String(t.outSr)), t.orderByFields !== void 0 && e.set("orderByFields", t.orderByFields), t.objectIds !== void 0 && e.set("objectIds", Array.isArray(t.objectIds) ? t.objectIds.join(",") : String(t.objectIds)), t.geometry !== void 0 && (e.set("inSR", String(t.extraParams?.inSR ?? za(t.geometry))), e.set("geometry", typeof t.geometry == "object" && t.geometry !== null ? JSON.stringify(t.geometry) : String(t.geometry))), t.geometryType !== void 0 && e.set("geometryType", t.geometryType), t.spatialRel !== void 0 && e.set("spatialRel", t.spatialRel), t.distance !== void 0 && e.set("distance", String(t.distance)), t.units !== void 0 && e.set("units", t.units), t.nearestCount !== void 0 && e.set("nearestCount", String(t.nearestCount)), t.returnDistance !== void 0 && e.set("returnDistance", String(t.returnDistance)), t.returnDistinctValues !== void 0 && e.set("returnDistinctValues", String(t.returnDistinctValues)), t.returnCentroid !== void 0 && e.set("returnCentroid", String(t.returnCentroid)), t.groupByFieldsForStatistics !== void 0 && e.set("groupByFieldsForStatistics", t.groupByFieldsForStatistics), t.outStatistics !== void 0 && e.set("outStatistics", Array.isArray(t.outStatistics) ? JSON.stringify(t.outStatistics) : String(t.outStatistics)), t.resultOffset !== void 0 && e.set("resultOffset", String(t.resultOffset)), t.resultRecordCount !== void 0 && e.set("resultRecordCount", String(t.resultRecordCount));
 }
-function No(e, t) {
+function Lo(e, t) {
 	if (!t.extraParams) return;
-	let n = bo(t.extraParams);
+	let n = wo(t.extraParams);
 	for (let [r, i] of Object.entries(t.extraParams)) t.outSr !== void 0 && (r === "outSr" || r === "outSR") || n && r === "outFields" || e.set(r, String(i));
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/ogc-endpoint-layout.js
-var Po = "/ogc/features";
-function V(e) {
+var Ro = "/ogc/features";
+function B(e) {
 	return encodeURIComponent(String(e));
 }
-function Fo(e) {
+function zo(e) {
 	let t = e.length;
 	for (; t > 0 && e.charCodeAt(t - 1) === 47;) t--;
 	return e.slice(0, t);
 }
-function Io(e = Po) {
-	let t = Fo(e) || Po;
+function Bo(e = Ro) {
+	let t = zo(e) || Ro;
 	return {
 		mode: "honua-facade",
 		landing: () => t,
 		conformance: () => `${t}/conformance`,
 		collections: () => `${t}/collections`,
-		collection: (e) => `${t}/collections/${V(e)}`,
-		queryables: (e) => `${t}/collections/${V(e)}/queryables`,
-		items: (e) => `${t}/collections/${V(e)}/items`,
-		item: (e, n) => `${t}/collections/${V(e)}/items/${V(n)}`
+		collection: (e) => `${t}/collections/${B(e)}`,
+		queryables: (e) => `${t}/collections/${B(e)}/queryables`,
+		items: (e) => `${t}/collections/${B(e)}/items`,
+		item: (e, n) => `${t}/collections/${B(e)}/items/${B(n)}`
 	};
 }
-function Lo(e) {
-	let t = Fo(e.landingUrl), n = Fo(e.collectionsUrl), r = Fo(e.conformanceUrl);
+function Vo(e) {
+	let t = zo(e.landingUrl), n = zo(e.collectionsUrl), r = zo(e.conformanceUrl);
 	return {
 		mode: "ogc-api",
 		landing: () => t,
 		conformance: () => r,
 		collections: () => n,
-		collection: (e) => `${n}/${V(e)}`,
-		queryables: (e) => `${n}/${V(e)}/queryables`,
-		items: (e) => `${n}/${V(e)}/items`,
-		item: (e, t) => `${n}/${V(e)}/items/${V(t)}`
+		collection: (e) => `${n}/${B(e)}`,
+		queryables: (e) => `${n}/${B(e)}/queryables`,
+		items: (e) => `${n}/${B(e)}/items`,
+		item: (e, t) => `${n}/${B(e)}/items/${B(t)}`
 	};
 }
-function Ro(e, t) {
+function Ho(e, t) {
 	if (/^https?:\/\//i.test(e)) return e;
 	let n = t.endsWith("/") ? t : `${t}/`;
 	try {
@@ -4946,7 +4987,7 @@ function Ro(e, t) {
 		return e;
 	}
 }
-function zo(e, ...t) {
+function Uo(e, ...t) {
 	if (!e) return;
 	let n = new Set(t.map((e) => e.toLowerCase()));
 	for (let t of e) {
@@ -4957,121 +4998,121 @@ function zo(e, ...t) {
 		if (r && n.has(r)) return t.href;
 	}
 }
-async function Bo(e) {
-	let t = await e.requestCachedMetadataJson("ogc-features:layout:landing", "?f=json", {}), n = Fo(e.baseUrl), r = t?.links, i = zo(r, "data"), a = zo(r, "conformance");
-	return Lo({
+async function Wo(e) {
+	let t = await e.requestCachedMetadataJson("ogc-features:layout:landing", "?f=json", {}), n = zo(e.baseUrl), r = t?.links, i = Uo(r, "data"), a = Uo(r, "conformance");
+	return Vo({
 		landingUrl: n,
-		collectionsUrl: i ? Ro(i, n) : `${n}/collections`,
-		conformanceUrl: a ? Ro(a, n) : `${n}/conformance`
+		collectionsUrl: i ? Ho(i, n) : `${n}/collections`,
+		conformanceUrl: a ? Ho(a, n) : `${n}/conformance`
 	});
 }
-async function Vo(e) {
+async function Go(e) {
 	try {
-		let t = await e.requestCachedMetadataJson("ogc-features:layout:facade-probe", `${Po}?f=json`, {});
+		let t = await e.requestCachedMetadataJson("ogc-features:layout:facade-probe", `${Ro}?f=json`, {});
 		return Array.isArray(t?.links);
 	} catch {
 		return !1;
 	}
 }
-async function Ho(e, t = "honua-facade") {
-	if (t === "honua-facade" || t === "auto" && await Vo(e)) return Io();
+async function Ko(e, t = "honua-facade") {
+	if (t === "honua-facade" || t === "auto" && await Go(e)) return Bo();
 	try {
-		return await Bo(e);
+		return await Wo(e);
 	} catch (t) {
 		throw t instanceof o ? t : new o("query", "ogc-features", `ogc-api layout discovery failed for ${e.baseUrl}: ${t instanceof Error ? t.message : String(t)}`);
 	}
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/ogc-features.js
-function H(e) {
-	return e.layout ?? Io();
+function V(e) {
+	return e.layout ?? Bo();
 }
-function Uo(e) {
+function qo(e) {
 	return e.mode === "honua-facade" ? "facade" : e.collections();
 }
-async function Wo(e, t = {}) {
-	let n = C(t), r = H(t);
-	return e.requestCachedMetadataJson(`ogc-features:landing:${Uo(r)}:${n.toString()}`, `${r.landing()}?${n.toString()}`, t);
+async function Jo(e, t = {}) {
+	let n = C(t), r = V(t);
+	return e.requestCachedMetadataJson(`ogc-features:landing:${qo(r)}:${n.toString()}`, `${r.landing()}?${n.toString()}`, t);
 }
-async function Go(e, t = {}) {
-	let n = C(t), r = H(t);
-	return e.requestCachedMetadataJson(`ogc-features:conformance:${Uo(r)}:${n.toString()}`, `${r.conformance()}?${n.toString()}`, t);
+async function Yo(e, t = {}) {
+	let n = C(t), r = V(t);
+	return e.requestCachedMetadataJson(`ogc-features:conformance:${qo(r)}:${n.toString()}`, `${r.conformance()}?${n.toString()}`, t);
 }
-async function Ko(e, t = {}) {
-	let n = C(t), r = H(t);
-	return e.requestCachedMetadataJson(`ogc-features:collections:${Uo(r)}:${n.toString()}`, `${r.collections()}?${n.toString()}`, t);
-}
-async function qo(e, t) {
-	let n = C(t), r = H(t);
-	return e.requestCachedMetadataJson(`ogc-features:collection:${Uo(r)}:${t.collectionId}:${n.toString()}`, `${r.collection(t.collectionId)}?${n.toString()}`, t);
-}
-async function Jo(e, t) {
-	let n = C(t), r = H(t);
-	return e.requestCachedMetadataJson(`ogc-features:queryables:${Uo(r)}:${t.collectionId}:${n.toString()}`, `${r.queryables(t.collectionId)}?${n.toString()}`, t);
-}
-async function Yo(e, t) {
-	let n = C(t);
-	t.limit !== void 0 && n.set("limit", String(t.limit)), t.offset !== void 0 && n.set("offset", String(t.offset)), t.bbox !== void 0 && n.set("bbox", t.bbox), t.datetime !== void 0 && n.set("datetime", t.datetime), t.filter !== void 0 && n.set("filter", t.filter), t.filterLang !== void 0 && n.set("filter-lang", t.filterLang), t.ids !== void 0 && n.set("ids", st(t.ids)), t.properties !== void 0 && n.set("properties", st(t.properties)), t.sortby !== void 0 && n.set("sortby", t.sortby), t.crs !== void 0 && n.set("crs", t.crs);
-	let r = H(t).items(t.collectionId);
-	return e.requestJson("GET", `${r}?${n.toString()}`, void 0, t.signal);
-}
-async function Xo(e, t) {
-	let n = C(t);
-	t.crs !== void 0 && n.set("crs", t.crs);
-	let r = H(t).item(t.collectionId, t.featureId);
-	return e.requestJson("GET", `${r}?${n.toString()}`, void 0, t.signal);
+async function Xo(e, t = {}) {
+	let n = C(t), r = V(t);
+	return e.requestCachedMetadataJson(`ogc-features:collections:${qo(r)}:${n.toString()}`, `${r.collections()}?${n.toString()}`, t);
 }
 async function Zo(e, t) {
-	let n = C(t), r = H(t).items(t.collectionId);
+	let n = C(t), r = V(t);
+	return e.requestCachedMetadataJson(`ogc-features:collection:${qo(r)}:${t.collectionId}:${n.toString()}`, `${r.collection(t.collectionId)}?${n.toString()}`, t);
+}
+async function Qo(e, t) {
+	let n = C(t), r = V(t);
+	return e.requestCachedMetadataJson(`ogc-features:queryables:${qo(r)}:${t.collectionId}:${n.toString()}`, `${r.queryables(t.collectionId)}?${n.toString()}`, t);
+}
+async function $o(e, t) {
+	let n = C(t);
+	t.limit !== void 0 && n.set("limit", String(t.limit)), t.offset !== void 0 && n.set("offset", String(t.offset)), t.bbox !== void 0 && n.set("bbox", t.bbox), t.datetime !== void 0 && n.set("datetime", t.datetime), t.filter !== void 0 && n.set("filter", t.filter), t.filterLang !== void 0 && n.set("filter-lang", t.filterLang), t.ids !== void 0 && n.set("ids", st(t.ids)), t.properties !== void 0 && n.set("properties", st(t.properties)), t.sortby !== void 0 && n.set("sortby", t.sortby), t.crs !== void 0 && n.set("crs", t.crs);
+	let r = V(t).items(t.collectionId);
+	return e.requestJson("GET", `${r}?${n.toString()}`, void 0, t.signal);
+}
+async function es(e, t) {
+	let n = C(t);
+	t.crs !== void 0 && n.set("crs", t.crs);
+	let r = V(t).item(t.collectionId, t.featureId);
+	return e.requestJson("GET", `${r}?${n.toString()}`, void 0, t.signal);
+}
+async function ts(e, t) {
+	let n = C(t), r = V(t).items(t.collectionId);
 	return e.requestJson("POST", `${r}?${n.toString()}`, {
 		headers: S({ "Content-Type": "application/geo+json" }, t.headers),
 		body: JSON.stringify(t.feature)
 	}, t.signal);
 }
-async function Qo(e, t) {
+async function ns(e, t) {
 	let n = C(t);
 	t.crs !== void 0 && n.set("crs", t.crs);
-	let r = H(t).item(t.collectionId, t.featureId);
+	let r = V(t).item(t.collectionId, t.featureId);
 	return e.requestJson("PUT", `${r}?${n.toString()}`, {
 		headers: S({ "Content-Type": "application/geo+json" }, t.headers),
 		body: JSON.stringify(t.feature)
 	}, t.signal);
 }
-async function $o(e, t) {
+async function rs(e, t) {
 	let n = C(t);
 	t.crs !== void 0 && n.set("crs", t.crs);
-	let r = H(t).item(t.collectionId, t.featureId);
+	let r = V(t).item(t.collectionId, t.featureId);
 	return e.requestJson("PATCH", `${r}?${n.toString()}`, {
 		headers: S({ "Content-Type": "application/merge-patch+json" }, t.headers),
 		body: JSON.stringify(t.patch)
 	}, t.signal);
 }
-async function es(e, t) {
+async function is(e, t) {
 	let n = C(t);
 	t.crs !== void 0 && n.set("crs", t.crs);
-	let r = H(t).item(t.collectionId, t.featureId);
+	let r = V(t).item(t.collectionId, t.featureId);
 	await e.requestJson("DELETE", `${r}?${n.toString()}`, void 0, t.signal);
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/ogc-processes.js
-var ts = 1e3, ns = "/ogc/processes", rs = {
+var as = 1e3, os = "/ogc/processes", ss = {
 	core: "http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/core",
 	dismiss: "http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/dismiss"
-}, is = {
+}, cs = {
 	core: "processes-1/1.0/conf/core",
 	dismiss: "processes-1/1.0/conf/dismiss"
-}, as = {
+}, ls = {
 	results: "http://www.opengis.net/def/rel/ogc/1.0/results",
 	status: "self"
-}, os = {
+}, us = {
 	sync: "sync-execute",
 	async: "async-execute",
 	dismiss: "dismiss"
 };
-function ss(e, t, n) {
+function H(e, t, n) {
 	return new o(e, "ogc-processes", t, { context: n });
 }
-function cs(e, t) {
+function ds(e, t) {
 	for (let n of e?.conformsTo ?? []) {
 		if (typeof n != "string") continue;
 		let e = (n.split("#")[0] ?? "").split("?")[0] ?? "", r = e.length;
@@ -5080,33 +5121,33 @@ function cs(e, t) {
 	}
 	return !1;
 }
-function ls(e, t) {
+function fs(e, t) {
 	if (!e) return !1;
 	for (let n of e) if (typeof n == "string" && n.toLowerCase() === t) return !0;
 	return !1;
 }
 function U(e) {
-	if (e.basePath === void 0) return ns;
+	if (e.basePath === void 0) return os;
 	let t = e.basePath, n = t.length;
 	for (; n > 0 && t.charCodeAt(n - 1) === 47;) n--;
 	return t.slice(0, n);
 }
-function us(e) {
+function ps(e) {
 	let t = U(e);
-	return t === ns ? "" : `${encodeURIComponent(t)}:`;
+	return t === os ? "" : `${encodeURIComponent(t)}:`;
 }
-function ds(e) {
+function ms(e) {
 	return /^https?:\/\//i.test(e);
 }
-function fs(e, t) {
-	if (ds(e)) try {
+function hs(e, t) {
+	if (ms(e)) try {
 		return new URL(`${e}${t}`).toString();
 	} catch {
 		return;
 	}
 }
-function ps(e, t, n) {
-	if (typeof e != "string" || e.length === 0 || !ds(n)) return;
+function gs(e, t, n) {
+	if (typeof e != "string" || e.length === 0 || !ms(n)) return;
 	let r;
 	try {
 		r = new URL(e, t ?? `${n}/`);
@@ -5121,10 +5162,10 @@ function ps(e, t, n) {
 	}
 	if (r.origin === i) return `${r.pathname}${r.search}`;
 }
-function ms(e, t) {
+function _s(e, t) {
 	return `${U({ ...e === void 0 ? {} : { basePath: e } })}/jobs/${encodeURIComponent(t)}`;
 }
-function hs(e, t) {
+function vs(e, t) {
 	let n = e.indexOf("?");
 	if (n < 0) {
 		let n = t.toString();
@@ -5135,7 +5176,7 @@ function hs(e, t) {
 	let a = i.toString();
 	return a.length === 0 ? e : `${e}&${a}`;
 }
-function gs(e, t, n, ...r) {
+function ys(e, t, n, ...r) {
 	if (!e) return;
 	let i = /* @__PURE__ */ new Set();
 	for (let e of r) {
@@ -5145,11 +5186,11 @@ function gs(e, t, n, ...r) {
 	for (let r of e) {
 		let e = (r.rel ?? "").toLowerCase(), a = e.slice(e.lastIndexOf("/") + 1);
 		if (!i.has(e) && !(a && i.has(a))) continue;
-		let o = ps(r.href, t, n);
+		let o = gs(r.href, t, n);
 		if (o) return o;
 	}
 }
-var _s = class {
+var bs = class {
 	client;
 	basePath;
 	capabilityPolicy;
@@ -5193,7 +5234,7 @@ var _s = class {
 	}
 	async execute(e) {
 		let t = this.withBase(e), n = await this.assertExecutionDeclared(e), r = await this.client.executeOgcProcess(t), i = r.processID ?? e.processId, a = e.jobControlOptions ?? this.jobControlByProcess.get(e.processId)?.options;
-		return r.synchronous === !0 ? new ys(i, r.results ?? {}) : new vs({
+		return r.synchronous === !0 ? new Ss(i, r.results ?? {}) : new xs({
 			client: this.client,
 			jobId: r.jobID,
 			processId: i,
@@ -5212,7 +5253,7 @@ var _s = class {
 	}
 	job(e, t = {}) {
 		let { basePath: n } = this.withBase(t), r = t.processId ? this.jobControlByProcess.get(t.processId)?.options : void 0;
-		return new vs({
+		return new xs({
 			client: this.client,
 			jobId: e,
 			processId: t.processId,
@@ -5239,22 +5280,22 @@ var _s = class {
 	}
 	async assertExecutionDeclared(e) {
 		let t = await this.resolveConformance(e.signal);
-		if ((t?.conformsTo !== void 0 || this.capabilityPolicy === "strict") && !cs(t, is.core)) throw ss("processes.execute", e.processId, {
-			missingClass: rs.core,
+		if ((t?.conformsTo !== void 0 || this.capabilityPolicy === "strict") && !ds(t, cs.core)) throw H("processes.execute", e.processId, {
+			missingClass: ss.core,
 			construct: "execute"
 		});
 		let n = e.mode ?? "auto";
 		if (n === "auto") return t;
 		let r = e.jobControlOptions ?? this.jobControlByProcess.get(e.processId)?.options;
 		if (!r && this.capabilityPolicy === "strict" && (r = (await this.describe(e.processId, e.signal ? { signal: e.signal } : {})).jobControlOptions ?? []), !r) return t;
-		let i = n === "sync" ? os.sync : os.async;
-		if (!ls(r, i)) throw ss(`processes.${i}`, e.processId, {
+		let i = n === "sync" ? us.sync : us.async;
+		if (!fs(r, i)) throw H(`processes.${i}`, e.processId, {
 			construct: i,
 			declaredJobControlOptions: r.join(",")
 		});
 		return t;
 	}
-}, vs = class {
+}, xs = class {
 	id;
 	type;
 	client;
@@ -5269,21 +5310,21 @@ var _s = class {
 	resultsPath;
 	lifecycle;
 	constructor(e) {
-		this.client = e.client, this.id = e.jobId, this.type = e.processId ?? e.initialStatus?.processID ?? "unknown", this.basePath = e.basePath, this.pollIntervalMs = e.pollIntervalMs ?? ts, this.pollBudget = e.pollBudget, this.conformance = e.conformance, this.jobControlOptions = e.jobControlOptions, this.capabilityPolicy = e.capabilityPolicy ?? "advertised", this.statusPath = e.statusPath, this.resultsPath = e.resultsPath, this.pollFn = e.pollFn ?? ((e, t) => this.fetchStatus(e, t));
+		this.client = e.client, this.id = e.jobId, this.type = e.processId ?? e.initialStatus?.processID ?? "unknown", this.basePath = e.basePath, this.pollIntervalMs = e.pollIntervalMs ?? as, this.pollBudget = e.pollBudget, this.conformance = e.conformance, this.jobControlOptions = e.jobControlOptions, this.capabilityPolicy = e.capabilityPolicy ?? "advertised", this.statusPath = e.statusPath, this.resultsPath = e.resultsPath, this.pollFn = e.pollFn ?? ((e, t) => this.fetchStatus(e, t));
 		let t = e.initialStatus;
 		this.absorbLinks(t?.links), this.lifecycle = new Ln({
 			id: this.id,
 			initialStatus: t?.status ?? "accepted",
-			initialProgress: Ss(t),
+			initialProgress: Ts(t),
 			pollIntervalMs: () => this.pollIntervalMs,
 			pollBudget: this.pollBudget,
 			poll: async (e) => this.translateOgcStatus(await this.pollFn(this.id, e))
 		});
 	}
 	async fetchStatus(e, t) {
-		if (this.capabilityPolicy === "strict" && this.statusPath === void 0) throw ss("processes.jobStatusLink", this.type, {
+		if (this.capabilityPolicy === "strict" && this.statusPath === void 0) throw H("processes.jobStatusLink", this.type, {
 			construct: "job status route",
-			linkRelation: as.status
+			linkRelation: ls.status
 		});
 		return this.client.getOgcProcessJob({
 			jobId: e,
@@ -5294,9 +5335,9 @@ var _s = class {
 	}
 	absorbLinks(e) {
 		if (!e || e.length === 0) return;
-		let t = this.client.serverBaseUrl, n = fs(t, this.statusPath ?? ms(this.basePath, this.id)), r = gs(e, n, t, as.results);
+		let t = this.client.serverBaseUrl, n = hs(t, this.statusPath ?? _s(this.basePath, this.id)), r = ys(e, n, t, ls.results);
 		if (r && (this.resultsPath = r), this.statusPath === void 0) {
-			let r = gs(e, n, t, as.status, "status", "monitor");
+			let r = ys(e, n, t, ls.status, "status", "monitor");
 			r && (this.statusPath = r);
 		}
 	}
@@ -5328,7 +5369,7 @@ var _s = class {
 				status: this.lifecycle.status,
 				progress: this.lifecycle.progress
 			};
-			if (t === 409 && bs(e)) {
+			if (t === 409 && Cs(e)) {
 				let t;
 				try {
 					t = await this.pollFn(this.id);
@@ -5343,11 +5384,11 @@ var _s = class {
 		}
 	}
 	async translateOgcStatus(e) {
-		let t = e.status ?? "accepted", n = Ss(e);
+		let t = e.status ?? "accepted", n = Ts(e);
 		if (this.absorbLinks(e.links), t === "successful") try {
-			if (this.capabilityPolicy === "strict" && this.resultsPath === void 0) throw ss("processes.jobResultsLink", this.type, {
+			if (this.capabilityPolicy === "strict" && this.resultsPath === void 0) throw H("processes.jobResultsLink", this.type, {
 				construct: "job results route",
-				linkRelation: as.results
+				linkRelation: ls.results
 			});
 			return {
 				status: "successful",
@@ -5366,7 +5407,7 @@ var _s = class {
 			};
 		}
 		if (t === "failed" || t === "dismissed") {
-			let r = xs(t, e);
+			let r = ws(t, e);
 			return {
 				status: t,
 				progress: n,
@@ -5386,16 +5427,16 @@ var _s = class {
 		};
 	}
 	assertDismissDeclared() {
-		if (this.capabilityPolicy === "strict" && this.statusPath === void 0) throw ss("processes.jobStatusLink", this.type, {
+		if (this.capabilityPolicy === "strict" && this.statusPath === void 0) throw H("processes.jobStatusLink", this.type, {
 			construct: "job status route",
-			linkRelation: as.status
+			linkRelation: ls.status
 		});
-		if (!ls(this.jobControlOptions, os.dismiss) && !(!this.conformance?.conformsTo && this.capabilityPolicy !== "strict") && !cs(this.conformance, is.dismiss)) throw ss("processes.dismiss", this.type, {
-			missingClass: rs.dismiss,
-			construct: os.dismiss
+		if (!fs(this.jobControlOptions, us.dismiss) && !(!this.conformance?.conformsTo && this.capabilityPolicy !== "strict") && !ds(this.conformance, cs.dismiss)) throw H("processes.dismiss", this.type, {
+			missingClass: ss.dismiss,
+			construct: us.dismiss
 		});
 	}
-}, ys = class {
+}, Ss = class {
 	id = "";
 	type;
 	status = "successful";
@@ -5421,54 +5462,54 @@ var _s = class {
 		return "successful";
 	}
 };
-function bs(e) {
+function Cs(e) {
 	let t = e?.body;
 	if (!t || typeof t != "object") return !1;
 	let n = t.title, r = t.detail;
 	return !!(typeof n == "string" && /cannot dismiss completed job/i.test(n) || typeof r == "string" && /terminal state/i.test(r));
 }
-function xs(e, t) {
+function ws(e, t) {
 	if (t.exception) return { ...t.exception };
 	if (typeof t.message == "string" && t.message.length > 0) return {
 		code: e === "dismissed" ? "JobDismissed" : "JobFailed",
 		message: t.message
 	};
 }
-function Ss(e) {
+function Ts(e) {
 	if (!e) return;
 	let t = {};
-	if (typeof e.progress == "number" && Number.isFinite(e.progress) && (t.percent = Cs(e.progress)), e.message !== void 0 && (t.message = e.message), e.updated !== void 0 && (t.updatedAt = e.updated), !(t.percent === void 0 && t.message === void 0 && t.updatedAt === void 0)) return t;
+	if (typeof e.progress == "number" && Number.isFinite(e.progress) && (t.percent = Es(e.progress)), e.message !== void 0 && (t.message = e.message), e.updated !== void 0 && (t.updatedAt = e.updated), !(t.percent === void 0 && t.message === void 0 && t.updatedAt === void 0)) return t;
 }
-function Cs(e) {
+function Es(e) {
 	return e < 0 ? 0 : e > 100 ? 100 : e;
 }
-async function ws(e, t = {}) {
+async function Ds(e, t = {}) {
 	let n = C(t), r = U(t);
-	return e.requestCachedMetadataJson(`ogc-processes:landing:${us(t)}${n.toString()}`, `${r}?${n.toString()}`, t);
+	return e.requestCachedMetadataJson(`ogc-processes:landing:${ps(t)}${n.toString()}`, `${r}?${n.toString()}`, t);
 }
-async function Ts(e, t = {}) {
+async function Os(e, t = {}) {
 	let n = C(t), r = U(t);
-	return e.requestCachedMetadataJson(`ogc-processes:conformance:${us(t)}${n.toString()}`, `${r}/conformance?${n.toString()}`, t);
+	return e.requestCachedMetadataJson(`ogc-processes:conformance:${ps(t)}${n.toString()}`, `${r}/conformance?${n.toString()}`, t);
 }
-async function Es(e, t = {}) {
+async function ks(e, t = {}) {
 	let n = C(t), r = U(t);
-	return e.requestCachedMetadataJson(`ogc-processes:processes:${us(t)}${n.toString()}`, `${r}/processes?${n.toString()}`, t);
+	return e.requestCachedMetadataJson(`ogc-processes:processes:${ps(t)}${n.toString()}`, `${r}/processes?${n.toString()}`, t);
 }
-async function Ds(e, t) {
+async function As(e, t) {
 	let n = C(t), r = U(t);
-	return e.requestCachedMetadataJson(`ogc-processes:process:${us(t)}${encodeURIComponent(t.processId)}:${n.toString()}`, `${r}/processes/${encodeURIComponent(t.processId)}?${n.toString()}`, t);
+	return e.requestCachedMetadataJson(`ogc-processes:process:${ps(t)}${encodeURIComponent(t.processId)}:${n.toString()}`, `${r}/processes/${encodeURIComponent(t.processId)}?${n.toString()}`, t);
 }
-async function Os(e, t) {
-	let n = Fs(t), r = `${U(t)}/processes/${encodeURIComponent(t.processId)}/execution`, i = JSON.stringify({
+async function js(e, t) {
+	let n = Rs(t), r = `${U(t)}/processes/${encodeURIComponent(t.processId)}/execution`, i = JSON.stringify({
 		inputs: t.inputs ?? {},
 		outputs: t.outputs,
 		response: "document"
 	}), a = await e.pipelineFetch("POST", r, {
 		headers: n,
 		body: i
-	}, t.signal), o = await ks(a), s = As(o, t.processId), c = fs(e.baseUrl, r), l = ps(a.headers.get("Location") ?? void 0, c, e.baseUrl);
+	}, t.signal), o = await Ms(a), s = Ns(o, t.processId), c = hs(e.baseUrl, r), l = gs(a.headers.get("Location") ?? void 0, c, e.baseUrl);
 	if (s) {
-		let n = l ?? gs(s.links, c, e.baseUrl, as.status, "status");
+		let n = l ?? ys(s.links, c, e.baseUrl, ls.status, "status");
 		return {
 			jobID: s.jobID,
 			status: s.status,
@@ -5486,26 +5527,26 @@ async function Os(e, t) {
 		results: o ?? {},
 		synchronous: !0
 	} : {
-		jobID: js(l),
+		jobID: Ps(l),
 		status: "accepted",
 		processID: t.processId,
 		statusPath: l,
 		synchronous: !1
 	};
 }
-async function ks(e) {
+async function Ms(e) {
 	if (e.status === 204) return;
 	let t = await e.text();
 	if (t.trim().length !== 0) try {
 		return JSON.parse(t);
 	} catch {
-		throw ss("processes.documentResponse", void 0, {
+		throw H("processes.documentResponse", void 0, {
 			construct: "document-mode execution response",
 			contentType: e.headers.get("Content-Type") ?? "unknown"
 		});
 	}
 }
-function As(e, t) {
+function Ns(e, t) {
 	if (!e || typeof e != "object" || Array.isArray(e)) return;
 	let n = e;
 	if (!(typeof n.jobID != "string" || n.jobID.length === 0)) return {
@@ -5515,7 +5556,7 @@ function As(e, t) {
 		status: n.status ?? "accepted"
 	};
 }
-function js(e) {
+function Ps(e) {
 	let t = e.split("?", 1)[0] ?? e, n = t.endsWith("/") ? t.slice(0, -1) : t, r = n.slice(n.lastIndexOf("/") + 1);
 	try {
 		return decodeURIComponent(r);
@@ -5523,19 +5564,19 @@ function js(e) {
 		return r;
 	}
 }
-async function Ms(e, t) {
+async function Fs(e, t) {
 	let n = C(t), r = t.routePath ?? `${U(t)}/jobs/${encodeURIComponent(t.jobId)}`;
-	return e.requestJson("GET", hs(r, n), void 0, t.signal);
+	return e.requestJson("GET", vs(r, n), void 0, t.signal);
 }
-async function Ns(e, t) {
+async function Is(e, t) {
 	let n = C(t), r = t.routePath ?? `${U(t)}/jobs/${encodeURIComponent(t.jobId)}/results`;
-	return e.requestJson("GET", hs(r, n), void 0, t.signal);
+	return e.requestJson("GET", vs(r, n), void 0, t.signal);
 }
-async function Ps(e, t) {
+async function Ls(e, t) {
 	let n = C(t), r = t.routePath ?? `${U(t)}/jobs/${encodeURIComponent(t.jobId)}`;
-	return e.requestJson("DELETE", hs(r, n), void 0, t.signal);
+	return e.requestJson("DELETE", vs(r, n), void 0, t.signal);
 }
-function Fs(e) {
+function Rs(e) {
 	let t = new Headers(S({
 		"Content-Type": "application/json",
 		Accept: "application/json"
@@ -5544,11 +5585,11 @@ function Fs(e) {
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/optional-grpc-peer.js
-var Is = [
+var zs = [
 	"@connectrpc/connect-web",
 	"@connectrpc/connect",
 	"@bufbuild/protobuf"
-], Ls = /ERR_MODULE_NOT_FOUND|ERR_PACKAGE_PATH_NOT_EXPORTED|Failed to resolve module specifier|Failed to fetch dynamically imported module|Cannot find package|Cannot find module/, Rs = class extends Error {
+], Bs = /ERR_MODULE_NOT_FOUND|ERR_PACKAGE_PATH_NOT_EXPORTED|Failed to resolve module specifier|Failed to fetch dynamically imported module|Cannot find package|Cannot find module/, Vs = class extends Error {
 	peer;
 	constructor(e, t) {
 		let n = [
@@ -5559,37 +5600,37 @@ var Is = [
 		super(n, t instanceof Error ? { cause: t } : void 0), this.name = "HonuaOptionalGrpcPeerError", this.peer = e;
 	}
 };
-function zs(e) {
+function Hs(e) {
 	return typeof e == "object" && !!e;
 }
-function Bs(e) {
-	return zs(e) ? e instanceof Error && e.name === "HonuaGrpcError" || typeof e.code == "number" : !1;
+function Us(e) {
+	return Hs(e) ? e instanceof Error && e.name === "HonuaGrpcError" || typeof e.code == "number" : !1;
 }
-function Vs(e) {
+function Ws(e) {
 	if (!(e instanceof Error)) return;
 	let t = `${"code" in e && (typeof e.code == "string" || typeof e.code == "number") ? String(e.code) : ""}\n${e.message}`;
-	if (Ls.test(t)) return Is.find((e) => t.includes(e));
+	if (Bs.test(t)) return zs.find((e) => t.includes(e));
 }
-function Hs(e) {
+function Gs(e) {
 	let t = /* @__PURE__ */ new Set(), n = e;
-	for (; zs(n) && !t.has(n);) {
-		if (t.add(n), Bs(n)) return;
-		let e = Vs(n);
+	for (; Hs(n) && !t.has(n);) {
+		if (t.add(n), Us(n)) return;
+		let e = Ws(n);
 		if (e) return e;
 		n = n.cause;
 	}
 }
-function Us(e) {
-	let t = Hs(e);
-	return t ? new Rs(t, e) : e;
+function Ks(e) {
+	let t = Gs(e);
+	return t ? new Vs(t, e) : e;
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/pbf-decoder.js
-var W = 0, Ws = 1, G = 2, Gs = 5, Ks = class extends Error {
+var W = 0, qs = 1, G = 2, Js = 5, Ys = class extends Error {
 	constructor(e) {
 		super(e), this.name = "PbfDecodeError";
 	}
-}, qs = class e {
+}, Xs = class e {
 	view;
 	bytes;
 	pos;
@@ -5646,7 +5687,7 @@ var W = 0, Ws = 1, G = 2, Gs = 5, Ks = class extends Error {
 	}
 	readString(e) {
 		let t = this.bytes.subarray(this.pos, this.pos + e);
-		return this.pos += e, Js.decode(t);
+		return this.pos += e, Zs.decode(t);
 	}
 	readBool() {
 		return this.readVarint() !== 0;
@@ -5660,7 +5701,7 @@ var W = 0, Ws = 1, G = 2, Gs = 5, Ks = class extends Error {
 			case W:
 				this.readVarint64();
 				break;
-			case Ws:
+			case qs:
 				this.pos += 8;
 				break;
 			case G: {
@@ -5668,7 +5709,7 @@ var W = 0, Ws = 1, G = 2, Gs = 5, Ks = class extends Error {
 				this.pos += e;
 				break;
 			}
-			case Gs:
+			case Js:
 				this.pos += 4;
 				break;
 			default: throw Error(`Unknown wire type: ${e}`);
@@ -5688,7 +5729,7 @@ var W = 0, Ws = 1, G = 2, Gs = 5, Ks = class extends Error {
 		for (; this.pos < n;) t.push(this.readVarint());
 		return t;
 	}
-}, Js = new TextDecoder(), Ys = {
+}, Zs = new TextDecoder(), Qs = {
 	0: "esriGeometryPoint",
 	1: "esriGeometryMultipoint",
 	2: "esriGeometryPolyline",
@@ -5696,37 +5737,37 @@ var W = 0, Ws = 1, G = 2, Gs = 5, Ks = class extends Error {
 	4: "esriGeometryEnvelope",
 	127: "esriGeometryNull"
 };
-function Xs(e) {
+function $s(e) {
 	let t = 0, n = 0;
 	for (; e.pos < e.end;) {
 		let [r, i] = e.readTag();
-		r === 1 && i === Ws ? t = e.readDouble() : r === 2 && i === Ws ? n = e.readDouble() : e.skip(i);
+		r === 1 && i === qs ? t = e.readDouble() : r === 2 && i === qs ? n = e.readDouble() : e.skip(i);
 	}
 	return {
 		xScale: t,
 		yScale: n
 	};
 }
-function Zs(e) {
+function ec(e) {
 	let t = 0, n = 0;
 	for (; e.pos < e.end;) {
 		let [r, i] = e.readTag();
-		r === 1 && i === Ws ? t = e.readDouble() : r === 2 && i === Ws ? n = e.readDouble() : e.skip(i);
+		r === 1 && i === qs ? t = e.readDouble() : r === 2 && i === qs ? n = e.readDouble() : e.skip(i);
 	}
 	return {
 		xTranslate: t,
 		yTranslate: n
 	};
 }
-function Qs(e) {
+function tc(e) {
 	let t = 1, n = 1, r = 0, i = 0;
 	for (; e.pos < e.end;) {
 		let [a, o] = e.readTag();
 		if (a === 2 && o === G) {
-			let r = e.readVarint(), i = Xs(e.subReader(r));
+			let r = e.readVarint(), i = $s(e.subReader(r));
 			t = i.xScale, n = i.yScale;
 		} else if (a === 3 && o === G) {
-			let t = e.readVarint(), n = Zs(e.subReader(t));
+			let t = e.readVarint(), n = ec(e.subReader(t));
 			r = n.xTranslate, i = n.yTranslate;
 		} else e.skip(o);
 	}
@@ -5737,7 +5778,7 @@ function Qs(e) {
 		yTranslate: i
 	};
 }
-function $s(e) {
+function nc(e) {
 	let t = "", n = 0, r = "";
 	for (; e.pos < e.end;) {
 		let [i, a] = e.readTag();
@@ -5756,7 +5797,7 @@ function $s(e) {
 		alias: r || t
 	};
 }
-function ec(e) {
+function rc(e) {
 	let t = 0, n = 0;
 	for (; e.pos < e.end;) {
 		let [r, i] = e.readTag();
@@ -5767,14 +5808,14 @@ function ec(e) {
 		latestWkid: n || t
 	};
 }
-var tc = BigInt(2 ** 53 - 1), nc = BigInt(-(2 ** 53 - 1)), rc = 1n << 64n;
-function ic(e) {
-	return e >= 1n << 63n ? e - rc : e;
+var ic = BigInt(2 ** 53 - 1), ac = BigInt(-(2 ** 53 - 1)), oc = 1n << 64n;
+function sc(e) {
+	return e >= 1n << 63n ? e - oc : e;
 }
-function ac(e) {
-	return e <= tc && e >= nc ? Number(e) : e.toString();
+function cc(e) {
+	return e <= ic && e >= ac ? Number(e) : e.toString();
 }
-function oc(e) {
+function lc(e) {
 	let t = null, n = -1;
 	for (; e.pos < e.end;) {
 		let [r, i] = e.readTag();
@@ -5786,10 +5827,10 @@ function oc(e) {
 				} else e.skip(i);
 				break;
 			case 2:
-				i === Gs ? t = e.readFloat() : e.skip(i);
+				i === Js ? t = e.readFloat() : e.skip(i);
 				break;
 			case 3:
-				i === Ws ? t = e.readDouble() : e.skip(i);
+				i === qs ? t = e.readDouble() : e.skip(i);
 				break;
 			case 4:
 				i === W ? t = e.readSVarint32() : e.skip(i);
@@ -5798,15 +5839,15 @@ function oc(e) {
 				i === W ? t = e.readVarint() : e.skip(i);
 				break;
 			case 6:
-				i === W ? t = ac(ic(e.readVarint64Bigint())) : e.skip(i);
+				i === W ? t = cc(sc(e.readVarint64Bigint())) : e.skip(i);
 				break;
 			case 7:
-				i === W ? t = ac(e.readVarint64Bigint()) : e.skip(i);
+				i === W ? t = cc(e.readVarint64Bigint()) : e.skip(i);
 				break;
 			case 8:
 				if (i === W) {
 					let n = e.readVarint64Bigint();
-					t = ac(n >> 1n ^ -(n & 1n));
+					t = cc(n >> 1n ^ -(n & 1n));
 				} else e.skip(i);
 				break;
 			case 9:
@@ -5826,7 +5867,7 @@ function oc(e) {
 		fieldIndex: n
 	};
 }
-function sc(e, t, n) {
+function uc(e, t, n) {
 	let r = [], i = [];
 	for (; e.pos < e.end;) {
 		let [t, n] = e.readTag();
@@ -5840,17 +5881,17 @@ function sc(e, t, n) {
 		} else e.skip(n);
 	}
 	if (i.length === 0) return null;
-	if (i.length % 2 != 0) throw new Ks(`PBF geometry coordinate stream has an odd length (${i.length})`);
+	if (i.length % 2 != 0) throw new Ys(`PBF geometry coordinate stream has an odd length (${i.length})`);
 	let a = t?.xScale ?? 1, o = t?.yScale ?? 1, s = t?.xTranslate ?? 0, c = t?.yTranslate ?? 0, l = 0, u = 0, d = [];
 	for (let e = 0; e < i.length; e += 2) {
 		l += i[e], u += i[e + 1];
 		let t = l * a + s, n = u * o + c;
-		if (!Number.isFinite(t) || !Number.isFinite(n)) throw new Ks("PBF geometry produced a non-finite coordinate");
+		if (!Number.isFinite(t) || !Number.isFinite(n)) throw new Ys("PBF geometry produced a non-finite coordinate");
 		d.push([t, n]);
 	}
-	return cc(n, d, r);
+	return dc(n, d, r);
 }
-function cc(e, t, n) {
+function dc(e, t, n) {
 	switch (e) {
 		case "esriGeometryPoint": return t.length > 0 ? {
 			x: t[0][0],
@@ -5876,16 +5917,16 @@ function cc(e, t, n) {
 		};
 	}
 }
-function lc(e, t, n, r) {
+function fc(e, t, n, r) {
 	let i = {}, a = null, o = [];
 	for (; e.pos < e.end;) {
 		let [t, i] = e.readTag();
 		if (t === 1 && i === G) {
 			let t = e.readVarint(), n = e.subReader(t);
-			o.push(oc(n));
+			o.push(lc(n));
 		} else if (t === 2 && i === G) {
 			let t = e.readVarint();
-			a = sc(e.subReader(t), n, r);
+			a = uc(e.subReader(t), n, r);
 		} else e.skip(i);
 	}
 	for (let [e, n] of o.entries()) {
@@ -5895,7 +5936,7 @@ function lc(e, t, n, r) {
 	let s = { attributes: i };
 	return a !== null && (s.geometry = a), s;
 }
-function uc(e) {
+function pc(e) {
 	let t = "", n = "", r = null, i = !1, a = !1, o = !1, s = null, c = [], l = [];
 	for (; e.pos < e.end;) {
 		let [u, d] = e.readTag();
@@ -5907,12 +5948,12 @@ function uc(e) {
 				} else e.skip(d);
 				break;
 			case 7:
-				d === W ? n = Ys[e.readVarint()] ?? "esriGeometryNull" : e.skip(d);
+				d === W ? n = Qs[e.readVarint()] ?? "esriGeometryNull" : e.skip(d);
 				break;
 			case 8:
 				if (d === G) {
 					let t = e.readVarint();
-					r = ec(e.subReader(t));
+					r = rc(e.subReader(t));
 				} else e.skip(d);
 				break;
 			case 9:
@@ -5927,13 +5968,13 @@ function uc(e) {
 			case 12:
 				if (d === G) {
 					let t = e.readVarint();
-					s = Qs(e.subReader(t));
+					s = tc(e.subReader(t));
 				} else e.skip(d);
 				break;
 			case 13:
 				if (d === G) {
 					let t = e.readVarint();
-					c.push($s(e.subReader(t)));
+					c.push(nc(e.subReader(t)));
 				} else e.skip(d);
 				break;
 			case 15:
@@ -5945,19 +5986,19 @@ function uc(e) {
 			default: e.skip(d);
 		}
 	}
-	if (a || o) throw new Ks(`PBF response carries ${a ? "Z" : ""}${a && o ? "/" : ""}${o ? "M" : ""} geometry; falling back to f=json`);
-	let u = l.map((e) => lc(e, c, s, n)), d = {
+	if (a || o) throw new Ys(`PBF response carries ${a ? "Z" : ""}${a && o ? "/" : ""}${o ? "M" : ""} geometry; falling back to f=json`);
+	let u = l.map((e) => fc(e, c, s, n)), d = {
 		objectIdFieldName: t,
 		fields: c.map((e) => ({
 			name: e.name,
-			type: dc(e.fieldType),
+			type: mc(e.fieldType),
 			alias: e.alias
 		})),
 		features: u
 	};
 	return n && n !== "esriGeometryNull" && (d.geometryType = n), r && (d.spatialReference = r), a && (d.hasZ = !0), o && (d.hasM = !0), i && (d.exceededTransferLimit = !0), d;
 }
-function dc(e) {
+function mc(e) {
 	switch (e) {
 		case 0: return "esriFieldTypeSmallInteger";
 		case 1: return "esriFieldTypeInteger";
@@ -5976,8 +6017,8 @@ function dc(e) {
 		default: return "esriFieldTypeString";
 	}
 }
-function fc(e) {
-	let t = new qs(e instanceof Uint8Array ? e : new Uint8Array(e)), n = {};
+function hc(e) {
+	let t = new Xs(e instanceof Uint8Array ? e : new Uint8Array(e)), n = {};
 	for (; t.pos < t.end;) {
 		let [e, r] = t.readTag();
 		if (e === 1 && r === G) {
@@ -5989,20 +6030,20 @@ function fc(e) {
 				let [e, t] = r.readTag();
 				if (e === 1 && t === G) {
 					let e = r.readVarint();
-					n = uc(r.subReader(e));
+					n = pc(r.subReader(e));
 				} else r.skip(t);
 			}
 		} else t.skip(r);
 	}
 	return n;
 }
-function pc(e) {
+function gc(e) {
 	let t = e.headers.get("content-type") ?? "";
 	return t.includes("application/x-protobuf") || t.includes("application/protobuf");
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/process-runner.js
-var mc = class {
+var _c = class {
 	adapter;
 	constructor(e) {
 		this.adapter = e;
@@ -6025,10 +6066,10 @@ var mc = class {
 		return this.adapter.dryRun(e);
 	}
 };
-function hc(e) {
-	return new mc(e);
+function vc(e) {
+	return new _c(e);
 }
-function gc(e) {
+function yc(e) {
 	return {
 		protocol: "ogc-processes",
 		execute(t) {
@@ -6047,7 +6088,7 @@ function gc(e) {
 		}
 	};
 }
-function _c(e) {
+function bc(e) {
 	return {
 		protocol: "geoservices-gp",
 		execute(t) {
@@ -6061,28 +6102,28 @@ function _c(e) {
 		}
 	};
 }
-function vc(e) {
+function xc(e) {
 	return {
 		protocol: "geospatial-grpc",
 		validate(t) {
 			if (!e.validatePlan) throw Error("geospatial-grpc ProcessService client does not expose validatePlan.");
-			return e.validatePlan({ plan: bc(t) });
+			return e.validatePlan({ plan: Cc(t) });
 		},
 		dryRun(t) {
 			if (!e.dryRunPlan) throw Error("geospatial-grpc ProcessService client does not expose dryRunPlan.");
-			return e.dryRunPlan({ plan: bc(t) });
+			return e.dryRunPlan({ plan: Cc(t) });
 		},
 		async execute(t) {
-			return new yc({
+			return new Sc({
 				client: e,
 				accepted: await e.submitJob({
-					plan: bc(t),
+					plan: Cc(t),
 					context: t.context
 				})
 			});
 		},
 		job(t) {
-			return new yc({
+			return new Sc({
 				client: e,
 				accepted: {
 					jobId: t,
@@ -6092,15 +6133,15 @@ function vc(e) {
 		}
 	};
 }
-var yc = class {
+var Sc = class {
 	id;
 	type = "geospatial-grpc";
 	client;
 	lifecycle;
 	constructor(e) {
-		this.client = e.client, this.id = xc(e.accepted), this.lifecycle = new Ln({
+		this.client = e.client, this.id = wc(e.accepted), this.lifecycle = new Ln({
 			id: this.id,
-			initialStatus: Sc(e.accepted.state),
+			initialStatus: Tc(e.accepted.state),
 			pollIntervalMs: 1e3,
 			poll: async (e) => this.translateJob(await this.client.getJob({
 				jobId: this.id,
@@ -6127,10 +6168,10 @@ var yc = class {
 		return this.lifecycle.cancel(async () => this.translateJob(await this.client.cancelJob({ jobId: this.id })));
 	}
 	async translateJob(e) {
-		let t = "progress" in e ? e.progress : void 0, n = Sc(e.state ?? t?.state), r = Cc(t);
-		if (n === "successful") return wc(await this.client.getJobResult({ jobId: this.id }), r);
+		let t = "progress" in e ? e.progress : void 0, n = Tc(e.state ?? t?.state), r = Ec(t);
+		if (n === "successful") return Dc(await this.client.getJobResult({ jobId: this.id }), r);
 		if (n === "failed" || n === "dismissed") {
-			let e = await this.safeGetTerminalResult(), t = e ? Tc(e) : void 0;
+			let e = await this.safeGetTerminalResult(), t = e ? Oc(e) : void 0;
 			return {
 				status: n,
 				progress: r,
@@ -6150,16 +6191,16 @@ var yc = class {
 		}
 	}
 };
-function bc(e) {
+function Cc(e) {
 	if (e.plan === void 0) throw Error("geospatial-grpc process execution requires plan.");
 	return e.plan;
 }
-function xc(e) {
+function wc(e) {
 	let t = e.jobId ?? e.job_id;
 	if (!t) throw Error("ProcessService response did not include jobId.");
 	return t;
 }
-function Sc(e) {
+function Tc(e) {
 	if (e === 6) return "successful";
 	if (e === 7) return "failed";
 	if (e === 8) return "dismissed";
@@ -6168,13 +6209,13 @@ function Sc(e) {
 	let t = String(e ?? "").toLowerCase();
 	return t.includes("completed") || t === "successful" ? "successful" : t.includes("failed") ? "failed" : t.includes("cancelled") || t.includes("canceled") || t.includes("dismissed") ? "dismissed" : t.includes("draft") || t.includes("clarification") || t.includes("validated") || t.includes("approval") || t.includes("accepted") ? "accepted" : t.includes("running") ? "running" : "accepted";
 }
-function Cc(e) {
+function Ec(e) {
 	if (!e) return;
 	let t = e.progressPercent ?? e.progress_percent, n = e.updatedAt ?? e.updated_at, r = {};
-	return typeof t == "number" && Number.isFinite(t) && (r.percent = Math.max(0, Math.min(100, t))), e.message && (r.message = e.message), n !== void 0 && (r.updatedAt = Ec(n)), r.percent === void 0 && r.message === void 0 && r.updatedAt === void 0 ? void 0 : r;
+	return typeof t == "number" && Number.isFinite(t) && (r.percent = Math.max(0, Math.min(100, t))), e.message && (r.message = e.message), n !== void 0 && (r.updatedAt = kc(n)), r.percent === void 0 && r.message === void 0 && r.updatedAt === void 0 ? void 0 : r;
 }
-function wc(e, t) {
-	let n = Tc(e);
+function Dc(e, t) {
+	let n = Oc(e);
 	return n ? {
 		status: "failed",
 		progress: t,
@@ -6185,7 +6226,7 @@ function wc(e, t) {
 		result: { outputs: { result: e.result ?? e.outcome?.value ?? e } }
 	};
 }
-function Tc(e) {
+function Oc(e) {
 	let t = e.error ?? (e.outcome?.case === "error" ? e.outcome.value : void 0);
 	if (t) return {
 		code: t.code === void 0 ? t.errorCode ?? t.error_code ?? "GeospatialGrpcProcessError" : String(t.code),
@@ -6193,32 +6234,32 @@ function Tc(e) {
 		details: t.details
 	};
 }
-function Ec(e) {
+function kc(e) {
 	let t = typeof e == "bigint" || typeof e == "string" ? Number(e) : e;
 	return Number.isFinite(t) ? new Date(t).toISOString() : String(e);
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/request-pipeline.js
-var Dc = /* @__PURE__ */ new Set([
+var Ac = /* @__PURE__ */ new Set([
 	429,
 	502,
 	503,
 	504
-]), Oc = /* @__PURE__ */ new Set([
+]), jc = /* @__PURE__ */ new Set([
 	"GET",
 	"HEAD",
 	"PUT",
 	"DELETE"
 ]);
-function kc(e) {
+function Mc(e) {
 	if (!(typeof e != "number" || !Number.isFinite(e))) return Math.max(1, Math.trunc(e));
 }
-function Ac(e) {
+function Nc(e) {
 	if (!e) return;
 	let t = typeof e.maxRetries == "number" && Number.isFinite(e.maxRetries) ? Math.max(0, Math.trunc(e.maxRetries)) : 0;
 	if (t < 1) return;
-	let n = typeof e.baseDelayMs == "number" && Number.isFinite(e.baseDelayMs) ? Math.max(1, Math.trunc(e.baseDelayMs)) : 100, r = typeof e.maxDelayMs == "number" && Number.isFinite(e.maxDelayMs) ? Math.max(n, Math.trunc(e.maxDelayMs)) : 2e3, i = new Set((e.retryStatuses ?? Array.from(Dc)).map((e) => Math.trunc(e)).filter((e) => Number.isFinite(e) && e >= 100 && e <= 599));
-	if (i.size === 0) for (let e of Dc) i.add(e);
+	let n = typeof e.baseDelayMs == "number" && Number.isFinite(e.baseDelayMs) ? Math.max(1, Math.trunc(e.baseDelayMs)) : 100, r = typeof e.maxDelayMs == "number" && Number.isFinite(e.maxDelayMs) ? Math.max(n, Math.trunc(e.maxDelayMs)) : 2e3, i = new Set((e.retryStatuses ?? Array.from(Ac)).map((e) => Math.trunc(e)).filter((e) => Number.isFinite(e) && e >= 100 && e <= 599));
+	if (i.size === 0) for (let e of Ac) i.add(e);
 	return {
 		maxRetries: t,
 		baseDelayMs: n,
@@ -6226,7 +6267,7 @@ function Ac(e) {
 		retryStatuses: i
 	};
 }
-function jc(e) {
+function Pc(e) {
 	let t = e.get("retry-after");
 	if (!t) return;
 	let n = Number.parseInt(t, 10);
@@ -6234,44 +6275,44 @@ function jc(e) {
 	let r = Date.parse(t);
 	if (Number.isFinite(r)) return Math.max(0, r - Date.now());
 }
-function Mc(e) {
-	return jc(e.headers);
+function Fc(e) {
+	return Pc(e.headers);
 }
-function Nc(e, t, r, i, a, o = !1) {
-	return !e || r >= e.maxRetries || !Oc.has(t) && !o || a instanceof c ? !1 : i === void 0 ? a instanceof s || a instanceof n : e.retryStatuses.has(i);
+function Ic(e, t, r, i, a, o = !1) {
+	return !e || r >= e.maxRetries || !jc.has(t) && !o || a instanceof c ? !1 : i === void 0 ? a instanceof s || a instanceof n : e.retryStatuses.has(i);
 }
-function Pc(e, t, n) {
-	let r = n ? Mc(n) : void 0;
+function Lc(e, t, n) {
+	let r = n ? Fc(n) : void 0;
 	if (r !== void 0) return Math.min(e?.maxDelayMs ?? r, r);
 	if (!e) return 0;
 	let i = e.baseDelayMs * 2 ** t;
 	return Math.min(e.maxDelayMs, i) * (.5 + Math.random() * .5);
 }
-var Fc = /* @__PURE__ */ new Set([
+var Rc = /* @__PURE__ */ new Set([
 	4,
 	8,
 	10,
 	14
-]), Ic = 1;
-function Lc(e) {
+]), zc = 1;
+function Bc(e) {
 	if (typeof e == "object" && e && "code" in e && typeof e.code == "number") return e.code;
 }
-function Rc(e, t, n, r) {
+function Vc(e, t, n, r) {
 	if (!e || t >= e.maxRetries || r) return !1;
-	let i = Lc(n);
-	return i === void 0 || i === Ic ? !1 : Fc.has(i);
+	let i = Bc(n);
+	return i === void 0 || i === zc ? !1 : Rc.has(i);
 }
-function zc(e) {
+function Hc(e) {
 	if (typeof e == "object" && e && "metadata" in e) {
 		let t = e.metadata;
 		if (t && typeof t.get == "function") return t;
 	}
 }
-function Bc(e, t, n) {
-	let r = zc(n), i = r ? jc(r) : void 0;
-	return i === void 0 ? Pc(e, t) : Math.min(e?.maxDelayMs ?? i, i);
+function Uc(e, t, n) {
+	let r = Hc(n), i = r ? Pc(r) : void 0;
+	return i === void 0 ? Lc(e, t) : Math.min(e?.maxDelayMs ?? i, i);
 }
-async function Vc(e, t) {
+async function Wc(e, t) {
 	if (t?.aborted) throw new c();
 	e <= 0 || await new Promise((n, r) => {
 		let i = setTimeout(() => {
@@ -6282,10 +6323,10 @@ async function Vc(e, t) {
 		t?.addEventListener("abort", a, { once: !0 });
 	});
 }
-function Hc(e) {
+function Gc(e) {
 	return e instanceof Error && e.name === "AbortError" ? new c() : e instanceof Error ? new s(e.message, e) : new s(String(e), e);
 }
-function Uc(e, t) {
+function Kc(e, t) {
 	if (t === void 0) return {
 		signal: e ?? void 0,
 		didTimeout: !1,
@@ -6306,18 +6347,18 @@ function Uc(e, t) {
 		}
 	};
 }
-function Wc(e, t, n) {
+function qc(e, t, n) {
 	let r = n ? { responseHeaders: n } : void 0;
-	if (Kc(t)) {
+	if (Yc(t)) {
 		let n = t.error;
-		if (Kc(n) && typeof n.message == "string") return new a(e, n.message, t, r);
+		if (Yc(n) && typeof n.message == "string") return new a(e, n.message, t, r);
 		if (typeof t.message == "string") return new a(e, t.message, t, r);
 		if (typeof t.detail == "string") return new a(e, t.detail, t, r);
 	}
 	return new a(e, "Request failed", t, r);
 }
-function Gc(e, t, n) {
-	if (!Kc(t) || !Kc(t.error)) return;
+function Jc(e, t, n) {
+	if (!Yc(t) || !Yc(t.error)) return;
 	let r = t.error, i = typeof r.code == "number" ? r.code : void 0, o = typeof r.message == "string" ? r.message : "Request failed";
 	if (!(i === void 0 && typeof r.message != "string")) return new a(i ?? e, o, t, {
 		protocolCode: i,
@@ -6325,7 +6366,7 @@ function Gc(e, t, n) {
 		responseHeaders: n
 	});
 }
-function Kc(e) {
+function Yc(e) {
 	return typeof e == "object" && !!e;
 }
 //#endregion
@@ -6338,16 +6379,16 @@ var K = Object.freeze({
 	maxAttributeBytesPerElement: 64 * 1024,
 	maxTextBytes: 512 * 1024
 });
-function qc(e) {
-	let t = ul(e);
+function Xc(e) {
+	let t = pl(e);
 	if (t.local !== "WFS_Capabilities") {
 		if (t.local === "ExceptionReport") {
-			let e = Qc(t);
+			let e = tl(t);
 			throw new i(e.exceptionCode, e.message, e.locator);
 		}
 		throw Error(`WFS GetCapabilities: expected <WFS_Capabilities>, got <${t.qname}>`);
 	}
-	let n = t.attributes.version, r = q(t, "OperationsMetadata") ? J(vl(t, "OperationsMetadata"), "Operation") : [], a = /* @__PURE__ */ new Map(), o = /* @__PURE__ */ new Map();
+	let n = t.attributes.version, r = q(t, "OperationsMetadata") ? J(xl(t, "OperationsMetadata"), "Operation") : [], a = /* @__PURE__ */ new Map(), o = /* @__PURE__ */ new Map();
 	for (let e of r) {
 		let t = e.attributes.name;
 		if (!t) continue;
@@ -6378,7 +6419,7 @@ function qc(e) {
 	}
 	let s = q(t, "FeatureTypeList"), c = [];
 	if (s) for (let e of J(s, "FeatureType")) {
-		let t = q(e, "Name"), n = q(e, "Title"), r = q(e, "DefaultCRS") ?? q(e, "DefaultSRS"), i = [...J(e, "OtherCRS").map((e) => e.text.trim()), ...J(e, "OtherSRS").map((e) => e.text.trim())].filter((e) => e.length > 0), a = q(e, "WGS84BoundingBox"), o = a ? q(a, "LowerCorner") : void 0, s = a ? q(a, "UpperCorner") : void 0, l = t ? Jc(t, t.text.trim()) : void 0, u = {
+		let t = q(e, "Name"), n = q(e, "Title"), r = q(e, "DefaultCRS") ?? q(e, "DefaultSRS"), i = [...J(e, "OtherCRS").map((e) => e.text.trim()), ...J(e, "OtherSRS").map((e) => e.text.trim())].filter((e) => e.length > 0), a = q(e, "WGS84BoundingBox"), o = a ? q(a, "LowerCorner") : void 0, s = a ? q(a, "UpperCorner") : void 0, l = t ? Zc(t, t.text.trim()) : void 0, u = {
 			name: t?.text.trim() ?? "",
 			otherCrs: Object.freeze([...i]),
 			...l ? { namespace: l } : {}
@@ -6394,19 +6435,19 @@ function qc(e) {
 		}
 		u.name && c.push(Object.freeze(u));
 	}
-	let l = $c(q(t, "Filter_Capabilities")), u = el(t), d = /* @__PURE__ */ new Map();
+	let l = nl(q(t, "Filter_Capabilities")), u = rl(t), d = /* @__PURE__ */ new Map();
 	for (let [e, n] of Object.entries(t.attributes)) e.startsWith("xmlns:") && n && d.set(e.slice(6), n);
 	return Object.freeze({
 		...n ? { version: n } : {},
-		operations: Yc(a),
-		outputFormatsByOp: Yc(o),
+		operations: Qc(a),
+		outputFormatsByOp: Qc(o),
 		featureTypes: Object.freeze([...c]),
-		namespaces: Yc(d),
-		filterCapabilities: Xc(l),
+		namespaces: Qc(d),
+		filterCapabilities: $c(l),
 		storedQueryNames: Object.freeze([...u])
 	});
 }
-function Jc(e, t) {
+function Zc(e, t) {
 	let n = t.indexOf(":");
 	if (n <= 0 || n === t.length - 1 || t.indexOf(":", n + 1) !== -1) return;
 	let r = t.slice(0, n);
@@ -6415,7 +6456,7 @@ function Jc(e, t) {
 		uri: e.namespaces[r] ?? ""
 	});
 }
-function Yc(e) {
+function Qc(e) {
 	let t = new Map(e), n = {
 		get size() {
 			return t.size;
@@ -6444,19 +6485,19 @@ function Yc(e) {
 	};
 	return Object.freeze(n);
 }
-function Xc(e) {
+function $c(e) {
 	return Object.freeze({
 		spatial: Object.freeze([...e.spatial]),
 		scalar: Object.freeze([...e.scalar]),
 		temporal: Object.freeze([...e.temporal])
 	});
 }
-function Zc(e) {
-	let t = ul(e);
+function el(e) {
+	let t = pl(e);
 	if (t.local !== "ExceptionReport") throw Error(`WFS ExceptionReport: expected <ExceptionReport>, got <${t.qname}>`);
-	return Qc(t);
+	return tl(t);
 }
-function Qc(e) {
+function tl(e) {
 	let t = q(e, "Exception");
 	if (!t) return {
 		exceptionCode: "UnknownException",
@@ -6468,7 +6509,7 @@ function Qc(e) {
 	};
 	return r && (a.locator = r), a;
 }
-function $c(e) {
+function nl(e) {
 	if (!e) return {
 		spatial: [],
 		scalar: [],
@@ -6489,18 +6530,18 @@ function $c(e) {
 		temporal: r
 	};
 }
-function el(e) {
+function rl(e) {
 	let t = q(e, "StoredQueries");
 	if (!t) return [];
 	let n = [];
 	for (let e of J(t, "StoredQuery")) e.attributes.id && n.push(e.attributes.id);
 	return n;
 }
-function tl(e) {
-	let t = ul(e);
+function il(e) {
+	let t = pl(e);
 	if (t.local !== "ListStoredQueriesResponse") {
 		if (t.local === "ExceptionReport") {
-			let e = Qc(t);
+			let e = tl(t);
 			throw new i(e.exceptionCode, e.message, e.locator);
 		}
 		throw Error(`WFS ListStoredQueries: expected <ListStoredQueriesResponse>, got <${t.qname}>`);
@@ -6509,7 +6550,7 @@ function tl(e) {
 	for (let e of J(t, "StoredQuery")) e.attributes.id && n.push(e.attributes.id);
 	return n;
 }
-var nl = /* @__PURE__ */ new Set([
+var al = /* @__PURE__ */ new Set([
 	"GeometryPropertyType",
 	"GeometryAssociationType",
 	"GeometryArrayPropertyType",
@@ -6527,57 +6568,57 @@ var nl = /* @__PURE__ */ new Set([
 	"MultiSurfacePropertyType",
 	"SolidPropertyType",
 	"MultiSolidPropertyType"
-]), rl = "http://www.opengis.net/gml";
-function il(e, t) {
-	let n = ul(e);
+]), ol = "http://www.opengis.net/gml";
+function sl(e, t) {
+	let n = pl(e);
 	if (n.local !== "schema") {
 		if (n.local === "ExceptionReport") {
-			let e = Qc(n);
+			let e = tl(n);
 			throw new i(e.exceptionCode, e.message, e.locator);
 		}
 		throw Error(`WFS DescribeFeatureType: expected <schema>, got <${n.qname}>`);
 	}
-	let r = al(n, gl(t));
+	let r = cl(n, yl(t));
 	if (!r) return Object.freeze([]);
 	let a = [];
-	return ol(r, a), Object.freeze(a);
+	return ll(r, a), Object.freeze(a);
 }
-function al(e, t) {
+function cl(e, t) {
 	let n = J(e, "complexType"), r = J(e, "element").find((e) => e.attributes.name === t);
 	if (r) {
-		let e = r.attributes.type, t = e ? n.find((t) => t.attributes.name === gl(e)) : q(r, "complexType");
+		let e = r.attributes.type, t = e ? n.find((t) => t.attributes.name === yl(e)) : q(r, "complexType");
 		if (t) return t;
 	}
 	return n.find((e) => e.attributes.name === `${t}Type`) || (n.length === 1 ? n[0] : void 0);
 }
-function ol(e, t) {
+function ll(e, t) {
 	for (let n of e.children) {
 		if (n.local === "element") {
 			let e = n.attributes.name, r = n.attributes.type;
-			if (e && r && sl(n, r)) {
+			if (e && r && ul(n, r)) {
 				t.push(e);
 				continue;
 			}
 		}
-		ol(n, t);
+		ll(n, t);
 	}
 }
-function sl(e, t) {
+function ul(e, t) {
 	let n = t.indexOf(":"), r = n > 0 ? t.slice(0, n) : void 0;
-	if (!nl.has(gl(t))) return !1;
+	if (!al.has(yl(t))) return !1;
 	let i = r === void 0 ? void 0 : e.namespaces[r];
-	return i === void 0 || i.startsWith(rl);
+	return i === void 0 || i.startsWith(ol);
 }
-function cl(e) {
-	let t = ul(e);
+function dl(e) {
+	let t = pl(e);
 	if (t.local !== "TransactionResponse") {
 		if (t.local === "ExceptionReport") {
-			let e = Qc(t);
+			let e = tl(t);
 			throw new i(e.exceptionCode, e.message, e.locator);
 		}
 		throw Error(`WFS Transaction: expected <TransactionResponse>, got <${t.qname}>`);
 	}
-	let n = q(t, "TransactionSummary"), r = n ? ll(q(n, "totalInserted")?.text) : 0, a = n ? ll(q(n, "totalUpdated")?.text) : 0, o = n ? ll(q(n, "totalDeleted")?.text) : 0, s = q(t, "InsertResults"), c = [];
+	let n = q(t, "TransactionSummary"), r = n ? fl(q(n, "totalInserted")?.text) : 0, a = n ? fl(q(n, "totalUpdated")?.text) : 0, o = n ? fl(q(n, "totalDeleted")?.text) : 0, s = q(t, "InsertResults"), c = [];
 	if (s) for (let e of J(s, "Feature")) {
 		let t = e.attributes.handle, n = [];
 		for (let t of J(e, "ResourceId")) t.attributes.rid && n.push(t.attributes.rid);
@@ -6592,17 +6633,17 @@ function cl(e) {
 		insertResults: c
 	};
 }
-function ll(e) {
+function fl(e) {
 	if (!e) return 0;
 	let t = Number(e.trim());
 	return Number.isFinite(t) ? Math.trunc(t) : 0;
 }
-function ul(e) {
+function pl(e) {
 	if (typeof e != "string" || e.length === 0) throw Error("WFS XML parser: empty document");
-	if (hl(e) > K.maxBytes) throw Error(`WFS XML parser: document exceeds the ${K.maxBytes}-byte limit`);
+	if (vl(e) > K.maxBytes) throw Error(`WFS XML parser: document exceeds the ${K.maxBytes}-byte limit`);
 	let t = e.toLowerCase();
 	if (t.includes("<!doctype") || t.includes("<!entity")) throw Error("WFS XML parser: DOCTYPE / ENTITY declarations are rejected");
-	let n = dl(e), r = n.length, i = 0, a = [], o, s = {
+	let n = ml(e), r = n.length, i = 0, a = [], o, s = {
 		elements: 0,
 		textBytes: 0
 	};
@@ -6624,7 +6665,7 @@ function ul(e) {
 				let e = n.indexOf("]]>", i + 9);
 				if (e === -1) throw Error("WFS XML parser: unterminated CDATA");
 				let t = n.slice(i + 9, e), r = a[a.length - 1];
-				r && ml(r, t, s), i = e + 3;
+				r && _l(r, t, s), i = e + 3;
 				continue;
 			}
 			if (n[i + 1] === "/") {
@@ -6636,12 +6677,12 @@ function ul(e) {
 				a.pop(), i = e + 1;
 				continue;
 			}
-			let e = fl(n, i);
+			let e = hl(n, i);
 			if (e === -1) throw Error("WFS XML parser: unterminated opening tag");
-			let t = n.slice(i + 1, e), r = t.endsWith("/"), { name: c, attributes: l } = pl(r ? t.slice(0, -1).trim() : t.trim());
+			let t = n.slice(i + 1, e), r = t.endsWith("/"), { name: c, attributes: l } = gl(r ? t.slice(0, -1).trim() : t.trim());
 			if (s.elements += 1, s.elements > K.maxElements) throw Error(`WFS XML parser: document exceeds the ${K.maxElements}-element limit`);
 			if (a.length + 1 > K.maxDepth) throw Error(`WFS XML parser: document exceeds the ${K.maxDepth}-level depth limit`);
-			let u = gl(c), d = a[a.length - 1], f = Object.assign(Object.create(null), d?.namespaces);
+			let u = yl(c), d = a[a.length - 1], f = Object.assign(Object.create(null), d?.namespaces);
 			for (let [e, t] of Object.entries(l)) e === "xmlns" ? f[""] = t : e.startsWith("xmlns:") && (f[e.slice(6)] = t);
 			let p = {
 				local: u,
@@ -6658,17 +6699,17 @@ function ul(e) {
 			continue;
 		}
 		let e = n.indexOf("<", i), t = n.slice(i, e === -1 ? r : e), c = a[a.length - 1];
-		c && ml(c, _l(t), s), i = e === -1 ? r : e;
+		c && _l(c, bl(t), s), i = e === -1 ? r : e;
 	}
 	if (a.length > 0) throw Error(`WFS XML parser: unclosed element <${a[a.length - 1].qname}>`);
 	if (!o) throw Error("WFS XML parser: no root element");
 	return o;
 }
-function dl(e) {
+function ml(e) {
 	let t = e;
 	return t.charCodeAt(0) === 65279 && (t = t.slice(1)), t.trim();
 }
-function fl(e, t) {
+function hl(e, t) {
 	let n = t + 1, r;
 	for (; n < e.length;) {
 		let t = e[n];
@@ -6679,7 +6720,7 @@ function fl(e, t) {
 	}
 	return -1;
 }
-function pl(e) {
+function gl(e) {
 	let t = e.trim();
 	if (!t) throw Error("WFS XML parser: empty tag");
 	let n = 0;
@@ -6701,8 +6742,8 @@ function pl(e) {
 		if (c !== "\"" && c !== "'") throw Error(`WFS XML parser: attribute "${n}" must be quoted`);
 		let l = t.indexOf(c, r + 1);
 		if (l === -1) throw Error(`WFS XML parser: unterminated attribute value for "${n}"`);
-		let u = t.slice(r + 1, l), d = n.startsWith("xmlns:") ? n : gl(n), f = _l(u);
-		if (o += hl(n) + hl(f), o > K.maxAttributeBytesPerElement) throw Error("WFS XML parser: element exceeds the bounded attribute-byte limit");
+		let u = t.slice(r + 1, l), d = n.startsWith("xmlns:") ? n : yl(n), f = bl(u);
+		if (o += vl(n) + vl(f), o > K.maxAttributeBytesPerElement) throw Error("WFS XML parser: element exceeds the bounded attribute-byte limit");
 		if (Object.hasOwn(i, d)) throw Error(`WFS XML parser: repeated attribute "${d}"`);
 		i[d] = f, s = l + 1;
 	}
@@ -6711,20 +6752,20 @@ function pl(e) {
 		attributes: i
 	};
 }
-function ml(e, t, n) {
+function _l(e, t, n) {
 	if (t.length !== 0) {
-		if (n.textBytes += hl(t), n.textBytes > K.maxTextBytes) throw Error(`WFS XML parser: document exceeds the ${K.maxTextBytes}-byte text limit`);
+		if (n.textBytes += vl(t), n.textBytes > K.maxTextBytes) throw Error(`WFS XML parser: document exceeds the ${K.maxTextBytes}-byte text limit`);
 		e.text += t;
 	}
 }
-function hl(e) {
+function vl(e) {
 	return new TextEncoder().encode(e).byteLength;
 }
-function gl(e) {
+function yl(e) {
 	let t = e.indexOf(":");
 	return t === -1 ? e : e.slice(t + 1);
 }
-function _l(e) {
+function bl(e) {
 	return e.includes("&") ? e.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", "\"").replaceAll("&apos;", "'").replaceAll("&amp;", "&") : e;
 }
 function q(e, t) {
@@ -6732,7 +6773,7 @@ function q(e, t) {
 		for (let n of e.children) if (n.local === t) return n;
 	}
 }
-function vl(e, t) {
+function xl(e, t) {
 	let n = q(e, t);
 	if (!n) throw Error(`WFS XML parser: missing child <${t}> on <${e.qname}>`);
 	return n;
@@ -6742,13 +6783,13 @@ function J(e, t) {
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/wfs.js
-var yl = "2.0.0", Y = "WFS", bl = 2 * 1024 * 1024, xl = 32 * 1024 * 1024, Sl = /* @__PURE__ */ new Set([
+var Sl = "2.0.0", Y = "WFS", Cl = 2 * 1024 * 1024, wl = 32 * 1024 * 1024, Tl = /* @__PURE__ */ new Set([
 	"application/json",
 	"application/geo+json",
 	"application/vnd.geo+json",
 	"json",
 	"geojson"
-]), Cl = /* @__PURE__ */ new Set([
+]), El = /* @__PURE__ */ new Set([
 	"application/gml+xml; version=3.2",
 	"application/gml+xml;version=3.2",
 	"application/gml+xml",
@@ -6758,7 +6799,7 @@ var yl = "2.0.0", Y = "WFS", bl = 2 * 1024 * 1024, xl = 32 * 1024 * 1024, Sl = /
 	"text/xml;subtype=gml/3.2",
 	"text/xml; subtype=gml/3.2.1",
 	"text/xml;subtype=gml/3.2.1"
-]), wl = /* @__PURE__ */ new WeakMap(), Tl = class {
+]), Dl = /* @__PURE__ */ new WeakMap(), Ol = class {
 	client;
 	endpointUrl;
 	version;
@@ -6767,12 +6808,12 @@ var yl = "2.0.0", Y = "WFS", bl = 2 * 1024 * 1024, xl = 32 * 1024 * 1024, Sl = /
 	resolvedSnapshot;
 	geometryPropertyNames = /* @__PURE__ */ new Map();
 	constructor(e) {
-		this.client = e.client, this.endpointUrl = e.endpointUrl, this.version = e.version ?? yl, wl.set(this, { generation: 0 });
+		this.client = e.client, this.endpointUrl = e.endpointUrl, this.version = e.version ?? Sl, Dl.set(this, { generation: 0 });
 	}
 	async capabilities(e) {
 		if (e?.signal?.aborted) throw new c();
 		if (this.resolvedSnapshot) return this.resolvedSnapshot;
-		let t = El(this), n = t.generation, r = t.flight;
+		let t = kl(this), n = t.generation, r = t.flight;
 		if (!r || r.generation !== n) {
 			let e = {}, i = new AbortController(), a = this.fetchCapabilities({ signal: i.signal }).then((r) => (t.generation === n && t.flight?.identity === e && (this.rawCapabilitiesXml = r.xml, this.resolvedSnapshot = r.snapshot), r.snapshot)), o = {
 				generation: n,
@@ -6788,10 +6829,10 @@ var yl = "2.0.0", Y = "WFS", bl = 2 * 1024 * 1024, xl = 32 * 1024 * 1024, Sl = /
 				o.settled = !0, t.flight === o && (t.flight = void 0);
 			});
 		}
-		return Dl(t, r, e?.signal);
+		return Al(t, r, e?.signal);
 	}
 	refresh() {
-		let e = El(this);
+		let e = kl(this);
 		e.generation += 1;
 		let t = e.flight;
 		e.flight = void 0, this.rawCapabilitiesXml = void 0, this.resolvedSnapshot = void 0, this.geometryPropertyNames.clear(), t && !t.settled && t.controller.abort();
@@ -6804,7 +6845,7 @@ var yl = "2.0.0", Y = "WFS", bl = 2 * 1024 * 1024, xl = 32 * 1024 * 1024, Sl = /
 			typeNames: e
 		}), r = {
 			accept: "application/xml, text/xml",
-			maxResponseBytes: bl
+			maxResponseBytes: Cl
 		};
 		t?.signal && (r.signal = t.signal);
 		let { text: i, contentType: a } = await this.requestText("GET", X(this.operationUrl("DescribeFeatureType", "GET"), n), r);
@@ -6819,7 +6860,7 @@ var yl = "2.0.0", Y = "WFS", bl = 2 * 1024 * 1024, xl = 32 * 1024 * 1024, Sl = /
 		let r;
 		try {
 			let { text: n } = await this.describeFeatureType(e, t);
-			r = il(n, e);
+			r = sl(n, e);
 		} catch (t) {
 			throw t instanceof c ? t : new ni("unresolved-geometry-property", `WFS DescribeFeatureType could not resolve the geometry property of feature type "${e}"; set locator.geometryName to name it explicitly`, { cause: t });
 		}
@@ -6835,7 +6876,7 @@ var yl = "2.0.0", Y = "WFS", bl = 2 * 1024 * 1024, xl = 32 * 1024 * 1024, Sl = /
 		return this.rawCapabilitiesXml;
 	}
 	featureType(e) {
-		return new Al({
+		return new Nl({
 			root: this,
 			typeName: e
 		});
@@ -6847,14 +6888,14 @@ var yl = "2.0.0", Y = "WFS", bl = 2 * 1024 * 1024, xl = 32 * 1024 * 1024, Sl = /
 			request: "ListStoredQueries"
 		}), n = {
 			accept: "application/xml, text/xml",
-			maxResponseBytes: bl
+			maxResponseBytes: Cl
 		};
 		e?.signal && (n.signal = e.signal);
 		let { text: r } = await this.requestText("GET", X(this.endpointUrl, t), n);
-		return tl(r);
+		return il(r);
 	}
 	storedQuery(e) {
-		return new jl({
+		return new Pl({
 			root: this,
 			id: e
 		});
@@ -6863,20 +6904,20 @@ var yl = "2.0.0", Y = "WFS", bl = 2 * 1024 * 1024, xl = 32 * 1024 * 1024, Sl = /
 		try {
 			let r = {
 				accept: n.accept,
-				maxResponseBytes: n.maxResponseBytes ?? bl
+				maxResponseBytes: n.maxResponseBytes ?? Cl
 			};
 			return n.contentType !== void 0 && (r.contentType = n.contentType), n.body !== void 0 && (r.body = n.body), n.signal !== void 0 && (r.signal = n.signal), await this.client.requestText(e, t, r);
 		} catch (e) {
-			throw Fl(e);
+			throw Rl(e);
 		}
 	}
 	negotiateOutputFormat(e) {
 		let t = e.outputFormatsByOp.get("GetFeature") ?? [];
-		for (let e of t) if (Sl.has(e.toLowerCase())) return {
+		for (let e of t) if (Tl.has(e.toLowerCase())) return {
 			kind: "json",
 			format: e
 		};
-		for (let e of t) if (Cl.has(e.toLowerCase())) return {
+		for (let e of t) if (El.has(e.toLowerCase())) return {
 			kind: "gml",
 			format: e
 		};
@@ -6896,22 +6937,22 @@ var yl = "2.0.0", Y = "WFS", bl = 2 * 1024 * 1024, xl = 32 * 1024 * 1024, Sl = /
 			request: "GetCapabilities"
 		}), n = {
 			accept: "application/xml, text/xml",
-			maxResponseBytes: bl
+			maxResponseBytes: Cl
 		};
 		e?.signal && (n.signal = e.signal);
 		let { text: r } = await this.requestText("GET", X(this.endpointUrl, t), n);
 		return {
-			snapshot: Ol(qc(r), this.endpointUrl, this.client.serverBaseUrl),
+			snapshot: jl(Xc(r), this.endpointUrl, this.client.serverBaseUrl),
 			xml: r
 		};
 	}
 };
-function El(e) {
-	let t = wl.get(e);
+function kl(e) {
+	let t = Dl.get(e);
 	if (!t) throw TypeError("WFS capabilities state is unavailable");
 	return t;
 }
-function Dl(e, t, n) {
+function Al(e, t, n) {
 	return t.subscribers += 1, new Promise((r, i) => {
 		let a = !1, o = () => a ? !1 : (a = !0, n?.removeEventListener("abort", l), t.controller.signal.removeEventListener("abort", u), --t.subscribers, !0), s = () => {
 			t.settled || t.subscribers !== 0 || t.controller.signal.aborted || (e.flight === t && (e.flight = void 0), t.controller.abort());
@@ -6927,7 +6968,7 @@ function Dl(e, t, n) {
 		});
 	});
 }
-function Ol(e, t, n) {
+function jl(e, t, n) {
 	let r = new URL(t, n), i = new Map([...e.operations].map(([e, t]) => [e, Object.freeze({
 		...t,
 		...t.getUrl ? { getUrl: new URL(t.getUrl, r).toString() } : {},
@@ -6935,10 +6976,10 @@ function Ol(e, t, n) {
 	})]));
 	return Object.freeze({
 		...e,
-		operations: kl(i)
+		operations: Ml(i)
 	});
 }
-function kl(e) {
+function Ml(e) {
 	let t = new Map(e), n = {
 		get size() {
 			return t.size;
@@ -6967,7 +7008,7 @@ function kl(e) {
 	};
 	return Object.freeze(n);
 }
-var Al = class {
+var Nl = class {
 	root;
 	typeName;
 	constructor(e) {
@@ -6985,7 +7026,7 @@ var Al = class {
 	async getFeature(e) {
 		let t = e.method ?? "GET", n = {
 			accept: e.outputFormat ?? "application/geo+json, application/json;q=0.9, application/xml;q=0.5",
-			maxResponseBytes: xl
+			maxResponseBytes: wl
 		};
 		e.signal && (n.signal = e.signal);
 		let r;
@@ -6999,13 +7040,13 @@ var Al = class {
 			});
 			e.namespace !== void 0 && t.set("NAMESPACES", `xmlns(${e.namespace.prefix},${e.namespace.uri})`), e.filter !== void 0 && t.set("filter", e.filter), e.bbox !== void 0 && t.set("bbox", e.bbox), e.propertyName && e.propertyName.length > 0 && t.set("propertyName", e.propertyName.join(",")), e.sortBy !== void 0 && t.set("sortBy", e.sortBy), typeof e.count == "number" && t.set("count", String(e.count)), typeof e.startIndex == "number" && t.set("startIndex", String(e.startIndex)), e.resultType !== void 0 && t.set("resultType", e.resultType), e.srsName !== void 0 && t.set("srsName", e.srsName), e.outputFormat !== void 0 && t.set("outputFormat", e.outputFormat), r = await this.root.requestText("GET", X(this.root.operationUrl("GetFeature", "GET"), t), n);
 		}
-		if (Ml(r.contentType, r.text)) return {
+		if (Fl(r.contentType, r.text)) return {
 			kind: "json",
-			data: Pl(r.text),
+			data: Ll(r.text),
 			contentType: r.contentType
 		};
-		if (Nl(r.contentType, r.text) && /ExceptionReport/i.test(r.text)) {
-			let e = Zc(r.text);
+		if (Il(r.contentType, r.text) && /ExceptionReport/i.test(r.text)) {
+			let e = el(r.text);
 			throw new i(e.exceptionCode, e.message, e.locator);
 		}
 		return {
@@ -7025,7 +7066,7 @@ var Al = class {
 		e.filter !== void 0 && t.set("filter", e.filter), typeof e.count == "number" && t.set("count", String(e.count)), typeof e.startIndex == "number" && t.set("startIndex", String(e.startIndex));
 		let n = {
 			accept: "application/xml, text/xml",
-			maxResponseBytes: xl
+			maxResponseBytes: wl
 		};
 		e.signal && (n.signal = e.signal);
 		let { text: r, contentType: i } = await this.root.requestText("GET", X(this.root.endpointUrl, t), n);
@@ -7042,7 +7083,7 @@ var Al = class {
 		};
 		e.signal && (t.signal = e.signal);
 		let { text: n } = await this.root.requestText("POST", this.root.operationUrl("Transaction", "POST"), t);
-		return cl(n);
+		return dl(n);
 	}
 	buildGetFeatureUrl(e) {
 		let t = new URLSearchParams({
@@ -7053,7 +7094,7 @@ var Al = class {
 		});
 		return e.filter !== void 0 && t.set("filter", e.filter), e.bbox !== void 0 && t.set("bbox", e.bbox), typeof e.count == "number" && t.set("count", String(e.count)), typeof e.startIndex == "number" && t.set("startIndex", String(e.startIndex)), e.outputFormat !== void 0 && t.set("outputFormat", e.outputFormat), e.namespace !== void 0 && t.set("NAMESPACES", `xmlns(${e.namespace.prefix},${e.namespace.uri})`), X(this.root.endpointUrl, t);
 	}
-}, jl = class {
+}, Pl = class {
 	root;
 	id;
 	constructor(e) {
@@ -7083,17 +7124,17 @@ var Al = class {
 		if (typeof e.count == "number" && t.set("count", String(e.count)), typeof e.startIndex == "number" && t.set("startIndex", String(e.startIndex)), e.outputFormat !== void 0 && t.set("outputFormat", e.outputFormat), e.parameters) for (let [n, r] of Object.entries(e.parameters)) t.set(n, String(r));
 		let n = {
 			accept: e.outputFormat ?? "application/geo+json, application/json;q=0.9, application/xml;q=0.5",
-			maxResponseBytes: xl
+			maxResponseBytes: wl
 		};
 		e.signal && (n.signal = e.signal);
 		let { text: r, contentType: a } = await this.root.requestText("GET", X(this.root.operationUrl("GetFeature", "GET"), t), n);
-		if (Ml(a, r)) return {
+		if (Fl(a, r)) return {
 			kind: "json",
-			data: Pl(r),
+			data: Ll(r),
 			contentType: a
 		};
-		if (Nl(a, r) && /ExceptionReport/i.test(r)) {
-			let e = Zc(r);
+		if (Il(a, r) && /ExceptionReport/i.test(r)) {
+			let e = el(r);
 			throw new i(e.exceptionCode, e.message, e.locator);
 		}
 		return {
@@ -7106,15 +7147,15 @@ var Al = class {
 function X(e, t) {
 	return `${e}${e.includes("?") ? "&" : "?"}${t.toString()}`;
 }
-function Ml(e, t) {
+function Fl(e, t) {
 	if (e && /json/i.test(e)) return !0;
 	let n = t.trimStart();
 	return n.startsWith("{") || n.startsWith("[");
 }
-function Nl(e, t) {
+function Il(e, t) {
 	return e && /xml/i.test(e) ? !0 : t.trimStart().startsWith("<");
 }
-function Pl(e) {
+function Ll(e) {
 	try {
 		return JSON.parse(e);
 	} catch (e) {
@@ -7122,14 +7163,14 @@ function Pl(e) {
 		throw Error(`WFS GetFeature returned non-JSON output despite Accept negotiation: ${t}`);
 	}
 }
-function Fl(e) {
+function Rl(e) {
 	if (!(e instanceof a)) return e;
 	let t = e.body;
 	if (!t || typeof t != "object" || typeof t.raw != "string") return e;
 	let n = t.raw;
 	if (!/ExceptionReport/i.test(n)) return e;
 	try {
-		let e = Zc(n);
+		let e = el(n);
 		return new i(e.exceptionCode, e.message, e.locator);
 	} catch {
 		return e;
@@ -7137,32 +7178,32 @@ function Fl(e) {
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/core/client.js
-function Il(e) {
-	return ie(e);
+function zl(e) {
+	return re(e);
 }
-function Ll(e) {
+function Bl(e) {
 	return e.startsWith("http://") || e.startsWith("https://") || e.startsWith("/") ? e : `/${e}`;
 }
-function Rl(e) {
+function Vl(e) {
 	return e.startsWith("http://") || e.startsWith("https://");
 }
 function Z(e, t) {
-	if (Rl(t)) {
-		if (!Rl(e)) throw Error("Absolute request URLs are not allowed when baseUrl is relative.");
+	if (Vl(t)) {
+		if (!Vl(e)) throw Error("Absolute request URLs are not allowed when baseUrl is relative.");
 		let n = new URL(e).origin, r = new URL(t);
 		if (r.origin !== n) throw Error(`Cross-origin request URL is not allowed: ${t}`);
 		return r.toString();
 	}
 	return `${e}${t}`;
 }
-var zl = 20, Bl = /* @__PURE__ */ new Set([
+var Hl = 20, Ul = /* @__PURE__ */ new Set([
 	301,
 	302,
 	303,
 	307,
 	308
 ]);
-function Vl(e, t, n) {
+function Wl(e, t, n) {
 	if (!n) throw Error("Redirect response is missing a Location header.");
 	let r;
 	try {
@@ -7172,12 +7213,12 @@ function Vl(e, t, n) {
 	}
 	return Z(e, r.toString());
 }
-function Hl(e, t) {
-	return Rl(t) ? Z(e, t) : Rl(e) ? Z(e, Ll(t)) : t;
+function Gl(e, t) {
+	return Vl(t) ? Z(e, t) : Vl(e) ? Z(e, Bl(t)) : t;
 }
-var Ul = 6e4, Wl = 256, Gl = class e {
-	static minimumSupportedServerVersion = za;
-	static minimumSupportedServerReleaseChannel = Ba;
+var Kl = 6e4, ql = 256, Jl = class e {
+	static minimumSupportedServerVersion = Ua;
+	static minimumSupportedServerReleaseChannel = Wa;
 	baseUrl;
 	fetchFn;
 	defaultHeaders;
@@ -7198,9 +7239,9 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 	ogcLayoutCache = /* @__PURE__ */ new Map();
 	wfsRootCache = /* @__PURE__ */ new Map();
 	constructor(e) {
-		this.baseUrl = Il(e.baseUrl), this.fetchFn = (e.fetchFn ?? fetch).bind(globalThis);
+		this.baseUrl = zl(e.baseUrl), this.fetchFn = (e.fetchFn ?? fetch).bind(globalThis);
 		let t = {};
-		e.apiKey && (t["X-API-Key"] = e.apiKey), e.bearerToken && (t.Authorization = `Bearer ${e.bearerToken}`), this.defaultHeaders = t, this.authProvider = eu(e.auth), this.authRefreshSkewMs = tu(e.authRefreshSkewMs), this.interceptors = e.interceptors ?? [], this.timeoutMs = kc(e.timeoutMs), this.retryOptions = Ac(e.retry), this.preferBinary = e.preferBinary === !0, this.transport = e.transport ?? "rest", this.protocolTransport = {
+		e.apiKey && (t["X-API-Key"] = e.apiKey), e.bearerToken && (t.Authorization = `Bearer ${e.bearerToken}`), this.defaultHeaders = t, this.authProvider = ru(e.auth), this.authRefreshSkewMs = iu(e.authRefreshSkewMs), this.interceptors = e.interceptors ?? [], this.timeoutMs = Mc(e.timeoutMs), this.retryOptions = Nc(e.retry), this.preferBinary = e.preferBinary === !0, this.transport = e.transport ?? "rest", this.protocolTransport = {
 			baseUrl: this.baseUrl,
 			requestJson: (e, t, n, r, i) => this.requestJson(e, t, n, r, i),
 			requestText: (e, t, n) => this.requestText(e, t, n),
@@ -7225,8 +7266,8 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 				return await e(t);
 			} catch (e) {
 				let i = t.signal?.aborted === !0;
-				if (!Rc(n, r, e, i)) throw e;
-				await Vc(Bc(n, r, e), t.signal);
+				if (!Vc(n, r, e, i)) throw e;
+				await Wc(Uc(n, r, e), t.signal);
 			}
 		};
 	}
@@ -7242,14 +7283,14 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 	async ensureConnectClient() {
 		if (this.connectClient) return this.connectClient;
 		let e = this.connectClientPromise;
-		e || (e = gu().then(({ createClient: e, createGrpcWebTransport: t, FeatureService: n }) => {
+		e || (e = yu().then(({ createClient: e, createGrpcWebTransport: t, FeatureService: n }) => {
 			let r = t(this.connectTransportOptions());
 			return this.connectClient = e(n, r), this.connectClient;
 		}), this.connectClientPromise = e);
 		try {
 			return await e;
 		} catch (t) {
-			throw this.connectClientPromise === e && (this.connectClientPromise = void 0), Us(t);
+			throw this.connectClientPromise === e && (this.connectClientPromise = void 0), Ks(t);
 		}
 	}
 	async fetchWithSafeRedirects(e, t, n = "safe-follow") {
@@ -7260,13 +7301,13 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 				redirect: n === "error" ? "error" : "manual"
 			});
 			if (n === "error") {
-				if (t.type === "opaqueredirect" || t.redirected || Bl.has(t.status) || t.url !== "" && t.url !== r) throw await t.body?.cancel().catch(() => void 0), new s("Redirects are not allowed for this bounded request.", void 0);
+				if (t.type === "opaqueredirect" || t.redirected || Ul.has(t.status) || t.url !== "" && t.url !== r) throw await t.body?.cancel().catch(() => void 0), new s("Redirects are not allowed for this bounded request.", void 0);
 				return t;
 			}
 			if (t.type === "opaqueredirect") throw new s("Refusing to follow an opaque cross-origin redirect; the request's API key would be leaked to the redirect target.", void 0);
-			if (!Bl.has(t.status) || n === "manual") return t;
-			if (e >= zl) throw new s(`Exceeded the maximum of ${zl} redirects.`, void 0);
-			let a = t.headers.get("location"), o = Vl(this.baseUrl, r, a), c = (i.method ?? "GET").toUpperCase(), l = t.status === 303 || (t.status === 301 || t.status === 302) && c !== "GET" && c !== "HEAD";
+			if (!Ul.has(t.status) || n === "manual") return t;
+			if (e >= Hl) throw new s(`Exceeded the maximum of ${Hl} redirects.`, void 0);
+			let a = t.headers.get("location"), o = Wl(this.baseUrl, r, a), c = (i.method ?? "GET").toUpperCase(), l = t.status === 303 || (t.status === 301 || t.status === 302) && c !== "GET" && c !== "HEAD";
 			if (n === "preserve-method" && l && c !== "GET" && c !== "HEAD") return t;
 			i = l ? {
 				...i,
@@ -7278,11 +7319,11 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 	static async loadGrpcAdapter() {
 		let e;
 		try {
-			e = await mu(pu);
+			e = await _u(gu);
 		} catch (e) {
-			throw Us(e);
+			throw Ks(e);
 		}
-		if (!_u(e)) throw Error("HonuaClient gRPC adapter loaded but did not export the query runtime.");
+		if (!bu(e)) throw Error("HonuaClient gRPC adapter loaded but did not export the query runtime.");
 		return e;
 	}
 	get isGrpcWeb() {
@@ -7354,19 +7395,19 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 		return new Ot({ client: this });
 	}
 	wms(e) {
-		return new zi({
+		return new Bi({
 			client: this,
 			serviceId: e
 		});
 	}
 	wmts(e) {
-		return new ha({
+		return new ga({
 			client: this,
 			serviceId: e
 		});
 	}
 	ogcProcesses(e = {}) {
-		return new _s({
+		return new bs({
 			...e,
 			client: this
 		});
@@ -7391,21 +7432,21 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 		});
 	}
 	processRunner(e) {
-		return hc(e);
+		return vc(e);
 	}
 	ogcProcessRunner(e = {}) {
-		return hc(gc(this.ogcProcesses(e)));
+		return vc(yc(this.ogcProcesses(e)));
 	}
 	geoprocessingRunner(e, t) {
-		return hc(_c(this.geoprocessing(e, t)));
+		return vc(bc(this.geoprocessing(e, t)));
 	}
 	geospatialGrpcProcessRunner(e) {
-		return hc(vc(e));
+		return vc(xc(e));
 	}
 	wfs(e = "/wfs", t = {}) {
 		let n = t.version ?? "2.0.0", r = `${e}\u0000${n}`, i = this.wfsRootCache.get(r);
 		if (i) return i;
-		let a = new Tl({
+		let a = new Ol({
 			client: this,
 			endpointUrl: e,
 			version: n
@@ -7413,7 +7454,7 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 		return this.wfsRootCache.set(r, a), a;
 	}
 	odata(e, t = {}) {
-		return new ue({
+		return new le({
 			client: this,
 			entitySet: e,
 			basePath: t.basePath
@@ -7429,16 +7470,16 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 	}
 	async listServices(e = "json", t = {}) {
 		let n = typeof e == "string" ? e : "json", r = typeof e == "string" ? t : e;
-		return ro(this.protocolTransport, n, r);
+		return so(this.protocolTransport, n, r);
 	}
 	async getCompatibility(e = {}) {
 		if (!e.refresh && this.serverCompatibilityCache) return this.serverCompatibilityCache;
-		let t = Wa(await this.requestJson("GET", "/api/v1/admin/capabilities", void 0, e.signal));
+		let t = Ja(await this.requestJson("GET", "/api/v1/admin/capabilities", void 0, e.signal));
 		return this.serverCompatibilityCache = t, t;
 	}
 	async checkCompatibility(t = {}) {
 		try {
-			let n = await this.getCompatibility(t), r = Za(n);
+			let n = await this.getCompatibility(t), r = to(n);
 			return {
 				supported: r.length === 0,
 				minimumSupportedServerVersion: e.minimumSupportedServerVersion,
@@ -7449,7 +7490,7 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 			return {
 				supported: !1,
 				minimumSupportedServerVersion: e.minimumSupportedServerVersion,
-				reasons: [eo(t)]
+				reasons: [io(t)]
 			};
 		}
 	}
@@ -7466,7 +7507,7 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 	async request(e) {
 		let t = e.method ?? "GET", n = new URLSearchParams();
 		if (n.set("f", e.responseFormat ?? "json"), e.query) for (let [t, r] of Object.entries(e.query)) n.set(t, String(r));
-		let r = lu(Ll(e.path), n);
+		let r = fu(Bl(e.path), n);
 		return this.requestJson(t, r, {
 			headers: e.headers,
 			body: e.body
@@ -7481,14 +7522,14 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 	}
 	async resolveAuthHeaders() {
 		let e = await this.resolveAuthCredentials({ forceRefresh: !1 });
-		if (e) return ou(e.credentials);
+		if (e) return lu(e.credentials);
 	}
 	async resolveAuthCredentials(e) {
 		if (!this.authProvider) return;
 		let t = this.authCredentialsCache;
-		if (!e.forceRefresh && t && !iu(t, this.authRefreshSkewMs)) return t;
+		if (!e.forceRefresh && t && !su(t, this.authRefreshSkewMs)) return t;
 		if (this.authRefreshPromise) return this.authRefreshPromise;
-		let n = e.reason ?? au(t);
+		let n = e.reason ?? cu(t);
 		this.authRefreshPromise = this.loadAuthCredentials(n, e.forceRefresh, t?.credentials);
 		try {
 			return await this.authRefreshPromise;
@@ -7497,7 +7538,7 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 		}
 	}
 	async loadAuthCredentials(e, t, n) {
-		let r = nu(await this.authProvider?.getCredentials({
+		let r = au(await this.authProvider?.getCredentials({
 			reason: e,
 			forceRefresh: t,
 			...n ? { previousCredentials: n } : {}
@@ -7508,7 +7549,7 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 		}
 		let i = {
 			credentials: r,
-			expiresAtMs: ru(r.expiresAt)
+			expiresAtMs: ou(r.expiresAt)
 		};
 		return this.authCredentialsCache = i, i;
 	}
@@ -7535,14 +7576,14 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 			streamResponse: i.prepareResponse === void 0,
 			...i.errorBody ? { errorBody: i.errorBody } : i.discardErrorBody ? { errorBody: (e) => (e.body?.cancel().catch(() => void 0), Promise.resolve({})) } : {},
 			finalize: async (e, t, n, r, a) => {
-				let o = i.prepareResponse ? await i.prepareResponse(e, a) : e, s = o === e ? e : Zl(o, e);
+				let o = i.prepareResponse ? await i.prepareResponse(e, a) : e, s = o === e ? e : eu(o, e);
 				return await r(s), s;
 			}
 		});
 	}
 	async requestCachedMetadataJson(e, t, n = {}) {
 		let r = d(n), i = `metadata:${e}${r.maxResponseBytes === void 0 ? "" : `:max-response-bytes:${r.maxResponseBytes}`}`, a = this.metadataCache.get(i), o = r.cache === "bypass", s = Date.now(), c = a ? f(a.cachedAtMs, s, r.ttlMs) : !1;
-		if (!o && !r.refresh && a && c) return h(a.body, su(a, "hit", {
+		if (!o && !r.refresh && a && c) return h(a.body, uu(a, "hit", {
 			now: s,
 			ttlMs: r.ttlMs,
 			staleIfErrorMs: r.staleIfErrorMs
@@ -7573,7 +7614,7 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 					cachedAtMs: Date.now(),
 					...p(e.headers) ?? a.validator ? { validator: p(e.headers) ?? a.validator } : {}
 				};
-				return this.setMetadataCacheEntry(i, c), { value: h(c.body, su(c, "refreshed", {
+				return this.setMetadataCacheEntry(i, c), { value: h(c.body, uu(c, "refreshed", {
 					now: Date.now(),
 					ttlMs: r.ttlMs,
 					staleIfErrorMs: r.staleIfErrorMs,
@@ -7581,7 +7622,7 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 				})) };
 			},
 			finalize: async (e, t, n, s, c) => {
-				let l = await ql(this.hasAfterInterceptors() ? e.clone() : e, r.maxResponseBytes, c), u = Gc(e.status, l, e.headers);
+				let l = await Xl(this.hasAfterInterceptors() ? e.clone() : e, r.maxResponseBytes, c), u = Jc(e.status, l, e.headers);
 				if (u) {
 					let e = this.staleMetadataFallback(a, r, u);
 					if (e) return e;
@@ -7592,18 +7633,18 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 					}), u;
 				}
 				await s();
-				let d = ee(l), f = p(e.headers), m = e.headers.get("last-modified") ?? void 0, te = {
+				let d = g(l), f = p(e.headers), m = e.headers.get("last-modified") ?? void 0, _ = {
 					body: d,
 					cachedAtMs: Date.now(),
 					keyFingerprint: i,
 					...f ? { validator: f } : {},
 					...m ? { sourceUpdatedAt: m } : {}
-				}, g = o ? "bypass" : a ? "refreshed" : "miss";
-				return o || this.setMetadataCacheEntry(i, te), h(d, su(te, g, {
+				}, ee = o ? "bypass" : a ? "refreshed" : "miss";
+				return o || this.setMetadataCacheEntry(i, _), h(d, uu(_, ee, {
 					now: Date.now(),
 					ttlMs: r.ttlMs,
 					staleIfErrorMs: r.staleIfErrorMs,
-					...g === "refreshed" ? { revalidatedAt: (/* @__PURE__ */ new Date()).toISOString() } : {}
+					...ee === "refreshed" ? { revalidatedAt: (/* @__PURE__ */ new Date()).toISOString() } : {}
 				}));
 			}
 		});
@@ -7611,65 +7652,65 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 	staleMetadataFallback(e, t, n) {
 		if (!e || t.cache === "bypass" || !t.staleIfError) return;
 		let r = t.staleIfErrorMs ?? 36e5;
-		if (!(Date.now() - e.cachedAtMs > r)) return h(e.body, su(e, "stale", {
+		if (!(Date.now() - e.cachedAtMs > r)) return h(e.body, uu(e, "stale", {
 			now: Date.now(),
 			ttlMs: t.ttlMs,
 			staleIfErrorMs: t.staleIfErrorMs,
-			refreshErrorId: cu(n)
+			refreshErrorId: du(n)
 		}));
 	}
 	setMetadataCacheEntry(e, t) {
-		for (this.metadataCache.set(e, t); this.metadataCache.size > Wl;) {
+		for (this.metadataCache.set(e, t); this.metadataCache.size > ql;) {
 			let e = [...this.metadataCache.entries()].sort((e, t) => e[1].cachedAtMs - t[1].cachedAtMs)[0];
 			if (!e) return;
 			this.metadataCache.delete(e[0]);
 		}
 	}
 	async getLayerMetadata(e, t, n = {}) {
-		return io(this.protocolTransport, e, t, n);
+		return co(this.protocolTransport, e, t, n);
 	}
 	async getFeatureServiceMetadata(e, t = {}) {
-		return ao(this.protocolTransport, e, t);
+		return lo(this.protocolTransport, e, t);
 	}
 	resolveOgcFeaturesLayout(e = "honua-facade") {
-		if (e === "honua-facade") return Promise.resolve(Io());
+		if (e === "honua-facade") return Promise.resolve(Bo());
 		let t = this.ogcLayoutCache.get(e);
-		return t || (t = Ho(this.protocolTransport, e).catch((t) => {
+		return t || (t = Ko(this.protocolTransport, e).catch((t) => {
 			throw this.ogcLayoutCache.delete(e), t;
 		}), this.ogcLayoutCache.set(e, t)), t;
 	}
 	async getOgcFeaturesLanding(e = {}) {
-		return Wo(this.protocolTransport, e);
-	}
-	async getOgcFeaturesConformance(e = {}) {
-		return Go(this.protocolTransport, e);
-	}
-	async listOgcCollections(e = {}) {
-		return Ko(this.protocolTransport, e);
-	}
-	async getOgcCollection(e) {
-		return qo(this.protocolTransport, e);
-	}
-	async getOgcQueryables(e) {
 		return Jo(this.protocolTransport, e);
 	}
-	async listOgcItems(e) {
+	async getOgcFeaturesConformance(e = {}) {
 		return Yo(this.protocolTransport, e);
 	}
-	async getOgcItem(e) {
+	async listOgcCollections(e = {}) {
 		return Xo(this.protocolTransport, e);
 	}
-	async createOgcItem(e) {
+	async getOgcCollection(e) {
 		return Zo(this.protocolTransport, e);
 	}
-	async replaceOgcItem(e) {
+	async getOgcQueryables(e) {
 		return Qo(this.protocolTransport, e);
 	}
-	async patchOgcItem(e) {
+	async listOgcItems(e) {
 		return $o(this.protocolTransport, e);
 	}
+	async getOgcItem(e) {
+		return es(this.protocolTransport, e);
+	}
+	async createOgcItem(e) {
+		return ts(this.protocolTransport, e);
+	}
+	async replaceOgcItem(e) {
+		return ns(this.protocolTransport, e);
+	}
+	async patchOgcItem(e) {
+		return rs(this.protocolTransport, e);
+	}
 	async deleteOgcItem(e) {
-		await es(this.protocolTransport, e);
+		await is(this.protocolTransport, e);
 	}
 	async getOgcTilesLanding(e = {}) {
 		return Yt(this.protocolTransport, e);
@@ -7726,49 +7767,49 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 		return Bt(this.protocolTransport, e);
 	}
 	async getWmsCapabilities(e) {
-		return Hi(this.protocolTransport, e);
-	}
-	async getWmsMap(e) {
 		return Ui(this.protocolTransport, e);
 	}
-	async getWmsFeatureInfo(e) {
+	async getWmsMap(e) {
 		return Wi(this.protocolTransport, e);
 	}
+	async getWmsFeatureInfo(e) {
+		return Gi(this.protocolTransport, e);
+	}
 	async getWmsLegend(e) {
-		return Ki(this.protocolTransport, e);
+		return qi(this.protocolTransport, e);
 	}
 	async getWmtsCapabilities(e) {
-		return ya(this.protocolTransport, e);
-	}
-	async fetchWmtsTile(e) {
 		return ba(this.protocolTransport, e);
 	}
-	async getWmtsFeatureInfo(e) {
+	async fetchWmtsTile(e) {
 		return xa(this.protocolTransport, e);
 	}
+	async getWmtsFeatureInfo(e) {
+		return Sa(this.protocolTransport, e);
+	}
 	async getOgcProcessesLanding(e = {}) {
-		return ws(this.protocolTransport, e);
-	}
-	async getOgcProcessesConformance(e = {}) {
-		return Ts(this.protocolTransport, e);
-	}
-	async listOgcProcesses(e = {}) {
-		return Es(this.protocolTransport, e);
-	}
-	async getOgcProcess(e) {
 		return Ds(this.protocolTransport, e);
 	}
-	async executeOgcProcess(e) {
+	async getOgcProcessesConformance(e = {}) {
 		return Os(this.protocolTransport, e);
 	}
+	async listOgcProcesses(e = {}) {
+		return ks(this.protocolTransport, e);
+	}
+	async getOgcProcess(e) {
+		return As(this.protocolTransport, e);
+	}
+	async executeOgcProcess(e) {
+		return js(this.protocolTransport, e);
+	}
 	async getOgcProcessJob(e) {
-		return Ms(this.protocolTransport, e);
+		return Fs(this.protocolTransport, e);
 	}
 	async getOgcProcessJobResults(e) {
-		return Ns(this.protocolTransport, e);
+		return Is(this.protocolTransport, e);
 	}
 	async cancelOgcProcessJob(e) {
-		return Ps(this.protocolTransport, e);
+		return Ls(this.protocolTransport, e);
 	}
 	async getStacLanding(e = {}) {
 		return Tn(this.protocolTransport, e);
@@ -7786,10 +7827,10 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 		return kn(this.protocolTransport, e);
 	}
 	async getMapServiceMetadata(e, t = {}) {
-		return oo(this.protocolTransport, e, t);
+		return uo(this.protocolTransport, e, t);
 	}
 	async getMapLayerMetadata(e, t, n = {}) {
-		return so(this.protocolTransport, e, t, n);
+		return fo(this.protocolTransport, e, t, n);
 	}
 	async queryFeatures(t) {
 		if (this.transport === "grpc-web") {
@@ -7801,31 +7842,31 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 				throw r.wrapConnectError(e);
 			}
 		}
-		return lo(this.protocolTransport, t, this.preferBinary);
+		return mo(this.protocolTransport, t, this.preferBinary);
 	}
 	async queryMapLayer(e) {
-		return uo(this.protocolTransport, e);
-	}
-	async applyEdits(e) {
-		return fo(this.protocolTransport, e);
-	}
-	async queryRelatedRecords(e) {
-		return po(this.protocolTransport, e);
-	}
-	async queryMapRelatedRecords(e) {
-		return mo(this.protocolTransport, e);
-	}
-	async exportMap(e) {
 		return ho(this.protocolTransport, e);
 	}
-	async getMapLegend(e) {
+	async applyEdits(e) {
 		return go(this.protocolTransport, e);
 	}
-	async identifyMap(e) {
+	async queryRelatedRecords(e) {
 		return _o(this.protocolTransport, e);
 	}
-	async findMap(e) {
+	async queryMapRelatedRecords(e) {
 		return vo(this.protocolTransport, e);
+	}
+	async exportMap(e) {
+		return yo(this.protocolTransport, e);
+	}
+	async getMapLegend(e) {
+		return bo(this.protocolTransport, e);
+	}
+	async identifyMap(e) {
+		return xo(this.protocolTransport, e);
+	}
+	async findMap(e) {
+		return So(this.protocolTransport, e);
 	}
 	async requestJson(e, t, n, r, i) {
 		let a = {
@@ -7844,7 +7885,7 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 			readOnlyQuery: i?.readOnlyQuery,
 			redirect: i?.readOnlyQuery ? "preserve-method" : void 0,
 			finalize: async (e, t, n, r) => {
-				let i = await ql(this.hasAfterInterceptors() ? e.clone() : e), a = Gc(e.status, i, e.headers);
+				let i = await Xl(this.hasAfterInterceptors() ? e.clone() : e), a = Jc(e.status, i, e.headers);
 				if (a) throw a;
 				return await r(), i;
 			}
@@ -7864,15 +7905,15 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 			callerSignal: r,
 			deadlineThroughFinalize: !0,
 			finalize: async (e, i, a, o, s) => {
-				if (await o(), pc(e)) try {
-					return fc(await Q(e, 2 ** 53 - 1, s));
+				if (await o(), gc(e)) try {
+					return hc(await Q(e, 2 ** 53 - 1, s));
 				} catch (e) {
 					if (s?.aborted) throw e;
 					n.set("f", "json");
-					let i = `${ae(t)}?${n.toString()}`;
+					let i = `${ie(t)}?${n.toString()}`;
 					return this.requestJson("GET", i, void 0, s ?? r ?? a.init.signal ?? void 0);
 				}
-				let c = await ql(e, void 0, s), l = Gc(e.status, c, e.headers);
+				let c = await Xl(e, void 0, s), l = Jc(e.status, c, e.headers);
 				if (l) throw await this.applyErrorInterceptors({
 					request: $(a),
 					error: l,
@@ -7913,7 +7954,7 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 					status: e.status
 				};
 				let s = await Q(e, n.maxResponseBytes, o);
-				return await a(Zl(Jl(e, s), e)), {
+				return await a(eu(Zl(e, s), e)), {
 					text: new TextDecoder().decode(s),
 					contentType: e.headers.get("content-type") ?? r,
 					status: e.status
@@ -7951,7 +7992,7 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 		for (let e = 0;; e += 1) {
 			let s;
 			await t.beforeAttempt?.($(r), e);
-			let l = Uc(t.callerSignal ?? r.init.signal, this.timeoutMs), u = performance.now(), d = !1;
+			let l = Kc(t.callerSignal ?? r.init.signal, this.timeoutMs), u = performance.now(), d = !1;
 			try {
 				s = await this.fetchWithSafeRedirects(r.url, {
 					...r.init,
@@ -7959,8 +8000,8 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 					signal: l.signal
 				}, t.redirect), d = !0;
 			} catch (o) {
-				let s = performance.now() - u, c = l.didTimeout ? new n(this.timeoutMs ?? 0) : Hc(o);
-				if (Nc(this.retryOptions, r.method, e, void 0, c, i)) {
+				let s = performance.now() - u, c = l.didTimeout ? new n(this.timeoutMs ?? 0) : Gc(o);
+				if (Ic(this.retryOptions, r.method, e, void 0, c, i)) {
 					await t.beforeReplay?.($(r), void 0, "retry"), await this.sleepBeforeRetry(e, void 0, a);
 					continue;
 				}
@@ -7974,25 +8015,25 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 			} finally {
 				(!d || !t.deadlineThroughFinalize) && l.dispose();
 			}
-			let f = performance.now() - u, p = r, m = !1, h, ee, te = (e, t) => {
-				if (ee) return {
+			let f = performance.now() - u, p = r, m = !1, h, g, _ = (e, t) => {
+				if (g) return {
 					claimed: !1,
-					completion: ee.completion
+					completion: g.completion
 				};
 				let n = this.applyErrorInterceptorsConcurrently({
 					request: $(p),
 					error: e,
 					durationMs: t
 				});
-				return ee = { completion: n }, {
+				return g = { completion: n }, {
 					claimed: !0,
 					completion: n
 				};
-			}, g = async (e) => await Xl(e.catch(async (e) => {
+			}, ee = async (e) => await $l(e.catch(async (e) => {
 				if (l.signal?.aborted) throw e;
-				let t = te(e, performance.now() - u);
+				let t = _(e, performance.now() - u);
 				throw t.claimed && await t.completion, e;
-			}), l.signal), ne = async (e = s) => {
+			}), l.signal), te = async (e = s) => {
 				try {
 					await this.applyAfterInterceptors($(p), e, f, t.deadlineThroughFinalize ? l.signal : void 0);
 				} catch (e) {
@@ -8005,38 +8046,38 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 			};
 			try {
 				if (t.shortCircuit) {
-					let e = t.shortCircuit(s, f, p, ne), n = await (t.deadlineThroughFinalize ? g(e) : e);
+					let e = t.shortCircuit(s, f, p, te), n = await (t.deadlineThroughFinalize ? ee(e) : e);
 					if (n) return n.value;
 				}
 				if (!s.ok && !t.okStatuses?.includes(s.status)) {
-					let n = t.errorBody ? t.errorBody(s, t.deadlineThroughFinalize ? l.signal : void 0) : Kl(s.clone()), c = t.deadlineThroughFinalize ? await Xl(n, l.signal) : await n, u = Wc(s.status, c, s.headers);
-					!o && (s.status === 401 || s.status === 403) && this.authProvider && (Oc.has(r.method) || i) && await t.beforeReplay?.($(r), s.status, "authentication");
+					let n = t.errorBody ? t.errorBody(s, t.deadlineThroughFinalize ? l.signal : void 0) : Yl(s.clone()), c = t.deadlineThroughFinalize ? await $l(n, l.signal) : await n, u = qc(s.status, c, s.headers);
+					!o && (s.status === 401 || s.status === 403) && this.authProvider && (jc.has(r.method) || i) && await t.beforeReplay?.($(r), s.status, "authentication");
 					let d = o ? void 0 : await this.refreshReplaySafeRequestAuth(r, s.status, i);
 					if (d) {
 						r = d, o = !0;
 						continue;
 					}
-					if (Nc(this.retryOptions, r.method, e, s.status, u, i)) {
+					if (Ic(this.retryOptions, r.method, e, s.status, u, i)) {
 						await t.beforeReplay?.($(r), s.status, "retry"), await this.sleepBeforeRetry(e, s, a);
 						continue;
 					}
 					let p = t.onTerminalError?.(u);
 					if (p !== void 0) return p;
-					if (t.deadlineThroughFinalize) return await g(Promise.reject(u));
+					if (t.deadlineThroughFinalize) return await ee(Promise.reject(u));
 					throw await this.applyErrorInterceptors({
 						request: $(r),
 						error: u,
 						durationMs: f
 					}), u;
 				}
-				let u = t.streamResponse ? vu(s, l.signal, () => l.dispose(), () => l.didTimeout ? new n(this.timeoutMs ?? 0) : new c()) : void 0, d = u?.response ?? s;
+				let u = t.streamResponse ? xu(s, l.signal, () => l.dispose(), () => l.didTimeout ? new n(this.timeoutMs ?? 0) : new c()) : void 0, d = u?.response ?? s;
 				h = u?.cancel;
-				let ee = t.finalize(d, f, p, ne, l.signal), te = await (t.deadlineThroughFinalize ? g(ee) : ee);
-				return m = t.streamResponse === !0 && s.body !== null, te;
+				let g = t.finalize(d, f, p, te, l.signal), _ = await (t.deadlineThroughFinalize ? ee(g) : g);
+				return m = t.streamResponse === !0 && s.body !== null, _;
 			} catch (o) {
 				if (!t.deadlineThroughFinalize || !l.signal?.aborted) throw o;
 				let s = l.didTimeout ? new n(this.timeoutMs ?? 0) : new c();
-				if (l.didTimeout && Nc(this.retryOptions, r.method, e, void 0, s, i)) {
+				if (l.didTimeout && Ic(this.retryOptions, r.method, e, void 0, s, i)) {
 					await t.beforeReplay?.($(r), void 0, "retry"), await this.sleepBeforeRetry(e, void 0, a);
 					continue;
 				}
@@ -8044,7 +8085,7 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 					let e = t.onTerminalError?.(s);
 					if (e !== void 0) return e;
 				}
-				throw te(s, performance.now() - u), s;
+				throw _(s, performance.now() - u), s;
 			} finally {
 				t.deadlineThroughFinalize && !m && (l.dispose(), h?.());
 			}
@@ -8054,13 +8095,13 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 		let t = $(e);
 		t = {
 			...t,
-			url: Hl(this.baseUrl, t.url)
+			url: Gl(this.baseUrl, t.url)
 		};
 		for (let e of this.interceptors) {
 			let n = await e.before?.($(t));
-			n && (t = Yl(t, n), t = {
+			n && (t = Ql(t, n), t = {
 				...t,
-				url: Hl(this.baseUrl, t.url)
+				url: Gl(this.baseUrl, t.url)
 			});
 		}
 		return t;
@@ -8093,7 +8134,7 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 		}));
 	}
 	async refreshReplaySafeRequestAuth(e, t, n = !1) {
-		if (t !== 401 && t !== 403 || !this.authProvider || !Oc.has(e.method) && !n) return;
+		if (t !== 401 && t !== 403 || !this.authProvider || !jc.has(e.method) && !n) return;
 		let r = await this.resolveAuthCredentials({
 			forceRefresh: !0,
 			reason: "unauthorized"
@@ -8102,15 +8143,15 @@ var Ul = 6e4, Wl = 256, Gl = class e {
 			...e,
 			init: {
 				...e.init,
-				headers: S(e.init.headers, ou(r.credentials))
+				headers: S(e.init.headers, lu(r.credentials))
 			}
 		};
 	}
 	async sleepBeforeRetry(e, t, n) {
-		await Vc(Pc(this.retryOptions, e, t), n);
+		await Wc(Lc(this.retryOptions, e, t), n);
 	}
 };
-async function Kl(e, t, n = !1) {
+async function Yl(e, t, n = !1) {
 	let r = t === void 0 ? await e.text() : new TextDecoder().decode(await Q(e, t));
 	if (!r) return {};
 	try {
@@ -8120,8 +8161,8 @@ async function Kl(e, t, n = !1) {
 		return { raw: r };
 	}
 }
-async function ql(e, t, n) {
-	return Kl(n ? Jl(e, await Q(e, t ?? 2 ** 53 - 1, n)) : e, t, !0);
+async function Xl(e, t, n) {
+	return Yl(n ? Zl(e, await Q(e, t ?? 2 ** 53 - 1, n)) : e, t, !0);
 }
 async function Q(e, t, n) {
 	if (n?.aborted) throw e.body?.cancel().catch(() => void 0), new c();
@@ -8151,7 +8192,7 @@ async function Q(e, t, n) {
 	for (let e of a) u.set(e, d), d += e.byteLength;
 	return u;
 }
-function Jl(e, t) {
+function Zl(e, t) {
 	let n = e.status === 204 || e.status === 205 || e.status === 304 ? null : t.slice();
 	return new Response(n, {
 		status: e.status,
@@ -8159,7 +8200,7 @@ function Jl(e, t) {
 		headers: e.headers
 	});
 }
-function Yl(e, t) {
+function Ql(e, t) {
 	let n = t.init === void 0 ? e.init : {
 		...e.init,
 		...t.init,
@@ -8180,11 +8221,11 @@ function $(e) {
 		...e,
 		init: {
 			...e.init,
-			headers: $l(e.init.headers)
+			headers: nu(e.init.headers)
 		}
 	};
 }
-function Xl(e, t) {
+function $l(e, t) {
 	let n = Promise.resolve(e);
 	return t ? t.aborted ? (n.catch(() => void 0), Promise.reject(new c())) : new Promise((e, r) => {
 		let i = !1, a = (e) => {
@@ -8193,14 +8234,14 @@ function Xl(e, t) {
 		t.addEventListener("abort", o, { once: !0 }), n.then((t) => a(() => e(t)), (e) => a(() => r(e)));
 	}) : n;
 }
-function Zl(e, t) {
-	return Ql(e, Object.freeze({
+function eu(e, t) {
+	return tu(e, Object.freeze({
 		url: t.url,
 		type: t.type,
 		redirected: t.redirected
 	}));
 }
-function Ql(e, t) {
+function tu(e, t) {
 	let n = e.clone.bind(e);
 	return Object.defineProperties(e, {
 		url: {
@@ -8217,46 +8258,46 @@ function Ql(e, t) {
 		},
 		clone: {
 			configurable: !0,
-			value: () => Ql(n(), t)
+			value: () => tu(n(), t)
 		}
 	}), e;
 }
-function $l(e) {
+function nu(e) {
 	return S(e);
 }
-function eu(e) {
+function ru(e) {
 	if (e) return typeof e == "function" ? { getCredentials: e } : {
 		getCredentials: (t) => e.getCredentials(t),
 		...e.revokeCredentials ? { revokeCredentials: e.revokeCredentials.bind(e) } : {}
 	};
 }
-function tu(e) {
-	return typeof e != "number" || !Number.isFinite(e) ? Ul : Math.max(0, Math.trunc(e));
+function iu(e) {
+	return typeof e != "number" || !Number.isFinite(e) ? Kl : Math.max(0, Math.trunc(e));
 }
-function nu(e) {
+function au(e) {
 	if (typeof e == "string") return e.length > 0 ? { bearerToken: e } : void 0;
 	if (!e) return;
 	let t = {};
 	if (typeof e.apiKey == "string" && e.apiKey.length > 0 && (t.apiKey = e.apiKey), typeof e.bearerToken == "string" && e.bearerToken.length > 0 && (t.bearerToken = e.bearerToken), typeof e.authorization == "string" && e.authorization.length > 0 && (t.authorization = e.authorization), e.expiresAt !== void 0 && (t.expiresAt = e.expiresAt), !(!t.apiKey && !t.bearerToken && !t.authorization)) return t;
 }
-function ru(e) {
+function ou(e) {
 	if (e === void 0) return;
 	if (e instanceof Date) return Number.isFinite(e.getTime()) ? e.getTime() : void 0;
 	if (typeof e == "number") return Number.isFinite(e) ? e : void 0;
 	let t = Date.parse(e);
 	return Number.isFinite(t) ? t : void 0;
 }
-function iu(e, t) {
+function su(e, t) {
 	return e.expiresAtMs !== void 0 && e.expiresAtMs - Date.now() <= t;
 }
-function au(e) {
+function cu(e) {
 	return e ? "expired" : "initial";
 }
-function ou(e) {
+function lu(e) {
 	let t = {};
 	return e.apiKey && (t["X-API-Key"] = e.apiKey), e.authorization ? t.Authorization = e.authorization : e.bearerToken && (t.Authorization = `Bearer ${e.bearerToken}`), Object.keys(t).length > 0 ? t : void 0;
 }
-function su(e, t, n) {
+function uu(e, t, n) {
 	return u({
 		scope: "metadata",
 		status: t,
@@ -8270,35 +8311,35 @@ function su(e, t, n) {
 		...n.refreshErrorId ? { refreshErrorId: n.refreshErrorId } : {}
 	});
 }
-function cu(e) {
+function du(e) {
 	return e instanceof a ? `http-${e.statusCode}` : e instanceof n ? "timeout" : e instanceof s ? "network" : e instanceof Error && e.name ? e.name : "unknown";
 }
-function lu(e, t) {
+function fu(e, t) {
 	if (t.size === 0) return e;
 	let n = e.indexOf("#"), r = n >= 0 ? e.slice(n) : "", i = n >= 0 ? e.slice(0, n) : e, a = i.indexOf("?"), o = a >= 0 ? i.slice(0, a) : i, s = a >= 0 ? i.slice(a + 1) : "", c = new URLSearchParams(s);
 	for (let [e, n] of t.entries()) c.set(e, n);
 	let l = c.toString();
 	return `${l.length > 0 ? `${o}?${l}` : o}${r}`;
 }
-var uu = "@connectrpc/connect", du = "@connectrpc/connect-web", fu = "../gen/geospatial/v1/feature_service_pb.js", pu = "./grpc-adapter.js";
-function mu(e) {
+var pu = "@connectrpc/connect", mu = "@connectrpc/connect-web", hu = "../gen/geospatial/v1/feature_service_pb.js", gu = "./grpc-adapter.js";
+function _u(e) {
 	return import(
 		/* @vite-ignore */
 		e
 );
 }
-function hu(e) {
+function vu(e) {
 	return typeof e == "object" && !!e || typeof e == "function";
 }
-async function gu() {
+async function yu() {
 	let [e, t, n] = await Promise.all([
-		mu(uu),
-		mu(du),
-		mu(fu)
+		_u(pu),
+		_u(mu),
+		_u(hu)
 	]);
-	if (!hu(e) || typeof e.createClient != "function") throw Error("The optional peer \"@connectrpc/connect\" loaded but did not export createClient.");
-	if (!hu(t) || typeof t.createGrpcWebTransport != "function") throw Error("The optional peer \"@connectrpc/connect-web\" loaded but did not export createGrpcWebTransport.");
-	let r = hu(n) ? n.FeatureService : void 0;
+	if (!vu(e) || typeof e.createClient != "function") throw Error("The optional peer \"@connectrpc/connect\" loaded but did not export createClient.");
+	if (!vu(t) || typeof t.createGrpcWebTransport != "function") throw Error("The optional peer \"@connectrpc/connect-web\" loaded but did not export createGrpcWebTransport.");
+	let r = vu(n) ? n.FeatureService : void 0;
 	if (typeof r != "object" || !r) throw Error("The gRPC FeatureService descriptor loaded but was not a service descriptor.");
 	return {
 		createClient: e.createClient,
@@ -8306,10 +8347,10 @@ async function gu() {
 		FeatureService: r
 	};
 }
-function _u(e) {
-	return hu(e) ? typeof e.toProtoQueryRequest == "function" && typeof e.fromProtoQueryResponse == "function" && typeof e.wrapConnectError == "function" && typeof e.streamProtoPages == "function" : !1;
+function bu(e) {
+	return vu(e) ? typeof e.toProtoQueryRequest == "function" && typeof e.fromProtoQueryResponse == "function" && typeof e.wrapConnectError == "function" && typeof e.streamProtoPages == "function" : !1;
 }
-function vu(e, t, n, r) {
+function xu(e, t, n, r) {
 	if (!e.body) return {
 		response: e,
 		cancel: n
@@ -8337,7 +8378,7 @@ function vu(e, t, n, r) {
 		}
 	});
 	return {
-		response: Zl(new Response(l, {
+		response: eu(new Response(l, {
 			status: e.status,
 			statusText: e.statusText,
 			headers: e.headers
@@ -8347,11 +8388,11 @@ function vu(e, t, n, r) {
 }
 //#endregion
 //#region src/map/paged-feature-source.ts
-async function yu(e, t, n) {
-	if (!Su(e.href, t.sourceBaseUrl, t.documentUrl, t.legacySourceBaseUrl)) throw Error("The paged source is outside the authorized deployment.");
+async function Su(e, t, n) {
+	if (!Tu(e.href, t.sourceBaseUrl, t.documentUrl, t.legacySourceBaseUrl)) throw Error("The paged source is outside the authorized deployment.");
 	let r = e.pathname.match(/^(.*)(\/rest\/services\/(?:[^/]+\/)+FeatureServer\/\d+)\/query$/);
 	if (!r) throw Error("Expected an authorized FeatureServer query URL.");
-	let i = e.origin + r[1], a = r[2], o = t.getAuth(), s = 0, c = !1, l = !1, u = await Fa(new Gl({
+	let i = e.origin + r[1], a = r[2], o = t.getAuth(), s = 0, c = !1, l = !1, u = await Ia(new Jl({
 		baseUrl: i,
 		preferBinary: !1,
 		fetchFn: async (u, d) => {
@@ -8372,15 +8413,19 @@ async function yu(e, t, n) {
 					redirect: "error",
 					cache: "no-store"
 				});
-				if (a.redirected || o !== t.getAuth()) throw Error("The Studio source authority changed or redirected.");
-				let u = a.ok ? await a.clone().json() : void 0;
+				if (a.redirected || o !== t.getAuth()) throw await a.body?.cancel().catch(() => void 0), Error("The Studio source authority changed or redirected.");
+				let u = await Va(a, n, () => o === t.getAuth()), p = a.ok ? Ha(u) : void 0;
 				if (n.throwIfAborted(), o !== t.getAuth()) throw Error("The Studio source authority changed.");
-				if (a.status === 401 || u?.error?.code === 499) {
+				if (a.status === 401 || p?.error?.code === 499) {
 					if (e === 0 && o) continue;
 					throw Error("The Studio session cannot authorize this source query.");
 				}
-				if (u?.error) throw Error("The source server refused the SDK query.");
-				return u && (f.pathname.endsWith("/query") ? (s++, c = u.exceededTransferLimit === !0 || u.exceededTransferLimit === void 0 && u.features?.length === 2e3) : l = !0), a;
+				if (p?.error) throw Error("The source server refused the SDK query.");
+				return p && (f.pathname.endsWith("/query") ? (s++, c = p.exceededTransferLimit === !0 || p.exceededTransferLimit === void 0 && p.features?.length === 2e3) : l = !0), new Response(u.byteLength ? u : null, {
+					status: a.status,
+					statusText: a.statusText,
+					headers: a.headers
+				});
 			}
 			throw Error("The Studio session cannot authorize this source query.");
 		}
@@ -8398,12 +8443,12 @@ async function yu(e, t, n) {
 }
 //#endregion
 //#region src/map/authenticated-source-protocol.ts
-var bu = /* @__PURE__ */ e({
-	fetchAuthenticatedFeatureCollection: () => Cu,
-	installAuthenticatedSourceProtocol: () => wu,
-	trustedSourceUrl: () => Su
-}), xu = 0;
-function Su(e, t, n, r) {
+var Cu = /* @__PURE__ */ e({
+	fetchAuthenticatedFeatureCollection: () => Eu,
+	installAuthenticatedSourceProtocol: () => Du,
+	trustedSourceUrl: () => Tu
+}), wu = 0;
+function Tu(e, t, n, r) {
 	try {
 		let i = new URL(e, n);
 		if (!/^https?:$/.test(i.protocol) || i.username || i.password || /%(?:2f|5c|25)/i.test(i.pathname)) return;
@@ -8425,9 +8470,9 @@ function Su(e, t, n, r) {
 		}
 	} catch {}
 }
-async function Cu(e, t, n, r = "Map source") {
-	let i = Su(e, t.sourceBaseUrl, t.documentUrl, t.legacySourceBaseUrl);
-	if (!i) throw Error(`${r} is outside the trusted Honua feature endpoints.`);
+async function Eu(e, t, n, r = "Map source") {
+	let i = Tu(e, t.sourceBaseUrl, t.documentUrl, t.legacySourceBaseUrl);
+	if (!i || t.allowedSourceUrls && !t.allowedSourceUrls.has(i.href)) throw Error(`${r} is outside the trusted Honua feature endpoints.`);
 	for (let e = 0; e < 2; e++) {
 		n.throwIfAborted();
 		let a = t.getAuth(), o = await a?.getAccessToken(e === 1 ? { forceRefresh: !0 } : void 0);
@@ -8440,30 +8485,30 @@ async function Cu(e, t, n, r = "Map source") {
 			credentials: "omit",
 			cache: "no-store"
 		});
-		if (s.redirected) throw Error(`${r} redirects are not allowed.`);
-		let c = s.ok ? await s.json() : void 0;
+		if (s.redirected) throw await s.body?.cancel().catch(() => void 0), Error(`${r} redirects are not allowed.`);
+		let c = await Va(s, n, () => a === t.getAuth()), l = s.ok ? Ha(c) : void 0;
 		if (n.throwIfAborted(), a !== t.getAuth()) throw Error(`The Studio session changed during the ${r.toLowerCase()} request.`);
-		let l = c && typeof c == "object" ? c : void 0, u = l?.error;
-		if (s.status === 401 || u?.code === 499) {
+		let u = l && typeof l == "object" ? l : void 0, d = u?.error;
+		if (s.status === 401 || d?.code === 499) {
 			if (e === 0 && a) continue;
 			throw Error(`The Studio session cannot authorize this ${r.toLowerCase()}.`);
 		}
 		if (!s.ok) throw Error(`${r} request failed (${s.status}).`);
-		if (l?.type !== "FeatureCollection" || !Array.isArray(l.features)) throw Error(`${r} did not return a GeoJSON FeatureCollection.`);
-		return l.exceededTransferLimit === !0 && t.onIncomplete?.(`Showing ${l.features.length} returned features; the server reports additional features. This preview is incomplete.`), l;
+		if (u?.type !== "FeatureCollection" || !Array.isArray(u.features)) throw Error(`${r} did not return a GeoJSON FeatureCollection.`);
+		return u.exceededTransferLimit === !0 && t.onIncomplete?.(`Showing ${u.features.length} returned features; the server reports additional features. This preview is incomplete.`), u;
 	}
 	throw Error(`${r} authorization failed.`);
 }
-function wu(e, t) {
-	let n = `honua-session-${++xu}`, r = `${n}://`, i = /* @__PURE__ */ new Set(), a = !1;
+function Du(e, t) {
+	let n = `honua-session-${++wu}`, r = `${n}://`, i = /* @__PURE__ */ new Set(), a = !1;
 	return e.addProtocol(n, async (e, n) => {
 		try {
 			if (a) throw Error("Map source transport is disposed.");
 			if (n.signal.throwIfAborted(), !e.url.startsWith(r)) throw Error("Invalid map source protocol.");
-			let o = Su(decodeURIComponent(e.url.slice(r.length)), t.sourceBaseUrl, t.documentUrl, t.legacySourceBaseUrl);
-			if (!o) throw Error("Map source is outside the trusted Honua feature endpoints.");
+			let o = Tu(decodeURIComponent(e.url.slice(r.length)), t.sourceBaseUrl, t.documentUrl, t.legacySourceBaseUrl);
+			if (!o || t.allowedSourceUrls && !t.allowedSourceUrls.has(o.href)) throw Error("Map source is outside the trusted Honua feature endpoints.");
 			i.add(n);
-			let s = t.pagedFeatureServices && /\/FeatureServer\/\d+\/query$/.test(o.pathname) ? await yu(o, t, n.signal) : await Cu(o.href, t, n.signal);
+			let s = t.pagedFeatureServices && /\/FeatureServer\/\d+\/query$/.test(o.pathname) ? await Su(o, t, n.signal) : await Eu(o.href, t, n.signal);
 			if (a) throw Error("Map source transport is disposed.");
 			return { data: s };
 		} catch (e) {
@@ -8474,8 +8519,8 @@ function wu(e, t) {
 		}
 	}), {
 		transformRequest: (e, n) => {
-			let i = n === "Source" && Su(e, t.sourceBaseUrl, t.documentUrl, t.legacySourceBaseUrl);
-			return { url: i ? `${r}${encodeURIComponent(i.href)}` : e };
+			let i = n === "Source" && Tu(e, t.sourceBaseUrl, t.documentUrl, t.legacySourceBaseUrl);
+			return { url: i && (!t.allowedSourceUrls || t.allowedSourceUrls.has(i.href)) ? `${r}${encodeURIComponent(i.href)}` : e };
 		},
 		dispose() {
 			if (!a) {
@@ -8487,4 +8532,4 @@ function wu(e, t) {
 	};
 }
 //#endregion
-export { ie as i, wu as n, Su as r, bu as t };
+export { re as i, Du as n, Tu as r, Cu as t };

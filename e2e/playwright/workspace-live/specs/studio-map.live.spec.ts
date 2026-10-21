@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { openSync, writeFileSync, closeSync, readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
 type DraftIdentity = { draftId: string; generation: number; packageKey: string };
@@ -35,14 +36,16 @@ async function workspaceId(page: Page) {
 // Mutations are real UI actions. Browser evaluation below only observes runtime
 // state; it never injects a draft, fake session, tool result, or composition.
 test('installed workspace: visual and prompted styling persist on the same rendered map', async ({ page }, info) => {
-  const service = process.env.HONUA_WORKSPACE_E2E_SERVICE?.trim();
+  let service = process.env.HONUA_WORKSPACE_E2E_SERVICE?.trim();
   const layerText = process.env.HONUA_WORKSPACE_E2E_LAYER;
-  expect(service, 'Select a service on the dedicated evaluation deployment.').toBeTruthy();
-  expect(layerText, 'Select its numeric layer id.').toMatch(/^\d+$/);
-  const layerId = Number(layerText);
-  expect(Number.isSafeInteger(layerId)).toBe(true);
-  const servicePath = service!.split('/').map(encodeURIComponent).join('/');
-  const featurePath = `/rest/services/${servicePath}/FeatureServer/${layerId}`;
+  const importFile = process.env.HONUA_WORKSPACE_E2E_IMPORT_FILE?.trim();
+  const connectionId = process.env.HONUA_WORKSPACE_E2E_CONNECTION?.trim();
+  if (!importFile) {
+    expect(service, 'Select a service on the dedicated evaluation deployment.').toBeTruthy();
+    expect(layerText, 'Select its numeric layer id.').toMatch(/^\d+$/);
+  } else expect(connectionId, 'Fresh import requires its observed managed connection.').toBeTruthy();
+  let layerId = layerText ? Number(layerText) : -1;
+  let importedTable: string | undefined;
   const packageKey = `workspace-live-${randomUUID()}`;
 
   const sessionResponse = await page.request.get('/api/agent-workspace/session');
@@ -52,6 +55,12 @@ test('installed workspace: visual and prompted styling persist on the same rende
   expect(session.nativeAgentAvailable, 'This journey requires the separately configured native agent.').toBe(true);
   expect(typeof session.environmentId).toBe('string');
   expect(typeof session.principalId).toBe('string');
+  const expectedConsoleSha = process.env.HONUA_WORKSPACE_E2E_CONSOLE_SHA;
+  if (expectedConsoleSha) {
+    const version = await page.request.get('/version.json');
+    expect(version.status()).toBe(200);
+    expect((await version.json()).commit).toBe(expectedConsoleSha);
+  }
   const headers = {
     'X-Honua-Environment': session.environmentId as string,
     'X-Honua-Session-Partition': session.principalId as string,
@@ -64,6 +73,31 @@ test('installed workspace: visual and prompted styling persist on the same rende
   };
   const readDraft = (id: string): Promise<Draft> =>
     read(`/api/studio/v1/studio/package-drafts/${encodeURIComponent(id)}`);
+
+  if (importFile) {
+    const table = `workspace_${randomUUID().replaceAll('-', '').slice(0, 18)}`;
+    importedTable = table;
+    service = `workspace-${randomUUID()}`;
+    await page.goto('/operate/resources/import');
+    await page.locator('input[type="file"]').setInputFiles(importFile);
+    await page.getByPlaceholder('parcels', { exact: true }).fill(table);
+    await page.getByRole('button', { name: 'Import file', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'File imported', exact: true })).toBeVisible({ timeout: 180_000 });
+    await expect(page.locator('[data-imported-table]')).toHaveText(table);
+    await page.goto('/operate/publishing/quick');
+    await page.getByLabel('Connection', { exact: true }).selectOption(connectionId!);
+    await expect(page.getByLabel('Table', { exact: true })).toBeEnabled({ timeout: 90_000 });
+    await page.getByLabel('Table', { exact: true }).selectOption(`public.${table}`);
+    await page.getByPlaceholder('parcels-fs', { exact: true }).fill(service);
+    await page.getByPlaceholder('Parcels', { exact: true }).fill('Workspace first-use source');
+    await page.getByRole('button', { name: 'Publish layer', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Layer published', exact: true })).toBeVisible({ timeout: 90_000 });
+    await expect(page.locator('[data-published-service]')).toHaveText(service);
+    layerId = Number(await page.locator('[data-published-layer-id]').textContent());
+  }
+  expect(Number.isSafeInteger(layerId) && layerId >= 0).toBe(true);
+  const servicePath = service!.split('/').map(encodeURIComponent).join('/');
+  const featurePath = `/rest/services/${servicePath}/FeatureServer/${layerId}`;
 
   // Verify the selected data exists before asking the model to use it. Extent is
   // requested in WGS84 so the prompt and the observed map use the same bounds.
@@ -240,12 +274,80 @@ test('installed workspace: visual and prompted styling persist on the same rende
       scope: 'installed native prompt → existing data → rendered map → visual/AI/visual style → save → navigate → reopen',
       packageKey, service, layerId, sourceId: source.id, featureCount: count.count,
       workspaceId: originalWorkspace, draftId: originalDraft.draftId,
+      principalId: session.principalId, environmentId: session.environmentId,
       reopenedDraftId: reopenedIdentity.draftId, itemId: persisted.itemId,
       versionId: versions.versions[0].versionId,
       styling: { scope: 'map-local', field: thematic!.name, layerId: layerIdForStyle, colorProperty, opacityProperty },
       bodySha256: createHash('sha256').update(JSON.stringify(persisted.envelope.body)).digest('hex'),
-      remainingQualification: ['fresh installation and pairing', 'import', 'shared-style governance', 'publication and audience',
+      remainingQualification: ['fresh installation and pairing',
+        ...(!importFile ? ['import'] : []), 'shared-style governance', 'publication and audience',
         'recovery', 'external MCP clients', 'immutable release artifact provenance'],
     }, null, 2)),
   });
+
+  // Optional first-use producer continuation: this is a human-session UI
+  // submission, separate from both native prompts above. The runner pauses for
+  // a distinct approver after retaining the exact proposal reference.
+  const publicationRoute = process.env.HONUA_WORKSPACE_E2E_PUBLICATION_ROUTE?.trim();
+  const handoffPath = process.env.HONUA_WORKSPACE_E2E_PUBLICATION_HANDOFF?.trim();
+  if (publicationRoute || handoffPath) {
+    expect(publicationRoute).toMatch(/^\/[a-z0-9][a-z0-9/_-]{0,126}$/);
+    expect(handoffPath).toBeTruthy();
+    await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
+    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    const publication = page.getByRole('region', { name: 'Map publication', exact: true });
+    await expect(publication).toBeVisible();
+    await expect(publication).toContainText(`Publish saved version 1 of ${packageKey}`);
+    await publication.getByRole('textbox', { name: 'Publication route' }).fill(publicationRoute!);
+    await publication.getByRole('combobox', { name: 'Publication audience' }).selectOption('public');
+    await publication.getByRole('button', { name: 'Publish reviewed version' }).click();
+    await expect(publication).toContainText('Awaiting separate human approval.', { timeout: 30_000 });
+    const pending = await publication.textContent() ?? '';
+    const proposalId = /Awaiting separate human approval\. Proposal ([A-Za-z0-9_-]{1,128})\./.exec(pending)?.[1];
+    expect(proposalId).toBeTruthy();
+    const submittedProposal = await read(`/api/processes/admin/proposals/${encodeURIComponent(proposalId!)}`);
+    expect(submittedProposal.proposalId).toBe(proposalId);
+    expect(typeof submittedProposal.requestedBy).toBe('string');
+    expect(submittedProposal.requestedBy.trim()).toBeTruthy();
+    const submission = await page.locator('honua-studio-app').evaluate(element => {
+      const storage = (element as StudioApp & { workspace?: { storage?: Storage } }).workspace?.storage;
+      const records = [];
+      if (storage) for (let index = 0; index < storage.length; index++) {
+        const key = storage.key(index);
+        if (key?.startsWith('honua.studio.publication.')) {
+          const value = storage.getItem(key);
+          if (value) records.push(JSON.parse(value));
+        }
+      }
+      return records;
+    });
+    const matching = submission.filter(record => record.itemId === persisted.itemId &&
+      record.versionId === versions.versions[0].versionId && record.receipt?.proposalId === proposalId);
+    expect(matching).toHaveLength(1);
+    expect(matching[0].receipt.operationInstanceId).toBeTruthy();
+    expect(matching[0].receipt.requestId,
+      'The server operation handle must retain its deterministic requestId for read-only reconciliation.').toBeTruthy();
+    const handoff = {
+      schemaVersion: 'honua.native-docker.publication-handoff/v1',
+      packageKey, service, layerId, sourceId: source.id,
+      ...(importFile ? { importedTable, connectionId,
+        inputSha256: createHash('sha256').update(readFileSync(importFile)).digest('hex') } : {}),
+      workspaceId: originalWorkspace, draftId: originalDraft.draftId,
+      principalId: session.principalId, environmentId: session.environmentId,
+      reopenedDraftId: reopenedIdentity.draftId, itemId: persisted.itemId,
+      versionId: versions.versions[0].versionId,
+      contentHash: versions.versions[0].contentHash,
+      route: publicationRoute, audience: 'public', proposalId,
+      requestedBy: submittedProposal.requestedBy,
+      commandId: matching[0].commandId,
+      operationInstanceId: matching[0].receipt.operationInstanceId,
+      requestId: matching[0].receipt.requestId,
+      bodySha256: createHash('sha256').update(JSON.stringify(persisted.envelope.body)).digest('hex'),
+      status: 'awaiting-separate-human-approval',
+    };
+    expect(handoff.contentHash).toMatch(/^[a-f0-9]{64}$/);
+    const fd = openSync(handoffPath!, 'wx', 0o600);
+    try { writeFileSync(fd, JSON.stringify(handoff, null, 2) + '\n'); }
+    finally { closeSync(fd); }
+  }
 });
