@@ -217,6 +217,59 @@ public sealed class ConsoleServerSessionBffTests
     }
 
     [Fact]
+    public async Task GetOrCreate_OneOperatorCannotFillTheProcessWideTable()
+    {
+        var clock = new MutableTimeProvider(DateTimeOffset.Parse("2026-10-21T00:00:00Z"));
+        await using var store = new ConsoleServerSessionClientStore(
+            clock,
+            maximumPartitions: 4,
+            maximumPartitionsPerOperator: 2);
+
+        store.GetOrCreate("operator-a", Profile("env-1"));
+        clock.Advance(TimeSpan.FromSeconds(1));
+        store.GetOrCreate("operator-a", Profile("env-2"));
+        clock.Advance(TimeSpan.FromSeconds(1));
+        store.GetOrCreate("operator-a", Profile("env-3"));
+
+        Assert.False(store.TryGet("operator-a", Profile("env-1"), out _));
+        Assert.True(store.TryGet("operator-a", Profile("env-2"), out _));
+        Assert.True(store.TryGet("operator-a", Profile("env-3"), out _));
+
+        store.GetOrCreate("operator-b", Profile("env-1"));
+        store.GetOrCreate("operator-b", Profile("env-2"));
+        var blocked = Assert.Throws<InvalidOperationException>(() => store.GetOrCreate("operator-c", Profile("env-1")));
+        Assert.Contains("capacity is exhausted", blocked.Message, StringComparison.Ordinal);
+        Assert.True(store.TryGet("operator-a", Profile("env-2"), out _));
+    }
+
+    [Fact]
+    public async Task BeginSignIn_FailedServerConfig_DoesNotKeepTheNewPartition()
+    {
+        var context = new SwitchableOperatorContext("operator-a");
+        var profiles = new OperatorScopedEnvironmentProfileStore(context);
+        var sessions = new OperatorScopedAccountSessionStore(context);
+        await using var serverSessions = new ConsoleServerSessionClientStore(
+            TimeProvider.System,
+            static (_, _) => new FixedStatusHandler(HttpStatusCode.InternalServerError),
+            maximumPartitions: 1);
+        var coordinator = new ConsoleServerSessionBffCoordinator(
+            context,
+            profiles,
+            sessions,
+            serverSessions,
+            TimeProvider.System);
+        await SeedOperatorAsync(context, profiles, sessions, "operator-a", "env");
+
+        var begin = await coordinator.BeginSignInAsync("env", providerKey: null, "/operate");
+
+        Assert.Equal(ConsoleServerSignInStatus.Unavailable, begin.Status);
+        Assert.False(serverSessions.TryGet("operator-a", Profile("env"), out _));
+        context.OperatorKey = "operator-b";
+        var other = serverSessions.GetOrCreate("operator-b", Profile("env"));
+        Assert.NotNull(other);
+    }
+
+    [Fact]
     public async Task ClearOperator_RemovesOnlyThatOperatorsServerSessions()
     {
         await using var store = new ConsoleServerSessionClientStore(TimeProvider.System);
@@ -350,6 +403,14 @@ public sealed class ConsoleServerSessionBffTests
         public override DateTimeOffset GetUtcNow() => _now;
 
         public void Advance(TimeSpan duration) => _now += duration;
+    }
+
+    private sealed class FixedStatusHandler(HttpStatusCode status) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(status));
     }
 
     private sealed class SimulatedServerAuthHandler(

@@ -65,25 +65,49 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
 internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
 {
     private const int MaximumPartitions = 2_048;
+    private const int MaximumPartitionsPerOperator = 32;
     private static readonly TimeSpan IdleLifetime = TimeSpan.FromHours(8);
     private readonly object _gate = new();
     private readonly Dictionary<ConsoleServerSessionPartitionKey, ConsoleServerSessionPartition> _partitions = [];
     private readonly Dictionary<string, ConsoleServerAuthPendingFlow> _pending = new(StringComparer.Ordinal);
     private readonly TimeProvider _timeProvider;
     private readonly Func<ConsoleServerSessionPartitionKey, CookieContainer, HttpMessageHandler> _handlerFactory;
+    private readonly int _maximumPartitions;
+    private readonly int _maximumPartitionsPerOperator;
 
     public ConsoleServerSessionClientStore(
         TimeProvider timeProvider,
-        Func<ConsoleServerSessionPartitionKey, CookieContainer, HttpMessageHandler>? handlerFactory = null)
+        Func<ConsoleServerSessionPartitionKey, CookieContainer, HttpMessageHandler>? handlerFactory = null,
+        int maximumPartitions = MaximumPartitions,
+        int maximumPartitionsPerOperator = MaximumPartitionsPerOperator)
     {
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _handlerFactory = handlerFactory ?? CreateHandler;
+        if (maximumPartitions < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximumPartitions));
+        }
+
+        if (maximumPartitionsPerOperator < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximumPartitionsPerOperator));
+        }
+
+        _maximumPartitions = maximumPartitions;
+        _maximumPartitionsPerOperator = maximumPartitionsPerOperator;
     }
 
     public ConsoleServerSessionPartition GetOrCreate(
         string operatorKey,
-        ConsoleEnvironmentProfile profile)
+        ConsoleEnvironmentProfile profile) =>
+        GetOrCreate(operatorKey, profile, out _);
+
+    public ConsoleServerSessionPartition GetOrCreate(
+        string operatorKey,
+        ConsoleEnvironmentProfile profile,
+        out bool created)
     {
+        created = false;
         ArgumentException.ThrowIfNullOrWhiteSpace(operatorKey);
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentException.ThrowIfNullOrWhiteSpace(profile.Id);
@@ -91,21 +115,32 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         var now = _timeProvider.GetUtcNow();
         var origin = NormalizeOrigin(profile.ServerBaseUri);
         var key = new ConsoleServerSessionPartitionKey(operatorKey, profile.Id, origin.AbsoluteUri);
-        List<ConsoleServerSessionPartition>? expired = null;
+        List<ConsoleServerSessionPartition>? discarded = null;
 
         lock (_gate)
         {
-            expired = PruneExpiredLocked(now);
+            discarded = PruneExpiredLocked(now);
             if (_partitions.TryGetValue(key, out var existing))
             {
                 existing.Touch(now);
-                DisposeAll(expired);
+                created = false;
+                DisposeAll(discarded);
                 return existing;
             }
 
-            if (_partitions.Count >= MaximumPartitions)
+            // One operator must not be able to occupy the process-wide table. Evict that operator's
+            // least-recently-used partition before refusing, and leave every other operator's slots.
+            while (CountForOperatorLocked(operatorKey) >= _maximumPartitionsPerOperator)
             {
-                DisposeAll(expired);
+                var victim = OldestForOperatorLocked(operatorKey);
+                _partitions.Remove(victim.Key);
+                discarded.Add(victim);
+            }
+
+            if (_partitions.Count >= _maximumPartitions)
+            {
+                created = false;
+                DisposeAll(discarded);
                 throw new InvalidOperationException(
                     "The Console server-session capacity is exhausted. Sign out inactive operators before retrying.");
             }
@@ -116,11 +151,36 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
                 BaseAddress = origin,
                 Timeout = TimeSpan.FromSeconds(30)
             };
-            var created = new ConsoleServerSessionPartition(key, cookies, client, now);
-            _partitions.Add(key, created);
-            DisposeAll(expired);
-            return created;
+            var partition = new ConsoleServerSessionPartition(key, cookies, client, now);
+            _partitions.Add(key, partition);
+            created = true;
+            DisposeAll(discarded);
+            return partition;
         }
+    }
+
+    /// <summary>
+    /// Drops a partition created for a sign-in probe that never reached the identity provider.
+    /// A failed configuration read must not hold a slot until the idle lifetime.
+    /// </summary>
+    public void Remove(string operatorKey, ConsoleEnvironmentProfile profile)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operatorKey);
+        ArgumentNullException.ThrowIfNull(profile);
+        var key = new ConsoleServerSessionPartitionKey(
+            operatorKey,
+            profile.Id,
+            NormalizeOrigin(profile.ServerBaseUri).AbsoluteUri);
+        ConsoleServerSessionPartition? removed = null;
+        lock (_gate)
+        {
+            if (_partitions.Remove(key, out var partition))
+            {
+                removed = partition;
+            }
+        }
+
+        removed?.Dispose();
     }
 
     public void RegisterPending(ConsoleServerAuthPendingFlow pending)
@@ -248,6 +308,17 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         return removed;
     }
 
+    private int CountForOperatorLocked(string operatorKey) =>
+        _partitions.Keys.Count(key => string.Equals(key.OperatorKey, operatorKey, StringComparison.Ordinal));
+
+    private ConsoleServerSessionPartition OldestForOperatorLocked(string operatorKey) =>
+        _partitions
+            .Where(item => string.Equals(item.Key.OperatorKey, operatorKey, StringComparison.Ordinal))
+            .Select(static item => item.Value)
+            .OrderBy(static item => item.LastAccess)
+            .ThenBy(static item => item.Key.ProfileId, StringComparer.Ordinal)
+            .First();
+
     private void RemoveExpiredPendingLocked(DateTimeOffset now)
     {
         foreach (var state in _pending
@@ -351,14 +422,22 @@ internal sealed class ConsoleServerSessionBffCoordinator
             return Unavailable("The selected environment is not configured for an operator account.", returnTo);
         }
 
+        var created = false;
+        var retainPartition = false;
         try
         {
-            var partition = _serverSessions.GetOrCreate(operatorKey, profile);
+            var partition = _serverSessions.GetOrCreate(operatorKey, profile, out created);
             using var configResponse = await partition.Client
                 .GetAsync(ConsoleServerHttp.BuildUri(profile.ServerBaseUri, "api/v1/admin/auth/config"), cancellationToken)
                 .ConfigureAwait(false);
             if (!configResponse.IsSuccessStatusCode)
             {
+                configResponse.Dispose();
+                if (created)
+                {
+                    _serverSessions.Remove(operatorKey, profile);
+                }
+
                 return Unavailable("The honua-server sign-in configuration is unavailable.", returnTo);
             }
 
@@ -373,6 +452,12 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 .ToArray() ?? [];
             if (config?.OidcEnabled != true || providers.Length == 0)
             {
+                configResponse.Dispose();
+                if (created)
+                {
+                    _serverSessions.Remove(operatorKey, profile);
+                }
+
                 return Unavailable(
                     "This honua-server has no browser operator identity provider configured.",
                     returnTo);
@@ -400,6 +485,13 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 cancellationToken).ConfigureAwait(false);
             if (!authorizeResponse.IsSuccessStatusCode)
             {
+                authorizeResponse.Dispose();
+                configResponse.Dispose();
+                if (created)
+                {
+                    _serverSessions.Remove(operatorKey, profile);
+                }
+
                 return Unavailable("The honua-server operator sign-in flow could not be started.", returnTo);
             }
 
@@ -408,6 +500,13 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 cancellationToken).ConfigureAwait(false);
             if (!TryReadAuthorizeState(authorize?.AuthorizeUrl, out var authorizeUri, out var state))
             {
+                authorizeResponse.Dispose();
+                configResponse.Dispose();
+                if (created)
+                {
+                    _serverSessions.Remove(operatorKey, profile);
+                }
+
                 return Unavailable("The honua-server sign-in response was invalid.", returnTo);
             }
 
@@ -419,6 +518,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 profile.ServerBaseUri,
                 ConsoleReturnUrl.Sanitize(returnTo),
                 _timeProvider.GetUtcNow().Add(PendingLifetime)));
+            retainPartition = true;
             return new ConsoleServerSignInResult
             {
                 Status = ConsoleServerSignInStatus.Redirect,
@@ -431,6 +531,11 @@ internal sealed class ConsoleServerSessionBffCoordinator
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidOperationException or ArgumentException)
         {
+            if (created && !retainPartition)
+            {
+                _serverSessions.Remove(operatorKey, profile);
+            }
+
             return Unavailable("The honua-server operator sign-in flow is unavailable.", returnTo);
         }
     }
