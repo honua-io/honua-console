@@ -75,7 +75,16 @@ public sealed class HonuaServerBindingHandler : DelegatingHandler
             return;
         }
 
+        // A client that already built an absolute URI from the active profile must not have that
+        // profile's base path applied a second time. This happens when the startup base path is
+        // "/" and the request is already https://host/tenant/api/...
+        if (IsUnderBase(current, activeBase))
+        {
+            return;
+        }
+
         if (startupBase is not null
+            && SharesAuthority(current, startupBase)
             && TryTakePathRelativeToBase(current, startupBase, out var relativePath, out var query))
         {
             var builder = new UriBuilder(activeBase)
@@ -100,6 +109,28 @@ public sealed class HonuaServerBindingHandler : DelegatingHandler
             Port = activeBase.IsDefaultPort ? -1 : activeBase.Port
         };
         request.RequestUri = authorityOnly.Uri;
+    }
+
+    private static bool SharesAuthority(Uri request, Uri basis) =>
+        string.Equals(request.Scheme, basis.Scheme, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(request.Authority, basis.Authority, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsUnderBase(Uri request, Uri basis)
+    {
+        if (!SharesAuthority(request, basis))
+        {
+            return false;
+        }
+
+        var basePath = NormalizeDirectoryPath(basis.AbsolutePath);
+        if (basePath == "/")
+        {
+            return true;
+        }
+
+        var path = request.AbsolutePath;
+        return path.StartsWith(basePath, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(path, basePath.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
     }
 
     private static string NormalizeDirectoryPath(string absolutePath)

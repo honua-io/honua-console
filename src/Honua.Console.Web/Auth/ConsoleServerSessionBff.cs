@@ -47,12 +47,20 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
 
     public HttpClient Client { get; }
 
+    /// <summary>
+    /// Other sign-in attempts that observed this partition after it was created.
+    /// The creator does not count. Mutated only under the store lock.
+    /// </summary>
+    public int Observers { get; private set; }
+
     public DateTimeOffset LastAccess => DateTimeOffset.FromUnixTimeMilliseconds(
         Interlocked.Read(ref _lastAccessUnixMilliseconds));
 
     public void Touch(DateTimeOffset now) => Interlocked.Exchange(
         ref _lastAccessUnixMilliseconds,
         now.ToUnixTimeMilliseconds());
+
+    public void NoteObserver() => Observers++;
 
     public void Dispose() => Client.Dispose();
 }
@@ -123,6 +131,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
             if (_partitions.TryGetValue(key, out var existing))
             {
                 existing.Touch(now);
+                existing.NoteObserver();
                 created = false;
                 DisposeAll(discarded);
                 return existing;
@@ -181,6 +190,32 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         }
 
         removed?.Dispose();
+    }
+
+    /// <summary>
+    /// Drops a partition created by this sign-in attempt only when no later attempt has observed it
+    /// and the table still holds that exact instance. A failed probe must not dispose a partition
+    /// another overlapping sign-in already adopted.
+    /// </summary>
+    public bool TryRemoveIfUnadopted(ConsoleServerSessionPartition partition)
+    {
+        ArgumentNullException.ThrowIfNull(partition);
+        ConsoleServerSessionPartition? removed = null;
+        lock (_gate)
+        {
+            if (!_partitions.TryGetValue(partition.Key, out var current)
+                || !ReferenceEquals(current, partition)
+                || current.Observers > 0
+                || !_partitions.Remove(partition.Key))
+            {
+                return false;
+            }
+
+            removed = current;
+        }
+
+        removed.Dispose();
+        return true;
     }
 
     public void RegisterPending(ConsoleServerAuthPendingFlow pending)
@@ -424,9 +459,10 @@ internal sealed class ConsoleServerSessionBffCoordinator
 
         var created = false;
         var retainPartition = false;
+        ConsoleServerSessionPartition? partition = null;
         try
         {
-            var partition = _serverSessions.GetOrCreate(operatorKey, profile, out created);
+            partition = _serverSessions.GetOrCreate(operatorKey, profile, out created);
             using var configResponse = await partition.Client
                 .GetAsync(ConsoleServerHttp.BuildUri(profile.ServerBaseUri, "api/v1/admin/auth/config"), cancellationToken)
                 .ConfigureAwait(false);
@@ -435,7 +471,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 configResponse.Dispose();
                 if (created)
                 {
-                    _serverSessions.Remove(operatorKey, profile);
+                    _serverSessions.TryRemoveIfUnadopted(partition);
                 }
 
                 return Unavailable("The honua-server sign-in configuration is unavailable.", returnTo);
@@ -455,7 +491,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 configResponse.Dispose();
                 if (created)
                 {
-                    _serverSessions.Remove(operatorKey, profile);
+                    _serverSessions.TryRemoveIfUnadopted(partition);
                 }
 
                 return Unavailable(
@@ -489,7 +525,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 configResponse.Dispose();
                 if (created)
                 {
-                    _serverSessions.Remove(operatorKey, profile);
+                    _serverSessions.TryRemoveIfUnadopted(partition);
                 }
 
                 return Unavailable("The honua-server operator sign-in flow could not be started.", returnTo);
@@ -504,7 +540,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 configResponse.Dispose();
                 if (created)
                 {
-                    _serverSessions.Remove(operatorKey, profile);
+                    _serverSessions.TryRemoveIfUnadopted(partition);
                 }
 
                 return Unavailable("The honua-server sign-in response was invalid.", returnTo);
@@ -531,9 +567,9 @@ internal sealed class ConsoleServerSessionBffCoordinator
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidOperationException or ArgumentException)
         {
-            if (created && !retainPartition)
+            if (created && partition is not null && !retainPartition)
             {
-                _serverSessions.Remove(operatorKey, profile);
+                _serverSessions.TryRemoveIfUnadopted(partition);
             }
 
             return Unavailable("The honua-server operator sign-in flow is unavailable.", returnTo);

@@ -58,6 +58,30 @@ public sealed class HonuaServerBindingHandlerTests
     }
 
     [Fact]
+    public async Task DoesNotPrefixAnAbsoluteRequestThatIsAlreadyOnTheActiveProfile()
+    {
+        var capture = new CapturingHandler();
+        var startup = new Uri("https://startup.example/");
+        var profiles = new InMemoryConsoleEnvironmentProfileStore(
+            [Profile("env-a", "https://gw.example/tenant", ConsoleAccountAuthMode.Anonymous)],
+            activeProfileId: "env-a");
+        var handler = new HonuaServerBindingHandler(
+            profiles,
+            new InMemoryConsoleAccountSessionStore(),
+            startup)
+        {
+            InnerHandler = capture
+        };
+        using var client = new HttpClient(handler) { BaseAddress = startup };
+
+        _ = await client.GetAsync("https://gw.example/tenant/api/v1/admin/version?f=json");
+
+        Assert.Equal(
+            "https://gw.example/tenant/api/v1/admin/version?f=json",
+            capture.LastRequest!.RequestUri!.AbsoluteUri);
+    }
+
+    [Fact]
     public async Task ForwardsOperatorBearerAndDropsAdminKey()
     {
         var capture = new CapturingHandler();

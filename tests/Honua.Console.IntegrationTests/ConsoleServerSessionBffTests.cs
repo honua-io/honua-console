@@ -270,6 +270,32 @@ public sealed class ConsoleServerSessionBffTests
     }
 
     [Fact]
+    public async Task TryRemoveIfUnadopted_LeavesAPartitionAnotherAttemptObserved()
+    {
+        await using var store = new ConsoleServerSessionClientStore(TimeProvider.System);
+        var createdPartition = store.GetOrCreate("operator-a", Profile("env"), out var created);
+        Assert.True(created);
+        var observed = store.GetOrCreate("operator-a", Profile("env"), out var observedCreated);
+        Assert.False(observedCreated);
+        Assert.Same(createdPartition, observed);
+
+        Assert.False(store.TryRemoveIfUnadopted(createdPartition));
+        Assert.True(store.TryGet("operator-a", Profile("env"), out var stillThere));
+        Assert.Same(createdPartition, stillThere);
+    }
+
+    [Fact]
+    public async Task TryRemoveIfUnadopted_DropsTheUnobservedPartitionItCreated()
+    {
+        await using var store = new ConsoleServerSessionClientStore(TimeProvider.System);
+        var createdPartition = store.GetOrCreate("operator-a", Profile("env"), out var created);
+        Assert.True(created);
+
+        Assert.True(store.TryRemoveIfUnadopted(createdPartition));
+        Assert.False(store.TryGet("operator-a", Profile("env"), out _));
+    }
+
+    [Fact]
     public async Task ClearOperator_RemovesOnlyThatOperatorsServerSessions()
     {
         await using var store = new ConsoleServerSessionClientStore(TimeProvider.System);
