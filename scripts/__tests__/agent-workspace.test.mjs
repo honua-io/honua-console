@@ -27,6 +27,30 @@ test('prompt binds original authorized revision while navigation changes in flig
     assert.equal(workspace.context.revision, 8);
 });
 
+test('human-selected deployment target is sealed into one turn and cannot change while capture waits', async () => {
+    const calls=[];
+    const workspace=client(async (path,init)=>{
+        calls.push({path,body:init.body && JSON.parse(init.body)});
+        if (init.method==='GET') return response({revision:0,targetId:'server-target'});
+        return response({turnId:'fixed-id',status:'accepted'});
+    });
+    workspace.workspaceId='workspace';workspace.context={revision:0,targetId:'server-target'};
+    workspace.session={...nativeSession};
+    workspace.deployTargetId='ecs-production';
+    await workspace.submit('Deploy the reviewed task definition');
+    assert.equal(calls.at(-1).body.deployTargetId,'ecs-production');
+    const copied=await workspace.contextReference();
+    assert.equal(copied.deployTargetId,'ecs-production');
+
+    let release;
+    workspace.queue=new Promise(resolve=>{release=resolve;});
+    const pending=workspace.submit('Deploy a different target');
+    workspace.deployTargetId='lambda-production';workspace.contextGeneration++;
+    release();
+    await assert.rejects(pending,/authority changed while submitting/);
+    assert.equal(calls.filter(call=>call.path.endsWith('/turns')).length,1);
+});
+
 test('concurrent remote draft refresh preserves local field edits; stale save retains edits', async () => {
     const workspace = client(async () => response({revision:9},409));
     workspace.workspaceId = 'workspace';

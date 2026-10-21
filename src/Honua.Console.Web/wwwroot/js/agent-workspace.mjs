@@ -14,7 +14,7 @@ export class AgentWorkspace {
         this.viewId = uuid();
         storage.setItem('honua.workspace.view', this.viewId);
         this.workspaceId = storage.getItem('honua.workspace.id');
-        this.context = null; this.session = null; this.dirty = new Map(); this.follow = true;
+        this.context = null; this.session = null; this.deployTargetId = null; this.dirty = new Map(); this.follow = true;
         this.presentationGuards = new Set();
         this.queue = Promise.resolve(); this.agentSession = null; this.contextGeneration = 0;
         this.publications = new PublicationRecovery(this);
@@ -78,6 +78,7 @@ export class AgentWorkspace {
         await checkAdoption();
         if (changedAuthority || changedWorkspace) {
             this.agentSession?.sdkSession?.close(); this.agentSession = null; this.draft = null; this.draftFields = null; this.presentedDraft = null;
+            this.deployTargetId = null;
         }
         this.session = candidate; this.workspaceId = workspaceId; this.context = context;
         this.storage.setItem('honua.workspace.id', workspaceId);
@@ -111,7 +112,8 @@ export class AgentWorkspace {
             check();
             if (observed.revision !== this.context.revision || observed.targetId !== this.context.targetId)
                 throw new Error('The server context changed. Review it before copying a new reference.');
-            return Object.freeze({workspaceId:this.workspaceId,viewId:this.viewId,contextRevision:observed.revision,targetId:observed.targetId});
+            return Object.freeze({workspaceId:this.workspaceId,viewId:this.viewId,contextRevision:observed.revision,targetId:observed.targetId,
+                ...(this.deployTargetId ? {deployTargetId:this.deployTargetId} : {})});
         } finally { this.capturing--; }
     }
     async observeContext() {
@@ -311,13 +313,15 @@ export class AgentWorkspace {
         // Enqueue capture synchronously. Navigation after this call queues behind the durable turn
         // creation, but remains free to change the visible page while the model runs.
         const binding = { generation: this.contextGeneration, workspaceId: this.workspaceId, viewId: this.viewId,
-            principalId: this.session?.principalId, environmentId: this.session?.environmentId };
+            principalId: this.session?.principalId, environmentId: this.session?.environmentId,
+            deployTargetId: this.deployTargetId };
         this.capturing = (this.capturing || 0) + 1;
         const requireSameAuthority = () => {
             if (browserFile && JSON.stringify(browserSelectionScope(this)) !== JSON.stringify(browserFile.scope))
                 throw new Error('The selected file belongs to an earlier context. Check it again before sending.');
             if (binding.workspaceId !== this.workspaceId || binding.viewId !== this.viewId
-                || binding.principalId !== this.session?.principalId || binding.environmentId !== this.session?.environmentId)
+                || binding.principalId !== this.session?.principalId || binding.environmentId !== this.session?.environmentId
+                || binding.deployTargetId !== this.deployTargetId)
                 throw new Error('The workspace authority changed while submitting. Reconnect before retrying.');
         };
         const previous = this.queue;
@@ -352,6 +356,7 @@ export class AgentWorkspace {
                 throw new Error('The selected file belongs to an earlier context. Check it again before sending.');
             return this.api(`${this.workspaceId}/turns`, 'POST', {
                 turnId: this.uuid(), viewId: this.viewId, contextRevision: this.context.revision, prompt,
+                ...(binding.deployTargetId ? {deployTargetId:binding.deployTargetId} : {}),
                 ...(browserFile ? {browserFileSelection:browserFile.metadata} : {})
             });
         };
@@ -437,7 +442,39 @@ export function mountWorkspace() {
 
     };
     const workspace = activeWorkspace ||= new AgentWorkspace();
-    workspace.notify = notify; notify(workspace);
+    const deployTargetSelect = host.querySelector('[data-workspace-deploy-target]');
+    let targetCatalogBinding = null;
+    const refreshDeployTargets = async state => {
+        const binding = state.workspaceId && state.session
+            ? `${state.workspaceId}\u001f${state.authorityKey()}` : null;
+        if (binding === targetCatalogBinding) return;
+        targetCatalogBinding = binding;
+        const previous = state.deployTargetId;
+        state.deployTargetId = null;
+        if (deployTargetSelect) deployTargetSelect.replaceChildren(new Option('No deployment selected', ''));
+        if (!binding || !deployTargetSelect) return;
+        try {
+            const targets = await state.api(`${state.workspaceId}/deploy-targets`);
+            if (targetCatalogBinding !== binding || !Array.isArray(targets)) return;
+            for (const target of targets) {
+                if (typeof target.targetId !== 'string' || typeof target.targetName !== 'string' ||
+                    typeof target.environment !== 'string') continue;
+                deployTargetSelect.add(new Option(`${target.environment} · ${target.targetName}`, target.targetId));
+            }
+            if ([...deployTargetSelect.options].some(option => option.value === previous)) {
+                deployTargetSelect.value = previous; state.deployTargetId = previous;
+            }
+        } catch (error) {
+            if (targetCatalogBinding === binding) { targetCatalogBinding = null; status.textContent = error.message; }
+        }
+    };
+    deployTargetSelect?.addEventListener('change', () => {
+        workspace.deployTargetId = deployTargetSelect.value || null;
+        workspace.contextGeneration++;
+        notify(workspace);
+    }, {signal:lifetime.signal});
+    workspace.notify = state => { notify(state); void refreshDeployTargets(state); };
+    workspace.notify(workspace);
     workspace.open ??= window.matchMedia('(min-width: 1100px)').matches;
     host.open = workspace.open;
     const connectionPanel = host.querySelector('.console-conversation-connection');

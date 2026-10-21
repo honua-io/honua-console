@@ -250,7 +250,7 @@ internal static partial class AgentWorkspaceBff
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.StatusCode(504); }
     }
 
-    [GeneratedRegex(@"\A(?:[A-Za-z0-9_-]{1,128})(?:/(?:context|conversation|turns|commands/[A-Za-z0-9_-]{1,128}|drafts(?:/[A-Za-z0-9_-]{1,128}(?:/submit)?)?))?\z", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\A(?:[A-Za-z0-9_-]{1,128})(?:/(?:context|conversation|turns|deploy-targets|commands/[A-Za-z0-9_-]{1,128}|drafts(?:/[A-Za-z0-9_-]{1,128}(?:/submit)?)?))?\z", RegexOptions.CultureInvariant)]
     private static partial Regex WorkspacePath();
 
     internal static bool TryBuildProcessPath(string path, out string? upstream)
