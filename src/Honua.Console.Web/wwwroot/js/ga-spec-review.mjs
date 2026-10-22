@@ -30,8 +30,16 @@ export class GaSpecReview {
         if (key !== this.key) throw new Error('Workspace authority changed. Reopen review.');
         if (plan.planId !== planId || plan.revision !== revision) throw new Error('The plan reference changed. Request a new review.');
         const existing = JSON.parse(this.workspace.storage.getItem(key) || 'null');
-        if (existing?.commandId && (existing.planId !== planId || existing.revision !== revision))
-            throw new Error('Resolve the original Apply before opening another plan.');
+        if (existing?.commandId && (existing.planId !== planId || existing.revision !== revision)) {
+            // Re-read the original durable run before releasing this recovery slot.
+            // Assistant text, Apply responses and stored client markers cannot release it.
+            const observed = await this.workspace.api(`ga/runs/${existing.runId || existing.planId}`);
+            if (key !== this.key) throw new Error('Workspace authority changed. Reopen review.');
+            if (observed.runId !== (existing.runId || existing.planId)
+                || !['succeeded','failed','cancelled'].includes(observed.execution))
+                throw new Error('Resolve the original Apply before opening another plan.');
+            this.workspace.storage.setItem(`${key}.history.${existing.commandId}`, JSON.stringify({...existing, outcome:observed}));
+        }
         this.plan = plan; this.run = null;
         this.workspace.storage.setItem(key, JSON.stringify(existing?.planId === planId && existing?.revision === revision ? existing : {planId, revision}));
         return plan;
@@ -86,9 +94,9 @@ export class GaSpecReview {
 }
 export function reviewSummary(plan, run) {
     if (!plan) return 'Open a revision-pinned server plan to review a consequential change.';
-    const fields = ['connectionId','schema','table','layerName','serviceName'];
+    const fields = ['environment','workspaceId','viewId','targetId','connectionId','schema','table','layerName','serviceName'];
     const inputs = plan.spec || plan;
-    return [`Layer publication · ${plan.verdict}`, ...fields.filter(key => inputs[key] != null).map(key => `${key}: ${inputs[key]}`),
+    return [`Pinned layer publication · ${plan.verdict}`, ...fields.filter(key => inputs[key] != null).map(key => `${key}: ${inputs[key]}`),
         `Context revision: ${inputs.contextRevision ?? 'unavailable'}`, `Plan revision: ${plan.revision}`,
         `Drafted by: ${plan.draftedBy ?? 'unavailable'}`, ...(plan.blockers || []),
         ...(run ? [`Execution: ${run.execution}`, `Evidence: ${run.evidence}`, `Applied by: ${run.appliedBy ?? 'unavailable'}`, ...(run.blockers || [])] : [])].join('\n');

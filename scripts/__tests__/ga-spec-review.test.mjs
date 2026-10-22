@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {GaSpecReview} from '../../src/Honua.Console.Web/wwwroot/js/ga-spec-review.mjs';
+import {GaSpecReview, reviewSummary} from '../../src/Honua.Console.Web/wwwroot/js/ga-spec-review.mjs';
 function fixture(api) {
     const data = new Map();
     return new GaSpecReview({workspaceId:'w',session:{gaSpecWorkflow:true},authorityKey:()=> 'human',uuid:()=> 'command',
@@ -50,4 +50,43 @@ test('Console plan consumes server bundle and canonical saved draft with exact c
     review.workspace.session.environmentId='environment';
     await review.planCurrentDraft();
     assert.deepEqual(intent,{bundleVersion:'server-version',workspaceId:'w',viewId:'view',targetId:'target',environment:'environment',contextRevision:'8',connectionId:'connection',schema:'public',table:'roads',layerName:'Roads',serviceName:'Transport'});
+});
+for (const execution of ['succeeded','failed','cancelled']) test(`new plan follows durable ${execution} outcome and preserves original command history`, async()=>{
+    let active='first';
+    const review=fixture(async path=>{
+        if(path.includes('/apply')) return {runId:active};
+        if(path.includes('/runs/')) return {runId:active,execution,evidence:'unverified'};
+        return {...plan,planId:active};
+    });
+    await review.open('first','hash');await review.apply();
+    active='second';
+    // The status reader must return the original run, even after next-plan navigation.
+    const api=review.workspace.api;
+    review.workspace.api=(path,...args)=>path==='ga/runs/first' ? Promise.resolve({runId:'first',execution,evidence:'unverified'}) : api(path,...args);
+    await review.open('second','hash');
+    assert.equal(review.plan.planId,'second');
+    assert.equal(JSON.parse(review.workspace.storage.getItem(`${review.key}.history.command`)).planId,'first');
+    assert.equal((await review.apply()).runId,'second');
+});
+for (const execution of ['queued','running','interrupted','unknown']) test(`new plan remains blocked while prior execution is ${execution}`, async()=>{
+    const review=fixture(async path=>path.includes('/apply') ? {runId:'p'} : path.includes('/runs/') ? {runId:'p',execution} : {...plan,planId:path.includes('/second?')?'second':'p'});
+    await review.open('p','hash');await review.apply();
+    await assert.rejects(review.open('second','hash'),/Resolve the original Apply/);
+    assert.equal(review.plan.planId,'p');
+});
+test('an Apply response claiming terminal success cannot release recovery when durable read is missing', async()=>{
+    const review=fixture(async path=>{
+        if(path.includes('/apply')) return {runId:'p',execution:'succeeded'};
+        if(path.includes('/runs/')) throw new Error('status unavailable');
+        return {...plan,planId:path.includes('/second?')?'second':'p'};
+    });
+    await review.open('p','hash');await assert.rejects(review.apply(),/status unavailable/);
+    await assert.rejects(review.open('second','hash'),/status unavailable/);
+    assert.equal(review.plan.planId,'p');
+});
+
+test('review summary identifies its pinned environment and target independently of next-request context', ()=>{
+    const summary=reviewSummary({...plan,spec:{environment:'production',workspaceId:'original-workspace',viewId:'original-tab',targetId:'original-target',contextRevision:'7'}},null);
+    for (const value of ['Pinned layer publication','environment: production','workspaceId: original-workspace','viewId: original-tab','targetId: original-target','Context revision: 7'])
+        assert.ok(summary.includes(value),value);
 });
