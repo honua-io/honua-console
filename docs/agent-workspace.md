@@ -76,24 +76,26 @@ until the canonical workspace backend is integrated. This is an explicit GA bloc
 
 ### Checked Studio filtering bundle
 
-The managed assets include Studio `dabd2c607cfe51c06730fcc78b7bcae7d5efb99b`:
+The managed assets include Studio `fda6681d56b09973a6ed69939e0814fc1eeacf0b`:
 shared source filtering for maps, charts and tables, comparable ISO date ranges,
 preserved half-open date inputs, and local read-only audience controls for the
 same saved map/chart/table composition. Layer aliases resolve to their backing
 data source for controls and widgets, including authoring option domains;
-ambiguous aliases fail closed. Shared audience reads are cancelled when that viewer is replaced
-or disposed. They were imported with the normal vendor
-script from the successful [Production Console assets + audience browser job](https://github.com/honua-io/honua-studio/actions/runs/39863858951/job/120121015802).
+ambiguous aliases fail closed. Shared audience reads are cancelled when that viewer
+is replaced or disposed. Filtered, truncated table notices retain the original loaded
+count and server total; informational bounded notices remain distinct from render
+errors. The assets were imported with the normal vendor
+script from the successful [Production Console assets + audience browser job](https://github.com/honua-io/honua-studio/actions/runs/39866503446/job/120129911564).
 The producer passed three browser checks; the same source passed hosted typecheck,
-style, build and all 1,592 unit tests.
+style, build and all 1,598 unit tests.
 
-GitHub artifact `12463916337`, named
-`console-studio-assets-84ad2658d0c7628db2d08738266e069c1b56009e`, was downloaded and
+GitHub artifact `12464323172`, named
+`console-studio-assets-ad46f6797b0640ac5357c502c4d86d5d15cd7778`, was downloaded and
 its archive SHA-256 verified against GitHub's digest:
-`d334ecc4f7a705c06e56929be3fc52e276a2b9085a24f49f5f508f8b2ab3e95b`.
+`46dd400617dc592fb6f9c92c9db0e1ee4f93df57bc8f2e21201e2b7769cbf3a3`.
 The PR job checked out synthetic merge
-`84ad2658d0c7628db2d08738266e069c1b56009e`; its Git tree
-`4760aa285fe203ea8bc501030e330ba8a24ed861` exactly matches the Studio source commit
+`ad46f6797b0640ac5357c502c4d86d5d15cd7778`; its Git tree
+`e67ffd0c7a42f6a26e082d959c358650315c17fe` exactly matches the Studio source commit
 recorded in the vendor manifest.
 
 The bundle's SDK provenance matches the source's pinned public `@honua/sdk-js`
