@@ -2,6 +2,7 @@
   "realm": "honua",
   "enabled": true,
   "sslRequired": "none",
+  "accessTokenLifespan": 7200,
   "registrationAllowed": false,
   "roles": {
     "realm": [

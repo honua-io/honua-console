@@ -34,7 +34,10 @@ jobs:
   publish-query:
     name: Publish and query through a real server
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The publish journey finishes well inside 30 minutes. The complete authenticated suite runs
+    # 87 cases serially with up to two retries each, and a 30-minute cap cancelled it before it
+    # reported (run 39705471348), so `suite=full` could never produce a result.
+    timeout-minutes: ${{ inputs.suite == 'full' && 120 || 30 }}
     env:
       CI: 'true'
       HONUA_CONSOLE_E2E_OIDC: 'true'
