@@ -25,7 +25,12 @@ Required deployment inputs:
 | `HONUA_WORKSPACE_E2E_MODEL_ID` | Verified configured model deployment identifier from that manifest |
 | `HONUA_FOSS4G_PROFILE_PROJECTION` | Release-generated Console projection path |
 | `HONUA_FOSS4G_VARIANT` | Development variant `A` by default; `B` only when authorized by the Release schedule; held-out `C` is rejected |
-| `HONUA_WORKSPACE_E2E_CATEGORY_FIELD` | AI-03 probe only: actual string category field with at least two nonempty values |
+| `HONUA_WORKSPACE_E2E_CATEGORY_FIELD` | AI-03: actual string category field with at least two nonempty values |
+| `HONUA_FOSS4G_ISOLATED_TARGET` | AI-03: exactly `true`; never automate approval on a shared demo target |
+| `HONUA_WORKSPACE_E2E_APPROVER_STATE` | AI-03: private storage-state file for a distinct real human-principal session, with proposal approval permission |
+| `HONUA_WORKSPACE_E2E_SERVER_ORIGIN` | AI-03: origin-only server URL for independent operation readback |
+| `HONUA_WORKSPACE_E2E_WITNESS_READ_KEY` | AI-03: trusted-controller credential for GET operation-handle witnesses only; never used for proposal/approval or sent to the model |
+| `HONUA_WORKSPACE_E2E_PUBLICATION_ROUTE` | AI-03: unique unused fixture route beginning with `/`; must return 404 anonymously before approval |
 
 The human must have access to real workspace context, canonical Studio drafts,
 source queries, and the native agent with transcript verification configured.
@@ -63,7 +68,16 @@ Implemented supporting checks:
   fails this timing condition rather than claiming navigation coverage.
 - `[AI-03:map-dashboard]`: supporting map-family dashboard fragment, exact chart
   aggregates and table rows, linked map/chart/table filtering and restoration, and
-  saved-version reopening. This does not qualify the full publication/approval journey.
+  saved-version reopening. It then proposes that exact saved version through the
+  publication UI, binds its canonical proposal diff and operation handle, approves
+  through a distinct human-principal inbox, and verifies the exact published
+  artifact and linked filtering from an empty, anonymous browser context. The
+  audience route comes from shipped `publishedMapPath`; `/maps/published/*` and
+  its bounded viewer BFF are explicitly anonymous endpoints. Requires a bundle
+  with public read-only controls, not only editor filtering. This is controller
+  actor automation, not evidence that a person reviewed the proposal or a user
+  study occurred; it remains Release's supporting probe until connected evidence
+  and the canonical journey requirements are evaluated.
 
 Effects are established through authorized canonical draft reads and rendered data,
 not assistant text or the generic conversation status. Completion also requires an

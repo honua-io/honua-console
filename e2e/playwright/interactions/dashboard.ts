@@ -1,10 +1,13 @@
 import {expect,type Page,type TestInfo} from '@playwright/test';
 import {attach,context,finished,identity,required,send,setup} from './live-context';
+import {publishDashboard} from './dashboard-publication';
 import {releasePrompt} from './release-profile.mjs';
 
 // This measures the shipped map-family composition, not a native dashboard
 // package. It requires shared map/chart/table filtering in the installed bundle.
 export async function dashboard(page:Page,info:TestInfo,profile:any,variant:string) {
+    expect(process.env.HONUA_FOSS4G_ISOLATED_TARGET,'dashboard publication automation requires an isolated fixture deployment').toBe('true');
+    required('HONUA_WORKSPACE_E2E_APPROVER_STATE');required('HONUA_WORKSPACE_E2E_WITNESS_READ_KEY');required('HONUA_WORKSPACE_E2E_SERVER_ORIGIN');required('HONUA_WORKSPACE_E2E_PUBLICATION_ROUTE');
     const fixture=await setup(page);
     const categoryField=required('HONUA_WORKSPACE_E2E_CATEGORY_FIELD');
     const identityField=fixture.metadata.objectIdField;
@@ -52,6 +55,13 @@ export async function dashboard(page:Page,info:TestInfo,profile:any,variant:stri
     const filteredRows=rows.filter((row:Record<string,unknown>)=>row[categoryField]===category)
         .map((row:Record<string,unknown>)=>JSON.stringify([String(row[categoryField]),String(row[identityField])])).sort();
     const filteredBars=[`${category}: ${categories.get(category)}`];
+    const expectedIds=rows.map((row:Record<string,unknown>)=>JSON.stringify(row[identityField])).sort();
+    const filteredIds=rows.filter((row:Record<string,unknown>)=>row[categoryField]===category).map((row:Record<string,unknown>)=>JSON.stringify(row[identityField])).sort();
+    const renderedIds=()=>page.locator('honua-studio-canvas').evaluate((node,args)=>{
+        const map=(node as HTMLElement & {mapView?:{map?:{queryRenderedFeatures(options:{layers:string[]}):Array<{id?:string|number;properties?:Record<string,unknown>}>}}}).mapView?.map;
+        return [...new Set((map?.queryRenderedFeatures({layers:[args.id]}) || []).map(feature=>JSON.stringify(feature.properties?.[args.field] ?? feature.id)))].sort();
+    },{id:fixture.layer.id,field:identityField});
+    await expect.poll(renderedIds,{timeout:45_000}).toEqual(expectedIds);
     const assertFilter=async()=>{
         await filter.selectOption(category);
         await expect.poll(()=>page.locator('honua-studio-canvas').evaluate((node,args)=>{
@@ -59,6 +69,7 @@ export async function dashboard(page:Page,info:TestInfo,profile:any,variant:stri
             const rendered=map?.queryRenderedFeatures({layers:[args.id]}) || [];
             return {filter:map?.getFilter(args.id),count:rendered.length,allMatch:rendered.length>0 && rendered.every(feature=>feature.properties?.[args.field]===args.category)};
         },{id:fixture.layer.id,field:categoryField,category})).toMatchObject({filter:['==',['get',categoryField],category],allMatch:true});
+        await expect.poll(renderedIds,{timeout:45_000}).toEqual(filteredIds);
         // A filter expression alone is not a rendered-data oracle.
         await expect.poll(()=>page.locator('honua-studio-canvas').evaluate((node,id)=>
             (node as HTMLElement & {mapView?:{map?:{queryRenderedFeatures(options:{layers:string[]}):unknown[]}}}).mapView?.map?.queryRenderedFeatures({layers:[id]}).length || 0,
@@ -69,6 +80,7 @@ export async function dashboard(page:Page,info:TestInfo,profile:any,variant:stri
         await expect.poll(()=>page.locator('honua-studio-canvas').evaluate((node,id)=>
             (node as HTMLElement & {mapView?:{map?:{getFilter(id:string):unknown}}}).mapView?.map?.getFilter(id)==null,fixture.layer.id)).toBe(true);
         await assertData();
+        await expect.poll(renderedIds,{timeout:45_000}).toEqual(expectedIds);
     };
     await assertFilter();
     await assertData(filteredRows,filteredBars);
@@ -86,8 +98,9 @@ export async function dashboard(page:Page,info:TestInfo,profile:any,variant:stri
     await clearFilter();
     const originalDraft=await fixture.read(`/api/studio/v1/studio/package-drafts/${encodeURIComponent(fixture.draft.draftId)}`);
     expect(originalDraft.family || originalDraft.envelope.family).toBe('map');
-    await attach(info,'AI-03:map-dashboard',fixture,['context-readback','model-turn','durable-readback','dashboard-render','dashboard-linked-filter','saved-version-reopen'],{
+    const publication=await publishDashboard(page,fixture,{rows:expectedRows,bars:expectedBars,filteredRows,filteredBars,category,categoryField,identityField,body:saved});
+    await attach(info,'AI-03:map-dashboard',fixture,['context-readback','model-turn','durable-readback','dashboard-render','dashboard-linked-filter','saved-version-reopen','governed-publication','distinct-approval','independent-public-dashboard'],{
         profileDigest:profile.profileDigest,variant,turnId:captured.turn.turnId,family:'map',reopenedDraftId:reopened.draftId,
         displayedRows:rows.length,aggregateCounts:[...categories.values()].sort(),filterScope:'linked map/chart/table',
-        qualificationGaps:['publication and separate approval']});
+        publication,qualificationGaps:['release/controller qualification','observed human pilot sessions']});
 }
