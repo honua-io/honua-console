@@ -31,6 +31,14 @@ services:
       Oidc__Generic__ClientSecret: honua-console-bff-live-proof-secret
       Authentication__OperatorBearer__Enabled: "true"
       Authentication__OperatorBearer__SigningKey: live-proof-operator-bearer-signing-key-0123456789
+      # honua-server ends the admin session when the IdP access token expires
+      # (AdminAuthEndpoints clamps it to expires_in). Keycloak defaults to 300 s, so with the
+      # default the governed session died five minutes into a suite that takes over an hour.
+      # The realm sets accessTokenLifespan to 7200 s, matching the honua-release S4 realm.
+      # Bearer issuance allows 10 per minute per client IP, and every browser call reaches the
+      # server from the Console host's single IP. playwright.live.config.ts already requires
+      # rate limiting to be disabled for this suite, as the honua-release S4 stack does.
+      RateLimiting__Enabled: "false"
       SSL_CERT_FILE: /certs/kc.crt
     volumes:
       - ./playwright/live-auth/certs:/certs:ro
