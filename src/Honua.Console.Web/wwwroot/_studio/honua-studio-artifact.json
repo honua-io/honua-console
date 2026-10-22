@@ -1,6 +1,6 @@
 {
   "schemaVersion": "honua.console.studio-artifact.v1",
-  "studioRevision": "c8a698ce2c23d349293c46f82f4031a2a4a1ce37",
+  "studioRevision": "dabd2c607cfe51c06730fcc78b7bcae7d5efb99b",
   "sdkRevision": "5765b427f421dca9c42832ae450fa1c5aad882c2",
   "files": [
     {
@@ -35,8 +35,8 @@
     },
     {
       "path": "console.js",
-      "bytes": 908245,
-      "sha256": "26601669286f9f8410e91a72fa17cc2c51eecfc43aa7a2c401802a400bb62ea6"
+      "bytes": 909360,
+      "sha256": "5554bb4f4a6b7317c5d9ea7f529fa50e5b5f028b67c12b901ba4c9f5b87f9d2b"
     },
     {
       "path": "errors-VvMCLBue.js",
@@ -116,7 +116,7 @@
     {
       "path": "STUDIO-PROVENANCE.json",
       "bytes": 246388,
-      "sha256": "b1ea2d0721d2904ed8436ea31d2768b37f22dcc7167f7489313126416decf721"
+      "sha256": "d61bbc457adfd4cadd3ea6c694e4486adf543af29b63e2746b46a52f5855c670"
     },
     {
       "path": "style.css",

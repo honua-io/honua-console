@@ -76,23 +76,24 @@ until the canonical workspace backend is integrated. This is an explicit GA bloc
 
 ### Checked Studio filtering bundle
 
-The managed assets include Studio `c8a698ce2c23d349293c46f82f4031a2a4a1ce37`:
+The managed assets include Studio `dabd2c607cfe51c06730fcc78b7bcae7d5efb99b`:
 shared source filtering for maps, charts and tables, comparable ISO date ranges,
 preserved half-open date inputs, and local read-only audience controls for the
 same saved map/chart/table composition. Layer aliases resolve to their backing
-data source; shared audience reads are cancelled when that viewer is replaced
+data source for controls and widgets, including authoring option domains;
+ambiguous aliases fail closed. Shared audience reads are cancelled when that viewer is replaced
 or disposed. They were imported with the normal vendor
-script from the successful [Production Console assets + audience browser job](https://github.com/honua-io/honua-studio/actions/runs/39861599070/job/120113414737).
+script from the successful [Production Console assets + audience browser job](https://github.com/honua-io/honua-studio/actions/runs/39863858951/job/120121015802).
 The producer passed three browser checks; the same source passed hosted typecheck,
-style, build and all 1,569 unit tests.
+style, build and all 1,592 unit tests.
 
-GitHub artifact `12462012471`, named
-`console-studio-assets-6e3f46948423ede0c6c5bfd6dce3927167ede1d5`, was downloaded and
+GitHub artifact `12463916337`, named
+`console-studio-assets-84ad2658d0c7628db2d08738266e069c1b56009e`, was downloaded and
 its archive SHA-256 verified against GitHub's digest:
-`5b2bc94cdb1b4dab81b6b684b8e32ea2f13e10c19548b4c1db4c95b36ed3b107`.
+`d334ecc4f7a705c06e56929be3fc52e276a2b9085a24f49f5f508f8b2ab3e95b`.
 The PR job checked out synthetic merge
-`6e3f46948423ede0c6c5bfd6dce3927167ede1d5`; its Git tree
-`50af60a1b5dc94aea18c51a4b0481ae42620518c` exactly matches the Studio source commit
+`84ad2658d0c7628db2d08738266e069c1b56009e`; its Git tree
+`4760aa285fe203ea8bc501030e330ba8a24ed861` exactly matches the Studio source commit
 recorded in the vendor manifest.
 
 The bundle's SDK provenance matches the source's pinned public `@honua/sdk-js`
@@ -105,3 +106,11 @@ checkout. The vendor manifest checks the copied file set, sizes and hashes.
 These checks do not establish a connected installed-workspace journey or full
 AI-03 qualification. Generated provenance retains `releaseQualified: false` and
 `pending-installed-workspace-journey`.
+
+
+The Console Playwright smoke job allows 20 minutes overall and caps Chromium/OS
+provisioning at 12 minutes. Run `39861978722` spent about nine minutes downloading
+Ubuntu browser dependencies before reaching the former ten-minute job limit;
+product/operator/accessibility checks had not started. This bounded infrastructure
+allowance preserves `--with-deps`, every existing check and its own limits. It does
+not convert that cancelled run into a product-test result or qualification pass.

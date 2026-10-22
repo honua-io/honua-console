@@ -28,7 +28,8 @@ jobs:
   e2e-smoke:
     name: Playwright smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Allow bounded browser/OS provisioning without consuming every product gate.
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
@@ -75,6 +76,7 @@ jobs:
         run: npx playwright test --config playwright.focused.config.ts focused/specs/receipt-contract.spec.ts
 
       - name: Install Playwright chromium
+        timeout-minutes: 12
         working-directory: e2e/playwright
         run: npx --no-install playwright install --with-deps chromium
 
