@@ -51,6 +51,21 @@ const gatedSections = [
   { path: '/operate/releases', heading: /release/i },
 ] as const;
 
+// Since the unified workspace shell (#432) the operate sections sit inside the "More tools"
+// disclosure. Open it the way an operator does, exactly as the backend-free area-routes and
+// operator specs do, then assert the sidebar itself. Re-click inside the retry: a click that
+// lands before the Blazor circuit re-renders the layout can be undone by that render.
+async function openOperateSections(page: import('@playwright/test').Page) {
+  const nav = page.locator('nav[aria-label="Operate sections"]');
+  await expect(async () => {
+    if (!(await nav.isVisible())) {
+      await page.locator('.console-more-tools > summary').click();
+    }
+    await expect(nav).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
+  return nav;
+}
+
 test.describe('Operate nav · no AI provider required (live)', () => {
   for (const section of ungatedSections) {
     test(`${section.path} is reachable and renders without AI`, async ({ page }) => {
@@ -59,7 +74,7 @@ test.describe('Operate nav · no AI provider required (live)', () => {
       await expect(page).not.toHaveURL(/\/not-found/);
 
       // The operate sections sidebar appears on every /operate/* route.
-      await expect(page.locator('nav[aria-label="Operate sections"]')).toBeVisible();
+      await openOperateSections(page);
 
       // A primary heading is visible — the page is a navigable surface, not a blank stub.
       await expect(
@@ -104,8 +119,7 @@ test.describe('Operate nav · no AI provider required (live)', () => {
 
   test('focused operate navigation advertises recovery and inspection, not authoring or AI', async ({ page }) => {
     await page.goto('/operate', { waitUntil: 'domcontentloaded' });
-    const nav = page.locator('nav[aria-label="Operate sections"]');
-    await expect(nav).toBeVisible();
+    const nav = await openOperateSections(page);
     await expect(nav.locator('a[href]')).toHaveCount(9);
     expect(await nav.locator('a[href]').evaluateAll(links => links.map(link => link.getAttribute('href'))))
       .toEqual([
@@ -123,8 +137,7 @@ test.describe('Operate nav · no AI provider required (live)', () => {
     // Navigate to a core manual surface — Data & Layers.
     await page.goto('/operate/data', { waitUntil: 'domcontentloaded' });
 
-    const nav = page.locator('nav[aria-label="Operate sections"]');
-    await expect(nav).toBeVisible();
+    const nav = await openOperateSections(page);
 
     // The core manual surfaces must be present in the sidebar.
     const manualSurfaces = ['Health', 'Data & Layers', 'Connections', 'Services', 'Geoprocessing', 'Observability', 'Metrics', 'Deploy', 'Releases'];
