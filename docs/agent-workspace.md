@@ -76,21 +76,23 @@ until the canonical workspace backend is integrated. This is an explicit GA bloc
 
 ### Checked Studio filtering bundle
 
-The managed assets include Studio `66f2033d475a54fb6719044eb15042d71d0fe901`:
+The managed assets include Studio `c8a698ce2c23d349293c46f82f4031a2a4a1ce37`:
 shared source filtering for maps, charts and tables, comparable ISO date ranges,
 preserved half-open date inputs, and local read-only audience controls for the
-same saved map/chart/table composition. They were imported with the normal vendor
-script from the successful [Production Console assets + audience browser job](https://github.com/honua-io/honua-studio/actions/runs/39860896129/job/120111006882).
+same saved map/chart/table composition. Layer aliases resolve to their backing
+data source; shared audience reads are cancelled when that viewer is replaced
+or disposed. They were imported with the normal vendor
+script from the successful [Production Console assets + audience browser job](https://github.com/honua-io/honua-studio/actions/runs/39861599070/job/120113414737).
 The producer passed three browser checks; the same source passed hosted typecheck,
-style, build and all 1,565 unit tests.
+style, build and all 1,569 unit tests.
 
-GitHub artifact `12461178407`, named
-`console-studio-assets-261bbabcb7daf25bd82714232241393315db5f83`, was downloaded and
+GitHub artifact `12462012471`, named
+`console-studio-assets-6e3f46948423ede0c6c5bfd6dce3927167ede1d5`, was downloaded and
 its archive SHA-256 verified against GitHub's digest:
-`8b007c73906c62d5329fb3ca6405de9d13a10908b2e74821824da624bad68915`.
+`5b2bc94cdb1b4dab81b6b684b8e32ea2f13e10c19548b4c1db4c95b36ed3b107`.
 The PR job checked out synthetic merge
-`261bbabcb7daf25bd82714232241393315db5f83`; its Git tree
-`3af82fe719c8a4b11e4bf94eac3eeec9d09de6cd` exactly matches the Studio source commit
+`6e3f46948423ede0c6c5bfd6dce3927167ede1d5`; its Git tree
+`50af60a1b5dc94aea18c51a4b0481ae42620518c` exactly matches the Studio source commit
 recorded in the vendor manifest.
 
 The bundle's SDK provenance matches the source's pinned public `@honua/sdk-js`

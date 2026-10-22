@@ -25733,7 +25733,13 @@ var Qy = /* @__PURE__ */ e({
 					continue;
 				}
 				if (fp[a.kind]) {
-					a.sourceId && (!o.appliesTo?.length || o.appliesTo.includes(a.sourceId)) && (i[a.sourceId] ??= [], i[a.sourceId].push(o));
+					if (a.sourceId && (!o.appliesTo?.length || o.appliesTo.includes(a.sourceId))) {
+						let t = new Set(e.layers.filter((e) => e.id === a.sourceId || e.sourceId === a.sourceId).map((e) => e.sourceId));
+						for (let e of t) i[e] ??= [], i[e].push(o.appliesTo?.length ? {
+							...o,
+							appliesTo: [e]
+						} : o);
+					}
 					for (let t of Ip(e, a.sourceId)) {
 						let e = n.get(t) ?? [];
 						e.push(o), n.set(t, e);
@@ -25810,44 +25816,45 @@ async function lb(e, t, n) {
 		headers: e.headers
 	});
 }
-function ub(e, t, n) {
-	let r = t?.catalog ?? [], i = t?.baseUrl ?? n.sourceAuthBaseUrl ?? "/api", a = n.sourceAuthBaseUrl ?? i, o = n.documentUrl ?? n.widgetContainer.ownerDocument.baseURI, c = /* @__PURE__ */ new Map();
-	for (let u of new Set([...e.widgets, ...e.controls].map((e) => e.sourceId).filter((e) => !!e))) {
-		if (!h(u, r)) continue;
-		let e = m({
-			id: u,
-			sourceId: u,
+function ub(e, t, n, r) {
+	let i = t?.catalog ?? [], a = t?.baseUrl ?? n.sourceAuthBaseUrl ?? "/api", o = n.sourceAuthBaseUrl ?? a, c = n.documentUrl ?? n.widgetContainer.ownerDocument.baseURI, u = /* @__PURE__ */ new Map(), d = new Map(e.layers.map((e) => [e.id, e.sourceId]));
+	for (let r of new Set([...e.widgets, ...e.controls].map((e) => e.sourceId).filter((e) => !!e))) {
+		let e = d.get(r) ?? r;
+		if (!h(e, i)) continue;
+		let f = m({
+			id: r,
+			sourceId: e,
 			visible: !0
 		}, {
-			catalog: r,
-			baseUrl: i,
+			catalog: i,
+			baseUrl: a,
 			featureLimit: ob
 		});
-		if (!l(e) || e.source.type !== "geojson" || typeof e.source.data != "string") continue;
-		let d = s(e.source.data, a, o, n.sourceCatalogBaseUrl ?? t?.baseUrl ?? "/api");
-		d && c.set(u, d.href);
+		if (!l(f) || f.source.type !== "geojson" || typeof f.source.data != "string") continue;
+		let p = s(f.source.data, o, c, n.sourceCatalogBaseUrl ?? t?.baseUrl ?? "/api");
+		p && u.set(r, p.href);
 	}
-	let u = new Set(c.values()), d, f, p = !1, g, _ = () => {
+	let f = new Set(u.values()), p, g, _ = !1, v, y = () => {
 		let e = n.getAudienceTransport();
-		return (!p || e !== f) && (p = !0, f = e, g = e ? { getAccessToken: async () => void 0 } : void 0), g;
+		return (!_ || e !== g) && (_ = !0, g = e, v = e ? { getAccessToken: async () => void 0 } : void 0), v;
 	};
-	return async (e, t) => {
-		if (!c.has(e)) return {
+	return async (e) => {
+		if (r.throwIfAborted(), !u.has(e)) return {
 			ok: !1,
 			reason: `Source "${e}" is not in the current-reader catalog.`
 		};
-		d ??= T_({
-			catalog: r,
-			baseUrl: i,
+		p ??= T_({
+			catalog: i,
+			baseUrl: a,
 			featureLimit: ob,
-			sourceAuthBaseUrl: a,
+			sourceAuthBaseUrl: o,
 			sourceCatalogBaseUrl: n.sourceCatalogBaseUrl,
-			documentUrl: o,
-			getAuth: _,
+			documentUrl: c,
+			getAuth: y,
 			fetchImpl: async (e, t) => {
 				if (typeof e != "string" || (t?.method ?? "GET").toUpperCase() !== "GET") throw Error("Published widgets require a bounded feature GET.");
-				let r = new URL(e, o).href;
-				if (!u.has(r)) throw Error("Widget source is outside the current-reader catalog.");
+				let r = new URL(e, c).href;
+				if (!f.has(r)) throw Error("Widget source is outside the current-reader catalog.");
 				let i = n.getAudienceTransport();
 				if (!i?.fetchRequest) throw Error("Current-reader widget transport is unavailable.");
 				let a = await i.fetchRequest(r, {
@@ -25861,16 +25868,16 @@ function ub(e, t, n) {
 				if (i !== n.getAudienceTransport()) throw await a.body?.cancel().catch(() => void 0), Error("The viewer authority changed during a widget read.");
 				if (a.redirected) throw await a.body?.cancel().catch(() => void 0), Error("Widget source redirects are not allowed.");
 				if (!a.ok) return await a.body?.cancel().catch(() => void 0), a;
-				let s = await lb(a, t?.signal ?? new AbortController().signal, () => i === n.getAudienceTransport());
+				let o = await lb(a, t?.signal ?? new AbortController().signal, () => i === n.getAudienceTransport());
 				if (i !== n.getAudienceTransport()) throw Error("The viewer authority changed during a widget read.");
-				return s;
+				return o;
 			}
 		});
-		let s = await d(e, t);
-		return s.ok && s.rows.length > ob ? {
+		let t = await p(d.get(e) ?? e, { signal: r });
+		return t.ok && t.rows.length > ob ? {
 			ok: !1,
 			reason: `Source "${e}" exceeded the ${ob}-feature widget limit.`
-		} : s;
+		} : t;
 	};
 }
 function db(e) {
@@ -25886,7 +25893,7 @@ function db(e) {
 	}, l = () => {
 		n || e.onChange?.(d);
 	}, u = () => {
-		r?.runtime?.dispose(), r?.controls?.remove(), r?.controls && (r.controls.composition = void 0, r.controls.interactions = void 0, r.controls.dataLoader = void 0), r?.canvas.dispose(), r?.deck.remove(), r?.deck && (r.deck.composition = void 0, r.deck.dataLoader = void 0), r = void 0;
+		r?.reads.abort(), r?.runtime?.dispose(), r?.controls?.remove(), r?.controls && (r.controls.composition = void 0, r.controls.interactions = void 0, r.controls.dataLoader = void 0), r?.canvas.dispose(), r?.deck.remove(), r?.deck && (r.deck.composition = void 0, r.deck.dataLoader = void 0), r = void 0;
 	}, d = Object.freeze({
 		get status() {
 			return i ? "unavailable" : r?.canvas.status ?? "idle";
@@ -25904,22 +25911,22 @@ function db(e) {
 			if (n) return Promise.reject(/* @__PURE__ */ Error("The published view was disposed."));
 			let s = ++t, d = (async () => {
 				u(), i = void 0;
-				let a, d, f, p;
+				let a, d, f, p, m = new AbortController();
 				try {
-					let i = Zm(structuredClone(o.body)), u = o.projection ? structuredClone(o.projection) : void 0, m = new km(i);
+					let i = Zm(structuredClone(o.body)), u = o.projection ? structuredClone(o.projection) : void 0, h = new km(i);
 					if (cb(e.widgetContainer, i.controls.length > 0), a = e.widgetContainer.ownerDocument.createElement(ab), !(a instanceof k_)) throw Error("The published widget element is incompatible with this viewer.");
-					let h = a;
-					h.dataLoader = ub(i, u, e), h.sourceCatalog = u?.catalog, h.sourceBaseUrl = u?.baseUrl ?? e.sourceAuthBaseUrl ?? "/api", h.sourceAuthBaseUrl = e.sourceAuthBaseUrl, h.sourceCatalogBaseUrl = e.sourceCatalogBaseUrl, h.onSelection = (e) => m.select(e);
-					let g = My({
+					let g = a;
+					g.dataLoader = ub(i, u, e, m.signal), g.sourceCatalog = u?.catalog, g.sourceBaseUrl = u?.baseUrl ?? e.sourceAuthBaseUrl ?? "/api", g.sourceAuthBaseUrl = e.sourceAuthBaseUrl, g.sourceCatalogBaseUrl = e.sourceCatalogBaseUrl, g.onSelection = (e) => h.select(e);
+					let _ = My({
 						container: e.container,
-						controller: m,
+						controller: h,
 						projection: u,
 						getAuth: c,
 						sourceAuthBaseUrl: e.sourceAuthBaseUrl,
 						sourceCatalogBaseUrl: e.sourceCatalogBaseUrl,
 						mapFactory: e.mapFactory,
 						styleProvider: e.styleProvider,
-						onSelection: (e) => m.select(e),
+						onSelection: (e) => h.select(e),
 						onChange: (e) => {
 							n || s !== t || (r?.deck && (r.deck.unrenderableLayers = (e.projection?.unresolved ?? []).map(({ layerId: e, reason: t }) => ({
 								layerId: e,
@@ -25927,32 +25934,33 @@ function db(e) {
 							}))), l());
 						}
 					});
-					if (d = g.canvas, i.controls.length > 0) {
+					if (d = _.canvas, i.controls.length > 0) {
 						if (f = e.widgetContainer.ownerDocument.createElement(ib), !(f instanceof Hg)) throw Error("The published control element is incompatible with this viewer.");
-						f.dataLoader = h.dataLoader, f.composition = m;
+						f.dataLoader = g.dataLoader, f.composition = h;
 					}
-					let _ = f;
+					let v = f;
 					if ((i.controls.length > 0 || i.interactions.length > 0) && (p = new tb({
-						controller: m,
+						controller: h,
 						onAppearanceChange: (e) => {
-							n || s !== t || (g.setAppearance(e), h.sourceFilters = e.sourceFilters ?? {}, _?.refreshCamera());
+							n || s !== t || (_.setAppearance(e), g.sourceFilters = e.sourceFilters ?? {}, v?.refreshCamera());
 						}
-					}), _ && (_.interactions = p), g.setAppearance(p.appearance), h.sourceFilters = p.appearance.sourceFilters ?? {}), g.ready.catch(() => {}), n || s !== t) {
-						p?.dispose(), f?.remove(), d.dispose(), a.remove(), a.composition = void 0, a.dataLoader = void 0;
+					}), v && (v.interactions = p), _.setAppearance(p.appearance), g.sourceFilters = p.appearance.sourceFilters ?? {}), _.ready.catch(() => {}), n || s !== t) {
+						m.abort(), p?.dispose(), f?.remove(), d.dispose(), a.remove(), a.composition = void 0, a.dataLoader = void 0;
 						return;
 					}
 					if (r = {
-						canvas: g.canvas,
-						deck: h,
-						controls: _,
-						runtime: p
-					}, p = void 0, f = void 0, a = void 0, d = void 0, _ && e.widgetContainer.appendChild(_), n || s !== t || (e.widgetContainer.appendChild(h), n || s !== t) || (h.composition = m, l(), await g.ready, n || s !== t)) return;
-					h.unrenderableLayers = (g.canvas.projection?.unresolved ?? []).map(({ layerId: e, reason: t }) => ({
+						canvas: _.canvas,
+						deck: g,
+						controls: v,
+						runtime: p,
+						reads: m
+					}, p = void 0, f = void 0, a = void 0, d = void 0, v && e.widgetContainer.appendChild(v), n || s !== t || (e.widgetContainer.appendChild(g), n || s !== t) || (g.composition = h, l(), await _.ready, n || s !== t)) return;
+					g.unrenderableLayers = (_.canvas.projection?.unresolved ?? []).map(({ layerId: e, reason: t }) => ({
 						layerId: e,
 						reason: t
 					})), l();
 				} catch (e) {
-					throw p?.dispose(), f?.remove(), d?.dispose(), a?.remove(), a && (a.composition = void 0, a.dataLoader = void 0), !n && s === t && !i && (i = e instanceof Error ? e.message : String(e), u(), l()), e;
+					throw m.abort(), p?.dispose(), f?.remove(), d?.dispose(), a?.remove(), a && (a.composition = void 0, a.dataLoader = void 0), !n && s === t && !i && (i = e instanceof Error ? e.message : String(e), u(), l()), e;
 				}
 			})();
 			return !n && s === t && (a = d), d;
