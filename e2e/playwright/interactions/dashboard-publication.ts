@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {expect,request,type Page} from '@playwright/test';
 import {required,type setup} from './live-context';
-import {assertHumanProposer} from './publication-witness.mjs';
+import {assertHumanProposer,publicationRequestId} from './publication-witness.mjs';
 import {publishedMapPath} from '../../../src/Honua.Console.Web/wwwroot/js/published-map-viewer.mjs';
 type Fixture=Awaited<ReturnType<typeof setup>>;
 type Expected={rows:string[];bars:string[];filteredRows:string[];filteredBars:string[];category:string;categoryField:string;identityField:string;body:unknown};
@@ -83,8 +83,7 @@ export async function publishDashboard(page:Page,fixture:Fixture,expected:Expect
         expect(resolved.resolvedBy.trim()).toBeTruthy();expect(resolved.resolvedBy).not.toBe(pending.requestedBy);
         const finalOperation=await observeOperation();expect(finalOperation.operationInstanceId).toBe(record.operationInstanceId);
         expect(finalOperation.operationId).toBe(originalOperation.operationId);expect(finalOperation.proposalId).toBe(proposalId);
-        const requestId=finalOperation.resourceIds?.requestId;expect(typeof requestId).toBe('string');expect(requestId).toMatch(/^[A-Za-z0-9_-]{1,128}$/);
-        if(record.requestId!==undefined) expect(requestId).toBe(record.requestId);
+        const requestId=publicationRequestId(finalOperation,record.requestId);
         expect(finalOperation.resourceIds?.itemId).toBe(draft.itemId);expect(finalOperation.resourceIds?.versionId).toBe(version.versionId);
         const requestPath=`/api/studio/v1/studio/content-items/${encodeURIComponent(draft.itemId)}/versions/${encodeURIComponent(version.versionId)}/publish-requests/${encodeURIComponent(requestId)}`;
         await expect.poll(async()=>(await fixture.read(requestPath)).status.toLowerCase(),{timeout:60_000}).toBe('accepted');

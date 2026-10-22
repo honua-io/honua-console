@@ -11,3 +11,12 @@ test('agent identifiers and unexpected wire types cannot count as human provenan
         assert.throws(()=>assertHumanProposer({requestedBy:'human:one',requestedByAgent}));
     for (const requestedBy of ['',null,{},undefined]) assert.throws(()=>assertHumanProposer({requestedBy}));
 });
+
+test('final same-operation request resource is mandatory, pending identity optional and exact',async()=>{
+    const {publicationRequestId}=await import('../../e2e/playwright/interactions/publication-witness.mjs');
+    const operation={resourceIds:{requestId:'request-one'}};
+    assert.equal(publicationRequestId(operation),'request-one');
+    assert.equal(publicationRequestId(operation,'request-one'),'request-one');
+    for(const invalid of [null,'',false,{},'two words','another-request']) assert.throws(()=>publicationRequestId(operation,invalid));
+    for(const requestId of [undefined,null,'',false,{},'two words']) assert.throws(()=>publicationRequestId({resourceIds:{requestId}}));
+});

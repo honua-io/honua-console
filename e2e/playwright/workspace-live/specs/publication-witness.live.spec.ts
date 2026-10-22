@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, openSync, writeFileSync, closeSync } from 'node:fs';
 import { expect, request, test } from '@playwright/test';
+import {assertHumanProposer,publicationRequestId} from '../../interactions/publication-witness.mjs';
 
 test('separate human approval and anonymous audience resolve the same native map version', async ({ page }) => {
   const handoffPath = process.env.HONUA_WORKSPACE_E2E_PUBLICATION_HANDOFF;
@@ -13,7 +14,7 @@ test('separate human approval and anonymous audience resolve the same native map
   expect(handoff.audience).toBe('public');
   expect(typeof handoff.requestedBy).toBe('string');
   expect(handoff.requestedBy.trim()).toBeTruthy();
-  expect(handoff.requestId, 'The pending proposal must retain a canonical publication request ID for read-only reconciliation.').toBeTruthy();
+  if(handoff.requestId!==undefined) expect(handoff.requestId).toMatch(/^[A-Za-z0-9_-]{1,128}$/);
 
   const sessionResponse = await page.request.get('/api/agent-workspace/session');
   expect(sessionResponse.status()).toBe(200);
@@ -33,6 +34,7 @@ test('separate human approval and anonymous audience resolve the same native map
   expect(typeof proposal.requestedBy).toBe('string');
   expect(proposal.requestedBy.trim()).toBeTruthy();
   expect(proposal.requestedBy).toBe(handoff.requestedBy);
+  assertHumanProposer(proposal);
   expect(typeof proposal.resolvedBy).toBe('string');
   expect(proposal.resolvedBy.trim()).toBeTruthy();
   expect(proposal.resolvedBy).not.toBe(proposal.requestedBy);
@@ -46,6 +48,7 @@ test('separate human approval and anonymous audience resolve the same native map
   expect(agentKey).toBeTruthy();
   const agentRead = await request.newContext({ baseURL: serverOrigin,
     extraHTTPHeaders: { 'X-API-Key': agentKey!, Accept: 'application/json' } });
+  let finalRequestId:string;
   try {
     const operationResponse = await agentRead.get(
       `/api/v1/operations/handles/${encodeURIComponent(handoff.operationInstanceId)}`);
@@ -55,7 +58,7 @@ test('separate human approval and anonymous audience resolve the same native map
     expect(operation.operationInstanceId).toBe(handoff.operationInstanceId);
     expect(operation.operationId).toBe('studio.content.create-publication-request');
     expect(operation.proposalId).toBe(handoff.proposalId);
-    expect(operation.resourceIds?.requestId).toBe(handoff.requestId);
+    finalRequestId=publicationRequestId(operation,handoff.requestId);
     expect(operation.resourceIds?.itemId).toBe(handoff.itemId);
     expect(operation.resourceIds?.versionId).toBe(handoff.versionId);
   } finally { await agentRead.dispose(); }
@@ -81,13 +84,13 @@ test('separate human approval and anonymous audience resolve the same native map
     layer.sourceId === handoff.sourceId)).toBe(true);
 
   const publicationResponse = await page.request.get(
-    `/api/studio/v1/studio/content-items/${encodeURIComponent(handoff.itemId)}/versions/${encodeURIComponent(handoff.versionId)}/publish-requests/${encodeURIComponent(handoff.requestId)}`,
+    `/api/studio/v1/studio/content-items/${encodeURIComponent(handoff.itemId)}/versions/${encodeURIComponent(handoff.versionId)}/publish-requests/${encodeURIComponent(finalRequestId!)}`,
     { headers },
   );
   expect(publicationResponse.status()).toBe(200);
   const publicationWire = await publicationResponse.json();
   const publication = publicationWire.data ?? publicationWire;
-  expect(publication.requestId).toBe(handoff.requestId);
+  expect(publication.requestId).toBe(finalRequestId!);
   expect(publication.itemId).toBe(handoff.itemId);
   expect(publication.versionId).toBe(handoff.versionId);
   expect(publication.status?.toLowerCase()).toBe('accepted');
@@ -103,7 +106,7 @@ test('separate human approval and anonymous audience resolve the same native map
     const audienceWire = await audienceResponse.json();
     const artifact = audienceWire.data ?? audienceWire;
     expect(artifact.itemId).toBe(handoff.itemId);
-    expect(artifact.publicationId).toBe(handoff.requestId);
+    expect(artifact.publicationId).toBe(finalRequestId!);
     expect(artifact.versionId).toBe(handoff.versionId);
     expect(artifact.contentHash).toBe(handoff.contentHash);
     expect(artifact.packageKey).toBe(handoff.packageKey);
@@ -115,7 +118,7 @@ test('separate human approval and anonymous audience resolve the same native map
       status: 'pass', proposalId: handoff.proposalId, requestedBy: proposal.requestedBy,
       resolvedBy: proposal.resolvedBy, commandId: handoff.commandId,
       operationInstanceId: handoff.operationInstanceId,
-      requestId: handoff.requestId, itemId: artifact.itemId, versionId: artifact.versionId,
+      requestId: finalRequestId!, itemId: artifact.itemId, versionId: artifact.versionId,
       contentHash: artifact.contentHash, route: artifact.route, publicationUrl: serverOrigin + publicPath };
     const fd = openSync(witnessPath!, 'wx', 0o600);
     try { writeFileSync(fd, JSON.stringify(receipt, null, 2) + '\n'); }
