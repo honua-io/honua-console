@@ -73,3 +73,32 @@ in the shared Studio editor.
 
 The current server prerequisite adapter fails closed with `workspace-context-unavailable`
 until the canonical workspace backend is integrated. This is an explicit GA blocker.
+
+### Checked Studio filtering bundle
+
+The managed assets include Studio `ac42da061a6ff44bc78b4c9043978711adf9ee81`:
+shared source filtering for maps, charts and tables, comparable ISO date ranges,
+and preserved half-open date inputs. They were imported with the normal vendor
+script from the successful [Production Console assets + audience browser job](https://github.com/honua-io/honua-studio/actions/runs/39857730332/job/120100212717).
+The producer passed three browser checks; the same source passed hosted typecheck,
+style, build and all 1,561 unit tests.
+
+GitHub artifact `12461370183`, named
+`console-studio-assets-157d95c382932ef05ce774313fdaf4f2a81e3cee`, was downloaded and
+its archive SHA-256 verified against GitHub's digest:
+`febf36086ab8bedc893061d052032f31aefc637c99b5d813f4139f3fa0d017dc`.
+The PR job checked out synthetic merge
+`157d95c382932ef05ce774313fdaf4f2a81e3cee`; its Git tree
+`f38d55e170a81d10a5f4ccda76470afac234d136` exactly matches the Studio source commit
+recorded in the vendor manifest.
+
+The bundle's SDK provenance matches the source's pinned public `@honua/sdk-js`
+`0.2.7` receipt and source commit `5765b427f421dca9c42832ae450fa1c5aad882c2`.
+Registry `gitHead`, archive SHA-256
+`33b2c0f7ca70692fd621d8bbdcc886dc83f464d53513092d40e6e43c24396f06`, and lockfile
+integrity were independently verified. No SDK revision was inferred from a local
+checkout. The vendor manifest checks the copied file set, sizes and hashes.
+
+These checks do not establish a connected installed-workspace journey or full
+AI-03 qualification. Generated provenance retains `releaseQualified: false` and
+`pending-installed-workspace-journey`.

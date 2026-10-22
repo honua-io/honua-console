@@ -1,7 +1,7 @@
 import { i as e } from "./errors-VvMCLBue.js";
-import { a as t, c as n, d as r, f as i, l as a, m as o, r as s, t as c } from "./control-config-DVC01Tzy.js";
+import { a as t, d as n, g as r, m as i, n as a, p as o, r as s, s as c, u as l } from "./filter-expression-Bt09WdR1.js";
 //#region node_modules/@honua/sdk-js/dist/src/exploration/types.js
-var l = {
+var u = {
 	filters: {},
 	selection: [],
 	sort: [],
@@ -9,7 +9,7 @@ var l = {
 	visibleFields: [],
 	grouping: [],
 	preset: "globalLinked"
-}, u = [
+}, d = [
 	"filters",
 	"spatialFilter",
 	"extent",
@@ -20,74 +20,10 @@ var l = {
 	"grouping",
 	"aggregation",
 	"preset"
-], d = [], f = {
+], f = [], p = {
 	globalLinked: {
 		preset: "globalLinked",
-		rules: p({
-			map: u,
-			grid: u,
-			chart: u,
-			filter: u,
-			detail: u,
-			form: u,
-			custom: u
-		})
-	},
-	mapDriven: {
-		preset: "mapDriven",
-		rules: p({
-			map: [
-				"extent",
-				"spatialFilter",
-				"selection",
-				"filters"
-			],
-			grid: d,
-			chart: d,
-			filter: ["filters", "spatialFilter"],
-			detail: d,
-			form: d,
-			custom: d
-		})
-	},
-	gridDriven: {
-		preset: "gridDriven",
-		rules: p({
-			map: d,
-			grid: [
-				"selection",
-				"sort",
-				"page",
-				"filters",
-				"visibleFields"
-			],
-			chart: d,
-			filter: ["filters", "spatialFilter"],
-			detail: d,
-			form: d,
-			custom: d
-		})
-	},
-	chartDriven: {
-		preset: "chartDriven",
-		rules: p({
-			map: d,
-			grid: d,
-			chart: [
-				"grouping",
-				"aggregation",
-				"filters",
-				"selection"
-			],
-			filter: ["filters"],
-			detail: d,
-			form: d,
-			custom: d
-		})
-	},
-	decoupled: {
-		preset: "decoupled",
-		rules: p({
+		rules: m({
 			map: d,
 			grid: d,
 			chart: d,
@@ -96,9 +32,73 @@ var l = {
 			form: d,
 			custom: d
 		})
+	},
+	mapDriven: {
+		preset: "mapDriven",
+		rules: m({
+			map: [
+				"extent",
+				"spatialFilter",
+				"selection",
+				"filters"
+			],
+			grid: f,
+			chart: f,
+			filter: ["filters", "spatialFilter"],
+			detail: f,
+			form: f,
+			custom: f
+		})
+	},
+	gridDriven: {
+		preset: "gridDriven",
+		rules: m({
+			map: f,
+			grid: [
+				"selection",
+				"sort",
+				"page",
+				"filters",
+				"visibleFields"
+			],
+			chart: f,
+			filter: ["filters", "spatialFilter"],
+			detail: f,
+			form: f,
+			custom: f
+		})
+	},
+	chartDriven: {
+		preset: "chartDriven",
+		rules: m({
+			map: f,
+			grid: f,
+			chart: [
+				"grouping",
+				"aggregation",
+				"filters",
+				"selection"
+			],
+			filter: ["filters"],
+			detail: f,
+			form: f,
+			custom: f
+		})
+	},
+	decoupled: {
+		preset: "decoupled",
+		rules: m({
+			map: f,
+			grid: f,
+			chart: f,
+			filter: f,
+			detail: f,
+			form: f,
+			custom: f
+		})
 	}
 };
-function p(e) {
+function m(e) {
 	return [
 		{
 			role: "map",
@@ -130,19 +130,19 @@ function p(e) {
 		}
 	];
 }
-function m(e, t) {
-	let n = f[e].rules.find((e) => e.role === t);
-	return new Set(n?.propagatesSlices ?? d);
+function h(e, t) {
+	let n = p[e].rules.find((e) => e.role === t);
+	return new Set(n?.propagatesSlices ?? f);
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/exploration/reducer.js
-function h(e, t) {
+function g(e, t) {
 	switch (t.kind) {
 		case "set-filter": {
 			let n = e.filters[t.id];
-			if (n && y(n, t.clause)) return {
+			if (n && b(n, t.clause)) return {
 				state: e,
-				changedSlices: g
+				changedSlices: _
 			};
 			let r = {
 				...e.filters,
@@ -153,13 +153,13 @@ function h(e, t) {
 					...e,
 					filters: r
 				},
-				changedSlices: _("filters")
+				changedSlices: v("filters")
 			};
 		}
 		case "clear-filter": {
 			if (!(t.id in e.filters)) return {
 				state: e,
-				changedSlices: g
+				changedSlices: _
 			};
 			let n = { ...e.filters };
 			return delete n[t.id], {
@@ -167,121 +167,121 @@ function h(e, t) {
 					...e,
 					filters: n
 				},
-				changedSlices: _("filters")
+				changedSlices: v("filters")
 			};
 		}
-		case "set-spatial-filter": return b(e.spatialFilter, t.spatialFilter) ? {
+		case "set-spatial-filter": return x(e.spatialFilter, t.spatialFilter) ? {
 			state: e,
-			changedSlices: g
+			changedSlices: _
 		} : {
-			state: O(e, "spatialFilter", t.spatialFilter),
-			changedSlices: _("spatialFilter")
+			state: k(e, "spatialFilter", t.spatialFilter),
+			changedSlices: v("spatialFilter")
 		};
-		case "set-extent": return S(e.extent, t.extent) ? {
+		case "set-extent": return C(e.extent, t.extent) ? {
 			state: e,
-			changedSlices: g
+			changedSlices: _
 		} : {
-			state: O(e, "extent", t.extent),
-			changedSlices: _("extent")
+			state: k(e, "extent", t.extent),
+			changedSlices: v("extent")
 		};
 		case "select": {
 			let n = t.ids, r;
-			return r = t.replace === !0 ? D(n) : D([...e.selection, ...n]), E(e.selection, r) ? {
+			return r = t.replace === !0 ? O(n) : O([...e.selection, ...n]), D(e.selection, r) ? {
 				state: e,
-				changedSlices: g
+				changedSlices: _
 			} : {
 				state: {
 					...e,
 					selection: r
 				},
-				changedSlices: _("selection")
+				changedSlices: v("selection")
 			};
 		}
 		case "deselect": {
 			if (!t.ids || t.ids.length === 0) return e.selection.length === 0 ? {
 				state: e,
-				changedSlices: g
+				changedSlices: _
 			} : {
 				state: {
 					...e,
 					selection: []
 				},
-				changedSlices: _("selection")
+				changedSlices: v("selection")
 			};
 			let n = new Set(t.ids.map((e) => i(e))), r = e.selection.filter((e) => !n.has(i(e)));
 			return r.length === e.selection.length ? {
 				state: e,
-				changedSlices: g
+				changedSlices: _
 			} : {
 				state: {
 					...e,
 					selection: r
 				},
-				changedSlices: _("selection")
+				changedSlices: v("selection")
 			};
 		}
-		case "set-sort": return C(e.sort, t.sort) ? {
+		case "set-sort": return w(e.sort, t.sort) ? {
 			state: e,
-			changedSlices: g
+			changedSlices: _
 		} : {
 			state: {
 				...e,
 				sort: [...t.sort]
 			},
-			changedSlices: _("sort")
+			changedSlices: v("sort")
 		};
-		case "set-page": return w(e.page, t.page) ? {
+		case "set-page": return T(e.page, t.page) ? {
 			state: e,
-			changedSlices: g
+			changedSlices: _
 		} : {
 			state: {
 				...e,
 				page: { ...t.page }
 			},
-			changedSlices: _("page")
+			changedSlices: v("page")
 		};
-		case "set-visible-fields": return T(e.visibleFields, t.fields) ? {
+		case "set-visible-fields": return E(e.visibleFields, t.fields) ? {
 			state: e,
-			changedSlices: g
+			changedSlices: _
 		} : {
 			state: {
 				...e,
 				visibleFields: [...t.fields]
 			},
-			changedSlices: _("visibleFields")
+			changedSlices: v("visibleFields")
 		};
-		case "set-grouping": return T(e.grouping, t.grouping) ? {
+		case "set-grouping": return E(e.grouping, t.grouping) ? {
 			state: e,
-			changedSlices: g
+			changedSlices: _
 		} : {
 			state: {
 				...e,
 				grouping: [...t.grouping]
 			},
-			changedSlices: _("grouping")
+			changedSlices: v("grouping")
 		};
-		case "set-aggregation": return A(e.aggregation, t.aggregation) ? {
+		case "set-aggregation": return j(e.aggregation, t.aggregation) ? {
 			state: e,
-			changedSlices: g
+			changedSlices: _
 		} : {
-			state: O(e, "aggregation", t.aggregation),
-			changedSlices: _("aggregation")
+			state: k(e, "aggregation", t.aggregation),
+			changedSlices: v("aggregation")
 		};
 		case "apply-preset": return e.preset === t.preset ? {
 			state: e,
-			changedSlices: g
+			changedSlices: _
 		} : {
 			state: {
 				...e,
 				preset: t.preset
 			},
-			changedSlices: _("preset")
+			changedSlices: v("preset")
 		};
 		case "snapshot-restore": {
-			let n = t.snapshot.state, r = k(e, n);
+			let n = t.snapshot.state, r = A(e, n);
 			return r.size === 0 ? {
 				state: e,
-				changedSlices: g
+				changedSlices: _
 			} : {
 				state: n,
 				changedSlices: r
@@ -289,69 +289,69 @@ function h(e, t) {
 		}
 	}
 }
-var g = /* @__PURE__ */ new Set();
-function _(e) {
+var _ = /* @__PURE__ */ new Set();
+function v(e) {
 	return /* @__PURE__ */ new Set([e]);
 }
-function v(e, t) {
+function y(e, t) {
 	if (e === t) return !0;
 	let n = Object.keys(e), r = Object.keys(t);
 	if (n.length !== r.length) return !1;
-	for (let r of n) if (!Object.hasOwn(t, r) || !y(e[r], t[r])) return !1;
+	for (let r of n) if (!Object.hasOwn(t, r) || !b(e[r], t[r])) return !1;
 	return !0;
 }
-function y(e, t) {
+function b(e, t) {
 	if (e.field !== t.field || e.operator !== t.operator) return !1;
 	if (e.value !== t.value) if (Array.isArray(e.value) && Array.isArray(t.value)) {
 		if (e.value.length !== t.value.length) return !1;
 		for (let n = 0; n < e.value.length; n++) if (e.value[n] !== t.value[n]) return !1;
 	} else return !1;
-	return !((e.appliesTo ?? null) !== (t.appliesTo ?? null) && (!e.appliesTo || !t.appliesTo || !T(e.appliesTo, t.appliesTo)));
-}
-function b(e, t) {
-	return e === t ? !0 : !e || !t || e.geometryType !== t.geometryType || (e.spatialRel ?? null) !== (t.spatialRel ?? null) ? !1 : x(e.geometry, t.geometry);
+	return !((e.appliesTo ?? null) !== (t.appliesTo ?? null) && (!e.appliesTo || !t.appliesTo || !E(e.appliesTo, t.appliesTo)));
 }
 function x(e, t) {
+	return e === t ? !0 : !e || !t || e.geometryType !== t.geometryType || (e.spatialRel ?? null) !== (t.spatialRel ?? null) ? !1 : S(e.geometry, t.geometry);
+}
+function S(e, t) {
 	if (e === t) return !0;
 	if (typeof e != typeof t) return !1;
 	if (Array.isArray(e) || Array.isArray(t)) {
 		if (!Array.isArray(e) || !Array.isArray(t) || e.length !== t.length) return !1;
-		for (let n = 0; n < e.length; n++) if (!x(e[n], t[n])) return !1;
+		for (let n = 0; n < e.length; n++) if (!S(e[n], t[n])) return !1;
 		return !0;
 	}
 	if (e && t && typeof e == "object" && typeof t == "object") {
 		let n = Object.keys(e), r = Object.keys(t);
 		if (n.length !== r.length) return !1;
-		for (let r of n) if (!Object.hasOwn(t, r) || !x(e[r], t[r])) return !1;
+		for (let r of n) if (!Object.hasOwn(t, r) || !S(e[r], t[r])) return !1;
 		return !0;
 	}
 	return !1;
 }
-function S(e, t) {
+function C(e, t) {
 	return e === t ? !0 : !e || !t ? !1 : e.xmin === t.xmin && e.ymin === t.ymin && e.xmax === t.xmax && e.ymax === t.ymax;
 }
-function C(e, t) {
+function w(e, t) {
 	if (e === t) return !0;
 	if (e.length !== t.length) return !1;
 	for (let n = 0; n < e.length; n++) if (e[n].field !== t[n].field || (e[n].direction ?? "asc") !== (t[n].direction ?? "asc")) return !1;
 	return !0;
 }
-function w(e, t) {
+function T(e, t) {
 	return e.offset === t.offset && e.limit === t.limit;
 }
-function T(e, t) {
+function E(e, t) {
 	if (e === t) return !0;
 	if (e.length !== t.length) return !1;
 	for (let n = 0; n < e.length; n++) if (e[n] !== t[n]) return !1;
 	return !0;
 }
-function E(e, t) {
+function D(e, t) {
 	if (e === t) return !0;
 	if (e.length !== t.length) return !1;
 	for (let n = 0; n < e.length; n++) if (i(e[n]) !== i(t[n])) return !1;
 	return !0;
 }
-function D(e) {
+function O(e) {
 	let t = /* @__PURE__ */ new Set(), n = [];
 	for (let r of e) {
 		let e = i(r);
@@ -359,7 +359,7 @@ function D(e) {
 	}
 	return n;
 }
-function O(e, t, n) {
+function k(e, t, n) {
 	let { spatialFilter: r, extent: i, aggregation: a, ...o } = e, s = {
 		...o,
 		...r !== void 0 && t !== "spatialFilter" ? { spatialFilter: r } : {},
@@ -371,13 +371,13 @@ function O(e, t, n) {
 		[t]: n
 	};
 }
-function k(e, t) {
-	let n = /* @__PURE__ */ new Set();
-	return v(e.filters, t.filters) || n.add("filters"), b(e.spatialFilter, t.spatialFilter) || n.add("spatialFilter"), S(e.extent, t.extent) || n.add("extent"), E(e.selection, t.selection) || n.add("selection"), C(e.sort, t.sort) || n.add("sort"), w(e.page, t.page) || n.add("page"), T(e.visibleFields, t.visibleFields) || n.add("visibleFields"), T(e.grouping, t.grouping) || n.add("grouping"), A(e.aggregation, t.aggregation) || n.add("aggregation"), e.preset !== t.preset && n.add("preset"), n;
-}
 function A(e, t) {
+	let n = /* @__PURE__ */ new Set();
+	return y(e.filters, t.filters) || n.add("filters"), x(e.spatialFilter, t.spatialFilter) || n.add("spatialFilter"), C(e.extent, t.extent) || n.add("extent"), D(e.selection, t.selection) || n.add("selection"), w(e.sort, t.sort) || n.add("sort"), T(e.page, t.page) || n.add("page"), E(e.visibleFields, t.visibleFields) || n.add("visibleFields"), E(e.grouping, t.grouping) || n.add("grouping"), j(e.aggregation, t.aggregation) || n.add("aggregation"), e.preset !== t.preset && n.add("preset"), n;
+}
+function j(e, t) {
 	if (e === t) return !0;
-	if (!e || !t || !T(e.groupBy ?? [], t.groupBy ?? []) || e.metrics.length !== t.metrics.length) return !1;
+	if (!e || !t || !E(e.groupBy ?? [], t.groupBy ?? []) || e.metrics.length !== t.metrics.length) return !1;
 	for (let n = 0; n < e.metrics.length; n++) {
 		let r = e.metrics[n], i = t.metrics[n];
 		if (r.fn !== i.fn || r.field !== i.field || (r.alias ?? null) !== (i.alias ?? null)) return !1;
@@ -387,20 +387,20 @@ function A(e, t) {
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/exploration/context.js
 function ee(t) {
-	let { datasetId: n, sourceIds: r } = t, i = [...r], a = te(t.initialState, t.preset), o = f[a.preset], s = !1, c = /* @__PURE__ */ new Map(), l = /* @__PURE__ */ new Map(), u = !1, d = a, p = /* @__PURE__ */ new Set(), m = /* @__PURE__ */ new Set(), g;
+	let { datasetId: n, sourceIds: r } = t, i = [...r], a = M(t.initialState, t.preset), o = p[a.preset], s = !1, c = /* @__PURE__ */ new Map(), l = /* @__PURE__ */ new Map(), u = !1, d = a, f = /* @__PURE__ */ new Set(), m = /* @__PURE__ */ new Set(), h;
 	function _(t) {
 		if (s) throw new e("disposed", `ExplorationContext("${n}") cannot ${t} after dispose()`);
 	}
 	function v() {
 		u || (u = !0, queueMicrotask(() => {
-			if (u = !1, p.size === 0) return;
+			if (u = !1, f.size === 0) return;
 			let e = {
 				state: a,
 				previous: d,
-				changedSlices: new Set(p),
-				origin: g
+				changedSlices: new Set(f),
+				origin: h
 			}, t = new Set(m);
-			p.clear(), m.clear(), d = a, g = void 0;
+			f.clear(), m.clear(), d = a, h = void 0;
 			let n = l.get("all");
 			if (n) for (let t of [...n]) t(e);
 			for (let n of t) {
@@ -451,7 +451,7 @@ function ee(t) {
 				if (_(t), s) throw new e("unbound-view", `ExplorationContext("${n}"): view "${a.id}" cannot ${t} after unbind()`);
 			}
 			function u(e) {
-				l("dispatch"), r.dispatch(N(e, a.id));
+				l("dispatch"), r.dispatch(te(e, a.id));
 			}
 			function d(e, t, n = {}) {
 				l("subscribe");
@@ -588,13 +588,13 @@ function ee(t) {
 		},
 		dispatch(e) {
 			_("dispatch");
-			let t = h(a, e);
+			let t = g(a, e);
 			if (t.changedSlices.size === 0) return;
-			let n = M(t.changedSlices, e, o, c);
-			p.size === 0 && (d = a), a = t.state;
-			for (let e of t.changedSlices) p.add(e);
+			let n = P(t.changedSlices, e, o, c);
+			f.size === 0 && (d = a), a = t.state;
+			for (let e of t.changedSlices) f.add(e);
 			for (let e of n) m.add(e);
-			g = e, e.kind === "apply-preset" ? o = f[e.preset] : e.kind === "snapshot-restore" && (o = f[a.preset]), p.size > 0 && v();
+			h = e, e.kind === "apply-preset" ? o = p[e.preset] : e.kind === "snapshot-restore" && (o = p[a.preset]), f.size > 0 && v();
 		},
 		subscribe(e, t) {
 			_("subscribe");
@@ -607,7 +607,7 @@ function ee(t) {
 		snapshot() {
 			return {
 				version: 1,
-				state: j(a)
+				state: N(a)
 			};
 		},
 		restore(t) {
@@ -616,37 +616,37 @@ function ee(t) {
 				kind: "snapshot-restore",
 				snapshot: {
 					version: 1,
-					state: j(t.state)
+					state: N(t.state)
 				}
 			});
 		},
 		dispose() {
-			s || (s = !0, c.clear(), l.clear(), p.clear(), m.clear(), u = !1);
+			s || (s = !0, c.clear(), l.clear(), f.clear(), m.clear(), u = !1);
 		}
 	};
 }
-function te(e, t) {
+function M(e, t) {
 	let n = {
-		...l,
+		...u,
 		...e ?? {},
-		preset: t ?? e?.preset ?? l.preset
+		preset: t ?? e?.preset ?? u.preset
 	};
 	return structuredClone(n);
 }
-function j(e) {
+function N(e) {
 	return structuredClone(e);
 }
-function M(e, t, n, r) {
+function P(e, t, n, r) {
 	if (t.kind === "apply-preset" || t.kind === "snapshot-restore" || !t.viewId) return e;
 	let i = r.get(t.viewId);
 	if (!i) return e;
-	let a = m(n.preset, i.role);
+	let a = h(n.preset, i.role);
 	if (a.size === 0) return /* @__PURE__ */ new Set();
 	let o = /* @__PURE__ */ new Set();
 	for (let t of e) a.has(t) && o.add(t);
 	return o;
 }
-function N(e, t) {
+function te(e, t) {
 	return {
 		...e,
 		viewId: t
@@ -657,77 +657,77 @@ function ne(e) {
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/exploration/selectors.js
-function P(e, t, n, r, i = {}) {
-	let a = i.equals ?? F, o = n(e.state);
+function F(e, t, n, r, i = {}) {
+	let a = i.equals ?? I, o = n(e.state);
 	return i.fireImmediately && r(o, void 0), e.subscribe(t, (e) => {
 		let t = n(e.state);
 		a(o, t) || (o = t, r(t, e));
 	}, i);
 }
-function F(e, t) {
+function I(e, t) {
 	if (Object.is(e, t)) return !0;
 	if (!e || !t || typeof e != "object" || typeof t != "object" || Object.getPrototypeOf(e) !== Object.getPrototypeOf(t)) return !1;
 	if (e instanceof Date && t instanceof Date) return e.getTime() === t.getTime();
 	if (e instanceof RegExp && t instanceof RegExp) return e.source === t.source && e.flags === t.flags;
 	if (Array.isArray(e) || Array.isArray(t)) {
 		if (!Array.isArray(e) || !Array.isArray(t) || e.length !== t.length) return !1;
-		for (let n = 0; n < e.length; n++) if (!F(e[n], t[n])) return !1;
+		for (let n = 0; n < e.length; n++) if (!I(e[n], t[n])) return !1;
 		return !0;
 	}
 	let n = e, r = t, i = Object.keys(n), a = Object.keys(r);
 	if (i.length !== a.length || i.length === 0) return !1;
-	for (let e of i) if (!Object.hasOwn(r, e) || !F(n[e], r[e])) return !1;
+	for (let e of i) if (!Object.hasOwn(r, e) || !I(n[e], r[e])) return !1;
 	return !0;
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/interactions/feature-state.js
-function re(e, t) {
-	let { source: n, layer: r, stateKey: i = "hover", sourceLayer: a, onHoverTargetChange: s } = t, c;
+function L(e, t) {
+	let { source: n, layer: i, stateKey: a = "hover", sourceLayer: o, onHoverTargetChange: s } = t, c;
 	function l(...t) {
-		let r = t[0]?.features?.[0]?.id;
-		if (r == null) return;
-		let l = c !== r;
+		let i = t[0]?.features?.[0]?.id;
+		if (i == null) return;
+		let l = c !== i;
 		c !== void 0 && l && e.setFeatureState({
 			source: n,
 			id: c,
-			sourceLayer: a
-		}, { [i]: !1 }), c = r, e.setFeatureState({
+			sourceLayer: o
+		}, { [a]: !1 }), c = i, e.setFeatureState({
 			source: n,
 			id: c,
-			sourceLayer: a
-		}, { [i]: !0 }), l && s?.(o(n, r, { sourceLayer: a }));
+			sourceLayer: o
+		}, { [a]: !0 }), l && s?.(r(n, i, { sourceLayer: o }));
 	}
 	function u() {
 		c !== void 0 && (e.setFeatureState({
 			source: n,
 			id: c,
-			sourceLayer: a
-		}, { [i]: !1 }), c = void 0, s?.(void 0));
+			sourceLayer: o
+		}, { [a]: !1 }), c = void 0, s?.(void 0));
 	}
-	return e.on("mousemove", r, l), e.on("mouseleave", r, u), {
+	return e.on("mousemove", i, l), e.on("mouseleave", i, u), {
 		remove() {
-			u(), e.off("mousemove", r, l), e.off("mouseleave", r, u);
+			u(), e.off("mousemove", i, l), e.off("mouseleave", i, u);
 		},
 		get hoveredId() {
 			return c;
 		}
 	};
 }
-function ie(e, t) {
-	let { source: n, layer: r, stateKey: i = "selected", multiSelect: a = !1, sourceLayer: s, onChange: c, onSelectionTargetsChange: l } = t, u = /* @__PURE__ */ new Set();
+function R(e, t) {
+	let { source: n, layer: i, stateKey: a = "selected", multiSelect: o = !1, sourceLayer: s, onChange: c, onSelectionTargetsChange: l } = t, u = /* @__PURE__ */ new Set();
 	function d() {
 		for (let t of u) e.setFeatureState({
 			source: n,
 			id: t,
 			sourceLayer: s
-		}, { [i]: !1 });
+		}, { [a]: !1 });
 		u.clear();
 	}
 	function f() {
 		c?.(u), l?.(p());
 	}
 	function p() {
-		return [...u].map((e) => o(n, e, { sourceLayer: s }));
+		return [...u].map((e) => r(n, e, { sourceLayer: s }));
 	}
 	function m(...t) {
 		let r = t[0]?.features?.[0]?.id;
@@ -735,15 +735,15 @@ function ie(e, t) {
 			source: n,
 			id: r,
 			sourceLayer: s
-		}, { [i]: !1 }), u.delete(r)) : (a || d(), e.setFeatureState({
+		}, { [a]: !1 }), u.delete(r)) : (o || d(), e.setFeatureState({
 			source: n,
 			id: r,
 			sourceLayer: s
-		}, { [i]: !0 }), u.add(r)), f());
+		}, { [a]: !0 }), u.add(r)), f());
 	}
-	return e.on("click", r, m), {
+	return e.on("click", i, m), {
 		remove() {
-			d(), e.off("click", r, m);
+			d(), e.off("click", i, m);
 		},
 		get selectedIds() {
 			return u;
@@ -755,24 +755,24 @@ function ie(e, t) {
 			d(), f();
 		},
 		select(t) {
-			a || d(), e.setFeatureState({
+			o || d(), e.setFeatureState({
 				source: n,
 				id: t,
 				sourceLayer: s
-			}, { [i]: !0 }), u.add(t), f();
+			}, { [a]: !0 }), u.add(t), f();
 		},
 		deselect(t) {
 			u.has(t) && (e.setFeatureState({
 				source: n,
 				id: t,
 				sourceLayer: s
-			}, { [i]: !1 }), u.delete(t), f());
+			}, { [a]: !1 }), u.delete(t), f());
 		}
 	};
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/interactions/exploration-bindings.js
-function I(e) {
+function z(e) {
 	return {
 		setFilter(t, n) {
 			e.setFilter(t, n);
@@ -781,14 +781,14 @@ function I(e) {
 			e.clearFilter(t);
 		},
 		subscribe(t, n) {
-			return P(e, "filters", (e) => e.filters, t, n);
+			return F(e, "filters", (e) => e.filters, t, n);
 		}
 	};
 }
-function L(e, t, n) {
+function B(e, t, n) {
 	return e.subscribe("selection", (e) => t(e.state.selection, e), n);
 }
-function R(e) {
+function V(e) {
 	return {
 		select(t, n) {
 			e.select(t, n);
@@ -797,35 +797,35 @@ function R(e) {
 			e.deselect();
 		},
 		subscribe(t, n) {
-			return L(e, t, n);
+			return B(e, t, n);
 		}
 	};
 }
 //#endregion
 //#region node_modules/@honua/sdk-js/dist/src/interactions/declarative.js
-var z = {
+var H = {
 	bindings: [],
 	disabled: []
 };
-function B(e, t) {
-	let n = r(e, { ...t.fanOutCap === void 0 ? {} : { fanOutCap: t.fanOutCap } }), i = t.components ?? {}, a = Array.isArray(e) ? e : [], o = n.ok ? V(a, i) : [], s = [...n.issues, ...o];
+function U(e, t) {
+	let n = o(e, { ...t.fanOutCap === void 0 ? {} : { fanOutCap: t.fanOutCap } }), r = t.components ?? {}, i = Array.isArray(e) ? e : [], a = n.ok ? W(i, r) : [], s = [...n.issues, ...a];
 	if (s.length > 0) return {
 		ok: !1,
 		issues: s,
-		...z,
+		...H,
 		unsupported: [],
 		dispose: () => void 0
 	};
-	let c = new U(t, i);
-	for (let e of a) c.compile(e);
+	let c = new K(t, r);
+	for (let e of i) c.compile(e);
 	return c.result();
 }
-function V(e, t) {
+function W(e, t) {
 	let n = [];
 	return e.forEach((e, r) => {
 		for (let i of ["on", "do"]) {
 			let a = e[i].ref;
-			H(a, t) === void 0 && n.push({
+			G(a, t) === void 0 && n.push({
 				code: "invalid-ref",
 				interactionId: e.id,
 				path: `interactions[${r}].${i}.ref`,
@@ -834,26 +834,26 @@ function V(e, t) {
 		}
 	}), n;
 }
-function H(e, t) {
-	let r = n(e);
-	if (!r) return;
-	if (r.kind === "map") return t.map ? {
+function G(e, t) {
+	let n = l(e);
+	if (!n) return;
+	if (n.kind === "map") return t.map ? {
 		kind: "map",
 		id: "map",
 		component: t.map
 	} : void 0;
-	let i = r.id, a = {
+	let r = n.id, i = {
 		layer: t.layers,
 		widget: t.widgets,
 		control: t.controls
-	}[r.kind]?.[i];
-	if (a) return {
-		kind: r.kind,
-		id: i,
-		component: a
+	}[n.kind]?.[r];
+	if (i) return {
+		kind: n.kind,
+		id: r,
+		component: i
 	};
 }
-var U = class {
+var K = class {
 	#e;
 	#t;
 	#n;
@@ -870,7 +870,7 @@ var U = class {
 			this.#a.push(e.id);
 			return;
 		}
-		let t = H(e.on.ref, this.#t), n = H(e.do.ref, this.#t), r = this.#u(e, n);
+		let t = G(e.on.ref, this.#t), n = G(e.do.ref, this.#t), r = this.#u(e, n);
 		if (typeof r == "string") {
 			this.#c(e, r);
 			return;
@@ -891,7 +891,7 @@ var U = class {
 				ref: e.do.ref,
 				verb: e.do.verb
 			},
-			pair: Q(e),
+			pair: $(e),
 			dispose: () => {
 				a || (a = !0, i());
 			}
@@ -924,7 +924,7 @@ var U = class {
 				ref: e.do.ref,
 				verb: e.do.verb
 			},
-			pair: Q(e),
+			pair: $(e),
 			reason: t
 		});
 	}
@@ -944,12 +944,12 @@ var U = class {
 				if (t.kind !== "layer") return `\`featureSelect\` is a layer event; \`${e.on.ref}\` is not a layer.`;
 				let n = t.component.map;
 				if (!n) return `Layer "${t.id}" declares no \`map\`, so \`featureSelect\` has no primitive to bind to.`;
-				let i = t.component.sourceId ?? t.id, a = ie(n, {
+				let i = t.component.sourceId ?? t.id, a = R(n, {
 					source: i,
 					layer: t.component.layerId ?? t.id,
 					...t.component.sourceLayer ? { sourceLayer: t.component.sourceLayer } : {},
 					...t.component.multiSelect === void 0 ? {} : { multiSelect: t.component.multiSelect },
-					onSelectionTargetsChange: (e) => r(W(i, e))
+					onSelectionTargetsChange: (e) => r(q(i, e))
 				});
 				return () => a.remove();
 			}
@@ -957,85 +957,85 @@ var U = class {
 				if (t.kind !== "layer") return `\`featureHover\` is a layer event; \`${e.on.ref}\` is not a layer.`;
 				let n = t.component.map;
 				if (!n) return `Layer "${t.id}" declares no \`map\`, so \`featureHover\` has no primitive to bind to.`;
-				let i = t.component.sourceId ?? t.id, a = re(n, {
+				let i = t.component.sourceId ?? t.id, a = L(n, {
 					source: i,
 					layer: t.component.layerId ?? t.id,
 					...t.component.sourceLayer ? { sourceLayer: t.component.sourceLayer } : {},
-					onHoverTargetChange: (e) => r(G(i, e))
+					onHoverTargetChange: (e) => r(J(i, e))
 				});
 				return () => a.remove();
 			}
-			case "selection": return t.kind === "widget" ? R(this.#e).subscribe((e) => r(K(e))) : `\`selection\` is a widget event; \`${e.on.ref}\` is not a widget.`;
+			case "selection": return t.kind === "widget" ? V(this.#e).subscribe((e) => r(Y(e))) : `\`selection\` is a widget event; \`${e.on.ref}\` is not a widget.`;
 			case "change": {
 				if (t.kind !== "control") return `\`change\` is a control event; \`${e.on.ref}\` is not a control.`;
 				let n = t.id, i = this.#e.state.filters[n];
-				return I(this.#e).subscribe((e) => {
+				return z(this.#e).subscribe((e) => {
 					let t = e[n];
-					t !== i && (i = t, r(q(n, t, e)));
+					t !== i && (i = t, r(X(n, t, e)));
 				});
 			}
-			case "viewportChange": return t.kind === "map" ? P(this.#e, "extent", (e) => e.extent, (e) => r(J(e)), { fireImmediately: !1 }) : "`viewportChange` is a map event; only `map` publishes it.";
+			case "viewportChange": return t.kind === "map" ? F(this.#e, "extent", (e) => e.extent, (e) => r(re(e)), { fireImmediately: !1 }) : "`viewportChange` is a map event; only `map` publishes it.";
 		}
 	}
 	#u(e, t) {
-		let n = e.do.verb, r = e.do.args, i = (t) => {
+		let i = e.do.verb, a = e.do.args, o = (t) => {
 			this.#n?.({
 				interactionId: e.id,
 				event: e.on.event,
-				verb: n,
+				verb: i,
 				ref: e.do.ref,
 				args: t
 			});
 		};
-		switch (n) {
+		switch (i) {
 			case "setFilter": {
-				let e = ae(t), n = t.kind === "map" ? "map" : t.id;
+				let e = ie(t), r = t.kind === "map" ? "map" : t.id;
 				return (t) => {
-					let o = a(r, t), s = oe(o);
-					e ? e(s) : s ? this.#e.setFilter(n, s) : this.#e.clearFilter(n), i(o);
+					let i = n(a, t), s = ae(i);
+					e ? e(s) : s ? this.#e.setFilter(r, s) : this.#e.clearFilter(r), o(i);
 				};
 			}
 			case "setViewport": {
 				if (t.kind !== "map") return "`setViewport` targets `map`; no other component accepts it.";
 				let e = t.component;
 				return (t) => {
-					let n = a(r, t), o = ce(n);
-					e.setViewport ? e.setViewport(o) : this.#e.setExtent(Z(o.bbox)), i(n);
+					let r = n(a, t), i = se(r);
+					e.setViewport ? e.setViewport(i) : this.#e.setExtent(ce(i.bbox)), o(r);
 				};
 			}
 			case "selectFeature": {
 				if (t.kind === "control") return "`selectFeature` has no control-side primitive.";
-				let e = t.kind === "layer" ? t.component.sourceId ?? t.id : t.id, n = R(this.#e);
+				let e = t.kind === "layer" ? t.component.sourceId ?? t.id : t.id, i = V(this.#e);
 				return (t) => {
-					let s = a(r, t), c = s.featureId ?? s.id;
+					let s = n(a, t), c = s.featureId ?? s.id;
 					if (c == null) {
-						n.clearSelection(), i(s);
+						i.clearSelection(), o(s);
 						return;
 					}
-					let l = o(typeof s.sourceId == "string" ? s.sourceId : e, c);
-					n.select([l], { replace: s.replace !== !1 }), i(s);
+					let l = r(typeof s.sourceId == "string" ? s.sourceId : e, c);
+					i.select([l], { replace: s.replace !== !1 }), o(s);
 				};
 			}
 			case "runWidgetQuery": {
 				if (t.kind !== "widget") return "`runWidgetQuery` targets `widget:{id}`; no other component accepts it.";
 				let e = t.component.runQuery;
 				return e ? (t) => {
-					let n = a(r, t);
-					e(n), i(n);
+					let r = n(a, t);
+					e(r), o(r);
 				} : `Widget "${t.id}" declares no \`runQuery\`, and there is no exploration-level fallback for \`runWidgetQuery\`.`;
 			}
 			case "setVisibility": {
 				if (t.kind === "map") return "`setVisibility` targets a layer, widget, or control, never `map`.";
 				let e = t.component.setVisibility;
 				return e ? (t) => {
-					let n = a(r, t);
-					e(n.visible !== !1), i(n);
+					let r = n(a, t);
+					e(r.visible !== !1), o(r);
 				} : `${t.kind === "layer" ? "Layer" : t.kind === "widget" ? "Widget" : "Control"} "${t.id}" declares no \`setVisibility\`.`;
 			}
 		}
 	}
 };
-function W(e, t) {
+function q(e, t) {
 	let n = t[0];
 	return {
 		sourceId: n?.sourceId ?? e,
@@ -1045,7 +1045,7 @@ function W(e, t) {
 		count: t.length
 	};
 }
-function G(e, t) {
+function J(e, t) {
 	return {
 		sourceId: t?.sourceId ?? e,
 		...t ? { featureId: t.id } : {},
@@ -1054,7 +1054,7 @@ function G(e, t) {
 		hovering: t !== void 0
 	};
 }
-function K(e) {
+function Y(e) {
 	let t = e[0], n = typeof t == "object" && t ? t : void 0;
 	return {
 		targets: e,
@@ -1066,7 +1066,7 @@ function K(e) {
 		...n === void 0 && t !== void 0 ? { featureId: t } : {}
 	};
 }
-function q(e, t, n) {
+function X(e, t, n) {
 	return {
 		id: e,
 		...t ? {
@@ -1078,7 +1078,7 @@ function q(e, t, n) {
 		filters: n
 	};
 }
-function J(e) {
+function re(e) {
 	return { ...e ? {
 		bbox: [
 			e.xmin,
@@ -1089,12 +1089,12 @@ function J(e) {
 		extent: e
 	} : {} };
 }
-function ae(e) {
+function ie(e) {
 	if (e.kind === "map") return;
 	let t = e.component.setFilter;
 	return t ? (e) => t(e) : void 0;
 }
-var Y = /* @__PURE__ */ new Set([
+var Z = /* @__PURE__ */ new Set([
 	"=",
 	"!=",
 	"<",
@@ -1108,29 +1108,29 @@ var Y = /* @__PURE__ */ new Set([
 	"is-null",
 	"is-not-null"
 ]);
-function oe(e) {
+function ae(e) {
 	let t = e.clause;
 	if (t && typeof t == "object" && !Array.isArray(t)) {
 		let e = t;
 		if (typeof e.field == "string") return {
 			field: e.field,
-			operator: Y.has(e.operator) ? e.operator : "=",
+			operator: Z.has(e.operator) ? e.operator : "=",
 			value: e.value,
 			...Array.isArray(e.appliesTo) ? { appliesTo: e.appliesTo } : {}
 		};
 	}
-	if (typeof e.field == "string" && !(e.value === void 0 && !se(e.operator))) return {
+	if (typeof e.field == "string" && !(e.value === void 0 && !oe(e.operator))) return {
 		field: e.field,
-		operator: Y.has(e.operator) ? e.operator : "=",
+		operator: Z.has(e.operator) ? e.operator : "=",
 		value: e.value,
 		...Array.isArray(e.appliesTo) ? { appliesTo: e.appliesTo } : {}
 	};
 }
-function se(e) {
+function oe(e) {
 	return e === "is-null" || e === "is-not-null";
 }
-function ce(e) {
-	let t = X(e.bbox, 4), n = X(e.center, 2);
+function se(e) {
+	let t = Q(e.bbox, 4), n = Q(e.center, 2);
 	return {
 		...t ? { bbox: t } : {},
 		...n ? { center: n } : {},
@@ -1139,10 +1139,10 @@ function ce(e) {
 		...typeof e.bearing == "number" ? { bearing: e.bearing } : {}
 	};
 }
-function X(e, t) {
+function Q(e, t) {
 	if (!(!Array.isArray(e) || e.length !== t)) return e.every((e) => typeof e == "number" && Number.isFinite(e)) ? e : void 0;
 }
-function Z(e) {
+function ce(e) {
 	return e ? {
 		xmin: e[0],
 		ymin: e[1],
@@ -1150,100 +1150,15 @@ function Z(e) {
 		ymax: e[3]
 	} : void 0;
 }
-function Q(e) {
+function $(e) {
 	return `${e.on.event} -> ${e.do.verb}`;
 }
 //#endregion
-//#region src/interactions/filter-expression.ts
-function le(e) {
-	return e === "$id" || e === "id" ? ["id"] : ["get", e];
-}
-function $(e) {
-	return typeof e == "string" || typeof e == "number" || typeof e == "boolean";
-}
-function ue(e) {
-	if (!e || !e.field) return;
-	let t = le(e.field);
-	switch (e.operator) {
-		case "=":
-		case "!=":
-		case "<":
-		case "<=":
-		case ">":
-		case ">=": return $(e.value) ? [
-			e.operator === "=" ? "==" : e.operator,
-			t,
-			e.value
-		] : void 0;
-		case "in":
-		case "not-in": {
-			let n = Array.isArray(e.value) ? e.value.filter($) : void 0;
-			if (!n || n.length === 0) return;
-			let r = [
-				"in",
-				t,
-				["literal", n]
-			];
-			return e.operator === "in" ? r : ["!", r];
-		}
-		case "between": {
-			let [n, r] = (Array.isArray(e.value) ? e.value : void 0) ?? [];
-			return typeof n != "number" || typeof r != "number" ? void 0 : [
-				"all",
-				[
-					">=",
-					t,
-					n
-				],
-				[
-					"<=",
-					t,
-					r
-				]
-			];
-		}
-		case "like": {
-			if (typeof e.value != "string") return;
-			let n = e.value.replace(/^%|%$/g, "");
-			return n.includes("%") || n.includes("_") ? void 0 : [
-				">=",
-				[
-					"index-of",
-					n,
-					["to-string", t]
-				],
-				0
-			];
-		}
-		case "is-null": return [
-			"==",
-			["to-string", t],
-			""
-		];
-		case "is-not-null": return [
-			"!=",
-			["to-string", t],
-			""
-		];
-	}
-}
-function de(e, t) {
-	let n = [], r = /* @__PURE__ */ new Set();
-	for (let i of e) {
-		if (i.appliesTo && i.appliesTo.length > 0 && !i.appliesTo.some((e) => t.includes(e))) continue;
-		let e = ue(i);
-		if (!e) continue;
-		let a = JSON.stringify(e);
-		r.has(a) || (r.add(a), n.push(e));
-	}
-	if (n.length !== 0) return n.length === 1 ? n[0] : ["all", ...n];
-}
-//#endregion
 //#region src/interactions/studio-interactions.ts
-var fe = "$honua:opacity", pe = {
+var le = "$honua:opacity", ue = {
 	filters: {},
 	opacity: {}
-}, me = class {
+}, de = class {
 	#e;
 	#t;
 	#n;
@@ -1256,7 +1171,7 @@ var fe = "$honua:opacity", pe = {
 	#l;
 	#u;
 	#d = /* @__PURE__ */ new Map();
-	#f = pe;
+	#f = ue;
 	#p = "";
 	#m = !1;
 	constructor(e) {
@@ -1272,7 +1187,7 @@ var fe = "$honua:opacity", pe = {
 		}), this.#i = this.#t.connectView({
 			id: "appearance",
 			role: "map"
-		}), this.#a = I(this.#n), this.#s = I(this.#i).subscribe(() => this.#S(), { includeSelf: !0 }), this.#l = R(this.#r).subscribe((e) => this.#y(e), { includeSelf: !0 }), this.#c = this.#e.subscribe(() => this.#h()), this.#_();
+		}), this.#a = z(this.#n), this.#s = z(this.#i).subscribe(() => this.#S(), { includeSelf: !0 }), this.#l = V(this.#r).subscribe((e) => this.#y(e), { includeSelf: !0 }), this.#c = this.#e.subscribe(() => this.#h()), this.#_();
 	}
 	get compiled() {
 		return this.#u;
@@ -1288,7 +1203,7 @@ var fe = "$honua:opacity", pe = {
 	}
 	publishOpacity(e, t) {
 		this.publishControlChange(e, {
-			field: fe,
+			field: le,
 			operator: "=",
 			value: t
 		});
@@ -1318,7 +1233,7 @@ var fe = "$honua:opacity", pe = {
 			components: this.#v(),
 			...this.#o.onDispatch === void 0 ? {} : { onDispatch: this.#o.onDispatch }
 		};
-		this.#u = B(this.#e.state.interactions, e);
+		this.#u = U(this.#e.state.interactions, e);
 	}
 	#v() {
 		let e = this.#e.state, t = {};
@@ -1375,46 +1290,50 @@ var fe = "$honua:opacity", pe = {
 	}
 	#S() {
 		if (this.#m) return;
-		let e = this.#e.state, t = this.#i.state.filters, n = /* @__PURE__ */ new Map(), r = {};
-		for (let i of e.controls) {
-			let a = t[i.id];
-			if (a) {
-				if (a.field === "$honua:opacity") {
-					for (let t of he(e, i)) {
-						let e = typeof a.value == "number" ? a.value : Number(a.value);
-						Number.isFinite(e) && (r[t] = Math.min(Math.max(e, 0), 1));
+		let e = this.#e.state, n = this.#i.state.filters, r = /* @__PURE__ */ new Map(), i = {}, o = {};
+		for (let a of e.controls) {
+			let c = n[a.id];
+			if (c) {
+				if (c.field === "$honua:opacity") {
+					for (let t of fe(e, a)) {
+						let e = typeof c.value == "number" ? c.value : Number(c.value);
+						Number.isFinite(e) && (i[t] = Math.min(Math.max(e, 0), 1));
 					}
 					continue;
 				}
-				if (c[i.kind]) for (let t of s(e, i.sourceId)) {
-					let e = n.get(t) ?? [];
-					e.push(a), n.set(t, e);
+				if (s[a.kind]) {
+					a.sourceId && (!c.appliesTo?.length || c.appliesTo.includes(a.sourceId)) && (o[a.sourceId] ??= [], o[a.sourceId].push(c));
+					for (let n of t(e, a.sourceId)) {
+						let e = r.get(n) ?? [];
+						e.push(c), r.set(n, e);
+					}
 				}
 			}
 		}
 		for (let [e, t] of this.#d) {
-			let r = n.get(e) ?? [];
-			r.push(...t.values()), n.set(e, r);
+			let n = r.get(e) ?? [];
+			n.push(...t.values()), r.set(e, n);
 		}
-		let i = {};
-		for (let [t, r] of n) {
-			let n = e.layers.find((e) => e.id === t), a = de(r, n ? [n.id, n.sourceId] : [t]);
-			a && (i[t] = a);
+		let c = {};
+		for (let [t, n] of r) {
+			let r = e.layers.find((e) => e.id === t), i = a(n, r ? [r.id, r.sourceId] : [t]);
+			i && (c[t] = i);
 		}
-		let a = {
-			filters: i,
-			opacity: r
+		let l = {
+			filters: c,
+			opacity: i,
+			sourceFilters: o
 		};
-		ge(a, this.#f) || (this.#f = a, this.#o.onAppearanceChange?.(a));
+		pe(l, this.#f) || (this.#f = l, this.#o.onAppearanceChange?.(l));
 	}
 };
-function he(e, n) {
-	if (n.kind !== "opacity") return [];
-	let r = t(n);
-	return !r.ok || r.config.kind !== "opacity" ? [] : r.config.config.layerIds.filter((t) => e.layers.some((e) => e.id === t));
+function fe(e, t) {
+	if (t.kind !== "opacity") return [];
+	let n = c(t);
+	return !n.ok || n.config.kind !== "opacity" ? [] : n.config.config.layerIds.filter((t) => e.layers.some((e) => e.id === t));
 }
-function ge(e, t) {
+function pe(e, t) {
 	return JSON.stringify(e) === JSON.stringify(t);
 }
 //#endregion
-export { me as StudioInteractionRuntime };
+export { de as StudioInteractionRuntime };
