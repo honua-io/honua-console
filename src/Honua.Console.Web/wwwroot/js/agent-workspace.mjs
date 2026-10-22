@@ -1,4 +1,4 @@
-import {GaSpecReview, reviewSummary} from './ga-spec-review.mjs';
+import {GaSpecReview, reviewSummary, reviewDetails} from './ga-spec-review.mjs';
 import {browserImportSelection, browserSelectionScope} from './dataset-import-selection.mjs';
 import {PublicationRecovery} from './publication-recovery.mjs';
 import {createPublishInputBinder} from './publish-form-inputs.mjs';
@@ -494,6 +494,7 @@ export function mountWorkspace() {
     const review = new GaSpecReview(workspace);
     const renderReview = () => {
         host.querySelector('[data-ga-plan-summary]').textContent = reviewSummary(review.plan, review.run);
+        host.querySelector('[data-ga-plan-details]').textContent = reviewDetails(review.plan, review.run);
         host.querySelector('[data-ga-plan-apply]').disabled = !review.plan || Boolean(review.run)
             || review.plan.execution !== 'planned' || !['create','noop'].includes(review.plan.verdict);
     };

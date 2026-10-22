@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {GaSpecReview, reviewSummary} from '../../src/Honua.Console.Web/wwwroot/js/ga-spec-review.mjs';
+import {GaSpecReview, reviewSummary, reviewDetails} from '../../src/Honua.Console.Web/wwwroot/js/ga-spec-review.mjs';
 function fixture(api) {
     const data = new Map();
     return new GaSpecReview({workspaceId:'w',session:{gaSpecWorkflow:true},authorityKey:()=> 'human',uuid:()=> 'command',
@@ -86,7 +86,13 @@ test('an Apply response claiming terminal success cannot release recovery when d
 });
 
 test('review summary identifies its pinned environment and target independently of next-request context', ()=>{
-    const summary=reviewSummary({...plan,spec:{environment:'production',workspaceId:'original-workspace',viewId:'original-tab',targetId:'original-target',contextRevision:'7'}},null);
-    for (const value of ['Pinned layer publication','environment: production','workspaceId: original-workspace','viewId: original-tab','targetId: original-target','Context revision: 7'])
+    const pinned={...plan,spec:{environment:'production',environmentName:'Production',workspaceId:'original-workspace',viewId:'original-tab',targetId:'original-target',targetName:'Roads catalog',contextRevision:'7',layerName:'Roads',serviceName:'Transport',schema:'public',table:'roads'}};
+    const summary=reviewSummary(pinned,{execution:'succeeded',evidence:'verified'});
+    for (const value of ['Create layer: Roads','Service: Transport','Source table: public.roads','Pinned environment: Production','Pinned target: Roads catalog','Execution: succeeded','Evidence: verified'])
         assert.ok(summary.includes(value),value);
+    const details=reviewDetails(pinned,null);
+    for (const value of ['Environment ID: production','Workspace ID: original-workspace','View ID: original-tab','Target ID: original-target','Context revision: 7'])
+        assert.ok(details.includes(value),value);
+    assert.ok(!summary.includes('workspaceId'));
+    assert.ok(reviewSummary({...pinned,spec:{...pinned.spec,targetName:undefined}},null).includes('Pinned target: original-target'));
 });

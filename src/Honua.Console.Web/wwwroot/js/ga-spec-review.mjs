@@ -93,11 +93,24 @@ export class GaSpecReview {
     }
 }
 export function reviewSummary(plan, run) {
-    if (!plan) return 'Open a revision-pinned server plan to review a consequential change.';
-    const fields = ['environment','workspaceId','viewId','targetId','connectionId','schema','table','layerName','serviceName'];
+    if (!plan) return 'Review your saved layer draft, or open a review from another agent.';
     const inputs = plan.spec || plan;
-    return [`Pinned layer publication · ${plan.verdict}`, ...fields.filter(key => inputs[key] != null).map(key => `${key}: ${inputs[key]}`),
-        `Context revision: ${inputs.contextRevision ?? 'unavailable'}`, `Plan revision: ${plan.revision}`,
-        `Drafted by: ${plan.draftedBy ?? 'unavailable'}`, ...(plan.blockers || []),
-        ...(run ? [`Execution: ${run.execution}`, `Evidence: ${run.evidence}`, `Applied by: ${run.appliedBy ?? 'unavailable'}`, ...(run.blockers || [])] : [])].join('\n');
+    const action = {create:'Create layer',noop:'Keep existing layer',refuse:'Publication blocked'}[plan.verdict] || 'Review required';
+    return [`${action}: ${inputs.layerName || 'Unnamed layer'}`,
+        `Service: ${inputs.serviceName || 'Unavailable'}`,
+        `Source table: ${[inputs.schema,inputs.table].filter(Boolean).join('.') || 'Unavailable'}`,
+        `Pinned environment: ${inputs.environmentName || inputs.environment || 'Unavailable'}`,
+        `Pinned target: ${inputs.targetName || inputs.targetId || 'Unavailable'}`,
+        `Execution: ${run?.execution || plan.execution || 'unknown'}`,
+        `Evidence: ${run?.evidence || plan.evidence || 'unverified'}`,
+        ...(plan.blockers || []), ...(run?.blockers || [])].join('\n');
+}
+export function reviewDetails(plan, run) {
+    if (!plan) return 'No plan selected.';
+    const inputs = plan.spec || plan;
+    const fields = {environment:'Environment ID',workspaceId:'Workspace ID',viewId:'View ID',targetId:'Target ID',connectionId:'Connection ID',contextRevision:'Context revision',bundleVersion:'Workflow bundle'};
+    return [...Object.entries(fields).filter(([key]) => inputs[key] != null).map(([key,label]) => `${label}: ${inputs[key]}`),
+        `Plan ID: ${plan.planId}`, `Plan revision: ${plan.revision}`,
+        `Drafted by: ${plan.draftedBy ?? 'unavailable'}`,
+        ...(run ? [`Run ID: ${run.runId}`, `Applied by: ${run.appliedBy ?? 'unavailable'}`] : [])].join('\n');
 }
