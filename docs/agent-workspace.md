@@ -44,3 +44,32 @@ Native AI and MCP event streams pass through incrementally after membership and 
 A pending custom-source save may replace its own cleared task only after the same editor observes the accepted project revision and source digest. Capture rejects changed view, project, mode, explicit context selection, workspace, principal or environment while that save is pending. Unsaved source remains a blocking condition; capture never reads the latest source as a fallback for an already submitted snapshot.
 
 The native bundle must advertise `workspaceAgentFeatures.toolApproval === true`. Each serialized turn clears the previous capability verdict, revalidates same-origin session metadata, reconnects discovery and refreshes the actual canonical tool catalog on the persistent SDK session. Known family selection includes `honua.workspace.local-process`; optional private DevOps tools additionally require that turn’s verified gateway capability pins. Discovery failure exposes no stale tools and never replays mutations.
+
+### Experimental GA spec review
+
+`Honua:Agent:GaSpecWorkflowEnabled` defaults to false. It exposes a review in the
+existing host conversation for canonical saved layer draft planning and revision-pinned
+layer publication plans from
+`/v1/spec/ga`. Opening a plan never applies it. Human Apply uses the existing
+operator/environment/origin-partitioned honua-server cookie session, with browser
+antiforgery validation; it does not forward the model's or operator bearer token.
+A missing or expired server human session fails closed and requires server sign-in.
+The server must also enable `GaSpec:Enabled`. The bounded bundle reader consumes
+the shared server bundle version and grammar; it maintains no second operation catalog.
+
+The review displays server inputs, attribution, verdict, execution and evidence.
+An accepted Apply response is followed by an authorized durable run read. The
+Read durable status button recovers the stored run after reconnect; event frames
+and assistant text cannot establish success. A lost Apply response preserves the
+command identity and blocks blind replay. The server uses plan ID as the durable run identity, so status reads can reconcile
+a lost response without repeating Apply. A missing record remains unknown and
+blocks replay.
+Plan IDs and revisions entered from external agents use the same review surface.
+
+This slice does not qualify a connected production journey. Exact feature selection,
+canonical workspace context availability, shared draft undo, bundle-derived pathways and acceptance
+read-back remain qualification work; existing explicit Save and draft lifecycle stay
+in the shared Studio editor.
+
+The current server prerequisite adapter fails closed with `workspace-context-unavailable`
+until the canonical workspace backend is integrated. This is an explicit GA blocker.

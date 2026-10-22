@@ -143,6 +143,16 @@
                 <label>Message <textarea class="console-input" data-workspace-prompt maxlength="16000"></textarea></label>
                 <button class="console-button" type="submit">Send</button>
             </form>
+            <section data-ga-spec-review hidden aria-label="Server change review">
+                <p>Review a layer publication plan. Apply uses your current permissions.</p>
+                <button type="button" class="console-button" data-ga-plan-current>Plan current layer draft</button>
+                <label>Plan ID <input class="console-input" data-ga-plan-id maxlength="128" /></label>
+                <label>Exact plan revision <input class="console-input" data-ga-plan-revision maxlength="256" /></label>
+                <button type="button" class="console-button" data-ga-plan-open>Open review</button>
+                <pre data-ga-plan-summary></pre>
+                <button type="button" class="console-button" data-ga-plan-apply disabled>Apply server change</button>
+                <button type="button" class="console-button" data-ga-plan-refresh>Read durable status</button>
+            </section>
             <label><input type="checkbox" checked data-workspace-follow /> Follow proposed task views</label>
             <p role="status" data-workspace-status>Start a conversation, or join an existing workspace.</p>
             <details class="console-conversation-connection">
