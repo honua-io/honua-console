@@ -76,20 +76,21 @@ until the canonical workspace backend is integrated. This is an explicit GA bloc
 
 ### Checked Studio filtering bundle
 
-The managed assets include Studio `ac42da061a6ff44bc78b4c9043978711adf9ee81`:
+The managed assets include Studio `66f2033d475a54fb6719044eb15042d71d0fe901`:
 shared source filtering for maps, charts and tables, comparable ISO date ranges,
-and preserved half-open date inputs. They were imported with the normal vendor
-script from the successful [Production Console assets + audience browser job](https://github.com/honua-io/honua-studio/actions/runs/39857730332/job/120100212717).
+preserved half-open date inputs, and local read-only audience controls for the
+same saved map/chart/table composition. They were imported with the normal vendor
+script from the successful [Production Console assets + audience browser job](https://github.com/honua-io/honua-studio/actions/runs/39860896129/job/120111006882).
 The producer passed three browser checks; the same source passed hosted typecheck,
-style, build and all 1,561 unit tests.
+style, build and all 1,565 unit tests.
 
-GitHub artifact `12461370183`, named
-`console-studio-assets-157d95c382932ef05ce774313fdaf4f2a81e3cee`, was downloaded and
+GitHub artifact `12461178407`, named
+`console-studio-assets-261bbabcb7daf25bd82714232241393315db5f83`, was downloaded and
 its archive SHA-256 verified against GitHub's digest:
-`febf36086ab8bedc893061d052032f31aefc637c99b5d813f4139f3fa0d017dc`.
+`8b007c73906c62d5329fb3ca6405de9d13a10908b2e74821824da624bad68915`.
 The PR job checked out synthetic merge
-`157d95c382932ef05ce774313fdaf4f2a81e3cee`; its Git tree
-`f38d55e170a81d10a5f4ccda76470afac234d136` exactly matches the Studio source commit
+`261bbabcb7daf25bd82714232241393315db5f83`; its Git tree
+`3af82fe719c8a4b11e4bf94eac3eeec9d09de6cd` exactly matches the Studio source commit
 recorded in the vendor manifest.
 
 The bundle's SDK provenance matches the source's pinned public `@honua/sdk-js`

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "honua.console.studio-artifact.v1",
-  "studioRevision": "ac42da061a6ff44bc78b4c9043978711adf9ee81",
+  "studioRevision": "66f2033d475a54fb6719044eb15042d71d0fe901",
   "sdkRevision": "5765b427f421dca9c42832ae450fa1c5aad882c2",
   "files": [
     {
@@ -35,18 +35,13 @@
     },
     {
       "path": "console.js",
-      "bytes": 857196,
-      "sha256": "89d6f2fa80bacdbdfbb024e94c25093ab9c3240aa8ad53d17c812f9d2de9dfe1"
+      "bytes": 907826,
+      "sha256": "e19cfa5c74cb1cc1ce7a5322281fb92bb2ed5baccdbed25f822c0e5e2b9c6070"
     },
     {
       "path": "errors-VvMCLBue.js",
       "bytes": 25513,
       "sha256": "ec175a4d07f0c13302828513699e46e49cc9c4914a6426cc43ee1d72e88cbb96"
-    },
-    {
-      "path": "filter-expression-Bt09WdR1.js",
-      "bytes": 17470,
-      "sha256": "7882dfe964bf6d85f5ea6ec6088720a8f125b080f2887cfb1e77cacefd1b10b3"
     },
     {
       "path": "LICENSE",
@@ -119,14 +114,9 @@
       "sha256": "9911fbc003ca843ba066a053c48d5fbda44278fc0c0eb3b507921b5dbc6e6b75"
     },
     {
-      "path": "studio-interactions-BylIXlQA.js",
-      "bytes": 31626,
-      "sha256": "3bc843b3efceea7327067c9a17aae1f4199ed3a57a4377c3c4627bc6aa51b8bb"
-    },
-    {
       "path": "STUDIO-PROVENANCE.json",
-      "bytes": 246692,
-      "sha256": "79ec78cc2dc2772735faa2de246f17461e9cc18c816bbb7da4941f54f320ab05"
+      "bytes": 246388,
+      "sha256": "e66d3c1e5cba80bf5bc9fbf2ded8bfff937203e47fec5ed065537cb62fcbc7ca"
     },
     {
       "path": "style.css",
