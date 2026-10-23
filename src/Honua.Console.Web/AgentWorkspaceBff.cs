@@ -274,11 +274,23 @@ internal static partial class AgentWorkspaceBff
                     cancellationToken).ConfigureAwait(false))
                 return Results.StatusCode(403);
             var transport = cookiePartition?.Client ?? clients.CreateClient("honua-agent-workspace");
+            // ResponseHeadersRead does not extend HttpClient.Timeout to body reads.
+            // Keep the complete identity read bounded even if the upstream stalls.
+            using var targetDeadline = isTargetIdentity
+                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken) : null;
+            targetDeadline?.CancelAfter(TimeSpan.FromSeconds(10));
+            var responseCancellation = targetDeadline?.Token ?? cancellationToken;
             // Once SendAsync starts, even a failed/lost response can have a durable outcome.
             if (humanGaApply) context.Response.Headers.Remove("X-Honua-Dispatch-Status");
             using var response = await transport.SendAsync(request,
-                datasetRoute is not null || ga ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead, cancellationToken);
+                datasetRoute is not null || ga || isTargetIdentity ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead, responseCancellation);
             if ((int)response.StatusCode is >= 300 and < 400) { return Results.StatusCode(502); }
+            if (isTargetIdentity)
+            {
+                if (response.Content.Headers.ContentLength > 256 * 1024) return Results.StatusCode(502);
+                var target = await AgentSessionBff.ReadBoundedJsonAsync(response.Content, responseCancellation);
+                return Results.Content(target, "application/json", statusCode: (int)response.StatusCode);
+            }
             if (datasetRoute is not null)
             {
                 if (!response.IsSuccessStatusCode)
@@ -305,6 +317,8 @@ internal static partial class AgentWorkspaceBff
             return Results.Content(System.Text.Encoding.UTF8.GetString(body), "application/json", statusCode: (int)response.StatusCode);
         }
         catch (Exception exception) when (datasetRoute is not null && IsDatasetBodyTooLarge(exception)) { return Results.StatusCode(413); }
+        catch (InvalidDataException) when (isTargetIdentity) { return Results.StatusCode(502); }
+        catch (OperationCanceledException) when (isTargetIdentity && !cancellationToken.IsCancellationRequested) { return Results.StatusCode(504); }
         catch (HttpRequestException) { return Results.StatusCode(502); }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.StatusCode(504); }
     }

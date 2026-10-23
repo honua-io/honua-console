@@ -81,6 +81,46 @@ public sealed class StudioPublicationBffTests
     }
 
     [Theory]
+    [InlineData(256 * 1024, false, HttpStatusCode.OK)]
+    [InlineData(256 * 1024 + 1, false, HttpStatusCode.BadGateway)]
+    [InlineData(256 * 1024 + 1, true, HttpStatusCode.BadGateway)]
+    public async Task NativeTargetReadBoundsKnownAndChunkedBodies(int bytes, bool contentLength, HttpStatusCode status)
+    {
+        await using var host = await Host.Start();
+        var body = "{\"padding\":\"" + new string('x', bytes - 14) + "\"}";
+        using var stream = new TargetResponseStream(System.Text.Encoding.UTF8.GetBytes(body));
+        host.Wire.ResponseContent = new StreamContent(stream);
+        if (contentLength) host.Wire.ResponseContent.Headers.ContentLength = bytes;
+        using var response = await host.Client.GetAsync("/api/studio/v1/agent/target");
+        Assert.Equal(status, response.StatusCode);
+        Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+        Assert.InRange(stream.BytesRead, 0, 256 * 1024 + 8192);
+        Assert.True(stream.IsDisposed);
+        if (status == HttpStatusCode.OK) Assert.Equal(body, await response.Content.ReadAsStringAsync());
+        else
+        {
+            Assert.Equal(string.Empty, await response.Content.ReadAsStringAsync());
+            if (contentLength) Assert.Equal(0, stream.BytesRead);
+            else Assert.True(stream.BytesRead > 256 * 1024);
+        }
+    }
+
+    [Fact]
+    public async Task NativeTargetReadCancelsAStalledBodyBeforeRelayingAnyIdentity()
+    {
+        await using var host = await Host.Start();
+        using var stream = new TargetResponseStream("{"u8.ToArray(), stallAtEnd: true);
+        host.Wire.ResponseContent = new StreamContent(stream);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        using var response = await host.Client.GetAsync("/api/studio/v1/agent/target", deadline.Token);
+        Assert.Equal(HttpStatusCode.GatewayTimeout, response.StatusCode);
+        Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+        Assert.Equal(string.Empty, await response.Content.ReadAsStringAsync());
+        Assert.True(stream.CancellationObserved);
+        Assert.True(stream.IsDisposed);
+    }
+
+    [Theory]
     [InlineData(Publication)]
     [InlineData(Rollback)]
     public async Task RetainsOriginalSubmissionIdentityAndPendingApprovalReceipt(string path)
@@ -251,6 +291,7 @@ public sealed class StudioPublicationBffTests
         public string? IdempotencyKey { get; private set; }
         public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
         public string ResponseBody { get; set; } = "{}";
+        public HttpContent? ResponseContent { get; set; }
         public int Calls { get; private set; }
         public HttpClient CreateClient(string name) => new(this, disposeHandler: false);
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -272,8 +313,38 @@ public sealed class StudioPublicationBffTests
             HumanOnly = request.Headers.Authorization?.Scheme == "Bearer" && request.Headers.Authorization.Parameter == "human-bearer"
                 && !request.Headers.Contains("X-API-Key") && !request.Headers.Contains("Cookie");
             IdempotencyKey = request.Headers.TryGetValues("Idempotency-Key", out var keys) ? keys.Single() : null;
-            return new(Status) { Content = new StringContent(ResponseBody) };
+            return new(Status) { Content = ResponseContent ?? new StringContent(ResponseBody) };
         }
+    }
+
+    private sealed class TargetResponseStream(byte[] body, bool stallAtEnd = false) : Stream
+    {
+        public int BytesRead { get; private set; }
+        public bool IsDisposed { get; private set; }
+        public bool CancellationObserved { get; private set; }
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (BytesRead == body.Length && stallAtEnd)
+            {
+                try { await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken); }
+                catch (OperationCanceledException) { CancellationObserved = true; throw; }
+            }
+            var count = Math.Min(buffer.Length, body.Length - BytesRead);
+            body.AsMemory(BytesRead, count).CopyTo(buffer);
+            BytesRead += count;
+            return count;
+        }
+        protected override void Dispose(bool disposing) { IsDisposed = true; base.Dispose(disposing); }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Flush() => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
     private sealed class Bearer : IConsoleOperatorBearerProvider
     {
