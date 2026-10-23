@@ -1,6 +1,6 @@
 {
   "schemaVersion": "honua.console.studio-artifact.v1",
-  "studioRevision": "fda6681d56b09973a6ed69939e0814fc1eeacf0b",
+  "studioRevision": "1e7902c58b7e3f586784bb616ce56ac367f6768c",
   "sdkRevision": "5765b427f421dca9c42832ae450fa1c5aad882c2",
   "files": [
     {
@@ -35,8 +35,8 @@
     },
     {
       "path": "console.js",
-      "bytes": 909812,
-      "sha256": "0e90aa6c601db8a8760748800eb08ba3503b44d5b509b6959d168ef85321f4f0"
+      "bytes": 909813,
+      "sha256": "3f546827b7cc927f63b50183efe9306312173c1a2bf635ed48bd7553c392cbc6"
     },
     {
       "path": "errors-VvMCLBue.js",
@@ -54,9 +54,9 @@
       "sha256": "22f45992fbbac596986073bf39f15834c5e37df78e338b10fde48d3bdf316caa"
     },
     {
-      "path": "maplibre-gl-worker-D_S8443I.js",
-      "bytes": 162,
-      "sha256": "479c395b051174f2af8f9b9af3c5d402e636bedd08e5974496e616584104736a"
+      "path": "maplibre-gl-worker-CTQMWz0X.js",
+      "bytes": 197,
+      "sha256": "0342df9fc64d8c299f8c93f64007308eb778caea84803b4bb6ba3c29fb8d01b0"
     },
     {
       "path": "maplibre-styles-DqdxD-wM.js",
@@ -116,7 +116,7 @@
     {
       "path": "STUDIO-PROVENANCE.json",
       "bytes": 246388,
-      "sha256": "69bee65273aa23ba444649c29ecc21290b393f0e728f6af24171d786d6e6aa71"
+      "sha256": "c2e755965735852d7a0792bb9d52e1999d147f16bbad290a29df33dc3465d774"
     },
     {
       "path": "style.css",
