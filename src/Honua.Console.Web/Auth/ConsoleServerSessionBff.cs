@@ -799,7 +799,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
     };
 }
 
-internal sealed class PartitionedConsoleOperatorBearerExchange : IConsoleOperatorBearerExchange
+internal sealed class PartitionedConsoleOperatorBearerExchange : IConsoleOperatorBearerExchange, IConsoleOperatorBearerExchangeLeaseProvider
 {
     private readonly IConsoleOperatorContext _operatorContext;
     private readonly ConsoleServerSessionClientStore _serverSessions;
@@ -819,33 +819,80 @@ internal sealed class PartitionedConsoleOperatorBearerExchange : IConsoleOperato
         ConsoleEnvironmentProfile profile,
         CancellationToken cancellationToken = default)
     {
+        using var authentication = await EnterSessionAsync(profile, cancellationToken).ConfigureAwait(false);
+        return await authentication.ExchangeAsync(profile, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IConsoleOperatorBearerExchangeLease> EnterSessionAsync(
+        ConsoleEnvironmentProfile profile,
+        CancellationToken cancellationToken = default)
+    {
         try
         {
             var operatorKey = _operatorContext.RequireOperatorKey();
             if (!_serverSessions.TryGet(operatorKey, profile, out var partition)
                 || partition is null)
             {
-                return ConsoleOperatorBearerExchangeResult.Denied(
-                    "No honua-server session is available. Sign in to the server again.");
+                return new UnavailableLease(ConsoleOperatorBearerExchangeResult.Denied(
+                    "No honua-server session is available. Sign in to the server again."));
             }
 
-            using var authentication = await partition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
-            if (_identityBinding is not null
-                && !await _identityBinding.EnsureAsync(
-                    partition, profile, operatorKey, partition.AuthenticatedProviderKey, cancellationToken).ConfigureAwait(false))
-            {
-                return ConsoleOperatorBearerExchangeResult.Denied(
-                    "The server session does not match the authenticated Console operator. Sign in again.");
-            }
-
-            return await new HttpConsoleOperatorBearerExchange(partition.Client)
-                .ExchangeAsync(profile, cancellationToken).ConfigureAwait(false);
+            var authentication = await partition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
+            return new PartitionLease(partition, profile, operatorKey, _identityBinding, authentication);
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
         {
-            return ConsoleOperatorBearerExchangeResult.Unavailable(
-                "The per-operator honua-server session is unavailable. Sign in to the server again.");
+            return new UnavailableLease(ConsoleOperatorBearerExchangeResult.Unavailable(
+                "The per-operator honua-server session is unavailable. Sign in to the server again."));
         }
+    }
+
+    private sealed class UnavailableLease(ConsoleOperatorBearerExchangeResult result) : IConsoleOperatorBearerExchangeLease
+    {
+        public Task<ConsoleOperatorBearerExchangeResult> ExchangeAsync(
+            ConsoleEnvironmentProfile profile, CancellationToken cancellationToken = default) => Task.FromResult(result);
+
+        public void Dispose() { }
+    }
+
+    private sealed class PartitionLease(
+        ConsoleServerSessionPartition partition,
+        ConsoleEnvironmentProfile boundProfile,
+        string operatorKey,
+        ConsoleServerSessionIdentityBinding? identityBinding,
+        IDisposable authentication) : IConsoleOperatorBearerExchangeLease
+    {
+        private IDisposable? _authentication = authentication;
+
+        public async Task<ConsoleOperatorBearerExchangeResult> ExchangeAsync(
+            ConsoleEnvironmentProfile profile, CancellationToken cancellationToken = default)
+        {
+            if (_authentication is null || profile.Id != boundProfile.Id || profile.ServerBaseUri != boundProfile.ServerBaseUri)
+            {
+                return ConsoleOperatorBearerExchangeResult.Unavailable("The authenticated environment scope changed.");
+            }
+
+            try
+            {
+                if (identityBinding is not null
+                    && !await identityBinding.EnsureAsync(
+                        partition, profile, operatorKey, partition.AuthenticatedProviderKey, cancellationToken).ConfigureAwait(false))
+                {
+                    return ConsoleOperatorBearerExchangeResult.Denied(
+                        "The server session does not match the authenticated Console operator. Sign in again.");
+                }
+
+                return await new HttpConsoleOperatorBearerExchange(partition.Client)
+                    .ExchangeAsync(profile, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+            {
+                return ConsoleOperatorBearerExchangeResult.Unavailable(
+                    "The per-operator honua-server session is unavailable. Sign in to the server again.");
+            }
+        }
+
+        public void Dispose() => Interlocked.Exchange(ref _authentication, null)?.Dispose();
     }
 }
 
