@@ -19,7 +19,8 @@
     "e2e:live-auth": "playwright test --config playwright.live-auth.config.ts",
     "e2e:focused": "playwright test --config playwright.focused.config.ts",
     "e2e:live-llm": "playwright test --config playwright.live-llm.config.ts",
-    "e2e:a11y": "playwright test --config playwright.a11y.config.ts"
+    "e2e:a11y": "playwright test --config playwright.a11y.config.ts",
+    "e2e:interactions": "playwright test --config playwright.interactions.config.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

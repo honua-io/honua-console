@@ -16,7 +16,7 @@ namespace Honua.Console.Web.Auth;
 /// session. The native single-operator host keeps its persistent
 /// <see cref="Honua.Console.Native.Core.Storage.JsonConsoleAccountSessionStore"/> singleton unchanged.
 /// </summary>
-public sealed class OperatorScopedAccountSessionStore : IConsoleAccountSessionStore
+public sealed class OperatorScopedAccountSessionStore : IConsoleAccountSessionStore, IConsoleAccountSessionSnapshotStore
 {
     private readonly IConsoleOperatorContext _operatorContext;
 
@@ -57,4 +57,21 @@ public sealed class OperatorScopedAccountSessionStore : IConsoleAccountSessionSt
 
     public Task ClearSessionAsync(string profileId, CancellationToken cancellationToken = default) =>
         CurrentForWrite.ClearSessionAsync(profileId, cancellationToken);
+
+    public Task<ConsoleAccountSessionSnapshot> CaptureSessionAsync(
+        string profileId, CancellationToken cancellationToken = default) =>
+        Current.CaptureSessionAsync(profileId, cancellationToken);
+
+    public Task<bool> IsCurrentSessionAsync(
+        ConsoleAccountSessionSnapshot snapshot, CancellationToken cancellationToken = default) =>
+        Current.IsCurrentSessionAsync(snapshot, cancellationToken);
+
+    public Task<bool> TryClearSessionAsync(
+        ConsoleAccountSessionSnapshot snapshot, CancellationToken cancellationToken = default) =>
+        CurrentForWrite.TryClearSessionAsync(snapshot, cancellationToken);
+
+    public Task<bool> TrySaveSessionAsync(
+        ConsoleAccountSessionSnapshot snapshot, ConsoleAccountSession session,
+        CancellationToken cancellationToken = default) =>
+        CurrentForWrite.TrySaveSessionAsync(snapshot, session, cancellationToken);
 }

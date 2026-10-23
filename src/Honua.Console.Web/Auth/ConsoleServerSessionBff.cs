@@ -28,6 +28,7 @@ internal sealed record ConsoleServerAuthPendingFlow(
 internal sealed class ConsoleServerSessionPartition : IDisposable
 {
     private long _lastAccessUnixMilliseconds;
+    private readonly SemaphoreSlim _authenticationGate = new(1, 1);
 
     public ConsoleServerSessionPartition(
         ConsoleServerSessionPartitionKey key,
@@ -44,6 +45,8 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
     public ConsoleServerSessionPartitionKey Key { get; }
 
     public CookieContainer Cookies { get; }
+
+    public string? AuthenticatedProviderKey { get; set; }
 
     public HttpClient Client { get; }
 
@@ -62,7 +65,18 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
 
     public void NoteObserver() => Observers++;
 
+    public async Task<IDisposable> EnterAuthenticationAsync(CancellationToken cancellationToken)
+    {
+        await _authenticationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        return new AuthenticationLease(_authenticationGate);
+    }
+
     public void Dispose() => Client.Dispose();
+
+    private sealed class AuthenticationLease(SemaphoreSlim gate) : IDisposable
+    {
+        public void Dispose() => gate.Release();
+    }
 }
 
 /// <summary>
@@ -190,6 +204,20 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         }
 
         removed?.Dispose();
+    }
+
+    /// <summary>Removes only the exact partition instance that completed this request.</summary>
+    public bool TryRemove(ConsoleServerSessionPartition partition)
+    {
+        ArgumentNullException.ThrowIfNull(partition);
+        lock (_gate)
+        {
+            if (!_partitions.TryGetValue(partition.Key, out var current)
+                || !ReferenceEquals(current, partition) || !_partitions.Remove(partition.Key))
+                return false;
+        }
+        partition.Dispose();
+        return true;
     }
 
     /// <summary>
@@ -429,14 +457,17 @@ internal sealed class ConsoleServerSessionBffCoordinator
     private readonly IConsoleAccountSessionStore _sessions;
     private readonly ConsoleServerSessionClientStore _serverSessions;
     private readonly TimeProvider _timeProvider;
+    private readonly ConsoleServerSessionIdentityBinding? _identityBinding;
 
     public ConsoleServerSessionBffCoordinator(
         IConsoleOperatorContext operatorContext,
         IConsoleEnvironmentProfileStore profiles,
         IConsoleAccountSessionStore sessions,
         ConsoleServerSessionClientStore serverSessions,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ConsoleServerSessionIdentityBinding? identityBinding = null)
     {
+        _identityBinding = identityBinding;
         _operatorContext = operatorContext ?? throw new ArgumentNullException(nameof(operatorContext));
         _profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
@@ -604,6 +635,12 @@ internal sealed class ConsoleServerSessionBffCoordinator
         try
         {
             var partition = _serverSessions.GetOrCreate(operatorKey, profile);
+            using var authentication = await partition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
+            var snapshots = _sessions as IConsoleAccountSessionSnapshotStore;
+            var snapshot = snapshots is null ? null
+                : await snapshots.CaptureSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
+            var existing = snapshot is not null ? snapshot.Session
+                : await _sessions.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
             using var tokenResponse = await partition.Client.PostAsJsonAsync(
                 ConsoleServerHttp.BuildUri(
                     profile.ServerBaseUri,
@@ -621,6 +658,14 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 return Denied("honua-server rejected the operator sign-in response.", pending.ReturnTo);
             }
 
+            if (_identityBinding is not null
+                && !await _identityBinding.EnsureAsync(
+                    partition, profile, operatorKey, pending.ProviderKey, cancellationToken).ConfigureAwait(false))
+            {
+                return Denied("The server session does not match the authenticated Console operator.", pending.ReturnTo);
+            }
+
+            partition.AuthenticatedProviderKey = pending.ProviderKey;
             var exchange = await new HttpConsoleOperatorBearerExchange(partition.Client)
                 .ExchangeAsync(profile, cancellationToken).ConfigureAwait(false);
             if (exchange.Status != ConsoleOperatorBearerExchangeStatus.Issued
@@ -632,8 +677,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
                     : Unavailable(exchange.Message, pending.ReturnTo);
             }
 
-            var existing = await _sessions.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
-            await _sessions.SaveSessionAsync((existing ?? new ConsoleAccountSession
+            var updatedSession = (existing ?? new ConsoleAccountSession
             {
                 ProfileId = profile.Id,
                 AccountId = operatorKey,
@@ -646,7 +690,19 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 AccessToken = exchange.AccessToken,
                 ServerBaseUri = profile.ServerBaseUri,
                 AccessTokenExpiresAt = expiresAt
-            }, cancellationToken).ConfigureAwait(false);
+            };
+            if (snapshots is not null && snapshot is not null)
+            {
+                if (!await snapshots.TrySaveSessionAsync(snapshot, updatedSession, cancellationToken).ConfigureAwait(false))
+                {
+                    _serverSessions.TryRemove(partition);
+                    return Denied("The Console operator session changed during sign-in. Sign in again.", pending.ReturnTo);
+                }
+            }
+            else
+            {
+                await _sessions.SaveSessionAsync(updatedSession, cancellationToken).ConfigureAwait(false);
+            }
 
             return new ConsoleServerSignInResult
             {
@@ -747,35 +803,48 @@ internal sealed class PartitionedConsoleOperatorBearerExchange : IConsoleOperato
 {
     private readonly IConsoleOperatorContext _operatorContext;
     private readonly ConsoleServerSessionClientStore _serverSessions;
+    private readonly ConsoleServerSessionIdentityBinding? _identityBinding;
 
     public PartitionedConsoleOperatorBearerExchange(
         IConsoleOperatorContext operatorContext,
-        ConsoleServerSessionClientStore serverSessions)
+        ConsoleServerSessionClientStore serverSessions,
+        ConsoleServerSessionIdentityBinding? identityBinding = null)
     {
+        _identityBinding = identityBinding;
         _operatorContext = operatorContext ?? throw new ArgumentNullException(nameof(operatorContext));
         _serverSessions = serverSessions ?? throw new ArgumentNullException(nameof(serverSessions));
     }
 
-    public Task<ConsoleOperatorBearerExchangeResult> ExchangeAsync(
+    public async Task<ConsoleOperatorBearerExchangeResult> ExchangeAsync(
         ConsoleEnvironmentProfile profile,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            if (!_serverSessions.TryGet(_operatorContext.RequireOperatorKey(), profile, out var partition)
+            var operatorKey = _operatorContext.RequireOperatorKey();
+            if (!_serverSessions.TryGet(operatorKey, profile, out var partition)
                 || partition is null)
             {
-                return Task.FromResult(ConsoleOperatorBearerExchangeResult.Denied(
-                    "No honua-server session is available. Sign in to the server again."));
+                return ConsoleOperatorBearerExchangeResult.Denied(
+                    "No honua-server session is available. Sign in to the server again.");
             }
 
-            return new HttpConsoleOperatorBearerExchange(partition.Client)
-                .ExchangeAsync(profile, cancellationToken);
+            using var authentication = await partition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
+            if (_identityBinding is not null
+                && !await _identityBinding.EnsureAsync(
+                    partition, profile, operatorKey, partition.AuthenticatedProviderKey, cancellationToken).ConfigureAwait(false))
+            {
+                return ConsoleOperatorBearerExchangeResult.Denied(
+                    "The server session does not match the authenticated Console operator. Sign in again.");
+            }
+
+            return await new HttpConsoleOperatorBearerExchange(partition.Client)
+                .ExchangeAsync(profile, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
         {
-            return Task.FromResult(ConsoleOperatorBearerExchangeResult.Unavailable(
-                "The per-operator honua-server session is unavailable. Sign in to the server again."));
+            return ConsoleOperatorBearerExchangeResult.Unavailable(
+                "The per-operator honua-server session is unavailable. Sign in to the server again.");
         }
     }
 }
@@ -787,6 +856,7 @@ internal static class ConsoleServerSessionBffExtensions
         ArgumentNullException.ThrowIfNull(builder);
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddSingleton<ConsoleServerSessionClientStore>();
+        builder.Services.TryAddSingleton<ConsoleServerSessionIdentityBinding>();
         builder.Services.TryAddSingleton<ConsoleServerSessionBffCoordinator>();
         builder.Services.Replace(ServiceDescriptor.Singleton<IConsoleOperatorBearerExchange,
             PartitionedConsoleOperatorBearerExchange>());

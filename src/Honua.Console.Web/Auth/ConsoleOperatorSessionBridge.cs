@@ -102,6 +102,11 @@ public sealed class ConsoleOperatorSessionBridge
         //     the bearer provider still enforces expiry and re-exchange downstream.
         //  3. With neither a forwarded bearer nor a preserved one, write the non-forwardable session
         //     sentinel: authenticated to the Console, privileged server requests require exchange/reauthentication.
+        var snapshots = _sessions as IConsoleAccountSessionSnapshotStore;
+        var snapshot = snapshots is null ? null
+            : await snapshots.CaptureSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
+        var existing = snapshot is not null ? snapshot.Session
+            : await _sessions.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
         string accessToken;
         DateTimeOffset? accessTokenExpiresAt = null;
         Uri? credentialServer = profile.ServerBaseUri;
@@ -112,7 +117,6 @@ public sealed class ConsoleOperatorSessionBridge
         }
         else
         {
-            var existing = await _sessions.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
             if (existing is not null && !ConsoleAuthConstants.IsSessionSentinel(existing.AccessToken)
                 && !string.IsNullOrWhiteSpace(existing.AccessToken))
             {
@@ -147,7 +151,7 @@ public sealed class ConsoleOperatorSessionBridge
             }
         }
 
-        await _sessions.SaveSessionAsync(new ConsoleAccountSession
+        var updatedSession = new ConsoleAccountSession
         {
             ProfileId = profile.Id,
             AccountId = accountId,
@@ -156,7 +160,20 @@ public sealed class ConsoleOperatorSessionBridge
             AccessToken = accessToken,
             ServerBaseUri = credentialServer,
             AccessTokenExpiresAt = accessTokenExpiresAt
-        }, cancellationToken).ConfigureAwait(false);
+        };
+        if (updatedSession == existing)
+        {
+            return;
+        }
+
+        if (snapshots is not null && snapshot is not null)
+        {
+            await snapshots.TrySaveSessionAsync(snapshot, updatedSession, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            await _sessions.SaveSessionAsync(updatedSession, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private static bool IsSameOrigin(Uri profileServer, Uri? trustedServer) =>

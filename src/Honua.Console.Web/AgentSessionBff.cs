@@ -43,8 +43,11 @@ internal sealed class AgentMcpSessions
 
 internal static class AgentSessionBff
 {
-    internal static bool MatchesSessionPartition(Microsoft.Extensions.Primitives.StringValues partition, string operatorKey, string profileId, Uri? serverBase = null) =>
-        partition.Count == 1 && string.Equals(partition[0], AgentGatewayBinding.OperatorPartition(operatorKey, profileId, serverBase), StringComparison.Ordinal);
+    internal static bool MatchesSessionPartition(Microsoft.Extensions.Primitives.StringValues partition, string operatorKey, string profileId, Uri? serverBase = null)
+    {
+        if (partition.Count != 1) return false;
+        return string.Equals(partition[0], AgentGatewayBinding.OperatorPartition(operatorKey, profileId, serverBase), StringComparison.Ordinal);
+    }
 
     internal static async Task<string> ReadBoundedJsonAsync(HttpContent content, CancellationToken cancellationToken)
     {

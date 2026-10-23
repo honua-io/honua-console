@@ -31,6 +31,7 @@ internal static partial class AgentWorkspaceBff
             return Results.Json(new
             {
                 authenticated = true,
+                gaSpecWorkflow = configuration.GetValue<bool>("Honua:Agent:GaSpecWorkflowEnabled"),
                 maxArtifactUploadBytes = ProcessArtifactFileMaximumBytes,
                 importTransportResumable = false,
                 // The scoped transport key remains installed for an external MCP agent even when
@@ -49,6 +50,13 @@ internal static partial class AgentWorkspaceBff
             });
         });
 
+        app.MapMethods("/api/agent-workspace/ga/{**path}", ["GET", "POST"],
+            (HttpContext context, string? path, IConfiguration configuration,
+                IConsoleEnvironmentProfileStore profiles, IConsoleOperatorBearerProvider bearers,
+                IConsoleAccountSessionStore sessions, IHttpClientFactory clients, IAntiforgery antiforgery,
+                CancellationToken token) => configuration.GetValue<bool>("Honua:Agent:GaSpecWorkflowEnabled")
+                    ? ForwardAsync(context, path, false, profiles, bearers, sessions, clients, antiforgery, token, ga: true)
+                    : Task.FromResult<IResult>(Results.NotFound()));
         app.MapPost("/api/agent-workspace", (HttpContext context,
             IConsoleEnvironmentProfileStore profiles, IConsoleOperatorBearerProvider bearers,
             IConsoleAccountSessionStore sessions, IHttpClientFactory clients, IAntiforgery antiforgery,
@@ -73,9 +81,20 @@ internal static partial class AgentWorkspaceBff
     private static async Task<IResult> ForwardAsync(HttpContext context, string? path, bool studio,
         IConsoleEnvironmentProfileStore profiles, IConsoleOperatorBearerProvider bearers,
         IConsoleAccountSessionStore sessions, IHttpClientFactory clients, IAntiforgery antiforgery,
-        CancellationToken cancellationToken, bool processes = false)
+        CancellationToken cancellationToken, bool processes = false, bool ga = false)
     {
         context.Response.Headers.CacheControl = "no-store";
+        var humanGaApply = ga && path?.EndsWith("/apply", StringComparison.Ordinal) == true;
+        if (humanGaApply) context.Response.Headers["X-Honua-Dispatch-Status"] = "not-dispatched";
+        if (ga)
+        {
+            var valid = path is not null && (HttpMethods.IsGet(context.Request.Method)
+                ? Regex.IsMatch(path, @"\A(?:bundle|(?:plans|runs)/[A-Za-z0-9_-]{1,128})\z")
+                : Regex.IsMatch(path, @"\A(?:plans|plans/[A-Za-z0-9_-]{1,128}/apply)\z"));
+            if (!valid) return Results.NotFound();
+            if (context.Request.Query.Any(item => item.Key != "revision" || item.Value.Count != 1
+                || item.Value.ToString().Length > 256)) return Results.BadRequest();
+        }
         string? processPath = null;
         var datasetRoute = !studio && !processes ? ReadDatasetImportRoute(path) : null;
         var isPublicationReceipt = studio && path is not null && StudioPublicationReceiptPath().IsMatch(path);
@@ -85,10 +104,11 @@ internal static partial class AgentWorkspaceBff
         if (datasetRoute is null && !studio && !processes && HttpMethods.IsDelete(context.Request.Method)) return Results.StatusCode(405);
         if (datasetRoute is not null && !TryDatasetImportQuery(datasetRoute, context.Request.Method, context.Request.Query,
                 out datasetQuery, out datasetContentHash)) return Results.BadRequest();
-        if (path is null || (path.Length == 0 ? !HttpMethods.IsPost(context.Request.Method) : !(processes ? TryBuildProcessPath(path, out processPath) : (studio ? StudioPath() : WorkspacePath()).IsMatch(path) || datasetRoute is not null || isPublicationReceipt)))
+        if (!ga && (path is null || (path.Length == 0 ? !HttpMethods.IsPost(context.Request.Method) : !(processes ? TryBuildProcessPath(path, out processPath) : (studio ? StudioPath() : WorkspacePath()).IsMatch(path) || datasetRoute is not null || isPublicationReceipt))))
         {
             return Results.NotFound();
         }
+        path ??= "";
         if (processes && !AllowsProcessMethod(path, context.Request.Method)) return Results.StatusCode(405);
         if (isPublicationReceipt && !HttpMethods.IsGet(context.Request.Method)) return Results.StatusCode(405);
         if (!HttpMethods.IsGet(context.Request.Method))
@@ -120,7 +140,9 @@ internal static partial class AgentWorkspaceBff
             : isStyleWrite ? 1024 * 1024 : 256 * 1024;
         var isImportUpload = processes && path == "admin/import/upload";
         if (context.Request.ContentLength > (isImportUpload ? ProcessImportBodyMaximumBytes : bodyLimit)) { return Results.StatusCode(413); }
-        var upstreamPath = processes ? $"api/v1/{processPath}" : studio ? (path == "health" ? "health" : $"api/{path}") : $"api/v1/agent/workspaces/{path}";
+        var upstreamPath = ga ? $"v1/spec/ga/{path}" : processes ? $"api/v1/{processPath}" : studio ? (path == "health" ? "health" : $"api/{path}") : $"api/v1/agent/workspaces/{path}";
+        if (ga && context.Request.Query.TryGetValue("revision", out var gaRevision))
+            upstreamPath += "?revision=" + Uri.EscapeDataString(gaRevision.ToString());
         if (datasetRoute is not null) upstreamPath += datasetQuery;
         if (studio)
         {
@@ -165,7 +187,8 @@ internal static partial class AgentWorkspaceBff
             if (!Regex.IsMatch(key, @"\A[A-Za-z0-9_-]{1,128}\z")) { return Results.BadRequest(); }
             request.Headers.TryAddWithoutValidation("Idempotency-Key", key);
         }
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credential.AccessToken);
+        if (!humanGaApply)
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credential.AccessToken);
         // Do not relay arbitrary query strings, identity headers, cookies, API keys or redirect destinations.
         byte[]? datasetRequestBody = null;
         if (datasetRoute?.IsChunk == true)
@@ -229,8 +252,26 @@ internal static partial class AgentWorkspaceBff
         }
         try
         {
-            using var response = await clients.CreateClient("honua-agent-workspace").SendAsync(request,
-                datasetRoute is not null ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead, cancellationToken);
+            ConsoleServerSessionPartition? cookiePartition = null;
+            if (humanGaApply)
+            {
+                var operatorKey = context.RequestServices.GetRequiredService<IConsoleOperatorContext>().RequireOperatorKey();
+                if (!context.RequestServices.GetRequiredService<ConsoleServerSessionClientStore>()
+                    .TryGet(operatorKey, profile, out cookiePartition) || cookiePartition is null)
+                    return Results.StatusCode(401);
+            }
+            using var authentication = cookiePartition is null ? null
+                : await cookiePartition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
+            if (cookiePartition is not null
+                && !await context.RequestServices.GetRequiredService<ConsoleServerSessionIdentityBinding>().EnsureAsync(
+                    cookiePartition, profile, cookiePartition.Key.OperatorKey, cookiePartition.AuthenticatedProviderKey,
+                    cancellationToken).ConfigureAwait(false))
+                return Results.StatusCode(403);
+            var transport = cookiePartition?.Client ?? clients.CreateClient("honua-agent-workspace");
+            // Once SendAsync starts, even a failed/lost response can have a durable outcome.
+            if (humanGaApply) context.Response.Headers.Remove("X-Honua-Dispatch-Status");
+            using var response = await transport.SendAsync(request,
+                datasetRoute is not null || ga ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead, cancellationToken);
             if ((int)response.StatusCode is >= 300 and < 400) { return Results.StatusCode(502); }
             if (datasetRoute is not null)
             {
@@ -244,6 +285,15 @@ internal static partial class AgentWorkspaceBff
                 if (!TryProjectDatasetResponse(datasetRoute, datasetContentHash, datasetRequestBody ?? [], buffer.ToArray(), out var projected))
                     return Results.StatusCode(502);
                 return Results.Content(projected, "application/json", statusCode: (int)response.StatusCode);
+            }
+            if (ga)
+            {
+                await using var gaBody = await response.Content.ReadAsStreamAsync(cancellationToken);
+                using var limited = new DatasetImportBoundedStream(gaBody, 128 * 1024);
+                using var buffer = new MemoryStream();
+                try { await limited.CopyToAsync(buffer, cancellationToken); }
+                catch (DatasetImportBodyTooLargeException) { return Results.StatusCode(502); }
+                return Results.Content(System.Text.Encoding.UTF8.GetString(buffer.ToArray()), "application/json", statusCode: (int)response.StatusCode);
             }
             var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
             return Results.Content(System.Text.Encoding.UTF8.GetString(body), "application/json", statusCode: (int)response.StatusCode);
