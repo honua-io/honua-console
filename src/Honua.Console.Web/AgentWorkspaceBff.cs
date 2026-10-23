@@ -98,17 +98,23 @@ internal static partial class AgentWorkspaceBff
         string? processPath = null;
         var datasetRoute = !studio && !processes ? ReadDatasetImportRoute(path) : null;
         var isPublicationReceipt = studio && path is not null && StudioPublicationReceiptPath().IsMatch(path);
+        var isTargetIdentity = studio && path == "v1/agent/target";
+        if (isTargetIdentity) context.Response.Headers.CacheControl = "no-store";
         string datasetQuery = "";
         string? datasetContentHash = null;
         if (datasetRoute is not null && !datasetRoute.Allows(context.Request.Method)) return Results.StatusCode(405);
         if (datasetRoute is null && !studio && !processes && HttpMethods.IsDelete(context.Request.Method)) return Results.StatusCode(405);
         if (datasetRoute is not null && !TryDatasetImportQuery(datasetRoute, context.Request.Method, context.Request.Query,
                 out datasetQuery, out datasetContentHash)) return Results.BadRequest();
-        if (!ga && (path is null || (path.Length == 0 ? !HttpMethods.IsPost(context.Request.Method) : !(processes ? TryBuildProcessPath(path, out processPath) : (studio ? StudioPath() : WorkspacePath()).IsMatch(path) || datasetRoute is not null || isPublicationReceipt))))
+        if (!ga && (path is null || (path.Length == 0 ? !HttpMethods.IsPost(context.Request.Method) : !(processes ? TryBuildProcessPath(path, out processPath) : (studio ? StudioPath() : WorkspacePath()).IsMatch(path) || datasetRoute is not null || isPublicationReceipt || isTargetIdentity))))
         {
             return Results.NotFound();
         }
         path ??= "";
+        // Relay the native authenticated principal projection without inventing
+        // a browser-side human claim or opening other agent administration paths.
+        if (isTargetIdentity && !HttpMethods.IsGet(context.Request.Method)) return Results.StatusCode(405);
+        if (isTargetIdentity && context.Request.Query.Count > 0) return Results.BadRequest();
         if (processes && !AllowsProcessMethod(path, context.Request.Method)) return Results.StatusCode(405);
         if (isPublicationReceipt && !HttpMethods.IsGet(context.Request.Method)) return Results.StatusCode(405);
         if (!HttpMethods.IsGet(context.Request.Method))
@@ -268,11 +274,23 @@ internal static partial class AgentWorkspaceBff
                     cancellationToken).ConfigureAwait(false))
                 return Results.StatusCode(403);
             var transport = cookiePartition?.Client ?? clients.CreateClient("honua-agent-workspace");
+            // ResponseHeadersRead does not extend HttpClient.Timeout to body reads.
+            // Keep the complete identity read bounded even if the upstream stalls.
+            using var targetDeadline = isTargetIdentity
+                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken) : null;
+            targetDeadline?.CancelAfter(TimeSpan.FromSeconds(10));
+            var responseCancellation = targetDeadline?.Token ?? cancellationToken;
             // Once SendAsync starts, even a failed/lost response can have a durable outcome.
             if (humanGaApply) context.Response.Headers.Remove("X-Honua-Dispatch-Status");
             using var response = await transport.SendAsync(request,
-                datasetRoute is not null || ga ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead, cancellationToken);
+                datasetRoute is not null || ga || isTargetIdentity ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead, responseCancellation);
             if ((int)response.StatusCode is >= 300 and < 400) { return Results.StatusCode(502); }
+            if (isTargetIdentity)
+            {
+                if (response.Content.Headers.ContentLength > 256 * 1024) return Results.StatusCode(502);
+                var target = await AgentSessionBff.ReadBoundedJsonAsync(response.Content, responseCancellation);
+                return Results.Content(target, "application/json", statusCode: (int)response.StatusCode);
+            }
             if (datasetRoute is not null)
             {
                 if (!response.IsSuccessStatusCode)
@@ -299,6 +317,8 @@ internal static partial class AgentWorkspaceBff
             return Results.Content(System.Text.Encoding.UTF8.GetString(body), "application/json", statusCode: (int)response.StatusCode);
         }
         catch (Exception exception) when (datasetRoute is not null && IsDatasetBodyTooLarge(exception)) { return Results.StatusCode(413); }
+        catch (InvalidDataException) when (isTargetIdentity) { return Results.StatusCode(502); }
+        catch (OperationCanceledException) when (isTargetIdentity && !cancellationToken.IsCancellationRequested) { return Results.StatusCode(504); }
         catch (HttpRequestException) { return Results.StatusCode(502); }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.StatusCode(504); }
     }
