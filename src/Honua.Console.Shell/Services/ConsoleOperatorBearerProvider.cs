@@ -139,7 +139,11 @@ public sealed class ConsoleOperatorBearerProvider : IConsoleOperatorBearerProvid
     {
         ArgumentNullException.ThrowIfNull(profile);
 
-        var session = await _sessions.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
+        var snapshots = _sessions as IConsoleAccountSessionSnapshotStore;
+        var snapshot = snapshots is null ? null
+            : await snapshots.CaptureSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
+        var session = snapshot is not null ? snapshot.Session
+            : await _sessions.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
         if (profile.Account.AuthMode == ConsoleAccountAuthMode.Anonymous)
         {
             return Missing(session is not null, profile, "The active profile is anonymous.");
@@ -160,6 +164,12 @@ public sealed class ConsoleOperatorBearerProvider : IConsoleOperatorBearerProvid
             && (session.AccessTokenExpiresAt is null
                 || session.AccessTokenExpiresAt > now.Add(ExpirySafetyWindow)))
         {
+            if (snapshots is not null && snapshot is not null
+                && !await snapshots.IsCurrentSessionAsync(snapshot, cancellationToken).ConfigureAwait(false))
+            {
+                return Missing(hasInteractiveSession: false, profile, "The operator session changed. Sign in again.");
+            }
+
             return new ConsoleOperatorBearerResolution
             {
                 AccessToken = session.AccessToken,
@@ -180,7 +190,17 @@ public sealed class ConsoleOperatorBearerProvider : IConsoleOperatorBearerProvid
                 ServerBaseUri = profile.ServerBaseUri,
                 AccessTokenExpiresAt = expiresAt
             };
-            await _sessions.SaveSessionAsync(refreshed, cancellationToken).ConfigureAwait(false);
+            if (snapshots is not null && snapshot is not null)
+            {
+                if (!await snapshots.TrySaveSessionAsync(snapshot, refreshed, cancellationToken).ConfigureAwait(false))
+                {
+                    return Missing(hasInteractiveSession: false, profile, "The operator session changed. Sign in again.");
+                }
+            }
+            else
+            {
+                await _sessions.SaveSessionAsync(refreshed, cancellationToken).ConfigureAwait(false);
+            }
 
             return new ConsoleOperatorBearerResolution
             {

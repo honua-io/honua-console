@@ -622,6 +622,11 @@ internal sealed class ConsoleServerSessionBffCoordinator
         {
             var partition = _serverSessions.GetOrCreate(operatorKey, profile);
             using var authentication = await partition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
+            var snapshots = _sessions as IConsoleAccountSessionSnapshotStore;
+            var snapshot = snapshots is null ? null
+                : await snapshots.CaptureSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
+            var existing = snapshot is not null ? snapshot.Session
+                : await _sessions.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
             using var tokenResponse = await partition.Client.PostAsJsonAsync(
                 ConsoleServerHttp.BuildUri(
                     profile.ServerBaseUri,
@@ -658,8 +663,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
                     : Unavailable(exchange.Message, pending.ReturnTo);
             }
 
-            var existing = await _sessions.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
-            await _sessions.SaveSessionAsync((existing ?? new ConsoleAccountSession
+            var updatedSession = (existing ?? new ConsoleAccountSession
             {
                 ProfileId = profile.Id,
                 AccountId = operatorKey,
@@ -672,7 +676,19 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 AccessToken = exchange.AccessToken,
                 ServerBaseUri = profile.ServerBaseUri,
                 AccessTokenExpiresAt = expiresAt
-            }, cancellationToken).ConfigureAwait(false);
+            };
+            if (snapshots is not null && snapshot is not null)
+            {
+                if (!await snapshots.TrySaveSessionAsync(snapshot, updatedSession, cancellationToken).ConfigureAwait(false))
+                {
+                    _serverSessions.Remove(operatorKey, profile);
+                    return Denied("The Console operator session changed during sign-in. Sign in again.", pending.ReturnTo);
+                }
+            }
+            else
+            {
+                await _sessions.SaveSessionAsync(updatedSession, cancellationToken).ConfigureAwait(false);
+            }
 
             return new ConsoleServerSignInResult
             {

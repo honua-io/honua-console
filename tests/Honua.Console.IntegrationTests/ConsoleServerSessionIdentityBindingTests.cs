@@ -157,6 +157,111 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         Assert.Equal(new[] { "session", "bearer", "token", "session", "bearer" }, harness.Handler.Requests);
     }
 
+    [Fact]
+    public async Task Invalidation_WhileBridgeWriteIsPaused_DoesNotRestoreThePreviousBearer()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.SignInAsync();
+        await harness.Profiles.ActivateProfileAsync("env");
+        var begin = await harness.Coordinator.BeginSignInAsync("env", null, "/operate");
+        var state = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(begin.RedirectUri).Query)["state"];
+        harness.Sessions.PauseNextWrite = true;
+        var bridge = new ConsoleOperatorSessionBridge(harness.Profiles, harness.Sessions);
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "operator-a"), new Claim(ClaimTypes.Name, "Updated display")], "EdgeForwarded"));
+        var sync = bridge.SyncAsync(principal);
+        await harness.Sessions.WriteEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            harness.Handler.SessionJson = InvalidSession("subject");
+            var callback = await harness.Coordinator.CompleteSignInAsync("code", state, null);
+            Assert.Equal(ConsoleServerSignInStatus.Denied, callback.Status);
+        }
+        finally
+        {
+            harness.Sessions.ReleaseWrite.TrySetResult();
+        }
+        await sync;
+
+        Assert.Null(await harness.Sessions.GetSessionAsync("env"));
+        Assert.False(harness.Partitions.TryGet("operator-a", Profile("env"), out _));
+    }
+
+    [Fact]
+    public async Task Invalidation_AfterExchangeBeforeProviderPersistence_DiscardsTheIssuedResult()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.SignInAsync();
+        await harness.ExpireBearerAsync();
+        var begin = await harness.Coordinator.BeginSignInAsync("env", null, "/operate");
+        var state = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(begin.RedirectUri).Query)["state"];
+        harness.Sessions.PauseNextWrite = true;
+        var refresh = harness.Bearers.ResolveAsync(Profile("env"));
+        await harness.Sessions.WriteEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            harness.Handler.SessionJson = InvalidSession("subject");
+            var callback = await harness.Coordinator.CompleteSignInAsync("code", state, null);
+            Assert.Equal(ConsoleServerSignInStatus.Denied, callback.Status);
+        }
+        finally
+        {
+            harness.Sessions.ReleaseWrite.TrySetResult();
+        }
+
+        Assert.Null((await refresh).AccessToken);
+        Assert.Null(await harness.Sessions.GetSessionAsync("env"));
+        Assert.False(harness.Partitions.TryGet("operator-a", Profile("env"), out _));
+    }
+
+    [Fact]
+    public async Task Invalidation_AfterCachedReadBeforeReturn_DoesNotReturnTheOldBearer()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.SignInAsync();
+        harness.Sessions.PauseNextCapture = true;
+        var resolution = harness.Bearers.ResolveAsync(Profile("env"));
+        await harness.Sessions.CaptureEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await harness.Sessions.ClearSessionAsync("env");
+        harness.Sessions.ReleaseCapture.TrySetResult();
+
+        Assert.Null((await resolution).AccessToken);
+        Assert.Null(await harness.Sessions.GetSessionAsync("env"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SessionSnapshot_ClearRejectsEarlierWritesIncludingAnAbsentSession(bool initialSession)
+    {
+        var store = new InMemoryConsoleAccountSessionStore();
+        var session = new ConsoleAccountSession { ProfileId = "env", AccountId = "operator-a", AccessToken = "bearer" };
+        if (initialSession)
+        {
+            await store.SaveSessionAsync(session);
+        }
+        var snapshot = await store.CaptureSessionAsync("env");
+        await store.ClearSessionAsync("env");
+
+        Assert.False(await store.IsCurrentSessionAsync(snapshot));
+        Assert.False(await store.TrySaveSessionAsync(snapshot, session));
+        Assert.Null(await store.GetSessionAsync("env"));
+    }
+
+    [Fact]
+    public async Task SessionSnapshot_PartitionEvictionRejectsTheOldStoreSnapshot()
+    {
+        var context = new OperatorContext();
+        var store = new OperatorScopedAccountSessionStore(context);
+        var session = new ConsoleAccountSession { ProfileId = "env", AccountId = "operator-a", AccessToken = "bearer" };
+        await store.SaveSessionAsync(session);
+        var snapshot = await store.CaptureSessionAsync("env");
+        store.EvictOperator("operator-a");
+
+        Assert.False(await store.TrySaveSessionAsync(snapshot, session));
+        Assert.Null(await store.GetSessionAsync("env"));
+    }
+
     [Theory]
     [InlineData("subject")]
     [InlineData("issuer")]
@@ -344,7 +449,7 @@ public sealed class ConsoleServerSessionIdentityBindingTests
     {
         private readonly OperatorContext _context = new();
         public OperatorScopedEnvironmentProfileStore Profiles { get; }
-        public OperatorScopedAccountSessionStore Sessions { get; }
+        public PausingSessionStore Sessions { get; }
         public ConsoleServerSessionClientStore Partitions { get; }
         public SimulatedServer Handler { get; private set; } = null!;
         public ConsoleOperatorBearerProvider Bearers { get; }
@@ -353,7 +458,7 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         private Harness(bool bindIdentity)
         {
             Profiles = new(_context);
-            Sessions = new(_context);
+            Sessions = new(new OperatorScopedAccountSessionStore(_context));
             Partitions = new(TimeProvider.System, (key, cookies) =>
             {
                 var handler = new SimulatedServer(cookies);
@@ -389,6 +494,61 @@ public sealed class ConsoleServerSessionIdentityBindingTests
             (await Sessions.GetSessionAsync("env"))! with { AccessTokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1) });
 
         public ValueTask DisposeAsync() => Partitions.DisposeAsync();
+    }
+
+    private sealed class PausingSessionStore(OperatorScopedAccountSessionStore inner)
+        : IConsoleAccountSessionStore, IConsoleAccountSessionSnapshotStore
+    {
+        public bool PauseNextWrite { get; set; }
+        public bool PauseNextCapture { get; set; }
+        public TaskCompletionSource WriteEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseWrite { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource CaptureEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseCapture { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<ConsoleAccountSession?> GetSessionAsync(string profileId, CancellationToken cancellationToken = default) =>
+            inner.GetSessionAsync(profileId, cancellationToken);
+
+        public async Task SaveSessionAsync(ConsoleAccountSession session, CancellationToken cancellationToken = default)
+        {
+            await PauseWriteAsync(cancellationToken);
+            await inner.SaveSessionAsync(session, cancellationToken);
+        }
+
+        public Task ClearSessionAsync(string profileId, CancellationToken cancellationToken = default) =>
+            inner.ClearSessionAsync(profileId, cancellationToken);
+
+        public async Task<ConsoleAccountSessionSnapshot> CaptureSessionAsync(string profileId, CancellationToken cancellationToken = default)
+        {
+            var snapshot = await inner.CaptureSessionAsync(profileId, cancellationToken);
+            if (PauseNextCapture)
+            {
+                PauseNextCapture = false;
+                CaptureEntered.TrySetResult();
+                await ReleaseCapture.Task.WaitAsync(cancellationToken);
+            }
+            return snapshot;
+        }
+
+        public Task<bool> IsCurrentSessionAsync(ConsoleAccountSessionSnapshot snapshot, CancellationToken cancellationToken = default) =>
+            inner.IsCurrentSessionAsync(snapshot, cancellationToken);
+
+        public async Task<bool> TrySaveSessionAsync(ConsoleAccountSessionSnapshot snapshot, ConsoleAccountSession session,
+            CancellationToken cancellationToken = default)
+        {
+            await PauseWriteAsync(cancellationToken);
+            return await inner.TrySaveSessionAsync(snapshot, session, cancellationToken);
+        }
+
+        private async Task PauseWriteAsync(CancellationToken cancellationToken)
+        {
+            if (PauseNextWrite)
+            {
+                PauseNextWrite = false;
+                WriteEntered.TrySetResult();
+                await ReleaseWrite.Task.WaitAsync(cancellationToken);
+            }
+        }
     }
 
     private sealed class SimulatedServer(CookieContainer cookies) : HttpMessageHandler
