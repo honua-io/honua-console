@@ -167,6 +167,19 @@ authenticated Console cookie provide login-CSRF protection; callback state expir
 and is consumed once. Sign-out clears only the current operator's Console bearers, pending flows, and
 server cookie jars.
 
+For hosted deployments where the edge and the server admin broker authenticate against
+the same OIDC issuer, set
+`Honua__Console__Auth__EdgeForwarded__ServerSessionIssuer` to that exact HTTPS issuer
+(for Cognito, the user-pool issuer URL). Configure the trusted proxy's user header as
+the raw OIDC `sub`. Console requires a fresh trusted edge assertion with one subject
+on each request; email and an existing Console cookie do not substitute for it.
+Before issuing or refreshing a server bearer, the BFF reads the actual authenticated
+server cookie session and requires the same issuer, subject and selected provider,
+with an unexpired session. A missing, conflicting or mismatched identity clears the
+profile's bearer and discards its server cookie partition. Issuer and subject comparisons
+are exact; the BFF does not decode an unverified token for identity. Leave the issuer
+setting empty when environment profiles intentionally use independent identities.
+
 Cookie jars are deliberately not durable. A Console restart, eight hours of inactivity, profile
 origin change, or server-session expiry drops the upstream session and requires sign-in again. This
 keeps server cookies out of storage while preserving bounded refresh during a live operator session.

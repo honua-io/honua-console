@@ -60,6 +60,9 @@ public static class ConsoleAuthConstants
     /// </summary>
     public const string EdgeSharedSecretKey = "Honua:Console:Auth:EdgeForwarded:SharedSecret";
 
+    /// <summary>Exact shared OIDC issuer required for hosted edge/server session identity binding.</summary>
+    public const string EdgeServerSessionIssuerKey = "Honua:Console:Auth:EdgeForwarded:ServerSessionIssuer";
+
     // Default header names matching oauth2-proxy / common ingress conventions.
     public const string DefaultUserHeader = "X-Forwarded-User";
     public const string DefaultEmailHeader = "X-Forwarded-Email";

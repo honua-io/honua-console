@@ -156,6 +156,12 @@ public static class ConsoleAuthentication
             ConfiguredServerBaseUri(builder), builder.Configuration, builder.Environment,
             serviceProvider.GetRequiredService<IHttpClientFactory>()));
         builder.Services.AddSingleton<IConfigureOptions<ConsoleEdgeAuthOptions>, ConsoleEdgeAuthOptionsSetup>();
+        builder.Services.AddOptions<ConsoleEdgeAuthOptions>()
+            .Validate(ConsoleEdgeAuthOptions.IsValidServerSessionIssuer,
+                "ServerSessionIssuer must be an absolute HTTPS issuer without user information, query or fragment.")
+            .Validate(static options => string.IsNullOrEmpty(options.ServerSessionIssuer) || options.Enabled,
+                "ServerSessionIssuer requires EdgeForwarded authentication.")
+            .ValidateOnStart();
 
         return builder;
     }

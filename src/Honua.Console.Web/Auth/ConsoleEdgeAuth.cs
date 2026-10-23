@@ -22,6 +22,24 @@ public sealed class ConsoleEdgeAuthOptions
     /// MUST guarantee the proxy strips client-supplied identity headers and is the only network path.
     /// </summary>
     public string? SharedSecret { get; set; }
+
+    /// <summary>
+    /// Optional exact HTTPS OIDC issuer shared by the trusted edge and server admin session.
+    /// Requires the user header to contain the raw OIDC subject and binds BFF issuance/refresh
+    /// to the same issuer and subject. Leave unset for independent environment identities.
+    /// </summary>
+    public string? ServerSessionIssuer { get; set; }
+
+    internal static bool IsValidServerSessionIssuer(ConsoleEdgeAuthOptions options) =>
+        string.IsNullOrEmpty(options.ServerSessionIssuer)
+        || (options.ServerSessionIssuer == options.ServerSessionIssuer.Trim()
+            && Uri.TryCreate(options.ServerSessionIssuer, UriKind.Absolute, out var issuer)
+            && issuer.IsWellFormedOriginalString()
+            && issuer.Scheme == Uri.UriSchemeHttps
+            && !string.IsNullOrEmpty(issuer.Host)
+            && string.IsNullOrEmpty(issuer.UserInfo)
+            && !options.ServerSessionIssuer.Contains('?')
+            && !options.ServerSessionIssuer.Contains('#'));
 }
 
 /// <summary>Binds <see cref="ConsoleEdgeAuthOptions"/> from configuration.</summary>
@@ -39,6 +57,7 @@ internal sealed class ConsoleEdgeAuthOptionsSetup : IConfigureOptions<ConsoleEdg
         options.EmailHeader = Trimmed(_configuration[ConsoleAuthConstants.EdgeEmailHeaderKey], ConsoleAuthConstants.DefaultEmailHeader);
         options.AccessTokenHeader = Trimmed(_configuration[ConsoleAuthConstants.EdgeAccessTokenHeaderKey], ConsoleAuthConstants.DefaultAccessTokenHeader);
         options.SharedSecret = _configuration[ConsoleAuthConstants.EdgeSharedSecretKey];
+        options.ServerSessionIssuer = _configuration[ConsoleAuthConstants.EdgeServerSessionIssuerKey];
     }
 
     private static string Trimmed(string? value, string fallback) =>
@@ -73,9 +92,16 @@ public sealed class ConsoleEdgeIdentityMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (_options.Enabled && context.User?.Identity?.IsAuthenticated != true)
+        var bindServerIdentity = !string.IsNullOrEmpty(_options.ServerSessionIssuer);
+        if (_options.Enabled && (bindServerIdentity || context.User?.Identity?.IsAuthenticated != true))
         {
             var principal = TryBuildEdgePrincipal(context);
+            if (bindServerIdentity)
+            {
+                // Hosted binding requires the current edge assertion, including on a stale cookie request.
+                context.User = principal ?? new ClaimsPrincipal(new ClaimsIdentity());
+            }
+
             if (principal is not null)
             {
                 context.User = principal;
@@ -104,7 +130,14 @@ public sealed class ConsoleEdgeIdentityMiddleware
                 + "proxy MUST strip client-supplied identity headers and be the only network path to this host.");
         }
 
-        var user = context.Request.Headers[_options.UserHeader].ToString();
+        var userValues = context.Request.Headers[_options.UserHeader];
+        if (!string.IsNullOrEmpty(_options.ServerSessionIssuer)
+            && (userValues.Count != 1 || string.IsNullOrWhiteSpace(userValues[0])))
+        {
+            return null;
+        }
+
+        var user = userValues.ToString();
         var email = context.Request.Headers[_options.EmailHeader].ToString();
         if (string.IsNullOrWhiteSpace(user) && string.IsNullOrWhiteSpace(email))
         {
