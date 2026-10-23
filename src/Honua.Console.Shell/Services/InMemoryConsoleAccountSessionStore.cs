@@ -5,8 +5,7 @@ namespace Honua.Console.Shell.Services;
 public sealed class InMemoryConsoleAccountSessionStore : IConsoleAccountSessionStore, IConsoleAccountSessionSnapshotStore
 {
     private readonly object _gate = new();
-    private long _generation;
-    private readonly Dictionary<string, ConsoleAccountSession> _sessions = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, SessionSlot> _sessions = new(StringComparer.Ordinal);
 
     public Task<ConsoleAccountSession?> GetSessionAsync(
         string profileId,
@@ -17,8 +16,8 @@ public sealed class InMemoryConsoleAccountSessionStore : IConsoleAccountSessionS
 
         lock (_gate)
         {
-            _sessions.TryGetValue(profileId, out var session);
-            return Task.FromResult(session);
+            _sessions.TryGetValue(profileId, out var slot);
+            return Task.FromResult(slot?.Session);
         }
     }
 
@@ -30,7 +29,7 @@ public sealed class InMemoryConsoleAccountSessionStore : IConsoleAccountSessionS
 
         lock (_gate)
         {
-            _sessions[session.ProfileId] = session;
+            _sessions[session.ProfileId] = new SessionSlot(session);
         }
 
         return Task.CompletedTask;
@@ -43,8 +42,8 @@ public sealed class InMemoryConsoleAccountSessionStore : IConsoleAccountSessionS
 
         lock (_gate)
         {
-            // Invalidate every previously captured write, including a snapshot of an absent session.
-            _generation++;
+            // Removing this profile's slot invalidates its snapshots, including an absent session,
+            // without changing other profiles or retaining a tombstone for the cleared profile.
             _sessions.Remove(profileId);
         }
 
@@ -58,8 +57,12 @@ public sealed class InMemoryConsoleAccountSessionStore : IConsoleAccountSessionS
         cancellationToken.ThrowIfCancellationRequested();
         lock (_gate)
         {
-            _sessions.TryGetValue(profileId, out var session);
-            return Task.FromResult(new ConsoleAccountSessionSnapshot(profileId, session, this, _generation));
+            if (!_sessions.TryGetValue(profileId, out var slot))
+            {
+                slot = new SessionSlot(null);
+                _sessions.Add(profileId, slot);
+            }
+            return Task.FromResult(new ConsoleAccountSessionSnapshot(profileId, slot.Session, slot));
         }
     }
 
@@ -88,16 +91,19 @@ public sealed class InMemoryConsoleAccountSessionStore : IConsoleAccountSessionS
             {
                 return Task.FromResult(false);
             }
-            _sessions[session.ProfileId] = session;
+            _sessions[session.ProfileId] = new SessionSlot(session);
             return Task.FromResult(true);
         }
     }
 
     private bool IsCurrentLocked(ConsoleAccountSessionSnapshot snapshot)
     {
-        _sessions.TryGetValue(snapshot.ProfileId, out var current);
-        return ReferenceEquals(snapshot.Owner, this)
-            && snapshot.Generation == _generation
-            && ReferenceEquals(current, snapshot.Session);
+        return _sessions.TryGetValue(snapshot.ProfileId, out var current)
+            && ReferenceEquals(snapshot.Owner, current);
+    }
+
+    private sealed class SessionSlot(ConsoleAccountSession? session)
+    {
+        public ConsoleAccountSession? Session { get; } = session;
     }
 }

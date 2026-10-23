@@ -254,6 +254,25 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         Assert.Null(await store.GetSessionAsync("env"));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SessionSnapshot_ClearingAnotherProfile_PreservesThisProfilesReadAndWrite(bool initialSession)
+    {
+        var store = new InMemoryConsoleAccountSessionStore();
+        var session = new ConsoleAccountSession { ProfileId = "other", AccountId = "operator-a", AccessToken = "bearer" };
+        if (initialSession)
+        {
+            await store.SaveSessionAsync(session);
+        }
+        var snapshot = await store.CaptureSessionAsync("other");
+        await store.ClearSessionAsync("env");
+
+        Assert.True(await store.IsCurrentSessionAsync(snapshot));
+        Assert.True(await store.TrySaveSessionAsync(snapshot, session));
+        Assert.Equal(session, await store.GetSessionAsync("other"));
+    }
+
     [Fact]
     public async Task SessionSnapshot_PartitionEvictionRejectsTheOldStoreSnapshot()
     {
