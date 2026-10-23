@@ -22,6 +22,64 @@ public sealed class StudioPublicationBffTests
     private const string Rollback = "/api/studio/v1/studio/content-items/item/rollback-requests";
 
     [Theory]
+    [InlineData("""{"targetId":"observed-target","principal":{"actorId":"human-actor","studioOwnerId":"human-owner","tenantId":"tenant","authenticationKind":"operator-bearer","isHumanSession":true}}""")]
+    [InlineData("""{"targetId":"observed-target","principal":{"actorId":"api-key:actual-key","studioOwnerId":"actual-key","tenantId":"tenant","authenticationKind":"api-key","isHumanSession":false}}""")]
+    [InlineData("""{"targetId":"older-native-target"}""")]
+    public async Task NativeTargetProjectionIsRelayedWithoutInventingHumanIdentity(string native)
+    {
+        await using var host = await Host.Start();
+        host.Wire.ResponseBody = native;
+        host.Client.DefaultRequestHeaders.Add("Cookie", "private-browser-cookie=not-for-upstream");
+        host.Client.DefaultRequestHeaders.Add("X-API-Key", "not-for-upstream");
+        host.Client.DefaultRequestHeaders.Add("Authorization", "Bearer not-the-operator-credential");
+        using var response = await host.Client.GetAsync("/api/studio/v1/agent/target");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(native, await response.Content.ReadAsStringAsync());
+        Assert.Equal("/api/v1/agent/target", host.Wire.Uri!.AbsolutePath);
+        Assert.Equal(string.Empty, host.Wire.Uri.Query);
+        Assert.True(host.Wire.HumanOnly);
+        Assert.Null(host.Wire.IdempotencyKey);
+    }
+
+    [Theory]
+    [InlineData("POST")]
+    [InlineData("PUT")]
+    [InlineData("PATCH")]
+    [InlineData("DELETE")]
+    public async Task NativeTargetReadDoesNotOpenMutationRoutes(string method)
+    {
+        await using var host = await Host.Start();
+        using var request = new HttpRequestMessage(new HttpMethod(method), "/api/studio/v1/agent/target");
+        using var response = await host.Client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, response.StatusCode);
+        Assert.Equal(0, host.Wire.Calls);
+    }
+
+    [Theory]
+    [InlineData("X-Honua-Environment")]
+    [InlineData("X-Honua-Session-Partition")]
+    public async Task NativeTargetReadCannotBorrowAnotherBrowserEnvironmentOrPartition(string header)
+    {
+        await using var host = await Host.Start();
+        host.Client.DefaultRequestHeaders.Remove(header);
+        host.Client.DefaultRequestHeaders.Add(header, "different-context");
+        using var response = await host.Client.GetAsync("/api/studio/v1/agent/target");
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(0, host.Wire.Calls);
+    }
+
+    [Fact]
+    public async Task NativeTargetReadRejectsQueryOverridesAndNeighboringAgentRoutes()
+    {
+        await using var host = await Host.Start();
+        using var query = await host.Client.GetAsync("/api/studio/v1/agent/target?owner=other");
+        Assert.Equal(HttpStatusCode.BadRequest, query.StatusCode);
+        using var other = await host.Client.GetAsync("/api/studio/v1/agent/other");
+        Assert.Equal(HttpStatusCode.NotFound, other.StatusCode);
+        Assert.Equal(0, host.Wire.Calls);
+    }
+
+    [Theory]
     [InlineData(Publication)]
     [InlineData(Rollback)]
     public async Task RetainsOriginalSubmissionIdentityAndPendingApprovalReceipt(string path)

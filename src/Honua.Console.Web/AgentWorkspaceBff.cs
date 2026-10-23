@@ -98,17 +98,22 @@ internal static partial class AgentWorkspaceBff
         string? processPath = null;
         var datasetRoute = !studio && !processes ? ReadDatasetImportRoute(path) : null;
         var isPublicationReceipt = studio && path is not null && StudioPublicationReceiptPath().IsMatch(path);
+        var isTargetIdentity = studio && path == "v1/agent/target";
         string datasetQuery = "";
         string? datasetContentHash = null;
         if (datasetRoute is not null && !datasetRoute.Allows(context.Request.Method)) return Results.StatusCode(405);
         if (datasetRoute is null && !studio && !processes && HttpMethods.IsDelete(context.Request.Method)) return Results.StatusCode(405);
         if (datasetRoute is not null && !TryDatasetImportQuery(datasetRoute, context.Request.Method, context.Request.Query,
                 out datasetQuery, out datasetContentHash)) return Results.BadRequest();
-        if (!ga && (path is null || (path.Length == 0 ? !HttpMethods.IsPost(context.Request.Method) : !(processes ? TryBuildProcessPath(path, out processPath) : (studio ? StudioPath() : WorkspacePath()).IsMatch(path) || datasetRoute is not null || isPublicationReceipt))))
+        if (!ga && (path is null || (path.Length == 0 ? !HttpMethods.IsPost(context.Request.Method) : !(processes ? TryBuildProcessPath(path, out processPath) : (studio ? StudioPath() : WorkspacePath()).IsMatch(path) || datasetRoute is not null || isPublicationReceipt || isTargetIdentity))))
         {
             return Results.NotFound();
         }
         path ??= "";
+        // Relay the native authenticated principal projection without inventing
+        // a browser-side human claim or opening other agent administration paths.
+        if (isTargetIdentity && !HttpMethods.IsGet(context.Request.Method)) return Results.StatusCode(405);
+        if (isTargetIdentity && context.Request.Query.Count > 0) return Results.BadRequest();
         if (processes && !AllowsProcessMethod(path, context.Request.Method)) return Results.StatusCode(405);
         if (isPublicationReceipt && !HttpMethods.IsGet(context.Request.Method)) return Results.StatusCode(405);
         if (!HttpMethods.IsGet(context.Request.Method))
