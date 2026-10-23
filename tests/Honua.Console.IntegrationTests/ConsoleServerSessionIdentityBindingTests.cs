@@ -146,6 +146,7 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         var state = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(begin.RedirectUri).Query)["state"];
         harness.Handler.Requests.Clear();
         harness.Handler.PauseBearer = true;
+        harness.Sessions.PauseNextWrite = true;
         var refresh = harness.Bearers.ResolveAsync(Profile("env"));
         await harness.Handler.BearerEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var callback = harness.Coordinator.CompleteSignInAsync("code", state, null);
@@ -158,9 +159,49 @@ public sealed class ConsoleServerSessionIdentityBindingTests
             harness.Handler.ReleaseBearer.TrySetResult();
         }
 
+        await harness.Sessions.WriteEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            Assert.False(callback.IsCompleted);
+            Assert.Equal(new[] { "session", "bearer" }, harness.Handler.Requests);
+        }
+        finally
+        {
+            harness.Sessions.ReleaseWrite.TrySetResult();
+        }
+
         Assert.Equal("opaque-bearer-2", (await refresh).AccessToken);
         Assert.Equal(ConsoleServerSignInStatus.Redirect, (await callback).Status);
         Assert.Equal(new[] { "session", "bearer", "token", "session", "bearer" }, harness.Handler.Requests);
+    }
+
+    [Fact]
+    public async Task Refresh_WhileCallbackCommitIsPaused_ReadsTheCommittedBearerWithoutAnotherExchange()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.SignInAsync();
+        await harness.ExpireBearerAsync();
+        var begin = await harness.Coordinator.BeginSignInAsync("env", null, "/operate");
+        var state = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(begin.RedirectUri).Query)["state"];
+        harness.Handler.Requests.Clear();
+        harness.Sessions.PauseNextWrite = true;
+        var callback = harness.Coordinator.CompleteSignInAsync("code", state, null);
+        await harness.Sessions.WriteEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var refresh = harness.Bearers.ResolveAsync(Profile("env"));
+        try
+        {
+            Assert.False(refresh.IsCompleted);
+            Assert.Equal(new[] { "token", "session", "bearer" }, harness.Handler.Requests);
+        }
+        finally
+        {
+            harness.Sessions.ReleaseWrite.TrySetResult();
+        }
+
+        Assert.Equal(ConsoleServerSignInStatus.Redirect, (await callback).Status);
+        Assert.Equal("opaque-bearer-2", (await refresh).AccessToken);
+        Assert.Equal("opaque-bearer-2", (await harness.Sessions.GetSessionAsync("env"))!.AccessToken);
+        Assert.Equal(new[] { "token", "session", "bearer" }, harness.Handler.Requests);
     }
 
     [Fact]
@@ -194,21 +235,19 @@ public sealed class ConsoleServerSessionIdentityBindingTests
     }
 
     [Fact]
-    public async Task Invalidation_AfterExchangeBeforeProviderPersistence_DiscardsTheIssuedResult()
+    public async Task Logout_AfterExchangeBeforeProviderPersistence_DiscardsTheIssuedResult()
     {
         await using var harness = await Harness.CreateAsync();
         await harness.SignInAsync();
         await harness.ExpireBearerAsync();
-        var begin = await harness.Coordinator.BeginSignInAsync("env", null, "/operate");
-        var state = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(begin.RedirectUri).Query)["state"];
         harness.Sessions.PauseNextWrite = true;
         var refresh = harness.Bearers.ResolveAsync(Profile("env"));
         await harness.Sessions.WriteEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         try
         {
-            harness.Handler.SessionJson = InvalidSession("subject");
-            var callback = await harness.Coordinator.CompleteSignInAsync("code", state, null);
-            Assert.Equal(ConsoleServerSignInStatus.Denied, callback.Status);
+            // Sign-in callbacks now serialize behind this commit. Actual logout
+            // remains independent and must invalidate the outstanding write.
+            await harness.Coordinator.SignOutAsync();
         }
         finally
         {
@@ -873,6 +912,10 @@ public sealed class ConsoleServerSessionIdentityBindingTests
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
             }
             Assert.Contains("honua_admin_session=server-session", cookies.GetCookieHeader(Server));
+            if (operation == "logout")
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
             if (operation == "session")
             {
                 var response = DenySessionRead ? new HttpResponseMessage(HttpStatusCode.Unauthorized) : Json(SessionJson);

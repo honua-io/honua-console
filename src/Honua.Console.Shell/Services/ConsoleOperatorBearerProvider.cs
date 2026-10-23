@@ -72,6 +72,20 @@ public interface IConsoleOperatorBearerExchange
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>Holds authentication serialization until the refreshed session is committed.</summary>
+public interface IConsoleOperatorBearerExchangeLease : IConsoleOperatorBearerExchange, IDisposable
+{
+}
+
+/// <summary>Provides an exchange scope that also protects account-session reads and writes.</summary>
+public interface IConsoleOperatorBearerExchangeLeaseProvider
+{
+    /// <summary>Acquires the authentication scope for this environment and operator.</summary>
+    Task<IConsoleOperatorBearerExchangeLease> EnterSessionAsync(
+        ConsoleEnvironmentProfile profile,
+        CancellationToken cancellationToken = default);
+}
+
 /// <summary>
 /// A resolved operator credential plus enough session state to distinguish an
 /// interactive human from a genuinely headless caller.
@@ -139,6 +153,11 @@ public sealed class ConsoleOperatorBearerProvider : IConsoleOperatorBearerProvid
     {
         ArgumentNullException.ThrowIfNull(profile);
 
+        using var authentication = _exchange is IConsoleOperatorBearerExchangeLeaseProvider leases
+            ? await leases.EnterSessionAsync(profile, cancellationToken).ConfigureAwait(false)
+            : null;
+        var scopedExchange = authentication ?? _exchange;
+
         var snapshots = _sessions as IConsoleAccountSessionSnapshotStore;
         var snapshot = snapshots is null ? null
             : await snapshots.CaptureSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
@@ -178,7 +197,7 @@ public sealed class ConsoleOperatorBearerProvider : IConsoleOperatorBearerProvid
             };
         }
 
-        var exchange = await _exchange.ExchangeAsync(profile, cancellationToken).ConfigureAwait(false);
+        var exchange = await scopedExchange.ExchangeAsync(profile, cancellationToken).ConfigureAwait(false);
         if (exchange.Status == ConsoleOperatorBearerExchangeStatus.Issued
             && IsForwardable(exchange.AccessToken)
             && exchange.ExpiresAt is { } expiresAt
