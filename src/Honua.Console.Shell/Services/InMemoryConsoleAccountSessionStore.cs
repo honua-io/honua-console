@@ -77,6 +77,17 @@ public sealed class InMemoryConsoleAccountSessionStore : IConsoleAccountSessionS
         }
     }
 
+    public Task<bool> TryClearSessionAsync(
+        ConsoleAccountSessionSnapshot snapshot, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            return Task.FromResult(IsCurrentLocked(snapshot) && _sessions.Remove(snapshot.ProfileId));
+        }
+    }
+
     public Task<bool> TrySaveSessionAsync(
         ConsoleAccountSessionSnapshot snapshot, ConsoleAccountSession session,
         CancellationToken cancellationToken = default)

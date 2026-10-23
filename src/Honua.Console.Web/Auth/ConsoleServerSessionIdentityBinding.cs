@@ -31,6 +31,9 @@ internal sealed class ConsoleServerSessionIdentityBinding(
             return true;
         }
 
+        var snapshots = sessions as IConsoleAccountSessionSnapshotStore
+            ?? throw new InvalidOperationException("Hosted server identity binding requires conditional session storage.");
+        var snapshot = await snapshots.CaptureSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
         var matches = false;
         try
         {
@@ -62,10 +65,9 @@ internal sealed class ConsoleServerSessionIdentityBinding(
             // HttpClient timeout: discard this session instead of retaining an unchecked bearer.
         }
 
-        if (!matches)
+        if (!matches && serverSessions.TryRemove(partition))
         {
-            await sessions.ClearSessionAsync(profile.Id, CancellationToken.None).ConfigureAwait(false);
-            serverSessions.Remove(partition.Key.OperatorKey, profile);
+            await snapshots.TryClearSessionAsync(snapshot, CancellationToken.None).ConfigureAwait(false);
         }
 
         return matches;

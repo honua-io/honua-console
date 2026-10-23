@@ -13,6 +13,9 @@ public interface IConsoleAccountSessionSnapshotStore
     /// <summary>Checks that a captured session still belongs to the current profile slot.</summary>
     Task<bool> IsCurrentSessionAsync(ConsoleAccountSessionSnapshot snapshot, CancellationToken cancellationToken = default);
 
+    /// <summary>Clears only while the captured profile slot remains current.</summary>
+    Task<bool> TryClearSessionAsync(ConsoleAccountSessionSnapshot snapshot, CancellationToken cancellationToken = default);
+
     /// <summary>Writes only while the captured session and storage identity remain current.</summary>
     Task<bool> TrySaveSessionAsync(ConsoleAccountSessionSnapshot snapshot, ConsoleAccountSession session,
         CancellationToken cancellationToken = default);

@@ -7,18 +7,37 @@ export class GaSpecReview {
         this.requireEnabled();
         const workspace = this.workspace, key = this.key;
         if (!workspace.draft || workspace.dirty.size) throw new Error('Save the canonical layer draft before planning.');
+        const draftId = workspace.draft.id, draftRevision = workspace.draft.revision;
+        const workspaceId = workspace.workspaceId, viewId = workspace.viewId, generation = workspace.contextGeneration;
+        const contextRevision = workspace.context?.revision, targetId = workspace.context?.targetId;
+        const binding = {...workspace.session};
+        const check = () => {
+            if (key !== this.key || binding.environmentId !== workspace.session?.environmentId
+                || binding.principalId !== workspace.session?.principalId || workspaceId !== workspace.workspaceId || viewId !== workspace.viewId
+                || generation !== workspace.contextGeneration || draftId !== workspace.draft?.id
+                || draftRevision !== workspace.draft?.revision || workspace.dirty.size
+                || contextRevision !== workspace.context?.revision || targetId !== workspace.context?.targetId)
+                throw new Error('The draft or workspace context changed. Review it before planning.');
+        };
         const context = await workspace.contextReference();
-        const bundle = await workspace.api('ga/bundle');
+        check();
+        if (context.workspaceId !== workspaceId || context.viewId !== viewId
+            || context.contextRevision !== contextRevision || context.targetId !== targetId)
+            throw new Error('The workspace context changed. Review it before planning.');
+        const bundle = await workspace.api('ga/bundle', 'GET', undefined, binding);
+        check();
         if (typeof bundle.bundleVersion !== 'string' || !bundle.grammar || !bundle.pathways)
             throw new Error('The server workflow bundle is unavailable.');
-        const draft = await workspace.api(`${workspace.workspaceId}/drafts/${encodeURIComponent(workspace.draft.id)}`);
-        if (key !== this.key || draft.revision !== workspace.draft.revision)
+        const draft = await workspace.api(`${workspaceId}/drafts/${encodeURIComponent(draftId)}`, 'GET', undefined, binding);
+        check();
+        if (draft.revision !== draftRevision)
             throw new Error('The draft changed. Review it before planning.');
         const {connectionId,schema,table,layerName,serviceName} = draft.fields;
         const plan = await workspace.api('ga/plans', 'POST', {bundleVersion:bundle.bundleVersion,
             workspaceId:context.workspaceId,viewId:context.viewId,targetId:context.targetId,
-            environment:workspace.session.environmentId,contextRevision:String(context.contextRevision),
-            connectionId,schema,table,layerName,serviceName});
+            environment:binding.environmentId,contextRevision:String(context.contextRevision),
+            connectionId,schema,table,layerName,serviceName}, binding);
+        check();
         return this.open(plan.planId, plan.revision);
     }
     async open(planId, revision) {
@@ -30,7 +49,7 @@ export class GaSpecReview {
         if (key !== this.key) throw new Error('Workspace authority changed. Reopen review.');
         if (plan.planId !== planId || plan.revision !== revision) throw new Error('The plan reference changed. Request a new review.');
         const existing = JSON.parse(this.workspace.storage.getItem(key) || 'null');
-        if (existing?.commandId && (existing.planId !== planId || existing.revision !== revision)) {
+        if (existing?.commandId && existing.dispatch !== 'not-dispatched' && (existing.planId !== planId || existing.revision !== revision)) {
             // Re-read the original durable run before releasing this recovery slot.
             // Assistant text, Apply responses and stored client markers cannot release it.
             const observed = await this.workspace.api(`ga/runs/${existing.runId || existing.planId}`);
@@ -56,7 +75,7 @@ export class GaSpecReview {
             if (key !== this.key) throw new Error('Workspace authority changed. Reconnect the original workspace.');
             this.run = observed;
         }
-        else if (saved.commandId) {
+        else if (saved.commandId && saved.dispatch !== 'not-dispatched') {
             try {
                 const observed = await this.workspace.api(`ga/runs/${saved.planId}`);
                 if (key !== this.key) throw new Error('Workspace authority changed. Reconnect the original workspace.');
@@ -76,11 +95,25 @@ export class GaSpecReview {
             throw new Error('The workspace context changed. Request a new plan before Apply.');
         const saved = JSON.parse(this.workspace.storage.getItem(this.key) || 'null');
         if (!saved || saved.planId !== this.plan.planId || saved.revision !== this.plan.revision) throw new Error('Review changed. Open it again.');
-        if (saved.commandId) throw new Error('This Apply was already submitted. Read its recorded outcome before continuing.');
+        if (saved.commandId && saved.dispatch !== 'not-dispatched') throw new Error('This Apply was already submitted. Read its recorded outcome before continuing.');
         const key = this.key;
-        saved.commandId = this.workspace.uuid();
-        this.workspace.storage.setItem(this.key, JSON.stringify(saved));
-        const accepted = await this.workspace.api(`ga/plans/${saved.planId}/apply`, 'POST', {revision:saved.revision,commandId:saved.commandId});
+        saved.commandId ||= this.workspace.uuid();
+        delete saved.dispatch;
+        this.workspace.storage.setItem(key, JSON.stringify(saved));
+        let accepted;
+        try {
+            accepted = await this.workspace.api(`ga/plans/${saved.planId}/apply`, 'POST', {revision:saved.revision,commandId:saved.commandId});
+        } catch (error) {
+            // Only the same-origin BFF can attest that the command never reached upstream.
+            // Ambiguous failures retain the original recovery marker and cannot be replayed.
+            const current = JSON.parse(this.workspace.storage.getItem(key) || 'null');
+            if (error.notDispatched === true && current?.commandId === saved.commandId
+                && current.planId === saved.planId && current.revision === saved.revision) {
+                saved.dispatch = 'not-dispatched';
+                this.workspace.storage.setItem(key, JSON.stringify(saved));
+            }
+            throw error;
+        }
         if (!/^[A-Za-z0-9_-]{1,128}$/.test(accepted.runId)) throw new Error('Apply outcome is unknown. Reconcile the original command.');
         if (key !== this.key) throw new Error('Workspace authority changed. Reconnect the original workspace to read the outcome.');
         saved.runId = accepted.runId;

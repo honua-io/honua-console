@@ -66,6 +66,10 @@ public sealed class OperatorScopedAccountSessionStore : IConsoleAccountSessionSt
         ConsoleAccountSessionSnapshot snapshot, CancellationToken cancellationToken = default) =>
         Current.IsCurrentSessionAsync(snapshot, cancellationToken);
 
+    public Task<bool> TryClearSessionAsync(
+        ConsoleAccountSessionSnapshot snapshot, CancellationToken cancellationToken = default) =>
+        CurrentForWrite.TryClearSessionAsync(snapshot, cancellationToken);
+
     public Task<bool> TrySaveSessionAsync(
         ConsoleAccountSessionSnapshot snapshot, ConsoleAccountSession session,
         CancellationToken cancellationToken = default) =>

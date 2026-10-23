@@ -30,10 +30,11 @@ export class AgentWorkspace {
             }, ...(body === undefined ? {} : { body: JSON.stringify(body) })
         });
         const value = response.status === 204 ? null : await response.json().catch(() => null);
-        if (response.status === 409) throw new WorkspaceConflict(value);
         if (!response.ok) {
-            const error = new Error(value?.message || (path.startsWith('ga/') ? [value?.code, value?.detail || value?.title].filter(Boolean).join(': ') : '') || `Workspace unavailable (${response.status}).`);
-            error.status = response.status; throw error;
+            const error = response.status === 409 ? new WorkspaceConflict(value) : new Error(value?.message || (path.startsWith('ga/') ? [value?.code, value?.detail || value?.title].filter(Boolean).join(': ') : '') || `Workspace unavailable (${response.status}).`);
+            error.status = response.status;
+            error.notDispatched = response.headers?.get('X-Honua-Dispatch-Status') === 'not-dispatched';
+            throw error;
         }
         return value;
     }

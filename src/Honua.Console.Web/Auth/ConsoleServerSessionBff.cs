@@ -206,6 +206,20 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         removed?.Dispose();
     }
 
+    /// <summary>Removes only the exact partition instance that completed this request.</summary>
+    public bool TryRemove(ConsoleServerSessionPartition partition)
+    {
+        ArgumentNullException.ThrowIfNull(partition);
+        lock (_gate)
+        {
+            if (!_partitions.TryGetValue(partition.Key, out var current)
+                || !ReferenceEquals(current, partition) || !_partitions.Remove(partition.Key))
+                return false;
+        }
+        partition.Dispose();
+        return true;
+    }
+
     /// <summary>
     /// Drops a partition created by this sign-in attempt only when no later attempt has observed it
     /// and the table still holds that exact instance. A failed probe must not dispose a partition
@@ -681,7 +695,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
             {
                 if (!await snapshots.TrySaveSessionAsync(snapshot, updatedSession, cancellationToken).ConfigureAwait(false))
                 {
-                    _serverSessions.Remove(operatorKey, profile);
+                    _serverSessions.TryRemove(partition);
                     return Denied("The Console operator session changed during sign-in. Sign in again.", pending.ReturnTo);
                 }
             }

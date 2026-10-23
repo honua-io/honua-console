@@ -84,6 +84,8 @@ internal static partial class AgentWorkspaceBff
         CancellationToken cancellationToken, bool processes = false, bool ga = false)
     {
         context.Response.Headers.CacheControl = "no-store";
+        var humanGaApply = ga && path?.EndsWith("/apply", StringComparison.Ordinal) == true;
+        if (humanGaApply) context.Response.Headers["X-Honua-Dispatch-Status"] = "not-dispatched";
         if (ga)
         {
             var valid = path is not null && (HttpMethods.IsGet(context.Request.Method)
@@ -185,7 +187,6 @@ internal static partial class AgentWorkspaceBff
             if (!Regex.IsMatch(key, @"\A[A-Za-z0-9_-]{1,128}\z")) { return Results.BadRequest(); }
             request.Headers.TryAddWithoutValidation("Idempotency-Key", key);
         }
-        var humanGaApply = ga && path!.EndsWith("/apply", StringComparison.Ordinal);
         if (!humanGaApply)
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credential.AccessToken);
         // Do not relay arbitrary query strings, identity headers, cookies, API keys or redirect destinations.
@@ -267,6 +268,8 @@ internal static partial class AgentWorkspaceBff
                     cancellationToken).ConfigureAwait(false))
                 return Results.StatusCode(403);
             var transport = cookiePartition?.Client ?? clients.CreateClient("honua-agent-workspace");
+            // Once SendAsync starts, even a failed/lost response can have a durable outcome.
+            if (humanGaApply) context.Response.Headers.Remove("X-Honua-Dispatch-Status");
             using var response = await transport.SendAsync(request,
                 datasetRoute is not null || ga ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead, cancellationToken);
             if ((int)response.StatusCode is >= 300 and < 400) { return Results.StatusCode(502); }

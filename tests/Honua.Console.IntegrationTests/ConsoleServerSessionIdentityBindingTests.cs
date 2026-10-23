@@ -235,6 +235,52 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         Assert.Null(await harness.Sessions.GetSessionAsync("env"));
     }
 
+    [Fact]
+    public async Task Invalidation_OldPartitionCompletesAfterReplacement_PreservesTheNewSignIn()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.SignInAsync();
+        var oldHandler = harness.Handler;
+        var oldPartition = harness.Partitions.GetOrCreate("operator-a", Profile("env"));
+        oldHandler.SessionJson = InvalidSession("subject");
+        oldHandler.PauseSession = true;
+        var validation = harness.Binding.EnsureAsync(oldPartition, Profile("env"), "operator-a", "oidc", CancellationToken.None);
+        await oldHandler.SessionEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        harness.Partitions.Remove("operator-a", Profile("env"));
+        Assert.Equal(ConsoleServerSignInStatus.Redirect, (await harness.SignInAsync()).Status);
+        var replacement = harness.Partitions.GetOrCreate("operator-a", Profile("env"));
+        var session = await harness.Sessions.GetSessionAsync("env");
+        oldHandler.ReleaseSession.TrySetResult();
+
+        Assert.False(await validation);
+        Assert.True(harness.Partitions.TryGet("operator-a", Profile("env"), out var current));
+        Assert.Same(replacement, current);
+        Assert.Same(session, await harness.Sessions.GetSessionAsync("env"));
+        Assert.False(harness.Handler.Disposed);
+    }
+
+    [Fact]
+    public async Task Invalidation_NewSessionSavedBeforeConditionalClear_PreservesTheNewSignIn()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.SignInAsync();
+        var partition = harness.Partitions.GetOrCreate("operator-a", Profile("env"));
+        harness.Handler.SessionJson = InvalidSession("subject");
+        harness.Sessions.PauseNextClear = true;
+        var validation = harness.Binding.EnsureAsync(partition, Profile("env"), "operator-a", "oidc", CancellationToken.None);
+        await harness.Sessions.ClearEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(ConsoleServerSignInStatus.Redirect, (await harness.SignInAsync()).Status);
+        var replacement = harness.Partitions.GetOrCreate("operator-a", Profile("env"));
+        var session = await harness.Sessions.GetSessionAsync("env");
+        harness.Sessions.ReleaseClear.TrySetResult();
+
+        Assert.False(await validation);
+        Assert.True(harness.Partitions.TryGet("operator-a", Profile("env"), out var current));
+        Assert.Same(replacement, current);
+        Assert.Same(session, await harness.Sessions.GetSessionAsync("env"));
+        Assert.False(harness.Handler.Disposed);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -303,6 +349,7 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         using var response = await host.Client.PostAsync("/api/agent-workspace/ga/plans/plan/apply", new StringContent("{}"));
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal("not-dispatched", response.Headers.GetValues("X-Honua-Dispatch-Status").Single());
         Assert.Equal(new[] { "session" }, harness.Handler.Requests);
         Assert.Null(await harness.Sessions.GetSessionAsync("env"));
         Assert.False(harness.Partitions.TryGet("operator-a", Profile("env"), out _));
@@ -336,7 +383,39 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         using var response = await host.Client.PostAsync("/api/agent-workspace/ga/plans/plan/apply", new StringContent("{}"));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("not-dispatched", response.Headers.GetValues("X-Honua-Dispatch-Status").Single());
         Assert.Empty(harness.Handler.Requests);
+    }
+
+    [Fact]
+    public async Task GaApply_AntiforgeryFailure_ReportsThatNothingWasDispatched()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.SignInAsync();
+        await using var host = await ApplyHost.StartAsync(harness);
+        harness.Handler.Requests.Clear();
+        host.Client.DefaultRequestHeaders.Remove("X-CSRF-Token");
+
+        using var response = await host.Client.PostAsync("/api/agent-workspace/ga/plans/plan/apply", new StringContent("{}"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal("not-dispatched", response.Headers.GetValues("X-Honua-Dispatch-Status").Single());
+        Assert.Empty(harness.Handler.Requests);
+    }
+
+    [Fact]
+    public async Task GaApply_UpstreamRefusal_DoesNotClaimThatNothingWasDispatched()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.SignInAsync();
+        await using var host = await ApplyHost.StartAsync(harness);
+        harness.Handler.ApplyStatus = HttpStatusCode.Forbidden;
+
+        using var response = await host.Client.PostAsync("/api/agent-workspace/ga/plans/plan/apply", new StringContent("{}"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.False(response.Headers.Contains("X-Honua-Dispatch-Status"));
+        Assert.Contains("apply", harness.Handler.Requests);
     }
 
     [Fact]
@@ -685,6 +764,9 @@ public sealed class ConsoleServerSessionIdentityBindingTests
     {
         public bool PauseNextWrite { get; set; }
         public bool PauseNextCapture { get; set; }
+        public bool PauseNextClear { get; set; }
+        public TaskCompletionSource ClearEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseClear { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource WriteEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseWrite { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource CaptureEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -717,6 +799,17 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         public Task<bool> IsCurrentSessionAsync(ConsoleAccountSessionSnapshot snapshot, CancellationToken cancellationToken = default) =>
             inner.IsCurrentSessionAsync(snapshot, cancellationToken);
 
+        public async Task<bool> TryClearSessionAsync(ConsoleAccountSessionSnapshot snapshot, CancellationToken cancellationToken = default)
+        {
+            if (PauseNextClear)
+            {
+                PauseNextClear = false;
+                ClearEntered.TrySetResult();
+                await ReleaseClear.Task.WaitAsync(cancellationToken);
+            }
+            return await inner.TryClearSessionAsync(snapshot, cancellationToken);
+        }
+
         public async Task<bool> TrySaveSessionAsync(ConsoleAccountSessionSnapshot snapshot, ConsoleAccountSession session,
             CancellationToken cancellationToken = default)
         {
@@ -745,6 +838,10 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         public bool PauseBearer { get; set; }
         public bool PauseToken { get; set; }
         public bool PauseApply { get; set; }
+        public bool PauseSession { get; set; }
+        public HttpStatusCode ApplyStatus { get; set; } = HttpStatusCode.OK;
+        public TaskCompletionSource SessionEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseSession { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool ApplyUsedCookieOnly { get; private set; }
         public TaskCompletionSource TokenEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseToken { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -778,7 +875,14 @@ public sealed class ConsoleServerSessionIdentityBindingTests
             Assert.Contains("honua_admin_session=server-session", cookies.GetCookieHeader(Server));
             if (operation == "session")
             {
-                return DenySessionRead ? new HttpResponseMessage(HttpStatusCode.Unauthorized) : Json(SessionJson);
+                var response = DenySessionRead ? new HttpResponseMessage(HttpStatusCode.Unauthorized) : Json(SessionJson);
+                if (PauseSession)
+                {
+                    SessionEntered.TrySetResult();
+                    // Model a response already in flight when the old client is evicted.
+                    await ReleaseSession.Task;
+                }
+                return response;
             }
             if (operation == "apply")
             {
@@ -788,7 +892,9 @@ public sealed class ConsoleServerSessionIdentityBindingTests
                     ApplyEntered.TrySetResult();
                     await ReleaseApply.Task.WaitAsync(cancellationToken);
                 }
-                return Json("{}");
+                var response = Json("{}");
+                response.StatusCode = ApplyStatus;
+                return response;
             }
             Assert.Equal("bearer", operation);
             if (PauseBearer)
