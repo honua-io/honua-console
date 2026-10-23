@@ -251,10 +251,22 @@ internal static partial class AgentWorkspaceBff
         }
         try
         {
-            var transport = humanGaApply
-                ? context.RequestServices.GetRequiredService<ConsoleServerSessionClientStore>()
-                    .GetOrCreate(context.RequestServices.GetRequiredService<IConsoleOperatorContext>().RequireOperatorKey(), profile).Client
-                : clients.CreateClient("honua-agent-workspace");
+            ConsoleServerSessionPartition? cookiePartition = null;
+            if (humanGaApply)
+            {
+                var operatorKey = context.RequestServices.GetRequiredService<IConsoleOperatorContext>().RequireOperatorKey();
+                if (!context.RequestServices.GetRequiredService<ConsoleServerSessionClientStore>()
+                    .TryGet(operatorKey, profile, out cookiePartition) || cookiePartition is null)
+                    return Results.StatusCode(401);
+            }
+            using var authentication = cookiePartition is null ? null
+                : await cookiePartition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
+            if (cookiePartition is not null
+                && !await context.RequestServices.GetRequiredService<ConsoleServerSessionIdentityBinding>().EnsureAsync(
+                    cookiePartition, profile, cookiePartition.Key.OperatorKey, cookiePartition.AuthenticatedProviderKey,
+                    cancellationToken).ConfigureAwait(false))
+                return Results.StatusCode(403);
+            var transport = cookiePartition?.Client ?? clients.CreateClient("honua-agent-workspace");
             using var response = await transport.SendAsync(request,
                 datasetRoute is not null || ga ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead, cancellationToken);
             if ((int)response.StatusCode is >= 300 and < 400) { return Results.StatusCode(502); }

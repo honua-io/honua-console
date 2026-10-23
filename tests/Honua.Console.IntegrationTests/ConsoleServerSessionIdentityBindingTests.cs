@@ -5,6 +5,12 @@ using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
 using Honua.Console.Web.Auth;
+using Honua.Console.Web;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
@@ -267,6 +273,119 @@ public sealed class ConsoleServerSessionIdentityBindingTests
     [InlineData("issuer")]
     [InlineData("provider")]
     [InlineData("missing-subject")]
+    public async Task GaApply_ChangedCookieIdentity_IsRefusedBeforeSendingApply(string failure)
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.SignInAsync();
+        await using var host = await ApplyHost.StartAsync(harness);
+        harness.Handler.Requests.Clear();
+        harness.Handler.SessionJson = InvalidSession(failure);
+
+        using var response = await host.Client.PostAsync("/api/agent-workspace/ga/plans/plan/apply", new StringContent("{}"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(new[] { "session" }, harness.Handler.Requests);
+        Assert.Null(await harness.Sessions.GetSessionAsync("env"));
+        Assert.False(harness.Partitions.TryGet("operator-a", Profile("env"), out _));
+    }
+
+    [Fact]
+    public async Task GaApply_UnconfiguredBinding_PreservesIndependentServerIdentity()
+    {
+        await using var harness = await Harness.CreateAsync(bindIdentity: false);
+        await harness.SignInAsync();
+        await using var host = await ApplyHost.StartAsync(harness);
+        harness.Handler.Requests.Clear();
+        harness.Handler.SessionJson = InvalidSession("subject");
+
+        using var response = await host.Client.PostAsync("/api/agent-workspace/ga/plans/plan/apply", new StringContent("{}"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(new[] { "apply" }, harness.Handler.Requests);
+        Assert.True(harness.Handler.ApplyUsedCookieOnly);
+    }
+
+    [Fact]
+    public async Task GaApply_WithoutCookiePartition_RefusesTheCachedBearer()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.SignInAsync();
+        await using var host = await ApplyHost.StartAsync(harness);
+        harness.Partitions.Remove("operator-a", Profile("env"));
+        harness.Handler.Requests.Clear();
+
+        using var response = await host.Client.PostAsync("/api/agent-workspace/ga/plans/plan/apply", new StringContent("{}"));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Empty(harness.Handler.Requests);
+    }
+
+    [Fact]
+    public async Task GaApply_OverlappingCallback_WaitsForTheCheckedCookieIdentity()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.SignInAsync();
+        await using var host = await ApplyHost.StartAsync(harness);
+        var begin = await harness.Coordinator.BeginSignInAsync("env", null, "/operate");
+        var state = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(begin.RedirectUri).Query)["state"];
+        harness.Handler.Requests.Clear();
+        harness.Handler.PauseToken = true;
+        harness.Handler.SessionJson = InvalidSession("subject");
+        var callback = harness.Coordinator.CompleteSignInAsync("code", state, null);
+        await harness.Handler.TokenEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var apply = host.Client.PostAsync("/api/agent-workspace/ga/plans/plan/apply", new StringContent("{}"));
+        try
+        {
+            Assert.NotSame(apply, await Task.WhenAny(apply, Task.Delay(100)));
+            Assert.Equal(new[] { "token" }, harness.Handler.Requests);
+            harness.Handler.SessionJson = Session();
+        }
+        finally
+        {
+            harness.Handler.ReleaseToken.TrySetResult();
+        }
+
+        Assert.Equal(ConsoleServerSignInStatus.Redirect, (await callback).Status);
+        using var response = await apply;
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(new[] { "token", "session", "bearer", "session", "apply" }, harness.Handler.Requests);
+        Assert.True(harness.Handler.ApplyUsedCookieOnly);
+    }
+
+    [Fact]
+    public async Task GaApply_WhileSending_HoldsTheLeaseUntilApplyCompletes()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.SignInAsync();
+        await using var host = await ApplyHost.StartAsync(harness);
+        var begin = await harness.Coordinator.BeginSignInAsync("env", null, "/operate");
+        var state = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(begin.RedirectUri).Query)["state"];
+        harness.Handler.Requests.Clear();
+        harness.Handler.PauseApply = true;
+        var apply = host.Client.PostAsync("/api/agent-workspace/ga/plans/plan/apply", new StringContent("{}"));
+        await harness.Handler.ApplyEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var callback = harness.Coordinator.CompleteSignInAsync("code", state, null);
+        try
+        {
+            Assert.NotSame(callback, await Task.WhenAny(callback, Task.Delay(100)));
+            Assert.Equal(new[] { "session", "apply" }, harness.Handler.Requests);
+        }
+        finally
+        {
+            harness.Handler.ReleaseApply.TrySetResult();
+        }
+
+        using var response = await apply;
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(ConsoleServerSignInStatus.Redirect, (await callback).Status);
+        Assert.Equal(new[] { "session", "apply", "token", "session", "bearer" }, harness.Handler.Requests);
+    }
+
+    [Theory]
+    [InlineData("subject")]
+    [InlineData("issuer")]
+    [InlineData("provider")]
+    [InlineData("missing-subject")]
     [InlineData("conflicting-subject")]
     [InlineData("expired")]
     public async Task Refresh_ChangedCookieIdentity_DiscardsOldBearerAndCookiePartition(string failure)
@@ -454,6 +573,7 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         public SimulatedServer Handler { get; private set; } = null!;
         public ConsoleOperatorBearerProvider Bearers { get; }
         public ConsoleServerSessionBffCoordinator Coordinator { get; }
+        public ConsoleServerSessionIdentityBinding Binding { get; }
 
         private Harness(bool bindIdentity)
         {
@@ -468,11 +588,11 @@ public sealed class ConsoleServerSessionIdentityBindingTests
                 }
                 return handler;
             });
-            var binding = new ConsoleServerSessionIdentityBinding(
+            Binding = new ConsoleServerSessionIdentityBinding(
                 Options.Create(new ConsoleEdgeAuthOptions { ServerSessionIssuer = bindIdentity ? Issuer : null }),
                 Sessions, Partitions, TimeProvider.System);
-            Coordinator = new(_context, Profiles, Sessions, Partitions, TimeProvider.System, binding);
-            Bearers = new(Sessions, new PartitionedConsoleOperatorBearerExchange(_context, Partitions, binding), TimeProvider.System);
+            Coordinator = new(_context, Profiles, Sessions, Partitions, TimeProvider.System, Binding);
+            Bearers = new(Sessions, new PartitionedConsoleOperatorBearerExchange(_context, Partitions, Binding), TimeProvider.System);
         }
 
         public static async Task<Harness> CreateAsync(bool bindIdentity = true)
@@ -494,6 +614,51 @@ public sealed class ConsoleServerSessionIdentityBindingTests
             (await Sessions.GetSessionAsync("env"))! with { AccessTokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1) });
 
         public ValueTask DisposeAsync() => Partitions.DisposeAsync();
+    }
+
+    private sealed class ApplyHost(WebApplication app, HttpClient client) : IAsyncDisposable
+    {
+        public HttpClient Client => client;
+
+        public static async Task<ApplyHost> StartAsync(Harness harness)
+        {
+            await harness.Profiles.ActivateProfileAsync("env");
+            var builder = WebApplication.CreateSlimBuilder();
+            builder.Logging.ClearProviders();
+            builder.WebHost.UseUrls("http://127.0.0.1:0");
+            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Honua:Agent:GaSpecWorkflowEnabled"] = "true" });
+            builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-Token");
+            builder.Services.AddSingleton<IConsoleEnvironmentProfileStore>(harness.Profiles);
+            builder.Services.AddSingleton<IConsoleAccountSessionStore>(harness.Sessions);
+            builder.Services.AddSingleton(new ConsoleOperatorSessionBridge(harness.Profiles, harness.Sessions));
+            builder.Services.AddSingleton<IConsoleOperatorBearerProvider>(harness.Bearers);
+            builder.Services.AddSingleton<IConsoleOperatorContext>(new OperatorContext());
+            builder.Services.AddSingleton(harness.Partitions);
+            builder.Services.AddSingleton(harness.Binding);
+            builder.Services.AddHttpClient();
+            var app = builder.Build();
+            app.Use(async (context, next) =>
+            {
+                context.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "operator-a")], "EdgeForwarded"));
+                await next();
+            });
+            app.MapGet("/csrf", (HttpContext context, IAntiforgery antiforgery) => antiforgery.GetAndStoreTokens(context).RequestToken!);
+            app.MapAgentWorkspaceBff();
+            await app.StartAsync();
+            var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
+            var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = new Uri(address) };
+            client.DefaultRequestHeaders.Add("X-CSRF-Token", await client.GetStringAsync("/csrf"));
+            client.DefaultRequestHeaders.Add("X-Honua-Environment", "env");
+            client.DefaultRequestHeaders.Add("X-Honua-Session-Partition", AgentGatewayBinding.OperatorPartition("operator-a", "env", Server));
+            return new(app, client);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            client.Dispose();
+            await app.StopAsync();
+            await app.DisposeAsync();
+        }
     }
 
     private sealed class PausingSessionStore(OperatorScopedAccountSessionStore inner)
@@ -559,6 +724,13 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         public bool Disposed { get; private set; }
         private int _issued;
         public bool PauseBearer { get; set; }
+        public bool PauseToken { get; set; }
+        public bool PauseApply { get; set; }
+        public bool ApplyUsedCookieOnly { get; private set; }
+        public TaskCompletionSource TokenEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseToken { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ApplyEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseApply { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource BearerEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseBearer { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -577,12 +749,27 @@ public sealed class ConsoleServerSessionIdentityBindingTests
             if (operation == "token")
             {
                 cookies.SetCookies(Server, "honua_admin_session=server-session; Path=/; HttpOnly");
+                if (PauseToken)
+                {
+                    TokenEntered.TrySetResult();
+                    await ReleaseToken.Task.WaitAsync(cancellationToken);
+                }
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
             }
             Assert.Contains("honua_admin_session=server-session", cookies.GetCookieHeader(Server));
             if (operation == "session")
             {
                 return DenySessionRead ? new HttpResponseMessage(HttpStatusCode.Unauthorized) : Json(SessionJson);
+            }
+            if (operation == "apply")
+            {
+                ApplyUsedCookieOnly = request.Headers.Authorization is null && !request.Headers.Contains("X-API-Key");
+                if (PauseApply)
+                {
+                    ApplyEntered.TrySetResult();
+                    await ReleaseApply.Task.WaitAsync(cancellationToken);
+                }
+                return Json("{}");
             }
             Assert.Equal("bearer", operation);
             if (PauseBearer)
