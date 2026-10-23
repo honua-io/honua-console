@@ -1,6 +1,6 @@
 {
   "schema": "honua.studio.console-assets/v1",
-  "sourceCommit": "fda6681d56b09973a6ed69939e0814fc1eeacf0b",
+  "sourceCommit": "1e7902c58b7e3f586784bb616ce56ac367f6768c",
   "releaseQualified": false,
   "integrationQualification": "pending-installed-workspace-journey",
   "sdk": {
@@ -2180,8 +2180,8 @@
       "sha256": "8dcf5f37f3942ac4fc2e076701be2d92d02d8f5d7bf3d06149da005efff906f4"
     },
     "console.js": {
-      "bytes": 909812,
-      "sha256": "0e90aa6c601db8a8760748800eb08ba3503b44d5b509b6959d168ef85321f4f0"
+      "bytes": 909813,
+      "sha256": "3f546827b7cc927f63b50183efe9306312173c1a2bf635ed48bd7553c392cbc6"
     },
     "errors-VvMCLBue.js": {
       "bytes": 25513,
@@ -2191,9 +2191,9 @@
       "bytes": 1304259,
       "sha256": "22f45992fbbac596986073bf39f15834c5e37df78e338b10fde48d3bdf316caa"
     },
-    "maplibre-gl-worker-D_S8443I.js": {
-      "bytes": 162,
-      "sha256": "479c395b051174f2af8f9b9af3c5d402e636bedd08e5974496e616584104736a"
+    "maplibre-gl-worker-CTQMWz0X.js": {
+      "bytes": 197,
+      "sha256": "0342df9fc64d8c299f8c93f64007308eb778caea84803b4bb6ba3c29fb8d01b0"
     },
     "maplibre-styles-DqdxD-wM.js": {
       "bytes": 83076,

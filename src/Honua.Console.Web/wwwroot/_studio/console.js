@@ -9696,7 +9696,7 @@ function lf() {
 	return typeof window > "u" ? "http://localhost" : window.location.origin;
 }
 function uf(e = {
-	BASE_URL: "/",
+	BASE_URL: "./",
 	DEV: !1,
 	MODE: "production",
 	PROD: !0,
@@ -24458,7 +24458,7 @@ function yy(e) {
 	return typeof e == "object" && !!e;
 }
 var by = async (e) => {
-	let [t, n] = await Promise.all([import("./maplibre-gl-D8l5aSvm.js"), import("./maplibre-gl-worker-D_S8443I.js")]), r = t.default ?? t, i = r.setWorkerUrl;
+	let [t, n] = await Promise.all([import("./maplibre-gl-D8l5aSvm.js"), import("./maplibre-gl-worker-CTQMWz0X.js")]), r = t.default ?? t, i = r.setWorkerUrl;
 	typeof i == "function" && i(n.default);
 	let a = r.Map;
 	if (typeof a != "function") throw Error("maplibre-gl did not export a Map constructor.");

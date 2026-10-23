@@ -76,7 +76,7 @@ until the canonical workspace backend is integrated. This is an explicit GA bloc
 
 ### Checked Studio filtering bundle
 
-The managed assets include Studio `fda6681d56b09973a6ed69939e0814fc1eeacf0b`:
+The managed assets include Studio `1e7902c58b7e3f586784bb616ce56ac367f6768c`:
 shared source filtering for maps, charts and tables, comparable ISO date ranges,
 preserved half-open date inputs, and local read-only audience controls for the
 same saved map/chart/table composition. Layer aliases resolve to their backing
@@ -85,18 +85,21 @@ ambiguous aliases fail closed. Shared audience reads are cancelled when that vie
 is replaced or disposed. Filtered, truncated table notices retain the original loaded
 count and server total; informational bounded notices remain distinct from render
 errors. The assets were imported with the normal vendor
-script from the successful [Production Console assets + audience browser job](https://github.com/honua-io/honua-studio/actions/runs/39866503446/job/120129911564).
-The producer passed three browser checks; the same source passed hosted typecheck,
-style, build and all 1,598 unit tests.
+script from the successful [main Smoke Suite](https://github.com/honua-io/honua-studio/actions/runs/39934033982).
+The producer passed five browser checks, including actual worker requests and
+painted HTTP-backed maps with the unmodified bundle mounted at `/`, `/_studio/`,
+and `/tenants/kestrel/_studio/`. Relative worker URLs now follow the module's
+mount instead of requesting a missing root-level asset. The same source passed
+hosted typecheck, style, build and all 1,598 unit tests.
 
-GitHub artifact `12464323172`, named
-`console-studio-assets-ad46f6797b0640ac5357c502c4d86d5d15cd7778`, was downloaded and
+GitHub artifact `12492528403`, named
+`console-studio-assets-1e7902c58b7e3f586784bb616ce56ac367f6768c`, was downloaded and
 its archive SHA-256 verified against GitHub's digest:
-`46dd400617dc592fb6f9c92c9db0e1ee4f93df57bc8f2e21201e2b7769cbf3a3`.
-The PR job checked out synthetic merge
-`ad46f6797b0640ac5357c502c4d86d5d15cd7778`; its Git tree
-`e67ffd0c7a42f6a26e082d959c358650315c17fe` exactly matches the Studio source commit
-recorded in the vendor manifest.
+`592be29b8fd4a0c4a9976b2eb860b75f177077ca2481c45d5a6c7c6a006b5d98`.
+The completed successful push run checked out that exact main source revision.
+The source repair's post-merge audit identified missing real Blazor worker
+coverage; [the follow-up](https://github.com/honua-io/honua-studio/pull/128) adds a
+production Blazor host check and preserves that audit's original status.
 
 The bundle's SDK provenance matches the source's pinned public `@honua/sdk-js`
 `0.2.7` receipt and source commit `5765b427f421dca9c42832ae450fa1c5aad882c2`.
