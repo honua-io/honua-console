@@ -1,6 +1,6 @@
 {
   "schema": "honua.studio.console-assets/v1",
-  "sourceCommit": "7c7cf52d22033dc6afcb26765b7b8290309aba7e",
+  "sourceCommit": "fda6681d56b09973a6ed69939e0814fc1eeacf0b",
   "releaseQualified": false,
   "integrationQualification": "pending-installed-workspace-journey",
   "sdk": {
@@ -2180,12 +2180,8 @@
       "sha256": "8dcf5f37f3942ac4fc2e076701be2d92d02d8f5d7bf3d06149da005efff906f4"
     },
     "console.js": {
-      "bytes": 850806,
-      "sha256": "09ae48af8286a383e7c0585140a1ba261491d38df1180cdc86b8f7f05bf06e66"
-    },
-    "control-config-DVC01Tzy.js": {
-      "bytes": 15602,
-      "sha256": "a2be54dfd0ce7d1af9413ca2239d64678a2574725defde08550c817d770ca5b4"
+      "bytes": 909812,
+      "sha256": "0e90aa6c601db8a8760748800eb08ba3503b44d5b509b6959d168ef85321f4f0"
     },
     "errors-VvMCLBue.js": {
       "bytes": 25513,
@@ -2238,10 +2234,6 @@
     "source-resolution-CURe54Oz.js": {
       "bytes": 5482,
       "sha256": "9911fbc003ca843ba066a053c48d5fbda44278fc0c0eb3b507921b5dbc6e6b75"
-    },
-    "studio-interactions-DZ8pPzFp.js": {
-      "bytes": 33178,
-      "sha256": "279fcff352ea7b07f46ca016f5ac6133664949478d859197d8e20abac9b0a462"
     },
     "style.css": {
       "bytes": 5067,

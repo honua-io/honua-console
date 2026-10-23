@@ -1,3 +1,4 @@
+import {GaSpecReview, reviewSummary, reviewDetails} from './ga-spec-review.mjs';
 import {browserImportSelection, browserSelectionScope} from './dataset-import-selection.mjs';
 import {PublicationRecovery} from './publication-recovery.mjs';
 import {createPublishInputBinder} from './publish-form-inputs.mjs';
@@ -24,14 +25,16 @@ export class AgentWorkspace {
             method, credentials: 'same-origin', headers: {
                 'Content-Type': 'application/json', 'X-CSRF-Token': binding?.csrfToken || '',
                 'X-Honua-Environment': binding?.environmentId || '',
-                'X-Honua-Session-Partition': binding?.principalId || ''
+                'X-Honua-Session-Partition': binding?.principalId || '',
+                ...(path.startsWith('ga/') ? {'X-Honua-Workspace':this.workspaceId || '', 'X-Honua-View':this.viewId} : {})
             }, ...(body === undefined ? {} : { body: JSON.stringify(body) })
         });
         const value = response.status === 204 ? null : await response.json().catch(() => null);
-        if (response.status === 409) throw new WorkspaceConflict(value);
         if (!response.ok) {
-            const error = new Error(value?.message || `Workspace unavailable (${response.status}).`);
-            error.status = response.status; throw error;
+            const error = response.status === 409 ? new WorkspaceConflict(value) : new Error(value?.message || (path.startsWith('ga/') ? [value?.code, value?.detail || value?.title].filter(Boolean).join(': ') : '') || `Workspace unavailable (${response.status}).`);
+            error.status = response.status;
+            error.notDispatched = response.headers?.get('X-Honua-Dispatch-Status') === 'not-dispatched';
+            throw error;
         }
         return value;
     }
@@ -427,7 +430,9 @@ export function mountWorkspace() {
         const taskIdentity = state.context?.task?.packageKey || state.context?.task?.id;
         const currentTask = taskIdentity ? `${taskLabel} ${taskIdentity}` : taskLabel;
         const resources = state.context?.selectedResources?.map(resource => `${resource.kind} ${resource.id}`).join(', ');
-        targetDescription.nodeValue = state.context ? `${state.session.environmentName} · ${resources || 'No resource selected'} · ${currentTask}` : 'Choose an environment, then start a conversation.';
+        targetDescription.nodeValue = state.context ? (state.session?.gaSpecWorkflow
+            ? `Next request · ${state.session.environmentName} · Editing target: ${currentTask} · Selection: ${resources || 'none'} · Context revision ${state.context.revision} · Draft revision ${state.context.task?.revision ?? 'none'}`
+            : `${state.session.environmentName} · ${resources || 'No resource selected'} · ${currentTask}`) : 'Choose an environment, then start a conversation.';
         importTaskLink.hidden = state.context?.task?.kind !== 'dataset-import';
         taskSeparator.nodeValue = importTaskLink.hidden ? '' : ' · ';
         const header = document.querySelector('[data-workspace-header-target]');
@@ -437,6 +442,8 @@ export function mountWorkspace() {
         if (start) start.hidden = Boolean(state.context);
         host.classList.toggle('console-first-run-conversation', !state.context && location.pathname === '/');
         state.renderPublicationReview?.();
+        const reviewPanel = host.querySelector('[data-ga-spec-review]');
+        if (reviewPanel) reviewPanel.hidden = !state.session?.gaSpecWorkflow;
         window.dispatchEvent(new CustomEvent('honua-workspace-state'));
         target.title = state.context ? `Target ${state.context.targetId}; tenant ${state.context.tenantId ?? 'unbound'}; revision ${state.context.revision}` : '';
 
@@ -485,6 +492,21 @@ export function mountWorkspace() {
     // One session instance lives above route components; embedded Studio receives this same object.
     Object.defineProperty(window, 'honuaAgentWorkspace', { value: workspace, configurable: true });
     const report = error => { status.textContent = error.message; };
+    const review = new GaSpecReview(workspace);
+    const renderReview = () => {
+        host.querySelector('[data-ga-plan-summary]').textContent = reviewSummary(review.plan, review.run);
+        host.querySelector('[data-ga-plan-details]').textContent = reviewDetails(review.plan, review.run);
+        host.querySelector('[data-ga-plan-apply]').disabled = !review.plan || Boolean(review.run)
+            || review.plan.execution !== 'planned' || !['create','noop'].includes(review.plan.verdict);
+    };
+    for (const [selector, action] of [
+        ['[data-ga-plan-current]', () => review.planCurrentDraft()],
+        ['[data-ga-plan-open]', () => review.open(host.querySelector('[data-ga-plan-id]').value.trim(), host.querySelector('[data-ga-plan-revision]').value.trim())],
+        ['[data-ga-plan-apply]', () => review.apply()],
+        ['[data-ga-plan-refresh]', () => review.reconnect()]
+    ]) host.querySelector(selector)?.addEventListener('click', async () => {
+        try { await action(); renderReview(); } catch (error) { report(error); }
+    }, {signal:lifetime.signal});
     const refresh = async () => {
         const value = await workspace.conversation();
         messages.replaceChildren();
@@ -518,7 +540,9 @@ export function mountWorkspace() {
         try {
             const submitted = input.value;
             status.textContent = `Submitting for target ${workspace.context?.targetId || 'unbound'} · ${workspace.context?.task?.id || 'no task'}.`;
-            const result = await workspace.submit(submitted); if(input.value === submitted) input.value = ''; await refresh();
+            const result = await workspace.submit(submitted, {onEvent: () => {
+                if (workspace.session?.gaSpecWorkflow) status.textContent = 'Agent is working on the submitted context. Operation completion requires durable read-back.';
+            }}); if(input.value === submitted) input.value = ''; await refresh();
             status.textContent = result.executionUnavailable ? 'Message saved. Native agent session is not configured; external agents can continue this workspace.' : ['error', 'refused', 'cancelled', 'failed', 'blocked'].includes(result.status) ? (result.errorMessage || `Agent turn ${result.status}.`) : 'Turn saved. Check operation receipts for completion.';
         } catch (error) { report(error); }
     });

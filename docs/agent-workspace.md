@@ -44,3 +44,75 @@ Native AI and MCP event streams pass through incrementally after membership and 
 A pending custom-source save may replace its own cleared task only after the same editor observes the accepted project revision and source digest. Capture rejects changed view, project, mode, explicit context selection, workspace, principal or environment while that save is pending. Unsaved source remains a blocking condition; capture never reads the latest source as a fallback for an already submitted snapshot.
 
 The native bundle must advertise `workspaceAgentFeatures.toolApproval === true`. Each serialized turn clears the previous capability verdict, revalidates same-origin session metadata, reconnects discovery and refreshes the actual canonical tool catalog on the persistent SDK session. Known family selection includes `honua.workspace.local-process`; optional private DevOps tools additionally require that turn’s verified gateway capability pins. Discovery failure exposes no stale tools and never replays mutations.
+
+### Experimental GA spec review
+
+`Honua:Agent:GaSpecWorkflowEnabled` defaults to false. It exposes a review in the
+existing host conversation for canonical saved layer draft planning and revision-pinned
+layer publication plans from
+`/v1/spec/ga`. Opening a plan never applies it. Human Apply uses the existing
+operator/environment/origin-partitioned honua-server cookie session, with browser
+antiforgery validation; it does not forward the model's or operator bearer token.
+A missing or expired server human session fails closed and requires server sign-in.
+The server must also enable `GaSpec:Enabled`. The bounded bundle reader consumes
+the shared server bundle version and grammar; it maintains no second operation catalog.
+
+The review displays server inputs, attribution, verdict, execution and evidence.
+An accepted Apply response is followed by an authorized durable run read. The
+Read durable status button recovers the stored run after reconnect; event frames
+and assistant text cannot establish success. A lost Apply response preserves the
+command identity and blocks blind replay. The server uses plan ID as the durable run identity, so status reads can reconcile
+a lost response without repeating Apply. A missing record remains unknown and
+blocks replay.
+Plan IDs and revisions entered from external agents use the same review surface.
+
+This slice does not qualify a connected production journey. Exact feature selection,
+canonical workspace context availability, shared draft undo, bundle-derived pathways and acceptance
+read-back remain qualification work; existing explicit Save and draft lifecycle stay
+in the shared Studio editor.
+
+The current server prerequisite adapter fails closed with `workspace-context-unavailable`
+until the canonical workspace backend is integrated. This is an explicit GA blocker.
+
+### Checked Studio filtering bundle
+
+The managed assets include Studio `fda6681d56b09973a6ed69939e0814fc1eeacf0b`:
+shared source filtering for maps, charts and tables, comparable ISO date ranges,
+preserved half-open date inputs, and local read-only audience controls for the
+same saved map/chart/table composition. Layer aliases resolve to their backing
+data source for controls and widgets, including authoring option domains;
+ambiguous aliases fail closed. Shared audience reads are cancelled when that viewer
+is replaced or disposed. Filtered, truncated table notices retain the original loaded
+count and server total; informational bounded notices remain distinct from render
+errors. The assets were imported with the normal vendor
+script from the successful [Production Console assets + audience browser job](https://github.com/honua-io/honua-studio/actions/runs/39866503446/job/120129911564).
+The producer passed three browser checks; the same source passed hosted typecheck,
+style, build and all 1,598 unit tests.
+
+GitHub artifact `12464323172`, named
+`console-studio-assets-ad46f6797b0640ac5357c502c4d86d5d15cd7778`, was downloaded and
+its archive SHA-256 verified against GitHub's digest:
+`46dd400617dc592fb6f9c92c9db0e1ee4f93df57bc8f2e21201e2b7769cbf3a3`.
+The PR job checked out synthetic merge
+`ad46f6797b0640ac5357c502c4d86d5d15cd7778`; its Git tree
+`e67ffd0c7a42f6a26e082d959c358650315c17fe` exactly matches the Studio source commit
+recorded in the vendor manifest.
+
+The bundle's SDK provenance matches the source's pinned public `@honua/sdk-js`
+`0.2.7` receipt and source commit `5765b427f421dca9c42832ae450fa1c5aad882c2`.
+Registry `gitHead`, archive SHA-256
+`33b2c0f7ca70692fd621d8bbdcc886dc83f464d53513092d40e6e43c24396f06`, and lockfile
+integrity were independently verified. No SDK revision was inferred from a local
+checkout. The vendor manifest checks the copied file set, sizes and hashes.
+
+These checks do not establish a connected installed-workspace journey or full
+AI-03 qualification. Generated provenance retains `releaseQualified: false` and
+`pending-installed-workspace-journey`.
+
+
+The Console Playwright smoke job allows 20 minutes overall and caps Chromium/OS
+provisioning at 12 minutes. Run `39861978722` spent about nine minutes downloading
+Ubuntu browser dependencies before reaching the former ten-minute job limit;
+product/operator/accessibility checks had not started. This bounded infrastructure
+allowance preserves `--with-deps`, every existing check and its own limits. It does
+not convert that cancelled run into a product-test result or qualification pass.
