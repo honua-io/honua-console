@@ -34,6 +34,7 @@ public sealed class StudioPublicationBffTests
         host.Client.DefaultRequestHeaders.Add("Authorization", "Bearer not-the-operator-credential");
         using var response = await host.Client.GetAsync("/api/studio/v1/agent/target");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
         Assert.Equal(native, await response.Content.ReadAsStringAsync());
         Assert.Equal("/api/v1/agent/target", host.Wire.Uri!.AbsolutePath);
         Assert.Equal(string.Empty, host.Wire.Uri.Query);

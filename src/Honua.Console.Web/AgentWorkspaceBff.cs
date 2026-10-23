@@ -99,6 +99,7 @@ internal static partial class AgentWorkspaceBff
         var datasetRoute = !studio && !processes ? ReadDatasetImportRoute(path) : null;
         var isPublicationReceipt = studio && path is not null && StudioPublicationReceiptPath().IsMatch(path);
         var isTargetIdentity = studio && path == "v1/agent/target";
+        if (isTargetIdentity) context.Response.Headers.CacheControl = "no-store";
         string datasetQuery = "";
         string? datasetContentHash = null;
         if (datasetRoute is not null && !datasetRoute.Allows(context.Request.Method)) return Results.StatusCode(405);
