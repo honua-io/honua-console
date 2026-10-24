@@ -127,6 +127,21 @@ test('native progress remains distinct from prose and preserves keyboard focus t
   await expect(progress.locator('a[href^="https:"]')).toHaveCount(0);
 });
 
+test('native create update and save status rows keep the request working without fabricated links',async({workspace:page})=>{
+  await page.evaluate(()=>{
+    const state=(window as any).executionTest;state.state='running';state.revision++;
+    state.operations=['studio.draft.create','studio.draft.update','studio.draft.save-version'].map((operationId,index)=>({
+      kind:'operation',id:`native-operation-${index}`,operationId,status:'Completed',href:'https://untrusted.example'}));
+    document.querySelector<HTMLButtonElement>('[data-workspace-check-executions]')!.click();
+  });
+  const progress=page.locator('[data-workspace-executions]');
+  await expect(progress.getByText('Working',{exact:true})).toBeVisible();
+  await expect(progress.getByText('Operation: Completed',{exact:true})).toHaveCount(3);
+  await expect(progress.getByRole('link')).toHaveCount(0);
+  await expect(progress).not.toContainText('unavailable');
+  await expect.poll(()=>page.evaluate(()=>(window as any).executionTest.posts)).toBe(0);
+});
+
 test('losing access removes private links without displaying prior completion',async({workspace:page})=>{
   await page.evaluate(()=>{
     const state=(window as any).executionTest;state.state='awaiting-approval';state.revision++;

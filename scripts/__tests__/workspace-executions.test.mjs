@@ -46,6 +46,18 @@ test('canonical operation names and proposal/job references are projected withou
     assert.equal(result.operations[0].href,undefined);
 });
 
+test('native create update and save handles preserve overall working state without inventing a proposal or job',()=>{
+    const operations=['studio.draft.create','studio.draft.update','studio.draft.save-version'].map((operationId,index)=>({
+        kind:'operation',id:`native-operation-${index}`,operationId,status:'Completed',href:'https://untrusted.example'}));
+    const result=readExecution(execution({state:'running',operations}));
+    assert.equal(executionSummary({acknowledged:true,execution:result}),'Working');
+    assert.equal(result.operations.length,3);
+    for (const [index,operation] of result.operations.entries()) {
+        assert.deepEqual(operation,{kind:'operation',id:`native-operation-${index}`,
+            operationId:operations[index].operationId,status:'Completed'});
+    }
+});
+
 test('lost POST acknowledgement reads the original turn once and never launches the native model',async()=>{
     const calls=[];let committed;
     const workspace=client(async(path,init)=>{
