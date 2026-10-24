@@ -623,17 +623,22 @@ export function mountWorkspace() {
     ]) host.querySelector(selector)?.addEventListener('click', async () => {
         try { await action(); renderReview(); } catch (error) { report(error); }
     }, {signal:lifetime.signal});
+    const unavailable = (error, scope) => {
+        if (scope !== workspace.executions.scope() || !host.isConnected) return;
+        workspace.executions.unavailable(error);
+        if ([401,403,404].includes(error.status)) {
+            messages.replaceChildren();
+            window.dispatchEvent(new CustomEvent('honua-workspace-conversation', {detail:[]}));
+        }
+        renderExecutions(executions,workspace,report);
+        renderQuestionReply(replyPanel,workspace);
+    };
     const refresh = async () => {
         const scope=workspace.executions.scope();
         let value;
         try { value=await workspace.conversation(); }
         catch (error) {
-            if (scope === workspace.executions.scope() && host.isConnected) {
-                workspace.executions.unavailable(error);
-                if ([401,403,404].includes(error.status)) messages.replaceChildren();
-                renderExecutions(executions,workspace,report);
-                renderQuestionReply(replyPanel,workspace);
-            }
+            unavailable(error,scope);
             throw error;
         }
         if (scope !== workspace.executions.scope() || !host.isConnected) return;
@@ -817,6 +822,7 @@ export function mountWorkspace() {
     };
     const reconcile = async () => {
         if (!host.isConnected) { clearTimeout(workspace._pollTimer); observer.disconnect(); formObserver.disconnect(); lifetime.abort(); return; }
+        const scope=workspace.executions.scope();
         try {
             if (workspace.context && !document.hidden) {
                 if (Date.parse(workspace.session?.expiresAt || '') < Date.now() + 180000) {
@@ -865,8 +871,12 @@ export function mountWorkspace() {
                 }
                 workspace.notify(workspace); await refresh();
             }
-        } catch (error) { report(error); }
-        finally {
+        } catch (error) {
+            if (scope === workspace.executions.scope() && host.isConnected) {
+                if ([401,403,404].includes(error.status)) unavailable(error,scope);
+                report(error);
+            }
+        } finally {
             // A superseded observation skips this snapshot, not future reads or
             // lease renewal. Detached hosts leave polling to the new mount.
             if (host.isConnected && !lifetime.signal.aborted) schedulePoll();

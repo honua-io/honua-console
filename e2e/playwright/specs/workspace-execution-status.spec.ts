@@ -1,4 +1,4 @@
-import {expect,test,type Page} from '@playwright/test';
+import {expect,test as base,type Page} from '@playwright/test';
 
 // Real mounted Console controls with a controlled native API boundary. These
 // browser checks do not substitute for installed Cognito/model qualification.
@@ -25,7 +25,13 @@ async function mountedWorkspace(page:Page) {
     workspace.selectionProvider=()=>workspace.context.selectedResources;
     workspace.api=async(path:string,method='GET',body?:any,_binding?:any,serialized?:string)=>{
       if (method==='POST') state.posts++;
-      if (path==='session') return {...workspace.session};
+      if (path==='session') {
+        if (state.sessionStatus) {
+          state.refusedReads=(state.refusedReads || 0)+1;
+          throw Object.assign(new Error('Session denied'),{status:state.sessionStatus});
+        }
+        return {...workspace.session};
+      }
       if (path.endsWith('/deploy-targets')) return [];
       if (path.endsWith('/conversation') && state.conversationDenied) throw Object.assign(new Error('Denied'),{status:403});
       if (path.endsWith('/conversation')) return {messages:[
@@ -60,7 +66,18 @@ async function mountedWorkspace(page:Page) {
       }
       if (path.endsWith('/context') && method==='PUT')
         return {...workspace.context,...body,revision:workspace.context.revision+1};
-      if (path.startsWith('workspace?viewId=')) return workspace.context;
+      if (path.startsWith('workspace?viewId=')) {
+        const status=state.contextStatus;
+        if (state.contextGate) {
+          state.contextStarted=true;
+          await state.contextGate;
+        }
+        if (status) {
+          state.refusedReads=(state.refusedReads || 0)+1;
+          throw Object.assign(new Error('Context denied'),{status});
+        }
+        return workspace.context;
+      }
       throw new Error(`Unexpected request: ${method} ${path}`);
     };
     workspace.notify(workspace);
@@ -69,8 +86,16 @@ async function mountedWorkspace(page:Page) {
   await page.locator('[data-workspace-check-executions]').click();
 }
 
-test('native progress remains distinct from prose and preserves keyboard focus through approval updates',async({page})=>{
-  await mountedWorkspace(page);
+// Cold Blazor hydration is fixture setup; preserve the interaction test's
+// separate 30-second budget and each assertion's existing timeout.
+const test=base.extend<{workspace:Page}>({
+  workspace:[async({page},use)=>{
+    await mountedWorkspace(page);
+    await use(page);
+  },{timeout:60_000}],
+});
+
+test('native progress remains distinct from prose and preserves keyboard focus through approval updates',async({workspace:page})=>{
   const progress=page.locator('[data-workspace-executions]');
   await expect(progress).toContainText('Waiting for agent');
   await expect(progress).toContainText('Parcels');
@@ -102,8 +127,7 @@ test('native progress remains distinct from prose and preserves keyboard focus t
   await expect(progress.locator('a[href^="https:"]')).toHaveCount(0);
 });
 
-test('losing access removes private links without displaying prior completion',async({page})=>{
-  await mountedWorkspace(page);
+test('losing access removes private links without displaying prior completion',async({workspace:page})=>{
   await page.evaluate(()=>{
     const state=(window as any).executionTest;state.state='awaiting-approval';state.revision++;
     state.operations=[{kind:'operation-proposal',id:'operation',proposalId:'proposal-1',status:'RequiresApproval'}];
@@ -121,8 +145,7 @@ test('losing access removes private links without displaying prior completion',a
   await expect(progress).not.toContainText('Parcels');
 });
 
-test('conversation access loss clears previous messages and result links',async({page})=>{
-  await mountedWorkspace(page);
+test('conversation access loss clears previous messages and result links',async({workspace:page})=>{
   await page.evaluate(()=>{
     const state=(window as any).executionTest;state.state='awaiting-approval';state.revision++;
     state.operations=[{kind:'operation-proposal',id:'operation',proposalId:'proposal-1',status:'RequiresApproval'}];
@@ -149,8 +172,8 @@ async function askQuestion(page:Page) {
   await expect(page.locator('[data-workspace-executions]')).toContainText('Awaiting your answer');
 }
 
-test('a typed clarification stays attached to its original target through navigation and explicit reply',async({page})=>{
-  await mountedWorkspace(page);await askQuestion(page);
+test('a typed clarification stays attached to its original target through navigation and explicit reply',async({workspace:page})=>{
+  await askQuestion(page);
   const prompt=page.locator('[data-workspace-prompt]');await prompt.fill('Residential parcels');
   await page.getByRole('button',{name:'Reply to question',exact:true}).click();
   await expect(prompt).toHaveValue('Residential parcels');await expect(prompt).toBeFocused();
@@ -174,8 +197,8 @@ test('a typed clarification stays attached to its original target through naviga
   expect(body.prompt).toBe('Residential parcels');expect(body.approved).toBeUndefined();
 });
 
-test('losing question access hides its private context and keeps the unsent answer',async({page})=>{
-  await mountedWorkspace(page);await askQuestion(page);
+test('losing question access hides its private context and keeps the unsent answer',async({workspace:page})=>{
+  await askQuestion(page);
   await page.getByRole('button',{name:'Reply to question',exact:true}).click();
   const prompt=page.locator('[data-workspace-prompt]');await prompt.fill('Keep this answer');
   await page.evaluate(()=>{
@@ -192,8 +215,8 @@ test('losing question access hides its private context and keeps the unsent answ
   expect(await page.evaluate(()=>(window as any).executionTest.posts)).toBe(0);
 });
 
-test('a verified native refusal keeps the typed answer and permits one explicit corrected submission',async({page})=>{
-  await mountedWorkspace(page);await askQuestion(page);
+test('a verified native refusal keeps the typed answer and permits one explicit corrected submission',async({workspace:page})=>{
+  await askQuestion(page);
   await page.getByRole('button',{name:'Reply to question',exact:true}).click();
   const prompt=page.locator('[data-workspace-prompt]');await prompt.fill('Residential parcels');
   await page.evaluate(()=>{(window as any).executionTest.refuseNext=true;});
@@ -214,8 +237,8 @@ test('a verified native refusal keeps the typed answer and permits one explicit 
 });
 
 
-test('an older question remains reachable after eleven completed turns and a history reload',async({page})=>{
-  await mountedWorkspace(page);await askQuestion(page);
+test('an older question remains reachable after eleven completed turns and a history reload',async({workspace:page})=>{
+  await askQuestion(page);
   await page.evaluate(()=>{
     const workspace=(window as any).honuaAgentWorkspace,state=(window as any).executionTest;
     state.history=Array.from({length:11},(_,i)=>({turnId:`later-${i}`,status:'accepted',
@@ -249,4 +272,75 @@ test('an older question remains reachable after eleven completed turns and a his
   await expect(answer).toHaveCount(0);
   await expect(progress).not.toContainText('Which parcels');
   await expect(prompt).toHaveValue('Keep this answer for the original question');
+});
+
+
+for (const refusal of [
+  {source:'context',status:401},
+  {source:'context',status:403},
+  {source:'context',status:404},
+  {source:'session renewal',status:401}
+]) test('automatic polling clears private execution data after '+refusal.source+' '+refusal.status,async({workspace:page})=>{
+  await page.evaluate(()=>{
+    (window as any).executionTest.operations=[
+      {kind:'operation-proposal',id:'operation',proposalId:'proposal-1',status:'RequiresApproval'}
+    ];
+  });
+  await askQuestion(page);
+  const progress=page.locator('[data-workspace-executions]');
+  await expect(progress.getByRole('link',{name:'Open approval'})).toBeVisible();
+  await expect(progress).toContainText('Parcels');
+  await page.getByRole('button',{name:'Reply to question',exact:true}).click();
+  const prompt=page.locator('[data-workspace-prompt]');await prompt.fill('Residential parcels');
+  await expect(page.locator('[data-workspace-reply-description]')).toContainText('Which parcels');
+  await page.evaluate(refusal=>{
+    const workspace=(window as any).honuaAgentWorkspace;
+    const state=(window as any).executionTest;
+    window.addEventListener('honua-workspace-conversation',(event:any)=>{state.projectedMessages=event.detail;});
+    if (refusal.source==='context') state.contextStatus=refusal.status;
+    else {
+      state.sessionStatus=refusal.status;
+      workspace.session.expiresAt=new Date(Date.now()-1000).toISOString();
+    }
+  },refusal);
+  // No manual refresh: the mounted scheduler must notice revocation itself.
+  await expect.poll(()=>page.evaluate(()=>(window as any).executionTest.refusedReads || 0)).toBeGreaterThan(0);
+  await expect(progress).toContainText('Reconnect');
+  await expect(progress.getByRole('link')).toHaveCount(0);
+  await expect(progress).not.toContainText('Parcels');
+  await expect(progress).not.toContainText('Which parcels');
+  await expect(progress.getByRole('button',{name:'Reply to question',exact:true})).toHaveCount(0);
+  await expect(page.locator('[data-workspace-messages]')).toBeEmpty();
+  await expect(page.locator('[data-workspace-reply-description]')).not.toContainText('Which parcels');
+  await expect(page.locator('[data-workspace-reply-description]')).toContainText('typed answer is kept');
+  await expect(prompt).toHaveValue('Residential parcels');
+  expect(await page.evaluate(()=>(window as any).executionTest.projectedMessages)).toEqual([]);
+  expect(await page.evaluate(()=>(window as any).executionTest.posts)).toBe(0);
+});
+
+test('a refused poll from the previous authority preserves the new authorized observation',async({workspace:page})=>{
+  await askQuestion(page);
+  await page.evaluate(()=>{
+    const state=(window as any).executionTest;
+    state.contextStatus=403;
+    state.contextGate=new Promise<void>(resolve=>{state.releaseContext=resolve;});
+  });
+  await expect.poll(()=>page.evaluate(()=>(window as any).executionTest.contextStarted)).toBe(true);
+  await page.evaluate(()=>{
+    const workspace=(window as any).honuaAgentWorkspace;
+    workspace.session={...workspace.session,principalId:'another-authorized-human'};
+    document.querySelector<HTMLButtonElement>('[data-workspace-check-executions]')!.click();
+  });
+  await expect.poll(()=>page.evaluate(()=>{
+    const workspace=(window as any).honuaAgentWorkspace;
+    return workspace.executions.current()[0]?.execution?.question?.text;
+  })).toBe('Which parcels should the map show?');
+  await page.evaluate(()=>{
+    const state=(window as any).executionTest;
+    state.contextStatus=undefined;state.contextGate=undefined;state.releaseContext();
+  });
+  await expect.poll(()=>page.evaluate(()=>(window as any).executionTest.refusedReads || 0)).toBe(1);
+  await expect(page.locator('[data-workspace-executions]')).toContainText('Which parcels');
+  await expect(page.locator('[data-workspace-messages]')).toContainText('Make a map');
+  expect(await page.evaluate(()=>(window as any).honuaAgentWorkspace.executions.current()[0].error)).toBeNull();
 });
