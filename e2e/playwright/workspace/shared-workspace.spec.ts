@@ -1,21 +1,16 @@
 import { test, expect, type Page } from '@playwright/test';
+import { installedSession, sendInstalled, finishedInstalled, executionEvidence } from '../workspace-live/execution';
 
-type WorkspaceWindow = Window & {honuaAgentWorkspace: any; __qualificationSdk?: unknown; __qualificationTurns?: string[]};
+type WorkspaceWindow = Window & {honuaAgentWorkspace: any; __qualificationWorkspace?: unknown};
 
 async function session(page: Page) {
   // The shared installed-workspace config requires a real operator storage state.
   await page.goto('/');
-  const response = await page.request.get('/api/agent-workspace/session');
-  expect(response.status(), 'a real human server-bound session is required').toBe(200);
-  const value = await response.json();
-  expect(value.principalId).toBeTruthy();
-  expect(value.environmentId).toBeTruthy();
-  expect(value.csrfToken).toBeTruthy();
-  expect(value.nativeAgentAvailable, 'native agent key must be provisioned, never skipped').toBe(true);
+  await installedSession(page);
 }
 
 async function navigate(page: Page, path: string) {
-  // Enhanced Blazor navigation preserves the host-owned SDK session, unlike page.goto/reload.
+  // Enhanced Blazor navigation preserves the host-owned workspace, unlike page.goto/reload.
   await page.evaluate(path => (window as any).Blazor.navigateTo(path), path);
   await expect(page).toHaveURL(new RegExp(`${path.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}$`));
 }
@@ -25,17 +20,14 @@ async function conversation(page: Page) {
 }
 
 async function sendConsole(page: Page, prompt: string) {
-  const before=await page.evaluate(()=> (window as WorkspaceWindow).__qualificationTurns?.length ?? 0);
   const drawer = page.locator('[data-agent-workspace]');
-  await drawer.evaluate((node: HTMLDetailsElement) => {node.open = true;});
-  await drawer.locator('[data-workspace-prompt]').fill(prompt);
-  await drawer.getByRole('button', {name:'Send',exact:true}).click();
-  await expect.poll(()=>page.evaluate(()=> (window as WorkspaceWindow).__qualificationTurns?.length ?? 0),{timeout:180_000}).toBe(before+1);
-  expect(await page.evaluate(()=> (window as WorkspaceWindow).__qualificationTurns?.at(-1))).toBe('completed');
-  await expect(drawer.locator('[data-workspace-status]')).toHaveText('Turn saved. Check operation receipts for completion.', {timeout:180_000});
+  if (!await drawer.evaluate((node: HTMLDetailsElement)=>node.open)) await drawer.locator(':scope > summary').click();
+  const capture=await sendInstalled(page,prompt);
+  await finishedInstalled(page,prompt,capture.turnId);
+  return capture;
 }
 
-test('primary conversation retains one real native session and draft context across views', async ({page}, testInfo) => {
+test('primary conversation retains one installed workspace and independently verified turns across views', async ({page}, testInfo) => {
   await session(page);
   await page.locator('[data-agent-workspace]').evaluate((node: HTMLDetailsElement)=>{node.open=true;});
   await page.locator('.console-conversation-connection').evaluate((node: HTMLDetailsElement)=>{node.open=true;});
@@ -73,42 +65,32 @@ test('primary conversation retains one real native session and draft context acr
 
 
   await page.evaluate(()=>{
-    const state=window as WorkspaceWindow;state.__qualificationTurns=[];
-    const transport=state.honuaAgentWorkspace.agentSession;
-    if(!transport) throw new Error('Native transport unavailable.');
-    const submit=transport.submitTurn.bind(transport);
-    // Observe actual outcomes; all requests and SDK execution remain unchanged.
-    transport.submitTurn=async(...args:any[])=>{try {const result=await submit(...args);state.__qualificationTurns!.push(result.status);return result;} catch(error) {state.__qualificationTurns!.push('rejected');throw error;}};
+    const state=window as WorkspaceWindow;
+    state.__qualificationWorkspace=state.honuaAgentWorkspace;
+    if(state.honuaAgentWorkspace.agentSession!==null)throw new Error('Installed execution cannot create a second SDK model session.');
   });
-  const frozenResponse=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith('/turns') && response.request().method()==='POST');
-  const projectedResponse=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/agent-workspace/agent/turn');
   const first=`Identify the current map package ${packageKey} and target. Do not call tools or change anything.`;
-  await sendConsole(page,first);
-  await expect.poll(async()=> (await conversation(page)).messages.filter((message:any)=>message.role==='assistant').length).toBeGreaterThan(0);
+  const captured=await sendConsole(page,first);
   const firstMessages=(await conversation(page)).messages;
   const firstUser=firstMessages.find((message:any)=>message.role==='user'&&message.content===first);
-  expect(firstUser?.turnId).toBeTruthy();
-  const captured=await (await frozenResponse).json();
-  const projected=await (await projectedResponse).json();
-  expect(projected.context.task).toMatchObject(task);
-  expect(await page.evaluate(()=> (window as WorkspaceWindow).__qualificationTurns)).toEqual(['completed']);
-  expect(captured.context.task).toMatchObject(task);
-  expect(captured.context.targetId).toBe(initial.targetId);
-  await page.evaluate(()=>{
-    const state=window as WorkspaceWindow;state.__qualificationSdk=state.honuaAgentWorkspace.agentSession.sdkSession;
-    if(!state.__qualificationSdk)throw new Error('No real native SDK session was created.');
-  });
+  expect(firstUser?.turnId).toBe(captured.turnId);
+  expect(captured.projected!.context.task).toMatchObject(task);
+  expect(captured.turn.context.task).toMatchObject(task);
+  expect(captured.turn.context.targetId).toBe(initial.targetId);
 
   // Only the primary composer is used, including while a Studio draft is active.
   await navigate(page,'/operate/publishing/quick');
   await expect(page.locator('[data-workspace-field="serviceName"]'),
     'The installed evaluation deployment must have a real readable data connection.').toBeVisible();
-  const second=`Continue our ${packageKey} conversation. State its package key without calling tools.`;
-  await sendConsole(page,second);
-  await expect.poll(()=>page.evaluate(()=> (window as WorkspaceWindow).__qualificationTurns)).toEqual(['completed','completed']);
+  const second='Continue our conversation. State the exact package key of the map we just discussed, without calling tools.';
+  const continued=await sendConsole(page,second);
+  expect(continued.workspaceId).toBe(initial.workspaceId);
+  expect(continued.executionId).not.toBe(captured.executionId);
+  const reply=(await conversation(page)).messages.find((message:any)=>message.id===continued.proof.witness.native.finalMessageId);
+  expect(reply.content).toContain(packageKey);
   await navigate(page,'/operate/publishing/quick');
   expect(await page.evaluate(()=>{
-    const state=window as WorkspaceWindow;return state.__qualificationSdk===state.honuaAgentWorkspace.agentSession.sdkSession;
+    const state=window as WorkspaceWindow;return state.__qualificationWorkspace===state.honuaAgentWorkspace && state.honuaAgentWorkspace.agentSession===null;
   })).toBe(true);
   await expect(page.locator('[data-workspace-messages]')).toContainText(first);
   await expect(page.locator('[data-workspace-messages]')).toContainText(second);
@@ -129,5 +111,5 @@ test('primary conversation retains one real native session and draft context acr
   await expect(page.locator('[data-inbox-error]')).toHaveCount(0);
   await expect(page.locator('[data-awaiting-count]')).toBeVisible();
   // This benign journey creates no approval. It does not claim mutation/publication approval proof.
-  await testInfo.attach('workspace-binding.json',{body:JSON.stringify({...initial,task,turnId:firstUser.turnId}),contentType:'application/json'});
+  await testInfo.attach('workspace-binding.json',{body:JSON.stringify({...initial,task,turnId:firstUser.turnId,executions:executionEvidence(page)}),contentType:'application/json'});
 });

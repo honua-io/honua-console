@@ -25,7 +25,7 @@ export async function dashboard(page:Page,info:TestInfo,profile:any,variant:stri
     const prompt=releasePrompt(profile,'AI-03','map-dashboard',variant)
         .replaceAll('{categoryField}',categoryField).replaceAll('{identityField}',identityField);
     const captured=await send(page,prompt);await finished(page,prompt,captured.turn.turnId);
-    expect(captured.projected.context.task.id).toBe(fixture.draft.draftId);
+    expect(captured.projected!.context.task.id).toBe(fixture.draft.draftId);
     const readComposition=async()=>{
         const body=await fixture.readBody();
         return {charts:body.widgets?.filter(widget=>widget.kind==='chart' && widget.sourceId===fixture.source.id),

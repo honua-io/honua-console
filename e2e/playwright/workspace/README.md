@@ -5,12 +5,13 @@ Run against a dedicated deployed candidate with the matching Console, server, St
 ```sh
 HONUA_WORKSPACE_E2E_ORIGIN=http://localhost:3000 \
 HONUA_WORKSPACE_E2E_OPERATOR_STATE=/secure/operator-state.json \
+HONUA_WORKSPACE_E2E_RUNTIME_BINDING=/secure/installed-runtime-binding.json \
 npm --prefix e2e/playwright exec -- playwright test --config playwright.workspace.config.ts shared-workspace.spec.ts
 ```
 
 The existing installed-workspace configuration requires `HONUA_WORKSPACE_E2E_OPERATOR_STATE` from a prior real human sign-in and a real readable data connection so the publish form is available. No service/agent/bridge secret is supplied to the browser harness. Authentication and model requests are not traced. The native server/gateway/provider remains configured only in the deployed host. Use the canonical shared build lock for dependency install and browser execution. The same configuration also retains the separate installed visual-style persistence journey under `workspace-live/specs`.
 
-The implemented journey is written to verify real human session availability, workspace creation/membership, human-created canonical Studio draft binding, primary Console conversation across Console and Studio views through one SDK session, absence of the embedded duplicate composer and retired host chrome, exact read-only external context references, durable transcript after navigation, human dirty form preservation during authorized observation, and an available approval inbox. It records only binding references, not credentials, prompt output or model claims of execution.
+The implemented journey verifies real human session availability, workspace creation/membership, human-created canonical Studio draft binding, and one primary Console conversation across views with the browser SDK model disabled. Each original server execution must join independently verified private worker/provider evidence as described in [the installed journey](../workspace-live/README.md). It also checks absence of duplicate composers and retired host chrome, exact read-only context references, durable conversation and map-key recall after navigation, human dirty form preservation, and an available approval inbox. Attachments contain binding/evidence references, not credentials or prompt output.
 
 Epic 6297 acceptance still requires these additional real journeys:
 

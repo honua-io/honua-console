@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { openSync, writeFileSync, closeSync, readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import { installedSession, sendInstalled, finishedInstalled, executionEvidence } from '../execution';
 
 type DraftIdentity = { draftId: string; generation: number; packageKey: string };
 type CatalogSource = {
@@ -48,11 +49,7 @@ test('installed workspace: visual and prompted styling persist on the same rende
   let importedTable: string | undefined;
   const packageKey = `workspace-live-${randomUUID()}`;
 
-  const sessionResponse = await page.request.get('/api/agent-workspace/session');
-  expect(sessionResponse.status(), 'Use a real paired/signed-in operator session.').toBe(200);
-  const session = await sessionResponse.json();
-  expect(session.authenticated).toBe(true);
-  expect(session.nativeAgentAvailable, 'This journey requires the separately configured native agent.').toBe(true);
+  const {session} = await installedSession(page);
   expect(typeof session.environmentId).toBe('string');
   expect(typeof session.principalId).toBe('string');
   const expectedConsoleSha = process.env.HONUA_WORKSPACE_E2E_CONSOLE_SHA;
@@ -142,10 +139,8 @@ test('installed workspace: visual and prompted styling persist on the same rende
   const prompt = `In the current map draft ${packageKey}, add the published source ${source.id} ` +
     `from service ${service}, layer ${layerId}. Set the map view to WGS84 bounds ${JSON.stringify(bbox)}. ` +
     'Use the existing source and current draft. Do not create or publish a service, publish the map, or edit source data.';
-  await conversation.getByRole('textbox', { name: 'Message', exact: true }).fill(prompt);
-  await conversation.getByRole('button', { name: 'Send', exact: true }).click();
-  await expect(conversation.locator('[data-workspace-status]')).toHaveText(
-    'Turn saved. Check operation receipts for completion.', { timeout: 180_000 });
+  const initialTurn = await sendInstalled(page,prompt);
+  await finishedInstalled(page,prompt,initialTurn.turnId);
 
   // Assistant prose is not evidence of a successful write. Read the canonical
   // draft independently and inspect features painted by the actual MapLibre map.
@@ -214,11 +209,8 @@ test('installed workspace: visual and prompted styling persist on the same rende
   const stylePrompt = `In current map ${packageKey}, change only render layer ${layerIdForStyle} ` +
     `paint property ${opacityProperty} to 0.55. Preserve its existing ${colorProperty} thematic expression ` +
     `over field ${thematic!.name}, all sources and all other layers. Save to this same draft; do not publish.`;
-  await conversation.getByRole('textbox', { name: 'Message', exact: true }).fill(stylePrompt);
-  await conversation.getByRole('button', { name: 'Send', exact: true }).click();
-  await expect(conversation.getByRole('log')).toContainText(stylePrompt, { timeout: 180_000 });
-  await expect(conversation.locator('[data-workspace-status]')).toHaveText(
-    'Turn saved. Check operation receipts for completion.', { timeout: 180_000 });
+  const stylingTurn = await sendInstalled(page,stylePrompt);
+  await finishedInstalled(page,stylePrompt,stylingTurn.turnId);
   await expect.poll(async () => (await renderLayer())?.paint?.[opacityProperty]).toBe(0.55);
   expect((await renderLayer())?.paint?.[colorProperty]).toEqual(colorExpression(thematic!.values[0]));
   await expect.poll(() => livePaint(opacityProperty)).toBe(0.55);
@@ -271,7 +263,8 @@ test('installed workspace: visual and prompted styling persist on the same rende
   await info.attach('workspace-map-receipt.json', {
     contentType: 'application/json',
     body: Buffer.from(JSON.stringify({
-      scope: 'installed native prompt → existing data → rendered map → visual/AI/visual style → save → navigate → reopen',
+      executions: executionEvidence(page),
+      scope: 'installed worker prompt → existing data → rendered map → visual/AI/visual style → save → navigate → reopen',
       packageKey, service, layerId, sourceId: source.id, featureCount: count.count,
       workspaceId: originalWorkspace, draftId: originalDraft.draftId,
       principalId: session.principalId, environmentId: session.environmentId,

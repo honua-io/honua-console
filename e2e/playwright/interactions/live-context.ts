@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { expect, type Page, type TestInfo } from '@playwright/test';
+import { sendInstalled, finishedInstalled, installedSession, executionEvidence } from '../workspace-live/execution';
 
 export type Body = {
   layers: Array<{id:string; sourceId:string; title?:string}>;
@@ -9,7 +10,6 @@ export type Body = {
 };
 type Identity = {draftId:string;generation:number;packageKey:string};
 type Context = {targetId:string;revision:number;task?:{id:string;revision:number;packageKey?:string};selectedResources?:unknown[]};
-type Session = {environmentId:string;principalId:string;authenticated:boolean;nativeAgentAvailable:boolean};
 type Runtime = Window & {honuaAgentWorkspace:{workspaceId:string;context:Context;agentSession?:{busy:boolean}}};
 type App = HTMLElement & {workspaceDraftIdentity?:Identity;sourceCatalog?:Array<{id:string;locator?:{layerId:number;serviceId?:string;url?:string}}>};
 export function required(name:string) {
@@ -23,32 +23,8 @@ export async function identity(page:Page) {
 export async function context(page:Page) {
   return page.evaluate(()=>structuredClone((window as Runtime).honuaAgentWorkspace.context));
 }
-export async function send(page:Page,prompt:string) {
-  const host=page.locator('[data-agent-workspace]');
-  const projected=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/agent-workspace/agent/turn' && response.request().method()==='GET');
-  const captured=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith('/turns') && response.request().method()==='POST');
-  await host.getByRole('textbox',{name:'Message',exact:true}).fill(prompt);
-  await host.getByRole('button',{name:'Send',exact:true}).click();
-  const response=await captured;
-  expect(response.ok(),'the real server must persist the submitted turn').toBe(true);
-  const turn=await response.json();
-  const projection=await projected;expect(projection.ok(),'the model must receive an authorized server context').toBe(true);
-  expect(projection.request().headers()['x-honua-turn'],'projection must belong to the exact persisted turn').toBe(turn.turnId);
-  const authorized=await projection.json();
-  if ('turnId' in authorized) expect(authorized.turnId).toBe(turn.turnId);
-  return {turn,projected:authorized};
-}
-export async function finished(page:Page,prompt:string,turnId:string) {
-  const host=page.locator('[data-agent-workspace]');
-  expect(turnId,'every completion must bind the persisted submitted turn').toBeTruthy();
-  await expect.poll(()=>page.evaluate(async id=>{
-    const workspace=(window as unknown as {honuaAgentWorkspace:{conversation():Promise<{messages:Array<{turnId:string;role:string}>}>;agentSession?:{busy:boolean}}}).honuaAgentWorkspace;
-    const history=await workspace.conversation();
-    return !workspace.agentSession?.busy && history.messages.some(message=>message.turnId===id && message.role==='assistant');
-  },turnId),{timeout:180_000}).toBe(true);
-  await expect(host.getByRole('log')).toContainText(prompt,{timeout:180_000});
-  await expect(host.locator('[data-workspace-status]')).toHaveText('Turn saved. Check operation receipts for completion.',{timeout:180_000});
-}
+export const send=sendInstalled;
+export const finished=finishedInstalled;
 export async function setup(page:Page) {
   const service=required('HONUA_WORKSPACE_E2E_SERVICE');
   const layerText=required('HONUA_WORKSPACE_E2E_LAYER');
@@ -60,9 +36,7 @@ export async function setup(page:Page) {
   artifacts.console=(await version.json()).commit;
   expect(artifacts.console,'installed Console artifact must identify its commit').toMatch(/^[a-f0-9]{40}$/);
   await page.goto('/studio');
-  const response=await page.request.get('/api/agent-workspace/session');expect(response.status()).toBe(200);
-  const session:Session=await response.json();
-  expect(session.authenticated).toBe(true);expect(session.nativeAgentAvailable).toBe(true);
+  const {session}=await installedSession(page);
   expect(session.environmentId).toBeTruthy();expect(session.principalId).toBeTruthy();
   const headers={'X-Honua-Environment':session.environmentId,'X-Honua-Session-Partition':session.principalId};
   const read=async(path:string)=>{
@@ -116,12 +90,12 @@ export async function setup(page:Page) {
   expect(source.locator?.serviceId,'published source must expose exact service identity').toBeTruthy();
   const expectedSelection=[{kind:'layer',id:String(layerId),serviceId:source.locator!.serviceId}];
   await expect.poll(()=>context(page).then(value=>value.selectedResources)).toEqual(expectedSelection);
-  return {artifacts,draft,layer,source,read,readBody,sourcePath,metadata,paintedCount,createMap,readDraftBody,distractor,distractorBaseline,expectedSelection};
+  return {page,artifacts,draft,layer,source,read,readBody,sourcePath,metadata,paintedCount,createMap,readDraftBody,distractor,distractorBaseline,expectedSelection};
 }
 export async function attach(info:TestInfo,scenarioId:string,fixture:Awaited<ReturnType<typeof setup>>,observations:string[],details:Record<string,unknown>) {
   // No transport headers, credentials, feature attributes, model transcript or raw server bodies.
   const evidence={schemaVersion:'interaction-evidence.v1',scenarioId,kind:'live',entrypoint:'console',artifacts:fixture.artifacts,artifactSources:{console:'observed /version.json commit',studio:'operator-supplied deployment manifest expectation; not observed provenance',server:'operator-supplied deployment manifest expectation; not observed provenance',model:'operator-supplied verified deployment manifest expectation; not observed provenance'},observations,
-    draftId:fixture.draft.draftId,bodySha256:createHash('sha256').update(JSON.stringify(await fixture.readBody())).digest('hex'),...details};
+    executions:executionEvidence(fixture.page),draftId:fixture.draft.draftId,bodySha256:createHash('sha256').update(JSON.stringify(await fixture.readBody())).digest('hex'),...details};
   const body=JSON.stringify(evidence);expect(Buffer.byteLength(body)).toBeLessThan(16_384);
   await info.attach('interaction-evidence',{contentType:'application/json',body:Buffer.from(body)});
 }
