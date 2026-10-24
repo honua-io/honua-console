@@ -127,6 +127,18 @@ export class AgentWorkspace {
         this.context = snapshot;
         return snapshot;
     }
+    holdSelectionSource() {
+        // The clear control suppresses this provider snapshot. Submit must not restore it.
+        this.selectionSourceHold = JSON.stringify(this.selectionProvider?.() ?? null);
+    }
+    promptSelection() {
+        if (this.selectionSourceHold !== undefined) {
+            const live = JSON.stringify(this.selectionProvider?.() ?? null);
+            if (live === this.selectionSourceHold) return undefined;
+            this.selectionSourceHold = undefined;
+        }
+        return this.selectionProvider?.();
+    }
     select(resources, task) {
         this.contextGeneration++;
         // Serialize edits using authorized server revisions, never client timestamps or event ordering.
@@ -308,7 +320,7 @@ export class AgentWorkspace {
         const browserFile = browserImportSelection.forTurn(this);
         this.assertPublishEditsCurrent(true);
         const styleFocus = this.sharedStyleProvider?.();
-        const selection = styleFocus ? [] : this.selectionProvider?.();
+        const selection = styleFocus ? [] : this.promptSelection();
         const capturedResources = selection ?? this.context?.selectedResources ?? [];
         const prepareContext = options.prepareContext || (styleFocus ? async () => prepareSharedStyleFocus(styleFocus, this.session?.principalId) : undefined) || this.prepareContextProvider?.()
             || (typeof location !== 'undefined' && location.pathname === '/studio/processes' ? async()=>null : undefined);
@@ -420,6 +432,14 @@ export function mountWorkspace() {
     const status = host.querySelector('[data-workspace-status]');
     const messages = host.querySelector('[data-workspace-messages]');
     const target = host.querySelector('[data-workspace-target]');
+    const selectionLabel = host.querySelector('[data-workspace-selection-label]');
+    const clearSelection = host.querySelector('[data-workspace-clear-selection]');
+    const objectName = resource => {
+        const provided = [resource?.name, resource?.title, resource?.label].find(value => typeof value === 'string' && value.trim() && !/https?:|secret|token|password/i.test(value));
+        const kind = resource?.kind === 'feature' ? 'Feature' : resource?.kind === 'component' ? 'Component' : resource?.kind === 'layer' ? 'Layer' : 'Object';
+        if (resource?.unavailable || resource?.removed || resource?.stale) return `${kind} unavailable`;
+        return provided ? `${kind} ${provided.trim()}` : kind;
+    };
     const workspaceInput = host.querySelector('[data-workspace-id]');
     const targetDescription = document.createTextNode(''), taskSeparator = document.createTextNode('');
     const importTaskLink = document.createElement('a');
@@ -429,7 +449,13 @@ export function mountWorkspace() {
         const taskLabel = state.context?.task ? ({'studio-composition':'Map draft','publish-layer':'Publish layer','workflow-package':'Process graph','local-process-workspace':'Local process','shared-style':'Shared style','dataset-import':'Dataset import'}[state.context.task.kind] || 'Task') : 'No task selected';
         const taskIdentity = state.context?.task?.packageKey || state.context?.task?.id;
         const currentTask = taskIdentity ? `${taskLabel} ${taskIdentity}` : taskLabel;
-        const resources = state.context?.selectedResources?.map(resource => `${resource.kind} ${resource.id}`).join(', ');
+        const resources = state.context?.selectedResources?.map(objectName).join(', ');
+        const selectedCount = state.context?.selectedResources?.length || 0;
+        const mapName = state.context?.task?.name || state.context?.task?.title || state.context?.task?.packageKey;
+        if (selectionLabel) selectionLabel.textContent = state.context
+            ? `${state.session?.environmentName || 'Environment'} · ${mapName ? `Map ${mapName}` : 'No map'} · ${selectedCount ? resources : 'No object selected'}`
+            : 'No map or object selected.';
+        if (clearSelection) clearSelection.hidden = !selectedCount;
         targetDescription.nodeValue = state.context ? (state.session?.gaSpecWorkflow
             ? `Next request · ${state.session.environmentName} · Editing target: ${currentTask} · Selection: ${resources || 'none'} · Context revision ${state.context.revision} · Draft revision ${state.context.task?.revision ?? 'none'}`
             : `${state.session.environmentName} · ${resources || 'No resource selected'} · ${currentTask}`) : 'Choose an environment, then start a conversation.';
@@ -535,24 +561,56 @@ export function mountWorkspace() {
         } catch (error) { report(error); }
     });
     host.querySelector('[data-workspace-follow]').addEventListener('change', event => { workspace.follow = event.target.checked; });
+    const working = host.querySelector('[data-workspace-working]');
+    const cancelButton = host.querySelector('[data-workspace-cancel]');
+    const cancelNote = host.querySelector('[data-workspace-cancel-note]');
+    const partial = host.querySelector('[data-workspace-partial]');
+    const sendButton = host.querySelector('form')?.querySelector('button[type=submit]');
+    let turnAbort = null;
+    const setTurnWorking = active => {
+        if (working) working.hidden = !active;
+        if (cancelButton) cancelButton.hidden = !active;
+        if (cancelNote) cancelNote.hidden = !active;
+        if (sendButton) sendButton.disabled = active;
+        if (!active && partial) { partial.textContent = ''; partial.hidden = true; }
+    };
+    cancelButton?.addEventListener('click', () => { turnAbort?.abort(); }, { signal: lifetime.signal });
+    host.querySelector('[data-workspace-change-selection]')?.addEventListener('click', () => {
+        host.querySelector('[data-workspace-deploy-target]')?.focus();
+    }, { signal: lifetime.signal });
+    clearSelection?.addEventListener('click', () => {
+        workspace.holdSelectionSource();
+        workspace.select([]).catch(report);
+    }, { signal: lifetime.signal });
     host.querySelector('form').addEventListener('submit', async event => {
         event.preventDefault(); const input = host.querySelector('[data-workspace-prompt]');
+        turnAbort = new AbortController();
+        setTurnWorking(true);
+        if (partial) { partial.textContent = ''; partial.hidden = true; }
         try {
             const submitted = input.value;
             status.textContent = `Submitting for target ${workspace.context?.targetId || 'unbound'} · ${workspace.context?.task?.id || 'no task'}.`;
-            const result = await workspace.submit(submitted, {onEvent: () => {
+            const result = await workspace.submit(submitted, {signal: turnAbort.signal, onEvent: event => {
+                const inner = event?.event ?? event;
+                if (inner?.type === 'textDelta' && typeof inner.text === 'string' && partial) {
+                    partial.hidden = false;
+                    partial.textContent += inner.text;
+                }
                 if (workspace.session?.gaSpecWorkflow) status.textContent = 'Agent is working on the submitted context. Operation completion requires durable read-back.';
             }}); if(input.value === submitted) input.value = ''; await refresh();
-            status.textContent = result.executionUnavailable ? 'Message saved. Native agent session is not configured; external agents can continue this workspace.' : ['error', 'refused', 'cancelled', 'failed', 'blocked'].includes(result.status) ? (result.errorMessage || `Agent turn ${result.status}.`) : 'Turn saved. Check operation receipts for completion.';
+            const cancelled = turnAbort.signal.aborted || result.status === 'cancelled';
+            status.textContent = result.executionUnavailable ? 'Message saved. Native agent session is not configured; external agents can continue this workspace.' : cancelled ? (result.errorMessage || 'Agent turn cancelled.') : ['error', 'refused', 'failed', 'blocked'].includes(result.status) ? (result.errorMessage || `Agent turn ${result.status}.`) : 'Turn saved. Check operation receipts for completion.';
         } catch (error) { report(error); }
+        finally { setTurnWorking(false); turnAbort = null; }
     });
     // Navigation publishes only typed selections. Never forward a URL, query, fragment or page contents.
     let lastSelection = JSON.stringify(selectedResource(location.pathname));
     let hadSharedStyle = false;
     const observer = new MutationObserver(() => {
-        if (!host.isConnected) { observer.disconnect(); formObserver.disconnect(); lifetime.abort(); return; }
+        if (!host.isConnected) { clearTimeout(workspace._pollTimer); observer.disconnect(); formObserver.disconnect(); lifetime.abort(); return; }
         const focus = workspace.sharedStyleProvider?.();
-        const selection = focus ? [] : workspace.selectionProvider?.() ?? selectedResource(location.pathname);
+        const provided = focus ? undefined : workspace.promptSelection();
+        const selection = focus ? [] : provided ?? (workspace.selectionSourceHold !== undefined ? (workspace.context?.selectedResources ?? []) : selectedResource(location.pathname));
         const key = JSON.stringify(focus ? {resources:selection,task:focus.task} : selection);
         if (workspace.context && key !== lastSelection) {
             lastSelection = key;
@@ -642,8 +700,12 @@ export function mountWorkspace() {
     const formObserver = new MutationObserver(bindForm);
     formObserver.observe(document.body, { childList: true, subtree: true });
     bindForm();
+    const schedulePoll = () => {
+        clearTimeout(workspace._pollTimer);
+        workspace._pollTimer = setTimeout(reconcile, 2000);
+    };
     const reconcile = async () => {
-        if (!host.isConnected) { observer.disconnect(); formObserver.disconnect(); lifetime.abort(); return; }
+        if (!host.isConnected) { clearTimeout(workspace._pollTimer); observer.disconnect(); formObserver.disconnect(); lifetime.abort(); return; }
         try {
             if (workspace.context && !document.hidden) {
                 if (Date.parse(workspace.session?.expiresAt || '') < Date.now() + 180000) {
@@ -696,10 +758,10 @@ export function mountWorkspace() {
         finally {
             // A superseded observation skips this snapshot, not future reads or
             // lease renewal. Detached hosts leave polling to the new mount.
-            if (host.isConnected && !lifetime.signal.aborted) setTimeout(reconcile, 2000);
+            if (host.isConnected && !lifetime.signal.aborted) schedulePoll();
         }
     };
-    setTimeout(reconcile, 2000);
+    schedulePoll();
     workspaceInput.value = workspace.workspaceId || '';
     if (workspace.context) refresh().catch(report);
     else if (workspace.workspaceId) workspace.connect().then(refresh).catch(report);
@@ -729,6 +791,9 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
         const path = typeof input === 'string' ? input : input.url;
         const endpoint = path.endsWith('/mcp') ? 'mcp' : path.endsWith('/ai/chat') ? 'ai' : path.endsWith('/ai/capabilities') ? 'capabilities' : path === 'turn' ? 'turn' : path === 'conversation' ? 'conversation' : null;
         if (!endpoint || !currentTurn) throw new Error('Unbound native agent request rejected.');
+        // Model and tool calls share the turn signal. Persisting the transcript must not.
+        const turnSignal = (endpoint === 'ai' || endpoint === 'mcp') && !init.signal ? currentOptions?.signal : undefined;
+        if (turnSignal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
         return workspace.request(`/api/agent-workspace/agent/${endpoint}`, {
             ...init, method: ['turn', 'capabilities'].includes(endpoint) || (endpoint === 'conversation' && !init.method) ? 'GET' : (init.method || 'POST'), credentials: 'same-origin', headers: {
                 'Content-Type': 'application/json', 'X-CSRF-Token': boundSession.csrfToken,
@@ -737,7 +802,8 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
                 'X-Honua-View': workspace.viewId,
                 'X-Honua-Session-Partition': boundSession.principalId,
                 'X-Honua-Turn': currentTurn.turnId
-            }
+            },
+            ...(turnSignal ? { signal: turnSignal } : {})
         });
     };
     const certification = {
@@ -772,29 +838,49 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
         submitTurn(turn, options = {}) {
             // One queue protects the per-turn transport binding as well as the SDK conversation.
             const execute = async () => {
+                // Keep the binding until cancellation is recorded. Clearing it on abort
+                // makes preparation throw before the Cancelled. transcript is stored.
                 currentTurn = turn; currentOptions = options;
                 privateCatalogBinding = null;
                 const hadSession = Boolean(sdkSession);
                 sdkSession?.reconnect();
+                let finishingCancel = false;
+                const finishCancelled = async () => {
+                    finishingCancel = true;
+                    workspace.storage.setItem(pendingKey, JSON.stringify({
+                        messageId: `${turn.turnId}-assistant`, turnId: turn.turnId, content: 'Cancelled.'
+                    }));
+                    await reconcilePending();
+                    return { status: 'cancelled', text: '' };
+                };
                 try {
+                    const aborted = () => options.signal?.aborted;
+                    if (aborted()) return await finishCancelled();
                     const latest = await workspace.api('session');
+                    if (aborted()) return await finishCancelled();
                     if (['principalId','environmentId','releaseId','sourcePathBase'].some(key => latest[key] !== boundSession[key]))
                         throw new Error('The workspace session changed. Save your work and reconnect before retrying.');
                     // Renew only the lease after the immutable authority has matched.
                     boundSession.csrfToken = latest.csrfToken;
                     boundSession.expiresAt = latest.expiresAt;
                     await reconcilePending();
+                    if (aborted()) return await finishCancelled();
                     const agentTurnResponse = await agentFetch('turn');
+                    if (aborted()) return await finishCancelled();
                     if (!agentTurnResponse.ok) throw new Error('The agent is not authorized for this workspace turn.');
                     const agentTurn = await agentTurnResponse.json();
                     // Only this separately authorized projection may enter the model context.
                     currentTurn = { ...turn, context: agentTurn.context, localProcessSnapshot:agentTurn.localProcessSnapshot };
+                    if (aborted()) return await finishCancelled();
                     const historyResponse = await agentFetch('conversation');
+                    if (aborted()) return await finishCancelled();
                     if (!historyResponse.ok) throw new Error('The agent is not authorized for this conversation.');
                     const history = await historyResponse.json();
                     // Conversation from any workspace participant remains unverified explanatory context.
                     priorConversation = (history.messages || []).map(message => ({ role: message.role, content: message.content }));
+                    if (aborted()) return await finishCancelled();
                     const capabilitiesResponse = await agentFetch('/api/v1/studio/ai/capabilities');
+                    if (aborted()) return await finishCancelled();
                     if (!capabilitiesResponse.ok) throw new Error('Native agent capabilities are unavailable.');
                     const capabilitiesRaw = await capabilitiesResponse.json();
                     const capabilities = capabilitiesRaw.data || capabilitiesRaw;
@@ -805,6 +891,7 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
                         privateCatalogBinding = {targetId:gateway.targetId,workspaceId:gateway.workspaceId,turnId:gateway.turnId,releaseId:latest.releaseId};
                     if (!capabilities.transcriptSigning?.keys?.length || !boundSession.releaseId || !currentTurn.context?.tenantId)
                         throw new Error('Native agent transcript verification is not configured for this environment.');
+                    if (aborted()) return await finishCancelled();
                     if (!sdkSession) {
                         sdkSession = module.createWorkspaceAgentSession({
                             certification,
@@ -827,11 +914,16 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
                         });
                     }
                     if (!hadSession) sdkSession.reconnect();
+                    if (aborted()) return await finishCancelled();
                     const discovery = await sdkSession.refreshTools();
+                    if (aborted()) return await finishCancelled();
                     if (discovery.errorMessage) throw new Error('The authorized tool catalog could not be refreshed.');
+                    if (aborted()) return await finishCancelled();
                     sdkSession.attachDraft(currentTurn.context?.task?.kind === 'studio-composition'
                         ? {draftId:currentTurn.context.task.id,generation:currentTurn.context.task.revision} : undefined);
+                    if (aborted()) return await finishCancelled();
                     const result = await sdkSession.chat(turn.prompt, { signal: options.signal });
+                    if (aborted() || result?.status === 'cancelled') return await finishCancelled();
                     if (sdkSession.draft?.draftId && typeof window !== 'undefined')
                         window.dispatchEvent(new CustomEvent('honua-agent-draft', { detail: {
                             workspaceId: boundWorkspaceId, environmentId: boundSession.environmentId,
@@ -845,6 +937,9 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
                         await reconcilePending();
                     }
                     return result;
+                } catch (error) {
+                    if (!finishingCancel && (options.signal?.aborted || error?.name === 'AbortError')) return await finishCancelled();
+                    throw error;
                 } finally { currentTurn = null; currentOptions = null; privateCatalogBinding = null; }
             };
             const pending = turnQueue.then(execute, execute);
