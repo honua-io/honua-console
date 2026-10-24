@@ -159,36 +159,31 @@
         else
         {
             var job = _detail.Value;
-            @if (job.CanCancel || job.CanRetry || !string.IsNullOrWhiteSpace(_actionMessage))
+            @if (!_diagnosticsLoaded || _diagnostics is null)
+            {
+                <OperateSectionStatusPanel Heading="Timeline" Loading="true" />
+            }
+            else if (!_diagnostics.IsAllowed || _diagnostics.Value is null)
+            {
+                <OperateSectionStatusPanel Heading="Timeline" Status="_diagnostics.Status" Message="@_diagnostics.Message" Detail="@_diagnostics.Detail" />
+            }
+            else
+            {
+                <JobDiagnosticsTimeline View="_diagnostics.Value"
+                    Busy="_actionBusy"
+                    ReadingEarlier="_diagnosticsReadingEarlier"
+                    OnCancel="() => ConfirmCancelJob(job.JobRunId)"
+                    OnRetry="() => RetryJobAsync(job.JobRunId)"
+                    OnReadEarlier="ReadEarlierDiagnosticsAsync"
+                    OnReadNext="ReadNextDiagnosticsAsync" />
+            }
+            @if (!string.IsNullOrWhiteSpace(_actionMessage))
             {
                 <section class="operate-section" aria-label="Job controls">
-                    <div class="operate-action-row">
-                        @if (job.CanCancel)
-                        {
-                            <button type="button"
-                                class="console-button"
-                                disabled="@_actionBusy"
-                                @onclick="() => ConfirmCancelJob(job.JobRunId)">
-                                Cancel job
-                            </button>
-                        }
-                        @if (job.CanRetry)
-                        {
-                            <button type="button"
-                                class="console-button"
-                                disabled="@_actionBusy"
-                                @onclick="() => RetryJobAsync(job.JobRunId)">
-                                Retry job
-                            </button>
-                        }
-                    </div>
-                    @if (!string.IsNullOrWhiteSpace(_actionMessage))
+                    <p class="operate-deploy-action-message @_actionMessageClass" role="status">@_actionMessage</p>
+                    @if (!string.IsNullOrWhiteSpace(_actionDetail))
                     {
-                        <p class="operate-deploy-action-message @_actionMessageClass" role="status">@_actionMessage</p>
-                        @if (!string.IsNullOrWhiteSpace(_actionDetail))
-                        {
-                            <ConsoleDiagnostics Detail="@_actionDetail" />
-                        }
+                        <ConsoleDiagnostics Detail="@_actionDetail" />
                     }
                     <p class="console-state-danger">
                         Governed action &middot; routed through the server's Execute + destructive-approval gate;
@@ -240,9 +235,12 @@
     private bool _listLoaded;
     private bool _detailLoaded;
     private bool _stepsLoaded;
+    private bool _diagnosticsLoaded;
+    private bool _diagnosticsReadingEarlier;
     private OperateSectionResult<IReadOnlyList<OperateJobRun>>? _jobs;
     private OperateSectionResult<OperateJobRun>? _detail;
     private OperateSectionResult<OperateJobStepsView>? _steps;
+    private OperateSectionResult<OperateJobDiagnosticsView>? _diagnostics;
     private string? _loadedDetailFor;
     private string _stateFilter = string.Empty;
 
@@ -286,6 +284,8 @@
                 _loadedDetailFor = jobId;
                 _detailLoaded = false;
                 _stepsLoaded = false;
+                _diagnosticsLoaded = false;
+                _diagnosticsReadingEarlier = false;
                 _actionMessage = null;
                 _detail = await OperateClient.GetJobDetailAsync(jobId);
                 _detailLoaded = true;
@@ -294,6 +294,8 @@
                 // the detail opens rather than fanning it out from the list.
                 _steps = await OperateClient.GetJobStepsAsync(jobId);
                 _stepsLoaded = true;
+                _diagnostics = await OperateClient.GetJobDiagnosticsAsync(jobId);
+                _diagnosticsLoaded = true;
             }
 
             _wasDetailRoute = true;
@@ -387,6 +389,43 @@
         }
     }
 
+    private async Task ReadEarlierDiagnosticsAsync(string cursor)
+    {
+        if (string.IsNullOrWhiteSpace(_loadedDetailFor) || _diagnostics?.Value is null)
+        {
+            return;
+        }
+
+        _diagnosticsReadingEarlier = true;
+        var page = await OperateClient.GetJobDiagnosticsAsync(_loadedDetailFor, cursor);
+        if (page.IsAllowed && page.Value is not null)
+        {
+            _diagnostics = OperateSectionResult<OperateJobDiagnosticsView>.Allowed(_diagnostics.Value.AppendEvents(page.Value));
+        }
+        else
+        {
+            _diagnostics = page;
+        }
+    }
+
+    private async Task ReadNextDiagnosticsAsync(string cursor)
+    {
+        if (string.IsNullOrWhiteSpace(_loadedDetailFor) || _diagnostics?.Value is null)
+        {
+            return;
+        }
+
+        var page = await OperateClient.GetJobDiagnosticsAsync(_loadedDetailFor, cursor);
+        if (page.IsAllowed && page.Value is not null)
+        {
+            _diagnostics = OperateSectionResult<OperateJobDiagnosticsView>.Allowed(_diagnostics.Value.AppendEvents(page.Value));
+        }
+        else
+        {
+            _diagnostics = page;
+        }
+    }
+
     private void SetStateFilter(string state) => _stateFilter = state;
 
     private void StartPolling()
@@ -421,11 +460,17 @@
                     // Refresh the per-step glass-box alongside the detail so a running
                     // job's newly emitted steps appear on the same poll cadence.
                     var steps = await OperateClient.GetJobStepsAsync(_loadedDetailFor, cancellationToken);
+                    var diagnostics = await OperateClient.GetJobDiagnosticsAsync(_loadedDetailFor, cancellationToken: cancellationToken);
                     await InvokeAsync(() =>
                     {
                         _detail = detail;
                         _steps = steps;
                         _stepsLoaded = true;
+                        if (!_diagnosticsReadingEarlier)
+                        {
+                            _diagnostics = diagnostics;
+                            _diagnosticsLoaded = true;
+                        }
                         StateHasChanged();
                     });
 

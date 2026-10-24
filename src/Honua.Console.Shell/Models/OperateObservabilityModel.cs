@@ -432,6 +432,62 @@ public sealed record OperateJobStepsView(
     public static OperateJobStepsView Empty { get; } = new(string.Empty, string.Empty, new OperateStatus("unknown", string.Empty), []);
 }
 
+/// <summary>
+/// Console reading of <c>honua.job-diagnostics/v1</c>. Actions are copied from the
+/// projection: retry only when <c>attempt.retry.allowed</c>, cancel only when the
+/// projection includes a cancel link.
+/// </summary>
+public sealed record OperateJobDiagnosticsView(
+    string Schema,
+    string JobRunId,
+    string Phase,
+    string TimingSource,
+    int AttemptNumber,
+    int MaxAttempts,
+    bool RetryAllowed,
+    bool RetryRequiresApproval,
+    string RetryDisabledReason,
+    string WouldRepeat,
+    bool CancelOffered,
+    string? FailureClassification,
+    string? FailureRecovery,
+    string? FailurePhase,
+    IReadOnlyList<OperateJobDiagnosticStep> Steps,
+    IReadOnlyList<OperateJobDiagnosticEvent> Events,
+    bool EventsTruncated,
+    string? EventsFirstCursor,
+    string? EventsNextCursor,
+    int EventsTotalCount,
+    IReadOnlyList<string> EvidenceMissing,
+    IReadOnlyList<string> EvidenceTruncated)
+{
+    public OperateJobDiagnosticsView AppendEvents(OperateJobDiagnosticsView page) =>
+        this with
+        {
+            Events = Events.Concat(page.Events).ToArray(),
+            EventsTruncated = page.EventsTruncated,
+            EventsFirstCursor = page.EventsFirstCursor ?? EventsFirstCursor,
+            EventsNextCursor = page.EventsNextCursor,
+            EventsTotalCount = page.EventsTotalCount,
+            EvidenceMissing = page.EvidenceMissing,
+            EvidenceTruncated = page.EvidenceTruncated,
+        };
+}
+
+public sealed record OperateJobDiagnosticStep(
+    int Ordinal,
+    string Phase,
+    string Status,
+    string TimingSource,
+    string Duration,
+    string Message);
+
+public sealed record OperateJobDiagnosticEvent(
+    string Timestamp,
+    string Level,
+    string Message,
+    string? Phase);
+
 public sealed record OperateJobAction(
     string Label,
     bool IsAllowed,

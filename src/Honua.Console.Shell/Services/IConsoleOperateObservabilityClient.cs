@@ -97,6 +97,19 @@ public interface IConsoleOperateObservabilityClient
         string jobRunId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Reads <c>GET /api/v1/admin/jobs/{id}/diagnostics</c> (<c>honua.job-diagnostics/v1</c>).
+    /// <paramref name="eventCursor"/> is sent unchanged. Callers keep both cursors from the
+    /// response. A host that has not adopted the projection returns an unsupported result.
+    /// </summary>
+    Task<OperateSectionResult<OperateJobDiagnosticsView>> GetJobDiagnosticsAsync(
+        string jobRunId,
+        string? eventCursor = null,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(OperateSectionResult<OperateJobDiagnosticsView>.Denied(
+            OperateSectionStatus.Unsupported,
+            "Job diagnostics are not available from this console client."));
+
     Task<OperateSectionResult<IReadOnlyList<OperateInvestigation>>> GetInvestigationsAsync(
         CancellationToken cancellationToken = default);
 
