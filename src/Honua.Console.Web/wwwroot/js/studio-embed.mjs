@@ -1,5 +1,5 @@
 import {processTask} from './workflow-task.mjs';
-import { capturedProcessFetch, sameCookieAuthority } from './cookie-workspace-transport.mjs';
+import { capturedProcessFetch, createStudioCookieSession, sameCookieAuthority } from './cookie-workspace-transport.mjs';
 import { captureWorkspaceFollow, queueWorkspaceFollow } from './workspace-follow.mjs';
 import { selectedResource, studioResourceRefs } from './agent-workspace.mjs';
 import { mountStudioVersionControls } from './studio-version-controls.mjs';
@@ -71,10 +71,10 @@ async function studioElement(session) {
     const changedAuthority=Boolean(previous && (previous.principalId !== session.principalId || previous.environmentId !== session.environmentId || previous.sourcePathBase !== session.sourcePathBase));
     if (changedAuthority) await app.prepareWorkspaceTurn();
     if (app.workspaceBindingRequest !== requestGeneration) throw new Error('A newer Studio connection replaced this request.');
+    const cookieSession = createStudioCookieSession(session);
     app.workspaceAuthorityChanged=changedAuthority;
     app.workspaceCookieBinding={principalId:session.principalId,environmentId:session.environmentId,sourcePathBase:session.sourcePathBase};
-    app.session = { kind: 'cookie', baseUrl: '/api/studio', expiresAt: session.expiresAt,
-        csrfToken: session.csrfToken, environmentId: session.environmentId, principalId: session.principalId, sourcePathBase: session.sourcePathBase };
+    app.session = cookieSession;
     app.workspace = window.honuaAgentWorkspace;
     if (app.workspace) app.workspace.authorityChangeGuard = () => app.prepareWorkspaceTurn();
     if (app.workspace) app.workspace.studioDesignFocusProvider = () => app.isConnected

@@ -10,7 +10,7 @@ export class WorkspaceConflict extends Error {
     constructor(current) { super('The shared draft changed. Review the latest version before saving.'); this.current = current; }
 }
 export class AgentWorkspace {
-    constructor({ request = fetch, storage = sessionStorage, uuid = () => crypto.randomUUID(), notify = () => {} } = {}) {
+    constructor({ request = globalThis.fetch.bind(globalThis), storage = sessionStorage, uuid = () => crypto.randomUUID(), notify = () => {} } = {}) {
         this.request = request; this.storage = storage; this.uuid = uuid; this.notify = notify;
         // New document means a new view even when the browser duplicates sessionStorage into a tab.
         this.viewId = uuid();
