@@ -21,6 +21,114 @@ public sealed class StudioPublicationBffTests
     private const string Publication = "/api/studio/v1/studio/content-items/item/versions/version/publish-requests";
     private const string Rollback = "/api/studio/v1/studio/content-items/item/rollback-requests";
 
+    [Fact]
+    public async Task OriginalWorkspaceTurnReadUsesCurrentHumanAuthorityWithoutAnOldViewOrMachineCredential()
+    {
+        await using var host = await Host.Start();
+        const string original = """{"turnId":"original-turn","execution":{"executionId":"original-execution","state":"awaiting-input","question":{"id":"original-question","text":"Which parcels?"}}}""";
+        host.Wire.ResponseBody = original;
+        host.Client.DefaultRequestHeaders.Add("Cookie", "private-browser-cookie=not-for-upstream");
+        host.Client.DefaultRequestHeaders.Add("X-API-Key", "not-for-upstream");
+        host.Client.DefaultRequestHeaders.Add("Authorization", "Bearer not-the-operator-credential");
+        using var response = await host.Client.GetAsync("/api/agent-workspace/workspace/turns/original-turn");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+        Assert.Equal(original, await response.Content.ReadAsStringAsync());
+        Assert.Equal("/api/v1/agent/workspaces/workspace/turns/original-turn", host.Wire.Uri!.AbsolutePath);
+        Assert.Equal(string.Empty, host.Wire.Uri.Query);
+        Assert.True(host.Wire.HumanOnly);
+        Assert.Null(host.Wire.IdempotencyKey);
+    }
+
+    [Theory]
+    [InlineData("POST")]
+    [InlineData("PUT")]
+    [InlineData("PATCH")]
+    [InlineData("DELETE")]
+    public async Task OriginalWorkspaceTurnRouteDoesNotExposeExecutionMutations(string method)
+    {
+        await using var host = await Host.Start();
+        using var request = new HttpRequestMessage(new HttpMethod(method), "/api/agent-workspace/workspace/turns/original-turn");
+        using var response = await host.Client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, response.StatusCode);
+        Assert.Equal(0, host.Wire.Calls);
+    }
+
+    [Theory]
+    [InlineData("workspace/turns/original-turn?viewId=expired-view", HttpStatusCode.BadRequest)]
+    [InlineData("workspace/turns/original-turn?executionId=replacement", HttpStatusCode.BadRequest)]
+    [InlineData("workspace/turns/original-turn/claim", HttpStatusCode.NotFound)]
+    [InlineData("workspace/executions/original-execution", HttpStatusCode.NotFound)]
+    [InlineData("workspace/turns/original%2Fturn", HttpStatusCode.NotFound)]
+    public async Task OriginalWorkspaceTurnReadRefusesQueryOverridesAndRuntimeNeighbors(string path, HttpStatusCode status)
+    {
+        await using var host = await Host.Start();
+        using var response = await host.Client.GetAsync("/api/agent-workspace/" + path);
+        Assert.Equal(status, response.StatusCode);
+        Assert.Equal(0, host.Wire.Calls);
+    }
+
+    [Theory]
+    [InlineData("X-Honua-Environment")]
+    [InlineData("X-Honua-Session-Partition")]
+    public async Task OriginalWorkspaceTurnReadCannotBorrowAnotherEnvironmentOrOperator(string header)
+    {
+        await using var host = await Host.Start();
+        host.Client.DefaultRequestHeaders.Remove(header);
+        host.Client.DefaultRequestHeaders.Add(header, "changed-context");
+        using var response = await host.Client.GetAsync("/api/agent-workspace/workspace/turns/original-turn");
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(0, host.Wire.Calls);
+    }
+
+    [Fact]
+    public async Task OriginalWorkspaceTurnReadRetainsCurrentUpstreamDenial()
+    {
+        await using var host = await Host.Start();
+        host.Wire.Status = HttpStatusCode.Forbidden;
+        host.Wire.ResponseBody = """{"message":"Original turn is unavailable"}""";
+        using var response = await host.Client.GetAsync("/api/agent-workspace/workspace/turns/original-turn");
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(host.Wire.ResponseBody, await response.Content.ReadAsStringAsync());
+        Assert.True(host.Wire.HumanOnly);
+    }
+
+    [Fact]
+    public async Task ClarificationReplyRetainsExplicitOriginalLinkageAndAntiforgery()
+    {
+        await using var host = await Host.Start();
+        const string body = """{"turnId":"new-turn","viewId":"fresh-view","contextRevision":7,"prompt":"Residential parcels","replyToQuestionId":"original-question","replyToTurnId":"original-turn","replyToExecutionId":"original-execution"}""";
+        host.Client.DefaultRequestHeaders.Remove("X-CSRF-Token");
+        using var denied = await host.Client.PostAsync("/api/agent-workspace/workspace/turns", new StringContent(body));
+        Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+        Assert.Equal(0, host.Wire.Calls);
+        host.Client.DefaultRequestHeaders.Add("X-CSRF-Token", host.Csrf);
+        using var response = await host.Client.PostAsync("/api/agent-workspace/workspace/turns", new StringContent(body));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("/api/v1/agent/workspaces/workspace/turns", host.Wire.Uri!.AbsolutePath);
+        Assert.Equal(body, host.Wire.Body);
+        Assert.True(host.Wire.HumanOnly);
+        Assert.Null(host.Wire.IdempotencyKey);
+    }
+
+    [Fact]
+    public async Task OriginalNativeRefusalIsRelayedWithoutInventingAcceptanceOrChangingItsDigest()
+    {
+        await using var host = await Host.Start();
+        const string receipt = """{"turnId":"original-turn","status":"not-dispatched","submission":{"turnId":"original-turn","requestDigest":"sha256:4013f1fd75be4e0e24f769dd90d564eb22331b709be474f671e235ff42c4cc11","disposition":"not-dispatched","code":"context-changed"}}""";
+        host.Wire.Status = HttpStatusCode.Conflict;
+        host.Wire.ResponseBody = receipt;
+        using var refused = await host.Client.PostAsync("/api/agent-workspace/workspace/turns", new StringContent("{}"));
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Equal(receipt, await refused.Content.ReadAsStringAsync());
+        host.Wire.Status = HttpStatusCode.OK;
+        using var retained = await host.Client.GetAsync("/api/agent-workspace/workspace/turns/original-turn");
+        Assert.Equal(HttpStatusCode.OK, retained.StatusCode);
+        Assert.Equal(receipt, await retained.Content.ReadAsStringAsync());
+        Assert.Equal("no-store", retained.Headers.CacheControl?.ToString());
+        Assert.True(host.Wire.HumanOnly);
+    }
+
     [Theory]
     [InlineData("""{"targetId":"observed-target","principal":{"actorId":"human-actor","studioOwnerId":"human-owner","tenantId":"tenant","authenticationKind":"operator-bearer","isHumanSession":true}}""")]
     [InlineData("""{"targetId":"observed-target","principal":{"actorId":"api-key:actual-key","studioOwnerId":"actual-key","tenantId":"tenant","authenticationKind":"api-key","isHumanSession":false}}""")]

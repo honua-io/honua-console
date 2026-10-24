@@ -3,6 +3,9 @@ import {browserImportSelection, browserSelectionScope} from './dataset-import-se
 import {PublicationRecovery} from './publication-recovery.mjs';
 import {createPublishInputBinder} from './publish-form-inputs.mjs';
 import { readSharedStyleFocus, prepareSharedStyleFocus, watchSharedStyleEdits } from './shared-style-context.mjs';
+import { WorkspaceExecutions, renderExecutions, executionSummary, submissionDigest, refusalSummary } from './workspace-executions.mjs';
+import { openStudioExecutionResult } from './workspace-result-navigation.mjs';
+import { WorkspaceQuestionReplies, renderQuestionReply } from './workspace-question-replies.mjs';
 // The workspace is shared by chat, forms and Studio. Each tab has its own explicit view binding.
 const publishFields = new Set(['connectionId', 'schema', 'table', 'serviceName', 'layerName']);
 export class WorkspaceConflict extends Error {
@@ -19,15 +22,17 @@ export class AgentWorkspace {
         this.presentationGuards = new Set();
         this.queue = Promise.resolve(); this.agentSession = null; this.contextGeneration = 0;
         this.publications = new PublicationRecovery(this);
+        this.executions = new WorkspaceExecutions(this);
+        this.questionReplies = new WorkspaceQuestionReplies(this);
     }
-    async api(path, method = 'GET', body, binding = this.session) {
+    async api(path, method = 'GET', body, binding = this.session, serializedBody) {
         const response = await this.request(`/api/agent-workspace/${path}`, {
             method, credentials: 'same-origin', headers: {
                 'Content-Type': 'application/json', 'X-CSRF-Token': binding?.csrfToken || '',
                 'X-Honua-Environment': binding?.environmentId || '',
                 'X-Honua-Session-Partition': binding?.principalId || '',
                 ...(path.startsWith('ga/') ? {'X-Honua-Workspace':this.workspaceId || '', 'X-Honua-View':this.viewId} : {})
-            }, ...(body === undefined ? {} : { body: JSON.stringify(body) })
+            }, ...(body === undefined ? {} : { body: serializedBody ?? JSON.stringify(body) })
         });
         const value = response.status === 204 ? null : await response.json().catch(() => null);
         if (!response.ok) {
@@ -304,6 +309,21 @@ export class AgentWorkspace {
         if (task && ((task.kind || 'publish-layer') !== 'publish-layer' || this.draft && task.id !== this.draft.id)) refuse();
     }
     async submit(prompt, options = {}) {
+        const questionReply=this.questionReplies.current();
+        if (this.submission) {
+            if (this.submission.prompt !== prompt || this.submission.questionReply !== questionReply)
+                throw new Error('Wait for the current message to be accepted before sending another.');
+            return this.submission.promise;
+        }
+        this.executions.requireResolvedSubmission();
+        const submission={prompt,questionReply};
+        this.submission=submission;
+        submission.promise=this.captureAndSubmit(prompt,{...options,questionReply}).finally(()=>{
+            if (this.submission === submission) this.submission=null;
+        });
+        return submission.promise;
+    }
+    async captureAndSubmit(prompt, options = {}) {
         if (!prompt.trim()) throw new Error('Enter a message.');
         const browserFile = browserImportSelection.forTurn(this);
         this.assertPublishEditsCurrent(true);
@@ -332,6 +352,7 @@ export class AgentWorkspace {
             await previous;
             requireSameAuthority();
             if (!this.context) throw new Error('Connect a workspace first.');
+            if (options.questionReply) this.questionReplies.requireContext(options.questionReply);
             if (prepareContext) {
                 const task = await prepareContext();
                 requireSameAuthority();
@@ -357,21 +378,67 @@ export class AgentWorkspace {
             requireSameAuthority();
             if (browserFile && (this.context.revision !== browserFile.scope.contextRevision || this.context.targetId !== browserFile.scope.targetId))
                 throw new Error('The selected file belongs to an earlier context. Check it again before sending.');
-            return this.api(`${this.workspaceId}/turns`, 'POST', {
+            const reply=options.questionReply ? await this.questionReplies.prepare(options.questionReply) : null;
+            requireSameAuthority();
+            if (options.questionReply) this.questionReplies.requireContext(options.questionReply);
+            const payload={
                 turnId: this.uuid(), viewId: this.viewId, contextRevision: this.context.revision, prompt,
                 ...(binding.deployTargetId ? {deployTargetId:binding.deployTargetId} : {}),
-                ...(browserFile ? {browserFileSelection:browserFile.metadata} : {})
-            });
+                ...(browserFile ? {browserFileSelection:browserFile.metadata} : {}),
+                ...(reply || {})
+            };
+            // Digest and send the same UTF-8 bytes. A durable native refusal must
+            // match this original request before a corrected submission is allowed.
+            const serialized=JSON.stringify(payload),requestDigest=await submissionDigest(serialized);
+            requireSameAuthority();
+            if (options.questionReply) this.questionReplies.requireContext(options.questionReply);
+            const original=this.executions.begin(payload.turnId,requestDigest);
+            try {
+                const turn=await this.api(`${original.workspaceId}/turns`, 'POST', payload, original.session,serialized);
+                if (turn?.submission?.disposition === 'not-dispatched') return await this.executions.read(original);
+                this.executions.adopt(original,turn);
+                return turn;
+            } catch (error) {
+                // The POST may have committed. Reconcile its original ID; never
+                // infer failure from a lost acknowledgement or mint another turn.
+                const retained=await this.executions.read(original).catch(()=>null);
+                if (retained) return retained;
+                throw error;
+            }
         };
         const pending = capture();
         this.queue = pending.then(() => this.context, () => this.context);
         let turn;
-        try { turn = await pending; browserImportSelection.captured(this, turn, browserFile); } finally { this.capturing--; }
+        try {
+            turn = await pending;
+            if (turn?.submission?.disposition === 'not-dispatched') {
+                this.notify(this);
+                throw new Error(refusalSummary(turn.submission));
+            }
+            browserImportSelection.captured(this, turn, browserFile);
+        } finally { this.capturing--; }
+        if (options.questionReply) this.questionReplies.accepted(options.questionReply);
         this.notify(this);
         if (turn.presentation && typeof window !== 'undefined')
             window.dispatchEvent(new CustomEvent('honua-agent-presentation', { detail: turn.presentation }));
+        if (turn.execution) return { ...turn, externalExecution: true };
+        if (options.questionReply) return { ...turn, executionUnavailable: true };
         if (!this.agentSession) return { ...turn, executionUnavailable: true };
         return this.agentSession.submitTurn({ ...turn, prompt }, options);
+    }
+    async openExecutionArtifact(turnId, artifact) {
+        const scope=this.executions.scope(),generation=this.contextGeneration;
+        const current=()=>scope === this.executions.scope() && generation === this.contextGeneration;
+        if (this.hasUnsavedWork() || this.sharedStyleProvider?.()?.dirty)
+            throw new Error('Save or discard your current edits before opening another result.');
+        const original=await this.executions.original(turnId);
+        if (!current()) throw new Error('The selected context changed. Open the result again.');
+        const observed=original.execution?.artifacts.find(value=>
+            ['kind','itemId','draftId','generation','family','versionId','contentHash'].every(key=>value[key] === artifact[key]));
+        if (!observed?.draftId) throw new Error('The original result changed or is unavailable. Check the request again.');
+        const open=this.openStudioResult || openStudioExecutionResult;
+        if (!current()) throw new Error('The selected context changed. Open the result again.');
+        await open(this,observed,current);
     }
     async conversation() { return this.api(`${this.workspaceId}/conversation`); }
     hasUnsavedWork() { return this.dirty.size > 0 || [...this.presentationGuards].some(guard => guard()); }
@@ -419,13 +486,21 @@ export function mountWorkspace() {
     watchSharedStyleEdits(document, {signal:lifetime.signal});
     const status = host.querySelector('[data-workspace-status]');
     const messages = host.querySelector('[data-workspace-messages]');
+    const executions = host.querySelector('[data-workspace-executions]');
+    const replyPanel = host.querySelector('[data-workspace-reply]');
     const target = host.querySelector('[data-workspace-target]');
     const workspaceInput = host.querySelector('[data-workspace-id]');
     const targetDescription = document.createTextNode(''), taskSeparator = document.createTextNode('');
     const importTaskLink = document.createElement('a');
     importTaskLink.href = '/operate/resources/import/task'; importTaskLink.textContent = 'Open import task';
     target.replaceChildren(targetDescription, taskSeparator, importTaskLink);
+    let displayedScope;
     const notify = state => {
+        const scope=state.executions.scope();
+        if (scope !== displayedScope) { displayedScope=scope; messages.replaceChildren(); }
+        try { renderExecutions(executions,state,error=>{status.textContent=error.message;}); }
+        catch (error) { executions?.replaceChildren(); status.textContent=error.message; }
+        renderQuestionReply(replyPanel,state);
         const taskLabel = state.context?.task ? ({'studio-composition':'Map draft','publish-layer':'Publish layer','workflow-package':'Process graph','local-process-workspace':'Local process','shared-style':'Shared style','dataset-import':'Dataset import'}[state.context.task.kind] || 'Task') : 'No task selected';
         const taskIdentity = state.context?.task?.packageKey || state.context?.task?.id;
         const currentTask = taskIdentity ? `${taskLabel} ${taskIdentity}` : taskLabel;
@@ -449,6 +524,13 @@ export function mountWorkspace() {
 
     };
     const workspace = activeWorkspace ||= new AgentWorkspace();
+    workspace.focusPrompt=()=>host.querySelector('[data-workspace-prompt]')?.focus();
+    host.querySelector('[data-workspace-reply-cancel]')?.addEventListener('click',()=>workspace.questionReplies.cancel(),{signal:lifetime.signal});
+    host.querySelector('[data-workspace-reply-open]')?.addEventListener('click',()=>workspace.questionReplies.openOriginal()
+        .catch(error=>{status.textContent=error.message;}),{signal:lifetime.signal});
+    host.querySelector('[data-workspace-reply-review]')?.addEventListener('click',()=>workspace.questionReplies.reviewCurrent()
+        .then(()=>{status.textContent='Current target reviewed. Send your answer when ready.';})
+        .catch(error=>{status.textContent=error.message;}),{signal:lifetime.signal});
     const deployTargetSelect = host.querySelector('[data-workspace-deploy-target]');
     let targetCatalogBinding = null;
     const refreshDeployTargets = async state => {
@@ -508,14 +590,32 @@ export function mountWorkspace() {
         try { await action(); renderReview(); } catch (error) { report(error); }
     }, {signal:lifetime.signal});
     const refresh = async () => {
-        const value = await workspace.conversation();
+        const scope=workspace.executions.scope();
+        let value;
+        try { value=await workspace.conversation(); }
+        catch (error) {
+            if (scope === workspace.executions.scope() && host.isConnected) {
+                workspace.executions.unavailable(error);
+                if ([401,403,404].includes(error.status)) messages.replaceChildren();
+                renderExecutions(executions,workspace,report);
+                renderQuestionReply(replyPanel,workspace);
+            }
+            throw error;
+        }
+        if (scope !== workspace.executions.scope() || !host.isConnected) return;
         messages.replaceChildren();
         window.dispatchEvent(new CustomEvent('honua-workspace-conversation', { detail: value.messages || [] }));
         for (const message of value.messages || []) {
             const row = document.createElement('p');
             row.textContent = `${message.role}: ${message.content}`; messages.append(row);
         }
+        await workspace.executions.refresh(value.messages || []);
+        if (scope === workspace.executions.scope() && host.isConnected) {
+            renderExecutions(executions,workspace,report);
+            renderQuestionReply(replyPanel,workspace);
+        }
     };
+    host.querySelector('[data-workspace-check-executions]')?.addEventListener('click',()=>refresh().catch(report), {signal:lifetime.signal});
     host.querySelector('[data-workspace-start]')?.addEventListener('click', async () => {
         try { await workspace.create(); workspaceInput.value = workspace.workspaceId; await workspace.select(workspace.selectionProvider?.() ?? selectedResource(location.pathname)); await refresh(); status.textContent = 'Connected'; }
         catch (error) { report(error); }
@@ -543,8 +643,9 @@ export function mountWorkspace() {
             const result = await workspace.submit(submitted, {onEvent: () => {
                 if (workspace.session?.gaSpecWorkflow) status.textContent = 'Agent is working on the submitted context. Operation completion requires durable read-back.';
             }}); if(input.value === submitted) input.value = ''; await refresh();
-            status.textContent = result.executionUnavailable ? 'Message saved. Native agent session is not configured; external agents can continue this workspace.' : ['error', 'refused', 'cancelled', 'failed', 'blocked'].includes(result.status) ? (result.errorMessage || `Agent turn ${result.status}.`) : 'Turn saved. Check operation receipts for completion.';
-        } catch (error) { report(error); }
+            status.textContent = result.externalExecution ? executionSummary({acknowledged:true,execution:result.execution})
+                : result.executionUnavailable ? 'Message saved. Native agent session is not configured; external agents can continue this workspace.' : ['error', 'refused', 'cancelled', 'failed', 'blocked'].includes(result.status) ? (result.errorMessage || `Agent turn ${result.status}.`) : 'Turn saved. Check operation receipts for completion.';
+        } catch (error) { report(error); renderExecutions(executions,workspace,report); renderQuestionReply(replyPanel,workspace); }
     });
     // Navigation publishes only typed selections. Never forward a URL, query, fragment or page contents.
     let lastSelection = JSON.stringify(selectedResource(location.pathname));

@@ -1290,3 +1290,13 @@ and non-JSON upstream responses fail visibly.
 Implementation tracking: honua-console#445. This route is not qualified until the
 accepted renderer bundle, actual server source projection, normal checks and real
 audience/browser evidence have all been integrated.
+
+### Shared conversation execution references
+
+The conversation's native execution projection reuses `/inbox?proposalId=...`
+for separate human approval and `/operate/jobs/:jobRunId` for actual server-issued
+jobs. It never accepts a worker-supplied URL. Explicit map/dashboard result actions
+re-read the original turn and the human-authorized Studio item/draft, select its
+current generation, and open the existing `/studio` editor. Unsaved work or a
+changed target/authority prevents delayed navigation. No new builder route,
+automatic approval, prompt replay or execution authority is introduced.

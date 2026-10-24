@@ -154,7 +154,7 @@ test('prompt flushes shared edits and captures advanced revision before queued n
         const body=init.body ? JSON.parse(init.body):undefined; calls.push({path,body});
         if (init.method==='PATCH') return response({id:'draft',revision:2,fields:{serviceName:'updated'}});
         if (init.method==='GET') return response({revision:4,targetId:'original',task:{id:'draft',revision:2}});
-        if (path.endsWith('/turns')) return response({turnId:'turn',status:'accepted'});
+        if (path.endsWith('/turns')) return response({turnId:body.turnId,status:'accepted'});
         return response({revision:5,targetId:'original',selectedResources:body.selectedResources});
     });
     workspace.workspaceId='workspace'; workspace.context={revision:3,targetId:'original',task:{id:'draft',revision:1}};
@@ -211,7 +211,7 @@ test('queued Studio task binding is retained when prompt selection follows immed
         const body=init.body ? JSON.parse(init.body):null;
         calls.push({path,body});
         if(path.endsWith('/context')) return response({revision:2,targetId:'target',selectedResources:body.selectedResources,task:body.task});
-        return response({turnId:'turn',status:'accepted'});
+        return response({turnId:body.turnId,status:'accepted'});
     });
     workspace.workspaceId='workspace';workspace.context={revision:1,targetId:'target',selectedResources:[],task:null};
     const task={id:'real-draft',revision:4,kind:'studio-composition',packageKey:'real-package'};
@@ -227,7 +227,7 @@ test('pending accepted Studio edit is flushed before capture without retargeting
     const workspace=client(async(path,init)=>{
         const body=init.body?JSON.parse(init.body):null;calls.push({path,body});
         if(path.endsWith('/context'))return response({revision:body.expectedRevision+1,targetId:'target',selectedResources:body.selectedResources,task:body.task});
-        return response({turnId:'turn',status:'accepted'});
+        return response({turnId:body.turnId,status:'accepted'});
     });
     const task={id:'draft',revision:1,kind:'studio-composition',packageKey:'package'};
     workspace.workspaceId='workspace';workspace.context={revision:1,targetId:'target',selectedResources:[{kind:'layer',id:'original'}],task};
@@ -263,7 +263,7 @@ test('local Processes mode clears the previous Studio task before capturing a pr
     const calls=[];
     const workspace=client(async(path,init)=>{
         const body=JSON.parse(init.body);calls.push({path,body});
-        return response(path.endsWith('/context')?{targetId:'target',revision:8,task:null}:{turnId:'turn'});
+        return response(path.endsWith('/context')?{targetId:'target',revision:8,task:null}:{turnId:body.turnId});
     });
     workspace.workspaceId='workspace';workspace.context={targetId:'target',revision:7,task:{kind:'studio-composition',id:'old-draft',revision:2}};
     await workspace.submit('explain the local process',{prepareContext:async()=>null});
@@ -290,7 +290,7 @@ for (const navigate of [false,true]) test(`pending local Save ${navigate ? 'reje
     let saved;const pending=new Promise(resolve=>{saved=resolve;});const calls=[];
     const workspace=client(async(path,init)=>{
         const body=JSON.parse(init.body);calls.push({path,body});
-        return response(path.endsWith('/context') ? {...workspace.context,...body,revision:workspace.context.revision+1} : {turnId:'turn'});
+        return response(path.endsWith('/context') ? {...workspace.context,...body,revision:workspace.context.revision+1} : {turnId:body.turnId});
     });
     workspace.workspaceId='workspace';workspace.session={principalId:'operator',environmentId:'environment'};
     workspace.context={revision:3,targetId:'target',task:null,selectedResources:[]};
@@ -340,7 +340,7 @@ test('shared style prompt cannot inherit retained map selections or a prior map 
  const task={kind:'shared-style',id:'style',revision:7,contentHash:'a'.repeat(64),impactHash:'b'.repeat(64)};
  const calls=[];const workspace=client(async(path,init)=>{
   const body=JSON.parse(init.body);calls.push({path,body});
-  return response(path.endsWith('/context') ? {...workspace.context,revision:workspace.context.revision+1,task:body.task,selectedResources:body.selectedResources} : {turnId:'turn'});
+  return response(path.endsWith('/context') ? {...workspace.context,revision:workspace.context.revision+1,task:body.task,selectedResources:body.selectedResources} : {turnId:body.turnId});
  });
  workspace.workspaceId='workspace';workspace.context={revision:1,targetId:'target',selectedResources:[],task};
  workspace.selectionProvider=()=>[{kind:'layer',id:'unrelated-map-layer'}];
@@ -524,7 +524,7 @@ test('visible publish form rebinds its latest canonical draft before prompt and 
   const body=init.body?JSON.parse(init.body):undefined;calls.push({path,body,method:init.method});
   if(init.method==='GET') return response({id:'draft',kind:'publish-layer',revision:2,fields:{layerName:'Remote'}});
   if(init.method==='PATCH') return response({id:'draft',kind:'publish-layer',revision:3,fields:{layerName:'Local'}});
-  if(path.endsWith('/turns')) return response({turnId:'bound',status:'accepted'});
+  if(path.endsWith('/turns')) return response({turnId:body.turnId,status:'accepted'});
   return response({revision:11,targetId:'target',task:body.task,selectedResources:body.selectedResources});
  });
  workspace.workspaceId='workspace';workspace.session={...nativeSession};
@@ -540,7 +540,7 @@ test('visible publish form rebinds its latest canonical draft before prompt and 
  workspace.request=async(path,init)=>{
   if(init.method==='PATCH') return response({id:'draft',kind:'publish-layer',revision:3,fields:{layerName:'Local'}});
   if(init.method==='GET') return response({revision:12,targetId:'target',task:{kind:'publish-layer',id:'draft',revision:3}});
-  calls.push({path,body:JSON.parse(init.body)});return response({turnId:'bound',status:'accepted'});
+  calls.push({path,body:JSON.parse(init.body)});return response({turnId:JSON.parse(init.body).turnId,status:'accepted'});
  };
  await workspace.submit('Use my saved layer draft');assert.equal(calls.at(-1).body.contextRevision,12);
 });
