@@ -1,0 +1,151 @@
+@using Honua.Console.Shell.Models
+
+<section class="console-panel operate-evidence-section" data-job-timeline aria-labelledby="job-diagnostics-heading">
+    <p class="console-kicker">Job diagnostics</p>
+    <h3 id="job-diagnostics-heading">Timeline</h3>
+    <p class="console-muted">
+        Phase, attempt, and actions come from the job diagnostics projection. Missing or truncated evidence stays visible.
+    </p>
+    <dl class="console-definition-list">
+        <dt>Phase</dt>
+        <dd data-job-diagnostics-phase>@View.Phase</dd>
+        <dt>Timing</dt>
+        <dd data-job-diagnostics-timing>@View.TimingSource</dd>
+        <dt>Attempt</dt>
+        <dd data-job-diagnostics-attempt>@View.AttemptNumber of @View.MaxAttempts</dd>
+    </dl>
+
+    @if (!string.IsNullOrWhiteSpace(View.FailureClassification))
+    {
+        <p data-job-diagnostics-failure>
+            <strong>@View.FailureClassification</strong>
+            @if (!string.IsNullOrWhiteSpace(View.FailurePhase))
+            {
+                <span> during @View.FailurePhase</span>
+            }
+        </p>
+        @if (!string.IsNullOrWhiteSpace(View.FailureRecovery))
+        {
+            <p data-job-diagnostics-recovery>@View.FailureRecovery</p>
+        }
+    }
+
+    @if (View.Steps.Count == 0)
+    {
+        <p class="console-muted">No diagnostic steps were reported for this job.</p>
+    }
+    else
+    {
+        <ol class="operate-step-list" data-job-diagnostics-steps>
+            @foreach (var step in View.Steps)
+            {
+                <li>
+                    <span class="operate-step-ordinal">@step.Ordinal</span>
+                    <strong>@step.Phase</strong>
+                    <span class="console-muted">@step.Status</span>
+                    <span class="console-muted" data-job-diagnostics-step-timing>@step.TimingSource</span>
+                    <span class="console-muted">@step.Duration</span>
+                    @if (!string.IsNullOrWhiteSpace(step.Message))
+                    {
+                        <p>@step.Message</p>
+                    }
+                </li>
+            }
+        </ol>
+    }
+
+    @if (View.Events.Count > 0)
+    {
+        <ol data-job-diagnostics-events>
+            @foreach (var entry in View.Events)
+            {
+                <li>
+                    <span>@entry.Timestamp</span>
+                    <span>@entry.Level</span>
+                    @if (!string.IsNullOrWhiteSpace(entry.Phase))
+                    {
+                        <span>@entry.Phase</span>
+                    }
+                    <span>@entry.Message</span>
+                </li>
+            }
+        </ol>
+    }
+
+    <p data-job-diagnostics-truncated="@(View.EventsTruncated ? "true" : "false")">
+        @(View.EventsTruncated ? "The event page is truncated." : "The event page is complete.")
+        @View.EventsTotalCount recorded.
+    </p>
+    <p data-job-diagnostics-first-cursor="@(View.EventsFirstCursor ?? string.Empty)" hidden="@string.IsNullOrEmpty(View.EventsFirstCursor)"></p>
+    <p data-job-diagnostics-next-cursor="@(View.EventsNextCursor ?? string.Empty)" hidden="@string.IsNullOrEmpty(View.EventsNextCursor)"></p>
+
+    @if (View.EvidenceMissing.Count > 0)
+    {
+        <ul data-job-diagnostics-missing>
+            @foreach (var item in View.EvidenceMissing)
+            {
+                <li>@item</li>
+            }
+        </ul>
+    }
+    @if (View.EvidenceTruncated.Count > 0)
+    {
+        <ul data-job-diagnostics-evidence-truncated>
+            @foreach (var item in View.EvidenceTruncated)
+            {
+                <li>@item</li>
+            }
+        </ul>
+    }
+
+    @if (!View.RetryAllowed && !string.IsNullOrWhiteSpace(View.RetryDisabledReason))
+    {
+        <p data-job-diagnostics-retry-reason>@View.RetryDisabledReason</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(View.WouldRepeat))
+    {
+        <p data-job-diagnostics-would-repeat>@View.WouldRepeat</p>
+    }
+
+    <div class="operate-action-row">
+        @if (View.CancelOffered)
+        {
+            <button type="button" class="console-button" disabled="@Busy" @onclick="OnCancel">Cancel job</button>
+        }
+        @if (View.RetryAllowed)
+        {
+            <button type="button" class="console-button" disabled="@Busy" @onclick="OnRetry">Retry job</button>
+        }
+        @if (!string.IsNullOrWhiteSpace(View.EventsFirstCursor) && !ReadingEarlier)
+        {
+            <button type="button" class="console-button console-button-secondary" disabled="@Busy" @onclick="() => OnReadEarlier.InvokeAsync(View.EventsFirstCursor)">Read earlier events</button>
+        }
+        @if (!string.IsNullOrWhiteSpace(View.EventsNextCursor))
+        {
+            <button type="button" class="console-button console-button-secondary" disabled="@Busy" @onclick="() => OnReadNext.InvokeAsync(View.EventsNextCursor)">Read next events</button>
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public required OperateJobDiagnosticsView View { get; set; }
+
+    [Parameter]
+    public bool Busy { get; set; }
+
+    [Parameter]
+    public bool ReadingEarlier { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    [Parameter]
+    public EventCallback OnRetry { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnReadEarlier { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnReadNext { get; set; }
+}

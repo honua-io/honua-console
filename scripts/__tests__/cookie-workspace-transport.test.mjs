@@ -1,6 +1,78 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {capturedProcessFetch} from '../../src/Honua.Console.Web/wwwroot/js/cookie-workspace-transport.mjs';
+import {capturedProcessFetch, createStudioCookieSession} from '../../src/Honua.Console.Web/wwwroot/js/cookie-workspace-transport.mjs';
+
+function leaseClock(t) {
+ let now=Date.parse('2026-10-24T00:00:00Z'),next=0;
+ const timers=new Map();
+ t.mock.method(Date,'now',()=>now);
+ t.mock.method(globalThis,'setTimeout',(callback,delay)=>{
+  const id=++next;timers.set(id,{callback,delay});return id;
+ });
+ t.mock.method(globalThis,'clearTimeout',id=>timers.delete(id));
+ return {timers,advance(ms){now+=ms;},expiry(ms){return new Date(now+ms).toISOString();},
+  next(){return [...timers.entries()].at(-1);},
+  fire(id){const timer=timers.get(id);assert.ok(timer);timers.delete(id);timer.callback();}};
+}
+const lease=expiresAt=>({principalId:'partition',environmentId:'environment',sourcePathBase:'/honua',csrfToken:'csrf',expiresAt});
+
+test('Studio cookie adapter snapshots only allowed fields and rejects invalid expiry',t=>{
+ const clock=leaseClock(t);
+ const session={...lease(clock.expiry(5000)),accessToken:'not-projected',fetchRequest:'not-projected',baseUrl:'https://untrusted.test'};
+ const adapter=createStudioCookieSession(session);
+ assert.deepEqual(Object.keys(adapter).sort(),['baseUrl','csrfToken','environmentId','expiresAt','kind','onExpired','principalId','sourcePathBase'].sort());
+ assert.equal(adapter.kind,'cookie');assert.equal(adapter.baseUrl,'/api/studio');assert.ok(Object.isFrozen(adapter));
+ session.csrfToken='changed';session.expiresAt='invalid';
+ assert.equal(adapter.csrfToken,'csrf');assert.equal(adapter.expiresAt,clock.expiry(5000));
+ for(const expiresAt of [undefined,null,0,'','invalid','2026-99-99T00:00:00Z'])
+  assert.throws(()=>createStudioCookieSession(lease(expiresAt)),/lease expiry is invalid/);
+ assert.throws(()=>adapter.onExpired(undefined),/expiry listener/);
+ assert.equal(clock.timers.size,0);
+});
+
+test('Studio expiry rechecks the deadline and notifies once even if a timer fires early',t=>{
+ const clock=leaseClock(t);let expired=0;
+ const unsubscribe=createStudioCookieSession(lease(clock.expiry(5000))).onExpired(()=>expired++);
+ let [id,timer]=clock.next();assert.equal(timer.delay,5000);
+ clock.advance(4999);clock.fire(id);assert.equal(expired,0);
+ [id,timer]=clock.next();assert.equal(timer.delay,1);
+ const lateCallback=timer.callback;
+ clock.advance(1);clock.fire(id);assert.equal(expired,1);assert.equal(clock.timers.size,0);
+ lateCallback();unsubscribe();unsubscribe();assert.equal(expired,1);
+});
+
+test('Studio expiry chunks long leases instead of overflowing the browser timer',t=>{
+ const clock=leaseClock(t),maximumDelay=2147483647;let expired=0;
+ createStudioCookieSession(lease(clock.expiry(maximumDelay+5000))).onExpired(()=>expired++);
+ let [id,timer]=clock.next();assert.equal(timer.delay,maximumDelay);
+ clock.advance(maximumDelay);clock.fire(id);assert.equal(expired,0);
+ [id,timer]=clock.next();assert.equal(timer.delay,5000);
+ clock.advance(5000);clock.fire(id);assert.equal(expired,1);assert.equal(clock.timers.size,0);
+});
+
+test('disposing an old Studio lease subscription prevents expiry after same-authority renewal',t=>{
+ const clock=leaseClock(t);let oldExpired=0,newExpired=0;
+ const old=createStudioCookieSession(lease(clock.expiry(1000)));
+ const unsubscribeOld=old.onExpired(()=>oldExpired++);
+ const staleCallback=clock.next()[1].callback;
+ unsubscribeOld();assert.equal(clock.timers.size,0);
+ const renewed=createStudioCookieSession({...lease(clock.expiry(10000)),csrfToken:'renewed-csrf'});
+ const unsubscribeNew=renewed.onExpired(()=>newExpired++);
+ clock.advance(1000);staleCallback();assert.equal(oldExpired,0);assert.equal(newExpired,0);
+ const [id,timer]=clock.next();assert.equal(timer.delay,10000);
+ clock.advance(9000);clock.fire(id);assert.equal(newExpired,1);assert.equal(oldExpired,0);
+ unsubscribeNew();assert.equal(clock.timers.size,0);
+});
+
+test('an already expired Studio lease uses a cancellable asynchronous notification',t=>{
+ const clock=leaseClock(t);let expired=0;
+ const adapter=createStudioCookieSession(lease(clock.expiry(-1)));
+ const unsubscribe=adapter.onExpired(()=>expired++);
+ const [id,timer]=clock.next();assert.equal(timer.delay,0);assert.equal(expired,0);
+ unsubscribe();timer.callback();assert.equal(expired,0);assert.equal(clock.timers.has(id),false);
+ adapter.onExpired(()=>expired++);clock.fire(clock.next()[0]);assert.equal(expired,1);
+});
+
 test('Processes renews CSRF under its original captured authority',async()=>{
  const binding={principalId:'partition',environmentId:'environment',sourcePathBase:'/honua',csrfToken:'old'};
  const renewed={...binding,csrfToken:'new'};let sent;
