@@ -446,6 +446,55 @@ public static class OperateObservabilityMapper
                 : artifact.Message!,
             Identifier: artifact.ArtifactId)).ToArray();
 
+    public const string JobDiagnosticsSchema = "honua.job-diagnostics/v1";
+
+    public static OperateJobDiagnosticsView MapJobDiagnostics(ConsoleJobDiagnosticsResponse response)
+    {
+        var retry = response.Attempt?.Retry;
+        var events = response.Events;
+        var evidence = response.Evidence;
+        return new OperateJobDiagnosticsView(
+            Schema: response.Schema,
+            JobRunId: response.JobId,
+            Phase: response.Lifecycle?.Phase ?? string.Empty,
+            TimingSource: string.IsNullOrWhiteSpace(response.Lifecycle?.TimingSource)
+                ? "inferred"
+                : response.Lifecycle!.TimingSource,
+            AttemptNumber: response.Attempt?.Number ?? 0,
+            MaxAttempts: response.Attempt?.MaxAttempts ?? 0,
+            RetryAllowed: retry?.Allowed == true,
+            RetryRequiresApproval: retry?.RequiresApproval == true,
+            RetryDisabledReason: retry?.DisabledReason ?? string.Empty,
+            WouldRepeat: retry?.WouldRepeat ?? string.Empty,
+            CancelOffered: !string.IsNullOrWhiteSpace(response.Links?.Cancel),
+            FailureClassification: response.Failure?.Classification,
+            FailureRecovery: response.Failure?.Recovery,
+            FailurePhase: response.Failure?.Phase,
+            Steps: (response.Steps ?? [])
+                .OrderBy(step => step.Ordinal)
+                .Select(step => new OperateJobDiagnosticStep(
+                    step.Ordinal,
+                    string.IsNullOrWhiteSpace(step.Phase) ? "step" : step.Phase,
+                    step.Status,
+                    string.IsNullOrWhiteSpace(step.TimingSource) ? "inferred" : step.TimingSource,
+                    FormatDuration(step.DurationMs),
+                    step.Message))
+                .ToArray(),
+            Events: (events?.Items ?? [])
+                .Select(entry => new OperateJobDiagnosticEvent(
+                    FormatTimestamp(entry.Timestamp),
+                    entry.Level,
+                    entry.Message,
+                    entry.Phase))
+                .ToArray(),
+            EventsTruncated: events?.Truncated == true,
+            EventsFirstCursor: events?.FirstCursor,
+            EventsNextCursor: events?.NextCursor,
+            EventsTotalCount: events?.TotalCount ?? 0,
+            EvidenceMissing: evidence?.Missing ?? [],
+            EvidenceTruncated: evidence?.Truncated ?? []);
+    }
+
     public static OperateJobStepsView MapJobSteps(ConsoleJobStepsResponse response) =>
         new(
             JobRunId: response.JobId,
