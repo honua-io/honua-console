@@ -143,14 +143,22 @@ export class WorkspaceExecutions {
         this.requireResolvedSubmission();
         const scope=this.scope(), records=this.records();
         if (records.has(turnId)) throw new Error('This request identifier already exists. Check the original request.');
+        const previousRecords=new Map(records);
         if (records.size >= 100) {
-            const completed=[...records.values()].find(row=>row.execution?.state === 'completed');
-            if (!completed) throw new Error('Check your existing requests before starting more work.');
-            records.delete(completed.turnId);
+            // Only current native observations can retire an entry. Persisted
+            // acknowledgement alone cannot settle an execution after reload.
+            const resolved=[...records.values()].find(row=>row.acknowledged && !row.error
+                && (['completed','failed'].includes(row.execution?.state)
+                    || Object.hasOwn(row,'execution') && row.execution === null));
+            if (!resolved) throw new Error('Check your existing requests before starting more work.');
+            records.delete(resolved.turnId);
         }
         const record={turnId,acknowledged:false,...(requestDigest ? {requestDigest} : {})};records.set(turnId,record);
         try { this.persist(scope,records); }
-        catch (error) { records.delete(turnId); throw error; }
+        catch (error) {
+            records.clear();for (const [key,value] of previousRecords) records.set(key,value);
+            throw error;
+        }
         return {scope,workspaceId:this.workspace.workspaceId,session:{...this.workspace.session},records,record};
     }
     adopt(binding, turn) {

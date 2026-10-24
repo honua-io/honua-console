@@ -300,11 +300,13 @@ test('switching the question during an in-flight submission cannot coalesce two 
     release();await assert.rejects(submitting,/original question is no longer available/);
 });
 
-test('opening an original publication task reads its current revision and still requires review before replying',async()=>{
+for (const cachedDraft of [null,{id:'other-draft',kind:'publish-layer',revision:1,fields:{name:'Other draft'}}])
+test(`opening an original publication task survives editor focus with ${cachedDraft ? 'another' : 'no'} cached draft`,async()=>{
     const {workspace,original}=questionClient(),routes=[];
     original.context.task={kind:'publish-layer',id:'publish-draft',revision:2};
     workspace.context=structuredClone(original.context);
     await workspace.questionReplies.begin('question-turn');
+    workspace.draft=cachedDraft;
     workspace.context={...workspace.context,task:{kind:'publish-layer',id:'other-draft',revision:1}};
     workspace.request=async(path,init)=>{
         if (path.endsWith('/drafts/publish-draft')) return response({id:'publish-draft',kind:'publish-layer',revision:4});
@@ -313,9 +315,57 @@ test('opening an original publication task reads its current revision and still 
     };
     await workspace.questionReplies.openOriginal({navigate:path=>routes.push(path)});
     assert.deepEqual(routes,['/operate/publishing/quick']);
+    assert.equal(workspace.draft.id,'publish-draft');
+    await workspace.focusPublishDraft();
     assert.equal(workspace.context.task.id,'publish-draft');assert.equal(workspace.context.task.revision,4);
+    assert.deepEqual(workspace.context.selectedResources,original.context.selectedResources);
     assert.equal(workspace.questionReplies.current().reviewed,null);
     await assert.rejects(workspace.submit('Use this table'),/Review the current target/);
+    await workspace.questionReplies.reviewCurrent();
+    assert.ok(workspace.questionReplies.current().reviewed);
+});
+
+for (const kind of ['legacy','failed','completed','refused']) test(`bounded history retires observed ${kind} turns`,()=>{
+    const workspace=client();
+    for (let i=0;i<100;i++) {
+        const id=`turn-${i}`,requestDigest=`sha256:${'a'.repeat(64)}`;
+        const binding=workspace.executions.begin(id,requestDigest);
+        const observed=kind==='refused'
+            ? {turnId:id,status:'not-dispatched',submission:{turnId:id,requestDigest,disposition:'not-dispatched',code:'context-changed'}}
+            : turn(id,kind==='legacy' ? null : execution({state:kind}));
+        workspace.executions.adopt(binding,observed);
+    }
+    const next=workspace.executions.begin('next-turn');
+    assert.equal(next.records.size,100);
+    assert.equal(next.records.has('turn-0'),false);
+    assert.equal(next.record.acknowledged,false);
+});
+
+test('bounded history preserves active and unresolved records and requires fresh observations after reload',async()=>{
+    const retained=storage(),workspace=client(undefined,retained);
+    for (let i=0;i<100;i++) {
+        const id=`turn-${i}`,binding=workspace.executions.begin(id);
+        workspace.executions.adopt(binding,turn(id,execution({state:'running'})));
+    }
+    assert.throws(()=>workspace.executions.begin('next-turn'),/Check your existing requests/);
+    const reloaded=client(async(path)=>response(turn(path.split('/').at(-1),null)),retained);
+    assert.throws(()=>reloaded.executions.begin('next-turn'),/Check your existing requests/);
+    await reloaded.executions.refresh();
+    const next=reloaded.executions.begin('next-turn');
+    assert.equal(next.records.size,100);
+    assert.throws(()=>reloaded.executions.begin('unconfirmed-followup'),/previous message has not been confirmed/);
+});
+
+test('failed storage after history eviction preserves every original request in memory',()=>{
+    const workspace=client();
+    for (let i=0;i<100;i++) {
+        const id=`turn-${i}`,binding=workspace.executions.begin(id);
+        workspace.executions.adopt(binding,turn(id,null));
+    }
+    const before=workspace.executions.current();
+    workspace.storage.setItem=()=>{throw new Error('storage full');};
+    assert.throws(()=>workspace.executions.begin('next-turn'),/storage full/);
+    assert.deepEqual(workspace.executions.current(),before);
 });
 
 test('submission digest binds the exact UTF-8 bytes including non-ASCII prompt text',async()=>{

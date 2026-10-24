@@ -178,9 +178,11 @@ export class AgentWorkspace {
             if (draft && (draft.kind !== 'publish-layer' || draft.id !== draftId))
                 throw new Error('The publish draft changed. Review the current form before continuing.');
             const task = draft ? {id:draft.id,revision:draft.revision,kind:'publish-layer'} : null;
+            const selectedResources = task && this.context.task?.kind === task.kind && this.context.task.id === task.id
+                ? this.context.selectedResources : [];
             const context = await this.api(`${this.workspaceId}/context`, 'PUT', {
                 expectedRevision:revision,viewId:this.viewId,targetId:this.context.targetId,
-                selectedResources:[],task,source:'console'
+                selectedResources,task,source:'console'
             });
             // Later queued navigation needs this accepted CAS revision; another authority must never adopt it.
             if (!sameAuthority()) return false;
