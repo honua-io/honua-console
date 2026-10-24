@@ -92,6 +92,10 @@ function createDocument() {
         el.removeEventListener = (type, fn) => { el.listeners = el.listeners.filter(entry => entry.type !== type || entry.fn !== fn); };
         el.dispatchEvent = event => dispatch(el, event);
         el.focus = () => { document.activeElement = el; };
+        el.remove = () => {
+            if (el.parent?.children) el.parent.children = el.parent.children.filter(child => child !== el);
+            el.parent = null;
+        };
         el.closest = selector => { let node = el; while (node?.tagName) { if (matches(node, selector)) return node; node = node.parentElement; } return null; };
         el.querySelector = selector => queryAll(el, selector)[0] || null;
         el.querySelectorAll = selector => queryAll(el, selector);
@@ -223,6 +227,17 @@ function installBrowser(markup) {
     };
     dom.document.body.append(dom.parse(markup));
     return dom;
+}
+
+function releaseMountedWorkspace() {
+    const workspace = globalThis.honuaAgentWorkspace;
+    if (workspace?._pollTimer) {
+        clearTimeout(workspace._pollTimer);
+        workspace._pollTimer = 0;
+    }
+    const doc = globalThis.document;
+    doc?.querySelector?.('[data-agent-workspace]')?.remove?.();
+    if (doc?.body) doc.body.connectedRoot = false;
 }
 
 test('shared workspace keeps a working status until cancel or the turn settles', async () => {
@@ -386,7 +401,7 @@ test('shared workspace keeps a working status until cancel or the turn settles',
     } finally {
         shutdown = true;
         for (const fail of inflight.splice(0)) fail(new Error('shutdown'));
-        host.remove?.();
+        releaseMountedWorkspace();
         mock.timers.reset();
     }
     assert.deepEqual(failures, []);
@@ -407,35 +422,196 @@ test('visible selection uses object names, and clear removes them from the next 
     const { mountWorkspace } = await import(modulePath);
     mountWorkspace();
     const workspace = window.honuaAgentWorkspace;
-    workspace.request = globalThis.fetch;
-    workspace.workspaceId = 'workspace';
-    workspace.session = { environmentName: 'Production', environmentId: 'environment', principalId: 'person' };
-    workspace.context = {
-        revision: 3,
-        targetId: 'target',
-        task: { kind: 'studio-composition', id: 'draft', revision: 4, name: 'Parcels', packageKey: 'parcels-map' },
-        selectedResources: [
-            { kind: 'layer', id: '10', serviceId: 'svc', name: 'Zoning' },
-            { kind: 'layer', id: '11', serviceId: 'svc', name: 'Zoning' },
-            { kind: 'feature', id: '12', removed: true, name: 'https://secret.example/token' }
-        ]
-    };
-    workspace.notify(workspace);
-    const label = document.querySelector('[data-workspace-selection-label]')?.textContent || '';
-    assert.match(label, /Production/);
-    assert.match(label, /Map Parcels/);
-    assert.equal((label.match(/Layer Zoning/g) || []).length, 2);
-    assert.doesNotMatch(label, /https|secret|token/i);
-    assert.match(label, /Feature unavailable/);
-    const clear = document.querySelector('[data-workspace-clear-selection]');
-    assert.equal(clear?.hidden, false);
-    document.querySelector('[data-workspace-change-selection]')?.dispatchEvent(new Event('click', { bubbles: true }));
-    assert.equal(document.activeElement, document.querySelector('[data-workspace-deploy-target]'));
-    clear?.dispatchEvent(new Event('click', { bubbles: true }));
-    await workspace.queue;
-    assert.deepEqual(puts.at(-1)?.selectedResources, []);
-    assert.equal(document.querySelector('[data-workspace-clear-selection]')?.hidden, true);
-    assert.match(document.querySelector('[data-workspace-selection-label]')?.textContent || '', /No object selected/);
+    try {
+        workspace.request = globalThis.fetch;
+        workspace.workspaceId = 'workspace';
+        workspace.session = { environmentName: 'Production', environmentId: 'environment', principalId: 'person' };
+        workspace.context = {
+            revision: 3,
+            targetId: 'target',
+            task: { kind: 'studio-composition', id: 'draft', revision: 4, name: 'Parcels', packageKey: 'parcels-map' },
+            selectedResources: [
+                { kind: 'layer', id: '10', serviceId: 'svc', name: 'Zoning' },
+                { kind: 'layer', id: '11', serviceId: 'svc', name: 'Zoning' },
+                { kind: 'feature', id: '12', removed: true, name: 'https://secret.example/token' }
+            ]
+        };
+        workspace.notify(workspace);
+        const label = document.querySelector('[data-workspace-selection-label]')?.textContent || '';
+        assert.match(label, /Production/);
+        assert.match(label, /Map Parcels/);
+        assert.equal((label.match(/Layer Zoning/g) || []).length, 2);
+        assert.doesNotMatch(label, /https|secret|token/i);
+        assert.match(label, /Feature unavailable/);
+        const clear = document.querySelector('[data-workspace-clear-selection]');
+        assert.equal(clear?.hidden, false);
+        document.querySelector('[data-workspace-change-selection]')?.dispatchEvent(new Event('click', { bubbles: true }));
+        assert.equal(document.activeElement, document.querySelector('[data-workspace-deploy-target]'));
+        clear?.dispatchEvent(new Event('click', { bubbles: true }));
+        await workspace.queue;
+        assert.deepEqual(puts.at(-1)?.selectedResources, []);
+        assert.equal(document.querySelector('[data-workspace-clear-selection]')?.hidden, true);
+        assert.match(document.querySelector('[data-workspace-selection-label]')?.textContent || '', /No object selected/);
+    } finally {
+        releaseMountedWorkspace();
+    }
 });
 
-after(() => { shutdown = true; for (const fail of inflight.splice(0)) fail(new Error('shutdown')); });
+test('clear keeps the provider selection out of the next turn until an explicit select', async () => {
+    const markup = extractWorkspace(fs.readFileSync(layoutPath, 'utf8'));
+    installBrowser(markup);
+    const calls = [];
+    let revision = 3;
+    globalThis.fetch = async (url, init = {}) => {
+        const body = init.body ? JSON.parse(init.body) : null;
+        const method = String(init.method || 'GET').toUpperCase();
+        calls.push({ path: String(url), method, body });
+        if (String(url).includes('/context') && method === 'PUT') {
+            revision += 1;
+            return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ ...body, revision, targetId: 'target', selectedResources: body.selectedResources, task: body.task ?? null }) };
+        }
+        if (String(url).endsWith('/turns') && method === 'POST')
+            return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ turnId: body.turnId, status: 'accepted' }) };
+        return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({}) };
+    };
+    const { mountWorkspace } = await import(modulePath);
+    mountWorkspace();
+    const workspace = window.honuaAgentWorkspace;
+    const providerSelection = [
+        { kind: 'layer', id: '10', serviceId: 'svc', name: 'Zoning' },
+        { kind: 'layer', id: '11', serviceId: 'svc', name: 'Zoning' }
+    ];
+    try {
+        workspace.request = globalThis.fetch;
+        workspace.agentSession = null;
+        workspace.selectionSourceHold = undefined;
+        workspace.queue = Promise.resolve();
+        workspace.workspaceId = 'workspace';
+        workspace.session = { environmentName: 'Production', environmentId: 'environment', principalId: 'person' };
+        workspace.selectionProvider = () => providerSelection.map(item => ({ ...item }));
+        workspace.context = { revision, targetId: 'target', tenantId: 'tenant', selectedResources: [], task: { kind: 'studio-composition', id: 'draft', revision: 4, name: 'Parcels' } };
+        await workspace.select(providerSelection);
+        assert.deepEqual(workspace.context.selectedResources.map(item => item.id), ['10', '11']);
+        calls.length = 0;
+        document.querySelector('[data-workspace-clear-selection]')?.dispatchEvent(new Event('click', { bubbles: true }));
+        await workspace.queue;
+        const clearedRevision = workspace.context.revision;
+        assert.deepEqual(workspace.context.selectedResources, []);
+        assert.deepEqual(workspace.selectionProvider().map(item => item.id), ['10', '11']);
+        await workspace.submit('Describe the cleared selection');
+        assert.deepEqual(workspace.context.selectedResources, []);
+        assert.equal(workspace.context.revision, clearedRevision);
+        const clearedTurn = calls.filter(call => call.path.endsWith('/turns')).at(-1);
+        assert.equal(clearedTurn.body.contextRevision, clearedRevision);
+        assert.equal(calls.some(call => call.body?.selectedResources?.some(item => item.id === '10' || item.id === '11')), false);
+        const explicit = [{ kind: 'feature', id: '22', serviceId: 'svc', name: 'Parcel 22' }];
+        await workspace.select(explicit);
+        calls.length = 0;
+        await workspace.submit('Use the explicit selection');
+        assert.deepEqual(workspace.context.selectedResources, explicit);
+        assert.deepEqual(workspace.selectionProvider().map(item => item.id), ['10', '11']);
+        const explicitTurn = calls.filter(call => call.path.endsWith('/turns')).at(-1);
+        assert.equal(explicitTurn.body.contextRevision, workspace.context.revision);
+        assert.equal(calls.some(call => call.method === 'PUT' && call.body?.selectedResources?.some(item => item.id === '10')), false);
+    } finally {
+        workspace.selectionSourceHold = undefined;
+        workspace.selectionProvider = () => [];
+        releaseMountedWorkspace();
+    }
+});
+
+test('cancel during turn preparation persists Cancelled. and does not throw', async () => {
+    const markup = extractWorkspace(fs.readFileSync(layoutPath, 'utf8'));
+    installBrowser(markup);
+    const posted = [];
+    let releaseTools = () => {};
+    let toolsStarted = () => {};
+    const toolsGate = new Promise(resolve => { toolsStarted = resolve; });
+    let chatCalls = 0;
+    const session = {
+        nativeAgentAvailable: true, releaseId: 'release', environmentId: 'environment', environmentName: 'Production',
+        csrfToken: 'csrf', principalId: 'person', sourcePathBase: '/honua', expiresAt: '2099-01-01T00:00:00.000Z'
+    };
+    globalThis.fetch = async (url, init = {}) => {
+        const path = String(url);
+        const method = String(init.method || 'GET').toUpperCase();
+        const body = init.body ? JSON.parse(init.body) : null;
+        const json = value => ({ ok: true, status: 200, headers: { get: () => null }, json: async () => value });
+        if (path.endsWith('/session')) return json(session);
+        if (path.includes('/deploy-targets')) return json([]);
+        if (path.endsWith('/turns') && method === 'POST') return json({ turnId: body.turnId, status: 'accepted' });
+        if (path.endsWith('/agent/turn')) return json({ context: { targetId: 'target', tenantId: 'tenant', selectedResources: [{ kind: 'layer', id: '10' }], task: { kind: 'studio-composition', id: 'draft', revision: 4 } } });
+        if (path.endsWith('/capabilities')) return json({ transcriptSigning: { keys: [{ keyId: 'trusted' }] } });
+        if (path.endsWith('/conversation') && method === 'POST') { posted.push(body); return json({ id: body.messageId }); }
+        if (path.endsWith('/conversation')) return json({ messages: posted.map(message => ({ role: 'assistant', content: message.content })) });
+        if (path.includes('?viewId=')) return json({ revision: 4, targetId: 'target', tenantId: 'tenant', selectedResources: [], task: null });
+        return json({});
+    };
+    const { mountWorkspace, attachNativeAgent } = await import(modulePath);
+    mountWorkspace();
+    const workspace = window.honuaAgentWorkspace;
+    const host = document.querySelector('[data-agent-workspace]');
+    try {
+        workspace.request = globalThis.fetch;
+        workspace.agentSession = null;
+        workspace.selectionSourceHold = undefined;
+        workspace.queue = Promise.resolve();
+        workspace.workspaceId = 'workspace';
+        workspace.session = session;
+        workspace.context = { revision: 4, targetId: 'target', tenantId: 'tenant', selectedResources: [], task: null };
+        workspace.dirty = new Map();
+        await attachNativeAgent(workspace, async () => ({
+            workspaceAgentFeatures: { toolApproval: true },
+            createWorkspaceTranscriptVerifier: () => ({}),
+            createWorkspaceAgentSession: () => ({
+                reconnect() {},
+                attachDraft() { throw new Error('attachDraft lost the cancelled turn binding'); },
+                async refreshTools() {
+                    toolsStarted();
+                    await new Promise(resolve => { releaseTools = resolve; });
+                    return {};
+                },
+                async chat() {
+                    chatCalls += 1;
+                    return { status: 'completed', text: 'Late success' };
+                }
+            })
+        }));
+        const submitTurn = workspace.submit.bind(workspace);
+        let submitted;
+        workspace.submit = (prompt, options) => {
+            submitted = submitTurn(prompt, options);
+            return submitted;
+        };
+        const prompt = host.querySelector('[data-workspace-prompt]');
+        const form = host.querySelector('form');
+        const status = host.querySelector('[data-workspace-status]');
+        prompt.value = 'Prepare this turn';
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        await toolsGate;
+        host.querySelector('[data-workspace-cancel]')?.dispatchEvent(new Event('click', { bubbles: true, cancelable: true }));
+        releaseTools();
+        const result = await submitted;
+        for (let i = 0; i < 30; i += 1) {
+            if (status.textContent.includes('cancelled')) break;
+            await new Promise(resolve => setImmediate(resolve));
+        }
+        assert.equal(result.status, 'cancelled');
+        assert.equal(chatCalls, 0);
+        assert.deepEqual(posted.map(message => message.content), ['Cancelled.']);
+        assert.equal(posted.some(message => message.content === 'Late success'), false);
+        assert.equal(status.textContent, 'Agent turn cancelled.');
+        assert.match(host.querySelector('[data-workspace-messages]')?.textContent || '', /Cancelled\./);
+        assert.doesNotMatch(host.querySelector('[data-workspace-messages]')?.textContent || '', /Late success/);
+    } finally {
+        releaseTools();
+        workspace.agentSession = null;
+        releaseMountedWorkspace();
+    }
+});
+
+after(() => {
+    shutdown = true;
+    for (const fail of inflight.splice(0)) fail(new Error('shutdown'));
+    releaseMountedWorkspace();
+});
