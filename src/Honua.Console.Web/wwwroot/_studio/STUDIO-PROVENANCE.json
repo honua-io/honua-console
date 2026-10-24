@@ -1,6 +1,6 @@
 {
   "schema": "honua.studio.console-assets/v1",
-  "sourceCommit": "bddb2b99ba7e6fcff12dd2a26221e8f56455abc4",
+  "sourceCommit": "9637a7ce31cb1e1dd66d83daa1b00d706d787424",
   "releaseQualified": false,
   "integrationQualification": "pending-installed-workspace-journey",
   "sdk": {
