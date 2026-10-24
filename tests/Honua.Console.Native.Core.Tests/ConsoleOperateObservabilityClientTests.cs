@@ -674,6 +674,113 @@ public sealed class ConsoleOperateObservabilityClientTests
     }
 
     [Fact]
+    public async Task GetJobDiagnosticsReadsTheProjectionAndKeepsCursors()
+    {
+        const string redacted = "worker said [REDACTED] under <scratch>";
+        var handler = new RecordingHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            var query = request.RequestUri.Query;
+            if (path != "/api/v1/admin/jobs/gp-job-1/diagnostics")
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            var cursor = query.Contains("eventCursor=cursor-2", StringComparison.Ordinal) ? "cursor-3" : "cursor-2";
+            return JsonResponse(
+                new ConsoleJobDiagnosticsResponse
+                {
+                    Schema = "honua.job-diagnostics/v1",
+                    JobId = "gp-job-1",
+                    Lifecycle = new ConsoleJobDiagnosticLifecycle { Phase = "failed", TimingSource = "measured" },
+                    Attempt = new ConsoleJobDiagnosticAttempt
+                    {
+                        Number = 2,
+                        MaxAttempts = 3,
+                        Retry = new ConsoleJobDiagnosticRetry
+                        {
+                            Allowed = false,
+                            DisabledReason = "Attempt budget is spent.",
+                            WouldRepeat = "Would repeat the postgis job as attempt 3."
+                        }
+                    },
+                    Failure = new ConsoleJobDiagnosticFailureBody
+                    {
+                        Classification = "execution_failed",
+                        Phase = "executing",
+                        Recovery = "Correct the process before another attempt.",
+                        Message = redacted
+                    },
+                    Steps =
+                    [
+                        new ConsoleJobStep
+                        {
+                            Ordinal = 2,
+                            Phase = "executing",
+                            Status = "failed",
+                            TimingSource = "measured",
+                            DurationMs = 3000,
+                            Message = redacted
+                        }
+                    ],
+                    Events = new ConsoleJobDiagnosticEvents
+                    {
+                        Items = [new ConsoleJobLogEntry { Level = "error", Message = redacted, Phase = "executing" }],
+                        TotalCount = 8,
+                        FirstCursor = "start",
+                        NextCursor = cursor,
+                        Truncated = true
+                    },
+                    Evidence = new ConsoleJobDiagnosticEvidence
+                    {
+                        Missing = ["release.lockDigest"],
+                        Truncated = ["events"]
+                    },
+                    Links = new ConsoleJobLinks { Cancel = null, Retry = "/api/v1/admin/jobs/gp-job-1/retry" }
+                },
+                OperateObservabilityJsonContext.Default.ConsoleJobDiagnosticsResponse);
+        });
+        var client = CreateClient(handler);
+
+        var tail = await client.GetJobDiagnosticsAsync("gp-job-1");
+        var next = await client.GetJobDiagnosticsAsync("gp-job-1", "cursor-2");
+
+        Assert.Equal(OperateSectionStatus.Allowed, tail.Status);
+        var view = tail.Value!;
+        Assert.Equal("honua.job-diagnostics/v1", view.Schema);
+        Assert.Equal("failed", view.Phase);
+        Assert.Equal("measured", view.TimingSource);
+        Assert.False(view.RetryAllowed);
+        Assert.False(view.CancelOffered);
+        Assert.Equal("Attempt budget is spent.", view.RetryDisabledReason);
+        Assert.Equal(redacted, view.Steps[0].Message);
+        Assert.Equal("measured", view.Steps[0].TimingSource);
+        Assert.Equal("start", view.EventsFirstCursor);
+        Assert.Equal("cursor-2", view.EventsNextCursor);
+        Assert.True(view.EventsTruncated);
+        Assert.Contains("release.lockDigest", view.EvidenceMissing);
+        Assert.Contains("events", view.EvidenceTruncated);
+        Assert.Equal("cursor-3", next.Value!.EventsNextCursor);
+        Assert.Equal("/api/v1/admin/jobs/gp-job-1/diagnostics", handler.Requests[0].RequestUri!.AbsolutePath);
+        Assert.Contains("events=100", handler.Requests[0].RequestUri.Query);
+        Assert.Contains("eventCursor=cursor-2", handler.Requests[1].RequestUri!.Query);
+    }
+
+    [Fact]
+    public async Task GetJobDiagnosticsRejectsADifferentSchema()
+    {
+        var handler = new RecordingHandler(_ => JsonResponse(
+            new ConsoleJobDiagnosticsResponse { Schema = "other.schema/v1", JobId = "gp-job-1" },
+            OperateObservabilityJsonContext.Default.ConsoleJobDiagnosticsResponse));
+        var client = CreateClient(handler);
+
+        var result = await client.GetJobDiagnosticsAsync("gp-job-1");
+
+        Assert.Equal(OperateSectionStatus.Unsupported, result.Status);
+        Assert.Contains("honua.job-diagnostics/v1", result.Message);
+    }
+
+    [Fact]
     public async Task JobStepsPanelRendersCommandTimelineAndArtifacts()
     {
         var services = new ServiceCollection();

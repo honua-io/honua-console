@@ -9,6 +9,18 @@ function qualifiedNativeModule(value) {
  return {...value,workspaceAgentFeatures:{toolApproval:true},createWorkspaceAgentSession:options=>({reconnect(){},refreshTools:async()=>({}),...value.createWorkspaceAgentSession(options)})};
 }
 
+test('default browser transport preserves the global receiver', async t => {
+    const request = t.mock.method(globalThis, 'fetch', function(path, options) {
+        assert.equal(this, globalThis);
+        assert.equal(path, '/api/agent-workspace/session');
+        assert.equal(options.credentials, 'same-origin');
+        return Promise.resolve(response({ principalId: 'human' }));
+    });
+    const workspace = new AgentWorkspace({ storage: storage(), uuid: () => 'view' });
+    assert.deepEqual(await workspace.api('session'), { principalId: 'human' });
+    assert.equal(request.mock.callCount(), 1);
+});
+
 
 test('prompt binds original authorized revision while navigation changes in flight', async () => {
     let release; const calls = [];

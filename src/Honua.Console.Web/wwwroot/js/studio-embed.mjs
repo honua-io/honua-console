@@ -1,9 +1,10 @@
 import {processTask} from './workflow-task.mjs';
-import { capturedProcessFetch, sameCookieAuthority } from './cookie-workspace-transport.mjs';
+import { capturedProcessFetch, createStudioCookieSession, sameCookieAuthority } from './cookie-workspace-transport.mjs';
 import { captureWorkspaceFollow, queueWorkspaceFollow } from './workspace-follow.mjs';
 import { selectedResource, studioResourceRefs } from './agent-workspace.mjs';
 import { mountStudioVersionControls } from './studio-version-controls.mjs';
 import { mountStudioStyleControls } from './studio-style-controls.mjs';
+import { captureStudioDesignFocus } from './studio-design-focus.mjs';
 let assets;
 let element;
 const elementsByEnvironment = new Map();
@@ -60,7 +61,7 @@ async function studioElement(session) {
                 app.composition.state.layers, app.sourceCatalog)).catch(error => {
                     const status = document.querySelector('[data-studio-status]');
                     if (status) status.textContent = error.message;
-                });
+                }).finally(() => workspace.notify(workspace));
         });
         elementsByEnvironment.set(session.environmentId, app);
     }
@@ -70,12 +71,17 @@ async function studioElement(session) {
     const changedAuthority=Boolean(previous && (previous.principalId !== session.principalId || previous.environmentId !== session.environmentId || previous.sourcePathBase !== session.sourcePathBase));
     if (changedAuthority) await app.prepareWorkspaceTurn();
     if (app.workspaceBindingRequest !== requestGeneration) throw new Error('A newer Studio connection replaced this request.');
+    const cookieSession = createStudioCookieSession(session);
     app.workspaceAuthorityChanged=changedAuthority;
     app.workspaceCookieBinding={principalId:session.principalId,environmentId:session.environmentId,sourcePathBase:session.sourcePathBase};
-    app.session = { kind: 'cookie', baseUrl: '/api/studio', expiresAt: session.expiresAt,
-        csrfToken: session.csrfToken, environmentId: session.environmentId, principalId: session.principalId, sourcePathBase: session.sourcePathBase };
+    app.session = cookieSession;
     app.workspace = window.honuaAgentWorkspace;
     if (app.workspace) app.workspace.authorityChangeGuard = () => app.prepareWorkspaceTurn();
+    if (app.workspace) app.workspace.studioDesignFocusProvider = () => app.isConnected
+        && location.pathname === '/studio' ? captureStudioDesignFocus(app) : undefined;
+    if (app.workspace) app.workspace.clearStudioDesignFocus = () => {
+        if (app.isConnected && location.pathname === '/studio') app.composition.select([]);
+    };
     if (app.workspace) app.workspace.selectionProvider = () => app.isConnected
         ? studioResourceRefs(app.composition.selection, app.composition.state.layers, app.sourceCatalog)
         : selectedResource(location.pathname);

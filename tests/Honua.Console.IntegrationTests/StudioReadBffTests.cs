@@ -90,4 +90,82 @@ public sealed class StudioReadBffTests
     [InlineData("pjson", false)]
     public void FeatureRenderingAcceptsOnlySupportedJsonFormats(string format, bool accepted) =>
         Assert.Equal(accepted, StudioReadBff.IsFeatureFormat(format));
+
+    [Fact]
+    public void StyleSuggestionAcceptsOnlyTheDraftBinding()
+    {
+        Assert.True(StudioReadBff.TryReadStyleSuggestionRequest(
+            """{"draftRevision":"rev-1","composedLayerId":"parcels"}""", out var revision, out var layer));
+        Assert.Equal("rev-1", revision);
+        Assert.Equal("parcels", layer);
+        var bounded = new string('b', 262144);
+        Assert.True(StudioReadBff.TryReadStyleSuggestionRequest(
+            JsonSerializer.Serialize(new { draftRevision = bounded, composedLayerId = "parcels" }), out revision, out _));
+        Assert.Equal(262144, revision.Length);
+    }
+
+    [Theory]
+    [InlineData("""{"draftRevision":"rev","composedLayerId":"parcels","principalId":"from-body"}""")]
+    [InlineData("""{"draftRevision":"rev","composedLayerId":"parcels","environmentId":"from-body"}""")]
+    [InlineData("""{"draftRevision":"rev","composedLayerId":"parcels","authorization":"Bearer secret"}""")]
+    [InlineData("""{"draftRevision":"rev","composedLayerId":"parcels","api_key":"secret"}""")]
+    [InlineData("""{"draftRevision":"rev","composedLayerId":"a/b"}""")]
+    [InlineData("""{"draftRevision":"rev","composedLayerId":"a\\b"}""")]
+    [InlineData("""{"draftRevision":"rev","composedLayerId":"../admin"}""")]
+    [InlineData("""{"composedLayerId":"parcels"}""")]
+    [InlineData("""{"draftRevision":"rev"}""")]
+    [InlineData("""{"draftRevision":"","composedLayerId":"parcels"}""")]
+    [InlineData("""{"draftRevision":"a\u0000b","composedLayerId":"parcels"}""")]
+    public void StyleSuggestionRejectsExtraPropertiesCredentialsAndPathInjection(string json)
+        => Assert.False(StudioReadBff.TryReadStyleSuggestionRequest(json, out _, out _));
+
+    [Fact]
+    public void StyleSuggestionRejectsARevisionAboveTheFieldLimit()
+    {
+        var huge = JsonSerializer.Serialize(new { draftRevision = new string('a', 262145), composedLayerId = "parcels" });
+        Assert.False(StudioReadBff.TryReadStyleSuggestionRequest(huge, out _, out _));
+    }
+
+    [Fact]
+    public void StyleSuggestionIntakeStopsAtEightKibibytes()
+    {
+        Assert.Equal(400, StudioReadBff.StyleSuggestionIntake(new byte[StudioReadBff.StyleSuggestionMaxBodyBytes], out _, out _));
+        Assert.Equal(413, StudioReadBff.StyleSuggestionIntake(new byte[StudioReadBff.StyleSuggestionMaxBodyBytes + 1], out _, out _));
+    }
+
+    [Theory]
+    [InlineData(0, "api/v1/admin/metadata/layers/0/suggest-style")]
+    [InlineData(12, "api/v1/admin/metadata/layers/12/suggest-style")]
+    [InlineData(999_999_999, "api/v1/admin/metadata/layers/999999999/suggest-style")]
+    public void StyleSuggestionUpstreamPathIsTheAdminSuggestStyleRoute(int layerId, string path)
+        => Assert.Equal(path, StudioReadBff.StyleSuggestionUpstreamPath(layerId));
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(1_000_000_000)]
+    public void StyleSuggestionUpstreamPathRejectsNonCanonicalLayerIds(int layerId)
+        => Assert.Null(StudioReadBff.StyleSuggestionUpstreamPath(layerId));
+
+    [Fact]
+    public void StyleSuggestionEnvelopeUsesTheCallerPartitionRatherThanTheServerBody()
+    {
+        var json = StudioReadBff.StyleSuggestionEnvelope(
+            """{"success":true,"data":{"edition":"Community"},"principalId":"from-body","environmentId":"from-body"}""",
+            "partition-a",
+            "env-a",
+            12,
+            "rev-1",
+            "parcels");
+        Assert.NotNull(json);
+        using var document = JsonDocument.Parse(json);
+        var binding = document.RootElement.GetProperty("binding");
+        Assert.Equal("partition-a", binding.GetProperty("principalId").GetString());
+        Assert.Equal("env-a", binding.GetProperty("environmentId").GetString());
+        Assert.Equal(12, binding.GetProperty("canonicalLayerId").GetInt32());
+        Assert.Equal("rev-1", binding.GetProperty("draftRevision").GetString());
+        Assert.Equal("parcels", binding.GetProperty("composedLayerId").GetString());
+        Assert.Equal("from-body", document.RootElement.GetProperty("suggestion").GetProperty("principalId").GetString());
+        Assert.Equal("Community", document.RootElement.GetProperty("suggestion").GetProperty("data").GetProperty("edition").GetString());
+        Assert.Null(StudioReadBff.StyleSuggestionEnvelope("not-json", "partition-a", "env-a", 12, "rev-1", "parcels"));
+    }
 }

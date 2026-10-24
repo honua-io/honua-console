@@ -70,6 +70,8 @@ public static class OperateAdminRoutes
 
     public static string JobSteps(string jobId) => $"{JobDetail(jobId)}/steps";
 
+    public static string JobDiagnostics(string jobId) => $"{JobDetail(jobId)}/diagnostics";
+
     public static string JobArtifacts(string jobId) => $"{JobDetail(jobId)}/artifacts";
 
     public static string JobActions(string jobId) => $"{JobDetail(jobId)}/actions";
@@ -697,6 +699,10 @@ public sealed record ConsoleJobLinks
 
     public string? Retry { get; init; }
 
+    public string? Steps { get; init; }
+
+    public string? Diagnostics { get; init; }
+
     public string? EventsByJob { get; init; }
 
     public string? EventsByCorrelation { get; init; }
@@ -861,6 +867,8 @@ public sealed record ConsoleJobStep
 
     public long? DurationMs { get; init; }
 
+    public string? TimingSource { get; init; }
+
     public string Message { get; init; } = string.Empty;
 
     public string? Command { get; init; }
@@ -877,6 +885,89 @@ public sealed record ConsoleJobStepArtifact
     public string? Kind { get; init; }
 
     public long? SizeBytes { get; init; }
+}
+
+/// <summary>
+/// <c>honua.job-diagnostics/v1</c> from <c>GET /api/v1/admin/jobs/{id}/diagnostics</c>.
+/// The console renders this document and does not invent phases, timings, or actions.
+/// </summary>
+public sealed record ConsoleJobDiagnosticsResponse
+{
+    public string Schema { get; init; } = string.Empty;
+
+    public string JobId { get; init; } = string.Empty;
+
+    public ConsoleJobDiagnosticLifecycle Lifecycle { get; init; } = new();
+
+    public ConsoleJobDiagnosticAttempt Attempt { get; init; } = new();
+
+    public ConsoleJobDiagnosticFailureBody? Failure { get; init; }
+
+    public ConsoleJobStep[] Steps { get; init; } = [];
+
+    public ConsoleJobDiagnosticEvents Events { get; init; } = new();
+
+    public ConsoleJobDiagnosticEvidence Evidence { get; init; } = new();
+
+    public ConsoleJobLinks? Links { get; init; }
+}
+
+public sealed record ConsoleJobDiagnosticLifecycle
+{
+    public string Phase { get; init; } = string.Empty;
+
+    public string TimingSource { get; init; } = string.Empty;
+}
+
+public sealed record ConsoleJobDiagnosticAttempt
+{
+    public int Number { get; init; }
+
+    public int MaxAttempts { get; init; }
+
+    public ConsoleJobDiagnosticRetry Retry { get; init; } = new();
+}
+
+public sealed record ConsoleJobDiagnosticRetry
+{
+    public bool Allowed { get; init; }
+
+    public string? DisabledReason { get; init; }
+
+    public bool RequiresApproval { get; init; }
+
+    public string WouldRepeat { get; init; } = string.Empty;
+}
+
+public sealed record ConsoleJobDiagnosticFailureBody
+{
+    public string Classification { get; init; } = string.Empty;
+
+    public string? Phase { get; init; }
+
+    public string Recovery { get; init; } = string.Empty;
+
+    public string? Message { get; init; }
+}
+
+public sealed record ConsoleJobDiagnosticEvents
+{
+    public ConsoleJobLogEntry[] Items { get; init; } = [];
+
+    public int TotalCount { get; init; }
+
+    public string? FirstCursor { get; init; }
+
+    public string? NextCursor { get; init; }
+
+    public bool Truncated { get; init; }
+}
+
+public sealed record ConsoleJobDiagnosticEvidence
+{
+    public string[] Missing { get; init; } = [];
+
+    public string[] Truncated { get; init; } = [];
 }
 
 // --- Investigations -----------------------------------------------------------
@@ -987,6 +1078,7 @@ public sealed record InvestigationLinkResponse
 [JsonSerializable(typeof(ConsoleJobActionsResponse))]
 [JsonSerializable(typeof(ConsoleJobControlResponse))]
 [JsonSerializable(typeof(ConsoleJobStepsResponse))]
+[JsonSerializable(typeof(ConsoleJobDiagnosticsResponse))]
 [JsonSerializable(typeof(InvestigationPageResponse))]
 [JsonSerializable(typeof(InvestigationResponse))]
 public sealed partial class OperateObservabilityJsonContext : JsonSerializerContext;

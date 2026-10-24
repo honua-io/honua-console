@@ -494,6 +494,39 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             : OperateSectionResult<OperateJobStepsView>.Denied(fetch.Status, fetch.Message, fetch.Detail);
     }
 
+    public async Task<OperateSectionResult<OperateJobDiagnosticsView>> GetJobDiagnosticsAsync(
+        string jobRunId,
+        string? eventCursor = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobRunId);
+
+        var path = OperateAdminRoutes.JobDiagnostics(jobRunId);
+        var query = string.IsNullOrWhiteSpace(eventCursor)
+            ? "?events=100"
+            : $"?events=100&eventCursor={Uri.EscapeDataString(eventCursor)}";
+        var fetch = await FetchAsync(
+            path + query,
+            OperateObservabilityJsonContext.Default.ConsoleJobDiagnosticsResponse,
+            cancellationToken).ConfigureAwait(false);
+
+        if (!fetch.Ok)
+        {
+            return OperateSectionResult<OperateJobDiagnosticsView>.Denied(fetch.Status, fetch.Message, fetch.Detail);
+        }
+
+        var document = fetch.Value!;
+        if (!string.Equals(document.Schema, OperateObservabilityMapper.JobDiagnosticsSchema, StringComparison.Ordinal))
+        {
+            return OperateSectionResult<OperateJobDiagnosticsView>.Denied(
+                OperateSectionStatus.Unsupported,
+                "The job diagnostics document is not honua.job-diagnostics/v1.");
+        }
+
+        return OperateSectionResult<OperateJobDiagnosticsView>.Allowed(
+            OperateObservabilityMapper.MapJobDiagnostics(document));
+    }
+
     public async Task<OperateSectionResult<IReadOnlyList<OperateInvestigation>>> GetInvestigationsAsync(
         CancellationToken cancellationToken = default)
     {
