@@ -6,8 +6,12 @@ for(const width of [1440,390]) test(`workspace setup and conversation remain usa
   await expect(page.locator('[data-first-run-actions]')).toBeVisible();
   await expect(page.locator('[data-start-local]')).toHaveAttribute('href','/setup/local');
   if(width===390){
-    const local=await page.locator('[data-start-local]').boundingBox();
-    expect(local!.y+local!.height).toBeLessThanOrEqual(900);
+    // Hydration replaces the server-rendered card. Observe the current visible
+    // element and its geometry together instead of retaining a detached box.
+    await expect.poll(async()=>{
+      const local=await page.locator('[data-start-local]').boundingBox();
+      return local && local.width>0 && local.height>0 ? local.y+local.height : Number.POSITIVE_INFINITY;
+    }).toBeLessThanOrEqual(900);
   }
   await expect(page.locator('[data-connect-existing]')).toHaveAttribute('href','/environments/new');
   await expect(page.locator('.console-home-operations')).not.toHaveAttribute('open','');

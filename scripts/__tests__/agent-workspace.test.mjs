@@ -23,15 +23,16 @@ test('default browser transport preserves the global receiver', async t => {
 
 
 test('prompt binds original authorized revision while navigation changes in flight', async () => {
-    let release; const calls = [];
+    let release,started; const calls = [];
+    const posting=new Promise(resolve=>{started=resolve;});
     const workspace = client(async (path, init) => {
         const body = JSON.parse(init.body); calls.push({path,body});
-        if (path.endsWith('/turns')) await new Promise(resolve => { release = resolve; });
+        if (path.endsWith('/turns')) await new Promise(resolve => { release = resolve;started(); });
         return response(path.endsWith('/context') ? { revision: 8, targetId: 'target-b' } : { turnId: 'fixed-id', status: 'accepted' });
     });
     workspace.workspaceId = 'workspace'; workspace.context = { revision: 7, targetId: 'target-a' };
     const turn = workspace.submit('publish this layer');
-    await new Promise(resolve => setImmediate(resolve));
+    await Promise.race([posting,turn.then(()=>{throw new Error('Turn ended before POST began');})]);
     const navigation=workspace.select([{kind:'layer',id:'other'}]);
     release(); await turn; await navigation;
     assert.equal(calls[0].body.contextRevision, 7);

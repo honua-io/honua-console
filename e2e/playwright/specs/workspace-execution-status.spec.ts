@@ -46,6 +46,8 @@ async function mountedWorkspace(page:Page) {
           createdAt:'2026-10-23T10:02:00Z',updatedAt:'2026-10-23T10:02:00Z',operations:[],artifacts:[]}};
         return state.replyTurn;
       }
+      const later=state.history?.find((entry:any)=>path.endsWith(`/turns/${entry.turnId}`));
+      if (later) return later;
       if (state.refused && path.endsWith(`/turns/${state.refused.turnId}`)) return state.refused;
       if (state.replyTurn && path.endsWith(`/turns/${state.replyTurn.turnId}`)) return state.replyTurn;
       if (path.endsWith('/turns/original-turn')) {
@@ -209,4 +211,42 @@ test('a verified native refusal keeps the typed answer and permits one explicit 
     originalRows:(window as any).honuaAgentWorkspace.executions.current().map((row:any)=>row.turnId)}));
   expect(observations.posts).toBe(2);expect(observations.accepted).not.toBe(observations.refused);
   expect(observations.originalRows).toContain(observations.refused);
+});
+
+
+test('an older question remains reachable after eleven completed turns and a history reload',async({page})=>{
+  await mountedWorkspace(page);await askQuestion(page);
+  await page.evaluate(()=>{
+    const workspace=(window as any).honuaAgentWorkspace,state=(window as any).executionTest;
+    state.history=Array.from({length:11},(_,i)=>({turnId:`later-${i}`,status:'accepted',
+      context:{...workspace.context,selectedResources:[]},execution:{schemaVersion:1,executionId:`later-execution-${i}`,
+        state:'completed',stateRevision:1,createdAt:'2026-10-23T10:02:00Z',updatedAt:'2026-10-23T10:02:00Z',operations:[],artifacts:[]}}));
+    for (const turn of state.history) workspace.executions.adopt(workspace.executions.begin(turn.turnId),turn);
+    workspace.notify(workspace);
+  });
+  const progress=page.locator('[data-workspace-executions]');
+  const answer=progress.getByRole('button',{name:'Reply to question',exact:true});
+  await expect(answer).toBeVisible();
+  await expect(progress.getByRole('region',{name:'Agent request',exact:true})).toHaveCount(11);
+  await page.evaluate(()=>{
+    const workspace=(window as any).honuaAgentWorkspace;
+    workspace.executions.scopes.clear();
+    workspace.notify(workspace);
+    document.querySelector<HTMLButtonElement>('[data-workspace-check-executions]')!.click();
+  });
+  await expect(answer).toBeVisible();
+  const prompt=page.locator('[data-workspace-prompt]');await prompt.fill('Keep this answer for the original question');
+  await answer.click();
+  await expect(page.getByRole('region',{name:'Reply to agent question'})).toContainText('Which parcels should the map show?');
+  await expect(prompt).toHaveValue('Keep this answer for the original question');
+  await expect(prompt).toBeFocused();
+  expect(await page.evaluate(()=>(window as any).honuaAgentWorkspace.questionReplies.current().turnId)).toBe('original-turn');
+  expect(await page.evaluate(()=>(window as any).executionTest.posts)).toBe(0);
+  await page.evaluate(()=>{
+    (window as any).executionTest.denied=true;
+    document.querySelector<HTMLButtonElement>('[data-workspace-check-executions]')!.click();
+  });
+  await expect(answer).toHaveCount(0);
+  await expect(progress).not.toContainText('Which parcels');
+  await expect(prompt).toHaveValue('Keep this answer for the original question');
 });
