@@ -3,6 +3,7 @@ import {browserImportSelection, browserSelectionScope} from './dataset-import-se
 import {PublicationRecovery} from './publication-recovery.mjs';
 import {createPublishInputBinder} from './publish-form-inputs.mjs';
 import { readSharedStyleFocus, prepareSharedStyleFocus, watchSharedStyleEdits } from './shared-style-context.mjs';
+import { promptWithStudioDesignFocus, studioDesignFocusLabel } from './studio-design-focus.mjs';
 // The workspace is shared by chat, forms and Studio. Each tab has its own explicit view binding.
 const publishFields = new Set(['connectionId', 'schema', 'table', 'serviceName', 'layerName']);
 export class WorkspaceConflict extends Error {
@@ -320,6 +321,8 @@ export class AgentWorkspace {
         const browserFile = browserImportSelection.forTurn(this);
         this.assertPublishEditsCurrent(true);
         const styleFocus = this.sharedStyleProvider?.();
+        const designFocus = styleFocus ? undefined : this.studioDesignFocusProvider?.();
+        let capturedPrompt = prompt;
         const selection = styleFocus ? [] : this.promptSelection();
         const capturedResources = selection ?? this.context?.selectedResources ?? [];
         const prepareContext = options.prepareContext || (styleFocus ? async () => prepareSharedStyleFocus(styleFocus, this.session?.principalId) : undefined) || this.prepareContextProvider?.()
@@ -369,8 +372,9 @@ export class AgentWorkspace {
             requireSameAuthority();
             if (browserFile && (this.context.revision !== browserFile.scope.contextRevision || this.context.targetId !== browserFile.scope.targetId))
                 throw new Error('The selected file belongs to an earlier context. Check it again before sending.');
+            capturedPrompt = promptWithStudioDesignFocus(prompt, designFocus, this.context.task);
             return this.api(`${this.workspaceId}/turns`, 'POST', {
-                turnId: this.uuid(), viewId: this.viewId, contextRevision: this.context.revision, prompt,
+                turnId: this.uuid(), viewId: this.viewId, contextRevision: this.context.revision, prompt:capturedPrompt,
                 ...(binding.deployTargetId ? {deployTargetId:binding.deployTargetId} : {}),
                 ...(browserFile ? {browserFileSelection:browserFile.metadata} : {})
             });
@@ -383,7 +387,7 @@ export class AgentWorkspace {
         if (turn.presentation && typeof window !== 'undefined')
             window.dispatchEvent(new CustomEvent('honua-agent-presentation', { detail: turn.presentation }));
         if (!this.agentSession) return { ...turn, executionUnavailable: true };
-        return this.agentSession.submitTurn({ ...turn, prompt }, options);
+        return this.agentSession.submitTurn({ ...turn, prompt:capturedPrompt }, options);
     }
     async conversation() { return this.api(`${this.workspaceId}/conversation`); }
     hasUnsavedWork() { return this.dirty.size > 0 || [...this.presentationGuards].some(guard => guard()); }
@@ -450,12 +454,14 @@ export function mountWorkspace() {
         const taskIdentity = state.context?.task?.packageKey || state.context?.task?.id;
         const currentTask = taskIdentity ? `${taskLabel} ${taskIdentity}` : taskLabel;
         const resources = state.context?.selectedResources?.map(objectName).join(', ');
+        const designLabel = state.context?.task?.kind === 'studio-composition'
+            ? studioDesignFocusLabel(state.studioDesignFocusProvider) : undefined;
         const selectedCount = state.context?.selectedResources?.length || 0;
         const mapName = state.context?.task?.name || state.context?.task?.title || state.context?.task?.packageKey;
         if (selectionLabel) selectionLabel.textContent = state.context
-            ? `${state.session?.environmentName || 'Environment'} · ${mapName ? `Map ${mapName}` : 'No map'} · ${selectedCount ? resources : 'No object selected'}`
+            ? `${state.session?.environmentName || 'Environment'} · ${mapName ? `Map ${mapName}` : 'No map'} · ${designLabel || (selectedCount ? resources : 'No object selected')}`
             : 'No map or object selected.';
-        if (clearSelection) clearSelection.hidden = !selectedCount;
+        if (clearSelection) clearSelection.hidden = !selectedCount && !designLabel;
         targetDescription.nodeValue = state.context ? (state.session?.gaSpecWorkflow
             ? `Next request · ${state.session.environmentName} · Editing target: ${currentTask} · Selection: ${resources || 'none'} · Context revision ${state.context.revision} · Draft revision ${state.context.task?.revision ?? 'none'}`
             : `${state.session.environmentName} · ${resources || 'No resource selected'} · ${currentTask}`) : 'Choose an environment, then start a conversation.';
@@ -580,7 +586,9 @@ export function mountWorkspace() {
     }, { signal: lifetime.signal });
     clearSelection?.addEventListener('click', () => {
         workspace.holdSelectionSource();
+        workspace.clearStudioDesignFocus?.();
         workspace.select([]).catch(report);
+        workspace.notify(workspace);
     }, { signal: lifetime.signal });
     host.querySelector('form').addEventListener('submit', async event => {
         event.preventDefault(); const input = host.querySelector('[data-workspace-prompt]');
