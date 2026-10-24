@@ -4,6 +4,7 @@ import { captureWorkspaceFollow, queueWorkspaceFollow } from './workspace-follow
 import { selectedResource, studioResourceRefs } from './agent-workspace.mjs';
 import { mountStudioVersionControls } from './studio-version-controls.mjs';
 import { mountStudioStyleControls } from './studio-style-controls.mjs';
+import { captureStudioDesignFocus } from './studio-design-focus.mjs';
 let assets;
 let element;
 const elementsByEnvironment = new Map();
@@ -60,7 +61,7 @@ async function studioElement(session) {
                 app.composition.state.layers, app.sourceCatalog)).catch(error => {
                     const status = document.querySelector('[data-studio-status]');
                     if (status) status.textContent = error.message;
-                });
+                }).finally(() => workspace.notify(workspace));
         });
         elementsByEnvironment.set(session.environmentId, app);
     }
@@ -76,6 +77,11 @@ async function studioElement(session) {
         csrfToken: session.csrfToken, environmentId: session.environmentId, principalId: session.principalId, sourcePathBase: session.sourcePathBase };
     app.workspace = window.honuaAgentWorkspace;
     if (app.workspace) app.workspace.authorityChangeGuard = () => app.prepareWorkspaceTurn();
+    if (app.workspace) app.workspace.studioDesignFocusProvider = () => app.isConnected
+        && location.pathname === '/studio' ? captureStudioDesignFocus(app) : undefined;
+    if (app.workspace) app.workspace.clearStudioDesignFocus = () => {
+        if (app.isConnected && location.pathname === '/studio') app.composition.select([]);
+    };
     if (app.workspace) app.workspace.selectionProvider = () => app.isConnected
         ? studioResourceRefs(app.composition.selection, app.composition.state.layers, app.sourceCatalog)
         : selectedResource(location.pathname);
