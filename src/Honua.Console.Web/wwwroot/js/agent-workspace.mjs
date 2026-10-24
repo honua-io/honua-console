@@ -420,6 +420,14 @@ export function mountWorkspace() {
     const status = host.querySelector('[data-workspace-status]');
     const messages = host.querySelector('[data-workspace-messages]');
     const target = host.querySelector('[data-workspace-target]');
+    const selectionLabel = host.querySelector('[data-workspace-selection-label]');
+    const clearSelection = host.querySelector('[data-workspace-clear-selection]');
+    const objectName = resource => {
+        const provided = [resource?.name, resource?.title, resource?.label].find(value => typeof value === 'string' && value.trim() && !/https?:|secret|token|password/i.test(value));
+        const kind = resource?.kind === 'feature' ? 'Feature' : resource?.kind === 'component' ? 'Component' : resource?.kind === 'layer' ? 'Layer' : 'Object';
+        if (resource?.unavailable || resource?.removed || resource?.stale) return `${kind} unavailable`;
+        return provided ? `${kind} ${provided.trim()}` : kind;
+    };
     const workspaceInput = host.querySelector('[data-workspace-id]');
     const targetDescription = document.createTextNode(''), taskSeparator = document.createTextNode('');
     const importTaskLink = document.createElement('a');
@@ -429,7 +437,13 @@ export function mountWorkspace() {
         const taskLabel = state.context?.task ? ({'studio-composition':'Map draft','publish-layer':'Publish layer','workflow-package':'Process graph','local-process-workspace':'Local process','shared-style':'Shared style','dataset-import':'Dataset import'}[state.context.task.kind] || 'Task') : 'No task selected';
         const taskIdentity = state.context?.task?.packageKey || state.context?.task?.id;
         const currentTask = taskIdentity ? `${taskLabel} ${taskIdentity}` : taskLabel;
-        const resources = state.context?.selectedResources?.map(resource => `${resource.kind} ${resource.id}`).join(', ');
+        const resources = state.context?.selectedResources?.map(objectName).join(', ');
+        const selectedCount = state.context?.selectedResources?.length || 0;
+        const mapName = state.context?.task?.name || state.context?.task?.title || state.context?.task?.packageKey;
+        if (selectionLabel) selectionLabel.textContent = state.context
+            ? `${state.session?.environmentName || 'Environment'} · ${mapName ? `Map ${mapName}` : 'No map'} · ${selectedCount ? resources : 'No object selected'}`
+            : 'No map or object selected.';
+        if (clearSelection) clearSelection.hidden = !selectedCount;
         targetDescription.nodeValue = state.context ? (state.session?.gaSpecWorkflow
             ? `Next request · ${state.session.environmentName} · Editing target: ${currentTask} · Selection: ${resources || 'none'} · Context revision ${state.context.revision} · Draft revision ${state.context.task?.revision ?? 'none'}`
             : `${state.session.environmentName} · ${resources || 'No resource selected'} · ${currentTask}`) : 'Choose an environment, then start a conversation.';
@@ -535,16 +549,44 @@ export function mountWorkspace() {
         } catch (error) { report(error); }
     });
     host.querySelector('[data-workspace-follow]').addEventListener('change', event => { workspace.follow = event.target.checked; });
+    const working = host.querySelector('[data-workspace-working]');
+    const cancelButton = host.querySelector('[data-workspace-cancel]');
+    const cancelNote = host.querySelector('[data-workspace-cancel-note]');
+    const partial = host.querySelector('[data-workspace-partial]');
+    const sendButton = host.querySelector('form')?.querySelector('button[type=submit]');
+    let turnAbort = null;
+    const setTurnWorking = active => {
+        if (working) working.hidden = !active;
+        if (cancelButton) cancelButton.hidden = !active;
+        if (cancelNote) cancelNote.hidden = !active;
+        if (sendButton) sendButton.disabled = active;
+        if (!active && partial) { partial.textContent = ''; partial.hidden = true; }
+    };
+    cancelButton?.addEventListener('click', () => { turnAbort?.abort(); }, { signal: lifetime.signal });
+    host.querySelector('[data-workspace-change-selection]')?.addEventListener('click', () => {
+        host.querySelector('[data-workspace-deploy-target]')?.focus();
+    }, { signal: lifetime.signal });
+    clearSelection?.addEventListener('click', () => { workspace.select([]).catch(report); }, { signal: lifetime.signal });
     host.querySelector('form').addEventListener('submit', async event => {
         event.preventDefault(); const input = host.querySelector('[data-workspace-prompt]');
+        turnAbort = new AbortController();
+        setTurnWorking(true);
+        if (partial) { partial.textContent = ''; partial.hidden = true; }
         try {
             const submitted = input.value;
             status.textContent = `Submitting for target ${workspace.context?.targetId || 'unbound'} · ${workspace.context?.task?.id || 'no task'}.`;
-            const result = await workspace.submit(submitted, {onEvent: () => {
+            const result = await workspace.submit(submitted, {signal: turnAbort.signal, onEvent: event => {
+                const inner = event?.event ?? event;
+                if (inner?.type === 'textDelta' && typeof inner.text === 'string' && partial) {
+                    partial.hidden = false;
+                    partial.textContent += inner.text;
+                }
                 if (workspace.session?.gaSpecWorkflow) status.textContent = 'Agent is working on the submitted context. Operation completion requires durable read-back.';
             }}); if(input.value === submitted) input.value = ''; await refresh();
-            status.textContent = result.executionUnavailable ? 'Message saved. Native agent session is not configured; external agents can continue this workspace.' : ['error', 'refused', 'cancelled', 'failed', 'blocked'].includes(result.status) ? (result.errorMessage || `Agent turn ${result.status}.`) : 'Turn saved. Check operation receipts for completion.';
+            const cancelled = turnAbort.signal.aborted || result.status === 'cancelled';
+            status.textContent = result.executionUnavailable ? 'Message saved. Native agent session is not configured; external agents can continue this workspace.' : cancelled ? (result.errorMessage || 'Agent turn cancelled.') : ['error', 'refused', 'failed', 'blocked'].includes(result.status) ? (result.errorMessage || `Agent turn ${result.status}.`) : 'Turn saved. Check operation receipts for completion.';
         } catch (error) { report(error); }
+        finally { setTurnWorking(false); turnAbort = null; }
     });
     // Navigation publishes only typed selections. Never forward a URL, query, fragment or page contents.
     let lastSelection = JSON.stringify(selectedResource(location.pathname));
@@ -737,7 +779,9 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
                 'X-Honua-View': workspace.viewId,
                 'X-Honua-Session-Partition': boundSession.principalId,
                 'X-Honua-Turn': currentTurn.turnId
-            }
+            },
+            // Model and tool calls share the turn signal. Persisting the transcript must not.
+            ...((endpoint === 'ai' || endpoint === 'mcp') && !init.signal && currentOptions?.signal ? { signal: currentOptions.signal } : {})
         });
     };
     const certification = {
@@ -773,6 +817,7 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
             // One queue protects the per-turn transport binding as well as the SDK conversation.
             const execute = async () => {
                 currentTurn = turn; currentOptions = options;
+                options.signal?.addEventListener('abort', () => { currentTurn = null; }, { once: true });
                 privateCatalogBinding = null;
                 const hadSession = Boolean(sdkSession);
                 sdkSession?.reconnect();
@@ -832,6 +877,13 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
                     sdkSession.attachDraft(currentTurn.context?.task?.kind === 'studio-composition'
                         ? {draftId:currentTurn.context.task.id,generation:currentTurn.context.task.revision} : undefined);
                     const result = await sdkSession.chat(turn.prompt, { signal: options.signal });
+                    if (options.signal?.aborted || result?.status === 'cancelled') {
+                        workspace.storage.setItem(pendingKey, JSON.stringify({
+                            messageId: `${turn.turnId}-assistant`, turnId: turn.turnId, content: 'Cancelled.'
+                        }));
+                        await reconcilePending();
+                        return { status: 'cancelled', text: '' };
+                    }
                     if (sdkSession.draft?.draftId && typeof window !== 'undefined')
                         window.dispatchEvent(new CustomEvent('honua-agent-draft', { detail: {
                             workspaceId: boundWorkspaceId, environmentId: boundSession.environmentId,

@@ -132,6 +132,11 @@
         <details class="console-panel console-conversation" data-agent-workspace>
             <summary>Conversation</summary>
             <p data-workspace-target>Start a conversation in your selected environment.</p>
+            <p data-workspace-selection>
+                <span data-workspace-selection-label>No map or object selected.</span>
+                <button type="button" class="console-button console-button-secondary" data-workspace-change-selection>Change selection</button>
+                <button type="button" class="console-button console-button-secondary" data-workspace-clear-selection hidden>Clear selection</button>
+            </p>
             <label>Deployment target
                 <select class="console-input" data-workspace-deploy-target aria-label="Deployment target">
                     <option value="">No deployment selected</option>
@@ -141,7 +146,11 @@
             <div data-workspace-messages role="log" aria-label="Workspace conversation"></div>
             <form>
                 <label>Message <textarea class="console-input" data-workspace-prompt maxlength="16000"></textarea></label>
+                <p data-workspace-working role="status" hidden>Working on this turn.</p>
+                <p data-workspace-partial hidden></p>
                 <button class="console-button" type="submit">Send</button>
+                <button type="button" class="console-button console-button-secondary" data-workspace-cancel hidden aria-describedby="workspace-cancel-note">Cancel</button>
+                <p id="workspace-cancel-note" data-workspace-cancel-note hidden>Cancel stops this turn. It does not roll back a server job that already started.</p>
             </form>
             <section data-ga-spec-review hidden aria-label="Server change review">
                 <p>Review a layer publication plan. Apply uses your current permissions.</p>
