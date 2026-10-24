@@ -3,6 +3,7 @@ import {loadReleaseProfile,releasePrompt} from './release-profile.mjs';
 const profile=loadReleaseProfile(process.env.HONUA_FOSS4G_PROFILE_PROJECTION);
 const variant=process.env.HONUA_FOSS4G_VARIANT || 'A';
 import { attach, context, finished, identity, send, setup } from './live-context';
+import { activeInstalled } from '../workspace-live/execution';
 
 // Each case creates its own real workspace and map. Polls below observe eventual
 // persistence/rendering; they never resend a prompt or retry a failed operation.
@@ -15,8 +16,8 @@ test('[IX-01:selected-map] this map uses the visually selected layer and canonic
   const prompt=releasePrompt(profile,'IX-01','selected-map',variant);
   const captured=await send(page,prompt);await finished(page,prompt,captured.turn.turnId);
   expect(captured.turn.context.task.id).toBe(fixture.draft.draftId);
-  expect(captured.projected.context.task.id).toBe(fixture.draft.draftId);
-  expect(captured.projected.context.selectedResources).toEqual(fixture.expectedSelection);
+  expect(captured.projected!.context.task.id).toBe(fixture.draft.draftId);
+  expect(captured.projected!.context.selectedResources).toEqual(fixture.expectedSelection);
   await expect.poll(async()=>(await fixture.readBody()).layers.find(layer=>layer.id===fixture.layer.id)?.title).toBe(title);
   const after=await fixture.readBody();
   expect(after.layers).toEqual(before.layers.map(layer=>layer.id===fixture.layer.id ? {...layer,title} : layer));
@@ -60,8 +61,8 @@ test('[IX-04:visual-agent-visual] this layer keeps visual colors through prompte
   const original=await context(page);
   const prompt=releasePrompt(profile,'IX-04','visual-agent-visual',variant);
   const captured=await send(page,prompt);await finished(page,prompt,captured.turn.turnId);
-  expect(captured.projected.context.task.id).toBe(fixture.draft.draftId);
-  expect(captured.projected.context.selectedResources).toEqual(fixture.expectedSelection);
+  expect(captured.projected!.context.task.id).toBe(fixture.draft.draftId);
+  expect(captured.projected!.context.selectedResources).toEqual(fixture.expectedSelection);
   await expect.poll(async()=>(await renderLayer())?.paint?.[opacityProperty]).toBe(0.55);
   expect((await renderLayer())?.paint?.[colorProperty]).toEqual(color(thematic!.values[0]));
   await expect.poll(()=>livePaint(opacityProperty)).toBe(0.55);
@@ -85,20 +86,21 @@ test('[IX-06:navigate-midturn] navigating during a real agent turn preserves its
   const title='Original map after navigation';
   const prompt=releasePrompt(profile,'IX-06','navigate-midturn',variant);
   const captured=await send(page,prompt);
-  const inFlight=await page.evaluate(()=>(window as Window & {honuaAgentWorkspace:{agentSession?:{busy:boolean}}}).honuaAgentWorkspace.agentSession?.busy);
+  await expect.poll(()=>activeInstalled(page,captured.turn.turnId),{timeout:30000}).toBe(true);
+  const inFlight=await activeInstalled(page,captured.turn.turnId);
   expect(inFlight,'navigation coverage requires a genuine active agent turn, without artificial delay').toBe(true);
   // A real human opens a different canonical map while the original turn is active.
   const next=await fixture.createMap(`interaction-next-${Date.now().toString(36)}`);
   const nextBaseline=await fixture.readDraftBody(next.draftId);
   expect(next.draftId).not.toBe(fixture.draft.draftId);
   expect((await context(page)).task?.id).toBe(next.draftId);
-  expect(await page.evaluate(()=>(window as Window & {honuaAgentWorkspace:{agentSession?:{busy:boolean}}}).honuaAgentWorkspace.agentSession?.busy),
+  expect(await activeInstalled(page,captured.turn.turnId),
     'map B must actually be active before the original agent turn finishes').toBe(true);
   expect(captured.turn.context.targetId).toBe(original.targetId);
   expect(captured.turn.context.task.id).toBe(fixture.draft.draftId);
-  expect(captured.projected.context.task.id).toBe(fixture.draft.draftId);
-  expect(captured.projected.context.selectedResources).toEqual(fixture.expectedSelection);
   await finished(page,prompt,captured.turn.turnId);
+  expect(captured.projected!.context.task.id).toBe(fixture.draft.draftId);
+  expect(captured.projected!.context.selectedResources).toEqual(fixture.expectedSelection);
   await expect.poll(async()=>(await fixture.readBody()).layers.find(layer=>layer.id===fixture.layer.id)?.title).toBe(title);
   expect(await fixture.readDraftBody(next.draftId)).toEqual(nextBaseline);
   expect((await identity(page))?.draftId).toBe(next.draftId);

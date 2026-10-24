@@ -13,13 +13,22 @@ From `e2e/playwright`, set these inputs and run
 - `HONUA_WORKSPACE_E2E_ORIGIN`: the installed Console origin.
 - `HONUA_WORKSPACE_E2E_OPERATOR_STATE`: a private Playwright storage-state file
   captured after completing the deployment's normal human authentication flow.
+- `HONUA_WORKSPACE_E2E_RUNTIME_BINDING`: a private, credential-free JSON binding
+  generated from the actual installed runtime registration and original evidence
+  custody. It contains exactly `schemaVersion:1`, `candidateKey`, `runtimeId`,
+  `registrationDigest`, `evidence:{region,bucket}`, and
+  `release:{root,commit}`. The release root must be the clean checkout at that
+  exact reviewed commit, containing the maintained private execution-witness
+  reader and original checked declarations. Missing source or runtime bindings
+  fail before sending a paid turn.
 - `HONUA_WORKSPACE_E2E_SERVICE`: an existing published service on the dedicated
   evaluation deployment.
 - `HONUA_WORKSPACE_E2E_LAYER`: its numeric layer id, containing renderable features.
   At least one authorized string or numeric field must have two distinct values
   among the first twenty queried features for the thematic styling checks.
 
-The test asks the real native agent to add that source to a uniquely named map,
+The test requires installed worker execution with the browser SDK model disabled.
+It asks the real agent to add that source to a uniquely named map,
 checks canonical draft readback and features painted on the map, then opens the
 visual map style editor through Console. It verifies that the sandboxed Maputnik
 UI boots, uses the host's thematic controls with real authorized field values,
@@ -34,6 +43,19 @@ it does not convert those failures into skips. Mutation actions are not retried.
 The credential-free receipt identifies the content and saved body. Network
 traces and videos are disabled. Run only against a disposable evaluation
 deployment: drafts and the saved content item remain available for inspection.
+
+Each prompt retains the original UTF-8 submission digest and native workspace,
+turn and execution IDs. Completion requires a fresh authorized GET of that same
+execution and its exact final conversation message. The runner then invokes the
+fixed read-only `tools/agent_e2e_execution_witness.py` from the checked release
+source. That reader independently replays private immutable state, actual worker
+identity and task-authenticated context, provider responses and settled charges,
+and canonical effects. Python hashes the original response text using the shared
+canonical serializer; browser context reads alone cannot satisfy model evidence.
+Only original evidence references and identity digests enter browser attachments.
+The runner needs private read access to the original evidence objects; browser
+sessions receive no AWS or agent credentials. Missing evidence fails the journey,
+and read-only reconciliation never repeats the original prompt.
 
 For the fresh native Docker first-use harness, the same spec accepts
 `HONUA_WORKSPACE_E2E_IMPORT_FILE` (a real GeoJSON file) and

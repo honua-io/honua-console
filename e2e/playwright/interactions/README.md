@@ -18,6 +18,7 @@ Required deployment inputs:
 | --- | --- |
 | `HONUA_WORKSPACE_E2E_ORIGIN` | Installed Console HTTP(S) origin without path or credentials |
 | `HONUA_WORKSPACE_E2E_OPERATOR_STATE` | Private Playwright storage-state file for an actual signed-in/paired human |
+| `HONUA_WORKSPACE_E2E_RUNTIME_BINDING` | Original installed runtime/evidence binding and exact clean Release source for the private worker verifier; see [installed journey](../workspace-live/README.md) |
 | `HONUA_WORKSPACE_E2E_SERVICE` | Existing published service in an isolated evaluation workspace |
 | `HONUA_WORKSPACE_E2E_LAYER` | Numeric layer ID within that service |
 | `HONUA_WORKSPACE_E2E_SERVER_SHA` | Server commit from the reviewed deployment manifest |
@@ -81,7 +82,10 @@ Implemented supporting checks:
 
 Effects are established through authorized canonical draft reads and rendered data,
 not assistant text or the generic conversation status. Completion also requires an
-assistant record for the exact persisted turn and an idle real session. Successful
+assistant record for the exact original completed execution and independently
+verified task context, provider responses, settled charges and canonical effects.
+The browser SDK model stays disabled; navigation timing observes the original
+native execution in `claimed` or `running`, with no artificial model delay. Successful
 cases attach bounded credential-free `interaction-evidence`; attachment presence
 alone does not establish release qualification. These candidate tests have not yet
 been executed against a connected deployment.
