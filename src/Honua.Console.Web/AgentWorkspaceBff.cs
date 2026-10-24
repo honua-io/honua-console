@@ -99,6 +99,7 @@ internal static partial class AgentWorkspaceBff
         var datasetRoute = !studio && !processes ? ReadDatasetImportRoute(path) : null;
         var isPublicationReceipt = studio && path is not null && StudioPublicationReceiptPath().IsMatch(path);
         var isTargetIdentity = studio && path == "v1/agent/target";
+        var isWorkspaceTurnRead = !studio && !processes && !ga && path is not null && WorkspaceTurnReadPath().IsMatch(path);
         if (isTargetIdentity) context.Response.Headers.CacheControl = "no-store";
         string datasetQuery = "";
         string? datasetContentHash = null;
@@ -115,6 +116,10 @@ internal static partial class AgentWorkspaceBff
         // a browser-side human claim or opening other agent administration paths.
         if (isTargetIdentity && !HttpMethods.IsGet(context.Request.Method)) return Results.StatusCode(405);
         if (isTargetIdentity && context.Request.Query.Count > 0) return Results.BadRequest();
+        // Reconnect reads the original human turn with current membership. This is
+        // not a runtime claim/renew/report route and needs no expired browser view.
+        if (isWorkspaceTurnRead && !HttpMethods.IsGet(context.Request.Method)) return Results.StatusCode(405);
+        if (isWorkspaceTurnRead && context.Request.Query.Count > 0) return Results.BadRequest();
         if (processes && !AllowsProcessMethod(path, context.Request.Method)) return Results.StatusCode(405);
         if (isPublicationReceipt && !HttpMethods.IsGet(context.Request.Method)) return Results.StatusCode(405);
         if (!HttpMethods.IsGet(context.Request.Method))
@@ -323,8 +328,11 @@ internal static partial class AgentWorkspaceBff
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.StatusCode(504); }
     }
 
-    [GeneratedRegex(@"\A(?:[A-Za-z0-9_-]{1,128})(?:/(?:context|conversation|turns|deploy-targets|commands/[A-Za-z0-9_-]{1,128}|drafts(?:/[A-Za-z0-9_-]{1,128}(?:/submit)?)?))?\z", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\A(?:[A-Za-z0-9_-]{1,128})(?:/(?:context|conversation|turns(?:/[A-Za-z0-9_-]{1,128})?|deploy-targets|commands/[A-Za-z0-9_-]{1,128}|drafts(?:/[A-Za-z0-9_-]{1,128}(?:/submit)?)?))?\z", RegexOptions.CultureInvariant)]
     private static partial Regex WorkspacePath();
+
+    [GeneratedRegex(@"\A[A-Za-z0-9_-]{1,128}/turns/[A-Za-z0-9_-]{1,128}\z", RegexOptions.CultureInvariant)]
+    private static partial Regex WorkspaceTurnReadPath();
 
     internal static bool TryBuildProcessPath(string path, out string? upstream)
     {

@@ -144,7 +144,15 @@
             </label>
             <button type="button" class="console-button" data-workspace-start>Start conversation</button>
             <div data-workspace-messages role="log" aria-label="Workspace conversation"></div>
+            <div data-workspace-executions hidden aria-label="Agent request progress" aria-live="polite"></div>
+            <button type="button" class="console-button console-button-secondary" data-workspace-check-executions>Check request progress</button>
             <form>
+                <section data-workspace-reply hidden aria-label="Reply to agent question">
+                    <p data-workspace-reply-description></p>
+                    <button type="button" class="console-button console-button-secondary" data-workspace-reply-open>Open original task</button>
+                    <button type="button" class="console-button console-button-secondary" data-workspace-reply-review>Review current target</button>
+                    <button type="button" class="console-button console-button-secondary" data-workspace-reply-cancel>Cancel reply</button>
+                </section>
                 <label>Message <textarea class="console-input" data-workspace-prompt maxlength="16000"></textarea></label>
                 <p data-workspace-working role="status" hidden>Working on this turn.</p>
                 <p data-workspace-partial hidden></p>

@@ -37,6 +37,7 @@ function createDocument() {
             connectedRoot: false
         };
         elements.add(el);
+        Object.defineProperty(el, 'ownerDocument', { get: () => document });
         el.dataset = new Proxy({}, {
             get: (_target, prop) => {
                 if (typeof prop !== 'string') return undefined;
@@ -81,6 +82,7 @@ function createDocument() {
         el.append = (...nodes) => {
             for (const node of nodes) {
                 if (node == null) continue;
+                if (node.nodeType === 11) { el.append(...node.children); node.children = []; continue; }
                 node.parent = el;
                 el.children.push(node);
                 if (el.tagName === 'SELECT' && node.tagName === 'OPTION') el.options.push(node);
@@ -92,6 +94,7 @@ function createDocument() {
         el.removeEventListener = (type, fn) => { el.listeners = el.listeners.filter(entry => entry.type !== type || entry.fn !== fn); };
         el.dispatchEvent = event => dispatch(el, event);
         el.focus = () => { document.activeElement = el; };
+        el.contains = node => { while (node) { if (node === el) return true; node = node.parent; } return false; };
         el.remove = () => {
             if (el.parent?.children) el.parent.children = el.parent.children.filter(child => child !== el);
             el.parent = null;
@@ -179,6 +182,7 @@ function createDocument() {
     const document = {
         body, hidden: false, activeElement: null, listeners: [],
         createElement: createEl,
+        createDocumentFragment: () => Object.assign(createEl('fragment'), { nodeType: 11 }),
         createTextNode: text => ({ nodeType: 3, nodeValue: String(text ?? ''), textContent: String(text ?? ''), children: [] }),
         querySelector: selector => queryAll(body, selector)[0] || null,
         querySelectorAll: selector => queryAll(body, selector),
@@ -194,11 +198,15 @@ const inflight = [];
 let modelAborted = false;
 let toolDispatches = 0;
 let shutdown = false;
+let browserInstance = 0;
+const loadWorkspace = () => import(`${modulePath}?browser-fixture=${browserInstance}`);
 
 function installBrowser(markup) {
+    browserInstance += 1;
     const dom = createDocument();
     const store = new Map();
     globalThis.window = globalThis;
+    delete globalThis.honuaAgentWorkspace;
     globalThis.document = dom.document;
     globalThis.location = { pathname: '/', href: 'http://localhost/' };
     globalThis.sessionStorage = {
@@ -240,7 +248,18 @@ function releaseMountedWorkspace() {
     if (doc?.body) doc.body.connectedRoot = false;
 }
 
-test('shared workspace keeps a working status until cancel or the turn settles', async () => {
+function legacyTurnResponse(path, method, body, turns) {
+    if (path.endsWith('/turns') && method === 'POST') {
+        const turn = { turnId: body.turnId, status: 'accepted' };
+        turns.set(body.turnId, turn);
+        return turn;
+    }
+    const match = path.match(/\/turns\/([^/?]+)$/);
+    if (method === 'GET' && match) return turns.get(decodeURIComponent(match[1]));
+    return null;
+}
+
+test('shared workspace keeps a working status until cancel or the turn settles', { timeout: 15000 }, async () => {
     mock.timers.enable({ apis: ['setTimeout'] });
     const markup = extractWorkspace(fs.readFileSync(layoutPath, 'utf8'));
     installBrowser(markup);
@@ -250,9 +269,20 @@ test('shared workspace keeps a working status until cancel or the turn settles',
         csrfToken: 'csrf', principalId: 'person', sourcePathBase: '/honua', expiresAt: '2099-01-01T00:00:00.000Z'
     };
     let phase = '';
+    const phaseWaiters = new Map();
+    const reachPhase = value => { phase = value; phaseWaiters.get(value)?.(true); };
+    let submitted;
+    const submitTurn = workspace => {
+        const original = workspace.submit.bind(workspace);
+        workspace.submit = (prompt, options) => {
+            submitted = original(prompt, options);
+            return submitted;
+        };
+    };
     let chatCalls = 0;
     let extraToolDispatch = false;
     const calls = [];
+    const turns = new Map();
     globalThis.fetch = async (url, init = {}) => {
         const path = String(url);
         const method = String(init.method || 'GET').toUpperCase();
@@ -260,7 +290,8 @@ test('shared workspace keeps a working status until cancel or the turn settles',
         const json = value => ({ ok: true, status: 200, headers: { get: () => null }, json: async () => value });
         if (path.endsWith('/session')) return json(session);
         if (path.includes('/deploy-targets')) return json([]);
-        if (path.endsWith('/turns') && method === 'POST') return json({ turnId: JSON.parse(init.body).turnId, status: 'accepted' });
+        const turn = legacyTurnResponse(path, method, init.body ? JSON.parse(init.body) : null, turns);
+        if (turn) return json(turn);
         if (path.endsWith('/agent/turn')) return json({ context: { targetId: 'target', tenantId: 'tenant', selectedResources: [], task: null } });
         if (path.endsWith('/capabilities')) return json({ transcriptSigning: { keys: [{ keyId: 'trusted' }] } });
         if (path.endsWith('/conversation') && method === 'POST') { posted.push(JSON.parse(init.body)); return json({ id: posted.at(-1).messageId }); }
@@ -280,9 +311,10 @@ test('shared workspace keeps a working status until cancel or the turn settles',
         }
         return json({});
     };
-    const { attachNativeAgent } = await import(modulePath);
+    const { attachNativeAgent } = await loadWorkspace();
     const host = document.querySelector('[data-agent-workspace]');
     const workspace = window.honuaAgentWorkspace;
+    submitTurn(workspace);
     const accepted = { id: 'accepted-draft', revision: 4, fields: { layerName: 'Kept' } };
     workspace.draft = accepted;
     workspace.workspaceId = 'workspace';
@@ -311,7 +343,7 @@ test('shared workspace keeps a working status until cancel or the turn settles',
             if (call === 1) {
                 sdk.options.onEvent?.({ type: 'chat', event: { type: 'textDelta', text: 'Partial answer' } });
                 sdk.options.onEvent?.({ type: 'chat', event: { type: 'toolCallStart', toolName: 'inspect_layer', toolCallId: 'tool-1' } });
-                phase = 'model';
+                reachPhase('model');
                 try { await sdk.options.fetchImpl('/api/v1/studio/ai/chat', { method: 'POST', body: '{}' }); }
                 catch (error) { if (shutdown) return { status: 'completed', text: 'shutdown' }; }
                 return { status: 'completed', text: 'Late success' };
@@ -319,7 +351,7 @@ test('shared workspace keeps a working status until cancel or the turn settles',
             if (call === 2) return { status: 'completed', text: 'Next turn ok' };
             if (call === 3) {
                 sdk.options.onEvent?.({ type: 'chat', event: { type: 'toolCallStart', toolName: 'apply_style', toolCallId: 'tool-2' } });
-                phase = 'tool';
+                reachPhase('tool');
                 try { await sdk.options.fetchImpl('/api/mcp', { method: 'POST', body: '{}' }); } catch { /* the aborted tool returns here */ }
                 try { await sdk.options.fetchImpl('/api/mcp', { method: 'POST', body: '{}' }); extraToolDispatch = true; }
                 catch { /* a cancelled turn must not dispatch another tool */ }
@@ -341,11 +373,15 @@ test('shared workspace keeps a working status until cancel or the turn settles',
     const check = (condition, message) => { if (!condition) failures.push(message); };
     async function flush() { for (let i = 0; i < 30; i += 1) await new Promise(resolve => setImmediate(resolve)); }
     async function waitPhase(value) {
-        for (let i = 0; i < 80; i += 1) { if (phase === value) return true; await new Promise(resolve => setImmediate(resolve)); }
-        return false;
+        if (phase === value) return true;
+        return Promise.race([
+            new Promise(resolve => phaseWaiters.set(value, resolve)),
+            submitted.then(() => false, () => false)
+        ]);
     }
     async function sendPrompt(text) {
         phase = '';
+        phaseWaiters.clear();
         prompt.value = text;
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     }
@@ -370,6 +406,7 @@ test('shared workspace keeps a working status until cancel or the turn settles',
         check(Boolean(refreshSeen) && !refreshSeen.status.includes('Turn saved'), 'conversation refresh replaced the working turn with a finished message');
         check(host.querySelector('[data-workspace-working]')?.hidden === false, 'working status disappeared after refresh');
         cancel?.dispatchEvent(new Event('click', { bubbles: true, cancelable: true }));
+        await submitted;
         await flush();
         check(modelAborted === true, 'Cancel did not abort the in-flight model request');
         check(posted.some(message => message.content === 'Cancelled.'), 'the cancelled turn was not recorded in the transcript');
@@ -381,6 +418,7 @@ test('shared workspace keeps a working status until cancel or the turn settles',
         check(draftEvents === 0, 'cancel mutated a newly selected draft');
         check(workspace.draft === accepted, 'cancel changed the accepted draft');
         await sendPrompt('Describe the same parcels');
+        await submitted;
         await flush();
         check(chatCalls >= 2 && status.textContent.includes('Turn saved'), 'the next turn did not succeed');
         check(host.querySelector('[data-workspace-working]')?.hidden === true, 'working status remained after the next turn settled');
@@ -389,12 +427,14 @@ test('shared workspace keeps a working status until cancel or the turn settles',
         check(await waitPhase('tool'), 'the shipped turn did not reach a tool call');
         check(host.querySelector('[data-workspace-working]')?.hidden === false, 'working status hid while a tool call was in flight');
         host.querySelector('[data-workspace-cancel]')?.dispatchEvent(new Event('click', { bubbles: true, cancelable: true }));
+        await submitted;
         await flush();
         check(toolDispatches === toolsBefore + 1, 'Cancel did not stop further client-side tool dispatch');
         check(extraToolDispatch === false, 'a tool was dispatched after Cancel');
         check(posted.filter(message => message.content === 'Cancelled.').length >= 2, 'the tool-call cancellation was not recorded');
         check(workspace.draft === accepted && draftEvents === 0, 'cancelling a tool call changed the accepted draft');
         await sendPrompt('Leave the draft unchanged and answer');
+        await submitted;
         await flush();
         check(status.textContent.includes('Turn saved'), 'a turn after tool cancellation did not succeed');
         check(host.querySelector('[data-workspace-working]')?.hidden === true, 'working status remained after the following turn');
@@ -407,7 +447,7 @@ test('shared workspace keeps a working status until cancel or the turn settles',
     assert.deepEqual(failures, []);
 });
 
-test('visible selection uses object names, and clear removes them from the next context', async () => {
+test('visible selection uses object names, and clear removes them from the next context', { timeout: 15000 }, async () => {
     const markup = extractWorkspace(fs.readFileSync(layoutPath, 'utf8'));
     installBrowser(markup);
     const puts = [];
@@ -419,7 +459,7 @@ test('visible selection uses object names, and clear removes them from the next 
         }
         return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({}) };
     };
-    const { mountWorkspace } = await import(modulePath);
+    const { mountWorkspace } = await loadWorkspace();
     mountWorkspace();
     const workspace = window.honuaAgentWorkspace;
     try {
@@ -457,10 +497,11 @@ test('visible selection uses object names, and clear removes them from the next 
     }
 });
 
-test('clear keeps the provider selection out of the next turn until an explicit select', async () => {
+test('clear keeps the provider selection out of the next turn until an explicit select', { timeout: 15000 }, async () => {
     const markup = extractWorkspace(fs.readFileSync(layoutPath, 'utf8'));
     installBrowser(markup);
     const calls = [];
+    const turns = new Map();
     let revision = 3;
     globalThis.fetch = async (url, init = {}) => {
         const body = init.body ? JSON.parse(init.body) : null;
@@ -470,11 +511,11 @@ test('clear keeps the provider selection out of the next turn until an explicit 
             revision += 1;
             return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ ...body, revision, targetId: 'target', selectedResources: body.selectedResources, task: body.task ?? null }) };
         }
-        if (String(url).endsWith('/turns') && method === 'POST')
-            return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ turnId: body.turnId, status: 'accepted' }) };
+        const turn = legacyTurnResponse(String(url), method, body, turns);
+        if (turn) return { ok: true, status: 200, headers: { get: () => null }, json: async () => turn };
         return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({}) };
     };
-    const { mountWorkspace } = await import(modulePath);
+    const { mountWorkspace } = await loadWorkspace();
     mountWorkspace();
     const workspace = window.honuaAgentWorkspace;
     const providerSelection = [
@@ -520,10 +561,11 @@ test('clear keeps the provider selection out of the next turn until an explicit 
     }
 });
 
-test('cancel during turn preparation persists Cancelled. and does not throw', async () => {
+test('cancel during turn preparation persists Cancelled. and does not throw', { timeout: 15000 }, async () => {
     const markup = extractWorkspace(fs.readFileSync(layoutPath, 'utf8'));
     installBrowser(markup);
     const posted = [];
+    const turns = new Map();
     let releaseTools = () => {};
     let toolsStarted = () => {};
     const toolsGate = new Promise(resolve => { toolsStarted = resolve; });
@@ -539,7 +581,8 @@ test('cancel during turn preparation persists Cancelled. and does not throw', as
         const json = value => ({ ok: true, status: 200, headers: { get: () => null }, json: async () => value });
         if (path.endsWith('/session')) return json(session);
         if (path.includes('/deploy-targets')) return json([]);
-        if (path.endsWith('/turns') && method === 'POST') return json({ turnId: body.turnId, status: 'accepted' });
+        const turn = legacyTurnResponse(path, method, body, turns);
+        if (turn) return json(turn);
         if (path.endsWith('/agent/turn')) return json({ context: { targetId: 'target', tenantId: 'tenant', selectedResources: [{ kind: 'layer', id: '10' }], task: { kind: 'studio-composition', id: 'draft', revision: 4 } } });
         if (path.endsWith('/capabilities')) return json({ transcriptSigning: { keys: [{ keyId: 'trusted' }] } });
         if (path.endsWith('/conversation') && method === 'POST') { posted.push(body); return json({ id: body.messageId }); }
@@ -547,7 +590,7 @@ test('cancel during turn preparation persists Cancelled. and does not throw', as
         if (path.includes('?viewId=')) return json({ revision: 4, targetId: 'target', tenantId: 'tenant', selectedResources: [], task: null });
         return json({});
     };
-    const { mountWorkspace, attachNativeAgent } = await import(modulePath);
+    const { mountWorkspace, attachNativeAgent } = await loadWorkspace();
     mountWorkspace();
     const workspace = window.honuaAgentWorkspace;
     const host = document.querySelector('[data-agent-workspace]');
@@ -588,7 +631,9 @@ test('cancel during turn preparation persists Cancelled. and does not throw', as
         const status = host.querySelector('[data-workspace-status]');
         prompt.value = 'Prepare this turn';
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-        await toolsGate;
+        await Promise.race([toolsGate, submitted.then(() => {
+            throw new Error('The submitted turn settled before tool discovery began.');
+        })]);
         host.querySelector('[data-workspace-cancel]')?.dispatchEvent(new Event('click', { bubbles: true, cancelable: true }));
         releaseTools();
         const result = await submitted;

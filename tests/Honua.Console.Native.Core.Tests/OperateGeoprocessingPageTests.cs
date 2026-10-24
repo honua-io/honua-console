@@ -420,9 +420,15 @@ public sealed class OperateGeoprocessingPageTests
             .Add(x => x.PollIntervalMilliseconds, 40));
         page.FindAll("button").Single(b => b.TextContent.Contains("Read earlier events", StringComparison.Ordinal)).Click();
 
-        Assert.Contains("historical event", page.Find("[data-job-diagnostics-events]").TextContent);
-        Assert.Contains("recent event", page.Find("[data-job-diagnostics-events]").TextContent);
-        Assert.Equal("executing", page.Find("[data-job-diagnostics-phase]").TextContent);
+        // The event callback and an active poll can enqueue separate renders.
+        // Observe the requested page before allowing the newer projection.
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("earlier", client.DiagnosticCursors);
+            Assert.Contains("historical event", page.Find("[data-job-diagnostics-events]").TextContent);
+            Assert.Contains("recent event", page.Find("[data-job-diagnostics-events]").TextContent);
+            Assert.Equal("executing", page.Find("[data-job-diagnostics-phase]").TextContent);
+        }, TimeSpan.FromSeconds(8));
 
         releaseLaterProjection = true;
         page.WaitForAssertion(() =>
