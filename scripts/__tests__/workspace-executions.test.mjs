@@ -439,3 +439,22 @@ test('a current native reply block preserves the question without creating a new
     assert.equal(calls.filter(call=>call.init.method==='POST').length,0);
     assert.ok(workspace.questionReplies.current());assert.equal(workspace.executions.current().length,1);
 });
+
+for (const reload of [false,true]) test(`old unanswered requests are observed beyond ten newer settled turns, reload=${reload}`,async()=>{
+    const retained=storage(),workspace=client(undefined,retained),observations=new Map(),reads=[];
+    const original=turn('older-question',execution({state:'awaiting-input',question}));
+    observations.set(original.turnId,original);
+    for (const observed of [original,...Array.from({length:11},(_,i)=>turn(`later-${i}`,execution({state:'completed'})))]) {
+        observations.set(observed.turnId,observed);
+        workspace.executions.adopt(workspace.executions.begin(observed.turnId),observed);
+    }
+    const request=async(path)=>{const id=path.split('/').at(-1);reads.push(id);return response(observations.get(id));};
+    const current=reload ? client(request,retained) : workspace;
+    if (!reload) current.api=async(path)=>{const id=path.split('/').at(-1);reads.push(id);return observations.get(id);};
+    await current.executions.refresh();
+    assert.ok(reads.includes('older-question'));
+    const observed=current.executions.current().find(record=>record.turnId==='older-question');
+    assert.equal(observed.execution.state,'awaiting-input');
+    assert.deepEqual(observed.execution.question,question);
+    assert.equal(current.executions.current().length,12);
+});

@@ -3,6 +3,9 @@
 const identity = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
 const guid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const states = new Set(['queued', 'claimed', 'running', 'awaiting-input', 'awaiting-approval', 'interrupted', 'completed', 'failed']);
+const unresolved = record => !record.acknowledged || Boolean(record.error)
+    || !Object.hasOwn(record, 'execution')
+    || Boolean(record.execution && !['completed','failed'].includes(record.execution.state));
 const labels = { queued:'Waiting for agent', claimed:'Starting', running:'Working',
     'awaiting-input':'Awaiting your answer', 'awaiting-approval':'Awaiting approval', interrupted:'Interrupted', completed:'Completed', failed:'Failed' };
 const timestamp = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
@@ -220,8 +223,7 @@ export class WorkspaceExecutions {
         const workspaceId=this.workspace.workspaceId, session={...this.workspace.session};
         // Read the latest conversation turns plus all unconfirmed/nonterminal requests.
         const recent=new Set([...records.keys()].slice(-10));
-        const selected=[...records.values()].filter(row=>recent.has(row.turnId) || !row.acknowledged
-            || row.execution && !['completed','failed'].includes(row.execution.state));
+        const selected=[...records.values()].filter(row=>recent.has(row.turnId) || unresolved(row));
         for (const record of selected) {
             if (this.scope() !== scope) return;
             await this.read({scope,workspaceId,session,records,record}).catch(()=>{});
@@ -260,15 +262,18 @@ export function executionSummary(record) {
 
 export function renderExecutions(host, workspace, report) {
     if (!host) return;
-    const records=workspace.executions.current();
+    const all=workspace.executions.current();
+    const recent=new Set(all.slice(-10).map(record=>record.turnId));
+    // Recent settled turns are bounded; every outstanding request stays actionable.
+    const records=all.filter(record=>recent.has(record.turnId) || unresolved(record));
     host.hidden=records.length === 0;
-    const renderKey=JSON.stringify([workspace.executions.scope(),records.slice(-10)]);
+    const renderKey=JSON.stringify([workspace.executions.scope(),records]);
     if (host.executionRenderKey === renderKey) return;
     host.executionRenderKey=renderKey;
     const active=host.contains(host.ownerDocument.activeElement)
         ? host.ownerDocument.activeElement?.dataset?.executionAction : null;
     const fragment=host.ownerDocument.createDocumentFragment();
-    for (const record of records.slice(-10)) {
+    for (const record of records) {
         const row=host.ownerDocument.createElement('section');
         row.setAttribute('aria-label','Agent request');
         const summary=host.ownerDocument.createElement('p');summary.textContent=executionSummary(record);row.append(summary);
