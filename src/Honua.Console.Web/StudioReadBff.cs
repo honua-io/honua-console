@@ -1,5 +1,7 @@
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Honua.Console.Shell.Services;
 using Honua.Console.Web.Auth;
@@ -44,6 +46,27 @@ internal static class StudioReadBff
             if (!IsCanonicalReadPath(context.Features.Get<IHttpRequestFeature>()?.RawTarget)) return Results.BadRequest();
             var upstream = FeatureReadPath(path, context.Request.Query);
             return upstream is null ? Results.BadRequest() : await SendAsync(context, upstream, null, token);
+        });
+        app.MapPost("/api/studio/layers/{layerId:int}/suggest-style", async (HttpContext context, int layerId, IAntiforgery antiforgery, CancellationToken token) =>
+        {
+            try { await antiforgery.ValidateRequestAsync(context); }
+            catch (AntiforgeryValidationException) { return Results.StatusCode(403); }
+            var upstream = StyleSuggestionUpstreamPath(layerId);
+            if (upstream is null) return Results.BadRequest();
+            using var buffer = new MemoryStream();
+            var bytes = new byte[1024];
+            int count;
+            while ((count = await context.Request.Body.ReadAsync(bytes, token)) != 0)
+            {
+                if (buffer.Length + count > StyleSuggestionMaxBodyBytes) return Results.StatusCode(413);
+                buffer.Write(bytes, 0, count);
+            }
+            var decision = StyleSuggestionIntake(buffer.ToArray(), out var draftRevision, out var composedLayerId);
+            if (decision == 413) return Results.StatusCode(413);
+            if (decision != 200) return Results.BadRequest();
+            return await SendAsync(context, upstream, new ByteArrayContent("{}"u8.ToArray()), token,
+                envelope: (serverBody, principalId, environmentId) => StyleSuggestionEnvelope(
+                    serverBody, principalId, environmentId, layerId, draftRevision, composedLayerId));
         });
     }
 
@@ -155,8 +178,92 @@ internal static class StudioReadBff
         return false;
     }
 
+    internal const int StyleSuggestionMaxBodyBytes = 8192;
+
+    internal static string? StyleSuggestionUpstreamPath(int layerId) =>
+        layerId is >= 0 and <= 999_999_999 ? $"api/v1/admin/metadata/layers/{layerId}/suggest-style" : null;
+
+    internal static bool TryReadStyleSuggestionRequest(string json, out string draftRevision, out string composedLayerId)
+    {
+        draftRevision = "";
+        composedLayerId = "";
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return TryReadStyleSuggestionElement(document.RootElement, out draftRevision, out composedLayerId);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    internal static int StyleSuggestionIntake(ReadOnlySpan<byte> body, out string draftRevision, out string composedLayerId)
+    {
+        if (body.Length > StyleSuggestionMaxBodyBytes)
+        {
+            draftRevision = "";
+            composedLayerId = "";
+            return 413;
+        }
+        return TryReadStyleSuggestionRequest(Encoding.UTF8.GetString(body), out draftRevision, out composedLayerId) ? 200 : 400;
+    }
+
+    internal static string? StyleSuggestionEnvelope(string serverBody, string principalId, string environmentId,
+        int canonicalLayerId, string draftRevision, string composedLayerId)
+    {
+        JsonNode? suggestion;
+        try { suggestion = JsonNode.Parse(serverBody); }
+        catch (JsonException) { return null; }
+        if (suggestion is null || string.IsNullOrEmpty(principalId) || string.IsNullOrEmpty(environmentId)) return null;
+        return new JsonObject
+        {
+            ["binding"] = new JsonObject
+            {
+                ["principalId"] = principalId,
+                ["environmentId"] = environmentId,
+                ["canonicalLayerId"] = canonicalLayerId,
+                ["draftRevision"] = draftRevision,
+                ["composedLayerId"] = composedLayerId,
+            },
+            ["suggestion"] = suggestion,
+        }.ToJsonString();
+    }
+
+    private static bool TryReadStyleSuggestionElement(JsonElement root, out string draftRevision, out string composedLayerId)
+    {
+        draftRevision = "";
+        composedLayerId = "";
+        if (HasDuplicateProperties(root) || root.ValueKind != JsonValueKind.Object) return false;
+        var seenRevision = false;
+        var seenLayer = false;
+        foreach (var property in root.EnumerateObject())
+        {
+            if (property.NameEquals("draftRevision"u8))
+            {
+                if (property.Value.ValueKind != JsonValueKind.String) return false;
+                var value = property.Value.GetString() ?? "";
+                if (value.Length is < 1 or > 262144 || value.Any(char.IsControl)) return false;
+                draftRevision = value;
+                seenRevision = true;
+                continue;
+            }
+            if (property.NameEquals("composedLayerId"u8))
+            {
+                if (property.Value.ValueKind != JsonValueKind.String) return false;
+                var value = property.Value.GetString() ?? "";
+                if (value.Length is < 1 or > 256 || value.Any(static c => char.IsControl(c) || c is '/' or '\\')) return false;
+                composedLayerId = value;
+                seenLayer = true;
+                continue;
+            }
+            return false;
+        }
+        return seenRevision && seenLayer;
+    }
+
     private static async Task<IResult> SendAsync(HttpContext context, string path, HttpContent? body,
-        CancellationToken token, bool catalog = false)
+        CancellationToken token, bool catalog = false, Func<string, string, string, string?>? envelope = null)
     {
         context.Response.Headers.CacheControl = "no-store";
         var profiles = context.RequestServices.GetRequiredService<IConsoleEnvironmentProfileStore>();
@@ -176,7 +283,8 @@ internal static class StudioReadBff
         if (body is not null) { body.Headers.ContentType = new("application/json"); }
         var mcpSessions = context.RequestServices.GetRequiredService<AgentMcpSessions>();
         var operators = context.RequestServices.GetRequiredService<IConsoleOperatorContext>();
-        var partition = (AgentGatewayBinding.OperatorPartition(operators.RequireOperatorKey(), profile.Id, profile.ServerBaseUri), profile.Id, "catalog:");
+        var principalId = AgentGatewayBinding.OperatorPartition(operators.RequireOperatorKey(), profile.Id, profile.ServerBaseUri);
+        var partition = (principalId, profile.Id, "catalog:");
         if (catalog && body is not null && mcpSessions.ForRequest(partition, await body.ReadAsByteArrayAsync(token)) is { } id) { request.Headers.Add("Mcp-Session-Id", id); }
         try
         {
@@ -186,8 +294,14 @@ internal static class StudioReadBff
                 && ids.FirstOrDefault() is { Length: > 0 and <= 256 } negotiatedId)
             { mcpSessions.Put(partition, negotiatedId); }
             if ((int)response.StatusCode is >= 300 and < 400) { return Results.StatusCode(502); }
-            return Results.Content(await response.Content.ReadAsStringAsync(token),
-                "application/json", statusCode: (int)response.StatusCode);
+            var payload = await response.Content.ReadAsStringAsync(token);
+            if (envelope is not null && (int)response.StatusCode is >= 200 and < 300)
+            {
+                var wrapped = envelope(payload, principalId, profile.Id);
+                if (wrapped is null) return Results.StatusCode(502);
+                payload = wrapped;
+            }
+            return Results.Content(payload, "application/json", statusCode: (int)response.StatusCode);
         }
         catch (HttpRequestException) { return Results.StatusCode(502); }
         catch (TaskCanceledException) when (!token.IsCancellationRequested) { return Results.StatusCode(504); }
