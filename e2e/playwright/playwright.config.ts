@@ -14,7 +14,7 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 // Published-artifact path (preferred in CI): `dotnet <dll> --urls ...`.
-// Source path (local default): `dotnet run --project ... --urls ...`.
+// Source path (local default): `dotnet run --project ... -- --urls ...`.
 const publishedDll = process.env.HONUA_CONSOLE_E2E_DLL;
 // When booting the published artifact, the content root MUST be the publish directory so
 // MapStaticAssets resolves `_content/**` from `<publishDir>/wwwroot`. Running the DLL from the
@@ -22,7 +22,7 @@ const publishedDll = process.env.HONUA_CONSOLE_E2E_DLL;
 const publishDir = publishedDll ? path.dirname(publishedDll) : undefined;
 const webServerCommand = publishedDll
   ? `dotnet "${publishedDll}" --urls ${BASE_URL} --contentRoot "${publishDir}"`
-  : `dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls ${BASE_URL}`;
+  : `dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj -- --urls ${BASE_URL}`;
 
 export default defineConfig({
   testDir: './specs',

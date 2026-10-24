@@ -79,7 +79,7 @@ export function readExecution(value) {
         replyAdmission={state:admission.state,...(admission.code ? {code:admission.code} : {})};
     }
     const operations = value.operations.map(operation => {
-        if (!operation || !['operation-proposal','dataset-import','managed-job'].includes(operation.kind)
+        if (!operation || !['operation','operation-proposal','dataset-import','managed-job'].includes(operation.kind)
             || !identity(operation.id) || !operationName(operation.operationId)
             || !optionalIdentity(operation.proposalId) || !optionalIdentity(operation.jobId)
             || typeof operation.status !== 'string' || !operation.status || operation.status.length > 128)
@@ -294,7 +294,7 @@ export function renderExecutions(host, workspace, report) {
             }
             for (const operation of record.execution.operations) {
                 const detail=host.ownerDocument.createElement('p');
-                const kind={'operation-proposal':'Proposed change','dataset-import':'Dataset import','managed-job':'Job'}[operation.kind];
+                const kind={'operation':'Operation','operation-proposal':'Proposed change','dataset-import':'Dataset import','managed-job':'Job'}[operation.kind];
                 detail.textContent=`${kind}: ${operation.status}`;row.append(detail);
                 if (operation.proposalId) {
                     const link=host.ownerDocument.createElement('a');
