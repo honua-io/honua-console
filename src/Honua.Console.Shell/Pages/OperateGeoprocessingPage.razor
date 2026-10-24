@@ -232,6 +232,10 @@
     [Parameter]
     public string? SelectedJobRunId { get; set; }
 
+    // Tests shorten the live poll. The operate surface keeps the four-second cadence.
+    [Parameter]
+    public int PollIntervalMilliseconds { get; set; }
+
     private bool _listLoaded;
     private bool _detailLoaded;
     private bool _stepsLoaded;
@@ -357,11 +361,13 @@
                     : result.Value.Message;
                 _actionMessageClass = "console-state-success";
 
-                // Reflect the transition: refresh the open detail (if any) and the
-                // board so the new status/eligibility shows immediately.
+                // Reflect the transition: refresh the open detail and its diagnostics
+                // together. A terminal detail stops polling, so the timeline cannot
+                // wait for a later tick to drop Cancel or offer Retry.
                 if (HasSelectedJobRoute && string.Equals(_loadedDetailFor, jobRunId.Trim(), StringComparison.Ordinal))
                 {
                     _detail = await OperateClient.GetJobDetailAsync(jobRunId);
+                    ApplyDiagnostics(await OperateClient.GetJobDiagnosticsAsync(jobRunId));
                 }
                 else
                 {
@@ -426,6 +432,22 @@
         }
     }
 
+    private void ApplyDiagnostics(OperateSectionResult<OperateJobDiagnosticsView> incoming)
+    {
+        if (_diagnosticsReadingEarlier
+            && _diagnostics is { IsAllowed: true, Value: { } held }
+            && incoming is { IsAllowed: true, Value: { } fresh })
+        {
+            _diagnostics = OperateSectionResult<OperateJobDiagnosticsView>.Allowed(fresh.HoldingEventsFrom(held));
+        }
+        else
+        {
+            _diagnostics = incoming;
+        }
+
+        _diagnosticsLoaded = true;
+    }
+
     private void SetStateFilter(string state) => _stateFilter = state;
 
     private void StartPolling()
@@ -439,7 +461,10 @@
         }
 
         _pollCts = new CancellationTokenSource();
-        _timer = new PeriodicTimer(PollInterval);
+        var interval = PollIntervalMilliseconds > 0
+            ? TimeSpan.FromMilliseconds(PollIntervalMilliseconds)
+            : PollInterval;
+        _timer = new PeriodicTimer(interval);
         _ = PollLoopAsync(_timer, _pollCts.Token);
     }
 
@@ -466,11 +491,7 @@
                         _detail = detail;
                         _steps = steps;
                         _stepsLoaded = true;
-                        if (!_diagnosticsReadingEarlier)
-                        {
-                            _diagnostics = diagnostics;
-                            _diagnosticsLoaded = true;
-                        }
+                        ApplyDiagnostics(diagnostics);
                         StateHasChanged();
                     });
 

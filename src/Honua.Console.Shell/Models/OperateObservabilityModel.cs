@@ -472,6 +472,22 @@ public sealed record OperateJobDiagnosticsView(
             EvidenceMissing = page.EvidenceMissing,
             EvidenceTruncated = page.EvidenceTruncated,
         };
+
+    /// <summary>
+    /// Keeps the event window the operator already opened and takes lifecycle and
+    /// action fields from a newer projection of the same job.
+    /// </summary>
+    public OperateJobDiagnosticsView HoldingEventsFrom(OperateJobDiagnosticsView held) =>
+        this with
+        {
+            Events = held.Events,
+            EventsTruncated = held.EventsTruncated,
+            EventsFirstCursor = held.EventsFirstCursor,
+            EventsNextCursor = held.EventsNextCursor,
+            EventsTotalCount = held.EventsTotalCount,
+            EvidenceMissing = held.EvidenceMissing,
+            EvidenceTruncated = held.EvidenceTruncated,
+        };
 }
 
 public sealed record OperateJobDiagnosticStep(

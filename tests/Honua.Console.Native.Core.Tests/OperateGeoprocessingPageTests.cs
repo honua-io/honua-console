@@ -375,6 +375,101 @@ public sealed class OperateGeoprocessingPageTests
     }
 
     [Fact]
+    public void DetailTimelineKeepsEarlierEventsWhileALaterPollRefreshesPhaseAndActions()
+    {
+        using var ctx = new BunitContext();
+        var releaseLaterProjection = false;
+        var client = new StubGeoprocessingClient
+        {
+            Detail = OperateSectionResult<OperateJobRun>.Allowed(
+                Job("gp-run", "Running", "Executing", 40, "analyst.live")),
+            DiagnosticsByCursor = cursor =>
+            {
+                if (cursor == "earlier")
+                {
+                    return OperateSectionResult<OperateJobDiagnosticsView>.Allowed(
+                        Projection("gp-run", cancel: true, phase: "executing", message: "historical event"));
+                }
+
+                if (!releaseLaterProjection)
+                {
+                    return OperateSectionResult<OperateJobDiagnosticsView>.Allowed(
+                        Projection(
+                            "gp-run",
+                            cancel: true,
+                            phase: "executing",
+                            message: "recent event",
+                            first: "earlier",
+                            attempt: 1));
+                }
+
+                return OperateSectionResult<OperateJobDiagnosticsView>.Allowed(
+                    Projection(
+                        "gp-run",
+                        retry: true,
+                        phase: "cancelled",
+                        message: "replacement event",
+                        first: "earlier",
+                        attempt: 2));
+            }
+        };
+        ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(client);
+
+        var page = ctx.Render<OperateGeoprocessingPage>(p => p
+            .Add(x => x.SelectedJobRunId, "gp-run")
+            .Add(x => x.PollIntervalMilliseconds, 40));
+        page.FindAll("button").Single(b => b.TextContent.Contains("Read earlier events", StringComparison.Ordinal)).Click();
+
+        Assert.Contains("historical event", page.Find("[data-job-diagnostics-events]").TextContent);
+        Assert.Contains("recent event", page.Find("[data-job-diagnostics-events]").TextContent);
+        Assert.Equal("executing", page.Find("[data-job-diagnostics-phase]").TextContent);
+
+        releaseLaterProjection = true;
+        page.WaitForAssertion(() =>
+        {
+            var events = page.Find("[data-job-diagnostics-events]").TextContent;
+            Assert.Contains("historical event", events);
+            Assert.Contains("recent event", events);
+            Assert.DoesNotContain("replacement event", events);
+            Assert.Contains("replacement event", page.Find("[data-job-diagnostics-steps]").TextContent);
+            Assert.Equal("cancelled", page.Find("[data-job-diagnostics-phase]").TextContent);
+            Assert.Equal("2 of 3", page.Find("[data-job-diagnostics-attempt]").TextContent);
+            Assert.Contains(page.FindAll("button"), b => b.TextContent.Contains("Retry job", StringComparison.Ordinal));
+            Assert.DoesNotContain(page.FindAll("button"), b => b.TextContent.Contains("Cancel job", StringComparison.Ordinal));
+        }, TimeSpan.FromSeconds(8));
+    }
+
+    [Fact]
+    public void DetailTimelineRefreshesActionsAfterCancel()
+    {
+        using var ctx = new BunitContext();
+        var client = new StubGeoprocessingClient
+        {
+            Detail = OperateSectionResult<OperateJobRun>.Allowed(
+                Job("gp-run", "Running", "Executing", 40, "analyst.live")),
+            DetailAfterControl = OperateSectionResult<OperateJobRun>.Allowed(
+                Job("gp-run", "Cancelled", "Cancelled", 40, "analyst.live")),
+            Diagnostics = OperateSectionResult<OperateJobDiagnosticsView>.Allowed(
+                Projection("gp-run", cancel: true, phase: "executing", message: "still running")),
+            DiagnosticsAfterControl = OperateSectionResult<OperateJobDiagnosticsView>.Allowed(
+                Projection("gp-run", retry: true, phase: "cancelled", message: "still running")),
+            CancelResult = OperateSectionResult<OperateJobControlOutcome>.Allowed(
+                new OperateJobControlOutcome("gp-run", "cancel", "Cancelled", "Cancellation requested.", "corr-2"))
+        };
+        ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(client);
+
+        var page = ctx.Render<OperateGeoprocessingPage>(p => p.Add(x => x.SelectedJobRunId, "gp-run"));
+        page.FindAll("button").Single(b => b.TextContent.Contains("Cancel job", StringComparison.Ordinal)).Click();
+        page.Find("[data-console-confirm-accept]").Click();
+
+        Assert.Equal("gp-run", Assert.Single(client.CancelCalls));
+        Assert.Equal("cancelled", page.Find("[data-job-diagnostics-phase]").TextContent);
+        Assert.Contains(page.FindAll("button"), b => b.TextContent.Contains("Retry job", StringComparison.Ordinal));
+        Assert.DoesNotContain(page.FindAll("button"), b => b.TextContent.Contains("Cancel job", StringComparison.Ordinal));
+        Assert.Contains("Cancellation requested.", page.Markup);
+    }
+
+    [Fact]
     public async Task DetailModeRendersStepsGlassBoxPanelLazily()
     {
         const string sanitizedCommand = "gdalwarp -t_srs EPSG:3857 <path>/in.tif <scratch>/out.tif";
@@ -473,6 +568,7 @@ public sealed class OperateGeoprocessingPageTests
         bool retry = false,
         bool cancel = false,
         string phase = "executing",
+        int attempt = 2,
         string timing = "measured",
         string disabled = "",
         string message = "worker said [REDACTED] under <scratch>",
@@ -485,7 +581,7 @@ public sealed class OperateGeoprocessingPageTests
             JobRunId: id,
             Phase: phase,
             TimingSource: timing,
-            AttemptNumber: 2,
+            AttemptNumber: attempt,
             MaxAttempts: 3,
             RetryAllowed: retry,
             RetryRequiresApproval: false,
@@ -532,6 +628,8 @@ public sealed class OperateGeoprocessingPageTests
 
         public OperateSectionResult<OperateJobRun>? Detail { get; set; }
 
+        public OperateSectionResult<OperateJobRun>? DetailAfterControl { get; set; }
+
         public OperateSectionResult<OperateJobControlOutcome> CancelResult { get; init; } =
             OperateSectionResult<OperateJobControlOutcome>.Denied(OperateSectionStatus.Unavailable, "n/a");
 
@@ -547,6 +645,8 @@ public sealed class OperateGeoprocessingPageTests
         public OperateSectionResult<OperateJobStepsView>? Steps { get; init; }
 
         public OperateSectionResult<OperateJobDiagnosticsView>? Diagnostics { get; init; }
+
+        public OperateSectionResult<OperateJobDiagnosticsView>? DiagnosticsAfterControl { get; set; }
 
         public Func<string?, OperateSectionResult<OperateJobDiagnosticsView>>? DiagnosticsByCursor { get; init; }
 
@@ -566,8 +666,15 @@ public sealed class OperateGeoprocessingPageTests
         public Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(Jobs);
 
-        public Task<OperateSectionResult<OperateJobRun>> GetJobDetailAsync(string jobRunId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Detail ?? OperateSectionResult<OperateJobRun>.Denied(OperateSectionStatus.Missing, "not found"));
+        public Task<OperateSectionResult<OperateJobRun>> GetJobDetailAsync(string jobRunId, CancellationToken cancellationToken = default)
+        {
+            if ((CancelCalls.Count > 0 || RetryCalls.Count > 0) && DetailAfterControl is not null)
+            {
+                return Task.FromResult(DetailAfterControl);
+            }
+
+            return Task.FromResult(Detail ?? OperateSectionResult<OperateJobRun>.Denied(OperateSectionStatus.Missing, "not found"));
+        }
 
         public Task<OperateSectionResult<OperateJobControlOutcome>> CancelJobAsync(string jobRunId, CancellationToken cancellationToken = default)
         {
@@ -593,6 +700,13 @@ public sealed class OperateGeoprocessingPageTests
             CancellationToken cancellationToken = default)
         {
             DiagnosticCursors.Add(eventCursor);
+            if ((CancelCalls.Count > 0 || RetryCalls.Count > 0)
+                && eventCursor is null
+                && DiagnosticsAfterControl is not null)
+            {
+                return Task.FromResult(DiagnosticsAfterControl);
+            }
+
             if (DiagnosticsByCursor is not null)
             {
                 return Task.FromResult(DiagnosticsByCursor(eventCursor));
