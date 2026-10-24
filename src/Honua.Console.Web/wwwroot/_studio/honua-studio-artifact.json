@@ -1,6 +1,6 @@
 {
   "schemaVersion": "honua.console.studio-artifact.v1",
-  "studioRevision": "1e7902c58b7e3f586784bb616ce56ac367f6768c",
+  "studioRevision": "bddb2b99ba7e6fcff12dd2a26221e8f56455abc4",
   "sdkRevision": "5765b427f421dca9c42832ae450fa1c5aad882c2",
   "files": [
     {
@@ -14,9 +14,14 @@
       "sha256": "6ef94ea3db2371968cbee48c181821997c7c96da953afc5b3d073db336d0d7a2"
     },
     {
-      "path": "basemap-CjR__Zyy.js",
-      "bytes": 125189,
-      "sha256": "438782e50b2d914d039ce859dee321d687ba4d96d27a9389bcf92bd6c8e635c2"
+      "path": "base-element-CzTXWtWv.js",
+      "bytes": 2382,
+      "sha256": "f8669f81b13b104f4c00840d5f0c0f81e6abc3527eaf4f18f1d36315b5797cd3"
+    },
+    {
+      "path": "basemap-BCNqaLJX.js",
+      "bytes": 125108,
+      "sha256": "517cb0b3910e0f7f85ad097124a4adc70fce4f6d0acc08bf43cdc4618e582ee2"
     },
     {
       "path": "chart-data-f1eyBzQS.js",
@@ -35,8 +40,23 @@
     },
     {
       "path": "console.js",
-      "bytes": 909813,
-      "sha256": "3f546827b7cc927f63b50183efe9306312173c1a2bf635ed48bd7553c392cbc6"
+      "bytes": 927010,
+      "sha256": "07800f4a5bed756bee0df7c3683042e50902c5150964fbc9f4f0d46e548ef715"
+    },
+    {
+      "path": "constants-B8tqYbYF.js",
+      "bytes": 149,
+      "sha256": "c033cc1eb62b068bac8e9c3d4af533cec62ef3a1d2dd576dc03dcf744434a28e"
+    },
+    {
+      "path": "control-config-B3vF9Ivt.js",
+      "bytes": 10439,
+      "sha256": "3b8e602314338f4cdf614d2eb170e06e1a5989f821e779c87e18269f03c0f543"
+    },
+    {
+      "path": "design-inspector-panel-DmCYYr9G.js",
+      "bytes": 20396,
+      "sha256": "654f4575ade9496280840fbe8f261769e6c14f05db18b1f07d08bb87e3638179"
     },
     {
       "path": "errors-VvMCLBue.js",
@@ -115,8 +135,8 @@
     },
     {
       "path": "STUDIO-PROVENANCE.json",
-      "bytes": 246388,
-      "sha256": "c2e755965735852d7a0792bb9d52e1999d147f16bbad290a29df33dc3465d774"
+      "bytes": 247129,
+      "sha256": "cf63f6ef72880c66fd3a160110566eb34fb02e6b86efa48ec86cd6adf2f3fa8f"
     },
     {
       "path": "style.css",
@@ -127,6 +147,11 @@
       "path": "THIRD-PARTY-NOTICES.txt",
       "bytes": 80920,
       "sha256": "1f9dc5486f5cb5430cdf7228072f340c6c2944bfc68b79d549be4d49edfb1e2a"
+    },
+    {
+      "path": "visual-layer-owner-Cli7j7Sb.js",
+      "bytes": 1923,
+      "sha256": "0486b550f02bb26a575930c6ce691a23946601745a306f338c463148e728e83b"
     },
     {
       "path": "widget-config-BnNjdjF6.js",
