@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 //   - a LICENSE file exists and is the Apache License 2.0 text,
 //   - a NOTICE file exists,
 //   - package.json "license" is the SPDX identifier "Apache-2.0",
-//   - the AGENTS.md/CLAUDE.md contributor declaration matches.
+//   - the AGENTS.md contributor declaration matches.
 // If the platform later chooses a different license for the Console, update EXPECTED_* here and the
 // LICENSE/NOTICE/package.json/AGENTS.md together — the gate forces all four to move in lockstep.
 
