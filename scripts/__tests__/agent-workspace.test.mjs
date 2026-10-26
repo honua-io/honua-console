@@ -149,7 +149,10 @@ test('one native SDK session serializes turns and sees only agent-authorized con
     assert.equal(instances,1);
     assert.deepEqual(drafts,[{draftId:'draft',generation:2},undefined]);
     assert.equal(historyReads,2);
-    assert.ok(seen[1].system.includes('External participant update'));
+    assert.ok(!seen[1].system.includes('External participant update'));
+    const envelopes=seen.map(row=>JSON.parse(row.prompt.slice(row.prompt.indexOf('{'))));
+    assert.deepEqual(envelopes.map(value=>value.currentUserRequest),['first','second']);
+    assert.deepEqual(envelopes[1].priorConversation,[{role:'assistant',content:'External participant update'}]);
     assert.ok(seen[1].system.includes('authorized-snapshot'));
     assert.ok(!seen[0].system.includes('authorized-snapshot'));
     assert.deepEqual(seen.map(row=>row.turn),['turn-1','turn-2']);
@@ -442,10 +445,10 @@ test('each native turn clears old catalog and rechecks private capabilities with
   await workspace.agentSession.submitTurn({turnId:'first',prompt:'first'});
   await workspace.agentSession.submitTurn({turnId:'second',prompt:'second'});
   assert.equal(instances,1);assert.deepEqual(seen,[['canonical','local','private'],['canonical']]);
-  assert.deepEqual(created.messages,['first','second']);assert.deepEqual(methods,['tools/list','tools/list']);assert.equal(capabilitiesReads,2);
+  assert.deepEqual(created.messages.map(text=>JSON.parse(text.slice(text.indexOf('{'))).currentUserRequest),['first','second']);assert.deepEqual(methods,['tools/list','tools/list']);assert.equal(capabilitiesReads,2);
   sessionMetadata={...nativeSession,releaseId:'other-release'};
   await assert.rejects(workspace.agentSession.submitTurn({turnId:'third',prompt:'stale'}),/session changed/);
-  assert.deepEqual(created.tools,[]);assert.deepEqual(created.messages,['first','second']);assert.equal(capabilitiesReads,2);
+  assert.deepEqual(created.tools,[]);assert.deepEqual(created.messages.map(text=>JSON.parse(text.slice(text.indexOf('{'))).currentUserRequest),['first','second']);assert.equal(capabilitiesReads,2);
  }
 });
 
