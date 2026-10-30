@@ -1,7 +1,11 @@
 // Synthetic boundary controls for the runner join, never live AI evidence.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { submittedDigest, validateBinding, validateProjection } from '../../e2e/playwright/workspace-live/private-execution-witness.mjs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { readBoundedRegularFile, submittedDigest, validateBinding, validateProjection } from '../../e2e/playwright/workspace-live/private-execution-witness.mjs';
 
 const hash = character => 'sha256:' + character.repeat(64);
 function fixture() {
@@ -113,6 +117,32 @@ test('original worker, final-message and effect receipts are all required',()=>{
 test('private projection cannot label itself full qualification',()=>{
     const value=fixture();value.result.witness.qualification=true;
     assert.throws(()=>verify(value),/identity differs/);
+});
+
+test('runtime binding bytes are read from the descriptor opened with O_NOFOLLOW', () => {
+    const root = mkdtempSync(join(tmpdir(), 'honua-binding-'));
+    try {
+        const file = join(root, 'binding.json');
+        writeFileSync(file, '{"schema":1}\n');
+        assert.equal(readBoundedRegularFile(file, 32768), '{"schema":1}\n');
+
+        const link = join(root, 'binding-link.json');
+        symlinkSync(file, link);
+        assert.throws(() => readBoundedRegularFile(link, 32768), /bounded regular file/);
+
+        writeFileSync(file, 'x'.repeat(33));
+        assert.throws(() => readBoundedRegularFile(file, 32), /bounded regular file/);
+
+        const directory = join(root, 'directory');
+        mkdirSync(directory);
+        assert.throws(() => readBoundedRegularFile(directory, 32768), /bounded regular file/);
+
+        const fifo = join(root, 'binding.fifo');
+        execFileSync('mkfifo', [fifo]);
+        assert.throws(() => readBoundedRegularFile(fifo, 32768), /bounded regular file/);
+    } finally {
+        rmSync(root, { recursive: true, force: true });
+    }
 });
 
 test('runtime binding rejects missing original identities, floating source and extra caller inputs',()=>{
