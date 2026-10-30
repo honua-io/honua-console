@@ -1,0 +1,73 @@
+name: CodeQL
+
+# Tier: PR gate + weekly full scan. Same shape as honua-server's codeql.yml.
+# - pull_request: build-mode none and the default high-precision query suite.
+# - schedule and workflow_dispatch: the same extraction with security-extended.
+#
+# javascript-typescript is the UI language this gate exists for. csharp, python,
+# and actions stay in the matrix so replacing CodeQL default setup does not drop
+# languages that setup already analyzed. Default setup and this advanced workflow
+# cannot upload results at the same time; default setup is turned off for this
+# repository when the workflow lands.
+on:
+  pull_request:
+    branches: [trunk]
+  schedule:
+    # Weekly on Monday at 00:00 UTC, the same window as honua-server.
+    - cron: "0 0 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    # Dependabot pull requests cannot upload code-scanning results with the
+    # default token. honua-server skips them for the same reason.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - javascript-typescript
+          - csharp
+          - python
+          - actions
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Initialize CodeQL (pull request)
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: ${{ matrix.language }}
+          config-file: ./.github/codeql/codeql-config.yml
+          build-mode: none
+
+      - name: Initialize CodeQL (full scan)
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: ${{ matrix.language }}
+          config-file: ./.github/codeql/codeql-config.yml
+          build-mode: none
+          queries: security-extended
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: "/language:${{ matrix.language }}"
