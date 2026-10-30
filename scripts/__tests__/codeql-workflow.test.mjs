@@ -27,6 +27,7 @@ test("CodeQL workflow pins javascript-typescript to full commit SHAs", () => {
   assert.match(workflow, /languages:\s*\$\{\{\s*matrix\.language\s*\}\}/u);
   assert.match(workflow, /- javascript-typescript\n/u);
   assert.match(workflow, /build-mode:\s*none/u);
+  assert.doesNotMatch(workflow, /dependabot\[bot\]/u);
 
   const pullRequestInit = workflow
     .split("Initialize CodeQL (pull request)")[1]
