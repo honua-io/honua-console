@@ -2,7 +2,7 @@
 // remain independent; browser context reads never become worker/model evidence.
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync, lstatSync } from 'node:fs';
+import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
 import { isDeepStrictEqual, promisify } from 'node:util';
 
@@ -29,11 +29,30 @@ export function validateBinding(binding) {
     return binding;
 }
 
+// Open the binding once and read that descriptor. A path check followed by
+// readFile(path) follows a symlink swapped in between the two calls.
+export function readBoundedRegularFile(path, maxBytes) {
+    let descriptor;
+    try {
+        descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    } catch (error) {
+        if (error?.code === 'ELOOP' || error?.code === 'EPERM') {
+            throw new Error('Runtime binding must be a bounded regular file.');
+        }
+        throw error;
+    }
+    try {
+        const file = fstatSync(descriptor);
+        require(file.isFile() && file.size <= maxBytes, 'Runtime binding must be a bounded regular file.');
+        return readFileSync(descriptor, 'utf8');
+    } finally {
+        closeSync(descriptor);
+    }
+}
+
 export async function checkedBinding(path = process.env.HONUA_WORKSPACE_E2E_RUNTIME_BINDING) {
     require(typeof path === 'string' && path.length > 0, 'HONUA_WORKSPACE_E2E_RUNTIME_BINDING is required before a paid turn.');
-    const file = lstatSync(path);
-    require(file.isFile() && !file.isSymbolicLink() && file.size <= 32768, 'Runtime binding must be a bounded regular file.');
-    const binding = validateBinding(JSON.parse(readFileSync(path, 'utf8')));
+    const binding = validateBinding(JSON.parse(readBoundedRegularFile(path, 32768)));
     const options = {cwd: binding.release.root, env:sourceEnvironment(), encoding: 'utf8', timeout: 15000, maxBuffer: 65536};
     const head = await run('git', ['rev-parse', 'HEAD'], options);
     require(head.stdout.trim() === binding.release.commit, 'Private projector source differs from the installed evaluation binding.');
