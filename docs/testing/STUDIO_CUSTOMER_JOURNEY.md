@@ -3,12 +3,12 @@
 The `studio-customer` project in `playwright.live.config.ts` runs
 `live/specs/studio-customer-journey.live.spec.ts` against the real server, PostGIS,
 Keycloak and Console image. It does not reuse the admin setup project or stored cookies.
-The `customer` realm user has only the `user` role. The Console has no admin key.
+The `customer` realm user is the install's `admin` publisher. The Console has no admin key.
 An independent verifier provisions the private source connection and reads server state;
 all customer imports, publication and authoring use the human session.
 
 The second test is an operator control that isolates the embedded recipe table/filter
-transport from the customer permission path. It uses a separate real operator login,
+transport from the customer import path. It uses a separate real operator login,
 a typed PostGIS fixture and a real published layer. It is not customer qualification.
 
 The workflow builds a Console image from the checked-out PR, uses the ordinary live
@@ -18,6 +18,10 @@ also accepts immutable `console_image` and `server_image` GHCR references. Both 
 required when replaying a published Console. The runtime receipt checks the actual
 container image IDs, observed repository digests and source labels, plus `/version.json`.
 Setting `HONUA_CONSOLE_E2E_CONSOLE_IMAGE` disables the Playwright source web server.
+Every CI run requires a `ghcr.io/honua-io/honua-server@sha256:...` input or an immutable
+digest in `HONUA_CONSOLE_PR_SERVER_IMAGE` or `HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE`.
+Unset values and floating tags fail before the testbed starts. Local source-image diagnostics
+must set `HONUA_CONSOLE_E2E_SERVER_IMAGE` explicitly and are not release qualification.
 
 The testbed uses the unlicensed 2026.1 server posture (`Licensing:Mode=Disabled`),
 where ordinary draft composition executes directly and publication retains its separate

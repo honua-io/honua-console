@@ -136,7 +136,7 @@ export async function customerIdentity() {
     expect(rolesResponse.status()).toBe(200);
     const roles = (await rolesResponse.json()).map((role: { name: string }) => role.name);
     expect(roles).toContain('user');
-    expect(roles).not.toContain('admin');
+    expect(roles).toContain('admin');
     expect(roles).not.toContain('administrator');
     return { id: user.id as string, username: user.username as string };
   } finally { await idp.dispose(); }

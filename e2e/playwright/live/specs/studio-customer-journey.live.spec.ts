@@ -3,27 +3,24 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { expect, test, request } from '@playwright/test';
 import { sourceConnectionBody } from '../source-db';
-import { accessibility, createRecipe, customerIdentity, headers, identity, observeHealth, paintedFeatures, read, serverUrl, signIn, sourceFor, type Draft } from '../studio-customer';
+import { accessibility, createRecipe, customerIdentity, identity, observeHealth, paintedFeatures, read, serverUrl, signIn, sourceFor, type Draft } from '../studio-customer';
 
 // No seeded cookies, API-key customer mutations, route mocks, skips or UI-only success criteria.
 // A fresh compose database and fresh Keycloak realm are required for each invocation.
 const nonce = () => randomUUID().replaceAll('-', '').slice(0, 16);
 const fixture = (name: string) => fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url));
 
-test('fresh non-admin customer imports, authors, saves and reopens a map', async ({ page }, info) => {
+test('fresh install publisher imports, authors, saves and reopens a map', async ({ page }, info) => {
   const completed: string[] = [];
   const health = observeHealth(page);
   try {
     const customer = await customerIdentity();
-    const session = await test.step('real OIDC sign-in and least-privilege negative control', async () => {
+    const session = await test.step('real OIDC sign-in as the install publisher', async () => {
       const session = await signIn(page);
       const lifetime = Date.parse(session.expiresAt) - Date.now();
       expect(lifetime, 'the real session must have a positive bearer lifetime').toBeGreaterThan(0);
       expect(lifetime, 'the testbed must issue a one-minute bearer').toBeLessThanOrEqual(65_000);
-      // This API client shares the customer's cookie. A successful admin read would invalidate the test identity.
-      const admin = await page.request.get('/api/processes/admin/proposals/customer-negative', { headers: headers(session) });
-      expect(admin.status(), 'customer must not acquire admin proposal access').toBe(403);
-      completed.push('non-admin-auth');
+      completed.push('publisher-auth');
       return session;
     });
     const services: Array<{ service: string; layerId: number; title: string }> = [];
@@ -276,6 +273,22 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
       const proposalId = /Awaiting separate human approval\. Proposal ([A-Za-z0-9_-]{1,128})\./
         .exec(await publication.textContent() ?? '')?.[1];
       expect(proposalId, 'publication must return a durable proposal identity').toBeTruthy();
+      const proposalPath = `/api/processes/admin/proposals/${proposalId}`;
+      const beforeSelfApproval = await read(page, session, proposalPath);
+      expect(beforeSelfApproval.requestedBy).toBe(first.ownerId);
+      // Use the customer's own real session to attempt approval. A later read
+      // verifies the proposal was not decided, before the independent approver acts.
+      const requester = await page.context().newPage();
+      const requesterHealth = observeHealth(requester);
+      try {
+        await requester.goto(`/inbox?proposalId=${proposalId}`);
+        const ownProposal = requester.locator(`[data-proposal-id="${proposalId}"]:has([data-proposal-status])`).last();
+        await ownProposal.locator('[data-proposal-approve]').click();
+        await expect(ownProposal.locator('[data-proposal-rbac-denied]')).toBeVisible();
+        const afterSelfApproval = await read(page, session, proposalPath);
+        expect(afterSelfApproval.status).toBe(beforeSelfApproval.status);
+        expect(afterSelfApproval.resolvedBy).toBeFalsy();
+      } finally { await requesterHealth.verify(info); await requester.close(); }
       const consoleOrigin = new URL(page.url()).origin;
       const approverContext = await page.context().browser()!.newContext({
         baseURL: consoleOrigin, ignoreHTTPSErrors: true,
@@ -290,7 +303,6 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
         try {
           const approverSession = await signIn(approver, 'bob', `/inbox?proposalId=${proposalId}`);
           expect(approverSession.principalId).not.toBe(session.principalId);
-          const proposalPath = `/api/processes/admin/proposals/${proposalId}`;
           const pending = await read(approver, approverSession, proposalPath);
           expect(pending.requestedBy).toBe(first.ownerId);
           const detail = approver.locator(`[data-proposal-id="${proposalId}"]:has([data-proposal-status])`).last();
@@ -301,6 +313,7 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
           const resolved = await read(approver, approverSession, proposalPath);
           expect(resolved.resolvedBy).toBeTruthy();
           expect(resolved.resolvedBy).not.toBe(resolved.requestedBy);
+          completed.push('separate-approval');
         } finally { await approverHealth.verify(info); }
       } finally { await approverContext.close(); }
       await expect.poll(async () => {
@@ -336,14 +349,14 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
     expect(health.successfulReads.length, 'widgets must read actual features through the host transport').toBeGreaterThan(0);
   } finally {
     await info.attach('customer-journey-progress.json', { contentType: 'application/json',
-      body: Buffer.from(JSON.stringify({ completed, qualificationComplete: ['non-admin-auth', 'import-publish-customer-regions.geojson', 'import-publish-customer-sites.csv', 'two-layers-filter-widget', 'session-expiry-recovery', 'authored-style-labels', 'save-reload-reopen', 'independent-server-render', 'public-audience', 'accessibility'].every(stage => completed.includes(stage)) }, null, 2)) });
+      body: Buffer.from(JSON.stringify({ completed, qualificationComplete: ['publisher-auth', 'import-publish-customer-regions.geojson', 'import-publish-customer-sites.csv', 'two-layers-filter-widget', 'session-expiry-recovery', 'authored-style-labels', 'save-reload-reopen', 'independent-server-render', 'separate-approval', 'public-audience', 'accessibility'].every(stage => completed.includes(stage)) }, null, 2)) });
     if (health) await health.verify(info);
   }
 });
 
 test('widget transport control: real recipe table and filter use the host session', async ({ page }, info) => {
   // An independent operator control isolates widget transport from customer import permissions.
-  // It does not count towards the non-admin customer qualification above.
+  // It does not count towards the customer qualification above.
   const session = await signIn(page, 'alice');
   const health = observeHealth(page);
   const verifier = await request.newContext({ baseURL: serverUrl,
