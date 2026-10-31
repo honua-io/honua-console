@@ -3,8 +3,13 @@
 ## One command
 
 ```sh
+export HONUA_CONSOLE_E2E_SERVER_IMAGE='ghcr.io/honua-io/honua-server@sha256:<digest>'
 make e2e-live          # or: npm run e2e:live
 ```
+
+Replace `<digest>` with the selected immutable server image digest. For local
+source-build diagnostics, an explicit local image tag is also accepted; record
+its source revision and image ID separately from release evidence.
 
 ### Prerequisites
 
@@ -16,8 +21,8 @@ make e2e-live          # or: npm run e2e:live
 
 ## What it does
 
-1. Pulls `postgis/postgis:16-3.4`, `redis:7-alpine`, and
-   `ghcr.io/honua-io/honua-server:nightly-aot`.
+1. Pulls `postgis/postgis:16-3.4`, `redis:7-alpine`, and the explicitly selected
+   `HONUA_CONSOLE_E2E_SERVER_IMAGE`.
 2. Starts the stack (`docker-compose.yml` plus the `docker-compose.auth.yml`
    Keycloak overlay) via `docker compose up -d --wait`; all services must be
    healthy before Playwright runs.
