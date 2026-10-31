@@ -1,6 +1,6 @@
 {
   "schema": "honua.studio.console-assets/v1",
-  "sourceCommit": "9637a7ce31cb1e1dd66d83daa1b00d706d787424",
+  "sourceCommit": "b1ba0f03dbc8c38134857b01096acfe1c66b8fa4",
   "releaseQualified": false,
   "integrationQualification": "pending-installed-workspace-journey",
   "sdk": {
@@ -2184,8 +2184,8 @@
       "sha256": "8dcf5f37f3942ac4fc2e076701be2d92d02d8f5d7bf3d06149da005efff906f4"
     },
     "console.js": {
-      "bytes": 927010,
-      "sha256": "07800f4a5bed756bee0df7c3683042e50902c5150964fbc9f4f0d46e548ef715"
+      "bytes": 927046,
+      "sha256": "d60dd20b9e974112f408bd284416238e0c2c77db1443c838281edf072e0a3b0e"
     },
     "constants-B8tqYbYF.js": {
       "bytes": 149,
@@ -2221,7 +2221,7 @@
     },
     "maputnik/PROVENANCE.json": {
       "bytes": 1568,
-      "sha256": "0111f337437caf0cc26ad2c0a8f0b445a9ce9499c3d004418dacc49761a49560"
+      "sha256": "d9e86c563723e36ff928b762804f9f666d6b6df8fd2983fd9e096dd67695d6bc"
     },
     "maputnik/THIRD-PARTY-NOTICES.txt": {
       "bytes": 1948675,

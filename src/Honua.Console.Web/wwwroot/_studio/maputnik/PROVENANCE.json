@@ -14,7 +14,7 @@
     "scripts/maputnik/host-store.ts": "32cb94f7a2e65a1f74a6b85cbd026dcee8a671188fd7a679b1c45cd886419707",
     "scripts/maputnik/host-entry.jsx": "a93e8867cdc4659e1cb7f93d5fe197fdbace0fe30d02803bc7f389bcdaf928e9",
     "scripts/maputnik/host-layout.css": "5092d72e08391ab7366dc00e608b74265816552ddc414dfa24b7a028315a0703",
-    "scripts/maputnik/dependency-overlay.json": "78139b75f0a0d98b5a46664adacb4daf7fb5d43d6621ac2b872484111fce3d6d",
+    "scripts/maputnik/dependency-overlay.json": "d933a66951a9000d4a8ceed0ea345ca980317f14f1f192b5de52e7e65b99405f",
     "scripts/vendor-maputnik.mjs": "ac74d942e658ded23a06c84f8380b075499b6a7f9dcfa92d51bb4d3a6ac8cc59"
   },
   "files": {
