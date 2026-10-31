@@ -17,6 +17,9 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
     const customer = await customerIdentity();
     const session = await test.step('real OIDC sign-in and least-privilege negative control', async () => {
       const session = await signIn(page);
+      const lifetime = Date.parse(session.expiresAt) - Date.now();
+      expect(lifetime, 'the real session must have a positive bearer lifetime').toBeGreaterThan(0);
+      expect(lifetime, 'the testbed must issue a one-minute bearer').toBeLessThanOrEqual(65_000);
       // This API client shares the customer's cookie. A successful admin read would invalidate the test identity.
       const admin = await page.request.get('/api/processes/admin/proposals/customer-negative', { headers: headers(session) });
       expect(admin.status(), 'customer must not acquire admin proposal access').toBe(403);
@@ -192,6 +195,8 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
     await page.getByRole('button', { name: 'Reopen version 1 as draft', exact: true }).click();
     await expect.poll(() => identity(page).then(value => value?.draftId)).not.toBe(original.draftId);
     const reopened = await readDraft((await identity(page))!.draftId);
+    expect(reopened.itemId).toBe(authored.itemId);
+    expect((await identity(page))?.packageKey).toBe(packageKey);
     expect(reopened.ownerId).toBe(first.ownerId);
     expect(reopened.envelope.body).toEqual(labelled.envelope.body);
     completed.push('save-reload-reopen');
