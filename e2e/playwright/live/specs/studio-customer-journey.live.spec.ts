@@ -304,7 +304,7 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
 test('widget transport control: real recipe table and filter use the host session', async ({ page }, info) => {
   // An independent operator control isolates widget transport from customer import permissions.
   // It does not count towards the non-admin customer qualification above.
-  await signIn(page, 'alice');
+  const session = await signIn(page, 'alice');
   const health = observeHealth(page);
   const verifier = await request.newContext({ baseURL: serverUrl,
     extraHTTPHeaders: { 'X-API-Key': process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key' } });
@@ -345,8 +345,27 @@ test('widget transport control: real recipe table and filter use the host sessio
     await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(1);
     await expect(page.getByTestId('studio-widget-grid-row')).toContainText('West');
     expect(health.successfulReads.some(path => path.includes(`/FeatureServer/${layerId}/query`))).toBe(true);
+    const original = (await identity(page))!;
+    const draftPath = `/api/studio/v1/studio/package-drafts/${original.draftId}`;
+    const beforeRefresh = await read(page, session, draftPath);
+    const originalExpiry = Date.parse(session.expiresAt);
+    await expect.poll(() => Date.now(), { timeout: 75_000, intervals: [1000] }).toBeGreaterThan(originalExpiry + 1000);
+    const renewed = await read(page, session, '/api/agent-workspace/session');
+    expect(Date.parse(renewed.expiresAt)).toBeGreaterThan(originalExpiry);
+    expect(renewed.principalId).toBe(session.principalId);
+    Object.assign(session, renewed);
+    await page.getByTestId('studio-control-filter-select').selectOption('east');
+    await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(1);
+    await expect(page.getByTestId('studio-widget-grid-row')).toContainText('East');
+    expect((await identity(page))?.draftId).toBe(original.draftId);
+    const afterRefresh = await read(page, session, draftPath);
+    expect(afterRefresh.ownerId).toBe(beforeRefresh.ownerId);
+    expect(afterRefresh.envelope.body).toEqual(beforeRefresh.envelope.body);
+    await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
+    await expect(page.getByRole('list', { name: 'Versions of this map', exact: true })).toBeVisible();
     await info.attach('widget-transport-outcome.json', { contentType: 'application/json',
-      body: Buffer.from(JSON.stringify({ service, layerId, transportPassed: true, fullRows: 2, westRows: 1 })) });
+      body: Buffer.from(JSON.stringify({ service, layerId, transportPassed: true, fullRows: 2, westRows: 1,
+        eastRowsAfterRefresh: 1, originalExpiry, renewedExpiry: Date.parse(renewed.expiresAt), sameDraftAfterRefresh: true })) });
   } finally {
     await verifier.dispose();
     await health.verify(info);
