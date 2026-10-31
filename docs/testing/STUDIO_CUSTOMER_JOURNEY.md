@@ -19,7 +19,9 @@ required when replaying a published Console. The runtime receipt checks the actu
 container image IDs, observed repository digests and source labels, plus `/version.json`.
 Setting `HONUA_CONSOLE_E2E_CONSOLE_IMAGE` disables the Playwright source web server.
 
-The testbed sets a one-minute operator bearer lifetime while leaving the real IdP
+The testbed uses the unlicensed 2026.1 server posture (`Licensing:Mode=Disabled`),
+where ordinary draft composition executes directly and publication retains its separate
+governed approval floor. It sets a one-minute operator bearer lifetime while leaving the real IdP
 session alive, so a real server refresh can occur during authoring. The test observes
 the old expiry pass and requires a newer server expiry with the same principal and map.
 It never edits browser clocks, injects tokens, supplies fake model responses or replaces

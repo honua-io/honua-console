@@ -7,12 +7,9 @@ services:
     environment:
       Studio__EndUserAuthorization__Enabled: "true"
       Authentication__OperatorBearer__MaxLifetimeMinutes: "1"
-      # Development does not append the Production admin rule. Mirror only that
-      # role-scoped rule for the independent operator control; customer stays user-only.
-      Operations__Policy__Rules__0__OperationId: "*"
-      Operations__Policy__Rules__0__Role: admin
-      Operations__Policy__Rules__0__Decision: Allow
-      Operations__Policy__Rules__0__Reason: "Live control mirrors the Production administrator rule"
+      # Match the unlicensed 2026.1 release posture: ordinary composition is
+      # direct, while publication keeps its separate governed approval floor.
+      Licensing__Mode: Disabled
   console:
     image: ${HONUA_CONSOLE_E2E_CONSOLE_IMAGE:?Set a built Console image or immutable GHCR digest}
     network_mode: "service:postgis"
