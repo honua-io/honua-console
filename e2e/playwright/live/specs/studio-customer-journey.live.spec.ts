@@ -215,8 +215,10 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
         const savedFill = reopened.envelope.body.mapSpec.layers.find((layer: any) => layer.type === 'fill');
         const expression = savedFill.paint['fill-color'];
         expect(expression).toEqual(['match', ['get', 'category'], 'west', '#eff3ff', 'east', '#c6dbef', '#9ecae1']);
+        const opacity = savedFill.paint['fill-opacity'] ?? 1;
+        expect(typeof opacity).toBe('number');
         const symbol = (hex: string) => ({ type: 'esriSFS', style: 'esriSFSSolid',
-          color: [1, 3, 5].map(offset => parseInt(hex.slice(offset, offset + 2), 16)).concat(255),
+          color: [1, 3, 5].map(offset => parseInt(hex.slice(offset, offset + 2), 16)).concat(Math.round(opacity * 255)),
           outline: { type: 'esriSLS', style: 'esriSLSSolid', color: [0, 0, 0, 0], width: 0 } });
         const rules = [2, 4].map(index => ({ value: expression[index], symbol: symbol(expression[index + 1]) }));
         const render = async (name: string, negative?: 'swapped' | 'empty') => {
@@ -245,6 +247,7 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
         const distance = (pixel: number[], expected: number[]) => Math.sqrt(expected.reduce((sum, value, index) => sum + (pixel[index] - value) ** 2, 0));
         expect(distance(pixels[0], [239, 243, 255]), 'west must use the customer-authored colour').toBeLessThan(10);
         expect(distance(pixels[1], [198, 219, 239]), 'east must use a distinct customer-authored colour').toBeLessThan(10);
+        expect(Math.abs(pixels[0][3] - Math.round(opacity * 255))).toBeLessThanOrEqual(1);
         expect(distance(pixels[0], [198, 219, 239]), 'negative control: swapped classes must fail').toBeGreaterThan(30);
         expect(pixels[2][3], 'gap between polygons remains transparent').toBe(0);
         const swapped = await render('swapped-negative', 'swapped');
@@ -277,19 +280,22 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
       });
       try {
         const approver = await approverContext.newPage();
-        const approverSession = await signIn(approver, 'bob', `/inbox?proposalId=${proposalId}`);
-        expect(approverSession.principalId).not.toBe(session.principalId);
-        const proposalPath = `/api/processes/admin/proposals/${proposalId}`;
-        const pending = await read(approver, approverSession, proposalPath);
-        expect(pending.requestedBy).toBe(first.ownerId);
-        const detail = approver.locator(`[data-proposal-id="${proposalId}"]:has([data-proposal-status])`).last();
-        await detail.locator('[data-proposal-approve]').click();
-        await expect(detail.locator('[data-proposal-action-message]')).toContainText('Approved');
-        await expect.poll(async () => (await read(approver, approverSession, proposalPath)).status?.toLowerCase(),
-          { timeout: 90_000 }).toBe('succeeded');
-        const resolved = await read(approver, approverSession, proposalPath);
-        expect(resolved.resolvedBy).toBeTruthy();
-        expect(resolved.resolvedBy).not.toBe(resolved.requestedBy);
+        const approverHealth = observeHealth(approver);
+        try {
+          const approverSession = await signIn(approver, 'bob', `/inbox?proposalId=${proposalId}`);
+          expect(approverSession.principalId).not.toBe(session.principalId);
+          const proposalPath = `/api/processes/admin/proposals/${proposalId}`;
+          const pending = await read(approver, approverSession, proposalPath);
+          expect(pending.requestedBy).toBe(first.ownerId);
+          const detail = approver.locator(`[data-proposal-id="${proposalId}"]:has([data-proposal-status])`).last();
+          await detail.locator('[data-proposal-approve]').click();
+          await expect(detail.locator('[data-proposal-action-message]')).toContainText('Approved');
+          await expect.poll(async () => (await read(approver, approverSession, proposalPath)).status?.toLowerCase(),
+            { timeout: 90_000 }).toBe('succeeded');
+          const resolved = await read(approver, approverSession, proposalPath);
+          expect(resolved.resolvedBy).toBeTruthy();
+          expect(resolved.resolvedBy).not.toBe(resolved.requestedBy);
+        } finally { await approverHealth.verify(info); }
       } finally { await approverContext.close(); }
       await expect.poll(async () => {
         await publication.getByRole('button', { name: 'Refresh publication status' }).click();
@@ -300,20 +306,23 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
       const anonymous = await page.context().browser()!.newContext();
       try {
         const viewer = await anonymous.newPage();
-        const response = await viewer.goto(new URL(href!, page.url()).href);
-        expect(response?.status()).toBe(200);
-        await expect(viewer.locator('[data-published-map]')).toBeVisible();
-        await expect(viewer.locator('[data-map-status]')).toHaveText('Map ready.');
-        await expect.poll(async () => Number(await viewer.locator('[data-map-canvas]').getAttribute('data-rendered-feature-count'))).toBeGreaterThan(0);
-        const definition = await anonymous.request.get(new URL(`/api/v1/studio/published${route}`, serverUrl).href);
-        expect(definition.status()).toBe(200);
-        const document = await definition.json();
-        expect(JSON.stringify(document)).toContain(packageKey);
-        expect(JSON.stringify(document)).toContain('#eff3ff');
-        const privateDraft = await anonymous.request.get(new URL(draftPath(reopened.draftId), page.url()).href, { maxRedirects: 0 });
-        expect([401, 403]).toContain(privateDraft.status());
-        await accessibility(viewer, info, 'public-map');
-        completed.push('public-audience');
+        const viewerHealth = observeHealth(viewer);
+        try {
+          const response = await viewer.goto(new URL(href!, page.url()).href);
+          expect(response?.status()).toBe(200);
+          await expect(viewer.locator('[data-published-map]')).toBeVisible();
+          await expect(viewer.locator('[data-map-status]')).toHaveText('Map ready.');
+          await expect.poll(async () => Number(await viewer.locator('[data-map-canvas]').getAttribute('data-rendered-feature-count'))).toBeGreaterThan(0);
+          const definition = await anonymous.request.get(new URL(`/api/v1/studio/published${route}`, serverUrl).href);
+          expect(definition.status()).toBe(200);
+          const document = await definition.json();
+          expect(JSON.stringify(document)).toContain(packageKey);
+          expect(JSON.stringify(document)).toContain('#eff3ff');
+          const privateDraft = await anonymous.request.get(new URL(draftPath(reopened.draftId), page.url()).href, { maxRedirects: 0 });
+          expect([401, 403]).toContain(privateDraft.status());
+          await accessibility(viewer, info, 'public-map');
+          completed.push('public-audience');
+        } finally { await viewerHealth.verify(info); }
       } finally { await anonymous.close(); }
     });
     await accessibility(page, info, 'reopened-map');
