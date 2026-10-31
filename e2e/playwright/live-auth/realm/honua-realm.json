@@ -6,8 +6,14 @@
   "registrationAllowed": false,
   "roles": {
     "realm": [
-      { "name": "admin", "description": "Honua operator admin role" },
-      { "name": "user", "description": "Honua operator base role" }
+      {
+        "name": "admin",
+        "description": "Honua operator admin role"
+      },
+      {
+        "name": "user",
+        "description": "Honua operator base role"
+      }
     ]
   },
   "users": [
@@ -19,9 +25,16 @@
       "firstName": "Alice",
       "lastName": "Operator",
       "credentials": [
-        { "type": "password", "value": "alice-live-proof-pw", "temporary": false }
+        {
+          "type": "password",
+          "value": "alice-live-proof-pw",
+          "temporary": false
+        }
       ],
-      "realmRoles": ["admin", "user"]
+      "realmRoles": [
+        "admin",
+        "user"
+      ]
     },
     {
       "username": "bob",
@@ -31,9 +44,34 @@
       "firstName": "Bob",
       "lastName": "Operator",
       "credentials": [
-        { "type": "password", "value": "bob-live-proof-pw", "temporary": false }
+        {
+          "type": "password",
+          "value": "bob-live-proof-pw",
+          "temporary": false
+        }
       ],
-      "realmRoles": ["admin", "user"]
+      "realmRoles": [
+        "admin",
+        "user"
+      ]
+    },
+    {
+      "username": "customer",
+      "enabled": true,
+      "email": "customer@live-proof.honua.test",
+      "emailVerified": true,
+      "firstName": "Fresh",
+      "lastName": "Customer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "customer-live-proof-pw",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "user"
+      ]
     }
   ],
   "clients": [
@@ -50,7 +88,9 @@
       "redirectUris": [
         "http://127.0.0.1:5274/admin/auth/callback"
       ],
-      "webOrigins": ["http://127.0.0.1:5274"],
+      "webOrigins": [
+        "http://127.0.0.1:5274"
+      ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://127.0.0.1:5274/admin"

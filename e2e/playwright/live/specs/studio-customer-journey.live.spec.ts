@@ -1,0 +1,318 @@
+import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { expect, test, request } from '@playwright/test';
+import { sourceConnectionBody } from '../source-db';
+import { accessibility, createRecipe, headers, identity, observeHealth, read, serverUrl, signIn, type Draft } from '../studio-customer';
+
+// No seeded cookies, API-key customer mutations, route mocks, skips or UI-only success criteria.
+// A fresh compose database and fresh Keycloak realm are required for each invocation.
+const nonce = () => randomUUID().replaceAll('-', '').slice(0, 16);
+const fixture = (name: string) => fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url));
+
+test('fresh non-admin customer imports, authors, saves and reopens a map', async ({ page }, info) => {
+  const completed: string[] = [];
+  const health = observeHealth(page);
+  try {
+    const session = await test.step('real OIDC sign-in and least-privilege negative control', async () => {
+      const session = await signIn(page);
+      // This API client shares the customer's cookie. A successful admin read would invalidate the test identity.
+      const admin = await page.request.get('/api/processes/admin/proposals/customer-negative', { headers: headers(session) });
+      expect(admin.status(), 'customer must not acquire admin proposal access').toBe(403);
+      completed.push('non-admin-auth');
+      return session;
+    });
+    const services: Array<{ service: string; layerId: number; title: string }> = [];
+    // Provision the private source connection as test infrastructure only. Neither customer import nor
+    // publication uses this verifier's key, and the key is absent from the Console container.
+    const verifier = await request.newContext({ baseURL: serverUrl,
+      extraHTTPHeaders: { 'X-API-Key': process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key' } });
+    try {
+      const connectionResponse = await verifier.post('/api/v1/admin/connections/', { data: sourceConnectionBody(`customer-${nonce()}`) });
+      expect(connectionResponse.status()).toBe(201);
+      const { data: connection } = await connectionResponse.json();
+      for (const file of ['customer-regions.geojson', 'customer-sites.csv']) {
+        await test.step(`customer imports and publishes ${file}, verified through both protocols`, async () => {
+          const table = `customer_${nonce()}`, service = `customer-${nonce()}`, title = `Customer ${table}`;
+          await page.goto('/operate/resources/import');
+          const fileInput = page.locator('input[type="file"]');
+          await expect.poll(() => fileInput.evaluate(element => '_blazorInputFileNextFileId' in element)).toBe(true);
+          await fileInput.setInputFiles(fixture(file));
+          await page.getByPlaceholder('parcels', { exact: true }).fill(table);
+          await page.getByRole('button', { name: 'Import file', exact: true }).click();
+          await expect(page.getByRole('heading', { name: 'File imported', exact: true }),
+            'Import failed is a product failure, never an acceptable outcome').toBeVisible({ timeout: 90_000 });
+          await expect(page.locator('[data-imported-table]')).toHaveText(table);
+          const tablesResponse = await verifier.get(`/api/v1/admin/connections/${connection.connectionId}/tables`);
+          expect(tablesResponse.ok()).toBe(true);
+          const importedTables = (await tablesResponse.json()).tables.filter((entry: any) => entry.table === table || entry.table === `imported_${table}`);
+          expect(importedTables, 'one physical imported table must exist').toHaveLength(1);
+          const importedTable = importedTables[0];
+          await page.goto('/operate/publishing/quick');
+          await page.getByLabel('Connection', { exact: true }).selectOption(connection.connectionId);
+          await expect(page.getByLabel('Table', { exact: true })).toBeEnabled({ timeout: 60_000 });
+          await page.getByLabel('Table', { exact: true }).selectOption(`${importedTable.schema}.${importedTable.table}`);
+          await page.getByPlaceholder('parcels-fs', { exact: true }).fill(service);
+          await page.getByPlaceholder('Parcels', { exact: true }).fill(title);
+          await page.getByRole('button', { name: 'Publish layer', exact: true }).click();
+          await expect(page.getByRole('heading', { name: 'Layer published', exact: true })).toBeVisible();
+          const layerId = Number(await page.locator('[data-published-layer-id]').textContent());
+          expect(Number.isSafeInteger(layerId)).toBe(true);
+          const prefix = `/rest/services/${service}/FeatureServer/${layerId}`;
+          const metadataResponse = await verifier.get(`${prefix}?f=json`);
+          expect(metadataResponse.ok()).toBe(true);
+          const metadata = await metadataResponse.json();
+          expect(metadata.fields).toEqual(expect.arrayContaining([
+            expect.objectContaining({ name: 'name', type: 'esriFieldTypeString' }),
+            expect.objectContaining({ name: 'category', type: 'esriFieldTypeString' }),
+            expect.objectContaining({ name: 'population', type: expect.stringMatching(/Integer|SmallInteger|BigInteger/) }),
+            expect.objectContaining({ name: 'rating', type: expect.stringMatching(/Double|Single/) }),
+          ]));
+          const query = await verifier.get(`${prefix}/query?where=1%3D1&outFields=*&f=json`);
+          expect(query.ok()).toBe(true);
+          expect((await query.json()).features.map((entry: any) => entry.attributes.rating).sort()).toEqual([1.5, 2.5]);
+          const collections = await verifier.get('/ogc/features/collections?f=json');
+          expect(collections.ok()).toBe(true);
+          const collection = (await collections.json()).collections.find((entry: any) => entry.title === title || entry.id === String(layerId));
+          expect(collection, 'published layer must be discoverable through OGC Features').toBeTruthy();
+          const itemsResponse = await verifier.get(`/ogc/features/collections/${encodeURIComponent(collection.id)}/items?f=json&limit=10`);
+          expect(itemsResponse.ok()).toBe(true);
+          const items = await itemsResponse.json();
+          expect(items.features).toHaveLength(2);
+          for (const feature of items.features) {
+            expect(typeof feature.properties.name).toBe('string');
+            expect(typeof feature.properties.population).toBe('number');
+            expect(typeof feature.properties.rating).toBe('number');
+          }
+          services.push({ service, layerId, title });
+          completed.push(`import-publish-${file}`);
+        });
+      }
+    } finally { await verifier.dispose(); }
+
+    await page.goto('/studio');
+    await expect(page.locator('[data-studio-status]')).toContainText('Connected to');
+    const packageKey = `customer-map-${nonce()}`;
+    const sources = await page.locator('honua-studio-app').evaluate(element =>
+      (element as any).sourceCatalog as Array<{ id: string; locator?: { url?: string; layerId?: number } }>);
+    const source = sources.find(entry => entry.locator?.url?.includes(services[0].service) && entry.locator.layerId === services[0].layerId);
+    expect(source).toBeTruthy();
+    await createRecipe(page, source!.id, packageKey);
+    await accessibility(page, info, 'recipe-map');
+    const original = (await identity(page))!;
+    const draftPath = (id: string) => `/api/studio/v1/studio/package-drafts/${encodeURIComponent(id)}`;
+    const readDraft = (id: string): Promise<Draft> => read(page, session, draftPath(id));
+    const first = await readDraft(original.draftId);
+    expect(first.ownerId).toBeTruthy();
+    expect(first.createdBy).toBe(first.ownerId);
+    expect(first.envelope.body.layers).toHaveLength(1);
+    await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(2);
+    await page.getByTestId('studio-control-filter-select').selectOption('west');
+    await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(1);
+    await expect(page.getByTestId('studio-widget-grid-row')).toContainText('West');
+    await page.getByTestId('studio-control-filter-select').selectOption('east');
+    await expect(page.getByTestId('studio-widget-grid-row')).toContainText('East');
+    await page.getByTestId('studio-control-filter-select').selectOption('');
+    await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(2);
+    await page.getByRole('button', { name: `Add ${services[1].title} to map`, exact: true }).focus();
+    await page.keyboard.press('Enter');
+    await expect.poll(async () => (await readDraft(original.draftId)).envelope.body.layers.length).toBeGreaterThanOrEqual(2);
+    completed.push('two-layers-filter-widget');
+    await test.step('real bearer expiry and automatic refresh preserve Studio', async () => {
+      const initialExpiry = Date.parse(session.expiresAt);
+      expect(initialExpiry - Date.now(), 'the testbed must issue a short-lived bearer').toBeLessThanOrEqual(65_000);
+      await expect.poll(() => Date.now(), { timeout: 75_000, intervals: [1000] }).toBeGreaterThan(initialExpiry + 1000);
+      const refreshed = await read(page, session, '/api/agent-workspace/session');
+      expect(refreshed.authenticated).toBe(true);
+      expect(Date.parse(refreshed.expiresAt)).toBeGreaterThan(initialExpiry);
+      expect(refreshed.principalId).toBe(session.principalId);
+      expect(refreshed.environmentId).toBe(session.environmentId);
+      Object.assign(session, refreshed);
+      expect((await identity(page))?.draftId).toBe(original.draftId);
+      await page.getByTestId('studio-control-filter-select').selectOption('west');
+      await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(1);
+      await page.getByTestId('studio-control-filter-select').selectOption('');
+      await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(2);
+      await info.attach('session-refresh.json', { contentType: 'application/json',
+        body: Buffer.from(JSON.stringify({ initialExpiry, refreshedExpiry: Date.parse(refreshed.expiresAt), samePrincipal: true })) });
+      completed.push('session-expiry-recovery');
+    });
+
+    await page.getByRole('button', { name: 'Edit map style', exact: true }).click();
+    const editor = page.getByRole('region', { name: 'Map style editor', exact: true });
+    await expect(editor.locator('iframe')).toBeVisible();
+    await editor.getByRole('combobox', { name: 'Actual source field', exact: true }).selectOption('category');
+    await editor.getByRole('combobox', { name: 'Thematic method', exact: true }).selectOption('categories');
+    await editor.getByRole('textbox', { name: 'Explicit thematic values, one per line', exact: true }).fill('west\neast');
+    await editor.getByRole('button', { name: 'Preview thematic colors', exact: true }).click();
+    await editor.getByRole('button', { name: 'Save map style', exact: true }).click();
+    await expect(editor.getByRole('status')).toHaveText('Map style saved to the authorized draft.');
+    const authored = await readDraft(original.draftId);
+    expect(authored.ownerId).toBe(first.ownerId);
+    const style = authored.envelope.body.mapSpec;
+    const fill = style.layers.find((layer: any) => layer.type === 'fill');
+    expect(fill.paint['fill-color']).toEqual(['match', ['get', 'category'], 'west', '#eff3ff', 'east', '#c6dbef', '#9ecae1']);
+    // Labels are authored in the shipped visual editor, never injected into the composition in evaluate().
+    // If the editor cannot expose an attribute-label control, this requirement fails visibly.
+    const frame = editor.frameLocator('iframe');
+    await frame.getByRole('textbox', { name: /text-field/i }).fill('["get","name"]');
+    await frame.getByRole('textbox', { name: /text-field/i }).press('Tab');
+    await editor.getByRole('button', { name: 'Save map style', exact: true }).click();
+    await page.getByRole('button', { name: 'Return to map', exact: true }).click();
+    const labelled = await readDraft(original.draftId);
+    expect(labelled.envelope.body.mapSpec.layers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'symbol', layout: expect.objectContaining({ 'text-field': ['get', 'name'] }) }),
+    ]));
+    completed.push('authored-style-labels');
+    await page.getByRole('button', { name: 'Save version', exact: true }).click();
+    await expect(page.locator('[data-studio-status]')).toHaveText('Saved version 1.');
+    const versions = await read(page, session, `/api/studio/v1/studio/content-items/${authored.itemId}/versions`);
+    expect(versions.versions).toHaveLength(1);
+    const version = await read(page, session, `/api/studio/v1/studio/content-items/${authored.itemId}/versions/${versions.versions[0].versionId}`);
+    expect(version.ownerId).toBe(first.ownerId);
+    expect(version.envelope.body).toEqual(labelled.envelope.body);
+    await page.reload();
+    await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
+    await page.getByRole('button', { name: 'Reopen version 1 as draft', exact: true }).click();
+    await expect.poll(() => identity(page).then(value => value?.draftId)).not.toBe(original.draftId);
+    const reopened = await readDraft((await identity(page))!.draftId);
+    expect(reopened.ownerId).toBe(first.ownerId);
+    expect(reopened.envelope.body).toEqual(labelled.envelope.body);
+    completed.push('save-reload-reopen');
+    await test.step('independent server rendering matches the saved authored colours', async () => {
+      const witness = await request.newContext({ baseURL: serverUrl,
+        extraHTTPHeaders: { 'X-API-Key': process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key' } });
+      try {
+        const image = await witness.get(`/rest/services/${services[0].service}/MapServer/export?bbox=-2.4,-1.2,2.4,1.2&bboxSR=4326&imageSR=4326&size=320,160&format=png32&transparent=true&f=image`);
+        expect(image.status()).toBe(200);
+        expect(image.headers()['content-type']).toContain('image/png');
+        const png = await image.body();
+        await info.attach('independent-server-render.png', { contentType: 'image/png', body: png });
+        const pixels = await page.evaluate(async base64 => {
+          const image = new Image(); image.src = `data:image/png;base64,${base64}`;
+          await image.decode();
+          const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
+          const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0);
+          return [67, 253, 160].map(x => Array.from(context.getImageData(x, 80, 1, 1).data));
+        }, png.toString('base64'));
+        const distance = (pixel: number[], expected: number[]) => Math.sqrt(expected.reduce((sum, value, index) => sum + (pixel[index] - value) ** 2, 0));
+        expect(distance(pixels[0], [239, 243, 255]), 'west must use the customer-authored colour').toBeLessThan(10);
+        expect(distance(pixels[1], [198, 219, 239]), 'east must use a distinct customer-authored colour').toBeLessThan(10);
+        expect(distance(pixels[0], [198, 219, 239]), 'negative control: swapped classes must fail').toBeGreaterThan(30);
+        expect(pixels[2][3], 'negative control: gap between polygons remains transparent').toBe(0);
+        completed.push('independent-server-render');
+      } finally { await witness.dispose(); }
+    });
+    await test.step('customer publication and signed-out audience', async () => {
+      await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
+      await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+      const publication = page.getByRole('region', { name: 'Map publication', exact: true });
+      const route = `/customer-${nonce()}`;
+      await publication.getByRole('textbox', { name: 'Publication route' }).fill(route);
+      await publication.getByRole('combobox', { name: 'Publication audience' }).selectOption('public');
+      await publication.getByRole('button', { name: 'Publish reviewed version' }).click();
+      // Publication uses the product's separate-human approval contract. The customer cannot
+      // approve their own proposal. Until a distinct approver is available this assertion stays red.
+      await expect(publication.getByRole('link', { name: 'Open published map', exact: true })).toBeVisible({ timeout: 30_000 });
+      const href = await publication.getByRole('link', { name: 'Open published map', exact: true }).getAttribute('href');
+      expect(href).toBeTruthy();
+      const anonymous = await page.context().browser()!.newContext();
+      try {
+        const viewer = await anonymous.newPage();
+        const response = await viewer.goto(new URL(href!, page.url()).href);
+        expect(response?.status()).toBe(200);
+        await expect(viewer.locator('[data-published-map]')).toBeVisible();
+        await expect(viewer.locator('[data-map-status]')).toHaveText('Map ready.');
+        await expect.poll(async () => Number(await viewer.locator('[data-map-canvas]').getAttribute('data-rendered-feature-count'))).toBeGreaterThan(0);
+        const definition = await anonymous.request.get(new URL(`/api/v1/studio/published${route}`, serverUrl).href);
+        expect(definition.status()).toBe(200);
+        const document = await definition.json();
+        expect(JSON.stringify(document)).toContain(packageKey);
+        expect(JSON.stringify(document)).toContain('#eff3ff');
+        const privateDraft = await anonymous.request.get(new URL(draftPath(reopened.draftId), page.url()).href, { maxRedirects: 0 });
+        expect([401, 403]).toContain(privateDraft.status());
+        await accessibility(viewer, info, 'public-map');
+        completed.push('public-audience');
+      } finally { await anonymous.close(); }
+    });
+    await accessibility(page, info, 'reopened-map');
+    completed.push('accessibility');
+    expect(health.successfulReads.length, 'widgets must read actual features through the host transport').toBeGreaterThan(0);
+  } finally {
+    await info.attach('customer-journey-progress.json', { contentType: 'application/json',
+      body: Buffer.from(JSON.stringify({ completed, qualificationComplete: ['non-admin-auth', 'import-publish-customer-regions.geojson', 'import-publish-customer-sites.csv', 'two-layers-filter-widget', 'session-expiry-recovery', 'authored-style-labels', 'save-reload-reopen', 'independent-server-render', 'public-audience', 'accessibility'].every(stage => completed.includes(stage)) }, null, 2)) });
+    if (health) await health.verify(info);
+  }
+});
+
+test('widget transport control: real recipe table and filter use the host session', async ({ page }, info) => {
+  // An independent operator control isolates widget transport from customer import permissions.
+  // It does not count towards the non-admin customer qualification above.
+  await signIn(page, 'alice');
+  const health = observeHealth(page);
+  const verifier = await request.newContext({ baseURL: serverUrl,
+    extraHTTPHeaders: { 'X-API-Key': process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key' } });
+  try {
+    // This is an idempotently provisioned transport fixture, never import evidence.
+    const catalogResponse = await verifier.get('/rest/services?f=json');
+    expect(catalogResponse.status()).toBe(200);
+    const existing = (await catalogResponse.json()).services.find((item: any) => item.name.startsWith('widget-'));
+    let service: string, layerId: number;
+    if (existing) {
+      service = existing.name;
+      const metadata = await verifier.get(`/rest/services/${service}/FeatureServer?f=json`);
+      expect(metadata.status()).toBe(200);
+      const layers = (await metadata.json()).layers;
+      expect(layers).toHaveLength(1);
+      layerId = layers[0].id;
+    } else {
+      service = `widget-${nonce()}`;
+      const connection = await verifier.post('/api/v1/admin/connections/', { data: sourceConnectionBody(`widget-${nonce()}`) });
+      expect(connection.status()).toBe(201);
+      const connectionId = (await connection.json()).data.connectionId;
+      const publication = await verifier.post(`/api/v1/admin/connections/${connectionId}/layers/`, { data: {
+        schema: 'public', table: 'e2e_customer_regions', layerName: 'Widget regions', serviceName: service, enabled: true,
+        geometryColumn: 'geom', primaryKey: 'id', srid: 4326,
+      } });
+      expect(publication.status()).toBe(201);
+      layerId = (await publication.json()).data.layerId;
+    }
+    const features = await verifier.get(`/rest/services/${service}/FeatureServer/${layerId}/query?where=1%3D1&outFields=*&f=json`);
+    expect(features.status()).toBe(200);
+    expect((await features.json()).features).toHaveLength(2);
+    await page.reload();
+    await expect(page.locator('[data-studio-status]')).toContainText('Connected to');
+    const source = await page.locator('honua-studio-app').evaluate((element, selected) =>
+      ((element as any).sourceCatalog as Array<{ id: string; locator?: { url?: string; layerId?: number } }>)
+        .find(entry => entry.locator?.url?.includes(selected.service) && entry.locator?.layerId === selected.layerId),
+      { service, layerId });
+    expect(source).toBeTruthy();
+    await createRecipe(page, source!.id, `widget-map-${nonce()}`);
+    await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(2);
+    await page.getByTestId('studio-control-filter-select').selectOption('west');
+    await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(1);
+    await expect(page.getByTestId('studio-widget-grid-row')).toContainText('West');
+    expect(health.successfulReads.some(path => path.includes(`/FeatureServer/${layerId}/query`))).toBe(true);
+  } finally {
+    await verifier.dispose();
+    await health.verify(info);
+  }
+});
+
+test('Studio and its recipe panel meet axe and keyboard entry requirements', async ({ page }, info) => {
+  await signIn(page);
+  await expect(page.locator('honua-studio-app')).toBeVisible();
+  await accessibility(page, info, 'studio-workspace');
+  await page.getByTestId('recipe-toggle').focus();
+  await expect(page.getByTestId('recipe-toggle')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('recipe-panel')).toBeVisible();
+  await page.getByTestId('recipe-package-key').focus();
+  await page.keyboard.type(`keyboard-${nonce()}`);
+  await page.keyboard.press('Tab');
+  await expect(page.getByTestId('recipe-source')).toBeFocused();
+  await accessibility(page, info, 'studio-recipe');
+  await page.getByTestId('recipe-close').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('recipe-panel')).toBeHidden();
+  await expect(page.getByTestId('recipe-toggle')).toBeFocused();
+});
