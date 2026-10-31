@@ -156,3 +156,11 @@ export async function sourceFor(page: Page, service: string, layerId: number) {
   await expect.poll(() => matches().then(sources => sources.length), { timeout: 30_000 }).toBe(1);
   return (await matches())[0];
 }
+
+export async function paintedFeatures(page: Page, layerId: string): Promise<number> {
+  return page.locator('honua-studio-canvas').evaluate((element, id) => {
+    const map = (element as any).mapView?.map;
+    if (!map?.getLayer(id)) return 0;
+    return map.queryRenderedFeatures({ layers: [id] }).length;
+  }, layerId);
+}

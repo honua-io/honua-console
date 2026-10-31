@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { expect, test, request } from '@playwright/test';
 import { sourceConnectionBody } from '../source-db';
-import { accessibility, createRecipe, customerIdentity, headers, identity, observeHealth, read, serverUrl, signIn, sourceFor, type Draft } from '../studio-customer';
+import { accessibility, createRecipe, customerIdentity, headers, identity, observeHealth, paintedFeatures, read, serverUrl, signIn, sourceFor, type Draft } from '../studio-customer';
 
 // No seeded cookies, API-key customer mutations, route mocks, skips or UI-only success criteria.
 // A fresh compose database and fresh Keycloak realm are required for each invocation.
@@ -117,6 +117,7 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
     expect(ownerSubject, 'the server owner must be the actual IdP customer subject').toBe(customer.id);
     expect(first.createdBy).toBe(first.ownerId);
     expect(first.envelope.body.layers).toHaveLength(1);
+    await expect.poll(() => paintedFeatures(page, first.envelope.body.layers[0].id), { timeout: 45_000 }).toBeGreaterThan(0);
     await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(2);
     await page.getByTestId('studio-control-filter-select').selectOption('west');
     await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(1);
@@ -128,6 +129,9 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
     await page.getByRole('button', { name: `Add ${services[1].title} to map`, exact: true }).focus();
     await page.keyboard.press('Enter');
     await expect.poll(async () => (await readDraft(original.draftId)).envelope.body.layers.length).toBeGreaterThanOrEqual(2);
+    const composed = await readDraft(original.draftId);
+    for (const layer of composed.envelope.body.layers)
+      await expect.poll(() => paintedFeatures(page, layer.id), { timeout: 45_000 }).toBeGreaterThan(0);
     completed.push('two-layers-filter-widget');
     await test.step('real bearer expiry and automatic refresh preserve Studio', async () => {
       const initialExpiry = Date.parse(session.expiresAt);
@@ -199,6 +203,8 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
     expect((await identity(page))?.packageKey).toBe(packageKey);
     expect(reopened.ownerId).toBe(first.ownerId);
     expect(reopened.envelope.body).toEqual(labelled.envelope.body);
+    for (const layer of reopened.envelope.body.layers)
+      await expect.poll(() => paintedFeatures(page, layer.id), { timeout: 45_000 }).toBeGreaterThan(0);
     completed.push('save-reload-reopen');
     await test.step('independent server rendering matches the saved authored colours', async () => {
       const witness = await request.newContext({ baseURL: serverUrl,
