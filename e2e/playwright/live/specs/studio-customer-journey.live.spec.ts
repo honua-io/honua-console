@@ -78,8 +78,9 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
           expect((await query.json()).features.map((entry: any) => entry.attributes.rating).sort()).toEqual([1.5, 2.5]);
           const collections = await verifier.get('/ogc/features/collections?f=json');
           expect(collections.ok()).toBe(true);
-          const collection = (await collections.json()).collections.find((entry: any) => entry.title === title || entry.id === String(layerId));
-          expect(collection, 'published layer must be discoverable through OGC Features').toBeTruthy();
+          const matches = (await collections.json()).collections.filter((entry: any) => entry.title === title);
+          expect(matches, 'OGC must identify this publication, not another service sharing its layer number').toHaveLength(1);
+          const collection = matches[0];
           const itemsResponse = await verifier.get(`/ogc/features/collections/${encodeURIComponent(collection.id)}/items?f=json&limit=10`);
           expect(itemsResponse.ok()).toBe(true);
           const items = await itemsResponse.json();
@@ -87,8 +88,13 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
           for (const feature of items.features) {
             expect(typeof feature.properties.name).toBe('string');
             expect(typeof feature.properties.population).toBe('number');
+            expect(Number.isInteger(feature.properties.population)).toBe(true);
             expect(typeof feature.properties.rating).toBe('number');
+            expect(feature.geometry.type).toBe(file.endsWith('.csv') ? 'Point' : 'Polygon');
           }
+          expect(items.features.map((feature: any) => feature.properties.category).sort()).toEqual(['east', 'west']);
+          expect(items.features.map((feature: any) => feature.properties.population).sort((a: number, b: number) => a - b)).toEqual([10, 20]);
+          expect(items.features.map((feature: any) => feature.properties.rating).sort()).toEqual([1.5, 2.5]);
           services.push({ service, layerId, title });
           completed.push(`import-publish-${file}`);
         });
