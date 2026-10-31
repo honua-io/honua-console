@@ -210,23 +210,48 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
       const witness = await request.newContext({ baseURL: serverUrl,
         extraHTTPHeaders: { 'X-API-Key': process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key' } });
       try {
-        const image = await witness.get(`/rest/services/${services[0].service}/MapServer/export?bbox=-2.4,-1.2,2.4,1.2&bboxSR=4326&imageSR=4326&size=320,160&format=png32&transparent=true&f=image`);
-        expect(image.status()).toBe(200);
-        expect(image.headers()['content-type']).toContain('image/png');
-        const png = await image.body();
-        await info.attach('independent-server-render.png', { contentType: 'image/png', body: png });
-        const pixels = await page.evaluate(async base64 => {
-          const image = new Image(); image.src = `data:image/png;base64,${base64}`;
-          await image.decode();
-          const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
-          const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0);
-          return [67, 253, 160].map(x => Array.from(context.getImageData(x, 80, 1, 1).data));
-        }, png.toString('base64'));
+        // A service-default export cannot witness a map-local style. Render the
+        // saved expression through the independent MapServer dynamic-layer path.
+        const savedFill = reopened.envelope.body.mapSpec.layers.find((layer: any) => layer.type === 'fill');
+        const expression = savedFill.paint['fill-color'];
+        expect(expression).toEqual(['match', ['get', 'category'], 'west', '#eff3ff', 'east', '#c6dbef', '#9ecae1']);
+        const symbol = (hex: string) => ({ type: 'esriSFS', style: 'esriSFSSolid',
+          color: [1, 3, 5].map(offset => parseInt(hex.slice(offset, offset + 2), 16)).concat(255),
+          outline: { type: 'esriSLS', style: 'esriSLSSolid', color: [0, 0, 0, 0], width: 0 } });
+        const rules = [2, 4].map(index => ({ value: expression[index], symbol: symbol(expression[index + 1]) }));
+        const render = async (name: string, negative?: 'swapped' | 'empty') => {
+          const uniqueValueInfos = negative === 'swapped'
+            ? rules.map((rule, index) => ({ ...rule, symbol: rules[1 - index].symbol })) : rules;
+          const dynamicLayers = [{ id: 0, source: { type: 'mapLayer', mapLayerId: services[0].layerId },
+            ...(negative === 'empty' ? { definitionExpression: '1=0' } : {}),
+            drawingInfo: { renderer: { type: 'uniqueValue', field1: expression[1][1],
+              defaultSymbol: symbol(expression[6]), uniqueValueInfos } } }];
+          const params = new URLSearchParams({ bbox: '-2.4,-1.2,2.4,1.2', bboxSR: '4326', imageSR: '4326',
+            size: '320,160', format: 'png32', transparent: 'true', f: 'image', dynamicLayers: JSON.stringify(dynamicLayers) });
+          const image = await witness.get(`/rest/services/${services[0].service}/MapServer/export?${params}`);
+          expect(image.status()).toBe(200);
+          expect(image.headers()['content-type']).toContain('image/png');
+          const png = await image.body();
+          await info.attach(`independent-server-render-${name}.png`, { contentType: 'image/png', body: png });
+          return page.evaluate(async base64 => {
+            const image = new Image(); image.src = `data:image/png;base64,${base64}`;
+            await image.decode();
+            const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
+            const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0);
+            return [67, 253, 160].map(x => Array.from(context.getImageData(x, 80, 1, 1).data));
+          }, png.toString('base64'));
+        };
+        const pixels = await render('authored');
         const distance = (pixel: number[], expected: number[]) => Math.sqrt(expected.reduce((sum, value, index) => sum + (pixel[index] - value) ** 2, 0));
         expect(distance(pixels[0], [239, 243, 255]), 'west must use the customer-authored colour').toBeLessThan(10);
         expect(distance(pixels[1], [198, 219, 239]), 'east must use a distinct customer-authored colour').toBeLessThan(10);
         expect(distance(pixels[0], [198, 219, 239]), 'negative control: swapped classes must fail').toBeGreaterThan(30);
-        expect(pixels[2][3], 'negative control: gap between polygons remains transparent').toBe(0);
+        expect(pixels[2][3], 'gap between polygons remains transparent').toBe(0);
+        const swapped = await render('swapped-negative', 'swapped');
+        expect(distance(swapped[0], [239, 243, 255])).toBeGreaterThan(30);
+        expect(distance(swapped[0], [198, 219, 239])).toBeLessThan(10);
+        const empty = await render('empty-negative', 'empty');
+        expect(empty.map(pixel => pixel[3]), 'no features means no authored pixels').toEqual([0, 0, 0]);
         completed.push('independent-server-render');
       } finally { await witness.dispose(); }
     });
@@ -353,6 +378,9 @@ test('widget transport control: real recipe table and filter use the host sessio
     const renewed = await read(page, session, '/api/agent-workspace/session');
     expect(Date.parse(renewed.expiresAt)).toBeGreaterThan(originalExpiry);
     expect(renewed.principalId).toBe(session.principalId);
+    await info.attach('bearer-renewal-observation.json', { contentType: 'application/json',
+      body: Buffer.from(JSON.stringify({ originalExpiry, renewedExpiry: Date.parse(renewed.expiresAt),
+        observedAt: Date.now(), samePrincipal: true })) });
     Object.assign(session, renewed);
     await page.getByTestId('studio-control-filter-select').selectOption('east');
     await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(1);
