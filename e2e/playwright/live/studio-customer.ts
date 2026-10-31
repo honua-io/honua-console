@@ -143,10 +143,11 @@ export async function customerIdentity() {
 }
 
 export async function sourceFor(page: Page, service: string, layerId: number) {
-  if (!(await page.getByTestId('recipe-panel').isVisible())) {
-    await page.getByTestId('recipe-toggle').focus();
-    await page.keyboard.press('Enter');
-  }
+  await expect(async () => {
+    if (!(await page.getByTestId('recipe-panel').isVisible()))
+      await page.getByTestId('recipe-toggle').click();
+    await expect(page.getByTestId('recipe-panel')).toBeVisible({ timeout: 3000 });
+  }).toPass({ timeout: 30_000 });
   await expect(page.getByTestId('recipe-source')).toBeEnabled();
   const matches = () => page.locator('honua-studio-app').evaluate((element, selected) =>
     (((element as any).sourceCatalog ?? []) as Array<{ id: string; locator?: { url?: string; layerId?: number } }>)
