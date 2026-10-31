@@ -188,7 +188,7 @@ jobs:
         run: |
           cp src/Honua.Console.Web/global.json global.json
           dotnet restore src/Honua.Console.Web/Honua.Console.Web.csproj --configfile NuGet.config --locked-mode
-          dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore
+          dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore -p:HonuaConsoleCommitSha="$GITHUB_SHA"
           docker build --build-arg HONUA_CONSOLE_COMMIT_SHA="$GITHUB_SHA" --build-arg HONUA_CONSOLE_REF="$GITHUB_REF" -t "$HONUA_CONSOLE_E2E_CONSOLE_IMAGE" .
       - name: Install Chromium and axe
         working-directory: e2e/playwright

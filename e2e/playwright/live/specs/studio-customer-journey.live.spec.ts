@@ -40,8 +40,9 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
           await fileInput.setInputFiles(fixture(file));
           await page.getByPlaceholder('parcels', { exact: true }).fill(table);
           await page.getByRole('button', { name: 'Import file', exact: true }).click();
-          await expect(page.getByRole('heading', { name: 'File imported', exact: true }),
-            'Import failed is a product failure, never an acceptable outcome').toBeVisible({ timeout: 90_000 });
+          const importOutcome = page.getByRole('heading', { name: /^(File imported|Import failed)$/ });
+          await expect(importOutcome).toBeVisible({ timeout: 90_000 });
+          await expect(importOutcome, 'Import failed is a product failure, never an acceptable outcome').toHaveText('File imported');
           await expect(page.locator('[data-imported-table]')).toHaveText(table);
           const tablesResponse = await verifier.get(`/api/v1/admin/connections/${connection.connectionId}/tables`);
           expect(tablesResponse.ok()).toBe(true);
@@ -341,4 +342,23 @@ test('Studio and its recipe panel meet axe and keyboard entry requirements', asy
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('recipe-panel')).toBeHidden();
   await expect(page.getByTestId('recipe-toggle')).toBeFocused();
+});
+
+test('New map keyboard creation persists a real draft without browser errors', async ({ page }, info) => {
+  const session = await signIn(page, 'alice');
+  const health = observeHealth(page);
+  try {
+    await expect(page.locator('[data-studio-status]')).toContainText('Connected to');
+    const key = `keyboard-map-${nonce()}`;
+    await page.getByRole('textbox', { name: 'New map package key', exact: true }).focus();
+    await page.keyboard.type(key);
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'New map', exact: true })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect.poll(() => identity(page).then(value => value?.packageKey)).toBe(key);
+    const draft = await read(page, session, `/api/studio/v1/studio/package-drafts/${(await identity(page))!.draftId}`);
+    expect(draft.packageKey).toBe(key);
+    expect(draft.ownerId).toBeTruthy();
+    expect(draft.envelope.body.layers).toEqual([]);
+  } finally { await health.verify(info); }
 });
