@@ -94,6 +94,12 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
 
     await page.goto('/studio');
     await expect(page.locator('[data-studio-status]')).toContainText('Connected to');
+    const conversation = page.locator('[data-agent-workspace]');
+    if (!(await conversation.evaluate(element => (element as HTMLDetailsElement).open)))
+      await conversation.locator(':scope > summary').click();
+    await conversation.getByRole('button', { name: 'Start conversation', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    await expect(conversation).toHaveAttribute('data-connected', 'true');
     const packageKey = `customer-map-${nonce()}`;
     const source = await sourceFor(page, services[0].service, services[0].layerId);
     await createRecipe(page, source!.id, packageKey);
@@ -154,11 +160,18 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
     const style = authored.envelope.body.mapSpec;
     const fill = style.layers.find((layer: any) => layer.type === 'fill');
     expect(fill.paint['fill-color']).toEqual(['match', ['get', 'category'], 'west', '#eff3ff', 'east', '#c6dbef', '#9ecae1']);
-    // Labels are authored in the shipped visual editor, never injected into the composition in evaluate().
-    // If the editor cannot expose an attribute-label control, this requirement fails visibly.
+    // Use Maputnik's shipped full-style editor for the attribute-label layer. This is
+    // a real paste/blur/save through the sandboxed UI, preserving all authorized sources.
     const frame = editor.frameLocator('iframe');
-    await frame.getByRole('textbox', { name: /text-field/i }).fill('["get","name"]');
-    await frame.getByRole('textbox', { name: /text-field/i }).press('Tab');
+    const withLabels = structuredClone(style);
+    withLabels.layers.push({ id: 'customer-attribute-labels', type: 'symbol', source: fill.source,
+      ...(fill['source-layer'] ? { 'source-layer': fill['source-layer'] } : {}),
+      layout: { 'text-field': ['get', 'name'], 'text-size': 14 }, paint: { 'text-color': '#222222' } });
+    await frame.locator('[data-wd-key="nav:code-editor"]').click();
+    const code = frame.locator('.maputnik-code-editor .cm-content[contenteditable="true"]');
+    await code.fill(JSON.stringify(withLabels, null, 2));
+    await code.press('Tab');
+    await frame.getByRole('button', { name: 'Close', exact: true }).click();
     await editor.getByRole('button', { name: 'Save map style', exact: true }).click();
     await page.getByRole('button', { name: 'Return to map', exact: true }).click();
     const labelled = await readDraft(original.draftId);
@@ -174,6 +187,7 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
     expect(version.ownerId).toBe(first.ownerId);
     expect(version.envelope.body).toEqual(labelled.envelope.body);
     await page.reload();
+    await expect.poll(() => identity(page).then(value => value?.draftId), { timeout: 30_000 }).toBe(original.draftId);
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
     await page.getByRole('button', { name: 'Reopen version 1 as draft', exact: true }).click();
     await expect.poll(() => identity(page).then(value => value?.draftId)).not.toBe(original.draftId);
