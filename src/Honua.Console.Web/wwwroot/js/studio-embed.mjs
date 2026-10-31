@@ -1,5 +1,5 @@
 import {processTask} from './workflow-task.mjs';
-import { capturedProcessFetch, createStudioCookieSession, sameCookieAuthority } from './cookie-workspace-transport.mjs';
+import { capturedProcessFetch, createStudioCookieSession, sameCookieAuthority, scheduleCookieSessionRenewal } from './cookie-workspace-transport.mjs';
 import { captureWorkspaceFollow, queueWorkspaceFollow } from './workspace-follow.mjs';
 import { selectedResource, studioResourceRefs } from './agent-workspace.mjs';
 import { mountStudioVersionControls } from './studio-version-controls.mjs';
@@ -246,7 +246,7 @@ new MutationObserver(mountProcesses).observe(document.body, { childList: true, s
 mountProcesses();
 
 // Refresh only an identical captured authority; long-lived Processes clients keep their editor state.
-setInterval(async () => {
+scheduleCookieSessionRenewal(() => session, async () => {
     const view=processView?.host.isConnected ? processView : undefined;
     const app=element?.isConnected ? element : undefined;
     const sharedEditor=document.querySelector('[data-shared-style-editor]');
@@ -268,7 +268,7 @@ setInterval(async () => {
         if(view) view.session=refreshed;
         session=refreshed;
     } catch { /* Expired leases fail closed; no automatic authority replacement. */ }
-},120000);
+});
 
 window.addEventListener('honua-workspace-conversation', event => {
     if (element?.isConnected) element.setWorkspaceConversation?.(event.detail);
