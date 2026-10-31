@@ -116,7 +116,7 @@ async function mount() {
         host.querySelector('[data-studio-mount]').append(element);
         const createApp=element;
         const create=document.createElement('form');
-        const key=document.createElement('input');key.required=true;key.maxLength=200;key.pattern='[A-Za-z0-9._-]{1,200}';
+        const key=document.createElement('input');key.required=true;key.maxLength=200;key.pattern='(?:[A-Za-z0-9._]|-){1,200}';
         key.placeholder='Map package key';key.setAttribute('aria-label','New map package key');
         const button=document.createElement('button');button.type='submit';button.textContent='New map';
         create.append(key,button);host.querySelector('[data-studio-mount]').before(create);
