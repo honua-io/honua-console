@@ -44,14 +44,14 @@ public static class ConsoleAuthorityRequestOptions
 
 /// <summary>
 /// Stylesheet encoding the dual-mode style editor reads/writes over <c>/ogc/styles/{styleId}</c>. The canonical
-/// store is MapLibre; Esri (<c>drawingInfo</c>) is a server-side projection (ADR-0002, ADR-0048).
+/// store is MapLibre; GeoServices REST (<c>drawingInfo</c>) is a server-side projection (ADR-0002, ADR-0048).
 /// </summary>
 public enum HonuaOgcStyleEncoding
 {
     /// <summary>Canonical MapLibre / Mapbox style JSON (<c>application/vnd.mapbox.style+json</c>).</summary>
     MapLibre,
 
-    /// <summary>Esri GeoServices drawingInfo renderer (<c>application/vnd.esri.drawinginfo+json</c>).</summary>
+    /// <summary>GeoServices REST drawingInfo renderer (the drawingInfo media type).</summary>
     Esri
 }
 
@@ -125,7 +125,7 @@ public interface IHonuaOgcStylesClient
 
     /// <summary>
     /// Writes a style's stylesheet in the given encoding (<c>PUT /ogc/styles/{styleId}</c>). The server keeps
-    /// MapLibre canonical and converts the Esri encoding. <paramref name="strict"/> sends
+    /// MapLibre canonical and converts the GeoServices REST encoding. <paramref name="strict"/> sends
     /// <c>Prefer: handling=strict</c> so a lossy/invalid style is rejected rather than stored.
     /// </summary>
     Task<HonuaOgcStyleSaveResult> UpdateStylesheetAsync(

@@ -9,11 +9,11 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Honua.Console.IntegrationTests;
 
 /// <summary>
-/// Docker-free render coverage for the four Esri content-import surfaces (issue #122 / #100, #101, #104,
-/// #102) and their shared components. Asserts the design-handoff landmarks from screens-import-esri.jsx and
+/// Docker-free render coverage for the four external GIS content-import surfaces (issue #122 / #100, #101, #104,
+/// #102) and their shared components. Asserts the design-handoff landmarks from the import screen design artifact and
 /// screens-import-wizard.jsx — the intake modes, the source -> target mapping table with each Fid badge
 /// state, the target preview, the inline + full-screen missing-binding states, the wizard steps, and the
-/// scorecard counts / parity bar. The Esri-JSON parse is deterministic Console-side work; the migration-run
+/// scorecard counts / parity bar. The external content JSON parse is deterministic Console-side work; the migration-run
 /// engine binds honua-devops, else the missing-binding state.
 /// </summary>
 public sealed class EsriImportSurfaceRenderTests
@@ -220,7 +220,7 @@ public sealed class EsriImportSurfaceRenderTests
         Assert.Contains("Web Map", banner.TextContent, StringComparison.Ordinal);
     }
 
-    // ---- #159 ArcGIS Notebook ----
+    // ---- #159 external GIS Notebook ----
 
     [Fact]
     public void NotebookPage_RendersCellMappingPreviewAndGatedExecutionState()
@@ -240,12 +240,12 @@ public sealed class EsriImportSurfaceRenderTests
         Assert.Contains("honua.notebook-package.v1", page.Markup, StringComparison.Ordinal);
         Assert.Contains("esri-notebook-preview", page.Markup, StringComparison.Ordinal);
 
-        // The bundled sample exercises each Fid state: markdown/code clean, arcpy + schedule manual, raw drop.
+        // The bundled sample exercises each Fid state: markdown/code clean, hosted Python GIS module + schedule manual, raw drop.
         Assert.Contains("esri-mapping__row--clean", page.Markup, StringComparison.Ordinal);
         Assert.Contains("esri-mapping__row--manual", page.Markup, StringComparison.Ordinal);
         Assert.Contains("esri-mapping__row--drop", page.Markup, StringComparison.Ordinal);
 
-        // #159 scope boundary: execution is explicitly gated to a server hosted-arcpy runtime via an honest
+        // #159 scope boundary: execution is explicitly gated to a server hosted Python GIS runtime via an honest
         // missing-binding state — never a Run action Console cannot honour, nor fabricated run output.
         Assert.Contains("Execution gated", page.Markup, StringComparison.Ordinal);
         Assert.Contains("server hosted-arcpy runtime", page.Markup, StringComparison.Ordinal);
@@ -520,7 +520,7 @@ public sealed class EsriImportSurfaceRenderTests
 
         var page = RenderWizardAtStep(ctx, 0);
 
-        // The source card used to claim "org.maps.arcgis.com / state-gis · connected · 18 items" with
+        // The source card used to claim a connected provider host · connected · 18 items" with
         // nothing behind it, and _sourceConnected was a hardcoded true that let the wizard advance.
         Assert.NotNull(page.Find("[data-esri-missing-binding]"));
         Assert.True(page.Find("button.publish-wizard-next").HasAttribute("disabled"));

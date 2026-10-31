@@ -1,6 +1,6 @@
 namespace Honua.Console.Shell.Models;
 
-// #102 — "Import from Esri" wizard run + parity scorecard projections.
+// #102 — "Import from GeoServices REST" wizard run + parity scorecard projections.
 //
 // The migration RUN engine is driven by honua-devops (per the issue-122 handoff "migration-run API owner"
 // open item). Console does not own that contract and there is no Console-consumable run API yet, so the run

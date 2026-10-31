@@ -8,7 +8,7 @@ namespace Honua.Console.Native.Core.Tests;
 /// Transport-level coverage for <see cref="HonuaVersionManagementHttpClient"/>, the thin HttpClient behind the
 /// Honua.Console.Contracts boundary that binds the Operate branch-version manager + conflict-resolution surface
 /// (honua-console#177) to honua-server's GeoServices VersionManagementServer (#371 / PR #1551). These tests
-/// drive the real client over a recording <see cref="HttpMessageHandler"/> and feed it the BARE Esri-shaped
+/// drive the real client over a recording <see cref="HttpMessageHandler"/> and feed it the BARE protocol-shaped
 /// JSON the live VersionManagementServer emits (NOT the admin {success,data} envelope), so a drift between the
 /// Console wire records and the server DTOs fails here. They assert the exact route + verb, the form-encoded
 /// parameter names (versionName/accessPermission/conflictResolution/abortIfConflicts/conflicts), the

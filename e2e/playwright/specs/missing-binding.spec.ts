@@ -24,11 +24,11 @@ test('retired Studio builder route cannot restore the legacy product', async ({ 
   await expect(page.locator('[data-map-builder], [data-authoring-contract]')).toHaveCount(0);
 });
 
-// Publishing and Esri import were the two surfaces this spec was written for and never covered.
+// Publishing and external content import were the two surfaces this spec was written for and never covered.
 //
 // Both used to render design-handoff fixtures — a service tree, a resource table with feature
 // counts and PII flags, a review screen quoting a layer slot and a published URL, and an eight-row
-// Esri inventory with per-item fidelity verdicts. That content rendered identically whether or not a
+// GeoServices REST inventory with per-item fidelity verdicts. That content rendered identically whether or not a
 // server was bound, which is why the publish wizard passed this backend-free lane for months while
 // POSTing to a connection id that existed in no deployment: a route smoke test cannot tell a wired
 // page from a mockup, and a mockup is MORE likely to pass one.
@@ -68,7 +68,7 @@ test('esri import wizard reports a missing migration binding instead of an item 
 
   await expect(page.locator('[data-esri-missing-binding]').first()).toBeVisible();
 
-  // The source card used to claim a connected ArcGIS organization with an item count.
+  // The source card used to claim a connected external GIS organization with an item count.
   const markup = await page.content();
   expect(markup).not.toContain('org.maps.arcgis.com');
   expect(markup).not.toContain('state-gis');

@@ -692,7 +692,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             ["Overview", "Source", "Fields", "Validation"]);
     }
 
-    // Each protocol is served under a DIFFERENT URL scheme — only the Esri GeoServices server types live
+    // Each protocol is served under a DIFFERENT URL scheme — only the GeoServices REST server types live
     // under /rest/services/{service}/...; the OGC + OData + STAC protocols have their own roots. Map every
     // protocol to where honua-server actually serves it (verified against the server endpoint registry) so
     // the publication-slot URL an operator copies is real.
@@ -703,7 +703,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
 
         return protocol switch
         {
-            // Esri GeoServices REST — per-service under /rest/services/{service}/{ServerType}.
+            // GeoServices REST — per-service under /rest/services/{service}/{ServerType}.
             "FeatureServer" => $"{b}/rest/services/{svc}/FeatureServer",
             "MapServer" => $"{b}/rest/services/{svc}/MapServer",
             "ImageServer" => $"{b}/rest/services/{svc}/ImageServer",

@@ -7,7 +7,7 @@ namespace Honua.Console.Shell.Services;
 /// (title, description, keywords, themes, license, attribution, publisher, contact, links) of a layer
 /// (<c>GET/PUT /api/v1/admin/metadata/layers/{id}/discovery</c>) or a service
 /// (<c>GET/PUT /api/v1/admin/services/{svc}/discovery</c>) on honua-server. This metadata drives the OGC API
-/// Records / STAC / DCAT / Esri documentInfo output. The live implementation is DI-gated on a configured
+/// Records / STAC / DCAT / external GIS documentInfo output. The live implementation is DI-gated on a configured
 /// server base URL; otherwise the surface binds to <see cref="UnsupportedConsoleDiscoveryMetadataOperation"/>
 /// (missing-binding, no network call). It never fabricates metadata (Console Patterns Charter section 11).
 /// </summary>

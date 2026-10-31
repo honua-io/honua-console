@@ -3,7 +3,7 @@ namespace Honua.Console.Shell.Models;
 /// <summary>
 /// A layer's or service's discovery / catalog metadata as read from honua-server (title, description,
 /// keywords, themes, language, license, attribution, publisher, contact point, links). This drives the OGC
-/// API Records / STAC / DCAT / Esri documentInfo output. <see cref="Bound"/> is false (with <see cref="Detail"/>)
+/// API Records / STAC / DCAT / external GIS documentInfo output. <see cref="Bound"/> is false (with <see cref="Detail"/>)
 /// when no server is configured or the metadata could not be read.
 /// </summary>
 public sealed record ConsoleDiscoveryMetadata

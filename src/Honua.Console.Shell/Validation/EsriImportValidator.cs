@@ -4,7 +4,7 @@ using Honua.Console.Shell.Models;
 namespace Honua.Console.Shell.Validation;
 
 /// <summary>
-/// Stable console-owned field keys for the Esri content-import intake surfaces (#100 Web Map, #101
+/// Stable console-owned field keys for the external GIS content-import intake surfaces (#100 Web Map, #101
 /// Dashboard, #104 StoryMap, #158 Instant App, #159 Notebook) and the import wizard (#102).
 /// </summary>
 public static class EsriImportFieldKeys
@@ -20,8 +20,8 @@ public static class EsriImportFieldKeys
 }
 
 /// <summary>
-/// The intake mode an operator has selected on the shared Esri intake bar. Paste / Upload are
-/// deterministic console-side parses; URL / item-id and connected-ArcGIS need a live server fetch.
+/// The intake mode an operator has selected on the shared external GIS content intake bar. Paste / Upload are
+/// deterministic console-side parses; URL / item-id and connected external GIS need a live server fetch.
 /// </summary>
 public enum EsriIntakeMode
 {
@@ -34,12 +34,12 @@ public enum EsriIntakeMode
     /// <summary>Fetch by URL or item id (needs a bound honua-server).</summary>
     Url,
 
-    /// <summary>Read from a connected ArcGIS organization (needs a bound honua-server).</summary>
+    /// <summary>Read from a connected external GIS organization (needs a bound honua-server).</summary>
     ConnectedArcGis,
 }
 
 /// <summary>
-/// Console-owned snapshot of the Esri intake the client validator evaluates: the active intake
+/// Console-owned snapshot of the external GIS content intake the client validator evaluates: the active intake
 /// <see cref="Mode"/>, the pasted JSON (paste mode), the selected upload file name (upload mode), and
 /// the typed URL / item id (URL mode). The validator gates the intake before a parse / fetch is issued;
 /// it never contacts a server.
@@ -57,11 +57,11 @@ public sealed record EsriImportIntakeState(
     string? Url = null);
 
 /// <summary>
-/// Pure client-side validator for the Esri content-import intake forms (#100 / #101 / #104). It enforces,
+/// Pure client-side validator for the external GIS content-import intake forms (#100 / #101 / #104). It enforces,
 /// before a parse or server fetch is issued:
 /// <list type="bullet">
-///   <item>a source must be provided — paste JSON, an uploaded file, a URL / item id, or a connected ArcGIS read;</item>
-///   <item>pasted JSON must parse <em>and</em> be a JSON object (the shape every Esri Web Map / Dashboard / StoryMap export uses);</item>
+///   <item>a source must be provided — paste JSON, an uploaded file, a URL / item id, or a connected external GIS read;</item>
+///   <item>pasted JSON must parse <em>and</em> be a JSON object (the shape every external GIS Web Map / Dashboard / StoryMap export uses);</item>
 ///   <item>an intake URL must be a valid absolute http(s) URL (a bare item id is also accepted as an identifier).</item>
 /// </list>
 /// Mirrors the <see cref="ShareManageValidator"/> pattern; keyed by <see cref="EsriImportFieldKeys"/>.
@@ -88,7 +88,7 @@ public sealed class EsriImportValidator : IFieldValidator<EsriImportIntakeState>
         var hasPaste = !string.IsNullOrWhiteSpace(state.PastedJson);
         var hasUpload = !string.IsNullOrWhiteSpace(state.UploadFileName);
         var hasUrl = !string.IsNullOrWhiteSpace(state.Url);
-        // Connected-ArcGIS reads bind a live server: the intake itself carries no console-side payload, so
+        // connected external GIS reads bind a live server: the intake itself carries no console-side payload, so
         // it counts as "a source has been chosen" and defers the actual resolvability to the server binding.
         var hasConnected = state.Mode == EsriIntakeMode.ConnectedArcGis;
 
@@ -100,7 +100,7 @@ public sealed class EsriImportValidator : IFieldValidator<EsriImportIntakeState>
                 "Provide a source: paste JSON, upload a file, enter a URL / item id, or read from a connected ArcGIS organization."));
         }
 
-        // Pasted JSON must parse and be a JSON object (the shape every Esri export uses).
+        // Pasted JSON must parse and be a JSON object (the shape every external GIS export uses).
         if (hasPaste)
         {
             var jsonError = ValidateJsonObject(state.PastedJson!);

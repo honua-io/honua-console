@@ -4,7 +4,7 @@ using Honua.Console.Shell.Models;
 namespace Honua.Console.Shell.Services;
 
 /// <summary>
-/// Deterministic, Console-side parser that converts uploaded Esri content JSON into a Honua conversion
+/// Deterministic, Console-side parser that converts uploaded external GIS content JSON into a Honua conversion
 /// preview. Web Map JSON maps to <c>honua.map-package.v1</c> (#100), Dashboard JSON to a dashboard package
 /// (#101), and a StoryMap export to report content (#104).
 ///
@@ -25,7 +25,7 @@ public sealed class EsriContentImportParser
     };
 
     /// <summary>
-    /// Parses an Esri Web Map JSON document into a <c>honua.map-package.v1</c> conversion preview. Layer
+    /// Parses an external GIS Web Map JSON document into a <c>honua.map-package.v1</c> conversion preview. Layer
     /// fidelity is classified from the operational-layer <c>layerType</c> and renderer; heatmaps and widgets
     /// drop, Arcade/unique-value renderers degrade, layers with no resolvable URL/item need a manual binding.
     /// </summary>
@@ -203,7 +203,7 @@ public sealed class EsriContentImportParser
         return new EsriMappingRow(name, NormalizeLayerType(layerType), targetLayer, ImportFidelity.Clean, note, BoundResource: Slugify(name));
     }
 
-    /// <summary>Parses an Esri Dashboard JSON document into a dashboard-package conversion preview (#101).</summary>
+    /// <summary>Parses an external GIS Dashboard JSON document into a dashboard-package conversion preview (#101).</summary>
     public EsriParseOutcome ParseDashboard(string json, string? fileName = null)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -331,7 +331,7 @@ public sealed class EsriContentImportParser
         }
     }
 
-    /// <summary>Parses an Esri StoryMap export into report-content conversion preview (#104).</summary>
+    /// <summary>Parses an external GIS StoryMap export into report-content conversion preview (#104).</summary>
     public EsriParseOutcome ParseStoryMap(string json, string? sourceLabel = null)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -454,7 +454,7 @@ public sealed class EsriContentImportParser
     }
 
     /// <summary>
-    /// Parses an Esri Instant App configuration into a <c>honua.app-package.v1</c> conversion preview (#158).
+    /// Parses an external GIS Instant App configuration into a <c>honua.app-package.v1</c> conversion preview (#158).
     /// The two most common templates — <c>instant/sidebar</c> and <c>instant/basic</c> — are recognised by
     /// <c>templateId</c>; an unknown template degrades to the Basic mapping. The app's bound web map / scene /
     /// group becomes the app's primary content (a <see cref="ImportFidelity.Manual"/> binding row — the map
@@ -583,15 +583,15 @@ public sealed class EsriContentImportParser
     }
 
     /// <summary>
-    /// Parses an ArcGIS Notebook (hosted arcpy) definition into a <c>honua.notebook-package.v1</c> conversion
-    /// preview (#159). ArcGIS Notebooks export as Jupyter <c>.ipynb</c> JSON: a <c>cells</c> array (code /
-    /// markdown / raw), notebook <c>metadata</c> (the kernelspec + an ArcGIS-specific runtime), injected
+    /// Parses an external GIS Notebook (hosted Python GIS runtime) definition into a <c>honua.notebook-package.v1</c> conversion
+    /// preview (#159). notebooks from external GIS systems export as Jupyter <c>.ipynb</c> JSON: a <c>cells</c> array (code /
+    /// markdown / raw), notebook <c>metadata</c> (the kernelspec + an external GIS-specific runtime), injected
     /// <c>parameters</c> (notebook parameterisation / a tagged parameters cell), and an optional task
     /// <c>schedule</c>. Each cell, parameter, and the schedule become a row in the source -> target mapping
     /// with per-row fidelity; raw cells and unknown kernels degrade with the reason named.
     ///
-    /// Scope boundary (#159): Console <em>represents/imports the definition only</em>. Executing hosted arcpy
-    /// needs a server-side notebook/arcpy runtime, which is out of Console scope and tracked as a dependency,
+    /// Scope boundary (#159): Console <em>represents/imports the definition only</em>. Executing hosted Python GIS runtime
+    /// needs a server-side notebook/hosted Python GIS module runtime, which is out of Console scope and tracked as a dependency,
     /// so this parser never claims an execution capability — the page gates execution behind an explicit
     /// missing-binding state. This is deterministic, Console-side work derived only from the supplied JSON;
     /// it contacts no server and fabricates no data (Console Patterns Charter §11).
@@ -652,7 +652,7 @@ public sealed class EsriContentImportParser
                 return EsriParseOutcome.Failure("The notebook has no cells to import.");
             }
 
-            // Parameters: an ArcGIS notebook carries injected parameters either as a metadata "parameters"
+            // Parameters: an external GIS notebook carries injected parameters either as a metadata "parameters"
             // object or as a "parameters"-tagged code cell (papermill convention). Each parameter is a row.
             var parameterCount = MapNotebookParameters(metadata, cells, rows);
 
@@ -660,9 +660,9 @@ public sealed class EsriContentImportParser
             // schedule definition imports as a draft task; running it needs the gated server runtime.
             var hasSchedule = MapNotebookSchedule(metadata, root, rows);
 
-            // The kernel / runtime determines whether the notebook is an arcpy (hosted) notebook. An unknown
-            // or non-arcpy kernel degrades the runtime mapping (it imports, but Honua maps it to the standard
-            // Python runtime rather than the arcpy-enabled one).
+            // The kernel / runtime determines whether the notebook is a hosted Python GIS module (hosted) notebook. An unknown
+            // or non-hosted Python GIS module kernel degrades the runtime mapping (it imports, but Honua maps it to the standard
+            // Python runtime rather than the hosted GIS-enabled one).
             var runtime = ReadNotebookRuntime(metadata);
 
             var summary = new List<string>
@@ -753,8 +753,8 @@ public sealed class EsriContentImportParser
             case "code":
             default:
                 codeCount++;
-                // arcpy / ArcGIS API imports are the hosted-arcpy signal; the cell imports clean as a code
-                // cell, but it can only RUN against the server hosted-arcpy runtime (gated, out of scope #159).
+                // hosted Python GIS module / provider API imports are the hosted Python GIS runtime signal; the cell imports clean as a code
+                // cell, but it can only RUN against the server hosted Python GIS runtime (gated, out of scope #159).
                 if (UsesArcpy(source))
                 {
                     arcpyCount++;
@@ -868,7 +868,7 @@ public sealed class EsriContentImportParser
                 }
             }
 
-            // ArcGIS nests notebook metadata under "esriNotebook" / "esri".
+            // external GIS nests notebook metadata under provider-specific notebook metadata keys.
             foreach (var nestedKey in new[] { "esriNotebook", "esri" })
             {
                 if (container.TryGetProperty(nestedKey, out var nested) && nested.ValueKind == JsonValueKind.Object)
@@ -894,7 +894,7 @@ public sealed class EsriContentImportParser
             return new NotebookRuntime("Python runtime", false);
         }
 
-        // ArcGIS stamps the hosted runtime on the notebook metadata; otherwise the kernelspec names it.
+        // external GIS stamps the hosted runtime on the notebook metadata; otherwise the kernelspec names it.
         var esriRuntime = ReadString(metadata, "esriNotebookRuntime");
         if (esriRuntime is null
             && metadata.TryGetProperty("esriNotebook", out var esri) && esri.ValueKind == JsonValueKind.Object)

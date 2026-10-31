@@ -1,6 +1,6 @@
 import { test, expect } from '../admin-api';
 
-// Live e2e for the Operate "Import from a service" flow. Discovers a remote Esri/OGC service — or an ArcGIS
+// Live e2e for the Operate "Import from a service" flow. Discovers a remote GeoServices REST/OGC service — or an external GIS
 // catalog root — via honua-server (POST /api/v1/admin/external-services/discover) and drives the catalog tree
 // picker. Verifies:
 //   - the URL is validated as https before any request,
@@ -8,7 +8,7 @@ import { test, expect } from '../admin-api';
 //   - discovering a single FeatureServer lists its layers in the tree and select-all/deselect-all works,
 //   - discovering a catalog root enumerates many services into the tree.
 //
-// The discovery target is the public ArcGIS sample server (stable, used widely for samples). The server must
+// The discovery target is the public external GIS sample server (stable, used widely for samples). The server must
 // have outbound HTTPS; the catalog test is generous on timeout for the multi-service scan.
 
 const SAMPLE_FEATURE_SERVER = 'https://sampleserver6.arcgisonline.com/arcgis/rest/services/Wildfire/FeatureServer';
@@ -88,7 +88,7 @@ test.describe('Operate · Import from a service (live)', () => {
 
   test('imports a selected layer and the job runs to completion', async ({ page }) => {
     // This test exercises the full import-to-completion path, which requires honua-server to
-    // make an outbound HTTPS connection to the sample ArcGIS FeatureServer, download all
+    // make an outbound HTTPS connection to the sample external GIS FeatureServer, download all
     // features, and write them to PostGIS — a multi-step job that can take 2+ minutes on a
     // cold server and depends on the external sampleserver6.arcgisonline.com being reachable
     // and responsive. The minimal compose stack does not guarantee that timing or network

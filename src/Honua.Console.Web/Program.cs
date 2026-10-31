@@ -362,9 +362,9 @@ app.MapGet("/map-proxy/{environmentId}/tiles/{layerId:int}/{z:int}/{x:int}/{y:in
 });
 
 // Real tabular feature rows for the Studio query-result table and the live chart (graphs) preview.
-// Proxies the server's Esri FeatureServer query (the only feature-row contract; it needs both the
+// Proxies the server's GeoServices REST FeatureServer query (the only feature-row contract; it needs both the
 // serviceId and the layerId, both captured into the editor binding at generation time) with the admin
-// key injected here, never in the page. Returns the server's Esri feature JSON verbatim so the browser
+// key injected here, never in the page. Returns the server's GeoServices REST feature JSON verbatim so the browser
 // chart/table interop maps attributes → rows. No binding → the caller never calls this (no mock rows).
 app.MapGet("/map-proxy/{environmentId}/features/{serviceId}/{layerId:int}", async (
     string environmentId,

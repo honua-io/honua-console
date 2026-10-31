@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Honua.Console.Contracts;
 
 // SHIM(honua-server#1279): honua-server owns the catalog discovery-endpoints registry — the set of
-// discovery dialects a workspace exposes to consumers (Esri catalog, OGC API Records, OData, STAC, DCAT),
+// discovery dialects a workspace exposes to consumers (external GIS catalog, OGC API Records, OData, STAC, DCAT),
 // each endpoint's server-wide on/off state, whether it is auto-default-on or opt-in, the feeders that
 // populate it (FeatureServer / MapServer / ImageServer / OGC API Features / OData entity sets), its entry
 // count and per-endpoint validation issues, and the per-item drill-down (one catalog item with its

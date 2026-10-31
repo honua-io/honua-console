@@ -106,7 +106,7 @@ public enum TemporalMode
 }
 
 /// <summary>
-/// Disconnected/offline sync direction a source supports, aligned with Esri sync concepts
+/// Disconnected/offline sync direction a source supports, aligned with GeoServices REST sync concepts
 /// (<c>syncCapabilities</c>) rather than a forked model. Mirrors the information-model
 /// <c>sync_capability</c> field.
 /// </summary>
@@ -307,7 +307,7 @@ public sealed record TemporalRollbackOperation(
 
 /// <summary>
 /// Durable server-side record for a disconnected/offline replica (information-model "Disconnected
-/// Replica"). Esri-aligned: replica name, owner, device, base checkpoint, and sync generation. Server-owned
+/// Replica"). GeoServices REST-aligned: replica name, owner, device, base checkpoint, and sync generation. Server-owned
 /// (honua-server#1167).
 /// </summary>
 public sealed record DisconnectedReplica(

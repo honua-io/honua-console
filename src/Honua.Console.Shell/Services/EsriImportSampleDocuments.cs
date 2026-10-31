@@ -1,15 +1,15 @@
 namespace Honua.Console.Shell.Services;
 
 /// <summary>
-/// Bundled, illustrative Esri content documents the import surfaces parse on first load so a reviewer sees a
-/// populated mapping table without having to paste their own export first. These are real Esri-shaped JSON
+/// Bundled, illustrative external GIS content documents the import surfaces parse on first load so a reviewer sees a
+/// populated mapping table without having to paste their own export first. These are real protocol-shaped JSON
 /// documents run through the real <see cref="EsriContentImportParser"/> — the mapping/fidelity they produce
 /// is deterministic parser output, not fabricated UI data (Console Patterns Charter section 11). Replacing
 /// the sample by pasting/uploading a real export re-parses against the same code path.
 /// </summary>
 public static class EsriImportSampleDocuments
 {
-    /// <summary>An ArcGIS Web Map JSON sample exercising clean / degrade / drop / manual layer fidelity.</summary>
+    /// <summary>An external GIS Web Map JSON sample exercising clean / degrade / drop / manual layer fidelity.</summary>
     public const string WebMapFileName = "public-works-webmap.json";
 
     public const string WebMap = """
@@ -34,7 +34,7 @@ public static class EsriImportSampleDocuments
     }
     """;
 
-    /// <summary>An ArcGIS Dashboard JSON sample exercising clean / degrade / drop element fidelity.</summary>
+    /// <summary>An external GIS Dashboard JSON sample exercising clean / degrade / drop element fidelity.</summary>
     public const string DashboardFileName = "q3-ops-dashboard.json";
 
     public const string Dashboard = """
@@ -56,7 +56,7 @@ public static class EsriImportSampleDocuments
     }
     """;
 
-    /// <summary>An ArcGIS StoryMap export sample exercising clean / degrade / drop section fidelity.</summary>
+    /// <summary>An external GIS StoryMap export sample exercising clean / degrade / drop section fidelity.</summary>
     public const string StoryMapFileName = "watershed-health-story.json";
 
     public const string StoryMap = """
@@ -75,7 +75,7 @@ public static class EsriImportSampleDocuments
     """;
 
     /// <summary>
-    /// An ArcGIS Instant App (Sidebar template) configuration sample exercising clean / degrade / drop
+    /// An external GIS Instant App (Sidebar template) configuration sample exercising clean / degrade / drop
     /// capability fidelity, a primary web map binding row, and the Sidebar-specific panel/Arcade extras.
     /// </summary>
     public const string InstantAppFileName = "public-works-instant-app.json";
@@ -110,9 +110,9 @@ public static class EsriImportSampleDocuments
     """;
 
     /// <summary>
-    /// An ArcGIS Notebook (hosted arcpy) <c>.ipynb</c> export sample exercising clean / degrade / drop / manual
-    /// cell fidelity, injected parameters, and a task schedule. The arcpy code cell and the schedule import as
-    /// the definition but are gated behind the server hosted-arcpy runtime (#159 scope boundary).
+    /// An external GIS Notebook (hosted Python GIS runtime) <c>.ipynb</c> export sample exercising clean / degrade / drop / manual
+    /// cell fidelity, injected parameters, and a task schedule. The hosted Python GIS module code cell and the schedule import as
+    /// the definition but are gated behind the server hosted Python GIS runtime (#159 scope boundary).
     /// </summary>
     public const string NotebookFileName = "parcel-sync.ipynb";
 

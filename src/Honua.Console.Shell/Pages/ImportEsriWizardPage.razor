@@ -70,7 +70,7 @@
 
     // A source counts as connected only when the migration plan actually reads back from the run
     // engine. This used to be a hardcoded `true` beside a hardcoded org card, so the wizard reported a
-    // connected ArcGIS organization on deployments with no migration binding at all.
+    // connected external GIS organization on deployments with no migration binding at all.
     private bool SourceConnected => _plan is { HasPlan: true };
 
     private MigrationPlanView? PlanView => _plan?.Plan;

@@ -114,7 +114,7 @@ public static class PublishProtocolCatalog
 
     /// <summary>
     /// Resolves a service's <c>ServiceType</c> value — a metadata-v2 service-type string
-    /// (<c>esri-feature-service</c>), a single <c>ServiceProtocols</c> id, a comma-joined list of protocol
+    /// (<c>provider-specific feature-service id</c>), a single <c>ServiceProtocols</c> id, a comma-joined list of protocol
     /// names (<c>FeatureServer, MapServer</c>), or a display name (<c>Feature service</c>) — into the protocol
     /// descriptors it exposes, in catalog order with duplicates removed. Unknown tokens are skipped (never
     /// fabricated). This is what lets the resource→publications tree show already-published resources as

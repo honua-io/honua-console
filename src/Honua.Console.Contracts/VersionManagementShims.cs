@@ -14,7 +14,7 @@ namespace Honua.Console.Contracts;
 // "Active Shims".
 //
 // Unlike the /api/v1/admin surface, the VersionManagementServer is a GeoServices REST surface: it reads its
-// inputs from form/query values (NOT a JSON body) and returns BARE Esri-shaped JSON DTOs (NOT the admin
+// inputs from form/query values (NOT a JSON body) and returns BARE protocol-shaped JSON DTOs (NOT the admin
 // {success,data} envelope). This client therefore posts application/x-www-form-urlencoded and deserializes
 // the raw DTOs directly, mirroring the server models in
 // src/Honua.Protocols.GeoServices/VersionManagementServer/Models/VersionManagementModels.cs.
@@ -64,7 +64,7 @@ public enum HonuaVersionAccess
     Public
 }
 
-/// <summary>Esri-shaped branch-version identity (mirrors <c>VersionInfo</c>).</summary>
+/// <summary>protocol-shaped branch-version identity (mirrors <c>VersionInfo</c>).</summary>
 public sealed record HonuaVersionInfo
 {
     [JsonPropertyName("versionGuid")]
@@ -215,7 +215,7 @@ public sealed record HonuaVersionConflictResolution(int LayerId, long ObjectId, 
 /// <summary>
 /// Thin HTTP client for honua-server's GeoServices VersionManagementServer (branch-versioning lifecycle +
 /// conflict resolution, #371 / PR #1551). Mirrors the route shapes and form/query parameter names of
-/// <c>VersionManagementServerEndpoints</c> and returns the bare Esri-shaped DTOs. Network/transport/contract
+/// <c>VersionManagementServerEndpoints</c> and returns the bare protocol-shaped DTOs. Network/transport/contract
 /// failures degrade into a <see cref="HonuaAdminEndpointIssue"/> via the shared result type rather than
 /// throwing, so the console can render a neutral missing/unavailable state.
 /// </summary>
