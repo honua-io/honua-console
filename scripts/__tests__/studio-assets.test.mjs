@@ -47,3 +47,10 @@ test('embedded Studio initializes Maputnik from the pinned Console asset root',a
  const source=await readFile(new URL('../../src/Honua.Console.Web/wwwroot/js/studio-embed.mjs',import.meta.url),'utf8');
  assert.match(source,/app = document\.createElement\('honua-studio-app'\);\s*app\.styleEditorAssetsUrl = '\/_studio\/maputnik\/index\.html';/);
 });
+
+test('Console forwards Studio catalog and direct agent MCP to the server MCP endpoint',async()=>{
+ const catalog=await readFile(new URL('../../src/Honua.Console.Web/StudioReadBff.cs',import.meta.url),'utf8');
+ const agent=await readFile(new URL('../../src/Honua.Console.Web/AgentSessionBff.cs',import.meta.url),'utf8');
+ assert.match(catalog,/SendAsync\(context, "mcp", new ByteArrayContent\(buffer\.ToArray\(\)\), token, catalog: true\)/);
+ assert.match(agent,/"mcp" => "mcp"/);
+});

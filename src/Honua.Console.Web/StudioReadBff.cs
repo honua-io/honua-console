@@ -33,7 +33,7 @@ internal static class StudioReadBff
                 if (!IsCatalogRead(json.RootElement)) { return Results.StatusCode(403); }
             }
             catch (JsonException) { return Results.BadRequest(); }
-            return await SendAsync(context, "api/mcp", new ByteArrayContent(buffer.ToArray()), token, catalog: true);
+            return await SendAsync(context, "mcp", new ByteArrayContent(buffer.ToArray()), token, catalog: true);
         });
         app.MapGet("/api/studio/data/ogc/features/collections/{collectionId}/items", async (HttpContext context, string collectionId, CancellationToken token) =>
         {

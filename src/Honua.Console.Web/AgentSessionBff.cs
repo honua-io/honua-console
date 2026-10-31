@@ -133,7 +133,7 @@ internal static class AgentSessionBff
                 using var request = new HttpRequestMessage((endpoint is "capabilities" or "turn" || (endpoint == "conversation" && HttpMethods.IsGet(context.Request.Method))) ? HttpMethod.Get : HttpMethod.Post,
                     new Uri(serverBase, endpoint switch
                     {
-                        "mcp" => "api/mcp",
+                        "mcp" => "mcp",
                         "capabilities" => "api/v1/studio/ai/capabilities",
                         "turn" => $"api/v1/agent/workspaces/{workspaceId}/turns/{turnId}",
                         "conversation" => $"api/v1/agent/workspaces/{workspaceId}/conversation",
