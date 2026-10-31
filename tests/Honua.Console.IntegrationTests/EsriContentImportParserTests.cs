@@ -5,7 +5,7 @@ namespace Honua.Console.IntegrationTests;
 
 /// <summary>
 /// Unit coverage for the deterministic, Console-side <see cref="EsriContentImportParser"/>. Feeds small
-/// Esri-shaped JSON documents and asserts the honua.map-package / dashboard / report mapping and the
+/// protocol-shaped JSON documents and asserts the honua.map-package / dashboard / report mapping and the
 /// clean / degrade / drop / manual fidelity classification (the design-handoff Fid convention). The parser
 /// contacts no server and fabricates no data (Console Patterns Charter section 11).
 /// </summary>
@@ -265,7 +265,7 @@ public sealed class EsriContentImportParserTests
         Assert.NotNull(outcome.Error);
     }
 
-    // ---- #159 ArcGIS Notebook (hosted arcpy) ----
+    // ---- #159 external GIS Notebook (hosted Python GIS runtime) ----
 
     [Fact]
     public void ParseNotebook_ClassifiesCellsParametersAndScheduleFidelity()
@@ -300,8 +300,8 @@ public sealed class EsriContentImportParserTests
         Assert.Contains(result.Rows, r => r.SourceType == "markdown cell" && r.Fidelity == ImportFidelity.Clean);
         Assert.Contains(result.Rows, r => r.SourceType == "code cell" && r.Fidelity == ImportFidelity.Clean);
 
-        // An arcpy code cell imports as the definition, but is flagged manual (execution gated to the server
-        // hosted-arcpy runtime — #159 scope boundary).
+        // a hosted Python GIS module code cell imports as the definition, but is flagged manual (execution gated to the server
+        // hosted Python GIS runtime — #159 scope boundary).
         var arcpyRow = result.Rows.Single(r => r.SourceType == "code cell · arcpy");
         Assert.Equal(ImportFidelity.Manual, arcpyRow.Fidelity);
         Assert.Contains("gated", arcpyRow.Note, StringComparison.OrdinalIgnoreCase);
@@ -338,7 +338,7 @@ public sealed class EsriContentImportParserTests
 
         Assert.True(outcome.Succeeded, outcome.Error);
         var result = outcome.Result!;
-        // Plain Python notebook: the single code cell imports clean, no arcpy/manual cell.
+        // Plain Python notebook: the single code cell imports clean, no hosted Python GIS module/manual cell.
         Assert.DoesNotContain(result.Rows, r => r.SourceType == "code cell · arcpy");
         Assert.Equal(ImportFidelity.Clean, result.Rows.Single(r => r.SourceType == "code cell").Fidelity);
     }

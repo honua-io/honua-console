@@ -97,7 +97,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
         Assert.Contains("data-catalog-feeder=\"MapServer\"", page.Markup, StringComparison.Ordinal);
         Assert.Contains("public-works-fs · 8", page.Markup, StringComparison.Ordinal);
 
-        // Per-endpoint issues badge on the Esri card.
+        // Per-endpoint issues badge on the GeoServices REST card.
         Assert.Contains("data-catalog-issues=\"1\"", page.Markup, StringComparison.Ordinal);
 
         // A disabled endpoint shows the disabled callout rather than facts.

@@ -1065,7 +1065,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     }
 
     // File + service import OPERATIONS: streamed file upload (POST /api/v1/admin/import/upload) and remote
-    // Esri/OGC service discovery (POST /api/v1/admin/external-services/discover).
+    // GeoServices REST/OGC service discovery (POST /api/v1/admin/external-services/discover).
     private static void AddOperateImportOperations(IServiceCollection services, bool live)
     {
         if (live)
@@ -1160,7 +1160,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     }
 
     // Discovery / catalog metadata authoring (GET/PUT discovery for a layer or a service) — drives OGC API
-    // Records / STAC / DCAT / Esri documentInfo output.
+    // Records / STAC / DCAT / external GIS documentInfo output.
     private static void AddOperateDiscoveryOperations(IServiceCollection services, bool live)
     {
         if (live)
@@ -1260,7 +1260,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IOmniPromptIntentClassifier>()));
     }
 
-    // Binds the "Import from Esri" wizard run engine + parity scorecard (#102, /operate/import/esri Run and
+    // Binds the "Import from GeoServices REST" wizard run engine + parity scorecard (#102 wizard run and
     // Scorecard steps) to the honua-devops migration-run API. The issue-122 handoff flags honua-devops as the
     // migration-run owner; there is no Console-consumable run contract yet, so the merged build registers only
     // the missing-binding client: the wizard's earlier steps (Source/Select/Map) render their deterministic,

@@ -15,7 +15,7 @@ namespace Honua.Console.Web.Auth;
 ///
 /// CHOSEN MODEL — Option A (interim) with an Option-C-ready forwarding path. honua-server today
 /// authenticates operators with OIDC (cookie-session bound to the server's own admin origin,
-/// <c>AdminAuthEndpoints</c>) and mints forwardable bearers only through the ArcGIS-shaped Portal
+/// <c>AdminAuthEndpoints</c>) and mints forwardable bearers only through the provider Portal API
 /// OAuth2 bridge — it does not yet expose a console-consumable "log operator in → forwardable
 /// operator bearer" endpoint. Until it does (the honua-server follow-up for full Option C), the
 /// Console authenticates the operator at its own edge and forwards the operator identity/bearer to

@@ -42,7 +42,7 @@ test.describe('Service types · connection publish (live)', () => {
   });
 
   // The remaining connection providers have no reachable source on this testbed — documented so the matrix is
-  // explicit. (Provider list: postgis ✓, mysql, sqlserver, oracle, duckdb, arcgis-rest.)
+  // explicit. (Provider list: postgis ✓, mysql, sqlserver, oracle, duckdb, provider REST.)
   for (const provider of ['mysql', 'sqlserver', 'oracle', 'duckdb']) {
     test.skip(`create a ${provider} connection + publish — no ${provider} source on this testbed`, () => {});
   }
@@ -50,7 +50,7 @@ test.describe('Service types · connection publish (live)', () => {
 
 // --- Path 2: external SERVICE import -> served layer. ---
 test.describe('Service types · external service import (live)', () => {
-  // Importing an external ArcGIS FeatureServer to a managed PostGIS table runs to completion and is covered by
+  // Importing from a GeoServices REST FeatureServer to a managed PostGIS table runs to completion and is covered by
   // service-import.live.spec.ts (auto-publish OFF). Driving the same import with AUTO-PUBLISH ON — which would
   // create a served, catalogued layer — does NOT reliably complete on this testbed: the publish step after the
   // table import did not reach "Completed" within 180s across retries (~9 min). This is a real gap (auto-publish

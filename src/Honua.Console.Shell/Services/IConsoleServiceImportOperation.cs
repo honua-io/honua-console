@@ -3,7 +3,7 @@ using Honua.Console.Shell.Models;
 namespace Honua.Console.Shell.Services;
 
 /// <summary>
-/// The console's service-import OPERATION: discovers the importable layers of a remote Esri/OGC service via
+/// The console's service-import OPERATION: discovers the importable layers of a remote GeoServices REST/OGC service via
 /// honua-server (<c>POST /api/v1/admin/external-services/discover</c>). The live implementation is DI-gated on
 /// a configured server base URL; otherwise the surface binds to
 /// <see cref="UnsupportedConsoleServiceImportOperation"/> (missing-binding, no network call).
@@ -12,7 +12,7 @@ public interface IConsoleServiceImportOperation
 {
     /// <summary>
     /// Discovers the service(s) and candidate layers at the given (HTTPS) URL. The URL may point to a single
-    /// service (FeatureServer/MapServer/WFS/OGC) or an ArcGIS catalog root/folder, which is enumerated into
+    /// service (FeatureServer/MapServer/WFS/OGC) or an external GIS catalog root/folder, which is enumerated into
     /// multiple services. <paramref name="auth"/> carries optional credentials for protected sources.
     /// </summary>
     Task<ConsoleServiceImportResult> DiscoverAsync(
@@ -20,7 +20,7 @@ public interface IConsoleServiceImportOperation
         ConsoleServiceImportAuth? auth = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Queues a server-side import of a single discovered ArcGIS layer; returns the job descriptor.</summary>
+    /// <summary>Queues a server-side import of a single discovered external GIS layer; returns the job descriptor.</summary>
     Task<ConsoleServiceImportRun> StartLayerImportAsync(
         ConsoleServiceImportRunRequest request,
         CancellationToken cancellationToken = default);

@@ -1513,7 +1513,7 @@ internal sealed record ExternalServiceDiscoverBody(
 /// </summary>
 public sealed record HonuaAdminExternalServiceCredentials
 {
-    /// <summary>arcgis-token, token, basic, or oauth.</summary>
+    /// <summary>provider token, token, basic, or oauth.</summary>
     public string? Mode { get; init; }
 
     public string? Username { get; init; }
@@ -1531,7 +1531,7 @@ public sealed record HonuaAdminExternalServiceCredentials
     public string? Referer { get; init; }
 }
 
-/// <summary>Result of discovering a remote Esri/OGC service (<c>POST /api/v1/admin/external-services/discover</c>).</summary>
+/// <summary>Result of discovering a remote GeoServices REST/OGC service (<c>POST /api/v1/admin/external-services/discover</c>).</summary>
 public sealed record HonuaAdminExternalServiceDiscovery
 {
     public string? SourceUrl { get; init; }
@@ -1548,7 +1548,7 @@ public sealed record HonuaAdminExternalServiceDiscovery
 
     public int? Srid { get; init; }
 
-    /// <summary>True when the URL was an ArcGIS catalog root/folder enumerated into multiple services.</summary>
+    /// <summary>True when the URL was an external GIS catalog root/folder enumerated into multiple services.</summary>
     public bool IsCatalog { get; init; }
 
     public IReadOnlyList<HonuaAdminExternalLayerCandidate> Candidates { get; init; } = [];
@@ -1588,7 +1588,7 @@ public sealed record HonuaAdminLayerField
 /// <summary>
 /// A domain on a field. <see cref="Type"/> is <c>"codedValue"</c> (carry <see cref="CodedValues"/>) or
 /// <c>"range"</c> (carry <see cref="Range"/> as a two-element [min,max] array). The optional
-/// <see cref="MergePolicy"/>/<see cref="SplitPolicy"/> are Esri policy tokens
+/// <see cref="MergePolicy"/>/<see cref="SplitPolicy"/> are GeoServices REST policy tokens
 /// (e.g. <c>esriMPTDefaultValue</c>, <c>esriSPTDuplicate</c>).
 /// </summary>
 public sealed record HonuaAdminFieldDomain
@@ -1603,10 +1603,10 @@ public sealed record HonuaAdminFieldDomain
     /// <summary>Two-element <c>[min, max]</c> bound for a range domain (min ≤ max); null for coded-value.</summary>
     public IReadOnlyList<double>? Range { get; init; }
 
-    /// <summary>Esri merge-policy token (e.g. <c>esriMPTDefaultValue</c>); null leaves the server default.</summary>
+    /// <summary>GeoServices REST merge-policy token (e.g. <c>esriMPTDefaultValue</c>); null leaves the server default.</summary>
     public string? MergePolicy { get; init; }
 
-    /// <summary>Esri split-policy token (e.g. <c>esriSPTDuplicate</c>); null leaves the server default.</summary>
+    /// <summary>GeoServices REST split-policy token (e.g. <c>esriSPTDuplicate</c>); null leaves the server default.</summary>
     public string? SplitPolicy { get; init; }
 }
 
@@ -1665,7 +1665,7 @@ public sealed record HonuaAdminLayerRelationships
 
 /// <summary>
 /// One layer relationship: identity, the related layer, origin/destination role + cardinality, the join
-/// fields, and the Esri relationship id. Mirrors <c>MetadataV2Relationship</c>.
+/// fields, and the GeoServices REST relationship id. Mirrors <c>MetadataV2Relationship</c>.
 /// </summary>
 public sealed record HonuaAdminLayerRelationship
 {
@@ -1809,7 +1809,7 @@ public sealed record HonuaAdminLayerFilter
 }
 
 /// <summary>
-/// A server-enforced query filter expression and the language it is written in (<c>arcgis-sql</c> /
+/// A server-enforced query filter expression and the language it is written in (<c>provider SQL</c> /
 /// <c>cql2-text</c> / <c>cql2-json</c>). The expression is validated server-side against the layer schema
 /// (max 4096 chars).
 /// </summary>
@@ -1817,7 +1817,7 @@ public sealed record HonuaAdminPermanentFilter
 {
     public string Expression { get; init; } = string.Empty;
 
-    /// <summary>"arcgis-sql" (default), "cql2-text", or "cql2-json".</summary>
+    /// <summary>"provider SQL" (default), "cql2-text", or "cql2-json".</summary>
     public string? Language { get; init; }
 }
 
@@ -2099,7 +2099,7 @@ public sealed record HonuaAdminLayerStatusUpdate
 /// <summary>
 /// A layer's or service's discovery / catalog metadata as read from honua-server
 /// (<c>GET /api/v1/admin/metadata/layers/{id}/discovery</c> and
-/// <c>GET /api/v1/admin/services/{svc}/discovery</c>). Drives the OGC API Records / STAC / DCAT / Esri
+/// <c>GET /api/v1/admin/services/{svc}/discovery</c>). Drives the OGC API Records / STAC / DCAT / GeoServices REST
 /// documentInfo output. Title/description/license/attribution/publisher/language/contactPoint are scalar;
 /// keywords/themes/links are lists.
 /// </summary>
@@ -2214,7 +2214,7 @@ public sealed record HonuaAdminGeoservicesImportRequest
     public HonuaAdminGeoservicesImportCredentials? Credentials { get; init; }
 }
 
-/// <summary>ArcGIS import credentials (server-side queued imports may require secret references).</summary>
+/// <summary>external GIS import credentials (server-side queued imports may require secret references).</summary>
 public sealed record HonuaAdminGeoservicesImportCredentials
 {
     public string? Mode { get; init; }

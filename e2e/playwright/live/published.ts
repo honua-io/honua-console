@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 
 // Is `service` actually published on this server?
 //
-// GeoServices answers "no such service" the Esri way: HTTP **200** carrying an error envelope
+// GeoServices REST returns "no such service" using HTTP **200** carrying an error envelope
 //   {"error":{"code":404,"message":"Not Found","details":["Service 'e2e_src_fs' not found."]}}
 // so `response.ok()` is TRUE for a service that does not exist. Guards written as
 //   test.skip(!res.ok(), '... not published ...')
@@ -27,7 +27,7 @@ export type ServiceProbe =
  * (missing vs. broken) is unit-testable. See live/specs/published-guard.live.spec.ts.
  */
 export function classifyServiceProbe(status: number, body: unknown): ServiceProbe {
-  // A transport-level 404 means the same thing as the Esri envelope's 404.
+  // A transport-level 404 means the same thing as the GeoServices REST envelope's 404.
   if (status === 404) return { state: 'missing' };
   if (status < 200 || status >= 300) {
     return { state: 'error', reason: `HTTP ${status}` };

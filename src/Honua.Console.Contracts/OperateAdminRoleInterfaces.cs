@@ -83,7 +83,7 @@ public interface IHonuaAdminImportClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Discovers the importable layers of a remote Esri/OGC service (<c>POST /api/v1/admin/external-services/discover</c>,
+    /// Discovers the importable layers of a remote GeoServices REST/OGC service (<c>POST /api/v1/admin/external-services/discover</c>,
     /// JSON <c>{ "url": "https://…" }</c>; the server requires an HTTPS URL). Returns the service type/name and
     /// candidate layers, or a field-addressable <see cref="HonuaAdminEndpointIssue"/> on rejection. Bare body.
     /// </summary>
@@ -93,7 +93,7 @@ public interface IHonuaAdminImportClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Queues an ArcGIS GeoServices layer import (<c>POST /api/v1/admin/import/geoservices/start</c>). Returns a
+    /// Queues a GeoServices REST layer import (<c>POST /api/v1/admin/import/geoservices/start</c>). Returns a
     /// job descriptor (HTTP 202) whose id is polled via <see cref="GetGeoservicesImportJobAsync"/>.
     /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>> StartGeoservicesImportAsync(
@@ -554,7 +554,7 @@ public interface IHonuaAdminDiscoveryClient
     /// Reads a layer's discovery / catalog metadata — title, description, keywords, themes, language, license,
     /// attribution, publisher, contact point, links (<c>GET /api/v1/admin/metadata/layers/{layerId}/discovery</c>).
     /// <paramref name="layerId"/> is the global id. This metadata drives the layer's OGC API Records / STAC /
-    /// DCAT / Esri documentInfo output.
+    /// DCAT / external GIS documentInfo output.
     /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetLayerDiscoveryAsync(
         int layerId,
@@ -574,7 +574,7 @@ public interface IHonuaAdminDiscoveryClient
     /// <summary>
     /// Reads a service's discovery / catalog metadata
     /// (<c>GET /api/v1/admin/services/{serviceName}/discovery</c>). Drives the service's OGC API Records / STAC /
-    /// DCAT / Esri documentInfo output.
+    /// DCAT / external GIS documentInfo output.
     /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetServiceDiscoveryAsync(
         string serviceName,

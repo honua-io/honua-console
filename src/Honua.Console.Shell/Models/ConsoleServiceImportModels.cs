@@ -1,7 +1,7 @@
 namespace Honua.Console.Shell.Models;
 
 /// <summary>
-/// Outcome of discovering a remote Esri/OGC service or catalog. On success, <see cref="Succeeded"/> is
+/// Outcome of discovering a remote GeoServices REST/OGC service or catalog. On success, <see cref="Succeeded"/> is
 /// <c>true</c> and the service(s)/layers are populated. On failure (missing binding, non-HTTPS URL,
 /// unreachable service, rejected credentials) <see cref="State"/> carries the neutral state vocabulary token
 /// and <see cref="Detail"/> the reason.
@@ -14,7 +14,7 @@ public sealed record ConsoleServiceImportResult : ConsoleOperationResult<Console
 
     public int? Srid { get; init; }
 
-    /// <summary>True when the URL was an ArcGIS catalog root/folder enumerated into multiple services.</summary>
+    /// <summary>True when the URL was an external GIS catalog root/folder enumerated into multiple services.</summary>
     public bool IsCatalog { get; init; }
 
     /// <summary>Flattened candidate layers across every discovered service.</summary>
@@ -56,7 +56,7 @@ public sealed record ConsoleServiceImportLayer
     public string? ServiceUrl { get; init; }
 }
 
-/// <summary>Request to import a single discovered ArcGIS layer into Honua (queues a server-side import job).</summary>
+/// <summary>Request to import a single discovered external GIS layer into Honua (queues a server-side import job).</summary>
 public sealed record ConsoleServiceImportRunRequest
 {
     public required string ServiceUrl { get; init; }
@@ -132,7 +132,7 @@ public sealed record ConsoleServiceImportJob
 /// </summary>
 public sealed record ConsoleServiceImportAuth
 {
-    /// <summary>anonymous, arcgis-token, token, basic, or oauth.</summary>
+    /// <summary>anonymous, provider token, token, basic, or oauth.</summary>
     public required string Mode { get; init; }
 
     public string? Username { get; init; }

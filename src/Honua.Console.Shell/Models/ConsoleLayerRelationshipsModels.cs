@@ -2,7 +2,7 @@ namespace Honua.Console.Shell.Models;
 
 /// <summary>
 /// A layer's relationships as read from honua-server (origin/destination role, cardinality, join fields,
-/// Esri relationship id). <see cref="Bound"/> is false (with <see cref="Detail"/>) when no server is
+/// GeoServices REST relationship id). <see cref="Bound"/> is false (with <see cref="Detail"/>) when no server is
 /// configured or the relationships could not be read.
 /// </summary>
 public sealed record ConsoleLayerRelationships

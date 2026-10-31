@@ -3,7 +3,7 @@ using Honua.Console.Shell.Models;
 namespace Honua.Console.Shell.Services;
 
 /// <summary>
-/// #102 "Import from Esri" wizard run engine. The migration RUN is driven by honua-devops (the issue-122
+/// #102 "Import from GeoServices REST" wizard run engine. The migration RUN is driven by honua-devops (the issue-122
 /// handoff "migration-run API owner" open item assumes honua-devops drives the run). Console does not own
 /// that contract, and no Console-consumable run API exists yet, so there is no standing in-memory run data
 /// source in the merged result (Console Patterns Charter section 11): with no server bound — or until

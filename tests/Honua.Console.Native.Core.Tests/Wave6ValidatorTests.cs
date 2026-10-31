@@ -4,7 +4,7 @@ using Honua.Console.Shell.Validation;
 namespace Honua.Console.Native.Core.Tests;
 
 /// <summary>
-/// Docker-free unit coverage for the Wave-6 Esri content-import intake validator and the new absolute-http
+/// Docker-free unit coverage for the Wave-6 external GIS content-import intake validator and the new absolute-http
 /// URL rule. Proves the catalog's intake rules in pass and fail: a source must be provided, pasted JSON must
 /// parse to a JSON object, and a typed URL / item id must be an absolute http(s) URL or a plausible item id.
 /// Keyed by <see cref="EsriImportFieldKeys"/>.
@@ -62,7 +62,7 @@ public sealed class Wave6ValidatorTests
     [Fact]
     public void PastedJsonArray_ErrorsOnJson_NotAnObject()
     {
-        // Valid JSON, but not the object shape every Esri export uses.
+        // Valid JSON, but not the object shape every external GIS export uses.
         var error = Assert.Single(Evaluate(PasteIntake("[1, 2, 3]")), e => e.FieldKey == EsriImportFieldKeys.Json);
         Assert.Equal("esri.import.json.invalid", error.Code);
         Assert.Contains("JSON object", error.Message, StringComparison.Ordinal);

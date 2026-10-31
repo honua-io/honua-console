@@ -87,7 +87,7 @@ function loadVegaEmbed() {
     return vegaEmbedPromise;
 }
 
-// Fetches the bound layer's real rows from the console features proxy and flattens the Esri
+// Fetches the bound layer's real rows from the console features proxy and flattens the GeoServices REST
 // feature JSON ({features:[{attributes:{...}}]}) to a plain array of attribute records that
 // Vega-Lite can plot. Returns [] on any failure so the caller falls back to the spec's own
 // inline data (if any) — never fabricated rows.

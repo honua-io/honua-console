@@ -18,7 +18,7 @@ public sealed record ConsoleLayerFilter
 
     public string Expression { get; init; } = string.Empty;
 
-    /// <summary>"arcgis-sql", "cql2-text", or "cql2-json"; defaults to "arcgis-sql" when unset.</summary>
+    /// <summary>"provider SQL", "cql2-text", or "cql2-json"; defaults to "provider SQL" when unset.</summary>
     public string Language { get; init; } = "arcgis-sql";
 
     public static ConsoleLayerFilter Unbound(string detail) => new() { Bound = false, Detail = detail };

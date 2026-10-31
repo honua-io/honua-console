@@ -86,7 +86,7 @@ public sealed class ServerStateVerifier : IDisposable
     // ---------------------------------------------------------------------------------------------
 
     /// <summary>
-    /// Reads the GeoServices FeatureServer layer metadata: fields (name → esri type), geometryType,
+    /// Reads the GeoServices FeatureServer layer metadata: fields (name → protocol field type), geometryType,
     /// the extent + its spatial-reference wkid, and the capability list. This is the canonical
     /// service-metadata read, independent of the admin publish path.
     /// </summary>

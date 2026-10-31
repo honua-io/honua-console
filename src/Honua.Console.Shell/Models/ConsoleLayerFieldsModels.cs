@@ -41,10 +41,10 @@ public sealed record ConsoleLayerField
     /// <summary>Range maximum for a range domain (null unless <see cref="DomainKind"/> is Range).</summary>
     public double? RangeMax { get; init; }
 
-    /// <summary>Esri merge-policy token, or null when unset.</summary>
+    /// <summary>GeoServices REST merge-policy token, or null when unset.</summary>
     public string? MergePolicy { get; init; }
 
-    /// <summary>Esri split-policy token, or null when unset.</summary>
+    /// <summary>GeoServices REST split-policy token, or null when unset.</summary>
     public string? SplitPolicy { get; init; }
 
     /// <summary>The persisted default value rendered as text (JSON scalar), or null when the field has none.</summary>

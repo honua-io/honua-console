@@ -27,7 +27,7 @@ public sealed class DataToPublishFlowState
     /// <summary>The chosen style (step ④) — reuses the dual-mode StudioStyleEditor; null until a style is picked.</summary>
     public string? StyleId { get; set; }
 
-    /// <summary>The style encoding the editor last authored in (MapLibre canonical or Esri drawingInfo).</summary>
+    /// <summary>The style encoding the editor last authored in (MapLibre canonical or GeoServices REST drawingInfo).</summary>
     public StyleEncoding StyleEncoding { get; set; } = StyleEncoding.MapLibre;
 
     /// <summary>Go-live visibility (step ⑤).</summary>

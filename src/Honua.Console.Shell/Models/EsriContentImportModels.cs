@@ -1,8 +1,8 @@
 namespace Honua.Console.Shell.Models;
 
-// Console-side projections for the four Esri content-import surfaces (issue #122 / #100, #101, #104, #102).
+// Console-side projections for the four external GIS content-import surfaces (issue #122 / #100, #101, #104, #102).
 //
-// The Esri-JSON parsing and the source -> target mapping are deterministic, Console-side work derived
+// The external content JSON parsing and the source -> target mapping are deterministic, Console-side work derived
 // entirely from the uploaded JSON — that is real, not mocked (Console Patterns Charter section 11). Anything
 // that needs a live server (the publish target, the #102 migration RUN engine) is gated behind an explicit
 // missing-binding state via IEsriMigrationRunDataSource; these records carry only the parsed conversion
@@ -27,7 +27,7 @@ public enum ImportFidelity
     Manual,
 }
 
-/// <summary>The kind of Esri content an intake parsed.</summary>
+/// <summary>The kind of external GIS content an intake parsed.</summary>
 public enum EsriContentKind
 {
     WebMap,
@@ -39,7 +39,7 @@ public enum EsriContentKind
 
 /// <summary>
 /// One parsed source -> target mapping row shared by every surface's mapping table. The
-/// <see cref="SourceName"/>/<see cref="SourceType"/> describe the Esri thing; <see cref="TargetName"/>
+/// <see cref="SourceName"/>/<see cref="SourceType"/> describe the external GIS document; <see cref="TargetName"/>
 /// the Honua thing; <see cref="Fidelity"/> + <see cref="Note"/> explain any degrade/drop/binding.
 /// </summary>
 public sealed record EsriMappingRow(
@@ -55,7 +55,7 @@ public sealed record EsriMappingRow(
 public sealed record EsriCarryOver(string Label, bool Carried);
 
 /// <summary>
-/// The full deterministic conversion preview for one parsed Esri document. This is the
+/// The full deterministic conversion preview for one parsed external GIS document. This is the
 /// <c>honua.map-package.v1</c> mapping for #100, the dashboard package for #101, and the report content
 /// for #104. It is computed entirely from the uploaded JSON.
 /// </summary>
