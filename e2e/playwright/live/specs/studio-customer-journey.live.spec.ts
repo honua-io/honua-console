@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { expect, test, request } from '@playwright/test';
 import { sourceConnectionBody } from '../source-db';
-import { accessibility, createRecipe, headers, identity, observeHealth, read, serverUrl, signIn, type Draft } from '../studio-customer';
+import { accessibility, createRecipe, customerIdentity, headers, identity, observeHealth, read, serverUrl, signIn, sourceFor, type Draft } from '../studio-customer';
 
 // No seeded cookies, API-key customer mutations, route mocks, skips or UI-only success criteria.
 // A fresh compose database and fresh Keycloak realm are required for each invocation.
@@ -13,6 +13,7 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
   const completed: string[] = [];
   const health = observeHealth(page);
   try {
+    const customer = await customerIdentity();
     const session = await test.step('real OIDC sign-in and least-privilege negative control', async () => {
       const session = await signIn(page);
       // This API client shares the customer's cookie. A successful admin read would invalidate the test identity.
@@ -92,10 +93,7 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
     await page.goto('/studio');
     await expect(page.locator('[data-studio-status]')).toContainText('Connected to');
     const packageKey = `customer-map-${nonce()}`;
-    const sources = await page.locator('honua-studio-app').evaluate(element =>
-      (element as any).sourceCatalog as Array<{ id: string; locator?: { url?: string; layerId?: number } }>);
-    const source = sources.find(entry => entry.locator?.url?.includes(services[0].service) && entry.locator.layerId === services[0].layerId);
-    expect(source).toBeTruthy();
+    const source = await sourceFor(page, services[0].service, services[0].layerId);
     await createRecipe(page, source!.id, packageKey);
     await accessibility(page, info, 'recipe-map');
     const original = (await identity(page))!;
@@ -103,6 +101,9 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
     const readDraft = (id: string): Promise<Draft> => read(page, session, draftPath(id));
     const first = await readDraft(original.draftId);
     expect(first.ownerId).toBeTruthy();
+    const ownerSubject = first.ownerId.startsWith('subject:')
+      ? decodeURIComponent(first.ownerId.split(':')[2].split('@tenant:')[0]) : first.ownerId;
+    expect(ownerSubject, 'the server owner must be the actual IdP customer subject').toBe(customer.id);
     expect(first.createdBy).toBe(first.ownerId);
     expect(first.envelope.body.layers).toHaveLength(1);
     await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(2);
@@ -210,9 +211,38 @@ test('fresh non-admin customer imports, authors, saves and reopens a map', async
       await publication.getByRole('textbox', { name: 'Publication route' }).fill(route);
       await publication.getByRole('combobox', { name: 'Publication audience' }).selectOption('public');
       await publication.getByRole('button', { name: 'Publish reviewed version' }).click();
-      // Publication uses the product's separate-human approval contract. The customer cannot
-      // approve their own proposal. Until a distinct approver is available this assertion stays red.
-      await expect(publication.getByRole('link', { name: 'Open published map', exact: true })).toBeVisible({ timeout: 30_000 });
+      await expect(publication).toContainText('Awaiting separate human approval.', { timeout: 30_000 });
+      const proposalId = /Awaiting separate human approval\. Proposal ([A-Za-z0-9_-]{1,128})\./
+        .exec(await publication.textContent() ?? '')?.[1];
+      expect(proposalId, 'publication must return a durable proposal identity').toBeTruthy();
+      const consoleOrigin = new URL(page.url()).origin;
+      const approverContext = await page.context().browser()!.newContext({
+        baseURL: consoleOrigin, ignoreHTTPSErrors: true,
+        // Same explicit trusted-edge fixture as the existing two-operator live auth proof.
+        // This is a distinct host partition and a separate real IdP login, never a shared cookie.
+        extraHTTPHeaders: { 'X-Honua-Edge-Auth': 'live-proof-edge-secret',
+          'X-Forwarded-User': 'bob-operator', 'X-Forwarded-Email': 'bob@live-proof.honua.test' },
+      });
+      try {
+        const approver = await approverContext.newPage();
+        const approverSession = await signIn(approver, 'bob', `/inbox?proposalId=${proposalId}`);
+        expect(approverSession.principalId).not.toBe(session.principalId);
+        const proposalPath = `/api/processes/admin/proposals/${proposalId}`;
+        const pending = await read(approver, approverSession, proposalPath);
+        expect(pending.requestedBy).toBe(first.ownerId);
+        const detail = approver.locator(`[data-proposal-id="${proposalId}"]:has([data-proposal-status])`).last();
+        await detail.locator('[data-proposal-approve]').click();
+        await expect(detail.locator('[data-proposal-action-message]')).toContainText('Approved');
+        await expect.poll(async () => (await read(approver, approverSession, proposalPath)).status?.toLowerCase(),
+          { timeout: 90_000 }).toBe('succeeded');
+        const resolved = await read(approver, approverSession, proposalPath);
+        expect(resolved.resolvedBy).toBeTruthy();
+        expect(resolved.resolvedBy).not.toBe(resolved.requestedBy);
+      } finally { await approverContext.close(); }
+      await expect.poll(async () => {
+        await publication.getByRole('button', { name: 'Refresh publication status' }).click();
+        return publication.getByRole('link', { name: 'Open published map', exact: true }).isVisible();
+      }, { timeout: 90_000 }).toBe(true);
       const href = await publication.getByRole('link', { name: 'Open published map', exact: true }).getAttribute('href');
       expect(href).toBeTruthy();
       const anonymous = await page.context().browser()!.newContext();
@@ -281,11 +311,7 @@ test('widget transport control: real recipe table and filter use the host sessio
     expect((await features.json()).features).toHaveLength(2);
     await page.reload();
     await expect(page.locator('[data-studio-status]')).toContainText('Connected to');
-    const source = await page.locator('honua-studio-app').evaluate((element, selected) =>
-      ((element as any).sourceCatalog as Array<{ id: string; locator?: { url?: string; layerId?: number } }>)
-        .find(entry => entry.locator?.url?.includes(selected.service) && entry.locator?.layerId === selected.layerId),
-      { service, layerId });
-    expect(source).toBeTruthy();
+    const source = await sourceFor(page, service, layerId);
     await createRecipe(page, source!.id, `widget-map-${nonce()}`);
     await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(2);
     await page.getByTestId('studio-control-filter-select').selectOption('west');

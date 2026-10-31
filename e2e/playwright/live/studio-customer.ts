@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, type Page, type TestInfo } from '@playwright/test';
+import { expect, request, type Page, type TestInfo } from '@playwright/test';
 
 export const serverUrl = process.env.HONUA_CONSOLE_E2E_SERVER_URL ?? 'http://127.0.0.1:8088';
 export type Session = { authenticated: boolean; principalId: string; environmentId: string; csrfToken: string; expiresAt: string };
@@ -79,8 +79,10 @@ export async function accessibility(page: Page, info: TestInfo, name: string) {
 }
 
 export async function createRecipe(page: Page, sourceId: string, packageKey: string) {
-  await page.getByTestId('recipe-toggle').focus();
-  await page.keyboard.press('Enter');
+  if (!(await page.getByTestId('recipe-panel').isVisible())) {
+    await page.getByTestId('recipe-toggle').focus();
+    await page.keyboard.press('Enter');
+  }
   await expect(page.getByTestId('recipe-panel')).toBeVisible();
   await page.getByTestId('recipe-package-key').fill(packageKey);
   await page.getByTestId('recipe-source').selectOption(sourceId);
@@ -101,4 +103,43 @@ export async function createRecipe(page: Page, sourceId: string, packageKey: str
   await expect(page.getByTestId('recipe-status')).toContainText('Created draft');
   await page.getByTestId('recipe-close').click();
   await expect.poll(() => identity(page).then(value => value?.packageKey)).toBe(packageKey);
+}
+
+/** Independent IdP witness; its admin token stays in memory outside the browser context. */
+export async function customerIdentity() {
+  const idp = await request.newContext({ baseURL: 'https://127.0.0.1:8443', ignoreHTTPSErrors: true });
+  try {
+    const tokenResponse = await idp.post('/realms/master/protocol/openid-connect/token', { form: {
+      client_id: 'admin-cli', grant_type: 'password', username: 'admin', password: 'admin-live-proof-pw',
+    } });
+    expect(tokenResponse.status()).toBe(200);
+    const token = (await tokenResponse.json()).access_token;
+    const headers = { Authorization: `Bearer ${token}` };
+    const userResponse = await idp.get('/admin/realms/honua/users?username=customer&exact=true', { headers });
+    expect(userResponse.status()).toBe(200);
+    const users = await userResponse.json();
+    expect(users).toHaveLength(1);
+    const user = users[0];
+    const rolesResponse = await idp.get(`/admin/realms/honua/users/${user.id}/role-mappings/realm/composite`, { headers });
+    expect(rolesResponse.status()).toBe(200);
+    const roles = (await rolesResponse.json()).map((role: { name: string }) => role.name);
+    expect(roles).toContain('user');
+    expect(roles).not.toContain('admin');
+    expect(roles).not.toContain('administrator');
+    return { id: user.id as string, username: user.username as string };
+  } finally { await idp.dispose(); }
+}
+
+export async function sourceFor(page: Page, service: string, layerId: number) {
+  if (!(await page.getByTestId('recipe-panel').isVisible())) {
+    await page.getByTestId('recipe-toggle').focus();
+    await page.keyboard.press('Enter');
+  }
+  await expect(page.getByTestId('recipe-source')).toBeEnabled();
+  const matches = () => page.locator('honua-studio-app').evaluate((element, selected) =>
+    (((element as any).sourceCatalog ?? []) as Array<{ id: string; locator?: { url?: string; layerId?: number } }>)
+      .filter(entry => entry.locator?.url?.includes(selected.service) && entry.locator?.layerId === selected.layerId),
+    { service, layerId });
+  await expect.poll(() => matches().then(sources => sources.length), { timeout: 30_000 }).toBe(1);
+  return (await matches())[0];
 }

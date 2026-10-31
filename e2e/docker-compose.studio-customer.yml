@@ -23,6 +23,8 @@ services:
       HONUA_ADMIN_API_KEY: ""
       HONUA_CONSOLE_MODE: full
       Studio__EmbedJsStudio: "true"
+      Honua__Console__Auth__EdgeForwarded__Enabled: "true"
+      Honua__Console__Auth__EdgeForwarded__SharedSecret: live-proof-edge-secret
       SSL_CERT_FILE: /certs/kc.crt
     volumes:
       - ./playwright/live-auth/certs:/certs:ro
