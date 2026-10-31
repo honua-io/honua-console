@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { expect, test, request } from '@playwright/test';
 import { sourceConnectionBody } from '../source-db';
@@ -319,6 +320,8 @@ test('widget transport control: real recipe table and filter use the host sessio
     await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(1);
     await expect(page.getByTestId('studio-widget-grid-row')).toContainText('West');
     expect(health.successfulReads.some(path => path.includes(`/FeatureServer/${layerId}/query`))).toBe(true);
+    await info.attach('widget-transport-outcome.json', { contentType: 'application/json',
+      body: Buffer.from(JSON.stringify({ service, layerId, transportPassed: true, fullRows: 2, westRows: 1 })) });
   } finally {
     await verifier.dispose();
     await health.verify(info);
@@ -361,4 +364,48 @@ test('New map keyboard creation persists a real draft without browser errors', a
     expect(draft.ownerId).toBeTruthy();
     expect(draft.envelope.body.layers).toEqual([]);
   } finally { await health.verify(info); }
+});
+
+
+test('import typing control: published GeoJSON retains scalar attribute fields', async ({}, info) => {
+  // Separate from the user journey so its earliest permission refusal cannot hide import corruption.
+  const verifier = await request.newContext({ baseURL: serverUrl,
+    extraHTTPHeaders: { 'X-API-Key': process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key' } });
+  try {
+    const table = `typing_${nonce()}`, service = `typing-${nonce()}`;
+    const importedResponse = await verifier.post('/api/v1/admin/import/upload', { multipart: {
+      file: { name: 'customer-regions.geojson', mimeType: 'application/geo+json', buffer: await readFile(fixture('customer-regions.geojson')) },
+      TableName: table,
+    } });
+    expect(importedResponse.status()).toBe(200);
+    const imported = await importedResponse.json();
+    expect(imported.success).toBe(true);
+    const connectionResponse = await verifier.post('/api/v1/admin/connections/', { data: sourceConnectionBody(`typing-${nonce()}`) });
+    expect(connectionResponse.status()).toBe(201);
+    const connectionId = (await connectionResponse.json()).data.connectionId;
+    const tablesResponse = await verifier.get(`/api/v1/admin/connections/${connectionId}/tables`);
+    expect(tablesResponse.status()).toBe(200);
+    const tables = (await tablesResponse.json()).tables.filter((entry: any) => entry.table === table || entry.table === `imported_${table}`);
+    expect(tables).toHaveLength(1);
+    const physical = tables[0];
+    const publication = await verifier.post(`/api/v1/admin/connections/${connectionId}/layers/`, { data: {
+      schema: physical.schema, table: physical.table, layerName: 'Typed imported regions', serviceName: service, enabled: true,
+    } });
+    expect(publication.status()).toBe(201);
+    const layerId = (await publication.json()).data.layerId;
+    const metadataResponse = await verifier.get(`/rest/services/${service}/FeatureServer/${layerId}?f=json`);
+    expect(metadataResponse.status()).toBe(200);
+    const metadata = await metadataResponse.json();
+    await info.attach('imported-field-types.json', { contentType: 'application/json',
+      body: Buffer.from(JSON.stringify({ service, layerId, fields: metadata.fields, geometryType: metadata.geometryType }, null, 2)) });
+    expect(metadata.fields, 'an imported JSONB container must not replace the typed input attributes').toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'name', type: 'esriFieldTypeString' }),
+      expect.objectContaining({ name: 'category', type: 'esriFieldTypeString' }),
+      expect.objectContaining({ name: 'population', type: expect.stringMatching(/Integer|SmallInteger|BigInteger/) }),
+      expect.objectContaining({ name: 'rating', type: expect.stringMatching(/Double|Single/) }),
+    ]));
+    const query = await verifier.get(`/rest/services/${service}/FeatureServer/${layerId}/query?where=1%3D1&outFields=*&f=json`);
+    expect(query.status()).toBe(200);
+    expect((await query.json()).features.map((feature: any) => feature.attributes.rating).sort()).toEqual([1.5, 2.5]);
+  } finally { await verifier.dispose(); }
 });

@@ -48,6 +48,7 @@ export function observeHealth(page: Page) {
   const failures: string[] = [];
   const successfulReads: string[] = [];
   const failedWidgetReads = new Set<string>();
+  const cancelledReads: string[] = [];
   page.on('response', response => {
     const url = new URL(response.url());
     if (!origins.has(url.origin)) return;
@@ -58,6 +59,10 @@ export function observeHealth(page: Page) {
   });
   page.on('requestfailed', request => {
     const url = new URL(request.url());
+    if (request.failure()?.errorText === 'net::ERR_ABORTED') {
+      cancelledReads.push(`${url.origin}${url.pathname}`);
+      return;
+    }
     if (request.method() === 'GET' && origins.has(url.origin) && /^\/rest\/services\/.+\/FeatureServer\/\d+\/query$/.test(url.pathname)) failedWidgetReads.add(request.url());
     if (origins.has(url.origin))
       failures.push(`request failed ${url.origin}${url.pathname}: ${request.failure()?.errorText}`);
@@ -73,7 +78,7 @@ export function observeHealth(page: Page) {
         independentStatus.push({ path: new URL(url).pathname, status: response.status() });
       }
       await info.attach('studio-network-health.json', { contentType: 'application/json',
-        body: Buffer.from(JSON.stringify({ failures, successfulReads, independentStatus }, null, 2)) });
+        body: Buffer.from(JSON.stringify({ failures, successfulReads, independentStatus, cancelledReads }, null, 2)) });
       expect.soft(failures, 'no Console, Studio or server HTTP failures or browser errors').toEqual([]);
     },
   };

@@ -25,7 +25,8 @@ governed approval floor. It sets a one-minute operator bearer lifetime while lea
 session alive, so a real server refresh can occur during authoring. The test observes
 the old expiry pass and requires a newer server expiry with the same principal and map.
 It never edits browser clocks, injects tokens, supplies fake model responses or replaces
-API calls. An unexpected 4xx/5xx, failed request, console error or axe violation fails.
+API calls. Every 4xx/5xx, connectivity failure, console error or axe violation fails. Intentional
+fetch cancellation is retained separately; actual loaded rows and filters still must pass.
 
 Evidence includes typed OGC/FeatureServer reads, saved-version owner and body reads,
 separate server export PNG pixels with wrong-colour and transparent-gap controls,
