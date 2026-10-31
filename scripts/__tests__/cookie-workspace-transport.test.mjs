@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {capturedProcessFetch, createStudioCookieSession} from '../../src/Honua.Console.Web/wwwroot/js/cookie-workspace-transport.mjs';
+import {capturedProcessFetch, createStudioCookieSession, scheduleCookieSessionRenewal} from '../../src/Honua.Console.Web/wwwroot/js/cookie-workspace-transport.mjs';
 
 function leaseClock(t) {
  let now=Date.parse('2026-10-24T00:00:00Z'),next=0;
@@ -12,9 +12,48 @@ function leaseClock(t) {
  t.mock.method(globalThis,'clearTimeout',id=>timers.delete(id));
  return {timers,advance(ms){now+=ms;},expiry(ms){return new Date(now+ms).toISOString();},
   next(){return [...timers.entries()].at(-1);},
-  fire(id){const timer=timers.get(id);assert.ok(timer);timers.delete(id);timer.callback();}};
+  fire(id){const timer=timers.get(id);assert.ok(timer);timers.delete(id);return timer.callback();}};
 }
 const lease=expiresAt=>({principalId:'partition',environmentId:'environment',sourcePathBase:'/honua',csrfToken:'csrf',expiresAt});
+
+test('renewal replaces a one-minute Studio cookie lease before its expiry notification',async t=>{
+ const clock=leaseClock(t);let current=lease(clock.expiry(60000)),expired=0,renewals=0;
+ let dispose=createStudioCookieSession(current).onExpired(()=>expired++);
+ const stop=scheduleCookieSessionRenewal(()=>current,async()=>{
+  renewals++;dispose();current={...current,expiresAt:clock.expiry(60000)};
+  dispose=createStudioCookieSession(current).onExpired(()=>expired++);
+ });
+ let [id,timer]=clock.next();assert.equal(timer.delay,30000);
+ clock.advance(30000);await clock.fire(id);assert.equal(renewals,1);
+ [id,timer]=clock.next();assert.equal(timer.delay,30000);
+ clock.advance(30000);await clock.fire(id);assert.equal(renewals,2);assert.equal(expired,0);
+ stop();dispose();assert.equal(clock.timers.size,0);
+});
+
+test('renewal discovers a mounted session and retries failures without overlapping requests',async t=>{
+ const clock=leaseClock(t);let current,calls=0,finish;
+ const stop=scheduleCookieSessionRenewal(()=>current,()=>{
+  calls++;return new Promise(resolve=>{finish=resolve;});
+ });
+ let [id,timer]=clock.next();assert.equal(timer.delay,1000);
+ current=lease(clock.expiry(60000));clock.advance(1000);
+ const pending=clock.fire(id);assert.equal(calls,1);assert.equal(clock.timers.size,0);
+ finish();await pending;
+ [id,timer]=clock.next();assert.equal(timer.delay,29500);
+ stop();assert.equal(clock.timers.size,0);
+ let attempts=0;
+ const cancel=scheduleCookieSessionRenewal(()=>lease(clock.expiry(-1000)),async()=>{attempts++;throw new Error('offline');});
+ [id,timer]=clock.next();assert.equal(timer.delay,1000);
+ await clock.fire(id);assert.equal(attempts,1);assert.equal(clock.next()[1].delay,1000);
+ cancel();assert.equal(clock.timers.size,0);
+});
+
+test('stopping during an in-flight renewal does not restart its timer',async t=>{
+ const clock=leaseClock(t);let finish;
+ const stop=scheduleCookieSessionRenewal(()=>lease(clock.expiry(60000)),()=>new Promise(resolve=>{finish=resolve;}));
+ const pending=clock.fire(clock.next()[0]);stop();finish();await pending;
+ assert.equal(clock.timers.size,0);
+});
 
 test('Studio cookie adapter snapshots only allowed fields and rejects invalid expiry',t=>{
  const clock=leaseClock(t);
