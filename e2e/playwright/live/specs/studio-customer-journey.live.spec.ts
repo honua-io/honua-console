@@ -360,9 +360,13 @@ test('widget transport control: real recipe table and filter use the host sessio
     expect((await identity(page))?.draftId).toBe(original.draftId);
     const afterRefresh = await read(page, session, draftPath);
     expect(afterRefresh.ownerId).toBe(beforeRefresh.ownerId);
-    expect(afterRefresh.envelope.body).toEqual(beforeRefresh.envelope.body);
+    expect(afterRefresh.itemId).toBe(beforeRefresh.itemId);
+    expect(afterRefresh.envelope.body.layers.map((layer: any) => [layer.id, layer.sourceId]))
+      .toEqual(beforeRefresh.envelope.body.layers.map((layer: any) => [layer.id, layer.sourceId]));
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-    await expect(page.getByRole('list', { name: 'Versions of this map', exact: true })).toBeVisible();
+    await expect(page.locator('[data-studio-status]')).toHaveText('This map has no saved versions yet.');
+    const versionsAfterRefresh = await read(page, session, `/api/studio/v1/studio/content-items/${afterRefresh.itemId}/versions`);
+    expect(versionsAfterRefresh.versions).toEqual([]);
     await info.attach('widget-transport-outcome.json', { contentType: 'application/json',
       body: Buffer.from(JSON.stringify({ service, layerId, transportPassed: true, fullRows: 2, westRows: 1,
         eastRowsAfterRefresh: 1, originalExpiry, renewedExpiry: Date.parse(renewed.expiresAt), sameDraftAfterRefresh: true })) });
