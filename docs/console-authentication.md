@@ -31,9 +31,9 @@ shipped, honua-server could **not yet issue a console-consumable operator bearer
   OIDC access token is held server-side; the endpoint returns only a session cookie scoped to the
   server origin — it does not hand a forwardable operator bearer back to a separately-deployed
   Console.
-- The only forwardable-bearer issuance is the **ArcGIS-shaped Portal OAuth2 named-user bridge**
-  (`PortalOAuthTokenService`, `POST /sharing/rest/oauth2/token`) — an Esri-compatibility surface, not
-  a general "console login → operator bearer" contract.
+- The only forwardable-bearer issuance is the named-user token-exchange route
+  (`POST /sharing/rest/oauth2/token`). It follows the existing service token contract, not a
+  general "console login → operator bearer" contract.
 
 So per the #233 branch ("if the server can't yet issue interactive operator sessions, ship A as an
 interim and migrate to C"), the Console authenticates the operator **at its own edge** and forwards
