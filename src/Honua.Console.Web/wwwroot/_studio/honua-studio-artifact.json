@@ -1,6 +1,6 @@
 {
   "schemaVersion": "honua.console.studio-artifact.v1",
-  "studioRevision": "9637a7ce31cb1e1dd66d83daa1b00d706d787424",
+  "studioRevision": "b1ba0f03dbc8c38134857b01096acfe1c66b8fa4",
   "sdkRevision": "5765b427f421dca9c42832ae450fa1c5aad882c2",
   "files": [
     {
@@ -40,8 +40,8 @@
     },
     {
       "path": "console.js",
-      "bytes": 927010,
-      "sha256": "07800f4a5bed756bee0df7c3683042e50902c5150964fbc9f4f0d46e548ef715"
+      "bytes": 927046,
+      "sha256": "d60dd20b9e974112f408bd284416238e0c2c77db1443c838281edf072e0a3b0e"
     },
     {
       "path": "constants-B8tqYbYF.js",
@@ -106,7 +106,7 @@
     {
       "path": "maputnik/PROVENANCE.json",
       "bytes": 1568,
-      "sha256": "0111f337437caf0cc26ad2c0a8f0b445a9ce9499c3d004418dacc49761a49560"
+      "sha256": "d9e86c563723e36ff928b762804f9f666d6b6df8fd2983fd9e096dd67695d6bc"
     },
     {
       "path": "maputnik/THIRD-PARTY-NOTICES.txt",
@@ -136,7 +136,7 @@
     {
       "path": "STUDIO-PROVENANCE.json",
       "bytes": 247129,
-      "sha256": "2851c4cb8c13a4a3aacecbce499d8fae2696696da6d15bf261b24cf2bf9d4fd8"
+      "sha256": "8e4e5b5c2f67de6714dbda06578c199196d640540e10cc0a1e7e947fd9dfcde0"
     },
     {
       "path": "style.css",

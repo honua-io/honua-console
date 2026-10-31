@@ -12906,7 +12906,7 @@ function lh(e = {}) {
 			legacySourceBaseUrl: e.sourceCatalogBaseUrl ?? e.baseUrl ?? "/api",
 			documentUrl: d ?? "",
 			getAuth: e.getAuth ?? (() => void 0),
-			fetchImpl: c
+			...e.fetchImpl ? { fetchImpl: e.fetchImpl } : {}
 		}, p = r?.signal ?? new AbortController().signal, m;
 		if (e.getAuth && d && l(s, f.sourceBaseUrl, d, f.legacySourceBaseUrl)) m = await u(s, f, p, "Widget source");
 		else {
