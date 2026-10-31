@@ -3,6 +3,25 @@ export function sameCookieAuthority(left,right) {
     return ['principalId','environmentId','sourcePathBase'].every(key=>left?.[key]===right?.[key]);
 }
 
+// Rebind before the captured lease expires, including short server bearers. The
+// caller still owns authority/view checks; this loop only schedules its renewal.
+export function scheduleCookieSessionRenewal(current, renew) {
+    let stopped = false, timer;
+    const schedule = () => {
+        if (stopped) return;
+        const remaining = Date.parse(current()?.expiresAt || '') - Date.now();
+        const delay = Number.isFinite(remaining) ? Math.max(1000, Math.min(60000, remaining / 2)) : 1000;
+        timer = setTimeout(async () => {
+            timer = undefined;
+            try { await renew(); }
+            catch { /* Retry the same captured authority; expiry remains fail closed. */ }
+            finally { schedule(); }
+        }, delay);
+    };
+    schedule();
+    return () => { stopped = true; if (timer !== undefined) clearTimeout(timer); };
+}
+
 /** The Studio auth session disposes this subscription when its cookie lease is replaced. */
 export function createStudioCookieSession(session) {
     const expiresAt = session?.expiresAt;
