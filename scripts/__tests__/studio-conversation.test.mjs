@@ -138,3 +138,24 @@ test('the shipped SDK completes a canonical tool round trip against the trunk wi
  assert.equal(workspace.context.task.id,'real-draft');
  assert.equal((await workspace.conversation()).messages.at(-1).content,'Created your map.');
 });
+
+test('a rejected design selection releases capture and permits a corrected retry',async()=>{
+ const {workspace}=await readyWorkspace();
+ workspace.studioDesignFocusProvider=()=>{throw new Error('Review the selected design');};
+ await assert.rejects(workspace.submit('Change the map'),/selected design/);
+ assert.equal(workspace.capturing,0);
+ assert.equal(workspace.studioConversation.busy,false);
+ workspace.studioDesignFocusProvider=()=>undefined;
+ assert.equal((await workspace.submit('Try again')).status,'complete');
+});
+
+test('each model turn receives the captured draft identity after changing drafts',async()=>{
+ const {workspace,options}=await readyWorkspace();
+ await workspace.select([],{kind:'studio-composition',id:'draft-a',revision:7});
+ await workspace.submit('Edit this map');
+ assert.match(options().system(),/draft-a.*generation.*7/);
+ await workspace.select([],{kind:'studio-composition',id:'draft-b',revision:3});
+ await workspace.submit('Edit this map instead');
+ assert.match(options().system(),/draft-b.*generation.*3/);
+ assert.doesNotMatch(options().system(),/draft-a/);
+});
