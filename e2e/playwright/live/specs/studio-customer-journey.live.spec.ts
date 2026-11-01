@@ -136,6 +136,27 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     const policyVerifier = await request.newContext({ baseURL: serverUrl,
       extraHTTPHeaders: { 'X-API-Key': process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key' } });
     try {
+      const hydrationProbe = await page.context().newPage();
+      const probeHealth = observeHealth(hydrationProbe);
+      let releaseFramework!: () => void;
+      let frameworkBlocked = false;
+      const frameworkReady = new Promise<void>(resolve => { releaseFramework = resolve; });
+      await hydrationProbe.route('**/_framework/blazor.web*.js*', async route => {
+        frameworkBlocked = true;
+        await frameworkReady;
+        await route.continue();
+      });
+      try {
+        await hydrationProbe.goto(`/operate/services/${encodeURIComponent(services[0].service)}/settings`, { waitUntil: 'commit' });
+        await expect.poll(() => frameworkBlocked).toBe(true);
+        await expect(hydrationProbe.locator('[data-allow-anonymous]')).toBeDisabled();
+        releaseFramework();
+        await expect(hydrationProbe.locator('[data-allow-anonymous]')).toBeEnabled();
+      } finally {
+        releaseFramework();
+        await probeHealth.verify(info);
+        await hydrationProbe.close();
+      }
       for (const item of services) {
         await page.goto(`/operate/services/${encodeURIComponent(item.service)}/settings`);
         await expect(page.locator('[data-allow-anonymous]')).toBeVisible();
