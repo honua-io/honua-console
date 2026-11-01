@@ -3,6 +3,7 @@ import { capturedProcessFetch, createStudioCookieSession, sameCookieAuthority, s
 import { captureWorkspaceFollow, queueWorkspaceFollow } from './workspace-follow.mjs';
 import { selectedResource, studioResourceRefs } from './agent-workspace.mjs';
 import { mountStudioVersionControls } from './studio-version-controls.mjs';
+import { mountStudioSavedMaps } from './studio-saved-maps.mjs';
 import { mountStudioStyleControls } from './studio-style-controls.mjs';
 import { captureStudioDesignFocus } from './studio-design-focus.mjs';
 let assets;
@@ -75,6 +76,7 @@ async function studioElement(session) {
     app.workspaceAuthorityChanged=changedAuthority;
     app.workspaceCookieBinding={principalId:session.principalId,environmentId:session.environmentId,sourcePathBase:session.sourcePathBase};
     app.session = cookieSession;
+    app.workspaceSavedMaps?.sessionChanged();
     app.workspace = window.honuaAgentWorkspace;
     if (app.workspace) app.workspace.studioBindingProvider = () => app.isConnected ? app.workspaceCookieBinding : undefined;
     if (app.workspace) app.workspace.authorityChangeGuard = () => app.prepareWorkspaceTurn();
@@ -126,6 +128,8 @@ async function mount() {
             try { await createApp.createWorkspaceDraft(key.value.trim());status.textContent='Shared server draft opened.'; }
             catch(error) {status.textContent=error.message;} finally {button.disabled=false;}
         });
+        createApp.workspaceSavedMaps?.dispose();
+        createApp.workspaceSavedMaps = mountStudioSavedMaps({ app:createApp, host, status });
         createApp.workspaceVersionControls?.dispose();
         createApp.workspaceVersionControls = mountStudioVersionControls({ app:createApp, host, status });
         createApp.workspaceStyleControls?.dispose();
