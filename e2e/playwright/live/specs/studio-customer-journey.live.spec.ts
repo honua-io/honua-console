@@ -330,7 +330,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     await test.step('customer publication and signed-out audience', async () => {
       const conversation = page.locator('[data-agent-workspace]');
       if (await conversation.getAttribute('data-connected') !== 'true') {
-        await conversation.locator('summary').click();
+        if (await conversation.getAttribute('open') === null) await conversation.locator('summary').click();
         await conversation.getByRole('button', { name: 'Start conversation', exact: true }).click();
         await expect(conversation).toHaveAttribute('data-connected', 'true', { timeout: 30_000 });
       }
