@@ -251,6 +251,7 @@
     private int _detailReloadToken;
     private readonly CancellationTokenSource _detailPollingCancellation = new();
     private Task? _detailPollingTask;
+    private bool _disposed;
 
     private string ServerName =>
         string.IsNullOrWhiteSpace(_serverName) ? "the connected honua-server" : _serverName;
@@ -291,7 +292,10 @@
         await RefreshAsync();
         // Best-effort: open the live subscription. A failure leaves the inbox on manual refresh.
         await Realtime.StartAsync();
-        _detailPollingTask = PollSelectedDetailAsync(_detailPollingCancellation.Token);
+        if (!_disposed)
+        {
+            _detailPollingTask = PollSelectedDetailAsync(_detailPollingCancellation.Token);
+        }
     }
 
     private async Task ResolveServerNameAsync()
@@ -424,6 +428,7 @@
             _realtimeState.ConnectionStateChanged -= OnConnectionStateChanged;
         }
 
+        _disposed = true;
         _detailPollingCancellation.Cancel();
         if (_detailPollingTask is not null)
         {
