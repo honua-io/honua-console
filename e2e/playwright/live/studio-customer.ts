@@ -107,6 +107,17 @@ export async function accessibility(page: Page, info: TestInfo, name: string) {
 }
 
 export async function createRecipe(page: Page, sourceId: string, packageKey: string) {
+  await page.locator('honua-studio-app').evaluate(element => {
+    const app = element as any;
+    const tracker = { states: [] as string[], panel: [] as string[] };
+    (window as any).__recipeDiagnostic = tracker;
+    app.auth.subscribe((state: { status: string }) => { if (tracker.states.length < 30) tracker.states.push(state.status); });
+    let previous = '';
+    new MutationObserver(() => {
+      const value = `${app.isConnected}:${Boolean(app.shadowRoot?.querySelector('[data-testid="recipe-panel"]'))}`;
+      if (value !== previous && tracker.panel.length < 30) { tracker.panel.push(value); previous = value; }
+    }).observe(document.body, { childList: true, subtree: true });
+  });
   if (!(await page.getByTestId('recipe-panel').isVisible())) {
     await page.getByTestId('recipe-toggle').focus();
     await page.keyboard.press('Enter');
@@ -118,9 +129,11 @@ export async function createRecipe(page: Page, sourceId: string, packageKey: str
   } catch (error) {
     const options = await page.getByTestId('recipe-source').locator('option').evaluateAll(nodes => nodes.map(node => ({ value: (node as HTMLOptionElement).value, text: node.textContent })) ).catch(() => []);
     const status = await page.getByTestId('recipe-status').textContent().catch(() => null);
-    throw new Error(`Recipe source ${sourceId} unavailable; choices=${JSON.stringify(options)}, status=${status}`, { cause: error });
+    const diagnostic = await page.evaluate(() => (window as any).__recipeDiagnostic);
+    throw new Error(`Recipe source ${sourceId} unavailable; choices=${JSON.stringify(options)}, status=${status}, diagnostic=${JSON.stringify(diagnostic)}`, { cause: error });
   }
-  await expect(page.getByTestId('recipe-status')).toContainText('Verified');
+  try { await expect(page.getByTestId('recipe-status')).toContainText('Verified'); }
+  catch (error) { throw new Error(`Recipe verification lost: ${JSON.stringify(await page.evaluate(() => (window as any).__recipeDiagnostic))}`, { cause: error }); }
   await page.getByTestId('recipe-category').selectOption('category');
   await page.getByTestId('recipe-columns').getByLabel('name', { exact: true }).check();
   await page.getByTestId('recipe-columns').getByLabel('category', { exact: true }).check();
