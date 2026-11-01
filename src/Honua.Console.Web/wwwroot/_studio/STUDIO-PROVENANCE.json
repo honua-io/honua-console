@@ -1,6 +1,6 @@
 {
   "schema": "honua.studio.console-assets/v1",
-  "sourceCommit": "50d24268dac94492f3fafca654febdaab38f8a5d",
+  "sourceCommit": "37334a160aace9aec27b98259cdf207eef52559e",
   "releaseQualified": false,
   "integrationQualification": "pending-installed-workspace-journey",
   "sdk": {
@@ -2184,8 +2184,8 @@
       "sha256": "a60d018397c2cb5a7699f40268e13b5688cbfac40db7e2c5d25856dc3449baa8"
     },
     "console.js": {
-      "bytes": 936210,
-      "sha256": "bab73a6e0b505f8221ce787b5dddb711c2033cf426d3d2aa0cbe397037d19ee0"
+      "bytes": 937085,
+      "sha256": "ae46165b6e2be89ebbcb5fb7ccc3a24b1518f319cc38b3499e202ea0b9de5645"
     },
     "constants-B8tqYbYF.js": {
       "bytes": 149,

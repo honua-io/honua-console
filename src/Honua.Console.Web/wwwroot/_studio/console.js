@@ -3920,10 +3920,35 @@ var $r = class {
 						l = e;
 					}
 				}
-				return c.status === 401 && this.adapter === l && this.dispatch({
+				if (c.status === 401 && this.adapter === l && this.dispatch({
 					type: "refresh-failed",
 					error: "The host session expired."
-				}), c;
+				}), !c.body) return c;
+				let u = c.body, d, f = () => this.adapter === l && this.getState().status === "fresh", p = new ReadableStream({
+					async pull(e) {
+						try {
+							if (!f()) throw Error("The session renewed while reading the response.");
+							d ??= u.getReader();
+							let t = await d.read();
+							if (!f()) throw Error("The session renewed while reading the response.");
+							t.done ? e.close() : e.enqueue(t.value);
+						} catch (t) {
+							d && d.cancel().catch(() => {}), e.error(t);
+						}
+					},
+					cancel(e) {
+						return d ? d.cancel(e) : u.cancel(e);
+					}
+				}, { highWaterMark: 0 }), m = new Response(p, {
+					status: c.status,
+					statusText: c.statusText,
+					headers: c.headers
+				});
+				return Object.defineProperties(m, {
+					url: { value: c.url },
+					redirected: { value: c.redirected },
+					type: { value: c.type }
+				}), m;
 			};
 		}
 		this.getAccessToken();
