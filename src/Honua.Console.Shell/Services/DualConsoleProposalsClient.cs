@@ -28,9 +28,12 @@ public sealed class DualConsoleProposalsClient(
         var separate = await HasSeparateManager(cancellationToken).ConfigureAwait(false);
         if (separate is null) return OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Denied(
             OperateSectionStatus.Unavailable, "The management endpoint is not bound to this environment.");
-        var servingResult = await serving.ListAsync(status, kind, requestedBy, cancellationToken).ConfigureAwait(false);
-        if (separate == false) return servingResult;
-        var managerResult = await manager.ListAsync(status, kind, requestedBy, cancellationToken).ConfigureAwait(false);
+        if (separate == false) return await serving.ListAsync(status, kind, requestedBy, cancellationToken).ConfigureAwait(false);
+        var servingTask = ListBounded(serving, status, kind, requestedBy, cancellationToken);
+        var managerTask = ListBounded(manager, status, kind, requestedBy, cancellationToken);
+        await Task.WhenAll(servingTask, managerTask).ConfigureAwait(false);
+        var servingResult = await servingTask.ConfigureAwait(false);
+        var managerResult = await managerTask.ConfigureAwait(false);
         if (!servingResult.IsAllowed && !managerResult.IsAllowed)
             return OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Denied(
                 OperateSectionStatus.Unavailable, "Neither serving nor management proposal source is available.");
@@ -45,6 +48,22 @@ public sealed class DualConsoleProposalsClient(
         var partial = !servingResult.IsAllowed || !managerResult.IsAllowed || servingResult.PartialResult || managerResult.PartialResult;
         return OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Allowed(items, partial,
             partial ? "A proposal source is unavailable or returned partial results." : "");
+    }
+
+    private static async Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListBounded(
+        IConsoleProposalsClient client, string? status, string? kind, string? requestedBy, CancellationToken cancellationToken)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(2));
+        try
+        {
+            return await client.ListAsync(status, kind, requestedBy, deadline.Token).WaitAsync(deadline.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Denied(
+                OperateSectionStatus.Unavailable, "The proposal source did not respond in time.");
+        }
     }
 
     /// <inheritdoc />
