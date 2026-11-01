@@ -294,6 +294,21 @@ public sealed record DeployPreflightPlatformReleaseResponse
 /// <summary>One plane element's platform-release projection embedded in a deploy preflight response.</summary>
 public sealed record DeployPreflightPlaneProjectionResponse
 {
+    [JsonPropertyName("observationStatus")]
+    public string? ObservationStatus { get; init; }
+
+    [JsonPropertyName("observedArtifactReference")]
+    public string? ObservedArtifactReference { get; init; }
+
+    [JsonPropertyName("observedImageId")]
+    public string? ObservedImageId { get; init; }
+
+    [JsonPropertyName("serverVersion")]
+    public string? ServerVersion { get; init; }
+
+    [JsonPropertyName("observedAt")]
+    public DateTimeOffset? ObservedAt { get; init; }
+
     [JsonPropertyName("id")]
     public string Id { get; init; } = string.Empty;
 
