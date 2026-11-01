@@ -25455,45 +25455,47 @@ function my(e) {
 		get renderedFeatureCount() {
 			let e = l.map, t = l.projection;
 			if (!t?.renderedLayerIds.length || !e?.queryRenderedFeatures) return 0;
-			let n = ry(e.getStyle?.()?.layers ?? t.mapPackage.mapSpec.layers ?? [], t.renderedLayerIds), r = [...n.keys()];
-			if (!r.length) return 0;
-			let i = e.queryRenderedFeatures(void 0, { layers: r }), a = /* @__PURE__ */ new Set(), o = /* @__PURE__ */ new Map(), s = 0;
-			for (let e of i) {
+			let n = e.getStyle ? e.getStyle()?.layers : t.mapPackage.mapSpec.layers;
+			if (!n) return 0;
+			let r = ry(n, t.renderedLayerIds), i = [...r.keys()];
+			if (!i.length || e.getLayer && i.some((t) => !e.getLayer(t))) return 0;
+			let a = e.queryRenderedFeatures(void 0, { layers: i }), o = /* @__PURE__ */ new Set(), s = /* @__PURE__ */ new Map(), c = 0;
+			for (let e of a) {
 				if (!e || typeof e != "object") {
-					s++;
+					c++;
 					continue;
 				}
-				let t = e, r = t.layer, i = r && typeof r == "object" ? r.id : void 0, c = typeof i == "string" ? n.get(i) : void 0;
-				if (!c || typeof i != "string") {
-					s++;
+				let t = e, n = t.layer, i = n && typeof n == "object" ? n.id : void 0, a = typeof i == "string" ? r.get(i) : void 0;
+				if (!a || typeof i != "string") {
+					c++;
 					continue;
 				}
 				let l = typeof t.source == "string" ? t.source : "", u = typeof t.sourceLayer == "string" ? t.sourceLayer : "";
 				if (typeof t.id == "string" || typeof t.id == "number") {
 					let e = JSON.stringify([
-						c,
+						a,
 						l,
 						u,
 						t.id
 					]);
-					a.has(e) || (a.add(e), s++);
+					o.has(e) || (o.add(e), c++);
 				} else if (t.geometry !== void 0 && t.properties !== void 0) {
 					let e = JSON.stringify([
-						c,
+						a,
 						l,
 						u,
 						t.geometry,
 						t.properties
-					]), n = o.get(e);
+					]), n = s.get(e);
 					n || (n = {
 						perVisual: /* @__PURE__ */ new Map(),
 						maximum: 0
-					}, o.set(e, n));
+					}, s.set(e, n));
 					let r = (n.perVisual.get(i) ?? 0) + 1;
-					n.perVisual.set(i, r), r > n.maximum && (n.maximum = r, s++);
-				} else s++;
+					n.perVisual.set(i, r), r > n.maximum && (n.maximum = r, c++);
+				} else c++;
 			}
-			return s;
+			return c;
 		},
 		settled: () => l.settled(),
 		resize: () => l.resize(),
