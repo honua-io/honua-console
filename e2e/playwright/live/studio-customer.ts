@@ -109,11 +109,17 @@ export async function accessibility(page: Page, info: TestInfo, name: string) {
 export async function createRecipe(page: Page, sourceId: string, packageKey: string) {
   await page.locator('honua-studio-app').evaluate(element => {
     const app = element as any;
-    const tracker = { states: [String(app.auth.getState().status)], panel: [] as string[] };
+    const tracker = { states: [String(app.auth.getState().status)], panel: [] as string[], removals: [] as string[] };
     (window as any).__recipeDiagnostic = tracker;
     app.auth.subscribe((state: { status: string }) => { if (tracker.states.length < 30) tracker.states.push(state.status); });
     let previous = '';
-    const observer = new MutationObserver(() => {
+    const observer = new MutationObserver(records => {
+      for (const record of records) for (const node of record.removedNodes) {
+        if ((node === app || (node instanceof Element && node.contains(app))) && tracker.removals.length < 10) {
+          const parent = record.target instanceof Element ? record.target : null;
+          tracker.removals.push(`${node.nodeName} from ${parent?.tagName ?? ''}#${parent?.id ?? ''}[studio-mount=${parent?.hasAttribute('data-studio-mount') ?? false}]`);
+        }
+      }
       const value = `${app.isConnected}:${Boolean(app.shadowRoot?.querySelector('[data-testid="recipe-panel"]'))}`;
       if (value !== previous && tracker.panel.length < 30) { tracker.panel.push(value); previous = value; }
     });
