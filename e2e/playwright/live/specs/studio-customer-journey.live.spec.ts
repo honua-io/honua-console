@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { expect, test, request } from '@playwright/test';
 import { sourceConnectionBody } from '../source-db';
-import { accessibility, createRecipe, customerIdentity, identity, observeHealth, paintedFeatures, read, scrollForMilestone, serverUrl, signIn, sourceFor, type Draft } from '../studio-customer';
+import { accessibility, createRecipe, customerIdentity, identity, observeHealth, observeLifecycle, paintedFeatures, read, scrollForMilestone, serverUrl, signIn, sourceFor, type Draft } from '../studio-customer';
 
 // @ts-expect-error Shared ESM evidence helper used by Playwright and CI.
 import { captureMilestone } from '../../../../scripts/journey-gallery.mjs';
@@ -346,6 +346,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     await scrollForMilestone(page.locator('honua-studio-canvas'));
     await captureMilestone(page, info, '03-studio-labels-visible');
     completed.push('authored-style-labels');
+    await observeLifecycle(page);
     await page.getByRole('button', { name: 'Save version', exact: true }).click();
     await expect(page.locator('[data-studio-status]')).toHaveText('Saved version 1.');
     const versions = await read(page, session, `/api/studio/v1/studio/content-items/${authored.itemId}/versions`);
@@ -407,6 +408,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
       } finally { await witness.dispose(); }
     });
     await page.reload();
+    await observeLifecycle(page);
     const listed = await read(page, session, '/api/studio/v1/studio/package-drafts?family=map&limit=100');
     expect(listed.items).toEqual(expect.arrayContaining([expect.objectContaining({ draftId: original.draftId, ownerId: first.ownerId })]));
     await page.getByRole('button', { name: 'Open saved maps', exact: true }).click();
@@ -525,6 +527,8 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     completed.push('accessibility');
     expect(health.successfulReads.length, 'widgets must read actual features through the host transport').toBeGreaterThan(0);
   } finally {
+    const lifecycle = await page.evaluate(() => (window as any).__studioLifecycleObservations ?? []).catch(() => []);
+    await info.attach('studio-lifecycle-observations.json', { contentType: 'application/json', body: Buffer.from(JSON.stringify(lifecycle)) });
     await info.attach('customer-journey-progress.json', { contentType: 'application/json',
       body: Buffer.from(JSON.stringify({ completed, qualificationComplete: ['publisher-auth', 'import-publish-customer-regions.geojson', 'import-publish-customer-sites.csv', 'two-layers-filter-widget', 'session-expiry-recovery', 'authored-style-labels', 'save-reload-reopen', 'independent-server-render', 'separate-approval', 'public-audience', 'accessibility'].every(stage => completed.includes(stage)) }, null, 2)) });
     if (health) await health.verify(info);

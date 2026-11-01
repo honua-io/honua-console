@@ -10,6 +10,29 @@ export async function scrollForMilestone(subject: Locator) {
   await expect(() => subject.scrollIntoViewIfNeeded()).toPass({ timeout: 15_000 });
 }
 
+/** Observe the original lifecycle calls without replaying or changing their outcome. */
+export async function observeLifecycle(page: Page) {
+  await page.locator('honua-studio-app').evaluate(element => {
+    const app = element as any;
+    const observations = ((window as any).__studioLifecycleObservations ??= []);
+    for (const method of ['saveWorkspaceVersion', 'reopenWorkspaceVersion']) {
+      const original = app[method];
+      app[method] = async function (...args: unknown[]) {
+        const auth = app.auth, expiresAt = app.session?.expiresAt;
+        try { return await original.apply(app, args); }
+        catch (error) {
+          const causes: Array<{ name: string; message: string }> = [];
+          for (let cause: any = error; cause && causes.length < 4; cause = cause.cause)
+            causes.push({ name: String(cause.name), message: String(cause.message).replace(/\?[^\s)]+/g, '?[redacted]').slice(0, 1000) });
+          observations.push({ method, causes, expiresAt, currentExpiry: app.session?.expiresAt,
+            sameAuth: auth === app.auth, authStatus: auth.getState().status });
+          throw error;
+        }
+      };
+    }
+  });
+}
+
 /** Password entry and authorization codes must never enter uploaded traces or screenshots. */
 export async function signIn(page: Page, user = 'customer', returnTo = '/studio') {
   page.setDefaultNavigationTimeout(30_000);
