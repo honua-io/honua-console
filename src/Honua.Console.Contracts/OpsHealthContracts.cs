@@ -52,6 +52,10 @@ public sealed class OpsHealthSnapshotResponse
     [JsonPropertyName("generatedAt")]
     public DateTimeOffset GeneratedAt { get; set; }
 
+    /// <summary>Gets or sets observed managed target health.</summary>
+    [JsonPropertyName("managedTargets")]
+    public List<OpsManagedTargetResponse>? ManagedTargets { get; set; }
+
     /// <summary>Gets or sets the overall status roll-up (Healthy/Degraded/Unhealthy).</summary>
     [JsonPropertyName("overallStatus")]
     public string? OverallStatus { get; set; }
@@ -79,6 +83,31 @@ public sealed class OpsHealthSnapshotResponse
     /// <summary>Gets or sets the database connection-pool utilization and cache/error metrics.</summary>
     [JsonPropertyName("database")]
     public OpsDatabaseResponse? Database { get; set; }
+}
+
+/// <summary>Observed managed target health.</summary>
+public sealed class OpsManagedTargetResponse
+{
+    /// <summary>Gets or sets the target identifier.</summary>
+    [JsonPropertyName("targetId")]
+    public string? TargetId { get; set; }
+    /// <summary>Gets or sets whether the observation is available.</summary>
+    [JsonPropertyName("available")]
+    public bool Available { get; set; }
+    /// <summary>Gets or sets observed services.</summary>
+    [JsonPropertyName("services")]
+    public List<OpsManagedServiceResponse>? Services { get; set; }
+}
+
+/// <summary>Observed managed service health.</summary>
+public sealed class OpsManagedServiceResponse
+{
+    /// <summary>Gets or sets the service name.</summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+    /// <summary>Gets or sets the observed health status.</summary>
+    [JsonPropertyName("status")]
+    public string? Status { get; set; }
 }
 
 /// <summary>Comprehensive health-check roll-up wire model.</summary>
