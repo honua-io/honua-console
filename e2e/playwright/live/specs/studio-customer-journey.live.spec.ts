@@ -399,9 +399,12 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
           const audienceResponse = await anonymous.request.get(new URL(`/api/studio/viewer/published${route}`, page.url()).href);
           expect(audienceResponse.status()).toBe(200);
           const audience = (await audienceResponse.json()).data;
+          const ownerResponse = await page.request.get(new URL(`/api/studio/viewer/published${route}`, page.url()).href);
+          expect(ownerResponse.status()).toBe(200);
+          const ownerAudience = (await ownerResponse.json()).data;
           await info.attach('public-source-projection.json', { contentType: 'application/json', body: Buffer.from(JSON.stringify({
             layers: audience?.envelope?.body?.layers, sourceBindings: audience?.envelope?.body?.sourceBindings,
-            catalog: audience?.sourceCatalog,
+            catalog: audience?.sourceCatalog, ownerCatalog: ownerAudience?.sourceCatalog,
           })) });
           await expect(viewer.locator('[data-map-status]')).toHaveText('Map ready.');
           await expect.poll(async () => Number(await viewer.locator('[data-map-canvas]').getAttribute('data-rendered-feature-count'))).toBeGreaterThan(0);
