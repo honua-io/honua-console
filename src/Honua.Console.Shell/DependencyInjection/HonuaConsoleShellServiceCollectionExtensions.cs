@@ -164,7 +164,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // API key is available only to a sessionless caller in explicit HeadlessService mode.
         services.TryAddSingleton<IConsoleDeployApprovalClient>(serviceProvider =>
             new HttpConsoleDeployApprovalClient(
-                CreateOperateObservabilityHttpClient(serviceProvider),
+                CreateManagerHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 honuaServerAdminApiKey,
@@ -179,7 +179,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // in-memory source is registered (Charter section 11).
         services.TryAddSingleton<IConsoleDeployOperationsClient>(serviceProvider =>
             new HttpConsoleDeployOperationsClient(
-                CreateOperateObservabilityHttpClient(serviceProvider),
+                CreateManagerHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 honuaServerAdminApiKey));
 
@@ -194,7 +194,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 serviceProvider.GetRequiredService<ILogger<SignalRConsoleDeployOperationRealtimeClient>>(),
-                honuaServerAdminApiKey));
+                honuaServerAdminApiKey,
+                serviceProvider.GetService<IConsoleManagerEndpoint>()));
 
         // The first-class agent-operation approval API (issue #193, honua-server #1694):
         // GET /api/v1/admin/proposals (list/filter), GET .../{id} (plan/diff/dry-run/risk),
@@ -207,7 +208,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // to X-API-Key.
         services.TryAddSingleton<IConsoleProposalsClient>(serviceProvider =>
             new HttpConsoleProposalsClient(
-                CreateOperateObservabilityHttpClient(serviceProvider),
+                CreateManagerHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 honuaServerAdminApiKey,
@@ -231,7 +232,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 serviceProvider.GetRequiredService<ILogger<SignalRConsoleProposalRealtimeClient>>(),
-                honuaServerAdminApiKey));
+                honuaServerAdminApiKey,
+                serviceProvider.GetService<IConsoleManagerEndpoint>()));
 
         // The approval inbox (#193) aggregates every proposal source into one GIS-department
         // work queue, classified by ticket type. Per honua-server #1690's locked ownership split
@@ -295,7 +297,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // HeadlessService operation.
         services.TryAddSingleton<IConsoleOpsHealthClient>(serviceProvider =>
             new HttpConsoleOpsHealthClient(
-                CreateOperateObservabilityHttpClient(serviceProvider),
+                CreateManagerHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 honuaServerAdminApiKey));
         services.TryAddSingleton<IOpsHealthDataSource>(serviceProvider =>
@@ -313,10 +315,11 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 serviceProvider.GetRequiredService<ILogger<SignalRConsoleOpsHealthRealtimeClient>>(),
-                honuaServerAdminApiKey));
+                honuaServerAdminApiKey,
+                serviceProvider.GetService<IConsoleManagerEndpoint>()));
         services.TryAddSingleton<IConsoleOpsFindingsClient>(serviceProvider =>
             new HttpConsoleOpsFindingsClient(
-                CreateOperateObservabilityHttpClient(serviceProvider),
+                CreateManagerHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 honuaServerAdminApiKey,
@@ -330,7 +333,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // older servers return Unsupported and leave the propose-only seat unchanged.
         services.TryAddSingleton<IConsoleOpsAutonomyClient>(serviceProvider =>
             new HttpConsoleOpsAutonomyClient(
-                CreateOperateObservabilityHttpClient(serviceProvider),
+                CreateManagerHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 honuaServerAdminApiKey,
@@ -1394,6 +1397,11 @@ public static class HonuaConsoleShellServiceCollectionExtensions
 
         services.TryAddSingleton<IOperateLayerStyleOverrideDataSource, UnsupportedOperateLayerStyleOverrideDataSource>();
     }
+
+    private static HttpClient CreateManagerHttpClient(IServiceProvider services) =>
+        services.GetService<IHonuaServerBoundClientFactory>() is { } factory
+            ? factory.CreateManagerBoundClient(new Uri("https://unbound.invalid/"), TimeSpan.FromSeconds(30))
+            : new HttpClient(CreateBoundedLifetimeHandler()) { Timeout = TimeSpan.FromSeconds(30) };
 
     private static HttpClient CreateOperateObservabilityHttpClient(IServiceProvider services) =>
         CreateInteractiveServerHttpClient(services, TimeSpan.FromSeconds(30));

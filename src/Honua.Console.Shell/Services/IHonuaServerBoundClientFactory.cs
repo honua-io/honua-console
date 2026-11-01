@@ -33,6 +33,9 @@ public interface IHonuaServerBoundClientFactory
     /// </summary>
     HttpClient CreateServerBoundClient(Uri baseUri, TimeSpan? timeout = null);
 
+    /// <summary>Builds a privileged client for the configured management endpoint.</summary>
+    HttpClient CreateManagerBoundClient(Uri baseUri, TimeSpan? timeout = null) => CreateServerBoundClient(baseUri, timeout);
+
     /// <summary>
     /// Builds a client for a legitimately-ANONYMOUS-capable surface (the <c>/public</c> open-data catalog
     /// reads and the public OGC <c>/ogc/styles</c> list). Its handler chain forwards the operator's bearer
