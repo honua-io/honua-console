@@ -280,7 +280,7 @@ jobs:
       - name: Install quickstart test dependencies
         id: agent-deps
         if: ${{ always() && steps.agent-python.outcome == 'success' }}
-        run: python3 -m pip install 'PyYAML==6.0.2'
+        run: python3 -m pip install --require-hashes -r e2e/agent-reflection/requirements.txt
       - name: Exercise agent reflection on the customer quickstart
         if: ${{ always() && steps.agent-deps.outcome == 'success' }}
         run: python3 e2e/agent-reflection/run-quickstart.py run
