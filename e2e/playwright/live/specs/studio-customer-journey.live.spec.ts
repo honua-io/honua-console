@@ -205,7 +205,8 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     const authored = await readDraft(original.draftId);
     expect(authored.ownerId).toBe(first.ownerId);
     const style = authored.envelope.body.mapSpec;
-    const fill = style.layers.find((layer: any) => layer.type === 'fill');
+    const fill = style.layers.find((layer: any) => layer.id === first.envelope.body.layers[0].id);
+    expect(fill?.type, 'the authored polygon layer must be present in the saved style').toBe('fill');
     expect(fill.paint['fill-color']).toEqual(['match', ['get', 'category'], 'west', '#eff3ff', 'east', '#c6dbef', '#9ecae1']);
     // Use Maputnik's shipped full-style editor for the attribute-label layer. This is
     // a real paste/blur/save through the sandboxed UI, preserving all authorized sources.
@@ -252,7 +253,8 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
       try {
         // A service-default export cannot witness a map-local style. Render the
         // saved expression through the independent MapServer dynamic-layer path.
-        const savedFill = reopened.envelope.body.mapSpec.layers.find((layer: any) => layer.type === 'fill');
+        const savedFill = reopened.envelope.body.mapSpec.layers.find((layer: any) => layer.id === first.envelope.body.layers[0].id);
+        expect(savedFill?.type).toBe('fill');
         const expression = savedFill.paint['fill-color'];
         expect(expression).toEqual(['match', ['get', 'category'], 'west', '#eff3ff', 'east', '#c6dbef', '#9ecae1']);
         const opacity = savedFill.paint['fill-opacity'] ?? 1;
