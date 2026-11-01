@@ -77,6 +77,9 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
             return false;
           }, { timeout: 60_000, intervals: [1_000, 2_000] }).toBe(true);
           await tablePicker.selectOption(qualifiedTable);
+          if (String(importedTable.geometryType).toUpperCase() === 'GEOMETRY')
+            await page.getByLabel('Geometry type', { exact: true })
+              .selectOption(file.endsWith('.geojson') ? 'Polygon' : 'Point');
           await page.getByPlaceholder('parcels-fs', { exact: true }).fill(service);
           await page.getByPlaceholder('Parcels', { exact: true }).fill(title);
           await page.getByRole('button', { name: 'Publish layer', exact: true }).click();
@@ -87,6 +90,8 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
           const metadataResponse = await verifier.get(`${prefix}?f=json`);
           expect(metadataResponse.ok()).toBe(true);
           const metadata = await metadataResponse.json();
+          expect(metadata.geometryType, 'the published layer must expose its actual geometry type')
+            .toBe(file.endsWith('.geojson') ? 'esriGeometryPolygon' : 'esriGeometryPoint');
           expect(metadata.fields).toEqual(expect.arrayContaining([
             expect.objectContaining({ name: 'name', type: 'esriFieldTypeString' }),
             expect.objectContaining({ name: 'category', type: 'esriFieldTypeString' }),
