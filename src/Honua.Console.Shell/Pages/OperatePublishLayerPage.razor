@@ -29,7 +29,7 @@
             <div class="studio-field-grid">
                 <label>
                     <span>Connection</span>
-                    <select class="console-input" aria-label="Connection" data-workspace-field="connectionId" @bind="_connectionId" @bind:after="OnConnectionChanged">
+                    <select class="console-input" aria-label="Connection" data-workspace-field="connectionId" @bind="_connectionId" @bind:after="OnConnectionChanged" disabled="@(!_interactive)">
                         <option value="">Select a connection…</option>
                         @foreach (var connection in _connections)
                         {
@@ -137,6 +137,7 @@
     private string _layerName = string.Empty;
 
     private bool _loadingTables;
+    private bool _interactive;
     private bool _busy;
     private string? _clientError;
     private ServiceLayerPublishResult? _result;
@@ -144,6 +145,17 @@
     private IReadOnlyList<OperateCapabilityState> _connectionStates = [];
 
     protected override Task OnInitializedAsync() => LoadConnectionsAsync();
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _interactive = true;
+            StateHasChanged();
+        }
+
+        return Task.CompletedTask;
+    }
 
     private async Task LoadConnectionsAsync()
     {
