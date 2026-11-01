@@ -293,18 +293,12 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
         return { width: rect.width, height: rect.height, display: css.display, visibility: css.visibility };
       }))) });
     await expect(code, 'the full-style editor must be visible to the customer').toBeVisible();
-    // Add only the new layer: replacing the entire offline-basemap document requires
-    // sending hundreds of kilobytes through the editor. The saved draft below remains
-    // the authority for what the keyboard edit actually authored.
+    // Paste the complete reviewed style through the real editor so the appended
+    // symbol layer draws above the fills. Prepending it can count rendered label
+    // features while later polygon fills hide every glyph in the screenshot.
     await code.focus();
-    await code.press('Control+Home');
-    const opening = await code.evaluate(element => (element as HTMLElement).innerText.slice(0, 200));
-    expect(opening).toMatch(/^\{\s*"name"\s*:[^\n]*\n\s*"layers"\s*:\s*\[/);
-    await code.press('ArrowDown');
-    await code.press('ArrowDown');
-    await code.press('End');
-    await code.press('Enter');
-    await page.keyboard.insertText(JSON.stringify(withLabels.layers.at(-1)) + ',');
+    await code.press('ControlOrMeta+A');
+    await page.keyboard.insertText(JSON.stringify(withLabels, null, 2));
     await expect(code).toContainText('customer-attribute-labels');
     await code.press('Tab');
     await expect(editor.getByRole('status')).toHaveText('Unsaved visual edits. Preview only.', { timeout: 30_000 });
@@ -316,6 +310,8 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     expect(labelled.envelope.body.mapSpec.layers).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: 'symbol', layout: expect.objectContaining({ 'text-field': ['get', 'name'] }) }),
     ]));
+    expect(labelled.envelope.body.mapSpec.layers.at(-1), 'labels must draw above the authored polygon fills')
+      .toEqual(withLabels.layers.at(-1));
     await expect.poll(() => paintedFeatures(page, 'customer-attribute-labels'), { timeout: 45_000 }).toBeGreaterThan(0);
     await page.locator('honua-studio-canvas').scrollIntoViewIfNeeded();
     await captureMilestone(page, info, '03-studio-labels-visible');
