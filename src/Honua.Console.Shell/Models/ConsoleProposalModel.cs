@@ -77,6 +77,18 @@ public enum ConsoleProposalStatus
     /// <summary>Approved and submitted to the underlying execution pipeline.</summary>
     Submitted,
 
+    /// <summary>The executor is performing the operation.</summary>
+    Executing,
+
+    /// <summary>The executor completed successfully.</summary>
+    Completed,
+
+    /// <summary>The executor cancelled the operation.</summary>
+    Cancelled,
+
+    /// <summary>The executor cannot determine the final outcome.</summary>
+    Indeterminate,
+
     /// <summary>The underlying operation is reconciling toward the desired state.</summary>
     Reconciling,
 
@@ -150,6 +162,9 @@ public sealed record ConsoleProposalSummary(
     /// <summary>Whether the proposal has reached a terminal state (no further decision possible).</summary>
     public bool IsTerminal => Status
         is ConsoleProposalStatus.Succeeded
+        or ConsoleProposalStatus.Completed
+        or ConsoleProposalStatus.Cancelled
+        or ConsoleProposalStatus.Indeterminate
         or ConsoleProposalStatus.Failed
         or ConsoleProposalStatus.Rejected
         or ConsoleProposalStatus.RolledBack;
@@ -199,6 +214,9 @@ public sealed record ConsoleProposalDetail(
     /// <summary>Whether the proposal has reached a terminal state.</summary>
     public bool IsTerminal => Status
         is ConsoleProposalStatus.Succeeded
+        or ConsoleProposalStatus.Completed
+        or ConsoleProposalStatus.Cancelled
+        or ConsoleProposalStatus.Indeterminate
         or ConsoleProposalStatus.Failed
         or ConsoleProposalStatus.Rejected
         or ConsoleProposalStatus.RolledBack;
@@ -286,6 +304,10 @@ public static class ConsoleProposalPresentation
         "planned" => ConsoleProposalStatus.Planned,
         "awaitingapproval" => ConsoleProposalStatus.AwaitingApproval,
         "submitted" => ConsoleProposalStatus.Submitted,
+        "executing" => ConsoleProposalStatus.Executing,
+        "completed" => ConsoleProposalStatus.Completed,
+        "cancelled" => ConsoleProposalStatus.Cancelled,
+        "indeterminate" => ConsoleProposalStatus.Indeterminate,
         "reconciling" => ConsoleProposalStatus.Reconciling,
         "succeeded" => ConsoleProposalStatus.Succeeded,
         "failed" => ConsoleProposalStatus.Failed,
@@ -324,6 +346,10 @@ public static class ConsoleProposalPresentation
         ConsoleProposalStatus.Planned => "planned",
         ConsoleProposalStatus.AwaitingApproval => "awaiting approval",
         ConsoleProposalStatus.Submitted => "submitted",
+        ConsoleProposalStatus.Executing => "executing",
+        ConsoleProposalStatus.Completed => "completed",
+        ConsoleProposalStatus.Cancelled => "cancelled",
+        ConsoleProposalStatus.Indeterminate => "indeterminate",
         ConsoleProposalStatus.Reconciling => "reconciling",
         ConsoleProposalStatus.Succeeded => "succeeded",
         ConsoleProposalStatus.Failed => "failed",
