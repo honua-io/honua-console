@@ -133,7 +133,8 @@ def setup():
         'compose-manager': {'environment': server_auth, 'volumes': ['./auth/certs:/certs:ro']},
         'console': {'image': CONSOLE_IMAGE, 'ports': ['127.0.0.1:15274:8080'],
                     'environment': {'ASPNETCORE_ENVIRONMENT': 'Development', 'ASPNETCORE_HTTP_PORTS': '8080',
-                                    'HONUA_SERVER_BASE_URL': 'http://compose-manager:8080',
+                                    'HONUA_SERVER_BASE_URL': 'http://honua:8080',
+                                    'HONUA_MANAGER_BASE_URL': 'http://compose-manager:8080',
                                     'Honua__Console__Auth__Mode': 'Dev'}},
     }}
     (INSTALL / COMPOSE_FILES[-1]).write_text(json.dumps(override))
