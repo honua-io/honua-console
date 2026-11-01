@@ -69,7 +69,12 @@ export function observeHealth(page: Page) {
     if (origins.has(url.origin))
       failures.push(`request failed ${url.origin}${url.pathname}: ${request.failure()?.errorText}`);
   });
-  page.on('pageerror', error => failures.push(`pageerror: ${error.message}`));
+  page.on('pageerror', error => {
+    failures.push(`pageerror: ${error.message}`);
+    // Keep the stack for diagnosis without retaining URL queries, which may carry credentials.
+    consoleDetails.push({ location: 'pageerror', errors: [{ name: error.name, message: error.message,
+      stack: error.stack?.replace(/\?[^\s)]+/g, '?[redacted]') }] });
+  });
   page.on('console', message => {
     if (message.type() !== 'error') return;
     failures.push(`console: ${message.text()}`);
