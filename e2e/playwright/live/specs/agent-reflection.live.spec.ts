@@ -87,10 +87,10 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
           await check('agent-audit-ownership', async () => {
             expect(proposalId).toBeTruthy(); expect(value.requestedBy).toBe(managerActor);
             await go('/inbox');
-            const row = page.locator(`[data-proposal-id="${proposalId}"]`).first();
+            const row = page.locator(`[data-proposal-id="manager:${proposalId}"]`).first();
             await expect(row).toContainText(/awaiting approval/i, { timeout: 45_000 });
             await expect(row).toContainText(value.requestedBy);
-            const panel = page.locator('section[data-proposal-id]').filter({ hasText: proposalId });
+            const panel = page.locator('section[data-proposal-id]').filter({ hasText: `manager:${proposalId}` });
             await expect(async () => {
               if (!(await panel.isVisible())) await row.click();
               await expect(panel).toBeVisible({ timeout: 3_000 });
@@ -98,7 +98,7 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
           });
         }
         if (stage === 'recovered') await check('agent-approval-recovery', async () => {
-          const panel = page.locator('section[data-proposal-id]').filter({ hasText: proposalId });
+          const panel = page.locator('section[data-proposal-id]').filter({ hasText: `manager:${proposalId}` });
           await expect(panel.locator('[data-proposal-status]')).toHaveAttribute('data-proposal-status', 'Succeeded', { timeout: 45_000 });
           await go('/operate/health');
           const redis = page.locator('[data-managed-target="compose-local"] [data-managed-service="redis"]');
