@@ -129,6 +129,8 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     await expect(page.getByTestId('studio-widget-grid-row')).toContainText('East');
     await page.getByTestId('studio-control-filter-select').selectOption('');
     await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(2);
+    await page.getByRole('button', { name: 'Choose published layer', exact: true }).focus();
+    await page.keyboard.press('Enter');
     await page.getByRole('button', { name: `Add ${services[1].title} to map`, exact: true }).focus();
     await page.keyboard.press('Enter');
     await expect.poll(async () => (await readDraft(original.draftId)).envelope.body.layers.length).toBeGreaterThanOrEqual(2);
