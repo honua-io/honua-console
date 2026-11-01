@@ -85,6 +85,12 @@ public sealed class FakeConsoleProposalsClient : IConsoleProposalsClient
         return Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Allowed(detail));
     }
 
+    public void Complete(string proposalId)
+    {
+        _details[proposalId] = _details[proposalId] with { Status = ConsoleProposalStatus.Succeeded };
+        UpdateSummaryStatus(proposalId, ConsoleProposalStatus.Succeeded);
+    }
+
     private void UpdateSummaryStatus(string proposalId, ConsoleProposalStatus status)
     {
         if (_summaries.TryGetValue(proposalId, out var summary))
