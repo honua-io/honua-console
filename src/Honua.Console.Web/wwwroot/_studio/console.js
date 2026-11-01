@@ -13825,7 +13825,7 @@ var Dh = class extends t {
 			this.#R = !0;
 			try {
 				let e = this.#O, t = this.auth, n = await this.studioClient.listCatalog();
-				if (!this.isConnected || e !== this.#O || t !== this.auth) return;
+				if (!this.isConnected || e !== this.#O || t !== this.auth || this.#I !== void 0) return;
 				this.#le(n);
 			} catch {}
 		}
