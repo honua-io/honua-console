@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, request, test } from '@playwright/test';
+import { establishGovernedOperatorSession } from '../operator-session';
 import { sourceConnectionBody } from '../source-db';
 
 test('connection selection is unavailable until its interactive handler is ready', async ({ page }) => {
@@ -18,13 +19,7 @@ test('connection selection is unavailable until its interactive handler is ready
     expect(tables.ok()).toBe(true);
     expect((await tables.json()).tables.length).toBeGreaterThan(0);
   } finally { await verifier.dispose(); }
-  await page.goto('/auth/login?returnTo=/version.json');
-  await page.goto('/auth/server/login?profileId=local-dev&returnTo=%2Foperate%2Fconnections');
-  await page.waitForURL(/:8443\//);
-  await page.locator('#username').fill('alice');
-  await page.locator('#password').fill('alice-live-proof-pw');
-  await page.locator('#kc-login').click();
-  await page.waitForURL('**/operate/connections');
+  await establishGovernedOperatorSession(page);
 
   let release!: () => void;
   let blocked = false;
