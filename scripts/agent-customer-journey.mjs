@@ -38,7 +38,10 @@ export async function exerciseAgentRecovery({ managerUrl, proposerKey, approverK
   const findingResult = await poll(() => mcp.call('honua_ops_findings', { rule: 'managed-compose-service-unhealthy' }),
     result => result.findings?.some(item => item.subject?.workloadId === 'redis'));
   const finding = findingResult.findings.find(item => item.subject?.workloadId === 'redis');
-  await observe('finding', finding);
+  const unhealthy = await poll(() => api(managerUrl, approverKey, '/api/v1/admin/observability/ops-health'), value =>
+    value.managedTargets?.some(item => item.targetId === 'compose-local' && item.services?.some(service =>
+      service.name === 'redis' && service.status?.toLowerCase() === 'unhealthy')));
+  await observe('finding', { finding, health: unhealthy });
   const proposed = await mcp.call('honua_propose_finding', { findingId: finding.id, candidateId: 'compose-local' });
   if (!proposed.proposalId) throw new Error('MCP did not create a restart proposal');
   const path = `/api/v1/admin/proposals/${encodeURIComponent(proposed.proposalId)}`;
@@ -50,7 +53,10 @@ export async function exerciseAgentRecovery({ managerUrl, proposerKey, approverK
   if (!['completed', 'succeeded'].includes(completed.status.toLowerCase())) throw new Error('The approved restart failed');
   const remaining = await poll(() => mcp.call('honua_ops_findings', { rule: 'managed-compose-service-unhealthy' }),
     value => !value.findings?.some(item => item.subject?.workloadId === 'redis'));
-  await observe('recovered', { proposal: completed, findings: remaining });
+  const healthy = await poll(() => api(managerUrl, approverKey, '/api/v1/admin/observability/ops-health'), value =>
+    value.managedTargets?.some(item => item.targetId === 'compose-local' && item.services?.some(service =>
+      service.name === 'redis' && service.status?.toLowerCase() === 'healthy')));
+  await observe('recovered', { proposal: completed, findings: remaining, health: healthy });
   return { target, finding, proposalId: proposed.proposalId, completed };
 }
 

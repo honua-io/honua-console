@@ -77,7 +77,8 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
         });
         if (stage === 'finding') await check('agent-degradation-finding', async () => {
           await go('/operate/health');
-          await expect(page.locator('body')).toContainText(/degraded|unhealthy/i, { timeout: 45_000 });
+          const redis = page.locator('[data-managed-target="compose-local"] [data-managed-service="redis"]');
+          await expect(redis).toContainText(/unhealthy/i, { timeout: 45_000 });
           await go('/operate/copilot');
           await expect(page.locator('body')).toContainText('managed-compose-service-unhealthy', { timeout: 45_000 });
         });
@@ -100,7 +101,9 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
           const panel = page.locator('section[data-proposal-id]').filter({ hasText: proposalId });
           await expect(panel.locator('[data-proposal-status]')).toHaveAttribute('data-proposal-status', 'Succeeded', { timeout: 45_000 });
           await go('/operate/health');
-          await expect(page.locator('body')).toContainText(/healthy/i, { timeout: 45_000 });
+          const redis = page.locator('[data-managed-target="compose-local"] [data-managed-service="redis"]');
+          await expect(redis).toContainText(/\bhealthy\b/i, { timeout: 45_000 });
+          await expect(redis).not.toContainText(/unhealthy/i);
         });
       },
     });
