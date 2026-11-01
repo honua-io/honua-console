@@ -118,6 +118,7 @@ export class AgentWorkspace {
         this.notify(this); return this.context;
     }
     async contextReference() {
+        if (this.studioConversation) throw new Error('External workspace references require a matching server workspace deployment.');
         if (!this.context || !this.session) throw new Error('Start or connect a workspace first.');
         const binding = {generation:this.contextGeneration,workspaceId:this.workspaceId,viewId:this.viewId,
             principalId:this.session.principalId,environmentId:this.session.environmentId};
@@ -782,7 +783,7 @@ export function mountWorkspace() {
     let focusedPublishForm;
     let focusedPublishAuthority;
     let reconcilingForm = false;
-    const bindPublishInputs = createPublishInputBinder(workspace, {signal:lifetime.signal,shouldIgnore:()=>reconcilingForm});
+    const bindPublishInputs = createPublishInputBinder(workspace, {signal:lifetime.signal,shouldIgnore:()=>reconcilingForm || Boolean(workspace.studioConversation)});
     workspace.renderPublicationReview = () => {
         const form = document.querySelector('[data-workspace-publish-form]');
         const notice = form?.querySelector('[data-workspace-publication-review]');
@@ -821,6 +822,7 @@ export function mountWorkspace() {
             return fields;
         };
         form.addEventListener('click', async event => {
+            if (workspace.studioConversation) return;
             if (event.target.closest('[data-workspace-publication-check]') || event.target.closest('[data-workspace-publication-acknowledge]')) {
                 event.preventDefault(); event.stopImmediatePropagation();
                 try {
