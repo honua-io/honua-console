@@ -630,3 +630,26 @@ test('import typing control: published GeoJSON retains scalar attribute fields',
     expect((await query.json()).features.map((feature: any) => feature.attributes.rating).sort()).toEqual([1.5, 2.5]);
   } finally { await verifier.dispose(); }
 });
+
+test('Studio waits for interactive hydration before mounting the editor', async ({ page }, info) => {
+  await signIn(page);
+  const health = observeHealth(page);
+  let release!: () => void;
+  let blocked = false;
+  const allowed = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/_blazor/negotiate**', async route => {
+    blocked = true;
+    await allowed;
+    await route.continue();
+  });
+  try {
+    await page.goto('/studio', { waitUntil: 'domcontentloaded' });
+    await expect.poll(() => blocked, { timeout: 30_000 }).toBe(true);
+    await expect(page.locator('honua-studio-app')).toHaveCount(0);
+    release();
+    await expect(page.locator('honua-studio-app')).toBeVisible({ timeout: 30_000 });
+  } finally {
+    release();
+    await health.verify(info);
+  }
+});
