@@ -6,6 +6,28 @@ namespace Honua.Console.Native.Core.Tests;
 public sealed class DeployPreflightModelTests
 {
     [Fact]
+    public void Map_ObservedServingRevision_UsesLiveReadbackAndDoesNotSubstituteConfiguredImage()
+    {
+        const string json = """
+            {"status":"ready","readyForCoordinatedDeploy":true,"message":"ready",
+             "platformRelease":{"releaseDeclared":true,"isCoVersioned":false,
+             "serving":[{"id":"compose-local","effectiveArtifactReference":"configured-image",
+             "observationStatus":"observed","observedImageId":"sha256:live-image",
+             "serverVersion":"2026.1-live"},
+             {"id":"unavailable","effectiveArtifactReference":"configured-only","observationStatus":"unavailable",
+             "observedImageId":"stale-image","serverVersion":"stale-version"}]}}
+            """;
+        var response = System.Text.Json.JsonSerializer.Deserialize<DeployPreflightResponse>(json)!;
+        var view = DeployPreflightMapper.Map(response);
+        Assert.Equal("sha256:live-image", view.Serving[0].ObservedImageId);
+        Assert.Equal("2026.1-live", view.Serving[0].ServerVersion);
+        Assert.Equal("observed", view.Serving[0].ObservationStatus);
+        Assert.Null(view.Serving[1].ObservedImageId);
+        Assert.Null(view.Serving[1].ServerVersion);
+        Assert.Equal("unavailable", view.Serving[1].ObservationStatus);
+    }
+
+    [Fact]
     public void Map_ReadyWithNoDiagnostics_BlocksSubmitIsFalseAndDiagnosticsNotIncluded()
     {
         var response = new DeployPreflightResponse
