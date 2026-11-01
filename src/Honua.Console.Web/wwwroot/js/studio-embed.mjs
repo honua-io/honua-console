@@ -77,6 +77,7 @@ async function studioElement(session) {
     app.workspaceAuthorityChanged=changedAuthority;
     app.workspaceCookieBinding={principalId:session.principalId,environmentId:session.environmentId,sourcePathBase:session.sourcePathBase};
     app.session = cookieSession;
+    app.workspaceSavedMaps?.sessionChanged();
     app.workspace = window.honuaAgentWorkspace;
     if (app.workspace) app.workspace.studioBindingProvider = () => app.isConnected ? app.workspaceCookieBinding : undefined;
     if (app.workspace) app.workspace.authorityChangeGuard = () => app.prepareWorkspaceTurn();
