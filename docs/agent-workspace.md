@@ -5,6 +5,8 @@ description: "Console and embedded Studio workspace composition, credential boun
 ---
 # Unified agent workspace host
 
+Standard Server deployments use the [built-in Studio assistant](studio-assistant.md), backed by the Studio model proxy and MCP. The server-owned workspace integration below requires a separate matching server contract and explicit `Honua__Agent__WorkspaceApiEnabled=true` on Console. Standard trunk does not provide `/api/v1/agent/workspaces`.
+
 When an installed worker owns a native execution, Console shows its durable request progress separately from conversation text. **Reply to question** answers a verified `awaiting-input` question; **Open approval** uses the separate human approval workflow. Selecting a question keeps the typed message and displays its original target. Sending from another selection or with unsaved edits is refused without losing the answer. **Open original task** returns to the existing task editor, and **Review current target** explicitly accepts a newer revision of that same task for the reply. The new request retains its original question, turn and execution references. It does not carry prior approval forward. These controls depend on Server #6538 and still require qualification against the installed worker and current human session.
 
 The Console host shares one server-owned workspace and one native SDK agent session with the realtime Studio custom element. Enable `Studio:EmbedJsStudio=true` to render the pinned Studio element at `/studio` and `/studio/drafts`; the legacy standalone builders are retired and cannot be restored by a capability flag.

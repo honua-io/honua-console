@@ -1,3 +1,5 @@
+import {StudioConversation} from './studio-conversation.mjs';
+import {sameCookieAuthority} from './cookie-workspace-transport.mjs';
 import {GaSpecReview, reviewSummary, reviewDetails} from './ga-spec-review.mjs';
 import {browserImportSelection, browserSelectionScope} from './dataset-import-selection.mjs';
 import {PublicationRecovery} from './publication-recovery.mjs';
@@ -31,13 +33,14 @@ export class AgentWorkspace {
             method, credentials: 'same-origin', headers: {
                 'Content-Type': 'application/json', 'X-CSRF-Token': binding?.csrfToken || '',
                 'X-Honua-Environment': binding?.environmentId || '',
+                ...(path.startsWith('studio/') ? {'X-Honua-View':this.viewId} : {}),
                 'X-Honua-Session-Partition': binding?.principalId || '',
                 ...(path.startsWith('ga/') ? {'X-Honua-Workspace':this.workspaceId || '', 'X-Honua-View':this.viewId} : {})
             }, ...(body === undefined ? {} : { body: serializedBody ?? JSON.stringify(body) })
         });
         const value = response.status === 204 ? null : await response.json().catch(() => null);
         if (!response.ok) {
-            const error = response.status === 409 ? new WorkspaceConflict(value) : new Error(value?.message || (path.startsWith('ga/') ? [value?.code, value?.detail || value?.title].filter(Boolean).join(': ') : '') || `Workspace unavailable (${response.status}).`);
+            const error = response.status === 409 ? new WorkspaceConflict(value) : new Error(value?.message || ((path.startsWith('ga/') || path.startsWith('studio/')) ? [value?.code, value?.detail || value?.title].filter(Boolean).join(': ') : '') || `Workspace unavailable (${response.status}).`);
             error.status = response.status;
             error.notDispatched = response.headers?.get('X-Honua-Dispatch-Status') === 'not-dispatched';
             throw error;
@@ -54,6 +57,22 @@ export class AgentWorkspace {
         };
         check();await this.authorityChangeGuard?.();check();
         const candidate = await this.api('session');check();
+        if (candidate.conversationMode === 'studio') {
+            const conversation = new StudioConversation(this);
+            await conversation.start(candidate); check();
+            const studioBinding = this.studioBindingProvider?.();
+            if (studioBinding && !sameCookieAuthority(studioBinding,candidate)) throw new Error('Reopen Studio in the selected environment before starting the assistant.');
+            const prepared = await this.prepareContextProvider?.()?.(); check();
+            if (prepared && prepared.kind !== 'studio-composition') throw new Error('Open a map or dashboard in Studio to start the assistant.');
+            this.agentSession?.sdkSession?.close();
+            this.session = candidate; this.workspaceId = `studio-${this.viewId}`;
+            this.context = {revision:0,selectedResources:[],task:null};
+            this.studioConversation = conversation; this.agentSession = conversation;
+            const draft = this.studioDraft;
+            if (prepared) this.context.task = prepared;
+            else if (draft && studioBinding) this.context.task = {kind:'studio-composition',id:draft.draftId,revision:draft.generation};
+            this.notify(this); return this.context;
+        }
         const context = await this.api('', 'POST', { viewId: this.viewId }, candidate);check();
         return this.connect(context.workspaceId);
     }
@@ -83,12 +102,14 @@ export class AgentWorkspace {
             }
         };
         // Adopt nothing until the new cookie/profile binding has actually authorized this view.
+        if (candidate.conversationMode === 'studio') throw new Error('This server uses the Studio assistant. Select Start conversation; shared external workspaces require a matching server deployment.');
         const context = await this.api(`${workspaceId}?viewId=${encodeURIComponent(this.viewId)}`, 'GET', undefined, candidate);
         await checkAdoption();
         if (changedAuthority || changedWorkspace) {
             this.agentSession?.sdkSession?.close(); this.agentSession = null; this.draft = null; this.draftFields = null; this.presentedDraft = null;
             this.deployTargetId = null;
         }
+        this.studioConversation = null;
         this.session = candidate; this.workspaceId = workspaceId; this.context = context;
         this.storage.setItem('honua.workspace.id', workspaceId);
         await attachNativeAgent(this).catch(error => { if(generation===this.contextGeneration) this.nativeAgentIssue=error.message; });
@@ -126,6 +147,7 @@ export class AgentWorkspace {
         } finally { this.capturing--; }
     }
     async observeContext() {
+        if (this.studioConversation) return this.context;
         const settled = this.queue;
         await settled;
         const snapshot = await this.api(`${this.workspaceId}?viewId=${this.viewId}`);
@@ -154,6 +176,10 @@ export class AgentWorkspace {
             const selectedResources = resources === undefined ? this.context.selectedResources : resources;
             if (JSON.stringify(this.context.selectedResources || []) === JSON.stringify(selectedResources)
                 && JSON.stringify(this.context.task) === JSON.stringify(selectedTask)) return this.context;
+            if (this.studioConversation) {
+                this.context = {...this.context,revision:this.context.revision + 1,selectedResources:selectedResources || [],task:selectedTask};
+                this.notify(this); return this.context;
+            }
             this.context = await this.api(`${this.workspaceId}/context`, 'PUT', {
                 expectedRevision: this.context.revision, viewId: this.viewId,
                 targetId: this.context.targetId, selectedResources, task: selectedTask, source: 'console'
@@ -324,6 +350,7 @@ export class AgentWorkspace {
         if (task && ((task.kind || 'publish-layer') !== 'publish-layer' || this.draft && task.id !== this.draft.id)) refuse();
     }
     async submit(prompt, options = {}) {
+        if (this.studioConversation) return this.studioConversation.submit(prompt, options);
         const questionReply=this.questionReplies.current();
         if (this.submission) {
             if (this.submission.prompt !== prompt || this.submission.questionReply !== questionReply)
@@ -458,7 +485,7 @@ export class AgentWorkspace {
         if (!current()) throw new Error('The selected context changed. Open the result again.');
         await open(this,observed,current);
     }
-    async conversation() { return this.api(`${this.workspaceId}/conversation`); }
+    async conversation() { return this.studioConversation ? {messages:this.studioConversation.messages} : this.api(`${this.workspaceId}/conversation`); }
     hasUnsavedWork() { return this.dirty.size > 0 || [...this.presentationGuards].some(guard => guard()); }
     presentation(intent) {
         if (!this.follow || this.hasUnsavedWork()) return null;
@@ -527,6 +554,13 @@ export function mountWorkspace() {
         try { renderExecutions(executions,state,error=>{status.textContent=error.message;}); }
         catch (error) { executions?.replaceChildren(); status.textContent=error.message; }
         renderQuestionReply(replyPanel,state);
+        const studio = state.session?.conversationMode === 'studio';
+        for (const selector of ['[data-workspace-deploy-target]', '[data-workspace-follow]']) {
+            const control = host.querySelector(selector); if (control) control.closest('label').hidden = studio;
+        }
+        for (const selector of ['.console-conversation-connection','.console-conversation-handoff','[data-workspace-check-executions]']) {
+            const control = host.querySelector(selector); if (control) control.hidden = studio;
+        }
         const taskLabel = state.context?.task ? ({'studio-composition':'Map draft','publish-layer':'Publish layer','workflow-package':'Process graph','local-process-workspace':'Local process','shared-style':'Shared style','dataset-import':'Dataset import'}[state.context.task.kind] || 'Task') : 'No task selected';
         const taskIdentity = state.context?.task?.packageKey || state.context?.task?.id;
         const currentTask = taskIdentity ? `${taskLabel} ${taskIdentity}` : taskLabel;
@@ -568,6 +602,7 @@ export function mountWorkspace() {
     const deployTargetSelect = host.querySelector('[data-workspace-deploy-target]');
     let targetCatalogBinding = null;
     const refreshDeployTargets = async state => {
+        if (state.session?.conversationMode === 'studio') return;
         const binding = state.workspaceId && state.session
             ? `${state.workspaceId}\u001f${state.authorityKey()}` : null;
         if (binding === targetCatalogBinding) return;
@@ -648,7 +683,7 @@ export function mountWorkspace() {
             const row = document.createElement('p');
             row.textContent = `${message.role}: ${message.content}`; messages.append(row);
         }
-        await workspace.executions.refresh(value.messages || []);
+        if (!workspace.studioConversation) await workspace.executions.refresh(value.messages || []);
         if (scope === workspace.executions.scope() && host.isConnected) {
             renderExecutions(executions,workspace,report);
             renderQuestionReply(replyPanel,workspace);
@@ -715,7 +750,7 @@ export function mountWorkspace() {
             }}); if(input.value === submitted) input.value = ''; await refresh();
             const cancelled = turnAbort.signal.aborted || result.status === 'cancelled';
             status.textContent = result.externalExecution ? executionSummary({acknowledged:true,execution:result.execution})
-                : result.executionUnavailable ? 'Message saved. Native agent session is not configured; external agents can continue this workspace.' : cancelled ? (result.errorMessage || 'Agent turn cancelled.') : ['error', 'refused', 'failed', 'blocked'].includes(result.status) ? (result.errorMessage || `Agent turn ${result.status}.`) : 'Turn saved. Check operation receipts for completion.';
+                : result.executionUnavailable ? 'Message saved. Native agent session is not configured; external agents can continue this workspace.' : cancelled ? (result.errorMessage || 'Agent turn cancelled.') : ['error', 'refused', 'failed', 'blocked'].includes(result.status) ? (result.errorMessage || `Agent turn ${result.status}.`) : result.studioConversation ? 'Reply received. Conversation stays in this tab; save your Studio draft to keep your work.' : 'Turn saved. Check operation receipts for completion.';
         } catch (error) { report(error); renderExecutions(executions,workspace,report); renderQuestionReply(replyPanel,workspace); }
         finally { setTurnWorking(false); turnAbort = null; }
     });
@@ -764,6 +799,7 @@ export function mountWorkspace() {
         } catch (error) { notice.hidden = false; notice.querySelector('[data-workspace-publication-state]').textContent = error.message; }
     };
     const bindForm = () => {
+        if (workspace.studioConversation) return;
         if (!host.isConnected) return;
         const form = document.querySelector('[data-workspace-publish-form]');
         if (!form) { focusedPublishForm = null; focusedPublishAuthority = null; return; }

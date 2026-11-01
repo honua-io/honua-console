@@ -23,6 +23,8 @@ public sealed class AgentSessionStreamingTests
     [Theory]
     [InlineData("ai")]
     [InlineData("mcp")]
+    [InlineData("studio/ai")]
+    [InlineData("studio/mcp")]
     public async Task AuthorizedProxyDeliversFirstEventBeforeCompletionAndCancelsUpstream(string endpoint)
     {
         using var upstream = new PausedEventStream();
@@ -32,7 +34,7 @@ public sealed class AgentSessionStreamingTests
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["HONUA_AGENT_API_KEY"] = "scoped-agent-key",
+            ["HONUA_AGENT_API_KEY"] = endpoint.StartsWith("studio/") ? null : "scoped-agent-key",
             ["HONUA_AGENT_SERVER_BASE_URL"] = "https://upstream.test/",
             ["HONUA_AGENT_GATEWAY_URL"] = null,
             ["HONUA_AGENT_GATEWAY_KEY"] = null
@@ -59,7 +61,7 @@ public sealed class AgentSessionStreamingTests
             var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
             using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = new Uri(address) };
             var csrf = await client.GetStringAsync("/csrf");
-            using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/agent-workspace/agent/{endpoint}") { Content = new StringContent("{}", Encoding.UTF8, "application/json") };
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/agent-workspace/{(endpoint.StartsWith("studio/") ? endpoint : "agent/" + endpoint)}") { Content = new StringContent("{}", Encoding.UTF8, "application/json") };
             request.Headers.Add("X-CSRF-Token", csrf);
             request.Headers.Add("X-Honua-Environment", "environment");
             request.Headers.Add("X-Honua-Workspace", "workspace");
@@ -81,8 +83,16 @@ public sealed class AgentSessionStreamingTests
             await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await nextRead);
             response.Dispose();
             await upstream.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(15));
-            Assert.True(wire.HumanMembershipChecked);
-            Assert.True(wire.IndependentAgentCredentialUsed);
+            if (endpoint.StartsWith("studio/"))
+            {
+                Assert.False(wire.HumanMembershipChecked);
+                Assert.True(wire.HumanCredentialUsed);
+            }
+            else
+            {
+                Assert.True(wire.HumanMembershipChecked);
+                Assert.True(wire.IndependentAgentCredentialUsed);
+            }
             Assert.True(wire.NegotiatedStreaming);
         }
         finally
@@ -90,6 +100,57 @@ public sealed class AgentSessionStreamingTests
             upstream.Release();
             await app.StopAsync();
         }
+    }
+
+    [Theory]
+    [InlineData(false, "environment", "valid", "view", "", 403)]
+    [InlineData(true, "other", "valid", "view", "", 403)]
+    [InlineData(true, "environment", "wrong", "view", "", 403)]
+    [InlineData(true, "environment", "valid", "../view", "", 400)]
+    [InlineData(true, "environment", "valid", "view", "?target=other", 400)]
+    public async Task StudioProxyRefusesUnboundRequestsBeforeUpstream(bool csrfEnabled, string environment, string partition, string view, string query, int expected)
+    {
+        using var stream = new PausedEventStream();
+        using var wire = new Upstream(stream);
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.Logging.ClearProviders();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-Token");
+        builder.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([
+            new ConsoleEnvironmentProfile { Id = "environment", ServerBaseUri = new Uri("https://upstream.test/") }
+        ]));
+        builder.Services.AddSingleton<IConsoleOperatorBearerProvider, HumanBearer>();
+        builder.Services.AddScoped<IConsoleOperatorContext, ConsoleOperatorContext>();
+        builder.Services.AddSingleton<IHttpClientFactory>(wire);
+        builder.Services.AddSingleton<AgentMcpSessions>();
+        await using var app = builder.Build();
+        app.Use(async (context, next) =>
+        {
+            context.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "operator")], "test-cookie"));
+            await next();
+        });
+        app.MapGet("/csrf", (HttpContext context, IAntiforgery csrf) => csrf.GetAndStoreTokens(context).RequestToken!);
+        app.MapAgentSessionBff();
+        await app.StartAsync();
+        try
+        {
+            var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
+            using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = new Uri(address) };
+            var csrf = await client.GetStringAsync("/csrf");
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/agent-workspace/studio/ai" + query)
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json")
+            };
+            if (csrfEnabled) request.Headers.Add("X-CSRF-Token", csrf);
+            request.Headers.Add("X-Honua-Environment", environment);
+            request.Headers.Add("X-Honua-Session-Partition", partition == "valid"
+                ? AgentGatewayBinding.OperatorPartition("operator", "environment", new Uri("https://upstream.test/")) : partition);
+            request.Headers.Add("X-Honua-View", view);
+            using var response = await client.SendAsync(request);
+            Assert.Equal(expected, (int)response.StatusCode);
+            Assert.Equal(0, wire.RequestCount);
+        }
+        finally { await app.StopAsync(); }
     }
 
     [Fact]
@@ -112,19 +173,23 @@ public sealed class AgentSessionStreamingTests
     }
     private sealed class Upstream(PausedEventStream stream) : HttpMessageHandler, IHttpClientFactory
     {
+        public int RequestCount { get; private set; }
         public bool HumanMembershipChecked { get; private set; }
+        public bool HumanCredentialUsed { get; private set; }
         public bool IndependentAgentCredentialUsed { get; private set; }
         public bool NegotiatedStreaming { get; private set; }
         public HttpClient CreateClient(string name) => new(this, disposeHandler: false);
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            RequestCount++;
             if (request.RequestUri!.AbsolutePath.StartsWith("/api/v1/agent/workspaces/", StringComparison.Ordinal))
             {
                 HumanMembershipChecked = request.Headers.Authorization?.Parameter == "human-bearer" && !request.Headers.Contains("X-API-Key");
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") });
             }
             NegotiatedStreaming = request.Headers.Accept.Any(value => value.MediaType == "text/event-stream");
-            IndependentAgentCredentialUsed = request.Headers.Authorization is null && request.Headers.GetValues("X-API-Key").Single() == "scoped-agent-key";
+            HumanCredentialUsed = request.Headers.Authorization?.Parameter == "human-bearer" && !request.Headers.Contains("X-API-Key");
+            IndependentAgentCredentialUsed = request.Headers.Authorization is null && request.Headers.TryGetValues("X-API-Key", out var keys) && keys.Single() == "scoped-agent-key";
             var content = new StreamContent(stream);
             content.Headers.ContentType = new MediaTypeHeaderValue("text/event-stream");
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
