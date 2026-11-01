@@ -120,7 +120,7 @@ public sealed class AgentSessionStreamingTests
             new ConsoleEnvironmentProfile { Id = "environment", ServerBaseUri = new Uri("https://upstream.test/") }
         ]));
         builder.Services.AddSingleton<IConsoleOperatorBearerProvider>(new Bearer());
-        builder.Services.AddScoped<IConsoleOperatorContext, ConsoleOperatorContext>();
+        builder.Services.AddSingleton<IConsoleOperatorContext>(new Operator());
         builder.Services.AddSingleton<IHttpClientFactory>(wire);
         builder.Services.AddSingleton<AgentMcpSessions>();
         await using var app = builder.Build();
