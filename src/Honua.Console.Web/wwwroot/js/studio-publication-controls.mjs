@@ -160,7 +160,7 @@ export class StudioPublicationSession {
                 throw new Error('The approval status does not match the original submission.');
             const statuses = { planned: 'awaiting-approval', awaitingapproval: 'awaiting-approval',
                 executing: 'approval-executing', submitted: 'approval-executing', reconciling: 'approval-executing',
-                succeeded: 'approval-completed', rejected: 'approval-rejected', failed: 'approval-failed',
+                succeeded: 'approval-completed', completed: 'approval-completed', rejected: 'approval-rejected', failed: 'approval-failed',
                 cancelled: 'approval-cancelled', rolledback: 'approval-rolled-back' };
             const statusKey = proposal.status.toLowerCase().replaceAll('-', '');
             const status = Object.hasOwn(statuses, statusKey) ? statuses[statusKey] : undefined;
