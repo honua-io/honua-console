@@ -236,9 +236,12 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     await code.press('End');
     await code.press('Enter');
     await page.keyboard.insertText(JSON.stringify(withLabels.layers.at(-1)) + ',');
+    await expect(code).toContainText('customer-attribute-labels');
     await code.press('Tab');
+    await expect(editor.getByRole('status')).toHaveText('Unsaved visual edits. Preview only.', { timeout: 30_000 });
     await frame.getByRole('button', { name: 'Close', exact: true }).click();
     await editor.getByRole('button', { name: 'Save map style', exact: true }).click();
+    await expect(editor.getByRole('status')).toHaveText('Map style saved to the authorized draft.');
     await page.getByRole('button', { name: 'Return to map', exact: true }).click();
     const labelled = await readDraft(original.draftId);
     expect(labelled.envelope.body.mapSpec.layers).toEqual(expect.arrayContaining([
