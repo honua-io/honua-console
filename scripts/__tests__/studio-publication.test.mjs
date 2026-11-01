@@ -321,3 +321,13 @@ test('opening a conversation invalidates a review made without one', async () =>
     await assert.rejects(session.submit(input), /Review this saved version/);
     assert.equal(calls.length, 0);
 });
+
+test('completed executor approval remains distinct from confirmed publication', async () => {
+    const { session } = fixture();
+    await session.review('version');
+    await session.submit(input);
+    session.readProposal = async () => ({ proposalId: 'proposal', status: 'Completed' });
+    const result = await session.refresh();
+    assert.equal(result.status, 'approval-completed');
+    assert.equal(session.audienceLinks(), undefined);
+});
