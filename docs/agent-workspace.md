@@ -131,3 +131,17 @@ Ubuntu browser dependencies before reaching the former ten-minute job limit;
 product/operator/accessibility checks had not started. This bounded infrastructure
 allowance preserves `--with-deps`, every existing check and its own limits. It does
 not convert that cancelled run into a product-test result or qualification pass.
+
+### rc.2 Studio asset refresh
+
+The Console bundle now pins merged Studio main
+`56dc0458ba46c3ee519c81caee95ac256e9b6a3f`, including Studio #171, #174 and
+#176. The production artifact came from successful main Smoke suite run
+[41349025355](https://github.com/honua-io/honua-studio/actions/runs/41349025355),
+artifact `13099979868`. Its downloaded archive SHA-256 matches GitHub's digest:
+`2c124633110549773cc207ebc312d58ac46a2710bcb12e2ac7af9b625ec1f440`.
+The normal `vendor-studio-assets.mjs` import preserves the SDK source receipt
+`5765b427f421dca9c42832ae450fa1c5aad882c2` and records the complete asset hashes.
+This refresh includes the authenticated-source worker repair and live lease
+recovery. It retains the pending installed-workspace qualification state; the
+asset producer alone does not qualify the complete Console customer journey.

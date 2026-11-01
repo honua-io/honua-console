@@ -8512,7 +8512,7 @@ function Du(e, t) {
 			if (a) throw Error("Map source transport is disposed.");
 			return { data: s };
 		} catch (e) {
-			let r = e instanceof Error ? e : Error(String(e));
+			let r = Error(e instanceof Error ? e.message : String(e));
 			throw !n.signal.aborted && !a && t.onError?.(r), r;
 		} finally {
 			i.delete(n);
