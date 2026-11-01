@@ -291,12 +291,43 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
         return { width: rect.width, height: rect.height, display: css.display, visibility: css.visibility };
       }))) });
     await expect(code, 'the full-style editor must be visible to the customer').toBeVisible();
-    // Paste the complete reviewed style through the real editor so the appended
-    // symbol layer draws above the fills. Prepending it can count rendered label
-    // features while later polygon fills hide every glyph in the screenshot.
+    // Copy the current editor document to locate the end of its layers array,
+    // then use the shipped Go to line command to append only the symbol layer.
+    // Keep the existing editor source bindings and avoid a large document paste.
+    await frame.locator('html').evaluate(() => {
+      (window as any).__honuaStyleCopy = undefined;
+      document.addEventListener('copy', event => {
+        (window as any).__honuaStyleCopy = event.clipboardData?.getData('text/plain');
+      }, { once: true });
+    });
     await code.focus();
     await code.press('ControlOrMeta+A');
-    await page.keyboard.insertText(JSON.stringify(withLabels, null, 2));
+    await code.press('ControlOrMeta+C');
+    const copiedStyle = await frame.locator('html').evaluate(() => (window as any).__honuaStyleCopy as string);
+    expect(copiedStyle).toMatch(/^\{\s*"name"\s*:[^\n]*\n\s*"layers"\s*:\s*\[/);
+    expect(JSON.parse(copiedStyle).layers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: fill.id }),
+    ]));
+    const layersStart = copiedStyle.indexOf('[', copiedStyle.indexOf('"layers"'));
+    let depth = 0, quoted = false, escaped = false, layersEnd = -1;
+    for (let offset = layersStart; offset < copiedStyle.length; offset++) {
+      const character = copiedStyle[offset];
+      if (quoted) {
+        if (escaped) escaped = false;
+        else if (character === '\\') escaped = true;
+        else if (character === '"') quoted = false;
+      } else if (character === '"') quoted = true;
+      else if (character === '[') depth++;
+      else if (character === ']' && --depth === 0) { layersEnd = offset; break; }
+    }
+    expect(layersEnd).toBeGreaterThan(layersStart);
+    const beforeClose = copiedStyle.slice(0, layersEnd);
+    expect(beforeClose.slice(beforeClose.lastIndexOf('\n') + 1).trim()).toBe('');
+    await code.press('ControlOrMeta+Alt+g');
+    const goToLine = frame.locator('.cm-gotoLine input[name="line"]');
+    await goToLine.fill(String(beforeClose.split('\n').length));
+    await goToLine.press('Enter');
+    await page.keyboard.insertText(',' + JSON.stringify(withLabels.layers.at(-1)) + '\n');
     await expect(code).toContainText('customer-attribute-labels');
     await code.press('Tab');
     await expect(editor.getByRole('status')).toHaveText('Unsaved visual edits. Preview only.', { timeout: 30_000 });
