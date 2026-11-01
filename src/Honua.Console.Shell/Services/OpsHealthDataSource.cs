@@ -108,7 +108,14 @@ public sealed class OpsHealthDataSource : IOpsHealthDataSource
             MapGeoprocessing(snapshot.Geoprocessing),
             MapAlertDispatch(snapshot.AlertDispatch),
             MapDeploy(snapshot.Deploy),
-            MapDatabase(snapshot.Database));
+            MapDatabase(snapshot.Database),
+            (snapshot.ManagedTargets ?? []).Select(target => new OpsManagedTargetView(
+                string.IsNullOrWhiteSpace(target.TargetId) ? "(unknown)" : target.TargetId!,
+                target.Available,
+                target.Available ? (target.Services ?? []).Select(service => new OpsManagedServiceView(
+                    string.IsNullOrWhiteSpace(service.Name) ? "(unknown)" : service.Name!,
+                    string.IsNullOrWhiteSpace(service.Status) ? "unknown" : service.Status!,
+                    ReportStatus(service.Status))).ToArray() : [])).ToArray());
     }
 
     private static OpsHealthChecksView MapHealth(OpsHealthChecksResponse? health)
