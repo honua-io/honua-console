@@ -559,7 +559,7 @@ export function mountWorkspace() {
         for (const selector of ['[data-workspace-deploy-target]', '[data-workspace-follow]']) {
             const control = host.querySelector(selector); if (control) control.closest('label').hidden = studio;
         }
-        for (const selector of ['.console-conversation-connection','.console-conversation-handoff','[data-workspace-check-executions]']) {
+        for (const selector of ['.console-conversation-connection','.console-conversation-handoff','[data-workspace-check-executions]','[data-workspace-change-selection]']) {
             const control = host.querySelector(selector); if (control) control.hidden = studio;
         }
         const taskLabel = state.context?.task ? ({'studio-composition':'Map draft','publish-layer':'Publish layer','workflow-package':'Process graph','local-process-workspace':'Local process','shared-style':'Shared style','dataset-import':'Dataset import'}[state.context.task.kind] || 'Task') : 'No task selected';
@@ -740,7 +740,8 @@ export function mountWorkspace() {
         if (partial) { partial.textContent = ''; partial.hidden = true; }
         try {
             const submitted = input.value;
-            status.textContent = `Submitting for target ${workspace.context?.targetId || 'unbound'} · ${workspace.context?.task?.id || 'no task'}.`;
+            status.textContent = workspace.studioConversation ? 'Sending to the Studio assistant.'
+                : `Submitting for target ${workspace.context?.targetId || 'unbound'} · ${workspace.context?.task?.id || 'no task'}.`;
             const result = await workspace.submit(submitted, {signal: turnAbort.signal, onEvent: event => {
                 const inner = event?.event ?? event;
                 if (inner?.type === 'textDelta' && typeof inner.text === 'string' && partial) {
