@@ -91,6 +91,8 @@ public sealed class FakeConsoleProposalsClient : IConsoleProposalsClient
         UpdateSummaryStatus(proposalId, ConsoleProposalStatus.Succeeded);
     }
 
+    public void RemoveFromQueue(string proposalId) => _summaries.Remove(proposalId);
+
     private void UpdateSummaryStatus(string proposalId, ConsoleProposalStatus status)
     {
         if (_summaries.TryGetValue(proposalId, out var summary))
