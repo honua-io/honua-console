@@ -22,8 +22,8 @@ async function studioElement(session) {
     let app = elementsByEnvironment.get(session.environmentId);
     if (!app) {
         app = document.createElement('honua-studio-app');
-        trackStudioLeaseTurns(app);
         app.styleEditorAssetsUrl = '/_studio/maputnik/index.html';
+        trackStudioLeaseTurns(app);
         app.routingMode = 'host'; app.setAttribute('base-path', '/studio');
         app.addEventListener('honua-studio-navigate', event => {
             if (/^\/studio(?:\/[A-Za-z0-9_-]+)*$/.test(event.detail?.path || ''))
