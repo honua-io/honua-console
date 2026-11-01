@@ -14,8 +14,11 @@ public sealed record OpsHealthView(
     OpsGpQueueView Geoprocessing,
     OpsAlertDispatchView AlertDispatch,
     OpsDeployReadinessView Deploy,
-    OpsDatabaseView Database)
+    OpsDatabaseView Database,
+    IReadOnlyList<OpsManagedTargetView>? ManagedTargetObservations = null)
 {
+    /// <summary>Observed managed targets, when reported.</summary>
+    public IReadOnlyList<OpsManagedTargetView> ManagedTargets => ManagedTargetObservations ?? [];
     /// <summary>
     /// The total count of breaching sections across the snapshot (console#292 ops-summary
     /// strip's "SLO breaches" element): every per-protocol serving-latency breach, plus the
@@ -116,3 +119,9 @@ public sealed record OpsDatabaseView(
     int ActiveConnections,
     long ConnectionAcquisitionTimeouts,
     long ConnectionAcquisitionFailures);
+
+/// <summary>Managed target observation.</summary>
+public sealed record OpsManagedTargetView(string TargetId, bool Available, IReadOnlyList<OpsManagedServiceView> Services);
+
+/// <summary>Managed service observation.</summary>
+public sealed record OpsManagedServiceView(string Name, string ObservedStatus, OperateStatus Status);
