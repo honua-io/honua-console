@@ -1,5 +1,5 @@
 import { t as e } from "./widget-config-BnNjdjF6.js";
-//#region node_modules/@honua/sdk-js/dist/src/studio/chart-spec.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/studio/chart-spec.js
 var t = "https://vega.github.io/schema/vega-lite/v6.json", n = {
 	categories: "bar",
 	histogram: "bar",

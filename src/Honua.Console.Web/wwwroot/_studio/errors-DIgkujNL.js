@@ -1,4 +1,4 @@
-//#region node_modules/@honua/sdk-js/dist/src/core/error-classifications.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/error-classifications.js
 var e = Object.freeze({
 	"core.http.transient": t("core", "protocol", !0),
 	"core.http.rejected": t("core", "protocol", !1),
@@ -181,7 +181,7 @@ function t(e, t, n) {
 	]);
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/core/error-envelope.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/error-envelope.js
 var n = "honua.sdk.error.v1", r = class extends Error {
 	kind = n;
 	domain;
@@ -369,7 +369,7 @@ function A(e, t) {
 	return n[e] = t, Object.freeze(n);
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/core/errors.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/errors.js
 var ie = class extends r {
 	code;
 	detail;
