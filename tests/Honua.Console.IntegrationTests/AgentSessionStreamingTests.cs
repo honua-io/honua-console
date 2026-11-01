@@ -47,7 +47,9 @@ public sealed class AgentSessionStreamingTests
         var accountSessions = new InMemoryConsoleAccountSessionStore();
         await accountSessions.SaveSessionAsync(new ConsoleAccountSession
         {
-            ProfileId = "environment", ServerBaseUri = new Uri("https://upstream.test/"), AccessToken = "human-bearer"
+            ProfileId = "environment",
+            ServerBaseUri = new Uri("https://upstream.test/"),
+            AccessToken = "human-bearer"
         });
         builder.Services.AddSingleton<IConsoleAccountSessionStore>(accountSessions);
         builder.Services.AddSingleton<IConsoleOperatorContext>(new Operator());
@@ -135,7 +137,8 @@ public sealed class AgentSessionStreamingTests
         {
             await accountSessions.SaveSessionAsync(new ConsoleAccountSession
             {
-                ProfileId = "environment", AccessToken = "human-bearer",
+                ProfileId = "environment",
+                AccessToken = "human-bearer",
                 ServerBaseUri = sessionBinding == "unbound" ? null
                     : new Uri(sessionBinding == "changed" ? "https://other.test/" : "https://upstream.test/")
             });
