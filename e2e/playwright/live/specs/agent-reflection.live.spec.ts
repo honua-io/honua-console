@@ -136,6 +136,8 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
       ],
       observe: async (_stage: string, record: any) => { seen.push(record); },
     });
+    expect(seen, 'both actual agent publications must be observed').toHaveLength(2);
+    expect(seen.map(record => record.format).sort()).toEqual(['csv', 'geojson']);
     await check('agent-published-services', async () => {
       for (const record of seen) {
         await go('/operate/services');
@@ -160,8 +162,10 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
     });
   } finally {
     const stages = ['agent-live-revision', 'agent-degradation-finding', 'agent-approval-recovery', 'agent-published-services', 'agent-audit-ownership'];
+    const qualificationComplete = stages.every(stage => completed.includes(stage)) && failures.length === 0 && errors.length === 0;
     await info.attach('agent-reflection-progress.json', { contentType: 'application/json',
-      body: Buffer.from(JSON.stringify({ completed, failureDetails, qualificationComplete: stages.every(stage => completed.includes(stage)) && failures.length === 0 && errors.length === 0 })) });
+      body: Buffer.from(JSON.stringify({ completed, failureDetails, qualificationComplete })) });
+    expect.soft(qualificationComplete, 'every required agent journey stage must qualify').toBe(true);
     expect.soft(errors, 'no failed Console or server requests or browser errors').toEqual([]);
     expect.soft(failures, 'all agent changes must be visible in Console').toEqual([]);
   }
