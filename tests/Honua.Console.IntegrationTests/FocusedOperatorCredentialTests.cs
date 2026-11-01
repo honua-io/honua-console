@@ -15,6 +15,43 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class FocusedOperatorCredentialTests
 {
+    [Fact]
+    public async Task SeparateManager_RoutesOnlyManagementRequestsAndPreservesOperatorBoundary()
+    {
+        using var fixture = new Fixture(useManager: true);
+        await fixture.BindAsync("alice", "tenant-a");
+        var factory = fixture.Services.GetRequiredService<IHonuaServerBoundClientFactory>();
+        using var manager = factory.CreateManagerBoundClient(new Uri("https://server.honua.test/"));
+        using var server = factory.CreateServerBoundClient(new Uri("https://server.honua.test/"));
+        using var managementResponse = await manager.GetAsync("api/v1/admin/observability/ops-health");
+        using var catalogResponse = await server.GetAsync("api/v1/admin/services");
+        Assert.Equal(HttpStatusCode.OK, managementResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, catalogResponse.StatusCode);
+        Assert.Equal("https://manager.honua.test/api/v1/admin/observability/ops-health", fixture.Wire.Targets[0]);
+        Assert.Equal("https://server.honua.test/api/v1/admin/services", fixture.Wire.Targets[1]);
+        Assert.All(fixture.Wire.Requests, request => Assert.Equal("Bearer alice-bearer", request));
+        var profile = (await fixture.Profiles.GetActiveProfileAsync())!;
+        await fixture.Profiles.UpsertProfileAsync(profile with { ServerBaseUri = new Uri("https://other.honua.test/") });
+        using var blocked = await manager.GetAsync("api/v1/admin/observability/ops-health");
+        Assert.False(blocked.IsSuccessStatusCode);
+        Assert.Equal(2, fixture.Wire.Targets.Count);
+    }
+
+    [Fact]
+    public void ManagerMapping_FailsClosedForUntrustedOrInvalidEnvironment()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Honua:Server:BaseUrl"] = "https://server.honua.test/base",
+            ["HONUA_MANAGER_BASE_URL"] = "https://manager.honua.test/management"
+        }).Build();
+        var endpoint = new ConsoleManagerEndpoint(config);
+        Assert.Equal(new Uri("https://manager.honua.test/management/"), endpoint.Resolve(new Uri("https://server.honua.test/base/")));
+        Assert.Null(endpoint.Resolve(new Uri("https://other.honua.test/base/")));
+        config["HONUA_MANAGER_BASE_URL"] = "https://user:secret@manager.honua.test/";
+        Assert.Null(new ConsoleManagerEndpoint(config).Resolve(new Uri("https://server.honua.test/base/")));
+    }
+
     public static IEnumerable<object[]> MissingCredentials()
     {
         foreach (var client in new[] { ConsoleServerBoundClients.ServerBoundClientName, "honua-map-proxy" })
@@ -235,18 +272,24 @@ public sealed class FocusedOperatorCredentialTests
         public IConsoleAccountSessionStore Sessions { get; }
         public ServiceProvider Services { get; }
 
-        public Fixture()
+        public Fixture(bool useManager = false)
         {
             Profiles = new OperatorScopedEnvironmentProfileStore(Operator);
             Sessions = new OperatorScopedAccountSessionStore(Operator);
             var services = new ServiceCollection();
             services.AddLogging();
+            if (useManager)
+                services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Honua:Server:BaseUrl"] = "https://server.honua.test/",
+                    ["HONUA_MANAGER_BASE_URL"] = "https://manager.honua.test/"
+                }).Build());
             services.AddSingleton<IConsoleOperatorContext>(Operator);
             services.AddSingleton(Profiles);
             services.AddSingleton(Sessions);
             services.AddHonuaConsoleShell("https://server.honua.test/", "shared-admin-secret");
             services.AddConsoleServerBoundClients();
-            foreach (var name in new[] { ConsoleServerBoundClients.ServerBoundClientName, "honua-map-proxy" })
+            foreach (var name in new[] { ConsoleServerBoundClients.ServerBoundClientName, ConsoleServerBoundClients.ManagerBoundClientName, "honua-map-proxy" })
                 services.AddHttpClient(name).ConfigurePrimaryHttpMessageHandler(() => Wire);
             Services = services.BuildServiceProvider();
         }

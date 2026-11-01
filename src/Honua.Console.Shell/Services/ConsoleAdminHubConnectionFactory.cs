@@ -28,7 +28,8 @@ internal static class ConsoleAdminHubConnectionFactory
         IConsoleAccountSessionStore sessions,
         string? adminApiKey,
         string hubPath,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IConsoleManagerEndpoint? managerEndpoint = null)
     {
         ArgumentNullException.ThrowIfNull(profileStore);
         ArgumentNullException.ThrowIfNull(sessions);
@@ -48,7 +49,9 @@ internal static class ConsoleAdminHubConnectionFactory
             return null;
         }
 
-        var hubUri = ConsoleServerHttp.BuildUri(profile.ServerBaseUri, hubPath);
+        var target = managerEndpoint is null ? profile.ServerBaseUri : managerEndpoint.Resolve(profile.ServerBaseUri);
+        if (target is null) return null;
+        var hubUri = ConsoleServerHttp.BuildUri(target, hubPath);
 
         return new HubConnectionBuilder()
             .WithUrl(hubUri, options =>

@@ -31,6 +31,7 @@ public sealed class SignalRConsoleDeployOperationRealtimeClient : IConsoleDeploy
     private readonly IConsoleAccountSessionStore _sessions;
     private readonly ILogger _logger;
     private readonly string? _adminApiKey;
+    private readonly IConsoleManagerEndpoint? _managerEndpoint;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ConsoleRealtimeFallbackTracker _tracker;
 
@@ -41,12 +42,14 @@ public sealed class SignalRConsoleDeployOperationRealtimeClient : IConsoleDeploy
         IConsoleEnvironmentProfileStore profileStore,
         IConsoleAccountSessionStore sessions,
         ILogger<SignalRConsoleDeployOperationRealtimeClient> logger,
-        string? adminApiKey = null)
+        string? adminApiKey = null,
+        IConsoleManagerEndpoint? managerEndpoint = null)
     {
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _adminApiKey = string.IsNullOrWhiteSpace(adminApiKey) ? null : adminApiKey;
+        _managerEndpoint = managerEndpoint;
         _tracker = new ConsoleRealtimeFallbackTracker(_logger, HubPath + "/" + SubscribeMethod);
     }
 
@@ -79,7 +82,7 @@ public sealed class SignalRConsoleDeployOperationRealtimeClient : IConsoleDeploy
             {
                 _tracker.MarkConnecting();
                 connection = await ConsoleAdminHubConnectionFactory
-                    .CreateAsync(_profileStore, _sessions, _adminApiKey, HubPath, cancellationToken)
+                    .CreateAsync(_profileStore, _sessions, _adminApiKey, HubPath, cancellationToken, _managerEndpoint)
                     .ConfigureAwait(false);
             }
             catch (Exception ex)
