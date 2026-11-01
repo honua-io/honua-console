@@ -20,6 +20,27 @@ namespace Honua.Console.IntegrationTests;
 /// </summary>
 public sealed class ResourceFirstPublishFlowTests
 {
+    [Fact]
+    public void QuickPublish_GenericGeometryRequiresExplicitTypeAndPassesTheChoice()
+    {
+        using var ctx = NewContext();
+        var publish = new RecordingPublishOperation([], "GEOMETRY");
+        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish);
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneConnectionDataSource("conn", "Source"));
+        var page = ctx.Render<OperatePublishLayerPage>();
+        page.Find("select[aria-label='Connection']").Change("conn");
+        page.Find("select[aria-label='Table']").Change("public.parcels");
+        page.Find("input[placeholder='parcels-fs']").Input("parcels-fs");
+        page.Find("input[placeholder='Parcels']").Input("Parcels");
+        page.Find("[data-workspace-publish]").Click();
+        Assert.Equal(0, publish.PublishCalls);
+        Assert.Contains("Select the geometry type", page.Markup, StringComparison.Ordinal);
+        page.Find("select[aria-label='Geometry type']").Change("Polygon");
+        page.Find("[data-workspace-publish]").Click();
+        Assert.Equal(1, publish.PublishCalls);
+        Assert.Equal("Polygon", publish.LastCommand?.GeometryType);
+    }
+
     private static BunitContext NewContext()
     {
         var ctx = new BunitContext();
@@ -737,7 +758,7 @@ public sealed class ResourceFirstPublishFlowTests
     /// A recording publish operation: returns one table, records the publish command (so a test can assert the
     /// planned protocols were threaded), and reports a controllable canonical protocol set from EnableProtocols.
     /// </summary>
-    private sealed class RecordingPublishOperation(IReadOnlyList<string> enabledProtocols) : IServiceLayerPublishOperation
+    private sealed class RecordingPublishOperation(IReadOnlyList<string> enabledProtocols, string geometryType = "Polygon") : IServiceLayerPublishOperation
     {
         public int PublishCalls { get; private set; }
         public int EnableCalls { get; private set; }
@@ -781,7 +802,7 @@ public sealed class ResourceFirstPublishFlowTests
                     Schema = "public",
                     Table = "parcels",
                     GeometryColumn = "geom",
-                    GeometryType = "Polygon",
+                    GeometryType = geometryType,
                     Srid = 4326,
                     EstimatedRows = 10,
                     Columns = ["id", "name"],
