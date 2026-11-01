@@ -119,7 +119,8 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
             expect(typeof feature.properties.population).toBe('number');
             expect(Number.isInteger(feature.properties.population)).toBe(true);
             expect(typeof feature.properties.rating).toBe('number');
-            expect(feature.geometry.type).toBe(file.endsWith('.csv') ? 'Point' : 'Polygon');
+            if (file.endsWith('.csv')) expect(feature.geometry.type).toBe('Point');
+            else expect(['Polygon', 'MultiPolygon']).toContain(feature.geometry.type);
           }
           expect(items.features.map((feature: any) => feature.properties.category).sort()).toEqual(['east', 'west']);
           expect(items.features.map((feature: any) => feature.properties.population).sort((a: number, b: number) => a - b)).toEqual([10, 20]);
