@@ -1,6 +1,6 @@
 {
   "schemaVersion": "honua.console.studio-artifact.v1",
-  "studioRevision": "62312e012d3db5f079582ce56e9f18436c93bc49",
+  "studioRevision": "90bb5191d4bb999f3602438490d4dbb7953bde5b",
   "sdkRevision": "5765b427f421dca9c42832ae450fa1c5aad882c2",
   "files": [
     {
@@ -9,9 +9,9 @@
       "sha256": "5420da18c04dbefda660133d62583f6abe709233ca45a01139db121fe172f107"
     },
     {
-      "path": "authenticated-source-protocol-4yd8xX9l.js",
-      "bytes": 277913,
-      "sha256": "6ef94ea3db2371968cbee48c181821997c7c96da953afc5b3d073db336d0d7a2"
+      "path": "authenticated-source-protocol-Dcx_7lHj.js",
+      "bytes": 278276,
+      "sha256": "045f28a2205d319a413709894a0f656868aa26fd142bd275764dcec2b83e6175"
     },
     {
       "path": "base-element-CzTXWtWv.js",
@@ -40,8 +40,8 @@
     },
     {
       "path": "console.js",
-      "bytes": 930646,
-      "sha256": "9af9bd84581d1bb9e6d406fd0036cdeb589f751e09e8ef81c8d9949e7a18d07d"
+      "bytes": 933891,
+      "sha256": "389a0949c1cf41136f7f2b1ecd9e7e84b1155aa8aa619aebf230eeb2713a46e4"
     },
     {
       "path": "constants-B8tqYbYF.js",
@@ -136,7 +136,7 @@
     {
       "path": "STUDIO-PROVENANCE.json",
       "bytes": 247129,
-      "sha256": "2f7aee694c6f0bac3279ee0a3bb462e7e1d2d6ba6047a0738ba876b929c0240c"
+      "sha256": "85d48e44c9baea0c9a299fc5abba040638becce886dd3ab71e1e6b6280be85f0"
     },
     {
       "path": "style.css",
