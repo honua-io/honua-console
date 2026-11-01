@@ -128,9 +128,11 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
         await expect(row).toContainText(record.dataset, { timeout: 30_000 });
         await expect(row).toContainText(record.format === 'csv' ? /\bPoint\b/i : /\b(?:Multi)?Polygon\b/i);
         if (record.format === 'csv') await expect(row).not.toContainText(/multipoint/i);
-        await row.locator('a').first().click();
-        for (const [name, type] of Object.entries(fields))
-          await expect(page.locator(`[data-field-row][data-field-name="${name}"]`)).toContainText(type, { timeout: 30_000 });
+        const detailPath = await row.locator('a').first().getAttribute('href');
+        expect(detailPath, 'the published layer must link to its detail').toBeTruthy();
+        await go(detailPath!);
+        for (const [name, type] of Object.entries({ name: 'String', population: 'BigInteger', rating: 'Double' }))
+          await expect(page.locator(`[data-field-row][data-field-name="${name}"]`).getByRole('cell', { name: type, exact: true })).toBeVisible({ timeout: 30_000 });
       }
       await go('/operate/connections');
       await expect(page.locator('body')).toContainText(connectionName, { timeout: 30_000 });
