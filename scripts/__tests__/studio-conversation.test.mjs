@@ -10,7 +10,7 @@ test('Start conversation uses canonical Studio capabilities without creating an 
  const workspace=new AgentWorkspace({storage:storage(),uuid:()=> 'tab',request:async(path)=>{
   calls.push(path);
   if(path.endsWith('/session'))return response(session);
-  if(path.endsWith('/studio/capabilities'))return response({data:{enabled:true,providers:[{configured:true,toolSupport:true}]}});
+  if(path.endsWith('/studio/capabilities'))return response({success:true,data:{enabled:true,providers:[{configured:true,toolSupport:true}]}});
   throw new Error(`Absent trunk contract: ${path}`);
  }});
  await workspace.create();
@@ -32,7 +32,7 @@ async function readyWorkspace({chat,prepare,request} = {}) {
  const workspace=new AgentWorkspace({storage:storage(),uuid:()=> 'tab',request:async(path,init)=>{
   calls.push({path,init});
   if(path.endsWith('/session'))return response(session);
-  if(path.endsWith('/studio/capabilities'))return response({data:{enabled:true,providers:[{configured:true,toolSupport:true}]}});
+  if(path.endsWith('/studio/capabilities'))return response({success:true,data:{enabled:true,providers:[{configured:true,toolSupport:true}]}});
   if(request)return request(path,init);
   throw new Error(`Unexpected route ${path}`);
  }});
@@ -158,4 +158,24 @@ test('each model turn receives the captured draft identity after changing drafts
  await workspace.submit('Edit this map instead');
  assert.match(options().system(),/draft-b.*generation.*3/);
  assert.doesNotMatch(options().system(),/draft-a/);
+});
+
+test('canonical admission refusal retains its actionable message through the shipped SDK',async()=>{
+ globalThis.HTMLElement ||= class {};
+ const module=await import('../../src/Honua.Console.Web/wwwroot/_studio/console.js');
+ const {workspace}=await readyWorkspace({request:async(path,init)=>{
+  if(path.endsWith('/mcp')){
+   const rpc=JSON.parse(init.body);
+   return new Response(JSON.stringify({jsonrpc:'2.0',id:rpc.id,result:rpc.method==='initialize'
+    ?{protocolVersion:'2025-03-26',capabilities:{tools:{}},serverInfo:{name:'fixture',version:'1'}}
+    :{tools:[],_meta:{view:'setup'}}}),{headers:{'Content-Type':'application/json'}});
+  }
+  if(path.endsWith('/ai'))return new Response(JSON.stringify({code:'ledger_uninitialized',title:'Initialize and resume AI admission.'}),{status:503,headers:{'Content-Type':'application/problem+json'}});
+  throw new Error(path);
+ }});
+ workspace.studioConversation.loadAssets=async()=>module;
+ const result=await workspace.submit('Make a map');
+ assert.equal(result.status,'error');
+ assert.equal(result.errorMessage,'ledger_uninitialized: Initialize and resume AI admission.');
+ assert.equal((await workspace.conversation()).messages.at(-1).content,result.errorMessage);
 });
