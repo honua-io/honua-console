@@ -1,4 +1,9 @@
 // Async Razor renders may add fields after the containing form first appears.
+export function requireSupportedWorkspacePublish(form) {
+    if (form.querySelector('[data-publish-generic-geometry]'))
+        throw new Error('This connected workspace cannot retain a geometry type yet. Open a fresh browser session without a connected workspace to publish this table.');
+}
+
 export function createPublishInputBinder(workspace, {signal, shouldIgnore = () => false} = {}) {
     const bound = new WeakSet();
     return form => {
