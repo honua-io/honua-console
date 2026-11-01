@@ -27,6 +27,9 @@ public static class ConsoleServerBoundClients
     /// <summary>Named client for the legitimately-ANONYMOUS-capable surface (/public, /ogc/styles).</summary>
     public const string PublicClientName = "honua-server-public";
 
+    /// <summary>Named client for explicitly configured management operations.</summary>
+    public const string ManagerBoundClientName = "honua-manager-bound";
+
     public static IServiceCollection AddConsoleServerBoundClients(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -50,6 +53,18 @@ public static class ConsoleServerBoundClients
                     serviceProvider.GetRequiredService<IConsoleOperatorContext>()))
             .AddHttpMessageHandler(serviceProvider => CreateBindingHandler(serviceProvider))
             .AddHttpMessageHandler(serviceProvider => CreateCredentialHandler(serviceProvider));
+
+        services.TryAddSingleton<IConsoleManagerEndpoint>(provider =>
+            new ConsoleManagerEndpoint(provider.GetService<IConfiguration>()));
+        services.AddHttpClient(ManagerBoundClientName)
+            .ConfigurePrimaryHttpMessageHandler(CreatePooledPrimaryHandler)
+            .AddHttpMessageHandler(provider => new ConsoleServerBoundOperatorGuardHandler(
+                provider.GetRequiredService<IConsoleOperatorContext>()))
+            .AddHttpMessageHandler(provider => CreateBindingHandler(provider))
+            .AddHttpMessageHandler(provider => CreateCredentialHandler(provider))
+            .AddHttpMessageHandler(provider => new ConsoleManagerRoutingHandler(
+                provider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                provider.GetRequiredService<IConsoleManagerEndpoint>()));
 
         // The anonymous-capable chain: same binding (forwards the operator bearer WHEN resolved) but NO
         // fail-closed guard, so /public open-data + the public /ogc/styles list keep rendering for
@@ -109,6 +124,9 @@ public static class ConsoleServerBoundClients
 
         public HttpClient CreateServerBoundClient(Uri baseUri, TimeSpan? timeout = null) =>
             Configure(_httpClientFactory.CreateClient(ServerBoundClientName), baseUri, timeout);
+
+        public HttpClient CreateManagerBoundClient(Uri baseUri, TimeSpan? timeout = null) =>
+            Configure(_httpClientFactory.CreateClient(ManagerBoundClientName), baseUri, timeout);
 
         public HttpClient CreatePublicClient(Uri baseUri, TimeSpan? timeout = null) =>
             Configure(_httpClientFactory.CreateClient(PublicClientName), baseUri, timeout);
