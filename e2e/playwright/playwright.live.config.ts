@@ -67,6 +67,14 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'agent-reflection',
+      testMatch: /agent-reflection\.live\.spec\.ts/,
+      retries: 0,
+      timeout: 600_000,
+      use: { ...devices['Desktop Chrome'], baseURL: process.env.HONUA_REFLECTION_CONSOLE_URL,
+        storageState: { cookies: [], origins: [] }, trace: 'off', video: 'off', screenshot: 'off' },
+    },
+    {
       name: 'studio-customer',
       testMatch: /studio-customer-journey\.live\.spec\.ts/,
       retries: 0,
@@ -84,7 +92,7 @@ export default defineConfig({
     },
     {
       name: 'chromium',
-      testIgnore: /studio-customer-journey\.live\.spec\.ts/,
+      testIgnore: /(?:studio-customer-journey|agent-reflection)\.live\.spec\.ts/,
       testDir: './live/specs',
       dependencies: ['setup'],
       use: {

@@ -44,3 +44,21 @@ map-local server rendering or incomplete publication remain failures. A successf
 operator transport control cannot turn an incomplete customer journey into a pass.
 The release gate consumes the complete customer progress attachment as well as the
 Playwright totals. Candidate pins and release notes are owned by honua-release.
+
+## Agent reflection in the customer quickstart
+
+The `agent-reflection` Playwright project starts the server's packaged quickstart with its
+separate manager and Compose executor, adds a local OIDC provider for an attributable customer
+session, and runs the pinned Console image or the PR image. A deterministic MCP client reads
+live release state, observes stopped Redis, creates a restart proposal, and waits for a distinct
+principal to approve it. The same client imports and publishes polygon and CSV point datasets;
+server metadata and audit records are checked alongside Console views. Browser errors, failed
+requests and HTTP 4xx/5xx remain failures.
+
+The live workflow requires a server image whose source includes the managed Compose observer
+and executor changes. For a PR it derives an executor from that selected server image; release
+replay supplies the immutable executor image from the same candidate through `executor_image`.
+The quickstart and its private test credentials live only in an isolated workspace directory;
+the workflow removes its containers and volumes. The uploaded agent result contains progress
+and runtime image identities, not credentials or browser traces. Both the Studio and agent
+journeys must pass for the release gate; missing progress cannot qualify a candidate.

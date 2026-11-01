@@ -55,7 +55,8 @@ export async function exerciseAgentRecovery({ managerUrl, proposerKey, approverK
 }
 
 /** Ingest and publish through MCP, then validate the resulting server metadata. */
-export async function exerciseAgentPublication({ serverUrl, proposerKey, verifierKey, datasets, observe }) {
+export async function exerciseAgentPublication({ serverUrl, proposerKey, verifierKey, expectedActor, datasets, observe }) {
+  if (!expectedActor) throw new Error('The server MCP actor identity is required');
   const mcp = new AgentMcpClient(serverUrl, proposerKey);
   await mcp.initialize();
   const output = [];
@@ -85,7 +86,13 @@ export async function exerciseAgentPublication({ serverUrl, proposerKey, verifie
     if (layer.geometryType !== `esriGeometry${dataset.geometryType}`) throw new Error(`Published ${dataset.format} has the wrong geometry type`);
     for (const [field, type] of Object.entries(dataset.fields))
       if (!layer.fields?.some(item => item.name === field && item.type === type)) throw new Error(`Published ${dataset.format} is missing typed field ${field}`);
-    const record = { dataset: dataset.name, format: dataset.format, geometryType: layer.geometryType, fields: layer.fields, actorOperationId: result.operationInstanceId };
+    if (!result.operationInstanceId) throw new Error('Publication did not report its operation identity');
+    const auditQuery = new URLSearchParams({ resourceType: 'operation_instance', resourceId: result.operationInstanceId, pageSize: '100' });
+    const audit = await poll(() => api(serverUrl, verifierKey, `/api/v1/admin/observability/audit?${auditQuery}`),
+      value => value.items?.some(item => item.action === 'operation.completed'));
+    if (!audit.items.some(item => item.action === 'operation.completed' && item.actor === expectedActor))
+      throw new Error('Published operation audit does not identify the MCP actor');
+    const record = { dataset: dataset.name, format: dataset.format, layerId: id, geometryType: layer.geometryType, fields: layer.fields, actorOperationId: result.operationInstanceId, actor: expectedActor };
     await observe('published', record);
     output.push(record);
   }

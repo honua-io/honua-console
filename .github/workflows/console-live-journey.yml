@@ -14,6 +14,10 @@ on:
         description: 'Immutable Console GHCR digest; empty builds the checked-out PR image'
         required: false
         type: string
+      executor_image:
+        description: 'Immutable matching Compose executor digest for release replay; empty builds from the selected server image'
+        required: false
+        type: string
       dispatch_id:
         description: 'Unique release gate correlation ID'
         required: false
@@ -29,13 +33,18 @@ on:
       - 'e2e/docker-compose*.yml'
       - 'e2e/playwright/live-auth/**'
       - 'e2e/initdb/**'
+      - 'e2e/agent-reflection/**'
       - 'e2e/playwright/live/**'
       - 'e2e/playwright/playwright.live.config.ts'
       - 'e2e/playwright/package*.json'
+      - 'e2e/run-live.mjs'
       - 'scripts/require-live-server-image.mjs'
       - 'scripts/studio-customer-identity.mjs'
+      - 'scripts/agent-mcp-client.mjs'
+      - 'scripts/agent-customer-journey.mjs'
       - 'src/Honua.Console.Web/**'
       - 'src/Honua.Console.Shell/**'
+      - 'src/Honua.Console.Contracts/**'
       - 'Dockerfile'
 
 permissions:
@@ -225,6 +234,59 @@ jobs:
       - name: Stop isolated customer testbed
         if: always()
         run: docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml -f e2e/docker-compose.studio-customer.yml down -v
+      - name: Resolve the selected server revision
+        id: agent-server
+        if: ${{ always() && !cancelled() }}
+        run: |
+          docker pull "$HONUA_CONSOLE_E2E_SERVER_IMAGE" >/dev/null
+          revision="$(docker image inspect "$HONUA_CONSOLE_E2E_SERVER_IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]] || { echo 'Server image has no immutable source revision'; exit 1; }
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+      - name: Check out the server at the image revision
+        if: ${{ always() && steps.agent-server.outcome == 'success' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: honua-io/honua-server
+          ref: ${{ steps.agent-server.outputs.revision }}
+          path: e2e/server-source
+          fetch-depth: 0
+      - name: Select the matching quickstart executor
+        id: agent-executor
+        if: ${{ always() && steps.agent-server.outcome == 'success' }}
+        env:
+          REQUESTED_EXECUTOR: ${{ inputs.executor_image }}
+          SERVER_REVISION: ${{ steps.agent-server.outputs.revision }}
+        run: |
+          for required in 83e31529809df49204368f54737ac745792a8099 d4bf97a22ab2182730b2c155b09fdb7f3ba581cd 480ab6c80f4397be4211f46605e133c277412d66 e2cb5649ccea977a31a852e9a6761a82a17e5598 15707609be1fe4e29252390792dda3c35129bd28; do
+            git -C e2e/server-source merge-base --is-ancestor "$required" "$SERVER_REVISION" || { echo 'Server image predates a required agent operation'; exit 1; }
+          done
+          if [ -n "$REQUESTED_EXECUTOR" ]; then
+            [[ "$REQUESTED_EXECUTOR" =~ ^ghcr\.io/honua-io/honua-server(@sha256:[0-9a-f]{64})$ ]] || { echo 'Executor must be an immutable server-package digest'; exit 1; }
+            docker pull "$REQUESTED_EXECUTOR" >/dev/null
+            executor="$REQUESTED_EXECUTOR"
+          else
+            docker build -f e2e/server-source/docker/Dockerfile.compose-executor --build-arg "HONUA_SERVER_IMAGE=$HONUA_CONSOLE_E2E_SERVER_IMAGE" -t honua-agent-reflection-executor:local e2e/server-source
+            executor="$(docker image inspect honua-agent-reflection-executor:local --format '{{.Id}}')"
+          fi
+          [[ "$(docker image inspect "$executor" --format '{{index .Config.Labels "honua.runtime.profile"}}')" == compose-executor ]] || exit 1
+          [[ "$(docker image inspect "$executor" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" == "$SERVER_REVISION" ]] || { echo 'Executor and server revisions differ'; exit 1; }
+          echo "HONUA_REFLECTION_EXECUTOR_IMAGE=$executor" >> "$GITHUB_ENV"
+      - name: Set up Python for the quickstart
+        id: agent-python
+        if: ${{ always() && steps.agent-executor.outcome == 'success' }}
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Install quickstart test dependencies
+        id: agent-deps
+        if: ${{ always() && steps.agent-python.outcome == 'success' }}
+        run: python3 -m pip install 'PyYAML==6.0.2'
+      - name: Exercise agent reflection on the customer quickstart
+        if: ${{ always() && steps.agent-deps.outcome == 'success' }}
+        run: python3 e2e/agent-reflection/run-quickstart.py run
+      - name: Stop the isolated quickstart
+        if: ${{ always() && steps.agent-deps.outcome == 'success' }}
+        run: python3 e2e/agent-reflection/run-quickstart.py clean
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
