@@ -134,14 +134,17 @@ not convert that cancelled run into a product-test result or qualification pass.
 
 ### rc.2 Studio asset refresh
 
-The Console bundle now pins merged Studio main
-`56dc0458ba46c3ee519c81caee95ac256e9b6a3f`, including Studio #171, #174 and
-#176. The production artifact came from successful main Smoke suite run
-[41349025355](https://github.com/honua-io/honua-studio/actions/runs/41349025355),
-artifact `13099979868`. Its downloaded archive SHA-256 matches GitHub's digest:
-`2c124633110549773cc207ebc312d58ac46a2710bcb12e2ac7af9b625ec1f440`.
+The Console bundle pins merged Studio main
+`90bb5191d4bb999f3602438490d4dbb7953bde5b`, including Studio #171, #174, #176
+and #177. The production artifact came from successful main Smoke suite run
+[41356570013](https://github.com/honua-io/honua-studio/actions/runs/41356570013),
+artifact `13103338059`. Its downloaded archive SHA-256 matches GitHub's digest:
+`2f6b6ef6b5d098be230af5a5281e3477fb8879eaa4f5319972069d7e7e611111`.
 The normal `vendor-studio-assets.mjs` import preserves the SDK source receipt
 `5765b427f421dca9c42832ae450fa1c5aad882c2` and records the complete asset hashes.
-This refresh includes the authenticated-source worker repair and live lease
-recovery. It retains the pending installed-workspace qualification state; the
-asset producer alone does not qualify the complete Console customer journey.
+The bundle includes authenticated-source worker and installed-layer query repairs
+and same-authority lease recovery. A bounded feature GET interrupted during body
+consumption discards its partial response and can restart once under the same
+current authority; old bytes and mutation replay remain forbidden. The managed
+provenance retains pending installed-workspace qualification; the asset producer
+alone does not qualify the complete Console customer and agent journeys.

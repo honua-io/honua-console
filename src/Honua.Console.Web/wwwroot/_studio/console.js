@@ -1,7 +1,7 @@
 import { t as e } from "./rolldown-runtime-Dy4uBu1J.js";
 import { t } from "./base-element-CzTXWtWv.js";
 import { d as n, i as r, n as i, u as a } from "./errors-VvMCLBue.js";
-import { i as o, n as s, r as c } from "./authenticated-source-protocol-CMhldOZ2.js";
+import { i as o, n as s, r as c } from "./authenticated-source-protocol-Dcx_7lHj.js";
 import { a as l, c as u, d, f, i as p, l as m, n as h, o as g, r as _, s as v, t as y, u as b } from "./visual-layer-owner-Cli7j7Sb.js";
 import { a as x, i as S, l as C, n as ee, o as w, r as te, s as ne, t as re } from "./source-resolution-CURe54Oz.js";
 import { a as ie, i as ae, n as oe, o as se, r as ce, t as le } from "./control-config-B3vF9Ivt.js";
@@ -3846,6 +3846,7 @@ var $r = class {
 	unsubscribeExpired;
 	expiryTimer;
 	expiryGeneration = 0;
+	disposed = !1;
 	fetchRequest;
 	constructor(e) {
 		this.adapter = e;
@@ -3863,7 +3864,7 @@ var $r = class {
 			this.fetchRequest = async (e, t) => {
 				let r = this.adapter;
 				if (!("kind" in r) || r.kind !== "cookie") throw Error("The host session changed.");
-				if (this.getState().status !== "fresh") throw Error("The host session expired.");
+				if (this.disposed || this.getState().status !== "fresh") throw Error("The host session expired.");
 				if (e instanceof Request) throw Error("Cookie transport requires an explicit URL.");
 				let i = String(e);
 				if (/^https?:\/\//.test(i)) {
@@ -3924,14 +3925,18 @@ var $r = class {
 					type: "refresh-failed",
 					error: "The host session expired."
 				}), !c.body) return c;
-				let u = c.body, d, f = () => this.adapter === l && this.getState().status === "fresh", p = new ReadableStream({
+				let u = c.body, d, f = () => {
+					if (this.disposed || this.getState().status !== "fresh") throw Error("The host session expired.");
+					if (this.adapter !== l) {
+						let e = /* @__PURE__ */ Error("The session renewed while reading the response.");
+						throw e.name = "CookieLeaseRenewedError", e;
+					}
+				}, p = new ReadableStream({
 					async pull(e) {
 						try {
-							if (!f()) throw Error("The session renewed while reading the response.");
-							d ??= u.getReader();
+							f(), d ??= u.getReader();
 							let t = await d.read();
-							if (!f()) throw Error("The session renewed while reading the response.");
-							t.done ? e.close() : e.enqueue(t.value);
+							f(), t.done ? e.close() : e.enqueue(t.value);
 						} catch (t) {
 							d && d.cancel().catch(() => {}), e.error(t);
 						}
@@ -3954,6 +3959,7 @@ var $r = class {
 		this.getAccessToken();
 	}
 	renewCookie(e) {
+		if (this.disposed) throw Error("The host session is disposed.");
 		let t = this.adapter;
 		if (!("kind" in t) || t.kind !== "cookie" || t.principalId !== e.principalId || t.environmentId !== e.environmentId || Qr(t.sourcePathBase) !== Qr(e.sourcePathBase) || e.baseUrl !== "/api/studio" || !e.csrfToken || !Number.isFinite(Date.parse(e.expiresAt))) throw Error("Cookie lease renewal changed the session authority.");
 		let n = Object.freeze({ ...e }), r = e.onExpired(() => {
@@ -4032,7 +4038,7 @@ var $r = class {
 		throw Error("Host-adapter auth mode never initiates its own sign-out (honua-studio#4 REQ-003) — the host page owns the session lifecycle. See docs/embed-session.md.");
 	}
 	dispose() {
-		this.unsubscribeExpired(), clearTimeout(this.expiryTimer);
+		this.disposed = !0, this.unsubscribeExpired(), clearTimeout(this.expiryTimer);
 	}
 	dispatch(e) {
 		this.state = Zr(this.state, e);
@@ -12995,7 +13001,7 @@ function uh(e = {}) {
 			ok: !1,
 			reason: "No fetch implementation is available to load widget data."
 		};
-		let { trustedSourceUrl: l, fetchAuthenticatedFeatureCollection: u } = await import("./authenticated-source-protocol-CMhldOZ2.js").then((e) => e.t), d = e.documentUrl ?? globalThis.document?.baseURI, f = {
+		let { trustedSourceUrl: l, fetchAuthenticatedFeatureCollection: u } = await import("./authenticated-source-protocol-Dcx_7lHj.js").then((e) => e.t), d = e.documentUrl ?? globalThis.document?.baseURI, f = {
 			sourceBaseUrl: e.sourceAuthBaseUrl ?? e.baseUrl ?? "/api",
 			legacySourceBaseUrl: e.sourceCatalogBaseUrl ?? e.baseUrl ?? "/api",
 			documentUrl: d ?? "",
