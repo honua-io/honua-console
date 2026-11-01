@@ -1,9 +1,14 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, request, type Page, type TestInfo } from '@playwright/test';
+import { expect, request, type Locator, type Page, type TestInfo } from '@playwright/test';
 
 export const serverUrl = process.env.HONUA_CONSOLE_E2E_SERVER_URL ?? 'http://127.0.0.1:8088';
 export type Session = { authenticated: boolean; principalId: string; environmentId: string; csrfToken: string; expiresAt: string };
 export type Draft = { draftId: string; itemId: string; ownerId: string; createdBy: string; envelope: { body: any } };
+
+/** Resolve the same subject again if Blazor replaces prerendered markup while scrolling. */
+export async function scrollForMilestone(subject: Locator) {
+  await expect(() => subject.scrollIntoViewIfNeeded()).toPass({ timeout: 15_000 });
+}
 
 /** Password entry and authorization codes must never enter uploaded traces or screenshots. */
 export async function signIn(page: Page, user = 'customer', returnTo = '/studio') {

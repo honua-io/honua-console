@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { expect, test, request } from '@playwright/test';
 import { sourceConnectionBody } from '../source-db';
-import { accessibility, createRecipe, customerIdentity, identity, observeHealth, paintedFeatures, read, serverUrl, signIn, sourceFor, type Draft } from '../studio-customer';
+import { accessibility, createRecipe, customerIdentity, identity, observeHealth, paintedFeatures, read, scrollForMilestone, serverUrl, signIn, sourceFor, type Draft } from '../studio-customer';
 
 // @ts-expect-error Shared ESM evidence helper used by Playwright and CI.
 import { captureMilestone } from '../../../../scripts/journey-gallery.mjs';
@@ -138,16 +138,14 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
       await page.goto('/operate/layers');
       const row = page.locator(`tr[data-service-id="${item.service}"][data-layer-id="${item.layerId}"]`);
       await expect(row).toContainText(index === 0 ? /(?:Multi)?Polygon/i : /\bPoint\b/i);
-      // Blazor can replace the prerendered row between the assertion and scroll.
-      // Resolve this same published layer again; retain the geometry assertion.
-      await expect(() => row.scrollIntoViewIfNeeded()).toPass({ timeout: 15_000 });
+      await scrollForMilestone(row);
       await captureMilestone(page, info, `00-published-${index}-layers-geometry`);
       const detail = await row.locator('a').first().getAttribute('href');
       expect(detail).toBeTruthy();
       await page.goto(detail!);
       for (const [name, type] of Object.entries({ name: /^String$/, population: /^(SmallInteger|Integer|BigInteger)$/, rating: /^(Single|Double)$/ }))
         await expect(page.locator(`[data-field-row][data-field-name="${name}"]`).getByRole('cell', { name: type, exact: true })).toBeVisible();
-      await page.locator('[data-field-row][data-field-name="rating"]').scrollIntoViewIfNeeded();
+      await scrollForMilestone(page.locator('[data-field-row][data-field-name="rating"]'));
       await captureMilestone(page, info, `00-published-${index}-field-types`);
     }
 
@@ -217,7 +215,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     await expect(page.getByRole('region', { name: 'Composed widgets' }).getByRole('article')).toHaveCount(1);
     await expect(page.getByRole('region', { name: 'Composed controls' }).getByRole('article')).toHaveCount(1);
     await expect.poll(() => paintedFeatures(page, first.envelope.body.layers[0].id), { timeout: 45_000 }).toBeGreaterThan(0);
-    await page.locator('honua-studio-canvas').scrollIntoViewIfNeeded();
+    await scrollForMilestone(page.locator('honua-studio-canvas'));
     await captureMilestone(page, info, '01-studio-map-created');
     await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(2);
     await page.getByTestId('studio-control-filter-select').selectOption('west');
@@ -273,7 +271,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     expect(fill.paint['fill-color']).toEqual(['match', ['get', 'category'], 'west', '#eff3ff', 'east', '#c6dbef', '#9ecae1']);
     await page.getByRole('button', { name: 'Return to map', exact: true }).click();
     await expect.poll(() => paintedFeatures(page, fill.id), { timeout: 45_000 }).toBeGreaterThan(0);
-    await page.locator('honua-studio-canvas').scrollIntoViewIfNeeded();
+    await scrollForMilestone(page.locator('honua-studio-canvas'));
     await captureMilestone(page, info, '02-studio-style-applied');
     await page.getByRole('button', { name: 'Edit map style', exact: true }).click();
     await expect(editor.locator('iframe')).toBeVisible();
@@ -313,7 +311,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     expect(labelled.envelope.body.mapSpec.layers.at(-1), 'labels must draw above the authored polygon fills')
       .toEqual(withLabels.layers.at(-1));
     await expect.poll(() => paintedFeatures(page, 'customer-attribute-labels'), { timeout: 45_000 }).toBeGreaterThan(0);
-    await page.locator('honua-studio-canvas').scrollIntoViewIfNeeded();
+    await scrollForMilestone(page.locator('honua-studio-canvas'));
     await captureMilestone(page, info, '03-studio-labels-visible');
     completed.push('authored-style-labels');
     await page.getByRole('button', { name: 'Save version', exact: true }).click();
@@ -394,7 +392,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     expect(reopened.envelope.body).toEqual(labelled.envelope.body);
     for (const layer of reopened.envelope.body.layers)
       await expect.poll(() => paintedFeatures(page, layer.id), { timeout: 45_000 }).toBeGreaterThan(0);
-    await page.locator('honua-studio-canvas').scrollIntoViewIfNeeded();
+    await scrollForMilestone(page.locator('honua-studio-canvas'));
     await captureMilestone(page, info, '04-studio-saved-and-reopened');
     completed.push('save-reload-reopen');
     await test.step('customer publication and signed-out audience', async () => {
