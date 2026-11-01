@@ -99,7 +99,7 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
         }
         if (stage === 'recovered') await check('agent-approval-recovery', async () => {
           const panel = page.locator('section[data-proposal-id]').filter({ hasText: `manager:${proposalId}` });
-          await expect(panel.locator('[data-proposal-status]')).toHaveAttribute('data-proposal-status', 'Succeeded', { timeout: 45_000 });
+          await expect(panel.locator('[data-proposal-status]')).toHaveAttribute('data-proposal-status', 'Completed', { timeout: 45_000 });
           await go('/operate/health');
           const redis = page.locator('[data-managed-target="compose-local"] [data-managed-service="redis"]');
           await expect(redis).toContainText(/\bhealthy\b/i, { timeout: 45_000 });
