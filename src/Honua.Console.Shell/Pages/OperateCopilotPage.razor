@@ -2,6 +2,7 @@
 @inject IConsoleOpsFindingsClient Findings
 @inject IConsoleOpsAutonomyClient Autonomy
 @inject IConsoleProposalsClient Proposals
+@inject IServiceProvider ServiceProvider
 
 @* COPILOT FINDINGS (#193) — the ops-copilot information + approval seat. Lists honua-server's
    DETERMINISTIC ops findings (GET /api/v1/admin/observability/findings): severity, plain-language
@@ -1002,6 +1003,14 @@
         _busy = true;
         try
         {
+            // Capture the proposal source before proposing, just as the manager-bound findings
+            // client does. Single-server deployments keep their existing unqualified IDs.
+            var endpoint = ServiceProvider.GetService<IConsoleManagerEndpoint>();
+            var profiles = ServiceProvider.GetService<IConsoleEnvironmentProfileStore>();
+            var profile = profiles is null ? null : await profiles.GetActiveProfileAsync();
+            var manager = profile is null ? null : endpoint?.Resolve(profile.ServerBaseUri);
+            var separateManager = manager is not null && profile is not null
+                && new Uri(manager.AbsoluteUri.TrimEnd('/') + "/") != new Uri(profile.ServerBaseUri.AbsoluteUri.TrimEnd('/') + "/");
             var result = await Findings.ProposeAsync(findingId);
             if (result.IsAllowed)
             {
@@ -1010,7 +1019,7 @@
                 // Only ProposalCreated / Executed are real successes — a Blocked or
                 // NotSupported outcome must surface as an error and keep the propose button
                 // actionable, never as a "Proposed" state with a bogus proposal link.
-                _outcomes[findingId] = BuildProposeOutcome(result.Value!);
+                _outcomes[findingId] = BuildProposeOutcome(result.Value!, separateManager);
             }
             else if (result.Status == OperateSectionStatus.Missing)
             {
@@ -1044,7 +1053,7 @@
     private const string ProposalCreatedStatus = "ProposalCreated";
     private const string ExecutedStatus = "Executed";
 
-    private static ProposeOutcome BuildProposeOutcome(OpsFindingProposeResponse response)
+    private static ProposeOutcome BuildProposeOutcome(OpsFindingProposeResponse response, bool separateManager)
     {
         var status = response.Status;
         var proposed = string.Equals(status, ProposalCreatedStatus, StringComparison.Ordinal);
@@ -1056,7 +1065,9 @@
             IsCompleted: proposed || executed,
             // A proposal link is only meaningful for a created proposal; never surface one
             // for a Blocked / NotSupported (or otherwise unrecognized) outcome.
-            ProposalId: proposed ? response.ProposalId : null,
+            ProposalId: proposed && !string.IsNullOrWhiteSpace(response.ProposalId)
+                ? (separateManager ? "manager:" + response.ProposalId : response.ProposalId)
+                : null,
             OutcomeStatus: status ?? string.Empty,
             Message: BuildOutcomeMessage(response));
     }

@@ -94,7 +94,7 @@ export function createPublishedMapViewer({route, container, widgetContainer, sta
                     const styleId = target.pathname.startsWith(styleRoot) ? target.pathname.slice(styleRoot.length) : '';
                     const styleRead = styleId.length > 0 && styleId.length <= 768 && !styleId.includes('/');
                     if (target.origin !== origin || (!reads.has(target.pathname) && !styleRead)
-                        || (styleRead && target.search) || (target.search && !target.pathname.endsWith('/query'))
+                        || (styleRead && target.search) || (target.search && !target.pathname.endsWith('/query') && target.search !== '?f=json')
                         || target.hash || (init.method ?? 'GET').toUpperCase() !== 'GET')
                         throw new Error('The map requested an unsupported data route.');
                     const result = await fetchImpl(target.href, { method: 'GET',

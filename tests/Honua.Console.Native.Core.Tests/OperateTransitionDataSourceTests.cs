@@ -599,9 +599,32 @@ public sealed class OperateTransitionDataSourceTests
         Assert.Contains("secret://connections/prod-postgres/[redacted]", renderedText, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ServiceMutationControlsAreDisabledInPrerenderedMarkup()
+    {
+        var service = new OperateServiceDetail("sample", "Sample", "FeatureServer", "Ready", "server", [], [], []);
+        var dataSource = new StubOperateTransitionDataSource(new OperateTransitionWorkspace([], [], [service], [], []));
+        var html = await RenderPageAsync<OperateServiceDetailPage>(dataSource,
+            ParameterView.FromDictionary(new Dictionary<string, object?> { ["ServiceName"] = "sample" }),
+            new BoundServiceConfiguration());
+        Assert.Contains("data-allow-anonymous", html, StringComparison.Ordinal);
+        Assert.Matches("<fieldset[^>]*disabled", html);
+    }
+
+    private sealed class BoundServiceConfiguration : IServiceConfigurationOperation
+    {
+        public Task<ServiceSettingsView> GetSettingsAsync(string serviceName, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ServiceSettingsView { Bound = true, ServiceName = serviceName });
+        public Task<ServiceConfigurationResult> SetLayerEnabledAsync(ServiceLayerEnableCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ServiceConfigurationResult> UpdateProtocolsAsync(ServiceProtocolsCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ServiceConfigurationResult> UpdateAccessPolicyAsync(ServiceAccessPolicyCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ServiceConfigurationResult> UpdateMapServerSettingsAsync(ServiceMapServerSettingsCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
     private static async Task<string> RenderPageAsync<TComponent>(
         IOperateTransitionDataSource dataSource,
-        ParameterView parameters)
+        ParameterView parameters,
+        IServiceConfigurationOperation? serviceConfiguration = null)
         where TComponent : IComponent
     {
         var services = new ServiceCollection();
@@ -612,7 +635,7 @@ public sealed class OperateTransitionDataSourceTests
         services.AddSingleton<IConsoleConnectionCreateOperation, UnsupportedConsoleConnectionCreateOperation>();
         // The service detail page depends on the service-configuration operation (protocol/access editor);
         // the missing-binding impl is the right no-network stand-in for these render tests.
-        services.AddSingleton<IServiceConfigurationOperation, UnsupportedServiceConfigurationOperation>();
+        services.AddSingleton<IServiceConfigurationOperation>(serviceConfiguration ?? new UnsupportedServiceConfigurationOperation());
         // The layer detail page depends on the layer-fields operation; the missing-binding impl is the right
         // no-network stand-in for these render tests.
         services.AddSingleton<IConsoleLayerFieldsOperation, UnsupportedConsoleLayerFieldsOperation>();
