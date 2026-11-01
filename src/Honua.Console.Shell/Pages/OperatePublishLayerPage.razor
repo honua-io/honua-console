@@ -47,6 +47,22 @@
                         }
                     </select>
                 </label>
+                @if (_selectedTable is { } selected && RequiresGeometryChoice(selected))
+                {
+                    <label>
+                        <span>Geometry type</span>
+                        <select class="console-input" aria-label="Geometry type" data-publish-generic-geometry @bind="_geometryTypeOverride">
+                            <option value="">Select geometry type…</option>
+                            <option value="Point">Point</option>
+                            <option value="MultiPoint">Multi-point</option>
+                            <option value="LineString">Line</option>
+                            <option value="MultiLineString">Multi-line</option>
+                            <option value="Polygon">Polygon</option>
+                            <option value="MultiPolygon">Multi-polygon</option>
+                        </select>
+                        <small>The column is generic. Choose the type used by the dataset; mixed types need separate layers.</small>
+                    </label>
+                }
                 <label>
                     <span>Service name</span>
                     <input class="console-input" data-workspace-field="serviceName" @bind="_serviceName" @bind:event="oninput" @bind:after="ClearResult" placeholder="parcels-fs" />
@@ -133,6 +149,7 @@
 
     private string _connectionId = string.Empty;
     private string _tableKey = string.Empty;
+    private string _geometryTypeOverride = string.Empty;
     private string _serviceName = string.Empty;
     private string _layerName = string.Empty;
 
@@ -177,6 +194,7 @@
     private void OnTableChanged()
     {
         ClearResult();
+        _geometryTypeOverride = string.Empty;
         _selectedTable = _tables.FirstOrDefault(table =>
             string.Equals(table.QualifiedName, _tableKey, StringComparison.Ordinal));
         if (_selectedTable is { } t && string.IsNullOrWhiteSpace(_layerName))
@@ -205,7 +223,7 @@
             LayerName = _layerName.Trim(),
             ServiceName = _serviceName.Trim(),
             GeometryColumn = table.GeometryColumn,
-            GeometryType = table.GeometryType,
+            GeometryType = RequiresGeometryChoice(table) ? _geometryTypeOverride : table.GeometryType,
             Srid = table.Srid,
             Fields = table.Columns,
             Enabled = true
@@ -222,8 +240,14 @@
     {
         if (string.IsNullOrWhiteSpace(_connectionId)) return "Select a connection.";
         if (_selectedTable is null) return "Select a table.";
+        if (RequiresGeometryChoice(_selectedTable) && string.IsNullOrWhiteSpace(_geometryTypeOverride))
+            return "Select the geometry type used by this dataset.";
         if (string.IsNullOrWhiteSpace(_serviceName)) return "Enter a service name.";
         if (string.IsNullOrWhiteSpace(_layerName)) return "Enter a layer name.";
         return null;
     }
+
+    private static bool RequiresGeometryChoice(ServiceLayerPublishTable table) =>
+        !string.IsNullOrWhiteSpace(table.GeometryColumn) &&
+        string.Equals(table.GeometryType, "GEOMETRY", StringComparison.OrdinalIgnoreCase);
 }

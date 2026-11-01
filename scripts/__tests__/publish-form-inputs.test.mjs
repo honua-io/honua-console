@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createPublishInputBinder} from '../../src/Honua.Console.Web/wwwroot/js/publish-form-inputs.mjs';
+import {createPublishInputBinder, requireSupportedWorkspacePublish} from '../../src/Honua.Console.Web/wwwroot/js/publish-form-inputs.mjs';
 function input(field,value='') {const node=new EventTarget();node.dataset={workspaceField:field};node.value=value;return node;}
 test('fields added after initial empty render join dirty tracking exactly once',async()=>{
  const fields=[],edits=[];const workspace={context:{},edit:(...args)=>edits.push(args)};
@@ -23,4 +23,8 @@ test('disposed host stops forwarding retained input nodes',()=>{
  const edits=[],lifetime=new AbortController(),field=input('layerName','retained');
  createPublishInputBinder({context:{},edit:(...args)=>edits.push(args)},{signal:lifetime.signal})({querySelectorAll:()=>[field]});
  lifetime.abort();field.dispatchEvent(new Event('input'));assert.deepEqual(edits,[]);
+});
+test('connected workspace refuses a generic geometry choice it cannot retain',()=>{
+ assert.throws(() => requireSupportedWorkspacePublish({querySelector: () => ({})}), /fresh browser session/i);
+ assert.doesNotThrow(() => requireSupportedWorkspacePublish({querySelector: () => null}));
 });
