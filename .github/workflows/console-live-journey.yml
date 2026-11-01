@@ -42,6 +42,7 @@ on:
       - 'scripts/studio-customer-identity.mjs'
       - 'scripts/agent-mcp-client.mjs'
       - 'scripts/agent-customer-journey.mjs'
+      - 'scripts/journey-gallery.mjs'
       - 'src/Honua.Console.Web/**'
       - 'src/Honua.Console.Shell/**'
       - 'src/Honua.Console.Contracts/**'
@@ -287,6 +288,9 @@ jobs:
       - name: Stop the isolated quickstart
         if: ${{ always() && steps.agent-deps.outcome == 'success' }}
         run: python3 e2e/agent-reflection/run-quickstart.py clean
+      - name: Build milestone screenshot gallery
+        if: always()
+        run: node scripts/journey-gallery.mjs
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:

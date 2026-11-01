@@ -62,3 +62,18 @@ The quickstart and its private test credentials live only in an isolated workspa
 the workflow removes its containers and volumes. The uploaded agent result contains progress
 and runtime image identities, not credentials or browser traces. Both the Studio and agent
 journeys must pass for the release gate; missing progress cannot qualify a candidate.
+
+## Milestone screenshot gallery
+
+Both the Studio customer and agent-reflection journeys capture named screenshots only
+on product pages after sign-in. The gallery includes map creation, applied style,
+rendered labels, saved/reopened maps, health degradation and its finding, pending and
+completed restart proposals, recovery, and published layer geometry and field types.
+Credential pages are refused by the capture helper; sign-in traces remain disabled.
+
+The `studio-customer-journey-evidence` artifact contains
+`artifacts/studio-customer/gallery/index.html` and its PNGs. Download the artifact and
+open the index locally. The same workflow builds this gallery for pull requests,
+nightly runs, and immutable-image replays dispatched by the release customer gate
+(#1182, extended by honua-release#1193). The index is built even after a failure so
+partial screenshots remain available; missing milestones never establish qualification.

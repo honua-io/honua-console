@@ -5,6 +5,9 @@ import { expect, test, request } from '@playwright/test';
 import { sourceConnectionBody } from '../source-db';
 import { accessibility, createRecipe, customerIdentity, identity, observeHealth, paintedFeatures, read, serverUrl, signIn, sourceFor, type Draft } from '../studio-customer';
 
+// @ts-expect-error Shared ESM evidence helper used by Playwright and CI.
+import { captureMilestone } from '../../../../scripts/journey-gallery.mjs';
+
 // No seeded cookies, API-key customer mutations, route mocks, skips or UI-only success criteria.
 // A fresh compose database and fresh Keycloak realm are required for each invocation.
 const nonce = () => randomUUID().replaceAll('-', '').slice(0, 16);
@@ -133,6 +136,19 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
 
     // Public map audiences must also have explicit read access to their underlying services.
     // Grant only anonymous read through the customer's own settings UI, then verify server state.
+    for (const [index, item] of services.entries()) {
+      await page.goto('/operate/layers');
+      const row = page.locator(`tr[data-service-id="${item.service}"][data-layer-id="${item.layerId}"]`);
+      await expect(row).toContainText(index === 0 ? /(?:Multi)?Polygon/i : /\bPoint\b/i);
+      await captureMilestone(page, info, `00-published-${index}-layers-geometry`);
+      const detail = await row.locator('a').first().getAttribute('href');
+      expect(detail).toBeTruthy();
+      await page.goto(detail!);
+      for (const [name, type] of Object.entries({ name: 'String', population: 'BigInteger', rating: 'Double' }))
+        await expect(page.locator(`[data-field-row][data-field-name="${name}"]`).getByRole('cell', { name: type, exact: true })).toBeVisible();
+      await captureMilestone(page, info, `00-published-${index}-field-types`);
+    }
+
     const policyVerifier = await request.newContext({ baseURL: serverUrl,
       extraHTTPHeaders: { 'X-API-Key': process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key' } });
     try {
@@ -177,6 +193,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     const source = await sourceFor(page, services[0].service, services[0].layerId);
     await createRecipe(page, source!.id, packageKey);
     await accessibility(page, info, 'recipe-map');
+    await captureMilestone(page, info, '01-studio-map-created');
     const original = (await identity(page))!;
     const draftPath = (id: string) => `/api/studio/v1/studio/package-drafts/${encodeURIComponent(id)}`;
     const readDraft = (id: string): Promise<Draft> => read(page, session, draftPath(id));
@@ -243,6 +260,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     await editor.getByRole('button', { name: 'Preview thematic colors', exact: true }).click();
     await editor.getByRole('button', { name: 'Save map style', exact: true }).click();
     await expect(editor.getByRole('status')).toHaveText('Map style saved to the authorized draft.');
+    await captureMilestone(page, info, '02-studio-style-applied');
     const authored = await readDraft(original.draftId);
     expect(authored.ownerId).toBe(first.ownerId);
     const style = authored.envelope.body.mapSpec;
@@ -288,6 +306,8 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     expect(labelled.envelope.body.mapSpec.layers).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: 'symbol', layout: expect.objectContaining({ 'text-field': ['get', 'name'] }) }),
     ]));
+    await expect.poll(() => paintedFeatures(page, 'customer-attribute-labels'), { timeout: 45_000 }).toBeGreaterThan(0);
+    await captureMilestone(page, info, '03-studio-labels-visible');
     completed.push('authored-style-labels');
     await page.getByRole('button', { name: 'Save version', exact: true }).click();
     await expect(page.locator('[data-studio-status]')).toHaveText('Saved version 1.');
@@ -367,6 +387,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     expect(reopened.envelope.body).toEqual(labelled.envelope.body);
     for (const layer of reopened.envelope.body.layers)
       await expect.poll(() => paintedFeatures(page, layer.id), { timeout: 45_000 }).toBeGreaterThan(0);
+    await captureMilestone(page, info, '04-studio-saved-and-reopened');
     completed.push('save-reload-reopen');
     await test.step('customer publication and signed-out audience', async () => {
       await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
