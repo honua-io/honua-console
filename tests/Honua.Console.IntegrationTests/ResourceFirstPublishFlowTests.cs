@@ -41,6 +41,23 @@ public sealed class ResourceFirstPublishFlowTests
         Assert.Equal("Polygon", publish.LastCommand?.GeometryType);
     }
 
+    [Fact]
+    public void QuickPublish_ConcreteGeometryNeedsNoOverride()
+    {
+        using var ctx = NewContext();
+        var publish = new RecordingPublishOperation([], "Point");
+        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish);
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneConnectionDataSource("conn", "Source"));
+        var page = ctx.Render<OperatePublishLayerPage>();
+        page.Find("select[aria-label='Connection']").Change("conn");
+        page.Find("select[aria-label='Table']").Change("public.parcels");
+        Assert.Empty(page.FindAll("select[aria-label='Geometry type']"));
+        page.Find("input[placeholder='parcels-fs']").Input("points-fs");
+        page.Find("input[placeholder='Parcels']").Input("Points");
+        page.Find("[data-workspace-publish]").Click();
+        Assert.Equal("Point", publish.LastCommand?.GeometryType);
+    }
+
     private static BunitContext NewContext()
     {
         var ctx = new BunitContext();
