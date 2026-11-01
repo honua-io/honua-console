@@ -117,7 +117,7 @@ export async function createRecipe(page: Page, sourceId: string, packageKey: str
       for (const record of records) for (const node of record.removedNodes) {
         if ((node === app || (node instanceof Element && node.contains(app))) && tracker.removals.length < 10) {
           const parent = record.target instanceof Element ? record.target : null;
-          tracker.removals.push(`${node.nodeName} from ${parent?.tagName ?? ''}#${parent?.id ?? ''}[studio-mount=${parent?.hasAttribute('data-studio-mount') ?? false}]`);
+          tracker.removals.push(`${node.nodeName}#${node instanceof Element ? node.id : ''}.${node instanceof Element ? node.className : ''} from ${parent?.tagName ?? ''}#${parent?.id ?? ''}[studio-mount=${parent?.hasAttribute('data-studio-mount') ?? false}]`);
         }
       }
       const value = `${app.isConnected}:${Boolean(app.shadowRoot?.querySelector('[data-testid="recipe-panel"]'))}`;
