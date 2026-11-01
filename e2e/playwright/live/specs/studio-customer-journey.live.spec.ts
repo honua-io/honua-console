@@ -138,7 +138,9 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
       await page.goto('/operate/layers');
       const row = page.locator(`tr[data-service-id="${item.service}"][data-layer-id="${item.layerId}"]`);
       await expect(row).toContainText(index === 0 ? /(?:Multi)?Polygon/i : /\bPoint\b/i);
-      await row.scrollIntoViewIfNeeded();
+      // Blazor can replace the prerendered row between the assertion and scroll.
+      // Resolve this same published layer again; retain the geometry assertion.
+      await expect(() => row.scrollIntoViewIfNeeded()).toPass({ timeout: 15_000 });
       await captureMilestone(page, info, `00-published-${index}-layers-geometry`);
       const detail = await row.locator('a').first().getAttribute('href');
       expect(detail).toBeTruthy();
