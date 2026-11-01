@@ -1,7 +1,7 @@
 import {GaSpecReview, reviewSummary, reviewDetails} from './ga-spec-review.mjs';
 import {browserImportSelection, browserSelectionScope} from './dataset-import-selection.mjs';
 import {PublicationRecovery} from './publication-recovery.mjs';
-import {createPublishInputBinder} from './publish-form-inputs.mjs';
+import {createPublishInputBinder, requireSupportedWorkspacePublish} from './publish-form-inputs.mjs';
 import { readSharedStyleFocus, prepareSharedStyleFocus, watchSharedStyleEdits } from './shared-style-context.mjs';
 import { WorkspaceExecutions, renderExecutions, executionSummary, submissionDigest, refusalSummary } from './workspace-executions.mjs';
 import { openStudioExecutionResult } from './workspace-result-navigation.mjs';
@@ -799,6 +799,7 @@ export function mountWorkspace() {
                 event.preventDefault(); event.stopImmediatePropagation();
                 if (!workspace.context) { report(new Error('Start or connect a workspace before saving its draft.')); return; }
                 try {
+                    requireSupportedWorkspacePublish(form);
                     await workspace.savePublishForm(workspace.draftFields(), {isCurrentView:()=>document.querySelector('[data-workspace-publish-form]') === form});
                     status.textContent = 'Draft saved. Nothing has been published.';
                 } catch (error) { report(error); }
@@ -807,6 +808,7 @@ export function mountWorkspace() {
             if (!event.target.closest('[data-workspace-publish]') || !workspace.context) return;
             event.preventDefault(); event.stopImmediatePropagation();
             try {
+                requireSupportedWorkspacePublish(form);
                 const result = await workspace.savePublishForm(workspace.draftFields(), {publish:true,isCurrentView:()=>document.querySelector('[data-workspace-publish-form]') === form});
                 const receipt = result.data || result;
                 status.textContent = `Publication ${receipt.status || receipt.state || 'submitted'}. Check the canonical operation receipt.`;
