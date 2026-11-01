@@ -26,8 +26,10 @@ public sealed record DeployPreflightView(
     string? DatabaseErrorMessage,
     bool PlatformReleaseDeclared,
     bool PlatformReleaseCoVersioned,
-    IReadOnlyList<string> SkewedPlaneIds)
+    IReadOnlyList<string> SkewedPlaneIds,
+    IReadOnlyList<ServingRevisionView>? ObservedServing = null)
 {
+    public IReadOnlyList<ServingRevisionView> Serving => ObservedServing ?? [];
     /// <summary>
     /// Whether the preflight gate blocks a coordinated-deploy submit: pending contract
     /// migration scripts, an incompatible database, or a declared platform release that is
@@ -80,6 +82,15 @@ public sealed record DeployPreflightView(
     }
 }
 
+/// <summary>A serving target's live readback; absent observation remains absent.</summary>
+public sealed record ServingRevisionView(
+    string Id,
+    string ObservationStatus,
+    string? ObservedArtifactReference,
+    string? ObservedImageId,
+    string? ServerVersion,
+    DateTimeOffset? ObservedAt);
+
 /// <summary>Maps the server preflight response onto the Console gate view.</summary>
 public static class DeployPreflightMapper
 {
@@ -106,7 +117,18 @@ public static class DeployPreflightMapper
             DatabaseErrorMessage: db?.ErrorMessage,
             PlatformReleaseDeclared: platformRelease?.ReleaseDeclared ?? false,
             PlatformReleaseCoVersioned: platformRelease?.IsCoVersioned ?? true,
-            SkewedPlaneIds: platformRelease?.SkewedIds ?? []);
+            SkewedPlaneIds: platformRelease?.SkewedIds ?? [],
+            ObservedServing: platformRelease?.Serving.Select(plane =>
+            {
+                var observed = string.Equals(plane.ObservationStatus, "observed", StringComparison.OrdinalIgnoreCase);
+                return new ServingRevisionView(
+                    plane.Id,
+                    plane.ObservationStatus ?? "notObserved",
+                    observed ? plane.ObservedArtifactReference : null,
+                    observed ? plane.ObservedImageId : null,
+                    observed ? plane.ServerVersion : null,
+                    observed ? plane.ObservedAt : null);
+            }).ToArray() ?? []);
     }
 
     private static OperateStatus StatusFor(string rawStatus, bool ready) =>
