@@ -12,6 +12,7 @@
     }
     else
     {
+        <fieldset disabled="@(!_interactiveReady)" aria-label="Service controls" style="border:0; padding:0; margin:0; min-width:0">
         <div class="console-page-heading" data-service-detail="@_service.Name">
             <p class="console-kicker">Operate / Services</p>
             <h1>@_service.DisplayName</h1>
@@ -293,6 +294,7 @@
                 </table>
             </div>
         </section>
+        </fieldset>
     }
 
     <OperateCapabilityStateList States="@_states" />
@@ -301,6 +303,17 @@
 @code {
     [Parameter]
     public string ServiceName { get; set; } = string.Empty;
+
+    private bool _interactiveReady;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _interactiveReady = true;
+            StateHasChanged();
+        }
+    }
 
     private OperateServiceDetail? _service;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
