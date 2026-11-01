@@ -209,7 +209,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     expect(fill?.type, 'the authored polygon layer must be present in the saved style').toBe('fill');
     expect(fill.paint['fill-color']).toEqual(['match', ['get', 'category'], 'west', '#eff3ff', 'east', '#c6dbef', '#9ecae1']);
     // Use Maputnik's shipped full-style editor for the attribute-label layer. This is
-    // a real paste/blur/save through the sandboxed UI, preserving all authorized sources.
+    // a real keyboard edit/blur/save through the sandboxed UI, preserving all authorized sources.
     const frame = editor.frameLocator('iframe');
     const withLabels = structuredClone(style);
     withLabels.layers.push({ id: 'customer-attribute-labels', type: 'symbol', source: fill.source,
