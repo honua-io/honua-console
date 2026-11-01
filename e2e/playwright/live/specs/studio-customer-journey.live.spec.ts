@@ -255,26 +255,13 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     const version = await read(page, session, `/api/studio/v1/studio/content-items/${authored.itemId}/versions/${versions.versions[0].versionId}`);
     expect(version.ownerId).toBe(first.ownerId);
     expect(version.envelope.body).toEqual(labelled.envelope.body);
-    await page.reload();
-    await expect.poll(() => identity(page).then(value => value?.draftId), { timeout: 30_000 }).toBe(original.draftId);
-    await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-    await page.getByRole('button', { name: 'Reopen version 1 as draft', exact: true }).click();
-    await expect.poll(() => identity(page).then(value => value?.draftId)).not.toBe(original.draftId);
-    const reopened = await readDraft((await identity(page))!.draftId);
-    expect(reopened.itemId).toBe(authored.itemId);
-    expect((await identity(page))?.packageKey).toBe(packageKey);
-    expect(reopened.ownerId).toBe(first.ownerId);
-    expect(reopened.envelope.body).toEqual(labelled.envelope.body);
-    for (const layer of reopened.envelope.body.layers)
-      await expect.poll(() => paintedFeatures(page, layer.id), { timeout: 45_000 }).toBeGreaterThan(0);
-    completed.push('save-reload-reopen');
     await test.step('independent server rendering matches the saved authored colours', async () => {
       const witness = await request.newContext({ baseURL: serverUrl,
         extraHTTPHeaders: { 'X-API-Key': process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key' } });
       try {
         // A service-default export cannot witness a map-local style. Render the
         // saved expression through the independent MapServer dynamic-layer path.
-        const savedFill = reopened.envelope.body.mapSpec.layers.find((layer: any) => layer.id === first.envelope.body.layers[0].id);
+        const savedFill = version.envelope.body.mapSpec.layers.find((layer: any) => layer.id === first.envelope.body.layers[0].id);
         expect(savedFill?.type).toBe('fill');
         const expression = savedFill.paint['fill-color'];
         expect(expression).toEqual(['match', ['get', 'category'], 'west', '#eff3ff', 'east', '#c6dbef', '#9ecae1']);
@@ -321,6 +308,19 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
         completed.push('independent-server-render');
       } finally { await witness.dispose(); }
     });
+    await page.reload();
+    await expect.poll(() => identity(page).then(value => value?.draftId), { timeout: 30_000 }).toBe(original.draftId);
+    await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
+    await page.getByRole('button', { name: 'Reopen version 1 as draft', exact: true }).click();
+    await expect.poll(() => identity(page).then(value => value?.draftId)).not.toBe(original.draftId);
+    const reopened = await readDraft((await identity(page))!.draftId);
+    expect(reopened.itemId).toBe(authored.itemId);
+    expect((await identity(page))?.packageKey).toBe(packageKey);
+    expect(reopened.ownerId).toBe(first.ownerId);
+    expect(reopened.envelope.body).toEqual(labelled.envelope.body);
+    for (const layer of reopened.envelope.body.layers)
+      await expect.poll(() => paintedFeatures(page, layer.id), { timeout: 45_000 }).toBeGreaterThan(0);
+    completed.push('save-reload-reopen');
     await test.step('customer publication and signed-out audience', async () => {
       await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
       await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
