@@ -455,7 +455,8 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
           expect(JSON.stringify(document)).toContain(packageKey);
           expect(JSON.stringify(document)).toContain('#eff3ff');
           const privateDraft = await anonymous.request.get(new URL(draftPath(reopened.draftId), page.url()).href, { maxRedirects: 0 });
-          expect([401, 403]).toContain(privateDraft.status());
+          expect([302, 401, 403]).toContain(privateDraft.status());
+          if (privateDraft.status() === 302) expect(privateDraft.headers().location).toContain('/auth/login');
           await accessibility(viewer, info, 'public-map');
           completed.push('public-audience');
         } finally { await viewerHealth.verify(info); }
