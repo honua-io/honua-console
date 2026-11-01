@@ -139,6 +139,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
       for (const item of services) {
         await page.goto(`/operate/services/${encodeURIComponent(item.service)}/settings`);
         await expect(page.locator('[data-allow-anonymous]')).toBeVisible();
+        await expect(page.locator('[data-allow-anonymous]')).toBeEnabled();
         await page.locator('[data-allow-anonymous]').check();
         await page.locator('[data-save-access]').click();
         await expect.poll(async () => {
