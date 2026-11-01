@@ -52,7 +52,11 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
           const fileInput = page.locator('input[type="file"]');
           await expect.poll(() => fileInput.evaluate(element => '_blazorInputFileNextFileId' in element)).toBe(true);
           await fileInput.setInputFiles(fixture(file));
-          await page.getByPlaceholder('parcels', { exact: true }).fill(table);
+          const tableName = page.getByPlaceholder('parcels', { exact: true });
+          // File selection asynchronously supplies a default table name. Wait
+          // for that real change before replacing it with the customer's name.
+          await expect(tableName).toHaveValue(file.replace(/\.[^.]+$/, '').replaceAll('-', '_'));
+          await tableName.fill(table);
           await page.getByRole('button', { name: 'Import file', exact: true }).click();
           const importOutcome = page.getByRole('heading', { name: /^(File imported|Import failed)$/ });
           await expect(importOutcome).toBeVisible({ timeout: 90_000 });
