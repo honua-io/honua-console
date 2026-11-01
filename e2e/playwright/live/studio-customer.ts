@@ -113,7 +113,13 @@ export async function createRecipe(page: Page, sourceId: string, packageKey: str
   }
   await expect(page.getByTestId('recipe-panel')).toBeVisible();
   await page.getByTestId('recipe-package-key').fill(packageKey);
-  await page.getByTestId('recipe-source').selectOption(sourceId);
+  try {
+    await page.getByTestId('recipe-source').selectOption(sourceId);
+  } catch (error) {
+    const options = await page.getByTestId('recipe-source').locator('option').evaluateAll(nodes => nodes.map(node => ({ value: (node as HTMLOptionElement).value, text: node.textContent })) ).catch(() => []);
+    const status = await page.getByTestId('recipe-status').textContent().catch(() => null);
+    throw new Error(`Recipe source ${sourceId} unavailable; choices=${JSON.stringify(options)}, status=${status}`, { cause: error });
+  }
   await expect(page.getByTestId('recipe-status')).toContainText('Verified');
   await page.getByTestId('recipe-category').selectOption('category');
   await page.getByTestId('recipe-columns').getByLabel('name', { exact: true }).check();
