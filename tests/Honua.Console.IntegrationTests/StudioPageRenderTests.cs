@@ -49,23 +49,26 @@ public sealed class StudioPageRenderTests
         Assert.DoesNotContain("do-not-submit", page.Markup, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void InteractiveReadinessSurvivesNavigationFromRetiredRoute()
+    [Theory]
+    [InlineData("/studio/proof")]
+    [InlineData("/studio/apps/old-app/preview")]
+    public void InteractiveReadinessSurvivesNavigationFromRetiredRoute(string path)
     {
         using var context = new BunitContext();
         context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(
             new Dictionary<string, string?> { ["Studio:EmbedJsStudio"] = "true" }).Build());
         var navigation = context.Services.GetRequiredService<NavigationManager>();
-        navigation.NavigateTo("/studio/proof");
+        navigation.NavigateTo(path);
         var page = context.Render<StudioPage>();
         Assert.Single(page.FindAll("[data-legacy-studio-retired]"));
 
         navigation.NavigateTo("/studio");
-        page.Render();
-
-        Assert.Single(page.FindAll("[data-studio-embed]"));
-        Assert.Single(page.FindAll("[data-studio-mount]"));
-        Assert.Empty(page.FindAll("[data-legacy-studio-retired]"));
+        page.WaitForAssertion(() =>
+        {
+            Assert.Single(page.FindAll("[data-studio-embed]"));
+            Assert.Single(page.FindAll("[data-studio-mount]"));
+            Assert.Empty(page.FindAll("[data-legacy-studio-retired]"));
+        });
     }
 
     [Fact]

@@ -57,7 +57,12 @@ else
 
     private IDisposable? _navigationGuard;
     private IJSObjectReference? _styleNavigation;
-    protected override void OnInitialized() => _navigationGuard = Navigation.RegisterLocationChangingHandler(CheckStyleNavigationAsync);
+    protected override void OnInitialized()
+    {
+        _navigationGuard = Navigation.RegisterLocationChangingHandler(CheckStyleNavigationAsync);
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
     private async ValueTask CheckStyleNavigationAsync(LocationChangingContext context)
     {
         if (!EmbedEnabled || IsRetiredRoute) return;
@@ -73,6 +78,7 @@ else
     }
     public async ValueTask DisposeAsync()
     {
+        Navigation.LocationChanged -= OnLocationChanged;
         _navigationGuard?.Dispose();
         if (_styleNavigation is not null)
         {
