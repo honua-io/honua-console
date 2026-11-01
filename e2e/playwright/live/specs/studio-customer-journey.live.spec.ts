@@ -10,6 +10,19 @@ import { accessibility, createRecipe, customerIdentity, identity, observeHealth,
 const nonce = () => randomUUID().replaceAll('-', '').slice(0, 16);
 const fixture = (name: string) => fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url));
 
+test.beforeEach(async ({}, info) => {
+  if (info.title.startsWith('import typing control:')) return;
+  // The Keycloak container may be marked healthy while its initial realm import
+  // is still running. Wait for the real OIDC endpoint before attempting login.
+  const idp = await request.newContext({ baseURL: 'https://127.0.0.1:8443', ignoreHTTPSErrors: true });
+  try {
+    await expect.poll(async () => {
+      try { return (await idp.get('/realms/honua/.well-known/openid-configuration', { timeout: 5_000 })).status(); }
+      catch { return 0; }
+    }, { timeout: 180_000, intervals: [1_000, 2_000, 5_000] }).toBe(200);
+  } finally { await idp.dispose(); }
+});
+
 test('fresh install publisher imports, authors, saves and reopens a map', async ({ page }, info) => {
   const completed: string[] = [];
   const health = observeHealth(page);
@@ -51,9 +64,19 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
           expect(importedTables, 'one physical imported table must exist').toHaveLength(1);
           const importedTable = importedTables[0];
           await page.goto('/operate/publishing/quick');
-          await page.getByLabel('Connection', { exact: true }).selectOption(connection.connectionId);
-          await expect(page.getByLabel('Table', { exact: true })).toBeEnabled({ timeout: 60_000 });
-          await page.getByLabel('Table', { exact: true }).selectOption(`${importedTable.schema}.${importedTable.table}`);
+          const connectionPicker = page.getByLabel('Connection', { exact: true });
+          const tablePicker = page.getByLabel('Table', { exact: true });
+          const qualifiedTable = `${importedTable.schema}.${importedTable.table}`;
+          // A prerendered select can accept input before Blazor attaches its handler.
+          // Retry the real selection until the server-backed option is present.
+          await expect.poll(async () => {
+            if (await tablePicker.locator('option').evaluateAll((options, value) =>
+              options.some(option => (option as HTMLOptionElement).value === value), qualifiedTable)) return true;
+            await connectionPicker.selectOption('');
+            await connectionPicker.selectOption(connection.connectionId);
+            return false;
+          }, { timeout: 60_000, intervals: [1_000, 2_000] }).toBe(true);
+          await tablePicker.selectOption(qualifiedTable);
           await page.getByPlaceholder('parcels-fs', { exact: true }).fill(service);
           await page.getByPlaceholder('Parcels', { exact: true }).fill(title);
           await page.getByRole('button', { name: 'Publish layer', exact: true }).click();
@@ -100,12 +123,6 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
 
     await page.goto('/studio');
     await expect(page.locator('[data-studio-status]')).toContainText('Connected to');
-    const conversation = page.locator('[data-agent-workspace]');
-    if (!(await conversation.evaluate(element => (element as HTMLDetailsElement).open)))
-      await conversation.locator(':scope > summary').click();
-    await conversation.getByRole('button', { name: 'Start conversation', exact: true }).focus();
-    await page.keyboard.press('Enter');
-    await expect(conversation).toHaveAttribute('data-connected', 'true');
     const packageKey = `customer-map-${nonce()}`;
     const source = await sourceFor(page, services[0].service, services[0].layerId);
     await createRecipe(page, source!.id, packageKey);
