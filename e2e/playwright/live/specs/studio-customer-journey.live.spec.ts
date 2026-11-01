@@ -193,6 +193,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     await expect(page.locator('[data-studio-status]')).toContainText('Connected to');
     const packageKey = `customer-map-${nonce()}`;
     const source = await sourceFor(page, services[0].service, services[0].layerId);
+    await observeLifecycle(page);
     await createRecipe(page, source!.id, packageKey);
     await accessibility(page, info, 'recipe-map');
     const original = (await identity(page))!;

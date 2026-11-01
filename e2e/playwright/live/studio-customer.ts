@@ -15,8 +15,9 @@ export async function observeLifecycle(page: Page) {
   await page.locator('honua-studio-app').evaluate(element => {
     const app = element as any;
     const observations = ((window as any).__studioLifecycleObservations ??= []);
-    for (const method of ['saveWorkspaceVersion', 'reopenWorkspaceVersion']) {
+    for (const method of ['createRecipeDraft', 'saveWorkspaceVersion', 'reopenWorkspaceVersion']) {
       const original = app[method];
+      if (original.__lifecycleObserved) continue;
       app[method] = async function (...args: unknown[]) {
         const auth = app.auth, expiresAt = app.session?.expiresAt;
         try { return await original.apply(app, args); }
@@ -29,6 +30,7 @@ export async function observeLifecycle(page: Page) {
           throw error;
         }
       };
+      app[method].__lifecycleObserved = true;
     }
   });
 }
