@@ -65,6 +65,7 @@ internal static class AgentSessionBff
 
     public static void MapAgentSessionBff(this WebApplication app)
     {
+        MapStudioConversation(app);
         app.MapMethods("/api/agent-workspace/agent/{endpoint}", ["GET", "POST"], async (string endpoint, HttpContext context,
             IConsoleEnvironmentProfileStore profiles, IConsoleOperatorBearerProvider bearers,
             IAntiforgery antiforgery, IHttpClientFactory clients, IConfiguration configuration,
@@ -195,4 +196,85 @@ internal static class AgentSessionBff
             catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.StatusCode(504); }
         });
     }
+    private static void MapStudioConversation(WebApplication app)
+    {
+        app.MapMethods("/api/agent-workspace/studio/{endpoint}", ["GET", "POST"], async (string endpoint, HttpContext context,
+            IConsoleEnvironmentProfileStore profiles, IConsoleOperatorBearerProvider bearers,
+            IAntiforgery antiforgery, IHttpClientFactory clients, IConsoleOperatorContext operators,
+            AgentMcpSessions sessions, IConsoleAccountSessionStore accountSessions, CancellationToken cancellationToken) =>
+        {
+            context.Response.Headers.CacheControl = "no-store";
+            if (endpoint is not ("capabilities" or "ai" or "mcp")) return Results.NotFound();
+            if (HttpMethods.IsGet(context.Request.Method) != (endpoint == "capabilities")) return Results.StatusCode(405);
+            if (context.Request.Query.Count > 0) return Results.BadRequest();
+            try { await antiforgery.ValidateRequestAsync(context); }
+            catch (AntiforgeryValidationException) { return Results.StatusCode(403); }
+            var profile = await profiles.GetActiveProfileAsync(cancellationToken);
+            if (profile is null) return Results.StatusCode(503);
+            if (context.Request.Headers["X-Honua-Environment"] != profile.Id
+                || !MatchesSessionPartition(context.Request.Headers["X-Honua-Session-Partition"], operators.RequireOperatorKey(), profile.Id, profile.ServerBaseUri))
+                return Results.StatusCode(403);
+            var credential = await bearers.ResolveAsync(profile, cancellationToken);
+            var accountSession = await accountSessions.GetSessionAsync(profile.Id, cancellationToken);
+            if (!credential.IsAvailable || accountSession?.ServerBaseUri != profile.ServerBaseUri) return Results.StatusCode(401);
+            var conversation = context.Request.Headers["X-Honua-View"].ToString();
+            if (!Regex.IsMatch(conversation, "^[A-Za-z0-9_-]{1,128}$")) return Results.BadRequest();
+            using var body = new MemoryStream();
+            var bytes = new byte[8192];
+            int count;
+            while ((count = await context.Request.Body.ReadAsync(bytes, cancellationToken)) != 0)
+            {
+                if (body.Length + count > 1024 * 1024) return Results.StatusCode(413);
+                body.Write(bytes, 0, count);
+            }
+            var partition = (AgentGatewayBinding.OperatorPartition(operators.RequireOperatorKey(), profile.Id, profile.ServerBaseUri), profile.Id, "studio-" + conversation);
+            using var request = new HttpRequestMessage(endpoint == "capabilities" ? HttpMethod.Get : HttpMethod.Post,
+                new Uri(new Uri(profile.ServerBaseUri.AbsoluteUri.TrimEnd('/') + "/"), endpoint switch
+                {
+                    "capabilities" => "api/v1/studio/ai/capabilities",
+                    "ai" => "api/v1/studio/ai/chat",
+                    _ => "mcp"
+                }));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credential.AccessToken);
+            request.Headers.Accept.ParseAdd("application/json, text/event-stream");
+            if (endpoint == "mcp" && sessions.ForRequest(partition, body.ToArray()) is { } id)
+                request.Headers.Add("Mcp-Session-Id", id);
+            if (endpoint != "capabilities")
+            {
+                request.Content = new ByteArrayContent(body.ToArray());
+                request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            }
+            try
+            {
+                using var client = clients.CreateClient("honua-agent-workspace");
+                using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                if ((int)response.StatusCode is >= 300 and < 400) return Results.StatusCode(502);
+                if (endpoint == "mcp" && response.IsSuccessStatusCode && response.Headers.TryGetValues("Mcp-Session-Id", out var ids)
+                    && ids.SingleOrDefault() is { Length: > 0 and <= 256 } sessionId)
+                {
+                    sessions.Put(partition, sessionId);
+                    context.Response.Headers["Mcp-Session-Id"] = sessionId;
+                }
+                if (response.Headers.RetryAfter is { } retryAfter) context.Response.Headers.RetryAfter = retryAfter.ToString();
+                if (response.IsSuccessStatusCode && response.Content.Headers.ContentType?.MediaType == "text/event-stream")
+                {
+                    context.Response.StatusCode = (int)response.StatusCode;
+                    context.Response.ContentType = "text/event-stream";
+                    context.Response.Headers["X-Accel-Buffering"] = "no";
+                    await context.Response.StartAsync(cancellationToken);
+                    await response.Content.CopyToAsync(context.Response.Body, cancellationToken);
+                    await context.Response.Body.FlushAsync(cancellationToken);
+                    return Results.Empty;
+                }
+                var content = await ReadBoundedJsonAsync(response.Content, cancellationToken);
+                return Results.Content(content, "application/json", statusCode: (int)response.StatusCode);
+            }
+            catch (InvalidDataException) { return Results.StatusCode(502); }
+            catch (HttpRequestException) when (context.Response.HasStarted) { context.Abort(); return Results.Empty; }
+            catch (HttpRequestException) { return Results.StatusCode(502); }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested && context.Response.HasStarted) { context.Abort(); return Results.Empty; }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.StatusCode(504); }
+        });
+    }
+
 }

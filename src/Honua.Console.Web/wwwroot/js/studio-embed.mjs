@@ -76,6 +76,7 @@ async function studioElement(session) {
     app.workspaceCookieBinding={principalId:session.principalId,environmentId:session.environmentId,sourcePathBase:session.sourcePathBase};
     app.session = cookieSession;
     app.workspace = window.honuaAgentWorkspace;
+    if (app.workspace) app.workspace.studioBindingProvider = () => app.isConnected ? app.workspaceCookieBinding : undefined;
     if (app.workspace) app.workspace.authorityChangeGuard = () => app.prepareWorkspaceTurn();
     if (app.workspace) app.workspace.studioDesignFocusProvider = () => app.isConnected
         && location.pathname === '/studio' ? captureStudioDesignFocus(app) : undefined;
