@@ -229,7 +229,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     // the authority for what the keyboard edit actually authored.
     await code.focus();
     await code.press('Control+Home');
-    const opening = await code.evaluate(element => (element.textContent ?? '').slice(0, 200));
+    const opening = await code.evaluate(element => (element as HTMLElement).innerText.slice(0, 200));
     expect(opening).toMatch(/^\{\s*"name"\s*:[^\n]*\n\s*"layers"\s*:\s*\[/);
     await code.press('ArrowDown');
     await code.press('ArrowDown');
