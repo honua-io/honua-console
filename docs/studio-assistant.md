@@ -1,5 +1,5 @@
 ---
-type: how-to
+type: guide
 title: "Use the built-in Studio assistant"
 ---
 # Use the built-in Studio assistant
