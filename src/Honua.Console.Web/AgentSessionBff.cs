@@ -201,7 +201,7 @@ internal static class AgentSessionBff
         app.MapMethods("/api/agent-workspace/studio/{endpoint}", ["GET", "POST"], async (string endpoint, HttpContext context,
             IConsoleEnvironmentProfileStore profiles, IConsoleOperatorBearerProvider bearers,
             IAntiforgery antiforgery, IHttpClientFactory clients, IConsoleOperatorContext operators,
-            AgentMcpSessions sessions, CancellationToken cancellationToken) =>
+            AgentMcpSessions sessions, IConsoleAccountSessionStore accountSessions, CancellationToken cancellationToken) =>
         {
             context.Response.Headers.CacheControl = "no-store";
             if (endpoint is not ("capabilities" or "ai" or "mcp")) return Results.NotFound();
@@ -215,7 +215,8 @@ internal static class AgentSessionBff
                 || !MatchesSessionPartition(context.Request.Headers["X-Honua-Session-Partition"], operators.RequireOperatorKey(), profile.Id, profile.ServerBaseUri))
                 return Results.StatusCode(403);
             var credential = await bearers.ResolveAsync(profile, cancellationToken);
-            if (!credential.IsAvailable) return Results.StatusCode(401);
+            var accountSession = await accountSessions.GetSessionAsync(profile.Id, cancellationToken);
+            if (!credential.IsAvailable || accountSession?.ServerBaseUri != profile.ServerBaseUri) return Results.StatusCode(401);
             var conversation = context.Request.Headers["X-Honua-View"].ToString();
             if (!Regex.IsMatch(conversation, "^[A-Za-z0-9_-]{1,128}$")) return Results.BadRequest();
             using var body = new MemoryStream();

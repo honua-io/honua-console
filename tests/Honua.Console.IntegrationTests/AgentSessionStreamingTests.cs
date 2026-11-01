@@ -44,6 +44,12 @@ public sealed class AgentSessionStreamingTests
             new ConsoleEnvironmentProfile {Id="environment",ServerBaseUri=new Uri("https://upstream.test/")}
         ]));
         builder.Services.AddSingleton<IConsoleOperatorBearerProvider>(new Bearer());
+        var accountSessions = new InMemoryConsoleAccountSessionStore();
+        await accountSessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = "environment", ServerBaseUri = new Uri("https://upstream.test/"), AccessToken = "human-bearer"
+        });
+        builder.Services.AddSingleton<IConsoleAccountSessionStore>(accountSessions);
         builder.Services.AddSingleton<IConsoleOperatorContext>(new Operator());
         builder.Services.AddSingleton<IHttpClientFactory>(wire);
         builder.Services.AddSingleton<AgentMcpSessions>();
@@ -103,14 +109,18 @@ public sealed class AgentSessionStreamingTests
     }
 
     [Theory]
-    [InlineData(false, "environment", "valid", "view", "", 403)]
-    [InlineData(true, "other", "valid", "view", "", 403)]
-    [InlineData(true, "environment", "wrong", "view", "", 403)]
-    [InlineData(true, "environment", "valid", "../view", "", 400)]
-    [InlineData(true, "environment", "valid", "view", "?target=other", 400)]
-    public async Task StudioProxyRefusesUnboundRequestsBeforeUpstream(bool csrfEnabled, string environment, string partition, string view, string query, int expected)
+    [InlineData(false, "environment", "valid", "view", "", 403, "match")]
+    [InlineData(true, "other", "valid", "view", "", 403, "match")]
+    [InlineData(true, "environment", "wrong", "view", "", 403, "match")]
+    [InlineData(true, "environment", "valid", "../view", "", 400, "match")]
+    [InlineData(true, "environment", "valid", "view", "?target=other", 400, "match")]
+    [InlineData(true, "environment", "valid", "view", "", 401, "missing")]
+    [InlineData(true, "environment", "valid", "view", "", 401, "unbound")]
+    [InlineData(true, "environment", "valid", "view", "", 401, "changed")]
+    public async Task StudioProxyRefusesUnboundRequestsBeforeUpstream(bool csrfEnabled, string environment, string partition, string view, string query, int expected, string sessionBinding)
     {
         using var stream = new PausedEventStream();
+        stream.Release();
         using var wire = new Upstream(stream);
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
@@ -120,6 +130,17 @@ public sealed class AgentSessionStreamingTests
             new ConsoleEnvironmentProfile { Id = "environment", ServerBaseUri = new Uri("https://upstream.test/") }
         ]));
         builder.Services.AddSingleton<IConsoleOperatorBearerProvider>(new Bearer());
+        var accountSessions = new InMemoryConsoleAccountSessionStore();
+        if (sessionBinding != "missing")
+        {
+            await accountSessions.SaveSessionAsync(new ConsoleAccountSession
+            {
+                ProfileId = "environment", AccessToken = "human-bearer",
+                ServerBaseUri = sessionBinding == "unbound" ? null
+                    : new Uri(sessionBinding == "changed" ? "https://other.test/" : "https://upstream.test/")
+            });
+        }
+        builder.Services.AddSingleton<IConsoleAccountSessionStore>(accountSessions);
         builder.Services.AddSingleton<IConsoleOperatorContext>(new Operator());
         builder.Services.AddSingleton<IHttpClientFactory>(wire);
         builder.Services.AddSingleton<AgentMcpSessions>();
