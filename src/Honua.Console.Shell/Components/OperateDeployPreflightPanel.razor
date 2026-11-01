@@ -80,6 +80,34 @@
                 }
             }
         </dl>
+        @if (preflight.DiagnosticsIncluded && preflight.PlatformReleaseDeclared)
+        {
+            <section aria-label="Observed serving revisions" data-observed-serving>
+                <h5>Observed serving revisions</h5>
+                @if (preflight.Serving.Count == 0)
+                {
+                    <p>Serving observation unavailable.</p>
+                }
+                @foreach (var serving in preflight.Serving)
+                {
+                    <div data-serving-target="@serving.Id">
+                        <strong>@serving.Id</strong>
+                        @if (!string.Equals(serving.ObservationStatus, "observed", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <p>Serving observation unavailable (@serving.ObservationStatus).</p>
+                        }
+                        else
+                        {
+                            <dl class="console-definition-list">
+                                <dt>Observed image</dt><dd>@(serving.ObservedImageId ?? "Unavailable")</dd>
+                                <dt>Observed artifact</dt><dd>@(serving.ObservedArtifactReference ?? "Unavailable")</dd>
+                                <dt>Observed server version</dt><dd>@(serving.ServerVersion ?? "Unavailable")</dd>
+                            </dl>
+                        }
+                    </div>
+                }
+            </section>
+        }
     }
 </div>
 

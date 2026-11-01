@@ -44,6 +44,30 @@ public sealed class ApprovalInboxPageRenderTests
     }
 
     [Fact]
+    public async Task ExternalApproval_RetainsSelectedProposalAndShowsCompletion()
+    {
+        var proposals = new FakeConsoleProposalsClient(
+            proposals: [FakeProposalFactory.Summary("external-1", ConsoleProposalKind.Deploy)],
+            details: [FakeProposalFactory.Detail("external-1", ConsoleProposalKind.Deploy)]);
+        var realtime = new FakeConsoleProposalRealtimeClient();
+        using var ctx = NewContext(proposals, realtime);
+        var page = ctx.Render<ApprovalInboxPage>(parameters => parameters.Add(p => p.DetailRefreshInterval, TimeSpan.FromMilliseconds(30)));
+        page.WaitForAssertion(() => page.Find("[data-proposal-id=\"external-1\"]"), TimeSpan.FromSeconds(5));
+        page.Find("[data-proposal-id=\"external-1\"]").Click();
+        page.WaitForAssertion(() => page.Find("[data-proposal-approve]"), TimeSpan.FromSeconds(5));
+        await proposals.ApproveAsync("external-1");
+        proposals.RemoveFromQueue("external-1");
+        realtime.Raise(new ConsoleProposalEvent(ConsoleProposalEventKind.Resolved, "external-1",
+            ConsoleProposalKind.Deploy, ConsoleProposalStatus.Submitted, null, ConsoleProposalRisk.Medium, DateTimeOffset.UtcNow));
+        page.WaitForAssertion(() => Assert.Equal("Submitted", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status")), TimeSpan.FromSeconds(5));
+        proposals.Complete("external-1");
+        page.WaitForAssertion(() => Assert.Equal("Completed", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status")), TimeSpan.FromSeconds(5));
+        var reads = proposals.DetailReads;
+        await Task.Delay(180);
+        Assert.Equal(reads, proposals.DetailReads);
+    }
+
+    [Fact]
     public void DeniedRead_RendersStatusSurface()
     {
         using var ctx = NewContext(new FakeConsoleProposalsClient(
