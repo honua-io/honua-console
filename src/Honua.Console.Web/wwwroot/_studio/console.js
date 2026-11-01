@@ -1,7 +1,7 @@
 import { t as e } from "./rolldown-runtime-Dy4uBu1J.js";
 import { t } from "./base-element-CzTXWtWv.js";
-import { d as n, i as r, n as i, u as a } from "./errors-VvMCLBue.js";
-import { i as o, n as s, r as c } from "./authenticated-source-protocol-4yd8xX9l.js";
+import { d as n, i as r, n as i, u as a } from "./errors-DIgkujNL.js";
+import { i as o, n as s, r as c } from "./authenticated-source-protocol-aOw2HNbU.js";
 import { a as l, c as u, d, f, i as p, l as m, n as h, o as g, r as _, s as v, t as y, u as b } from "./visual-layer-owner-Cli7j7Sb.js";
 import { a as x, i as S, l as C, n as ee, o as w, r as te, s as ne, t as re } from "./source-resolution-CURe54Oz.js";
 import { a as ie, i as ae, n as oe, o as se, r as ce, t as le } from "./control-config-B3vF9Ivt.js";
@@ -201,7 +201,7 @@ function Re(e) {
 	return e.replace(/[&<>"']/g, (e) => `&#${e.charCodeAt(0)};`);
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/studio-agent/ai-contract.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/studio-agent/ai-contract.js
 var ze = {
 	message_start: "messageStart",
 	text_delta: "textDelta",
@@ -214,7 +214,7 @@ var ze = {
 };
 Object.fromEntries(Object.entries(ze).map(([e, t]) => [t, e]));
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/studio-agent/transcript-verifier.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/studio-agent/transcript-verifier.js
 var Be = class {
 	#e = /* @__PURE__ */ new Set();
 	consume(e) {
@@ -621,7 +621,7 @@ var Je = class {
 	]
 };
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/studio-agent/sse-transport.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/studio-agent/sse-transport.js
 function Qe(e, t) {
 	let n = ze[t];
 	if (n) {
@@ -708,7 +708,7 @@ async function tt(e = {}) {
 	return et(a) ? a.data : a;
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/studio-agent/mcp-errors.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/studio-agent/mcp-errors.js
 var nt = class extends Error {
 	cause;
 	constructor(e, t) {
@@ -1113,7 +1113,7 @@ function Ct(e, t) {
 	return new it(`Tool "${t}" failed with no structured error detail.`, "unknown", t, e);
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/studio-agent/tool-catalog.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/studio-agent/tool-catalog.js
 var wt = "honua.studio";
 function Tt(e) {
 	return e && typeof e == "object" && !Array.isArray(e) ? e : void 0;
@@ -1524,7 +1524,7 @@ function Lt(e, t) {
 	return new Set(n?.propagatesSlices ?? E);
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/exploration/selection.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/exploration/selection.js
 function Rt(e, t, n = {}) {
 	return {
 		sourceId: e,
@@ -1541,7 +1541,7 @@ function Bt(e) {
 	return `source:${e.sourceId}\u0000layer:${t}\u0000id:${typeof e.id}:${String(e.id)}`;
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/exploration/reducer.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/exploration/reducer.js
 function Vt(e, t) {
 	switch (t.kind) {
 		case "set-filter": {
@@ -1791,7 +1791,7 @@ function nn(e, t) {
 	return !0;
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/exploration/context.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/exploration/context.js
 function rn(e) {
 	let { datasetId: t, sourceIds: n } = e, i = [...n], a = an(e.initialState, e.preset), o = Ft[a.preset], s = !1, c = /* @__PURE__ */ new Map(), l = /* @__PURE__ */ new Map(), u = !1, d = a, f = /* @__PURE__ */ new Set(), p = /* @__PURE__ */ new Set(), m;
 	function h(e) {
@@ -2062,7 +2062,7 @@ function ln(e) {
 	return [...new Set(Array.isArray(e) ? e : [e])];
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/exploration/selectors.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/exploration/selectors.js
 function un(e, t, n, r, i = {}) {
 	let a = i.equals ?? dn, o = n(e.state);
 	return i.fireImmediately && r(o, void 0), e.subscribe(t, (e) => {
@@ -2086,7 +2086,7 @@ function dn(e, t) {
 	return !0;
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/interactions/declarative-contract.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/interactions/declarative-contract.js
 var fn = [
 	"featureSelect",
 	"featureHover",
@@ -2237,7 +2237,7 @@ function Dn(e, t = {}) {
 	};
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/agent-tools/index.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/agent-tools/index.js
 var D = (e) => ({
 	type: "string",
 	description: e
@@ -3223,7 +3223,7 @@ function Mr(e) {
 	];
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/studio-agent/session.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/studio-agent/session.js
 var Nr = "honua_client_select_workflow_view", Pr = {
 	name: Nr,
 	description: "Select a bounded Honua workflow tool view on this same connection and conversation. Use honua_list_capabilities to discover server workflowViews and their purposes. This changes tool discovery only, grants no authority, and runs no server mutation. After switching, plan the next action using the refreshed tools in the next round.",
@@ -3980,7 +3980,7 @@ function ei(e) {
 	return e instanceof Error ? e.message : String(e);
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/geometry/internal.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/geometry/internal.js
 function ti(e) {
 	if (e.type === "Feature") {
 		let t = e.geometry;
@@ -3991,18 +3991,18 @@ function ti(e) {
 	return e;
 }
 //#endregion
-//#region node_modules/proj4/lib/global.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/global.js
 function ni(e) {
 	e("EPSG:4326", "+title=WGS 84 (long/lat) +proj=longlat +ellps=WGS84 +datum=WGS84 +units=degrees"), e("EPSG:4269", "+title=NAD83 (long/lat) +proj=longlat +a=6378137.0 +b=6356752.31414036 +ellps=GRS80 +datum=NAD83 +units=degrees"), e("EPSG:3857", "+title=WGS 84 / Pseudo-Mercator +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs");
 	for (var t = 1; t <= 60; ++t) e("EPSG:" + (32600 + t), "+proj=utm +zone=" + t + " +datum=WGS84 +units=m"), e("EPSG:" + (32700 + t), "+proj=utm +zone=" + t + " +south +datum=WGS84 +units=m");
 	e("EPSG:5041", "+title=WGS 84 / UPS North (E,N) +proj=stere +lat_0=90 +lon_0=0 +k=0.994 +x_0=2000000 +y_0=2000000 +datum=WGS84 +units=m"), e("EPSG:5042", "+title=WGS 84 / UPS South (E,N) +proj=stere +lat_0=-90 +lon_0=0 +k=0.994 +x_0=2000000 +y_0=2000000 +datum=WGS84 +units=m"), e.WGS84 = e["EPSG:4326"], e["EPSG:3785"] = e["EPSG:3857"], e.GOOGLE = e["EPSG:3857"], e["EPSG:900913"] = e["EPSG:3857"], e["EPSG:102113"] = e["EPSG:3857"];
 }
 //#endregion
-//#region node_modules/proj4/lib/constants/values.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/constants/values.js
 var ri = 6378137, ii = 6356752.314, ai = .0066943799901413165, oi = 484813681109536e-20, A = Math.PI / 2, si = .16666666666666666, ci = .04722222222222222, li = .022156084656084655, ui = 1e-10, j = .017453292519943295, di = 57.29577951308232, M = Math.PI / 4, fi = Math.PI * 2, N = 3.14159265359, pi = {};
 pi.greenwich = 0, pi.lisbon = -9.131906111111, pi.paris = 2.337229166667, pi.bogota = -74.080916666667, pi.madrid = -3.687938888889, pi.rome = 12.452333333333, pi.bern = 7.439583333333, pi.jakarta = 106.807719444444, pi.ferro = -17.666666666667, pi.brussels = 4.367975, pi.stockholm = 18.058277777778, pi.athens = 23.7163375, pi.oslo = 10.722916666667;
 //#endregion
-//#region node_modules/proj4/lib/constants/units.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/constants/units.js
 var mi = {
 	mm: { to_meter: .001 },
 	cm: { to_meter: .01 },
@@ -4030,7 +4030,7 @@ function gi(e, t) {
 	for (var n = Object.keys(e), r = t.toLowerCase().replace(hi, ""), i = -1, a, o; ++i < n.length;) if (a = n[i], o = a.toLowerCase().replace(hi, ""), o === r) return e[a];
 }
 //#endregion
-//#region node_modules/proj4/lib/projString.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projString.js
 function _i(e) {
 	var t = {}, n = e.split("+").map(function(e) {
 		return e.trim();
@@ -4151,7 +4151,7 @@ function _i(e) {
 	return typeof t.datumCode == "string" && t.datumCode !== "WGS84" && (t.datumCode = t.datumCode.toLowerCase()), t.projStr = e, t;
 }
 //#endregion
-//#region node_modules/wkt-parser/PROJJSONBuilder.js
+//#region ../wt-rc2-product-test-studio/node_modules/wkt-parser/PROJJSONBuilder.js
 var vi = class {
 	static getId(e) {
 		let t = e.find((e) => Array.isArray(e) && e[0] === "ID");
@@ -4315,18 +4315,18 @@ var vi = class {
 	}
 };
 //#endregion
-//#region node_modules/wkt-parser/buildPROJJSON.js
+//#region ../wt-rc2-product-test-studio/node_modules/wkt-parser/buildPROJJSON.js
 function yi(e) {
 	return vi.convert(e);
 }
 //#endregion
-//#region node_modules/wkt-parser/detectWKTVersion.js
+//#region ../wt-rc2-product-test-studio/node_modules/wkt-parser/detectWKTVersion.js
 function bi(e) {
 	let t = e.toUpperCase();
 	return t.includes("PROJCRS") || t.includes("GEOGCRS") || t.includes("BOUNDCRS") || t.includes("VERTCRS") || t.includes("LENGTHUNIT") || t.includes("ANGLEUNIT") || t.includes("SCALEUNIT") ? "WKT2" : (t.includes("PROJCS") || t.includes("GEOGCS") || t.includes("LOCAL_CS") || t.includes("VERT_CS") || t.includes("UNIT"), "WKT1");
 }
 //#endregion
-//#region node_modules/wkt-parser/parser.js
+//#region ../wt-rc2-product-test-studio/node_modules/wkt-parser/parser.js
 var xi = Pi, Si = 1, Ci = 2, wi = 3, Ti = 4, Ei = 5, Di = -1, Oi = /\s/, ki = /[A-Za-z]/, Ai = /[A-Za-z84_]/, ji = /[,\]]/, Mi = /[\d\.E\-\+]/;
 function Ni(e) {
 	if (typeof e != "string") throw Error("not a string");
@@ -4423,7 +4423,7 @@ function Pi(e) {
 	return new Ni(e).output();
 }
 //#endregion
-//#region node_modules/wkt-parser/process.js
+//#region ../wt-rc2-product-test-studio/node_modules/wkt-parser/process.js
 function Fi(e, t, n) {
 	Array.isArray(t) && (n.unshift(t), t = null);
 	var r = t ? {} : e, i = n.reduce(function(e, t) {
@@ -4507,7 +4507,7 @@ function Ii(e, t) {
 	}
 }
 //#endregion
-//#region node_modules/wkt-parser/util.js
+//#region ../wt-rc2-product-test-studio/node_modules/wkt-parser/util.js
 var Li = .017453292519943295;
 function Ri(e) {
 	return e * Li;
@@ -4517,7 +4517,7 @@ function zi(e) {
 	e.long0 === void 0 && e.longc !== void 0 && (e.long0 = e.longc), !e.lat_ts && e.lat1 && (t === "stereographic south pole" || t === "polar stereographic (variant b)") ? (e.lat0 = Ri(e.lat1 > 0 ? 90 : -90), e.lat_ts = e.lat1, delete e.lat1) : !e.lat_ts && e.lat0 && (t === "polar stereographic" || t === "polar stereographic (variant a)") && (e.lat_ts = e.lat0, e.lat0 = Ri(e.lat0 > 0 ? 90 : -90), delete e.lat1);
 }
 //#endregion
-//#region node_modules/wkt-parser/transformPROJJSON.js
+//#region ../wt-rc2-product-test-studio/node_modules/wkt-parser/transformPROJJSON.js
 function Bi(e) {
 	let t = {
 		units: null,
@@ -4594,7 +4594,7 @@ function Ui(e, t = {}) {
 	}), !t.datumCode && (e.type === "GeographicCRS" || e.type === "GeodeticCRS") && e.id && (t.datumCode = e.id.authority + "_" + e.id.code), t.latitude_of_false_origin !== void 0 && (t.lat0 = t.latitude_of_false_origin), t.longitude_of_false_origin !== void 0 && (t.long0 = t.longitude_of_false_origin), t.latitude_of_standard_parallel !== void 0 && (t.lat0 = t.latitude_of_standard_parallel, t.lat1 = t.latitude_of_standard_parallel), t.latitude_of_1st_standard_parallel !== void 0 && (t.lat1 = t.latitude_of_1st_standard_parallel), t.latitude_of_2nd_standard_parallel !== void 0 && (t.lat2 = t.latitude_of_2nd_standard_parallel), t.latitude_of_projection_centre !== void 0 && (t.lat0 = t.latitude_of_projection_centre), t.longitude_of_projection_centre !== void 0 && (t.longc = t.longitude_of_projection_centre), t.easting_at_false_origin !== void 0 && (t.x0 = t.easting_at_false_origin), t.northing_at_false_origin !== void 0 && (t.y0 = t.northing_at_false_origin), t.latitude_of_natural_origin !== void 0 && (t.lat0 = t.latitude_of_natural_origin), t.longitude_of_natural_origin !== void 0 && (t.long0 = t.longitude_of_natural_origin), t.longitude_of_origin !== void 0 && (t.long0 = t.longitude_of_origin), t.false_easting !== void 0 && (t.x0 = t.false_easting), t.easting_at_projection_centre && (t.x0 = t.easting_at_projection_centre), t.false_northing !== void 0 && (t.y0 = t.false_northing), t.northing_at_projection_centre && (t.y0 = t.northing_at_projection_centre), t.standard_parallel_1 !== void 0 && (t.lat1 = t.standard_parallel_1), t.standard_parallel_2 !== void 0 && (t.lat2 = t.standard_parallel_2), t.scale_factor_at_natural_origin !== void 0 && (t.k0 = t.scale_factor_at_natural_origin), t.scale_factor_at_projection_centre !== void 0 && (t.k0 = t.scale_factor_at_projection_centre), t.scale_factor_on_pseudo_standard_parallel !== void 0 && (t.k0 = t.scale_factor_on_pseudo_standard_parallel), t.azimuth !== void 0 && (t.alpha = t.azimuth), t.azimuth_at_projection_centre !== void 0 && (t.alpha = t.azimuth_at_projection_centre), t.angle_from_rectified_to_skew_grid && (t.rectified_grid_angle = t.angle_from_rectified_to_skew_grid), zi(t), t);
 }
 //#endregion
-//#region node_modules/wkt-parser/index.js
+//#region ../wt-rc2-product-test-studio/node_modules/wkt-parser/index.js
 var Wi = [
 	"PROJECTEDCRS",
 	"PROJCRS",
@@ -4725,7 +4725,7 @@ function Ji(e) {
 	return Ii(n, i), Ki(i), i[r];
 }
 //#endregion
-//#region node_modules/proj4/lib/defs.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/defs.js
 function P(e) {
 	var t = this;
 	if (arguments.length === 2) {
@@ -4743,7 +4743,7 @@ function P(e) {
 }
 ni(P);
 //#endregion
-//#region node_modules/proj4/lib/parseCode.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/parseCode.js
 function Yi(e) {
 	return typeof e == "string";
 }
@@ -4786,7 +4786,7 @@ function na(e) {
 	return t && $i(t) ? P["EPSG:3857"] : t;
 }
 //#endregion
-//#region node_modules/proj4/lib/extend.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/extend.js
 function ra(e, t) {
 	e ||= {};
 	var n, r;
@@ -4795,35 +4795,35 @@ function ra(e, t) {
 	return e;
 }
 //#endregion
-//#region node_modules/proj4/lib/common/msfnz.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/msfnz.js
 function ia(e, t, n) {
 	var r = e * t;
 	return n / Math.sqrt(1 - r * r);
 }
 //#endregion
-//#region node_modules/proj4/lib/common/sign.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/sign.js
 function aa(e) {
 	return e < 0 ? -1 : 1;
 }
 //#endregion
-//#region node_modules/proj4/lib/common/adjust_lon.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/adjust_lon.js
 function F(e, t) {
 	return t || Math.abs(e) <= 3.14159265359 ? e : e - aa(e) * fi;
 }
 //#endregion
-//#region node_modules/proj4/lib/common/tsfnz.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/tsfnz.js
 function oa(e, t, n) {
 	var r = e * n, i = .5 * e;
 	return r = ((1 - r) / (1 + r)) ** i, Math.tan(.5 * (A - t)) / r;
 }
 //#endregion
-//#region node_modules/proj4/lib/common/phi2z.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/phi2z.js
 function sa(e, t) {
 	for (var n = .5 * e, r, i, a = A - 2 * Math.atan(t), o = 0; o <= 15; o++) if (r = e * Math.sin(a), i = A - 2 * Math.atan(t * ((1 - r) / (1 + r)) ** n) - a, a += i, Math.abs(i) <= 1e-10) return a;
 	return -9999;
 }
 //#endregion
-//#region node_modules/proj4/lib/projections/merc.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/merc.js
 function ca() {
 	var e = this.b / this.a;
 	this.es = 1 - e * e, "x0" in this || (this.x0 = 0), "y0" in this || (this.y0 = 0), this.long0 = this.long0 || 0, this.e = Math.sqrt(this.es), this.lat_ts ? this.sphere ? this.k0 = Math.cos(this.lat_ts) : this.k0 = ia(this.e, Math.sin(this.lat_ts), Math.cos(this.lat_ts)) : this.k0 || (this.k ? this.k0 = this.k : this.k0 = 1);
@@ -4863,7 +4863,7 @@ var da = {
 	]
 };
 //#endregion
-//#region node_modules/proj4/lib/projections/longlat.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/longlat.js
 function fa() {}
 function pa(e) {
 	return e;
@@ -5147,7 +5147,7 @@ function Ea(e, t, n, r, i) {
 	};
 }
 //#endregion
-//#region node_modules/proj4/lib/constants/Datum.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/constants/Datum.js
 var Da = {
 	wgs84: {
 		towgs84: "0,0,0",
@@ -5665,13 +5665,13 @@ for (var Oa in Da) {
 	ka.datumName && (Da[ka.datumName] = ka);
 }
 //#endregion
-//#region node_modules/proj4/lib/datum.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/datum.js
 function Aa(e, t, n, r, i, a, o) {
 	var s = {};
 	return s.datum_type = 5, t && (s.datum_type = 4, s.datum_params = t.map(parseFloat), (s.datum_params[0] !== 0 || s.datum_params[1] !== 0 || s.datum_params[2] !== 0) && (s.datum_type = 1), s.datum_params.length > 3 && (s.datum_params[3] !== 0 || s.datum_params[4] !== 0 || s.datum_params[5] !== 0 || s.datum_params[6] !== 0) && (s.datum_type = 2, s.datum_params[3] *= oi, s.datum_params[4] *= oi, s.datum_params[5] *= oi, s.datum_params[6] = s.datum_params[6] / 1e6 + 1)), o && (s.datum_type = 3, s.grids = o), s.a = n, s.b = r, s.es = i, s.ep2 = a, s;
 }
 //#endregion
-//#region node_modules/proj4/lib/nadgrid.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/nadgrid.js
 var ja = {};
 function Ma(e, t, n) {
 	return t instanceof ArrayBuffer ? Na(e, t, n) : { ready: Pa(e, t) };
@@ -5794,7 +5794,7 @@ function Ga(e, t, n, r, i) {
 	return s;
 }
 //#endregion
-//#region node_modules/proj4/lib/Proj.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/Proj.js
 function Ka(e, t) {
 	if (!(this instanceof Ka)) return new Ka(e);
 	this.forward = null, this.inverse = null, this.init = null, this.name, this.axis, this.names = null, this.title, t ||= function(e) {
@@ -5820,7 +5820,7 @@ function Ka(e, t) {
 }
 Ka.projections = Sa, Ka.projections.start();
 //#endregion
-//#region node_modules/proj4/lib/datumUtils.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/datumUtils.js
 function qa(e, t) {
 	return e.datum_type === t.datum_type ? e.a !== t.a || Math.abs(e.es - t.es) > 5e-11 ? !1 : e.datum_type === 1 ? e.datum_params[0] === t.datum_params[0] && e.datum_params[1] === t.datum_params[1] && e.datum_params[2] === t.datum_params[2] : e.datum_type !== 2 || e.datum_params[0] === t.datum_params[0] && e.datum_params[1] === t.datum_params[1] && e.datum_params[2] === t.datum_params[2] && e.datum_params[3] === t.datum_params[3] && e.datum_params[4] === t.datum_params[4] && e.datum_params[5] === t.datum_params[5] && e.datum_params[6] === t.datum_params[6] : !1;
 }
@@ -5894,7 +5894,7 @@ function Za(e, t, n) {
 	}
 }
 //#endregion
-//#region node_modules/proj4/lib/datum_transform.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/datum_transform.js
 function Qa(e) {
 	return e === 1 || e === 2;
 }
@@ -6003,7 +6003,7 @@ function no(e, t) {
 	return a.x = p * s.x + f * c.x + m * u.x + d * l.x, a.y = p * s.y + f * c.y + m * u.y + d * l.y, a;
 }
 //#endregion
-//#region node_modules/proj4/lib/adjust_axis.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/adjust_axis.js
 var ro = [
 	"x",
 	"y",
@@ -6064,7 +6064,7 @@ function ao(e, t) {
 	return n;
 }
 //#endregion
-//#region node_modules/proj4/lib/common/toPoint.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/toPoint.js
 function oo(e) {
 	var t = {
 		x: e[0],
@@ -6073,7 +6073,7 @@ function oo(e) {
 	return e.length > 2 && (t.z = e[2]), e.length > 3 && (t.m = e[3]), t;
 }
 //#endregion
-//#region node_modules/proj4/lib/checkSanity.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/checkSanity.js
 function so(e) {
 	co(e.x), co(e.y);
 }
@@ -6085,7 +6085,7 @@ function co(e) {
 	if (typeof e != "number" || e !== e || !isFinite(e)) throw TypeError("coordinates must be finite numbers");
 }
 //#endregion
-//#region node_modules/proj4/lib/transform.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/transform.js
 function lo(e, t) {
 	return (e.datum.datum_type === 1 || e.datum.datum_type === 2 || e.datum.datum_type === 3) && t.datumCode !== "WGS84" || (t.datum.datum_type === 1 || t.datum.datum_type === 2 || t.datum.datum_type === 3) && e.datumCode !== "WGS84";
 }
@@ -6124,7 +6124,7 @@ function fo(e, t, n, r) {
 	}, r);
 }
 //#endregion
-//#region node_modules/proj4/lib/core.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/core.js
 var po = Ka("WGS84");
 function mo(e, t, n, r) {
 	var i, a, o;
@@ -6170,7 +6170,7 @@ function go(e, t, n) {
 	}, a && (o.oProj = i), o);
 }
 //#endregion
-//#region node_modules/mgrs/mgrs.js
+//#region ../wt-rc2-product-test-studio/node_modules/mgrs/mgrs.js
 var _o = 6, vo = "AJSAJS", yo = "AFAFAF", bo = 65, xo = 73, So = 79, Co = 86, wo = 90, To = {
 	forward: Eo,
 	inverse: Do,
@@ -6379,7 +6379,7 @@ function Vo(e) {
 	throw "Invalid zone letter: " + e;
 }
 //#endregion
-//#region node_modules/proj4/lib/Point.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/Point.js
 function Ho(e, t, n) {
 	if (!(this instanceof Ho)) return new Ho(e, t, n);
 	if (Array.isArray(e)) this.x = e[0], this.y = e[1], this.z = e[2] || 0;
@@ -6396,7 +6396,7 @@ Ho.fromMGRS = function(e) {
 	return Eo([this.x, this.y], e);
 };
 //#endregion
-//#region node_modules/proj4/lib/common/pj_enfn.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/pj_enfn.js
 var Uo = 1, Wo = .25, Go = .046875, Ko = .01953125, qo = .01068115234375, Jo = .75, Yo = .46875, Xo = .013020833333333334, Zo = .007120768229166667, Qo = .3645833333333333, $o = .005696614583333333, es = .3076171875;
 function ts(e) {
 	var t = [];
@@ -6405,12 +6405,12 @@ function ts(e) {
 	return t[2] = n * (Yo - e * (Xo + e * Zo)), n *= e, t[3] = n * (Qo - e * $o), t[4] = n * e * es, t;
 }
 //#endregion
-//#region node_modules/proj4/lib/common/pj_mlfn.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/pj_mlfn.js
 function ns(e, t, n, r) {
 	return n *= t, t *= t, r[0] * e - n * (r[1] + t * (r[2] + t * (r[3] + t * r[4])));
 }
 //#endregion
-//#region node_modules/proj4/lib/common/pj_inv_mlfn.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/pj_inv_mlfn.js
 var rs = 20;
 function is(e, t, n) {
 	for (var r = 1 / (1 - t), i = e, a = rs; a; --a) {
@@ -6420,7 +6420,7 @@ function is(e, t, n) {
 	return i;
 }
 //#endregion
-//#region node_modules/proj4/lib/projections/tmerc.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/tmerc.js
 function as() {
 	this.x0 = this.x0 === void 0 ? 0 : this.x0, this.y0 = this.y0 === void 0 ? 0 : this.y0, this.long0 = this.long0 === void 0 ? 0 : this.long0, this.lat0 = this.lat0 === void 0 ? 0 : this.lat0, this.es && (this.en = ts(this.es), this.ml0 = ns(this.lat0, Math.sin(this.lat0), Math.cos(this.lat0), this.en));
 }
@@ -6462,56 +6462,56 @@ var cs = {
 	names: ["Fast_Transverse_Mercator", "Fast Transverse Mercator"]
 };
 //#endregion
-//#region node_modules/proj4/lib/common/sinh.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/sinh.js
 function ls(e) {
 	var t = Math.exp(e);
 	return t = (t - 1 / t) / 2, t;
 }
 //#endregion
-//#region node_modules/proj4/lib/common/hypot.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/hypot.js
 function us(e, t) {
 	e = Math.abs(e), t = Math.abs(t);
 	var n = Math.max(e, t), r = Math.min(e, t) / (n || 1);
 	return n * Math.sqrt(1 + r ** 2);
 }
 //#endregion
-//#region node_modules/proj4/lib/common/log1py.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/log1py.js
 function ds(e) {
 	var t = 1 + e, n = t - 1;
 	return n === 0 ? e : e * Math.log(t) / n;
 }
 //#endregion
-//#region node_modules/proj4/lib/common/asinhy.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/asinhy.js
 function fs(e) {
 	var t = Math.abs(e);
 	return t = ds(t * (1 + t / (us(1, t) + 1))), e < 0 ? -t : t;
 }
 //#endregion
-//#region node_modules/proj4/lib/common/gatg.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/gatg.js
 function ps(e, t) {
 	for (var n = 2 * Math.cos(2 * t), r = e.length - 1, i = e[r], a = 0, o; --r >= 0;) o = -a + n * i + e[r], a = i, i = o;
 	return t + o * Math.sin(2 * t);
 }
 //#endregion
-//#region node_modules/proj4/lib/common/clens.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/clens.js
 function ms(e, t) {
 	for (var n = 2 * Math.cos(t), r = e.length - 1, i = e[r], a = 0, o; --r >= 0;) o = -a + n * i + e[r], a = i, i = o;
 	return Math.sin(t) * o;
 }
 //#endregion
-//#region node_modules/proj4/lib/common/cosh.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/cosh.js
 function hs(e) {
 	var t = Math.exp(e);
 	return t = (t + 1 / t) / 2, t;
 }
 //#endregion
-//#region node_modules/proj4/lib/common/clens_cmplx.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/clens_cmplx.js
 function gs(e, t, n) {
 	for (var r = Math.sin(t), i = Math.cos(t), a = ls(n), o = hs(n), s = 2 * i * o, c = -2 * r * a, l = e.length - 1, u = e[l], d = 0, f = 0, p = 0, m, h; --l >= 0;) m = f, h = d, f = u, d = p, u = -m + s * f - c * d + e[l], p = -h + c * f + s * d;
 	return s = r * o, c = i * a, [s * u - c * p, s * p + c * u];
 }
 //#endregion
-//#region node_modules/proj4/lib/projections/etmerc.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/etmerc.js
 function _s() {
 	if (!this.approx && (isNaN(this.es) || this.es <= 0)) throw Error("Incorrect elliptical usage. Try using the +approx option in the proj string, or PROJECTION[\"Fast_Transverse_Mercator\"] in the WKT.");
 	this.approx && (cs.init.apply(this), this.forward = cs.forward, this.inverse = cs.inverse), this.x0 = this.x0 === void 0 ? 0 : this.x0, this.y0 = this.y0 === void 0 ? 0 : this.y0, this.long0 = this.long0 === void 0 ? 0 : this.long0, this.lat0 = this.lat0 === void 0 ? 0 : this.lat0, this.k0 = this.k0 === void 0 ? 1 : this.k0, this.cgb = [], this.cbg = [], this.utg = [], this.gtu = [];
@@ -6558,7 +6558,7 @@ var bs = {
 	]
 };
 //#endregion
-//#region node_modules/proj4/lib/common/adjust_zone.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/adjust_zone.js
 function xs(e, t) {
 	if (e === void 0) {
 		if (e = Math.floor((F(t) + Math.PI) * 30 / Math.PI) + 1, e < 0) return 0;
@@ -6567,7 +6567,7 @@ function xs(e, t) {
 	return e;
 }
 //#endregion
-//#region node_modules/proj4/lib/projections/utm.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/utm.js
 var Ss = "etmerc";
 function Cs() {
 	var e = xs(this.zone, this.long0);
@@ -6580,12 +6580,12 @@ var ws = {
 	dependsOn: Ss
 };
 //#endregion
-//#region node_modules/proj4/lib/common/srat.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/srat.js
 function Ts(e, t) {
 	return ((1 - e) / (1 + e)) ** t;
 }
 //#endregion
-//#region node_modules/proj4/lib/projections/gauss.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/gauss.js
 var Es = 20;
 function Ds() {
 	var e = Math.sin(this.lat0), t = Math.cos(this.lat0);
@@ -6606,7 +6606,7 @@ var As = {
 	names: ["gauss"]
 };
 //#endregion
-//#region node_modules/proj4/lib/projections/sterea.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/sterea.js
 function js() {
 	As.init.apply(this), this.rc && (this.sinc0 = Math.sin(this.phic0), this.cosc0 = Math.cos(this.phic0), this.R2 = 2 * this.rc, this.title ||= "Oblique Stereographic Alternative");
 }
@@ -6635,7 +6635,7 @@ var Ps = {
 	]
 };
 //#endregion
-//#region node_modules/proj4/lib/projections/stere.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/stere.js
 function Fs(e, t, n) {
 	return t *= n, Math.tan(.5 * (A + e)) * ((1 - t) / (1 + t)) ** (.5 * n);
 }
@@ -6672,7 +6672,7 @@ var zs = {
 	ssfn_: Fs
 };
 //#endregion
-//#region node_modules/proj4/lib/projections/somerc.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/somerc.js
 function Bs() {
 	this.k0 ||= 1;
 	var e = this.lat0;
@@ -6752,7 +6752,7 @@ var Ys = {
 	]
 };
 //#endregion
-//#region node_modules/proj4/lib/projections/lcc.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/lcc.js
 function Xs() {
 	if (this.lat2 ||= this.lat1, this.k0 ||= 1, this.x0 = this.x0 || 0, this.y0 = this.y0 || 0, this.long0 = this.long0 || 0, !(Math.abs(this.lat1 + this.lat2) < 1e-10)) {
 		var e = this.b / this.a;
@@ -6797,7 +6797,7 @@ var $s = {
 	]
 };
 //#endregion
-//#region node_modules/proj4/lib/projections/krovak.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/krovak.js
 function ec() {
 	this.a = 6377397.155, this.es = .006674372230614, this.e = Math.sqrt(this.es), this.lat0 ||= .863937979737193, this.long0 ||= .4334234309119251, this.k0 ||= .9999, this.s45 = .785398163397448, this.s90 = 2 * this.s45, this.fi0 = this.lat0, this.e2 = this.es, this.e = Math.sqrt(this.e2), this.alfa = Math.sqrt(1 + this.e2 * Math.cos(this.fi0) ** 4 / (1 - this.e2)), this.uq = 1.04216856380474, this.u0 = Math.asin(Math.sin(this.fi0) / this.alfa), this.g = ((1 + this.e * Math.sin(this.fi0)) / (1 - this.e * Math.sin(this.fi0))) ** (this.alfa * this.e / 2), this.k = Math.tan(this.u0 / 2 + this.s45) / Math.tan(this.fi0 / 2 + this.s45) ** +this.alfa * this.g, this.k1 = this.k0, this.n0 = this.a * Math.sqrt(1 - this.e2) / (1 - this.e2 * Math.sin(this.fi0) ** 2), this.s0 = 1.37008346281555, this.n = Math.sin(this.s0), this.ro0 = this.k1 * this.n0 / Math.tan(this.s0), this.ad = this.s90 - this.uq;
 }
@@ -6827,49 +6827,49 @@ var rc = {
 	]
 };
 //#endregion
-//#region node_modules/proj4/lib/common/mlfn.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/mlfn.js
 function ic(e, t, n, r, i) {
 	return e * i - t * Math.sin(2 * i) + n * Math.sin(4 * i) - r * Math.sin(6 * i);
 }
 //#endregion
-//#region node_modules/proj4/lib/common/e0fn.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/e0fn.js
 function ac(e) {
 	return 1 - .25 * e * (1 + e / 16 * (3 + 1.25 * e));
 }
 //#endregion
-//#region node_modules/proj4/lib/common/e1fn.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/e1fn.js
 function oc(e) {
 	return .375 * e * (1 + .25 * e * (1 + .46875 * e));
 }
 //#endregion
-//#region node_modules/proj4/lib/common/e2fn.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/e2fn.js
 function sc(e) {
 	return .05859375 * e * e * (1 + .75 * e);
 }
 //#endregion
-//#region node_modules/proj4/lib/common/e3fn.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/e3fn.js
 function cc(e) {
 	return e * e * e * (35 / 3072);
 }
 //#endregion
-//#region node_modules/proj4/lib/common/gN.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/gN.js
 function lc(e, t, n) {
 	var r = t * n;
 	return e / Math.sqrt(1 - r * r);
 }
 //#endregion
-//#region node_modules/proj4/lib/common/adjust_lat.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/adjust_lat.js
 function uc(e) {
 	return Math.abs(e) < A ? e : e - aa(e) * Math.PI;
 }
 //#endregion
-//#region node_modules/proj4/lib/common/imlfn.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/imlfn.js
 function dc(e, t, n, r, i) {
 	for (var a = e / t, o, s = 0; s < 15; s++) if (o = (e - (t * a - n * Math.sin(2 * a) + r * Math.sin(4 * a) - i * Math.sin(6 * a))) / (t - 2 * n * Math.cos(2 * a) + 4 * r * Math.cos(4 * a) - 6 * i * Math.cos(6 * a)), a += o, Math.abs(o) <= 1e-10) return a;
 	return NaN;
 }
 //#endregion
-//#region node_modules/proj4/lib/projections/cass.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/cass.js
 function fc() {
 	this.sphere || (this.e0 = ac(this.es), this.e1 = oc(this.es), this.e2 = sc(this.es), this.e3 = cc(this.es), this.ml0 = this.a * ic(this.e0, this.e1, this.e2, this.e3, this.lat0));
 }
@@ -6907,20 +6907,20 @@ var hc = {
 	]
 };
 //#endregion
-//#region node_modules/proj4/lib/common/qsfnz.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/qsfnz.js
 function gc(e, t) {
 	var n;
 	return e > 1e-7 ? (n = e * t, (1 - e * e) * (t / (1 - n * n) - .5 / e * Math.log((1 - n) / (1 + n)))) : 2 * t;
 }
 //#endregion
-//#region node_modules/proj4/lib/common/authset.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/authset.js
 var _c = .3333333333333333, vc = .17222222222222222, yc = .10257936507936508, bc = .06388888888888888, xc = .0664021164021164, Sc = .016415012942191543;
 function Cc(e) {
 	var t, n = [];
 	return n[0] = e * _c, t = e * e, n[0] += t * vc, n[1] = t * bc, t *= e, n[0] += t * yc, n[1] += t * xc, n[2] = t * Sc, n;
 }
 //#endregion
-//#region node_modules/proj4/lib/common/authlat.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/authlat.js
 function wc(e, t) {
 	var n = e + e;
 	return e + t[0] * Math.sin(n) + t[1] * Math.sin(n + n) + t[2] * Math.sin(n + n + n);
@@ -7032,12 +7032,12 @@ var Oc = {
 	OBLIQ: 4
 };
 //#endregion
-//#region node_modules/proj4/lib/common/asinz.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/asinz.js
 function kc(e) {
 	return Math.abs(e) > 1 && (e = e > 1 ? 1 : -1), Math.asin(e);
 }
 //#endregion
-//#region node_modules/proj4/lib/projections/aea.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/aea.js
 function Ac() {
 	Math.abs(this.lat1 + this.lat2) < 1e-10 || (this.temp = this.b / this.a, this.es = 1 - this.temp ** 2, this.e3 = Math.sqrt(this.es), this.sin_po = Math.sin(this.lat1), this.cos_po = Math.cos(this.lat1), this.t1 = this.sin_po, this.con = this.sin_po, this.ms1 = ia(this.e3, this.sin_po, this.cos_po), this.qs1 = gc(this.e3, this.sin_po), this.sin_po = Math.sin(this.lat2), this.cos_po = Math.cos(this.lat2), this.t2 = this.sin_po, this.ms2 = ia(this.e3, this.sin_po, this.cos_po), this.qs2 = gc(this.e3, this.sin_po), this.sin_po = Math.sin(this.lat0), this.cos_po = Math.cos(this.lat0), this.t3 = this.sin_po, this.qs0 = gc(this.e3, this.sin_po), Math.abs(this.lat1 - this.lat2) > 1e-10 ? this.ns0 = (this.ms1 * this.ms1 - this.ms2 * this.ms2) / (this.qs2 - this.qs1) : this.ns0 = this.con, this.c = this.ms1 * this.ms1 + this.ns0 * this.qs1, this.rh = this.a * Math.sqrt(this.c - this.ns0 * this.qs0) / this.ns0);
 }
@@ -7070,7 +7070,7 @@ var Pc = {
 	phi1z: Nc
 };
 //#endregion
-//#region node_modules/proj4/lib/projections/gnom.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/gnom.js
 function Fc() {
 	this.sin_p14 = Math.sin(this.lat0), this.cos_p14 = Math.cos(this.lat0), this.infinity_dist = 1e3 * this.a, this.rc = 1;
 }
@@ -7089,7 +7089,7 @@ var Rc = {
 	names: ["gnom"]
 };
 //#endregion
-//#region node_modules/proj4/lib/common/iqsfnz.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/iqsfnz.js
 function zc(e, t) {
 	var n = 1 - (1 - e * e) / (2 * e) * Math.log((1 - e) / (1 + e));
 	if (Math.abs(Math.abs(t) - n) < 1e-6) return t < 0 ? -1 * A : A;
@@ -7097,7 +7097,7 @@ function zc(e, t) {
 	return NaN;
 }
 //#endregion
-//#region node_modules/proj4/lib/projections/cea.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/cea.js
 function Bc() {
 	this.sphere || (this.k0 = ia(this.e, Math.sin(this.lat_ts), Math.cos(this.lat_ts)));
 }
@@ -7122,7 +7122,7 @@ var Uc = {
 	names: ["cea"]
 };
 //#endregion
-//#region node_modules/proj4/lib/projections/eqc.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/eqc.js
 function Wc() {
 	this.x0 = this.x0 || 0, this.y0 = this.y0 || 0, this.lat0 = this.lat0 || 0, this.long0 = this.long0 || 0, this.lat_ts = this.lat_ts || 0, this.title = this.title || "Equidistant Cylindrical (Plate Carre)", this.rc = Math.cos(this.lat_ts);
 }
@@ -7227,7 +7227,7 @@ var nl = {
 	iterations: 1
 };
 //#endregion
-//#region node_modules/proj4/lib/projections/mill.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/mill.js
 function rl() {}
 function il(e) {
 	var t = e.x, n = e.y, r = F(t - this.long0, this.over), i = this.x0 + this.a * r, a = this.y0 + this.a * Math.log(Math.tan(Math.PI / 4 + n / 2.5)) * 1.25;
@@ -7273,7 +7273,7 @@ var dl = {
 	names: ["Sinusoidal", "sinu"]
 };
 //#endregion
-//#region node_modules/proj4/lib/projections/eck6.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/eck6.js
 function fl() {
 	this.sphere = !0, this.b = this.a, this.m = 1, this.n = 2.5707963267948966, this.es = 0, this.C_y = Math.sqrt((this.m + 1) / this.n), this.C_x = this.C_y / (this.m + 1);
 }
@@ -7284,7 +7284,7 @@ var pl = {
 	names: ["Eckert_VI", "eck6"]
 };
 //#endregion
-//#region node_modules/proj4/lib/projections/moll.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/moll.js
 function ml() {
 	this.x0 = this.x0 === void 0 ? 0 : this.x0, this.y0 = this.y0 === void 0 ? 0 : this.y0, this.long0 = this.long0 === void 0 ? 0 : this.long0;
 }
@@ -7312,7 +7312,7 @@ var _l = {
 	names: ["Mollweide", "moll"]
 };
 //#endregion
-//#region node_modules/proj4/lib/projections/eqdc.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/eqdc.js
 function vl() {
 	Math.abs(this.lat1 + this.lat2) < 1e-10 || (this.lat2 = this.lat2 || this.lat1, this.temp = this.b / this.a, this.es = 1 - this.temp ** 2, this.e = Math.sqrt(this.es), this.e0 = ac(this.es), this.e1 = oc(this.es), this.e2 = sc(this.es), this.e3 = cc(this.es), this.sin_phi = Math.sin(this.lat1), this.cos_phi = Math.cos(this.lat1), this.ms1 = ia(this.e, this.sin_phi, this.cos_phi), this.ml1 = ic(this.e0, this.e1, this.e2, this.e3, this.lat1), Math.abs(this.lat1 - this.lat2) < 1e-10 ? this.ns = this.sin_phi : (this.sin_phi = Math.sin(this.lat2), this.cos_phi = Math.cos(this.lat2), this.ms2 = ia(this.e, this.sin_phi, this.cos_phi), this.ml2 = ic(this.e0, this.e1, this.e2, this.e3, this.lat2), this.ns = (this.ms1 - this.ms2) / (this.ml2 - this.ml1)), this.g = this.ml1 + this.ms1 / this.ns, this.ml0 = ic(this.e0, this.e1, this.e2, this.e3, this.lat0), this.rh = this.a * (this.g - this.ml0));
 }
@@ -7340,7 +7340,7 @@ var xl = {
 	names: ["Equidistant_Conic", "eqdc"]
 };
 //#endregion
-//#region node_modules/proj4/lib/projections/vandg.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/vandg.js
 function Sl() {
 	this.R = this.a;
 }
@@ -7370,7 +7370,7 @@ var Tl = {
 	]
 };
 //#endregion
-//#region node_modules/proj4/lib/common/vincenty.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/vincenty.js
 function El(e, t, n, r, i, a) {
 	let o = r - t, s = Math.atan((1 - a) * Math.tan(e)), c = Math.atan((1 - a) * Math.tan(n)), l = Math.sin(s), u = Math.cos(s), d = Math.sin(c), f = Math.cos(c), p = o, m, h = 100, g, _, v, y, b, x, S, C, ee, w, te, ne, re, ie;
 	do {
@@ -7404,7 +7404,7 @@ function Dl(e, t, n, r, i, a) {
 	};
 }
 //#endregion
-//#region node_modules/proj4/lib/projections/aeqd.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/aeqd.js
 function Ol() {
 	this.sin_p12 = Math.sin(this.lat0), this.cos_p12 = Math.cos(this.lat0), this.x0 = this.x0 || 0, this.y0 = this.y0 || 0, this.long0 = this.long0 || 0, this.f = this.es / (1 + Math.sqrt(1 - this.es));
 }
@@ -7424,7 +7424,7 @@ var jl = {
 	names: ["Azimuthal_Equidistant", "aeqd"]
 };
 //#endregion
-//#region node_modules/proj4/lib/projections/ortho.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/ortho.js
 function Ml() {
 	this.sin_p14 = Math.sin(this.lat0 || 0), this.cos_p14 = Math.cos(this.lat0 || 0);
 }
@@ -7783,7 +7783,7 @@ var tu = {
 	names: ["Robinson", "robin"]
 };
 //#endregion
-//#region node_modules/proj4/lib/projections/geocent.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/geocent.js
 function nu() {
 	this.name = "geocent";
 }
@@ -7913,7 +7913,7 @@ var uu = {
 	names: ["Tilted_Perspective", "tpers"]
 };
 //#endregion
-//#region node_modules/proj4/lib/projections/geos.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/geos.js
 function du() {
 	if (this.flip_axis = +(this.sweep === "x"), this.h = Number(this.h), this.radius_g_1 = this.h / this.a, this.radius_g_1 <= 0 || this.radius_g_1 > 1e10) throw Error();
 	if (this.radius_g = 1 + this.radius_g_1, this.C = this.radius_g * this.radius_g - 1, this.es !== 0) {
@@ -8136,12 +8136,12 @@ var Vu = {
 	]
 };
 //#endregion
-//#region node_modules/proj4/projs.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/projs.js
 function Hu(e) {
 	e.Proj.projections.add(cs), e.Proj.projections.add(bs), e.Proj.projections.add(ws), e.Proj.projections.add(Ps), e.Proj.projections.add(zs), e.Proj.projections.add(Us), e.Proj.projections.add(Ys), e.Proj.projections.add($s), e.Proj.projections.add(rc), e.Proj.projections.add(hc), e.Proj.projections.add(Oc), e.Proj.projections.add(Pc), e.Proj.projections.add(Rc), e.Proj.projections.add(Uc), e.Proj.projections.add(qc), e.Proj.projections.add(Qc), e.Proj.projections.add(nl), e.Proj.projections.add(ol), e.Proj.projections.add(dl), e.Proj.projections.add(pl), e.Proj.projections.add(_l), e.Proj.projections.add(xl), e.Proj.projections.add(Tl), e.Proj.projections.add(jl), e.Proj.projections.add(Fl), e.Proj.projections.add(Vl), e.Proj.projections.add(tu), e.Proj.projections.add(au), e.Proj.projections.add(uu), e.Proj.projections.add(mu), e.Proj.projections.add(Cu), e.Proj.projections.add(Au), e.Proj.projections.add(Vu);
 }
 //#endregion
-//#region node_modules/proj4/lib/index.js
+//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/index.js
 var Uu = Object.assign(go, {
 	defaultDatum: "WGS84",
 	Proj: Ka,
@@ -8156,7 +8156,7 @@ var Uu = Object.assign(go, {
 });
 Hu(Uu);
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/geometry/project.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/geometry/project.js
 var Wu = /* @__PURE__ */ new Set([
 	3857,
 	3785,
@@ -8195,7 +8195,7 @@ function Yu(e, t) {
 	return Ju(e, t, "EPSG:4326");
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/style/specification.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/style/specification.js
 function Xu(e) {
 	return e.type.startsWith("honua-");
 }
@@ -8406,7 +8406,7 @@ function sd(e, t) {
 	return new ed(`Tool "${t}" failed with no structured error detail.`, "unknown", t, e);
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/runtime/errors.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/runtime/errors.js
 var cd = class extends a {
 	packageId;
 	stage;
@@ -8491,7 +8491,7 @@ function _d(e, t) {
 	return n;
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/runtime/ogc-styles.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/runtime/ogc-styles.js
 function vd(e, t) {
 	let n = md(t);
 	if (n) return Object.fromEntries(n.map((t) => {
@@ -8515,7 +8515,7 @@ function yd(e) {
 	return e.paint !== void 0 && (t.paint = e.paint, n = !0), e.layout !== void 0 && (t.layout = e.layout, n = !0), e.minzoom !== void 0 && (t.minzoom = e.minzoom, n = !0), e.maxzoom !== void 0 && (t.maxzoom = e.maxzoom, n = !0), e.filter !== void 0 && (t.filter = e.filter, n = !0), e.metadata !== void 0 && (t.metadata = e.metadata, n = !0), n ? t : void 0;
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/interactions/feature-state.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/interactions/feature-state.js
 function bd(e, t) {
 	let { source: n, layer: r, stateKey: i = "hover", sourceLayer: a, onHoverTargetChange: o } = t, s;
 	function c(...t) {
@@ -8606,7 +8606,7 @@ function xd(e, t) {
 	};
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/interactions/exploration-bindings.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/interactions/exploration-bindings.js
 function Sd(e) {
 	return {
 		setFilter(t, n) {
@@ -8637,7 +8637,7 @@ function wd(e) {
 	};
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/runtime/style-compose.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/runtime/style-compose.js
 async function Td(e, t, n) {
 	try {
 		let r = await Ed(t, e, n.resolveStyleRef), i = await Od(e, n.resolveTheme);
@@ -9567,7 +9567,7 @@ function pf(e, t) {
 	return typeof n == "string" && n.trim().length > 0 ? n.trim() : void 0;
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/core/auth/credential-store.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/auth/credential-store.js
 var mf = class {
 	entries = /* @__PURE__ */ new Map();
 	get(e) {
@@ -9581,7 +9581,7 @@ var mf = class {
 	}
 };
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/core/auth/pkce.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/auth/pkce.js
 function hf() {
 	let e = globalThis.crypto;
 	if (!e?.subtle) throw Error("WebCrypto (globalThis.crypto.subtle) is unavailable. OAuth2 PKCE requires a browser or Node.js >= 20.");
@@ -9608,7 +9608,7 @@ function yf() {
 	return _f(16);
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/core/auth/token-endpoint.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/auth/token-endpoint.js
 function bf(e) {
 	let t = {};
 	return e.tokenType && e.tokenType.toLowerCase() !== "bearer" ? t.authorization = `${e.tokenType} ${e.accessToken}` : t.bearerToken = e.accessToken, e.expiresAt !== void 0 && (t.expiresAt = e.expiresAt), t;
@@ -9664,7 +9664,7 @@ function Tf(e) {
 	return typeof e == "object" && !!e;
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/core/auth/oauth2-provider.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/auth/oauth2-provider.js
 var Ef = "honua.auth.txn", Df = class {
 	config;
 	store;
@@ -12932,7 +12932,7 @@ function uh(e = {}) {
 			ok: !1,
 			reason: "No fetch implementation is available to load widget data."
 		};
-		let { trustedSourceUrl: l, fetchAuthenticatedFeatureCollection: u } = await import("./authenticated-source-protocol-4yd8xX9l.js").then((e) => e.t), d = e.documentUrl ?? globalThis.document?.baseURI, f = {
+		let { trustedSourceUrl: l, fetchAuthenticatedFeatureCollection: u } = await import("./authenticated-source-protocol-aOw2HNbU.js").then((e) => e.t), d = e.documentUrl ?? globalThis.document?.baseURI, f = {
 			sourceBaseUrl: e.sourceAuthBaseUrl ?? e.baseUrl ?? "/api",
 			legacySourceBaseUrl: e.sourceCatalogBaseUrl ?? e.baseUrl ?? "/api",
 			documentUrl: d ?? "",
@@ -18908,7 +18908,7 @@ var u_ = {
 	#P() {
 		if (this.#x || this.#S) return this.#x;
 		this.#S = !0, Promise.all([
-			import("./chart-spec-DAVCygiU.js"),
+			import("./chart-spec-DrjXwtIF.js"),
 			import("./chart-data-f1eyBzQS.js"),
 			import("./chart-render-yr_0V0Zx.js")
 		]).then(([e, t, n]) => {
@@ -23258,7 +23258,7 @@ async function H_(e) {
 	return t.includes("json") ? e.json() : t.startsWith("text/") || t.includes("xml") ? e.text() : e.arrayBuffer();
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/file-hash.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/file-hash.js
 async function U_(e, t = {}) {
 	let n = t.chunkBytes ?? 1024 * 1024;
 	if (!Number.isSafeInteger(n) || n < 65536 || n > 8 * 1024 * 1024) throw RangeError("chunkBytes must be an integer between 64 KiB and 8 MiB.");
@@ -23418,7 +23418,7 @@ function Y_(e) {
 	})) throw TypeError("A bounded canonical identity is required.");
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/client.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/client.js
 var X_ = class {
 	workspaceId;
 	targetId;
@@ -23476,7 +23476,7 @@ function $_(e) {
 	return typeof e == "string" && e.length === 64 && /^[a-f0-9]{64}$/.test(e);
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/upload-client.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/upload-client.js
 var ev = 4 * 1024 * 1024, tv = 65536, nv = class {
 	transport;
 	constructor(e) {
@@ -23578,7 +23578,7 @@ function uv(e, t) {
 	return e == null || t == null ? e == null && t == null : e.bytes === t.bytes && e.sha256 === t.sha256 && (e.expiresAt ?? null) === (t.expiresAt ?? null);
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/submission-client.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/submission-client.js
 var dv = class {
 	transport;
 	constructor(e) {
@@ -24635,7 +24635,7 @@ function $v(e) {
 	return typeof e == "object" && !!e;
 }
 var ey = async (e) => {
-	let [t, n] = await Promise.all([import("./maplibre-gl-D8l5aSvm.js"), import("./maplibre-gl-worker-CTQMWz0X.js")]), r = t.default ?? t, i = r.setWorkerUrl;
+	let [t, n] = await Promise.all([import("./maplibre-gl-DuhfdD2r.js"), import("./maplibre-gl-worker-DHDH4ZWE.js")]), r = t.default ?? t, i = r.setWorkerUrl;
 	typeof i == "function" && i(n.default);
 	let a = r.Map;
 	if (typeof a != "function") throw Error("maplibre-gl did not export a Map constructor.");
@@ -25455,7 +25455,7 @@ async function hy(e) {
 	return await r, n;
 }
 //#endregion
-//#region node_modules/@honua/sdk-js/dist/src/interactions/declarative.js
+//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/interactions/declarative.js
 var gy = {
 	bindings: [],
 	disabled: []

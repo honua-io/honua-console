@@ -67,6 +67,21 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'agent-reflection',
+      testMatch: /agent-reflection\.live\.spec\.ts/,
+      retries: 0,
+      timeout: 600_000,
+      use: { ...devices['Desktop Chrome'], baseURL: process.env.HONUA_REFLECTION_CONSOLE_URL,
+        storageState: { cookies: [], origins: [] }, trace: 'off', video: 'off', screenshot: 'off' },
+    },
+    {
+      name: 'studio-customer',
+      testMatch: /studio-customer-journey\.live\.spec\.ts/,
+      retries: 0,
+      timeout: 600_000,
+      use: { ...devices['Desktop Chrome'], storageState: { cookies: [], origins: [] }, trace: 'off', video: 'off', screenshot: 'off' },
+    },
+    {
       name: 'setup',
       testDir: './live',
       testMatch: /operator-session\.setup\.ts/,
@@ -77,6 +92,7 @@ export default defineConfig({
     },
     {
       name: 'chromium',
+      testIgnore: /(?:studio-customer-journey|agent-reflection)\.live\.spec\.ts/,
       testDir: './live/specs',
       dependencies: ['setup'],
       use: {
@@ -85,7 +101,7 @@ export default defineConfig({
       },
     },
   ],
-  webServer: {
+  webServer: process.env.HONUA_CONSOLE_E2E_CONSOLE_IMAGE ? undefined : {
     command: `dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls ${BASE_URL}`,
     cwd: REPO_ROOT,
     url: `${BASE_URL}/version.json`,
@@ -100,10 +116,9 @@ export default defineConfig({
       // HONUA_CONSOLE_E2E_ADMIN_KEY itself for the independent verifier. An empty value
       // overrides a leaked parent HONUA_ADMIN_API_KEY, and the Console treats it as no key.
       HONUA_ADMIN_API_KEY: '',
-      // The Console's non-realtime Studio builder surfaces are SHELVED (gated off by default behind
-      // the studio-builders capability) in favour of the realtime SDK-driven Studio. These lanes still
-      // certify those builders, so advertise the capability for the browser under test.
-      HONUA_CONSOLE_CAPABILITIES: 'studio-builders',
+      // Exercise the canonical embedded Studio workspace.
+      HONUA_CONSOLE_CAPABILITIES: '',
+      Studio__EmbedJsStudio: 'true',
       // Normal runs exercise the focused full Console. A zero-to-map receipt run defaults to
       // witness mode unless the caller explicitly selects another mode.
       HONUA_CONSOLE_MODE:

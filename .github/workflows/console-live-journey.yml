@@ -1,4 +1,5 @@
 name: Console Live Publish Journey
+run-name: Console live ${{ inputs.suite || 'nightly' }} ${{ inputs.dispatch_id || github.run_id }}
 
 on:
   schedule:
@@ -9,10 +10,22 @@ on:
         description: 'Optional immutable honua-server image@sha256 digest for diagnostic replay'
         required: false
         type: string
+      console_image:
+        description: 'Immutable Console GHCR digest; empty builds the checked-out PR image'
+        required: false
+        type: string
+      executor_image:
+        description: 'Immutable matching Compose executor digest for release replay; empty builds from the selected server image'
+        required: false
+        type: string
+      dispatch_id:
+        description: 'Unique release gate correlation ID'
+        required: false
+        type: string
       suite:
         description: 'Publish journey or the complete authenticated live suite'
         type: choice
-        options: [publish-query, full]
+        options: [publish-query, studio-customer, full]
         default: publish-query
   pull_request:
     paths:
@@ -20,18 +33,30 @@ on:
       - 'e2e/docker-compose*.yml'
       - 'e2e/playwright/live-auth/**'
       - 'e2e/initdb/**'
+      - 'e2e/agent-reflection/**'
       - 'e2e/playwright/live/**'
       - 'e2e/playwright/playwright.live.config.ts'
+      - 'e2e/playwright/package*.json'
+      - 'e2e/run-live.mjs'
+      - 'scripts/require-live-server-image.mjs'
+      - 'scripts/studio-customer-identity.mjs'
+      - 'scripts/agent-mcp-client.mjs'
+      - 'scripts/agent-customer-journey.mjs'
+      - 'src/Honua.Console.Web/**'
+      - 'src/Honua.Console.Shell/**'
+      - 'src/Honua.Console.Contracts/**'
+      - 'Dockerfile'
 
 permissions:
   contents: read
 
 concurrency:
-  group: console-live-journey-${{ github.ref }}
+  group: console-live-journey-${{ inputs.dispatch_id || github.ref }}
   cancel-in-progress: true
 
 jobs:
   publish-query:
+    if: ${{ inputs.suite != 'studio-customer' }}
     name: Publish and query through a real server
     runs-on: ubuntu-latest
     # The publish journey finishes well inside 30 minutes. The complete authenticated suite runs
@@ -42,7 +67,7 @@ jobs:
       CI: 'true'
       HONUA_CONSOLE_E2E_OIDC: 'true'
       HONUA_CONSOLE_E2E_LIVE_PORT: '5274'
-      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image || vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-aot' }}
+      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image || vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-a5e593b@sha256:30205b99536ee81165960f39e44895aaa322dc8729498ca0ff536275b316353c' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -53,6 +78,8 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 20.x
+      - name: Require an immutable server image
+        run: node scripts/require-live-server-image.mjs
       - name: Restore Console anonymously from public sources
         run: dotnet restore Honua.Console.slnx --configfile NuGet.config --no-cache --locked-mode
       - name: Install browser dependencies
@@ -60,16 +87,6 @@ jobs:
         run: |
           npm ci
           npx --no-install playwright install --with-deps chromium
-      - name: Validate explicit diagnostic image
-        env:
-          REQUESTED_IMAGE: ${{ inputs.server_image }}
-        run: |
-          python3 - <<'PY'
-          import os, re
-          requested = os.environ['REQUESTED_IMAGE']
-          if requested and not re.fullmatch(r'ghcr\.io/honua-io/honua-server(?::[A-Za-z0-9_.-]+)?@sha256:[0-9a-f]{64}', requested):
-              raise SystemExit('Explicit replay image must be an immutable honua-server GHCR digest')
-          PY
       - name: Start authenticated server and seeded PostGIS
         run: |
           mkdir -p e2e/playwright/live-auth/certs
@@ -135,4 +152,146 @@ jobs:
           name: console-live-publish-journey
           path: |
             artifacts/live-journey/
+            e2e/playwright/test-results/
+
+  studio-customer:
+    name: Studio customer journey on real images
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.suite == 'studio-customer' || inputs.suite == 'full' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: 'true'
+      COMPOSE_PROJECT_NAME: studio-customer
+      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image || vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-a5e593b@sha256:30205b99536ee81165960f39e44895aaa322dc8729498ca0ff536275b316353c' }}
+      HONUA_CONSOLE_E2E_CONSOLE_IMAGE: ${{ inputs.console_image || 'honua-console:customer-pr' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        if: ${{ !inputs.console_image }}
+        with:
+          global-json-file: src/Honua.Console.Web/global.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.x
+      - name: Validate immutable replay inputs
+        env:
+          CONSOLE_IMAGE: ${{ inputs.console_image }}
+          SERVER_IMAGE: ${{ inputs.server_image }}
+        run: |
+          node scripts/require-live-server-image.mjs
+          python3 - <<'PYTHON'
+          import os, re
+          for component in ('console', 'server'):
+              value = os.environ[component.upper() + '_IMAGE']
+              if value and not re.fullmatch(r'ghcr\.io/honua-io/honua-' + component + r'(?::[A-Za-z0-9_.-]+)?@sha256:[0-9a-f]{64}', value):
+                  raise SystemExit('Replay requires immutable Honua GHCR digests')
+          if os.environ['CONSOLE_IMAGE'] and not os.environ['SERVER_IMAGE']:
+              raise SystemExit('Console replay also requires a pinned server digest')
+          PYTHON
+      - name: Build the PR Console image
+        if: ${{ !inputs.console_image }}
+        run: |
+          cp src/Honua.Console.Web/global.json global.json
+          dotnet restore src/Honua.Console.Web/Honua.Console.Web.csproj --configfile NuGet.config --no-cache --locked-mode
+          dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore -p:HonuaConsoleCommitSha="$GITHUB_SHA"
+          docker build --build-arg HONUA_CONSOLE_COMMIT_SHA="$GITHUB_SHA" --build-arg HONUA_CONSOLE_REF="$GITHUB_REF" -t "$HONUA_CONSOLE_E2E_CONSOLE_IMAGE" .
+      - name: Install Chromium and axe
+        working-directory: e2e/playwright
+        run: |
+          npm ci
+          npx --no-install playwright install --with-deps chromium
+      - name: Start real customer testbed
+        run: |
+          mkdir -p e2e/playwright/live-auth/certs artifacts/studio-customer
+          bash e2e/playwright/live-auth/gen-certs.sh
+          sudo chown 1000:0 e2e/playwright/live-auth/certs/kc.key
+          sudo chmod 640 e2e/playwright/live-auth/certs/kc.key
+          if [ "$HONUA_CONSOLE_E2E_CONSOLE_IMAGE" != honua-console:customer-pr ]; then
+            docker pull "$HONUA_CONSOLE_E2E_CONSOLE_IMAGE"
+          fi
+          docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml -f e2e/docker-compose.studio-customer.yml up -d --wait --wait-timeout 300
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:5274/version.json > /dev/null; then break; fi
+            sleep 2
+          done
+          for attempt in {1..60}; do
+            if curl --insecure --fail --silent https://127.0.0.1:8443/realms/honua/.well-known/openid-configuration > /dev/null; then break; fi
+            sleep 2
+          done
+          curl --insecure --fail --silent https://127.0.0.1:8443/realms/honua/.well-known/openid-configuration > /dev/null
+          curl --fail --silent http://127.0.0.1:5274/version.json > artifacts/studio-customer/console-version.json
+          node scripts/studio-customer-identity.mjs
+      - name: Exercise the customer journey without mocks or skips
+        working-directory: e2e/playwright
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ../../artifacts/studio-customer/playwright-results.json
+        run: npm run e2e:live -- --project=studio-customer --reporter=list,json
+      - name: Retain customer evidence
+        if: always()
+        run: |
+          mkdir -p artifacts/studio-customer
+          docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml -f e2e/docker-compose.studio-customer.yml logs --no-color > artifacts/studio-customer/containers.log
+      - name: Stop isolated customer testbed
+        if: always()
+        run: docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml -f e2e/docker-compose.studio-customer.yml down -v
+      - name: Resolve the selected server revision
+        id: agent-server
+        if: ${{ always() && !cancelled() }}
+        run: |
+          docker pull "$HONUA_CONSOLE_E2E_SERVER_IMAGE" >/dev/null
+          revision="$(docker image inspect "$HONUA_CONSOLE_E2E_SERVER_IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]] || { echo 'Server image has no immutable source revision'; exit 1; }
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+      - name: Check out the server at the image revision
+        if: ${{ always() && steps.agent-server.outcome == 'success' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: honua-io/honua-server
+          ref: ${{ steps.agent-server.outputs.revision }}
+          path: e2e/server-source
+          fetch-depth: 0
+      - name: Select the matching quickstart executor
+        id: agent-executor
+        if: ${{ always() && steps.agent-server.outcome == 'success' }}
+        env:
+          REQUESTED_EXECUTOR: ${{ inputs.executor_image }}
+          SERVER_REVISION: ${{ steps.agent-server.outputs.revision }}
+        run: |
+          for required in 83e31529809df49204368f54737ac745792a8099 d4bf97a22ab2182730b2c155b09fdb7f3ba581cd 480ab6c80f4397be4211f46605e133c277412d66 e2cb5649ccea977a31a852e9a6761a82a17e5598 15707609be1fe4e29252390792dda3c35129bd28; do
+            git -C e2e/server-source merge-base --is-ancestor "$required" "$SERVER_REVISION" || { echo 'Server image predates a required agent operation'; exit 1; }
+          done
+          if [ -n "$REQUESTED_EXECUTOR" ]; then
+            [[ "$REQUESTED_EXECUTOR" =~ ^ghcr\.io/honua-io/honua-server(@sha256:[0-9a-f]{64})$ ]] || { echo 'Executor must be an immutable server-package digest'; exit 1; }
+            docker pull "$REQUESTED_EXECUTOR" >/dev/null
+            executor="$REQUESTED_EXECUTOR"
+          else
+            docker build -f e2e/server-source/docker/Dockerfile.compose-executor --build-arg "HONUA_SERVER_IMAGE=$HONUA_CONSOLE_E2E_SERVER_IMAGE" -t honua-agent-reflection-executor:local e2e/server-source
+            executor="$(docker image inspect honua-agent-reflection-executor:local --format '{{.Id}}')"
+          fi
+          [[ "$(docker image inspect "$executor" --format '{{index .Config.Labels "honua.runtime.profile"}}')" == compose-executor ]] || exit 1
+          [[ "$(docker image inspect "$executor" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" == "$SERVER_REVISION" ]] || { echo 'Executor and server revisions differ'; exit 1; }
+          echo "HONUA_REFLECTION_EXECUTOR_IMAGE=$executor" >> "$GITHUB_ENV"
+      - name: Set up Python for the quickstart
+        id: agent-python
+        if: ${{ always() && steps.agent-executor.outcome == 'success' }}
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Install quickstart test dependencies
+        id: agent-deps
+        if: ${{ always() && steps.agent-python.outcome == 'success' }}
+        run: python3 -m pip install --require-hashes -r e2e/agent-reflection/requirements.txt
+      - name: Exercise agent reflection on the customer quickstart
+        if: ${{ always() && steps.agent-deps.outcome == 'success' }}
+        run: python3 e2e/agent-reflection/run-quickstart.py run
+      - name: Stop the isolated quickstart
+        if: ${{ always() && steps.agent-deps.outcome == 'success' }}
+        run: python3 e2e/agent-reflection/run-quickstart.py clean
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: studio-customer-journey-evidence
+          if-no-files-found: error
+          path: |
+            artifacts/studio-customer/
             e2e/playwright/test-results/

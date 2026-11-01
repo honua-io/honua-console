@@ -4,6 +4,16 @@ import {readFile,readdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {resolve,join} from 'node:path';
 const root=resolve('src/Honua.Console.Web/wwwroot/_studio');
+test('bundled recipe key validates in current browser Unicode Sets mode',async()=>{
+    const bundle=await readFile(join(root,'console.js'),'utf8');
+    const tag=bundle.match(/<input\b[^>]*data-testid="recipe-package-key"[^>]*>/)?.[0];
+    assert.ok(tag,'embedded recipe key input is present');
+    const source=tag.match(/\bpattern="([^"]+)"/)?.[1];
+    assert.ok(source,'embedded recipe input declares its key constraint');
+    const pattern=new RegExp(`^(?:${source})$`,'v');
+    for(const key of ['map','map-1','map_a.b']) assert.equal(pattern.test(key),true,key);
+    for(const key of ['', 'two words','map/1']) assert.equal(pattern.test(key),false,key);
+});
 test('production Studio assets are complete and pinned to reviewed source bytes',async()=>{
     const manifest=JSON.parse(await readFile(join(root,'honua-studio-artifact.json'),'utf8'));
     assert.equal(manifest.schemaVersion,'honua.console.studio-artifact.v1');

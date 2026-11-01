@@ -4,6 +4,7 @@ import { captureWorkspaceFollow, queueWorkspaceFollow } from './workspace-follow
 import { selectedResource, studioResourceRefs } from './agent-workspace.mjs';
 import { mountStudioVersionControls } from './studio-version-controls.mjs';
 import { mountStudioStyleControls } from './studio-style-controls.mjs';
+import { mountStudioLayerPicker } from './studio-layer-picker.mjs';
 import { captureStudioDesignFocus } from './studio-design-focus.mjs';
 let assets;
 let element;
@@ -130,6 +131,8 @@ async function mount() {
         createApp.workspaceVersionControls = mountStudioVersionControls({ app:createApp, host, status });
         createApp.workspaceStyleControls?.dispose();
         createApp.workspaceStyleControls = mountStudioStyleControls({ app:createApp, host, status });
+        createApp.workspaceLayerPicker?.dispose();
+        createApp.workspaceLayerPicker = mountStudioLayerPicker({ app:createApp, host, status });
         const task = element.workspace?.context?.task;
         const draft = task?.kind === 'studio-composition' ? {draftId:task.id}
             : !task ? element.workspace?.agentSession?.sdkSession?.draft : undefined;

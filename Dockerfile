@@ -3,6 +3,8 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0.13@sha256:d5633778c754e89a386882eddf8d
 ARG HONUA_CONSOLE_COMMIT_SHA=unknown
 ARG HONUA_CONSOLE_REF=unknown
 
+LABEL org.opencontainers.image.revision=$HONUA_CONSOLE_COMMIT_SHA
+
 WORKDIR /app
 
 COPY --chown=app:app artifacts/honua-console-web/ ./
