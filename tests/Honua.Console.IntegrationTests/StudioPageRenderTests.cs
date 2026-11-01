@@ -50,6 +50,25 @@ public sealed class StudioPageRenderTests
     }
 
     [Fact]
+    public void InteractiveReadinessSurvivesNavigationFromRetiredRoute()
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?> { ["Studio:EmbedJsStudio"] = "true" }).Build());
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/studio/proof");
+        var page = context.Render<StudioPage>();
+        Assert.Single(page.FindAll("[data-legacy-studio-retired]"));
+
+        navigation.NavigateTo("/studio");
+        page.Render();
+
+        Assert.Single(page.FindAll("[data-studio-embed]"));
+        Assert.Single(page.FindAll("[data-studio-mount]"));
+        Assert.Empty(page.FindAll("[data-legacy-studio-retired]"));
+    }
+
+    [Fact]
     public void LegacyBuilderRoutesCannotBeResurrectedByCapability()
     {
         Type[] legacy = [typeof(StudioMapBuilderPage),typeof(StudioAppBuilderPage),typeof(StudioDashboardBuilderPage),

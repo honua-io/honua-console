@@ -48,7 +48,7 @@ else
     private bool _interactiveReady;
     protected override void OnAfterRender(bool firstRender)
     {
-        if (firstRender && EmbedEnabled && !IsRetiredRoute)
+        if (firstRender)
         {
             _interactiveReady = true;
             StateHasChanged();
