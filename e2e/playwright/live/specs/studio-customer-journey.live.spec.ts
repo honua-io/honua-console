@@ -131,6 +131,24 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
       }
     } finally { await verifier.dispose(); }
 
+    // Public map audiences must also have explicit read access to their underlying services.
+    // Grant only anonymous read through the customer's own settings UI, then verify server state.
+    const policyVerifier = await request.newContext({ baseURL: serverUrl,
+      extraHTTPHeaders: { 'X-API-Key': process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key' } });
+    try {
+      for (const item of services) {
+        await page.goto(`/operate/services/${encodeURIComponent(item.service)}/settings`);
+        await expect(page.locator('[data-service-loaded]')).toHaveAttribute('data-service-loaded', 'true');
+        await page.locator('[data-allow-anonymous]').check();
+        await page.locator('[data-save-access]').click();
+        await expect.poll(async () => {
+          const response = await policyVerifier.get(`/api/v1/admin/services/${encodeURIComponent(item.service)}/settings`);
+          if (!response.ok()) return false;
+          return (await response.json()).data?.accessPolicy?.allowAnonymous === true;
+        }, { timeout: 30_000 }).toBe(true);
+      }
+    } finally { await policyVerifier.dispose(); }
+
     await page.goto('/studio');
     await expect(page.locator('[data-studio-status]')).toContainText('Connected to');
     const packageKey = `customer-map-${nonce()}`;
