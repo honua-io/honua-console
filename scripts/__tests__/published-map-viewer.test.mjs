@@ -170,8 +170,10 @@ test('styles and layer metadata use the same current-reader transport with fixed
         assert.equal(call.init.method, 'GET');
     }
     await assert.rejects(transport.fetchRequest(`${style}?draft=true`), /unsupported data route/);
-    await assert.rejects(transport.fetchRequest(`${metadata}?f=json`), /unsupported data route/);
-    assert.equal(h.calls.length, 3);
+    assert.equal((await transport.fetchRequest(`${metadata}?f=json`)).status, 200);
+    for (const query of ['f=geojson', 'f=json&extra=1', 'f=json&f=json'])
+        await assert.rejects(transport.fetchRequest(`${metadata}?${query}`), /unsupported data route/);
+    assert.equal(h.calls.length, 4);
     h.viewer.dispose();
 });
 
