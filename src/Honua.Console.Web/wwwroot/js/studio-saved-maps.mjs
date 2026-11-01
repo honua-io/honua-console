@@ -39,17 +39,25 @@ export function mountStudioSavedMaps({ app, host, status }) {
         binding = authority(); auth = app.auth;
         browser = document.createElement('honua-studio-content-browser');
         browser.auth = auth;
-        browser.addEventListener('honua-studio-open-item', event => {
-            if (!current() || event.detail?.family !== 'map') return;
+        browser.addEventListener('honua-studio-open-item', async event => {
+            if (!current() || busy || event.detail?.family !== 'map') return;
             if (event.detail.draftId) { void attach(event.detail.draftId); return; }
             if (typeof event.detail.itemId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(event.detail.itemId)) return;
-            browser.hidden = true;
-            panel = document.createElement('honua-studio-lifecycle-panel');
-            panel.auth = auth; panel.itemId = event.detail.itemId;
-            panel.addEventListener('honua-studio-lifecycle-activity', activity => {
-                if (activity.detail?.kind === 'version-reopened') void attach(activity.detail.draftId);
-            });
-            section.append(panel);
+            const previous = app.workspaceDraftIdentity?.draftId;
+            busy = true;
+            try {
+                await app.prepareWorkspaceTurn();
+                if (!current() || app.workspaceDraftIdentity?.draftId !== previous || !browser?.isConnected) return;
+                browser.hidden = true;
+                panel = document.createElement('honua-studio-lifecycle-panel');
+                panel.auth = auth; panel.itemId = event.detail.itemId;
+                panel.addEventListener('honua-studio-lifecycle-activity', activity => {
+                    if (activity.detail?.kind === 'version-reopened') void attach(activity.detail.draftId);
+                });
+                section.append(panel);
+            } catch (error) {
+                if (current()) status.textContent = error instanceof Error ? error.message : 'The saved map could not be opened.';
+            } finally { busy = false; }
         });
         section.append(browser);
         toggle.textContent = 'Close saved maps'; toggle.setAttribute('aria-expanded', 'true');
