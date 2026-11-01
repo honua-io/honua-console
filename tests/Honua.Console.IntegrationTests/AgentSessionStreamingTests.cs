@@ -119,7 +119,7 @@ public sealed class AgentSessionStreamingTests
         builder.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([
             new ConsoleEnvironmentProfile { Id = "environment", ServerBaseUri = new Uri("https://upstream.test/") }
         ]));
-        builder.Services.AddSingleton<IConsoleOperatorBearerProvider, HumanBearer>();
+        builder.Services.AddSingleton<IConsoleOperatorBearerProvider>(new Bearer());
         builder.Services.AddScoped<IConsoleOperatorContext, ConsoleOperatorContext>();
         builder.Services.AddSingleton<IHttpClientFactory>(wire);
         builder.Services.AddSingleton<AgentMcpSessions>();
