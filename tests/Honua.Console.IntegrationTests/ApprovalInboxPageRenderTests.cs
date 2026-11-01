@@ -61,7 +61,10 @@ public sealed class ApprovalInboxPageRenderTests
             ConsoleProposalKind.Deploy, ConsoleProposalStatus.Submitted, null, ConsoleProposalRisk.Medium, DateTimeOffset.UtcNow));
         page.WaitForAssertion(() => Assert.Equal("Submitted", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status")), TimeSpan.FromSeconds(5));
         proposals.Complete("external-1");
-        page.WaitForAssertion(() => Assert.Equal("Succeeded", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status")), TimeSpan.FromSeconds(5));
+        page.WaitForAssertion(() => Assert.Equal("Completed", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status")), TimeSpan.FromSeconds(5));
+        var reads = proposals.DetailReads;
+        await Task.Delay(180);
+        Assert.Equal(reads, proposals.DetailReads);
     }
 
     [Fact]

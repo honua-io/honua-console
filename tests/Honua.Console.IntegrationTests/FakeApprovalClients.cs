@@ -31,6 +31,8 @@ public sealed class FakeConsoleProposalsClient : IConsoleProposalsClient
         ApproveForbidden = approveForbidden;
     }
 
+    public int DetailReads { get; private set; }
+
     public bool ApproveForbidden { get; set; }
 
     public List<string> Approved { get; } = [];
@@ -46,10 +48,13 @@ public sealed class FakeConsoleProposalsClient : IConsoleProposalsClient
                 _summaries.Values.OrderBy(p => p.ProposalId, StringComparer.Ordinal).ToArray()));
 
     public Task<OperateSectionResult<ConsoleProposalDetail>> GetAsync(
-        string proposalId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(_details.TryGetValue(proposalId, out var detail)
+        string proposalId, CancellationToken cancellationToken = default)
+    {
+        DetailReads++;
+        return Task.FromResult(_details.TryGetValue(proposalId, out var detail)
             ? OperateSectionResult<ConsoleProposalDetail>.Allowed(detail)
             : OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Missing, "Proposal not found."));
+    }
 
     public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
         string proposalId, CancellationToken cancellationToken = default)
@@ -87,8 +92,8 @@ public sealed class FakeConsoleProposalsClient : IConsoleProposalsClient
 
     public void Complete(string proposalId)
     {
-        _details[proposalId] = _details[proposalId] with { Status = ConsoleProposalStatus.Succeeded };
-        UpdateSummaryStatus(proposalId, ConsoleProposalStatus.Succeeded);
+        _details[proposalId] = _details[proposalId] with { Status = ConsoleProposalStatus.Completed };
+        UpdateSummaryStatus(proposalId, ConsoleProposalStatus.Completed);
     }
 
     public void RemoveFromQueue(string proposalId) => _summaries.Remove(proposalId);
