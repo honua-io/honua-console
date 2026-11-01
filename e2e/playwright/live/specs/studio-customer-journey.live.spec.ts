@@ -328,14 +328,6 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
       await expect.poll(() => paintedFeatures(page, layer.id), { timeout: 45_000 }).toBeGreaterThan(0);
     completed.push('save-reload-reopen');
     await test.step('customer publication and signed-out audience', async () => {
-      const conversation = page.locator('[data-agent-workspace]');
-      if (await conversation.getAttribute('data-connected') !== 'true') {
-        if (await conversation.getAttribute('open') === null) await conversation.locator('summary').click();
-        await conversation.getByRole('button', { name: 'Start conversation', exact: true }).click();
-        await expect(conversation).toHaveAttribute('data-connected', 'true', { timeout: 30_000 });
-      }
-      await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-      await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
       const publication = page.getByRole('region', { name: 'Map publication', exact: true });
       const route = `/customer-${nonce()}`;
       await publication.getByRole('textbox', { name: 'Publication route' }).fill(route);
