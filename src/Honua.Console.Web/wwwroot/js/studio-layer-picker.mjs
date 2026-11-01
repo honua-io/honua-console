@@ -56,7 +56,9 @@ export class StudioLayerPicker {
         const selected = this.choices.find(choice => choice.id === id);
         if (!selected) throw new Error('Choose a layer from the current authorized catalog.');
         const result = await this.app.addPublishedLayer({ serviceName: selected.serviceName,
-            layerId: selected.layerId, layerName: selected.title });
+            layerId: selected.layerId, layerName: selected.title }, { isCurrent: () => {
+                try { return this.capture() === binding; } catch { return false; }
+            } });
         this.assertCurrent(binding);
         if (!result?.ok) throw new Error(result?.reason || 'The layer could not be added to the map.');
     }

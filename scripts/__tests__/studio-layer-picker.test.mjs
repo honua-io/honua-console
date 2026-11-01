@@ -68,6 +68,18 @@ test('a late addition cannot report success after the customer changes maps', as
   await assert.rejects(pending, /changed/i);
 });
 
+test('the Studio mutation receives a guard that expires when its host view closes', async () => {
+  const { picker, app } = fixture();
+  await picker.list();
+  app.addPublishedLayer = async (_layer, options) => {
+    assert.equal(options.isCurrent(), true);
+    app.isConnected = false;
+    assert.equal(options.isCurrent(), false);
+    return { ok: false, reason: 'view changed' };
+  };
+  await assert.rejects(picker.add('roads'), /view changed/i);
+});
+
 test('only verified vector FeatureServer identities are selectable', async () => {
   const { picker, app, calls } = fixture();
   app.listRecipeSources = async () => [source,
@@ -76,5 +88,13 @@ test('only verified vector FeatureServer identities are selectable', async () =>
     { ...source, id: 'missing', locator: { url: '/other/path', layerId: 4 } }];
   assert.deepEqual((await picker.list()).map(value => value.id), ['roads']);
   await assert.rejects(picker.add('missing'), /refresh|choose/i);
+  assert.deepEqual(calls, []);
+});
+
+test('ambiguous catalog identities cannot be selected', async () => {
+  const { picker, app, calls } = fixture();
+  app.listRecipeSources = async () => [source, { ...source, title: 'Other' }];
+  await assert.rejects(picker.list(), /ambiguous/i);
+  await assert.rejects(picker.add('roads'), /refresh/i);
   assert.deepEqual(calls, []);
 });

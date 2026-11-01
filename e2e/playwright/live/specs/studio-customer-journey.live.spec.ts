@@ -120,6 +120,14 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     expect(ownerSubject, 'the server owner must be the actual IdP customer subject').toBe(customer.id);
     expect(first.createdBy).toBe(first.ownerId);
     expect(first.envelope.body.layers).toHaveLength(1);
+    expect(first.envelope.body.widgets).toEqual([
+      expect.objectContaining({ id: 'explore-table', kind: 'table', sourceId: source!.id }),
+    ]);
+    expect(first.envelope.body.controls).toEqual([
+      expect.objectContaining({ id: 'explore-category', kind: 'filterSelect', sourceId: source!.id }),
+    ]);
+    await expect(page.getByRole('region', { name: 'Composed widgets' }).getByRole('article')).toHaveCount(1);
+    await expect(page.getByRole('region', { name: 'Composed controls' }).getByRole('article')).toHaveCount(1);
     await expect.poll(() => paintedFeatures(page, first.envelope.body.layers[0].id), { timeout: 45_000 }).toBeGreaterThan(0);
     await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(2);
     await page.getByTestId('studio-control-filter-select').selectOption('west');
