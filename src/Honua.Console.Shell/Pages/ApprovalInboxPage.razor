@@ -190,6 +190,7 @@
             <div class="approval-inbox-detail" aria-live="polite">
                 @if (_selectedProposalId is { Length: > 0 } proposalId)
                 {
+                    <button type="button" class="console-button console-button-secondary" @onclick="ClearSelection">Close review</button>
                     <ProposalApprovalPanel ProposalId="@proposalId"
                         ReloadToken="_detailReloadToken"
                         OnActioned="OnProposalActioned" />
@@ -222,6 +223,10 @@
     [Parameter]
     public TimeSpan LoadBudget { get; set; } = ConsoleReadBudget.Default;
 
+    /// <summary>Refresh cadence for the selected server-owned proposal detail.</summary>
+    [Parameter]
+    public TimeSpan DetailRefreshInterval { get; set; } = TimeSpan.FromSeconds(5);
+
     private bool _loaded;
     private bool _busy;
     private OperateSectionResult<ApprovalInboxSnapshot> _result =
@@ -244,6 +249,8 @@
     private ApprovalTicketType? _filter;
     private string? _selectedProposalId;
     private int _detailReloadToken;
+    private readonly CancellationTokenSource _detailPollingCancellation = new();
+    private Task? _detailPollingTask;
 
     private string ServerName =>
         string.IsNullOrWhiteSpace(_serverName) ? "the connected honua-server" : _serverName;
@@ -284,6 +291,7 @@
         await RefreshAsync();
         // Best-effort: open the live subscription. A failure leaves the inbox on manual refresh.
         await Realtime.StartAsync();
+        _detailPollingTask = PollSelectedDetailAsync(_detailPollingCancellation.Token);
     }
 
     private async Task ResolveServerNameAsync()
@@ -329,14 +337,8 @@
                 // Only a real success advances the last-good marker; a failure keeps the prior time.
                 _lastSuccessfulRefreshUtc = DateTimeOffset.UtcNow;
 
-                // Drop a stale selection / filter that no longer maps onto a queue item.
-                if (_selectedProposalId is { Length: > 0 } selected
-                    && !string.Equals(ProposalId?.Trim(), selected, StringComparison.Ordinal)
-                    && _result.Value?.Items.All(item => !string.Equals(item.ProposalId, selected, StringComparison.Ordinal)) == true)
-                {
-                    _selectedProposalId = null;
-                }
-
+                // A selected proposal can leave the pending queue while it is executing.
+                // Keep its server-backed detail visible until the operator closes it.
                 if (_filter is { } filter && _result.Value?.PresentTicketTypes.Contains(filter) != true)
                 {
                     _filter = null;
@@ -379,6 +381,31 @@
 
     private void Select(ApprovalInboxItem item) => _selectedProposalId = item.ProposalId;
 
+    private void ClearSelection() => _selectedProposalId = null;
+
+    private async Task PollSelectedDetailAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(DetailRefreshInterval);
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(() =>
+                {
+                    if (_selectedProposalId is not null)
+                    {
+                        _detailReloadToken++;
+                        StateHasChanged();
+                    }
+                });
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The page was disposed.
+        }
+    }
+
     private async Task OnProposalActioned(ConsoleProposalDetail detail)
     {
         // After an approve / reject, refresh the queue so a now-resolved proposal drops out of
@@ -386,7 +413,7 @@
         await RefreshAsync();
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         // The realtime client is an app-lifetime singleton shared across circuits; only detach
         // this page's handler. The connection is torn down by the DI container on shutdown, not
@@ -397,6 +424,11 @@
             _realtimeState.ConnectionStateChanged -= OnConnectionStateChanged;
         }
 
-        return ValueTask.CompletedTask;
+        _detailPollingCancellation.Cancel();
+        if (_detailPollingTask is not null)
+        {
+            await _detailPollingTask;
+        }
+        _detailPollingCancellation.Dispose();
     }
 }
