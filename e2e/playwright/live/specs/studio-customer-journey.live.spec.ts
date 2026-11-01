@@ -217,6 +217,13 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
       layout: { 'text-field': ['get', 'name'], 'text-size': 14 }, paint: { 'text-color': '#222222' } });
     await frame.locator('[data-wd-key="nav:code-editor"]').click();
     const code = frame.locator('.maputnik-code-editor .cm-content[contenteditable="true"]');
+    await info.attach('maputnik-code-editor-layout.json', { contentType: 'application/json',
+      body: Buffer.from(JSON.stringify(await code.evaluate(element => {
+        const rect = element.getBoundingClientRect();
+        const css = getComputedStyle(element);
+        return { width: rect.width, height: rect.height, display: css.display, visibility: css.visibility };
+      }))) });
+    await expect(code, 'the full-style editor must be visible to the customer').toBeVisible();
     await code.fill(JSON.stringify(withLabels, null, 2));
     await code.press('Tab');
     await frame.getByRole('button', { name: 'Close', exact: true }).click();
