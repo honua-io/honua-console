@@ -50,6 +50,28 @@ public sealed class AgentWorkspaceProcessBffTests
     public void PackageRouteRejectsVersionsOutsidePositiveInt32(string version)
         => Assert.False(AgentWorkspaceBff.TryBuildProcessPath($"console/workflow-packages/package/versions/{version}", out _));
 
+    [Theory]
+    [InlineData(256 * 1024 + 1, HttpStatusCode.OK)]
+    [InlineData(1024 * 1024, HttpStatusCode.OK)]
+    [InlineData(1024 * 1024 + 1, HttpStatusCode.RequestEntityTooLarge)]
+    public async Task DraftPutEnforcesOneMiBLimit(int bytes, HttpStatusCode expected)
+    {
+        await using var host = await Host.Start();
+        using var response = await host.Client.PutAsync("/api/studio/v1/studio/package-drafts/12345678-1234-1234-1234-123456789abc", new StringContent(new string('x', bytes)));
+        Assert.Equal(expected, response.StatusCode);
+        Assert.Equal(expected == HttpStatusCode.OK ? 1 : 0, host.Wire.Calls);
+        if (expected == HttpStatusCode.OK) Assert.Equal(bytes, host.Wire.Body.Length);
+    }
+
+    [Fact]
+    public async Task OtherStudioWritesKeepTheirExistingLimit()
+    {
+        await using var host = await Host.Start();
+        using var response = await host.Client.PostAsync("/api/studio/v1/studio/package-drafts", new StringContent(new string('x', 256 * 1024 + 1)));
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        Assert.Equal(0, host.Wire.Calls);
+    }
+
     [Fact]
     public async Task UploadCorrelationIsForwardedWithoutGrantingReplayOrAlternateSessionAuthority()
     {

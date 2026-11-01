@@ -145,11 +145,13 @@ internal static partial class AgentWorkspaceBff
         {
             return Results.StatusCode(401);
         }
-        var isStyleWrite = studio && Regex.IsMatch(path, @"\Av1/studio/package-drafts/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/style(?:/initialize)?\z");
-        if (studio && Regex.IsMatch(path, @"\Av1/studio/package-drafts/[^/]+/style(?:/|$)") && (!isStyleWrite || (path.EndsWith("/initialize", StringComparison.Ordinal) ? !HttpMethods.IsPost(context.Request.Method) : !HttpMethods.IsPut(context.Request.Method)))) { return Results.NotFound(); }
+        // Style editing saves the complete draft. The retired style subroutes are not forwarded.
+        if (studio && Regex.IsMatch(path, @"\Av1/studio/package-drafts/[^/]+/style(?:/|$)")) return Results.NotFound();
+        var isDraftPut = studio && HttpMethods.IsPut(context.Request.Method)
+            && Regex.IsMatch(path, @"\Av1/studio/package-drafts/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\z");
         var bodyLimit = datasetRoute is not null
             ? (datasetRoute.IsChunk ? DatasetImportChunkMaximumBytes : DatasetImportJsonMaximumBytes)
-            : isStyleWrite ? 1024 * 1024 : 256 * 1024;
+            : isDraftPut ? 1024 * 1024 : 256 * 1024;
         var isImportUpload = processes && path == "admin/import/upload";
         if (context.Request.ContentLength > (isImportUpload ? ProcessImportBodyMaximumBytes : bodyLimit)) { return Results.StatusCode(413); }
         var upstreamPath = ga ? $"v1/spec/ga/{path}" : processes ? $"api/v1/{processPath}" : studio ? (path == "health" ? "health" : $"api/{path}") : $"api/v1/agent/workspaces/{path}";
@@ -193,7 +195,7 @@ internal static partial class AgentWorkspaceBff
         // Publication/rollback retries must retain the caller's original operation identity.
         // Older clients may omit it; never invent a new identity in the proxy.
         var isStudioPointerWrite = studio && HttpMethods.IsPost(context.Request.Method) && StudioPointerWritePath().IsMatch(path);
-        if (isStyleWrite || isStudioPointerWrite && context.Request.Headers.ContainsKey("Idempotency-Key"))
+        if (isStudioPointerWrite && context.Request.Headers.ContainsKey("Idempotency-Key"))
         {
             var key = context.Request.Headers["Idempotency-Key"].ToString();
             if (!Regex.IsMatch(key, @"\A[A-Za-z0-9_-]{1,128}\z")) { return Results.BadRequest(); }
