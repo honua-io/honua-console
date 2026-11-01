@@ -24,7 +24,7 @@ public sealed class OperateHealthPageTests
             """;
         var snapshot = System.Text.Json.JsonSerializer.Deserialize<OpsHealthSnapshotResponse>(json)!;
         var view = OpsHealthDataSource.Map(snapshot);
-        Assert.Equal("Unhealthy", view.ManagedTargets[0].Services[0].Status.Label);
+        Assert.Equal("Unhealthy", view.ManagedTargets[0].Services[0].ObservedStatus);
         Assert.False(view.ManagedTargets[1].Available);
         var html = await RenderAsync(new StubOpsHealthDataSource { Result = OperateSectionResult<OpsHealthView>.Allowed(view) });
         Assert.Contains("data-managed-target=\"compose-local\"", html, StringComparison.Ordinal);
