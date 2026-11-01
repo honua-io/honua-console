@@ -16,6 +16,22 @@ namespace Honua.Console.Native.Core.Tests;
 /// </summary>
 public sealed class ConsoleProposalsClientTests
 {
+    [Theory]
+    [InlineData("Completed", "completed", true)]
+    [InlineData("Cancelled", "cancelled", true)]
+    [InlineData("Indeterminate", "indeterminate", true)]
+    [InlineData("Executing", "executing", false)]
+    public async Task DetailMapsActualExecutorStates(string wireStatus, string label, bool terminal)
+    {
+        var body = $$"""{"proposalId":"prop-1","kind":"Deploy","status":"{{wireStatus}}","createdAt":"2026-06-28T10:00:00Z","updatedAt":"2026-06-28T10:05:00Z"}""";
+        var client = CreateClient(new RecordingHandler(_ => Json(body)));
+        var result = await client.GetAsync("prop-1");
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        Assert.Equal(label, ConsoleProposalPresentation.StatusLabel(result.Value!.Status));
+        Assert.Equal(terminal, result.Value.IsTerminal);
+        Assert.Equal(terminal, result.Value.ToSummary().IsTerminal);
+    }
+
     [Fact]
     public async Task ListBindsLiveProposalsEndpoint_AndMapsSummaries()
     {
