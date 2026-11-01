@@ -303,3 +303,21 @@ test('a pending receipt cannot attach another version or incomplete resource ide
     await assert.rejects(session.submit(input), /resource references do not match/);
     assert.equal(session.read().receipt, undefined);
 });
+
+test('a saved map can be reviewed and submitted without an AI conversation', async () => {
+    const { app, session, calls } = fixture();
+    app.workspace.workspaceId = null;
+    await session.review('version');
+    await session.submit(input);
+    assert.equal(calls.length, 1);
+    assert.equal(session.read().commandId, 'original-command');
+});
+
+test('opening a conversation invalidates a review made without one', async () => {
+    const { app, session, calls } = fixture();
+    app.workspace.workspaceId = null;
+    await session.review('version');
+    app.workspace.workspaceId = 'new-conversation';
+    await assert.rejects(session.submit(input), /Review this saved version/);
+    assert.equal(calls.length, 0);
+});
