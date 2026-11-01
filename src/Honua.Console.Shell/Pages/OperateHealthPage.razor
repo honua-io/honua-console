@@ -51,6 +51,7 @@
             <a href="#alert-dispatch">Alert dispatch</a>
             <a href="#deploy">Deploy readiness</a>
             <a href="#database">Database</a>
+            <a href="#managed-targets">Managed services</a>
             <a href="#health-checks">Health checks</a>
             <a href="#trends">Trends</a>
         </nav>
@@ -305,6 +306,37 @@
                     <MetricBar Bar="_view.Database.ErrorRate" Label="Server error rate" />
                 </article>
             </div>
+        </section>
+
+        <section id="managed-targets" class="operate-section" aria-labelledby="managed-targets-heading">
+            <h2 id="managed-targets-heading">Managed service health</h2>
+            @if (_view.ManagedTargets.Count == 0)
+            {
+                <p class="console-muted">Managed service observations are unavailable.</p>
+            }
+            @foreach (var target in _view.ManagedTargets)
+            {
+                <article class="console-panel" data-managed-target="@target.TargetId">
+                    <h3>@target.TargetId</h3>
+                    @if (!target.Available)
+                    {
+                        <p>Observation unavailable.</p>
+                    }
+                    else if (target.Services.Count == 0)
+                    {
+                        <p>No managed services were reported.</p>
+                    }
+                    else
+                    {
+                        <ul>
+                            @foreach (var service in target.Services)
+                            {
+                                <li data-managed-service="@service.Name">@service.Name: <span class="console-status @service.Status.CssClass">@service.ObservedStatus</span></li>
+                            }
+                        </ul>
+                    }
+                </article>
+            }
         </section>
 
         <section id="health-checks" class="operate-section" aria-labelledby="health-checks-heading">

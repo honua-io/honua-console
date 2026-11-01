@@ -13,6 +13,27 @@ namespace Honua.Console.Native.Core.Tests;
 public sealed class OperateHealthPageTests
 {
     [Fact]
+    public async Task ManagedComposeHealth_ShowsObservedServiceAndUnavailableState()
+    {
+        const string json = """
+            {"overallStatus":"Degraded","managedTargets":[
+              {"targetId":"compose-local","available":true,"status":"Unhealthy",
+               "services":[{"name":"redis","status":"Unhealthy"}]},
+              {"targetId":"unavailable","available":false,"status":"Unknown",
+               "services":[{"name":"redis","status":"Healthy"}]}]}
+            """;
+        var snapshot = System.Text.Json.JsonSerializer.Deserialize<OpsHealthSnapshotResponse>(json)!;
+        var view = OpsHealthDataSource.Map(snapshot);
+        Assert.Equal("Unhealthy", view.ManagedTargets[0].Services[0].ObservedStatus);
+        Assert.False(view.ManagedTargets[1].Available);
+        var html = await RenderAsync(new StubOpsHealthDataSource { Result = OperateSectionResult<OpsHealthView>.Allowed(view) });
+        Assert.Contains("data-managed-target=\"compose-local\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-managed-service=\"redis\"", html, StringComparison.Ordinal);
+        Assert.Contains("Unhealthy", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("unavailable", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task RendersSnapshotSectionsAndFlagsSloBreach()
     {
         var view = OpsHealthDataSource.Map(BuildSnapshot());
