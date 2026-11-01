@@ -309,6 +309,12 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
       } finally { await witness.dispose(); }
     });
     await page.reload();
+    const listed = await read(page, session, '/api/studio/v1/studio/package-drafts?family=map&limit=100');
+    expect(listed.items).toEqual(expect.arrayContaining([expect.objectContaining({ draftId: original.draftId, ownerId: first.ownerId })]));
+    await page.getByRole('button', { name: 'Open saved maps', exact: true }).click();
+    const savedMap = page.locator(`[data-testid="draft-row"][data-draft-id="${original.draftId}"]`);
+    await expect(savedMap).toContainText(packageKey);
+    await savedMap.getByTestId('draft-open').click();
     await expect.poll(() => identity(page).then(value => value?.draftId), { timeout: 30_000 }).toBe(original.draftId);
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
     await page.getByRole('button', { name: 'Reopen version 1 as draft', exact: true }).click();
