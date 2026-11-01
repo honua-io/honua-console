@@ -1,4 +1,5 @@
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
@@ -41,6 +42,68 @@ public sealed class ApprovalInboxPageRenderTests
         ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(inbox);
         ctx.Services.AddSingleton<IConsoleProposalRealtimeClient>(realtime ?? new FakeConsoleProposalRealtimeClient());
         return ctx;
+    }
+
+    [Theory]
+    [InlineData("op-1", false, "manager:op-1")]
+    [InlineData("op-1", true, "op-1")]
+    [InlineData("manager:op-1", true, "manager:op-1")]
+    public void DeepLink_SelectsManagerFallbackOnlyWhenNoExactMatch(string queryId, bool hasServing, string expectedId)
+    {
+        var managerSummary = FakeProposalFactory.Summary("manager:op-1", ConsoleProposalKind.Deploy);
+        var managerDetail = FakeProposalFactory.Detail("manager:op-1", ConsoleProposalKind.Deploy);
+        var proposals = new FakeConsoleProposalsClient(
+            proposals: hasServing ? [managerSummary, FakeProposalFactory.Summary("op-1", ConsoleProposalKind.Deploy)] : [managerSummary],
+            details: hasServing ? [managerDetail, FakeProposalFactory.Detail("op-1", ConsoleProposalKind.Deploy)] : [managerDetail]);
+        using var ctx = NewContext(proposals);
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/inbox?proposalId=" + Uri.EscapeDataString(queryId));
+
+        var page = ctx.Render<ApprovalInboxPage>();
+        page.WaitForAssertion(() => page.Find("[data-proposal-approve]"), TimeSpan.FromSeconds(5));
+        page.Find("[data-proposal-approve]").Click();
+        page.WaitForAssertion(() => Assert.Equal(expectedId, Assert.Single(proposals.Approved)), TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void SeparateManager_DisclosesServingRefreshRequirement()
+    {
+        using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []));
+        ctx.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore(
+            [new ConsoleEnvironmentProfile { Id = "local", ServerBaseUri = new Uri("https://serving.example/") }], activeProfileId: "local"));
+        ctx.Services.AddSingleton<IConsoleManagerEndpoint>(new ManagerEndpoint());
+
+        var page = ctx.Render<ApprovalInboxPage>();
+        page.WaitForAssertion(() => Assert.Contains("Manager live — refresh for serving updates",
+            page.Find("[data-live-state]").TextContent, StringComparison.Ordinal), TimeSpan.FromSeconds(5));
+    }
+
+    private sealed class ManagerEndpoint : IConsoleManagerEndpoint
+    {
+        public Uri? Resolve(Uri servingBaseUri) => new("https://manager.example/");
+    }
+
+    [Fact]
+    public async Task ExternalApproval_RetainsSelectedProposalAndShowsCompletion()
+    {
+        var proposals = new FakeConsoleProposalsClient(
+            proposals: [FakeProposalFactory.Summary("external-1", ConsoleProposalKind.Deploy)],
+            details: [FakeProposalFactory.Detail("external-1", ConsoleProposalKind.Deploy)]);
+        var realtime = new FakeConsoleProposalRealtimeClient();
+        using var ctx = NewContext(proposals, realtime);
+        var page = ctx.Render<ApprovalInboxPage>(parameters => parameters.Add(p => p.DetailRefreshInterval, TimeSpan.FromMilliseconds(30)));
+        page.WaitForAssertion(() => page.Find("[data-proposal-id=\"external-1\"]"), TimeSpan.FromSeconds(5));
+        page.Find("[data-proposal-id=\"external-1\"]").Click();
+        page.WaitForAssertion(() => page.Find("[data-proposal-approve]"), TimeSpan.FromSeconds(5));
+        await proposals.ApproveAsync("external-1");
+        proposals.RemoveFromQueue("external-1");
+        realtime.Raise(new ConsoleProposalEvent(ConsoleProposalEventKind.Resolved, "external-1",
+            ConsoleProposalKind.Deploy, ConsoleProposalStatus.Submitted, null, ConsoleProposalRisk.Medium, DateTimeOffset.UtcNow));
+        page.WaitForAssertion(() => Assert.Equal("Submitted", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status")), TimeSpan.FromSeconds(5));
+        proposals.Complete("external-1");
+        page.WaitForAssertion(() => Assert.Equal("Completed", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status")), TimeSpan.FromSeconds(5));
+        var reads = proposals.DetailReads;
+        await Task.Delay(180);
+        Assert.Equal(reads, proposals.DetailReads);
     }
 
     [Fact]

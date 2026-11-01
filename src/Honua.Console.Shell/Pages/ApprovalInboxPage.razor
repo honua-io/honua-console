@@ -41,7 +41,7 @@
         {
             <span class="approval-inbox-live is-live" data-live-state="live"
                   data-fallback-engaged="@Realtime.IsFallbackEngaged">
-                Live
+                @(_managerOnlyUpdates ? "Manager live — refresh for serving updates" : "Live")
             </span>
         }
         else
@@ -190,9 +190,10 @@
             <div class="approval-inbox-detail" aria-live="polite">
                 @if (_selectedProposalId is { Length: > 0 } proposalId)
                 {
+                    <button type="button" class="console-button console-button-secondary" @onclick="ClearSelection">Close review</button>
                     <ProposalApprovalPanel ProposalId="@proposalId"
                         ReloadToken="_detailReloadToken"
-                        OnActioned="OnProposalActioned" />
+                        OnActioned="OnProposalActioned" OnDetailLoaded="OnDetailLoaded" />
                 }
                 else
                 {
@@ -222,6 +223,10 @@
     [Parameter]
     public TimeSpan LoadBudget { get; set; } = ConsoleReadBudget.Default;
 
+    /// <summary>Refresh cadence for the selected server-owned proposal detail.</summary>
+    [Parameter]
+    public TimeSpan DetailRefreshInterval { get; set; } = TimeSpan.FromSeconds(5);
+
     private bool _loaded;
     private bool _busy;
     private OperateSectionResult<ApprovalInboxSnapshot> _result =
@@ -235,6 +240,7 @@
     // working; used only to name the failing source honestly in the error card.
     private IConsoleEnvironmentProfileStore? _profiles;
     private string? _serverName;
+    private bool _managerOnlyUpdates;
 
     // The concrete realtime client also implements the shared capability seam (console#293), which
     // raises a state-changed event on (re)connect. Subscribing to it lets the freshness pill flip
@@ -244,6 +250,10 @@
     private ApprovalTicketType? _filter;
     private string? _selectedProposalId;
     private int _detailReloadToken;
+    private string? _terminalProposalId;
+    private readonly CancellationTokenSource _detailPollingCancellation = new();
+    private Task? _detailPollingTask;
+    private bool _disposed;
 
     private string ServerName =>
         string.IsNullOrWhiteSpace(_serverName) ? "the connected honua-server" : _serverName;
@@ -284,6 +294,10 @@
         await RefreshAsync();
         // Best-effort: open the live subscription. A failure leaves the inbox on manual refresh.
         await Realtime.StartAsync();
+        if (!_disposed)
+        {
+            _detailPollingTask = PollSelectedDetailAsync(_detailPollingCancellation.Token);
+        }
     }
 
     private async Task ResolveServerNameAsync()
@@ -296,6 +310,12 @@
         try
         {
             var active = await _profiles.GetActiveProfileAsync();
+            if (active is not null)
+            {
+                var manager = ServiceProvider.GetService<IConsoleManagerEndpoint>()?.Resolve(active.ServerBaseUri);
+                _managerOnlyUpdates = manager is not null
+                    && new Uri(manager.AbsoluteUri.TrimEnd('/') + "/") != new Uri(active.ServerBaseUri.AbsoluteUri.TrimEnd('/') + "/");
+            }
             if (active is { DisplayName.Length: > 0 })
             {
                 _serverName = active.DisplayName;
@@ -329,14 +349,18 @@
                 // Only a real success advances the last-good marker; a failure keeps the prior time.
                 _lastSuccessfulRefreshUtc = DateTimeOffset.UtcNow;
 
-                // Drop a stale selection / filter that no longer maps onto a queue item.
-                if (_selectedProposalId is { Length: > 0 } selected
-                    && !string.Equals(ProposalId?.Trim(), selected, StringComparison.Ordinal)
-                    && _result.Value?.Items.All(item => !string.Equals(item.ProposalId, selected, StringComparison.Ordinal)) == true)
+                // Older manager-bound surfaces emitted raw IDs. Prefer an exact serving
+                // match, falling back only when this queue contains the qualified manager ID.
+                if (_selectedProposalId is { Length: > 0 } raw
+                    && !raw.StartsWith("manager:", StringComparison.Ordinal)
+                    && _result.Value?.Items.Any(item => string.Equals(item.ProposalId, raw, StringComparison.Ordinal)) == false
+                    && _result.Value.Items.Any(item => string.Equals(item.ProposalId, "manager:" + raw, StringComparison.Ordinal)))
                 {
-                    _selectedProposalId = null;
+                    _selectedProposalId = "manager:" + raw;
                 }
 
+                // A selected proposal can leave the pending queue while it is executing.
+                // Keep its server-backed detail visible until the operator closes it.
                 if (_filter is { } filter && _result.Value?.PresentTicketTypes.Contains(filter) != true)
                 {
                     _filter = null;
@@ -377,16 +401,54 @@
     private bool IsSelected(ApprovalInboxItem item) =>
         string.Equals(item.ProposalId, _selectedProposalId, StringComparison.Ordinal);
 
-    private void Select(ApprovalInboxItem item) => _selectedProposalId = item.ProposalId;
+    private void Select(ApprovalInboxItem item)
+    {
+        _selectedProposalId = item.ProposalId;
+        _terminalProposalId = null;
+    }
+
+    private void ClearSelection() => _selectedProposalId = null;
+
+    private async Task PollSelectedDetailAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(DetailRefreshInterval);
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(() =>
+                {
+                    if (_selectedProposalId is not null && _selectedProposalId != _terminalProposalId)
+                    {
+                        _detailReloadToken++;
+                        StateHasChanged();
+                    }
+                });
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The page was disposed.
+        }
+    }
+
+    private void OnDetailLoaded(ConsoleProposalDetail detail)
+    {
+        if (detail.ProposalId == _selectedProposalId)
+        {
+            _terminalProposalId = detail.IsTerminal ? detail.ProposalId : null;
+        }
+    }
 
     private async Task OnProposalActioned(ConsoleProposalDetail detail)
     {
+        OnDetailLoaded(detail);
         // After an approve / reject, refresh the queue so a now-resolved proposal drops out of
         // the pending set.
         await RefreshAsync();
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         // The realtime client is an app-lifetime singleton shared across circuits; only detach
         // this page's handler. The connection is torn down by the DI container on shutdown, not
@@ -397,6 +459,12 @@
             _realtimeState.ConnectionStateChanged -= OnConnectionStateChanged;
         }
 
-        return ValueTask.CompletedTask;
+        _disposed = true;
+        _detailPollingCancellation.Cancel();
+        if (_detailPollingTask is not null)
+        {
+            await _detailPollingTask;
+        }
+        _detailPollingCancellation.Dispose();
     }
 }
