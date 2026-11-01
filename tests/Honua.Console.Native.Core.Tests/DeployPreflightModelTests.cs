@@ -14,7 +14,8 @@ public sealed class DeployPreflightModelTests
              "serving":[{"id":"compose-local","effectiveArtifactReference":"configured-image",
              "observationStatus":"observed","observedImageId":"sha256:live-image",
              "serverVersion":"2026.1-live"},
-             {"id":"unavailable","effectiveArtifactReference":"configured-only","observationStatus":"unavailable"}]}}
+             {"id":"unavailable","effectiveArtifactReference":"configured-only","observationStatus":"unavailable",
+             "observedImageId":"stale-image","serverVersion":"stale-version"}]}}
             """;
         var response = System.Text.Json.JsonSerializer.Deserialize<DeployPreflightResponse>(json)!;
         var view = DeployPreflightMapper.Map(response);

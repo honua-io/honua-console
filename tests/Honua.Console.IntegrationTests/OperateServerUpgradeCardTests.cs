@@ -18,6 +18,27 @@ namespace Honua.Console.IntegrationTests;
 /// </summary>
 public sealed class OperateServerUpgradeCardTests
 {
+    [Fact]
+    public void Preflight_ShowsOnlyObservedServingRevision()
+    {
+        const string json = """
+            {"status":"ready","readyForCoordinatedDeploy":true,"message":"ready",
+             "platformRelease":{"releaseDeclared":true,"isCoVersioned":false,
+             "serving":[{"id":"compose-local","observationStatus":"observed",
+             "observedImageId":"sha256:live-image","serverVersion":"2026.1-live"},
+             {"id":"unavailable","observationStatus":"unavailable",
+             "effectiveArtifactReference":"configured-only"}]}}
+            """;
+        var wire = System.Text.Json.JsonSerializer.Deserialize<Honua.Console.Contracts.DeployPreflightResponse>(json)!;
+        var result = OperateSectionResult<DeployPreflightView>.Allowed(DeployPreflightMapper.Map(wire));
+        using var ctx = new BunitContext();
+        var panel = ctx.Render<OperateDeployPreflightPanel>(parameters => parameters.Add(p => p.Result, result));
+        Assert.Contains("sha256:live-image", panel.Markup);
+        Assert.Contains("2026.1-live", panel.Markup);
+        Assert.Contains("Serving observation unavailable", panel.Markup);
+        Assert.DoesNotContain("configured-only", panel.Markup);
+    }
+
     private static ServerVersionInfo Version(string version) => new(
         ServerVersion: version,
         ApiVersion: "v1",
