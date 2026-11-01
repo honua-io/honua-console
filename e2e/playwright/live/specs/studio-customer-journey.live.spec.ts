@@ -138,12 +138,14 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
       await page.goto('/operate/layers');
       const row = page.locator(`tr[data-service-id="${item.service}"][data-layer-id="${item.layerId}"]`);
       await expect(row).toContainText(index === 0 ? /(?:Multi)?Polygon/i : /\bPoint\b/i);
+      await row.scrollIntoViewIfNeeded();
       await captureMilestone(page, info, `00-published-${index}-layers-geometry`);
       const detail = await row.locator('a').first().getAttribute('href');
       expect(detail).toBeTruthy();
       await page.goto(detail!);
       for (const [name, type] of Object.entries({ name: /^String$/, population: /^(SmallInteger|Integer|BigInteger)$/, rating: /^(Single|Double)$/ }))
         await expect(page.locator(`[data-field-row][data-field-name="${name}"]`).getByRole('cell', { name: type, exact: true })).toBeVisible();
+      await page.locator('[data-field-row][data-field-name="rating"]').scrollIntoViewIfNeeded();
       await captureMilestone(page, info, `00-published-${index}-field-types`);
     }
 
@@ -193,6 +195,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     const source = await sourceFor(page, services[0].service, services[0].layerId);
     await createRecipe(page, source!.id, packageKey);
     await accessibility(page, info, 'recipe-map');
+    await page.locator('honua-studio-canvas').scrollIntoViewIfNeeded();
     await captureMilestone(page, info, '01-studio-map-created');
     const original = (await identity(page))!;
     const draftPath = (id: string) => `/api/studio/v1/studio/package-drafts/${encodeURIComponent(id)}`;
@@ -260,6 +263,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     await editor.getByRole('button', { name: 'Preview thematic colors', exact: true }).click();
     await editor.getByRole('button', { name: 'Save map style', exact: true }).click();
     await expect(editor.getByRole('status')).toHaveText('Map style saved to the authorized draft.');
+    await editor.getByRole('status').scrollIntoViewIfNeeded();
     await captureMilestone(page, info, '02-studio-style-applied');
     const authored = await readDraft(original.draftId);
     expect(authored.ownerId).toBe(first.ownerId);
@@ -307,6 +311,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
       expect.objectContaining({ type: 'symbol', layout: expect.objectContaining({ 'text-field': ['get', 'name'] }) }),
     ]));
     await expect.poll(() => paintedFeatures(page, 'customer-attribute-labels'), { timeout: 45_000 }).toBeGreaterThan(0);
+    await page.locator('honua-studio-canvas').scrollIntoViewIfNeeded();
     await captureMilestone(page, info, '03-studio-labels-visible');
     completed.push('authored-style-labels');
     await page.getByRole('button', { name: 'Save version', exact: true }).click();
@@ -387,6 +392,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     expect(reopened.envelope.body).toEqual(labelled.envelope.body);
     for (const layer of reopened.envelope.body.layers)
       await expect.poll(() => paintedFeatures(page, layer.id), { timeout: 45_000 }).toBeGreaterThan(0);
+    await page.locator('honua-studio-canvas').scrollIntoViewIfNeeded();
     await captureMilestone(page, info, '04-studio-saved-and-reopened');
     completed.push('save-reload-reopen');
     await test.step('customer publication and signed-out audience', async () => {
