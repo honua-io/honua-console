@@ -12,7 +12,7 @@ public sealed class DualConsoleProposalsClientTests
         var serving = new FakeProposals("serving-proposal");
         var manager = new FakeProposals("manager-proposal");
         var profiles = new InMemoryConsoleEnvironmentProfileStore(
-            [new ConsoleEnvironmentProfile { Id = "local", ServerBaseUri = new Uri("https://serving.example/") }], "local");
+            [new ConsoleEnvironmentProfile { Id = "local", ServerBaseUri = new Uri("https://serving.example/") }], activeProfileId: "local");
         var client = new DualConsoleProposalsClient(serving, manager, profiles, new ManagerEndpoint());
         var list = await client.ListAsync();
         Assert.True(list.IsAllowed);
