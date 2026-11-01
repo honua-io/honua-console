@@ -5,6 +5,8 @@ import { selectedResource, studioResourceRefs } from './agent-workspace.mjs';
 import { mountStudioVersionControls } from './studio-version-controls.mjs';
 import { mountStudioSavedMaps } from './studio-saved-maps.mjs';
 import { mountStudioStyleControls } from './studio-style-controls.mjs';
+import { mountStudioLayerPicker } from './studio-layer-picker.mjs';
+import { hasPendingStudioLeaseTurn, trackStudioLeaseTurns } from './studio-lease-turns.mjs';
 import { captureStudioDesignFocus } from './studio-design-focus.mjs';
 let assets;
 let element;
@@ -21,6 +23,7 @@ async function studioElement(session) {
     if (!app) {
         app = document.createElement('honua-studio-app');
         app.styleEditorAssetsUrl = '/_studio/maputnik/index.html';
+        trackStudioLeaseTurns(app);
         app.routingMode = 'host'; app.setAttribute('base-path', '/studio');
         app.addEventListener('honua-studio-navigate', event => {
             if (/^\/studio(?:\/[A-Za-z0-9_-]+)*$/.test(event.detail?.path || ''))
@@ -134,6 +137,8 @@ async function mount() {
         createApp.workspaceVersionControls = mountStudioVersionControls({ app:createApp, host, status });
         createApp.workspaceStyleControls?.dispose();
         createApp.workspaceStyleControls = mountStudioStyleControls({ app:createApp, host, status });
+        createApp.workspaceLayerPicker?.dispose();
+        createApp.workspaceLayerPicker = mountStudioLayerPicker({ app:createApp, host, status });
         const task = element.workspace?.context?.task;
         const draft = task?.kind === 'studio-composition' ? {draftId:task.id}
             : !task ? element.workspace?.agentSession?.sdkSession?.draft : undefined;
@@ -269,6 +274,10 @@ scheduleCookieSessionRenewal(() => session, async () => {
         }
         if(view && (processView!==view || !view.host.isConnected)) return;
         if(retained && (document.querySelector('[data-shared-style-editor]')!==sharedEditor || sharedEditor.dataset.styleAuthorityBinding!==sharedBinding || element!==retained)) return;
+        // A rotation would deliberately invalidate an accepted mutation's response.
+        // Keep its current bounded lease until completion; the scheduler retries,
+        // and Studio still rejects work if that lease expires in the meantime.
+        if(hasPendingStudioLeaseTurn(app || retained || elementsByEnvironment.get(refreshed.environmentId))) return;
         if(app || retained || elementsByEnvironment.has(refreshed.environmentId)) await studioElement(refreshed);
         if(view) view.session=refreshed;
         session=refreshed;

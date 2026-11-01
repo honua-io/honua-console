@@ -6,7 +6,7 @@
 // Usage: node e2e/run-live.mjs
 //   (also called by: npm run e2e:live, make e2e-live)
 //
-// Prerequisites: Docker running, dotnet SDK on PATH, npx/Playwright installed, openssl on PATH.
+// Prerequisites: Docker, dotnet SDK, npx/Playwright, openssl and an explicit server image.
 // Port 5274 must be free before running.
 //
 // The live specs sign in as a governed operator (playwright/live/operator-session.ts), so the
@@ -33,6 +33,11 @@ const SERVER_URL = process.env.HONUA_CONSOLE_E2E_SERVER_URL ?? 'http://127.0.0.1
 const ADMIN_KEY  = process.env.HONUA_CONSOLE_E2E_ADMIN_KEY  ?? 'honua-console-dev-key';
 const CONSOLE_PORT = process.env.HONUA_CONSOLE_E2E_LIVE_PORT ?? '5274';
 const CONSOLE_BASE = `http://127.0.0.1:${CONSOLE_PORT}`;
+
+if (!process.env.HONUA_CONSOLE_E2E_SERVER_IMAGE) {
+  console.error('[e2e-live] Set HONUA_CONSOLE_E2E_SERVER_IMAGE to the chosen immutable server image.');
+  process.exit(2);
+}
 
 function run(cmd, args, opts = {}) {
   console.log(`\n[e2e-live] ${cmd} ${args.join(' ')}`);

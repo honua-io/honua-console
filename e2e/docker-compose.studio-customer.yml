@@ -1,0 +1,30 @@
+# The same published Console bits are exercised in PR CI and digest replay.
+services:
+  postgis:
+    ports:
+      - "5274:5274"
+  honua-server:
+    environment:
+      Studio__EndUserAuthorization__Enabled: "true"
+      Authentication__OperatorBearer__MaxLifetimeMinutes: "1"
+      # Match the unlicensed 2026.1 release posture: ordinary composition is
+      # direct, while publication keeps its separate governed approval floor.
+      Licensing__Mode: Disabled
+  console:
+    image: ${HONUA_CONSOLE_E2E_CONSOLE_IMAGE:?Set a built Console image or immutable GHCR digest}
+    network_mode: "service:postgis"
+    depends_on:
+      honua-server:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5274
+      HONUA_SERVER_BASE_URL: http://localhost:8080
+      HONUA_ADMIN_API_KEY: ""
+      HONUA_CONSOLE_MODE: full
+      Studio__EmbedJsStudio: "true"
+      Honua__Console__Auth__EdgeForwarded__Enabled: "true"
+      Honua__Console__Auth__EdgeForwarded__SharedSecret: live-proof-edge-secret
+      SSL_CERT_FILE: /certs/kc.crt
+    volumes:
+      - ./playwright/live-auth/certs:/certs:ro

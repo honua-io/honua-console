@@ -1,6 +1,6 @@
 # Honua Console — developer targets
 #
-# One-command live e2e:
+# Live e2e (first set HONUA_CONSOLE_E2E_SERVER_IMAGE to the selected digest):
 #   make e2e-live
 #   npm run e2e:live   (equivalent)
 #

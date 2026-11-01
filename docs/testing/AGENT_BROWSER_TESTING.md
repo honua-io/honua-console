@@ -48,8 +48,12 @@ do **not** need to expose 8088/5432 to Windows.
 ## Part 1 — Bring up the PostGIS-backed server + Console (in WSL)
 
 The Console renders an explicit *missing-binding* surface unless a honua-server base URL is
-configured, so a live backend is required for meaningful browser tests. The fast path uses the
-prebuilt nightly server image (no source build).
+configured, so a live backend is required for meaningful browser tests. Select the server image
+by its immutable digest; record the selected revision with the test results.
+
+```bash
+export HONUA_CONSOLE_E2E_SERVER_IMAGE='ghcr.io/honua-io/honua-server@sha256:<digest>'
+```
 
 > Admin-auth nuance: in `Development` the server requires a real API key — there is **no**
 > dev-auth bypass (that only activates when `ASPNETCORE_ENVIRONMENT=Test`). Set
@@ -79,7 +83,7 @@ services:
       retries: 10
 
   honua:
-    image: ghcr.io/honua-io/honua-server:nightly
+    image: ${HONUA_CONSOLE_E2E_SERVER_IMAGE:?Set the selected server image digest}
     ports:
       - "8088:8080"   # REST/admin — only needed for the SDK check from WSL, not from Windows
       - "8089:8081"   # gRPC

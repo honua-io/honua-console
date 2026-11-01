@@ -120,7 +120,7 @@ in [BUILD_ARTIFACT.md](docs/deployment/BUILD_ARTIFACT.md).
 | Node tests (smoke + metadata, no npm deps) | `npm ci && npm test` |
 | Parity smoke (in-memory contract shapes) | `npm run smoke:parity` |
 | Workflow-package contract smoke | `npm run smoke:workflow` |
-| Live end-to-end (Docker: PostGIS + Redis + honua-server + Playwright) | `make e2e-live` (or `npm run e2e:live`) |
+| Live end-to-end (Docker: PostGIS + Redis + honua-server + Playwright) | Set `HONUA_CONSOLE_E2E_SERVER_IMAGE` to the selected image, then `make e2e-live` (or `npm run e2e:live`) |
 | Publish the deployable artifact (consumed by honua-devops) | `dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web` |
 | Verify vendored browser assets | `node scripts/vendor-assets.mjs` (offline; also runs inside `npm test`) |
 | Re-vendor after a version bump | `node scripts/vendor-assets.mjs --update` |

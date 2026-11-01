@@ -132,6 +132,12 @@ product/operator/accessibility checks had not started. This bounded infrastructu
 allowance preserves `--with-deps`, every existing check and its own limits. It does
 not convert that cancelled run into a product-test result or qualification pass.
 
+The Console host defers proactive Studio cookie-lease rotation while a human
+draft or version action is pending. The action keeps its original bounded lease;
+the host polls again after it settles. Expiry and authority changes still fail
+closed, and a mutation is never automatically retried. This avoids invalidating
+an accepted draft/version response merely because a background renewal overlaps it.
+
 ### rc.2 Studio asset refresh
 
 The Console bundle pins merged Studio main
