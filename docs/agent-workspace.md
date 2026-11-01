@@ -137,3 +137,20 @@ draft or version action is pending. The action keeps its original bounded lease;
 the host polls again after it settles. Expiry and authority changes still fail
 closed, and a mutation is never automatically retried. This avoids invalidating
 an accepted draft/version response merely because a background renewal overlaps it.
+
+### rc.2 Studio asset refresh
+
+The Console bundle pins merged Studio main
+`90bb5191d4bb999f3602438490d4dbb7953bde5b`, including Studio #171, #174, #176
+and #177. The production artifact came from successful main Smoke suite run
+[41356570013](https://github.com/honua-io/honua-studio/actions/runs/41356570013),
+artifact `13103338059`. Its downloaded archive SHA-256 matches GitHub's digest:
+`2f6b6ef6b5d098be230af5a5281e3477fb8879eaa4f5319972069d7e7e611111`.
+The normal `vendor-studio-assets.mjs` import preserves the SDK source receipt
+`5765b427f421dca9c42832ae450fa1c5aad882c2` and records the complete asset hashes.
+The bundle includes authenticated-source worker and installed-layer query repairs
+and same-authority lease recovery. A bounded feature GET interrupted during body
+consumption discards its partial response and can restart once under the same
+current authority; old bytes and mutation replay remain forbidden. The managed
+provenance retains pending installed-workspace qualification; the asset producer
+alone does not qualify the complete Console customer and agent journeys.
