@@ -30,6 +30,8 @@ export function mountStudioSavedMaps({ app, host, status }) {
             if (current()) status.textContent = error instanceof Error ? error.message : 'The saved map could not be opened.';
         } finally { busy = false; }
     };
+    const onDraftChanged = () => { if (browser || panel) close(); };
+    app.addEventListener('honua-workspace-draft-change', onDraftChanged);
     toggle.addEventListener('click', () => {
         if (browser || panel) { close(); return; }
         const session = app.workspaceCookieBinding;
@@ -62,5 +64,5 @@ export function mountStudioSavedMaps({ app, host, status }) {
         section.append(browser);
         toggle.textContent = 'Close saved maps'; toggle.setAttribute('aria-expanded', 'true');
     });
-    return { dispose() { disposed = true; close(); section.remove(); } };
+    return { dispose() { disposed = true; app.removeEventListener('honua-workspace-draft-change', onDraftChanged); close(); section.remove(); } };
 }
