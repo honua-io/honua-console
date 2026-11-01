@@ -1,6 +1,6 @@
 {
   "schema": "honua.studio.console-assets/v1",
-  "sourceCommit": "4ffc209cebc888f9deef83cd290aab9f4f291b4a",
+  "sourceCommit": "50d24268dac94492f3fafca654febdaab38f8a5d",
   "releaseQualified": false,
   "integrationQualification": "pending-installed-workspace-journey",
   "sdk": {
@@ -2159,9 +2159,9 @@
       "bytes": 509004,
       "sha256": "5420da18c04dbefda660133d62583f6abe709233ca45a01139db121fe172f107"
     },
-    "authenticated-source-protocol-aOw2HNbU.js": {
+    "authenticated-source-protocol-EmLZ988f.js": {
       "bytes": 278971,
-      "sha256": "72cbf4040d9d22dc461179b258e8183faf9fdb2575934bad651701638073433e"
+      "sha256": "7c5142b578f3719d622df0b5e434dc212c14b56442dd6ca7b23ad6524a6bf152"
     },
     "base-element-CzTXWtWv.js": {
       "bytes": 2382,
@@ -2179,13 +2179,13 @@
       "bytes": 4569,
       "sha256": "2ba84835349c5145eaf8c9739c9aae2fd9a0a94c51fc7c855098b8ab7453ca69"
     },
-    "chart-spec-DrjXwtIF.js": {
+    "chart-spec-B58mp_-B.js": {
       "bytes": 3958,
-      "sha256": "c85ad50fcefcb3e8855ad5570e9bce786dcb3132bbd46661c5d42f4c6f0fda9a"
+      "sha256": "a60d018397c2cb5a7699f40268e13b5688cbfac40db7e2c5d25856dc3449baa8"
     },
     "console.js": {
-      "bytes": 934126,
-      "sha256": "d07ddb2aa16ca51afcccc59afb037df3b20f5330fa232a172c65d2bc0774da06"
+      "bytes": 936210,
+      "sha256": "bab73a6e0b505f8221ce787b5dddb711c2033cf426d3d2aa0cbe397037d19ee0"
     },
     "constants-B8tqYbYF.js": {
       "bytes": 149,
@@ -2199,17 +2199,17 @@
       "bytes": 20396,
       "sha256": "654f4575ade9496280840fbe8f261769e6c14f05db18b1f07d08bb87e3638179"
     },
-    "errors-DIgkujNL.js": {
+    "errors-C40Oe4fU.js": {
       "bytes": 25603,
-      "sha256": "964a2eb7a4ede134bca7c7e87d4babf8addc97b7d3580582c90aabce1c19d8ba"
+      "sha256": "71a5b99aaef02c310c49d7922563d7c729cbf6122201a72eccac1df1f579b20a"
     },
-    "maplibre-gl-DuhfdD2r.js": {
+    "maplibre-gl-5m8fWEt7.js": {
       "bytes": 1304289,
-      "sha256": "8e3edf65ce72eb89006dbbf272dd3c61bd0d65a278e772ddeb158aa977c1c489"
+      "sha256": "a9d8cafefb575f3364cf8495e5e8ad2c26cf772467f02252f26977afdc5008d7"
     },
-    "maplibre-gl-worker-DHDH4ZWE.js": {
+    "maplibre-gl-worker-X65Jj2sY.js": {
       "bytes": 227,
-      "sha256": "1a9986f1ed1d83151f04eb0775a5c0da17985a018d5b6651f282c7764f6287b1"
+      "sha256": "e7a0437f989643201849fb6a06458f893fd6cba648f070f033e7d5816e384ef6"
     },
     "maplibre-styles-DqdxD-wM.js": {
       "bytes": 83076,
