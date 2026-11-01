@@ -32,6 +32,7 @@ public sealed class StudioHostHydrationTests
     {
         public TestNavigation() => Initialize("http://localhost/", "http://localhost/studio");
         protected override void NavigateToCore(string uri, bool forceLoad) => throw new NotSupportedException();
+        protected override void SetNavigationLockState(bool value) { }
     }
 
     private sealed class NoJs : IJSRuntime
