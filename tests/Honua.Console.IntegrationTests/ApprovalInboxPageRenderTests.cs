@@ -56,6 +56,7 @@ public sealed class ApprovalInboxPageRenderTests
         page.Find("[data-proposal-id=\"external-1\"]").Click();
         page.WaitForAssertion(() => page.Find("[data-proposal-approve]"), TimeSpan.FromSeconds(5));
         await proposals.ApproveAsync("external-1");
+        proposals.RemoveFromQueue("external-1");
         realtime.Raise(new ConsoleProposalEvent(ConsoleProposalEventKind.Resolved, "external-1",
             ConsoleProposalKind.Deploy, ConsoleProposalStatus.Submitted, null, ConsoleProposalRisk.Medium, DateTimeOffset.UtcNow));
         page.WaitForAssertion(() => Assert.Equal("Submitted", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status")), TimeSpan.FromSeconds(5));
