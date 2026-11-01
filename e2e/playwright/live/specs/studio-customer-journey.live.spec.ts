@@ -280,6 +280,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     const frame = editor.frameLocator('iframe');
     const withLabels = structuredClone(style);
     withLabels.layers.push({ id: 'customer-attribute-labels', type: 'symbol', source: fill.source,
+      metadata: { 'honua:compositionLayerId': first.envelope.body.layers[0].id },
       ...(fill['source-layer'] ? { 'source-layer': fill['source-layer'] } : {}),
       layout: { 'text-field': ['get', 'name'], 'text-size': 14 }, paint: { 'text-color': '#222222' } });
     await frame.locator('[data-wd-key="nav:code-editor"]').click();
