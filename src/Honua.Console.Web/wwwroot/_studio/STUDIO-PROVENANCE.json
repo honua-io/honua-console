@@ -1,6 +1,6 @@
 {
   "schema": "honua.studio.console-assets/v1",
-  "sourceCommit": "62312e012d3db5f079582ce56e9f18436c93bc49",
+  "sourceCommit": "4ffc209cebc888f9deef83cd290aab9f4f291b4a",
   "releaseQualified": false,
   "integrationQualification": "pending-installed-workspace-journey",
   "sdk": {
@@ -2159,9 +2159,9 @@
       "bytes": 509004,
       "sha256": "5420da18c04dbefda660133d62583f6abe709233ca45a01139db121fe172f107"
     },
-    "authenticated-source-protocol-4yd8xX9l.js": {
-      "bytes": 277913,
-      "sha256": "6ef94ea3db2371968cbee48c181821997c7c96da953afc5b3d073db336d0d7a2"
+    "authenticated-source-protocol-aOw2HNbU.js": {
+      "bytes": 278971,
+      "sha256": "72cbf4040d9d22dc461179b258e8183faf9fdb2575934bad651701638073433e"
     },
     "base-element-CzTXWtWv.js": {
       "bytes": 2382,
@@ -2179,13 +2179,13 @@
       "bytes": 4569,
       "sha256": "2ba84835349c5145eaf8c9739c9aae2fd9a0a94c51fc7c855098b8ab7453ca69"
     },
-    "chart-spec-DAVCygiU.js": {
-      "bytes": 3928,
-      "sha256": "8dcf5f37f3942ac4fc2e076701be2d92d02d8f5d7bf3d06149da005efff906f4"
+    "chart-spec-DrjXwtIF.js": {
+      "bytes": 3958,
+      "sha256": "c85ad50fcefcb3e8855ad5570e9bce786dcb3132bbd46661c5d42f4c6f0fda9a"
     },
     "console.js": {
-      "bytes": 930646,
-      "sha256": "9af9bd84581d1bb9e6d406fd0036cdeb589f751e09e8ef81c8d9949e7a18d07d"
+      "bytes": 934126,
+      "sha256": "d07ddb2aa16ca51afcccc59afb037df3b20f5330fa232a172c65d2bc0774da06"
     },
     "constants-B8tqYbYF.js": {
       "bytes": 149,
@@ -2199,17 +2199,17 @@
       "bytes": 20396,
       "sha256": "654f4575ade9496280840fbe8f261769e6c14f05db18b1f07d08bb87e3638179"
     },
-    "errors-VvMCLBue.js": {
-      "bytes": 25513,
-      "sha256": "ec175a4d07f0c13302828513699e46e49cc9c4914a6426cc43ee1d72e88cbb96"
+    "errors-DIgkujNL.js": {
+      "bytes": 25603,
+      "sha256": "964a2eb7a4ede134bca7c7e87d4babf8addc97b7d3580582c90aabce1c19d8ba"
     },
-    "maplibre-gl-D8l5aSvm.js": {
-      "bytes": 1304259,
-      "sha256": "22f45992fbbac596986073bf39f15834c5e37df78e338b10fde48d3bdf316caa"
+    "maplibre-gl-DuhfdD2r.js": {
+      "bytes": 1304289,
+      "sha256": "8e3edf65ce72eb89006dbbf272dd3c61bd0d65a278e772ddeb158aa977c1c489"
     },
-    "maplibre-gl-worker-CTQMWz0X.js": {
-      "bytes": 197,
-      "sha256": "0342df9fc64d8c299f8c93f64007308eb778caea84803b4bb6ba3c29fb8d01b0"
+    "maplibre-gl-worker-DHDH4ZWE.js": {
+      "bytes": 227,
+      "sha256": "1a9986f1ed1d83151f04eb0775a5c0da17985a018d5b6651f282c7764f6287b1"
     },
     "maplibre-styles-DqdxD-wM.js": {
       "bytes": 83076,
