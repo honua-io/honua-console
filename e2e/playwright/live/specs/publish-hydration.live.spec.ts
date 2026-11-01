@@ -4,8 +4,8 @@ test('connection selection is unavailable until its interactive handler is ready
   await page.goto('/auth/login?returnTo=/version.json');
   await page.goto('/auth/server/login?profileId=local-dev&returnTo=%2Foperate%2Fconnections');
   await page.waitForURL(/:8443\//);
-  await page.locator('#username').fill('customer');
-  await page.locator('#password').fill('customer-live-proof-pw');
+  await page.locator('#username').fill('alice');
+  await page.locator('#password').fill('alice-live-proof-pw');
   await page.locator('#kc-login').click();
   await page.waitForURL('**/operate/connections');
 
