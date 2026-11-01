@@ -1,7 +1,7 @@
 import { t as e } from "./rolldown-runtime-Dy4uBu1J.js";
 import { t } from "./base-element-CzTXWtWv.js";
-import { d as n, i as r, n as i, u as a } from "./errors-DIgkujNL.js";
-import { i as o, n as s, r as c } from "./authenticated-source-protocol-aOw2HNbU.js";
+import { d as n, i as r, n as i, u as a } from "./errors-VvMCLBue.js";
+import { i as o, n as s, r as c } from "./authenticated-source-protocol-CMhldOZ2.js";
 import { a as l, c as u, d, f, i as p, l as m, n as h, o as g, r as _, s as v, t as y, u as b } from "./visual-layer-owner-Cli7j7Sb.js";
 import { a as x, i as S, l as C, n as ee, o as w, r as te, s as ne, t as re } from "./source-resolution-CURe54Oz.js";
 import { a as ie, i as ae, n as oe, o as se, r as ce, t as le } from "./control-config-B3vF9Ivt.js";
@@ -201,7 +201,7 @@ function Re(e) {
 	return e.replace(/[&<>"']/g, (e) => `&#${e.charCodeAt(0)};`);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/studio-agent/ai-contract.js
+//#region node_modules/@honua/sdk-js/dist/src/studio-agent/ai-contract.js
 var ze = {
 	message_start: "messageStart",
 	text_delta: "textDelta",
@@ -214,7 +214,7 @@ var ze = {
 };
 Object.fromEntries(Object.entries(ze).map(([e, t]) => [t, e]));
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/studio-agent/transcript-verifier.js
+//#region node_modules/@honua/sdk-js/dist/src/studio-agent/transcript-verifier.js
 var Be = class {
 	#e = /* @__PURE__ */ new Set();
 	consume(e) {
@@ -621,7 +621,7 @@ var Je = class {
 	]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/studio-agent/sse-transport.js
+//#region node_modules/@honua/sdk-js/dist/src/studio-agent/sse-transport.js
 function Qe(e, t) {
 	let n = ze[t];
 	if (n) {
@@ -708,7 +708,7 @@ async function tt(e = {}) {
 	return et(a) ? a.data : a;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/studio-agent/mcp-errors.js
+//#region node_modules/@honua/sdk-js/dist/src/studio-agent/mcp-errors.js
 var nt = class extends Error {
 	cause;
 	constructor(e, t) {
@@ -1113,7 +1113,7 @@ function Ct(e, t) {
 	return new it(`Tool "${t}" failed with no structured error detail.`, "unknown", t, e);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/studio-agent/tool-catalog.js
+//#region node_modules/@honua/sdk-js/dist/src/studio-agent/tool-catalog.js
 var wt = "honua.studio";
 function Tt(e) {
 	return e && typeof e == "object" && !Array.isArray(e) ? e : void 0;
@@ -1524,7 +1524,7 @@ function Lt(e, t) {
 	return new Set(n?.propagatesSlices ?? E);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/exploration/selection.js
+//#region node_modules/@honua/sdk-js/dist/src/exploration/selection.js
 function Rt(e, t, n = {}) {
 	return {
 		sourceId: e,
@@ -1541,7 +1541,7 @@ function Bt(e) {
 	return `source:${e.sourceId}\u0000layer:${t}\u0000id:${typeof e.id}:${String(e.id)}`;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/exploration/reducer.js
+//#region node_modules/@honua/sdk-js/dist/src/exploration/reducer.js
 function Vt(e, t) {
 	switch (t.kind) {
 		case "set-filter": {
@@ -1791,7 +1791,7 @@ function nn(e, t) {
 	return !0;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/exploration/context.js
+//#region node_modules/@honua/sdk-js/dist/src/exploration/context.js
 function rn(e) {
 	let { datasetId: t, sourceIds: n } = e, i = [...n], a = an(e.initialState, e.preset), o = Ft[a.preset], s = !1, c = /* @__PURE__ */ new Map(), l = /* @__PURE__ */ new Map(), u = !1, d = a, f = /* @__PURE__ */ new Set(), p = /* @__PURE__ */ new Set(), m;
 	function h(e) {
@@ -2062,7 +2062,7 @@ function ln(e) {
 	return [...new Set(Array.isArray(e) ? e : [e])];
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/exploration/selectors.js
+//#region node_modules/@honua/sdk-js/dist/src/exploration/selectors.js
 function un(e, t, n, r, i = {}) {
 	let a = i.equals ?? dn, o = n(e.state);
 	return i.fireImmediately && r(o, void 0), e.subscribe(t, (e) => {
@@ -2086,7 +2086,7 @@ function dn(e, t) {
 	return !0;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/interactions/declarative-contract.js
+//#region node_modules/@honua/sdk-js/dist/src/interactions/declarative-contract.js
 var fn = [
 	"featureSelect",
 	"featureHover",
@@ -2237,7 +2237,7 @@ function Dn(e, t = {}) {
 	};
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/agent-tools/index.js
+//#region node_modules/@honua/sdk-js/dist/src/agent-tools/index.js
 var D = (e) => ({
 	type: "string",
 	description: e
@@ -3223,7 +3223,7 @@ function Mr(e) {
 	];
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/studio-agent/session.js
+//#region node_modules/@honua/sdk-js/dist/src/studio-agent/session.js
 var Nr = "honua_client_select_workflow_view", Pr = {
 	name: Nr,
 	description: "Select a bounded Honua workflow tool view on this same connection and conversation. Use honua_list_capabilities to discover server workflowViews and their purposes. This changes tool discovery only, grants no authority, and runs no server mutation. After switching, plan the next action using the refreshed tools in the next round.",
@@ -3845,10 +3845,13 @@ var $r = class {
 	listeners = /* @__PURE__ */ new Set();
 	unsubscribeExpired;
 	expiryTimer;
+	expiryGeneration = 0;
 	fetchRequest;
 	constructor(e) {
-		if (this.adapter = e, this.unsubscribeExpired = this.adapter.onExpired(() => {
-			this.dispatch({
+		this.adapter = e;
+		let t = this.expiryGeneration;
+		if (this.unsubscribeExpired = this.adapter.onExpired(() => {
+			t === this.expiryGeneration && this.dispatch({
 				type: "refresh-failed",
 				error: "The host session expired."
 			});
@@ -3857,7 +3860,9 @@ var $r = class {
 			this.adapter = t;
 			let n = Qr(t.sourcePathBase);
 			if (t.baseUrl !== "/api/studio" || !t.environmentId || !/^[A-Za-z0-9._:-]{1,256}$/.test(t.principalId ?? "") || !t.csrfToken || !Number.isFinite(Date.parse(t.expiresAt))) throw Error("Invalid cookie host session.");
-			this.fetchRequest = async (e, r) => {
+			this.fetchRequest = async (e, t) => {
+				let r = this.adapter;
+				if (!("kind" in r) || r.kind !== "cookie") throw Error("The host session changed.");
 				if (this.getState().status !== "fresh") throw Error("The host session expired.");
 				if (e instanceof Request) throw Error("Cookie transport requires an explicit URL.");
 				let i = String(e);
@@ -3872,37 +3877,95 @@ var $r = class {
 				if (/[^\x20-\x7e]|[\\#]/.test(i) || /%(?:2e|2f|5c)/i.test(a) || a.split("/").includes("..")) throw Error("Cookie host transport rejected an unbounded URL.");
 				let o;
 				if (a === "/mcp" || a === "/api/mcp") {
-					let e = JSON.parse(String(r?.body ?? "{}")), t = e.params?.arguments ?? {}, n = e.params?.name, i = n === "honua_list_layers" && Object.keys(t).every((e) => e === "offset" || e === "limit") && Number.isSafeInteger(t.offset ?? 0) && Number(t.offset ?? 0) >= 0 && Number.isSafeInteger(t.limit ?? 100) && Number(t.limit ?? 100) > 0 && Number(t.limit ?? 100) <= 100, a = n === "honua_get_style" && Object.keys(t).every((e) => e === "styleId" || e === "includeStylesheet" || e === "encoding") && (t.styleId === void 0 || typeof t.styleId == "string" && t.styleId.length <= 256) && (t.includeStylesheet === void 0 || t.includeStylesheet === !0) && (t.encoding === void 0 || t.encoding === "mapbox-style"), s = n === "honua_describe_layer" && Object.keys(t).every((e) => e === "serviceId" || e === "layerId") && typeof t.serviceId == "string" && t.serviceId.length > 0 && t.serviceId.length <= 256 && Number.isSafeInteger(t.layerId) && Number(t.layerId) >= 0;
+					let e = JSON.parse(String(t?.body ?? "{}")), n = e.params?.arguments ?? {}, r = e.params?.name, i = r === "honua_list_layers" && Object.keys(n).every((e) => e === "offset" || e === "limit") && Number.isSafeInteger(n.offset ?? 0) && Number(n.offset ?? 0) >= 0 && Number.isSafeInteger(n.limit ?? 100) && Number(n.limit ?? 100) > 0 && Number(n.limit ?? 100) <= 100, a = r === "honua_get_style" && Object.keys(n).every((e) => e === "styleId" || e === "includeStylesheet" || e === "encoding") && (n.styleId === void 0 || typeof n.styleId == "string" && n.styleId.length <= 256) && (n.includeStylesheet === void 0 || n.includeStylesheet === !0) && (n.encoding === void 0 || n.encoding === "mapbox-style"), s = r === "honua_describe_layer" && Object.keys(n).every((e) => e === "serviceId" || e === "layerId") && typeof n.serviceId == "string" && n.serviceId.length > 0 && n.serviceId.length <= 256 && Number.isSafeInteger(n.layerId) && Number(n.layerId) >= 0;
 					if (e.method !== "initialize" && e.method !== "notifications/initialized" && !(e.method === "tools/call" && (i || a || s))) throw Error("The human catalog transport only permits layer discovery and style readback.");
 					o = "/api/studio/catalog-mcp";
-				} else if ((/^\/rest\/services\/(?:[^/]+\/)+FeatureServer\/\d+(?:\/query)?$/.test(a) || /^\/ogc\/features\/collections\/[^/]+\/items$/.test(a)) && (r?.method ?? "GET") === "GET") o = `/api/studio/data${i}`;
+				} else if ((/^\/rest\/services\/(?:[^/]+\/)+FeatureServer\/\d+(?:\/query)?$/.test(a) || /^\/ogc\/features\/collections\/[^/]+\/items$/.test(a)) && (t?.method ?? "GET") === "GET") o = `/api/studio/data${i}`;
 				else if (/^\/api\/v1\/admin\/metadata\/layers\/(0|[1-9]\d{0,8})\/suggest-style$/.test(a)) {
 					let e = /^\/api\/v1\/admin\/metadata\/layers\/(0|[1-9]\d{0,8})\/suggest-style$/.exec(a);
-					if ((r?.method ?? "GET").toUpperCase() !== "POST" || i !== a || !e) throw Error("Cookie host transport only permits bounded Studio requests.");
+					if ((t?.method ?? "GET").toUpperCase() !== "POST" || i !== a || !e) throw Error("Cookie host transport only permits bounded Studio requests.");
 					o = `/api/studio/layers/${e[1]}/suggest-style`;
 				} else {
 					if (!a.startsWith("/api/v1/studio/") && !a.startsWith("/api/studio/v1/studio/") && a !== "/api/health") throw Error("Cookie host transport only permits bounded Studio requests.");
 					o = i.startsWith("/api/studio/") ? i : `/api/studio${i.slice(4)}`;
 				}
-				let s = new Headers(r?.headers);
-				s.delete("authorization"), s.delete("x-api-key"), s.set("X-Honua-Environment", t.environmentId), s.set("X-Honua-Session-Partition", t.principalId), [
+				let s = new Headers(t?.headers);
+				s.delete("authorization"), s.delete("x-api-key"), s.set("X-Honua-Environment", r.environmentId), s.set("X-Honua-Session-Partition", r.principalId), [
 					"GET",
 					"HEAD",
 					"OPTIONS"
-				].includes((r?.method ?? "GET").toUpperCase()) || s.set("X-CSRF-Token", t.csrfToken);
+				].includes((t?.method ?? "GET").toUpperCase()) || s.set("X-CSRF-Token", r.csrfToken);
 				let c = await fetch(o, {
-					...r,
+					...t,
 					headers: s,
 					credentials: "same-origin",
 					redirect: "error"
-				});
-				return c.status === 401 && this.dispatch({
+				}), l = r;
+				if (this.adapter !== r) {
+					let e = (t?.method ?? "GET").toUpperCase(), n = [
+						"GET",
+						"HEAD",
+						"OPTIONS"
+					].includes(e) || o === "/api/studio/catalog-mcp";
+					if (!n && c.status !== 401) throw Error("The session renewed during this request. Check the original outcome before retrying.");
+					if (n) {
+						let e = this.adapter;
+						if (!("kind" in e) || e.kind !== "cookie" || this.getState().status !== "fresh") throw Error("The host session changed.");
+						if (o === "/api/studio/catalog-mcp" && s.set("X-CSRF-Token", e.csrfToken), c = await fetch(o, {
+							...t,
+							headers: s,
+							credentials: "same-origin",
+							redirect: "error"
+						}), this.adapter !== e) throw Error("The session renewed again during this read. Retry it.");
+						l = e;
+					}
+				}
+				if (c.status === 401 && this.adapter === l && this.dispatch({
 					type: "refresh-failed",
 					error: "The host session expired."
-				}), c;
+				}), !c.body) return c;
+				let u = c.body, d, f = () => this.adapter === l && this.getState().status === "fresh", p = new ReadableStream({
+					async pull(e) {
+						try {
+							if (!f()) throw Error("The session renewed while reading the response.");
+							d ??= u.getReader();
+							let t = await d.read();
+							if (!f()) throw Error("The session renewed while reading the response.");
+							t.done ? e.close() : e.enqueue(t.value);
+						} catch (t) {
+							d && d.cancel().catch(() => {}), e.error(t);
+						}
+					},
+					cancel(e) {
+						return d ? d.cancel(e) : u.cancel(e);
+					}
+				}, { highWaterMark: 0 }), m = new Response(p, {
+					status: c.status,
+					statusText: c.statusText,
+					headers: c.headers
+				});
+				return Object.defineProperties(m, {
+					url: { value: c.url },
+					redirected: { value: c.redirected },
+					type: { value: c.type }
+				}), m;
 			};
 		}
 		this.getAccessToken();
+	}
+	renewCookie(e) {
+		let t = this.adapter;
+		if (!("kind" in t) || t.kind !== "cookie" || t.principalId !== e.principalId || t.environmentId !== e.environmentId || Qr(t.sourcePathBase) !== Qr(e.sourcePathBase) || e.baseUrl !== "/api/studio" || !e.csrfToken || !Number.isFinite(Date.parse(e.expiresAt))) throw Error("Cookie lease renewal changed the session authority.");
+		let n = Object.freeze({ ...e }), r = e.onExpired(() => {
+			this.adapter === n && this.dispatch({
+				type: "refresh-failed",
+				error: "The host session expired."
+			});
+		});
+		this.expiryGeneration++, this.unsubscribeExpired(), this.unsubscribeExpired = r, this.adapter = n, clearTimeout(this.expiryTimer), this.expiryTimer = void 0, this.dispatch({
+			type: "host-authenticated",
+			expiresAt: Date.parse(n.expiresAt)
+		}), this.getAccessToken();
 	}
 	getState() {
 		return this.state.status === "fresh" && this.state.expiresAt !== void 0 && this.state.expiresAt <= Date.now() && this.dispatch({
@@ -3980,7 +4043,7 @@ function ei(e) {
 	return e instanceof Error ? e.message : String(e);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/geometry/internal.js
+//#region node_modules/@honua/sdk-js/dist/src/geometry/internal.js
 function ti(e) {
 	if (e.type === "Feature") {
 		let t = e.geometry;
@@ -3991,18 +4054,18 @@ function ti(e) {
 	return e;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/global.js
+//#region node_modules/proj4/lib/global.js
 function ni(e) {
 	e("EPSG:4326", "+title=WGS 84 (long/lat) +proj=longlat +ellps=WGS84 +datum=WGS84 +units=degrees"), e("EPSG:4269", "+title=NAD83 (long/lat) +proj=longlat +a=6378137.0 +b=6356752.31414036 +ellps=GRS80 +datum=NAD83 +units=degrees"), e("EPSG:3857", "+title=WGS 84 / Pseudo-Mercator +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs");
 	for (var t = 1; t <= 60; ++t) e("EPSG:" + (32600 + t), "+proj=utm +zone=" + t + " +datum=WGS84 +units=m"), e("EPSG:" + (32700 + t), "+proj=utm +zone=" + t + " +south +datum=WGS84 +units=m");
 	e("EPSG:5041", "+title=WGS 84 / UPS North (E,N) +proj=stere +lat_0=90 +lon_0=0 +k=0.994 +x_0=2000000 +y_0=2000000 +datum=WGS84 +units=m"), e("EPSG:5042", "+title=WGS 84 / UPS South (E,N) +proj=stere +lat_0=-90 +lon_0=0 +k=0.994 +x_0=2000000 +y_0=2000000 +datum=WGS84 +units=m"), e.WGS84 = e["EPSG:4326"], e["EPSG:3785"] = e["EPSG:3857"], e.GOOGLE = e["EPSG:3857"], e["EPSG:900913"] = e["EPSG:3857"], e["EPSG:102113"] = e["EPSG:3857"];
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/constants/values.js
+//#region node_modules/proj4/lib/constants/values.js
 var ri = 6378137, ii = 6356752.314, ai = .0066943799901413165, oi = 484813681109536e-20, A = Math.PI / 2, si = .16666666666666666, ci = .04722222222222222, li = .022156084656084655, ui = 1e-10, j = .017453292519943295, di = 57.29577951308232, M = Math.PI / 4, fi = Math.PI * 2, N = 3.14159265359, pi = {};
 pi.greenwich = 0, pi.lisbon = -9.131906111111, pi.paris = 2.337229166667, pi.bogota = -74.080916666667, pi.madrid = -3.687938888889, pi.rome = 12.452333333333, pi.bern = 7.439583333333, pi.jakarta = 106.807719444444, pi.ferro = -17.666666666667, pi.brussels = 4.367975, pi.stockholm = 18.058277777778, pi.athens = 23.7163375, pi.oslo = 10.722916666667;
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/constants/units.js
+//#region node_modules/proj4/lib/constants/units.js
 var mi = {
 	mm: { to_meter: .001 },
 	cm: { to_meter: .01 },
@@ -4030,7 +4093,7 @@ function gi(e, t) {
 	for (var n = Object.keys(e), r = t.toLowerCase().replace(hi, ""), i = -1, a, o; ++i < n.length;) if (a = n[i], o = a.toLowerCase().replace(hi, ""), o === r) return e[a];
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projString.js
+//#region node_modules/proj4/lib/projString.js
 function _i(e) {
 	var t = {}, n = e.split("+").map(function(e) {
 		return e.trim();
@@ -4151,7 +4214,7 @@ function _i(e) {
 	return typeof t.datumCode == "string" && t.datumCode !== "WGS84" && (t.datumCode = t.datumCode.toLowerCase()), t.projStr = e, t;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/wkt-parser/PROJJSONBuilder.js
+//#region node_modules/wkt-parser/PROJJSONBuilder.js
 var vi = class {
 	static getId(e) {
 		let t = e.find((e) => Array.isArray(e) && e[0] === "ID");
@@ -4315,18 +4378,18 @@ var vi = class {
 	}
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/wkt-parser/buildPROJJSON.js
+//#region node_modules/wkt-parser/buildPROJJSON.js
 function yi(e) {
 	return vi.convert(e);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/wkt-parser/detectWKTVersion.js
+//#region node_modules/wkt-parser/detectWKTVersion.js
 function bi(e) {
 	let t = e.toUpperCase();
 	return t.includes("PROJCRS") || t.includes("GEOGCRS") || t.includes("BOUNDCRS") || t.includes("VERTCRS") || t.includes("LENGTHUNIT") || t.includes("ANGLEUNIT") || t.includes("SCALEUNIT") ? "WKT2" : (t.includes("PROJCS") || t.includes("GEOGCS") || t.includes("LOCAL_CS") || t.includes("VERT_CS") || t.includes("UNIT"), "WKT1");
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/wkt-parser/parser.js
+//#region node_modules/wkt-parser/parser.js
 var xi = Pi, Si = 1, Ci = 2, wi = 3, Ti = 4, Ei = 5, Di = -1, Oi = /\s/, ki = /[A-Za-z]/, Ai = /[A-Za-z84_]/, ji = /[,\]]/, Mi = /[\d\.E\-\+]/;
 function Ni(e) {
 	if (typeof e != "string") throw Error("not a string");
@@ -4423,7 +4486,7 @@ function Pi(e) {
 	return new Ni(e).output();
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/wkt-parser/process.js
+//#region node_modules/wkt-parser/process.js
 function Fi(e, t, n) {
 	Array.isArray(t) && (n.unshift(t), t = null);
 	var r = t ? {} : e, i = n.reduce(function(e, t) {
@@ -4507,7 +4570,7 @@ function Ii(e, t) {
 	}
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/wkt-parser/util.js
+//#region node_modules/wkt-parser/util.js
 var Li = .017453292519943295;
 function Ri(e) {
 	return e * Li;
@@ -4517,7 +4580,7 @@ function zi(e) {
 	e.long0 === void 0 && e.longc !== void 0 && (e.long0 = e.longc), !e.lat_ts && e.lat1 && (t === "stereographic south pole" || t === "polar stereographic (variant b)") ? (e.lat0 = Ri(e.lat1 > 0 ? 90 : -90), e.lat_ts = e.lat1, delete e.lat1) : !e.lat_ts && e.lat0 && (t === "polar stereographic" || t === "polar stereographic (variant a)") && (e.lat_ts = e.lat0, e.lat0 = Ri(e.lat0 > 0 ? 90 : -90), delete e.lat1);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/wkt-parser/transformPROJJSON.js
+//#region node_modules/wkt-parser/transformPROJJSON.js
 function Bi(e) {
 	let t = {
 		units: null,
@@ -4594,7 +4657,7 @@ function Ui(e, t = {}) {
 	}), !t.datumCode && (e.type === "GeographicCRS" || e.type === "GeodeticCRS") && e.id && (t.datumCode = e.id.authority + "_" + e.id.code), t.latitude_of_false_origin !== void 0 && (t.lat0 = t.latitude_of_false_origin), t.longitude_of_false_origin !== void 0 && (t.long0 = t.longitude_of_false_origin), t.latitude_of_standard_parallel !== void 0 && (t.lat0 = t.latitude_of_standard_parallel, t.lat1 = t.latitude_of_standard_parallel), t.latitude_of_1st_standard_parallel !== void 0 && (t.lat1 = t.latitude_of_1st_standard_parallel), t.latitude_of_2nd_standard_parallel !== void 0 && (t.lat2 = t.latitude_of_2nd_standard_parallel), t.latitude_of_projection_centre !== void 0 && (t.lat0 = t.latitude_of_projection_centre), t.longitude_of_projection_centre !== void 0 && (t.longc = t.longitude_of_projection_centre), t.easting_at_false_origin !== void 0 && (t.x0 = t.easting_at_false_origin), t.northing_at_false_origin !== void 0 && (t.y0 = t.northing_at_false_origin), t.latitude_of_natural_origin !== void 0 && (t.lat0 = t.latitude_of_natural_origin), t.longitude_of_natural_origin !== void 0 && (t.long0 = t.longitude_of_natural_origin), t.longitude_of_origin !== void 0 && (t.long0 = t.longitude_of_origin), t.false_easting !== void 0 && (t.x0 = t.false_easting), t.easting_at_projection_centre && (t.x0 = t.easting_at_projection_centre), t.false_northing !== void 0 && (t.y0 = t.false_northing), t.northing_at_projection_centre && (t.y0 = t.northing_at_projection_centre), t.standard_parallel_1 !== void 0 && (t.lat1 = t.standard_parallel_1), t.standard_parallel_2 !== void 0 && (t.lat2 = t.standard_parallel_2), t.scale_factor_at_natural_origin !== void 0 && (t.k0 = t.scale_factor_at_natural_origin), t.scale_factor_at_projection_centre !== void 0 && (t.k0 = t.scale_factor_at_projection_centre), t.scale_factor_on_pseudo_standard_parallel !== void 0 && (t.k0 = t.scale_factor_on_pseudo_standard_parallel), t.azimuth !== void 0 && (t.alpha = t.azimuth), t.azimuth_at_projection_centre !== void 0 && (t.alpha = t.azimuth_at_projection_centre), t.angle_from_rectified_to_skew_grid && (t.rectified_grid_angle = t.angle_from_rectified_to_skew_grid), zi(t), t);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/wkt-parser/index.js
+//#region node_modules/wkt-parser/index.js
 var Wi = [
 	"PROJECTEDCRS",
 	"PROJCRS",
@@ -4725,7 +4788,7 @@ function Ji(e) {
 	return Ii(n, i), Ki(i), i[r];
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/defs.js
+//#region node_modules/proj4/lib/defs.js
 function P(e) {
 	var t = this;
 	if (arguments.length === 2) {
@@ -4743,7 +4806,7 @@ function P(e) {
 }
 ni(P);
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/parseCode.js
+//#region node_modules/proj4/lib/parseCode.js
 function Yi(e) {
 	return typeof e == "string";
 }
@@ -4786,7 +4849,7 @@ function na(e) {
 	return t && $i(t) ? P["EPSG:3857"] : t;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/extend.js
+//#region node_modules/proj4/lib/extend.js
 function ra(e, t) {
 	e ||= {};
 	var n, r;
@@ -4795,35 +4858,35 @@ function ra(e, t) {
 	return e;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/msfnz.js
+//#region node_modules/proj4/lib/common/msfnz.js
 function ia(e, t, n) {
 	var r = e * t;
 	return n / Math.sqrt(1 - r * r);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/sign.js
+//#region node_modules/proj4/lib/common/sign.js
 function aa(e) {
 	return e < 0 ? -1 : 1;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/adjust_lon.js
+//#region node_modules/proj4/lib/common/adjust_lon.js
 function F(e, t) {
 	return t || Math.abs(e) <= 3.14159265359 ? e : e - aa(e) * fi;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/tsfnz.js
+//#region node_modules/proj4/lib/common/tsfnz.js
 function oa(e, t, n) {
 	var r = e * n, i = .5 * e;
 	return r = ((1 - r) / (1 + r)) ** i, Math.tan(.5 * (A - t)) / r;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/phi2z.js
+//#region node_modules/proj4/lib/common/phi2z.js
 function sa(e, t) {
 	for (var n = .5 * e, r, i, a = A - 2 * Math.atan(t), o = 0; o <= 15; o++) if (r = e * Math.sin(a), i = A - 2 * Math.atan(t * ((1 - r) / (1 + r)) ** n) - a, a += i, Math.abs(i) <= 1e-10) return a;
 	return -9999;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/merc.js
+//#region node_modules/proj4/lib/projections/merc.js
 function ca() {
 	var e = this.b / this.a;
 	this.es = 1 - e * e, "x0" in this || (this.x0 = 0), "y0" in this || (this.y0 = 0), this.long0 = this.long0 || 0, this.e = Math.sqrt(this.es), this.lat_ts ? this.sphere ? this.k0 = Math.cos(this.lat_ts) : this.k0 = ia(this.e, Math.sin(this.lat_ts), Math.cos(this.lat_ts)) : this.k0 || (this.k ? this.k0 = this.k : this.k0 = 1);
@@ -4863,7 +4926,7 @@ var da = {
 	]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/longlat.js
+//#region node_modules/proj4/lib/projections/longlat.js
 function fa() {}
 function pa(e) {
 	return e;
@@ -5147,7 +5210,7 @@ function Ea(e, t, n, r, i) {
 	};
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/constants/Datum.js
+//#region node_modules/proj4/lib/constants/Datum.js
 var Da = {
 	wgs84: {
 		towgs84: "0,0,0",
@@ -5665,13 +5728,13 @@ for (var Oa in Da) {
 	ka.datumName && (Da[ka.datumName] = ka);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/datum.js
+//#region node_modules/proj4/lib/datum.js
 function Aa(e, t, n, r, i, a, o) {
 	var s = {};
 	return s.datum_type = 5, t && (s.datum_type = 4, s.datum_params = t.map(parseFloat), (s.datum_params[0] !== 0 || s.datum_params[1] !== 0 || s.datum_params[2] !== 0) && (s.datum_type = 1), s.datum_params.length > 3 && (s.datum_params[3] !== 0 || s.datum_params[4] !== 0 || s.datum_params[5] !== 0 || s.datum_params[6] !== 0) && (s.datum_type = 2, s.datum_params[3] *= oi, s.datum_params[4] *= oi, s.datum_params[5] *= oi, s.datum_params[6] = s.datum_params[6] / 1e6 + 1)), o && (s.datum_type = 3, s.grids = o), s.a = n, s.b = r, s.es = i, s.ep2 = a, s;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/nadgrid.js
+//#region node_modules/proj4/lib/nadgrid.js
 var ja = {};
 function Ma(e, t, n) {
 	return t instanceof ArrayBuffer ? Na(e, t, n) : { ready: Pa(e, t) };
@@ -5794,7 +5857,7 @@ function Ga(e, t, n, r, i) {
 	return s;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/Proj.js
+//#region node_modules/proj4/lib/Proj.js
 function Ka(e, t) {
 	if (!(this instanceof Ka)) return new Ka(e);
 	this.forward = null, this.inverse = null, this.init = null, this.name, this.axis, this.names = null, this.title, t ||= function(e) {
@@ -5820,7 +5883,7 @@ function Ka(e, t) {
 }
 Ka.projections = Sa, Ka.projections.start();
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/datumUtils.js
+//#region node_modules/proj4/lib/datumUtils.js
 function qa(e, t) {
 	return e.datum_type === t.datum_type ? e.a !== t.a || Math.abs(e.es - t.es) > 5e-11 ? !1 : e.datum_type === 1 ? e.datum_params[0] === t.datum_params[0] && e.datum_params[1] === t.datum_params[1] && e.datum_params[2] === t.datum_params[2] : e.datum_type !== 2 || e.datum_params[0] === t.datum_params[0] && e.datum_params[1] === t.datum_params[1] && e.datum_params[2] === t.datum_params[2] && e.datum_params[3] === t.datum_params[3] && e.datum_params[4] === t.datum_params[4] && e.datum_params[5] === t.datum_params[5] && e.datum_params[6] === t.datum_params[6] : !1;
 }
@@ -5894,7 +5957,7 @@ function Za(e, t, n) {
 	}
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/datum_transform.js
+//#region node_modules/proj4/lib/datum_transform.js
 function Qa(e) {
 	return e === 1 || e === 2;
 }
@@ -6003,7 +6066,7 @@ function no(e, t) {
 	return a.x = p * s.x + f * c.x + m * u.x + d * l.x, a.y = p * s.y + f * c.y + m * u.y + d * l.y, a;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/adjust_axis.js
+//#region node_modules/proj4/lib/adjust_axis.js
 var ro = [
 	"x",
 	"y",
@@ -6064,7 +6127,7 @@ function ao(e, t) {
 	return n;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/toPoint.js
+//#region node_modules/proj4/lib/common/toPoint.js
 function oo(e) {
 	var t = {
 		x: e[0],
@@ -6073,7 +6136,7 @@ function oo(e) {
 	return e.length > 2 && (t.z = e[2]), e.length > 3 && (t.m = e[3]), t;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/checkSanity.js
+//#region node_modules/proj4/lib/checkSanity.js
 function so(e) {
 	co(e.x), co(e.y);
 }
@@ -6085,7 +6148,7 @@ function co(e) {
 	if (typeof e != "number" || e !== e || !isFinite(e)) throw TypeError("coordinates must be finite numbers");
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/transform.js
+//#region node_modules/proj4/lib/transform.js
 function lo(e, t) {
 	return (e.datum.datum_type === 1 || e.datum.datum_type === 2 || e.datum.datum_type === 3) && t.datumCode !== "WGS84" || (t.datum.datum_type === 1 || t.datum.datum_type === 2 || t.datum.datum_type === 3) && e.datumCode !== "WGS84";
 }
@@ -6124,7 +6187,7 @@ function fo(e, t, n, r) {
 	}, r);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/core.js
+//#region node_modules/proj4/lib/core.js
 var po = Ka("WGS84");
 function mo(e, t, n, r) {
 	var i, a, o;
@@ -6170,7 +6233,7 @@ function go(e, t, n) {
 	}, a && (o.oProj = i), o);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/mgrs/mgrs.js
+//#region node_modules/mgrs/mgrs.js
 var _o = 6, vo = "AJSAJS", yo = "AFAFAF", bo = 65, xo = 73, So = 79, Co = 86, wo = 90, To = {
 	forward: Eo,
 	inverse: Do,
@@ -6379,7 +6442,7 @@ function Vo(e) {
 	throw "Invalid zone letter: " + e;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/Point.js
+//#region node_modules/proj4/lib/Point.js
 function Ho(e, t, n) {
 	if (!(this instanceof Ho)) return new Ho(e, t, n);
 	if (Array.isArray(e)) this.x = e[0], this.y = e[1], this.z = e[2] || 0;
@@ -6396,7 +6459,7 @@ Ho.fromMGRS = function(e) {
 	return Eo([this.x, this.y], e);
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/pj_enfn.js
+//#region node_modules/proj4/lib/common/pj_enfn.js
 var Uo = 1, Wo = .25, Go = .046875, Ko = .01953125, qo = .01068115234375, Jo = .75, Yo = .46875, Xo = .013020833333333334, Zo = .007120768229166667, Qo = .3645833333333333, $o = .005696614583333333, es = .3076171875;
 function ts(e) {
 	var t = [];
@@ -6405,12 +6468,12 @@ function ts(e) {
 	return t[2] = n * (Yo - e * (Xo + e * Zo)), n *= e, t[3] = n * (Qo - e * $o), t[4] = n * e * es, t;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/pj_mlfn.js
+//#region node_modules/proj4/lib/common/pj_mlfn.js
 function ns(e, t, n, r) {
 	return n *= t, t *= t, r[0] * e - n * (r[1] + t * (r[2] + t * (r[3] + t * r[4])));
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/pj_inv_mlfn.js
+//#region node_modules/proj4/lib/common/pj_inv_mlfn.js
 var rs = 20;
 function is(e, t, n) {
 	for (var r = 1 / (1 - t), i = e, a = rs; a; --a) {
@@ -6420,7 +6483,7 @@ function is(e, t, n) {
 	return i;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/tmerc.js
+//#region node_modules/proj4/lib/projections/tmerc.js
 function as() {
 	this.x0 = this.x0 === void 0 ? 0 : this.x0, this.y0 = this.y0 === void 0 ? 0 : this.y0, this.long0 = this.long0 === void 0 ? 0 : this.long0, this.lat0 = this.lat0 === void 0 ? 0 : this.lat0, this.es && (this.en = ts(this.es), this.ml0 = ns(this.lat0, Math.sin(this.lat0), Math.cos(this.lat0), this.en));
 }
@@ -6462,56 +6525,56 @@ var cs = {
 	names: ["Fast_Transverse_Mercator", "Fast Transverse Mercator"]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/sinh.js
+//#region node_modules/proj4/lib/common/sinh.js
 function ls(e) {
 	var t = Math.exp(e);
 	return t = (t - 1 / t) / 2, t;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/hypot.js
+//#region node_modules/proj4/lib/common/hypot.js
 function us(e, t) {
 	e = Math.abs(e), t = Math.abs(t);
 	var n = Math.max(e, t), r = Math.min(e, t) / (n || 1);
 	return n * Math.sqrt(1 + r ** 2);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/log1py.js
+//#region node_modules/proj4/lib/common/log1py.js
 function ds(e) {
 	var t = 1 + e, n = t - 1;
 	return n === 0 ? e : e * Math.log(t) / n;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/asinhy.js
+//#region node_modules/proj4/lib/common/asinhy.js
 function fs(e) {
 	var t = Math.abs(e);
 	return t = ds(t * (1 + t / (us(1, t) + 1))), e < 0 ? -t : t;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/gatg.js
+//#region node_modules/proj4/lib/common/gatg.js
 function ps(e, t) {
 	for (var n = 2 * Math.cos(2 * t), r = e.length - 1, i = e[r], a = 0, o; --r >= 0;) o = -a + n * i + e[r], a = i, i = o;
 	return t + o * Math.sin(2 * t);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/clens.js
+//#region node_modules/proj4/lib/common/clens.js
 function ms(e, t) {
 	for (var n = 2 * Math.cos(t), r = e.length - 1, i = e[r], a = 0, o; --r >= 0;) o = -a + n * i + e[r], a = i, i = o;
 	return Math.sin(t) * o;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/cosh.js
+//#region node_modules/proj4/lib/common/cosh.js
 function hs(e) {
 	var t = Math.exp(e);
 	return t = (t + 1 / t) / 2, t;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/clens_cmplx.js
+//#region node_modules/proj4/lib/common/clens_cmplx.js
 function gs(e, t, n) {
 	for (var r = Math.sin(t), i = Math.cos(t), a = ls(n), o = hs(n), s = 2 * i * o, c = -2 * r * a, l = e.length - 1, u = e[l], d = 0, f = 0, p = 0, m, h; --l >= 0;) m = f, h = d, f = u, d = p, u = -m + s * f - c * d + e[l], p = -h + c * f + s * d;
 	return s = r * o, c = i * a, [s * u - c * p, s * p + c * u];
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/etmerc.js
+//#region node_modules/proj4/lib/projections/etmerc.js
 function _s() {
 	if (!this.approx && (isNaN(this.es) || this.es <= 0)) throw Error("Incorrect elliptical usage. Try using the +approx option in the proj string, or PROJECTION[\"Fast_Transverse_Mercator\"] in the WKT.");
 	this.approx && (cs.init.apply(this), this.forward = cs.forward, this.inverse = cs.inverse), this.x0 = this.x0 === void 0 ? 0 : this.x0, this.y0 = this.y0 === void 0 ? 0 : this.y0, this.long0 = this.long0 === void 0 ? 0 : this.long0, this.lat0 = this.lat0 === void 0 ? 0 : this.lat0, this.k0 = this.k0 === void 0 ? 1 : this.k0, this.cgb = [], this.cbg = [], this.utg = [], this.gtu = [];
@@ -6558,7 +6621,7 @@ var bs = {
 	]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/adjust_zone.js
+//#region node_modules/proj4/lib/common/adjust_zone.js
 function xs(e, t) {
 	if (e === void 0) {
 		if (e = Math.floor((F(t) + Math.PI) * 30 / Math.PI) + 1, e < 0) return 0;
@@ -6567,7 +6630,7 @@ function xs(e, t) {
 	return e;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/utm.js
+//#region node_modules/proj4/lib/projections/utm.js
 var Ss = "etmerc";
 function Cs() {
 	var e = xs(this.zone, this.long0);
@@ -6580,12 +6643,12 @@ var ws = {
 	dependsOn: Ss
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/srat.js
+//#region node_modules/proj4/lib/common/srat.js
 function Ts(e, t) {
 	return ((1 - e) / (1 + e)) ** t;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/gauss.js
+//#region node_modules/proj4/lib/projections/gauss.js
 var Es = 20;
 function Ds() {
 	var e = Math.sin(this.lat0), t = Math.cos(this.lat0);
@@ -6606,7 +6669,7 @@ var As = {
 	names: ["gauss"]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/sterea.js
+//#region node_modules/proj4/lib/projections/sterea.js
 function js() {
 	As.init.apply(this), this.rc && (this.sinc0 = Math.sin(this.phic0), this.cosc0 = Math.cos(this.phic0), this.R2 = 2 * this.rc, this.title ||= "Oblique Stereographic Alternative");
 }
@@ -6635,7 +6698,7 @@ var Ps = {
 	]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/stere.js
+//#region node_modules/proj4/lib/projections/stere.js
 function Fs(e, t, n) {
 	return t *= n, Math.tan(.5 * (A + e)) * ((1 - t) / (1 + t)) ** (.5 * n);
 }
@@ -6672,7 +6735,7 @@ var zs = {
 	ssfn_: Fs
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/somerc.js
+//#region node_modules/proj4/lib/projections/somerc.js
 function Bs() {
 	this.k0 ||= 1;
 	var e = this.lat0;
@@ -6752,7 +6815,7 @@ var Ys = {
 	]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/lcc.js
+//#region node_modules/proj4/lib/projections/lcc.js
 function Xs() {
 	if (this.lat2 ||= this.lat1, this.k0 ||= 1, this.x0 = this.x0 || 0, this.y0 = this.y0 || 0, this.long0 = this.long0 || 0, !(Math.abs(this.lat1 + this.lat2) < 1e-10)) {
 		var e = this.b / this.a;
@@ -6797,7 +6860,7 @@ var $s = {
 	]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/krovak.js
+//#region node_modules/proj4/lib/projections/krovak.js
 function ec() {
 	this.a = 6377397.155, this.es = .006674372230614, this.e = Math.sqrt(this.es), this.lat0 ||= .863937979737193, this.long0 ||= .4334234309119251, this.k0 ||= .9999, this.s45 = .785398163397448, this.s90 = 2 * this.s45, this.fi0 = this.lat0, this.e2 = this.es, this.e = Math.sqrt(this.e2), this.alfa = Math.sqrt(1 + this.e2 * Math.cos(this.fi0) ** 4 / (1 - this.e2)), this.uq = 1.04216856380474, this.u0 = Math.asin(Math.sin(this.fi0) / this.alfa), this.g = ((1 + this.e * Math.sin(this.fi0)) / (1 - this.e * Math.sin(this.fi0))) ** (this.alfa * this.e / 2), this.k = Math.tan(this.u0 / 2 + this.s45) / Math.tan(this.fi0 / 2 + this.s45) ** +this.alfa * this.g, this.k1 = this.k0, this.n0 = this.a * Math.sqrt(1 - this.e2) / (1 - this.e2 * Math.sin(this.fi0) ** 2), this.s0 = 1.37008346281555, this.n = Math.sin(this.s0), this.ro0 = this.k1 * this.n0 / Math.tan(this.s0), this.ad = this.s90 - this.uq;
 }
@@ -6827,49 +6890,49 @@ var rc = {
 	]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/mlfn.js
+//#region node_modules/proj4/lib/common/mlfn.js
 function ic(e, t, n, r, i) {
 	return e * i - t * Math.sin(2 * i) + n * Math.sin(4 * i) - r * Math.sin(6 * i);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/e0fn.js
+//#region node_modules/proj4/lib/common/e0fn.js
 function ac(e) {
 	return 1 - .25 * e * (1 + e / 16 * (3 + 1.25 * e));
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/e1fn.js
+//#region node_modules/proj4/lib/common/e1fn.js
 function oc(e) {
 	return .375 * e * (1 + .25 * e * (1 + .46875 * e));
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/e2fn.js
+//#region node_modules/proj4/lib/common/e2fn.js
 function sc(e) {
 	return .05859375 * e * e * (1 + .75 * e);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/e3fn.js
+//#region node_modules/proj4/lib/common/e3fn.js
 function cc(e) {
 	return e * e * e * (35 / 3072);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/gN.js
+//#region node_modules/proj4/lib/common/gN.js
 function lc(e, t, n) {
 	var r = t * n;
 	return e / Math.sqrt(1 - r * r);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/adjust_lat.js
+//#region node_modules/proj4/lib/common/adjust_lat.js
 function uc(e) {
 	return Math.abs(e) < A ? e : e - aa(e) * Math.PI;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/imlfn.js
+//#region node_modules/proj4/lib/common/imlfn.js
 function dc(e, t, n, r, i) {
 	for (var a = e / t, o, s = 0; s < 15; s++) if (o = (e - (t * a - n * Math.sin(2 * a) + r * Math.sin(4 * a) - i * Math.sin(6 * a))) / (t - 2 * n * Math.cos(2 * a) + 4 * r * Math.cos(4 * a) - 6 * i * Math.cos(6 * a)), a += o, Math.abs(o) <= 1e-10) return a;
 	return NaN;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/cass.js
+//#region node_modules/proj4/lib/projections/cass.js
 function fc() {
 	this.sphere || (this.e0 = ac(this.es), this.e1 = oc(this.es), this.e2 = sc(this.es), this.e3 = cc(this.es), this.ml0 = this.a * ic(this.e0, this.e1, this.e2, this.e3, this.lat0));
 }
@@ -6907,20 +6970,20 @@ var hc = {
 	]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/qsfnz.js
+//#region node_modules/proj4/lib/common/qsfnz.js
 function gc(e, t) {
 	var n;
 	return e > 1e-7 ? (n = e * t, (1 - e * e) * (t / (1 - n * n) - .5 / e * Math.log((1 - n) / (1 + n)))) : 2 * t;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/authset.js
+//#region node_modules/proj4/lib/common/authset.js
 var _c = .3333333333333333, vc = .17222222222222222, yc = .10257936507936508, bc = .06388888888888888, xc = .0664021164021164, Sc = .016415012942191543;
 function Cc(e) {
 	var t, n = [];
 	return n[0] = e * _c, t = e * e, n[0] += t * vc, n[1] = t * bc, t *= e, n[0] += t * yc, n[1] += t * xc, n[2] = t * Sc, n;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/authlat.js
+//#region node_modules/proj4/lib/common/authlat.js
 function wc(e, t) {
 	var n = e + e;
 	return e + t[0] * Math.sin(n) + t[1] * Math.sin(n + n) + t[2] * Math.sin(n + n + n);
@@ -7032,12 +7095,12 @@ var Oc = {
 	OBLIQ: 4
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/asinz.js
+//#region node_modules/proj4/lib/common/asinz.js
 function kc(e) {
 	return Math.abs(e) > 1 && (e = e > 1 ? 1 : -1), Math.asin(e);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/aea.js
+//#region node_modules/proj4/lib/projections/aea.js
 function Ac() {
 	Math.abs(this.lat1 + this.lat2) < 1e-10 || (this.temp = this.b / this.a, this.es = 1 - this.temp ** 2, this.e3 = Math.sqrt(this.es), this.sin_po = Math.sin(this.lat1), this.cos_po = Math.cos(this.lat1), this.t1 = this.sin_po, this.con = this.sin_po, this.ms1 = ia(this.e3, this.sin_po, this.cos_po), this.qs1 = gc(this.e3, this.sin_po), this.sin_po = Math.sin(this.lat2), this.cos_po = Math.cos(this.lat2), this.t2 = this.sin_po, this.ms2 = ia(this.e3, this.sin_po, this.cos_po), this.qs2 = gc(this.e3, this.sin_po), this.sin_po = Math.sin(this.lat0), this.cos_po = Math.cos(this.lat0), this.t3 = this.sin_po, this.qs0 = gc(this.e3, this.sin_po), Math.abs(this.lat1 - this.lat2) > 1e-10 ? this.ns0 = (this.ms1 * this.ms1 - this.ms2 * this.ms2) / (this.qs2 - this.qs1) : this.ns0 = this.con, this.c = this.ms1 * this.ms1 + this.ns0 * this.qs1, this.rh = this.a * Math.sqrt(this.c - this.ns0 * this.qs0) / this.ns0);
 }
@@ -7070,7 +7133,7 @@ var Pc = {
 	phi1z: Nc
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/gnom.js
+//#region node_modules/proj4/lib/projections/gnom.js
 function Fc() {
 	this.sin_p14 = Math.sin(this.lat0), this.cos_p14 = Math.cos(this.lat0), this.infinity_dist = 1e3 * this.a, this.rc = 1;
 }
@@ -7089,7 +7152,7 @@ var Rc = {
 	names: ["gnom"]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/iqsfnz.js
+//#region node_modules/proj4/lib/common/iqsfnz.js
 function zc(e, t) {
 	var n = 1 - (1 - e * e) / (2 * e) * Math.log((1 - e) / (1 + e));
 	if (Math.abs(Math.abs(t) - n) < 1e-6) return t < 0 ? -1 * A : A;
@@ -7097,7 +7160,7 @@ function zc(e, t) {
 	return NaN;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/cea.js
+//#region node_modules/proj4/lib/projections/cea.js
 function Bc() {
 	this.sphere || (this.k0 = ia(this.e, Math.sin(this.lat_ts), Math.cos(this.lat_ts)));
 }
@@ -7122,7 +7185,7 @@ var Uc = {
 	names: ["cea"]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/eqc.js
+//#region node_modules/proj4/lib/projections/eqc.js
 function Wc() {
 	this.x0 = this.x0 || 0, this.y0 = this.y0 || 0, this.lat0 = this.lat0 || 0, this.long0 = this.long0 || 0, this.lat_ts = this.lat_ts || 0, this.title = this.title || "Equidistant Cylindrical (Plate Carre)", this.rc = Math.cos(this.lat_ts);
 }
@@ -7227,7 +7290,7 @@ var nl = {
 	iterations: 1
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/mill.js
+//#region node_modules/proj4/lib/projections/mill.js
 function rl() {}
 function il(e) {
 	var t = e.x, n = e.y, r = F(t - this.long0, this.over), i = this.x0 + this.a * r, a = this.y0 + this.a * Math.log(Math.tan(Math.PI / 4 + n / 2.5)) * 1.25;
@@ -7273,7 +7336,7 @@ var dl = {
 	names: ["Sinusoidal", "sinu"]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/eck6.js
+//#region node_modules/proj4/lib/projections/eck6.js
 function fl() {
 	this.sphere = !0, this.b = this.a, this.m = 1, this.n = 2.5707963267948966, this.es = 0, this.C_y = Math.sqrt((this.m + 1) / this.n), this.C_x = this.C_y / (this.m + 1);
 }
@@ -7284,7 +7347,7 @@ var pl = {
 	names: ["Eckert_VI", "eck6"]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/moll.js
+//#region node_modules/proj4/lib/projections/moll.js
 function ml() {
 	this.x0 = this.x0 === void 0 ? 0 : this.x0, this.y0 = this.y0 === void 0 ? 0 : this.y0, this.long0 = this.long0 === void 0 ? 0 : this.long0;
 }
@@ -7312,7 +7375,7 @@ var _l = {
 	names: ["Mollweide", "moll"]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/eqdc.js
+//#region node_modules/proj4/lib/projections/eqdc.js
 function vl() {
 	Math.abs(this.lat1 + this.lat2) < 1e-10 || (this.lat2 = this.lat2 || this.lat1, this.temp = this.b / this.a, this.es = 1 - this.temp ** 2, this.e = Math.sqrt(this.es), this.e0 = ac(this.es), this.e1 = oc(this.es), this.e2 = sc(this.es), this.e3 = cc(this.es), this.sin_phi = Math.sin(this.lat1), this.cos_phi = Math.cos(this.lat1), this.ms1 = ia(this.e, this.sin_phi, this.cos_phi), this.ml1 = ic(this.e0, this.e1, this.e2, this.e3, this.lat1), Math.abs(this.lat1 - this.lat2) < 1e-10 ? this.ns = this.sin_phi : (this.sin_phi = Math.sin(this.lat2), this.cos_phi = Math.cos(this.lat2), this.ms2 = ia(this.e, this.sin_phi, this.cos_phi), this.ml2 = ic(this.e0, this.e1, this.e2, this.e3, this.lat2), this.ns = (this.ms1 - this.ms2) / (this.ml2 - this.ml1)), this.g = this.ml1 + this.ms1 / this.ns, this.ml0 = ic(this.e0, this.e1, this.e2, this.e3, this.lat0), this.rh = this.a * (this.g - this.ml0));
 }
@@ -7340,7 +7403,7 @@ var xl = {
 	names: ["Equidistant_Conic", "eqdc"]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/vandg.js
+//#region node_modules/proj4/lib/projections/vandg.js
 function Sl() {
 	this.R = this.a;
 }
@@ -7370,7 +7433,7 @@ var Tl = {
 	]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/common/vincenty.js
+//#region node_modules/proj4/lib/common/vincenty.js
 function El(e, t, n, r, i, a) {
 	let o = r - t, s = Math.atan((1 - a) * Math.tan(e)), c = Math.atan((1 - a) * Math.tan(n)), l = Math.sin(s), u = Math.cos(s), d = Math.sin(c), f = Math.cos(c), p = o, m, h = 100, g, _, v, y, b, x, S, C, ee, w, te, ne, re, ie;
 	do {
@@ -7404,7 +7467,7 @@ function Dl(e, t, n, r, i, a) {
 	};
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/aeqd.js
+//#region node_modules/proj4/lib/projections/aeqd.js
 function Ol() {
 	this.sin_p12 = Math.sin(this.lat0), this.cos_p12 = Math.cos(this.lat0), this.x0 = this.x0 || 0, this.y0 = this.y0 || 0, this.long0 = this.long0 || 0, this.f = this.es / (1 + Math.sqrt(1 - this.es));
 }
@@ -7424,7 +7487,7 @@ var jl = {
 	names: ["Azimuthal_Equidistant", "aeqd"]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/ortho.js
+//#region node_modules/proj4/lib/projections/ortho.js
 function Ml() {
 	this.sin_p14 = Math.sin(this.lat0 || 0), this.cos_p14 = Math.cos(this.lat0 || 0);
 }
@@ -7783,7 +7846,7 @@ var tu = {
 	names: ["Robinson", "robin"]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/geocent.js
+//#region node_modules/proj4/lib/projections/geocent.js
 function nu() {
 	this.name = "geocent";
 }
@@ -7913,7 +7976,7 @@ var uu = {
 	names: ["Tilted_Perspective", "tpers"]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/projections/geos.js
+//#region node_modules/proj4/lib/projections/geos.js
 function du() {
 	if (this.flip_axis = +(this.sweep === "x"), this.h = Number(this.h), this.radius_g_1 = this.h / this.a, this.radius_g_1 <= 0 || this.radius_g_1 > 1e10) throw Error();
 	if (this.radius_g = 1 + this.radius_g_1, this.C = this.radius_g * this.radius_g - 1, this.es !== 0) {
@@ -8136,12 +8199,12 @@ var Vu = {
 	]
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/projs.js
+//#region node_modules/proj4/projs.js
 function Hu(e) {
 	e.Proj.projections.add(cs), e.Proj.projections.add(bs), e.Proj.projections.add(ws), e.Proj.projections.add(Ps), e.Proj.projections.add(zs), e.Proj.projections.add(Us), e.Proj.projections.add(Ys), e.Proj.projections.add($s), e.Proj.projections.add(rc), e.Proj.projections.add(hc), e.Proj.projections.add(Oc), e.Proj.projections.add(Pc), e.Proj.projections.add(Rc), e.Proj.projections.add(Uc), e.Proj.projections.add(qc), e.Proj.projections.add(Qc), e.Proj.projections.add(nl), e.Proj.projections.add(ol), e.Proj.projections.add(dl), e.Proj.projections.add(pl), e.Proj.projections.add(_l), e.Proj.projections.add(xl), e.Proj.projections.add(Tl), e.Proj.projections.add(jl), e.Proj.projections.add(Fl), e.Proj.projections.add(Vl), e.Proj.projections.add(tu), e.Proj.projections.add(au), e.Proj.projections.add(uu), e.Proj.projections.add(mu), e.Proj.projections.add(Cu), e.Proj.projections.add(Au), e.Proj.projections.add(Vu);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/proj4/lib/index.js
+//#region node_modules/proj4/lib/index.js
 var Uu = Object.assign(go, {
 	defaultDatum: "WGS84",
 	Proj: Ka,
@@ -8156,7 +8219,7 @@ var Uu = Object.assign(go, {
 });
 Hu(Uu);
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/geometry/project.js
+//#region node_modules/@honua/sdk-js/dist/src/geometry/project.js
 var Wu = /* @__PURE__ */ new Set([
 	3857,
 	3785,
@@ -8195,7 +8258,7 @@ function Yu(e, t) {
 	return Ju(e, t, "EPSG:4326");
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/style/specification.js
+//#region node_modules/@honua/sdk-js/dist/src/style/specification.js
 function Xu(e) {
 	return e.type.startsWith("honua-");
 }
@@ -8406,7 +8469,7 @@ function sd(e, t) {
 	return new ed(`Tool "${t}" failed with no structured error detail.`, "unknown", t, e);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/runtime/errors.js
+//#region node_modules/@honua/sdk-js/dist/src/runtime/errors.js
 var cd = class extends a {
 	packageId;
 	stage;
@@ -8491,7 +8554,7 @@ function _d(e, t) {
 	return n;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/runtime/ogc-styles.js
+//#region node_modules/@honua/sdk-js/dist/src/runtime/ogc-styles.js
 function vd(e, t) {
 	let n = md(t);
 	if (n) return Object.fromEntries(n.map((t) => {
@@ -8515,7 +8578,7 @@ function yd(e) {
 	return e.paint !== void 0 && (t.paint = e.paint, n = !0), e.layout !== void 0 && (t.layout = e.layout, n = !0), e.minzoom !== void 0 && (t.minzoom = e.minzoom, n = !0), e.maxzoom !== void 0 && (t.maxzoom = e.maxzoom, n = !0), e.filter !== void 0 && (t.filter = e.filter, n = !0), e.metadata !== void 0 && (t.metadata = e.metadata, n = !0), n ? t : void 0;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/interactions/feature-state.js
+//#region node_modules/@honua/sdk-js/dist/src/interactions/feature-state.js
 function bd(e, t) {
 	let { source: n, layer: r, stateKey: i = "hover", sourceLayer: a, onHoverTargetChange: o } = t, s;
 	function c(...t) {
@@ -8606,7 +8669,7 @@ function xd(e, t) {
 	};
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/interactions/exploration-bindings.js
+//#region node_modules/@honua/sdk-js/dist/src/interactions/exploration-bindings.js
 function Sd(e) {
 	return {
 		setFilter(t, n) {
@@ -8637,7 +8700,7 @@ function wd(e) {
 	};
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/runtime/style-compose.js
+//#region node_modules/@honua/sdk-js/dist/src/runtime/style-compose.js
 async function Td(e, t, n) {
 	try {
 		let r = await Ed(t, e, n.resolveStyleRef), i = await Od(e, n.resolveTheme);
@@ -9567,7 +9630,7 @@ function pf(e, t) {
 	return typeof n == "string" && n.trim().length > 0 ? n.trim() : void 0;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/auth/credential-store.js
+//#region node_modules/@honua/sdk-js/dist/src/core/auth/credential-store.js
 var mf = class {
 	entries = /* @__PURE__ */ new Map();
 	get(e) {
@@ -9581,7 +9644,7 @@ var mf = class {
 	}
 };
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/auth/pkce.js
+//#region node_modules/@honua/sdk-js/dist/src/core/auth/pkce.js
 function hf() {
 	let e = globalThis.crypto;
 	if (!e?.subtle) throw Error("WebCrypto (globalThis.crypto.subtle) is unavailable. OAuth2 PKCE requires a browser or Node.js >= 20.");
@@ -9608,7 +9671,7 @@ function yf() {
 	return _f(16);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/auth/token-endpoint.js
+//#region node_modules/@honua/sdk-js/dist/src/core/auth/token-endpoint.js
 function bf(e) {
 	let t = {};
 	return e.tokenType && e.tokenType.toLowerCase() !== "bearer" ? t.authorization = `${e.tokenType} ${e.accessToken}` : t.bearerToken = e.accessToken, e.expiresAt !== void 0 && (t.expiresAt = e.expiresAt), t;
@@ -9664,7 +9727,7 @@ function Tf(e) {
 	return typeof e == "object" && !!e;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/auth/oauth2-provider.js
+//#region node_modules/@honua/sdk-js/dist/src/core/auth/oauth2-provider.js
 var Ef = "honua.auth.txn", Df = class {
 	config;
 	store;
@@ -12932,7 +12995,7 @@ function uh(e = {}) {
 			ok: !1,
 			reason: "No fetch implementation is available to load widget data."
 		};
-		let { trustedSourceUrl: l, fetchAuthenticatedFeatureCollection: u } = await import("./authenticated-source-protocol-aOw2HNbU.js").then((e) => e.t), d = e.documentUrl ?? globalThis.document?.baseURI, f = {
+		let { trustedSourceUrl: l, fetchAuthenticatedFeatureCollection: u } = await import("./authenticated-source-protocol-CMhldOZ2.js").then((e) => e.t), d = e.documentUrl ?? globalThis.document?.baseURI, f = {
 			sourceBaseUrl: e.sourceAuthBaseUrl ?? e.baseUrl ?? "/api",
 			legacySourceBaseUrl: e.sourceCatalogBaseUrl ?? e.baseUrl ?? "/api",
 			documentUrl: d ?? "",
@@ -13128,44 +13191,45 @@ var Oh = class extends t {
 	}
 	#i() {
 		let e = this.#r();
-		this.toggleAttribute("data-workspace-host", e), e && (this.#d?.stop(), this.#d = void 0), this.isConnected && this.renderView();
+		this.toggleAttribute("data-workspace-host", e), e && (this.#f?.stop(), this.#f = void 0), this.isConnected && this.renderView();
 	}
-	#a;
+	#a = 0;
 	#o;
-	#s = !1;
-	#c;
-	#l = !1;
-	#u;
+	#s;
+	#c = !1;
+	#l;
+	#u = !1;
 	#d;
-	#f = "/";
-	#p = !1;
-	#m;
+	#f;
+	#p = "/";
+	#m = !1;
 	#h;
 	#g;
-	#_ = 0;
-	#v;
+	#_;
+	#v = 0;
 	#y;
 	#b;
+	#x;
 	get selectedDesignRelationship() {
-		let e = this.#v;
-		if (!e || this.#b !== this.composition.selection || this.#y !== this.composition.state || !this.composition.state.interactions.some((t) => t.id === e.interactionId)) return;
+		let e = this.#y;
+		if (!e || this.#x !== this.composition.selection || this.#b !== this.composition.state || !this.composition.state.interactions.some((t) => t.id === e.interactionId)) return;
 		let t = this.composition.selection[0];
 		return (t && t.kind !== "feature" ? `${t.kind === "component" ? "widget" : t.kind}:${t.id}` : void 0) === e.ownerRef ? { ...e } : void 0;
 	}
 	async openDesignInspector() {
-		if (this.#h) return;
-		let e = ++this.#_, t = this.#O, n = this.#T?.identity?.draftId, { DesignInspectorPanel: r } = await import("./design-inspector-panel-DmCYYr9G.js");
-		if (!this.isConnected || e !== this.#_ || t !== this.#O || n !== this.#T?.identity?.draftId) return;
+		if (this.#g) return;
+		let e = ++this.#v, t = this.#k, n = this.#E?.identity?.draftId, { DesignInspectorPanel: r } = await import("./design-inspector-panel-DmCYYr9G.js");
+		if (!this.isConnected || e !== this.#v || t !== this.#k || n !== this.#E?.identity?.draftId) return;
 		let i = document.createElement("div");
-		i.id = "design-inspector-panel", this.shadowRoot?.querySelector(".app-slots")?.before(i), this.#g = i;
+		i.id = "design-inspector-panel", this.shadowRoot?.querySelector(".app-slots")?.before(i), this.#_ = i;
 		let a = this.querySelector("honua-studio-canvas") ?? void 0;
-		this.#h = new r({
+		this.#g = new r({
 			container: i,
 			controller: this.composition,
 			canvas: a,
 			describeSource: async (e, r) => {
 				if (this.auth.getState().status !== "fresh") throw Error("Sign in to describe authorized source fields.");
-				let i = this.#I?.find((t) => t.id === e);
+				let i = this.#L?.find((t) => t.id === e);
 				if (!i) throw Error("Source is absent from the authorized catalog. Refresh source access before describing fields.");
 				let o = a?.sourceAuthBaseUrl ?? B(), s = await new Wd({
 					baseUrl: o,
@@ -13174,14 +13238,14 @@ var Oh = class extends t {
 					getAuth: () => this.auth,
 					signal: r
 				}).describeSource(i);
-				if (r.throwIfAborted(), t !== this.#O || n !== this.#T?.identity?.draftId) throw Error("The workspace draft or authority changed.");
+				if (r.throwIfAborted(), t !== this.#k || n !== this.#E?.identity?.draftId) throw Error("The workspace draft or authority changed.");
 				return s;
 			},
 			select: (e, t) => {
-				this.#v = t && this.composition.state.interactions.some((e) => e.id === t) ? {
+				this.#y = t && this.composition.state.interactions.some((e) => e.id === t) ? {
 					interactionId: t,
 					ownerRef: e.ref
-				} : void 0, this.#y = this.composition.state, this.composition.select([e.target]), this.#b = this.composition.selection, this.dispatchTypedEvent("honua-studio-selection-change", {
+				} : void 0, this.#b = this.composition.state, this.composition.select([e.target]), this.#x = this.composition.selection, this.dispatchTypedEvent("honua-studio-selection-change", {
 					targets: [e.target],
 					...this.selectedDesignRelationship ? { relationship: this.selectedDesignRelationship } : {}
 				});
@@ -13192,40 +13256,40 @@ var Oh = class extends t {
 		}), this.shadowRoot?.querySelector("[data-testid=\"design-inspector-toggle\"]")?.setAttribute("aria-expanded", "true"), i.querySelector("button")?.focus();
 	}
 	closeDesignInspector() {
-		this.#_++, this.#h?.dispose(), this.#h = void 0, this.#g?.remove(), this.#g = void 0, this.#v = void 0, this.#y = void 0, this.#b = void 0, (this.shadowRoot?.querySelector("[data-testid=\"design-inspector-toggle\"]"))?.setAttribute("aria-expanded", "false");
+		this.#v++, this.#g?.dispose(), this.#g = void 0, this.#_?.remove(), this.#_ = void 0, this.#y = void 0, this.#b = void 0, this.#x = void 0, (this.shadowRoot?.querySelector("[data-testid=\"design-inspector-toggle\"]"))?.setAttribute("aria-expanded", "false");
 	}
-	#x;
 	#S;
 	#C;
+	#w;
 	styleEditorAssetsUrl = "/maputnik/index.html";
 	get hasUnsavedStyleChanges() {
-		return this.#x?.dirty ?? !1;
+		return this.#S?.dirty ?? !1;
 	}
 	async openStyleEditor(e = {}) {
-		if (this.#x) return;
-		if (await this.prepareWorkspaceTurn(), !this.#T) throw Error("Attach an authorized map draft before editing its style.");
+		if (this.#S) return;
+		if (await this.prepareWorkspaceTurn(), !this.#E) throw Error("Attach an authorized map draft before editing its style.");
 		let t = this.querySelector("honua-studio-canvas");
 		if (!t) throw Error("Open the map canvas before its style editor.");
 		if (!this.composition.state.mapSpec) {
-			let e = this.#T, n = this.#O, r = this.#A.then(async () => {
+			let e = this.#E, n = this.#k, r = this.#j.then(async () => {
 				let r = await t.editableMapStyle();
-				if (n !== this.#O || this.#T !== e) throw Error("The workspace authority changed.");
+				if (n !== this.#k || this.#E !== e) throw Error("The workspace authority changed.");
 				let i = await e.initializeStyle(r);
-				if (n !== this.#O || this.#T !== e) throw Error("The workspace authority changed.");
+				if (n !== this.#k || this.#E !== e) throw Error("The workspace authority changed.");
 				this.composition.resetBaseline({
 					...i,
 					pins: this.composition.state.pins,
 					annotations: this.composition.state.annotations
-				}), this.#ce();
+				}), this.#le();
 			});
-			this.#A = r.catch(() => void 0), await r;
+			this.#j = r.catch(() => void 0), await r;
 		}
-		let n = this.#O, r = this.#T?.identity;
+		let n = this.#k, r = this.#E?.identity;
 		if (!r) throw Error("The workspace draft is unavailable.");
 		let i = await t.editableMapStyle();
-		if (n !== this.#O || r.draftId !== this.#T?.identity?.draftId) throw Error("The workspace draft changed while opening the style editor.");
+		if (n !== this.#k || r.draftId !== this.#E?.identity?.draftId) throw Error("The workspace draft changed while opening the style editor.");
 		let a = window.document.createElement("section");
-		a.setAttribute("aria-label", "Map style editor"), this.shadowRoot?.querySelector(".app-slots")?.prepend(a), this.#S = a, this.shadowRoot?.querySelector(".app-slots")?.setAttribute("data-style-mode", ""), this.#x = new rf({
+		a.setAttribute("aria-label", "Map style editor"), this.shadowRoot?.querySelector(".app-slots")?.prepend(a), this.#C = a, this.shadowRoot?.querySelector(".app-slots")?.setAttribute("data-style-mode", ""), this.#S = new rf({
 			container: a,
 			document: i,
 			assetsUrl: this.styleEditorAssetsUrl,
@@ -13240,7 +13304,7 @@ var Oh = class extends t {
 			})),
 			selectedLayerId: e?.layerId,
 			getFields: async (e) => {
-				let r = this.#I?.find((t) => t.id === e);
+				let r = this.#L?.find((t) => t.id === e);
 				if (!r) throw Error("Refresh the authorized source catalog before selecting thematic fields.");
 				let i = await new Wd({
 					baseUrl: t.sourceAuthBaseUrl,
@@ -13249,7 +13313,7 @@ var Oh = class extends t {
 					getAuth: () => this.auth,
 					signal: AbortSignal.timeout(8e3)
 				}).describeSource(r);
-				if (n !== this.#O) throw Error("The workspace authority changed.");
+				if (n !== this.#k) throw Error("The workspace authority changed.");
 				return i;
 			},
 			onPreview: (e) => {
@@ -13263,46 +13327,46 @@ var Oh = class extends t {
 				}));
 			},
 			onSave: async (e) => {
-				if (n !== this.#O || r.draftId !== this.#T?.identity?.draftId) throw Error("The workspace authority changed. Reopen the visual editor.");
-				let i = await this.#ye([{
+				if (n !== this.#k || r.draftId !== this.#E?.identity?.draftId) throw Error("The workspace authority changed. Reopen the visual editor.");
+				let i = await this.#be([{
 					name: "setMapStyle",
 					mapSpec: e
 				}]);
 				if (!i.ok) throw Error(i.reason);
-				if (n !== this.#O) throw Error("The workspace authority changed.");
+				if (n !== this.#k) throw Error("The workspace authority changed.");
 				return t.editableMapStyle();
 			},
 			onDiscard: async () => {
 				t.stylePreview = void 0;
-				let e = this.#T?.identity?.draftId;
-				if (!e || n !== this.#O) throw Error("The workspace authority changed.");
-				let r = this.#x;
-				this.#x = void 0;
+				let e = this.#E?.identity?.draftId;
+				if (!e || n !== this.#k) throw Error("The workspace authority changed.");
+				let r = this.#S;
+				this.#S = void 0;
 				try {
 					await this.attachWorkspaceDraft(e);
 				} finally {
-					n === this.#O ? this.#x = r : r?.dispose();
+					n === this.#k ? this.#S = r : r?.dispose();
 				}
-				if (n !== this.#O) throw Error("The workspace authority changed.");
+				if (n !== this.#k) throw Error("The workspace authority changed.");
 				return t.editableMapStyle();
 			}
 		});
-		let o = this.#x;
-		this.#C = this.composition.subscribe(() => {
+		let o = this.#S;
+		this.#w = this.composition.subscribe(() => {
 			o.dirty || t.editableMapStyle().then((e) => {
-				this.#x === o && n === this.#O && o.observeSavedDocument(e);
+				this.#S === o && n === this.#k && o.observeSavedDocument(e);
 			}).catch(() => {});
 		});
 	}
 	async closeStyleEditor() {
 		if (this.hasUnsavedStyleChanges) throw Error("Save or discard visual style edits before leaving.");
-		this.#w();
+		this.#T();
 	}
 	async discardStyleChanges() {
-		await this.#x?.discard();
+		await this.#S?.discard();
 	}
-	#w() {
-		this.#C?.(), this.#C = void 0, this.#x?.dispose(), this.#x = void 0, this.#S?.remove(), this.#S = void 0, this.shadowRoot?.querySelector(".app-slots")?.removeAttribute("data-style-mode"), this.paintHistoryControls();
+	#T() {
+		this.#w?.(), this.#w = void 0, this.#S?.dispose(), this.#S = void 0, this.#C?.remove(), this.#C = void 0, this.shadowRoot?.querySelector(".app-slots")?.removeAttribute("data-style-mode"), this.paintHistoryControls();
 		let e = this.querySelector("honua-studio-canvas");
 		e && (e.stylePreview = void 0), this.dispatchEvent(new CustomEvent("honua-studio-style-dirty-change", {
 			detail: { dirty: !1 },
@@ -13310,112 +13374,112 @@ var Oh = class extends t {
 			composed: !0
 		}));
 	}
-	#T;
-	#E = 0;
-	#D = /* @__PURE__ */ new WeakMap();
-	#O = 0;
-	#k = !1;
-	#A = Promise.resolve();
-	#j;
-	#M = !1;
-	#N;
+	#E;
+	#D = 0;
+	#O = /* @__PURE__ */ new WeakMap();
+	#k = 0;
+	#A = !1;
+	#j = Promise.resolve();
+	#M;
+	#N = !1;
 	#P;
 	#F;
 	#I;
 	#L;
-	#R = !1;
+	#R;
 	#z = !1;
-	#B;
+	#B = !1;
 	#V;
 	#H;
-	#U = 0;
+	#U;
 	#W = 0;
-	#G = "/api";
-	#K;
-	#q = 0;
-	#J = /* @__PURE__ */ new Set();
-	#Y;
+	#G = 0;
+	#K = "/api";
+	#q;
+	#J = 0;
+	#Y = /* @__PURE__ */ new Set();
 	#X;
 	#Z;
 	#Q;
-	#$(e) {
+	#$;
+	#ee(e) {
 		return hh(e, this.#e && "kind" in this.#e && this.#e.kind === "cookie" ? Qr(this.#e.sourcePathBase) : void 0);
 	}
-	#ee;
-	#te = /* @__PURE__ */ new Map();
+	#te;
+	#ne = /* @__PURE__ */ new Map();
 	openRecipePicker() {
 		let e = this.shadowRoot?.querySelector("[data-recipe-outlet]");
 		if (!e) throw Error("Connect the Studio element before opening recipes.");
-		e.hidden = !1, this.#Y ??= new qm(e, {
+		e.hidden = !1, this.#X ??= new qm(e, {
 			listSources: (e) => this.listRecipeSources(e),
 			describeSource: (e, t) => this.resolveRecipeSource(e, t),
 			create: (e, t) => this.createRecipeDraft(e, t),
 			close: () => this.closeRecipePicker(),
 			startAnother: () => {
-				this.#ne(), this.openRecipePicker();
+				this.#re(), this.openRecipePicker();
 			},
-			canChangeInputs: (e) => !this.#te.get(e)?.submission.submitted
-		}), this.shadowRoot?.querySelector("[data-testid='recipe-toggle']")?.setAttribute("aria-expanded", "true"), this.#Y.resume();
+			canChangeInputs: (e) => !this.#ne.get(e)?.submission.submitted
+		}), this.shadowRoot?.querySelector("[data-testid='recipe-toggle']")?.setAttribute("aria-expanded", "true"), this.#X.resume();
 	}
 	closeRecipePicker() {
-		this.#Y?.cancelDiscovery();
-		for (let e of this.#te.values()) e.pending && (e.attachmentAllowed = !1, e.metadataAbort?.abort());
+		this.#X?.cancelDiscovery();
+		for (let e of this.#ne.values()) e.pending && (e.attachmentAllowed = !1, e.metadataAbort?.abort());
 		let e = this.shadowRoot?.querySelector("[data-recipe-outlet]");
 		e && (e.hidden = !0);
 		let t = this.shadowRoot?.querySelector("[data-testid='recipe-toggle']");
 		t?.setAttribute("aria-expanded", "false"), t?.focus();
 	}
-	#ne() {
-		this.#Y?.dispose(), this.#Y = void 0, this.#X = void 0, this.#Z = void 0, this.#Q = void 0, this.closeRecipePicker();
-	}
 	#re() {
-		this.#ne(), this.#q++;
-		for (let e of this.#te.keys()) this.#J.add(e);
-		this.#te.clear();
+		this.#X?.dispose(), this.#X = void 0, this.#Z = void 0, this.#Q = void 0, this.#$ = void 0, this.closeRecipePicker();
+	}
+	#ie() {
+		this.#re(), this.#J++;
+		for (let e of this.#ne.keys()) this.#Y.add(e);
+		this.#ne.clear();
 	}
 	async listRecipeSources(e) {
-		let t = this.#q;
-		this.#X = void 0, this.#Z = void 0;
-		let n = this.#z, r = this.#I, i = this.auth, a = await new Pp(z(), {
-			getAccessToken: (e) => i.getAccessToken(e),
-			fetchRequest: (t, n) => (i.fetchRequest ?? fetch)(t, {
+		let t = this.#J, n = this.#a;
+		this.#Z = void 0, this.#Q = void 0;
+		let r = this.#B, i = this.#L, a = this.auth, o = await new Pp(z(), {
+			getAccessToken: (e) => a.getAccessToken(e),
+			fetchRequest: (t, n) => (a.fetchRequest ?? fetch)(t, {
 				...n,
 				signal: e
 			})
 		}, B()).listCatalog();
-		if (e.throwIfAborted(), t !== this.#q || i !== this.auth) throw Error("The workspace authority changed.");
-		let o = a;
-		if (n) {
-			if (!this.#z || r !== this.#I) throw Error("The host source choices changed. Refresh the recipe sources.");
-			o = (r ?? []).filter((e) => {
-				let t = a.find((t) => t.id === e.id);
+		if (e.throwIfAborted(), t !== this.#J || a !== this.auth || n !== this.#a) throw Error("The workspace authority changed.");
+		let s = o;
+		if (r) {
+			if (!this.#B || i !== this.#L) throw Error("The host source choices changed. Refresh the recipe sources.");
+			s = (i ?? []).filter((e) => {
+				let t = o.find((t) => t.id === e.id);
 				if (!t) return !1;
-				let n = this.#$(e);
-				if (!n || n !== this.#$(t)) throw Error(`Host source "${e.id}" disagrees with the authorized published locator. Refresh the host source choices.`);
+				let n = this.#ee(e);
+				if (!n || n !== this.#ee(t)) throw Error(`Host source "${e.id}" disagrees with the authorized published locator. Refresh the host source choices.`);
 				return !0;
 			});
 		} else {
-			if (this.#z) throw Error("The host source choices changed. Refresh the recipe sources.");
-			this.#ue(a);
+			if (this.#B) throw Error("The host source choices changed. Refresh the recipe sources.");
+			this.#de(o);
 		}
-		return this.#Z = structuredClone(o), this.#X = t, structuredClone(o);
+		return this.#Q = structuredClone(s), this.#Z = t, structuredClone(s);
 	}
 	async resolveRecipeSource(e, t) {
-		let n = this.#q, r = this.#Z, i = r?.find((t) => t.id === e), a = this.#I?.find((t) => t.id === e);
-		if ((!i || !a || this.#X !== n) && (i ?? this.#Q?.find((t) => t.id === e))) {
-			let n = structuredClone(i ?? this.#Q.find((t) => t.id === e));
-			if (await this.listRecipeSources(t), r = this.#Z, i = r?.find((t) => t.id === e), a = this.#I?.find((t) => t.id === e), !i || this.#$(n) !== this.#$(i) || n.geometryType !== i.geometryType) throw this.#Z = void 0, this.#Q = void 0, this.#X = void 0, Error("The authorized source changed. Refresh the dataset choices before selecting a source.");
+		let n = this.#J, r = this.#Q, i = r?.find((t) => t.id === e), a = this.#L?.find((t) => t.id === e);
+		if ((!i || !a || this.#Z !== n) && (i ?? this.#$?.find((t) => t.id === e))) {
+			let n = structuredClone(i ?? this.#$.find((t) => t.id === e));
+			if (await this.listRecipeSources(t), r = this.#Q, i = r?.find((t) => t.id === e), a = this.#L?.find((t) => t.id === e), !i || this.#ee(n) !== this.#ee(i) || n.geometryType !== i.geometryType) throw this.#Q = void 0, this.#$ = void 0, this.#Z = void 0, Error("The authorized source changed. Refresh the dataset choices before selecting a source.");
 		}
 		let o = i && structuredClone(i);
-		if (!o || !a || this.#$(a) !== this.#$(o) || this.#X !== n) throw Error("Refresh the authorized dataset choices before selecting a source.");
+		if (!o || !a || this.#ee(a) !== this.#ee(o) || this.#Z !== n) throw Error("Refresh the authorized dataset choices before selecting a source.");
 		if (o.protocol !== "geoservices-feature-service") throw Error("Choose a published Honua vector FeatureServer source.");
 		let s = this.createWorkspaceStyleProvider({
 			signal: t,
-			getAuthority: () => this.#q
+			getAuthority: () => this.#J
 		}), c = await s.describeDataset(o);
-		if (r !== this.#Z) throw Error("The source choices changed. Refresh the recipe sources.");
+		if (r !== this.#Q) throw Error("The source choices changed. Refresh the recipe sources.");
 		let l = await s.describeSourceBounds(o);
-		if (r !== this.#Z) throw Error("The source choices changed. Refresh the recipe sources.");
+		if (r !== this.#Q) throw Error("The source choices changed. Refresh the recipe sources.");
 		let u = c.geometryType.toLowerCase();
 		if (u.includes("raster") || u.includes("image")) throw Error("Choose a point, line or polygon vector source.");
 		let d = this.auth, f = s.serverRoot, p = await uh({
@@ -13426,7 +13490,7 @@ var Oh = class extends t {
 			documentUrl: document.baseURI,
 			featureLimit: 100,
 			getAuth: () => {
-				if (n !== this.#q) throw Error("The workspace authority changed.");
+				if (n !== this.#J) throw Error("The workspace authority changed.");
 				return this.auth;
 			},
 			fetchImpl: (e, n) => (d.fetchRequest ?? fetch)(e, {
@@ -13434,8 +13498,8 @@ var Oh = class extends t {
 				signal: t
 			})
 		})(e, { signal: t });
-		if (t.throwIfAborted(), n !== this.#q) throw Error("The workspace authority changed.");
-		if (r !== this.#Z) throw Error("The source choices changed. Refresh the recipe sources.");
+		if (t.throwIfAborted(), n !== this.#J) throw Error("The workspace authority changed.");
+		if (r !== this.#Q) throw Error("The source choices changed. Refresh the recipe sources.");
 		if (!p.ok) throw Error(`Readable feature queries are required. ${p.reason}`);
 		return {
 			source: {
@@ -13451,30 +13515,30 @@ var Oh = class extends t {
 	createRecipeDraft(e, t) {
 		let n = structuredClone(e);
 		if (Object.freeze(n.tableFields), Object.freeze(n), !/^[A-Za-z0-9-]{1,100}$/.test(t)) return Promise.reject(/* @__PURE__ */ Error("A stable recipe submission ID is required."));
-		if (this.#J.has(t)) return Promise.reject(/* @__PURE__ */ Error("Retry this submission only in its original workspace authority."));
-		let r = this.#q, i = u(n), a = this.#te.get(t);
+		if (this.#Y.has(t)) return Promise.reject(/* @__PURE__ */ Error("Retry this submission only in its original workspace authority."));
+		let r = this.#J, i = u(n), a = this.#ne.get(t);
 		if (a && (a.input !== i || a.generation !== r)) return Promise.reject(/* @__PURE__ */ Error("Retry this submission with its original inputs and workspace authority."));
 		if (a || (a = {
 			input: i,
 			generation: r,
 			submission: new Jm(),
-			originalDraftId: this.#T?.identity?.draftId,
+			originalDraftId: this.#E?.identity?.draftId,
 			attachmentAllowed: !0
-		}, this.#te.set(t, a)), a.pending) return a.pending;
+		}, this.#ne.set(t, a)), a.pending) return a.pending;
 		a.attachmentAllowed = !0, a.metadataAbort = new AbortController();
 		let o = a, s = (async () => {
-			if (await this.prepareWorkspaceTurn(), r !== this.#q) throw Error("The workspace authority changed.");
+			if (await this.prepareWorkspaceTurn(), r !== this.#J) throw Error("The workspace authority changed.");
 			let e = new Dp({
 				baseUrl: z(),
 				auth: this.auth
 			});
 			if (!o.request) {
-				o.originalDraftId = this.#T?.identity?.draftId, o.originalDraftGeneration = this.#T?.identity?.generation;
+				o.originalDraftId = this.#E?.identity?.draftId, o.originalDraftGeneration = this.#E?.identity?.generation;
 				let t = (await e.getPackageFamilies()).families.find((e) => e.family === "map");
 				if (!t || t.supportLevel === "unsupported" || !t.supportedOperations.includes("draft.create")) throw Error("Map draft creation is unavailable on this server. Ask the operator to enable it.");
 				if (!o.attachmentAllowed) throw Error("Recipe creation was cancelled before submission.");
 				let i = await this.resolveRecipeSource(n.sourceId, AbortSignal.any([AbortSignal.timeout(15e3), o.metadataAbort.signal])), { state: a } = Gm(n, i);
-				if (r !== this.#q) throw Error("The workspace authority changed.");
+				if (r !== this.#J) throw Error("The workspace authority changed.");
 				o.request = {
 					packageKey: n.packageKey,
 					envelope: {
@@ -13485,24 +13549,24 @@ var Oh = class extends t {
 			}
 			if (!o.attachmentAllowed && !o.submission.submitted) throw Error("Recipe creation was cancelled before submission.");
 			let t = await o.submission.createDraft(o.request, (t, n) => e.createDraft(t, n));
-			if (r !== this.#q) throw Error("The workspace authority changed. Reopen this draft in its original workspace.");
-			let i = this.#T?.identity?.draftId;
+			if (r !== this.#J) throw Error("The workspace authority changed. Reopen this draft in its original workspace.");
+			let i = this.#E?.identity?.draftId;
 			if (!o.attachmentAllowed) throw Error(`Creation returned draft ${t.draftId} after this picker was closed. Reopen and retry this submission to attach that same draft.`);
-			if (i === t.draftId) return this.#T.identity;
-			if (i !== o.originalDraftId || this.#T?.identity?.generation !== o.originalDraftGeneration) throw Error(`Draft ${t.draftId} was created, but the active map changed. Open that draft explicitly to recover it.`);
+			if (i === t.draftId) return this.#E.identity;
+			if (i !== o.originalDraftId || this.#E?.identity?.generation !== o.originalDraftGeneration) throw Error(`Draft ${t.draftId} was created, but the active map changed. Open that draft explicitly to recover it.`);
 			let a = () => {
-				if (r !== this.#q) throw Error("The workspace authority changed. Reopen this draft in its original workspace.");
+				if (r !== this.#J) throw Error("The workspace authority changed. Reopen this draft in its original workspace.");
 				if (!o.attachmentAllowed) throw Error(`Draft ${t.draftId} was created, but attachment was cancelled. Open that draft explicitly to recover it.`);
-				let e = this.#T?.identity;
+				let e = this.#E?.identity;
 				if (e?.draftId !== o.originalDraftId || e?.generation !== o.originalDraftGeneration) throw Error(`Draft ${t.draftId} was created, but the active map changed. Open that draft explicitly to recover it.`);
 			};
-			this.#ee = t.draftId;
+			this.#te = t.draftId;
 			try {
-				await this.#ie(t.draftId, a);
+				await this.#ae(t.draftId, a);
 			} finally {
-				this.#ee = void 0;
+				this.#te = void 0;
 			}
-			let s = this.#T?.identity;
+			let s = this.#E?.identity;
 			if (!s || s.draftId !== t.draftId) throw Error("Retry to attach the already created draft.");
 			return s;
 		})();
@@ -13511,22 +13575,22 @@ var Oh = class extends t {
 		}).catch(() => void 0), s;
 	}
 	get agentToolDefinitions() {
-		return this.#V ?? ((e) => e.tools.filter((e) => e.mode === "read" || e.name === "selectFeature"));
+		return this.#H ?? ((e) => e.tools.filter((e) => e.mode === "read" || e.name === "selectFeature"));
 	}
 	set agentToolDefinitions(e) {
-		this.#V = e, this.#N?.isLive && this.#he();
+		this.#H = e, this.#P?.isLive && this.#ge();
 	}
 	get agentCertification() {
-		return this.#H;
+		return this.#U;
 	}
 	set agentCertification(e) {
-		this.#H = e, this.#N?.isLive && this.#he();
+		this.#U = e, this.#P?.isLive && this.#ge();
 	}
 	async createWorkspaceDraft(e) {
 		let t = e.trim();
 		if (!/^[A-Za-z0-9._-]{1,200}$/.test(t)) throw Error("Use 1–200 letters, numbers, dots, dashes or underscores for the package key.");
-		let n = this.#O;
-		if (await this.prepareWorkspaceTurn(), n !== this.#O) throw Error("The workspace session changed.");
+		let n = this.#k;
+		if (await this.prepareWorkspaceTurn(), n !== this.#k) throw Error("The workspace session changed.");
 		let r = await new Dp({
 			baseUrl: z(),
 			auth: this.auth
@@ -13537,28 +13601,28 @@ var Oh = class extends t {
 				body: wm(d(), t)
 			}
 		});
-		if (n !== this.#O) throw Error("The workspace session changed.");
+		if (n !== this.#k) throw Error("The workspace session changed.");
 		await this.attachWorkspaceDraft(r.draftId);
-		let i = this.#T?.identity;
+		let i = this.#E?.identity;
 		if (!i || i.draftId !== r.draftId) throw Error("The created draft was not attached.");
 		return i;
 	}
 	attachWorkspaceDraft(e) {
-		return this.#ie(e);
+		return this.#ae(e);
 	}
-	#ie(e, t) {
-		e !== this.#T?.identity?.draftId && this.closeDesignInspector();
-		let n = this.#O, r = this.#A.then(() => this.#oe(e, n, t));
-		return this.#A = r.catch(() => void 0), r;
+	#ae(e, t) {
+		e !== this.#E?.identity?.draftId && this.closeDesignInspector();
+		let n = this.#k, r = this.#j.then(() => this.#se(e, n, t));
+		return this.#j = r.catch(() => void 0), r;
 	}
 	saveWorkspaceVersion() {
-		return this.#ae(async (e, t, n) => {
+		return this.#oe(async (e, t, n) => {
 			let r = await e.saveAsVersion(t.draftId);
 			return n(), r;
 		});
 	}
 	listWorkspaceVersions() {
-		return this.#ae(async (e, t, n) => {
+		return this.#oe(async (e, t, n) => {
 			let r = await e.getDraft(t.draftId);
 			n();
 			let i = await e.listVersions(r.itemId);
@@ -13566,14 +13630,14 @@ var Oh = class extends t {
 		});
 	}
 	reviewWorkspacePublication(e) {
-		return this.#ae(async (t, n, r, i) => {
+		return this.#oe(async (t, n, r, i) => {
 			let a = await t.getDraft(n.draftId);
 			r();
 			let o = await t.getVersion(a.itemId, e);
 			if (r(), o.itemId !== a.itemId || o.versionId !== e || o.packageKey !== n.packageKey || !o.contentHash) throw Error("The publication version does not belong to the active map.");
 			let s = Object.freeze(structuredClone(o));
-			return this.#D.set(s, {
-				binding: this.#T,
+			return this.#O.set(s, {
+				binding: this.#E,
 				generation: i,
 				itemId: o.itemId,
 				versionId: o.versionId,
@@ -13582,10 +13646,10 @@ var Oh = class extends t {
 		});
 	}
 	async publishWorkspaceVersion(e, t, n) {
-		let r = this.#D.get(e);
+		let r = this.#O.get(e);
 		if (!r) throw Error("Review the saved version in the current workspace before publishing.");
 		let i = () => {
-			if (r.binding !== this.#T || r.generation !== this.#O) throw Error("Review the saved version again in the original workspace session before publishing.");
+			if (r.binding !== this.#E || r.generation !== this.#k) throw Error("Review the saved version again in the original workspace session before publishing.");
 		};
 		if (i(), typeof n != "string" || n.trim() !== n || !/^[A-Za-z0-9_-]{1,128}$/.test(n)) throw Error("A stable publication command ID is required.");
 		let a = JSON.stringify({
@@ -13599,7 +13663,7 @@ var Oh = class extends t {
 		};
 		let o = r.submission;
 		if (o.pending) return o.pending;
-		let s = this.#ae(async (e, t, n) => {
+		let s = this.#oe(async (e, t, n) => {
 			i();
 			let a = await e.getVersion(r.itemId, r.versionId);
 			if (n(), i(), a.itemId !== r.itemId || a.versionId !== r.versionId || a.contentHash !== r.contentHash) throw Error("The saved version changed after publication review.");
@@ -13614,11 +13678,11 @@ var Oh = class extends t {
 		}
 	}
 	async readWorkspacePublication(e, t) {
-		let n = this.#T, r = this.#O, i = n?.identity;
+		let n = this.#E, r = this.#k, i = n?.identity;
 		if (!n || !i) throw Error("Open a map draft before reading its publication.");
 		if (![e, t].every((e) => typeof e == "string" && /^[A-Za-z0-9_-]{1,128}$/.test(e))) throw Error("Version and publication request IDs are required.");
 		let a = () => {
-			if (n !== this.#T || r !== this.#O) throw Error("The workspace session or map changed.");
+			if (n !== this.#E || r !== this.#k) throw Error("The workspace session or map changed.");
 		};
 		a();
 		let o = new Dp({
@@ -13631,66 +13695,66 @@ var Oh = class extends t {
 		return c;
 	}
 	reopenWorkspaceVersion(e) {
-		return this.#ae(async (t, n, r, i) => {
+		return this.#oe(async (t, n, r, i) => {
 			let a = await t.getDraft(n.draftId);
 			r();
 			let o = await t.reopenVersion(a.itemId, e);
 			if (r(), o.itemId !== a.itemId || o.packageKey !== n.packageKey) throw Error("The reopened version does not belong to the active map.");
-			await this.#oe(o.draftId, i);
+			await this.#se(o.draftId, i);
 		});
 	}
-	async #ae(e) {
-		let t = this.#T, n = this.#O, r = t?.identity;
+	async #oe(e) {
+		let t = this.#E, n = this.#k, r = t?.identity;
 		if (!t || !r) throw Error("Open a map draft before using saved versions.");
 		await this.prepareWorkspaceTurn();
 		let i = () => {
-			if (n !== this.#O || t !== this.#T) throw Error("The workspace session or map changed.");
-			if (this.#M || this.#k || this.#se()) throw Error("Save or explicitly reload pending Studio edits before using saved versions.");
-		}, a = this.#A.then(async () => (i(), e(new Dp({
+			if (n !== this.#k || t !== this.#E) throw Error("The workspace session or map changed.");
+			if (this.#N || this.#A || this.#ce()) throw Error("Save or explicitly reload pending Studio edits before using saved versions.");
+		}, a = this.#j.then(async () => (i(), e(new Dp({
 			baseUrl: z(),
 			auth: this.auth
 		}), r, i, n)));
-		return this.#A = a.then(() => void 0, () => void 0), a;
+		return this.#j = a.then(() => void 0, () => void 0), a;
 	}
-	async #oe(e, t, n) {
-		if (t !== this.#O) throw Error("The workspace session changed.");
-		if (n?.(), this.#se()) throw Error("Save pending Studio edits before attaching a draft.");
-		let r = this.#T?.identity, i = new Dm(new Dp({
+	async #se(e, t, n) {
+		if (t !== this.#k) throw Error("The workspace session changed.");
+		if (n?.(), this.#ce()) throw Error("Save pending Studio edits before attaching a draft.");
+		let r = this.#E?.identity, i = new Dm(new Dp({
 			baseUrl: z(),
 			auth: this.auth
 		})), a = await i.observe(e);
-		if (t !== this.#O) throw Error("The workspace session changed.");
-		if (n?.(), this.#se()) throw Error("Save pending Studio edits before attaching a draft.");
+		if (t !== this.#k) throw Error("The workspace session changed.");
+		if (n?.(), this.#ce()) throw Error("Save pending Studio edits before attaching a draft.");
 		i.rebind(new Dp({
 			baseUrl: z(),
 			auth: this.auth
-		})), r?.draftId !== e && this.closeDesignInspector(), r?.draftId !== e && this.#ee !== e && this.#ne(), r?.draftId !== e && this.#E++, this.#T = i, this.#k = !1, (r?.draftId !== e || r?.generation !== i.identity?.generation ? this.composition.resetBaseline.bind(this.composition) : this.composition.replaceState.bind(this.composition))({
+		})), r?.draftId !== e && this.closeDesignInspector(), r?.draftId !== e && this.#te !== e && this.#re(), r?.draftId !== e && this.#D++, this.#E = i, this.#A = !1, (r?.draftId !== e || r?.generation !== i.identity?.generation ? this.composition.resetBaseline.bind(this.composition) : this.composition.replaceState.bind(this.composition))({
 			...a,
 			pins: r?.draftId === e ? this.composition.state.pins : a.pins,
 			annotations: r?.draftId === e ? this.composition.state.annotations : a.annotations
-		}), r?.draftId !== e && (this.composition.clearSelection(), this.querySelector("honua-studio-canvas")?.resetExploration()), this.#ce();
+		}), r?.draftId !== e && (this.composition.clearSelection(), this.querySelector("honua-studio-canvas")?.resetExploration()), this.#le();
 	}
 	async refreshWorkspaceDraft() {
-		let e = this.#T, t = this.#O;
-		await this.#A;
+		let e = this.#E, t = this.#k;
+		await this.#j;
 		let n = e?.identity;
-		if (!n || e !== this.#T || this.#M || this.#k || this.#se()) return !1;
+		if (!n || e !== this.#E || this.#N || this.#A || this.#ce()) return !1;
 		try {
 			await this.attachWorkspaceDraft(n.draftId);
 		} catch (e) {
-			if (t !== this.#O || this.#M || this.#k || this.#se()) return !1;
+			if (t !== this.#k || this.#N || this.#A || this.#ce()) return !1;
 			throw e;
 		}
-		return t === this.#O && !this.#se();
+		return t === this.#k && !this.#ce();
 	}
 	async prepareWorkspaceTurn() {
-		if (await this.#x?.settled(), await this.#A, this.#M || this.#k || this.#se()) throw Error("Save or explicitly reload the pending Studio edits before sending a workspace turn.");
-		return this.#T?.identity;
+		if (await this.#S?.settled(), await this.#j, this.#N || this.#A || this.#ce()) throw Error("Save or explicitly reload the pending Studio edits before sending a workspace turn.");
+		return this.#E?.identity;
 	}
-	#se() {
+	#ce() {
 		if (this.hasUnsavedStyleChanges) return !0;
 		let e = (t) => {
-			for (let n of t.querySelectorAll("*")) if (!(n.tagName === "HONUA-STUDIO-CHAT" || n.tagName === "HONUA-STUDIO-CONTROL-BAR" || this.#S?.contains(n) || this.shadowRoot?.querySelector("[data-recipe-outlet]")?.contains(n))) {
+			for (let n of t.querySelectorAll("*")) if (!(n.tagName === "HONUA-STUDIO-CHAT" || n.tagName === "HONUA-STUDIO-CONTROL-BAR" || this.#C?.contains(n) || this.shadowRoot?.querySelector("[data-recipe-outlet]")?.contains(n))) {
 				if (n instanceof HTMLInputElement) {
 					if (n.type === "checkbox" || n.type === "radio" ? n.checked !== n.defaultChecked : n.value !== n.defaultValue) return !0;
 				} else if (n instanceof HTMLTextAreaElement && n.value !== n.defaultValue) return !0;
@@ -13704,30 +13768,30 @@ var Oh = class extends t {
 		};
 		return e(this) || !!(this.shadowRoot && e(this.shadowRoot));
 	}
-	#ce() {
+	#le() {
 		this.dispatchEvent(new CustomEvent("honua-workspace-draft-change", {
 			bubbles: !0,
 			composed: !0,
-			detail: this.#T?.identity
+			detail: this.#E?.identity
 		}));
 	}
 	async applyHistoryAction(e) {
-		if (this.#M || this.hasUnsavedStyleChanges) return !1;
-		let t = this.#O;
-		this.#M = !0, this.paintHistoryControls();
+		if (this.#N || this.hasUnsavedStyleChanges) return !1;
+		let t = this.#k;
+		this.#N = !0, this.paintHistoryControls();
 		try {
 			let t;
-			if (this.#T) {
+			if (this.#E) {
 				let n = e === "undo" ? this.composition.history.peekUndo() : this.composition.history.peekRedo();
 				if (!n) return !1;
-				let r = this.#T, i = this.#O, a = this.#A.then(async () => {
-					if (i !== this.#O) throw Error("The workspace session changed.");
+				let r = this.#E, i = this.#k, a = this.#j.then(async () => {
+					if (i !== this.#k) throw Error("The workspace session changed.");
 					let t = await r.replace(n);
-					if (i !== this.#O) throw Error("The workspace session changed.");
+					if (i !== this.#k) throw Error("The workspace session changed.");
 					let a = e === "undo" ? this.composition.undo() : this.composition.redo();
-					return this.composition.replaceState(t), this.#ce(), a;
+					return this.composition.replaceState(t), this.#le(), a;
 				});
-				this.#A = a.catch(() => void 0), t = await a;
+				this.#j = a.catch(() => void 0), t = await a;
 			} else t = await this.toolCallOrchestrator.applyHistoryAction(e);
 			let { draftId: n, generation: r } = this.toolCallOrchestrator;
 			t && n && r !== void 0 && this.querySelector("honua-studio-chat")?.agentSession?.attachDraft({
@@ -13737,11 +13801,11 @@ var Oh = class extends t {
 			let i = this.shadowRoot?.querySelector("[data-testid=\"history-status\"]");
 			return i && (i.textContent = t ? e === "undo" ? "Undone" : "Redone" : `Unable to ${e}. Review the activity log.`), t;
 		} catch (n) {
-			this.#T && t === this.#O && (this.#k = !0);
+			this.#E && t === this.#k && (this.#A = !0);
 			let r = this.shadowRoot?.querySelector("[data-testid=\"history-status\"]");
 			return r && (r.textContent = n instanceof Error ? n.message : `Unable to ${e}.`), !1;
 		} finally {
-			this.#M = !1, this.paintHistoryControls();
+			this.#N = !1, this.paintHistoryControls();
 		}
 	}
 	configureAgentTranscriptVerification(e, t) {
@@ -13759,58 +13823,58 @@ var Oh = class extends t {
 	set session(e) {
 		if (this.#e === e) return;
 		e && "kind" in e && e.kind === "cookie" && Qr(e.sourcePathBase);
-		let t = this.#e, n = !!(t || this.#a || this.#T), r = t && e && "kind" in t && t.kind === "cookie" && "kind" in e && e.kind === "cookie" && t.principalId && t.principalId === e.principalId && t.environmentId === e.environmentId && Qr(t.sourcePathBase) === Qr(e.sourcePathBase);
+		let t = this.#e, n = !!(t || this.#o || this.#E), r = t && e && "kind" in t && t.kind === "cookie" && "kind" in e && e.kind === "cookie" && t.principalId && t.principalId === e.principalId && t.environmentId === e.environmentId && Qr(t.sourcePathBase) === Qr(e.sourcePathBase);
 		if (!r) {
-			if (this.closeDesignInspector(), this.#re(), this.#w(), this.#O++, n) {
-				this.#I = void 0, this.#L = void 0, this.#R = !1, this.#F = void 0;
+			if (this.closeDesignInspector(), this.#ie(), this.#T(), this.#k++, n) {
+				this.#L = void 0, this.#R = void 0, this.#z = !1, this.#I = void 0;
 				let e = this.querySelector("honua-studio-canvas");
 				e && (e.sourceCatalog = void 0);
 			}
-			this.#T = void 0, this.#k = !1, this.composition.resetBaseline(d()), this.composition.clearSelection(), this.querySelector("honua-studio-canvas")?.resetExploration(), n && this.#ce();
+			this.#E = void 0, this.#A = !1, this.composition.resetBaseline(d()), this.composition.clearSelection(), this.querySelector("honua-studio-canvas")?.resetExploration(), n && this.#le();
 		}
-		this.#e = e, this.#i();
+		this.#e = e, this.#a++, this.#i();
 		let i = this.querySelector("honua-studio-canvas");
 		if (i && (i.sourceAuthBaseUrl = e && "kind" in e && e.kind === "cookie" ? Qr(e.sourcePathBase) : B()), !this.isConnected) {
-			this.#o?.(), this.#o = void 0, Dh(this.#a), this.#a = void 0, this.#l || (this.#c = void 0);
+			this.#s?.(), this.#s = void 0, Dh(this.#o), this.#o = void 0, this.#u || (this.#l = void 0);
 			return;
 		}
-		this.resetAuth();
+		r && this.#o instanceof $r && e && "kind" in e && e.kind === "cookie" ? this.#o.renewCookie(e) : this.resetAuth();
 		for (let e of this.querySelectorAll("honua-studio-canvas")) e.widgetDeck?.refreshSession();
-		this.#N?.isLive && this.#K && this.#me(this.#K), r || (this.#p = !1), this.renderChrome(), this.routingMode === "hash" ? this.#_e() : this.renderView(), this.#fe(!!r);
+		this.#P?.isLive && this.#q && this.#he(this.#q), r || (this.#m = !1), this.renderChrome(), this.routingMode === "hash" ? this.#ve() : this.renderView(), this.#pe(!!r);
 	}
 	get auth() {
-		return this.#a ?? this.resetAuth();
+		return this.#o ?? this.resetAuth();
 	}
 	get studioClient() {
-		return this.#c ||= new Pp(z(), this.auth, B()), this.#c;
+		return this.#l ||= new Pp(z(), this.auth, B()), this.#l;
 	}
 	set studioClient(e) {
-		this.#c = e, this.#l = !0, this.renderView();
+		this.#l = e, this.#u = !0, this.renderView();
 	}
 	get composition() {
-		return this.#m ||= new am(d()), this.#m;
+		return this.#h ||= new am(d()), this.#h;
 	}
 	get toolCallOrchestrator() {
-		if (!this.#N) {
+		if (!this.#P) {
 			let e = this.querySelector("honua-studio-chat");
-			this.#N = new Fm({
+			this.#P = new Fm({
 				controller: this.composition,
 				activityLog: e?.activityLog
 			});
 		}
-		return this.#N;
+		return this.#P;
 	}
 	async listProcessSources() {
-		let e = this.#O, t = this.auth, n = await (this.#l ? this.studioClient : new Pp(z(), t, B())).listCatalog();
-		if (e !== this.#O || t !== this.auth) throw Error("The workspace authority changed.");
-		return this.#ue(n), this.#L = e, n.filter((e) => typeof e.locator?.serviceId == "string" && Number.isSafeInteger(e.locator?.layerId)).map((e) => ({
+		let e = this.#k, t = this.auth, n = await (this.#u ? this.studioClient : new Pp(z(), t, B())).listCatalog();
+		if (e !== this.#k || t !== this.auth) throw Error("The workspace authority changed.");
+		return this.#de(n), this.#R = e, n.filter((e) => typeof e.locator?.serviceId == "string" && Number.isSafeInteger(e.locator?.layerId)).map((e) => ({
 			id: e.id,
 			title: e.title ?? e.id
 		}));
 	}
 	async resolveProcessSource(e) {
-		let t = this.#O, n = this.#I?.find((t) => t.id === e);
-		if (!n || this.#L !== t) throw Error("Refresh the authorized source choices before selecting a process layer.");
+		let t = this.#k, n = this.#L?.find((t) => t.id === e);
+		if (!n || this.#R !== t) throw Error("Refresh the authorized source choices before selecting a process layer.");
 		let r = this.#e && "kind" in this.#e && this.#e.kind === "cookie" ? Qr(this.#e.sourcePathBase) : B(), i = await new Wd({
 			baseUrl: r,
 			...r === B() ? {} : { catalogAliasBaseUrl: B() },
@@ -13818,31 +13882,31 @@ var Oh = class extends t {
 			getAuth: () => this.auth,
 			signal: AbortSignal.timeout(8e3)
 		}).resolveProcessSource(n);
-		if (t !== this.#O) throw Error("The workspace authority changed.");
+		if (t !== this.#k) throw Error("The workspace authority changed.");
 		return i;
 	}
 	createWorkspaceStyleProvider(e = {}) {
-		let t = this.#O, n = e.getAuthority?.(), r = this.#e && "kind" in this.#e && this.#e.kind === "cookie" ? Qr(this.#e.sourcePathBase) : B();
+		let t = this.#k, n = e.getAuthority?.(), r = this.#e && "kind" in this.#e && this.#e.kind === "cookie" ? Qr(this.#e.sourcePathBase) : B();
 		return new Wd({
 			baseUrl: r,
 			...r === B() ? {} : { catalogAliasBaseUrl: B() },
 			documentUrl: window.document.baseURI,
 			signal: e.signal,
 			getAuth: () => {
-				if (t !== this.#O || e.getAuthority?.() !== n) throw Error("The selected style workspace authority changed.");
+				if (t !== this.#k || e.getAuthority?.() !== n) throw Error("The selected style workspace authority changed.");
 				return this.auth;
 			}
 		});
 	}
 	get sourceCatalog() {
-		return this.#I;
+		return this.#L;
 	}
 	set sourceCatalog(e) {
-		this.#z = !0, this.#R = !0, e !== this.#I && this.#ne(), this.#ue(e);
+		this.#B = !0, this.#z = !0, e !== this.#L && this.#re(), this.#de(e);
 	}
-	async #le(e) {
-		this.#I?.some((t) => t.id === e.id) || this.#ue([...this.#I ?? [], e]);
-		let t = await this.#ye([{
+	async #ue(e) {
+		this.#L?.some((t) => t.id === e.id) || this.#de([...this.#L ?? [], e]);
+		let t = await this.#be([{
 			name: "addLayer",
 			layer: {
 				id: e.id,
@@ -13852,36 +13916,36 @@ var Oh = class extends t {
 		}]);
 		if (!t.ok) throw Error(t.reason);
 	}
-	#ue(e) {
-		e !== this.#I && this.closeDesignInspector(), e !== this.#I && (this.#Z && (this.#Q = this.#Z), this.#X = void 0, this.#Z = void 0), this.#I = e, this.#F = void 0;
+	#de(e) {
+		e !== this.#L && this.closeDesignInspector(), e !== this.#L && (this.#Q && (this.#$ = this.#Q), this.#Z = void 0, this.#Q = void 0), this.#L = e, this.#I = void 0;
 		let t = this.querySelector("honua-studio-canvas");
-		t && (t.sourceCatalog = e), this.isConnected && this.#N?.isLive && this.#he();
+		t && (t.sourceCatalog = e), this.isConnected && this.#P?.isLive && this.#ge();
 	}
-	async #de(e = !1) {
-		if (this.#R || !e && this.#I !== void 0) return;
+	async #fe(e = !1) {
+		if (this.#z || !e && this.#L !== void 0) return;
 		let t = this.auth.getState().status;
 		if (!(t !== "fresh" && t !== "refreshing")) {
-			this.#R = !0;
+			this.#z = !0;
 			try {
-				let e = this.#O, t = this.auth, n = this.#I, r = await this.studioClient.listCatalog();
-				if (!this.isConnected || e !== this.#O || t !== this.auth || this.#I !== n || n && u(n) === u(r)) return;
-				this.#ue(r);
+				let e = this.#k, t = this.auth, n = this.#L, r = await this.studioClient.listCatalog();
+				if (!this.isConnected || e !== this.#k || t !== this.auth || this.#L !== n || n && u(n) === u(r)) return;
+				this.#de(r);
 			} catch {}
 		}
 	}
-	#fe(e = !1) {
-		this.#z || (e ? this.#X = void 0 : this.#I = void 0, this.#R = !1, this.#de(e));
+	#pe(e = !1) {
+		this.#B || (e ? this.#Z = void 0 : this.#L = void 0, this.#z = !1, this.#fe(e));
 	}
-	#pe() {
+	#me() {
 		if (!this.isConnected) return;
-		let e = this.#a?.getState().status;
-		e !== this.#B && (this.#B = e, (e === "expired" || e === "signed-out") && this.closeDesignInspector(), (e === "signed-out" || e === "expired") && this.#re(), !(e !== "fresh" || this.#I !== void 0) && this.#fe());
+		let e = this.#o?.getState().status;
+		e !== this.#V && (this.#V = e, (e === "expired" || e === "signed-out") && this.closeDesignInspector(), (e === "signed-out" || e === "expired") && this.#ie(), !(e !== "fresh" || this.#L !== void 0) && this.#pe());
 	}
 	get aiMapKit() {
-		return this.#F ||= jm({
+		return this.#I ||= jm({
 			controller: this.composition,
-			...this.#I === void 0 ? {} : { catalog: this.#I }
-		}), this.#F;
+			...this.#L === void 0 ? {} : { catalog: this.#L }
+		}), this.#I;
 	}
 	enableLiveComposition(e) {
 		let t = {
@@ -13890,14 +13954,14 @@ var Oh = class extends t {
 			...e.family === void 0 ? {} : { family: e.family },
 			...e.schemaVersion === void 0 ? {} : { schemaVersion: e.schemaVersion }
 		};
-		this.#K = t, this.#me(t), this.#P = e.packageKey, this.#ge({
+		this.#q = t, this.#he(t), this.#F = e.packageKey, this.#_e({
 			mode: "live",
 			packageKey: e.packageKey,
 			...e.family === void 0 ? {} : { family: e.family }
 		});
 	}
-	#me(e) {
-		this.#U += 1, this.querySelector("honua-studio-chat")?.detachAgentSession(), this.#G = e.baseUrl, this.toolCallOrchestrator.attachLiveSession({
+	#he(e) {
+		this.#W += 1, this.querySelector("honua-studio-chat")?.detachAgentSession(), this.#K = e.baseUrl, this.toolCallOrchestrator.attachLiveSession({
 			client: new od({
 				baseUrl: e.baseUrl,
 				auth: this.auth
@@ -13905,12 +13969,12 @@ var Oh = class extends t {
 			packageKey: e.packageKey,
 			...e.family === void 0 ? {} : { family: e.family },
 			...e.schemaVersion === void 0 ? {} : { schemaVersion: e.schemaVersion }
-		}), this.#he();
+		}), this.#ge();
 	}
-	#he() {
-		let e = this.#ve(this.#G), t = this.#U;
+	#ge() {
+		let e = this.#ye(this.#K), t = this.#W;
 		e.catch((e) => {
-			t === this.#U && (this.disableLiveComposition(), this.querySelector("honua-studio-chat")?.activityLog.append("assistant_turn_error", {
+			t === this.#W && (this.disableLiveComposition(), this.querySelector("honua-studio-chat")?.activityLog.append("assistant_turn_error", {
 				errorMessage: e instanceof Error ? e.message : String(e),
 				phase: "agent-session-setup"
 			}));
@@ -13918,11 +13982,11 @@ var Oh = class extends t {
 	}
 	disableLiveComposition() {
 		if (!this.toolCallOrchestrator.isLive) return;
-		this.toolCallOrchestrator.detachLiveSession(), this.#U += 1, this.querySelector("honua-studio-chat")?.detachAgentSession();
+		this.toolCallOrchestrator.detachLiveSession(), this.#W += 1, this.querySelector("honua-studio-chat")?.detachAgentSession();
 		let e = this.querySelector("honua-studio-chat");
-		e && (e.agentSessionPending = !1), this.#P = void 0, this.#K = void 0, this.#ge({ mode: "fixture" });
+		e && (e.agentSessionPending = !1), this.#F = void 0, this.#q = void 0, this.#_e({ mode: "fixture" });
 	}
-	#ge(e) {
+	#_e(e) {
 		this.paintLiveCompositionControls(), this.querySelector("honua-studio-chat")?.activityLog.append("composition_mode_changed", { ...e }), this.dispatchTypedEvent("honua-studio-composition-mode-change", e);
 	}
 	get routingMode() {
@@ -13932,7 +13996,7 @@ var Oh = class extends t {
 		this.setAttribute("routing-mode", e);
 	}
 	get currentPath() {
-		return this.#f;
+		return this.#p;
 	}
 	set currentPath(e) {
 		this.getAttribute("current-path") !== e && this.setAttribute("current-path", e);
@@ -13941,14 +14005,14 @@ var Oh = class extends t {
 		return this.getAttribute("data-theme-set") === "console" ? "console" : "standalone";
 	}
 	set themeSet(e) {
-		(this.#u ?? this.ensureThemeLoader()).setThemeSet(e);
+		(this.#d ?? this.ensureThemeLoader()).setThemeSet(e);
 	}
 	get themeMode() {
 		let e = this.getAttribute("data-theme");
 		return e === "light" || e === "dark" ? e : "auto";
 	}
 	set themeMode(e) {
-		(this.#u ?? this.ensureThemeLoader()).setThemeMode(e);
+		(this.#d ?? this.ensureThemeLoader()).setThemeMode(e);
 	}
 	get themeSwitcherVisibility() {
 		return this.getAttribute("theme-switcher") === "hidden" ? "hidden" : "visible";
@@ -13957,39 +14021,39 @@ var Oh = class extends t {
 		this.setAttribute("theme-switcher", e);
 	}
 	ensureThemeLoader() {
-		return this.#u ||= new oh(this, kh()), this.#u;
+		return this.#d ||= new oh(this, kh()), this.#d;
 	}
 	resetAuth() {
-		this.#o?.(), this.#o = void 0, Dh(this.#a), this.#l || (this.#c = void 0);
+		this.#s?.(), this.#s = void 0, Dh(this.#o), this.#u || (this.#l = void 0);
 		let e = Rf({ hostAdapter: this.#e });
-		return this.#a = e, this.#T?.rebind(new Dp({
+		return this.#o = e, this.#E?.rebind(new Dp({
 			baseUrl: z(),
 			auth: e
-		})), this.#o = e.subscribe(() => {
-			this.paintAuthControls(), this.#pe();
+		})), this.#s = e.subscribe(() => {
+			this.paintAuthControls(), this.#me();
 		}), this.isConnected && this.completeStandaloneRedirectCallback(e), e;
 	}
 	async completeStandaloneRedirectCallback(e) {
-		if (!this.#s && !(e.mode !== "standalone" || !e.isRedirectCallback())) {
-			this.#s = !0;
+		if (!this.#c && !(e.mode !== "standalone" || !e.isRedirectCallback())) {
+			this.#c = !0;
 			try {
 				await e.handleRedirectCallback();
 			} catch {}
 			window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
 		}
 	}
-	#_e() {
-		this.routingMode !== "hash" || this.#r() || (this.#d?.stop(), this.#d = new Ym(this.viewRoot(), _h.map((e) => ({
+	#ve() {
+		this.routingMode !== "hash" || this.#r() || (this.#f?.stop(), this.#f = new Ym(this.viewRoot(), _h.map((e) => ({
 			path: e.path,
 			render: (t) => {
-				this.#f = e.path, e.render(t, this.studioClient, this.auth, (e) => this.#le(e)), this.syncNavCurrent();
+				this.#p = e.path, e.render(t, this.studioClient, this.auth, (e) => this.#ue(e)), this.syncNavCurrent();
 			}
 		})), {
 			path: "*",
 			render: (e) => {
-				this.#f = "/", _h[0]?.render(e, this.studioClient, this.auth, (e) => this.#le(e)), this.syncNavCurrent();
+				this.#p = "/", _h[0]?.render(e, this.studioClient, this.auth, (e) => this.#ue(e)), this.syncNavCurrent();
 			}
-		}), this.#d.start());
+		}), this.#f.start());
 	}
 	onConnect(e) {
 		this.resetAuth(), this.renderChrome(), this.listen(this, "keydown", (e) => {
@@ -14005,7 +14069,7 @@ var Oh = class extends t {
 		let t = this.ensureThemeLoader();
 		!this.hasAttribute("data-theme-set") && !this.hasAttribute("data-theme") && t.boot();
 		let n = this.getAttribute("base-path");
-		if (this.routingMode === "hash" ? this.#_e() : this.#f = Th(wh(this.getAttribute("current-path") ?? "/"), n), !this.querySelector("honua-studio-chat")) {
+		if (this.routingMode === "hash" ? this.#ve() : this.#p = Th(wh(this.getAttribute("current-path") ?? "/"), n), !this.querySelector("honua-studio-chat")) {
 			let e = document.createElement("honua-studio-chat");
 			e.slot = "chat", e.setAttribute("label", "Chat"), this.appendChild(e);
 		}
@@ -14015,9 +14079,9 @@ var Oh = class extends t {
 		}
 		this.#t && (this.agentSessionAdapter = this.#t);
 		let r = this.querySelector("honua-studio-canvas");
-		r && (r.sourceAuthBaseUrl = this.#e && "kind" in this.#e && this.#e.kind === "cookie" ? Qr(this.#e.sourcePathBase) : B()), r && !r.composition && (r.composition = this.composition), r && !r.commandDispatch && (r.commandDispatch = (e) => this.#ye(e)), r && this.#I ? r.sourceCatalog = this.#I : this.#de(), this.toolCallOrchestrator, this.#be(), this.listen(this, "honua-studio-chat-tool-call-result", (e) => {
+		r && (r.sourceAuthBaseUrl = this.#e && "kind" in this.#e && this.#e.kind === "cookie" ? Qr(this.#e.sourcePathBase) : B()), r && !r.composition && (r.composition = this.composition), r && !r.commandDispatch && (r.commandDispatch = (e) => this.#be(e)), r && this.#L ? r.sourceCatalog = this.#L : this.#fe(), this.toolCallOrchestrator, this.#xe(), this.listen(this, "honua-studio-chat-tool-call-result", (e) => {
 			let t = e.detail;
-			this.#xe(t);
+			this.#Se(t);
 		}), this.listen(this, "honua-studio-lifecycle-activity", (e) => {
 			let t = e.detail;
 			this.querySelector("honua-studio-chat")?.activityLog.append("lifecycle_action", { ...t });
@@ -14036,13 +14100,13 @@ var Oh = class extends t {
 			});
 		});
 	}
-	async #ve(e) {
+	async #ye(e) {
 		let t = this.querySelector("honua-studio-chat");
 		if (t && this.#t && (t.agentSessionAdapter = this.#t), !t || t.agentSessionAdapter || t.hasCustomTransport || this.auth.fetchRequest || !this.toolCallOrchestrator.isLive) return;
-		let n = ++this.#U;
+		let n = ++this.#W;
 		t.agentSessionPending = !0;
 		let r = await this.toolCallOrchestrator.ensureLiveDraft();
-		if (n !== this.#U || !this.toolCallOrchestrator.isLive) return;
+		if (n !== this.#W || !this.toolCallOrchestrator.isLive) return;
 		t.agentSessionPending = !1;
 		let i = this.aiMapKit, a = this.auth, o = new Wd({
 			baseUrl: B(),
@@ -14055,8 +14119,8 @@ var Oh = class extends t {
 				s.push(await o.read(e.styleId));
 			} catch {}
 		} catch {}
-		if (n !== this.#U || !this.toolCallOrchestrator.isLive || this.auth !== a) return;
-		let c = {}, l = this.#H;
+		if (n !== this.#W || !this.toolCallOrchestrator.isLive || this.auth !== a) return;
+		let c = {}, l = this.#U;
 		c.current = t.attachAgentSession({
 			...l?.certification ? { certification: l.certification } : {},
 			...l?.transcriptVerifier ? { transcriptVerifier: l.transcriptVerifier } : {},
@@ -14087,7 +14151,7 @@ var Oh = class extends t {
 			system: () => yp({
 				draftId: this.toolCallOrchestrator.draftId,
 				generation: this.toolCallOrchestrator.generation,
-				catalog: this.#I,
+				catalog: this.#L,
 				styles: s.map(({ styleId: e, title: t, description: n, styleVersion: r, sha256: i }) => ({
 					styleId: e,
 					title: t,
@@ -14099,37 +14163,37 @@ var Oh = class extends t {
 			}),
 			onEvent: (e) => {
 				if (e.type === "toolResult") {
-					if (n !== this.#U || c.current !== t.agentSession || !this.toolCallOrchestrator.isLive) return;
+					if (n !== this.#W || c.current !== t.agentSession || !this.toolCallOrchestrator.isLive) return;
 					if (e.result.draft && this.toolCallOrchestrator.acceptServerDraft(e.result.draft), e.result.ok && e.result.toolName === "honua_studio_propose_publication") try {
 						let n = JSON.parse(e.result.content);
 						if (n.status !== "ok") return;
 						let r = new URL(z(), document.baseURI).href, i = Bf(n.result, r);
-						i && (this.#W += 1, t.shareNote = i.text);
+						i && (this.#G += 1, t.shareNote = i.text);
 					} catch {}
 				}
 			}
 		});
 	}
 	async addPublishedLayer(e, t) {
-		let n = this.auth, r = this.#E, i = this.#O, a = () => {
-			if (this.#E !== r || this.#O !== i || t?.isCurrent?.() === !1) throw Error("The active map changed while resolving the published layer. Review the map and try again.");
+		let n = this.auth, r = this.#a, i = this.#D, a = this.#k, o = () => {
+			if (this.#D !== i || this.#k !== a || t?.isCurrent?.() === !1) throw Error("The active map changed while resolving the published layer. Review the map and try again.");
 		};
-		a();
-		let o = await this.studioClient.listCatalog();
-		if (a(), this.auth !== n && (n = this.auth, o = await this.studioClient.listCatalog(), a(), this.auth !== n)) throw Error("The Studio target changed while resolving the published layer.");
-		let s = `/rest/services/${e.serviceName.split("/").map(encodeURIComponent).join("/")}/FeatureServer`, c = o.filter((t) => t.locator?.layerId === e.layerId && typeof t.locator.url == "string" && t.locator.url.endsWith(s));
-		if (c.length !== 1) throw Error("The published layer has no unique verified catalog source.");
-		let l = c[0];
-		return this.#ue(o), this.#ye([{
+		o();
+		let s = await this.studioClient.listCatalog();
+		if (o(), (this.auth !== n || this.#a !== r) && (n = this.auth, r = this.#a, s = await this.studioClient.listCatalog(), o(), this.auth !== n || this.#a !== r)) throw Error("The Studio target changed while resolving the published layer.");
+		let c = `/rest/services/${e.serviceName.split("/").map(encodeURIComponent).join("/")}/FeatureServer`, l = s.filter((t) => t.locator?.layerId === e.layerId && typeof t.locator.url == "string" && t.locator.url.endsWith(c));
+		if (l.length !== 1) throw Error("The published layer has no unique verified catalog source.");
+		let u = l[0];
+		return this.#de(s), this.#be([{
 			name: "addLayer",
 			layer: {
-				id: l.id,
-				sourceId: l.id,
-				title: e.layerName ?? l.title
+				id: u.id,
+				sourceId: u.id,
+				title: e.layerName ?? u.title
 			}
 		}], t);
 	}
-	async #ye(e, t) {
+	async #be(e, t) {
 		if (t?.isCurrent?.() === !1) return {
 			ok: !1,
 			reason: "The initiating view changed."
@@ -14138,21 +14202,21 @@ var Oh = class extends t {
 			ok: !1,
 			reason: "Save or discard visual style edits before changing the map."
 		};
-		if (this.#T) {
-			let n = this.#T, r = this.#O, i = this.#A.then(async () => {
+		if (this.#E) {
+			let n = this.#E, r = this.#k, i = this.#j.then(async () => {
 				if (t?.isCurrent?.() === !1) return {
 					ok: !1,
 					reason: "The initiating view changed before the edit began."
 				};
 				try {
-					if (r !== this.#O) throw Error("The workspace session changed.");
-					if (n !== this.#T) throw Error("The active map changed before the edit began.");
+					if (r !== this.#k) throw Error("The workspace session changed.");
+					if (n !== this.#E) throw Error("The active map changed before the edit began.");
 					let i = e.length === 1 && e[0]?.name === "setMapStyle" ? e[0] : void 0, a = this.composition.state, o = a;
 					if (i) {
 						let e = this.querySelector("honua-studio-canvas");
 						if (!e) throw Error("Open the map canvas before editing its style.");
 						let i = await e.editableMapStyle();
-						if (r !== this.#O || n !== this.#T) throw Error("The workspace session changed.");
+						if (r !== this.#k || n !== this.#E) throw Error("The workspace session changed.");
 						if (a !== this.composition.state || t?.isCurrent?.() === !1) throw Error("The map changed while preparing its style.");
 						o = {
 							...a,
@@ -14164,17 +14228,17 @@ var Oh = class extends t {
 						pins: s.pins,
 						annotations: s.annotations
 					} : await n.replace(s);
-					if (r !== this.#O) throw Error("The workspace session changed.");
+					if (r !== this.#k) throw Error("The workspace session changed.");
 					if (!i) for (let t of e) this.composition.apply(t);
-					return this.composition.replaceState(c), this.#ce(), { ok: !0 };
+					return this.composition.replaceState(c), this.#le(), { ok: !0 };
 				} catch (e) {
-					return r === this.#O && n === this.#T && (this.#k = !0), {
+					return r === this.#k && n === this.#E && (this.#A = !0), {
 						ok: !1,
 						reason: e instanceof Error ? e.message : String(e)
 					};
 				}
 			});
-			return this.#A = i.catch(() => void 0), i;
+			return this.#j = i.catch(() => void 0), i;
 		}
 		if (this.#e && "kind" in this.#e && this.#e.kind === "cookie") return {
 			ok: !1,
@@ -14192,8 +14256,8 @@ var Oh = class extends t {
 		}
 		return { ok: !0 };
 	}
-	async #be() {
-		let e = this.#W;
+	async #xe() {
+		let e = this.#G;
 		try {
 			let t = Uf(Hf());
 			if (!t) return;
@@ -14206,18 +14270,18 @@ var Oh = class extends t {
 			let r = await this.auth?.getAccessToken();
 			if (!r) return;
 			let i = await Kf(z(), t.proposalId, r);
-			if (!i || e !== this.#W || !this.isConnected) return;
+			if (!i || e !== this.#G || !this.isConnected) return;
 			n.shareNote = Wf(t, i).text;
 		} catch {}
 	}
-	async #xe(e) {
+	async #Se(e) {
 		if (!e.toolName) return;
 		let t = mh(e.arguments) ? e.arguments : {};
-		if (this.#T) {
+		if (this.#E) {
 			let n = fm({
 				toolName: e.toolName,
 				arguments: t
-			}), r = n.ok ? await this.#ye([n.command]) : n;
+			}), r = n.ok ? await this.#be([n.command]) : n;
 			r.ok || this.querySelector("honua-studio-chat")?.activityLog.append("assistant_turn_error", {
 				phase: "workspace-command",
 				errorMessage: r.reason
@@ -14230,7 +14294,7 @@ var Oh = class extends t {
 		});
 	}
 	onDisconnect() {
-		this.closeDesignInspector(), this.#ne(), this.#j?.(), this.#j = void 0, this.#t || this.querySelector("honua-studio-chat")?.detachAgentSession(), this.#U += 1, this.#d?.stop(), this.#d = void 0, this.#o?.(), this.#o = void 0, Dh(this.#a), this.#a = void 0, this.#u = void 0, this.#p = !1;
+		this.closeDesignInspector(), this.#re(), this.#M?.(), this.#M = void 0, this.#t || this.querySelector("honua-studio-chat")?.detachAgentSession(), this.#W += 1, this.#f?.stop(), this.#f = void 0, this.#s?.(), this.#s = void 0, Dh(this.#o), this.#o = void 0, this.#d = void 0, this.#m = !1;
 	}
 	attributeChangedCallback(e, t, n) {
 		if (!(!this.isConnected || t === n)) {
@@ -14243,7 +14307,7 @@ var Oh = class extends t {
 			}
 			if (e === "current-path" && this.routingMode === "host") {
 				let e = this.getAttribute("base-path");
-				this.#f = Th(wh(n ?? "/"), e), this.renderView();
+				this.#p = Th(wh(n ?? "/"), e), this.renderView();
 				return;
 			}
 			if (e === "theme-switcher") {
@@ -14251,7 +14315,7 @@ var Oh = class extends t {
 				return;
 			}
 			if (e === "routing-mode" || e === "base-path") {
-				this.#d?.stop(), this.#d = void 0;
+				this.#f?.stop(), this.#f = void 0;
 				let e = this.connectedSignal;
 				e && this.onConnect(e), this.render();
 			}
@@ -14266,7 +14330,7 @@ var Oh = class extends t {
 		return e;
 	}
 	renderChrome() {
-		if (this.#p && this.shadowRoot?.querySelector(".app-shell")) {
+		if (this.#m && this.shadowRoot?.querySelector(".app-shell")) {
 			this.syncThemeControls(), this.syncNavCurrent(), this.paintAuthControls();
 			return;
 		}
@@ -14341,7 +14405,7 @@ var Oh = class extends t {
           <slot name="canvas"></slot>
         </div>
       </div>
-    `), this.#p = !0;
+    `), this.#m = !0;
 		let n = this.shadowRoot, r = this.connectedSignal;
 		n?.querySelector("[data-testid='recipe-toggle']")?.addEventListener("click", () => {
 			n.querySelector("[data-recipe-outlet]")?.hidden ? this.openRecipePicker() : this.closeRecipePicker();
@@ -14365,12 +14429,12 @@ var Oh = class extends t {
 		}, { signal: r }), n?.querySelector("[data-testid=\"auth-signout\"]")?.addEventListener("click", () => {
 			this.auth.signOut();
 		}, { signal: r }), this.bindLiveCompositionControls(), n?.querySelector("[data-testid=\"design-inspector-toggle\"]")?.addEventListener("click", () => {
-			this.#h ? this.closeDesignInspector() : this.openDesignInspector();
+			this.#g ? this.closeDesignInspector() : this.openDesignInspector();
 		}, { signal: r });
 		for (let e of ["undo", "redo"]) n?.querySelector(`[data-testid="history-${e}"]`)?.addEventListener("click", () => {
 			this.applyHistoryAction(e);
 		}, { signal: r });
-		this.#j?.(), this.#j = this.composition.subscribe(() => this.paintHistoryControls()), this.paintHistoryControls(), this.syncThemeControls(), this.syncNavCurrent(), this.paintAuthControls(), this.paintLiveCompositionControls();
+		this.#M?.(), this.#M = this.composition.subscribe(() => this.paintHistoryControls()), this.paintHistoryControls(), this.syncThemeControls(), this.syncNavCurrent(), this.paintAuthControls(), this.paintLiveCompositionControls();
 	}
 	bindLiveCompositionControls() {
 		let e = this.shadowRoot, t = this.connectedSignal;
@@ -14398,8 +14462,8 @@ var Oh = class extends t {
 	paintLiveCompositionControls() {
 		let e = this.shadowRoot;
 		if (!e) return;
-		let t = this.#N?.isLive === !0, n = e.querySelector("[data-testid=\"live-composition-status\"]");
-		n && (n.textContent = t ? `Live · ${this.#P ?? "connected"}` : yh, n.setAttribute("data-mode", t ? "live" : "fixture"));
+		let t = this.#P?.isLive === !0, n = e.querySelector("[data-testid=\"live-composition-status\"]");
+		n && (n.textContent = t ? `Live · ${this.#F ?? "connected"}` : yh, n.setAttribute("data-mode", t ? "live" : "fixture"));
 		let r = e.querySelector("[data-testid=\"live-composition-toggle\"]");
 		if (r && (r.textContent = t ? "Return to fixture" : "Go live…"), t) {
 			let t = e.querySelector("[data-testid=\"live-composition-form\"]");
@@ -14409,7 +14473,7 @@ var Oh = class extends t {
 	paintHistoryControls() {
 		for (let e of ["undo", "redo"]) {
 			let t = this.shadowRoot?.querySelector(`[data-testid="history-${e}"]`);
-			t && (t.disabled = this.#M || this.hasUnsavedStyleChanges || !(e === "undo" ? this.composition.canUndo() : this.composition.canRedo()));
+			t && (t.disabled = this.#N || this.hasUnsavedStyleChanges || !(e === "undo" ? this.composition.canUndo() : this.composition.canRedo()));
 		}
 	}
 	syncThemeControls() {
@@ -14422,12 +14486,12 @@ var Oh = class extends t {
 	}
 	syncNavCurrent() {
 		let e = this.shadowRoot;
-		if (e) for (let t of e.querySelectorAll("[data-path]")) t.dataset.path === this.#f ? t.setAttribute("aria-current", "page") : t.removeAttribute("aria-current");
+		if (e) for (let t of e.querySelectorAll("[data-path]")) t.dataset.path === this.#p ? t.setAttribute("aria-current", "page") : t.removeAttribute("aria-current");
 	}
 	paintAuthControls() {
 		let e = this.shadowRoot;
 		if (!e) return;
-		let t = this.#a?.getState() ?? { status: "signed-out" }, n = e.querySelector("[data-testid=\"auth-status\"]");
+		let t = this.#o?.getState() ?? { status: "signed-out" }, n = e.querySelector("[data-testid=\"auth-status\"]");
 		n && (n.textContent = ph[t.status]);
 		let r = e.querySelector("[data-testid=\"auth-signin\"]"), i = e.querySelector("[data-testid=\"auth-signout\"]"), a = t.status === "fresh" || t.status === "refreshing";
 		r && (r.hidden = a), i && (i.hidden = !a);
@@ -14438,7 +14502,7 @@ var Oh = class extends t {
 				this.viewRoot().replaceChildren();
 				return;
 			}
-			(_h.find((e) => e.path === this.#f) ?? _h[0])?.render(this.viewRoot(), this.studioClient, this.auth, (e) => this.#le(e)), this.syncNavCurrent();
+			(_h.find((e) => e.path === this.#p) ?? _h[0])?.render(this.viewRoot(), this.studioClient, this.auth, (e) => this.#ue(e)), this.syncNavCurrent();
 		}
 	}
 };
@@ -18908,7 +18972,7 @@ var u_ = {
 	#P() {
 		if (this.#x || this.#S) return this.#x;
 		this.#S = !0, Promise.all([
-			import("./chart-spec-DrjXwtIF.js"),
+			import("./chart-spec-DAVCygiU.js"),
 			import("./chart-data-f1eyBzQS.js"),
 			import("./chart-render-yr_0V0Zx.js")
 		]).then(([e, t, n]) => {
@@ -23258,7 +23322,7 @@ async function H_(e) {
 	return t.includes("json") ? e.json() : t.startsWith("text/") || t.includes("xml") ? e.text() : e.arrayBuffer();
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/file-hash.js
+//#region node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/file-hash.js
 async function U_(e, t = {}) {
 	let n = t.chunkBytes ?? 1024 * 1024;
 	if (!Number.isSafeInteger(n) || n < 65536 || n > 8 * 1024 * 1024) throw RangeError("chunkBytes must be an integer between 64 KiB and 8 MiB.");
@@ -23418,7 +23482,7 @@ function Y_(e) {
 	})) throw TypeError("A bounded canonical identity is required.");
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/client.js
+//#region node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/client.js
 var X_ = class {
 	workspaceId;
 	targetId;
@@ -23476,7 +23540,7 @@ function $_(e) {
 	return typeof e == "string" && e.length === 64 && /^[a-f0-9]{64}$/.test(e);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/upload-client.js
+//#region node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/upload-client.js
 var ev = 4 * 1024 * 1024, tv = 65536, nv = class {
 	transport;
 	constructor(e) {
@@ -23578,7 +23642,7 @@ function uv(e, t) {
 	return e == null || t == null ? e == null && t == null : e.bytes === t.bytes && e.sha256 === t.sha256 && (e.expiresAt ?? null) === (t.expiresAt ?? null);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/submission-client.js
+//#region node_modules/@honua/sdk-js/dist/src/control-plane/dataset-import/submission-client.js
 var dv = class {
 	transport;
 	constructor(e) {
@@ -24635,7 +24699,7 @@ function $v(e) {
 	return typeof e == "object" && !!e;
 }
 var ey = async (e) => {
-	let [t, n] = await Promise.all([import("./maplibre-gl-DuhfdD2r.js"), import("./maplibre-gl-worker-DHDH4ZWE.js")]), r = t.default ?? t, i = r.setWorkerUrl;
+	let [t, n] = await Promise.all([import("./maplibre-gl-D8l5aSvm.js"), import("./maplibre-gl-worker-CTQMWz0X.js")]), r = t.default ?? t, i = r.setWorkerUrl;
 	typeof i == "function" && i(n.default);
 	let a = r.Map;
 	if (typeof a != "function") throw Error("maplibre-gl did not export a Map constructor.");
@@ -25455,7 +25519,7 @@ async function hy(e) {
 	return await r, n;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/interactions/declarative.js
+//#region node_modules/@honua/sdk-js/dist/src/interactions/declarative.js
 var gy = {
 	bindings: [],
 	disabled: []

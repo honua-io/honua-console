@@ -35,9 +35,9 @@ fetch cancellation is retained separately; actual loaded rows and filters still 
 
 Evidence includes typed OGC/FeatureServer reads, saved-version owner and body reads,
 separate server export PNG pixels with wrong-colour and transparent-gap controls,
-public viewer reads, axe output and credential-free progress. Auth traces, videos and
-screenshots are disabled because they can retain passwords, cookies or authorization
-codes. Container logs remain diagnostics; do not upload token-bearing debug logs.
+public viewer reads, axe output and credential-free progress. Auth traces, videos and automatic screenshots are disabled because they can retain
+passwords, cookies or authorization codes. Named product milestones are captured only
+after sign-in with the credential-page guard described below. Container logs remain diagnostics; do not upload token-bearing debug logs.
 
 The customer test is strict: forbidden imports, missing label authoring, unsupported
 map-local server rendering or incomplete publication remain failures. A successful

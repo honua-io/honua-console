@@ -1,5 +1,5 @@
 import { t as e } from "./rolldown-runtime-Dy4uBu1J.js";
-import { a as t, c as n, d as r, l as i, o as a, r as o, s, t as c, u as l } from "./errors-DIgkujNL.js";
+import { a as t, c as n, d as r, l as i, o as a, r as o, s, t as c, u as l } from "./errors-VvMCLBue.js";
 function u(e) {
 	return {
 		scope: e.scope,
@@ -68,7 +68,7 @@ function te(e) {
 	}
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/odata-key-path.js
+//#region node_modules/@honua/sdk-js/dist/src/core/odata-key-path.js
 function ne(e) {
 	let t = String(e), n = "", r = !1;
 	for (let e of t) {
@@ -85,7 +85,7 @@ function ne(e) {
 	return n;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/path-utils.js
+//#region node_modules/@honua/sdk-js/dist/src/core/path-utils.js
 function re(e) {
 	let t = e.length;
 	for (; t > 0 && e.charCodeAt(t - 1) === 47;) --t;
@@ -102,7 +102,7 @@ function ae(e) {
 	return e.includes("/") ? e.split("/").map((e) => encodeURIComponent(e)).join("/") : encodeURIComponent(e);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/odata.js
+//#region node_modules/@honua/sdk-js/dist/src/core/odata.js
 var oe = 4 * 1024 * 1024, se = Symbol("honua.odata.source-schema-projection-safety"), ce = Symbol("honua.odata.source-schema-projection-details"), le = class {
 	client;
 	entitySet;
@@ -679,7 +679,7 @@ function x(e, t) {
 	}
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/contract/spatial-aggregation.js
+//#region node_modules/@honua/sdk-js/dist/src/contract/spatial-aggregation.js
 var Pe = "honua.spatial-aggregation.v1", Fe = "honua.spatial-aggregation.metadata.v1";
 function Ie(e) {
 	return e !== "count";
@@ -871,7 +871,7 @@ function qe(e) {
 	return Number.isInteger(e) && e > 0;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/esri-geojson.js
+//#region node_modules/@honua/sdk-js/dist/src/core/esri-geojson.js
 function Je(e) {
 	return Array.isArray(e) && e.length >= 2 && typeof e[0] == "number" && Number.isFinite(e[0]) && typeof e[1] == "number" && Number.isFinite(e[1]);
 }
@@ -1009,7 +1009,7 @@ function ot(e) {
 	return null;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/wire-shared.js
+//#region node_modules/@honua/sdk-js/dist/src/core/wire-shared.js
 function S(...e) {
 	let t = {};
 	for (let n of e) if (n) {
@@ -1040,7 +1040,7 @@ function lt(e) {
 	return typeof e == "object" && !!e && e.exceededTransferLimit === !0;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/ogc-maps.js
+//#region node_modules/@honua/sdk-js/dist/src/core/ogc-maps.js
 var ut = "/ogc/maps";
 function dt(e) {
 	if (e.basePath === void 0) return ut;
@@ -1142,7 +1142,7 @@ function St(e) {
 	return bt.get(t) ?? e;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/ogc-records.js
+//#region node_modules/@honua/sdk-js/dist/src/core/ogc-records.js
 var Ct = "/ogc/records";
 function wt(e) {
 	if (e.basePath === void 0) return Ct;
@@ -1461,7 +1461,7 @@ async function tn(e, t) {
 	return e.requestBytes("GET", s, t.accept, void 0, t.signal);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/stac-conformance.js
+//#region node_modules/@honua/sdk-js/dist/src/core/stac-conformance.js
 var nn = "https://api.stacspec.org", rn = "/v1.0.0/item-search", an = `${nn}${rn}`, on = "http://www.opengis.net/spec/cql2/1.0/conf/", sn = Object.freeze({
 	core: `${nn}/v1.0.0/core`,
 	"item-search": an,
@@ -1543,7 +1543,7 @@ function _n(e, t) {
 	}
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/stac.js
+//#region node_modules/@honua/sdk-js/dist/src/core/stac.js
 var vn = 100, yn = 100, bn = class {
 	client;
 	basePath;
@@ -1775,7 +1775,7 @@ function Mn(e) {
 	return t.length > 0 ? t.join(",") : void 0;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/contract/jobs.js
+//#region node_modules/@honua/sdk-js/dist/src/contract/jobs.js
 function Nn(e) {
 	return e === "successful" || e === "failed" || e === "dismissed";
 }
@@ -1922,7 +1922,7 @@ function zn(e, t) {
 	});
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/surfaces.js
+//#region node_modules/@honua/sdk-js/dist/src/core/surfaces.js
 var Bn = class {
 	client;
 	serviceId;
@@ -3384,7 +3384,7 @@ function ti(e) {
 	return !E(e) || !Array.isArray(e.features) ? [] : e.features;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/wfs-protocol-error.js
+//#region node_modules/@honua/sdk-js/dist/src/core/wfs-protocol-error.js
 var ni = class extends l {
 	reason;
 	constructor(e, t, n = {}) {
@@ -3443,7 +3443,7 @@ function si(e) {
 	}
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/capabilities-xml.js
+//#region node_modules/@honua/sdk-js/dist/src/core/capabilities-xml.js
 var k = Object.freeze({
 	maxBytes: 2 * 1024 * 1024,
 	maxElements: 12e3,
@@ -3650,7 +3650,7 @@ function Si(e) {
 	});
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/wms-axis.js
+//#region node_modules/@honua/sdk-js/dist/src/core/wms-axis.js
 var Ci = /* @__PURE__ */ new Set([
 	4326,
 	4258,
@@ -3682,7 +3682,7 @@ function Ti(e) {
 	return t !== void 0 && Ci.has(t);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/wms-capabilities.js
+//#region node_modules/@honua/sdk-js/dist/src/core/wms-capabilities.js
 var Ei = class extends l {
 	constructor(e, t = {}) {
 		super("core.wms-capabilities-parse", e, t), this.name = "HonuaWmsCapabilitiesParseError";
@@ -3863,7 +3863,7 @@ function zi(e, t) {
 	for (let n of Ri(e)) if (n.name === t) return n;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/wms.js
+//#region node_modules/@honua/sdk-js/dist/src/core/wms.js
 var Bi = class {
 	client;
 	serviceId;
@@ -4062,7 +4062,7 @@ function Xi(e) {
 	return r;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/wms-types.js
+//#region node_modules/@honua/sdk-js/dist/src/core/wms-types.js
 var Zi = /* @__PURE__ */ new Map([
 	["image/png", "png"],
 	["image/jpeg", "jpeg"],
@@ -4073,7 +4073,7 @@ function Qi(e) {
 	return Zi.get(e.toLowerCase()) ?? "png";
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/wmts-capabilities.js
+//#region node_modules/@honua/sdk-js/dist/src/core/wmts-capabilities.js
 var $i = /* @__PURE__ */ new WeakSet(), ea = class extends l {
 	constructor(e, t = {}) {
 		super("core.wmts-capabilities-parse", e, t), this.name = "HonuaWmtsCapabilitiesParseError";
@@ -4254,7 +4254,7 @@ function ha(e, t) {
 	return e.tileMatrixSets.find((e) => e.identifier === t);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/wmts.js
+//#region node_modules/@honua/sdk-js/dist/src/core/wmts.js
 var ga = class {
 	client;
 	serviceId;
@@ -4463,7 +4463,7 @@ function Ea(e) {
 	return n.length > 0 ? `?${n}` : "";
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/esri-compat/url.js
+//#region node_modules/@honua/sdk-js/dist/src/esri-compat/url.js
 var Da = /^[A-Za-z][A-Za-z\d+.-]*:\/\//, Oa = /^\/\//, ka = "https://honua.invalid", Aa = /^(?<prefix>.*)\/rest\/services\/(?<serviceId>[^/]+(?:\/[^/]+)*)\/FeatureServer\/(?<layerId>\d+)\/?$/;
 function ja(e) {
 	let { parsed: t, absolute: n } = Ma(e), r = t.pathname.match(Aa);
@@ -4493,7 +4493,7 @@ function Ma(e) {
 	};
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/map/feature-service-adapter.js
+//#region node_modules/@honua/sdk-js/dist/src/map/feature-service-adapter.js
 function Na(e) {
 	let t = [
 		"x" in e || "y" in e,
@@ -4602,7 +4602,7 @@ function Ra(e, t) {
 	return Array.isArray(e) ? Array.isArray(e[0]) ? e.map((e) => Ra(e, t)) : e.slice(0, t && R(e[2]) !== void 0 ? 3 : 2) : e;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/geometry-input-sr.js
+//#region node_modules/@honua/sdk-js/dist/src/core/geometry-input-sr.js
 function za(e) {
 	if (typeof e == "string") try {
 		e = JSON.parse(e);
@@ -4663,7 +4663,7 @@ function Ha(e) {
 	return JSON.parse(new TextDecoder("utf-8", { fatal: !0 }).decode(e));
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/compatibility.js
+//#region node_modules/@honua/sdk-js/dist/src/core/compatibility.js
 var Ua = "1.0.0", Wa = "preview", Ga = 1, Ka = "/api/v1/admin";
 function qa(e) {
 	return typeof e == "object" && !!e && !Array.isArray(e);
@@ -4786,7 +4786,7 @@ function oo(e) {
 	}
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/geoservices.js
+//#region node_modules/@honua/sdk-js/dist/src/core/geoservices.js
 async function so(e, t, n = {}) {
 	let r = `/rest/services?${new URLSearchParams({ f: t }).toString()}`;
 	return e.requestCachedMetadataJson(`geoservices:services:${t}`, r, n);
@@ -4942,7 +4942,7 @@ function Lo(e, t) {
 	for (let [r, i] of Object.entries(t.extraParams)) t.outSr !== void 0 && (r === "outSr" || r === "outSR") || n && r === "outFields" || e.set(r, String(i));
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/ogc-endpoint-layout.js
+//#region node_modules/@honua/sdk-js/dist/src/core/ogc-endpoint-layout.js
 var Ro = "/ogc/features";
 function B(e) {
 	return encodeURIComponent(String(e));
@@ -5023,7 +5023,7 @@ async function Ko(e, t = "honua-facade") {
 	}
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/ogc-features.js
+//#region node_modules/@honua/sdk-js/dist/src/core/ogc-features.js
 function V(e) {
 	return e.layout ?? Bo();
 }
@@ -5094,7 +5094,7 @@ async function is(e, t) {
 	await e.requestJson("DELETE", `${r}?${n.toString()}`, void 0, t.signal);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/ogc-processes.js
+//#region node_modules/@honua/sdk-js/dist/src/core/ogc-processes.js
 var as = 1e3, os = "/ogc/processes", ss = {
 	core: "http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/core",
 	dismiss: "http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/dismiss"
@@ -5584,7 +5584,7 @@ function Rs(e) {
 	return t.delete("Prefer"), e.mode === "async" && t.set("Prefer", "respond-async"), t;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/optional-grpc-peer.js
+//#region node_modules/@honua/sdk-js/dist/src/core/optional-grpc-peer.js
 var zs = [
 	"@connectrpc/connect-web",
 	"@connectrpc/connect",
@@ -5625,7 +5625,7 @@ function Ks(e) {
 	return t ? new Vs(t, e) : e;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/pbf-decoder.js
+//#region node_modules/@honua/sdk-js/dist/src/core/pbf-decoder.js
 var W = 0, qs = 1, G = 2, Js = 5, Ys = class extends Error {
 	constructor(e) {
 		super(e), this.name = "PbfDecodeError";
@@ -6042,7 +6042,7 @@ function gc(e) {
 	return t.includes("application/x-protobuf") || t.includes("application/protobuf");
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/process-runner.js
+//#region node_modules/@honua/sdk-js/dist/src/core/process-runner.js
 var _c = class {
 	adapter;
 	constructor(e) {
@@ -6239,7 +6239,7 @@ function kc(e) {
 	return Number.isFinite(t) ? new Date(t).toISOString() : String(e);
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/request-pipeline.js
+//#region node_modules/@honua/sdk-js/dist/src/core/request-pipeline.js
 var Ac = /* @__PURE__ */ new Set([
 	429,
 	502,
@@ -6370,7 +6370,7 @@ function Yc(e) {
 	return typeof e == "object" && !!e;
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/wfs-capabilities.js
+//#region node_modules/@honua/sdk-js/dist/src/core/wfs-capabilities.js
 var K = Object.freeze({
 	maxBytes: 2 * 1024 * 1024,
 	maxElements: 12e3,
@@ -6782,7 +6782,7 @@ function J(e, t) {
 	return e ? e.children.filter((e) => e.local === t) : [];
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/wfs.js
+//#region node_modules/@honua/sdk-js/dist/src/core/wfs.js
 var Sl = "2.0.0", Y = "WFS", Cl = 2 * 1024 * 1024, wl = 32 * 1024 * 1024, Tl = /* @__PURE__ */ new Set([
 	"application/json",
 	"application/geo+json",
@@ -7177,7 +7177,7 @@ function Rl(e) {
 	}
 }
 //#endregion
-//#region ../wt-rc2-product-test-studio/node_modules/@honua/sdk-js/dist/src/core/client.js
+//#region node_modules/@honua/sdk-js/dist/src/core/client.js
 function zl(e) {
 	return re(e);
 }
