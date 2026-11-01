@@ -195,8 +195,6 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     const source = await sourceFor(page, services[0].service, services[0].layerId);
     await createRecipe(page, source!.id, packageKey);
     await accessibility(page, info, 'recipe-map');
-    await page.locator('honua-studio-canvas').scrollIntoViewIfNeeded();
-    await captureMilestone(page, info, '01-studio-map-created');
     const original = (await identity(page))!;
     const draftPath = (id: string) => `/api/studio/v1/studio/package-drafts/${encodeURIComponent(id)}`;
     const readDraft = (id: string): Promise<Draft> => read(page, session, draftPath(id));
@@ -217,6 +215,8 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     await expect(page.getByRole('region', { name: 'Composed widgets' }).getByRole('article')).toHaveCount(1);
     await expect(page.getByRole('region', { name: 'Composed controls' }).getByRole('article')).toHaveCount(1);
     await expect.poll(() => paintedFeatures(page, first.envelope.body.layers[0].id), { timeout: 45_000 }).toBeGreaterThan(0);
+    await page.locator('honua-studio-canvas').scrollIntoViewIfNeeded();
+    await captureMilestone(page, info, '01-studio-map-created');
     await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(2);
     await page.getByTestId('studio-control-filter-select').selectOption('west');
     await expect(page.getByTestId('studio-widget-grid-row')).toHaveCount(1);
@@ -263,14 +263,18 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     await editor.getByRole('button', { name: 'Preview thematic colors', exact: true }).click();
     await editor.getByRole('button', { name: 'Save map style', exact: true }).click();
     await expect(editor.getByRole('status')).toHaveText('Map style saved to the authorized draft.');
-    await editor.getByRole('status').scrollIntoViewIfNeeded();
-    await captureMilestone(page, info, '02-studio-style-applied');
     const authored = await readDraft(original.draftId);
     expect(authored.ownerId).toBe(first.ownerId);
     const style = authored.envelope.body.mapSpec;
     const fill = style.layers.find((layer: any) => layer.id === first.envelope.body.layers[0].id);
     expect(fill?.type, 'the authored polygon layer must be present in the saved style').toBe('fill');
     expect(fill.paint['fill-color']).toEqual(['match', ['get', 'category'], 'west', '#eff3ff', 'east', '#c6dbef', '#9ecae1']);
+    await page.getByRole('button', { name: 'Return to map', exact: true }).click();
+    await expect.poll(() => paintedFeatures(page, fill.id), { timeout: 45_000 }).toBeGreaterThan(0);
+    await page.locator('honua-studio-canvas').scrollIntoViewIfNeeded();
+    await captureMilestone(page, info, '02-studio-style-applied');
+    await page.getByRole('button', { name: 'Edit map style', exact: true }).click();
+    await expect(editor.locator('iframe')).toBeVisible();
     // Use Maputnik's shipped full-style editor for the attribute-label layer. This is
     // a real keyboard edit/blur/save through the sandboxed UI, preserving all authorized sources.
     const frame = editor.frameLocator('iframe');
