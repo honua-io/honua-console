@@ -75,10 +75,18 @@ public sealed class OperateCopilotPageTests
         Assert.Contains("Connect an environment", html);
     }
 
-    [Fact]
-    public void ProposeCreatedShowsProposalIdAndInboxLink()
+    [Theory]
+    [InlineData(false, "prop-42")]
+    [InlineData(true, "manager%3Aprop-42")]
+    public void ProposeCreatedShowsProposalIdAndInboxLink(bool separateManager, string linkedId)
     {
         using var ctx = new BunitContext();
+        if (separateManager)
+        {
+            ctx.Services.AddSingleton<IConsoleManagerEndpoint>(new ManagerEndpoint());
+            ctx.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore(
+                [new ConsoleEnvironmentProfile { Id = "local", ServerBaseUri = new Uri("https://serving.example/") }], activeProfileId: "local"));
+        }
         var client = new StubOpsFindingsClient
         {
             List = OperateSectionResult<OpsFindingsListResponse>.Allowed(BuildList()),
@@ -104,7 +112,7 @@ public sealed class OperateCopilotPageTests
         // console#292: the created proposal id renders as a correlation-id chip deep-linking
         // into the approval inbox, preselected, not a bare <code> string.
         Assert.Contains("data-correlation-kind=\"ProposalId\"", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("/inbox?proposalId=prop-42", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("/inbox?proposalId=" + linkedId, page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -715,6 +723,11 @@ public sealed class OperateCopilotPageTests
     {
         ListResult = OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Allowed([])
     };
+
+    private sealed class ManagerEndpoint : IConsoleManagerEndpoint
+    {
+        public Uri? Resolve(Uri servingBaseUri) => new("https://manager.example/");
+    }
 
     private sealed class StubOpsFindingsClient : IConsoleOpsFindingsClient
     {

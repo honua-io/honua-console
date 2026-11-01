@@ -41,7 +41,7 @@
         {
             <span class="approval-inbox-live is-live" data-live-state="live"
                   data-fallback-engaged="@Realtime.IsFallbackEngaged">
-                Live
+                @(_managerOnlyUpdates ? "Manager live — refresh for serving updates" : "Live")
             </span>
         }
         else
@@ -235,6 +235,7 @@
     // working; used only to name the failing source honestly in the error card.
     private IConsoleEnvironmentProfileStore? _profiles;
     private string? _serverName;
+    private bool _managerOnlyUpdates;
 
     // The concrete realtime client also implements the shared capability seam (console#293), which
     // raises a state-changed event on (re)connect. Subscribing to it lets the freshness pill flip
@@ -296,6 +297,12 @@
         try
         {
             var active = await _profiles.GetActiveProfileAsync();
+            if (active is not null)
+            {
+                var manager = ServiceProvider.GetService<IConsoleManagerEndpoint>()?.Resolve(active.ServerBaseUri);
+                _managerOnlyUpdates = manager is not null
+                    && new Uri(manager.AbsoluteUri.TrimEnd('/') + "/") != new Uri(active.ServerBaseUri.AbsoluteUri.TrimEnd('/') + "/");
+            }
             if (active is { DisplayName.Length: > 0 })
             {
                 _serverName = active.DisplayName;
@@ -328,6 +335,16 @@
             {
                 // Only a real success advances the last-good marker; a failure keeps the prior time.
                 _lastSuccessfulRefreshUtc = DateTimeOffset.UtcNow;
+
+                // Older manager-bound surfaces emitted raw IDs. Prefer an exact serving
+                // match, falling back only when this queue contains the qualified manager ID.
+                if (_selectedProposalId is { Length: > 0 } raw
+                    && !raw.StartsWith("manager:", StringComparison.Ordinal)
+                    && _result.Value?.Items.Any(item => string.Equals(item.ProposalId, raw, StringComparison.Ordinal)) == false
+                    && _result.Value.Items.Any(item => string.Equals(item.ProposalId, "manager:" + raw, StringComparison.Ordinal)))
+                {
+                    _selectedProposalId = "manager:" + raw;
+                }
 
                 // Drop a stale selection / filter that no longer maps onto a queue item.
                 if (_selectedProposalId is { Length: > 0 } selected
