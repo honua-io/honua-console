@@ -80,6 +80,19 @@ test('the Studio mutation receives a guard that expires when its host view close
   await assert.rejects(picker.add('roads'), /view changed/i);
 });
 
+test('refreshing choices invalidates an in-flight selection before dispatch', async () => {
+  const { picker, app } = fixture();
+  await picker.list();
+  let finish, guard;
+  app.addPublishedLayer = (_layer, options) => new Promise(resolve => { finish = resolve; guard = options.isCurrent; });
+  const pending = picker.add('roads');
+  assert.equal(guard(), true);
+  await picker.list();
+  assert.equal(guard(), false);
+  finish({ ok: true });
+  await assert.rejects(pending, /choices changed/i);
+});
+
 test('only verified vector FeatureServer identities are selectable', async () => {
   const { picker, app, calls } = fixture();
   app.listRecipeSources = async () => [source,
@@ -97,4 +110,16 @@ test('ambiguous catalog identities cannot be selected', async () => {
   await assert.rejects(picker.list(), /ambiguous/i);
   await assert.rejects(picker.add('roads'), /refresh/i);
   assert.deepEqual(calls, []);
+});
+
+test('a renewed lease reloads the catalog before exposing choices', async () => {
+  const { picker, app } = fixture();
+  app.session = { csrfToken: 'old' };
+  let finish, reads = 0;
+  app.listRecipeSources = () => ++reads === 1 ? new Promise(resolve => { finish = resolve; }) : Promise.resolve([]);
+  const pending = picker.list();
+  app.session = { csrfToken: 'new' };
+  finish([source]);
+  assert.deepEqual(await pending, []);
+  assert.equal(reads, 2);
 });

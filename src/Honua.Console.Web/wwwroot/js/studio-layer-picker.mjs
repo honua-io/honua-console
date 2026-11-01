@@ -26,8 +26,16 @@ export class StudioLayerPicker {
         const generation = ++this.generation;
         this.binding = undefined;
         this.choices = [];
-        const sources = await this.app.listRecipeSources(this.abort.signal);
+        let lease = this.app.session;
+        let sources = await this.app.listRecipeSources(this.abort.signal);
         this.assertCurrent(binding);
+        if (this.app.session !== lease) {
+            // Do not display catalog data read with a replaced credential.
+            lease = this.app.session;
+            sources = await this.app.listRecipeSources(this.abort.signal);
+            this.assertCurrent(binding);
+            if (this.app.session !== lease) throw new Error('The connection changed. Refresh the layer picker.');
+        }
         if (generation !== this.generation) throw new Error('The layer choices changed. Refresh the picker.');
         const choices = sources.flatMap(source => {
             if (source?.protocol !== 'geoservices-feature-service' || typeof source.id !== 'string'
@@ -52,14 +60,18 @@ export class StudioLayerPicker {
     async add(id) {
         if (!this.binding) throw new Error('Refresh the layer choices first.');
         const binding = this.binding;
+        const generation = this.generation;
         this.assertCurrent(binding);
         const selected = this.choices.find(choice => choice.id === id);
         if (!selected) throw new Error('Choose a layer from the current authorized catalog.');
         const result = await this.app.addPublishedLayer({ serviceName: selected.serviceName,
             layerId: selected.layerId, layerName: selected.title }, { isCurrent: () => {
-                try { return this.capture() === binding; } catch { return false; }
+                try { return this.binding === binding && this.generation === generation && this.capture() === binding; }
+                catch { return false; }
             } });
         this.assertCurrent(binding);
+        if (this.generation !== generation || this.binding !== binding)
+            throw new Error('The layer choices changed. Refresh the picker.');
         if (!result?.ok) throw new Error(result?.reason || 'The layer could not be added to the map.');
     }
     dispose() { this.generation++; this.abort.abort(); this.binding = undefined; this.choices = []; }
@@ -84,14 +96,14 @@ export function mountStudioLayerPicker({ app, host, status }) {
                 const row = document.createElement('li'); const button = document.createElement('button');
                 button.type = 'button'; button.textContent = `Add ${choice.title} to map`;
                 button.addEventListener('click', async () => {
-                    button.disabled = true; message.textContent = 'Adding layer…';
+                    button.disabled = true; open.disabled = true; message.textContent = 'Adding layer…';
                     try {
                         await picker.add(choice.id);
                         message.textContent = `${choice.title} added to the map.`;
                         status.textContent = message.textContent;
                         list.hidden = true; open.setAttribute('aria-expanded', 'false');
                     } catch (error) { message.textContent = error instanceof Error ? error.message : 'The layer could not be added.'; }
-                    finally { button.disabled = false; }
+                    finally { button.disabled = false; open.disabled = false; }
                 }, { signal: picker.abort.signal });
                 row.append(button); list.append(row);
             }
