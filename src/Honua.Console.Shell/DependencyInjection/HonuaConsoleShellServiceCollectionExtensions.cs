@@ -207,13 +207,17 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // forwardable operator bearer in interactive mode; a human sentinel never downgrades
         // to X-API-Key.
         services.TryAddSingleton<IConsoleProposalsClient>(serviceProvider =>
-            new HttpConsoleProposalsClient(
-                CreateManagerHttpClient(serviceProvider),
-                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                honuaServerAdminApiKey,
-                serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
-                serverCredentialMode));
+        {
+            var profiles = serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>();
+            var sessions = serviceProvider.GetRequiredService<IConsoleAccountSessionStore>();
+            var bearers = serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>();
+            return new DualConsoleProposalsClient(
+                new HttpConsoleProposalsClient(CreateOperateObservabilityHttpClient(serviceProvider), profiles, sessions,
+                    honuaServerAdminApiKey, bearers, serverCredentialMode),
+                new HttpConsoleProposalsClient(CreateManagerHttpClient(serviceProvider), profiles, sessions,
+                    honuaServerAdminApiKey, bearers, serverCredentialMode),
+                profiles, serviceProvider.GetService<IConsoleManagerEndpoint>());
+        });
 
         services.TryAddSingleton<IConsoleReleaseWitnessClient>(serviceProvider =>
             new HttpConsoleReleaseWitnessClient(
