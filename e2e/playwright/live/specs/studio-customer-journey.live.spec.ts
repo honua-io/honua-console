@@ -224,8 +224,18 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
         return { width: rect.width, height: rect.height, display: css.display, visibility: css.visibility };
       }))) });
     await expect(code, 'the full-style editor must be visible to the customer').toBeVisible();
-    // The offline style includes embedded basemap geometry; allow CodeMirror to process it on CI.
-    await code.fill(JSON.stringify(withLabels, null, 2), { timeout: 120_000 });
+    // Add only the new layer: replacing the entire offline-basemap document requires
+    // sending hundreds of kilobytes through the editor. The saved draft below remains
+    // the authority for what the keyboard edit actually authored.
+    await code.focus();
+    await code.press('Control+Home');
+    const opening = await code.evaluate(element => (element.textContent ?? '').slice(0, 200));
+    expect(opening).toMatch(/^\{\s*"name"\s*:[^\n]*\n\s*"layers"\s*:\s*\[/);
+    await code.press('ArrowDown');
+    await code.press('ArrowDown');
+    await code.press('End');
+    await code.press('Enter');
+    await page.keyboard.insertText(JSON.stringify(withLabels.layers.at(-1)) + ',');
     await code.press('Tab');
     await frame.getByRole('button', { name: 'Close', exact: true }).click();
     await editor.getByRole('button', { name: 'Save map style', exact: true }).click();
