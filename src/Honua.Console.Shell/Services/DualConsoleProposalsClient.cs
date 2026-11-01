@@ -31,20 +31,20 @@ public sealed class DualConsoleProposalsClient(
         var servingResult = await serving.ListAsync(status, kind, requestedBy, cancellationToken).ConfigureAwait(false);
         if (separate == false) return servingResult;
         var managerResult = await manager.ListAsync(status, kind, requestedBy, cancellationToken).ConfigureAwait(false);
-        if (!servingResult.IsAllowed || !managerResult.IsAllowed)
+        if (!servingResult.IsAllowed && !managerResult.IsAllowed)
             return OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Denied(
-                OperateSectionStatus.Unavailable, "Both serving and management proposal sources must be available.");
-        var servingItems = servingResult.Value ?? [];
+                OperateSectionStatus.Unavailable, "Neither serving nor management proposal source is available.");
+        var servingItems = servingResult.IsAllowed ? servingResult.Value ?? [] : [];
         if (servingItems.Any(item => item.ProposalId.StartsWith(ManagerPrefix, StringComparison.Ordinal)))
             return OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Denied(
                 OperateSectionStatus.Unavailable, "A proposal identifier conflicts with the management namespace.");
-        var items = servingItems.Concat((managerResult.Value ?? []).Select(item => item with
+        var items = servingItems.Concat((managerResult.IsAllowed ? managerResult.Value ?? [] : []).Select(item => item with
         {
             ProposalId = ManagerPrefix + item.ProposalId
         })).ToArray();
-        return OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Allowed(items,
-            servingResult.PartialResult || managerResult.PartialResult,
-            servingResult.PartialResult || managerResult.PartialResult ? "A proposal source returned partial results." : "");
+        var partial = !servingResult.IsAllowed || !managerResult.IsAllowed || servingResult.PartialResult || managerResult.PartialResult;
+        return OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Allowed(items, partial,
+            partial ? "A proposal source is unavailable or returned partial results." : "");
     }
 
     /// <inheritdoc />
