@@ -31,8 +31,8 @@ export class StudioPublicationSession {
     context() { return JSON.stringify([this.authority(), this.app.workspaceDraftIdentity?.draftId]); }
     viewContext() {
         const workspaceId = this.app.workspace?.workspaceId;
-        if (!id(workspaceId)) throw new Error('Connect a persistent workspace before publishing.');
-        return JSON.stringify([this.context(), workspaceId]);
+        if (workspaceId != null && !id(workspaceId)) throw new Error('The conversation workspace is invalid.');
+        return JSON.stringify([this.context(), workspaceId ?? null]);
     }
     legacyEntries() {
         const prefix = 'honua.workspace.studio-publication.';
