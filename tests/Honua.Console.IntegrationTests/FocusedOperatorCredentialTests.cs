@@ -37,6 +37,21 @@ public sealed class FocusedOperatorCredentialTests
         Assert.Equal(2, fixture.Wire.Targets.Count);
     }
 
+    [Fact]
+    public void ManagerMapping_FailsClosedForUntrustedOrInvalidEnvironment()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Honua:Server:BaseUrl"] = "https://server.honua.test/base",
+            ["HONUA_MANAGER_BASE_URL"] = "https://manager.honua.test/management"
+        }).Build();
+        var endpoint = new ConsoleManagerEndpoint(config);
+        Assert.Equal(new Uri("https://manager.honua.test/management/"), endpoint.Resolve(new Uri("https://server.honua.test/base/")));
+        Assert.Null(endpoint.Resolve(new Uri("https://other.honua.test/base/")));
+        config["HONUA_MANAGER_BASE_URL"] = "https://user:secret@manager.honua.test/";
+        Assert.Null(new ConsoleManagerEndpoint(config).Resolve(new Uri("https://server.honua.test/base/")));
+    }
+
     public static IEnumerable<object[]> MissingCredentials()
     {
         foreach (var client in new[] { ConsoleServerBoundClients.ServerBoundClientName, "honua-map-proxy" })
