@@ -49,6 +49,8 @@ export function observeHealth(page: Page) {
   const successfulReads: string[] = [];
   const failedWidgetReads = new Set<string>();
   const cancelledReads: string[] = [];
+  const consoleDetails: Array<{ location: string; errors: unknown[] }> = [];
+  const pendingConsoleDetails: Promise<void>[] = [];
   page.on('response', response => {
     const url = new URL(response.url());
     if (!origins.has(url.origin)) return;
@@ -68,17 +70,26 @@ export function observeHealth(page: Page) {
       failures.push(`request failed ${url.origin}${url.pathname}: ${request.failure()?.errorText}`);
   });
   page.on('pageerror', error => failures.push(`pageerror: ${error.message}`));
-  page.on('console', message => { if (message.type() === 'error') failures.push(`console: ${message.text()}`); });
+  page.on('console', message => {
+    if (message.type() !== 'error') return;
+    failures.push(`console: ${message.text()}`);
+    const location = message.location();
+    const source = location.url ? `${location.url.split('?')[0]}:${location.lineNumber}` : '';
+    pendingConsoleDetails.push(Promise.all(message.args().map(argument => argument.evaluate(value =>
+      value instanceof Error ? { name: value.name, message: value.message } : null).catch(() => null)))
+      .then(errors => { consoleDetails.push({ location: source, errors: errors.filter(Boolean) }); }));
+  });
   return {
     successfulReads,
     async verify(info: TestInfo) {
+      await Promise.all(pendingConsoleDetails);
       const independentStatus = [];
       for (const url of failedWidgetReads) {
         const response = await page.request.get(url, { maxRedirects: 0 });
         independentStatus.push({ path: new URL(url).pathname, status: response.status() });
       }
       await info.attach('studio-network-health.json', { contentType: 'application/json',
-        body: Buffer.from(JSON.stringify({ failures, successfulReads, independentStatus, cancelledReads }, null, 2)) });
+        body: Buffer.from(JSON.stringify({ failures, successfulReads, independentStatus, cancelledReads, consoleDetails }, null, 2)) });
       expect.soft(failures, 'no Console, Studio or server HTTP failures or browser errors').toEqual([]);
     },
   };

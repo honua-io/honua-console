@@ -141,8 +141,9 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     const readDraft = (id: string): Promise<Draft> => read(page, session, draftPath(id));
     const first = await readDraft(original.draftId);
     expect(first.ownerId).toBeTruthy();
-    const ownerSubject = first.ownerId.startsWith('subject:')
-      ? decodeURIComponent(first.ownerId.split(':')[2].split('@tenant:')[0]) : first.ownerId;
+    const ownerKey = /^subject:([^:]+):([^@]+)@tenant:(.*)$/.exec(first.ownerId);
+    expect(ownerKey, 'the server must report an issuer-scoped customer owner').not.toBeNull();
+    const ownerSubject = decodeURIComponent(ownerKey![2]);
     expect(ownerSubject, 'the server owner must be the actual IdP customer subject').toBe(customer.id);
     expect(first.createdBy).toBe(first.ownerId);
     expect(first.envelope.body.layers).toHaveLength(1);
