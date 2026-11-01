@@ -20,7 +20,8 @@ container image IDs, observed repository digests and source labels, plus `/versi
 Setting `HONUA_CONSOLE_E2E_CONSOLE_IMAGE` disables the Playwright source web server.
 Every CI run requires a `ghcr.io/honua-io/honua-server@sha256:...` input or an immutable
 digest in `HONUA_CONSOLE_PR_SERVER_IMAGE` or `HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE`.
-Unset values and floating tags fail before the testbed starts. Local source-image diagnostics
+Without an override, the workflow uses the reviewed `nightly-a5e593b` server digest pinned in
+the workflow. Floating tags fail before the testbed starts. Local source-image diagnostics
 must set `HONUA_CONSOLE_E2E_SERVER_IMAGE` explicitly and are not release qualification.
 
 The testbed uses the unlicensed 2026.1 server posture (`Licensing:Mode=Disabled`),

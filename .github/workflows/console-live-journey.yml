@@ -58,7 +58,7 @@ jobs:
       CI: 'true'
       HONUA_CONSOLE_E2E_OIDC: 'true'
       HONUA_CONSOLE_E2E_LIVE_PORT: '5274'
-      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image || vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE }}
+      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image || vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-a5e593b@sha256:30205b99536ee81165960f39e44895aaa322dc8729498ca0ff536275b316353c' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -153,7 +153,7 @@ jobs:
     env:
       CI: 'true'
       COMPOSE_PROJECT_NAME: studio-customer
-      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image || vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE }}
+      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image || vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-a5e593b@sha256:30205b99536ee81165960f39e44895aaa322dc8729498ca0ff536275b316353c' }}
       HONUA_CONSOLE_E2E_CONSOLE_IMAGE: ${{ inputs.console_image || 'honua-console:customer-pr' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
