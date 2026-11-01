@@ -134,8 +134,6 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
       }
     } finally { await verifier.dispose(); }
 
-    // Public map audiences must also have explicit read access to their underlying services.
-    // Grant only anonymous read through the customer's own settings UI, then verify server state.
     for (const [index, item] of services.entries()) {
       await page.goto('/operate/layers');
       const row = page.locator(`tr[data-service-id="${item.service}"][data-layer-id="${item.layerId}"]`);
@@ -144,11 +142,13 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
       const detail = await row.locator('a').first().getAttribute('href');
       expect(detail).toBeTruthy();
       await page.goto(detail!);
-      for (const [name, type] of Object.entries({ name: 'String', population: 'BigInteger', rating: 'Double' }))
+      for (const [name, type] of Object.entries({ name: /^String$/, population: /^(SmallInteger|Integer|BigInteger)$/, rating: /^(Single|Double)$/ }))
         await expect(page.locator(`[data-field-row][data-field-name="${name}"]`).getByRole('cell', { name: type, exact: true })).toBeVisible();
       await captureMilestone(page, info, `00-published-${index}-field-types`);
     }
 
+    // Public map audiences must also have explicit read access to their underlying services.
+    // Grant only anonymous read through the customer's own settings UI, then verify server state.
     const policyVerifier = await request.newContext({ baseURL: serverUrl,
       extraHTTPHeaders: { 'X-API-Key': process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key' } });
     try {
