@@ -39,7 +39,7 @@ test('a saved version can be reopened and stale asynchronous attachment is refus
         app.auth = {}; app.workspaceCookieBinding = { principalId: 'customer', environmentId: 'install' };
         app.prepareWorkspaceTurn = async () => {};
         app.attachWorkspaceDraft = async (id: string) => { app.workspaceDraftIdentity = { draftId: id }; };
-        mountStudioSavedMaps({ app, host, status }); (window as any).savedMapFixture = { app };
+        const controls = mountStudioSavedMaps({ app, host, status }); (window as any).savedMapFixture = { app, status, controls };
     });
     await page.getByRole('button', { name: 'Open saved maps' }).click();
     await page.evaluate(() => document.querySelector('honua-studio-content-browser')!.dispatchEvent(
@@ -48,6 +48,22 @@ test('a saved version can be reopened and stale asynchronous attachment is refus
     await page.evaluate(() => document.querySelector('honua-studio-lifecycle-panel')!.dispatchEvent(
         new CustomEvent('honua-studio-lifecycle-activity', { detail: { kind: 'version-reopened', draftId: 'new-draft' } })));
     await expect.poll(() => page.evaluate(() => (window as any).savedMapFixture.app.workspaceDraftIdentity?.draftId)).toBe('new-draft');
+    await page.getByRole('button', { name: 'Open saved maps' }).click();
+    await page.evaluate(() => document.querySelector('honua-studio-content-browser')!.dispatchEvent(
+        new CustomEvent('honua-studio-open-item', { detail: { itemId: 'item-2', family: 'map', packageKey: 'city' } })));
+    await expect(page.locator('honua-studio-lifecycle-panel')).toHaveCount(1);
+    await page.evaluate(() => { (window as any).detachedPanel = document.querySelector('honua-studio-lifecycle-panel'); });
+    await page.getByRole('button', { name: 'Close saved maps' }).click();
+    await page.evaluate(() => (window as any).detachedPanel.dispatchEvent(
+        new CustomEvent('honua-studio-lifecycle-activity', { detail: { kind: 'version-reopened', draftId: 'stale-panel-draft' } })));
+    await expect.poll(() => page.evaluate(() => (window as any).savedMapFixture.app.workspaceDraftIdentity.draftId)).toBe('new-draft');
+    await page.getByRole('button', { name: 'Open saved maps' }).click();
+    await page.evaluate(() => {
+        const fixture = (window as any).savedMapFixture;
+        fixture.app.auth = {}; fixture.controls.sessionChanged();
+    });
+    await expect(page.getByRole('button', { name: 'Open saved maps' })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => (window as any).savedMapFixture.status.textContent)).toContain('Reopen saved maps');
     await page.getByRole('button', { name: 'Open saved maps' }).click();
     await page.evaluate(() => {
         const app = (window as any).savedMapFixture.app;
