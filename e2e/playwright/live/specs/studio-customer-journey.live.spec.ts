@@ -224,7 +224,8 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
         return { width: rect.width, height: rect.height, display: css.display, visibility: css.visibility };
       }))) });
     await expect(code, 'the full-style editor must be visible to the customer').toBeVisible();
-    await code.fill(JSON.stringify(withLabels, null, 2));
+    // The offline style includes embedded basemap geometry; allow CodeMirror to process it on CI.
+    await code.fill(JSON.stringify(withLabels, null, 2), { timeout: 120_000 });
     await code.press('Tab');
     await frame.getByRole('button', { name: 'Close', exact: true }).click();
     await editor.getByRole('button', { name: 'Save map style', exact: true }).click();
