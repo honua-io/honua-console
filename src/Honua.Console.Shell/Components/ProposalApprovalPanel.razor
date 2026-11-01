@@ -226,6 +226,10 @@ else
     [Parameter]
     public EventCallback<ConsoleProposalDetail> OnActioned { get; set; }
 
+    /// <summary>Reports the server-owned detail state to the parent. </summary>
+    [Parameter]
+    public EventCallback<ConsoleProposalDetail> OnDetailLoaded { get; set; }
+
     private ConsoleProposalDetail? _detail;
     private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
     private string _message = string.Empty;
@@ -262,6 +266,10 @@ else
     {
         var result = await Proposals.GetAsync(ProposalId);
         Apply(result);
+        if (result.IsAllowed && result.Value is { } detail)
+        {
+            await OnDetailLoaded.InvokeAsync(detail);
+        }
     }
 
     private void Apply(OperateSectionResult<ConsoleProposalDetail> result)
