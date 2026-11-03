@@ -282,8 +282,12 @@ jobs:
         id: agent-deps
         if: ${{ always() && steps.agent-python.outcome == 'success' }}
         run: python3 -m pip install --require-hashes -r e2e/agent-reflection/requirements.txt
-      - name: Exercise agent reflection on the customer quickstart
+      - name: Unit-test the quickstart secrets reader
+        id: agent-unit
         if: ${{ always() && steps.agent-deps.outcome == 'success' }}
+        run: python3 -m unittest discover -s e2e/agent-reflection -p 'test_*.py'
+      - name: Exercise agent reflection on the customer quickstart
+        if: ${{ always() && steps.agent-deps.outcome == 'success' && steps.agent-unit.outcome == 'success' }}
         run: python3 e2e/agent-reflection/run-quickstart.py run
       - name: Stop the isolated quickstart
         if: ${{ always() && steps.agent-deps.outcome == 'success' }}

@@ -12,6 +12,8 @@ import urllib.error
 
 import yaml
 
+from quickstart_secrets import read_install_secrets
+
 ROOT = Path(__file__).resolve().parents[2]
 INSTALL = ROOT / 'e2e' / '.agent-reflection-private'
 SERVER_SOURCE = ROOT / 'e2e' / 'server-source'
@@ -105,7 +107,8 @@ def setup():
     (INSTALL / '.env').write_text('HONUA_HTTP_PORT=18090\nHONUA_GRPC_PORT=18091\nHONUA_MANAGER_PORT=18092\n')
     os.chmod(INSTALL / '.env', 0o600)
     run([sys.executable, str(INSTALL / 'quickstart.py'), '--init-only'], cwd=INSTALL)
-    values = dict(line.split('=', 1) for line in (INSTALL / '.env').read_text().splitlines() if line and not line.startswith('#'))
+    # honua-server #6888 writes the secrets to secrets/<lower-case key>; an rc.1-layout install keeps them in .env.
+    values = read_install_secrets(INSTALL)
     auth = INSTALL / 'auth'
     (auth / 'certs').mkdir(parents=True)
     (auth / 'realm').mkdir()
