@@ -7,11 +7,13 @@ import shutil
 import subprocess
 import sys
 import time
-import urllib.request
 import urllib.error
+import urllib.parse
+import urllib.request
 
 import yaml
 
+from quickstart_diagnostics import CommandFailed, Redactor, describe_failure
 from quickstart_secrets import read_install_secrets
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -21,12 +23,14 @@ COMPOSE_FILES = ('compose.yaml', 'compose.executor.yaml', 'compose.executor.imag
 SERVER_IMAGE = os.environ['HONUA_CONSOLE_E2E_SERVER_IMAGE']
 CONSOLE_IMAGE = os.environ['HONUA_CONSOLE_E2E_CONSOLE_IMAGE']
 EXECUTOR_IMAGE = os.environ['HONUA_REFLECTION_EXECUTOR_IMAGE']
+# Every secret the harness learns is added here, so failure text can never print one.
+REDACTOR = Redactor()
 
 
-def run(args, *, cwd=ROOT, env=None, timeout=600):
+def run(args, *, cwd=ROOT, env=None, timeout=600, label=None):
     result = subprocess.run(args, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
     if result.returncode:
-        raise RuntimeError(f'{args[0]} failed with exit code {result.returncode}')
+        raise CommandFailed(label or Path(args[0]).name, result.returncode, result.stderr)
     return result.stdout.decode().strip()
 
 
@@ -34,7 +38,7 @@ def compose(*args):
     command = ['docker', 'compose', '--project-directory', str(INSTALL)]
     for file in COMPOSE_FILES:
         command.extend(['-f', str(INSTALL / file)])
-    return run([*command, *args])
+    return run([*command, *args], label=f'docker compose {args[0]}')
 
 
 def request(url, key, data):
@@ -44,7 +48,8 @@ def request(url, key, data):
         with urllib.request.urlopen(req, timeout=30) as response:
             return json.load(response)
     except urllib.error.HTTPError as error:
-        raise RuntimeError(f'Admin setup returned HTTP {error.code}') from None
+        body = error.read(500).decode(errors='replace').strip()
+        raise RuntimeError(f'Admin setup {urllib.parse.urlsplit(url).path} returned HTTP {error.code}: {body}') from None
 
 
 def wait_idp():
@@ -97,6 +102,16 @@ def runtime_identity():
     output.write_text(json.dumps(observed, indent=2) + '\n')
 
 
+def install_idp_certs(source, target):
+    """Copy the test IdP certificate and key into the private install for its Keycloak (uid 1000, gid 0)."""
+    shutil.copyfile(source / 'kc.crt', target / 'kc.crt')
+    # The testbed step already gave kc.key to Keycloak's uid 1000 (0640), and the CI runner is uid 1001,
+    # so the runner cannot read it. Copy it as root straight to the owner and mode Keycloak needs; the
+    # private key stays inside the private install directory.
+    run(['sudo', 'install', '-o', '1000', '-g', '0', '-m', '0640', str(source / 'kc.key'), str(target / 'kc.key')],
+        label='sudo install kc.key')
+
+
 def setup():
     if INSTALL.exists():
         raise RuntimeError('The isolated quickstart directory already exists')
@@ -109,14 +124,11 @@ def setup():
     run([sys.executable, str(INSTALL / 'quickstart.py'), '--init-only'], cwd=INSTALL)
     # honua-server #6888 writes the secrets to secrets/<lower-case key>; an rc.1-layout install keeps them in .env.
     values = read_install_secrets(INSTALL)
+    REDACTOR.add(*values.values())
     auth = INSTALL / 'auth'
     (auth / 'certs').mkdir(parents=True)
     (auth / 'realm').mkdir()
-    for file in ('kc.crt', 'kc.key'):
-        shutil.copyfile(ROOT / 'e2e/playwright/live-auth/certs' / file, auth / 'certs' / file)
-    # Keycloak runs as uid 1000 in CI. Its private key stays inside the private install directory.
-    run(['sudo', 'chown', '1000:0', str(auth / 'certs/kc.key')])
-    os.chmod(auth / 'certs/kc.key', 0o640)
+    install_idp_certs(ROOT / 'e2e/playwright/live-auth/certs', auth / 'certs')
     for file in (ROOT / 'e2e/playwright/live-auth/realm').glob('*.json'):
         parsed = json.loads(file.read_text())
         rendered = json.dumps(parsed).replace(':5274', ':15274').replace(':8443', ':18443')
@@ -149,6 +161,7 @@ def setup():
     manager, server = 'http://127.0.0.1:18092', 'http://127.0.0.1:18090'
     def new_key(base, admin, name):
         value = request(base + '/api/v1/admin/api-keys/', admin, {'name': name, 'permissions': ['admin:*']})
+        REDACTOR.add(value['data']['key'])
         return value['data']
     manager_proposer = new_key(manager, values['HONUA_MANAGER_ADMIN_PASSWORD'], 'agent-proposer')
     manager_approver = new_key(manager, values['HONUA_MANAGER_ADMIN_PASSWORD'], 'human-approver')
@@ -168,9 +181,11 @@ def setup():
     request(server + '/api/v1/admin/connections/', actors['HONUA_REFLECTION_SERVER_APPROVER'], connection)
     realm = json.loads(next((auth / 'realm').glob('*.json')).read_text())
     customer = next(user for user in realm['users'] if user['username'] == 'customer')
+    customer_password = next(c['value'] for c in customer['credentials'] if c['type'] == 'password')
+    REDACTOR.add(customer_password)
     actors.update({
         'HONUA_REFLECTION_CUSTOMER_USER': 'customer',
-        'HONUA_REFLECTION_CUSTOMER_PASSWORD': next(c['value'] for c in customer['credentials'] if c['type'] == 'password'),
+        'HONUA_REFLECTION_CUSTOMER_PASSWORD': customer_password,
         'HONUA_REFLECTION_CONSOLE_URL': 'http://127.0.0.1:15274',
         'HONUA_REFLECTION_MANAGER_URL': manager, 'HONUA_REFLECTION_SERVER_URL': server,
         'HONUA_REFLECTION_COMPOSE_DIR': str(INSTALL), 'HONUA_REFLECTION_CONNECTION_NAME': 'agent-reflection-db',
@@ -199,8 +214,7 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except (OSError, ValueError, KeyError, RuntimeError, subprocess.TimeoutExpired) as error:
-        # Our RuntimeError messages contain only fixed text, status codes and command names.
-        detail = f' {error}' if type(error) is RuntimeError else ''
-        print('Agent quickstart journey failed.' + detail, file=sys.stderr)
+    except Exception as error:  # noqa: BLE001 - report every failure, redacted, instead of a traceback.
+        REDACTOR.add_install_secrets(INSTALL)
+        print('Agent quickstart journey failed: ' + describe_failure(error, REDACTOR), file=sys.stderr)
         sys.exit(1)
