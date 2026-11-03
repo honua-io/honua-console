@@ -13,7 +13,8 @@ import urllib.request
 
 import yaml
 
-from quickstart_diagnostics import CommandFailed, Redactor, describe_failure
+from quickstart_diagnostics import (CommandFailed, DetailedError, Redactor, describe_failure, publish_report,
+                                   read_error_body, scrub_tree, stream_redacted)
 from quickstart_secrets import read_install_secrets
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -48,8 +49,8 @@ def request(url, key, data):
         with urllib.request.urlopen(req, timeout=30) as response:
             return json.load(response)
     except urllib.error.HTTPError as error:
-        body = error.read(500).decode(errors='replace').strip()
-        raise RuntimeError(f'Admin setup {urllib.parse.urlsplit(url).path} returned HTTP {error.code}: {body}') from None
+        raise DetailedError(f'Admin setup {urllib.parse.urlsplit(url).path} returned HTTP {error.code}',
+                            read_error_body(error)) from None
 
 
 def wait_idp():
@@ -190,9 +191,28 @@ def setup():
         'HONUA_REFLECTION_MANAGER_URL': manager, 'HONUA_REFLECTION_SERVER_URL': server,
         'HONUA_REFLECTION_COMPOSE_DIR': str(INSTALL), 'HONUA_REFLECTION_CONNECTION_NAME': 'agent-reflection-db',
         'HONUA_CONSOLE_E2E_CONSOLE_IMAGE': CONSOLE_IMAGE,
-        'PLAYWRIGHT_JSON_OUTPUT_FILE': str(ROOT / 'artifacts/studio-customer/agent-reflection-results.json'),
     })
     return actors
+
+
+def run_playwright(env, *, playwright_dir=ROOT / 'e2e/playwright', raw_report=INSTALL / 'agent-reflection-results.raw.json',
+                   report=ROOT / 'artifacts/studio-customer/agent-reflection-results.json', out=sys.stdout):
+    """Run the agent-reflection project; only redacted output, report and test results leave this function."""
+    # The child receives the test credentials. Playwright call logs echo filled values, so its merged output is
+    # redacted before it reaches the job log, its JSON report is written privately and published redacted,
+    # and its output directory (uploaded as test-results/) is scrubbed, on success and failure alike.
+    env = dict(env, PLAYWRIGHT_JSON_OUTPUT_FILE=str(raw_report))
+    try:
+        child = subprocess.Popen([str(Path(playwright_dir) / 'node_modules/.bin/playwright'), 'test',
+                                  '--config=playwright.live.config.ts', '--project=agent-reflection', '--reporter=list,json'],
+                                 cwd=playwright_dir, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                 text=True, errors='replace', bufsize=1)
+        with child:
+            stream_redacted(child.stdout, out, REDACTOR)
+        return child.returncode
+    finally:
+        publish_report(raw_report, report, REDACTOR)
+        scrub_tree(Path(playwright_dir) / 'test-results', REDACTOR)
 
 
 def main():
@@ -203,12 +223,10 @@ def main():
             compose('down', '-v')
         return
     env = dict(os.environ, **setup())
-    # Only this child receives test credentials; do not add them to workflow output or artifacts.
-    result = subprocess.run(['./node_modules/.bin/playwright', 'test', '--config=playwright.live.config.ts',
-                             '--project=agent-reflection', '--reporter=list,json'],
-                            cwd=ROOT / 'e2e/playwright', env=env)
-    if result.returncode:
-        raise RuntimeError(f'Agent reflection Playwright failed with exit code {result.returncode}')
+    REDACTOR.add_install_secrets(INSTALL)
+    returncode = run_playwright(env)
+    if returncode:
+        raise RuntimeError(f'Agent reflection Playwright failed with exit code {returncode}')
 
 
 if __name__ == '__main__':
