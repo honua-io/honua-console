@@ -23,6 +23,7 @@ DETAIL_TAIL_LINES = 20
 DETAIL_TAIL_CHARS = 4000
 # An admin error body larger than this is omitted whole, never cut: a cut could split a secret.
 MAX_ERROR_BODY_BYTES = 64 * 1024
+MALFORMED_REPORT = {'agentReflectionReport': 'omitted', 'reason': 'Playwright wrote a JSON report that does not parse'}
 
 
 class Redactor:
@@ -155,10 +156,11 @@ def publish_report(raw_path, destination, redactor):
     try:
         try:
             report = redact_json(json.loads(raw_path.read_text(errors='replace')), redactor)
-            text = json.dumps(report)
         except ValueError:
-            # A truncated report (killed child) is still published as text, redacted whole.
-            text = redactor.redact(raw_path.read_text(errors='replace'))
+            # A truncated report (killed child) cannot be redacted structurally: its inline attachment
+            # bodies are base64. Fail closed with a fixed record instead of any of its content.
+            report = MALFORMED_REPORT
+        text = json.dumps(report)
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(text)
     finally:
@@ -180,7 +182,8 @@ def scrub_tree(directory, redactor):
                 continue
             try:
                 path.write_text(redactor.redact(data.decode()))
-            except UnicodeDecodeError:
+            except (UnicodeDecodeError, OSError):
+                # Binary, or not rewritable: remove it. If even that fails, the error stops the harness.
                 path.unlink()
             scrubbed.append(str(path))
     return scrubbed

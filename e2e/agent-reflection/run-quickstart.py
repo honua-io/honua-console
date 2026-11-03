@@ -211,8 +211,11 @@ def run_playwright(env, *, playwright_dir=ROOT / 'e2e/playwright', raw_report=IN
             stream_redacted(child.stdout, out, REDACTOR)
         return child.returncode
     finally:
-        publish_report(raw_report, report, REDACTOR)
-        scrub_tree(Path(playwright_dir) / 'test-results', REDACTOR)
+        try:
+            publish_report(raw_report, report, REDACTOR)
+        finally:
+            # Runs even when publishing the report fails: test-results/ is uploaded regardless.
+            scrub_tree(Path(playwright_dir) / 'test-results', REDACTOR)
 
 
 def main():

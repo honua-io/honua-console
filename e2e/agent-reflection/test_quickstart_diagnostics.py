@@ -17,7 +17,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from quickstart_diagnostics import (DETAIL_TAIL_CHARS, MAX_ERROR_BODY_BYTES, REDACTED, CommandFailed, DetailedError,
+from quickstart_diagnostics import (DETAIL_TAIL_CHARS, MALFORMED_REPORT, MAX_ERROR_BODY_BYTES, REDACTED, CommandFailed, DetailedError,
                                     Redactor, describe_failure, publish_report, read_error_body, redact_json, scrub_tree)
 
 HERE = Path(__file__).resolve().parent
@@ -145,10 +145,22 @@ class EvidenceTests(unittest.TestCase):
         value = 'quote"and\\slash-' + 'z' * 10
         with tempfile.TemporaryDirectory() as temp:
             raw, published = Path(temp, 'raw.json'), Path(temp, 'out/report.json')
-            raw.write_text(json.dumps({'message': value}) + '\n{truncated')
+            raw.write_text(json.dumps({'message': value}))
             self.assertTrue(publish_report(raw, published, redactor_with(value)))
             self.assertFalse(raw.exists())
             self.assertNotIn(json.dumps(value)[1:-1], published.read_text())
+            self.assertEqual(json.loads(published.read_text()), {'message': REDACTED})
+
+    def test_a_malformed_report_is_replaced_by_a_fixed_record(self):
+        # A truncated report can hold an already-written attachment whose base64 body encodes a credential.
+        encoded = base64.b64encode(f'progress {SAMPLE}'.encode()).decode()
+        with tempfile.TemporaryDirectory() as temp:
+            raw, published = Path(temp, 'raw.json'), Path(temp, 'out/report.json')
+            raw.write_text(json.dumps({'attachments': [{'contentType': 'application/json', 'body': encoded}]})[:-2])
+            self.assertTrue(publish_report(raw, published, redactor_with(SAMPLE)))
+            self.assertFalse(raw.exists())
+            self.assertEqual(json.loads(published.read_text()), MALFORMED_REPORT)
+            self.assertNotIn(encoded, published.read_text())
 
     def test_output_directory_text_is_redacted_and_binary_with_a_secret_removed(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -218,6 +230,23 @@ class HarnessTests(unittest.TestCase):
             for path in (root / 'artifacts/results.json', root / 'test-results/agent-reflection/error-context.md'):
                 self.assertNotIn(SAMPLE, path.read_text())
             self.assertNotIn(SAMPLE, out.getvalue())
+
+    def test_results_are_scrubbed_even_when_publishing_the_report_fails(self):
+        harness = load_harness()
+        harness.REDACTOR.add(SAMPLE)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'node_modules/.bin').mkdir(parents=True)
+            fake = root / 'node_modules/.bin/playwright'
+            fake.write_text(FAKE_PLAYWRIGHT.format(python=sys.executable))
+            fake.chmod(0o755)
+            (root / 'artifacts/results.json').mkdir(parents=True)  # Publishing onto a directory fails.
+            with self.assertRaises(OSError):
+                harness.run_playwright(dict(os.environ, HONUA_REFLECTION_CUSTOMER_PASSWORD=SAMPLE), playwright_dir=root,
+                                       raw_report=root / 'private.json', report=root / 'artifacts/results.json',
+                                       out=io.StringIO())
+            self.assertFalse((root / 'private.json').exists())
+            self.assertNotIn(SAMPLE, (root / 'test-results/agent-reflection/error-context.md').read_text())
 
     @unittest.skipUnless((PLAYWRIGHT_DIR / 'node_modules/.bin/playwright').exists() and shutil.which('node'),
                          'needs e2e/playwright npm ci and Chromium')
