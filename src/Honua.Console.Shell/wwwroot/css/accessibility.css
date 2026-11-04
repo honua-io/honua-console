@@ -44,3 +44,24 @@
     color: var(--honua-muted);
     opacity: 1;
 }
+
+.console-page-heading h1,
+.console-definition-list dt {
+    overflow-wrap: anywhere;
+}
+
+.resource-tree,
+.layer-preview-pane {
+    min-width: 0;
+}
+
+.console-shell :is(.resource-tree__name, .resource-tree__publication-route) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+    .resource-tree__row {
+        flex-wrap: wrap;
+    }
+}

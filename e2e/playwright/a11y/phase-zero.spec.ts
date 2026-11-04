@@ -128,3 +128,29 @@ test('secondary button and tab style boundaries meet non-text contrast', async (
   }
   await info.attach('computed-control-boundaries', { body: JSON.stringify(observations), contentType: 'application/json' });
 });
+
+test('long service and publication identifiers fit the mobile content column', async ({ page }) => {
+  const viewportWidth = 390;
+  await page.setViewportSize({ width: viewportWidth, height: 900 });
+  await openInteractiveRoute(page, '/operate/data');
+  await page.evaluate(() => {
+    const identifier = 'transportation_resource_'.repeat(4);
+    document.querySelector('h1')!.textContent = `Honua service '${identifier}'`;
+    const publications = document.createElement('section');
+    publications.className = 'operate-data-page__split';
+    publications.innerHTML = `
+      <div class="resource-tree">
+        <div class="resource-tree__row"><button class="resource-tree__name">${identifier}</button><span>PostGIS</span></div>
+        <ul class="resource-tree__publications"><li>
+          <button class="resource-tree__publication-row"><span>FeatureServer</span>
+            <span class="resource-tree__publication-route">/rest/services/${identifier}/FeatureServer/0</span>
+          </button>
+        </li></ul>
+      </div>
+      <aside class="layer-preview-pane"><dl class="console-definition-list">
+        <dt>${identifier}</dt><dd>/rest/services/${identifier}/FeatureServer/0</dd>
+      </dl></aside>`;
+    document.querySelector('.console-page')!.append(publications);
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewportWidth);
+});
