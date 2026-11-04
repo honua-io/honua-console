@@ -692,48 +692,8 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             ["Overview", "Source", "Fields", "Validation"]);
     }
 
-    // Each protocol is served under a DIFFERENT URL scheme — only the Esri GeoServices server types live
-    // under /rest/services/{service}/...; the OGC + OData + STAC protocols have their own roots. Map every
-    // protocol to where honua-server actually serves it (verified against the server endpoint registry) so
-    // the publication-slot URL an operator copies is real.
-    internal string BuildProtocolUrl(string serviceName, string protocol)
-    {
-        var svc = Uri.EscapeDataString(serviceName);
-        var b = _client.BaseUri.ToString().TrimEnd('/');
-
-        return protocol switch
-        {
-            // Esri GeoServices REST — per-service under /rest/services/{service}/{ServerType}.
-            "FeatureServer" => $"{b}/rest/services/{svc}/FeatureServer",
-            "MapServer" => $"{b}/rest/services/{svc}/MapServer",
-            "ImageServer" => $"{b}/rest/services/{svc}/ImageServer",
-            "GPServer" => $"{b}/rest/services/{svc}/GPServer",
-
-            // OGC "classic" (per-service) — /ogc/services/{service}/{wms|wmts|wcs}.
-            "Wms" => $"{b}/ogc/services/{svc}/wms",
-            "Wmts" => $"{b}/ogc/services/{svc}/wmts",
-            "Wcs" => $"{b}/ogc/services/{svc}/wcs",
-
-            // OGC WFS — a single server endpoint; this service's feature types are typeNames within it.
-            "Wfs20" => $"{b}/wfs",
-
-            // OGC API family — the API landing root; this service is exposed as a collection within it.
-            "OgcFeatures" => $"{b}/ogc/features",
-            "OgcApiTiles" => $"{b}/ogc/tiles",
-            "OgcApiMaps" => $"{b}/ogc/maps",
-            "OgcApiCoverages" => $"{b}/ogc/coverages",
-
-            // Standalone protocol roots.
-            "OData" => $"{b}/odata",
-            "Stac" => $"{b}/stac",
-            "Terrain" => $"{b}/terrain",
-            "Elevation" => $"{b}/elevation",
-            "Grpc" => $"{b}/grpc",
-
-            // Unknown/future protocol: GeoServices REST shape is the safest default, but flag it.
-            _ => $"{b}/rest/services/{svc}/{Uri.EscapeDataString(protocol)}"
-        };
-    }
+    internal string BuildProtocolUrl(string serviceName, string protocol) =>
+        _client.BaseUri.ToString().TrimEnd('/') + HonuaServedRoutes.PathFor(serviceName, protocol);
 
     private static string FormatTarget(HonuaAdminConnectionSummary connection)
     {

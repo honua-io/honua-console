@@ -124,9 +124,9 @@ public sealed class ResourceFirstPublishFlowTests
         Assert.Equal(2, plans.Count);
         Assert.Equal("FeatureServer", plans[0].ProtocolId);
         Assert.Equal("esri-feature-service", plans[0].ServiceType);
-        Assert.Equal("/city/parcels/FeatureServer/0", plans[0].Route);
+        Assert.Equal("/rest/services/city%2Fparcels/FeatureServer", plans[0].Route);
         Assert.Equal("Stac", plans[1].ProtocolId);
-        Assert.Equal("/stac/collections/parcels", plans[1].Route);
+        Assert.Equal("/stac", plans[1].Route);
     }
 
     [Fact]
@@ -190,8 +190,8 @@ public sealed class ResourceFirstPublishFlowTests
         var parcels = nodes.Single(node => node.ResourceId == "rsc_parcels");
         Assert.Equal("Running", parcels.Status);
         Assert.Equal(new[] { "FeatureServer", "MapServer" }, parcels.Publications.Select(p => p.ProtocolId).ToArray());
-        Assert.Equal("/city/parcels/FeatureServer/0", parcels.Publications[0].Route);
-        Assert.Equal("/city/parcels/MapServer", parcels.Publications[1].Route);
+        Assert.Equal("/rest/services/city%2Fparcels/FeatureServer", parcels.Publications[0].Route);
+        Assert.Equal("/rest/services/city%2Fparcels/MapServer", parcels.Publications[1].Route);
     }
 
     // ----------------------------------------------------------------- tree builder
@@ -215,7 +215,7 @@ public sealed class ResourceFirstPublishFlowTests
         var parcels = nodes.Single(node => node.ResourceId == "rsc_parcels");
         Assert.Equal("Running", parcels.Status);
         Assert.Equal(new[] { "FeatureServer", "Stac" }, parcels.Publications.Select(p => p.ProtocolId).ToArray());
-        Assert.Equal("/city/parcels/FeatureServer/0", parcels.Publications[0].Route);
+        Assert.Equal("/rest/services/city%2Fparcels/FeatureServer", parcels.Publications[0].Route);
 
         // A resource with no published service layer is a draft node with no publications (not fabricated).
         var zoning = nodes.Single(node => node.ResourceId == "rsc_zoning");

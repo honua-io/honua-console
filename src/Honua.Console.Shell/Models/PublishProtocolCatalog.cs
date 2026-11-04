@@ -152,20 +152,13 @@ public static class PublishProtocolCatalog
     public static IReadOnlyList<ProtocolDescriptor> InGroup(string group) =>
         All.Where(descriptor => string.Equals(descriptor.Group, group, StringComparison.Ordinal)).ToArray();
 
-    /// <summary>
-    /// Maps an enabled protocol set into the metadata-v2 Publications they imply for a service slot:
-    /// one <see cref="PublishProtocolPlan"/> per protocol, carrying its service type and the served route
-    /// the Publication will expose (redesign §5.4b "Will create N publications" + §5.6 per-protocol routes).
-    /// Unknown protocol ids are skipped (never fabricated). The order follows <see cref="All"/> so the
-    /// preview is stable regardless of toggle order.
-    /// </summary>
     public static IReadOnlyList<PublishProtocolPlan> PlanPublications(
         string serviceSlot,
         IEnumerable<string> enabledProtocols)
     {
         ArgumentNullException.ThrowIfNull(enabledProtocols);
         var enabled = enabledProtocols.ToHashSet(StringComparer.Ordinal);
-        var slot = string.IsNullOrWhiteSpace(serviceSlot) ? "service" : serviceSlot.Trim().Trim('/');
+        var serviceName = ServiceNameFor(serviceSlot);
 
         return All
             .Where(descriptor => enabled.Contains(descriptor.Id))
@@ -173,35 +166,14 @@ public static class PublishProtocolCatalog
                 descriptor.Id,
                 descriptor.ServiceType,
                 descriptor.Label,
-                RouteFor(descriptor.Id, slot)))
+                HonuaServedRoutes.PathFor(serviceName, descriptor.Id)))
             .ToArray();
     }
 
-    /// <summary>The served endpoint a protocol Publication exposes for a service slot (redesign §5.3/§5.6 routes).</summary>
-    public static string RouteFor(string protocolId, string serviceSlot)
-    {
-        var slot = string.IsNullOrWhiteSpace(serviceSlot) ? "service" : serviceSlot.Trim().Trim('/');
-        var leaf = slot.Contains('/') ? slot[(slot.LastIndexOf('/') + 1)..] : slot;
-        return protocolId switch
-        {
-            Protocols.FeatureServer => $"/{slot}/FeatureServer/0",
-            Protocols.MapServer => $"/{slot}/MapServer",
-            Protocols.ImageServer => $"/{slot}/ImageServer",
-            Protocols.Stac => $"/stac/collections/{leaf}",
-            Protocols.OgcFeatures => $"/ogc/{slot}/collections/{leaf}",
-            Protocols.Wms => $"/ogc/{slot}/wms",
-            Protocols.Wfs20 => $"/ogc/{slot}/wfs",
-            Protocols.Wmts => $"/ogc/{slot}/wmts",
-            Protocols.OData => $"/odata/{slot}",
-            _ => $"/{slot}",
-        };
-    }
+    public static string ServiceNameFor(string serviceSlot) =>
+        string.IsNullOrWhiteSpace(serviceSlot) ? "service" : serviceSlot.Trim().Trim('/');
 }
 
-/// <summary>
-/// One planned metadata-v2 Publication: the protocol being exposed, the service type its binding lands
-/// under, a display label, and the served route. The publish step creates one server publication per plan.
-/// </summary>
 public sealed record PublishProtocolPlan(
     string ProtocolId,
     string ServiceType,

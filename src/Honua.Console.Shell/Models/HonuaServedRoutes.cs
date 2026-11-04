@@ -1,0 +1,34 @@
+namespace Honua.Console.Shell.Models;
+
+// Only the Esri GeoServices server types and the classic OGC services are routed per service; the other
+// protocols have one server root and expose the service as a collection or type name inside it. Checked
+// against the honua-server endpoint registry.
+public static class HonuaServedRoutes
+{
+    public static string PathFor(string serviceName, string protocol)
+    {
+        var service = Uri.EscapeDataString(serviceName);
+
+        return protocol switch
+        {
+            "FeatureServer" => $"/rest/services/{service}/FeatureServer",
+            "MapServer" => $"/rest/services/{service}/MapServer",
+            "ImageServer" => $"/rest/services/{service}/ImageServer",
+            "GPServer" => $"/rest/services/{service}/GPServer",
+            "Wms" => $"/ogc/services/{service}/wms",
+            "Wmts" => $"/ogc/services/{service}/wmts",
+            "Wcs" => $"/ogc/services/{service}/wcs",
+            "Wfs20" => "/wfs",
+            "OgcFeatures" => "/ogc/features",
+            "OgcApiTiles" => "/ogc/tiles",
+            "OgcApiMaps" => "/ogc/maps",
+            "OgcApiCoverages" => "/ogc/coverages",
+            "OData" => "/odata",
+            "Stac" => "/stac",
+            "Terrain" => "/terrain",
+            "Elevation" => "/elevation",
+            "Grpc" => "/grpc",
+            _ => $"/rest/services/{service}/{Uri.EscapeDataString(protocol)}",
+        };
+    }
+}
