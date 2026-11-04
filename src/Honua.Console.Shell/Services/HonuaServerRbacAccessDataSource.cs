@@ -4,14 +4,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Console Access (RBAC) data source bound to the real honua-server Console metadata/RBAC API
-/// (honua-server#1162) through the <see cref="IHonuaConsoleRbacClient"/> shim. Every read speaks the live
-/// Console Access surface (<c>/api/v1/console/access/{workspaceId}/...</c>); there is no in-memory RBAC
-/// data in the merged result (Console Patterns Charter section 11). Endpoint issues (missing permission,
-/// not found, unsupported, transport) surface as explicit capability states instead of throwing or
-/// fabricating role/member data.
-/// </summary>
 public sealed class HonuaServerRbacAccessDataSource : IRbacAccessDataSource
 {
     private const string Surface = "Access (RBAC)";

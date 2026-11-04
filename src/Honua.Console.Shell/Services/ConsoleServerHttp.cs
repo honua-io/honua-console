@@ -6,20 +6,7 @@ using Honua.Console.Shell.Security;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Shared request helpers for the "Family-B" thin typed honua-server clients
-/// (observability, scenes, SensorThings, alert rules, monitoring metrics, server
-/// version, deploy approvals, GitOps releases, support tickets).
-///
-/// These clients build a plain <see cref="System.Net.Http.HttpClient"/> without the
-/// <see cref="HonuaServerBindingHandler"/>, so the two rules that handler centralises
-/// for the Family-A clients — base-URI normalisation and the operator-bearer /
-/// admin-key auth decision — must live in exactly one place here too. Previously each
-/// client carried verbatim copies, which let the session-sentinel fix drift (a signed-in
-/// operator with no real honua-server bearer would forward the non-forwardable
-/// <see cref="ConsoleAuthConstants.SessionSentinelPrefix"/> sentinel as a Bearer token
-/// instead of falling back to the admin key, 401/403-ing every Family-B surface).
-/// </summary>
+// Family-B clients do not use the binding handler, so the bearer-or-admin-key decision lives here and the session sentinel is never sent as a bearer.
 internal static class ConsoleServerHttp
 {
     private const int MaxProblemBodyCharacters = 16 * 1024;
@@ -28,11 +15,7 @@ internal static class ConsoleServerHttp
 
     internal readonly record struct ProblemResponse(string Message, string Detail);
 
-    /// <summary>
-    /// Attaches the active operator's forwardable bearer to a honua-server read request. A
-    /// configured admin key is used only when no real operator bearer exists. Human-attributable
-    /// mutations use <see cref="AttachMutationAuthenticationAsync"/> instead.
-    /// </summary>
+    // A configured admin key is attached to a read only when no real operator bearer exists.
     public static async Task AttachAuthenticationAsync(
         HttpRequestMessage request,
         IConsoleAccountSessionStore sessions,
@@ -60,13 +43,7 @@ internal static class ConsoleServerHttp
         }
     }
 
-    /// <summary>
-    /// Attaches a human-attributable credential for an approval or operational
-    /// mutation. Interactive mode never falls back to the shared admin API key.
-    /// Explicit headless mode may use that key only when no interactive session
-    /// exists and the profile is explicitly <c>ServiceApiKey</c>, so a missing/expired
-    /// human bearer can never change the audit actor.
-    /// </summary>
+    // Interactive mutations never fall back to the shared admin API key, so a missing human bearer cannot change the audit actor.
     public static async Task<AuthenticationResult> AttachMutationAuthenticationAsync(
         HttpRequestMessage request,
         IConsoleOperatorBearerProvider bearerProvider,
@@ -106,11 +83,7 @@ internal static class ConsoleServerHttp
         return new AuthenticationResult(false, message);
     }
 
-    /// <summary>
-    /// Resolves a relative path against an absolute honua-server base URI, ensuring the
-    /// base authority + base path are preserved (a trailing slash is added when missing so
-    /// the last base path segment is not dropped by <see cref="Uri"/> resolution).
-    /// </summary>
+    // A trailing slash is added when the base URI lacks one, because URI resolution would otherwise drop the last base-path segment.
     public static Uri BuildUri(Uri baseUri, string relativePath)
     {
         var normalizedBase = baseUri.AbsoluteUri.EndsWith('/')
@@ -119,13 +92,7 @@ internal static class ConsoleServerHttp
         return new Uri(normalizedBase, relativePath);
     }
 
-    /// <summary>
-    /// Reads a bounded RFC 9457/problem+json failure and preserves only the
-    /// operator-actionable message plus safe correlation identifiers. This is
-    /// shared by focused Console clients so a failed API/MCP operation can be
-    /// reconciled with <c>honua admin</c> instead of collapsing to a generic
-    /// 403/500 toast. Arbitrary response fields are deliberately not echoed.
-    /// </summary>
+    // Only the operator-actionable message and safe correlation identifiers are kept; other response fields are not echoed.
     public static async Task<ProblemResponse> ReadProblemAsync(
         HttpResponseMessage response,
         string fallbackMessage,
@@ -275,14 +242,6 @@ internal static class ConsoleServerHttp
         }
     }
 
-    /// <summary>
-    /// Resolves the operator's forwardable honua-server bearer token for the active
-    /// profile, or <see langword="null"/> when no forwardable bearer exists. Read callers may
-    /// apply their documented fallback. Returns <see langword="null"/> for anonymous profiles and
-    /// for the non-forwardable Console session sentinel
-    /// (<see cref="ConsoleAuthConstants.IsSessionSentinel"/>), mirroring
-    /// <see cref="HonuaServerBindingHandler"/> so the single auth rule cannot diverge again.
-    /// </summary>
     public static async Task<string?> ResolveForwardableBearerAsync(
         IConsoleAccountSessionStore sessions,
         ConsoleEnvironmentProfile profile,

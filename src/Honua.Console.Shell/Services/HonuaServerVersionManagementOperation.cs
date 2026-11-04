@@ -3,17 +3,10 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Live implementation of the branch-version management operations. Drives honua-server's GeoServices
-/// VersionManagementServer through <see cref="IHonuaVersionManagementClient"/> and maps each server result
-/// (or rejection) into the Operate view/result models. It never fabricates success — every result reflects
-/// what the server returned (honua-console#177, honua-server#371 / PR #1551).
-/// </summary>
 public sealed class HonuaServerVersionManagementOperation : IVersionManagementOperation
 {
     private readonly IHonuaVersionManagementClient _client;
 
-    /// <summary>Creates the operation over the VersionManagementServer client.</summary>
     public HonuaServerVersionManagementOperation(IHonuaVersionManagementClient client)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));

@@ -5,12 +5,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Captured Console-side context for a support ticket. The customer never copies
-/// log dumps; the Console auto-attaches who/where/which-build/what-route plus the
-/// connected server's recent errors, and supplies the instance URL + an optional
-/// scoped key so honua-support's auto-bundle can pull live telemetry.
-/// </summary>
 public sealed record ConsoleSupportContext
 {
     public string? UserId { get; init; }
@@ -37,12 +31,6 @@ public sealed record ConsoleSupportContext
 
     public string? RecentErrorsNote { get; init; }
 
-    /// <summary>
-    /// Renders the captured context as a human-readable block appended to the
-    /// ticket symptoms so the honua-support operator (and its triage) get full
-    /// context inline even before the auto-bundle telemetry contract lands
-    /// (honua-support#20).
-    /// </summary>
     public string ToSymptomContext()
     {
         var builder = new StringBuilder();
@@ -79,15 +67,7 @@ public sealed record ConsoleSupportContext
         return builder.ToString().TrimEnd();
     }
 
-    /// <summary>
-    /// Projects the captured context into the structured <c>support-context-v1</c>
-    /// block (<see cref="SupportContextRequest"/>) carried as a real request field
-    /// instead of folded into <see cref="ToSymptomContext"/> free text. The
-    /// <paramref name="scopedKey"/> is the short-lived telemetry key for the
-    /// auto-bundle pull; it is a secret carried only on the request and is never
-    /// rendered back. Empty/whitespace inputs collapse to null so the wire stays
-    /// trim (DefaultIgnoreCondition.WhenWritingNull).
-    /// </summary>
+    // The scoped telemetry key is a secret sent only on the request and never rendered back, and blank inputs are omitted from the wire.
     public SupportContextRequest ToContextRequest(string? scopedKey = null)
     {
         SupportContextUser? user = null;
@@ -148,11 +128,6 @@ public sealed record ConsoleSupportContext
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
 
-/// <summary>
-/// Collects <see cref="ConsoleSupportContext"/> with zero user effort from the
-/// account session, active environment profile, Console build metadata, the
-/// current route, and the connected server's recent-error buffer.
-/// </summary>
 public sealed class ConsoleSupportContextBuilder
 {
     private readonly IConsoleEnvironmentProfileStore _profileStore;

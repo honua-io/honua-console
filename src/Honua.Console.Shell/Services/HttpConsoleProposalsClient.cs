@@ -8,19 +8,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Binds the approval surface to a real honua-server through the console approval REST API
-/// (honua-server #1694): <c>GET /api/v1/admin/proposals</c>, <c>GET .../{id}</c>,
-/// <c>POST .../{id}/approve</c>, <c>POST .../{id}/reject</c>. The active operator bearer
-/// is required so server audit records retain the human identity. A configured admin API
-/// key is available only in explicit, sessionless headless/service mode. The server's RBAC <c>approve</c> grant and
-/// separation-of-duties rule remain the real gate: a denied approve/reject returns 403, surfaced here as a
-/// <see cref="OperateSectionStatus.Forbidden"/> result — the UI never bypasses it.
-///
-/// Charter section 11 (no standing mock for server-owned data) is preserved: this client
-/// never returns seeded data. When no environment profile is bound, every call returns a
-/// missing-binding result.
-/// </summary>
+// A 403 from the server approve grant or separation of duties is Forbidden and is not bypassed.
 public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
 {
     private const string NoProfileMessage =
@@ -335,7 +323,6 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
     };
 }
 
-/// <summary>Wire shape of the server proposal summary (honua-server #1694).</summary>
 public sealed record ProposalSummaryWire
 {
     public string? ProposalId { get; init; }
@@ -352,7 +339,6 @@ public sealed record ProposalSummaryWire
     public string? ActionDiscriminator { get; init; }
 }
 
-/// <summary>Wire shape of the server proposal detail (honua-server #1694).</summary>
 public sealed record ProposalDetailWire
 {
     public string? ProposalId { get; init; }
@@ -378,19 +364,17 @@ public sealed record ProposalDetailWire
     public string? ActionDiscriminator { get; init; }
 }
 
-/// <summary>Wire wrapper for the proposal list response.</summary>
 public sealed record ProposalListWire
 {
     public IReadOnlyList<ProposalSummaryWire>? Proposals { get; init; }
 }
 
-/// <summary>Wire body for the reject request — reason is required.</summary>
+// The reject body must include a reason.
 public sealed record RejectProposalWire
 {
     public string? Reason { get; init; }
 }
 
-/// <summary>Source-generated context for the proposals admin DTOs (camelCase wire).</summary>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     PropertyNameCaseInsensitive = true,

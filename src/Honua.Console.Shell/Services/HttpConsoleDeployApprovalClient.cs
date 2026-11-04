@@ -8,19 +8,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Binds the human-in-the-loop deploy approval surface to a real honua-server through
-/// the deploy-control admin endpoints (<c>GET /api/v1/admin/deploy/operations/{id}</c>,
-/// <c>POST .../submit</c>, <c>POST .../rollback</c>). The active operator bearer is
-/// required so server audit records retain the human identity; a configured admin API
-/// key is available only in explicit, sessionless headless/service mode. The server's <c>OperatorApprovalGate</c> remains
-/// the real gate: a data-affecting rollback that the gate denies returns 403, which this client surfaces
-/// as a <see cref="OperateSectionStatus.Forbidden"/> result — the UI never bypasses it.
-///
-/// Charter section 11 (no standing mock for server-owned data) is preserved: this client
-/// never returns seeded data. When no environment profile is bound, every call returns a
-/// missing-binding result.
-/// </summary>
+// A 403 from the server approval gate is Forbidden and is not bypassed.
 public sealed class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClient
 {
     private const string NoProfileMessage =

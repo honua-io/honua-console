@@ -3,11 +3,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Live implementation of the service time-info operation. Reads a service's time-info from its settings and
-/// sets it on honua-server through <see cref="IHonuaAdminOperateClient"/> and maps the result (or rejection).
-/// It never fabricates success — every result reflects what the server read back.
-/// </summary>
 public sealed class HonuaServerConsoleTimeInfoOperation : IConsoleTimeInfoOperation
 {
     private readonly IHonuaAdminOperateClient _client;

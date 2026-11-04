@@ -5,21 +5,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Binds the Copilot Findings surface to a real honua-server through the deterministic
-/// ops-findings endpoints (group <c>/api/v1/admin/observability</c>, admin-authorized,
-/// bare JSON — NO ApiResponse envelope). Base address comes from the active
-/// <see cref="ConsoleEnvironmentProfile"/>. The active operator bearer is required for
-/// proposed actions so they retain the human audit principal; a configured
-/// admin API key is available only in explicit, sessionless headless/service mode.
-/// Deserialization is source-generated for trim/AOT safety.
-///
-/// Charter section 11 (no standing mock for server-owned data) is preserved: this client
-/// never returns seeded findings. When no environment profile is bound, every call
-/// returns a missing-binding (<see cref="OperateSectionStatus.Unavailable"/>) result.
-/// Mirrors <see cref="HttpConsoleMonitoringMetricsClient"/> and
-/// <see cref="HttpConsoleDeployApprovalClient"/>.
-/// </summary>
+// Findings responses are bare JSON, and a proposed action requires the operator bearer unless the profile is an explicit sessionless headless service.
 public sealed class HttpConsoleOpsFindingsClient : IConsoleOpsFindingsClient
 {
     private const string NoProfileMessage =
@@ -32,13 +18,6 @@ public sealed class HttpConsoleOpsFindingsClient : IConsoleOpsFindingsClient
     private readonly IConsoleOperatorBearerProvider _operatorBearerProvider;
     private readonly ConsoleServerCredentialMode _credentialMode;
 
-    /// <summary>Initializes a new instance of the <see cref="HttpConsoleOpsFindingsClient"/> class.</summary>
-    /// <param name="http">The shared HTTP client.</param>
-    /// <param name="profileStore">The active-environment profile store.</param>
-    /// <param name="sessionStore">The active operator account-session store.</param>
-    /// <param name="adminApiKey">The headless fallback API key, when configured.</param>
-    /// <param name="operatorBearerProvider">The profile-partitioned operator bearer provider.</param>
-    /// <param name="credentialMode">The explicit interactive or headless credential mode.</param>
     public HttpConsoleOpsFindingsClient(
         HttpClient http,
         IConsoleEnvironmentProfileStore profileStore,
@@ -59,7 +38,6 @@ public sealed class HttpConsoleOpsFindingsClient : IConsoleOpsFindingsClient
         _credentialMode = credentialMode;
     }
 
-    /// <inheritdoc />
     public async Task<OperateSectionResult<OpsFindingsListResponse>> ListAsync(
         CancellationToken cancellationToken = default)
     {
@@ -118,7 +96,6 @@ public sealed class HttpConsoleOpsFindingsClient : IConsoleOpsFindingsClient
         }
     }
 
-    /// <inheritdoc />
     public async Task<OperateSectionResult<OpsFindingProposeResponse>> ProposeAsync(
         string findingId,
         CancellationToken cancellationToken = default)

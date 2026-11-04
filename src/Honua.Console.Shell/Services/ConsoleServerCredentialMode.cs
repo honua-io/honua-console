@@ -1,22 +1,11 @@
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Controls whether a genuinely sessionless caller may use the process-wide admin
-/// API key for server mutations.
-/// </summary>
 public enum ConsoleServerCredentialMode
 {
-    /// <summary>
-    /// Human-facing mode. Mutations require a forwardable operator bearer and fail
-    /// closed when the operator must reauthenticate.
-    /// </summary>
+    // Mutations require a forwardable operator bearer and fail closed when the operator must reauthenticate.
     Interactive,
 
-    /// <summary>
-    /// Explicit non-interactive service mode. An API key may be used only when no
-    /// interactive account session exists and the active profile is explicitly marked
-    /// <c>ServiceApiKey</c>.
-    /// </summary>
+    // An API key is allowed only when no interactive session exists and the profile is marked ServiceApiKey.
     HeadlessService
 }
 

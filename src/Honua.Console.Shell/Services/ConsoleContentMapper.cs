@@ -2,13 +2,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Maps honua-server Console metadata v2 content + RBAC wire records (honua-server#1162) onto the
-/// Console catalog/content view models (issue #7). Centralises the itemType/visibility/action
-/// translation so the server-bound <see cref="HonuaServerConsoleCatalogClient"/> never duplicates the
-/// projection. The server is the single source of truth for visibility, sharing, and RBAC verbs; this
-/// mapper only re-shapes the wire contract — it never fabricates content or permissions.
-/// </summary>
+// Visibility, sharing, and RBAC verbs come from the server wire records; this mapper does not invent them.
 internal static class ConsoleContentMapper
 {
     public static HonuaConsoleContentListQuery ToListQuery(CatalogListRequest request)

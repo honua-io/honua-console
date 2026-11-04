@@ -3,12 +3,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Live implementation of the layer permanent-filter operation. Reads and authors a layer's server-enforced
-/// query filter on honua-server through <see cref="IHonuaAdminOperateClient"/> and maps the result (or
-/// rejection). It never fabricates success — every result reflects what the server read back, and a 400
-/// validation rejection surfaces the server's reason verbatim.
-/// </summary>
+// A 400 validation rejection surfaces the server's reason verbatim.
 public sealed class HonuaServerConsoleLayerFilterOperation : IConsoleLayerFilterOperation
 {
     private readonly IHonuaAdminOperateClient _client;

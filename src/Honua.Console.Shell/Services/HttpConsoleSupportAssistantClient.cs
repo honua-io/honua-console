@@ -8,18 +8,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Binds the L0 deflection assistant to the OpenAI-compatible Honua-GIS triage
-/// endpoint (<c>POST {endpoint}/v1/chat/completions</c>, qwen via NIM / vLLM /
-/// llama.cpp / Ollama — see honua-gis-llm
-/// <c>docs/support/triage-endpoint-contract.md</c>). This is the SAME inference
-/// path honua-support's L1 triage drives; the Console entry point is
-/// conversational. Endpoint base URL, model, and an optional bearer key come
-/// from Console config/env at registration; a single shared
-/// <see cref="HttpClient"/> is reused (mirroring
-/// <see cref="HttpConsoleOperateObservabilityClient"/>). Serialization is
-/// source-generated for trim/AOT safety.
-/// </summary>
 public sealed class HttpConsoleSupportAssistantClient : IConsoleSupportAssistantClient
 {
     // GIS triage system prompt spirit (concise, reproducible GIS help). Matches
@@ -145,12 +133,7 @@ public sealed class HttpConsoleSupportAssistantClient : IConsoleSupportAssistant
     };
 }
 
-/// <summary>
-/// Active when no LLM endpoint is configured. The /support page hides the
-/// assistant box entirely (KB search + ticket form remain the deflection path),
-/// so this never renders a dead input; it only answers calls defensively with
-/// the neutral unsupported state.
-/// </summary>
+// With no model endpoint the assistant surface stays hidden, and this client only returns the unsupported state.
 public sealed class UnsupportedConsoleSupportAssistantClient : IConsoleSupportAssistantClient
 {
     public bool IsConfigured => false;

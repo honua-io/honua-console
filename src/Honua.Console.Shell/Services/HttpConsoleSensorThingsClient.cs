@@ -8,17 +8,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Binds the SensorThings (STA v1.1) browse surface to a real honua-server
-/// through the conformance-shaped <c>/sta/v1.1</c> read API. Base address and
-/// bearer token come from the active <see cref="ConsoleEnvironmentProfile"/> and
-/// its account session, reusing the connection pattern from the Operate
-/// observability client (BaseAddress = profile.ServerBaseUri, Authorization =
-/// Bearer &lt;token&gt;, X-API-Key fallback). A single shared
-/// <see cref="HttpClient"/> is reused; each request builds an absolute URI and
-/// attaches its own auth header. Deserialization is source-generated for
-/// trim/AOT safety.
-/// </summary>
 public sealed class HttpConsoleSensorThingsClient : IConsoleSensorThingsClient
 {
     private const string BasePath = "sta/v1.1";

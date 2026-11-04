@@ -3,12 +3,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Projects the honua-server <see cref="DeployOperationResponse"/> read shape onto the
-/// Console approval-surface <see cref="DeployOperationProposal"/>. Field provenance is
-/// the deploy-control operation record and its embedded metadata-release context; the
-/// mapper never invents data, surfacing "unknown" / null when the server omits a field.
-/// </summary>
+// An omitted server field stays unknown or null; the mapper does not invent deploy data.
 public static class DeployApprovalMapper
 {
     public static DeployOperationProposal MapProposal(DeployOperationResponse operation)
