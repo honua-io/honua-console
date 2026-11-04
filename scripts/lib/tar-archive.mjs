@@ -13,7 +13,10 @@ const BLOCK_BYTES = 512;
 const END_OF_ARCHIVE_BYTES = 2 * BLOCK_BYTES;
 const REGULAR_FILE_TYPE = "0";
 const DIRECTORY_TYPE = "5";
-const SUPPORTED_FORMATS = new Set(["ustar\u000000", "ustar  \u0000"]);
+const POSIX_USTAR_FORMAT = "ustar\u000000";
+// GNU tar's default format: bytes 345+ hold access and change times, not a POSIX name prefix.
+const GNU_FORMAT = "ustar  \u0000";
+const SUPPORTED_FORMATS = new Set([POSIX_USTAR_FORMAT, GNU_FORMAT]);
 const CHECKSUM_PLACEHOLDER = 0x20;
 const HEADER_FIELDS = {
   name: [0, 100], mode: [100, 8], uid: [108, 8], gid: [116, 8], size: [124, 12], mtime: [136, 12],
@@ -67,8 +70,7 @@ function readEntry(tar, offset, maxEntryBytes) {
   requireSupportedHeader(header);
   const size = octal(header, "size");
   const type = text(header, "type");
-  const prefix = text(header, "prefix");
-  const name = prefix ? `${prefix}/${text(header, "name")}` : text(header, "name");
+  const name = entryName(header);
   if (type !== REGULAR_FILE_TYPE && type !== DIRECTORY_TYPE) {
     throw new Error(`archive entry ${name} has unsupported type ${JSON.stringify(type)}`);
   }
@@ -78,6 +80,11 @@ function readEntry(tar, offset, maxEntryBytes) {
   const next = bodyStart + Math.ceil(size / BLOCK_BYTES) * BLOCK_BYTES;
   if (next > tar.length) throw new Error(`archive entry ${name} is truncated`);
   return { name, path: canonicalPath(name, type), type, body: tar.subarray(bodyStart, bodyStart + size), next };
+}
+
+function entryName(header) {
+  const prefix = raw(header, "format") === POSIX_USTAR_FORMAT ? text(header, "prefix") : "";
+  return prefix ? `${prefix}/${text(header, "name")}` : text(header, "name");
 }
 
 function requireSupportedHeader(header) {

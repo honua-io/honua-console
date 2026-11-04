@@ -6,7 +6,14 @@ import { after, test } from "node:test";
 import { gzipSync } from "node:zlib";
 
 import { TAR_LIMITS, extractTarGz } from "../lib/tar-archive.mjs";
-import { HEADER_OFFSETS, tarEntry, tarGz, withHeaderField, withUnsealedHeaderField } from "./helpers/tar-fixtures.mjs";
+import {
+  GNU_FORMAT,
+  HEADER_OFFSETS,
+  tarEntry,
+  tarGz,
+  withHeaderField,
+  withUnsealedHeaderField,
+} from "./helpers/tar-fixtures.mjs";
 
 const scratch = await mkdtemp(join(tmpdir(), "honua-console-tar-archive-"));
 after(() => rm(scratch, { recursive: true, force: true }));
@@ -42,6 +49,22 @@ test("only ustar and GNU tar headers are read", async () => {
   for (const format of ["\0\0\0\0\0\0\0\0", "ustar\u000001", "pax  \u0000\u0000\u0000"]) {
     await assertRefused(tarGz(withHeaderField(file("./a.js"), HEADER_OFFSETS.format, format)), /not ustar or GNU tar/);
   }
+});
+
+const gnuFile = (name, timeBytes) =>
+  withHeaderField(withHeaderField(file(name), HEADER_OFFSETS.format, GNU_FORMAT), HEADER_OFFSETS.prefix, timeBytes);
+
+test("a GNU header's access and change times are not read as a POSIX name prefix", async () => {
+  const destination = await mkdtemp(join(scratch, "gnu-"));
+  await extractTarGz(tarGz(gnuFile("./a.js", "15272616132\u000015272616133")), destination);
+  assert.deepEqual(await readdir(destination), ["a.js"]);
+});
+
+test("GNU entries with the same name but different time fields are duplicates", async () => {
+  await assertRefused(
+    tarGz(gnuFile("./a.js", "15272616132\u0000"), gnuFile("./a.js", "15272616199\u0000")),
+    /duplicate|more than once/i,
+  );
 });
 
 test("entry types other than regular files and directories are refused", async () => {

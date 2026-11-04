@@ -4,7 +4,8 @@ const BLOCK_BYTES = 512;
 const CHECKSUM_OFFSET = 148;
 const CHECKSUM_BYTES = 8;
 
-export const HEADER_OFFSETS = { size: 124, checksum: CHECKSUM_OFFSET, type: 156, format: 257 };
+export const HEADER_OFFSETS = { size: 124, checksum: CHECKSUM_OFFSET, type: 156, format: 257, prefix: 345 };
+export const GNU_FORMAT = "ustar  \u0000";
 
 export function tarEntry(name, { type = "0", body = Buffer.alloc(0), link = "" } = {}) {
   const header = Buffer.alloc(BLOCK_BYTES);
