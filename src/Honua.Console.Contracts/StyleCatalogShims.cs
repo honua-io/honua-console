@@ -7,26 +7,9 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-server ADR-0048, honua-server#1387): honua-server owns the OGC API - Styles surface. The
-// styles list — GET /ogc/styles — advertises the stable styleIds the server can render, each with an
-// optional human title and links to its stylesheet encodings/metadata, plus an optional server default
-// style id. This is the canonical source of truth for "which styles exist", and is what the Studio map
-// builder's per-layer style picker binds against so an author selects a real styleId instead of typing an
-// opaque free-form string.
-//
-// Unlike the admin Console reads (/api/v1/console/...), the OGC API - Styles list is a PUBLIC OGC metadata
-// document: it is NOT wrapped in the shared {success,data,message,timestamp} admin envelope, and it does
-// not require the admin X-API-Key. This client therefore deserializes the OGC StylesList document directly
-// and forwards the admin key only when one is configured (harmless on public reads, and future-proof if the
-// surface is ever gated). When no server base URL is configured, the Console map builder keeps typing the
-// legacy free-form style string rather than fabricating a style catalog.
-//
-// Swap these wire records for honua-sdk-dotnet projections when a consumable OGC API - Styles projection
-// ships; until then this is the single Honua.Console.Contracts boundary for the styles list.
-
 public sealed record HonuaOgcStylesClientOptions(Uri BaseUri, string? ApiKey = null, bool AuthorityBindingSupported = false);
 
-/// <summary>Host-only request metadata; never serialized or taken from browser headers.</summary>
+// Host-only request metadata. Never serialized and never taken from browser headers.
 public interface IConsoleAuthorityBindingValidator
 {
     Task<bool> IsCurrentAsync(string binding, CancellationToken cancellationToken = default);
@@ -35,40 +18,29 @@ public interface IConsoleAuthorityBindingValidator
 
 public static class ConsoleAuthorityRequestOptions
 {
-    /// <summary>Host-only canonical relative style route; never read from an HTTP header.</summary>
+    // Host-only canonical route. Never read from an HTTP header.
     public static readonly HttpRequestOptionsKey<string> RelativeStylePath = new("Honua.Console.Authority.RelativeStylePath");
     public static readonly HttpRequestOptionsKey<bool> Capture = new("Honua.Console.Authority.Capture");
     public static readonly HttpRequestOptionsKey<string> Expected = new("Honua.Console.Authority.Expected");
     public static readonly HttpRequestOptionsKey<string> Resolved = new("Honua.Console.Authority.Resolved");
 }
 
-/// <summary>
-/// Stylesheet encoding the dual-mode style editor reads/writes over <c>/ogc/styles/{styleId}</c>. The canonical
-/// store is MapLibre; Esri (<c>drawingInfo</c>) is a server-side projection (ADR-0002, ADR-0048).
-/// </summary>
+// MapLibre is the canonical store. Esri drawingInfo is a server-side projection.
 public enum HonuaOgcStyleEncoding
 {
-    /// <summary>Canonical MapLibre / Mapbox style JSON (<c>application/vnd.mapbox.style+json</c>).</summary>
     MapLibre,
 
-    /// <summary>Esri GeoServices drawingInfo renderer (<c>application/vnd.esri.drawinginfo+json</c>).</summary>
     Esri
 }
 
-/// <summary>A stylesheet body fetched in a given encoding.</summary>
 public sealed record HonuaOgcStylesheet(string StyleId, HonuaOgcStyleEncoding Encoding, string Content)
 {
-    /// <summary>Strong version token returned with these exact canonical bytes.</summary>
     public string? EntityTag { get; init; }
     [JsonIgnore]
     public string? AuthorityBinding { get; init; }
 }
 
-/// <summary>
-/// Outcome of a stylesheet write. On success the canonical MapLibre was stored; <see cref="UnsupportedSymbolizers"/>
-/// carries non-blocking lossy-conversion warnings. On failure <see cref="Detail"/> explains the rejection
-/// (e.g. a strict validation error).
-/// </summary>
+// UnsupportedSymbolizers on a successful save are non-blocking lossy-conversion warnings.
 public sealed record HonuaOgcStyleSaveResult(
     bool Succeeded,
     string? State,
@@ -82,7 +54,6 @@ public sealed record HonuaOgcStyleSaveResult(
         new(false, state, detail, Array.Empty<string>());
 }
 
-/// <summary>Authorized visible associations observed for one exact shared-style version.</summary>
 public sealed record HonuaSharedStyleAssociation(string ResourceId, string Name, string? Title, string? ServiceId = null);
 public sealed record HonuaSharedStyleConsumer(string Kind, string ItemId, string PackageKey, string ContentHash,
     string PublicationState, string? VersionId = null, string? DraftId = null, long? Generation = null, bool IsCurrent = false);
@@ -93,41 +64,26 @@ public sealed record HonuaSharedStyleImpact(string StyleId, long StyleVersion, s
     public bool ImpactComplete { get; init; }
 }
 
-/// <summary>One styleId the server advertises on <c>GET /ogc/styles</c> (ADR-0048).</summary>
 public sealed record HonuaOgcStyleSummary(string Id, string? Title);
 
-/// <summary>The OGC API - Styles styles list projection: the advertised styleIds plus the optional default.</summary>
 public sealed record HonuaOgcStylesList(IReadOnlyList<HonuaOgcStyleSummary> Styles, string? Default);
 
-/// <summary>
-/// Typed client for the honua-server OGC API - Styles styles list (ADR-0048). The read targets the public
-/// OGC metadata route <c>GET /ogc/styles</c> and returns the advertised styleIds, or a neutral capability
-/// issue when the list cannot be read.
-/// </summary>
 public interface IHonuaOgcStylesClient
 {
     Uri BaseUri { get; }
 
-    /// <summary>Reads the server-advertised styleIds (the styles list), or a capability issue on failure.</summary>
     Task<HonuaAdminEndpointResult<HonuaOgcStylesList>> ListStylesAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Reads the server's stored or default style for a known published layer.</summary>
     Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetLayerStylesheetAsync(
         int layerId, CancellationToken cancellationToken = default) => Task.FromResult(
             HonuaAdminEndpointResult<HonuaOgcStylesheet>.FromIssue(new HonuaAdminEndpointIssue(
                 "Unsupported", "GET /api/styles/{layerId}.json", "Layer styles are not bound.")));
 
-    /// <summary>Reads a style's stylesheet in the requested encoding (<c>GET /ogc/styles/{styleId}</c>).</summary>
     Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetStylesheetAsync(
         string styleId,
         HonuaOgcStyleEncoding encoding,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Writes a style's stylesheet in the given encoding (<c>PUT /ogc/styles/{styleId}</c>). The server keeps
-    /// MapLibre canonical and converts the Esri encoding. <paramref name="strict"/> sends
-    /// <c>Prefer: handling=strict</c> so a lossy/invalid style is rejected rather than stored.
-    /// </summary>
     Task<HonuaOgcStyleSaveResult> UpdateStylesheetAsync(
         string styleId,
         HonuaOgcStyleEncoding encoding,
@@ -139,7 +95,6 @@ public interface IHonuaOgcStylesClient
             HonuaAdminEndpointResult<HonuaSharedStyleImpact>.FromIssue(new HonuaAdminEndpointIssue(
                 "Unsupported", "GET /ogc/styles/{id}/impact", "Shared-style impact review is not supported by this client.")));
 
-    /// <summary>Conditional shared-style update; unsupported clients never fall back to an unconditional write.</summary>
     Task<HonuaOgcStyleSaveResult> UpdateStylesheetConditionallyAsync(
         string styleId, HonuaOgcStyleEncoding encoding, string content, bool strict, string expectedEntityTag, string expectedImpactHash,
         CancellationToken cancellationToken = default) => Task.FromResult(
@@ -431,6 +386,7 @@ public sealed class HonuaOgcStylesHttpClient : IHonuaOgcStylesClient, IDisposabl
         }
         if (expectedVersion is not null) request.Headers.IfMatch.Add(expectedVersion);
         if (expectedImpactHash is not null) request.Headers.Add("X-Honua-Style-Impact", expectedImpactHash);
+        // handling=strict tells the server to reject a lossy style instead of storing it.
         if (strict)
         {
             request.Headers.TryAddWithoutValidation("Prefer", "handling=strict");

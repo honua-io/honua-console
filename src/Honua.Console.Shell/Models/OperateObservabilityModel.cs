@@ -18,55 +18,25 @@ public static class OperateObservabilityRoutes
     public static string GeoprocessingJobDetail(string jobRunId) =>
         $"/operate/geoprocessing/{Uri.EscapeDataString(jobRunId)}";
 
-    /// <summary>
-    /// Deep-links into the evidence timeline pre-filtered to one correlation id (console#292
-    /// correlation-id chip). Client-side query-string convenience over the existing events
-    /// filter form (<c>OperateObservabilityPage</c>) — no new server endpoint.
-    /// </summary>
     public static string CorrelationSearch(string correlationId) =>
         $"{Observability}?correlationId={Uri.EscapeDataString(correlationId)}#events";
 
-    /// <summary>
-    /// Deep-links into the Copilot Findings surface, anchored to one finding (console#292).
-    /// Copilot Findings has no per-finding route; the page renders an anchor id per finding so
-    /// this resolves without a new server endpoint.
-    /// </summary>
     public static string FindingDetail(string findingId) =>
         $"/operate/copilot#finding-{Uri.EscapeDataString(findingId)}";
 
-    /// <summary>
-    /// Deep-links into the Approval inbox pre-selecting one proposal (console#292). Client-side
-    /// query-string convenience over the inbox's existing selection state — no new server
-    /// endpoint.
-    /// </summary>
     public static string ProposalDetail(string proposalId) =>
         $"/inbox?proposalId={Uri.EscapeDataString(proposalId)}";
 
-    /// <summary>
-    /// Deep-links into the Deploy page pre-tracking one deploy-control operation (console#292).
-    /// Client-side query-string convenience over the deploy page's existing "track operation"
-    /// input — no new server endpoint (the server exposes operations by durable id only, no
-    /// list-all endpoint).
-    /// </summary>
     public static string OperationDetail(string operationId) =>
         $"/operate/deploy?operationId={Uri.EscapeDataString(operationId)}#deploy-approvals";
 }
 
-/// <summary>
-/// The execution job kind wire values used as the <c>kind</c> filter on the
-/// admin jobs endpoint. The server parses this against its <c>ExecutionJobKind</c>
-/// enum (case-insensitive member name), so the value is the enum member name.
-/// </summary>
+// The server matches these values to ExecutionJobKind member names, ignoring case.
 public static class OperateJobKinds
 {
     public const string Geoprocessing = "Geoprocessing";
 }
 
-/// <summary>
-/// Helpers over the Operate job status vocabulary. The status state is the
-/// server's <c>ExecutionJobStatus</c> name (Queued/Provisioning/Running/Succeeded/
-/// Failed/Cancelled), surfaced verbatim on <see cref="OperateStatus.State"/>.
-/// </summary>
 public static class OperateJobStatuses
 {
     public const string Queued = "Queued";
@@ -76,10 +46,6 @@ public static class OperateJobStatuses
     public const string Failed = "Failed";
     public const string Cancelled = "Cancelled";
 
-    /// <summary>
-    /// A job in a terminal state no longer changes, so polling can stop once the
-    /// open job reaches Succeeded/Failed/Cancelled.
-    /// </summary>
     public static bool IsTerminal(string? state) =>
         string.Equals(state, Succeeded, StringComparison.OrdinalIgnoreCase)
         || string.Equals(state, Failed, StringComparison.OrdinalIgnoreCase)
@@ -140,24 +106,6 @@ public sealed record OperateObservabilitySnapshot(
             && job.DetailHref.StartsWith("/operate/jobs/", StringComparison.Ordinal)));
 }
 
-/// <summary>
-/// The single status-vocabulary mapping table for the platform's status space (console#293):
-/// overallStatus / SLO flags (ops health), finding-state style raw strings, deploy/workflow
-/// lifecycle states (including <c>ManualInterventionRequired</c>), and proposal lifecycle states
-/// all normalize onto one of five visual buckets here — success / info / warning / danger /
-/// neutral — via <see cref="CssClass"/>. Render it through the shared <c>OperateStatusPill</c>
-/// component rather than re-deriving a CSS class inline.
-///
-/// Enum-typed domains (e.g. <c>ConsoleProposalStatus</c>, <c>DeployOperationLifecycle</c>) keep
-/// their own label helpers (the words differ per domain) but delegate their CSS-class mapping to
-/// this record's <see cref="CssClass"/> so "warning" always looks the same regardless of which
-/// surface produced it — see <c>ConsoleProposalPresentation.ToStatus</c> /
-/// <c>DeployOperationPresentation.ToStatus</c>.
-///
-/// An unrecognized raw state (including a future finding state this table has not seen yet)
-/// falls through to <see cref="IsNeutral"/>'s default — neutral — rather than guessing success or
-/// danger; this is the safe default for any raw server string, not just the words listed below.
-/// </summary>
 public sealed record OperateStatus(string State, string Description)
 {
     private static readonly HashSet<string> NeutralStates = new(StringComparer.OrdinalIgnoreCase)
@@ -181,7 +129,6 @@ public sealed record OperateStatus(string State, string Description)
         "misconfigured",
         "unhealthy",
         "blocked",
-        // Proposal / deploy-operation lifecycle failure states (console#293 unification).
         "rejected",
         "manual intervention required"
     };
@@ -199,12 +146,6 @@ public sealed record OperateStatus(string State, string Description)
 
     public bool IsFailure => FailureStates.Contains(NormalizedState);
 
-    /// <summary>
-    /// Whether this status renders as a warning or danger badge (console#292): the shared test
-    /// for "this badge is a breach an operator should act on" used to decide whether a health
-    /// section renders a deep link to its actionable surface. Neutral/success/info states are
-    /// not breaches; a badge for those is never a dead end because there is nothing to act on.
-    /// </summary>
     public bool IsBreach => CssClass is "console-state-warning" or "console-state-danger";
 
     public string CssClass => NormalizedState switch
@@ -212,7 +153,6 @@ public sealed record OperateStatus(string State, string Description)
         "configured" or "healthy" or "succeeded" or "resolved" or "valid" => "console-state-success",
         "running" or "info" or "notice" or "submitted" or "reconciling" => "console-state-info",
         "warning" or "degraded" or "acknowledged" or "retrying" or "waiting"
-            // Proposal / deploy-operation lifecycle warning states (console#293 unification).
             or "awaiting approval" or "rolled back" or "rollback requested" => "console-state-warning",
         _ when IsNeutral => "console-state-neutral",
         _ when IsFailure => "console-state-danger",
@@ -388,13 +328,7 @@ public sealed record OperateJobMetric(
     string Value,
     OperateStatus Status);
 
-/// <summary>
-/// One sanitized step of a job's per-step glass-box (honua-server #2182):
-/// its ordinal, phase, status, timeline, the sanitized provider command
-/// (already <c>&lt;scratch&gt;</c>/<c>&lt;path&gt;</c>-redacted server-side),
-/// produced artifacts, and metadata. <see cref="Command"/> is rendered verbatim;
-/// the Console must not re-sanitize it.
-/// </summary>
+// Command is already redacted by the server; render it verbatim and do not sanitize it again.
 public sealed record OperateJobStep(
     int Ordinal,
     string Phase,
@@ -418,11 +352,6 @@ public sealed record OperateJobStepMetadata(
     string Key,
     string Value);
 
-/// <summary>
-/// The per-step glass-box view for a single job, surfaced through the shared
-/// <see cref="OperateSectionResult{T}"/> envelope so the panel degrades through
-/// the standard loading/forbidden/unavailable surfaces.
-/// </summary>
 public sealed record OperateJobStepsView(
     string JobRunId,
     string CorrelationId,
@@ -432,11 +361,6 @@ public sealed record OperateJobStepsView(
     public static OperateJobStepsView Empty { get; } = new(string.Empty, string.Empty, new OperateStatus("unknown", string.Empty), []);
 }
 
-/// <summary>
-/// Console reading of <c>honua.job-diagnostics/v1</c>. Actions are copied from the
-/// projection: retry only when <c>attempt.retry.allowed</c>, cancel only when the
-/// projection includes a cancel link.
-/// </summary>
 public sealed record OperateJobDiagnosticsView(
     string Schema,
     string JobRunId,
@@ -473,10 +397,6 @@ public sealed record OperateJobDiagnosticsView(
             EvidenceTruncated = page.EvidenceTruncated,
         };
 
-    /// <summary>
-    /// Keeps the event window the operator already opened and takes lifecycle and
-    /// action fields from a newer projection of the same job.
-    /// </summary>
     public OperateJobDiagnosticsView HoldingEventsFrom(OperateJobDiagnosticsView held) =>
         this with
         {
@@ -579,27 +499,15 @@ public sealed record OperateJobRun(
 
     public OperateJobIdentity EffectiveIdentity => Identity ?? OperateJobIdentity.Empty;
 
-    /// <summary>
-    /// Cancel is offered while the job is non-terminal. The server's Execute +
-    /// destructive-approval gate is the real authority and 403s a denied cancel;
-    /// this only decides whether to surface the affordance.
-    /// </summary>
+    // The server remains the authority and rejects a denied cancel; this only controls the affordance.
     public bool CanCancel => !OperateJobStatuses.IsTerminal(Status.State);
 
-    /// <summary>
-    /// Retry is offered only for Failed/Cancelled jobs, matching the server's
-    /// retry contract (other states return 409 Conflict).
-    /// </summary>
+    // Only a failed or cancelled job can be retried; other states get 409 from the server.
     public bool CanRetry =>
         string.Equals(Status.State, OperateJobStatuses.Failed, StringComparison.OrdinalIgnoreCase)
         || string.Equals(Status.State, OperateJobStatuses.Cancelled, StringComparison.OrdinalIgnoreCase);
 }
 
-/// <summary>
-/// Outcome of a durable-job control action (cancel/retry) projected from the
-/// server's control response. <see cref="Status"/> is the job's resulting state
-/// so the surface can refresh and reflect the transition.
-/// </summary>
 public sealed record OperateJobControlOutcome(
     string JobRunId,
     string Action,
@@ -609,10 +517,6 @@ public sealed record OperateJobControlOutcome(
 
 public static class OperateActionPresentation
 {
-    // Action gating is now server-driven (ConsoleJobActionDescriptor.Allowed,
-    // alert lifecycle state, rule health). Execution of mutating actions is a
-    // follow-on slice; allowed actions render disabled with this note so an
-    // operator can see the action is permitted but not yet wired in Console.
     public const string ActionExecutionDeferredReason = "Allowed by the server; mutating actions are wired in a follow-on Console slice.";
 
     public const string ActionApiUnavailableReason = ActionExecutionDeferredReason;
@@ -640,27 +544,7 @@ public sealed record OperateInvestigation(
         || string.Equals(EffectiveDetailStatus.NormalizedState, "degraded", StringComparison.OrdinalIgnoreCase);
 }
 
-/// <summary>
-/// Transient in-memory placeholder snapshot for the Operate observability surface.
-/// </summary>
-/// <remarks>
-/// <para>
-/// <b>Do not promote to a merged data source.</b> Environments, telemetry facts, events,
-/// alerts, alert rules, jobs, and investigations are all server-owned. Per
-/// <c>docs/migration/CONSOLE_PATTERNS_CHARTER.md</c> section 11, this fixture is a scaffold
-/// that lets the Operate UX, models, and tests be built ahead of the
-/// <c>honua-server</c>/<c>honua-sdk-dotnet</c> projection (tracked in honua-server#1168-1170
-/// and honua-sdk-js#229). The surface stays blocked until that contract lands; this fixture
-/// must never be the merged data source for the deployed surface.
-/// </para>
-/// <para>
-/// A future server-backed replacement MUST preserve the invariants the Operate models and
-/// tests assert against this snapshot, notably
-/// <see cref="OperateObservabilitySnapshot.HasUnifiedJobDeepLinks"/> (every required job
-/// source resolves to a <c>/operate/jobs/</c> deep link) and the neutral/failure state
-/// normalization in <see cref="OperateStatus"/>.
-/// </para>
-/// </remarks>
+// Scaffold only. Do not promote this fixture to a merged data source.
 public static class OperateObservabilityFixture
 {
     public static OperateObservabilitySnapshot Default { get; } = new(

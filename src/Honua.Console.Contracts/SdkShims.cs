@@ -1,9 +1,5 @@
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-sdk-dotnet#166): Catalog, share-access, map-package, and embed
-// route contracts are not yet projected to the .NET SDK. These records mirror
-// the route-map contract used by honua-console#34 and are consumed through the
-// single Console shim boundary until honua-console#7 swaps them for SDK types.
 public static class CatalogQueryKeys
 {
     public const string Query = "q";
@@ -360,13 +356,7 @@ public sealed record ConsoleContentDetail
 
     public ConsoleContentUsage[] Usage { get; init; } = [];
 
-    /// <summary>
-    /// True only when a real dependency/usage (blast-radius) source populated <see cref="Usage"/>. The
-    /// honua-server Console metadata v2 content API (honua-server#1162) does not expose a
-    /// dependency/usage endpoint, so the server-bound mapper leaves this false and the Catalog Usage tab
-    /// renders an explicit missing-binding state rather than a falsely-reassuring "no consumers" empty
-    /// state (Console Patterns Charter section 11). The in-memory/demo client sets it true.
-    /// </summary>
+    // False means no usage source was bound, so the catalog must show missing-binding rather than an empty consumer list.
     public bool UsageBound { get; init; }
 }
 
