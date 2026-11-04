@@ -24,6 +24,7 @@ export const SOURCE_DB = {
   // because a source table backs only one layer.
   goLiveTable: process.env.HONUA_CONSOLE_E2E_GO_LIVE_TABLE ?? 'public.e2e_golive_src',
   settingsTable: process.env.HONUA_CONSOLE_E2E_SETTINGS_TABLE ?? 'public.e2e_settings_src',
+  typesTable: process.env.HONUA_CONSOLE_E2E_TYPES_TABLE ?? 'public.e2e_types_src',
 } as const;
 
 /** The connection body shape the admin API expects for the source datasource. */

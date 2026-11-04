@@ -2,6 +2,7 @@
 -- with one layer only, so each such spec needs a table no other spec publishes.
 --   e2e_golive_src   -> data-flow-go-live.live.spec.ts
 --   e2e_settings_src -> service-settings.live.spec.ts
+--   e2e_types_src    -> service-types.live.spec.ts
 
 CREATE TABLE IF NOT EXISTS public.e2e_golive_src (
   id   integer PRIMARY KEY,
@@ -19,3 +20,7 @@ ON CONFLICT (id) DO NOTHING;
 CREATE TABLE IF NOT EXISTS public.e2e_settings_src (LIKE public.e2e_golive_src INCLUDING ALL);
 
 INSERT INTO public.e2e_settings_src SELECT * FROM public.e2e_golive_src ON CONFLICT (id) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS public.e2e_types_src (LIKE public.e2e_golive_src INCLUDING ALL);
+
+INSERT INTO public.e2e_types_src SELECT * FROM public.e2e_golive_src ON CONFLICT (id) DO NOTHING;

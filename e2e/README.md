@@ -55,8 +55,9 @@ connection specs fill in.
 `e2e/initdb/01-seed.sql` runs on first container start and creates
 `public.e2e_layer_src` — three polygon features in EPSG:3857. This table is the
 source for the `services-layers` publish workflow and the `studio-results` specs.
-`e2e/initdb/03-dedicated-sources.sql` creates `public.e2e_golive_src` and
-`public.e2e_settings_src` (same shape) for `data-flow-go-live` and `service-settings`.
+`e2e/initdb/03-dedicated-sources.sql` creates `public.e2e_golive_src`,
+`public.e2e_settings_src` and `public.e2e_types_src` (same shape) for `data-flow-go-live`,
+`service-settings` and `service-types`.
 honua-server backs a source table with one layer only, so a spec that seeds its own layer
 needs a table no other spec publishes. Those specs seed through `live/seeded-layer.ts`, which
 keeps the seed connection and reuses the layer on a retry; `services-layers` publishes
@@ -72,7 +73,7 @@ keeps the seed connection and reuses the layer on a retry; `services-layers` pub
 | `services-layers.live.spec.ts` | Full publish workflow: connection → table → service; verified via catalog + FeatureServer metadata + live query |
 | `data-flow-go-live.live.spec.ts` | `/operate/data/new` Go live on an existing layer: sets exactly the chosen protocols and Public visibility, then the layer is queried anonymously |
 | `service-settings.live.spec.ts` | On its own seeded service: protocol enable/disable via UI takes effect on live endpoints; access policy gates anonymous reads |
-| `service-types.live.spec.ts` | Coverage matrix for all service creation paths |
+| `service-types.live.spec.ts` | Coverage matrix for all service creation paths; the PostGIS connection path runs on its own seeded service, the others are documented skips |
 | `studio-results.live.spec.ts` | Studio Query/Map/Form/Analysis/Workflow builders each render a live, data-bound final output |
 
 ## Environment overrides
