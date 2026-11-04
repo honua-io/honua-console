@@ -95,7 +95,11 @@ build-provenance attestation, and the SDK revision the bundle embeds.
 `node scripts/fetch-studio-release.mjs` downloads that archive from the GitHub
 release over HTTPS, refuses a digest mismatch, extracts only regular files inside
 a fresh temporary directory and vendors them into the gitignored
-`src/Honua.Console.Web/wwwroot/_studio`. It writes `STUDIO-PROVENANCE.json`, which
+`src/Honua.Console.Web/wwwroot/_studio`. It validates every tar header (checksum,
+octal fields, ustar or GNU format, regular files and directories only, no duplicate or
+conflicting paths) before writing anything, and refuses an archive above 32 MiB, one
+that inflates beyond 128 MiB, one with more than 4,096 entries or any entry above
+32 MiB (`RELEASE_LIMITS` in `scripts/lib/studio-release.mjs`). It writes `STUDIO-PROVENANCE.json`, which
 carries the release identity and every file digest, and `honua-studio-artifact.json`.
 It does nothing when the tree already matches the lock. The Web project runs it
 before every build, run and publish, and every CI job that builds the host runs it

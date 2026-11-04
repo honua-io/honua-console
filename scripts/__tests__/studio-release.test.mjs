@@ -1,20 +1,21 @@
 import { strict as assert } from "node:assert";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { gzipSync } from "node:zlib";
 
 import {
+  RELEASE_LIMITS,
   fetchStudioRelease,
   parseStudioReleaseLock,
   readStudioReleaseLock,
   releaseAssetUrl,
   verifyStudioAssets,
 } from "../lib/studio-release.mjs";
-import { extractTarGz } from "../lib/tar-archive.mjs";
+import { tarEntry, tarGz } from "./helpers/tar-fixtures.mjs";
 
 const scratch = await mkdtemp(join(tmpdir(), "honua-console-studio-release-"));
 after(() => rm(scratch, { recursive: true, force: true }));
@@ -28,22 +29,6 @@ const RELEASE_FILES = {
   "SDK-PROVENANCE.json": `${JSON.stringify({ sourceCommit: SDK_REVISION })}\n`,
   "maputnik/index.html": "<!doctype html>\n",
 };
-
-function tarEntry(name, { type = "0", body = Buffer.alloc(0), link = "" } = {}) {
-  const header = Buffer.alloc(512);
-  header.write(name, 0, 100);
-  header.write("0000644\0", 100);
-  header.write(`${body.length.toString(8).padStart(11, "0")}\0`, 124);
-  header.write(type, 156);
-  header.write(link, 157, 100);
-  header.write("ustar\u000000", 257);
-  const padding = Buffer.alloc((512 - (body.length % 512)) % 512);
-  return Buffer.concat([header, body, padding]);
-}
-
-function tarGz(...entries) {
-  return gzipSync(Buffer.concat([...entries, Buffer.alloc(1024)]));
-}
 
 function releaseArchive(files = RELEASE_FILES) {
   return tarGz(
@@ -91,21 +76,6 @@ test("a malformed lock is refused", () => {
   );
 });
 
-test("extraction refuses links and paths outside the extraction directory", async () => {
-  const refusals = [
-    [tarEntry("./console.js", { type: "2", link: "/etc/passwd" }), /not a regular file or directory/],
-    [tarEntry("./maputnik", { type: "1", link: "./console.js" }), /not a regular file or directory/],
-    [tarEntry("../escape.js", { body: Buffer.from("x") }), /escapes the extraction directory/],
-    [tarEntry("/tmp/escape.js", { body: Buffer.from("x") }), /escapes the extraction directory/],
-    [tarEntry("./assets/../../escape.js", { body: Buffer.from("x") }), /escapes the extraction directory/],
-  ];
-  for (const [entry, reason] of refusals) {
-    const destination = await mkdtemp(join(scratch, "extract-"));
-    await assert.rejects(extractTarGz(tarGz(entry), destination), reason);
-    assert.deepEqual(await readdir(destination), []);
-  }
-});
-
 test("a release whose digest differs from the lock is refused before extraction", async () => {
   const destination = join(scratch, "digest-mismatch");
   const lock = lockFor(releaseArchive());
@@ -115,6 +85,33 @@ test("a release whose digest differs from the lock is refused before extraction"
     new RegExp(`the Studio release lock requires ${lock.sha256}`),
   );
   assert.equal(existsSync(destination), false);
+});
+
+test("a release archive above the download limit is refused while it streams or from its declared length", async () => {
+  const archive = releaseArchive();
+  const lock = lockFor(archive);
+  const limits = { ...RELEASE_LIMITS, maxArchiveBytes: archive.length - 1 };
+  const declared = async () => new Response(archive, { headers: { "content-length": String(archive.length) } });
+  for (const fetchImpl of [serving(archive), declared]) {
+    await assert.rejects(
+      fetchStudioRelease(lock, join(scratch, "oversize"), { fetchImpl, limits }),
+      new RegExp(`exceeds the ${limits.maxArchiveBytes}-byte Studio release archive limit`),
+    );
+  }
+  assert.equal(existsSync(join(scratch, "oversize")), false);
+  assert.ok(RELEASE_LIMITS.maxArchiveBytes >= 10 * 2_064_927, "the limit leaves headroom above the v0.1.1 archive");
+});
+
+test("a cached archive above the download limit is not reused", async () => {
+  const archive = releaseArchive();
+  const lock = lockFor(archive);
+  const cacheDirectory = join(scratch, "oversize-cache");
+  await fetchStudioRelease(lock, join(scratch, "cached-once"), { cacheDirectory, fetchImpl: serving(archive) });
+  const limits = { ...RELEASE_LIMITS, maxArchiveBytes: archive.length - 1 };
+  await assert.rejects(
+    fetchStudioRelease(lock, join(scratch, "cached-twice"), { cacheDirectory, fetchImpl: serving(archive), limits }),
+    /exceeds the .*-byte Studio release archive limit/,
+  );
 });
 
 test("a fetched release is vendored with provenance and reused from the archive cache", async () => {

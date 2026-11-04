@@ -1,13 +1,16 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 
 import { verifyCompressedCopies } from "./compressed-static-assets.mjs";
-import { extractTarGz } from "./tar-archive.mjs";
+import { TAR_LIMITS, extractTarGz } from "./tar-archive.mjs";
+
+const MIB = 1024 * 1024;
+export const RELEASE_LIMITS = Object.freeze({ maxArchiveBytes: 32 * MIB, ...TAR_LIMITS });
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const STUDIO_RELEASE_LOCK_PATH = join(repositoryRoot, "scripts/studio-release.lock.json");
@@ -55,11 +58,11 @@ export function releaseAssetUrl({ repository, tag, asset }) {
   return `https://github.com/${repository}/releases/download/${tag}/${asset}`;
 }
 
-export async function fetchStudioRelease(lock, destination, { cacheDirectory, fetchImpl = fetch } = {}) {
-  const archive = await obtainReleaseArchive(lock, cacheDirectory, fetchImpl);
+export async function fetchStudioRelease(lock, destination, { cacheDirectory, fetchImpl = fetch, limits = RELEASE_LIMITS } = {}) {
+  const archive = await obtainReleaseArchive(lock, { cacheDirectory, fetchImpl, limits });
   const staging = await mkdtemp(join(tmpdir(), "honua-studio-release-"));
   try {
-    await extractTarGz(archive, staging);
+    await extractTarGz(archive, staging, limits);
     await writeStudioProvenance(staging, lock);
     await verifyStudioAssets(staging, lock);
     await rm(destination, { recursive: true, force: true });
@@ -70,17 +73,11 @@ export async function fetchStudioRelease(lock, destination, { cacheDirectory, fe
   await verifyStudioAssets(destination, lock);
 }
 
-async function obtainReleaseArchive(lock, cacheDirectory, fetchImpl) {
+async function obtainReleaseArchive(lock, { cacheDirectory, fetchImpl, limits }) {
   const cached = cacheDirectory && join(cacheDirectory, lock.asset);
-  if (cached && existsSync(cached)) {
-    const bytes = await readFile(cached);
-    if (sha256(bytes) === lock.sha256) return bytes;
-  }
-  const url = releaseAssetUrl(lock);
-  const response = await fetchImpl(url, { redirect: "follow" });
-  if (!response.ok) throw new Error(`downloading ${url} failed with HTTP ${response.status}`);
-  if (response.url && !response.url.startsWith("https://")) throw new Error(`downloading ${url} left HTTPS`);
-  const bytes = Buffer.from(await response.arrayBuffer());
+  const reusable = cached && await readCachedArchive(cached, limits.maxArchiveBytes);
+  if (reusable && sha256(reusable) === lock.sha256) return reusable;
+  const bytes = await downloadArchive(releaseAssetUrl(lock), { fetchImpl, maxArchiveBytes: limits.maxArchiveBytes });
   const received = sha256(bytes);
   if (received !== lock.sha256) {
     throw new Error(`${lock.asset} has sha256 ${received}; the Studio release lock requires ${lock.sha256}`);
@@ -90,6 +87,27 @@ async function obtainReleaseArchive(lock, cacheDirectory, fetchImpl) {
     await writeFile(cached, bytes);
   }
   return bytes;
+}
+
+async function readCachedArchive(path, maxArchiveBytes) {
+  if (!existsSync(path) || (await stat(path)).size > maxArchiveBytes) return undefined;
+  return readFile(path);
+}
+
+async function downloadArchive(url, { fetchImpl, maxArchiveBytes }) {
+  const response = await fetchImpl(url, { redirect: "follow" });
+  if (!response.ok) throw new Error(`downloading ${url} failed with HTTP ${response.status}`);
+  if (response.url && !response.url.startsWith("https://")) throw new Error(`downloading ${url} left HTTPS`);
+  const oversize = new Error(`${url} exceeds the ${maxArchiveBytes}-byte Studio release archive limit`);
+  if (Number(response.headers.get("content-length") ?? 0) > maxArchiveBytes) throw oversize;
+  const chunks = [];
+  let received = 0;
+  for await (const chunk of response.body ?? []) {
+    received += chunk.length;
+    if (received > maxArchiveBytes) throw oversize;
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 }
 
 async function writeStudioProvenance(root, lock) {
