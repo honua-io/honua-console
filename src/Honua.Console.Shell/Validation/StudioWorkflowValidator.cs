@@ -3,13 +3,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Validation;
 
-/// <summary>
-/// Stable console-owned field keys for the Studio workflow editor. The client validator
-/// (<see cref="StudioWorkflowValidator"/>), the inline render surfaces, and the server-error resolver
-/// (<see cref="StudioWorkflowServerErrorBinder"/>) all share these so a client finding and a server finding
-/// for the same input land on the same key. Form-level keys are constants; per-output-field keys are derived
-/// from the schema/field position.
-/// </summary>
 public static class StudioWorkflowFieldKeys
 {
     public const string Cron = "workflow.schedule.cron";
@@ -21,33 +14,14 @@ public static class StudioWorkflowFieldKeys
     public const string RouteSlug = "workflow.publication.routeSlug";
     public const string Graph = "workflow.graph";
 
-    /// <summary>Per-output-field name key for output schema <paramref name="schemaIndex"/> field <paramref name="fieldIndex"/>.</summary>
     public static string OutputFieldName(int schemaIndex, int fieldIndex) =>
         $"workflow.output[{schemaIndex}].field[{fieldIndex}].name";
 }
 
-/// <summary>
-/// Pure client-side validator for the Studio workflow editor, mirroring the other Studio validators: it
-/// examines the console-owned <see cref="StudioWorkflowPackageDraft"/> and emits field-addressable
-/// <see cref="ConsoleFieldError"/> findings keyed by <see cref="StudioWorkflowFieldKeys"/> so the editor can
-/// surface them inline. It complements — never replaces — server validation; it covers the rules
-/// expressible against console-owned state:
-/// <list type="bullet">
-///   <item>worker bounds: Cpu 1-32, MemoryGb 2-256, MaxParallelism 1-64 — finally enforcing the HTML min/max
-///   that nothing checks today (no EditForm);</item>
-///   <item>retry bounds: MaxAttempts 0-10, BackoffSeconds 0-3600;</item>
-///   <item>Cron expression format when the schedule mode is <c>cron</c>;</item>
-///   <item>publication RouteSlug format;</item>
-///   <item>graph source→sink connectivity: no orphan nodes and at least one source-to-sink path;</item>
-///   <item>unique output field names within each output schema.</item>
-/// </list>
-/// </summary>
 public sealed class StudioWorkflowValidator : IFieldValidator<StudioWorkflowPackageDraft>
 {
-    /// <summary>Shared singleton; the validator holds no state.</summary>
     public static StudioWorkflowValidator Instance { get; } = new();
 
-    /// <inheritdoc />
     public IReadOnlyList<ConsoleFieldError> Evaluate(StudioWorkflowPackageDraft state)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -115,11 +89,6 @@ public sealed class StudioWorkflowValidator : IFieldValidator<StudioWorkflowPack
     private static void EvaluateRouteSlug(StudioWorkflowPublicationIntent intent, List<ConsoleFieldError> errors) =>
         StudioPanelBindingRules.EvaluateRouteSlug(intent.RouteSlug, StudioWorkflowFieldKeys.RouteSlug, "workflow", errors);
 
-    /// <summary>
-    /// Enforces source→sink graph connectivity: there must be at least one source and one sink, every node
-    /// must be wired into the graph (no orphan with neither inbound nor outbound edge once there is more than
-    /// one node), and at least one sink must be reachable from a source.
-    /// </summary>
     private static void EvaluateGraph(StudioWorkflowPackageDraft state, List<ConsoleFieldError> errors)
     {
         if (state.Nodes.Count == 0)
@@ -264,17 +233,8 @@ public sealed class StudioWorkflowValidator : IFieldValidator<StudioWorkflowPack
         new(key, code, ConsoleValidationSeverity.Error, message);
 }
 
-/// <summary>
-/// Binds the server-returned workflow-package validation failures (<c>{code,message,fieldPath}</c>, the
-/// field-addressable <see cref="WorkflowPackageValidationFailure"/> the workflow validate/save endpoints
-/// return, honua-server #1185) onto the workflow editor's <see cref="ValidationState"/> server channel,
-/// keyed by the same <see cref="StudioWorkflowFieldKeys"/> the client validator uses, by resolving each
-/// failure's <c>fieldPath</c> to the matching console field key. A failure whose path cannot be resolved
-/// falls back to the raw locator / form-level key so it still surfaces.
-/// </summary>
 public static class StudioWorkflowServerErrorBinder
 {
-    /// <summary>Maps <paramref name="failures"/> onto console field keys via the field-path resolver.</summary>
     public static IReadOnlyList<ConsoleFieldError> Map(IEnumerable<WorkflowPackageValidationFailure>? failures)
     {
         if (failures is null)
@@ -287,17 +247,8 @@ public static class StudioWorkflowServerErrorBinder
     }
 }
 
-/// <summary>
-/// Resolves a workflow-package validation field path (the <c>fieldPath</c> on a server failure) to the
-/// console-owned <see cref="StudioWorkflowFieldKeys"/> for the offending input. The server addresses the
-/// workflow.package body, so paths look like <c>/workerProfile/cpu</c>, <c>/retryPolicy/maxAttempts</c>,
-/// <c>/schedule/cron</c>, <c>/publicationIntent/routeSlug</c>, <c>/graph</c>/<c>/nodes</c>/<c>/edges</c>, and
-/// <c>/outputSchemas/{n}/fields/{m}/name</c>. A leading <c>body</c> token is tolerated. Returns
-/// <see langword="null"/> for an unrecognised path so the mapper falls back to the raw locator.
-/// </summary>
 public static class StudioWorkflowPathResolver
 {
-    /// <summary>Resolves <paramref name="path"/> to a console field key, or <see langword="null"/>.</summary>
     public static string? Resolve(string? path)
     {
         var segments = JsonPointer.Split(path);

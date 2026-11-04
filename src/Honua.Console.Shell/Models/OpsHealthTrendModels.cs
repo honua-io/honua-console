@@ -2,16 +2,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// The Ops Health trend view (console#288): the cluster-aggregated history mapped into
-/// per-protocol serving-latency series and vitals points, ready for the shared
-/// <c>ChartPreview</c> component's Vega-Lite specs (<see cref="Services.OpsHealthTrendCharts"/>).
-/// Produced from the live server history read — never fabricated (Console Patterns Charter
-/// section 11). <see cref="IsFirstRun"/> distinguishes a genuinely empty rollup store (a fresh
-/// install, or a server too young to have any samples yet) from a normal empty window, so the
-/// page can render the "collecting baseline" skeleton instead of a generic empty state (2026-07-07
-/// addendum item 4).
-/// </summary>
 public sealed record OpsHealthTrendView(
     string RangeLabel,
     string Resolution,
@@ -26,12 +16,6 @@ public sealed record OpsHealthTrendView(
         rangeLabel, resolution, perReplica, default, default, true, [], []);
 }
 
-/// <summary>
-/// One serving-latency trend series for a protocol (and, when <c>perReplica</c> was requested,
-/// one replica). <see cref="HasBreach"/> mirrors the same conservative SLO heuristic the
-/// snapshot table row status uses (<see cref="Services.OpsHealthDataSource"/>), so a breach badge
-/// on the trend chart never disagrees with the at-a-glance table above it.
-/// </summary>
 public sealed record OpsHealthLatencyTrendSeriesView(
     string Protocol,
     string? ReplicaId,
@@ -41,7 +25,6 @@ public sealed record OpsHealthLatencyTrendSeriesView(
     public string SeriesLabel => ReplicaId is null ? Protocol : $"{Protocol} ({ReplicaId})";
 }
 
-/// <summary>One serving-latency time-series point (a history bucket, or a live-band snapshot).</summary>
 public sealed record OpsHealthLatencyTrendPointView(
     DateTimeOffset BucketStart,
     double P50Ms,
@@ -51,10 +34,7 @@ public sealed record OpsHealthLatencyTrendPointView(
     long RequestCount,
     long ErrorCount);
 
-/// <summary>
-/// One ops-vitals time-series point (GP queue depth, alert-dispatch backlog, database vitals).
-/// <see cref="ReplicaId"/> is <see langword="null"/> for a cluster-merged point.
-/// </summary>
+// A null ReplicaId means the point is cluster-merged rather than one replica.
 public sealed record OpsHealthVitalsTrendPointView(
     DateTimeOffset BucketStart,
     string? ReplicaId,
@@ -67,12 +47,6 @@ public sealed record OpsHealthVitalsTrendPointView(
     double CacheHitRatio,
     double ErrorRate);
 
-/// <summary>
-/// Pure mapping from the wire <see cref="OpsHealthHistoryResponse"/> onto the trend view
-/// (console#288). Kept independent of <see cref="Services.OpsHealthDataSource"/>'s snapshot
-/// mapper so each is unit-testable on its own, mirroring how <c>OpsHealthDataSource.Map</c> is
-/// already tested as a pure static method.
-/// </summary>
 public static class OpsHealthTrendMapper
 {
     // Mirrors OpsHealthDataSource's serving-latency SLO heuristic exactly (display-only; the
@@ -83,7 +57,6 @@ public static class OpsHealthTrendMapper
     public const double P95BreachMs = 1000.0;
     public const double ErrorRateWarn = 0.01;
 
-    /// <summary>Whether any point in the sequence breaches the shared serving-latency SLO heuristic.</summary>
     public static bool HasBreach(IEnumerable<OpsHealthLatencyTrendPointView> points) =>
         points.Any(p => p.ErrorRate >= ErrorRateWarn || p.P95Ms >= P95BreachMs);
 

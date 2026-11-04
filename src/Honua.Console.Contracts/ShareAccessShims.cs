@@ -6,27 +6,6 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-server#1215 / honua-sdk-dotnet#171): honua-server owns the Console Share access surface
-// for content items — the share access tier, public-link token lifecycle, embed enablement/token
-// lifecycle, dependency-closure preview, and the anonymous public-link/content/embed resolution
-// endpoints. These live behind /api/v1/console/content/{id}/share (admin) and /api/v1/console/share
-// (anonymous) in Honua.Server.Features.Console (ConsoleShareEndpoints / ConsoleSharePublicEndpoints,
-// projecting Honua.Core.Features.Console.Domain.ConsoleShareProjection). honua-sdk-dotnet does not yet
-// project these as a consumable stable package, and honua-console wires no SDK NuGet feed (see
-// SDK_SHIM_POLICY.md and the form/operate/content-publication shims). Per the Console Patterns Charter
-// section 11 and SDK_SHIM_POLICY, the Console Share surface binds through a thin HttpClient behind this
-// single Honua.Console.Contracts boundary: the wire records below mirror the server projection and the
-// client speaks the real console share lifecycle. Do not add a sibling-repo ProjectReference. Swap these
-// for SDK types when honua-sdk-dotnet ships a consumable Console Share projection (honua-sdk-dotnet#171).
-//
-// The authenticated share routes are admin routes wrapped in the shared {success,data,message,timestamp}
-// envelope (Honua.Infrastructure.Models.ApiResponse<T>), so this client reuses the shared
-// HonuaAdminApiResponse<T> envelope and the HonuaAdminEndpointResult<T>/HonuaAdminEndpointIssue result
-// records (defined in OperateAdminShims.cs). A 409 on an access/embed change carries the
-// dependency-closure body, which this client surfaces as a typed Conflict issue so the Share panel can
-// render the blocking dependencies rather than a generic failure.
-
-/// <summary>Share access tier of a Console content item (mirrors honua-server ConsoleShareAccessTier).</summary>
 public static class HonuaConsoleShareAccessTiers
 {
     public const string Private = "private";
@@ -39,7 +18,6 @@ public static class HonuaConsoleShareAccessTiers
         || string.Equals(tier, PublicIndexed, StringComparison.Ordinal);
 }
 
-/// <summary>Embed audience scope of a Console embed authorization (mirrors honua-server ConsoleEmbedAudience).</summary>
 public static class HonuaConsoleEmbedAudiences
 {
     public const string Map = "map";
@@ -48,56 +26,46 @@ public static class HonuaConsoleEmbedAudiences
 
 public sealed record HonuaConsoleShareClientOptions(Uri BaseUri, string? ApiKey = null);
 
-/// <summary>
-/// Typed client for the honua-server Console Share access surface (honua-server#1215). All authenticated
-/// reads/mutations target <c>/api/v1/console/content/{id}/share</c>; the anonymous resolution helpers
-/// target <c>/api/v1/console/share</c>.
-/// </summary>
 public interface IHonuaConsoleShareClient
 {
     Uri BaseUri { get; }
 
-    /// <summary>Reads the server-owned Share projection (access tier, public-link/embed state, permissions).</summary>
     Task<HonuaAdminEndpointResult<HonuaConsoleShareProjection>> GetShareAsync(
         string itemId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Changes the item's Share access tier. A blocked public change surfaces a Conflict issue.</summary>
     Task<HonuaAdminEndpointResult<HonuaConsoleShareProjection>> UpdateAccessTierAsync(
         string itemId,
         HonuaUpdateShareAccessRequest request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Previews whether the item's provenance closure is shareable by a target tier (no commit).</summary>
     Task<HonuaAdminEndpointResult<HonuaConsoleShareDependencyClosure>> PreviewDependenciesAsync(
         string itemId,
         string targetTier,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Lists public-link tokens for the item (token values are never returned after minting).</summary>
+    // Token values are never returned after minting.
     Task<HonuaAdminEndpointResult<HonuaConsolePublicLinkList>> ListPublicLinksAsync(
         string itemId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Mints a public-link token (the opaque value is returned exactly once).</summary>
+    // The opaque token value is returned exactly once.
     Task<HonuaAdminEndpointResult<HonuaConsolePublicLinkToken>> MintPublicLinkAsync(
         string itemId,
         HonuaMintPublicLinkRequest request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Revokes a public-link token by id.</summary>
     Task<HonuaAdminEndpointResult<HonuaConsoleShareCommandAck>> RevokePublicLinkAsync(
         string itemId,
         string tokenId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Enables or disables embedding with an audience scope.</summary>
     Task<HonuaAdminEndpointResult<HonuaConsoleShareProjection>> SetEmbedAsync(
         string itemId,
         HonuaSetEmbedRequest request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Mints an embed token (the opaque value is returned exactly once).</summary>
+    // The opaque token value is returned exactly once.
     Task<HonuaAdminEndpointResult<HonuaConsoleEmbedToken>> MintEmbedTokenAsync(
         string itemId,
         HonuaMintEmbedTokenRequest request,
@@ -178,6 +146,7 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
             cancellationToken);
     }
 
+    // Token values are never returned after minting.
     public Task<HonuaAdminEndpointResult<HonuaConsolePublicLinkList>> ListPublicLinksAsync(
         string itemId,
         CancellationToken cancellationToken = default)
@@ -190,6 +159,7 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
             cancellationToken);
     }
 
+    // The opaque token value is returned exactly once.
     public Task<HonuaAdminEndpointResult<HonuaConsolePublicLinkToken>> MintPublicLinkAsync(
         string itemId,
         HonuaMintPublicLinkRequest request,
@@ -232,6 +202,7 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
             cancellationToken);
     }
 
+    // The opaque token value is returned exactly once.
     public Task<HonuaAdminEndpointResult<HonuaConsoleEmbedToken>> MintEmbedTokenAsync(
         string itemId,
         HonuaMintEmbedTokenRequest request,
@@ -329,8 +300,6 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
         }
     }
 }
-
-// --- Wire records mirroring honua-server Honua.Core.Features.Console.Domain (#1215). ---
 
 public sealed record HonuaUpdateShareAccessRequest
 {
@@ -509,7 +478,6 @@ public sealed record HonuaConsoleShareProjection
     public string? UpdatedById { get; init; }
 }
 
-/// <summary>Acknowledgement body for a Console share command that returns no projection (e.g. token revoke).</summary>
 public sealed record HonuaConsoleShareCommandAck
 {
     [JsonPropertyName("message")]

@@ -3,12 +3,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// A single ops finding mapped for the Copilot Findings seat: the deterministic server
-/// finding plus a severity <see cref="OperateStatus"/> chip and pre-formatted subject /
-/// evidence rows. No model/LLM reasoning is involved — this renders deterministic server
-/// output (ADR-0028).
-/// </summary>
 public sealed record OpsFindingView(
     string Id,
     string Rule,
@@ -23,24 +17,15 @@ public sealed record OpsFindingView(
     OpsFindingActionView? RecommendedAction,
     string? OperationId = null)
 {
-    /// <summary>Gets a value indicating whether this finding carries a proposable action.</summary>
     public bool HasAction => RecommendedAction is not null;
 
-    /// <summary>
-    /// The next-step deep link for a finding with no recommended action (console#292 scope item
-    /// 6: every finding gets a next step). When the finding's subject pins a deploy/workflow
-    /// operation id, "Investigate" opens that governed operation directly; otherwise it opens the
-    /// evidence timeline so the operator can review the correlated events.
-    /// </summary>
     public string InvestigateHref => string.IsNullOrWhiteSpace(OperationId)
         ? $"{OperateObservabilityRoutes.Observability}#events"
         : CorrelationIdRoutes.Resolve(CorrelationIdKind.OperationId, OperationId);
 }
 
-/// <summary>A populated subject identifier (label + value) for a finding.</summary>
 public sealed record OpsFindingSubjectRow(string Label, string Value);
 
-/// <summary>The recommended, approval-gated action a finding can propose.</summary>
 public sealed record OpsFindingActionView(
     string Kind,
     string Summary,
@@ -48,12 +33,8 @@ public sealed record OpsFindingActionView(
     bool AutoSafe,
     int BlastRadius);
 
-/// <summary>Maps ops-findings wire responses into the Copilot Findings view models.</summary>
 public static class OpsFindingsMapper
 {
-    /// <summary>Maps a findings list response into ordered view models.</summary>
-    /// <param name="response">The server findings list.</param>
-    /// <returns>The mapped findings (server order preserved).</returns>
     public static IReadOnlyList<OpsFindingView> Map(OpsFindingsListResponse response)
     {
         ArgumentNullException.ThrowIfNull(response);

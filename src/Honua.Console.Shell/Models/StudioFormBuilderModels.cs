@@ -2,42 +2,29 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// Mutable Studio form-builder editor state. This is Console-owned authoring state bound to the
-/// editor UI; it is mapped to and from the server-owned <c>honua.form-package.v1</c> document
-/// (honua-server#1184) by <see cref="StudioFormPackageMapper"/>. It is not a server wire contract
-/// and is never persisted as a standing mock data source: the only persistence path is the real
-/// honua-server form package lifecycle behind the Honua.Console.Contracts shim.
-/// </summary>
 public sealed class StudioFormEditorState
 {
-    /// <summary>Stable server package id. Null until the first draft is created server-side.</summary>
     public string? FormId { get; set; }
 
-    /// <summary>Server package version currently open in the editor.</summary>
     public int Version { get; set; } = 1;
 
-    /// <summary>Server lifecycle status: draft, published, or archived.</summary>
     public string Status { get; set; } = HonuaFormStatuses.Draft;
 
-    /// <summary>Optimistic-concurrency ETag for draft updates. Empty for a not-yet-saved draft.</summary>
+    // Empty means the draft has not been saved, so there is no concurrency token yet.
     public string ETag { get; set; } = string.Empty;
 
-    /// <summary>Published version a reopened draft was created from, when applicable.</summary>
     public int? ReopenedFromVersion { get; set; }
 
     public string Title { get; set; } = string.Empty;
 
     public string Description { get; set; } = string.Empty;
 
-    // Submit target (AC#3): the feature service + layer accepting submissions.
     public string ServiceId { get; set; } = string.Empty;
 
     public int LayerId { get; set; }
 
     public List<StudioFormFieldEditor> Fields { get; } = [];
 
-    // Submit policy.
     public bool AllowCreate { get; set; } = true;
 
     public bool AllowUpdate { get; set; }
@@ -48,12 +35,11 @@ public sealed class StudioFormEditorState
 
     public bool AllowAttachments { get; set; } = true;
 
-    // Attachment policy.
     public bool AttachmentsEnabled { get; set; }
 
     public int? MaxAttachmentsPerSubmission { get; set; }
 
-    /// <summary>Comma- or newline-separated MIME allowlist, e.g. <c>image/*, application/pdf</c>.</summary>
+    // Comma- or newline-separated MIME allowlist.
     public string AllowedContentTypes { get; set; } = string.Empty;
 
     public bool RequireExifStripping { get; set; }
@@ -62,17 +48,15 @@ public sealed class StudioFormEditorState
 
     public bool RequireRedaction { get; set; }
 
-    // Privacy policy.
     public int? PrivacyRetentionDays { get; set; }
 
     public bool CaptureActor { get; set; } = true;
 
     public bool CaptureDeviceId { get; set; } = true;
 
-    /// <summary>Comma- or newline-separated privacy transforms (none, auditOnly, minimizeAudit).</summary>
+    // Comma- or newline-separated: none, auditOnly, or minimizeAudit.
     public string RequiredTransformations { get; set; } = string.Empty;
 
-    // Offline / sync policy (AC#2).
     public bool OfflineEnabled { get; set; }
 
     public bool ReplicaTransportEnabled { get; set; } = true;
@@ -81,34 +65,13 @@ public sealed class StudioFormEditorState
 
     public string ConflictReviewMode { get; set; } = "defer";
 
-    /// <summary>
-    /// Explicit operator acknowledgment that the offline/sync policy was reviewed. Publish is blocked
-    /// until this is set, making the offline policy an explicit pre-publish decision (AC#2).
-    /// </summary>
     public bool OfflinePolicyReviewed { get; set; }
 
-    /// <summary>The most recent server validation result for the open version, or null when stale.</summary>
     public StudioFormValidationView? LastValidation { get; set; }
 
-    /// <summary>
-    /// The server-owned <c>honua.form-package.v1</c> document this state was last loaded from or saved to,
-    /// captured by <see cref="StudioFormPackageMapper.ToEditorState"/>. The authoring UI models only a
-    /// subset of that contract, so <see cref="StudioFormPackageMapper.ToDocument"/> merges the modeled
-    /// fields onto this baseline — server-owned fields the builder never models (document metadata,
-    /// attachment byte limits, max offline age, preferred offline transports, per-field hints / defaults /
-    /// read-only, section ids / descriptions, and validation rules beyond the first) survive a load → edit
-    /// → save round-trip instead of being silently dropped. Null for a never-loaded draft (a fresh template
-    /// builds from a default document).
-    /// </summary>
+    // Baseline for fields the builder does not model; save merges edits onto it instead of dropping them.
     public HonuaFormPackageDocument? OriginalDocument { get; set; }
 
-    /// <summary>
-    /// Content signature of the package as last loaded from or saved to honua-server, captured by
-    /// <see cref="StudioFormPackageMapper.ToEditorState"/>. Local edits that change the publishable
-    /// content (fields, submit target, policies) move the editor off this baseline; the publish gate
-    /// then treats any earlier server validation as stale and re-requires a save + server validation
-    /// (see <see cref="StudioFormPublishEvaluator"/>). Empty for a never-saved draft.
-    /// </summary>
     public string SavedSignature { get; set; } = string.Empty;
 
     public bool IsExistingPackage => !string.IsNullOrWhiteSpace(FormId);
@@ -124,35 +87,29 @@ public static class HonuaFormStatuses
     public const string Archived = "archived";
 }
 
-/// <summary>Mutable per-field authoring row.</summary>
 public sealed class StudioFormFieldEditor
 {
     public string FieldId { get; set; } = string.Empty;
 
     public string Label { get; set; } = string.Empty;
 
-    /// <summary>Editable section / group label shown in the builder.</summary>
     public string Group { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Server section id captured when loading an existing package. Hidden from the UI; it keeps sections
-    /// with duplicate labels or no modeled fields from being collapsed or re-created on save.
-    /// </summary>
+    // Kept so sections with duplicate labels are not collapsed or recreated on save.
     public string OriginalSectionId { get; set; } = string.Empty;
 
     public string Type { get; set; } = "text";
 
-    /// <summary>Target layer attribute. Not required for attachment-type fields.</summary>
+    // Not required when the field type is attachment.
     public string TargetField { get; set; } = string.Empty;
 
     public bool Required { get; set; }
 
     public bool Private { get; set; }
 
-    // Domain.
     public string DomainKind { get; set; } = "none"; // none | coded | range
 
-    /// <summary>Coded-value choices, one per line as <c>code</c> or <c>code=label</c>.</summary>
+    // One coded value per line, as code or code=label.
     public string Choices { get; set; } = string.Empty;
 
     public string RangeMin { get; set; } = string.Empty;
@@ -166,14 +123,12 @@ public sealed class StudioFormFieldEditor
 
     public string ValidationMessage { get; set; } = string.Empty;
 
-    // Conditional visibility.
     public string VisibilityDependsOn { get; set; } = string.Empty;
 
     public string VisibilityOperator { get; set; } = "equals";
 
     public string VisibilityValue { get; set; } = string.Empty;
 
-    // Attachment-field policy (used when Type == attachment).
     public int? AttachmentMaxCount { get; set; }
 
     public bool IsAttachment =>
@@ -197,8 +152,6 @@ public static class StudioFormConflictModes
     public static IReadOnlyList<string> All { get; } = ["defer", "lastWriteWins"];
 }
 
-// --- Data-source-facing projections (immutable). ---
-
 public sealed record StudioFormWorkspace(
     IReadOnlyList<StudioFormPackageListItem> Packages,
     IReadOnlyList<StudioFormCapabilityState> CapabilityStates);
@@ -212,10 +165,6 @@ public sealed record StudioFormPackageListItem(
     int? PublishedVersion,
     DateTimeOffset UpdatedAt);
 
-/// <summary>
-/// A binding/permission/empty surface for the form builder, mirroring the Operate capability-state
-/// pattern so missing bindings, missing permissions, and unsupported contracts render consistently.
-/// </summary>
 public sealed record StudioFormCapabilityState(
     string Surface,
     string State,
@@ -239,7 +188,6 @@ public sealed record StudioFormValidationItem(
     string? FieldId,
     string Message);
 
-/// <summary>Outcome of a mutating form lifecycle command (save, validate, publish, reopen).</summary>
 public sealed record StudioFormCommandResult(
     bool Succeeded,
     string Message,
@@ -252,11 +200,6 @@ public sealed record StudioFormOfflinePolicyView(
     IReadOnlyList<string> AvailableTransports,
     StudioFormCapabilityState? Issue = null);
 
-/// <summary>
-/// Pure pre-publish gate. Publish requires a configured + validated submit target (AC#3) and an
-/// explicit, reviewed offline/sync policy (AC#2). Server-side publish validation still applies; this
-/// gate keeps the Console from offering publish before those operator decisions are made.
-/// </summary>
 public sealed record StudioFormPublishReadiness(bool CanPublish, IReadOnlyList<string> UnmetRequirements);
 
 public static class StudioFormPublishEvaluator
@@ -277,7 +220,6 @@ public static class StudioFormPublishEvaluator
             unmet.Add("Add at least one field.");
         }
 
-        // AC#3: submit target configured and validated before publish.
         if (string.IsNullOrWhiteSpace(state.ServiceId))
         {
             unmet.Add("Configure a submit target service and layer.");
@@ -291,7 +233,6 @@ public static class StudioFormPublishEvaluator
             unmet.Add("Enable at least one submit operation (create, update, or delete).");
         }
 
-        // AC#2: offline/sync policy is an explicit, reviewed decision before publish.
         if (!state.OfflinePolicyReviewed)
         {
             unmet.Add("Review the offline/sync policy before publish.");

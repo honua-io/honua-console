@@ -8,29 +8,21 @@ namespace Honua.Console.Shell.Models;
 // when the server is unbound, the workspace is missing, or a read is rejected, the surface renders a
 // capability state instead (Console Patterns Charter section 11).
 
-/// <summary>
-/// A binding/permission/not-found/missing surface for the Access pages, mirroring the Share access
-/// capability-state pattern so missing bindings, missing permissions, and unsupported contracts render
-/// consistently across the RBAC overview and the team-members surfaces.
-/// </summary>
 public sealed record RbacCapabilityState(
     string Surface,
     string State,
     string Contract,
     string Detail);
 
-/// <summary>One level of the scope-hierarchy strip (workspace > environment > content > publication > field).</summary>
 public sealed record RbacScopeView(
     string Level,
     string Label,
     string? Description);
 
-/// <summary>One permission column header in the role × permission matrix.</summary>
 public sealed record RbacPermissionView(
     string Key,
     string Label);
 
-/// <summary>How a role grants one permission, with the grant kind and an optional qualifier label.</summary>
 public sealed record RbacGrantView(
     string Permission,
     string Grant,
@@ -43,7 +35,6 @@ public sealed record RbacGrantView(
         || string.Equals(Grant, HonuaConsolePermissionGrants.NotGranted, StringComparison.Ordinal);
 }
 
-/// <summary>One role row in the matrix (built-in or custom) with its per-permission grants.</summary>
 public sealed record RbacRoleView(
     string Id,
     string Name,
@@ -56,7 +47,6 @@ public sealed record RbacRoleView(
         ?? new RbacGrantView(permissionKey, HonuaConsolePermissionGrants.NotGranted, null);
 }
 
-/// <summary>The server-owned RBAC overview projection the Settings > Access "roles &amp; permissions" page renders.</summary>
 public sealed record RbacOverviewView(
     string WorkspaceId,
     string? WorkspaceName,
@@ -71,7 +61,6 @@ public sealed record RbacOverviewView(
     public string DisplayWorkspace => string.IsNullOrWhiteSpace(WorkspaceName) ? WorkspaceId : WorkspaceName!;
 }
 
-/// <summary>Result of loading the RBAC overview: the view, or the capability states explaining why not.</summary>
 public sealed record RbacOverviewLoad(
     RbacOverviewView? Overview,
     IReadOnlyList<RbacCapabilityState> CapabilityStates)
@@ -79,7 +68,6 @@ public sealed record RbacOverviewLoad(
     public bool HasOverview => Overview is not null;
 }
 
-/// <summary>One workspace member row: identity, role, scope, last-active, source, and principal kind.</summary>
 public sealed record TeamMemberView(
     string Id,
     string DisplayName,
@@ -115,7 +103,6 @@ public sealed record TeamMemberView(
     }
 }
 
-/// <summary>One pending invitation row awaiting acceptance.</summary>
 public sealed record TeamInvitationView(
     string Id,
     string Identity,
@@ -124,7 +111,6 @@ public sealed record TeamInvitationView(
     string? Scope,
     string? Status);
 
-/// <summary>The server-owned membership projection the Settings > Access "members" page renders.</summary>
 public sealed record TeamMembershipView(
     string WorkspaceId,
     string? WorkspaceName,
@@ -138,7 +124,6 @@ public sealed record TeamMembershipView(
     public string DisplayWorkspace => string.IsNullOrWhiteSpace(WorkspaceName) ? WorkspaceId : WorkspaceName!;
 }
 
-/// <summary>Result of loading the membership roster: the view, or the capability states explaining why not.</summary>
 public sealed record TeamMembershipLoad(
     TeamMembershipView? Membership,
     IReadOnlyList<RbacCapabilityState> CapabilityStates)
@@ -146,7 +131,6 @@ public sealed record TeamMembershipLoad(
     public bool HasMembership => Membership is not null;
 }
 
-/// <summary>One role-change audit entry (create/update/delete) for the Access &gt; roles-audit panel.</summary>
 public sealed record RbacAuditEntryView(
     long Id,
     string? Timestamp,
@@ -155,7 +139,6 @@ public sealed record RbacAuditEntryView(
     string? RoleId,
     string? Outcome);
 
-/// <summary>Result of loading the role-change audit trail: the entries, or capability states explaining why not.</summary>
 public sealed record RbacAuditLoad(
     IReadOnlyList<RbacAuditEntryView> Entries,
     IReadOnlyList<RbacCapabilityState> CapabilityStates)
@@ -164,10 +147,8 @@ public sealed record RbacAuditLoad(
     public RbacCapabilityState? FirstIssue => CapabilityStates.FirstOrDefault();
 }
 
-/// <summary>Outcome of a role create/delete mutation: success, or an error message to surface.</summary>
 public sealed record RbacRoleMutationResult(bool Succeeded, string? Error);
 
-/// <summary>Maps the honua-server Console Access (RBAC) wire records to the Access page view records.</summary>
 public static class RbacAccessMapper
 {
     public static RbacOverviewView ToView(HonuaConsoleRbacOverview overview)

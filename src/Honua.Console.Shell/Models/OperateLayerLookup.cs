@@ -4,14 +4,9 @@ namespace Honua.Console.Shell.Models;
 
 public sealed record OperateLayerExposure(OperateServiceDetail Service, OperateServiceLayerProjection Layer);
 
-/// <summary>
-/// Resolves the layer reference in an <c>/operate/layers/{reference}</c> route. The reference is either the
-/// canonical resource id (<c>{connection}-layer-{layerId}</c>) or the admin layer id that publishing returns.
-/// Admin layer ids are only unique within a connection, so an admin id that several connections share
-/// resolves to no layer and is reported through <see cref="MatchingCanonicalResourceIds"/>.
-/// </summary>
 public static class OperateLayerLookup
 {
+    // An admin layer id is unique only inside one connection, so several matches resolve to no layer.
     public static IReadOnlyList<OperateLayerExposure> FindExposures(this OperateServicesView view, string? layerReference)
     {
         var exposures = AllExposures(view);

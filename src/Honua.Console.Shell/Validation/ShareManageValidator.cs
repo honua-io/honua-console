@@ -2,37 +2,19 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Validation;
 
-/// <summary>
-/// Stable console-owned field keys for the Share manage surface (<c>ShareManagePage</c>).
-/// </summary>
 public static class ShareManageFieldKeys
 {
     public const string ItemId = "share.itemId";
     public const string ExpiresAt = "share.expiresAt";
 }
 
-/// <summary>
-/// Console-owned snapshot of the Share manage form the client validator evaluates: the content-item id the
-/// operator is opening and the optional public-link / embed token expiry the operator is minting. <see cref="Now"/>
-/// is injected so the future-date rule stays pure and unit-testable.
-/// </summary>
-/// <param name="ItemId">The content-item identifier (<c>item-...</c>).</param>
-/// <param name="ExpiresAt">The optional token expiry (datetime-local, interpreted as UTC). Null means "never".</param>
-/// <param name="Now">The current instant the expiry is compared against.</param>
+// A null expiry asks for a token that does not expire.
 public sealed record ShareManageState(string? ItemId, DateTimeOffset? ExpiresAt, DateTimeOffset Now);
 
-/// <summary>
-/// Pure client-side validator for the Share manage surface: the content-item id must be a plausible identifier,
-/// and (when supplied) the token expiry must be in the future. The expiry is optional — a blank value mints a
-/// non-expiring token, which is valid. Mirrors the <see cref="StudioMapValidator"/> pattern; keyed by
-/// <see cref="ShareManageFieldKeys"/>. Console-only — Share has no server body-validator (catalog).
-/// </summary>
 public sealed class ShareManageValidator : IFieldValidator<ShareManageState>
 {
-    /// <summary>Shared singleton; the validator holds no state.</summary>
     public static ShareManageValidator Instance { get; } = new();
 
-    /// <inheritdoc />
     public IReadOnlyList<ConsoleFieldError> Evaluate(ShareManageState state)
     {
         ArgumentNullException.ThrowIfNull(state);

@@ -2,10 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Validation;
 
-/// <summary>
-/// Stable console-owned field keys for the Add Connection form (<c>OperateConnectionNewPage</c>). Used to key
-/// both client-computed findings and server <c>errors[]</c> back onto the offending inputs.
-/// </summary>
 public static class ConnectionFieldKeys
 {
     public const string Name = "connection.name";
@@ -18,11 +14,6 @@ public static class ConnectionFieldKeys
     public const string SecretReference = "connection.secretReference";
 }
 
-/// <summary>
-/// Console-owned snapshot of the Add Connection form. <see cref="ExistingNames"/> is the set of connection
-/// names already on the server (case-insensitive) so the validator can block a duplicate before POSTing —
-/// honua-server enforces a unique-name DB constraint but surfaces a violation as a generic 400.
-/// </summary>
 public sealed record ConnectionDraftState(
     string? Name,
     string? Host,
@@ -35,17 +26,10 @@ public sealed record ConnectionDraftState(
     bool UsesSecretReference = false,
     string? SecretReference = null);
 
-/// <summary>
-/// Pure client-side validator for the Add Connection form. Presence/format/duplicate rules rendered inline via
-/// the shared <see cref="ConsoleFieldError"/> vocabulary, mirroring <see cref="EnvironmentProfileValidator"/>;
-/// keyed by <see cref="ConnectionFieldKeys"/>.
-/// </summary>
 public sealed class ConnectionDraftValidator : IFieldValidator<ConnectionDraftState>
 {
-    /// <summary>Shared singleton; the validator holds no state.</summary>
     public static ConnectionDraftValidator Instance { get; } = new();
 
-    /// <inheritdoc />
     public IReadOnlyList<ConsoleFieldError> Evaluate(ConnectionDraftState state)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -116,7 +100,6 @@ public sealed class ConnectionDraftValidator : IFieldValidator<ConnectionDraftSt
         return errors;
     }
 
-    /// <summary>A reference is well-formed when it is <c>provider:path</c> with non-empty provider and path.</summary>
     private static bool IsWellFormedSecretReference(string reference)
     {
         var colon = reference.IndexOf(':');

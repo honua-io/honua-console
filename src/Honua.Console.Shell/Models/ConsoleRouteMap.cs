@@ -30,10 +30,6 @@ public static class ConsoleRouteMap
     public static ConsoleWorkflowArea? FindArea(string areaId) =>
         Areas.FirstOrDefault(area => string.Equals(area.Id, areaId, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>
-    /// Resolves the workflow area a relative route sits in, or <see langword="null"/> for the
-    /// shell-owned routes outside the four areas (inbox, environments, support, auth, embed).
-    /// </summary>
     public static ConsoleWorkflowArea? FindAreaForPath(string relativePath)
     {
         ArgumentNullException.ThrowIfNull(relativePath);

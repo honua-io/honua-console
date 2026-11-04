@@ -63,11 +63,6 @@ public sealed class StudioWorkflowDraftSummary
 // and 11) instead of seeded workflow data.
 public sealed record StudioWorkflowBindingState(string Surface, string State, string Contract, string Detail);
 
-/// <summary>
-/// Result of opening the workflow editor for a draft. Carries the server node registry and the draft when
-/// bound, or a <see cref="StudioWorkflowBindingState"/> when the surface is blocked - in a single call so
-/// the page does not chain a separate binding probe.
-/// </summary>
 public sealed record StudioWorkflowEditorContext(
     StudioWorkflowBindingState? BindingState,
     IReadOnlyList<StudioWorkflowNodeDefinition> NodeDefinitions,
@@ -188,7 +183,6 @@ public sealed class StudioWorkflowSaveResult
     public string Contract { get; set; } = "content-version/v1";
     public IReadOnlyList<StudioWorkflowValidationIssue> ValidationIssues { get; set; } = [];
 
-    /// <summary>Set when the server-backed save could not bind; drives the shared blocked surface.</summary>
     public StudioWorkflowBindingState? BindingState { get; set; }
 }
 
@@ -204,7 +198,6 @@ public sealed class StudioWorkflowDryRunResult
     public string OperateJobUrl { get; set; } = string.Empty;
     public string OperateEventsUrl { get; set; } = string.Empty;
 
-    /// <summary>Set when the server-backed dry-run could not bind; drives the shared blocked surface.</summary>
     public StudioWorkflowBindingState? BindingState { get; set; }
 }
 
@@ -223,7 +216,6 @@ public sealed class StudioWorkflowPublishResult
     public string OperateJobUrl { get; set; } = string.Empty;
     public string OperateEventsUrl { get; set; } = string.Empty;
 
-    /// <summary>Set when the server-backed publish could not bind; drives the shared blocked surface.</summary>
     public StudioWorkflowBindingState? BindingState { get; set; }
 }
 

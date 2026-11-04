@@ -1,12 +1,5 @@
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// The GeoServer-style resource→publications tree model (redesign §5.3). Each <see cref="ResourceTreeNode"/>
-/// is a canonical resource; its <see cref="ResourceTreeNode.Publications"/> are the protocol bindings that
-/// expose it (a checked protocol == a live metadata-v2 Publication; an unchecked one is one click away via
-/// "+ expose"). This is the structural cure for the resources-vs-layers split: the resource is the parent
-/// and its publications hang under it, instead of a flat layer list with a "Canonical resource" back-link.
-/// </summary>
 public sealed record ResourceTreeNode(
     string ResourceId,
     string Name,
@@ -16,27 +9,15 @@ public sealed record ResourceTreeNode(
     string? GeometryType,
     IReadOnlyList<PublicationTreeNode> Publications)
 {
-    /// <summary>True when the resource has at least one live publication (a "Running" resource); false = draft.</summary>
     public bool HasPublications => Publications.Count > 0;
 }
 
-/// <summary>
-/// One protocol publication under a resource: the protocol id/label, whether it is live, and the served
-/// route the publication exposes. Reuses <see cref="PublishProtocolCatalog"/> for label/route so the tree
-/// and the publish step agree on the mapping.
-/// </summary>
 public sealed record PublicationTreeNode(
     string ProtocolId,
     string ProtocolLabel,
     bool IsLive,
     string Route);
 
-/// <summary>
-/// Builds the resource→publications tree from the Operate workspace projections. Resources come from the
-/// resource edits; their publications are derived by grouping the services' published layers under their
-/// <c>CanonicalResourceId</c> and mapping each service's type onto the protocol catalog. Never fabricates:
-/// a resource with no published layers renders as a draft node with no publications.
-/// </summary>
 public static class ResourcePublicationsTreeBuilder
 {
     public static IReadOnlyList<ResourceTreeNode> Build(

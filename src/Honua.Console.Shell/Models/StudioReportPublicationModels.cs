@@ -8,23 +8,12 @@ namespace Honua.Console.Shell.Models;
 // when the server is unbound or the publication is missing, the surface renders a capability state
 // instead (Console Patterns Charter section 11).
 
-/// <summary>
-/// A binding/permission/missing surface for the report builder, mirroring the form-builder and
-/// Operate capability-state pattern so missing bindings, missing permissions, and unsupported
-/// contracts render consistently.
-/// </summary>
 public sealed record StudioReportCapabilityState(
     string Surface,
     string State,
     string Contract,
     string Detail);
 
-/// <summary>
-/// The server-owned publication state of a report: its active route plus the immutable version
-/// history. Reading a publication is the first server-bound slice of the report builder; authoring
-/// (data bindings, Vega-Lite charts, layout, narrative) and publish/share/embed mutation land in
-/// follow-up slices once the editor surface is built on top of this read binding.
-/// </summary>
 public sealed record StudioReportPublicationView(
     string PublicationId,
     string RouteSlug,
@@ -41,7 +30,6 @@ public sealed record StudioReportPublicationView(
     DateTimeOffset UpdatedAt,
     IReadOnlyList<StudioReportPublicationVersionView> Versions);
 
-/// <summary>One immutable published version of a report, projected for the version-history panel.</summary>
 public sealed record StudioReportPublicationVersionView(
     string VersionId,
     long Revision,
@@ -52,10 +40,6 @@ public sealed record StudioReportPublicationVersionView(
     string CreatedBy,
     DateTimeOffset CreatedAt);
 
-/// <summary>
-/// Result of loading a report publication: the view when the server returned data, otherwise the
-/// capability states explaining why (missing binding, missing permission, not found, unsupported).
-/// </summary>
 public sealed record StudioReportPublicationLoad(
     StudioReportPublicationView? Publication,
     IReadOnlyList<StudioReportCapabilityState> CapabilityStates)
@@ -63,7 +47,6 @@ public sealed record StudioReportPublicationLoad(
     public bool HasPublication => Publication is not null;
 }
 
-/// <summary>Maps the honua-server content publication wire records to the report builder view records.</summary>
 public static class StudioReportPublicationMapper
 {
     public static StudioReportPublicationView ToView(HonuaContentPublicationDetail detail)

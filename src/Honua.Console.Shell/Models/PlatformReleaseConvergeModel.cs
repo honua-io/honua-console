@@ -2,14 +2,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// Platform-release converge outcome view (console#290 acceptance criterion 5). Speculative:
-/// honua-server#2564 (the converge API) is still open, so this always renders through the
-/// capability-detected unavailable state against every server available today (a 404/501
-/// response maps to <see cref="OperateSectionStatus.Unsupported"/>). Reconcile against the
-/// real contract once #2564 merges — see the remarks on
-/// <see cref="PlatformReleaseConvergeResponse"/> in Honua.Console.Contracts.
-/// </summary>
 public sealed record PlatformReleaseConvergeTargetOutcomeView(
     string TargetId,
     OperateStatus Outcome,
@@ -21,7 +13,6 @@ public sealed record PlatformReleaseConvergeView(
     string? ProposalId,
     string? Message);
 
-/// <summary>Maps the speculative converge response onto the Console view.</summary>
 public static class PlatformReleaseConvergeMapper
 {
     public static PlatformReleaseConvergeView Map(PlatformReleaseConvergeResponse response)

@@ -1,10 +1,5 @@
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// A single "Start with a content type" card on the Studio home landing. Each card links to the existing
-/// builder route so the home grid stays in lockstep with the per-family editors. Mirrors the StudioHome
-/// content-type grid in <c>docs/design-handoff/console-canvas/screens-studio.jsx</c>.
-/// </summary>
 public sealed record StudioHomeContentType(
     string Key,
     string Glyph,
@@ -12,10 +7,6 @@ public sealed record StudioHomeContentType(
     string Description,
     string Route);
 
-/// <summary>
-/// The eight content types offered on the Studio home landing, in mockup order, each bound to its existing
-/// builder route. Defined once so the page and its render tests assert against the same source of truth.
-/// </summary>
 public static class StudioHomeContentTypes
 {
     public static IReadOnlyList<StudioHomeContentType> All { get; } =
@@ -30,9 +21,6 @@ public static class StudioHomeContentTypes
         new("workflow", "⇋", "Workflow", "ETL pipelines, GP services", "/studio/workflows/new")
     ];
 
-    /// <summary>
-    /// Suggestion chips rendered under the hero prompt. Each chip seeds the inline-authoring prompt.
-    /// </summary>
     public static IReadOnlyList<string> PromptSuggestions { get; } =
     [
         "Map of parcels coloured by area",

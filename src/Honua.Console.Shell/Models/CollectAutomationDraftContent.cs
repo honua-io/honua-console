@@ -2,12 +2,6 @@ using System.Text.Json;
 
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// Stable content fingerprint for a <see cref="CollectAutomationDraft"/>. The editor compares the current
-/// draft against its last-saved fingerprint to know whether a new immutable version is needed before a
-/// restore/save, mirroring <see cref="StudioWorkflowPackageDraftContent"/>. Only the body that the engine
-/// runs is hashed (not server-assigned ids/timestamps).
-/// </summary>
 internal static class CollectAutomationDraftContent
 {
     private static readonly JsonSerializerOptions FingerprintOptions = new(JsonSerializerDefaults.Web);

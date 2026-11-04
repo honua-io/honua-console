@@ -1,54 +1,28 @@
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// The honua-server deploy-control operation lifecycle, mapped onto a neutral
-/// Console vocabulary. Mirrors the server <c>WorkflowOperationStatus</c> 1:1
-/// (<c>Planned -> AwaitingApproval -> Submitted -> Reconciling -> Succeeded /
-/// Failed -> RolledBack</c>) plus a request/rollback-requested intermediate and
-/// an explicit unknown for a status the connected server reports that Console
-/// does not recognize. Drives the human-in-the-loop approval surface.
-/// </summary>
 public enum DeployOperationLifecycle
 {
-    /// <summary>The connected server reported a status Console does not recognize.</summary>
     Unknown,
 
-    /// <summary>Created but not yet awaiting approval (lifecycle entry state).</summary>
     Planned,
 
-    /// <summary>Paused pending an operator approval decision (the actionable state).</summary>
     AwaitingApproval,
 
-    /// <summary>Approved and submitted for execution.</summary>
     Submitted,
 
-    /// <summary>Submitted and reconciling toward the desired revision.</summary>
     Reconciling,
 
-    /// <summary>Reached the desired revision successfully.</summary>
     Succeeded,
 
-    /// <summary>Failed to reach the desired revision.</summary>
     Failed,
 
-    /// <summary>A rollback has been requested and is in progress.</summary>
     RollbackRequested,
 
-    /// <summary>Rolled back to the prior revision.</summary>
     RolledBack,
 
-    /// <summary>The server requires manual intervention before proceeding.</summary>
     ManualInterventionRequired,
 }
 
-/// <summary>
-/// One pending/active deploy-control operation as projected for the approval
-/// surface: the durable server operation id, lifecycle status, the
-/// service/environment/revision/action being proposed, a change summary, the
-/// evidence links, the requested approval reason, and the suggested rollback
-/// plan. This is a server-owned projection over the deploy-control operation
-/// record; Console never synthesizes it (Charter section 11).
-/// </summary>
 public sealed record DeployOperationProposal(
     string OperationId,
     DeployOperationLifecycle Lifecycle,
@@ -72,18 +46,8 @@ public sealed record DeployOperationProposal(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt)
 {
-    /// <summary>
-    /// Whether the operation is in the actionable approval state: an operator
-    /// can approve (submit) or reject it. Only <see cref="DeployOperationLifecycle.AwaitingApproval"/>
-    /// is approvable.
-    /// </summary>
     public bool IsAwaitingApproval => Lifecycle == DeployOperationLifecycle.AwaitingApproval;
 
-    /// <summary>
-    /// Whether a rollback can be offered: the operation has been submitted or has
-    /// reached a state where rolling back to the prior revision is meaningful, and a
-    /// rollback is not already in progress / completed.
-    /// </summary>
     public bool IsRollbackEligible => Lifecycle is
         DeployOperationLifecycle.Submitted
         or DeployOperationLifecycle.Reconciling
@@ -91,49 +55,25 @@ public sealed record DeployOperationProposal(
         or DeployOperationLifecycle.Failed
         or DeployOperationLifecycle.ManualInterventionRequired;
 
-    /// <summary>
-    /// Whether the lifecycle is terminal (no further operator action changes it).
-    /// </summary>
     public bool IsTerminal => Lifecycle is
         DeployOperationLifecycle.Succeeded
         or DeployOperationLifecycle.Failed
         or DeployOperationLifecycle.RolledBack;
 
-    /// <summary>
-    /// Whether this operation is a server-version upgrade (or its rollback) rather than a
-    /// metadata/service cross-environment promotion. The server's WorkflowOperationKind is
-    /// <c>Deploy</c>/<c>Rollback</c> for a revision/version deploy and <c>MetadataRelease</c>
-    /// for a release-package promotion; the Operate Deploy page routes the two capabilities
-    /// from this classification. A <c>Migration</c> kind is neither and is excluded.
-    /// </summary>
     public bool IsServerUpgrade =>
         string.Equals(Kind, "Deploy", StringComparison.OrdinalIgnoreCase)
         || string.Equals(Kind, "Rollback", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// Whether this operation is a cross-environment metadata/service promotion
-    /// (WorkflowOperationKind <c>MetadataRelease</c>).
-    /// </summary>
     public bool IsMetadataPromotion =>
         string.Equals(Kind, "MetadataRelease", StringComparison.OrdinalIgnoreCase);
 }
 
-/// <summary>
-/// An evidence reference attached to a deploy-control operation (preflight, plan,
-/// PR, CI, etc.), surfaced as a link the operator can open before approving.
-/// </summary>
 public sealed record DeployOperationEvidenceLink(
     string Kind,
     string RefId,
     string? Uri);
 
-/// <summary>
-/// The suggested rollback plan for a deploy-control operation, including whether it
-/// is data-affecting and therefore requires explicit confirmation/approval. The
-/// approval surface MUST require explicit confirmation before invoking a
-/// data-affecting rollback (the server's OperatorApprovalGate enforces it server-side;
-/// the UI must not weaken it).
-/// </summary>
+// A data-affecting rollback needs explicit confirmation; the server gate is the authority and the UI must not weaken it.
 public sealed record DeployOperationRollbackSummary(
     GitOpsRollbackClassification Classification,
     bool IsDataAffecting,
@@ -142,19 +82,9 @@ public sealed record DeployOperationRollbackSummary(
     IReadOnlyList<string> EvidenceRequired,
     string? ApprovalPolicyRef)
 {
-    /// <summary>
-    /// Whether the operator must explicitly confirm before this rollback runs. A
-    /// data-affecting rollback always requires confirmation; the server gate is the
-    /// authority, but the UI surfaces the requirement up-front.
-    /// </summary>
     public bool RequiresConfirmation => IsDataAffecting || RequiresExplicitApproval;
 }
 
-/// <summary>
-/// Presentation helpers for the deploy-control approval surface so the components
-/// render neutral, design-aligned lifecycle labels and status classes without
-/// re-deriving semantics from prose.
-/// </summary>
 public static class DeployOperationPresentation
 {
     public static string Label(DeployOperationLifecycle lifecycle) => lifecycle switch
@@ -171,27 +101,11 @@ public static class DeployOperationPresentation
         _ => "unknown",
     };
 
-    /// <summary>
-    /// Neutral Console status CSS class for a lifecycle state, derived from the shared
-    /// <see cref="OperateStatus"/> mapping table (console#293) so this stays identical to the
-    /// class every other Operate surface would render for the same word.
-    /// </summary>
     public static string StateClass(DeployOperationLifecycle lifecycle) => ToStatus(lifecycle).CssClass;
 
-    /// <summary>
-    /// Projects a deploy-operation lifecycle state onto the shared <see cref="OperateStatus"/>
-    /// status vocabulary (console#293) so it can render through the shared
-    /// <c>OperateStatusPill</c> component.
-    /// </summary>
     public static OperateStatus ToStatus(DeployOperationLifecycle lifecycle) =>
         new(Label(lifecycle), string.Empty);
 
-    /// <summary>
-    /// Maps a honua-server WorkflowOperationStatus (any casing, hyphenated or
-    /// PascalCase) onto the canonical <see cref="DeployOperationLifecycle"/>. The
-    /// mapping is 1:1 with the server enum; an unreadable/unrecognized value maps to
-    /// <see cref="DeployOperationLifecycle.Unknown"/> rather than guessing.
-    /// </summary>
     public static DeployOperationLifecycle MapLifecycle(string? rawStatus)
     {
         var normalized = (rawStatus ?? string.Empty)

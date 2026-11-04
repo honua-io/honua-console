@@ -2,12 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Validation;
 
-/// <summary>
-/// Stable console-owned field keys for the Collect automation editor. The client validator
-/// (<see cref="CollectAutomationValidator"/>) and the inline render surfaces share these so a client
-/// finding lands on the same input the editor renders. Automation-level keys are constants; per-rule and
-/// per-action keys are derived from list position.
-/// </summary>
 public static class CollectAutomationFieldKeys
 {
     public const string Name = "automation.name";
@@ -15,33 +9,16 @@ public static class CollectAutomationFieldKeys
     public const string MaxCascadeDepth = "automation.maxCascadeDepth";
     public const string Rules = "automation.rules";
 
-    /// <summary>Trigger-field key for rule <paramref name="ruleIndex"/>.</summary>
     public static string RuleTriggerField(int ruleIndex) => $"automation.rule[{ruleIndex}].triggerField";
 
-    /// <summary>Action-target key for rule <paramref name="ruleIndex"/> action <paramref name="actionIndex"/>.</summary>
     public static string ActionTarget(int ruleIndex, int actionIndex) =>
         $"automation.rule[{ruleIndex}].action[{actionIndex}].target";
 }
 
-/// <summary>
-/// Pure client-side validator for the Collect automation editor, mirroring the Studio validators: it
-/// examines the console-owned <see cref="CollectAutomationDraft"/> and emits field-addressable
-/// <see cref="ConsoleFieldError"/> findings so the editor can surface them inline. It complements — never
-/// replaces — the engine's own validation. It covers the rules expressible against console-owned state:
-/// <list type="bullet">
-///   <item>a non-empty automation name and bound form id;</item>
-///   <item>cascade-depth bounds (1-32) feeding the engine's deterministic loop guard;</item>
-///   <item>at least one rule, and at least one action per rule;</item>
-///   <item>each rule declares a supported trigger; a field-change trigger names a field;</item>
-///   <item>each action declares a supported kind and the target the kind requires.</item>
-/// </list>
-/// </summary>
 public sealed class CollectAutomationValidator : IFieldValidator<CollectAutomationDraft>
 {
-    /// <summary>Shared singleton; the validator holds no state.</summary>
     public static CollectAutomationValidator Instance { get; } = new();
 
-    /// <inheritdoc />
     public IReadOnlyList<ConsoleFieldError> Evaluate(CollectAutomationDraft state)
     {
         ArgumentNullException.ThrowIfNull(state);

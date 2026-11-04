@@ -6,65 +6,40 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-sdk-dotnet#166): like OperateAdminShims, there is no consumable stable Honua.Sdk.Admin package
-// that projects the GeoServices VersionManagementServer surface (branch-versioning lifecycle + reconcile/
-// inspectConflicts/resolveConflicts/post, honua-server #371 / PR #1551). Keep these wire records and the thin
-// HTTP client in the Console contracts boundary until honua-sdk-dotnet publishes a consumable stable Admin
-// package and honua-console#7 wires the feed; do not add a sibling-repo ProjectReference. See SDK_SHIM_POLICY
-// "Active Shims".
-//
-// Unlike the /api/v1/admin surface, the VersionManagementServer is a GeoServices REST surface: it reads its
-// inputs from form/query values (NOT a JSON body) and returns BARE Esri-shaped JSON DTOs (NOT the admin
-// {success,data} envelope). This client therefore posts application/x-www-form-urlencoded and deserializes
-// the raw DTOs directly, mirroring the server models in
-// src/Honua.Protocols.GeoServices/VersionManagementServer/Models/VersionManagementModels.cs.
-
-/// <summary>Connection options for the VersionManagementServer client (base URL + optional admin API key).</summary>
 public sealed record HonuaVersionManagementClientOptions(Uri BaseUri, string? ApiKey = null);
 
-/// <summary>Auto-resolution policy applied by a reconcile (mirrors the server's named policies).</summary>
 public enum HonuaVersionReconcilePolicy
 {
-    /// <summary>No auto-resolution; every conflict is left for manual review.</summary>
+    // Leaves every conflict for manual review.
     None,
 
-    /// <summary>Resolve each conflict in favor of the most recently edited image.</summary>
     LastWriteWins,
 
-    /// <summary>Resolve each conflict in favor of the branch (version) image.</summary>
     VersionWins,
 
-    /// <summary>Resolve each conflict in favor of the DEFAULT (target) image.</summary>
     DefaultWins
 }
 
-/// <summary>Per-feature manual resolution choice (mirrors the server's take-version/default/base).</summary>
 public enum HonuaVersionConflictChoice
 {
-    /// <summary>Keep the branch (version) edit.</summary>
     TakeVersion,
 
-    /// <summary>Keep the DEFAULT (target) edit.</summary>
     TakeDefault,
 
-    /// <summary>Revert to the common-ancestor (base) image.</summary>
+    // Reverts the feature to the common-ancestor image.
     TakeBase
 }
 
-/// <summary>Access level for a branch version (mirrors the server's private/protected/public).</summary>
 public enum HonuaVersionAccess
 {
-    /// <summary>Only the owner can read/edit.</summary>
     Private,
 
-    /// <summary>Anyone can read; only the owner can edit.</summary>
+    // Anyone can read; only the owner can edit.
     Protected,
 
-    /// <summary>Anyone can read/edit.</summary>
     Public
 }
 
-/// <summary>Esri-shaped branch-version identity (mirrors <c>VersionInfo</c>).</summary>
 public sealed record HonuaVersionInfo
 {
     [JsonPropertyName("versionGuid")]
@@ -95,7 +70,6 @@ public sealed record HonuaVersionInfo
     public long ModifiedMoment { get; init; }
 }
 
-/// <summary>One field-level three-way diff for a conflicting feature (mirrors <c>VersionConflictFieldDiffInfo</c>).</summary>
 public sealed record HonuaVersionConflictFieldDiff
 {
     [JsonPropertyName("name")]
@@ -111,7 +85,6 @@ public sealed record HonuaVersionConflictFieldDiff
     public string? Version { get; init; }
 }
 
-/// <summary>A single conflicting feature's three-way images and per-field diffs (mirrors <c>VersionConflictInfo</c>).</summary>
 public sealed record HonuaVersionConflict
 {
     [JsonPropertyName("layerId")]
@@ -145,7 +118,6 @@ public sealed record HonuaVersionConflict
     public IReadOnlyList<HonuaVersionConflictFieldDiff> FieldDiffs { get; init; } = [];
 }
 
-/// <summary>Result of a reconcile (mirrors <c>ReconcileResponse</c>).</summary>
 public sealed record HonuaReconcileResult
 {
     [JsonPropertyName("success")]
@@ -164,7 +136,6 @@ public sealed record HonuaReconcileResult
     public IReadOnlyList<HonuaVersionConflict> Conflicts { get; init; } = [];
 }
 
-/// <summary>Result of inspectConflicts (mirrors <c>InspectConflictsResponse</c>).</summary>
 public sealed record HonuaInspectConflictsResult
 {
     [JsonPropertyName("success")]
@@ -177,7 +148,6 @@ public sealed record HonuaInspectConflictsResult
     public IReadOnlyList<HonuaVersionConflict> Conflicts { get; init; } = [];
 }
 
-/// <summary>Result of resolveConflicts (mirrors <c>ResolveConflictsResponse</c>).</summary>
 public sealed record HonuaResolveConflictsResult
 {
     [JsonPropertyName("success")]
@@ -193,7 +163,6 @@ public sealed record HonuaResolveConflictsResult
     public bool CanPost { get; init; }
 }
 
-/// <summary>Result of post (mirrors <c>PostResponse</c>).</summary>
 public sealed record HonuaPostResult
 {
     [JsonPropertyName("success")]
@@ -209,24 +178,14 @@ public sealed record HonuaPostResult
     public bool BlockedByConflicts { get; init; }
 }
 
-/// <summary>A single manual resolution choice submitted to resolveConflicts.</summary>
 public sealed record HonuaVersionConflictResolution(int LayerId, long ObjectId, HonuaVersionConflictChoice Choice);
 
-/// <summary>
-/// Thin HTTP client for honua-server's GeoServices VersionManagementServer (branch-versioning lifecycle +
-/// conflict resolution, #371 / PR #1551). Mirrors the route shapes and form/query parameter names of
-/// <c>VersionManagementServerEndpoints</c> and returns the bare Esri-shaped DTOs. Network/transport/contract
-/// failures degrade into a <see cref="HonuaAdminEndpointIssue"/> via the shared result type rather than
-/// throwing, so the console can render a neutral missing/unavailable state.
-/// </summary>
 public interface IHonuaVersionManagementClient
 {
-    /// <summary>Lists the branch versions for a service (<c>GET .../VersionManagementServer/versions</c>).</summary>
     Task<HonuaAdminEndpointResult<IReadOnlyList<HonuaVersionInfo>>> ListVersionsAsync(
         string serviceId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Creates a branch version (<c>POST .../create</c>).</summary>
     Task<HonuaAdminEndpointResult<HonuaVersionInfo>> CreateVersionAsync(
         string serviceId,
         string versionName,
@@ -235,7 +194,6 @@ public interface IHonuaVersionManagementClient
         string? description,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Alters a branch version's name/access/description (<c>POST .../versions/{guid}/alter</c>).</summary>
     Task<HonuaAdminEndpointResult<HonuaVersionMomentResult>> AlterVersionAsync(
         string serviceId,
         string versionGuid,
@@ -244,13 +202,11 @@ public interface IHonuaVersionManagementClient
         string? description,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Deletes a branch version (<c>POST .../versions/{guid}/delete</c>).</summary>
     Task<HonuaAdminEndpointResult<HonuaVersionMomentResult>> DeleteVersionAsync(
         string serviceId,
         string versionGuid,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Reconciles a branch version against DEFAULT with an auto-resolution policy (<c>POST .../reconcile</c>).</summary>
     Task<HonuaAdminEndpointResult<HonuaReconcileResult>> ReconcileAsync(
         string serviceId,
         string versionGuid,
@@ -258,27 +214,23 @@ public interface IHonuaVersionManagementClient
         bool abortIfConflicts,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Reads the pending conflict set for a branch version (<c>GET .../inspectConflicts</c>).</summary>
     Task<HonuaAdminEndpointResult<HonuaInspectConflictsResult>> InspectConflictsAsync(
         string serviceId,
         string versionGuid,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Submits manual per-feature resolutions (<c>POST .../resolveConflicts</c>).</summary>
     Task<HonuaAdminEndpointResult<HonuaResolveConflictsResult>> ResolveConflictsAsync(
         string serviceId,
         string versionGuid,
         IReadOnlyList<HonuaVersionConflictResolution> resolutions,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Publishes a reconciled branch version onto DEFAULT (<c>POST .../post</c>).</summary>
     Task<HonuaAdminEndpointResult<HonuaPostResult>> PostAsync(
         string serviceId,
         string versionGuid,
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>Generic success/moment result for delete/alter (mirrors <c>VersionMomentResponse</c>).</summary>
 public sealed record HonuaVersionMomentResult
 {
     [JsonPropertyName("success")]
@@ -288,7 +240,6 @@ public sealed record HonuaVersionMomentResult
     public long Moment { get; init; }
 }
 
-/// <inheritdoc cref="IHonuaVersionManagementClient" />
 public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementClient, IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)

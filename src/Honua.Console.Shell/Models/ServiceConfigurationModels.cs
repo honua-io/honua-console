@@ -1,10 +1,5 @@
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// Operator intent to enable or disable an already-published service layer: which connection + layer (and
-/// optional target service) to toggle, and the desired enabled state. Mirrors the inputs the Operate
-/// layers surface collects (Wave 5, plan §3 Family A).
-/// </summary>
 public sealed record ServiceLayerEnableCommand
 {
     public required string ConnectionId { get; init; }
@@ -16,10 +11,6 @@ public sealed record ServiceLayerEnableCommand
     public bool Enabled { get; init; }
 }
 
-/// <summary>
-/// Operator intent to change the set of protocols a service exposes (e.g. restrict a service to
-/// FeatureServer only, or re-enable additional protocols). Wave 5 service-configuration operation.
-/// </summary>
 public sealed record ServiceProtocolsCommand
 {
     public required string ServiceName { get; init; }
@@ -27,10 +18,7 @@ public sealed record ServiceProtocolsCommand
     public required IReadOnlyList<string> EnabledProtocols { get; init; }
 }
 
-/// <summary>
-/// Operator intent to change a service's access policy (anonymous read/write + allowed roles). Null fields
-/// are left unchanged server-side. Wave 5 service-configuration operation.
-/// </summary>
+// Null fields are left unchanged on the server.
 public sealed record ServiceAccessPolicyCommand
 {
     public required string ServiceName { get; init; }
@@ -44,12 +32,7 @@ public sealed record ServiceAccessPolicyCommand
     public IReadOnlyList<string>? AllowedWriteRoles { get; init; }
 }
 
-/// <summary>
-/// Operator intent to change a service's MapServer render settings (max/default image size, DPI, default
-/// image format, default transparency, per-layer feature cap). Null fields are left unchanged server-side.
-/// Closes Bucket 3-A #5 of the metadata-UI gap analysis. The server PUT may answer 501 (a V2 gap), in which
-/// case the operation surfaces an honest "Unsupported" result rather than a fabricated success.
-/// </summary>
+// Null fields are left unchanged. A 501 from the server is an unsupported result, not a success.
 public sealed record ServiceMapServerSettingsCommand
 {
     public required string ServiceName { get; init; }
@@ -71,39 +54,22 @@ public sealed record ServiceMapServerSettingsCommand
     public int? MaxFeaturesPerLayer { get; init; }
 }
 
-/// <summary>
-/// Outcome of a service-configuration operation (layer enable/disable or service settings change). On
-/// success, <see cref="Succeeded"/> is <c>true</c> and the projection fields carry the post-change server
-/// state the operation read back. On failure (missing binding, validation rejection, transport error)
-/// <see cref="Succeeded"/> is <c>false</c> and <see cref="State"/> carries the neutral state vocabulary
-/// token. Never fabricates success — a missing server binding yields an explicit missing-binding result.
-/// </summary>
 public sealed record ServiceConfigurationResult
 {
     public bool Succeeded { get; init; }
 
-    /// <summary>State vocabulary token (e.g. "Enabled", "Disabled", "Updated", "Missing binding", "Rejected", "Unavailable").</summary>
     public required string State { get; init; }
 
     public string? Detail { get; init; }
 
-    /// <summary>The affected layer id (for layer enable/disable operations).</summary>
     public int? LayerId { get; init; }
 
-    /// <summary>The affected service name.</summary>
     public string? ServiceName { get; init; }
 
-    /// <summary>The layer's enabled state read back after a toggle operation.</summary>
     public bool? Enabled { get; init; }
 
-    /// <summary>The service's enabled protocols read back after a settings change.</summary>
     public IReadOnlyList<string> EnabledProtocols { get; init; } = [];
 
-    /// <summary>
-    /// Field-addressable validation errors surfaced when the server rejected the configuration change with
-    /// the shared field-level validation contract (RFC-7807 ProblemDetails <c>errors[]</c>). Empty for
-    /// non-validation failures. Console clients bind these onto the offending inputs.
-    /// </summary>
     public IReadOnlyList<ServiceConfigurationFieldError> FieldErrors { get; init; } = [];
 
     public static ServiceConfigurationResult MissingBinding(string detail) => new()
@@ -114,11 +80,7 @@ public sealed record ServiceConfigurationResult
     };
 }
 
-/// <summary>
-/// Current server-read configuration of a service: its enabled + available protocols and access policy.
-/// <see cref="Bound"/> is false (with <see cref="Detail"/> explaining why) when no server is configured or
-/// the settings could not be read — the surface then shows a missing-binding state instead of fabricating one.
-/// </summary>
+// When unbound, show the missing-binding detail instead of inventing settings.
 public sealed record ServiceSettingsView
 {
     public bool Bound { get; init; }
@@ -139,10 +101,6 @@ public sealed record ServiceSettingsView
 
     public IReadOnlyList<string> AllowedWriteRoles { get; init; } = [];
 
-    /// <summary>
-    /// The service's current MapServer render settings as read back from the server's settings projection, or
-    /// <c>null</c> when the server did not return a MapServer block. Pre-populates the MapServer editor.
-    /// </summary>
     public ServiceMapServerSettingsView? MapServer { get; init; }
 
     public static ServiceSettingsView Unbound(string serviceName, string detail) => new()
@@ -153,11 +111,7 @@ public sealed record ServiceSettingsView
     };
 }
 
-/// <summary>
-/// A service's current MapServer render settings, projected from the server settings read-back so the
-/// MapServer editor can pre-populate its inputs. All fields are nullable — the server only reports the caps
-/// it actually has configured.
-/// </summary>
+// Null means the server did not report that cap.
 public sealed record ServiceMapServerSettingsView
 {
     public int? MaxImageWidth { get; init; }
@@ -177,7 +131,6 @@ public sealed record ServiceMapServerSettingsView
     public int? MaxFeaturesPerLayer { get; init; }
 }
 
-/// <summary>A field-addressable validation error surfaced by a service-configuration operation.</summary>
 public sealed record ServiceConfigurationFieldError(
     string Code,
     string Message,

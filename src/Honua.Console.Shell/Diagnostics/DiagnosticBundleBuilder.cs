@@ -3,16 +3,11 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Diagnostics;
 
-/// <summary>
-/// A raw, potentially-unsafe captured HTTP exchange as Console observes it (headers and bodies
-/// may carry secrets). It is never serialized directly; <see cref="DiagnosticBundleBuilder"/>
-/// sanitizes it into a <see cref="DiagnosticEnvelope"/> before it can enter a bundle.
-/// </summary>
+// Raw capture. Sanitize before it enters a bundle; these fields can hold secrets.
 public sealed record DiagnosticExchangeCapture
 {
     public string Method { get; init; } = string.Empty;
 
-    /// <summary>Raw request path (and optional query); query values are placeholdered on sanitize.</summary>
     public string PathAndQuery { get; init; } = string.Empty;
 
     public int? StatusCode { get; init; }
@@ -25,26 +20,15 @@ public sealed record DiagnosticExchangeCapture
 
     public DateTimeOffset? CapturedAt { get; init; }
 
-    /// <summary>Raw request headers (may include Authorization/Cookie; dropped on sanitize).</summary>
     public IReadOnlyList<DiagnosticHeader>? RequestHeaders { get; init; }
 
-    /// <summary>Raw response headers (may include Set-Cookie; dropped on sanitize).</summary>
     public IReadOnlyList<DiagnosticHeader>? ResponseHeaders { get; init; }
 
-    /// <summary>Raw request body text (may include secrets; redacted + truncated on sanitize).</summary>
     public string? RequestBody { get; init; }
 
-    /// <summary>Raw response body text (may include secrets; redacted + truncated on sanitize).</summary>
     public string? ResponseBody { get; init; }
 }
 
-/// <summary>
-/// Builds a canonical <see cref="DiagnosticBundle"/> from raw captured exchanges, running every
-/// exchange through <see cref="DiagnosticBundleSanitizer"/> so the resulting bundle carries no
-/// raw bytes, auth headers, cookies, or secrets (honua-console#307). The builder shapes the
-/// bundle; <see cref="DiagnosticBundleExporter"/> is the gate that validates it against the schema
-/// before it can be downloaded or uploaded.
-/// </summary>
 public static class DiagnosticBundleBuilder
 {
     public static DiagnosticBundle Build(
