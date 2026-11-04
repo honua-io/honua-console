@@ -15,10 +15,10 @@ Console image.
 |---|---|---|---|
 | Sign-in / Home / setup | Browser HTML sign-in, API JSON negotiation, safe return URL and first-run links retained; one H1 | Connected Home leads with real approvals/health/findings/recent visits; no dead search, empty Actions slot or fabricated metrics; no-profile and stale-profile recovery remain | `SignInRequiredResponseTests`, `ConsoleHomePageTests`, `ConsoleHomePageRenderTests`, `OpsSummaryStripTests` |
 | Connections / import | Populated legacy connection and table views readable and scrollable by keyboard; no service/source identity change | Same current entry points, source selection, file inputs, task revisions, upload receipts and retries survive drawer navigation | Existing publishing/import tests, `agent-workspace-turn.test.mjs`, live publish journey; do not edit files owned by an open publishing PR |
-| Publish / browse / view | Data tree uses valid list/tree structure and reachable controls; actual served `LayerMapPreview` retained; ambiguous layer IDs remain explicit | Current routes, viewer/editor boundaries, service-wide protocol/access review, partial failure and separate catalog capability retained | Layer lookup/preview tests, `ShellRouteUniquenessTests`, catalog/share tests, live publish and customer journey |
+| Publish / browse / view | Data tree uses valid list/tree structure and reachable controls; actual served `LayerMapPreview` retained; ambiguous layer IDs remain explicit | Current routes, viewer/editor boundaries, service-wide protocol/access review, partial failure and separate catalog capability retained | `OperateLayerLookupTests`, `LayerPreviewPaneRenderTests`, `ShellRouteUniquenessTests`, catalog/share tests, live publish and customer journey |
 | Operations / approval / evidence | Read failures and neutral states retain meaning; embedded states do not add H1s | Approvals reachable from Home/rail; immutable source+proposal/operation target, separate approver, audit reason and credential boundary unchanged | Approval/deploy tests, `operator/credential-boundary.spec.ts`, customer journey approval/readback |
-| Studio / Processes | CSS scoped away from vendored controls; real painted canvas remains usable; lifecycle error distinct from auth expiry | Drawer opens on Studio entry, manual close respected for that visit; Processes distinct; file inputs, pending replies, cancel, progress, saved map/version reopening and publication survive; no bundle/API change | Studio lifecycle Node tests; `workspace/shared-workspace.spec.ts`, `workspace-live`; real `studio-customer-journey.live.spec.ts` |
-| Settings / access / environments | Populated settings/member tables scroll without clipping or inaccessible scroll regions; permission denial distinct from sign-in expiry | Existing destinations and grants; operator/environment switch clears local cache and stale replies; witness/product-mode boundaries retained | Access/settings render tests, environment tests, capability-manifest tests, credential-boundary tests |
+| Studio / Processes | CSS scoped away from vendored controls; real painted canvas remains usable; lifecycle error distinct from auth expiry | Drawer opens on Studio entry, manual close respected for that visit; Processes distinct; file inputs, pending replies, cancel, progress, saved map/version reopening and publication survive; no bundle/API change | `studio-assets.test.mjs`, `studio-conversation.test.mjs`; `workspace/shared-workspace.spec.ts`, `workspace-live`; real `studio-customer-journey.live.spec.ts` |
+| Settings / access / environments | Populated settings/member tables scroll without clipping or inaccessible scroll regions; permission denial distinct from sign-in expiry | Existing destinations and grants; operator/environment switch clears local cache and stale replies; witness/product-mode boundaries retained | `OperateAccessPageRenderTests`, environment tests, `ManifestBackedConsoleCapabilityManifestTests`, credential-boundary tests |
 
 Test directories: [Shell tests](../../tests/Honua.Console.Shell.Tests/),
 [integration/render tests](../../tests/Honua.Console.IntegrationTests/),
@@ -75,7 +75,8 @@ page focus and notification host. Ordinary linked navigation is acceptable; a
 tree widget must implement its full keyboard contract rather than decorative ARIA.
 
 Phase 1 desktop drawer is nonmodal; mobile is modal with background inert,
-contained focus, Escape and focus restoration. Test open/close, route changes,
+contained focus, Escape and focus restoration. Apply the Studio-entry exception and within-Studio
+route-change rules from the identity table. Test open/close, route changes,
 Studio entry/exit and manual close, hydration/enhanced navigation, resize, reload,
 Back/Forward, account/environment change, delayed response, pending reply, selected
 file, in-flight turn/cancel, external handoff, progress and pinned approval review.
@@ -100,7 +101,8 @@ server image digest resolved by `scripts/resolve-live-server-image.mjs`, and
 `5765b427f421dca9c42832ae450fa1c5aad882c2`). No fixture upgrades are implied.
 
 The existing [live-journey workflow](../../.github/workflows/console-live-journey.yml)
-runs “Studio customer journey on real images” for source-changing PRs. Its
+runs “Studio customer journey on real images” when PR paths match its filters,
+including Web, Shell, Contracts and Dockerfile changes. Its
 `studio-customer` job builds the checked-out PR Console image, records identity,
 and exercises the real journey without mocks/skips. Require that check on visual
 PRs and verify its consumed head/image, not just its check label. Source changes

@@ -128,11 +128,12 @@ matrix. Shell route uniqueness and direct-load tests remain mandatory.
 | [OperateDataRedirects](../../src/Honua.Console.Shell/Pages/OperateDataRedirects.razor) | `/operate/resources`, `/operate/services`, `/operate/resources/new`, `/operate/alerts` |
 | [OperateDeployPage](../../src/Honua.Console.Shell/Pages/OperateDeployPage.razor) | `/operate/deploy` |
 | [OperateEventsPage](../../src/Honua.Console.Shell/Pages/OperateEventsPage.razor) | `/operate/events` |
-| [OperateGeoprocessingPage](../../src/Honua.Console.Shell/Pages/OperateGeoprocessingPage.razor) | `/operate/geoprocessing/{SelectedJobRunId}` |
+| [OperateGeoprocessingPage](../../src/Honua.Console.Shell/Pages/OperateGeoprocessingPage.razor) | `/operate/geoprocessing`, `/operate/geoprocessing/{SelectedJobRunId}` |
 | [OperateHealthPage](../../src/Honua.Console.Shell/Pages/OperateHealthPage.razor) | `/operate/health` |
 | [OperateImportFilePage](../../src/Honua.Console.Shell/Pages/OperateImportFilePage.razor) | `/operate/resources/import` |
 | [OperateImportServicePage](../../src/Honua.Console.Shell/Pages/OperateImportServicePage.razor) | `/operate/import/service` |
 | [OperateLayerDetailPage](../../src/Honua.Console.Shell/Pages/OperateLayerDetailPage.razor) | `/operate/layers/{ResourceId}` |
+| [OperateLayerFilterPage](../../src/Honua.Console.Shell/Pages/OperateLayerFilterPage.razor) | `/operate/layers/{ResourceId}/filter` |
 | [OperateLayerMetadataPage](../../src/Honua.Console.Shell/Pages/OperateLayerMetadataPage.razor) | `/operate/layers/{ResourceId}/metadata` |
 | [OperateLayerRelationshipsPage](../../src/Honua.Console.Shell/Pages/OperateLayerRelationshipsPage.razor) | `/operate/layers/{ResourceId}/relationships` |
 | [OperateLayerStylePage](../../src/Honua.Console.Shell/Pages/OperateLayerStylePage.razor) | `/operate/layers/{ResourceId}/style` |
@@ -150,6 +151,7 @@ matrix. Shell route uniqueness and direct-load tests remain mandatory.
 | [OperateServiceDetailPage](../../src/Honua.Console.Shell/Pages/OperateServiceDetailPage.razor) | `/operate/services/{ServiceName}/settings` |
 | [OperateSettingsPage](../../src/Honua.Console.Shell/Pages/OperateSettingsPage.razor) | `/operate/settings` |
 | [OperateSyncPage](../../src/Honua.Console.Shell/Pages/OperateSyncPage.razor) | `/operate/sync` |
+| [OperateTemporalPage](../../src/Honua.Console.Shell/Pages/OperateTemporalPage.razor) | `/operate/temporal` |
 | [OperateVersionConflictsPage](../../src/Honua.Console.Shell/Pages/OperateVersionConflictsPage.razor) | `/operate/versions/{ServiceId}/{VersionGuid}/conflicts` |
 | [OperateVersionsPage](../../src/Honua.Console.Shell/Pages/OperateVersionsPage.razor) | `/operate/versions` |
 | [ProcessesWorkspacePage](../../src/Honua.Console.Shell/Pages/ProcessesWorkspacePage.razor) | `/studio/processes` |

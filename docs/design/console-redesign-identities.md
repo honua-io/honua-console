@@ -12,7 +12,7 @@ not a design for later object routes. See [routes](console-redesign-route-compat
 | Connection | `OperateConnectionSummary.Id`; admin connection | Source for tables/layers; a service can expose layers from multiple connections | Connection create/update/test remain existing operations; secret is never a rendered ID | `OperateTransitionModels`, `HonuaServerOperateTransitionDataSource` |
 | Dataset | Existing canonical resource ID in `OperateResourceEditPreview`; physical schema/table is a source reference | Resource → publications; linked connection is not universal service ownership | File/remote import can write server data before publication; no new staging or atomic-cancel promise | `ResourcePublicationsTreeModel`, `DataToPublishFlow`, import operations |
 | Unpublished table | Connection ID and returned schema/table reference; not automatically a registered metadata resource | Discovered through connection tables | Preserve import/publish result identities; no invented stable Dataset ID or automatic catalog registration | `OperateConnectionDetailPage`, `OperatePublishLayerPage` |
-| Layer | `CanonicalResourceId`; admin `LayerId` is only unique within connection | One canonical resource can have exposures in several services | Canonical match wins; integer must resolve to exactly one canonical ID, otherwise choices; service membership not inferred from a display name | `OperateLayerLookup`, `OperateServiceLayerProjection` |
+| Layer | `CanonicalResourceId`; admin `LayerId` is only unique within connection | One canonical resource can have exposures in several services | Canonical match wins; one canonical ID renders, several matches offer choices, zero matches render MissingItemView; service membership not inferred from a display name | `OperateLayerLookup`, `OperateServiceLayerProjection` |
 | Protocol exposure | Existing publication/protocol reference for the selected resource and service | Multiple endpoints may expose the same layer | Endpoint row is not an independent per-protocol layer record | `ResourcePublicationsTreeModel`, `PublishProtocolCatalog` |
 | Service | `OperateServiceDetail.Name`; admin service settings | Contains layers, possibly from several connections | Go live replaces the service protocol set then separately updates service access; affects siblings; report partial failure; disabled layers stay disabled | `GoLivePublisher`, `GoLiveStep`, `OperateServiceDetailPage` |
 | Layer presentation | Existing layer metadata identity | Popup-info / drawing-info belong to layer authoring | Preserve GET/PUT popup-info and drawing-info; choosing a catalog style does not bind it; no generic style-assignment endpoint assumed | `ServerOperateLayerStyleOverrideDataSource`, `DataToPublishFlow` |
@@ -22,9 +22,9 @@ not a design for later object routes. See [routes](console-redesign-route-compat
 | Proposal | Source tag + proposal `Id` | Target operation and exact evidence/revision | Inbox aggregates; source owns decisions; proposer cannot approve own work; Home is read-only | `ConsoleApprovalInboxClient`, `ConsoleProposalModel`, `ProposalApprovalPanel` |
 | Deploy operation | Server operation ID | Target/environment/version are descriptive fields | Submit/rollback use the existing governed operation client and operator bearer; same version can have multiple attempts; no invented rollback window | `OperateDeployPage`, `OperateDeployOperationsList` |
 | Metadata release | GitOps release package ID | Package diff, drift, PR and operation evidence | Not a server semantic version; open-by-ID remains valid even without list support | `OperateReleasesPage`, release client |
-| Job / event / alert | Server-issued jobRunId / eventId / alertId respectively | Evidence may relate to a workflow or operation | No interchange of workflowRunId/jobId/eventId; links never synthesize jobs or accept worker-controlled navigation URLs | `OperateObservabilityPage`, `OperateEventsPage`, workspace execution modules |
+| Job / event / alert | Server-issued jobRunId / eventId / alertId respectively | Evidence may relate to a workflow or operation | No interchange of workflowRunId/jobId/eventId; internal job/event/alert/proposal routes use their server-issued IDs; provider evidence hrefs retain server Url / ProviderLink values; workspace result navigation rejects worker-supplied destinations | `OperateObservabilityPage`, `OperateEventsPage`, workspace execution modules |
 | Finding | Deterministic server finding ID | Environment, rule, policy | Health breach is not a fabricated finding; proposing a fix retains governed gateway | `HttpConsoleOpsFindingsClient`, `OperateCopilotPage` |
-| User / team | Existing server RBAC principal/group identity | Workspace membership and source grants | No new user/team route or frontend-invented permission; retain member/invite operations and server denial | `OperateAccessRolesPage`, `OperateAccessMembersPage` |
+| User / team | Existing server RBAC principal/group identity | Workspace membership and source grants | No new user/team route or frontend-invented permission; retain the read-only membership/invitation projection, scoped-invite preview, server denial, and disabled export/template-save/invite-send controls; no invite mutation exists | `OperateAccessRolesPage`, `OperateAccessMembersPage` |
 | Conversation / task / turn | Workspace, view, task/draft revision, pending-reply and turn IDs | Bound operator/environment and selected task | Changing route must not mutate pending reply/approval/turn target; file selections survive ordinary chrome navigation | `agent-workspace.mjs`, `workspace-executions.mjs`, `AgentWorkspaceBff` |
 
 Source locations: [models](../../src/Honua.Console.Shell/Models/),
@@ -42,13 +42,22 @@ than independent Razor and JS state. Keep all current reply, progress, cancel,
 file-input, external-agent handoff, follow-mode and pinned plan-review controls.
 Opening or closing the drawer does not reconnect the workspace or clear a turn.
 
-Outside Studio the drawer starts closed. Entering `/studio` or its `StudioPage`
-aliases opens it; a manual close holds for that continuous Studio visit. Leaving
-Studio closes it; re-entering opens it. Other `/studio/*` tools retain their own
-route identity and do not accidentally trigger map-editor initialization.
-On mobile it is modal: background inert, focus contained, Escape closes, focus
-returns to the opener (or a surviving navigation control), and route changes close
-it. On desktop it is nonmodal and main content remains usable without overlap.
+Outside the `StudioPage` route set the drawer starts closed. A Studio visit is
+continuous across `/studio`, `/studio/proof`, `/studio/drafts` and
+`/studio/apps/{ItemId}/preview`, including query/fragment changes and hydration.
+Entering that set from outside opens the drawer; manually closing it holds for
+that visit. Leaving the set closes it; re-entering opens it. Processes and other
+`/studio/*` tools are outside that set and must not initialize the map editor.
+
+On desktop the drawer is nonmodal. On mobile it is modal: background inert,
+focus contained, Escape closes, focus returns to the opener (or a surviving
+navigation control). For a committed mobile route change, close the current modal
+first; only a transition from outside into the StudioPage set then opens it.
+Navigation within that set closes an open mobile modal and does not auto-reopen
+it; an explicit toggle can reopen it. Query/fragment changes and hydration do not
+start a new visit or override manual close. Entering Studio is therefore the
+explicit exception to route-change closure, applied after closure. Main content
+remains usable without overlap when the drawer is nonmodal.
 
 Scope drawer preferences and recent links to the validated session's opaque
 `principalId` and `environmentId`, with release/source-path authority invalidation
