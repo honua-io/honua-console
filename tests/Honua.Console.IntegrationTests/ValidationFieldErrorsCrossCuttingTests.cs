@@ -90,37 +90,6 @@ public sealed class ValidationFieldErrorsCrossCuttingTests
         Assert.Null(await verifier.GetRegisteredLayerAsync(connectionId, serviceName, 0));
     }
 
-    [SkippableFact]
-    public async Task AnalysisPackage_WithInvalidPlan_IsRejected_AndNothingLands()
-    {
-        Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
-
-        // Draft persistence accepts incomplete execution inputs. Its actual structural contract
-        // requires at least one plan step, so submit an empty step collection through the real client.
-        var title = $"Console analysis validation {Guid.NewGuid():N}";
-        var plan = StudioAnalysisPackageMapper.CreateTemplate();
-        plan.Title = title;
-        var package = StudioAnalysisPackageMapper.ToPackageContent(plan);
-        var saved = await _fixture.CreateAnalysisClient().CreateItemAsync(new HonuaCreateAnalysisContentItemRequest
-        {
-            Name = $"invalid-{Guid.NewGuid():N}",
-            Title = title,
-            Kind = HonuaAnalysisContentKinds.AnalysisPackage,
-            AnalysisPackage = package with { Plan = package.Plan! with { Steps = [] } }
-        });
-
-        Assert.Null(saved.Data);
-        Assert.NotNull(saved.Issue);
-        Assert.Equal(400, saved.Issue.StatusCode);
-        Assert.Contains(saved.Issue.FieldErrors, error =>
-            string.Equals(error.Path, "/analysisPackage/plan/steps", StringComparison.Ordinal));
-
-        // Independent proof NOTHING landed: the rejected title is not searchable in the catalog.
-        using var verifier = _fixture.CreateVerifier();
-        var titles = await verifier.SearchCatalogTitlesAsync(title);
-        Assert.DoesNotContain(title, titles);
-    }
-
     private static bool Mentions(string? value, params string[] needles) =>
         !string.IsNullOrWhiteSpace(value)
         && needles.Any(needle => value!.Contains(needle, StringComparison.OrdinalIgnoreCase));

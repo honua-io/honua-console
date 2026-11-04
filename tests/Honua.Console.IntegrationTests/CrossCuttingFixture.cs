@@ -99,12 +99,6 @@ public sealed class CrossCuttingFixture : IAsyncLifetime
             CreateHttpClient(),
             new HonuaContentPublicationClientOptions(BaseAddress, Options.StudioAdminApiKey));
 
-    /// <summary>The production analysis content client WITH the admin API key (a validation surface).</summary>
-    public IHonuaAnalysisContentClient CreateAnalysisClient() =>
-        new HonuaAnalysisContentHttpClient(
-            CreateHttpClient(),
-            new HonuaAnalysisContentClientOptions(BaseAddress, Options.StudioAdminApiKey));
-
     /// <summary>The production Console Share client WITH the admin API key (a validation/Studio-package surface).</summary>
     public IHonuaConsoleShareClient CreateShareClient() =>
         new HonuaConsoleShareHttpClient(

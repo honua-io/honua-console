@@ -143,7 +143,13 @@ public sealed record OperateServiceDetail(
     string MetadataOwnership,
     IReadOnlyList<OperateServiceLayerProjection> Layers,
     IReadOnlyList<OperateRuntimeSetting> RuntimeSettings,
-    IReadOnlyList<OperatePublicationSlot> PublicationSlots);
+    IReadOnlyList<OperatePublicationSlot> PublicationSlots)
+{
+    // ServiceType lists the enabled protocols, comma separated.
+    public bool Serves(string protocol) =>
+        ServiceType.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Contains(protocol, StringComparer.OrdinalIgnoreCase);
+}
 
 public sealed record OperateServiceLayerProjection(
     int LayerId,

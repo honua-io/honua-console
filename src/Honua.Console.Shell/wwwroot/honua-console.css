@@ -9040,55 +9040,6 @@ p {
     color: var(--console-success, #16a34a);
 }
 
-.data-publish-flow__driver {
-    display: inline-flex;
-    border: 1px solid var(--console-border, #d1d5db);
-    border-radius: 999px;
-    overflow: hidden;
-}
-
-.data-publish-flow__driver-btn {
-    border: 0;
-    background: transparent;
-    padding: 0.35rem 0.9rem;
-    cursor: pointer;
-    font: inherit;
-}
-
-.data-publish-flow__driver-btn--on {
-    background: var(--console-accent, #2563eb);
-    color: #fff;
-    font-weight: 700;
-}
-
-/* AI driver: the outcome+approval card leads with the headline; the plan lives behind Details. */
-.ai-publish-card__headline {
-    margin: 0.25rem 0 0.35rem;
-}
-
-.ai-publish-card__rationale {
-    margin: 0 0 0.75rem;
-}
-
-.ai-publish-card__actions {
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.ai-publish-card__details-toggle {
-    border: 0;
-    background: transparent;
-    cursor: pointer;
-    font: inherit;
-    margin-left: auto;
-}
-
-.ai-publish-card__details {
-    margin-top: 0.85rem;
-    padding-top: 0.85rem;
-    border-top: 1px solid var(--console-border, #d1d5db);
-}
-
 .publish-protocol-picker__group {
     border: 1px solid var(--console-border, #d1d5db);
     border-radius: 0.5rem;
@@ -9136,11 +9087,6 @@ p {
     background: var(--console-accent, #2563eb);
     color: #fff;
     font-weight: 700;
-}
-
-.add-data-intake__textarea {
-    width: 100%;
-    resize: vertical;
 }
 
 /* Data & Layers split: tree + preview */

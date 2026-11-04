@@ -38,8 +38,4 @@ public sealed class UnsupportedServiceConfigurationOperation : IServiceConfigura
         CancellationToken cancellationToken = default) =>
         Task.FromResult(ServiceConfigurationResult.MissingBinding(MissingBindingDetail));
 
-    public Task<ServiceConfigurationResult> UpdateServiceSettingsCapsAsync(
-        ServiceSettingsCapsCommand command,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(ServiceConfigurationResult.MissingBinding(MissingBindingDetail));
 }

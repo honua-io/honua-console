@@ -63,27 +63,6 @@ public sealed class StudioPackageLifecycleDiagnosticsTests
     }
 
     [Fact]
-    public async Task SaveDraft_OnValidationRejection_BindsDiagnosticsOntoFieldKeys()
-    {
-        var handler = new StubHandler(HttpStatusCode.UnprocessableEntity, ValidationBody());
-        using var httpClient = new HttpClient(handler) { BaseAddress = BaseUri };
-        var client = new HttpStudioPackageLifecycleClient(
-            httpClient,
-            new StudioPackageLifecycleClientOptions(BaseUri));
-        var source = new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource());
-
-        var state = new StudioMapEditorState { Title = "Public works", Basemap = "basemap:streets", InitialExtent = "0,0,1,1" };
-        state.Layers.Add(new StudioMapLayerEditor { BoundServiceId = "hydrants", BoundLayerId = "0", SourceRef = "service:hydrants/0" });
-
-        var result = await source.SaveDraftAsync(state);
-
-        Assert.False(result.Succeeded);
-        Assert.NotNull(result.FieldErrors);
-        Assert.Contains(result.FieldErrors!, e => e.FieldKey == StudioMapFieldKeys.LayerSourceRef(0));
-        Assert.Contains(result.FieldErrors!, e => e.FieldKey == StudioMapFieldKeys.InitialExtent);
-    }
-
-    [Fact]
     public async Task NonSuccessWithoutValidationBody_YieldsNoDiagnostics()
     {
         var handler = new StubHandler(HttpStatusCode.Forbidden, """{"success":false,"message":"nope"}""");

@@ -63,10 +63,6 @@ public sealed class ResourceFirstPublishFlowTests
         var ctx = new BunitContext();
         ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
-        // DataToPublishFlow injects IAiPublishDriver; provide the missing-binding default so
-        // every render resolves. Tests that exercise AI mode register their own driver after
-        // (last registration wins), so this only covers the non-AI render paths.
-        ctx.Services.AddSingleton<IAiPublishDriver>(new UnsupportedAiPublishDriver());
         return ctx;
     }
 
@@ -76,17 +72,18 @@ public sealed class ResourceFirstPublishFlowTests
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new UnsupportedStudioMapStyleCatalogDataSource());
-        ctx.Services.AddSingleton<IAiPublishDriver>(new UnsupportedAiPublishDriver());
     }
 
     [Fact]
-    public void SharedConversationFlow_HidesLegacyAiModesAndDoesNotStartGenerator()
+    public void AddDataPage_WithLegacyAiQuery_RendersNoAiDriverEntryPoint()
     {
         using var ctx = NewContext();
         RegisterMissingBinding(ctx);
-        var cut = ctx.Render<DataToPublishFlow>(parameters => parameters
-            .Add(component => component.SharedConversation, true)
-            .Add(component => component.InitialDriver, "ai"));
+        ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>()
+            .NavigateTo("/operate/data/new?source=ai&driver=ai");
+
+        var cut = ctx.Render<OperateDataFlowPage>();
+
         Assert.Empty(cut.FindAll("[data-driver], [data-ai-driver], [data-intake-mode='Ai'], textarea"));
         Assert.Single(cut.FindAll("[data-workspace-open]"));
         Assert.Single(cut.FindAll("[data-step-body='AddData']"));
@@ -282,7 +279,7 @@ public sealed class ResourceFirstPublishFlowTests
     // ----------------------------------------------------------------- flow host
 
     [Fact]
-    public void Flow_RendersStepRailAndDriverToggle_ManualByDefault()
+    public void Flow_RendersStepRailAndAddDataStep()
     {
         using var ctx = NewContext();
         RegisterMissingBinding(ctx);
@@ -292,194 +289,54 @@ public sealed class ResourceFirstPublishFlowTests
         Assert.Contains("data-step-rail", cut.Markup, StringComparison.Ordinal);
         Assert.Contains("data-step=\"AddData\"", cut.Markup, StringComparison.Ordinal);
         Assert.Contains("data-step=\"Publish\"", cut.Markup, StringComparison.Ordinal);
-        // Manual driver is the default surface; AddData step body is shown.
         Assert.Contains("data-step-body=\"AddData\"", cut.Markup, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Flow_AiDriver_WithNoServer_SurfacesHonestAiUnavailableState_NotACrash()
-    {
-        using var ctx = NewContext();
-        RegisterMissingBinding(ctx);
-
-        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
-
-        // AI mode with no server bound is an honest "AI unavailable" surface (Charter §11) — never a crash,
-        // never a fabricated proposal, with a manual-mode escape hatch.
-        Assert.Contains("data-ai-driver", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("data-ai-unavailable", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("data-ai-use-manual", cut.Markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-ai-outcome-card", cut.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Flow_ExistingResourceSource_SkipsIngestAndLandsOnPublish()
     {
         using var ctx = NewContext();
-        // The existing-resource path needs the resource list; an Unsupported source yields an empty list,
-        // so seed a tiny in-test data source that advertises one resource.
-        ctx.Services.AddSingleton<IConsoleFileImportOperation>(new UnsupportedConsoleFileImportOperation());
-        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
-        ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new UnsupportedStudioMapStyleCatalogDataSource());
-        ctx.Services.AddSingleton<IAiPublishDriver>(new UnsupportedAiPublishDriver());
-        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneResourceDataSource("rsc_parcels", "parcels"));
+        RegisterExistingResource(ctx);
 
         var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "existingresource"));
 
         // Choose the existing resource, then continue — the flow must skip ② Resource and land on ③ Publish.
         cut.Find("select[aria-label=\"Existing resource\"]").Change("rsc_parcels");
-        cut.Find("button.console-button").Click();
+        cut.Find("[data-step-body=\"AddData\"] button.console-button").Click();
 
         Assert.Contains("data-step-body=\"Publish\"", cut.Markup, StringComparison.Ordinal);
         Assert.Contains("data-publish-protocol-picker", cut.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Flow_FileIngest_WithNoServer_SurfacesMissingBindingAsFirstClassState()
+    public void Flow_ExistingResourceApply_ReportsEachPublicationAsServerSideWork()
+    {
+        using var ctx = NewContext();
+        RegisterExistingResource(ctx);
+        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "existingresource"));
+        cut.Find("select[aria-label=\"Existing resource\"]").Change("rsc_parcels");
+        cut.Find("[data-step-body=\"AddData\"] button.console-button").Click();
+        cut.Find("[data-step-body=\"Publish\"] button.console-button").Click();
+        cut.Find("[data-step-body=\"Style\"] button.console-button").Click();
+
+        cut.Find("[data-step-body=\"GoLive\"] button.console-button").Click();
+
+        Assert.Equal(3, cut.FindAll("[data-publish-results] article").Count);
+        Assert.Contains("Unsupported here", cut.Markup, StringComparison.Ordinal);
+        Assert.Contains("No publications landed", cut.Find("[data-step-error]").TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Flow_FileSource_LinksToTheImportTaskInsteadOfAnInlineUpload()
     {
         using var ctx = NewContext();
         RegisterMissingBinding(ctx);
 
         var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "file"));
 
-        // Upload a file, then continue: the Unsupported import returns a missing-binding result, which the
-        // host renders as a first-class "unsupported" panel — never a fabricated successful ingest.
-        var file = InputFileContent.CreateFromText("{}", "parcels.geojson");
-        cut.FindComponent<Microsoft.AspNetCore.Components.Forms.InputFile>().UploadFiles(file);
-        cut.Find("button.console-button").Click();
-
-        Assert.Contains("data-flow-missing-binding", cut.Markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-step-body=\"Resource\"", cut.Markup, StringComparison.Ordinal);
-    }
-
-    // ----------------------------------------------------------------- AI driver mapping (pure)
-
-    [Fact]
-    public void AiProposal_InfersProtocolsFromIntentWords_InCatalogOrder()
-    {
-        var protocols = AiPublishProposalSummary.InferProtocols(
-            "publish Maui parcels as a STAC catalog and a feature service");
-
-        // Recognised words → FeatureServer + Stac, ordered by the catalog (FeatureServer before Stac).
-        Assert.Equal(new[] { "FeatureServer", "Stac" }, protocols.ToArray());
-    }
-
-    [Fact]
-    public void AiProposal_NoProtocolWords_FallsBackToDefaultEnabledSet()
-    {
-        var protocols = AiPublishProposalSummary.InferProtocols("just publish the parcels please");
-
-        Assert.Equal(PublishProtocolCatalog.DefaultEnabled.ToArray(), protocols.ToArray());
-    }
-
-    [Fact]
-    public void AiProposal_InfersStyleIntentFromStyledByPhrase()
-    {
-        Assert.Equal("by zoning", AiPublishProposalSummary.InferStyleIntent("… styled by zoning"));
-        Assert.Null(AiPublishProposalSummary.InferStyleIntent("publish it with no styling"));
-    }
-
-    [Fact]
-    public void AiProposal_Headline_IsOutcomeFirst_NotAPlanDump()
-    {
-        var headline = AiPublishProposalSummary.Headline("Maui Parcels", ["FeatureServer", "Stac"], "by zoning");
-
-        Assert.Equal("I'll publish Maui Parcels as FeatureServer + STAC API, styled by zoning.", headline);
-    }
-
-    // ----------------------------------------------------------------- AI driver flow (bUnit)
-
-    [Fact]
-    public async Task AiFlow_Intent_ProducesOutcomeCard_WithPlumbingBehindDetails()
-    {
-        using var ctx = NewContext();
-        RegisterAiServer(ctx, FakeAiPublishDriver.Enabled());
-
-        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
-
-        cut.Find("textarea[data-ai-intent]").Input("publish parcels as a feature service and a STAC catalog, styled by zoning");
-        await cut.Find("button[data-ai-propose]").ClickAsync(new());
-
-        // The headline is the outcome, not a plan/spec dump.
-        Assert.Contains("data-ai-outcome-card", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("I'll publish", cut.Markup, StringComparison.Ordinal);
-        // The plan internals are NOT shown until Details is opened (plumbing hidden).
-        Assert.DoesNotContain("data-ai-outcome-details", cut.Markup, StringComparison.Ordinal);
-
-        await cut.Find("button[data-ai-details-toggle]").ClickAsync(new());
-        Assert.Contains("data-ai-outcome-details", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("data-ai-detail-publications", cut.Markup, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task AiFlow_Approve_AppliesThroughTheSameWiredPublishPath()
-    {
-        using var ctx = NewContext();
-        var publish = new AiModeRecordingPublishOperation();
-        RegisterAiServer(ctx, FakeAiPublishDriver.Enabled(), publish);
-
-        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
-
-        cut.Find("textarea[data-ai-intent]").Input("publish parcels as a feature service");
-        await cut.Find("button[data-ai-propose]").ClickAsync(new());
-        await cut.Find("button[data-ai-approve]").ClickAsync(new());
-
-        // Approve published through IServiceLayerPublishOperation (the SAME wired admin op manual mode uses)
-        // and landed the shared Done panel — the human approval is the single gate.
-        Assert.True(publish.PublishCalled);
-        Assert.Equal("parcels", publish.LastCommand!.Table);
-        Assert.Contains("data-step-body=\"Done\"", cut.Markup, StringComparison.Ordinal);
-        Assert.Equal("approved", FakeAiPublishDriver.LastDecision);
-    }
-
-    [Fact]
-    public async Task AiFlow_Edit_HandsOffToManualControls()
-    {
-        using var ctx = NewContext();
-        RegisterAiServer(ctx, FakeAiPublishDriver.Enabled());
-
-        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
-
-        cut.Find("textarea[data-ai-intent]").Input("publish parcels as a feature service");
-        await cut.Find("button[data-ai-propose]").ClickAsync(new());
-        await cut.Find("button[data-ai-edit]").ClickAsync(new());
-
-        // Edit drops the proposal into the manual Publish step (the manual driver surface), pre-filled.
-        Assert.Contains("data-step-body=\"Publish\"", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("data-publish-protocol-picker", cut.Markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-ai-outcome-card", cut.Markup, StringComparison.Ordinal);
-        Assert.Equal("edited", FakeAiPublishDriver.LastDecision);
-    }
-
-    [Fact]
-    public async Task AiFlow_Reject_DiscardsTheProposal()
-    {
-        using var ctx = NewContext();
-        RegisterAiServer(ctx, FakeAiPublishDriver.Enabled());
-
-        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
-
-        cut.Find("textarea[data-ai-intent]").Input("publish parcels as a feature service");
-        await cut.Find("button[data-ai-propose]").ClickAsync(new());
-        await cut.Find("button[data-ai-reject]").ClickAsync(new());
-
-        Assert.DoesNotContain("data-ai-outcome-card", cut.Markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-step-body=\"Done\"", cut.Markup, StringComparison.Ordinal);
-        Assert.Equal("rejected", FakeAiPublishDriver.LastDecision);
-    }
-
-    [Fact]
-    public void AiFlow_ServerWithAiOff_SurfacesHonestUnavailableState()
-    {
-        using var ctx = NewContext();
-        RegisterAiServer(ctx, FakeAiPublishDriver.AiOff("AI generation is switched off on this server."));
-
-        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
-
-        Assert.Contains("data-ai-unavailable", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("switched off", cut.Markup, StringComparison.Ordinal);
-        // No intent box / propose button when AI is off — only the honest state + manual escape hatch.
-        Assert.DoesNotContain("data-ai-propose", cut.Markup, StringComparison.Ordinal);
+        Assert.Single(cut.FindAll("a[href='/operate/resources/import/task']"));
+        Assert.Empty(cut.FindAll("input[type='file']"));
+        Assert.Empty(cut.FindAll("[data-step-body='AddData'] button.console-button"));
     }
 
     // ----------------------------------------------------------------- redirects
@@ -550,196 +407,27 @@ public sealed class ResourceFirstPublishFlowTests
     }
 
     [Fact]
-    public async Task Flow_TablePublish_ThreadsPlannedProtocols_AndReportsOnlyThoseTheServerExposes()
+    public void Flow_ChoosingATableConnection_HandsOffToQuickPublish()
     {
         using var ctx = NewContext();
-        var publish = new RecordingPublishOperation(
-            // The server exposes only FeatureServer + Stac (MapServer was not enabled), so the flow must
-            // report exactly those as live — never over-report the un-exposed MapServer publication.
-            enabledProtocols: ["FeatureServer", "Stac"]);
         ctx.Services.AddSingleton<IConsoleFileImportOperation>(new UnsupportedConsoleFileImportOperation());
-        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish);
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneConnectionDataSource("conn1", "Primary"));
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new UnsupportedStudioMapStyleCatalogDataSource());
+        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
 
         var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "table"));
+        cut.Find("select[aria-label=\"Connection\"]").Change("conn1");
 
-        // Choose the connection so the table picker loads its single table.
-        var chosen = new AddDataIntake.DataSourceIntake(AddDataMode.Table, "conn1");
-        await cut.InvokeAsync(() => InvokePrivate(cut.Instance, "OnSourceChosen", chosen));
-        cut.Render();
-
-        // Select the table, then advance one primary action per step to Go live.
-        cut.Find("[data-table-picker]").Change("public.parcels");
-        cut.Find("[data-step-body=\"AddData\"] button.console-button").Click(); // → Resource
-        cut.WaitForElement("[data-step-body=\"Resource\"]");
-        cut.Find("[data-step-body=\"Resource\"] button.console-button").Click(); // → Publish
-        cut.WaitForElement("[data-step-body=\"Publish\"]");
-        cut.Find("[data-step-body=\"Publish\"] button.console-button").Click(); // → Style
-        cut.WaitForElement("[data-step-body=\"Style\"]");
-        cut.Find("[data-step-body=\"Style\"] button.console-button").Click(); // → Go live
-        cut.WaitForElement("[data-step-body=\"GoLive\"]");
-        cut.Find("[data-step-body=\"GoLive\"] button.console-button").Click(); // Apply & publish
-
-        // The flow lands on Done once at least one protocol is genuinely live.
-        cut.WaitForElement("[data-step-body=\"Done\"]");
-
-        // The layer publish ran exactly once (not once per protocol), and carried the planned protocol set.
-        Assert.Equal(1, publish.PublishCalls);
-        Assert.Equal(1, publish.EnableCalls);
-        Assert.Equal(new[] { "FeatureServer", "MapServer", "Stac" }, publish.LastCommand!.Protocols.ToArray());
-        // Exactly one protocol-enablement call carrying the same plan.
-        Assert.Equal(new[] { "FeatureServer", "MapServer", "Stac" }, publish.LastEnableProtocols!.ToArray());
-
-        // Only the 2 protocols the server actually exposes (FeatureServer + Stac) are reported live —
-        // the un-exposed MapServer is NOT over-reported (2 of 3 publications landed).
-        Assert.Contains("2 of 3 publications landed", cut.Markup, StringComparison.Ordinal);
+        Assert.EndsWith("/operate/publishing/quick", nav.Uri, StringComparison.Ordinal);
     }
-
-    private static object? InvokePrivate(object target, string method, params object[] args) =>
-        target.GetType()
-            .GetMethod(method, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-            .Invoke(target, args);
 
     // ----------------------------------------------------------------- helpers
 
-    // Registers an AI-mode harness: a fake AI driver, a one-connection data source, and a publish op that
-    // advertises a "parcels" table so a proposal can resolve to a real publishable table and Approve can
-    // publish through the SAME wired IServiceLayerPublishOperation path manual mode uses.
-    private static void RegisterAiServer(
-        BunitContext ctx,
-        FakeAiPublishDriver driver,
-        IServiceLayerPublishOperation? publish = null)
+    private static void RegisterExistingResource(BunitContext ctx)
     {
-        FakeAiPublishDriver.LastDecision = null;
         ctx.Services.AddSingleton<IConsoleFileImportOperation>(new UnsupportedConsoleFileImportOperation());
-        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish ?? new AiModeRecordingPublishOperation());
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new UnsupportedStudioMapStyleCatalogDataSource());
-        ctx.Services.AddSingleton<IAiPublishDriver>(driver);
-        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new AiModeOneConnectionDataSource());
-    }
-
-    /// <summary>A scripted AI driver: enabled-with-proposal, AI-off, or blocked — for the AI-mode flow tests.</summary>
-    private sealed class FakeAiPublishDriver : IAiPublishDriver
-    {
-        public static string? LastDecision;
-
-        private readonly AiPublishCapability _capability;
-        private readonly Func<string, IReadOnlyList<AiPublishResourceRef>, AiPublishOutcome> _propose;
-
-        private FakeAiPublishDriver(
-            AiPublishCapability capability,
-            Func<string, IReadOnlyList<AiPublishResourceRef>, AiPublishOutcome> propose)
-        {
-            _capability = capability;
-            _propose = propose;
-        }
-
-        public static FakeAiPublishDriver Enabled() =>
-            new(
-                new AiPublishCapability(true, "bedrock", null),
-                (intent, known) =>
-                {
-                    var protocols = AiPublishProposalSummary.InferProtocols(intent);
-                    var resource = known.FirstOrDefault();
-                    return AiPublishOutcome.Proposed(new AiPublishProposal
-                    {
-                        ResourceName = resource.Name,
-                        Protocols = protocols,
-                        ServiceSlot = resource.Name,
-                        StyleIntent = AiPublishProposalSummary.InferStyleIntent(intent),
-                        Rationale = "The server AI confirmed it can plan this publish.",
-                        PlannedPublications = PublishProtocolCatalog.PlanPublications(resource.Name, protocols),
-                        Provider = "bedrock",
-                        FeedbackId = "fb-1",
-                    });
-                });
-
-        public static FakeAiPublishDriver AiOff(string detail) =>
-            new(AiPublishCapability.Off(detail), (_, _) => AiPublishOutcome.Unavailable(detail));
-
-        public Task<AiPublishCapability> GetCapabilityAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(_capability);
-
-        public Task<AiPublishOutcome> ProposeAsync(
-            string intent,
-            IReadOnlyList<AiPublishResourceRef> knownResources,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(_propose(intent, knownResources));
-
-        public Task RecordDecisionAsync(string? feedbackId, string action, CancellationToken cancellationToken = default)
-        {
-            LastDecision = action;
-            return Task.CompletedTask;
-        }
-    }
-
-    /// <summary>A publish op that advertises one "parcels" table and records the publish command on Approve.</summary>
-    private sealed class AiModeRecordingPublishOperation : IServiceLayerPublishOperation
-    {
-        public bool PublishCalled { get; private set; }
-        public ServiceLayerPublishCommand? LastCommand { get; private set; }
-
-        public Task<ServiceLayerPublishResult> PublishAsync(
-            ServiceLayerPublishCommand command,
-            CancellationToken cancellationToken = default)
-        {
-            PublishCalled = true;
-            LastCommand = command;
-            return Task.FromResult(new ServiceLayerPublishResult
-            {
-                Succeeded = true,
-                State = "Published",
-                Detail = "Published",
-                LayerName = command.LayerName,
-            });
-        }
-
-        public Task<ServiceProtocolEnableResult> EnableProtocolsAsync(
-            string serviceName,
-            IReadOnlyList<string> protocols,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ServiceProtocolEnableResult
-            {
-                Succeeded = true,
-                State = "Published",
-                EnabledProtocols = protocols,
-            });
-
-        public Task<IReadOnlyList<ServiceLayerPublishTable>> ListTablesAsync(
-            string connectionId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<ServiceLayerPublishTable>>(
-            [
-                new ServiceLayerPublishTable
-                {
-                    Schema = "public",
-                    Table = "parcels",
-                    GeometryColumn = "geom",
-                    GeometryType = "Polygon",
-                    Srid = 4326,
-                    Columns = ["objectid", "zoning"],
-                },
-            ]);
-    }
-
-    /// <summary>A data source advertising one connection so AI mode can load publishable tables.</summary>
-    private sealed class AiModeOneConnectionDataSource : IOperateTransitionDataSource
-    {
-        private static readonly OperateConnectionSummary Connection =
-            new("conn1", "PostGIS", "postgis", "db", "app", "Connected", "now", null);
-
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new OperateTransitionWorkspace([Connection], [], [], [], []));
-
-        public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateConnectionSummary?>(Connection);
-
-        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateResourceEditPreview?>(null);
-
-        public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateServiceDetail?>(null);
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneResourceDataSource("rsc_parcels", "parcels"));
     }
 
     private static OperateResourceEditPreview EditPreview(string id, string name) =>
@@ -752,7 +440,6 @@ public sealed class ResourceFirstPublishFlowTests
     private static OperateServiceDetail Service(string name, string serviceType, params OperateServiceLayerProjection[] layers) =>
         new(name, name, serviceType, "Running", "managed", layers, [], []);
 
-    /// <summary>A data source advertising exactly one connection, for the table-publish flow test.</summary>
     private sealed class OneConnectionDataSource(string connectionId, string name) : IOperateTransitionDataSource
     {
         private readonly OperateConnectionSummary _connection =

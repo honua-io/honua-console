@@ -12,52 +12,21 @@ namespace Honua.Console.IntegrationTests;
 /// </summary>
 public sealed class StudioFormPackageDataSourceTests
 {
-    [Fact]
-    public async Task Generate_NeedsClarification_NullCollections_MapsWithoutThrowing()
-    {
-        // The server omits empty collections as JSON null, so a valid needs-clarification turn commonly
-        // arrives with null Validation.Issues / UnmappedRequests, and a clarification with null Choices.
-        // MapGeneration must coalesce/guard rather than NRE (regression: this family had dropped the guards).
-        var client = new FakeFormPackageClient
-        {
-            GenerateFormResult = HonuaAdminEndpointResult<HonuaFormGenerationResult>.FromData(
-                new HonuaFormGenerationResult
-                {
-                    Status = StudioFormGenerationStatuses.NeedsClarification,
-                    Rationale = "Which field captures the address?",
-                    Validation = new HonuaFormPackageValidationResult { IsValid = false, Issues = null! },
-                    UnmappedRequests = null!,
-                    Clarifications =
-                    [
-                        new HonuaFormGenerationClarification { Id = "q1", Kind = "choice", Prompt = "Pick a field", Choices = null! }
-                    ]
-                })
-        };
-        var source = new HonuaServerStudioFormPackageDataSource(client);
-
-        var outcome = await source.GenerateAsync(new StudioFormEditorState(), new StudioFormGenerationRequest { Prompt = "a form" });
-
-        Assert.True(outcome.NeedsClarification);
-        Assert.Null(outcome.State);
-        Assert.Single(outcome.Clarifications);
-        Assert.Empty(outcome.Clarifications[0].Choices);
-    }
 
     [Fact]
-    public async Task Generate_ServerLacksContract_404_SurfacesUnsupportedNotMissingBinding()
+    public async Task Unsupported_Source_SurfacesMissingBinding_Everywhere()
     {
-        var client = new FakeFormPackageClient
-        {
-            GenerateFormResult = HonuaAdminEndpointResult<HonuaFormGenerationResult>.FromIssue(
-                new HonuaAdminEndpointIssue("Unsupported", "POST generate", "Not found.", 404))
-        };
-        var source = new HonuaServerStudioFormPackageDataSource(client);
+        var source = new UnsupportedStudioFormPackageDataSource();
 
-        var outcome = await source.GenerateAsync(new StudioFormEditorState(), new StudioFormGenerationRequest { Prompt = "hi" });
+        var workspace = await source.GetWorkspaceAsync();
+        var load = await source.LoadAsync("form-1");
+        var save = await source.SaveDraftAsync(new StudioFormEditorState());
 
-        Assert.Equal(StudioFormGenerationStatuses.Unsupported, outcome.Status);
-        Assert.Null(outcome.BindingState);
-        Assert.Equal(1, client.GenerateFormCalls);
+        Assert.Equal("Missing binding", Assert.Single(workspace.CapabilityStates).State);
+        Assert.False(load.HasEditor);
+        Assert.Equal("Missing binding", Assert.Single(load.CapabilityStates).State);
+        Assert.False(save.Succeeded);
+        Assert.Equal("Missing binding", save.Issue!.State);
     }
 
     [Fact]
@@ -273,150 +242,8 @@ public sealed class StudioFormPackageDataSourceTests
         Assert.Contains("Save your latest edits", dirty.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
-    public async Task Unsupported_Source_SurfacesMissingBinding_Everywhere()
-    {
-        var source = new UnsupportedStudioFormPackageDataSource();
-
-        var workspace = await source.GetWorkspaceAsync();
-        var load = await source.LoadAsync("form-1");
-        var save = await source.SaveDraftAsync(new StudioFormEditorState());
-        var import = await source.ImportXlsFormAsync(new StudioFormImportRequest { FileName = "f.xlsx", Content = [1] });
-
-        Assert.Equal("Missing binding", Assert.Single(workspace.CapabilityStates).State);
-        Assert.False(load.HasEditor);
-        Assert.Equal("Missing binding", Assert.Single(load.CapabilityStates).State);
-        Assert.False(save.Succeeded);
-        Assert.Equal("Missing binding", save.Issue!.State);
-        Assert.Equal("Missing binding", import.BindingState!.State);
-    }
-
-    [Fact]
-    public async Task ImportXlsForm_MapsServerPackage_ToImportedDraft_WithDiagnostics()
-    {
-        var client = new FakeFormPackageClient
-        {
-            ImportXlsFormResult = HonuaAdminEndpointResult<HonuaFormXlsFormImportResult>.FromData(
-                new HonuaFormXlsFormImportResult
-                {
-                    Title = "Water point survey",
-                    FormId = "water_point",
-                    FieldCount = 2,
-                    Package = new HonuaFormPackageDocument
-                    {
-                        Title = "Water point survey",
-                        Fields =
-                        [
-                            new HonuaFormFieldDefinition { FieldId = "name", Label = "Name", Type = "text" },
-                            new HonuaFormFieldDefinition { FieldId = "status", Label = "Status", Type = "text" }
-                        ]
-                    },
-                    Diagnostics =
-                    [
-                        new HonuaFormImportDiagnostic
-                        {
-                            Severity = "warning",
-                            Code = "xlsform.unsupportedType",
-                            Location = "survey!B7",
-                            Message = "The 'rank' question type was imported as text."
-                        }
-                    ]
-                })
-        };
-        var source = new HonuaServerStudioFormPackageDataSource(client);
-
-        var outcome = await source.ImportXlsFormAsync(new StudioFormImportRequest
-        {
-            FileName = "water_point.xlsx",
-            Content = [1, 2, 3]
-        });
-
-        Assert.True(outcome.IsImported);
-        Assert.Equal(1, client.ImportXlsFormCalls);
-        Assert.NotNull(outcome.State);
-        // The converted document opens as a fresh, unsaved draft: no server-assigned id, draft status.
-        Assert.True(string.IsNullOrEmpty(outcome.State!.FormId));
-        Assert.Equal(2, outcome.State.Fields.Count);
-        Assert.Equal("Water point survey", outcome.State.Title);
-        var diagnostic = Assert.Single(outcome.Diagnostics);
-        Assert.Equal("xlsform.unsupportedType", diagnostic.Code);
-        Assert.Contains("rank", diagnostic.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task ImportXlsForm_EmptyWorkbook_RejectedWithoutServerCall()
-    {
-        var client = new FakeFormPackageClient();
-        var source = new HonuaServerStudioFormPackageDataSource(client);
-
-        var outcome = await source.ImportXlsFormAsync(new StudioFormImportRequest { FileName = "f.xlsx", Content = [] });
-
-        Assert.Equal(StudioFormImportStatuses.Rejected, outcome.Status);
-        Assert.Equal(0, client.ImportXlsFormCalls);
-    }
-
-    [Fact]
-    public async Task ImportXlsForm_ServerLacksContract_404_SurfacesUnsupportedNotMissingBinding()
-    {
-        var client = new FakeFormPackageClient
-        {
-            ImportXlsFormResult = HonuaAdminEndpointResult<HonuaFormXlsFormImportResult>.FromIssue(
-                new HonuaAdminEndpointIssue("Unsupported", "POST import-xlsform", "Not found.", 404))
-        };
-        var source = new HonuaServerStudioFormPackageDataSource(client);
-
-        var outcome = await source.ImportXlsFormAsync(new StudioFormImportRequest { FileName = "f.xlsx", Content = [1] });
-
-        Assert.Equal(StudioFormImportStatuses.Unsupported, outcome.Status);
-        Assert.Null(outcome.BindingState);
-        Assert.Equal(1, client.ImportXlsFormCalls);
-    }
-
-    [Fact]
-    public async Task ImportXlsForm_ServerRejectsWorkbook_400_SurfacesRejected()
-    {
-        var client = new FakeFormPackageClient
-        {
-            ImportXlsFormResult = HonuaAdminEndpointResult<HonuaFormXlsFormImportResult>.FromIssue(
-                new HonuaAdminEndpointIssue("Rejected", "POST import-xlsform", "The survey sheet is missing a type column.", 400))
-        };
-        var source = new HonuaServerStudioFormPackageDataSource(client);
-
-        var outcome = await source.ImportXlsFormAsync(new StudioFormImportRequest { FileName = "f.xlsx", Content = [1] });
-
-        Assert.Equal(StudioFormImportStatuses.Rejected, outcome.Status);
-        Assert.Null(outcome.BindingState);
-        Assert.Contains("type column", outcome.Message, StringComparison.Ordinal);
-    }
-
     private sealed class FakeFormPackageClient : IHonuaFormPackageClient
     {
-        public Task<HonuaAdminEndpointResult<HonuaFormGenerationProviders>> ListGenerationProvidersAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(HonuaAdminEndpointResult<HonuaFormGenerationProviders>.FromIssue(
-                new HonuaAdminEndpointIssue("Unsupported", "GET providers", "Not exercised by this fake.")));
-
-        public HonuaAdminEndpointResult<HonuaFormGenerationResult>? GenerateFormResult { get; set; }
-
-        public int GenerateFormCalls { get; private set; }
-
-        public HonuaAdminEndpointResult<HonuaFormXlsFormImportResult>? ImportXlsFormResult { get; set; }
-
-        public int ImportXlsFormCalls { get; private set; }
-
-        public Task<HonuaAdminEndpointResult<HonuaFormXlsFormImportResult>> ImportXlsFormAsync(ImportXlsFormRequest request, CancellationToken cancellationToken = default)
-        {
-            ImportXlsFormCalls++;
-            return Task.FromResult(ImportXlsFormResult ?? HonuaAdminEndpointResult<HonuaFormXlsFormImportResult>.FromIssue(
-                new HonuaAdminEndpointIssue("Unsupported", "POST import-xlsform", "Not exercised by this fake.")));
-        }
-
-        public Task<HonuaAdminEndpointResult<HonuaFormGenerationResult>> GenerateFormAsync(GenerateFormPackageRequest request, CancellationToken cancellationToken = default)
-        {
-            GenerateFormCalls++;
-            return Task.FromResult(GenerateFormResult ?? HonuaAdminEndpointResult<HonuaFormGenerationResult>.FromIssue(
-                new HonuaAdminEndpointIssue("Unsupported", "POST generate", "Not exercised by this fake.")));
-        }
-
         public Uri BaseUri { get; } = new("https://honua.test");
 
         public HonuaAdminEndpointResult<HonuaFormPackageSummary[]> Packages { get; set; } =

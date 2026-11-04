@@ -130,7 +130,6 @@ const consoleProcOptions = {
     // Same as playwright.live.config.ts: the Console host gets no service key. Privileged
     // browser calls go through the governed operator bearer; only the verifier uses ADMIN_KEY.
     HONUA_ADMIN_API_KEY: '',
-    HONUA_CONSOLE_CAPABILITIES: 'studio-builders',
     HONUA_CONSOLE_MODE: process.env.HONUA_CONSOLE_MODE ?? 'full',
   },
 };

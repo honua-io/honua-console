@@ -46,35 +46,4 @@ public interface IStudioFormPackageDataSource
         string formId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Reads whether natural-language form generation is available on the bound server and which providers
-    /// (local GIS model / Claude / GPT) are enabled+configured, or a binding state when the surface is
-    /// unbound. Drives the "Form from prompt" provider selector and its availability state.
-    /// </summary>
-    Task<StudioFormAiCapability> GetGenerationCapabilityAsync(
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Generates (fresh) or refines (when the editor state already has fields) a form package from a
-    /// natural-language prompt. The server grounds the proposal in the target service/layer schema and
-    /// validates it before returning, so the outcome is either a server-produced document, a structured
-    /// clarification request, an unsupported/refused turn, or a binding state - never a fabricated form.
-    /// </summary>
-    Task<StudioFormGenerationOutcome> GenerateAsync(
-        StudioFormEditorState currentState,
-        StudioFormGenerationRequest request,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Converts an uploaded XLSForm (ODK Collect) workbook into a fresh, unsaved form-builder draft by
-    /// running the server-side Collect import path (Honua.Collect.Core XlsFormImporter). The console never
-    /// reimplements the importer: it ships the workbook bytes to the admin import endpoint and maps the
-    /// server-produced package document into editor state, surfacing the importer's diagnostics (unsupported
-    /// question types, dropped constructs) rather than dropping them. Returns an unsupported/rejected status
-    /// when the server lacks the import contract or rejects the workbook, or a binding state when unbound —
-    /// never a fabricated form.
-    /// </summary>
-    Task<StudioFormImportOutcome> ImportXlsFormAsync(
-        StudioFormImportRequest request,
-        CancellationToken cancellationToken = default);
 }

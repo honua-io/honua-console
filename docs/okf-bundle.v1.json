@@ -48,10 +48,6 @@
     {
       "path": "docs/smoke",
       "why": "Parity smoke procedure for contributors verifying the Console against the legacy portal."
-    },
-    {
-      "path": "docs/studio",
-      "why": "Package-editor routes, marked `SHELVED (studio-builders capability)`. Documents a surface that is not currently being built."
     }
   ],
   "excludedFiles": [

@@ -79,10 +79,6 @@ export default defineConfig({
       Honua__Server__BaseUrl: '',
       Honua__Server__AdminApiKey: '',
       Honua__Server__PublicationIds: '',
-      // The Console's non-realtime Studio builder surfaces are SHELVED (gated off by default behind
-      // the studio-builders capability) in favour of the realtime SDK-driven Studio. Enable their
-      // backend-free surface for this shell scan; this does not certify live authoring workflows.
-      HONUA_CONSOLE_CAPABILITIES: 'studio-builders',
     },
   },
 });

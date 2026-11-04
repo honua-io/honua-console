@@ -71,9 +71,6 @@ export default defineConfig({
       Honua__Server__BaseUrl: '',
       Honua__Server__AdminApiKey: '',
       Honua__Server__PublicationIds: '',
-      // Legacy builder URLs must remain retired even if an older deployment
-      // advertises their former capability.
-      HONUA_CONSOLE_CAPABILITIES: 'studio-builders',
     },
   },
 });
