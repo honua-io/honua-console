@@ -2,41 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-sdk-dotnet#231): The Operate observability admin contracts
-// (events, logs, audit, alert lifecycle, alert rules, geofence zones, durable
-// jobs, investigations) added by honua-server#1168, #1169, and #1170 are not
-// yet projected to honua-sdk-dotnet. SDK 1.0.0 predates these endpoints and
-// only exposes the narrow IHonuaAdminObservabilityClient. These records mirror
-// the server HTTP/OpenAPI surface (NOT the server's internal protocol models)
-// and are consumed through the single Console shim boundary until the SDK
-// projection lands and honua-console swaps them for SDK types, exactly like the
-// catalog shim in SdkShims.cs.
-//
-// Route map (concrete v1), all under /api/v{version:apiVersion}/admin:
-//   GET  /version                           -> ApiResponse<AdminVersionResponse>
-//   GET  /capabilities                      -> ApiResponse<AdminCapabilitiesResponse>
-//   GET  /observability/errors              -> OperateRecentErrorsResponse
-//   GET  /observability/telemetry           -> OperateTelemetryStatusResponse
-//   GET  /observability/migrations          -> OperateMigrationStatusResponse
-//   GET  /observability/events              -> OperateEventPageResponse
-//   GET  /observability/logs                -> OperateLogPageResponse
-//   GET  /observability/audit               -> ObservabilityAuditPageResponse
-//   GET  /observability/alerts              -> ObservabilityAlertEventPageResponse
-//   POST /observability/alerts/{id}/acknowledge|suppress|resolve
-//   GET  /services/                         -> ApiResponse<ServiceSummary[]>
-//   GET  /alerts/rules?serviceId={service}    -> ApiResponse<AlertRuleResponse[]>
-//   GET  /alerts/rules/{id}/health           -> ApiResponse<AlertRuleHealthResponse>
-//   POST /alerts/rules/test                  -> ApiResponse<AlertRuleTestResponse>
-//   GET  /alerts/zones?serviceId={service}    -> ApiResponse<AlertZoneResponse[]>
-//   GET  /jobs                               -> ConsoleJobListResponse
-//   GET  /jobs/{id}                          -> ConsoleJobDetail
-//   GET  /jobs/{id}/logs|artifacts|actions
-//   GET  /investigations                     -> InvestigationPageResponse
-//   GET  /investigations/{id}                -> InvestigationResponse
-//
-// JSON on the wire is camelCase; alert rules/zones additionally wrap payloads in
-// ConsoleApiEnvelope<T> (success/data/message/timestamp).
-
 public static class OperateAdminRoutes
 {
     public const string Prefix = "api/v1/admin";
@@ -83,11 +48,6 @@ public static class OperateAdminRoutes
     public static string InvestigationDetail(string investigationId) => $"{Investigations}/{Uri.EscapeDataString(investigationId)}";
 }
 
-/// <summary>
-/// Builds the query string for the events/logs/jobs admin endpoints from
-/// optional Console filters. Server-side filtering avoids loading the whole
-/// timeline into memory and filtering client-side.
-/// </summary>
 public sealed record OperateEventQueryParameters
 {
     public string Kind { get; init; } = string.Empty;
@@ -151,8 +111,6 @@ public sealed record OperateEventQueryParameters
     }
 }
 
-// --- Shared envelope (alert rules / geofence zones) ---------------------------
-
 public sealed record ConsoleApiEnvelope<T>
 {
     [JsonPropertyName("success")]
@@ -164,8 +122,6 @@ public sealed record ConsoleApiEnvelope<T>
     [JsonPropertyName("message")]
     public string? Message { get; init; }
 }
-
-// --- Admin overview / telemetry -------------------------------------------------
 
 public sealed record AdminVersionResponse
 {
@@ -273,8 +229,6 @@ public sealed record OperateMigrationStatusResponse
 
     public DateTimeOffset GeneratedAt { get; init; }
 }
-
-// --- Events / logs / audit ----------------------------------------------------
 
 public sealed record OperateEventPageResponse
 {
@@ -393,8 +347,6 @@ public sealed record ObservabilityAuditRecordResponse
     public string Details { get; init; } = string.Empty;
 }
 
-// --- Alerts (geofence / realtime alert events) --------------------------------
-
 public sealed record ObservabilityAlertEventPageResponse
 {
     public IReadOnlyList<ObservabilityAlertEventResponse> Items { get; init; } = [];
@@ -406,11 +358,7 @@ public sealed record ObservabilityAlertEventResponse
 {
     public long EventId { get; init; }
 
-    /// <summary>
-    /// Owning alert-rule id, or <see langword="null"/> for operations-notification events
-    /// (deploy/job terminal events) that share the alert-event outbox but are not rule-driven.
-    /// Nullable to match the server contract after honua-server migration 075.
-    /// </summary>
+    // Null for a deploy or job notification that is not driven by an alert rule.
     public long? RuleId { get; init; }
 
     public string? RuleName { get; init; }
@@ -447,8 +395,6 @@ public sealed record ObservabilityAlertEventResponse
 
     public string ResourceRef { get; init; } = string.Empty;
 }
-
-// --- Alert rules + health + test ----------------------------------------------
 
 public sealed record AlertRuleResponse
 {
@@ -570,8 +516,6 @@ public sealed record AlertChannelValidationResponse
     public string Message { get; init; } = string.Empty;
 }
 
-// --- Geofence zones -----------------------------------------------------------
-
 public sealed record AlertZoneResponse
 {
     public long ZoneId { get; init; }
@@ -588,8 +532,6 @@ public sealed record AlertZoneResponse
 
     public bool IsActive { get; init; }
 }
-
-// --- Durable jobs -------------------------------------------------------------
 
 public sealed record ConsoleJobListResponse
 {
@@ -813,13 +755,7 @@ public sealed record ConsoleJobActionsResponse
     public ConsoleJobActionDescriptor[] Actions { get; init; } = [];
 }
 
-/// <summary>
-/// Result of a durable-job control action (<c>POST /jobs/{id}/cancel</c> or
-/// <c>POST /jobs/{id}/retry</c>). The server returns the action that ran, the
-/// job's resulting status, and an operator-facing message. The server's
-/// Execute + destructive-approval gate is the authority: a denied action returns
-/// 403 (forbidden / approval-required) rather than this envelope.
-/// </summary>
+// A denied action is a 403, not this body.
 public sealed record ConsoleJobControlResponse
 {
     public string JobId { get; init; } = string.Empty;
@@ -833,15 +769,6 @@ public sealed record ConsoleJobControlResponse
     public string Message { get; init; } = string.Empty;
 }
 
-/// <summary>
-/// The sanitized per-step glass-box for a durable execution job
-/// (<c>GET /api/v1/admin/jobs/{id}/steps</c>, honua-server #2182). Each step is a
-/// projection of one durable execution-log entry: its phase, timeline, status,
-/// the sanitized provider command (e.g. the GDAL command with
-/// <c>&lt;scratch&gt;</c>/<c>&lt;path&gt;</c> redacted server-side), an artifact
-/// summary, and metadata. The server has already sanitized <see cref="ConsoleJobStep.Command"/>;
-/// the Console renders it verbatim and must not re-sanitize it.
-/// </summary>
 public sealed record ConsoleJobStepsResponse
 {
     public string JobId { get; init; } = string.Empty;
@@ -871,6 +798,7 @@ public sealed record ConsoleJobStep
 
     public string Message { get; init; } = string.Empty;
 
+    // Already sanitized on the server; render it as received.
     public string? Command { get; init; }
 
     public ConsoleJobStepArtifact[]? Artifacts { get; init; }
@@ -887,10 +815,7 @@ public sealed record ConsoleJobStepArtifact
     public long? SizeBytes { get; init; }
 }
 
-/// <summary>
-/// <c>honua.job-diagnostics/v1</c> from <c>GET /api/v1/admin/jobs/{id}/diagnostics</c>.
-/// The console renders this document and does not invent phases, timings, or actions.
-/// </summary>
+// Render this document as given; do not invent phases, timings, or actions.
 public sealed record ConsoleJobDiagnosticsResponse
 {
     public string Schema { get; init; } = string.Empty;
@@ -970,8 +895,6 @@ public sealed record ConsoleJobDiagnosticEvidence
     public string[] Truncated { get; init; } = [];
 }
 
-// --- Investigations -----------------------------------------------------------
-
 public sealed record InvestigationPageResponse
 {
     public IReadOnlyList<InvestigationSummaryResponse> Items { get; init; } = [];
@@ -1045,11 +968,6 @@ public sealed record InvestigationLinkResponse
     public string? Note { get; init; }
 }
 
-/// <summary>
-/// Source-generated serialization context for the Operate observability admin
-/// contracts. Source generation keeps the surface trim/AOT-safe (no
-/// reflection-based serialization), per the Console runtime constraints.
-/// </summary>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     PropertyNameCaseInsensitive = true,

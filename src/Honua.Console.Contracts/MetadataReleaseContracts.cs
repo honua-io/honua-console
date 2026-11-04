@@ -2,29 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-sdk-dotnet): The GitOps metadata release contracts shipped by
-// honua-server#1163 (release package + GitOps manifest export) and
-// honua-server#1165 (release-operation lifecycle / rollback plan) are not yet
-// projected to honua-sdk-dotnet. These records mirror the server HTTP/OpenAPI
-// surface (NOT the server's internal Metadata v2 domain models) and are consumed
-// through the single Console shim boundary until the SDK projection lands and
-// honua-console swaps them for SDK types, exactly like OperateObservabilityContracts.
-//
-// Route map (concrete v1), all under /api/v1/admin/metadata, admin-authorized
-// (X-API-Key):
-//   GET /release-packages                                   -> MetadataReleasePackageListResponse (list)
-//   GET /release-packages/{packageId:guid}                  -> MetadataReleasePackageResponse   (#1163)
-//   GET /release-packages/{packageId:guid}/gitops-manifest  -> GitOpsMetadataReleaseManifestResponse (#1163)
-//   GET /releases/{packageId}/operation                     -> DeployOperationResponse          (#1165)
-//
-// JSON on the wire is camelCase; enums serialize as kebab/lower string members.
-// The release-package list endpoint returns lightweight summaries (no per-package
-// entry graph); the by-id detail read hydrates the full proposal/diff/matrix.
-
-/// <summary>
-/// Concrete v1 routes for the GitOps metadata release contracts, kept in one place
-/// so the client and tests share the exact server paths.
-/// </summary>
 public static class MetadataReleaseAdminRoutes
 {
     public const string Prefix = "api/v1/admin/metadata";
@@ -41,17 +18,10 @@ public static class MetadataReleaseAdminRoutes
     public static string ReleaseOperation(string packageId) =>
         $"{Prefix}/releases/{Uri.EscapeDataString(packageId)}/operation";
 
-    /// <summary>
-    /// Coordinated platform-upgrade release operation read (Demo C, honua-server#97):
-    /// the container + DB-change + metadata op for a release package id.
-    /// </summary>
     public static string CoordinatedReleaseOperation(string packageId) =>
         $"{Prefix}/coordinated-releases/{Uri.EscapeDataString(packageId)}/operation";
 }
 
-/// <summary>
-/// Coarse change class for a release entry (mirrors the server kebab/lower members).
-/// </summary>
 public enum MetadataReleaseChangeClassWire
 {
     [JsonStringEnumMemberName("metadata")]
@@ -70,9 +40,6 @@ public enum MetadataReleaseChangeClassWire
     Delete,
 }
 
-/// <summary>
-/// Semantic artifact kind grouping for a release entry.
-/// </summary>
 public enum MetadataSemanticArtifactKindWire
 {
     [JsonStringEnumMemberName("resource")]
@@ -97,9 +64,6 @@ public enum MetadataSemanticArtifactKindWire
     Role,
 }
 
-/// <summary>
-/// Binding state for an artifact in a target environment.
-/// </summary>
 public enum MetadataEnvironmentBindingStateWire
 {
     [JsonStringEnumMemberName("bound")]
@@ -112,9 +76,6 @@ public enum MetadataEnvironmentBindingStateWire
     EnvironmentUnavailable,
 }
 
-/// <summary>
-/// Release package lifecycle status.
-/// </summary>
 public enum MetadataReleasePackageStatusWire
 {
     [JsonStringEnumMemberName("draft")]
@@ -133,7 +94,6 @@ public enum MetadataReleasePackageStatusWire
     Cancelled,
 }
 
-/// <summary>Object metadata header reused across Metadata v2 responses.</summary>
 public sealed record MetadataObjectMetadataResponse
 {
     [JsonPropertyName("id")]
@@ -152,12 +112,7 @@ public sealed record MetadataObjectMetadataResponse
     public string? Description { get; init; }
 }
 
-/// <summary>
-/// Lightweight release-package summary returned by the list endpoint. Secret-safe:
-/// carries only package identity, lifecycle, source/target environments, and coarse
-/// counts (no per-package entry graph). The full proposal/diff/matrix is hydrated by
-/// the by-id detail read.
-/// </summary>
+// The list row carries identity and counts only, with no per-package entry graph.
 public sealed record MetadataReleasePackageSummaryResponse
 {
     [JsonPropertyName("packageId")]
@@ -200,7 +155,6 @@ public sealed record MetadataReleasePackageSummaryResponse
     public DateTimeOffset UpdatedAt { get; init; }
 }
 
-/// <summary>Paged list of metadata release-package summaries.</summary>
 public sealed record MetadataReleasePackageListResponse
 {
     [JsonPropertyName("generatedAt")]
@@ -219,7 +173,6 @@ public sealed record MetadataReleasePackageListResponse
     public int Offset { get; init; }
 }
 
-/// <summary>Persisted metadata release package (#1163).</summary>
 public sealed record MetadataReleasePackageResponse
 {
     [JsonPropertyName("packageId")]
@@ -259,7 +212,6 @@ public sealed record MetadataReleasePackageResponse
     public DateTimeOffset UpdatedAt { get; init; }
 }
 
-/// <summary>One semantic artifact entry in a release package.</summary>
 public sealed record MetadataReleaseEntryResponse
 {
     [JsonPropertyName("semanticId")]
@@ -287,11 +239,7 @@ public sealed record MetadataReleaseEntryResponse
     public IReadOnlyList<string> DependentSemanticIds { get; init; } = [];
 }
 
-/// <summary>
-/// One data script carried by a release bundle and its rollback coverage (#1163
-/// data-script coverage). <c>coverage</c> serializes as kebab/lower string members
-/// (<c>covered</c> / <c>no-rollback</c>); absent/unknown maps to unknown.
-/// </summary>
+// Coverage is covered or no-rollback; any other value, including absence, means unknown.
 public sealed record MetadataReleaseDataScriptResponse
 {
     [JsonPropertyName("scriptId")]
@@ -304,7 +252,6 @@ public sealed record MetadataReleaseDataScriptResponse
     public string? Coverage { get; init; }
 }
 
-/// <summary>Last-observed target environment state for a release entry.</summary>
 public sealed record MetadataReleaseTargetStateResponse
 {
     [JsonPropertyName("environment")]
@@ -320,7 +267,6 @@ public sealed record MetadataReleaseTargetStateResponse
     public MetadataEnvironmentBindingStateWire BindingState { get; init; }
 }
 
-/// <summary>GitOps-safe metadata release manifest (#1163).</summary>
 public sealed record GitOpsMetadataReleaseManifestResponse
 {
     [JsonPropertyName("apiVersion")]
@@ -336,7 +282,6 @@ public sealed record GitOpsMetadataReleaseManifestResponse
     public GitOpsMetadataReleaseSpecResponse? Spec { get; init; }
 }
 
-/// <summary>GitOps manifest spec.</summary>
 public sealed record GitOpsMetadataReleaseSpecResponse
 {
     [JsonPropertyName("packageId")]
@@ -352,7 +297,6 @@ public sealed record GitOpsMetadataReleaseSpecResponse
     public IReadOnlyList<MetadataReleaseEntryResponse> Entries { get; init; } = [];
 }
 
-/// <summary>GitOps manifest source environment state.</summary>
 public sealed record GitOpsMetadataReleaseSourceResponse
 {
     [JsonPropertyName("environment")]
@@ -365,14 +309,12 @@ public sealed record GitOpsMetadataReleaseSourceResponse
     public string ETag { get; init; } = string.Empty;
 }
 
-/// <summary>GitOps manifest target environment.</summary>
 public sealed record GitOpsMetadataReleaseTargetResponse
 {
     [JsonPropertyName("environment")]
     public string Environment { get; init; } = string.Empty;
 }
 
-/// <summary>Durable deploy workflow operation projecting the metadata release lifecycle (#1165).</summary>
 public sealed record DeployOperationResponse
 {
     [JsonPropertyName("operationId")]
@@ -387,13 +329,7 @@ public sealed record DeployOperationResponse
     [JsonPropertyName("priority")]
     public string Priority { get; init; } = string.Empty;
 
-    /// <summary>
-    /// The deploy target this operation actuates against (server-upgrade / rollback kind
-    /// operations). <see langword="null"/> when the server omits it — a metadata-promotion
-    /// kind operation carries its context in <see cref="MetadataRelease"/> instead and has no
-    /// <c>target</c> object; absence here must be treated as "no target data", never as a
-    /// zero-value target (console#290, honua-server PR #2577 null-omission contract).
-    /// </summary>
+    // Omitted for a metadata promotion; absence means there is no target, not a zero-value one.
     [JsonPropertyName("target")]
     public DeployPlanTargetResponse? Target { get; init; }
 
@@ -437,12 +373,7 @@ public sealed record DeployOperationResponse
     public DateTimeOffset? CompletedAt { get; init; }
 }
 
-/// <summary>
-/// Deploy target metadata embedded in a workflow operation response (server-upgrade /
-/// rollback kind operations; mirrors the server <c>DeployPlanTargetResponse</c>). Every
-/// field but <c>targetId</c>/<c>targetKind</c>/<c>backend</c>/<c>environment</c>/<c>targetName</c>/
-/// <c>desiredRevision</c>/<c>parameters</c> is nullable and omitted from the wire when null.
-/// </summary>
+// Nullable members are left off the payload instead of written as null.
 public sealed record DeployPlanTargetResponse
 {
     [JsonPropertyName("targetId")]
@@ -476,7 +407,6 @@ public sealed record DeployPlanTargetResponse
     public IReadOnlyDictionary<string, string> Parameters { get; init; } = new Dictionary<string, string>();
 }
 
-/// <summary>Metadata release lifecycle context embedded in a workflow operation.</summary>
 public sealed record MetadataReleaseContextResponse
 {
     [JsonPropertyName("packageId")]
@@ -519,7 +449,6 @@ public sealed record MetadataReleaseContextResponse
     public IReadOnlyList<string> Warnings { get; init; } = [];
 }
 
-/// <summary>Rollback plan embedded in a metadata release operation.</summary>
 public sealed record MetadataRollbackPlanResponse
 {
     [JsonPropertyName("class")]
@@ -541,7 +470,6 @@ public sealed record MetadataRollbackPlanResponse
     public string? ApprovalPolicyRef { get; init; }
 }
 
-/// <summary>Evidence reference embedded in a release operation.</summary>
 public sealed record MetadataEvidenceRefResponse
 {
     [JsonPropertyName("kind")]
@@ -557,10 +485,6 @@ public sealed record MetadataEvidenceRefResponse
     public DateTimeOffset At { get; init; }
 }
 
-/// <summary>
-/// One artifact carried by a coordinated platform-upgrade release (Demo C): the container image, the
-/// DB/schema change, or the metadata semantic diff, shown side by side in the console.
-/// </summary>
 public sealed record CoordinatedReleaseArtifactResponse
 {
     [JsonPropertyName("kind")]
@@ -576,7 +500,6 @@ public sealed record CoordinatedReleaseArtifactResponse
     public string? Current { get; init; }
 }
 
-/// <summary>One step in the coordinated ordered step timeline (with gate/rollback status).</summary>
 public sealed record CoordinatedReleaseStepResponse
 {
     [JsonPropertyName("step")]
@@ -595,10 +518,6 @@ public sealed record CoordinatedReleaseStepResponse
     public string? Detail { get; init; }
 }
 
-/// <summary>
-/// Coordinated platform-upgrade release operation (Demo C, honua-server#97): the three artifact kinds,
-/// the ordered step timeline with per-step gate/approve status, and the rollback readiness for the op.
-/// </summary>
 public sealed record CoordinatedReleaseOperationResponse
 {
     [JsonPropertyName("operationId")]
@@ -659,10 +578,6 @@ public sealed record CoordinatedReleaseOperationResponse
     public DateTimeOffset? CompletedAt { get; init; }
 }
 
-/// <summary>
-/// Source-generated JSON context for the GitOps metadata release wire contracts
-/// (trim/AOT safe), mirroring OperateObservabilityJsonContext.
-/// </summary>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     PropertyNameCaseInsensitive = true)]

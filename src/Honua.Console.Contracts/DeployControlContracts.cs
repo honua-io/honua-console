@@ -2,69 +2,26 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-sdk-dotnet): The honua-server deploy-control admin endpoints
-// (DeployControlEndpoints) are not yet projected to honua-sdk-dotnet. These
-// records/routes mirror the server HTTP surface so the Console human-in-the-loop
-// approval surface can read an operation and POST the governed submit/rollback
-// actions through the single Console shim boundary until the SDK projection lands.
-//
-// Route map (concrete v1), all under /api/v1/admin/deploy, admin-authorized
-// (X-API-Key); the operation read/response shape (DeployOperationResponse) is shared
-// with the metadata release contracts and lives in MetadataReleaseContracts.cs:
-//   GET  /operations                          -> DeployOperationListResponse (paged list, honua-server#2577)
-//   GET  /operations/{operationId}            -> DeployOperationResponse (status)
-//   POST /operations/{operationId}/submit     -> DeployOperationResponse (approve+submit)
-//   POST /operations/{operationId}/rollback   -> DeployOperationResponse (rollback; 403 if gated)
-//   GET  /preflight                           -> DeployPreflightResponse (console#290)
-//
-// console#290 (deploy cockpit completion): the list endpoint above landed in
-// honua-server PR #2577 (merged) — the release-scrape workaround this file used to
-// document is retired; the Console approval surface now reads the durable list
-// directly with the tracked-id fallback kept only for callers holding an id the
-// list's bounded materialization window has aged out.
-//
-// PlatformReleaseConverge is speculative: honua-server#2564 (platform-release
-// converge API) is still open at the time this route/DTO pair was authored. The
-// route constant and response shape below are a best-effort placeholder so the
-// Console UI can wire the capability-detected "converge" action end to end (a 404
-// from an older/pre-#2564 server maps to Unsupported today, which is what every real
-// server currently returns). Reconcile the response DTO's field names against the
-// server's actual OpenAPI contract in the SAME PR that consumes #2564 once merged;
-// do not treat the shape below as a pinned contract.
-
-/// <summary>
-/// Concrete v1 routes for the honua-server deploy-control admin endpoints, kept in
-/// one place so the client and tests share the exact server paths.
-/// </summary>
 public static class DeployControlAdminRoutes
 {
     public const string Prefix = "api/v1/admin/deploy";
 
-    /// <summary>The deploy preflight route (honua-server, pre-existing; console#290 first consumer).</summary>
     [OpsParityRoute("GET")]
     public const string Preflight = Prefix + "/preflight";
 
-    /// <summary>The route for listing deploy operations.</summary>
     [OpsParityRoute("GET")]
     public const string Operations = Prefix + "/operations";
 
-    /// <summary>The route template for reading one deploy operation.</summary>
     [OpsParityRoute("GET")]
     public const string OperationTemplate = Operations + "/{operationId}";
 
-    /// <summary>The route template for human submission of one deploy operation.</summary>
     [OpsParityRoute("POST")]
     public const string SubmitTemplate = OperationTemplate + "/submit";
 
-    /// <summary>The route template for requesting rollback of one deploy operation.</summary>
     [OpsParityRoute("POST")]
     public const string RollbackTemplate = OperationTemplate + "/rollback";
 
-    /// <summary>
-    /// Speculative platform-release converge route (honua-server#2564, not yet merged at the time
-    /// this constant was authored). Every server today returns 404/501 for this path, which the
-    /// client maps to <c>Unsupported</c> — the capability-detected "unavailable" state.
-    /// </summary>
+    // Not a pinned contract: a 404 or 501 means this server has no converge action.
     [OpsParityRoute("POST")]
     public const string PlatformReleaseConverge = "api/v1/admin/platform-release/converge";
 
@@ -77,11 +34,6 @@ public static class DeployControlAdminRoutes
     public static string Rollback(string operationId) =>
         RollbackTemplate.Replace("{operationId}", Uri.EscapeDataString(operationId), StringComparison.Ordinal);
 
-    /// <summary>
-    /// Builds the paged deploy-operations list route (honua-server PR #2577's pinned contract):
-    /// <c>GET /operations?status=&amp;kind=&amp;page=&amp;pageSize=</c>. All parameters are optional;
-    /// omitted filters are left off the query string rather than sent as empty values.
-    /// </summary>
     public static string OperationsList(string? status = null, string? kind = null, int? page = null, int? pageSize = null)
     {
         var query = new List<string>(4);
@@ -108,43 +60,24 @@ public static class DeployControlAdminRoutes
         return query.Count == 0 ? Operations : $"{Operations}?{string.Join('&', query)}";
     }
 
-    /// <summary>Builds the preflight route, optionally requesting the operator-diagnostics fields.</summary>
     public static string PreflightWithDiagnostics(bool includeDiagnostics = true) =>
         includeDiagnostics ? $"{Preflight}?includeDiagnostics=true" : Preflight;
 }
 
-/// <summary>
-/// Request payload for approving (submitting) a paused deploy-control operation.
-/// Mirrors the server <c>SubmitDeployOperationRequest</c> (an optional free-form
-/// reason captured in the decision audit).
-/// </summary>
 public sealed record SubmitDeployOperationRequest
 {
     [JsonPropertyName("reason")]
     public string? Reason { get; init; }
 }
 
-/// <summary>
-/// Request payload for rolling back a deploy-control operation. Mirrors the server
-/// <c>RollbackDeployOperationRequest</c>. A data-affecting rollback is gated by the
-/// server's OperatorApprovalGate; the reason is captured in the decision audit.
-/// </summary>
+// A data-affecting rollback can be refused by the server approval gate.
 public sealed record RollbackDeployOperationRequest
 {
     [JsonPropertyName("reason")]
     public string? Reason { get; init; }
 }
 
-/// <summary>
-/// Paged, newest-first collection of durable deploy workflow operations. Pinned to
-/// honua-server PR #2577's wire contract: <c>null</c>-valued properties on each
-/// <see cref="DeployOperationResponse"/> item are OMITTED from the payload
-/// (<c>DefaultIgnoreCondition = WhenWritingNull</c>) — treat an absent key as
-/// <c>null</c>, never as a zero/empty default. <c>totalCount</c>/<c>hasMore</c> are
-/// computed over a bounded materialization window (all active operations + the most
-/// recent terminal operations); unbounded historical paging past the window is not
-/// guaranteed.
-/// </summary>
+// TotalCount and HasMore cover active operations plus a bounded set of recent terminal ones.
 public sealed record DeployOperationListResponse
 {
     [JsonPropertyName("items")]
@@ -163,7 +96,6 @@ public sealed record DeployOperationListResponse
     public bool HasMore { get; init; }
 }
 
-/// <summary>Instance-scoped deploy preflight response for coordinated Honua rollouts (honua-server DeployPreflightResponse).</summary>
 public sealed record DeployPreflightResponse
 {
     [JsonPropertyName("status")]
@@ -203,7 +135,6 @@ public sealed record DeployPreflightResponse
     public DeployPreflightPlatformReleaseResponse? PlatformRelease { get; init; }
 }
 
-/// <summary>Readiness summary embedded in a deploy preflight response.</summary>
 public sealed record DeployPreflightReadinessResponse
 {
     [JsonPropertyName("isReady")]
@@ -216,7 +147,6 @@ public sealed record DeployPreflightReadinessResponse
     public string Message { get; init; } = string.Empty;
 }
 
-/// <summary>Migration and schema alignment summary embedded in a deploy preflight response.</summary>
 public sealed record DeployPreflightMigrationResponse
 {
     [JsonPropertyName("lifecycleStatus")]
@@ -241,7 +171,6 @@ public sealed record DeployPreflightMigrationResponse
     public string? PlanError { get; init; }
 }
 
-/// <summary>Database compatibility summary embedded in a deploy preflight response.</summary>
 public sealed record DeployPreflightDatabaseCompatibilityResponse
 {
     [JsonPropertyName("isCompatible")]
@@ -266,10 +195,6 @@ public sealed record DeployPreflightDatabaseCompatibilityResponse
     public string? ErrorMessage { get; init; }
 }
 
-/// <summary>
-/// Cross-plane platform-release consistency summary embedded in a deploy preflight response
-/// (ADR-0060 WS2).
-/// </summary>
 public sealed record DeployPreflightPlatformReleaseResponse
 {
     [JsonPropertyName("releaseVersion")]
@@ -291,7 +216,6 @@ public sealed record DeployPreflightPlatformReleaseResponse
     public IReadOnlyList<string> SkewedIds { get; init; } = [];
 }
 
-/// <summary>One plane element's platform-release projection embedded in a deploy preflight response.</summary>
 public sealed record DeployPreflightPlaneProjectionResponse
 {
     [JsonPropertyName("observationStatus")]
@@ -325,11 +249,6 @@ public sealed record DeployPreflightPlaneProjectionResponse
     public bool Skewed { get; init; }
 }
 
-/// <summary>
-/// Speculative per-target outcome of a platform-release converge action
-/// (honua-server#2564, not yet merged — see the file-level remarks above). Reconcile
-/// against the real contract once #2564 lands.
-/// </summary>
 public sealed record PlatformReleaseConvergeTargetOutcome
 {
     [JsonPropertyName("targetId")]
@@ -345,10 +264,7 @@ public sealed record PlatformReleaseConvergeTargetOutcome
     public string? OperationId { get; init; }
 }
 
-/// <summary>
-/// Speculative platform-release converge response (honua-server#2564, not yet merged — see the
-/// file-level remarks above).
-/// </summary>
+// These field names are not a pinned server contract.
 public sealed record PlatformReleaseConvergeResponse
 {
     [JsonPropertyName("generatedAt")]
@@ -364,11 +280,7 @@ public sealed record PlatformReleaseConvergeResponse
     public string? Message { get; init; }
 }
 
-/// <summary>
-/// Source-generated JSON context for the deploy-control request/response shapes (trim/AOT
-/// safe). The <c>DeployOperationResponse</c> read shape is served by
-/// <see cref="MetadataReleaseJsonContext"/> and is not duplicated here.
-/// </summary>
+// DeployOperationResponse is serialized with MetadataReleaseJsonContext, so it is not registered again here.
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     PropertyNameCaseInsensitive = true)]

@@ -6,19 +6,6 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-sdk-dotnet#169): the honua-server unified GP/ETL workflow package + node registry API
-// (#1185 commit 6d385f5c4, reconciled by #1228 commit 9b1ece3f7) is merged to honua-server trunk, but
-// the published SDK 1.10.0 API does not project these workflow DTOs.
-// Per SDK_SHIM_POLICY.md the wire records and the thin HTTP
-// client live behind this single Console contracts boundary until honua-sdk-dotnet#169 publishes the
-// workflow projection and honua-console#7 swaps to SDK types. Do not add a sibling-repo ProjectReference;
-// do not mirror these DTOs anywhere else. The wire shape mirrors
-// honua-server/src/Honua.Core/Features/WorkflowPackages/Domain/{WorkflowPackageModels,WorkflowPackageEnums,
-// WorkflowNodeRegistryModels,WorkflowPackageValidationModels}.cs + the console endpoint request models
-// (camelCase properties, verbatim PascalCase string enums, null props omitted) and the shared
-// ApiResponse<T> envelope. The endpoints are admin-authorized under /api/v1/console. See SDK_SHIM_POLICY
-// "Active Shims".
-
 #region Enums (WorkflowPackageEnums.cs)
 
 // honua-server serializes these as verbatim PascalCase strings (UseStringEnumConverter without a naming
@@ -380,7 +367,7 @@ public sealed record WorkflowEndpointIssue(
     string Detail,
     int? StatusCode = null)
 {
-    /// <summary>True when the server reported a conflict (e.g. duplicate publication id) and the caller must reload.</summary>
+    // The caller reloads; the server kept the existing publication.
     public bool IsConflict => StatusCode == (int)HttpStatusCode.Conflict;
 }
 
