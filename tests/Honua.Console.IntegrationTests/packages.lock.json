@@ -185,28 +185,6 @@
           "Docker.DotNet.Enhanced.Handler.Abstractions": "4.3.3"
         }
       },
-      "Grpc.Core.Api": {
-        "type": "Transitive",
-        "resolved": "2.85.0",
-        "contentHash": "cpYu/nw/QhwHcRZMJbYD8lEllKrdwYMiDS4U3oH61nhYPUMNkcCcef4ulv11svHvTBThYV+ju332N9bCrfe7cQ=="
-      },
-      "Grpc.Net.Client": {
-        "type": "Transitive",
-        "resolved": "2.85.0",
-        "contentHash": "BPMA5mb96ihVQfXTuIUpC1aie2I0ODBD6QCc0UXYS5zQMK6sJW5yck8NZ2ffvGHfOanWyn2Yg0tJbYY3nV+zIw==",
-        "dependencies": {
-          "Grpc.Net.Common": "2.85.0",
-          "Microsoft.Extensions.Logging.Abstractions": "8.0.1"
-        }
-      },
-      "Grpc.Net.Common": {
-        "type": "Transitive",
-        "resolved": "2.85.0",
-        "contentHash": "e+RczhQVHb5MacI1oMTLMK6InZLH22POZcE4gsy5SnolsElLaqhSwEhqm+cF0m4Q1JGmlhjf1nbnKh7sBbjJVg==",
-        "dependencies": {
-          "Grpc.Core.Api": "2.85.0"
-        }
-      },
       "Honua.Sdk.Abstractions": {
         "type": "Transitive",
         "resolved": "1.13.1",
@@ -878,17 +856,7 @@
         }
       },
       "honua.console.contracts": {
-        "type": "Project",
-        "dependencies": {
-          "Honua.Sdk.Studio": "[1.13.1, )"
-        }
-      },
-      "honua.console.native.core": {
-        "type": "Project",
-        "dependencies": {
-          "Grpc.Net.Client": "[2.85.0, )",
-          "Honua.Console.Shell": "[1.0.0, )"
-        }
+        "type": "Project"
       },
       "honua.console.shell": {
         "type": "Project",

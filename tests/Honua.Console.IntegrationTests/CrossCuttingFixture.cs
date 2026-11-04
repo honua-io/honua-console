@@ -22,9 +22,9 @@ public sealed class CrossCuttingFixture : IAsyncLifetime
 {
     private HonuaServerTestcontainer? _container;
 
-    public ConsoleTrustIntegrationOptions Options { get; } = ConsoleTrustIntegrationOptions.Load();
+    public LiveServerIntegrationOptions Options { get; } = LiveServerIntegrationOptions.Load();
 
-    public string? SkipReason { get; private set; } = ConsoleTrustIntegrationOptions.GetStudioSkipReason();
+    public string? SkipReason { get; private set; } = LiveServerIntegrationOptions.GetStudioSkipReason();
 
     public Uri BaseAddress { get; private set; } = new("https://localhost");
 
@@ -98,12 +98,6 @@ public sealed class CrossCuttingFixture : IAsyncLifetime
         new HonuaContentPublicationHttpClient(
             CreateHttpClient(),
             new HonuaContentPublicationClientOptions(BaseAddress, Options.StudioAdminApiKey));
-
-    /// <summary>The production analysis content client WITH the admin API key (a validation surface).</summary>
-    public IHonuaAnalysisContentClient CreateAnalysisClient() =>
-        new HonuaAnalysisContentHttpClient(
-            CreateHttpClient(),
-            new HonuaAnalysisContentClientOptions(BaseAddress, Options.StudioAdminApiKey));
 
     /// <summary>The production Console Share client WITH the admin API key (a validation/Studio-package surface).</summary>
     public IHonuaConsoleShareClient CreateShareClient() =>

@@ -3,7 +3,6 @@ using System.Text.Json;
 using Bunit;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
-using Honua.Console.Shell.Components.Studio;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,21 +10,13 @@ using Microsoft.Extensions.Configuration;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Console end-to-end smoke against a REAL honua-server (issue #59). Boots ONE live honua-server +
-/// PostgreSQL via Testcontainers and checks the catalog, retained package inspector, and publishing
-/// backend contracts against that single server. The Studio route is independently checked as the
-/// embedded realtime host; bUnit cannot execute its JavaScript editor. The installed browser journey
-/// in workspace-live/specs/studio-map.live.spec.ts owns realtime map authoring qualification.
-/// Backend responses use live server-bound clients (Console Patterns Charter section 11). This supersedes the in-memory-only <c>smoke/parity</c>
-/// behaviour for the <c>honua-console#9</c> gate: it emits evidence recording the server image, the seed
-/// profile, and <c>sourceHydrated: true</c>.
-///
-/// The whole lane is opt-in and SKIPS cleanly (green) on the standard CI runner without Docker, exactly
-/// like the existing live-server lanes — gated behind <c>HONUA_CONSOLE_INTEGRATION</c> /
-/// <c>HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS</c> + <c>HONUA_CONSOLE_SERVER_IMAGE</c> +
-/// <c>HONUA_CONSOLE_ADMIN_API_KEY</c>.
-/// </summary>
+// Console end-to-end smoke against a real honua-server booted with PostgreSQL via Testcontainers. Checks
+// the catalog and publishing backend contracts against that single server through live server-bound
+// clients, and independently checks that /studio is the embedded realtime host; bUnit cannot execute its
+// JavaScript editor, so workspace-live/specs/studio-map.live.spec.ts owns realtime map authoring
+// qualification. It emits evidence recording the server image, the seed profile and sourceHydrated: true.
+// The lane is opt-in and skips cleanly without Docker, gated behind HONUA_CONSOLE_INTEGRATION /
+// HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS, HONUA_CONSOLE_SERVER_IMAGE and HONUA_CONSOLE_ADMIN_API_KEY.
 [Collection(ConsoleEndToEndSmokeCollection.Name)]
 public sealed class ConsoleEndToEndSmokeTests
 {
@@ -105,44 +96,8 @@ public sealed class ConsoleEndToEndSmokeTests
             $"itemId={catalogItemId}"));
 
         // ---------------------------------------------------------------------------------------------
-        // Flow 2 — Preserve the retained package inspector/validation contract against live data,
-        // then verify /studio hosts the current realtime editor rather than the retired builder.
+        // Flow 2 — /studio hosts the current realtime editor rather than the retired builder.
         // ---------------------------------------------------------------------------------------------
-        var studioClient = _fixture.CreateStudioClient();
-        IStudioAuthoringShell shell = new ServerStudioAuthoringShell(studioClient);
-
-        var session = await shell.CreateInitialSessionAsync();
-        Assert.True(session.BindingState is null,
-            $"The configured live server did not return Studio package families: {session.BindingState?.Detail}");
-        Assert.NotEmpty(session.Workflows);
-
-        session = await shell.GeneratePackageAsync(
-            session,
-            session.SelectedWorkflowId,
-            "Create an org map from the parcels layer for the Console end-to-end smoke");
-        Assert.Null(session.BindingState);
-        Assert.NotNull(session.Draft);
-        Assert.StartsWith("studio-", session.ActivePackage.PackageRef, StringComparison.Ordinal);
-        Assert.False(string.IsNullOrEmpty(session.ActivePackage.SchemaVersion));
-        seedProfile["studioPackageRef"] = session.ActivePackage.PackageRef;
-
-        session = await shell.ValidateAsync(session);
-        Assert.Null(session.BindingState);
-        Assert.NotEmpty(session.ActivePackage.ValidationItems);
-
-        // The retained inspector still has a live backend contract, but is no longer
-        // mounted at /studio. Preserve its actual draft and validation assertions in
-        // isolation rather than restoring the legacy authoring page to satisfy a test.
-        using (var inspectorContext = new Bunit.BunitContext())
-        {
-            var inspector = inspectorContext.Render<StudioPackageInspector>(parameters =>
-                parameters.Add(component => component.Package, session.ActivePackage));
-            Assert.Equal(session.ActivePackage.PackageRef,
-                inspector.Find("[data-package-ref]").GetAttribute("data-package-ref"));
-            Assert.Contains(session.ActivePackage.ValidationItems[0].Detail,
-                inspector.Find(".studio-validation-list").TextContent, StringComparison.Ordinal);
-        }
-
         using (var studioContext = new Bunit.BunitContext())
         {
             studioContext.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
@@ -159,10 +114,10 @@ public sealed class ConsoleEndToEndSmokeTests
         }
 
         steps.Add(new ConsoleEndToEndSmokeStep(
-            "studio-package-render",
-            "server",
-            "Rendered the live validated draft in the retained inspector; separately verified the realtime Studio host. JavaScript editor execution requires the installed browser journey.",
-            $"packageRef={session.ActivePackage.PackageRef};schema={session.ActivePackage.SchemaVersion};host=embedded;browserExecuted=false"));
+            "studio-host-render",
+            "console",
+            "Verified /studio mounts the embedded realtime Studio host. JavaScript editor execution requires the installed browser journey.",
+            "host=embedded;browserExecuted=false"));
 
         // ---------------------------------------------------------------------------------------------
         // Flow 3 — Operate surface against the live server. Seed a publication via the real publish POST,

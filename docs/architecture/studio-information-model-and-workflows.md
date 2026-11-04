@@ -375,9 +375,10 @@ Key fields:
 
 ### Console Implementation Slice
 
-`honua-console#39` implements the first Console-native package editor slice for `query.package`, `analysis.package`, `map.package`, `dashboard.package`, `report.package`, and `app.package` at `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, and `/studio/app`. The form and map families have been split out: `honua-console#57` owns `/studio/form` as a server-bound form package builder over `honua-server#1184`, and `honua-console#54` owns `/studio/map` as a server-bound map package builder over the map lifecycle (`honua-server#1180`) and publication registry (`honua-server#1183`).
-
-The remaining `honua-console#39` editor routes use the temporary `studio-package-mock/v1` inspector and `StudioPackageLifecycleSimulator` lifecycle evidence until honua-server and honua-sdk-dotnet expose the content-version, publication, share, embed, and rollback APIs. `/studio/form` and `/studio/map` do not use that mock lifecycle; they bind the server-owned package contracts through the `IStudioFormPackageDataSource` / `IStudioMapPackageDataSource` seams (rendering an explicit missing-binding state until the server base address and SDK projection land). Those refs are documented in [Studio Package Editor Routes](../studio/package-editor-routes.md) and do not change the server-owned package schema guidance below.
+The Console keeps two Console-native package editors: `/studio/form` (form packages over the admin form-package
+lifecycle) and `/studio/report` (report documents over the content publication registry). Maps and apps are
+authored in the embedded Studio workspace at `/studio`; the other package families below describe the shared
+package schema, not Console routes.
 
 ### Query Package
 
@@ -716,73 +717,16 @@ Validate, preview, publish, and run responses should consistently return:
 - `job_id` and job status refs for analysis, GP, ETL, scheduled, batch, export, heavy refresh, and asynchronous preview paths
 - route, visibility, embed, service, schedule, rollback, and invocation policy refs for publish responses
 
-## Current Console Package Shell Slice
+## Current Console Studio Slice
 
-The first Console implementation uses the shared Razor component library
-for both the Blazor Web host and MAUI Blazor Hybrid host. The shell is
-mounted at `/studio`, `/studio/proof`,
-`/studio/drafts?source=<kind>&id=<itemId>`, and
-`/studio/apps/:itemId/preview` so entry, legacy proof, source-scoped
-draft, and generated-app preview paths resolve to one authoring surface.
-Those route parameters are accepted for compatibility, but the current
-slice does not yet hydrate the source-scoped package from `source`/`id`
-or execute rendered generated-app previews from `itemId`. The
-Console-owned `studio-authoring-shell/v1` projection now maps the shared
-`/studio` shell to the honua-server package lifecycle through the
-temporary `Honua.Console.Contracts` shim while the SDK projection is
-pending.
-
-The shell keeps the generated output visible as a package at all times:
-workflow selection produces a typed package draft, ambiguous prompts add
-structured clarification questions instead of applying hidden
-assumptions, and the inspector exposes assumptions, data bindings,
-warnings, validation, and provenance. The shared `/studio` shell binds
-the honua-server package lifecycle (honua-server#1180/#1181) through the
-`IStudioPackageLifecycleClient` shim: draft create/read/update,
-validation, preview-planning, content-version save, and publish are
-server-owned. Draft, Saved version, and Published are represented as
-distinct lifecycle descriptors; Preview is a transient preview-plan
-action, not a stored lifecycle state. Rendered preview output /
-generated-app preview has no server contract yet and is surfaced as a
-missing-binding state, never a fabricated canvas. When no server base
-address is configured the shell renders a missing-binding surface
-instead of mock package data.
-
-Current projection shape:
-
-- `StudioAuthoringContract.Name = "studio-authoring-shell"`.
-- `StudioAuthoringContract.Version = "v1"`.
-- `StudioAuthoringSession` carries workflow options (with server family
-  capabilities), the selected workflow id, the current prompt, open
-  clarification questions, the active package snapshot, an optional
-  binding state, an optional preview plan, and the live draft handle.
-- Workflow options currently cover `map.package`, `dashboard.package`,
-  `report.package`, `form.package`, `app.package`, `query.package`,
-  `analysis.package`, and `workflow.package` slices for workflow, GP
-  service, and ETL authoring.
-- `StudioPackageSnapshot` carries the contract name/version, package ref,
-  package type, schema version, title, summary, lifecycle state,
-  assumptions, data binding summaries, warnings, validation items, and
-  provenance events.
-- `StudioClarificationQuestion` and `StudioClarificationChoice` are the
-  structured response surface for ambiguous prompts. Accepting one
-  answer removes that pending assumption, updates bindings and
-  provenance, and keeps any remaining clarification as a validation
-  blocker.
-- Validate, Preview, Save Version, and Publish controls stay blocked
-  while any clarification remains open. The server-backed shell mirrors
-  that guard before calling validation, preview-plan, content-version, or
-  publish endpoints, returning the active draft unchanged with a status
-  message.
-- Save Version creates a server-owned content version and Publish
-  creates a server-owned publication request. Both preserve the
-  `PackageRef` and append provenance to the Console projection.
-
-This projection is a Console-owned authoring shell response contract, not
-the canonical server package schema. Until `honua-sdk-dotnet` projects
-the Studio lifecycle types, Console keeps the temporary shim at the
-`Honua.Console.Contracts` boundary rather than mirroring those DTOs
-inside feature code.
+`/studio` and `/studio/drafts` host the realtime Studio workspace over the
+bundled `honua-studio` editor, which owns package drafts, validation,
+versions and publication against honua-server. `/studio/proof` and
+`/studio/apps/:itemId/preview` render a notice that points to the
+workspace. Source-scoped query parameters such as
+`/studio?source=map&itemId=<id>` are accepted for link compatibility; the
+Console page does not read them or hydrate a package from them. The
+Console keeps no authoring-shell projection of its own.
 
 Console surfaces should use the same error and empty-state patterns for missing items, missing permissions, unsupported service metadata, and unsupported package bindings across Studio, Catalog, Share, and Operate.
 

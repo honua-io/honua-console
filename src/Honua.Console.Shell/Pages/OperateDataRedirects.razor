@@ -6,6 +6,7 @@
 @page "/operate/resources"
 @page "/operate/services"
 @page "/operate/resources/new"
+@page "/operate/alerts"
 @inject NavigationManager Nav
 
 @code {
@@ -18,6 +19,7 @@
             "/operate/resources" => "/operate/data",
             "/operate/services" => "/operate/data?view=services",
             "/operate/resources/new" => "/operate/data/new",
+            "/operate/alerts" => "/operate/observability#alerts",
             _ => "/operate/data",
         };
 

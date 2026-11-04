@@ -17,7 +17,7 @@ Decision source: [ADR-0001: Unified Honua Console Runtime](../adr/0001-unified-h
 
 ```bash
 dotnet restore Honua.Console.slnx
-dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --nologo --verbosity minimal
+dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj --nologo --verbosity minimal
 dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web
 HONUA_CONSOLE_ARTIFACT_DIR=artifacts/honua-console-web node scripts/write-build-metadata.mjs
 ```

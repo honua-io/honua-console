@@ -143,7 +143,13 @@ public sealed record OperateServiceDetail(
     string MetadataOwnership,
     IReadOnlyList<OperateServiceLayerProjection> Layers,
     IReadOnlyList<OperateRuntimeSetting> RuntimeSettings,
-    IReadOnlyList<OperatePublicationSlot> PublicationSlots);
+    IReadOnlyList<OperatePublicationSlot> PublicationSlots)
+{
+    // ServiceType lists the enabled protocols, comma separated.
+    public bool Serves(string protocol) =>
+        ServiceType.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Contains(protocol, StringComparer.OrdinalIgnoreCase);
+}
 
 public sealed record OperateServiceLayerProjection(
     int LayerId,
@@ -153,7 +159,8 @@ public sealed record OperateServiceLayerProjection(
     string CanonicalResourceName,
     // Layer's cached extent as [minLng, minLat, maxLng, maxLat] in EPSG:4326, or null when the
     // server has no stored extent for it yet. Lets a map preview frame the data instead of the world.
-    double[]? Extent = null);
+    double[]? Extent = null,
+    bool Enabled = true);
 
 public sealed record OperateRuntimeSetting(
     string Name,
@@ -163,7 +170,7 @@ public sealed record OperateRuntimeSetting(
 
 public sealed record OperatePublicationSlot(
     string Name,
-    string Url,
+    string? Url,
     string Status);
 
 public sealed record OperateSettingsChange(

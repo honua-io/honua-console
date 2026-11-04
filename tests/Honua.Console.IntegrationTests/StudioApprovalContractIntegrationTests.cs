@@ -13,9 +13,9 @@ public sealed class StudioApprovalContractIntegrationTests
     [SkippableFact]
     public async Task EnterpriseCreateDraft_RequiresApproval_AndDoesNotCreateDraft()
     {
-        var options = ConsoleTrustIntegrationOptions.Load();
-        Skip.If(ConsoleTrustIntegrationOptions.GetStudioSkipReason() is not null,
-            ConsoleTrustIntegrationOptions.GetStudioSkipReason());
+        var options = LiveServerIntegrationOptions.Load();
+        Skip.If(LiveServerIntegrationOptions.GetStudioSkipReason() is not null,
+            LiveServerIntegrationOptions.GetStudioSkipReason());
         Skip.If(string.IsNullOrWhiteSpace(options.ServerImage),
             "Set HONUA_CONSOLE_SERVER_IMAGE for the isolated Enterprise approval contract.");
 

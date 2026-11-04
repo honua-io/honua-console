@@ -25,7 +25,7 @@ public sealed class ConsoleEndToEndSmokeHarnessTests
             "A live-server opt-in flag is set in this environment; the clean-skip contract is only "
             + "asserted on the standard runner.");
 
-        var skipReason = ConsoleTrustIntegrationOptions.GetEndToEndSkipReason();
+        var skipReason = LiveServerIntegrationOptions.GetEndToEndSkipReason();
         Assert.NotNull(skipReason);
         Assert.Contains("HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS", skipReason, StringComparison.Ordinal);
     }
@@ -46,13 +46,12 @@ public sealed class ConsoleEndToEndSmokeHarnessTests
                 SeedProfile = new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     ["catalogItemId"] = "item-123",
-                    ["studioPackageRef"] = "studio-abc",
                     ["publicationId"] = "pub-456"
                 },
                 Steps =
                 [
                     new ConsoleEndToEndSmokeStep("catalog-list", "server", "catalog", "itemId=item-123"),
-                    new ConsoleEndToEndSmokeStep("studio-package-render", "server", "studio", "packageRef=studio-abc"),
+                    new ConsoleEndToEndSmokeStep("studio-host-render", "console", "studio", "host=embedded"),
                     new ConsoleEndToEndSmokeStep("operate-publishing", "server", "operate", "publicationId=pub-456")
                 ]
             };
@@ -73,13 +72,12 @@ public sealed class ConsoleEndToEndSmokeHarnessTests
             // Seed profile is recorded so a failure can be reproduced against the same fixture state.
             var seed = root.GetProperty("seedProfile");
             Assert.Equal("item-123", seed.GetProperty("catalogItemId").GetString());
-            Assert.Equal("studio-abc", seed.GetProperty("studioPackageRef").GetString());
 
             // All three cross-surface flows are recorded, in order.
             var stepIds = root.GetProperty("steps").EnumerateArray()
                 .Select(step => step.GetProperty("id").GetString() ?? string.Empty)
                 .ToArray();
-            Assert.Equal(["catalog-list", "studio-package-render", "operate-publishing"], stepIds);
+            Assert.Equal(["catalog-list", "studio-host-render", "operate-publishing"], stepIds);
         }
         finally
         {

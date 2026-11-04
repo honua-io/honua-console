@@ -33,12 +33,6 @@ shell.
 [Build artifact contract](deployment/BUILD_ARTIFACT.md) is the contract between
 this repository and the single deployable artifact honua-devops produces.
 
-## Running it natively
-
-[The optional native host](native/MAUI_BLAZOR_HOST.md) describes the .NET MAUI
-Blazor shell. Console remains a browser application; the native host renders the
-same Razor routes and adds profile, certificate and gRPC wiring.
-
 ## What is not here
 
 Most of `docs/` is working material rather than product documentation —

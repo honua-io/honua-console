@@ -171,7 +171,6 @@ public sealed class StudioHomeRenderTests
     public void StudioPage_AtStudioRoot_DoesNotRestoreLegacyHome()
     {
         using var ctx = NewContext(new StubCatalogClient([]));
-        ctx.Services.AddSingleton<IStudioAuthoringShell>(new ThrowingAuthoringShell());
         var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
         nav.NavigateTo("studio");
 
@@ -234,32 +233,5 @@ public sealed class StudioHomeRenderTests
 
         public Task<MapPackageReadResult> AuthorizeEmbedAsync(string mapId, EmbedRouteOptions options, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
-    }
-
-    private sealed class ThrowingAuthoringShell : IStudioAuthoringShell
-    {
-        public Task<StudioAuthoringSession> CreateInitialSessionAsync(CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("The Studio home landing must not read the authoring shell session.");
-
-        public Task<StudioAuthoringSession> SelectWorkflowAsync(StudioAuthoringSession session, string workflowId, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException();
-
-        public Task<StudioAuthoringSession> GeneratePackageAsync(StudioAuthoringSession session, string workflowId, string prompt, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException();
-
-        public Task<StudioAuthoringSession> ApplyClarificationAsync(StudioAuthoringSession session, string questionId, string choiceId, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException();
-
-        public Task<StudioAuthoringSession> ValidateAsync(StudioAuthoringSession session, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException();
-
-        public Task<StudioAuthoringSession> PreviewPlanAsync(StudioAuthoringSession session, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException();
-
-        public Task<StudioAuthoringSession> SaveVersionAsync(StudioAuthoringSession session, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException();
-
-        public Task<StudioAuthoringSession> PublishAsync(StudioAuthoringSession session, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException();
     }
 }

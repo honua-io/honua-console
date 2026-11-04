@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign in · Honua Console</title>
+    <link rel="stylesheet" href="/_content/Honua.Console.Shell/honua-console.css" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+</head>
+<body>
+    <main class="console-page" data-sign-in-required>
+        <div class="console-page-heading">
+            <p class="console-kicker">Honua Console</p>
+            <h1>Sign in to Honua Console</h1>
+            <p>This Console signs operators in through your organization's identity provider at the network edge. Open it through your organization's sign-in address, or ask your administrator for access.</p>
+        </div>
+        <details class="console-panel" data-sign-in-diagnostics>
+            <summary>Diagnostics</summary>
+            <p>@Detail</p>
+        </details>
+    </main>
+</body>
+</html>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Detail { get; set; } = string.Empty;
+}

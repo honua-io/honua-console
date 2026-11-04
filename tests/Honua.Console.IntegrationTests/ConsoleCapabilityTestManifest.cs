@@ -18,8 +18,6 @@ internal static class ConsoleCapabilityTestManifest
         ConsoleCapabilityKeys.RealtimeAlerting,
         ConsoleCapabilityKeys.CrossEnvironmentPromotion,
         ConsoleCapabilityKeys.SiemInvestigations,
-        // Legacy components remain covered directly during migration. Their retired routes cannot be
-        // restored by this capability; StudioPageRenderTests verifies the actual routing contract.
-        ConsoleCapabilityKeys.StudioBuilders,
+        ConsoleCapabilityKeys.PersistentCatalog,
     ]);
 }

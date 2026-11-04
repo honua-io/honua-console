@@ -249,7 +249,7 @@ public sealed class FocusedOperatorCredentialTests
         {
             ["Honua:Server:BaseUrl"] = "https://production.honua.test/"
         });
-        builder.Services.AddHonuaConsoleShell("https://production.honua.test/");
+        builder.Services.AddHonuaConsoleShell(new HonuaConsoleShellOptions { ServerBaseUrl = "https://production.honua.test/" });
         builder.AddConsoleAuthentication();
         var actor = new OperatorContext();
         builder.Services.AddSingleton<IConsoleOperatorContext>(actor);
@@ -287,7 +287,7 @@ public sealed class FocusedOperatorCredentialTests
             services.AddSingleton<IConsoleOperatorContext>(Operator);
             services.AddSingleton(Profiles);
             services.AddSingleton(Sessions);
-            services.AddHonuaConsoleShell("https://server.honua.test/", "shared-admin-secret");
+            services.AddHonuaConsoleShell(new HonuaConsoleShellOptions { ServerBaseUrl = "https://server.honua.test/", ServerAdminApiKey = "shared-admin-secret" });
             services.AddConsoleServerBoundClients();
             foreach (var name in new[] { ConsoleServerBoundClients.ServerBoundClientName, ConsoleServerBoundClients.ManagerBoundClientName, "honua-map-proxy" })
                 services.AddHttpClient(name).ConfigurePrimaryHttpMessageHandler(() => Wire);

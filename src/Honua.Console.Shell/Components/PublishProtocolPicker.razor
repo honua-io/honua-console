@@ -1,24 +1,10 @@
 @namespace Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 
-@*
-    The RESOURCE-FIRST publish control (redesign step ③, §3.0 / §5.4b) — the heart of the redesign.
-    The user already has a canonical RESOURCE (produced or selected in step ①/②); this control lets them
-    toggle which SERVICES / PROTOCOLS expose that resource. Each enabled toggle corresponds to a
-    metadata-v2 PUBLICATION (a binding of resourceId + serviceId) — and those Publications are the "layers"
-    Esri/OGC clients consume.
-
-    The protocol→publication mapping is defined once in Models/PublishProtocolCatalog.cs and read here, by
-    the host flow's go-live route preview, and by the treeview's "+ expose" affordance, so the mapping
-    stays coherent across surfaces. Presentational only: it owns no server binding and fabricates no data.
-
-    The same control is reused by the treeview's "+ expose" affordance (§5.3): exposing an
-    already-published resource through one more protocol is the same act — add a Publication.
-*@
 <div class="publish-protocol-picker" data-publish-protocol-picker>
     <p class="console-muted">
-        Pick the services and protocols that should expose this resource. Each one you enable is a
-        publication — the "layer" an Esri or OGC client consumes.
+        Pick the protocols the service serves. honua-server enables protocols per service, so every layer in
+        the service is served through each protocol you pick.
     </p>
 
     @foreach (var (key, label) in PublishProtocolCatalog.Groups)
@@ -44,8 +30,7 @@
     <div class="publish-protocol-picker__slot">
         <span class="studio-form-label">Service slot</span>
         <code data-service-slot>@ServiceSlot</code>
-        <span class="console-muted">(auto-provisioned)</span>
-        <button type="button" class="console-link" @onclick="RequestSlotChange">change…</button>
+        <span class="console-muted">(the service this resource is published in)</span>
     </div>
 
     @{
@@ -54,34 +39,26 @@
     @if (plans.Count == 0)
     {
         <p class="console-muted" data-no-protocols>
-            No protocols selected yet — pick at least one to publish this resource.
+            No protocols selected yet — pick at least one to serve this resource.
         </p>
     }
     else
     {
         <p class="console-muted" data-publication-preview>
-            Will create @plans.Count publication@(plans.Count == 1 ? string.Empty : "s"):
-            @string.Join(" · ", plans.Select(p => p.Label))
+            Will serve through: @string.Join(" · ", plans.Select(p => p.Label))
         </p>
     }
 </div>
 
 @code {
-    /// <summary>The currently-enabled protocol ids (host-owned, two-way via <see cref="EnabledChanged"/>).</summary>
     [Parameter]
     public IReadOnlyCollection<string> Enabled { get; set; } = PublishProtocolCatalog.DefaultEnabled;
 
-    /// <summary>Raised with the new enabled set whenever a toggle changes (each id maps to a Publication to create).</summary>
     [Parameter]
     public EventCallback<IReadOnlyCollection<string>> EnabledChanged { get; set; }
 
-    /// <summary>Auto-provisioned service slot the publications attach to (host may override on "change").</summary>
     [Parameter]
     public string ServiceSlot { get; set; } = "service";
-
-    /// <summary>Raised when the user asks to change the auto-provisioned service slot.</summary>
-    [Parameter]
-    public EventCallback OnRequestSlotChange { get; set; }
 
     private async Task Toggle(string protocolId, ChangeEventArgs args)
     {
@@ -107,7 +84,4 @@
             await EnabledChanged.InvokeAsync(ordered);
         }
     }
-
-    private Task RequestSlotChange() =>
-        OnRequestSlotChange.HasDelegate ? OnRequestSlotChange.InvokeAsync() : Task.CompletedTask;
 }

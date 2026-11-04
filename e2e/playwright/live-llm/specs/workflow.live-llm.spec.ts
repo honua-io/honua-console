@@ -36,42 +36,4 @@ test.describe('Live-LLM · WORKFLOW from prompt', () => {
       'a generated workflow artifact',
     ).toBeTruthy();
   });
-
-  test('console /studio/workflows/new from-prompt surface renders a workflow graph', async ({ page }) => {
-    await page.goto('/studio/workflows/new');
-
-    // The generation provider control (a <select> for >=2 providers, a <span> for
-    // exactly one) should render when the console sees an enabled provider. If it
-    // does not on this image, skip cleanly rather than fail — non-blocking lane.
-    const control = page.locator('select[data-workflow-ai-provider], span[data-workflow-ai-provider]').first();
-    const controlRendered = await control
-      .waitFor({ state: 'visible', timeout: 25_000 })
-      .then(() => true)
-      .catch(() => false);
-    if (!controlRendered) {
-      recordSurface('workflow-ui', 'unsupported', 'workflow provider control did not render');
-      test.skip(true, 'console workflow-generation provider control did not render on this server image — clean skip.');
-    }
-
-    await page.locator('textarea').first().fill(PROMPT);
-    await page.getByRole('button', { name: /Send/ }).click();
-
-    // Tolerant success: a node/edge graph with at least one real node renders.
-    // WORKFLOW is the largest, hardest schema; a small model may not produce a
-    // valid DAG. If no graph materialises, record + skip (non-blocking) instead of
-    // turning the nightly red on model non-determinism.
-    const graph = page.locator('[data-workflow-graph]').first();
-    const graphRendered = await graph
-      .waitFor({ state: 'visible', timeout: 120_000 })
-      .then(() => true)
-      .catch(() => false);
-    const nodeCount = graphRendered ? await graph.locator('[data-workflow-graph-node]').count() : 0;
-    if (!graphRendered || nodeCount === 0) {
-      recordSurface('workflow-ui', 'error', 'no workflow graph node rendered');
-      test.info().annotations.push({ type: 'generation-error', description: 'workflow-ui: no graph rendered' });
-      test.skip(true, 'workflow generation did not produce a rendered graph — recorded, non-blocking skip.');
-    }
-    expect(nodeCount, 'a rendered workflow graph with >=1 node').toBeGreaterThan(0);
-    recordSurface('workflow-ui', 'generated');
-  });
 });

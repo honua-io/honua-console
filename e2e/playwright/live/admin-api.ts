@@ -29,11 +29,17 @@ export interface AdminApi {
   listConnections(): Promise<AdminConnection[]>;
   findConnectionByName(name: string): Promise<AdminConnection | undefined>;
   createConnection(body: Record<string, unknown>): Promise<AdminConnection>;
+  /** Find a connection by name or create it WITHOUT tracking, so it outlives the test (and its retries). */
+  getOrCreateKeptConnection(body: Record<string, unknown> & { name: string }): Promise<AdminConnection>;
   deleteConnection(id: string): Promise<void>;
   /** Register a connection name so the fixture deletes it (by lookup) during teardown. */
   trackConnectionName(name: string): void;
   /** Admin layer registry for a service slot (metadata validation). */
   listLayers(connectionId: string, serviceName?: string): Promise<any[]>;
+  /** Publish a table as a layer directly (seeds a layer a spec then drives through the UI). */
+  publishLayer(connectionId: string, body: Record<string, unknown>): Promise<any>;
+  /** PUT arbitrary server JSON (e.g. a service access policy a spec starts from). */
+  putJson(path: string, body: Record<string, unknown>): Promise<any>;
   /** GET arbitrary server JSON (e.g. GeoServices /rest/services catalog or a FeatureServer /query). */
   getJson(path: string): Promise<any>;
 }
@@ -62,13 +68,14 @@ export const test = base.extend<{ admin: AdminApi }>({
         return (await this.listConnections()).find((c) => c.name === name);
       },
       async createConnection(body) {
-        const res = await ctx.post('/api/v1/admin/connections/', { data: body });
-        expect(res.ok(), `create connection failed: ${res.status()} ${await res.text()}`).toBeTruthy();
-        const json = await res.json();
+        const connection = await postConnection(ctx, body);
         if (typeof body.name === 'string') {
           tracked.add(body.name);
         }
-        return json.data as AdminConnection;
+        return connection;
+      },
+      async getOrCreateKeptConnection(body) {
+        return (await this.findConnectionByName(body.name)) ?? postConnection(ctx, body);
       },
       async deleteConnection(id) {
         await ctx.delete(`/api/v1/admin/connections/${id}`);
@@ -83,6 +90,8 @@ export const test = base.extend<{ admin: AdminApi }>({
         const body = await res.json();
         return (body.data ?? []) as any[];
       },
+      publishLayer: (connectionId, body) => publishLayer(ctx, connectionId, body),
+      putJson: (path, body) => putJson(ctx, path, body),
       async getJson(path) {
         const res = await ctx.get(path);
         expect(res.ok(), `GET ${path} failed: ${res.status()} ${await res.text()}`).toBeTruthy();
@@ -91,20 +100,44 @@ export const test = base.extend<{ admin: AdminApi }>({
     };
 
     await use(api);
-
-    // Teardown: delete every connection a spec created (best-effort; ignore in-use/404).
-    for (const name of tracked) {
-      try {
-        const conn = await api.findConnectionByName(name);
-        if (conn) {
-          await api.deleteConnection(conn.connectionId);
-        }
-      } catch {
-        // Leave cleanup failures non-fatal so one stuck row doesn't fail the suite.
-      }
-    }
+    await deleteTrackedConnections(api, tracked);
     await ctx.dispose();
   },
 });
+
+async function postConnection(ctx: APIRequestContext, body: Record<string, unknown>): Promise<AdminConnection> {
+  const res = await ctx.post('/api/v1/admin/connections/', { data: body });
+  expect(res.ok(), `create connection failed: ${res.status()} ${await res.text()}`).toBeTruthy();
+  return (await res.json()).data as AdminConnection;
+}
+
+async function publishLayer(ctx: APIRequestContext, connectionId: string, body: Record<string, unknown>): Promise<any> {
+  const res = await ctx.post(`/api/v1/admin/connections/${connectionId}/layers/`, { data: body });
+  expect(res.status(), `publish layer failed: ${await res.text()}`).toBe(201);
+  return (await res.json()).data;
+}
+
+async function putJson(ctx: APIRequestContext, path: string, body: Record<string, unknown>): Promise<any> {
+  const res = await ctx.put(path, { data: body });
+  expect(res.ok(), `PUT ${path} failed: ${res.status()} ${await res.text()}`).toBeTruthy();
+  return res.json();
+}
+
+async function deleteTrackedConnections(api: AdminApi, tracked: Set<string>): Promise<void> {
+  for (const name of tracked) {
+    await deleteConnectionNamed(api, name);
+  }
+}
+
+// Best effort: a connection still in use, or already gone, must not fail the suite; the testbed
+// teardown removes whatever is left.
+async function deleteConnectionNamed(api: AdminApi, name: string): Promise<void> {
+  try {
+    const conn = await api.findConnectionByName(name);
+    if (conn) await api.deleteConnection(conn.connectionId);
+  } catch {
+    return;
+  }
+}
 
 export { expect };

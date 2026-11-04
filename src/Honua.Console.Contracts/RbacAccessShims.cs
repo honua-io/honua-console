@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -103,8 +104,15 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    private static readonly AdminBodyFormat EnvelopeFormat = new(
+        JsonOptions,
+        AdminBodyRead.Streamed,
+        "The Honua server Console Access response did not match the expected contract");
+
+    private const string MissingData = "The Honua server Console Access response did not include data.";
+
     private readonly HttpClient _httpClient;
-    private readonly string? _apiKey;
+    private readonly AdminEndpointTransport _transport;
 
     public HonuaConsoleRbacHttpClient(HttpClient httpClient, HonuaConsoleRbacClientOptions options)
     {
@@ -112,9 +120,12 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
         ArgumentNullException.ThrowIfNull(options);
 
         BaseUri = options.BaseUri;
-        _apiKey = options.ApiKey;
         _httpClient = httpClient;
         _httpClient.BaseAddress ??= BaseUri;
+        _transport = new AdminEndpointTransport(
+            httpClient,
+            options.ApiKey,
+            AdminTransportFailure.Unreachable("The Honua server Console Access endpoint"));
     }
 
     public Uri BaseUri { get; }
@@ -152,9 +163,7 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
         ArgumentNullException.ThrowIfNull(request);
 
         return SendWithBodyAsync<HonuaConsoleRbacRole>(
-            HttpMethod.Post,
-            $"{Base}/{Uri.EscapeDataString(workspaceId)}/roles",
-            request,
+            () => JsonRequest(HttpMethod.Post, $"{Base}/{Uri.EscapeDataString(workspaceId)}/roles", request),
             "POST /api/v1/console/access/{workspaceId}/roles",
             cancellationToken);
     }
@@ -170,9 +179,7 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
         ArgumentNullException.ThrowIfNull(request);
 
         return SendWithBodyAsync<HonuaConsoleRbacRole>(
-            HttpMethod.Put,
-            $"{Base}/{Uri.EscapeDataString(workspaceId)}/roles/{Uri.EscapeDataString(roleId)}",
-            request,
+            () => JsonRequest(HttpMethod.Put, $"{Base}/{Uri.EscapeDataString(workspaceId)}/roles/{Uri.EscapeDataString(roleId)}", request),
             "PUT /api/v1/console/access/{workspaceId}/roles/{roleId}",
             cancellationToken);
     }
@@ -185,33 +192,14 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(roleId);
 
-        const string contract = "DELETE /api/v1/console/access/{workspaceId}/roles/{roleId}";
-        using var request = new HttpRequestMessage(
-            HttpMethod.Delete,
-            $"{Base}/{Uri.EscapeDataString(workspaceId)}/roles/{Uri.EscapeDataString(roleId)}");
-        if (!string.IsNullOrWhiteSpace(_apiKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
-        }
-
-        try
-        {
-            using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-            if (response.IsSuccessStatusCode)
-            {
-                return HonuaAdminEndpointResult<bool>.FromData(true);
-            }
-
-            return HonuaAdminEndpointResult<bool>.FromIssue(IssueFor(contract, response.StatusCode));
-        }
-        catch (HttpRequestException ex)
-        {
-            return Unavailable<bool>(contract, ex.Message);
-        }
-        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Unavailable<bool>(contract, ex.Message);
-        }
+        var path = $"{Base}/{Uri.EscapeDataString(workspaceId)}/roles/{Uri.EscapeDataString(roleId)}";
+        var call = new AdminEndpointCall<bool>(
+            () => new HttpRequestMessage(HttpMethod.Delete, path),
+            "DELETE /api/v1/console/access/{workspaceId}/roles/{roleId}",
+            new(
+                AdminFailureMappings.FromStatus(CreateWriteIssue),
+                static (_, _, _) => Task.FromResult(HonuaAdminEndpointResult<bool>.FromData(true))));
+        return await _transport.SendAsync(call, cancellationToken).ConfigureAwait(false);
     }
 
     public Task<HonuaAdminEndpointResult<HonuaConsoleRoleAuditPage>> GetRoleAuditAsync(
@@ -229,174 +217,70 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
 
     public void Dispose() => _httpClient.Dispose();
 
-    private async Task<HonuaAdminEndpointResult<T>> SendWithBodyAsync<T>(
-        HttpMethod method,
-        string path,
-        object body,
+    private static HttpRequestMessage JsonRequest(HttpMethod method, string path, object body) =>
+        new(method, path) { Content = JsonContent.Create(body, body.GetType(), options: JsonOptions) };
+
+    private Task<HonuaAdminEndpointResult<T>> SendWithBodyAsync<T>(
+        Func<HttpRequestMessage> createRequest,
         string contract,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) =>
+        _transport.SendAsync(
+            new AdminEndpointCall<T>(
+                createRequest,
+                contract,
+                new(
+                    AdminFailureMappings.FromStatus(CreateWriteIssue),
+                    AdminResponseBodies.Envelope<T>(EnvelopeFormat, MissingData))),
+            cancellationToken);
+
+    private Task<HonuaAdminEndpointResult<T>> SendAsync<T>(
+        string path,
+        string contract,
+        CancellationToken cancellationToken) =>
+        _transport.SendAsync(
+            new AdminEndpointCall<T>(
+                () => new HttpRequestMessage(HttpMethod.Get, path),
+                contract,
+                new(
+                    AdminFailureMappings.FromStatus(CreateReadIssue),
+                    AdminResponseBodies.Envelope<T>(EnvelopeFormat, MissingData)))
+            {
+                Completion = HttpCompletionOption.ResponseHeadersRead
+            },
+            cancellationToken);
+
+    private static string ReadState(HttpStatusCode status) => status switch
     {
-        using var request = new HttpRequestMessage(method, path)
-        {
-            Content = JsonContent.Create(body, body.GetType(), options: JsonOptions),
-        };
-        if (!string.IsNullOrWhiteSpace(_apiKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
-        }
+        HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Missing permission",
+        HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented => "Unsupported",
+        _ => "Unavailable"
+    };
 
-        HttpResponseMessage response;
-        try
-        {
-            response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        }
-        catch (HttpRequestException ex)
-        {
-            return Unavailable<T>(contract, ex.Message);
-        }
-        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Unavailable<T>(contract, ex.Message);
-        }
-
-        using (response)
-        {
-            if (!response.IsSuccessStatusCode)
-            {
-                return HonuaAdminEndpointResult<T>.FromIssue(IssueFor(contract, response.StatusCode));
-            }
-
-            HonuaAdminApiResponse<T>? envelope;
-            try
-            {
-                envelope = await response.Content
-                    .ReadFromJsonAsync<HonuaAdminApiResponse<T>>(JsonOptions, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (JsonException ex)
-            {
-                return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                    "Unsupported", contract,
-                    $"The Honua server Console Access response did not match the expected contract: {ex.Message}",
-                    (int)response.StatusCode));
-            }
-
-            if (envelope?.Success == true && envelope.Data is not null)
-            {
-                return HonuaAdminEndpointResult<T>.FromData(envelope.Data);
-            }
-
-            return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                "Unavailable", contract,
-                envelope?.Message ?? "The Honua server Console Access response did not include data.",
-                (int)response.StatusCode));
-        }
-    }
-
-    private static HonuaAdminEndpointIssue IssueFor(string contract, System.Net.HttpStatusCode status)
+    private static HonuaAdminEndpointIssue CreateReadIssue(string contract, HttpStatusCode status)
     {
-        var state = status switch
-        {
-            System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden => "Missing permission",
-            System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.MethodNotAllowed or System.Net.HttpStatusCode.NotImplemented => "Unsupported",
-            System.Net.HttpStatusCode.BadRequest => "Rejected",
-            _ => "Unavailable"
-        };
         var detail = status switch
         {
-            System.Net.HttpStatusCode.Unauthorized => "The Honua server rejected the request because admin authentication is missing.",
-            System.Net.HttpStatusCode.Forbidden => "The current principal lacks permission to manage workspace roles.",
-            System.Net.HttpStatusCode.BadRequest => "The Honua server rejected the role change (e.g. blank name, or a built-in role cannot be edited or deleted).",
-            System.Net.HttpStatusCode.NotFound => "The role was not found, or the Console Access contract is not exposed for this workspace.",
+            HttpStatusCode.Unauthorized => "The Honua server rejected the request because admin authentication is missing.",
+            HttpStatusCode.Forbidden => "The current principal lacks permission to read workspace access (manage-roles).",
+            HttpStatusCode.NotFound => "The Honua server does not expose the Console Access (RBAC) contract for this workspace.",
+            _ => $"The Honua server returned HTTP {(int)status} ({status})."
+        };
+        return new HonuaAdminEndpointIssue(ReadState(status), contract, detail, (int)status);
+    }
+
+    private static HonuaAdminEndpointIssue CreateWriteIssue(string contract, HttpStatusCode status)
+    {
+        var state = status == HttpStatusCode.BadRequest ? "Rejected" : ReadState(status);
+        var detail = status switch
+        {
+            HttpStatusCode.Unauthorized => "The Honua server rejected the request because admin authentication is missing.",
+            HttpStatusCode.Forbidden => "The current principal lacks permission to manage workspace roles.",
+            HttpStatusCode.BadRequest => "The Honua server rejected the role change (e.g. blank name, or a built-in role cannot be edited or deleted).",
+            HttpStatusCode.NotFound => "The role was not found, or the Console Access contract is not exposed for this workspace.",
             _ => $"The Honua server returned HTTP {(int)status} ({status})."
         };
         return new HonuaAdminEndpointIssue(state, contract, detail, (int)status);
     }
-
-    private async Task<HonuaAdminEndpointResult<T>> SendAsync<T>(
-        string path,
-        string contract,
-        CancellationToken cancellationToken)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Get, path);
-        if (!string.IsNullOrWhiteSpace(_apiKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
-        }
-
-        HttpResponseMessage response;
-        try
-        {
-            response = await _httpClient.SendAsync(
-                    request,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (HttpRequestException ex)
-        {
-            return Unavailable<T>(contract, ex.Message);
-        }
-        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Unavailable<T>(contract, ex.Message);
-        }
-
-        using (response)
-        {
-            if (!response.IsSuccessStatusCode)
-            {
-                var state = response.StatusCode switch
-                {
-                    System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden => "Missing permission",
-                    System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.MethodNotAllowed or System.Net.HttpStatusCode.NotImplemented => "Unsupported",
-                    _ => "Unavailable"
-                };
-                var detail = response.StatusCode switch
-                {
-                    System.Net.HttpStatusCode.Unauthorized => "The Honua server rejected the request because admin authentication is missing.",
-                    System.Net.HttpStatusCode.Forbidden => "The current principal lacks permission to read workspace access (manage-roles).",
-                    System.Net.HttpStatusCode.NotFound => "The Honua server does not expose the Console Access (RBAC) contract for this workspace.",
-                    _ => $"The Honua server returned HTTP {(int)response.StatusCode} ({response.StatusCode})."
-                };
-                return HonuaAdminEndpointResult<T>.FromIssue(
-                    new HonuaAdminEndpointIssue(state, contract, detail, (int)response.StatusCode));
-            }
-
-            HonuaAdminApiResponse<T>? envelope;
-            try
-            {
-                envelope = await response.Content
-                    .ReadFromJsonAsync<HonuaAdminApiResponse<T>>(JsonOptions, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (JsonException ex)
-            {
-                return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                    "Unsupported",
-                    contract,
-                    $"The Honua server Console Access response did not match the expected contract: {ex.Message}",
-                    (int)response.StatusCode));
-            }
-
-            if (envelope?.Success == true && envelope.Data is not null)
-            {
-                return HonuaAdminEndpointResult<T>.FromData(envelope.Data);
-            }
-
-            return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                "Unavailable",
-                contract,
-                envelope?.Message ?? "The Honua server Console Access response did not include data.",
-                (int)response.StatusCode));
-        }
-    }
-
-    private static HonuaAdminEndpointResult<T> Unavailable<T>(string contract, string detail) =>
-        HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-            "Unavailable",
-            contract,
-            $"The Honua server Console Access endpoint could not be reached: {detail}"));
 }
 
 /// <summary>Request body to create or update a custom role (honua-server#1162).</summary>

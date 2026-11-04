@@ -39,10 +39,6 @@ lands here. Honest signal on maturity:
 - **Realtime alerting is capability-gated preview.** Operate jobs and events
   are first-release floor; alert/geofence rule surfaces light up only when the
   bound server advertises the capability.
-- **The optional native desktop host is preview/deferred.** A .NET MAUI Blazor
-  Hybrid host ([docs](docs/native/MAUI_BLAZOR_HOST.md)) adds client-cert
-  trust/mTLS workflows on Windows/macOS; it is not a first-release deliverable
-  and degrades to a no-op library on plain Linux/CI.
 
 ## Quick start
 
@@ -115,7 +111,7 @@ in [BUILD_ARTIFACT.md](docs/deployment/BUILD_ARTIFACT.md).
 |---|---|
 | Run the browser host | `dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:5174` |
 | Fast local check (unit tests + web build) | `./scripts/fast-local-check.sh` |
-| .NET unit tests | `dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj` |
+| .NET unit tests | `dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj` |
 | Format gate (CI-enforced) | `dotnet format Honua.Console.slnx --verify-no-changes` |
 | Node tests (smoke + metadata, no npm deps) | `npm ci && npm test` |
 | Parity smoke (in-memory contract shapes) | `npm run smoke:parity` |
@@ -179,7 +175,7 @@ explicitly enabled:
 # Operate transition binding against a honua-server source checkout
 HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true \
 HONUA_SERVER_PROJECT=/path/to/honua-server/src/Honua.Server/Honua.Server.csproj \
-dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --filter OperateTransitionLiveServerTests
+dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj --filter OperateTransitionLiveServerTests
 
 # Image-based lanes (Share access, catalog discovery, Studio collaboration) against a pinned image
 HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true \
@@ -205,13 +201,8 @@ checkout. It skips when neither is configured or Docker is unavailable.
 - `src/Honua.Console.Contracts` — temporary SDK shim boundary for Console-side
   wire contracts until shared [honua-sdk-dotnet](https://github.com/honua-io/honua-sdk-dotnet)
   projections replace them.
-- `src/Honua.Console.Web` — default browser host; independently buildable and
-  deployable without MAUI or native services.
-- `src/Honua.Console.Native.Core` — testable native-host services: environment
-  profiles, token sessions, certificate pinning, the server trust gate, and the
-  telemetry streaming proof.
-- `src/Honua.Console.Native` — optional MAUI Blazor Hybrid desktop host
-  (Windows/macOS) rendering the shared shell in a `BlazorWebView`.
+- `src/Honua.Console.Web` — the browser host; independently buildable and
+  deployable.
 - `tests/` — host-independent unit tests plus opt-in Testcontainers
   integration suites; `smoke/parity/` — Node smoke harness; `e2e/` — live
   Playwright harness.
@@ -235,7 +226,6 @@ checkout. It skips when neither is configured or Docker is unavailable.
 | Shared Razor component APIs | [Shared Component API Reference](docs/reference/SHARED_COMPONENT_API.md) |
 | Parity smoke CLI, evidence format, triage | [Console Parity Smoke](docs/smoke/parity.md) |
 | Driving the UI with agents (Playwright MCP) | [Agent Browser Testing](docs/testing/AGENT_BROWSER_TESTING.md) |
-| Native desktop host (preview) | [Optional MAUI Blazor Hybrid Host](docs/native/MAUI_BLAZOR_HOST.md) |
 | Migration backlog and freeze policy | [Migration Backlog](docs/roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md) · [Portal Freeze Policy](docs/migration/PORTAL_FREEZE_POLICY.md) |
 
 Platform-wide docs live at <https://honua.gitbook.io/honuaio/>.

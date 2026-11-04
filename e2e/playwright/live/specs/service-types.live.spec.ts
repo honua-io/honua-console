@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { test, expect } from '../admin-api';
-import { isServicePublished } from '../published';
+import { ensurePublishedLayer } from '../seeded-layer';
+import { SOURCE_DB } from '../source-db';
 
 // Live e2e for the service CREATION paths — "can I create each service type, and do its layers function and
 // appear in the catalog?". The Honua platform creates served layers three ways: (1) publish a table from a
@@ -17,28 +19,26 @@ const SAMPLE_FEATURE_SERVER = 'https://sampleserver6.arcgisonline.com/arcgis/res
 
 // --- Path 1: data CONNECTION -> publish (PostGIS is the only provider with a reachable testbed source). ---
 test.describe('Service types · connection publish (live)', () => {
-  // PostGIS publish + 3-way verification is exercised in full by services-layers.live.spec.ts; here we assert
-  // the resulting property directly: the published PostGIS service is in the catalog and its layer functions.
+  // services-layers.live.spec.ts drives this path through the UI; here the property is asserted directly on
+  // a layer this spec seeds from its own table: the service is in the catalog and its layer answers a query.
   test('a published PostGIS layer is listed in the catalog and answers a live query', async ({ page, admin }) => {
+    test.setTimeout(180_000);
     const base = admin.serverUrl;
-    const published = await isServicePublished(page, base, 'e2e_src_fs', ADMIN_HEADERS);
-    test.skip(!published, 'e2e_src_fs is not published — run services-layers.live.spec first.');
+    const seeded = await ensurePublishedLayer(admin, {
+      connectionName: 'e2e-types-src',
+      table: SOURCE_DB.typesTable,
+      layerName: 'E2E Types',
+      serviceName: `e2e_types_${randomUUID().replaceAll('-', '').slice(0, 10)}`,
+    });
+    const service = seeded.serviceName;
 
-    // (a) catalog lists it
     const catalog = await (await page.request.get(`${base}/rest/services?f=json`, { headers: ADMIN_HEADERS })).json();
-    expect((catalog.services ?? []).some((s: any) => s.name?.includes('e2e_src_fs')), 'catalog lists e2e_src_fs').toBeTruthy();
+    expect((catalog.services ?? []).some((s: any) => s.name === service), `catalog lists ${service}`).toBeTruthy();
 
-    // (b) the layer functions: a live query returns the seeded features.
-    // Resolve the layer id from the FeatureServer rather than assuming 1 — Honua layer ids are GLOBAL, so
-    // e2e_src_fs's layer is only id 1 when it is the first layer ever published on the server. Against a
-    // harness that seeded services of its own (honua-release's Slice-1 stack publishes two layers before
-    // this suite runs) it is not, and the query 404'd on somebody else's numbering. Same fix as the one
-    // services-layers.live.spec.ts already carries.
-    const fsMeta = await (await page.request.get(`${base}/rest/services/e2e_src_fs/FeatureServer?f=json`, { headers: ADMIN_HEADERS })).json();
-    const layer = (fsMeta.layers ?? [])[0];
-    expect(layer, 'e2e_src_fs should expose a layer').toBeTruthy();
-    const query = await (await page.request.get(`${base}/rest/services/e2e_src_fs/FeatureServer/${layer.id}/query?where=1%3D1&outFields=*&f=json`, { headers: ADMIN_HEADERS })).json();
-    expect(Array.isArray(query.features) && query.features.length > 0, 'live query returns features').toBeTruthy();
+    const fsMeta = await (await page.request.get(`${base}/rest/services/${service}/FeatureServer?f=json`, { headers: ADMIN_HEADERS })).json();
+    expect((fsMeta.layers ?? []).map((l: any) => l.id), `${service} exposes the seeded layer`).toContain(seeded.layerId);
+    const query = await (await page.request.get(`${base}/rest/services/${service}/FeatureServer/${seeded.layerId}/query?where=1%3D1&outFields=*&f=json`, { headers: ADMIN_HEADERS })).json();
+    expect(query.features?.length, 'live query returns the seeded features').toBe(3);
   });
 
   // The remaining connection providers have no reachable source on this testbed — documented so the matrix is

@@ -2,7 +2,7 @@
 
 Status: PLAN (analysis only; no product code changed)
 Repos: `honua-io/honua-console` @ trunk `c8b2c18`, `honua-io/honua-server` @ trunk `c5b03723`
-Author surface scanned: `src/Honua.Console.Shell/Services/*`, `src/Honua.Console.Contracts/*Shims.cs`, `src/Honua.Console.Shell/Pages/*`, `tests/Honua.Console.IntegrationTests/*`, `tests/Honua.Console.Native.Core.Tests/*`, `.github/workflows/console-nightly.yml`, and honua-server `src/Honua.Server/Features/Admin/*`, `src/Honua.Protocols.GeoServices/*`.
+Author surface scanned: `src/Honua.Console.Shell/Services/*`, `src/Honua.Console.Contracts/*Shims.cs`, `src/Honua.Console.Shell/Pages/*`, `tests/Honua.Console.IntegrationTests/*`, `tests/Honua.Console.Shell.Tests/*`, `.github/workflows/console-nightly.yml`, and honua-server `src/Honua.Server/Features/Admin/*`, `src/Honua.Protocols.GeoServices/*`.
 
 ---
 
@@ -25,7 +25,7 @@ Five binding rules every test in this suite MUST obey:
 ## 2. Harness Plan
 
 ### 2.1 Reuse the existing single live server
-- **Server boot:** `tests/Honua.Console.IntegrationTests/HonuaServerTestcontainer.cs` already boots `postgis/postgis:16-3.4` + the pinned honua-server image on a shared Docker network, honoring `ConsoleTrustIntegrationOptions` (image, port, scheme, health path, env, admin key). Keep one container per test collection (xUnit `[Collection]` fixture) to amortize the ~minute boot, exactly like `PublishingWorkspaceFixture` / `StudioPackageLifecycleFixture` / `ShareAccessFixture`.
+- **Server boot:** `tests/Honua.Console.IntegrationTests/HonuaServerTestcontainer.cs` already boots `postgis/postgis:16-3.4` + the pinned honua-server image on a shared Docker network, honoring `LiveServerIntegrationOptions` (image, port, scheme, health path, env, admin key). Keep one container per test collection (xUnit `[Collection]` fixture) to amortize the ~minute boot, exactly like `PublishingWorkspaceFixture` / `StudioPackageLifecycleFixture` / `ShareAccessFixture`.
 - **Dev-auth bypass:** nightly already sets `HONUA_DEV_AUTH=true;HONUA_DEV_AUTH_ALLOW_BYPASS=true;HONUA_REGISTER_TEST_INFRASTRUCTURE=true` so admin-gated routes are reachable; RBAC-enforcement tests (§5.1) need a *second* options profile that does NOT bypass, or a scoped low-privilege key.
 
 ### 2.2 New shared component — the **Admin Verification Client** (the missing piece)
@@ -45,7 +45,7 @@ This client is the verification oracle for rule #2. It is the central new build 
 - **Teardown:** container disposal per collection; within a collection, use unique GUID-suffixed slugs/names (existing convention) so tests don't collide. Where the server supports delete/unpublish, exercise it as its own operation test and as cleanup.
 
 ### 2.4 Where they run
-- Project: `tests/Honua.Console.IntegrationTests` (bUnit + Testcontainers already wired) and, for the source-build Operate/GitOps lanes, `tests/Honua.Console.Native.Core.Tests`.
+- Project: `tests/Honua.Console.IntegrationTests` (bUnit + Testcontainers already wired) and, for the source-build Operate/GitOps lanes, `tests/Honua.Console.Shell.Tests`.
 - Lane: `console-nightly.yml` `live-integration` job (already runs both projects with the opt-in env). New collections inherit the lane automatically. Add a step-summary row per operation family.
 
 ---
@@ -73,7 +73,7 @@ Legend — Coverage: **COVERED** (live round-trip exists), **PARTIAL** (live tes
 | Set publication policy/visibility | `PATCH /publications/{id}/policy` | catalog visibility/sharing changes; public route resolves/404s accordingly | policy chip | **GAP** | P1 |
 
 ### Family C — Studio authoring → publish (package draft→validate→publish→content)
-Covers map/dashboard/report/app/form/query/analysis/workflow. Routes in `StudioPackageShims.cs`, `FormPackageShims.cs`, `StudioWorkflowShims.cs`, `AnalysisContentShims.cs`.
+Covers map/dashboard/report/app/form/query/analysis/workflow. Routes in `FormPackageShims.cs`, `StudioWorkflowShims.cs`, `AnalysisContentShims.cs`.
 | Operation | Console method/page | Server output + verifying API | Console reflection | Coverage | Pri |
 |---|---|---|---|---|---|
 | Create draft | `POST /api/v1/studio/package-drafts` | `GET /package-drafts/{id}` returns draft | builder shows draft ref | **PARTIAL** (`StudioPackageLifecycleIntegrationTests` asserts session projection + render, not catalog landing) | P1 |

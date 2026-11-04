@@ -43,7 +43,7 @@ src/
   Honua.Console.Web/              # Blazor Web host (Program.cs, render modes)
   Honua.Console.Contracts/        # SDK shim boundary types (charter §6, SDK_SHIM_POLICY)
 tests/
-  Honua.Console.Native.Core.Tests/ # xUnit tests for seams, models, and route map
+  Honua.Console.Shell.Tests/ # xUnit tests for seams, models, and route map
 smoke/
   parity/                         # Cross-surface parity smoke (honua-console#9)
 docs/
@@ -148,7 +148,7 @@ without first updating the map should be sent back (route map §14).
 ### Step 6 — Unit / bUnit tests
 
 - Add xUnit tests under
-  `tests/Honua.Console.Native.Core.Tests/`. The current suite tests the
+  `tests/Honua.Console.Shell.Tests/`. The current suite tests the
   data-client seams, route map, parameter models, and route-state mapping
   helpers directly (e.g. `ConsoleCatalogClientTests`,
   `ConsoleRouteMapTests`, `CatalogSearchStateTests`). Cover at least: the
@@ -156,7 +156,7 @@ without first updating the map should be sent back (route map §14).
   query/URL contract.
 - The charter (§1) names **bUnit** for component/markup tests. bUnit is
   **not yet wired into the test project**
-  (`tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj`
+  (`tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj`
   references xUnit only). Until it is added, factor route logic into
   testable static/instance helpers (as `MapDraftPage.ResolveReadState`,
   `MapViewerPage.ResolveViewerActions`, and `CatalogSearchState.FromUri`
@@ -287,7 +287,7 @@ services.TryAddSingleton<IConsoleCatalogClient, InMemoryConsoleCatalogClient>();
 
 ### Step 6 — Unit tests
 
-`tests/Honua.Console.Native.Core.Tests/ConsoleCatalogClientTests.cs`
+`tests/Honua.Console.Shell.Tests/ConsoleCatalogClientTests.cs`
 covers the seam and read-context decisions, e.g.:
 
 - `CatalogSearchFiltersProtectedSummariesForAnonymousContext` — anonymous

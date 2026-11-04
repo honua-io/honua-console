@@ -5,23 +5,15 @@ using Honua.Console.Shell.Models;
 namespace Honua.Console.Shell.Services;
 
 /// <summary>
-/// Builds the Ops Health trend Vega-Lite specs (console#288) for the shared
-/// <c>ChartPreview</c> component: serving-latency percentiles, error rate, geoprocessing queue
-/// depth, and alert-dispatch backlog over time. Mirrors <see cref="StudioQueryResultChart"/> — no
-/// new chart library (2026-07-06 addendum item 3): every spec is a pure, deterministic Vega-Lite
-/// JSON document built from REAL history/live-band points, with inline <c>data.values</c> (no
-/// features-proxy binding, unlike the Studio query chart). A spec is only ever returned when there
-/// is at least one real point to plot (Charter section 11); an empty series returns
-/// <see langword="null"/> so the caller keeps <c>ChartPreview</c>'s no-backend schematic.
-///
-/// Every spec optionally layers a dashed rule at <paramref name="seamAt"/>-equivalent parameters:
-/// the reconnect-seam boundary between the downsampled history series and the live band held at
-/// native cadence (console#288 addendum item 3) — so an operator can see where the chart stops
-/// being a rollup and starts being a live tail, instead of the two being blended silently.
+/// Builds the Ops Health trend Vega-Lite specs for the shared <c>ChartPreview</c> component:
+/// serving-latency percentiles, error rate, geoprocessing queue depth and alert-dispatch backlog.
+/// Each spec carries its points inline and is returned only when there is at least one real point;
+/// an empty series returns <see langword="null"/> so the caller keeps the no-backend schematic.
+/// A dashed rule marks the seam between the downsampled history and the live band.
 /// </summary>
 public static class OpsHealthTrendCharts
 {
-    public const string VegaLiteSchema = StudioQueryResultChart.VegaLiteSchema;
+    public const string VegaLiteSchema = "https://vega.github.io/schema/vega-lite/v6.json";
 
     /// <summary>Builds the p50/p95/p99 serving-latency percentile chart for one protocol series.</summary>
     public static string? BuildLatencySpec(OpsHealthLatencyTrendSeriesView series, DateTimeOffset? seamAt)

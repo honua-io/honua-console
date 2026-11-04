@@ -26,7 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Honua.Console.Native.Core.Tests" />
+    <InternalsVisibleTo Include="Honua.Console.Shell.Tests" />
     <InternalsVisibleTo Include="Honua.Console.Web" />
   </ItemGroup>
 

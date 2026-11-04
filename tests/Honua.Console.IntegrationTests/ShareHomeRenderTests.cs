@@ -81,6 +81,7 @@ public sealed class ShareHomeRenderTests
         using var ctx = new Bunit.BunitContext();
         // No server bound: the catalog client is the missing-binding implementation, never an in-memory source.
         ctx.Services.AddSingleton<IConsoleCatalogClient>(new UnsupportedConsoleCatalogClient());
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
 
         var page = ctx.Render<SharePage>();
 
@@ -97,6 +98,7 @@ public sealed class ShareHomeRenderTests
     {
         using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IConsoleCatalogClient>(new UnsupportedConsoleCatalogClient());
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
 
         var page = ctx.Render<SharePublicItemPage>(parameters =>
             parameters.Add(p => p.IdOrSlug, "parcels-2024"));
@@ -113,6 +115,7 @@ public sealed class ShareHomeRenderTests
         var httpClient = new HttpClient(handler) { BaseAddress = BaseUri };
         var client = new HonuaConsoleContentHttpClient(httpClient, new HonuaConsoleContentClientOptions(BaseUri, "admin-key"));
         ctx.Services.AddSingleton<IConsoleCatalogClient>(new HonuaServerConsoleCatalogClient(client));
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
     }
 
     private static HonuaConsoleContentItem OpenDataItem(string id, string title, string itemType) =>

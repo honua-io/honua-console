@@ -39,6 +39,7 @@ on:
       - 'e2e/playwright/package*.json'
       - 'e2e/run-live.mjs'
       - 'scripts/require-live-server-image.mjs'
+      - 'scripts/resolve-live-server-image.mjs'
       - 'scripts/studio-customer-identity.mjs'
       - 'scripts/agent-mcp-client.mjs'
       - 'scripts/agent-customer-journey.mjs'
@@ -68,7 +69,7 @@ jobs:
       CI: 'true'
       HONUA_CONSOLE_E2E_OIDC: 'true'
       HONUA_CONSOLE_E2E_LIVE_PORT: '5274'
-      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image || vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-a5e593b@sha256:30205b99536ee81165960f39e44895aaa322dc8729498ca0ff536275b316353c' }}
+      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image || vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -76,9 +77,11 @@ jobs:
           global-json-file: src/Honua.Console.Web/global.json
       - name: Select the pinned SDK
         run: cp src/Honua.Console.Web/global.json global.json
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 20.x
+      - name: Default to the release-pinned server image
+        run: node scripts/resolve-live-server-image.mjs
       - name: Require an immutable server image
         run: node scripts/require-live-server-image.mjs
       - name: Restore Console anonymously from public sources
@@ -126,12 +129,12 @@ jobs:
           }
           Path('artifacts/live-journey/replay-context.json').write_text(json.dumps(receipt, indent=2) + '\n')
           PY
-      - name: Publish from Console and verify three seeded features
+      - name: Publish, go live and change service settings through a real server
         if: ${{ inputs.suite != 'full' }}
         working-directory: e2e/playwright
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: ../../artifacts/live-journey/playwright-results.json
-        run: npx --no-install playwright test --config playwright.live.config.ts services-layers.live.spec.ts --grep 'publish a PostGIS table and verify via catalog, metadata, and a live query' --reporter=list,json > ../../artifacts/live-journey/playwright.log
+        run: npx --no-install playwright test --config playwright.live.config.ts services-layers.live.spec.ts data-flow-go-live.live.spec.ts service-settings.live.spec.ts service-types.live.spec.ts --grep 'publish a PostGIS table and verify via catalog, metadata, and a live query|goes live through Apply & publish|Service settings \(live\)|a published PostGIS layer is listed in the catalog and answers a live query' --reporter=list,json > ../../artifacts/live-journey/playwright.log
       - name: Exercise the complete authenticated Console live suite
         if: ${{ inputs.suite == 'full' }}
         working-directory: e2e/playwright
@@ -148,7 +151,7 @@ jobs:
         run: docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml down -v
       - name: Upload journey evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: console-live-publish-journey
           path: |
@@ -163,7 +166,7 @@ jobs:
     env:
       CI: 'true'
       COMPOSE_PROJECT_NAME: studio-customer
-      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image || vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-a5e593b@sha256:30205b99536ee81165960f39e44895aaa322dc8729498ca0ff536275b316353c' }}
+      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image || vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE }}
       HONUA_CONSOLE_E2E_CONSOLE_IMAGE: ${{ inputs.console_image || 'honua-console:customer-pr' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -171,9 +174,11 @@ jobs:
         if: ${{ !inputs.console_image }}
         with:
           global-json-file: src/Honua.Console.Web/global.json
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.x
+      - name: Default to the release-pinned server image
+        run: node scripts/resolve-live-server-image.mjs
       - name: Validate immutable replay inputs
         env:
           CONSOLE_IMAGE: ${{ inputs.console_image }}
@@ -291,7 +296,7 @@ jobs:
       - name: Build milestone screenshot gallery
         if: always()
         run: node scripts/journey-gallery.mjs
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
           name: studio-customer-journey-evidence

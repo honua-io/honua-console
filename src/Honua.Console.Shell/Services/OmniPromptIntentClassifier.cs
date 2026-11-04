@@ -7,7 +7,7 @@ namespace Honua.Console.Shell.Services;
 public enum OmniPromptIntent
 {
     /// <summary>GIS authoring: publish / map / dashboard / analysis / ETL / style → the Studio generate path,
-    /// whose <em>sub-type</em> is inferred server-side. Lands in the #200 AI publish outcome/approval card.</summary>
+    /// whose <em>sub-type</em> is inferred server-side.</summary>
     Studio,
 
     /// <summary>Operations: deploy / roll back / upgrade → the deploy-control path. Lands in the deploy approval
