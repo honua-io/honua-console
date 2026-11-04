@@ -16,37 +16,12 @@ public static class UnregisteredServerRoutes
 
     private static readonly HashSet<string> Contracts = new(StringComparer.Ordinal)
     {
-        "GET /api/v1/admin/services/{serviceName}/settings-caps",
-        "PUT /api/v1/admin/services/{serviceName}/settings-caps",
-        "GET /api/v1/admin/metadata/layers/{layerId}/extrusion",
-        "PUT /api/v1/admin/metadata/layers/{layerId}/extrusion",
-        "GET /api/v1/admin/metadata/layers/{layerId}/status",
-        "PUT /api/v1/admin/metadata/layers/{layerId}/status",
-        "GET /api/v1/admin/metadata/publications/{publicationId}/overrides",
-        "PUT /api/v1/admin/metadata/publications/{publicationId}/overrides",
-        "GET /api/v1/admin/metadata/layers/{layerId}/subtypes",
-        "PUT /api/v1/admin/metadata/layers/{layerId}/subtypes",
-        "GET /api/v1/admin/metadata/layers/{layerId}/attribute-rules",
-        "PUT /api/v1/admin/metadata/layers/{layerId}/attribute-rules",
-        "GET /api/v1/admin/metadata/layers/{layerId}/discovery",
-        "PUT /api/v1/admin/metadata/layers/{layerId}/discovery",
-        "GET /api/v1/admin/services/{serviceName}/discovery",
-        "PUT /api/v1/admin/services/{serviceName}/discovery",
         "GET /api/v1/admin/metadata/layers/{layerId}/display",
         "PUT /api/v1/admin/metadata/layers/{layerId}/display",
         "GET /api/v1/admin/metadata/layers/{layerId}/editing",
         "PUT /api/v1/admin/metadata/layers/{layerId}/editing",
         "GET /api/v1/admin/metadata/layers/{layerId}/spatial",
         "PUT /api/v1/admin/metadata/layers/{layerId}/spatial",
-        "GET /api/v1/admin/forms/packages/generation/providers",
-        "POST /api/v1/admin/forms/packages/generate",
-        "POST /api/v1/admin/forms/packages/import-xlsform",
-        "POST /api/v1/analysis/content/generate",
-        "POST /api/v1/analysis/content/queries/generate",
-        "GET /api/v1/console/publications/generation/providers",
-        "POST /api/v1/console/publications/generate",
-        "GET /api/v1/console/workflow-generation/providers",
-        "POST /api/v1/console/workflow-packages/generate",
     };
 
     public static IReadOnlySet<string> All => Contracts;

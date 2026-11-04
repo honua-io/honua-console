@@ -218,15 +218,6 @@ public sealed class StudioFormBuilderValidationRenderTests
 
     private sealed class FakeFormDataSource : IStudioFormPackageDataSource
     {
-        public Task<StudioFormAiCapability> GetGenerationCapabilityAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(StudioFormAiCapability.Off);
-
-        public Task<StudioFormGenerationOutcome> GenerateAsync(
-            StudioFormEditorState currentState, StudioFormGenerationRequest request, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new StudioFormGenerationOutcome { Status = StudioFormGenerationStatuses.Unsupported });
-
-        public Task<StudioFormImportOutcome> ImportXlsFormAsync(StudioFormImportRequest request, CancellationToken cancellationToken = default) =>
-            Task.FromResult(StudioFormImportOutcome.Failed(StudioFormImportStatuses.Unsupported, "Not exercised by this fake."));
 
         /// <summary>Stable list-button label so tests can open the editor regardless of the editor's title.</summary>
         public const string OpenLabel = "Open form";
