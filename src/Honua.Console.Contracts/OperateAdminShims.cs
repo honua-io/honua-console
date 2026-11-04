@@ -33,10 +33,8 @@ public partial interface IHonuaAdminOperateClient
       IHonuaAdminLayerMetadataClient,
       IHonuaAdminLayerPublishingClient,
       IHonuaAdminServiceSettingsClient,
-      IHonuaAdminLayer3DAndLifecycleClient,
       IHonuaAdminPublicationOverridesClient,
       IHonuaAdminLayerSchemaClient,
-      IHonuaAdminDiscoveryClient,
       IHonuaAdminServerInfoClient,
       IHonuaAdminPresentationClient
 {
@@ -642,50 +640,6 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             cancellationToken);
     }
 
-    public Task<HonuaAdminEndpointResult<HonuaAdminLayerExtrusion>> GetLayerExtrusionAsync(
-        int layerId,
-        CancellationToken cancellationToken = default) =>
-        GetApiResponseAsync<HonuaAdminLayerExtrusion>(
-            $"/api/v1/admin/metadata/layers/{layerId}/extrusion",
-            "GET /api/v1/admin/metadata/layers/{layerId}/extrusion",
-            cancellationToken);
-
-    public Task<HonuaAdminEndpointResult<HonuaAdminLayerExtrusion>> UpdateLayerExtrusionAsync(
-        int layerId,
-        HonuaAdminLayerExtrusionUpdate request,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        return PutApiResponseAsync<HonuaAdminLayerExtrusionUpdate, HonuaAdminLayerExtrusion>(
-            $"/api/v1/admin/metadata/layers/{layerId}/extrusion",
-            request,
-            "PUT /api/v1/admin/metadata/layers/{layerId}/extrusion",
-            cancellationToken);
-    }
-
-    public Task<HonuaAdminEndpointResult<HonuaAdminLayerStatus>> GetLayerStatusAsync(
-        int layerId,
-        CancellationToken cancellationToken = default) =>
-        GetApiResponseAsync<HonuaAdminLayerStatus>(
-            $"/api/v1/admin/metadata/layers/{layerId}/status",
-            "GET /api/v1/admin/metadata/layers/{layerId}/status",
-            cancellationToken);
-
-    public Task<HonuaAdminEndpointResult<HonuaAdminLayerStatus>> UpdateLayerStatusAsync(
-        int layerId,
-        HonuaAdminLayerStatusUpdate request,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        return PutApiResponseAsync<HonuaAdminLayerStatusUpdate, HonuaAdminLayerStatus>(
-            $"/api/v1/admin/metadata/layers/{layerId}/status",
-            request,
-            "PUT /api/v1/admin/metadata/layers/{layerId}/status",
-            cancellationToken);
-    }
-
     public Task<HonuaAdminEndpointResult<HonuaAdminPublicationOverrides>> GetPublicationOverridesAsync(
         string publicationId,
         CancellationToken cancellationToken = default)
@@ -735,50 +689,6 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             cancellationToken);
     }
 
-    public Task<HonuaAdminEndpointResult<HonuaAdminLayerSubtypes>> GetLayerSubtypesAsync(
-        int layerId,
-        CancellationToken cancellationToken = default) =>
-        GetApiResponseAsync<HonuaAdminLayerSubtypes>(
-            $"/api/v1/admin/metadata/layers/{layerId}/subtypes",
-            "GET /api/v1/admin/metadata/layers/{layerId}/subtypes",
-            cancellationToken);
-
-    public Task<HonuaAdminEndpointResult<HonuaAdminLayerSubtypes>> UpdateLayerSubtypesAsync(
-        int layerId,
-        HonuaAdminLayerSubtypesUpdate request,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        return PutApiResponseAsync<HonuaAdminLayerSubtypesUpdate, HonuaAdminLayerSubtypes>(
-            $"/api/v1/admin/metadata/layers/{layerId}/subtypes",
-            request,
-            "PUT /api/v1/admin/metadata/layers/{layerId}/subtypes",
-            cancellationToken);
-    }
-
-    public Task<HonuaAdminEndpointResult<HonuaAdminLayerAttributeRules>> GetLayerAttributeRulesAsync(
-        int layerId,
-        CancellationToken cancellationToken = default) =>
-        GetApiResponseAsync<HonuaAdminLayerAttributeRules>(
-            $"/api/v1/admin/metadata/layers/{layerId}/attribute-rules",
-            "GET /api/v1/admin/metadata/layers/{layerId}/attribute-rules",
-            cancellationToken);
-
-    public Task<HonuaAdminEndpointResult<HonuaAdminLayerAttributeRules>> UpdateLayerAttributeRulesAsync(
-        int layerId,
-        HonuaAdminLayerAttributeRulesUpdate request,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        return PutApiResponseAsync<HonuaAdminLayerAttributeRulesUpdate, HonuaAdminLayerAttributeRules>(
-            $"/api/v1/admin/metadata/layers/{layerId}/attribute-rules",
-            request,
-            "PUT /api/v1/admin/metadata/layers/{layerId}/attribute-rules",
-            cancellationToken);
-    }
-
     public Task<HonuaAdminEndpointResult<HonuaAdminLayerFilter>> GetLayerFilterAsync(
         int layerId,
         CancellationToken cancellationToken = default) =>
@@ -798,55 +708,6 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             $"/api/v1/admin/metadata/layers/{layerId}/filter",
             request,
             "PUT /api/v1/admin/metadata/layers/{layerId}/filter",
-            cancellationToken);
-    }
-
-    public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetLayerDiscoveryAsync(
-        int layerId,
-        CancellationToken cancellationToken = default) =>
-        GetApiResponseAsync<HonuaAdminDiscoveryMetadata>(
-            $"/api/v1/admin/metadata/layers/{layerId}/discovery",
-            "GET /api/v1/admin/metadata/layers/{layerId}/discovery",
-            cancellationToken);
-
-    public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> UpdateLayerDiscoveryAsync(
-        int layerId,
-        HonuaAdminDiscoveryMetadataUpdate request,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        return PutApiResponseAsync<HonuaAdminDiscoveryMetadataUpdate, HonuaAdminDiscoveryMetadata>(
-            $"/api/v1/admin/metadata/layers/{layerId}/discovery",
-            request,
-            "PUT /api/v1/admin/metadata/layers/{layerId}/discovery",
-            cancellationToken);
-    }
-
-    public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetServiceDiscoveryAsync(
-        string serviceName,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
-
-        return GetApiResponseAsync<HonuaAdminDiscoveryMetadata>(
-            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/discovery",
-            "GET /api/v1/admin/services/{serviceName}/discovery",
-            cancellationToken);
-    }
-
-    public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> UpdateServiceDiscoveryAsync(
-        string serviceName,
-        HonuaAdminDiscoveryMetadataUpdate request,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
-        ArgumentNullException.ThrowIfNull(request);
-
-        return PutApiResponseAsync<HonuaAdminDiscoveryMetadataUpdate, HonuaAdminDiscoveryMetadata>(
-            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/discovery",
-            request,
-            "PUT /api/v1/admin/services/{serviceName}/discovery",
             cancellationToken);
     }
 

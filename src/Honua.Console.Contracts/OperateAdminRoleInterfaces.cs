@@ -321,73 +321,6 @@ public interface IHonuaAdminServiceSettingsClient
             "This IHonuaAdminOperateClient implementation does not provide UpdateServiceSettingsCapsAsync.");
 }
 
-/// <summary>Layer 3D extrusion + lifecycle status (default-implemented; server build may not expose these).</summary>
-public interface IHonuaAdminLayer3DAndLifecycleClient
-{
-    /// <summary>
-    /// Reads a layer's persisted 3D extrusion + 3D symbology metadata
-    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/extrusion</c>). <paramref name="layerId"/> is the global
-    /// id. Returns the extrusion (height/base-height field, unit, default height, material hint) and the 3D
-    /// symbology (default RGB color + opacity and the attribute-comparison rules) the server has persisted.
-    /// </summary>
-    /// <remarks>
-    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
-    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
-    /// </remarks>
-    Task<HonuaAdminEndpointResult<HonuaAdminLayerExtrusion>> GetLayerExtrusionAsync(
-        int layerId,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException(
-            "This IHonuaAdminOperateClient implementation does not provide GetLayerExtrusionAsync.");
-
-    /// <summary>
-    /// Updates a layer's 3D extrusion + 3D symbology metadata
-    /// (<c>PUT /api/v1/admin/metadata/layers/{layerId}/extrusion</c>). A null section leaves it unchanged; the
-    /// matching clear flag removes it. heightField / baseHeightField / rule attributes are validated server-side
-    /// against the layer schema. The server re-reads and returns the persisted projection.
-    /// </summary>
-    /// <remarks>
-    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
-    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
-    /// </remarks>
-    Task<HonuaAdminEndpointResult<HonuaAdminLayerExtrusion>> UpdateLayerExtrusionAsync(
-        int layerId,
-        HonuaAdminLayerExtrusionUpdate request,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException(
-            "This IHonuaAdminOperateClient implementation does not provide UpdateLayerExtrusionAsync.");
-
-    /// <summary>
-    /// Reads a layer's persisted lifecycle status — lifecycle stage + operational state
-    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/status</c>). <paramref name="layerId"/> is the global id.
-    /// </summary>
-    /// <remarks>
-    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
-    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
-    /// </remarks>
-    Task<HonuaAdminEndpointResult<HonuaAdminLayerStatus>> GetLayerStatusAsync(
-        int layerId,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException(
-            "This IHonuaAdminOperateClient implementation does not provide GetLayerStatusAsync.");
-
-    /// <summary>
-    /// Updates a layer's lifecycle status (<c>PUT /api/v1/admin/metadata/layers/{layerId}/status</c>). At least
-    /// one of lifecycle/state is required; a null field leaves the other unchanged. The server re-reads and
-    /// returns the persisted status.
-    /// </summary>
-    /// <remarks>
-    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
-    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
-    /// </remarks>
-    Task<HonuaAdminEndpointResult<HonuaAdminLayerStatus>> UpdateLayerStatusAsync(
-        int layerId,
-        HonuaAdminLayerStatusUpdate request,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException(
-            "This IHonuaAdminOperateClient implementation does not provide UpdateLayerStatusAsync.");
-}
-
 /// <summary>Publication overrides read + write (default-implemented).</summary>
 public interface IHonuaAdminPublicationOverridesClient
 {
@@ -450,69 +383,6 @@ public interface IHonuaAdminLayerSchemaClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Reads a layer's persisted subtype set — subtype field, default subtype code, per-subtype field
-    /// default/domain overrides (<c>GET /api/v1/admin/metadata/layers/{layerId}/subtypes</c>).
-    /// <paramref name="layerId"/> is the global id.
-    /// </summary>
-    /// <remarks>
-    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
-    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
-    /// </remarks>
-    Task<HonuaAdminEndpointResult<HonuaAdminLayerSubtypes>> GetLayerSubtypesAsync(
-        int layerId,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException(
-            "This IHonuaAdminOperateClient implementation does not provide GetLayerSubtypesAsync.");
-
-    /// <summary>
-    /// Updates a layer's subtype set (<c>PUT /api/v1/admin/metadata/layers/{layerId}/subtypes</c>).
-    /// <c>clear:true</c> removes the set; a null <c>subtypes</c> keeps the existing set; the subtype field /
-    /// override keys are validated server-side against the schema. The server re-reads and returns the
-    /// persisted subtype projection.
-    /// </summary>
-    /// <remarks>
-    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
-    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
-    /// </remarks>
-    Task<HonuaAdminEndpointResult<HonuaAdminLayerSubtypes>> UpdateLayerSubtypesAsync(
-        int layerId,
-        HonuaAdminLayerSubtypesUpdate request,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException(
-            "This IHonuaAdminOperateClient implementation does not provide UpdateLayerSubtypesAsync.");
-
-    /// <summary>
-    /// Reads a layer's persisted attribute rules — calculation/constraint/validation rules with their
-    /// triggering events (<c>GET /api/v1/admin/metadata/layers/{layerId}/attribute-rules</c>).
-    /// <paramref name="layerId"/> is the global id.
-    /// </summary>
-    /// <remarks>
-    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
-    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
-    /// </remarks>
-    Task<HonuaAdminEndpointResult<HonuaAdminLayerAttributeRules>> GetLayerAttributeRulesAsync(
-        int layerId,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException(
-            "This IHonuaAdminOperateClient implementation does not provide GetLayerAttributeRulesAsync.");
-
-    /// <summary>
-    /// Replaces a layer's attribute rules (<c>PUT /api/v1/admin/metadata/layers/{layerId}/attribute-rules</c>).
-    /// An empty <c>rules</c> clears the set; duplicate rule names are rejected server-side. The server re-reads
-    /// and returns the persisted rule set.
-    /// </summary>
-    /// <remarks>
-    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
-    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
-    /// </remarks>
-    Task<HonuaAdminEndpointResult<HonuaAdminLayerAttributeRules>> UpdateLayerAttributeRulesAsync(
-        int layerId,
-        HonuaAdminLayerAttributeRulesUpdate request,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException(
-            "This IHonuaAdminOperateClient implementation does not provide UpdateLayerAttributeRulesAsync.");
-
-    /// <summary>
     /// Reads a layer's persisted permanent filter — the server-enforced query filter applied to every read of
     /// the layer (<c>GET /api/v1/admin/metadata/layers/{layerId}/filter</c>). <paramref name="layerId"/> is the
     /// global id. The projection's <c>PermanentFilter</c> is null when no filter is saved.
@@ -545,51 +415,6 @@ public interface IHonuaAdminLayerSchemaClient
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException(
             "This IHonuaAdminOperateClient implementation does not provide UpdateLayerFilterAsync.");
-}
-
-/// <summary>Layer + service discovery / catalog metadata read + write.</summary>
-public interface IHonuaAdminDiscoveryClient
-{
-    /// <summary>
-    /// Reads a layer's discovery / catalog metadata — title, description, keywords, themes, language, license,
-    /// attribution, publisher, contact point, links (<c>GET /api/v1/admin/metadata/layers/{layerId}/discovery</c>).
-    /// <paramref name="layerId"/> is the global id. This metadata drives the layer's OGC API Records / STAC /
-    /// DCAT / Esri documentInfo output.
-    /// </summary>
-    Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetLayerDiscoveryAsync(
-        int layerId,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Updates a layer's discovery / catalog metadata
-    /// (<c>PUT /api/v1/admin/metadata/layers/{layerId}/discovery</c>). A null/omitted scalar leaves that field
-    /// unchanged server-side; an empty array (<c>[]</c>) clears a list. The server re-reads and returns the
-    /// persisted metadata.
-    /// </summary>
-    Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> UpdateLayerDiscoveryAsync(
-        int layerId,
-        HonuaAdminDiscoveryMetadataUpdate request,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Reads a service's discovery / catalog metadata
-    /// (<c>GET /api/v1/admin/services/{serviceName}/discovery</c>). Drives the service's OGC API Records / STAC /
-    /// DCAT / Esri documentInfo output.
-    /// </summary>
-    Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetServiceDiscoveryAsync(
-        string serviceName,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Updates a service's discovery / catalog metadata
-    /// (<c>PUT /api/v1/admin/services/{serviceName}/discovery</c>). A null/omitted scalar leaves that field
-    /// unchanged server-side; an empty array (<c>[]</c>) clears a list. The server re-reads and returns the
-    /// persisted metadata.
-    /// </summary>
-    Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> UpdateServiceDiscoveryAsync(
-        string serviceName,
-        HonuaAdminDiscoveryMetadataUpdate request,
-        CancellationToken cancellationToken = default);
 }
 
 /// <summary>Server info + auth introspection + endpoint reachability probe.</summary>

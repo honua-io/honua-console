@@ -1052,8 +1052,6 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddOperateServiceSettingsOperations(services, live);
         AddOperateLayerMetadataOperations(services, live);
         AddOperateLayerSchemaOperations(services, live);
-        AddOperateLayer3DAndLifecycleOperations(services, live);
-        AddOperateDiscoveryOperations(services, live);
         AddOperatePublicationOverridesOperations(services, live);
     }
 
@@ -1135,48 +1133,18 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
     }
 
-    // Layer schema authoring: relationships (…/relationships), subtypes + attribute-rules (…/subtypes|
-    // attribute-rules), and the server-enforced permanent filter (…/filter).
+    // Layer schema authoring: relationships (…/relationships) and the server-enforced permanent filter (…/filter).
     private static void AddOperateLayerSchemaOperations(IServiceCollection services, bool live)
     {
         if (live)
         {
             services.TryAddSingleton<IConsoleLayerRelationshipsOperation, HonuaServerConsoleLayerRelationshipsOperation>();
-            services.TryAddSingleton<IConsoleLayerSubtypesOperation, HonuaServerConsoleLayerSubtypesOperation>();
             services.TryAddSingleton<IConsoleLayerFilterOperation, HonuaServerConsoleLayerFilterOperation>();
         }
         else
         {
             services.TryAddSingleton<IConsoleLayerRelationshipsOperation, UnsupportedConsoleLayerRelationshipsOperation>();
-            services.TryAddSingleton<IConsoleLayerSubtypesOperation, UnsupportedConsoleLayerSubtypesOperation>();
             services.TryAddSingleton<IConsoleLayerFilterOperation, UnsupportedConsoleLayerFilterOperation>();
-        }
-    }
-
-    // Layer 3D extrusion / symbology + lifecycle status authoring (…/extrusion|status).
-    private static void AddOperateLayer3DAndLifecycleOperations(IServiceCollection services, bool live)
-    {
-        if (live)
-        {
-            services.TryAddSingleton<IConsoleLayer3DOperation, HonuaServerConsoleLayer3DOperation>();
-        }
-        else
-        {
-            services.TryAddSingleton<IConsoleLayer3DOperation, UnsupportedConsoleLayer3DOperation>();
-        }
-    }
-
-    // Discovery / catalog metadata authoring (GET/PUT discovery for a layer or a service) — drives OGC API
-    // Records / STAC / DCAT / Esri documentInfo output.
-    private static void AddOperateDiscoveryOperations(IServiceCollection services, bool live)
-    {
-        if (live)
-        {
-            services.TryAddSingleton<IConsoleDiscoveryMetadataOperation, HonuaServerConsoleDiscoveryMetadataOperation>();
-        }
-        else
-        {
-            services.TryAddSingleton<IConsoleDiscoveryMetadataOperation, UnsupportedConsoleDiscoveryMetadataOperation>();
         }
     }
 
