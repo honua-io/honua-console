@@ -4,6 +4,7 @@
 @inject NavigationManager Navigation
 @inject IConsoleCapabilityManifest Capabilities
 
+<CatalogAvailabilityGate>
 <section class="console-page console-viewer-page">
     @if (!_accessResolved)
     {
@@ -53,6 +54,7 @@
         </div>
     }
 </section>
+</CatalogAvailabilityGate>
 
 @code {
     private string _sourceItemId = string.Empty;

@@ -4,6 +4,7 @@
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IOperateTransitionDataSource OperateData
+@inject IServiceProvider ServiceProvider
 
 @*
     The GeoServer-style "Data & Layers" spine (redesign §5.2 NEW /operate/data, §5.3). Merges the old
@@ -35,6 +36,8 @@
                                   OnPublicationSelected="OnPublicationSelected"
                                   OnResourceSelected="OnResourceSelected" />
         <LayerPreviewPane Selection="@_preview"
+                          Layer="@PreviewLayer"
+                          EnvironmentId="@_environmentId"
                           Protocols="@_previewProtocols"
                           OnProtocolSelected="OnPreviewProtocolChanged" />
     </div>
@@ -50,6 +53,10 @@
     private LayerPreviewPane.PreviewSelection? _preview;
     private IReadOnlyList<LayerPreviewPane.PreviewSelection> _previewProtocols = [];
     private ResourceTreeNode? _selectedResource;
+    private OperateServicesView? _servicesView;
+    private string? _environmentId;
+
+    private OperateServiceLayerProjection? PreviewLayer => _preview is { } preview ? _servicesView?.FindLayer(preview.ResourceId) : null;
 
     private bool _loaded;
     private string? _loadError;
@@ -69,6 +76,9 @@
         {
         var resourcesView = await OperateData.GetResourcesViewAsync();
         var servicesView = await OperateData.GetServicesViewAsync();
+        _servicesView = servicesView;
+        _environmentId = await ConsoleProxyRoutes.ResolveActiveEnvironmentIdAsync(
+            ServiceProvider.GetService<IConsoleEnvironmentProfileStore>());
 
         _nodes = ResourcePublicationsTreeBuilder.Build(resourcesView.ResourceEdits, servicesView.Services);
         _states = OperateCapabilityStateFilters.ForSurface(

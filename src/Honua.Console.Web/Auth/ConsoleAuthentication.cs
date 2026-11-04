@@ -2,9 +2,11 @@ using System.Security.Claims;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
+using Honua.Console.Web.Components;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -222,11 +224,7 @@ public static class ConsoleAuthentication
             // Fail-closed: no anonymous access and no local sign-in available. Operators authenticate
             // through the deployment's edge IdP (oauth2-proxy / ingress OIDC), which must inject the
             // configured forwarded-identity headers.
-            return Results.Problem(
-                title: "Sign-in required",
-                detail: "This Console requires an operator identity from the deployment's edge identity provider. "
-                    + "No forwarded operator identity was present on this request.",
-                statusCode: StatusCodes.Status401Unauthorized);
+            return SignInRequired(context.Request);
         }).AllowAnonymous();
 
         app.MapPost("/auth/logout", async (
@@ -322,6 +320,20 @@ public static class ConsoleAuthentication
         // approval/recovery mutations fail closed until a bearer is available.
         return new ClaimsPrincipal(identity);
     }
+
+    private const string SignInRequiredDetail =
+        "This Console requires an operator identity from the deployment's edge identity provider. "
+        + "No forwarded operator identity was present on this request.";
+
+    internal static IResult SignInRequired(HttpRequest request) => IsApiRequest(request)
+        ? Results.Problem(
+            title: "Sign-in required",
+            detail: SignInRequiredDetail,
+            statusCode: StatusCodes.Status401Unauthorized)
+        : new RazorComponentResult<SignInRequiredDocument>(new { Detail = SignInRequiredDetail })
+        {
+            StatusCode = StatusCodes.Status401Unauthorized,
+        };
 
     private static bool IsApiRequest(HttpRequest request)
     {

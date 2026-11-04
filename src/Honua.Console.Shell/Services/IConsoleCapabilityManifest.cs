@@ -53,6 +53,8 @@ public static class ConsoleCapabilityKeys
 
     /// <summary>Full SIEM / investigations / AI DevOps advisory over Operate event volume.</summary>
     public const string SiemInvestigations = "siem-investigations";
+
+    public const string PersistentCatalog = "persistent-catalog";
 }
 
 /// <summary>
@@ -104,6 +106,7 @@ public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapability
             [ConsoleCapabilityKeys.RealtimeAlerting] = "alerts.geofence",
             [ConsoleCapabilityKeys.CrossEnvironmentPromotion] = "gitops.release-manifest",
             [ConsoleCapabilityKeys.SiemInvestigations] = "ops.findings",
+            [ConsoleCapabilityKeys.PersistentCatalog] = "console.content.persistent",
         };
 
     private readonly ICapabilityRegistryClient _registry;

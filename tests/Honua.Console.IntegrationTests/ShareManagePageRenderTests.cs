@@ -361,6 +361,7 @@ public sealed class ShareManagePageRenderTests
         // The page now hosts an <UnsavedChangesGuard/> (Wave 5), which imports a JS module and may call
         // confirm() on navigation; run Loose JSInterop so those calls no-op in render tests.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IShareAccessDataSource>(data);
         // The open-data editor reads server-owned content metadata through the catalog client. With no
         // server bound the page renders the missing-binding state; tests inject a fake to exercise the editor.

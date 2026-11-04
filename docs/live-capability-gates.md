@@ -20,6 +20,10 @@ including Preview opt-ins.
 | `realtime-alerting` | `alerts.geofence` |
 | `cross-environment-promotion` | `gitops.release-manifest` |
 | `siem-investigations` | `ops.findings` |
+| `persistent-catalog` | `console.content.persistent` |
+
+`persistent-catalog` gates Catalog, Share, open-data and the catalog map viewer: until the server keeps
+that content across restarts, those routes point to Data & Layers and stay out of the navigation.
 
 `Honua:Console:Capabilities` / `HONUA_CONSOLE_CAPABILITIES` can restrict this set.
 An omitted server policy imposes no additional restriction. A configured list

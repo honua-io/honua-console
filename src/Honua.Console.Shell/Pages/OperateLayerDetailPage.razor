@@ -1,5 +1,6 @@
 @page "/operate/layers/{ResourceId}"
 @using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Components.Operate
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IOperateTransitionDataSource OperateData
@@ -75,16 +76,7 @@
             <p class="console-kicker">Preview</p>
             <h2>Rendered map</h2>
             <p class="console-muted">Live render of this layer using honua-server's own MapLibre style and vector tiles, proxied through the console so the server credentials stay server-side.</p>
-            <MapPreview Mode="MapPreviewMode.Layer"
-                        StyleUrl="@ConsoleProxyRoutes.MapStyle(_environmentId, _exposures[0].Layer.LayerId)"
-                        Center="_previewCenter"
-                        Zoom="1"
-                        Bounds="_exposures[0].Layer.Extent"
-                        ShowLabels="false"
-                        ShowHighlight="false"
-                        ShowPopup="false"
-                        Crs="EPSG:3857"
-                        AriaLabel="@($"Map preview of layer {_exposures[0].Layer.Name}")" />
+            <LayerMapPreview Layer="_exposures[0].Layer" EnvironmentId="@_environmentId" />
         </article>
 
         <section class="console-section" data-fields-panel>
@@ -264,8 +256,6 @@
     private string CanonicalResourceId => _exposures[0].Layer.CanonicalResourceId;
     private string _serviceSummary = string.Empty;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
-    // Web-Mercator origin; a low zoom shows the whole world so the layer's features render wherever they sit.
-    private readonly double[] _previewCenter = { 0, 0 };
 
     private ConsoleLayerFields _fields = ConsoleLayerFields.Unbound("Loading…");
     private string _domainField = string.Empty;

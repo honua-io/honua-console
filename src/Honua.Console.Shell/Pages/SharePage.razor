@@ -10,6 +10,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @inject IConsoleCatalogClient Catalog
 
+<CatalogAvailabilityGate>
 <section class="console-page share-home">
     <div class="console-page-heading">
         <p class="console-kicker">Share workflow</p>
@@ -113,6 +114,7 @@
         </div>
     }
 </section>
+</CatalogAvailabilityGate>
 
 @code {
     internal const string MissingBindingMessage =

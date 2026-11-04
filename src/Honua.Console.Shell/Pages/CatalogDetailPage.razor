@@ -4,6 +4,7 @@
 @inject NavigationManager Navigation
 @inject IConsoleCapabilityManifest Capabilities
 
+<CatalogAvailabilityGate>
 <section class="console-page">
     @if (_result is null)
     {
@@ -311,6 +312,7 @@
         </section>
     }
 </section>
+</CatalogAvailabilityGate>
 
 @code {
     [Parameter]

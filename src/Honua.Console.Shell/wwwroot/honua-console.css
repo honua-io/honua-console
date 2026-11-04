@@ -9196,12 +9196,6 @@ p {
     margin: 0.5rem 0;
 }
 
-.layer-preview-pane__tile {
-    font-size: 1.5rem;
-    letter-spacing: 0.25rem;
-    color: var(--console-muted, #9ca3af);
-}
-
 /* SensorThings time-series chart (OperateSensorThingsPage). */
 .console-timeseries-chart {
     margin: 0;

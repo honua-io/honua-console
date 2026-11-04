@@ -4,16 +4,15 @@ import { test, expect } from '@playwright/test';
 // explicit missing-binding state rather than crashing (Console Patterns Charter section 11).
 // The shared ConsoleStateView renders `.console-state .console-kicker` for these surfaces.
 
-test('share degrades into an explicit missing-binding state, not a crash', async ({ page }) => {
+test('share without a persistent catalog points to Data & Layers, not a crash', async ({ page }) => {
   await page.goto('/share', { waitUntil: 'domcontentloaded' });
 
-  // The shared missing-binding surface is present and readable.
   const state = page.locator('.console-state').first();
   await expect(state).toBeVisible();
   await expect(state.locator('.console-kicker')).toBeVisible();
 
-  // The Share area explicitly reports it is not bound (no mock/seeded data shown).
-  await expect(page.getByText('Share is not bound to honua-server')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Catalog and sharing are not available yet' })).toBeVisible();
+  await expect(state.getByRole('link', { name: 'Open Data & Layers' })).toHaveAttribute('href', '/operate/data');
 });
 
 test('retired Studio builder route cannot restore the legacy product', async ({ page }) => {
