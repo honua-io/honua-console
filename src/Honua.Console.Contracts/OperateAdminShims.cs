@@ -5,27 +5,8 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-sdk-dotnet#166): the Honua.Sdk.Admin admin client (HonuaAdminClient with
-// ListConnectionsAsync/ListServicesAsync/GetServiceSettingsAsync/ListLayersAsync/
-// GetVersionAsync/GetCapabilitiesAsync/GetLicenseStatusAsync/ListOidcProvidersAsync)
-// exists in honua-sdk-dotnet source, but there is no consumable package: the only
-// restorable Honua.Sdk.Admin build is the prerelease 0.1.15-alpha.1 (the SDK ships a
-// stable Honua.Sdk.Abstractions 1.0.0 but no stable Admin counterpart), and honua-console
-// wires no SDK NuGet feed. Referencing it would pin Console to a prerelease through the
-// non-hermetic global package cache and break clean/CI restores and the single deployable
-// artifact, so per SDK_SHIM_POLICY.md the contract is treated as pending. Keep these wire
-// records and the thin HTTP client in the Console contracts boundary until honua-sdk-dotnet
-// publishes a consumable stable Admin package and honua-console#7 wires the feed and swaps
-// to SDK types. Do not add a sibling-repo ProjectReference. See SDK_SHIM_POLICY "Active Shims".
 public sealed record HonuaAdminOperateClientOptions(Uri BaseUri, string? ApiKey = null);
 
-/// <summary>
-/// Aggregate honua-server admin operate client. Composed of the role interfaces (see
-/// OperateAdminRoleInterfaces.cs) so a consumer can depend on the narrow slice it uses (ISP,
-/// honua-console#279 PA-242); the aggregate is retained so the single <see cref="HonuaAdminOperateHttpClient"/>
-/// implementation and every existing consumer/test-fake that references this interface keep compiling
-/// unchanged.
-/// </summary>
 public partial interface IHonuaAdminOperateClient
     : IHonuaAdminConnectionsClient,
       IHonuaAdminImportClient,
@@ -547,21 +528,10 @@ public sealed record HonuaAdminEndpointIssue(
 {
     public TerminalFailureReceipt? Receipt { get; init; }
 
-    /// <summary>
-    /// Field-addressable validation errors parsed from an RFC-7807 ProblemDetails <c>errors[]</c> extension
-    /// when the server rejected the request with the shared field-level validation contract (the
-    /// honua-server Wave-0 <c>FieldValidationError</c>). Empty for non-validation issues (transport,
-    /// auth, conflict) and for flat rejections that carried no <c>errors[]</c>. Console clients bind these
-    /// onto the offending inputs via the Wave-0 <c>ServerFieldErrorMapper</c>.
-    /// </summary>
+    // Filled from an RFC 7807 errors list; empty when the rejection named no fields.
     public IReadOnlyList<HonuaFieldValidationError> FieldErrors { get; init; } = [];
 }
 
-/// <summary>
-/// Wire shape of one RFC-7807 ProblemDetails <c>errors[]</c> item — the honua-server shared
-/// <c>FieldValidationError</c> projection (<c>{code,severity,path,message,fieldId}</c>). Parsed by HTTP
-/// clients from a field-addressable rejection body and surfaced on <see cref="HonuaAdminEndpointIssue"/>.
-/// </summary>
 public sealed record HonuaFieldValidationError
 {
     [System.Text.Json.Serialization.JsonPropertyName("code")]
@@ -586,38 +556,29 @@ public sealed record HonuaAdminApiResponse<T>(
     string? Message,
     DateTimeOffset? Timestamp) : IAdminResponseEnvelope<T>;
 
-/// <summary>
-/// Wire shape of the honua-server connection-create request body
-/// (<c>POST /api/v1/admin/connections/</c>, mirrors <c>CreateConnectionRequest</c>). Carries the connection
-/// identity, PostGIS target (host/port/database), credentials, provider, and SSL posture. The secret
-/// (<see cref="Password"/>) is sent to the server secret store and never echoed back in the summary.
-/// </summary>
 public sealed record HonuaAdminCreateConnectionRequest
 {
     public required string Name { get; init; }
 
     public string? Description { get; init; }
 
-    /// <summary>Optional with a secret reference (display metadata only); required with an inline password.</summary>
+    // Host is optional beside a secret reference and required when the password is sent inline.
     public string? Host { get; init; }
 
-    /// <summary>Omit for a full secret reference; inline credentials default to 5432 on the server.</summary>
+    // Port is left unset for a secret reference; an inline password defaults to 5432 on the server.
     public int? Port { get; init; }
 
     public string? DatabaseName { get; init; }
 
     public string? Username { get; init; }
 
-    /// <summary>Inline password. Mutually exclusive with <see cref="SecretReference"/>.</summary>
+    // Sent to the server secret store, never returned, and mutually exclusive with SecretReference.
     public string? Password { get; init; }
 
-    /// <summary>
-    /// External secret reference holding the full connection string (e.g. <c>env:PROD_DB_DSN</c>,
-    /// <c>aws:secretsmanager:prod-db-creds</c>). Mutually exclusive with <see cref="Password"/>.
-    /// </summary>
+    // The referenced secret holds the full connection string, not only a password.
     public string? SecretReference { get; init; }
 
-    /// <summary>Secret store kind (env, aws, azure) — required when <see cref="SecretReference"/> is set.</summary>
+    // SecretType is required when SecretReference is set.
     public string? SecretType { get; init; }
 
     public string Provider { get; init; } = "postgis";
@@ -627,13 +588,9 @@ public sealed record HonuaAdminCreateConnectionRequest
     public string SslMode { get; init; } = "Disable";
 }
 
-/// <summary>
-/// Wire shape of the honua-server connection-test response (<c>ConnectionTestResult</c>), returned by both the
-/// draft test (<c>POST /api/v1/admin/connections/test</c>) and the existing-connection test
-/// (<c>POST /api/v1/admin/connections/{id}/test</c>). <see cref="ConnectionId"/> is <c>Guid.Empty</c> for a draft test.
-/// </summary>
 public sealed record HonuaAdminConnectionTestResult
 {
+    // ConnectionId is empty when the test was a draft and nothing was saved.
     public Guid ConnectionId { get; init; }
 
     public string? ConnectionName { get; init; }
@@ -645,13 +602,11 @@ public sealed record HonuaAdminConnectionTestResult
     public string? Message { get; init; }
 }
 
-/// <summary>Wire shape of the honua-server table-discovery response (<c>GET /connections/{id}/tables</c>, Issue #57).</summary>
 internal sealed record HonuaAdminTableDiscoveryBody
 {
     public HonuaAdminTableInfo[]? Tables { get; init; }
 }
 
-/// <summary>A publishable (PostGIS spatial) table discovered on a connection.</summary>
 public sealed record HonuaAdminTableInfo
 {
     public string? Schema { get; init; }
@@ -669,7 +624,6 @@ public sealed record HonuaAdminTableInfo
     public IReadOnlyList<HonuaAdminColumnInfo> Columns { get; init; } = [];
 }
 
-/// <summary>A column within a discovered table.</summary>
 public sealed record HonuaAdminColumnInfo
 {
     public string? Name { get; init; }
@@ -677,7 +631,6 @@ public sealed record HonuaAdminColumnInfo
     public string? DataType { get; init; }
 }
 
-/// <summary>Supported geospatial import formats (<c>GET /api/v1/admin/import/formats</c>).</summary>
 public sealed record HonuaAdminImportFormats
 {
     public IReadOnlyList<string> SupportedExtensions { get; init; } = [];
@@ -686,18 +639,14 @@ public sealed record HonuaAdminImportFormats
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 }
 
-/// <summary>Wire shape of the external-service discovery request body.</summary>
 internal sealed record ExternalServiceDiscoverBody(
     [property: JsonPropertyName("url")] string Url,
     [property: JsonPropertyName("credentials")] HonuaAdminExternalServiceCredentials? Credentials = null);
 
-/// <summary>
-/// Credentials supplied to authenticate against a protected external service or catalog. Secrets are used
-/// only for the discovery request and are never stored by the console.
-/// </summary>
+// Used for this discovery call only; the console does not store these secrets.
 public sealed record HonuaAdminExternalServiceCredentials
 {
-    /// <summary>arcgis-token, token, basic, or oauth.</summary>
+    // Mode is arcgis-token, token, basic, or oauth.
     public string? Mode { get; init; }
 
     public string? Username { get; init; }
@@ -715,7 +664,6 @@ public sealed record HonuaAdminExternalServiceCredentials
     public string? Referer { get; init; }
 }
 
-/// <summary>Result of discovering a remote Esri/OGC service (<c>POST /api/v1/admin/external-services/discover</c>).</summary>
 public sealed record HonuaAdminExternalServiceDiscovery
 {
     public string? SourceUrl { get; init; }
@@ -732,16 +680,13 @@ public sealed record HonuaAdminExternalServiceDiscovery
 
     public int? Srid { get; init; }
 
-    /// <summary>True when the URL was an ArcGIS catalog root/folder enumerated into multiple services.</summary>
     public bool IsCatalog { get; init; }
 
     public IReadOnlyList<HonuaAdminExternalLayerCandidate> Candidates { get; init; } = [];
 
-    /// <summary>Discovered services (one for a single service URL; many for a catalog), grouped by folder.</summary>
     public IReadOnlyList<HonuaAdminExternalServiceSummary> Services { get; init; } = [];
 }
 
-/// <summary>A layer's persisted field configuration (<c>GET /api/v1/admin/metadata/layers/{id}/fields</c>).</summary>
 public sealed record HonuaAdminLayerFields
 {
     public int LayerId { get; init; }
@@ -749,7 +694,6 @@ public sealed record HonuaAdminLayerFields
     public IReadOnlyList<HonuaAdminLayerField> Fields { get; init; } = [];
 }
 
-/// <summary>One field's persisted configuration: type, alias, domain, visibility, default value.</summary>
 public sealed record HonuaAdminLayerField
 {
     public string? Name { get; init; }
@@ -762,84 +706,58 @@ public sealed record HonuaAdminLayerField
 
     public bool Hidden { get; init; }
 
-    /// <summary>
-    /// The field's persisted default value (any JSON scalar) as emitted by the server's field metadata, or
-    /// null when the field has no default. Round-tripped so the editor reflects the persisted default.
-    /// </summary>
+    // The persisted default is a JSON scalar, or null when the field has none.
     public JsonElement? DefaultValue { get; init; }
 }
 
-/// <summary>
-/// A domain on a field. <see cref="Type"/> is <c>"codedValue"</c> (carry <see cref="CodedValues"/>) or
-/// <c>"range"</c> (carry <see cref="Range"/> as a two-element [min,max] array). The optional
-/// <see cref="MergePolicy"/>/<see cref="SplitPolicy"/> are Esri policy tokens
-/// (e.g. <c>esriMPTDefaultValue</c>, <c>esriSPTDuplicate</c>).
-/// </summary>
 public sealed record HonuaAdminFieldDomain
 {
     public string? Name { get; init; }
 
-    /// <summary>"codedValue" or "range".</summary>
+    // Type is codedValue, which carries CodedValues, or range, which carries Range.
     public string? Type { get; init; }
 
     public IReadOnlyList<HonuaAdminCodedValue> CodedValues { get; init; } = [];
 
-    /// <summary>Two-element <c>[min, max]</c> bound for a range domain (min ≤ max); null for coded-value.</summary>
+    // A two-element min and max, with min at most max, and null for a coded-value domain.
     public IReadOnlyList<double>? Range { get; init; }
 
-    /// <summary>Esri merge-policy token (e.g. <c>esriMPTDefaultValue</c>); null leaves the server default.</summary>
+    // An Esri merge-policy token, and null leaves the server default.
     public string? MergePolicy { get; init; }
 
-    /// <summary>Esri split-policy token (e.g. <c>esriSPTDuplicate</c>); null leaves the server default.</summary>
+    // An Esri split-policy token, and null leaves the server default.
     public string? SplitPolicy { get; init; }
 }
 
-/// <summary>A single code/label pair in a coded-value domain.</summary>
 public sealed record HonuaAdminCodedValue
 {
-    /// <summary>The scalar code, preserving the JSON type required by the field.</summary>
+    // Keeps the JSON type the field requires.
     public JsonElement Code { get; init; }
 
     public string? Name { get; init; }
 }
 
-/// <summary>Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/fields</c>.</summary>
 public sealed record HonuaAdminLayerFieldsUpdate
 {
     public IReadOnlyList<HonuaAdminLayerFieldUpdate> Fields { get; init; } = [];
 }
 
-/// <summary>
-/// A single field update: set/clear the domain (coded-value or range) and optionally alias/hidden/default.
-/// </summary>
 public sealed record HonuaAdminLayerFieldUpdate
 {
     public required string Name { get; init; }
 
     public string? Alias { get; init; }
 
-    /// <summary>
-    /// Replacement domain value (coded-value, range, or null to clear). Callers preserving a domain must
-    /// read its current value and include it in the update.
-    /// </summary>
+    // Null clears the domain; a caller that wants to keep the current domain must send it again.
     public HonuaAdminFieldDomain? Domain { get; init; }
 
     public bool? Hidden { get; init; }
 
-    /// <summary>
-    /// Set the field's default value (any JSON scalar). A JSON <c>null</c> (a <see cref="JsonElement"/> whose
-    /// <see cref="JsonElement.ValueKind"/> is <see cref="JsonValueKind.Null"/>) clears the default; a C# null
-    /// (the property left unset) leaves the existing default untouched. Serialized only when set so an
-    /// alias/hidden/domain-only update never disturbs the persisted default.
-    /// </summary>
+    // A non-null value must be a JSON scalar, a JSON null clears the stored default, and omitting the property leaves it unchanged.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonElement? DefaultValue { get; init; }
 }
 
-/// <summary>
-/// A layer's persisted relationships (<c>GET /api/v1/admin/metadata/layers/{id}/relationships</c>). The
-/// server emits these as <c>relationships[]</c> on FeatureServer layer metadata.
-/// </summary>
 public sealed record HonuaAdminLayerRelationships
 {
     public int LayerId { get; init; }
@@ -847,10 +765,6 @@ public sealed record HonuaAdminLayerRelationships
     public IReadOnlyList<HonuaAdminLayerRelationship> Relationships { get; init; } = [];
 }
 
-/// <summary>
-/// One layer relationship: identity, the related layer, origin/destination role + cardinality, the join
-/// fields, and the Esri relationship id. Mirrors <c>MetadataV2Relationship</c>.
-/// </summary>
 public sealed record HonuaAdminLayerRelationship
 {
     public string? Id { get; init; }
@@ -859,10 +773,9 @@ public sealed record HonuaAdminLayerRelationship
 
     public int? RelatedLayerId { get; init; }
 
-    /// <summary>"origin" or "destination".</summary>
+    // Role is origin or destination.
     public string? Role { get; init; }
 
-    /// <summary>e.g. "one-to-many".</summary>
     public string? Cardinality { get; init; }
 
     public string? OriginField { get; init; }
@@ -872,17 +785,11 @@ public sealed record HonuaAdminLayerRelationship
     public int? EsriRelationshipId { get; init; }
 }
 
-/// <summary>Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/relationships</c> (replaces the set).</summary>
 public sealed record HonuaAdminLayerRelationshipsUpdate
 {
     public IReadOnlyList<HonuaAdminLayerRelationship> Relationships { get; init; } = [];
 }
 
-/// <summary>
-/// A layer's persisted permanent filter projection (<c>GET/PUT /api/v1/admin/metadata/layers/{id}/filter</c>):
-/// the global layer id and the server-enforced query filter. <see cref="PermanentFilter"/> is null when no
-/// filter is saved on the layer.
-/// </summary>
 public sealed record HonuaAdminLayerFilter
 {
     public int LayerId { get; init; }
@@ -890,42 +797,26 @@ public sealed record HonuaAdminLayerFilter
     public HonuaAdminPermanentFilter? PermanentFilter { get; init; }
 }
 
-/// <summary>
-/// A server-enforced query filter expression and the language it is written in (<c>arcgis-sql</c> /
-/// <c>cql2-text</c> / <c>cql2-json</c>). The expression is validated server-side against the layer schema
-/// (max 4096 chars).
-/// </summary>
+// Language is arcgis-sql, cql2-text, or cql2-json, and the expression is capped at 4096 characters.
 public sealed record HonuaAdminPermanentFilter
 {
     public string Expression { get; init; } = string.Empty;
 
-    /// <summary>"arcgis-sql" (default), "cql2-text", or "cql2-json".</summary>
     public string? Language { get; init; }
 }
 
-/// <summary>
-/// Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/filter</c>. Carries the permanent filter to
-/// author; set <see cref="PermanentFilter"/> to null to CLEAR the saved filter (the property is always
-/// serialized so the server receives <c>{ "permanentFilter": null }</c>).
-/// </summary>
+// Null is serialized on purpose so the server clears the saved filter.
 public sealed record HonuaAdminLayerFilterUpdate
 {
     public HonuaAdminPermanentFilter? PermanentFilter { get; init; }
 }
 
-/// <summary>
-/// Request body for <c>PUT /api/v1/admin/services/{serviceName}/layers/{layerId}/metadata</c>, mirroring the
-/// server's <c>UpdateLayerMetadataRequest</c>. Only the editing patch is authored from the Console.
-/// </summary>
 public sealed record HonuaAdminUpdateLayerMetadataRequest
 {
     public HonuaAdminLayerEditingPatch? Editing { get; init; }
 }
 
-/// <summary>
-/// The server's <c>MetadataV2EditingPatch</c>: a null field keeps the stored value, and an empty
-/// <see cref="GlobalIdField"/> clears the declared global-id binding.
-/// </summary>
+// A null member keeps the stored value, and an empty GlobalIdField clears the binding.
 public sealed record HonuaAdminLayerEditingPatch
 {
     public string? GlobalIdField { get; init; }
@@ -939,10 +830,8 @@ public sealed record HonuaAdminLayerEditingPatch
     public bool? Delete { get; init; }
 }
 
-/// <summary>One layer in one service: the key of the service-scoped layer metadata route.</summary>
 public sealed record HonuaAdminServiceLayer(string ServiceName, int LayerId);
 
-/// <summary>The server's <c>LayerMetadataResponse</c>, limited to the fields the Console reads.</summary>
 public sealed record HonuaAdminLayerMetadataResponse
 {
     public int LayerId { get; init; }
@@ -950,11 +839,7 @@ public sealed record HonuaAdminLayerMetadataResponse
     public string? LayerName { get; init; }
 }
 
-/// <summary>
-/// Wire shape of the honua-server time-info update request body
-/// (<c>PUT /api/v1/admin/services/{serviceName}/timeinfo</c>, mirrors <c>UpdateTimeInfoRequest</c>). A null
-/// field clears the corresponding time field server-side.
-/// </summary>
+// A null member clears that time field on the server.
 public sealed record HonuaAdminUpdateTimeInfoRequest
 {
     public string? StartTimeField { get; init; }
@@ -964,7 +849,6 @@ public sealed record HonuaAdminUpdateTimeInfoRequest
     public string? TrackIdField { get; init; }
 }
 
-/// <summary>Request body for <c>POST /api/v1/admin/import/geoservices/start</c>.</summary>
 public sealed record HonuaAdminGeoservicesImportRequest
 {
     public required string ServiceUrl { get; init; }
@@ -986,7 +870,6 @@ public sealed record HonuaAdminGeoservicesImportRequest
     public HonuaAdminGeoservicesImportCredentials? Credentials { get; init; }
 }
 
-/// <summary>ArcGIS import credentials (server-side queued imports may require secret references).</summary>
 public sealed record HonuaAdminGeoservicesImportCredentials
 {
     public string? Mode { get; init; }
@@ -998,7 +881,6 @@ public sealed record HonuaAdminGeoservicesImportCredentials
     public string? Password { get; init; }
 }
 
-/// <summary>Response (HTTP 202) when a GeoServices import job is queued.</summary>
 public sealed record HonuaAdminGeoservicesImportJob
 {
     public string? JobId { get; init; }
@@ -1010,13 +892,11 @@ public sealed record HonuaAdminGeoservicesImportJob
     public string? CancelUrl { get; init; }
 }
 
-/// <summary>Progress of a queued GeoServices import job (<c>GET .../jobs/{jobId}</c>).</summary>
 public sealed record HonuaAdminGeoservicesImportProgress
 {
     public string? JobId { get; init; }
 
-    /// <summary>Numeric GeoservicesImportStatus enum: 0 Queued, 1 Discovering, 2 RetrievingFeatures,
-    /// 3 CreatingTable, 4 InsertingFeatures, 5 Publishing, 6 Completed, 7 Failed, 8 Cancelled.</summary>
+    // Server import status ordinal: 0 Queued, 1 Discovering, 2 RetrievingFeatures, 3 CreatingTable, 4 InsertingFeatures, 5 Publishing, 6 Completed, 7 Failed, 8 Cancelled.
     [JsonPropertyName("status")]
     public int? StatusCode { get; init; }
 
@@ -1037,7 +917,6 @@ public sealed record HonuaAdminGeoservicesImportProgress
     public string? CurrentPhase { get; init; }
 }
 
-/// <summary>A single service discovered within a catalog (or the sole service for a single-service URL).</summary>
 public sealed record HonuaAdminExternalServiceSummary
 {
     public string? SourceKind { get; init; }
@@ -1055,7 +934,6 @@ public sealed record HonuaAdminExternalServiceSummary
     public IReadOnlyList<HonuaAdminExternalLayerCandidate> Candidates { get; init; } = [];
 }
 
-/// <summary>A candidate layer discovered on a remote service.</summary>
 public sealed record HonuaAdminExternalLayerCandidate
 {
     public int? LayerId { get; init; }
@@ -1071,7 +949,6 @@ public sealed record HonuaAdminExternalLayerCandidate
     public string? ServiceUrl { get; init; }
 }
 
-/// <summary>Result of a geospatial file import (<c>POST /api/v1/admin/import/upload</c>).</summary>
 public sealed record HonuaAdminImportResult
 {
     public bool Success { get; init; }
@@ -1124,11 +1001,6 @@ public sealed record HonuaAdminConnectionSummary
     public string? CreatedBy { get; init; }
 }
 
-/// <summary>
-/// Wire shape of the honua-server layer-publish request body
-/// (<c>POST /api/v1/admin/connections/{id}/layers</c>, mirrors <c>PublishLayerRequest</c>). Carries the
-/// source table, layer identity, geometry/SRID/primary-key, selected fields, and target service name.
-/// </summary>
 public sealed record HonuaAdminPublishLayerRequest
 {
     public required string Schema { get; init; }
@@ -1154,25 +1026,13 @@ public sealed record HonuaAdminPublishLayerRequest
     public bool Enabled { get; init; } = true;
 }
 
-/// <summary>
-/// Wire shape of the honua-server layer enable/disable request body
-/// (<c>PUT /api/v1/admin/connections/{id}/layers/{layerId}/enabled</c>, mirrors <c>LayerEnabledRequest</c>).
-/// </summary>
 internal sealed record LayerEnabledBody(
     [property: JsonPropertyName("enabled")] bool Enabled);
 
-/// <summary>
-/// Wire shape of the honua-server protocol-update request body
-/// (<c>PUT /api/v1/admin/services/{serviceName}/protocols</c>, mirrors <c>UpdateProtocolsRequest</c>).
-/// </summary>
 internal sealed record UpdateProtocolsBody(
     [property: JsonPropertyName("enabledProtocols")] IReadOnlyList<string> EnabledProtocols);
 
-/// <summary>
-/// Wire shape of the honua-server access-policy update request body
-/// (<c>PUT /api/v1/admin/services/{serviceName}/access-policy</c>, mirrors <c>UpdateAccessPolicyRequest</c>).
-/// Null fields are left unchanged server-side.
-/// </summary>
+// A null member leaves the stored policy unchanged.
 public sealed record HonuaAdminUpdateAccessPolicyRequest
 {
     public bool? AllowAnonymous { get; init; }
@@ -1184,12 +1044,7 @@ public sealed record HonuaAdminUpdateAccessPolicyRequest
     public IReadOnlyList<string>? AllowedWriteRoles { get; init; }
 }
 
-/// <summary>
-/// Wire shape of the honua-server MapServer render-settings update request body
-/// (<c>PUT /api/v1/admin/services/{serviceName}/mapserver</c>, mirrors <c>UpdateMapServerSettingsRequest</c>).
-/// Null fields are left unchanged server-side. Caps the MapServer export surface: max/default image size,
-/// DPI, default image format, default transparency, and the per-layer feature cap.
-/// </summary>
+// A null member leaves the stored setting unchanged.
 public sealed record HonuaAdminUpdateMapServerSettingsRequest
 {
     public int? MaxImageWidth { get; init; }
@@ -1233,14 +1088,10 @@ public sealed record HonuaAdminPublishedLayerSummary
 
     public string? ServiceName { get; init; }
 
-    /// <summary>
-    /// Layer's cached spatial extent in EPSG:4326 (lng/lat), recomputed when the layer is published or
-    /// refreshed server-side. Null when the layer has no stored extent. Used to frame the map preview.
-    /// </summary>
+    // Stored extent in EPSG:4326, or null when the layer has none.
     public HonuaAdminLayerExtent? Extent { get; init; }
 }
 
-/// <summary>Axis-aligned bounding box of a layer in EPSG:4326 (longitude/latitude degrees).</summary>
 public sealed record HonuaAdminLayerExtent
 {
     public double MinX { get; init; }

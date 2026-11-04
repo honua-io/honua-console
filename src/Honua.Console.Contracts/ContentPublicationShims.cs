@@ -5,80 +5,45 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-server#1183 / honua-sdk-dotnet): honua-server owns the content publication
-// registry for Studio-generated artifacts (map/dashboard/report/generated-app). The route
-// state plus immutable versions live behind /api/v1/console/publications (ContentPublication*
-// records in Honua.Core.Features.Publishing.Content.Domain). honua-sdk-dotnet does not yet
-// project these as a consumable stable package, and honua-console wires no SDK NuGet feed
-// (see SDK_SHIM_POLICY.md and the form/operate admin shims). Per the Console Patterns Charter
-// section 11 and SDK_SHIM_POLICY, the report builder binds the publication read path through a
-// thin HttpClient behind this single Honua.Console.Contracts boundary: the wire records below
-// mirror the server document graph, and the client speaks the real console lifecycle. Do not add
-// a sibling-repo ProjectReference. Swap these for SDK types when honua-sdk-dotnet ships a
-// consumable content-publication projection and honua-console#7 wires the feed.
-//
-// The publication routes are admin routes, so this client reuses the shared
-// HonuaAdminEndpointResult<T>/HonuaAdminEndpointIssue envelope (defined in OperateAdminShims.cs).
-// The endpoints return the DTO directly rather than a {success,data,message} wrapper, so this
-// client deserializes the body straight into the contract type and maps status semantics
-// (404 not found, 409 etag conflict) to issues.
 public sealed record HonuaContentPublicationClientOptions(Uri BaseUri, string? ApiKey = null);
 
 public interface IHonuaContentPublicationClient
 {
     Uri BaseUri { get; }
 
-    /// <summary>Reads a publication's current route state plus its immutable versions (newest first).</summary>
     Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> GetAsync(
         string publicationId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Lists publications (honua-server#3357). Each item is the same detail record as <see cref="GetAsync"/>.
-    /// Pass <paramref name="cursor"/> from the previous page's <c>nextCursor</c>; null starts at the first page.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaContentPublicationListPage>> ListAsync(
         string? cursor = null,
         int limit = 100,
         string? lifecycle = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Reads one immutable version of a publication by revision number, "v{n}", or version id.</summary>
+    // The selector accepts a revision number, a "v{n}" token, or a version id.
     Task<HonuaAdminEndpointResult<HonuaContentPublicationVersion>> GetVersionAsync(
         string publicationId,
         string versionSelector,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Publishes a brand-new immutable artifact version and claims a server-owned route. The server
-    /// allocates the publication id, version id, and revision and normalizes the route slug.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> PublishAsync(
         HonuaPublishContentRequest request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Republishes an existing publication: creates a new immutable version and moves the active route
-    /// pointer to it. The previous versions stay immutable for version pinning/rollback.
-    /// </summary>
+    // Creates a new immutable version and moves the active route to it; earlier versions stay immutable.
     Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RepublishAsync(
         string publicationId,
         HonuaRepublishContentRequest request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Rolls the active route pointer back to an earlier immutable version. No new version row is created;
-    /// the rollback pointer is recorded server-side.
-    /// </summary>
+    // Moves the active route to an earlier version and does not create a version row.
     Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RollbackAsync(
         string publicationId,
         HonuaRollbackContentRequest request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Updates the server-owned visibility/share/embed/public-link policy. No new version row is created;
-    /// the change is recorded as an audited event and returns the updated route plus any created link.
-    /// </summary>
+    // Records an audited policy event and does not create a version row.
     Task<HonuaAdminEndpointResult<HonuaContentPublicationPolicyUpdateResponse>> UpdatePolicyAsync(
         string publicationId,
         HonuaUpdatePublicationPolicyRequest request,
@@ -247,8 +212,6 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
             },
             cancellationToken);
 }
-
-// --- Wire records mirroring honua-server Honua.Core.Features.Publishing.Content.Domain (#1183). ---
 
 public static class HonuaContentPublicationKinds
 {
@@ -480,9 +443,6 @@ public sealed record HonuaContentPublicationDetail
     public HonuaContentPublicationVersion[] Versions { get; init; } = [];
 }
 
-/// <summary>
-/// Cursor page from <c>GET /api/v1/console/publications</c>. Items use the same detail record as the item GET.
-/// </summary>
 public sealed record HonuaContentPublicationListPage
 {
     [JsonRequired]
@@ -495,12 +455,6 @@ public sealed record HonuaContentPublicationListPage
     [JsonPropertyName("nextCursor")]
     public string? NextCursor { get; init; }
 }
-
-// --- Mutation request/response records mirroring ContentPublicationRequests.cs (#1183). ---
-//
-// Kinds/visibilities are sent as the server's lowercase enum member names (the server enums use
-// [JsonStringEnumMemberName]); the constants in HonuaContentPublication* above carry those exact wire
-// strings, so the report builder sends and receives the same tokens without an enum projection here.
 
 public sealed record HonuaPublishContentRequest
 {
@@ -519,7 +473,7 @@ public sealed record HonuaPublishContentRequest
     [JsonPropertyName("sourcePackageId")]
     public string? SourcePackageId { get; init; }
 
-    /// <summary>Raw report-document payload; the server hashes it (SHA-256) and never stores it.</summary>
+    // The server hashes this payload and does not store the raw document.
     [JsonPropertyName("contentPayload")]
     public string? ContentPayload { get; init; }
 
@@ -553,6 +507,7 @@ public sealed record HonuaRepublishContentRequest
     [JsonPropertyName("sourcePackageId")]
     public string? SourcePackageId { get; init; }
 
+    // The server hashes this payload and does not store the raw document.
     [JsonPropertyName("contentPayload")]
     public string? ContentPayload { get; init; }
 
@@ -574,7 +529,7 @@ public sealed record HonuaRepublishContentRequest
     [JsonPropertyName("jobId")]
     public string? JobId { get; init; }
 
-    /// <summary>Expected route etag for optimistic concurrency. A mismatch surfaces as a 409 Conflict.</summary>
+    // A mismatch is rejected as 409.
     [JsonPropertyName("expectedEtag")]
     public string? ExpectedEtag { get; init; }
 }
@@ -587,6 +542,7 @@ public sealed record HonuaRollbackContentRequest
     [JsonPropertyName("targetRevision")]
     public long? TargetRevision { get; init; }
 
+    // A mismatch is rejected as 409.
     [JsonPropertyName("expectedEtag")]
     public string? ExpectedEtag { get; init; }
 }
@@ -608,6 +564,7 @@ public sealed record HonuaUpdatePublicationPolicyRequest
     [JsonPropertyName("publicLinkEnabled")]
     public bool? PublicLinkEnabled { get; init; }
 
+    // A mismatch is rejected as 409.
     [JsonPropertyName("expectedEtag")]
     public string? ExpectedEtag { get; init; }
 }

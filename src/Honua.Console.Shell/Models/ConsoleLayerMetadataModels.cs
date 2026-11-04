@@ -1,9 +1,6 @@
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// A partial change to a layer's editing policy within one FeatureServer service. A null field leaves the
-/// server value unchanged; an empty <see cref="GlobalIdField"/> clears the declared global-id binding.
-/// </summary>
+// A null member keeps the stored value, and an empty GlobalIdField clears the binding.
 public sealed record ConsoleLayerEditingChange
 {
     public required string ServiceName { get; init; }

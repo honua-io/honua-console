@@ -2,79 +2,37 @@ using System.Text.Json;
 
 namespace Honua.Console.Contracts;
 
-// Role-based decomposition of the IHonuaAdminOperateClient god interface (honua-console#279 PA-242).
-// The aggregate previously declared 57 methods spanning nine unrelated admin domains; every one of its
-// 14+ consumers received all 57 but used only a handful (ISP violation). These focused role interfaces
-// group the methods by domain so a consumer can depend on the narrow slice it actually uses. The
-// aggregate IHonuaAdminOperateClient (OperateAdminShims.cs) inherits all of them, so the single
-// HonuaAdminOperateHttpClient implementation and every existing consumer/test-fake keep compiling
-// unchanged; consumers migrate to a narrow interface only where the change is mechanical.
-
-/// <summary>Data-connection lifecycle: list, create, test (draft + existing), and discover tables.</summary>
 public interface IHonuaAdminConnectionsClient
 {
     Task<HonuaAdminEndpointResult<HonuaAdminConnectionSummary[]>> ListConnectionsAsync(
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Creates a data connection through the real honua-server admin endpoint
-    /// (<c>POST /api/v1/admin/connections/</c>, mirrors <c>CreateConnectionRequest</c>). This is the console's
-    /// connection-create OPERATION: it actually persists the connection on the server rather than recording
-    /// local intent, and returns the created connection summary or a field-addressable
-    /// <see cref="HonuaAdminEndpointIssue"/> when the server rejects the request.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminConnectionSummary>> CreateConnectionAsync(
         HonuaAdminCreateConnectionRequest request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Tests a draft connection's health WITHOUT persisting it through the real honua-server admin endpoint
-    /// (<c>POST /api/v1/admin/connections/test</c>). This is the console's pre-save connection-test OPERATION:
-    /// the server opens the target with the supplied credentials and reports health, so the Add Connection
-    /// form can prove connectivity before creating the connection. Returns the test result or a
-    /// field-addressable <see cref="HonuaAdminEndpointIssue"/> when the server rejects the request.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminConnectionTestResult>> TestDraftConnectionAsync(
         HonuaAdminCreateConnectionRequest request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Tests an EXISTING connection's health through the real honua-server admin endpoint
-    /// (<c>POST /api/v1/admin/connections/{id}/test</c>). Unlike the draft test, the server persists the
-    /// resulting health status on the connection, so a subsequent read reflects it. Returns the test result or
-    /// an <see cref="HonuaAdminEndpointIssue"/> when the connection is missing or the server rejects the request.
-    /// </summary>
+    // Unlike a draft test, the server stores the resulting health on the connection.
     Task<HonuaAdminEndpointResult<HonuaAdminConnectionTestResult>> TestConnectionAsync(
         string connectionId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Discovers the publishable (PostGIS spatial) tables on a connection through the real honua-server admin
-    /// endpoint (<c>GET /api/v1/admin/connections/{id}/tables</c>, Issue #57). Powers the publish-layer table
-    /// picker. Note: this endpoint returns a bare <c>{ "tables": [...] }</c> body (not the ApiResponse envelope).
-    /// </summary>
+    // The wire body is { "tables": [...] }, not the admin response envelope.
     Task<HonuaAdminEndpointResult<HonuaAdminTableInfo[]>> ListConnectionTablesAsync(
         string connectionId,
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>File and external-service import: formats, file upload, discovery, GeoServices import jobs.</summary>
 public interface IHonuaAdminImportClient
 {
-    /// <summary>
-    /// Lists the geospatial file formats the server can import (<c>GET /api/v1/admin/import/formats</c>),
-    /// so the console can validate a chosen file's extension before uploading. Bare
-    /// <c>{ supportedExtensions, formatDescriptions }</c> body (not the ApiResponse envelope).
-    /// </summary>
+    // The body is the format list itself, not the admin response envelope.
     Task<HonuaAdminEndpointResult<HonuaAdminImportFormats>> GetImportFormatsAsync(
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Uploads a geospatial file to be imported into PostgreSQL via streamed multipart ingest
-    /// (<c>POST /api/v1/admin/import/upload</c>; multipart <c>file</c> + <c>TableName</c> + optional
-    /// <c>TargetSchema</c>). Returns the import result (bare body, HTTP 200 even on a failed import — check
-    /// <see cref="HonuaAdminImportResult.Success"/>).
-    /// </summary>
+    // The server answers 200 even when the import failed; read Success on the body.
     Task<HonuaAdminEndpointResult<HonuaAdminImportResult>> ImportFileAsync(
         byte[] fileContent,
         string fileName,
@@ -82,48 +40,28 @@ public interface IHonuaAdminImportClient
         string? targetSchema,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Discovers the importable layers of a remote Esri/OGC service (<c>POST /api/v1/admin/external-services/discover</c>,
-    /// JSON <c>{ "url": "https://…" }</c>; the server requires an HTTPS URL). Returns the service type/name and
-    /// candidate layers, or a field-addressable <see cref="HonuaAdminEndpointIssue"/> on rejection. Bare body.
-    /// </summary>
+    // The server accepts only an https URL, and the body is not wrapped in the admin envelope.
     Task<HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>> DiscoverExternalServiceAsync(
         string url,
         HonuaAdminExternalServiceCredentials? credentials = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Queues an ArcGIS GeoServices layer import (<c>POST /api/v1/admin/import/geoservices/start</c>). Returns a
-    /// job descriptor (HTTP 202) whose id is polled via <see cref="GetGeoservicesImportJobAsync"/>.
-    /// </summary>
+    // The server answers 202; poll the returned job.
     Task<HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>> StartGeoservicesImportAsync(
         HonuaAdminGeoservicesImportRequest request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Reads the progress of a queued GeoServices import job
-    /// (<c>GET /api/v1/admin/import/geoservices/jobs/{jobId}</c>).
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminGeoservicesImportProgress>> GetGeoservicesImportJobAsync(
         string jobId,
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>Per-layer field / display / editing / spatial metadata read + write.</summary>
 public interface IHonuaAdminLayerMetadataClient
 {
-    /// <summary>
-    /// Reads a layer's persisted field configuration — aliases, coded-value domains, visibility
-    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/fields</c>). <paramref name="layerId"/> is the global id.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> GetLayerFieldsAsync(
         int layerId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Updates a layer's field configuration — set/clear coded-value domains and aliases
-    /// (<c>PUT /api/v1/admin/metadata/layers/{layerId}/fields</c>).
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> UpdateLayerFieldsAsync(
         int layerId,
         HonuaAdminLayerFieldsUpdate request,
@@ -131,7 +69,6 @@ public interface IHonuaAdminLayerMetadataClient
 
 }
 
-/// <summary>Layer publishing / enablement + service enumeration.</summary>
 public interface IHonuaAdminLayerPublishingClient
 {
     Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary[]>> ListConnectionLayersAsync(
@@ -139,25 +76,11 @@ public interface IHonuaAdminLayerPublishingClient
         string? serviceName = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Publishes a PostGIS table as a queryable service layer through the real honua-server admin
-    /// layer-publishing endpoint (<c>POST /api/v1/admin/connections/{id}/layers</c>). This is the
-    /// console's service-layer-publish OPERATION (issue #144): it actually lands a layer on the server
-    /// rather than recording local intent. The result carries the published layer summary, or a
-    /// field-addressable <see cref="HonuaAdminEndpointIssue"/> when the server rejects the request.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary>> PublishLayerAsync(
         string connectionId,
         HonuaAdminPublishLayerRequest request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Enables or disables a published layer through the real honua-server admin endpoint
-    /// (<c>PUT /api/v1/admin/connections/{id}/layers/{layerId}/enabled</c>). This is the console's
-    /// layer enable/disable OPERATION (Wave 5, plan §3 Family A): it actually toggles the layer's
-    /// enabled state on the server rather than recording local intent, and returns the updated layer
-    /// summary or a field-addressable issue on rejection.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary>> SetLayerEnabledAsync(
         string connectionId,
         int layerId,
@@ -169,64 +92,33 @@ public interface IHonuaAdminLayerPublishingClient
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>Service-level settings: protocols, access policy, MapServer, time-info, and settings caps.</summary>
 public interface IHonuaAdminServiceSettingsClient
 {
     Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> GetServiceSettingsAsync(
         string serviceName,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Updates the set of enabled protocols for a service through the real honua-server admin endpoint
-    /// (<c>PUT /api/v1/admin/services/{serviceName}/protocols</c>). This is the console's service
-    /// protocol-configuration OPERATION (Wave 5, plan §3 Family A): the server re-reads and returns the
-    /// updated settings projection, so the result reflects the canonical post-change state.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceProtocolsAsync(
         string serviceName,
         IReadOnlyList<string> enabledProtocols,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Updates the access policy (anonymous read/write + allowed roles) for a service through the real
-    /// honua-server admin endpoint (<c>PUT /api/v1/admin/services/{serviceName}/access-policy</c>). This is
-    /// the console's service visibility/access OPERATION (Wave 5). Null request fields are left unchanged
-    /// server-side; the server re-reads and returns the updated settings projection.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceAccessPolicyAsync(
         string serviceName,
         HonuaAdminUpdateAccessPolicyRequest request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Updates a service's MapServer render settings (max/default image size, DPI, default format,
-    /// transparency, max features per layer) through the real honua-server admin endpoint
-    /// (<c>PUT /api/v1/admin/services/{serviceName}/mapserver</c>, mirrors <c>UpdateMapServerSettingsRequest</c>).
-    /// Null request fields are left unchanged server-side; the server re-reads and returns the updated settings
-    /// projection. Note (gap analysis): this PUT may answer <c>501 Not Implemented</c> on a server build that
-    /// has not landed the MapServer-settings write path yet — the resulting issue carries an "Unsupported"
-    /// state and the 501 status so the caller can surface it honestly rather than fabricating a success.
-    /// </summary>
+    // This write can answer 501 when the server has no MapServer settings route; surface that as unsupported.
     Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceMapServerSettingsAsync(
         string serviceName,
         HonuaAdminUpdateMapServerSettingsRequest request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Updates a service's temporal time-info (start/end time fields + track id field) through the real
-    /// honua-server admin endpoint (<c>PUT /api/v1/admin/services/{serviceName}/timeinfo</c>, mirrors
-    /// <c>UpdateTimeInfoRequest</c>). Null fields clear the corresponding time field server-side; the server
-    /// re-reads and returns the updated settings projection so the result reflects the post-change state.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceTimeInfoAsync(
         string serviceName,
         HonuaAdminUpdateTimeInfoRequest request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Updates one FeatureServer layer's metadata in a service
-    /// (<c>PUT /api/v1/admin/services/{serviceName}/layers/{layerId}/metadata</c>). Omitted fields keep their values.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminLayerMetadataResponse>> UpdateServiceLayerMetadataAsync(
         HonuaAdminServiceLayer layer,
         HonuaAdminUpdateLayerMetadataRequest request,
@@ -234,54 +126,25 @@ public interface IHonuaAdminServiceSettingsClient
 
 }
 
-/// <summary>Layer schema authoring: relationships, subtypes, attribute rules, and the permanent filter.</summary>
 public interface IHonuaAdminLayerSchemaClient
 {
-    /// <summary>
-    /// Reads a layer's persisted relationships (origin/destination, cardinality, esriRelationshipId)
-    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/relationships</c>). <paramref name="layerId"/> is the
-    /// global id. FeatureServer layer metadata emits these as <c>relationships[]</c>.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminLayerRelationships>> GetLayerRelationshipsAsync(
         int layerId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Replaces a layer's relationships (<c>PUT /api/v1/admin/metadata/layers/{layerId}/relationships</c>).
-    /// The PUT body carries the full relationship set; the server re-reads and returns the persisted set.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminLayerRelationships>> UpdateLayerRelationshipsAsync(
         int layerId,
         HonuaAdminLayerRelationshipsUpdate request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Reads a layer's persisted permanent filter — the server-enforced query filter applied to every read of
-    /// the layer (<c>GET /api/v1/admin/metadata/layers/{layerId}/filter</c>). <paramref name="layerId"/> is the
-    /// global id. The projection's <c>PermanentFilter</c> is null when no filter is saved.
-    /// </summary>
-    /// <remarks>
-    /// Default-implemented so existing implementors (e.g. test fakes that hand-roll the full interface) compile
-    /// without change; the real <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
-    /// </remarks>
+    // Default body so a hand-rolled fake still compiles; the HTTP client overrides it.
     Task<HonuaAdminEndpointResult<HonuaAdminLayerFilter>> GetLayerFilterAsync(
         int layerId,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException(
             "This IHonuaAdminOperateClient implementation does not provide GetLayerFilterAsync.");
 
-    /// <summary>
-    /// Authors a layer's permanent filter (<c>PUT /api/v1/admin/metadata/layers/{layerId}/filter</c>). The PUT
-    /// body carries <c>{ permanentFilter: { expression, language } }</c>; send a request whose
-    /// <see cref="HonuaAdminLayerFilterUpdate.PermanentFilter"/> is null to CLEAR the saved filter. The server
-    /// validates the expression against the layer schema and answers <c>400</c> with a reason on a bad
-    /// expression; the resulting issue carries that reason so the console surfaces it honestly. The server
-    /// re-reads and returns the persisted filter projection.
-    /// </summary>
-    /// <remarks>
-    /// Default-implemented so existing implementors (e.g. test fakes that hand-roll the full interface) compile
-    /// without change; the real <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
-    /// </remarks>
+    // Default body so a hand-rolled fake still compiles; the HTTP client overrides it.
     Task<HonuaAdminEndpointResult<HonuaAdminLayerFilter>> UpdateLayerFilterAsync(
         int layerId,
         HonuaAdminLayerFilterUpdate request,
@@ -290,7 +153,6 @@ public interface IHonuaAdminLayerSchemaClient
             "This IHonuaAdminOperateClient implementation does not provide UpdateLayerFilterAsync.");
 }
 
-/// <summary>Server info + auth introspection + endpoint reachability probe.</summary>
 public interface IHonuaAdminServerInfoClient
 {
     Task<HonuaAdminEndpointResult<HonuaAdminVersionResponse>> GetVersionAsync(
@@ -310,42 +172,21 @@ public interface IHonuaAdminServerInfoClient
 
 }
 
-/// <summary>Per-layer presentation authoring: popup-info + drawing-info (renderer) round-trip.</summary>
 public interface IHonuaAdminPresentationClient
 {
-    /// <summary>
-    /// Reads a layer's authored GeoServices popupInfo template
-    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/popup-info</c>). The document is the raw stored
-    /// template ({title, fieldInfos:[...]}) or null when none is authored.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> GetLayerPopupInfoAsync(
         int layerId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Writes (or clears, with a null document) a layer's GeoServices popupInfo template
-    /// (<c>PUT /api/v1/admin/metadata/layers/{layerId}/popup-info</c>). The raw document object is sent as
-    /// the request body verbatim so the exact server shape round-trips.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> UpdateLayerPopupInfoAsync(
         int layerId,
         JsonElement? document,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Reads a layer's authored drawingInfo renderer
-    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/drawing-info</c>). The document is the raw stored
-    /// template ({renderer:{...}}) or null when none is authored.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> GetLayerDrawingInfoAsync(
         int layerId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Writes (or clears, with a null document) a layer's drawingInfo renderer
-    /// (<c>PUT /api/v1/admin/metadata/layers/{layerId}/drawing-info</c>). The raw document object is sent as
-    /// the request body verbatim so the exact server shape round-trips.
-    /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> UpdateLayerDrawingInfoAsync(
         int layerId,
         JsonElement? document,

@@ -5,62 +5,31 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-server#1162 / honua-sdk-dotnet): honua-server owns the Console metadata v2
-// content + RBAC API. The catalog/content item graph plus server-authored RBAC verbs live
-// behind /api/v1/console/content and /api/v1/console/actions (ConsoleContentItem /
-// ConsoleContentAction / ConsoleProvenanceRef in Honua.Core.Features.Console.Domain,
-// wrapped by the shared {success,data,message} ApiResponse envelope). honua-sdk-dotnet does
-// not yet project these as a consumable stable package, and honua-console wires no SDK NuGet
-// feed (see SDK_SHIM_POLICY.md and the content-publication / form / operate admin shims). Per
-// the Console Patterns Charter section 11 and SDK_SHIM_POLICY, the Console catalog/content
-// surfaces bind through a thin HttpClient behind this single Honua.Console.Contracts boundary:
-// the wire records below mirror the server domain shapes, and the client speaks the real
-// Console content lifecycle. Do not add a sibling-repo ProjectReference. Swap these for SDK
-// types when honua-sdk-dotnet ships a consumable Console content projection and honua-console
-// wires the feed.
-//
-// The content + actions routes are admin routes (RequireAdminAuthorization), so this client
-// reuses the shared HonuaAdminEndpointResult<T>/HonuaAdminEndpointIssue envelope (defined in
-// OperateAdminShims.cs) and the HonuaAdminApiResponse<T> {success,data,message} wrapper.
 public sealed record HonuaConsoleContentClientOptions(Uri BaseUri, string? ApiKey = null);
 
-/// <summary>
-/// Typed client for the honua-server Console metadata v2 content + RBAC API
-/// (honua-server#1162): list/search/get content items and bulk-evaluate
-/// server-authored RBAC actions for items or navigation routes.
-/// </summary>
 public interface IHonuaConsoleContentClient
 {
     Uri BaseUri { get; }
 
-    /// <summary>Lists Console content items with cursor pagination and optional filters.</summary>
     Task<HonuaAdminEndpointResult<HonuaConsoleContentListResponse>> ListAsync(
         HonuaConsoleContentListQuery query,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Free-form search over content items. Returns the same shape as the list endpoint.</summary>
     Task<HonuaAdminEndpointResult<HonuaConsoleContentListResponse>> SearchAsync(
         string term,
         int limit = 25,
         string? cursor = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Reads a content item by id, including server-computed actions and provenance.</summary>
     Task<HonuaAdminEndpointResult<HonuaConsoleContentItem>> GetAsync(
         string id,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Bulk-evaluates which RBAC verbs the principal may perform on items/routes.</summary>
     Task<HonuaAdminEndpointResult<HonuaConsoleActionCheckResponse>> CheckActionsAsync(
         HonuaConsoleActionCheckRequest request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Creates a Console content item. The Console runtime does not author content through this path
-    /// today (authoring flows publish through Studio/Operate); it backs the Testcontainers live-server
-    /// integration test that seeds a known content item before asserting Console surfaces render live
-    /// server data (issue #7 Definition of Done).
-    /// </summary>
+    // The product authors content through Studio and Operate; live-server tests seed an item through this method.
     Task<HonuaAdminEndpointResult<HonuaConsoleContentItem>> CreateAsync(
         HonuaCreateConsoleContentItemRequest request,
         CancellationToken cancellationToken = default);
@@ -214,8 +183,6 @@ public sealed class HonuaConsoleContentHttpClient : IHonuaConsoleContentClient, 
         return $"?{string.Join('&', pairs)}";
     }
 }
-
-// --- Query + wire records mirroring honua-server Honua.Core.Features.Console.Domain (#1162). ---
 
 public sealed record HonuaConsoleContentListQuery
 {

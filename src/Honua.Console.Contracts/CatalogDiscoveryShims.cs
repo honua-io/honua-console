@@ -4,31 +4,6 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-server#1279): honua-server owns the catalog discovery-endpoints registry — the set of
-// discovery dialects a workspace exposes to consumers (Esri catalog, OGC API Records, OData, STAC, DCAT),
-// each endpoint's server-wide on/off state, whether it is auto-default-on or opt-in, the feeders that
-// populate it (FeatureServer / MapServer / ImageServer / OGC API Features / OData entity sets), its entry
-// count and per-endpoint validation issues, and the per-item drill-down (one catalog item with its
-// resource-derived identity, catalog-only presentation, service bindings, and standards-mapping records).
-// This is DISTINCT from the singular content catalog read surface (honua-server#1162,
-// /api/v1/console/content) that backs /catalog: the discovery-endpoints registry is the operator surface
-// for which catalog dialects the server publishes, not the content items themselves.
-//
-// honua-server does not yet expose a Console catalog discovery-endpoints registry contract (verified
-// against Honua.Server.Features.Console — only content, share, and workflow-package routes exist). Per the
-// Console Patterns Charter section 11 and SDK_SHIM_POLICY, the wire records below describe the expected
-// server projection so the Console surface can bind a thin HttpClient behind this single
-// Honua.Console.Contracts boundary the moment honua-server#1279 lands. Until then the Console Catalogs
-// surface renders an explicit missing-binding state rather than fabricating endpoint/item data, and no
-// sibling-repo ProjectReference is added. Swap these for SDK types when honua-sdk-dotnet ships a consumable
-// projection.
-//
-// The reads are admin reads wrapped in the shared {success,data,message,timestamp} envelope
-// (Honua.Infrastructure.Models.ApiResponse<T>), so this client reuses the shared HonuaAdminApiResponse<T>
-// envelope and the HonuaAdminEndpointResult<T>/HonuaAdminEndpointIssue records (defined in
-// OperateAdminShims.cs).
-
-/// <summary>The catalog discovery dialects the registry can expose (mirrors honua-server CatalogDialect).</summary>
 public static class HonuaCatalogDialects
 {
     public const string Esri = "esri";
@@ -40,26 +15,19 @@ public static class HonuaCatalogDialects
 
 public sealed record HonuaCatalogDiscoveryClientOptions(Uri BaseUri, string? ApiKey = null);
 
-/// <summary>
-/// Typed client for the honua-server catalog discovery-endpoints registry (honua-server#1279). Reads target
-/// the workspace-scoped admin routes under <c>/api/v1/console/catalog-endpoints</c>.
-/// </summary>
 public interface IHonuaCatalogDiscoveryClient
 {
     Uri BaseUri { get; }
 
-    /// <summary>Reads the server-owned discovery-endpoints registry (the CatalogsList surface).</summary>
     Task<HonuaAdminEndpointResult<HonuaCatalogDiscoveryRegistry>> GetRegistryAsync(
         string workspaceId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Reads one discovery endpoint with its mirrored items (the EsriCatalogDetail drill-down).</summary>
     Task<HonuaAdminEndpointResult<HonuaCatalogEndpointDetail>> GetEndpointAsync(
         string workspaceId,
         string endpointKey,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Reads one catalog item with its derived/catalog-only/standards-mapping facets (CatalogItemEditor).</summary>
     Task<HonuaAdminEndpointResult<HonuaCatalogItem>> GetItemAsync(
         string workspaceId,
         string endpointKey,
@@ -180,9 +148,6 @@ public sealed class HonuaCatalogDiscoveryHttpClient : IHonuaCatalogDiscoveryClie
     }
 }
 
-// --- Wire records mirroring the expected honua-server projection (#1279). ---
-
-/// <summary>One feeder that populates a discovery endpoint (e.g. a FeatureServer or an OGC API collection).</summary>
 public sealed record HonuaCatalogFeeder
 {
     [JsonPropertyName("kind")]
@@ -192,7 +157,6 @@ public sealed record HonuaCatalogFeeder
     public required string Label { get; init; }
 }
 
-/// <summary>One discovery endpoint card in the registry: dialect, on/off, auto-default vs opt-in, feeders, issues.</summary>
 public sealed record HonuaCatalogEndpoint
 {
     [JsonPropertyName("key")]
@@ -207,11 +171,9 @@ public sealed record HonuaCatalogEndpoint
     [JsonPropertyName("dialect")]
     public required string Dialect { get; init; }
 
-    /// <summary>Server-wide on/off state (Settings → Catalog endpoints).</summary>
     [JsonPropertyName("enabled")]
     public bool Enabled { get; init; }
 
-    /// <summary>True when the endpoint auto-mirrors publications (auto-default-on); false when resources opt in.</summary>
     [JsonPropertyName("autoDefault")]
     public bool AutoDefault { get; init; }
 
@@ -231,7 +193,6 @@ public sealed record HonuaCatalogEndpoint
     public int IssueCount { get; init; }
 }
 
-/// <summary>The discovery-endpoints registry projection: the endpoint cards plus auto/opt-in aggregate counts.</summary>
 public sealed record HonuaCatalogDiscoveryRegistry
 {
     [JsonPropertyName("workspaceId")]
@@ -253,7 +214,6 @@ public sealed record HonuaCatalogDiscoveryRegistry
     public int OptInCount { get; init; }
 }
 
-/// <summary>One row in the EsriCatalogDetail items table: a mirrored publication item.</summary>
 public sealed record HonuaCatalogEndpointItem
 {
     [JsonPropertyName("id")]
@@ -284,7 +244,6 @@ public sealed record HonuaCatalogEndpointItem
     public string? Updated { get; init; }
 }
 
-/// <summary>The EsriCatalogDetail projection: the endpoint header facts plus the mirrored items table.</summary>
 public sealed record HonuaCatalogEndpointDetail
 {
     [JsonPropertyName("endpoint")]
@@ -300,7 +259,6 @@ public sealed record HonuaCatalogEndpointDetail
     public IReadOnlyList<HonuaCatalogEndpointItem> Items { get; init; } = Array.Empty<HonuaCatalogEndpointItem>();
 }
 
-/// <summary>How a single catalog-item field is sourced: derived from the resource, system, or catalog-only input.</summary>
 public static class HonuaCatalogFieldStates
 {
     public const string System = "system";
@@ -308,7 +266,6 @@ public static class HonuaCatalogFieldStates
     public const string Input = "input";
 }
 
-/// <summary>One field in the CatalogItemEditor with its source state and (for derived fields) its origin.</summary>
 public sealed record HonuaCatalogItemField
 {
     [JsonPropertyName("label")]
@@ -324,7 +281,6 @@ public sealed record HonuaCatalogItemField
     public string? DerivedFrom { get; init; }
 }
 
-/// <summary>A field group in the CatalogItemEditor (Identity, Catalog presentation, Service bindings, Standards mapping).</summary>
 public sealed record HonuaCatalogItemFieldGroup
 {
     [JsonPropertyName("title")]
@@ -340,7 +296,6 @@ public sealed record HonuaCatalogItemFieldGroup
     public IReadOnlyList<HonuaCatalogItemField> Fields { get; init; } = Array.Empty<HonuaCatalogItemField>();
 }
 
-/// <summary>The CatalogItemEditor projection: an auto-mirrored item with its derived/catalog/binding/standards groups.</summary>
 public sealed record HonuaCatalogItem
 {
     [JsonPropertyName("id")]

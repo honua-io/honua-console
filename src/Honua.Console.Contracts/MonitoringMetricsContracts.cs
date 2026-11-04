@@ -2,28 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-sdk-dotnet): The production-monitoring metrics/health contracts exposed
-// by honua-server (Features/Infrastructure/Monitoring/ProductionMonitoringEndpoints.cs,
-// group "/monitoring", admin-authorized via X-API-Key) are not yet projected to
-// honua-sdk-dotnet. These records mirror the server HTTP wire surface (NOT the server's
-// internal monitoring domain models) and are consumed through the single Console shim
-// boundary, exactly like OperateObservabilityContracts and MetadataReleaseContracts.
-//
-// IMPORTANT: every monitoring handler returns a BARE Results.Json payload (NO
-// ApiResponse envelope). JSON on the wire is camelCase.
-//
-// Route map (concrete), all under /monitoring, admin-authorized (X-API-Key):
-//   GET /monitoring/metrics/connection-pool    -> ConnectionPoolMetricsResponse
-//   GET /monitoring/metrics/cache              -> CacheMetricsResponse
-//   GET /monitoring/metrics/resources          -> ResourceMetricsResponse
-//   GET /monitoring/metrics/upload-queue       -> UploadQueueMetricsResponse
-//   GET /monitoring/metrics/database-resilience-> DatabaseResilienceMetricsResponse
-//   GET /monitoring/health/comprehensive       -> ComprehensiveHealthResponse
-
-/// <summary>
-/// Concrete monitoring routes, kept in one place so the client and tests share the
-/// exact server paths. Relative (no leading slash); the client's BuildUri normalizes.
-/// </summary>
+// Each handler returns its payload directly, with no response envelope.
 public static class MonitoringMetricsRoutes
 {
     public const string ConnectionPool = "monitoring/metrics/connection-pool";
@@ -34,7 +13,6 @@ public static class MonitoringMetricsRoutes
     public const string ComprehensiveHealth = "monitoring/health/comprehensive";
 }
 
-/// <summary>Wire model for <c>GET /monitoring/metrics/connection-pool</c>.</summary>
 public sealed class ConnectionPoolMetricsResponse
 {
     [JsonPropertyName("utilization")]
@@ -61,6 +39,7 @@ public sealed class ConnectionPoolMetricsResponse
     [JsonPropertyName("isHealthy")]
     public bool IsHealthy { get; set; }
 
+    // Null when the active provider does not report admission control.
     [JsonPropertyName("queryAdmission")]
     public QueryAdmissionMetricsResponse? QueryAdmission { get; set; }
 
@@ -68,7 +47,6 @@ public sealed class ConnectionPoolMetricsResponse
     public DateTimeOffset Timestamp { get; set; }
 }
 
-/// <summary>Provider-level query admission-control telemetry (nullable when the active provider omits it).</summary>
 public sealed class QueryAdmissionMetricsResponse
 {
     [JsonPropertyName("adaptiveEnabled")]
@@ -108,7 +86,6 @@ public sealed class QueryAdmissionMetricsResponse
     public string? LastAdjustmentDirection { get; set; }
 }
 
-/// <summary>Wire model for <c>GET /monitoring/metrics/cache</c>.</summary>
 public sealed class CacheMetricsResponse
 {
     [JsonPropertyName("hitRatio")]
@@ -127,7 +104,6 @@ public sealed class CacheMetricsResponse
     public DateTimeOffset Timestamp { get; set; }
 }
 
-/// <summary>Wire model for <c>GET /monitoring/metrics/resources</c>.</summary>
 public sealed class ResourceMetricsResponse
 {
     [JsonPropertyName("memoryUsageBytes")]
@@ -149,7 +125,6 @@ public sealed class ResourceMetricsResponse
     public DateTimeOffset Timestamp { get; set; }
 }
 
-/// <summary>Garbage-collection counters nested under the resource metrics.</summary>
 public sealed class ResourceGcInfoResponse
 {
     [JsonPropertyName("gen0Collections")]
@@ -168,7 +143,6 @@ public sealed class ResourceGcInfoResponse
     public DateTimeOffset LastGen0Time { get; set; }
 }
 
-/// <summary>Wire model for <c>GET /monitoring/metrics/upload-queue</c>.</summary>
 public sealed class UploadQueueMetricsResponse
 {
     [JsonPropertyName("queueDepth")]
@@ -193,7 +167,6 @@ public sealed class UploadQueueMetricsResponse
     public DateTimeOffset Timestamp { get; set; }
 }
 
-/// <summary>Wire model for <c>GET /monitoring/metrics/database-resilience</c>.</summary>
 public sealed class DatabaseResilienceMetricsResponse
 {
     [JsonPropertyName("connectionPool")]
@@ -209,7 +182,6 @@ public sealed class DatabaseResilienceMetricsResponse
     public DateTimeOffset Timestamp { get; set; }
 }
 
-/// <summary>Connection-pool block nested in the database-resilience response.</summary>
 public sealed class DatabaseConnectionPoolMetricsResponse
 {
     [JsonPropertyName("utilization")]
@@ -240,7 +212,6 @@ public sealed class DatabaseConnectionPoolMetricsResponse
     public bool IsHealthy { get; set; }
 }
 
-/// <summary>Resilience/circuit-breaker block nested in the database-resilience response.</summary>
 public sealed class DatabaseResilienceStatusResponse
 {
     [JsonPropertyName("circuitBreakerEnabled")]
@@ -259,7 +230,6 @@ public sealed class DatabaseResilienceStatusResponse
     public string? ErrorRatePercentage { get; set; }
 }
 
-/// <summary>Wire model for <c>GET /monitoring/health/comprehensive</c>.</summary>
 public sealed class ComprehensiveHealthResponse
 {
     [JsonPropertyName("status")]
@@ -275,7 +245,6 @@ public sealed class ComprehensiveHealthResponse
     public DateTimeOffset Timestamp { get; set; }
 }
 
-/// <summary>Individual health-check entry in the comprehensive health report.</summary>
 public sealed class HealthCheckEntryResponse
 {
     [JsonPropertyName("status")]
@@ -288,10 +257,6 @@ public sealed class HealthCheckEntryResponse
     public string? Description { get; set; }
 }
 
-/// <summary>
-/// Source-generated JSON context for the monitoring metrics/health wire contracts
-/// (trim/AOT safe), mirroring MetadataReleaseJsonContext.
-/// </summary>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     PropertyNameCaseInsensitive = true)]

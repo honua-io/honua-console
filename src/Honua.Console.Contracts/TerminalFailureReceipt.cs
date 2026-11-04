@@ -39,7 +39,6 @@ public sealed record TerminalFailureReceipt(
     IReadOnlyList<TerminalFieldFailure> FieldErrors,
     TerminalProtocolMetadata ProtocolMetadata);
 
-/// <summary>Single parser used by every Console HTTP terminal-result boundary.</summary>
 public static class ConsoleFailureReceiptParser
 {
     private static readonly HashSet<string> SensitiveHeaders =
