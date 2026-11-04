@@ -223,11 +223,7 @@
     protected override async Task OnParametersSetAsync()
     {
         var view = await OperateData.GetLayersViewAsync();
-        // A raw layer id is only unique within its connection, so the route keys on the canonical resource id
-        // ({connection}-layer-{layerId}); take the first projection for its global LayerId.
-        _layer = view.Services
-            .SelectMany(service => service.Layers)
-            .FirstOrDefault(layer => string.Equals(layer.CanonicalResourceId, ResourceId, StringComparison.OrdinalIgnoreCase));
+        _layer = view.FindLayer(ResourceId);
 
         if (_layer is not null)
         {

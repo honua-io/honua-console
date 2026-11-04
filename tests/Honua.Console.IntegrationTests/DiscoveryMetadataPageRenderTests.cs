@@ -81,7 +81,7 @@ public sealed class DiscoveryMetadataPageRenderTests
         };
         var ctx = new Bunit.BunitContext();
         ctx.AddConsoleNotifications();
-        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(LayerData());
         ctx.Services.AddSingleton<IConsoleDiscoveryMetadataOperation>(fake);
         var page = ctx.Render<OperateDiscoveryMetadataPage>(p => p.Add(x => x.ServiceName, "svc"));
 
@@ -103,7 +103,7 @@ public sealed class DiscoveryMetadataPageRenderTests
     {
         using var ctx = new Bunit.BunitContext();
         ctx.AddConsoleNotifications();
-        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(LayerData());
         ctx.Services.AddSingleton<IConsoleDiscoveryMetadataOperation, UnsupportedConsoleDiscoveryMetadataOperation>();
 
         var page = ctx.Render<OperateDiscoveryMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
@@ -118,36 +118,17 @@ public sealed class DiscoveryMetadataPageRenderTests
     {
         var ctx = new Bunit.BunitContext();
         ctx.AddConsoleNotifications();
-        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(LayerData());
         ctx.Services.AddSingleton<IConsoleDiscoveryMetadataOperation>(fake);
         return ctx.Render<OperateDiscoveryMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
     }
 
-    private sealed class FakeTransition : IOperateTransitionDataSource
-    {
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new OperateTransitionWorkspace(
-                [],
-                [],
-                [
-                    new OperateServiceDetail(
-                        "svc", "Parcels service", "FeatureServer", "running", "server",
-                        [new OperateServiceLayerProjection(42, "Parcels", "polygon", ResourceId, "parcels")],
-                        [],
-                        [])
-                ],
-                [],
-                []));
-
-        public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateConnectionSummary?>(null);
-
-        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateResourceEditPreview?>(null);
-
-        public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateServiceDetail?>(null);
-    }
+    private static FixedServicesDataSource LayerData() =>
+        new(new OperateServiceDetail(
+            "svc", "Parcels service", "FeatureServer", "running", "server",
+            [new OperateServiceLayerProjection(42, "Parcels", "polygon", ResourceId, "parcels")],
+            [],
+            []));
 
     private sealed class FakeDiscovery : IConsoleDiscoveryMetadataOperation
     {

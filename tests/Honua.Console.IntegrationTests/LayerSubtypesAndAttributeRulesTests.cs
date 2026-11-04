@@ -129,7 +129,7 @@ public sealed class LayerSubtypesAndAttributeRulesTests
     {
         using var ctx = new Bunit.BunitContext();
         ctx.AddConsoleNotifications();
-        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(LayerData());
         ctx.Services.AddSingleton<IConsoleLayerSubtypesOperation, UnsupportedConsoleLayerSubtypesOperation>();
 
         var page = ctx.Render<OperateLayerSubtypesPage>(p => p.Add(x => x.ResourceId, ResourceId));
@@ -147,7 +147,7 @@ public sealed class LayerSubtypesAndAttributeRulesTests
     {
         var ctx = new Bunit.BunitContext();
         ctx.AddConsoleNotifications();
-        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(LayerData());
         ctx.Services.AddSingleton<IConsoleLayerSubtypesOperation>(fake);
         return ctx.Render<OperateLayerSubtypesPage>(p => p.Add(x => x.ResourceId, ResourceId));
     }
@@ -179,31 +179,8 @@ public sealed class LayerSubtypesAndAttributeRulesTests
         }
     }
 
-    private sealed class FakeTransition : IOperateTransitionDataSource
-    {
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new OperateTransitionWorkspace(
-                [],
-                [],
-                [
-                    new OperateServiceDetail(
-                        "svc", "Service", "FeatureServer", "running", "server",
-                        [new OperateServiceLayerProjection(1, "Parcels", "polygon", ResourceId, "parcels")],
-                        [],
-                        [])
-                ],
-                [],
-                []));
-
-        public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateConnectionSummary?>(null);
-
-        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateResourceEditPreview?>(null);
-
-        public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateServiceDetail?>(null);
-    }
+    private static FixedServicesDataSource LayerData() =>
+        FixedServicesDataSource.WithLayer(new OperateServiceLayerProjection(1, "Parcels", "polygon", ResourceId, "parcels"));
 
     private sealed class FakeSubtypes : IConsoleLayerSubtypesOperation
     {
