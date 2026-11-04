@@ -82,7 +82,7 @@ This backlog intentionally separates three decisions:
 ### P2 Native Console Work
 
 - [honua-console#26](https://github.com/honua-io/honua-console/issues/26): Optional MAUI Blazor Hybrid native Console host.
-- [honua-console#44](https://github.com/honua-io/honua-console/issues/44): Native environment profiles, host-capability fallbacks, trust diagnostics, native gRPC indicators, mTLS certificate references, and server-bound client-certificate validation. IA/contract: [Console Route Map](../console-route-map.md) §6.1 and [Optional MAUI Blazor Hybrid Host](../native/MAUI_BLAZOR_HOST.md).
+- [honua-console#44](https://github.com/honua-io/honua-console/issues/44): Native environment profiles, host-capability fallbacks, trust diagnostics, native gRPC indicators, mTLS certificate references, and server-bound client-certificate validation. IA/contract: [Console Route Map](../console-route-map.md) §6.1.
 
 ### Cleanup
 

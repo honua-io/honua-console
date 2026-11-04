@@ -969,7 +969,7 @@ Acceptance:
 - Web Console renders native-only capabilities as unsupported without taking a native dependency.
 - Certificate changes block connection until acknowledged or revalidated.
 - Environment profiles represent multiple managed servers with profile-scoped trust/session state.
-- mTLS/trust behavior is asserted in the opt-in Testcontainers lane (`tests/Honua.Console.IntegrationTests`, `scripts/integration-trust-check.sh`).
+- mTLS/trust behavior is asserted in the opt-in Testcontainers lane (`tests/Honua.Console.IntegrationTests`).
 
 ## Filed GitHub Issues
 

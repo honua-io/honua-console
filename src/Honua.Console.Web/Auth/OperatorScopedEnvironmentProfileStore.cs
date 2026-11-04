@@ -3,27 +3,11 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Web.Auth;
 
-/// <summary>
-/// Operator-partitioned <see cref="IConsoleEnvironmentProfileStore"/> for the multi-operator browser
-/// host (honua-console#233 S1 fix). The previous singleton
-/// <see cref="InMemoryConsoleEnvironmentProfileStore"/> held ONE active-profile pointer and ONE set of
-/// profiles whose <c>Account</c> binding was rewritten in place to the signing-in operator's identity
-/// (see <see cref="ConsoleOperatorSessionBridge"/>). On a host serving multiple operators that made the
-/// active profile + its bound operator identity process-wide shared state, so operator A's active
-/// profile/identity bled into operator B's requests (which then forwarded A's bearer).
-///
-/// This decorator keeps the singleton registration (the singleton honua-server clients resolve it at
-/// construction) but routes every operation to a per-operator backing store selected by
-/// <see cref="IConsoleOperatorContext.CurrentOperatorKey"/>. Each operator therefore has its own active
-/// profile selection and its own account binding; no operator can observe another's active profile or
-/// identity. The native single-operator host keeps its persistent
-/// <see cref="Honua.Console.Native.Core.Storage.JsonConsoleEnvironmentProfileStore"/> singleton
-/// unchanged.
-///
-/// New per-operator partitions are seeded from the configured browser-host server URL (when present) via
-/// <paramref name="seedFactory"/>, so each operator still binds to the same configured honua-server on
-/// first use without sharing mutable identity state.
-/// </summary>
+// Routes every call to the current operator's own profile store, selected by
+// IConsoleOperatorContext.CurrentOperatorKey, behind one singleton registration that the singleton
+// honua-server clients resolve at construction. Each operator has its own active profile and account
+// binding. New partitions are seeded from the configured browser-host server URL, so every operator
+// binds to the same honua-server without sharing mutable identity state.
 public sealed class OperatorScopedEnvironmentProfileStore : IConsoleEnvironmentProfileStore
 {
     private readonly IConsoleOperatorContext _operatorContext;

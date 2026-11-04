@@ -23,8 +23,6 @@ dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http:
   `smoke/parity/sample-evidence/`.
 - Bind a live server with `HONUA_SERVER_BASE_URL` and `HONUA_ADMIN_API_KEY` (README "Connect
   it to a honua-server").
-- `src/Honua.Console.Native` (MAUI) builds only on Windows/macOS, or Linux with
-  `EnableHonuaConsoleAndroidTarget=true`; elsewhere it is a no-op library and CI skips it.
 
 ## Rules
 - **One Console/Studio workspace.** `/studio` is the realtime editor over the bundled

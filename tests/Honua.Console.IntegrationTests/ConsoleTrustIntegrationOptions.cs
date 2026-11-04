@@ -21,23 +21,11 @@ public sealed record ConsoleTrustIntegrationOptions
 
     public string ServerHealthPath { get; init; } = "/health";
 
-    /// <summary>Bearer token granting admin access to the client-certificate validate endpoint.</summary>
-    public string? AdminToken { get; init; }
-
     /// <summary>Admin API key sent as <c>X-API-Key</c> to the admin-protected Studio package endpoints.</summary>
     public string? StudioAdminApiKey { get; init; }
 
-    /// <summary>Optional expected server-side trust profile id.</summary>
-    public string? TrustProfileId { get; init; }
-
     /// <summary>Server env key that receives the PostgreSQL connection string (image-specific).</summary>
     public string DbConnectionEnvKey { get; init; } = "ConnectionStrings__Postgres";
-
-    /// <summary>Optional path to a PFX the operator pre-seeded as a trusted client certificate on the server.</summary>
-    public string? TrustedCertificatePfxPath { get; init; }
-
-    /// <summary>Optional password for <see cref="TrustedCertificatePfxPath"/>.</summary>
-    public string? TrustedCertificatePassword { get; init; }
 
     /// <summary>Extra <c>KEY=VALUE</c> server env entries (newline or semicolon separated), image-specific.</summary>
     public string? ServerEnvironment { get; init; }
@@ -48,8 +36,8 @@ public sealed record ConsoleTrustIntegrationOptions
     public static ConsoleTrustIntegrationOptions Load()
     {
         // The image-based integration lane opts in with HONUA_CONSOLE_INTEGRATION; the end-to-end smoke
-        // also honours HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS (the opt-in named by issue #59 and shared with
-        // the Native.Core live-server lane) so a single flag can enable every live-server lane.
+        // also honours HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS, the opt-in shared with the Shell live-server
+        // lane, so a single flag can enable every live-server lane.
         if (!ReadBoolean("HONUA_CONSOLE_INTEGRATION") && !ReadBoolean("HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS"))
         {
             return new ConsoleTrustIntegrationOptions();
@@ -63,12 +51,8 @@ public sealed record ConsoleTrustIntegrationOptions
             ServerPort = ReadUShort("HONUA_CONSOLE_SERVER_PORT", 8080),
             ServerScheme = ReadString("HONUA_CONSOLE_SERVER_SCHEME") ?? "https",
             ServerHealthPath = ReadString("HONUA_CONSOLE_SERVER_HEALTH_PATH") ?? "/health",
-            AdminToken = ReadString("HONUA_CONSOLE_ADMIN_TOKEN"),
             StudioAdminApiKey = ReadString("HONUA_CONSOLE_ADMIN_API_KEY"),
-            TrustProfileId = ReadString("HONUA_CONSOLE_TRUST_PROFILE_ID"),
             DbConnectionEnvKey = ReadString("HONUA_CONSOLE_DB_CONNECTION_ENV") ?? "ConnectionStrings__Postgres",
-            TrustedCertificatePfxPath = ReadString("HONUA_CONSOLE_TRUSTED_CERT_PFX"),
-            TrustedCertificatePassword = ReadString("HONUA_CONSOLE_TRUSTED_CERT_PASSWORD"),
             ServerEnvironment = ReadString("HONUA_CONSOLE_SERVER_ENV")
         };
     }
@@ -93,20 +77,6 @@ public sealed record ConsoleTrustIntegrationOptions
         }
 
         return null;
-    }
-
-    /// <summary>Reason the server-authenticated validate facts cannot run (need an admin token).</summary>
-    public static string? GetValidateSkipReason()
-    {
-        var baseReason = GetSkipReason();
-        if (baseReason is not null)
-        {
-            return baseReason;
-        }
-
-        return string.IsNullOrWhiteSpace(Load().AdminToken)
-            ? "Set HONUA_CONSOLE_ADMIN_TOKEN to exercise the admin-protected client-certificate validate endpoint."
-            : null;
     }
 
     /// <summary>Reason the live Studio package-lifecycle facts cannot run (need an admin API key).</summary>

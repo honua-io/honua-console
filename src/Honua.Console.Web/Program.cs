@@ -45,12 +45,6 @@ var app = builder.Build();
 // private address; see ConsoleForwardedHeaders.
 app.UseForwardedHeaders();
 
-// Development testbed convenience: the browser host cannot create environment profiles (profile
-// creation runs on the native MAUI host), so a "Local honua-server" profile is seeded per-operator
-// on first use from HONUA_SERVER_BASE_URL. That seed now lives in AddConsoleAuthentication's
-// operator-partitioned profile store (per-operator so it survives the multi-operator partitioning,
-// honua-console#233 S1 #1) rather than a single shared startup seed. Never runs outside Development.
-
 // Content-Security-Policy: this origin holds the Blazor session and the admin-keyed map BFF proxy,
 // so it must constrain where executable code, styles, images, and network connections may come from
 // — a tampered or injected script here would run with full session/proxy access. MapLibre is served
