@@ -1,5 +1,5 @@
 using System.Net;
-using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
@@ -7,74 +7,66 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for display, editing, and spatial metadata. The pinned server does not
-/// register those routes, so the live client returns Unsupported and issues no HTTP. The
-/// missing-binding operation still names HONUA_SERVER_BASE_URL.
-/// </summary>
 public sealed class LayerMetadataOperationTests
 {
     private static readonly Uri BaseAddress = new("https://honua.test");
 
-    [Fact]
-    public async Task UnregisteredDisplayEditingSpatialRoutes_FailClosedWithoutHttp()
+    private static readonly ConsoleLayerEditingChange Change = new()
     {
-        var calls = 0;
-        var operation = new HonuaServerConsoleLayerMetadataOperation(CreateClient(_ =>
+        ServiceName = "parcels service",
+        LayerId = 7,
+        GlobalIdField = "globalid",
+        AllowDelete = false,
+    };
+
+    [Fact]
+    public async Task SetEditing_PutsTheEditingPatchToTheServiceLayerMetadataRoute()
+    {
+        HttpRequestMessage? sent = null;
+        string? body = null;
+        var operation = new HonuaServerConsoleLayerMetadataOperation(CreateClient(request =>
         {
-            calls++;
-            throw new InvalidOperationException("unregistered route must not send HTTP");
+            sent = request;
+            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Json(HttpStatusCode.OK, """{"success":true,"data":{"layerId":7,"layerName":"Parcels"}}""");
         }));
 
-        var display = await operation.GetDisplayAsync(1);
-        var editing = await operation.GetEditingAsync(1);
-        var spatial = await operation.GetSpatialAsync(1);
-        var saveDisplay = await operation.SetDisplayAsync(1, new ConsoleLayerDisplay());
-        var saveEditing = await operation.SetEditingAsync(1, new ConsoleLayerEditing());
-        var saveSpatial = await operation.SetSpatialAsync(1, ["EPSG:4326"], null, null, false, false);
+        var result = await operation.SetEditingAsync(Change);
 
-        Assert.Equal(0, calls);
-        Assert.False(display.Bound);
-        Assert.False(editing.Bound);
-        Assert.False(spatial.Bound);
-        Assert.Contains(UnregisteredServerRoutes.Detail, display.Detail, StringComparison.Ordinal);
-        foreach (var write in new[] { saveDisplay, saveEditing, saveSpatial })
-        {
-            Assert.False(write.Succeeded);
-            Assert.Equal(UnregisteredServerRoutes.State, write.State);
-            Assert.Contains(UnregisteredServerRoutes.Detail, write.Detail, StringComparison.Ordinal);
-        }
+        Assert.True(result.Succeeded, result.Detail);
+        Assert.Equal(HttpMethod.Put, sent!.Method);
+        Assert.Equal("/api/v1/admin/services/parcels%20service/layers/7/metadata", sent.RequestUri!.AbsolutePath);
+        using var json = JsonDocument.Parse(body!);
+        var editing = json.RootElement.GetProperty("editing");
+        Assert.Equal("globalid", editing.GetProperty("globalIdField").GetString());
+        Assert.False(editing.GetProperty("delete").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, editing.GetProperty("create").ValueKind);
     }
 
     [Fact]
-    public async Task Unsupported_NeverCallsNetwork_AndReturnsMissingBinding()
+    public async Task SetEditing_SurfacesTheServerRejection()
     {
-        var operation = new UnsupportedConsoleLayerMetadataOperation();
+        var operation = new HonuaServerConsoleLayerMetadataOperation(CreateClient(_ =>
+            Json(HttpStatusCode.BadRequest, """{"success":false,"message":"globalIdField must name a UUID field"}""")));
 
-        var display = await operation.GetDisplayAsync(1);
-        var editing = await operation.GetEditingAsync(1);
-        var spatial = await operation.GetSpatialAsync(1);
-        var saveDisplay = await operation.SetDisplayAsync(1, new ConsoleLayerDisplay());
-        var saveEditing = await operation.SetEditingAsync(1, new ConsoleLayerEditing());
-        var saveSpatial = await operation.SetSpatialAsync(1, ["x"], null, null, false, false);
+        var result = await operation.SetEditingAsync(Change);
 
-        Assert.False(display.Bound);
-        Assert.False(editing.Bound);
-        Assert.False(spatial.Bound);
-        Assert.Contains("HONUA_SERVER_BASE_URL", display.Detail!, StringComparison.Ordinal);
-        foreach (var write in new[] { saveDisplay, saveEditing, saveSpatial })
-        {
-            Assert.False(write.Succeeded);
-            Assert.Equal("Missing binding", write.State);
-            Assert.Contains("HONUA_SERVER_BASE_URL", write.Detail!, StringComparison.Ordinal);
-        }
+        Assert.False(result.Succeeded);
+        Assert.Contains("globalIdField must name a UUID field", result.Detail, StringComparison.Ordinal);
     }
 
-    private static HttpResponseMessage Ok<T>(T data) =>
-        new(HttpStatusCode.OK)
-        {
-            Content = JsonContent.Create(new { success = true, data, timestamp = DateTimeOffset.UtcNow })
-        };
+    [Fact]
+    public async Task Unsupported_ReturnsMissingBinding()
+    {
+        var result = await new UnsupportedConsoleLayerMetadataOperation().SetEditingAsync(Change);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("Missing binding", result.State);
+        Assert.Contains("HONUA_SERVER_BASE_URL", result.Detail, StringComparison.Ordinal);
+    }
+
+    private static HttpResponseMessage Json(HttpStatusCode status, string json) =>
+        new(status) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
 
     private static IHonuaAdminOperateClient CreateClient(Func<HttpRequestMessage, HttpResponseMessage> responder)
     {
@@ -84,11 +76,7 @@ public sealed class LayerMetadataOperationTests
 
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
     {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            // Materialize content before returning so the request-body assertion can read it.
-            _ = request.Content?.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult();
-            return Task.FromResult(responder(request));
-        }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(responder(request));
     }
 }

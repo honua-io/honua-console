@@ -239,11 +239,6 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
         CancellationToken cancellationToken,
         object? body = null)
     {
-        if (UnregisteredServerRoutes.Contains(contract))
-        {
-            return UnregisteredServerRoutes.Admin<T>(contract);
-        }
-
         using var request = new HttpRequestMessage(method, path);
         if (body is not null)
         {

@@ -1,0 +1,26 @@
+<label class="console-field">
+    <span>@Label</span>
+    <select class="console-input" aria-label="@Label" value="@Encode(Value)" @onchange="OnChangedAsync" @attributes="AdditionalAttributes">
+        <option value="">(unchanged)</option>
+        <option value="true">Yes</option>
+        <option value="false">No</option>
+    </select>
+</label>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    [Parameter] public bool? Value { get; set; }
+
+    [Parameter] public EventCallback<bool?> ValueChanged { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)] public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private static string Encode(bool? value) => value switch { true => "true", false => "false", _ => "" };
+
+    private Task OnChangedAsync(ChangeEventArgs args)
+    {
+        bool? decoded = args.Value as string switch { "true" => true, "false" => false, _ => null };
+        return ValueChanged.InvokeAsync(decoded);
+    }
+}
