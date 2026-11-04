@@ -148,6 +148,8 @@ public sealed class DiscoveryMetadataEditorTests
         var page = context.Render<OperateLayerDetailPage>(parameters => parameters.Add(layer => layer.ResourceId, "connection-layer-42"));
         page.WaitForAssertion(() => Assert.Equal(DiscoveryMetadataAddress.ForLayer(42), client.LastAddress));
         Assert.Contains("shared resource metadata", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Console layer reference", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("canonical-roads", page.Find("[data-discovery-resource]").TextContent, StringComparison.Ordinal);
         Assert.Contains("transport / 7", page.Find("[data-discovery-impact]").TextContent, StringComparison.Ordinal);
     }
 
@@ -158,8 +160,9 @@ public sealed class DiscoveryMetadataEditorTests
         context.AddConsoleNotifications();
         var client = new MetadataClient();
         context.Services.AddSingleton<IHonuaDiscoveryMetadataClient>(client);
-        context.Services.AddSingleton<IOperateTransitionDataSource>(FixedServicesDataSource.WithLayer(
-            new OperateServiceLayerProjection(42, "Roads", "Line", "connection-layer-42", "Roads")));
+        var service = new OperateServiceDetail("svc", "Service", "FeatureServer", "running", "server", [],
+            [new("mapServer.defaultFormat", "png", "MapServer runtime defaults", RequiresRestart: false)], []);
+        context.Services.AddSingleton<IOperateTransitionDataSource>(new FixedServicesDataSource(service));
         using var http = new HttpClient(new MetadataHttpHandler(_ => Envelope(new HonuaAdminServiceSettingsResponse
         { ServiceName = "svc", EnabledProtocols = ["FeatureServer"], AvailableProtocols = ["FeatureServer"] })));
         using var admin = new HonuaAdminOperateHttpClient(http, new(new Uri("https://server.example")));
@@ -170,6 +173,7 @@ public sealed class DiscoveryMetadataEditorTests
         Assert.NotNull(page.Find("[data-save-access]"));
         Assert.Contains("Unsupported", page.Find("[data-mapserver-unsupported]").TextContent, StringComparison.Ordinal);
         Assert.Empty(page.FindAll("[data-save-mapserver]"));
+        Assert.Contains("Compatibility default", page.Markup, StringComparison.Ordinal);
     }
 
     [Theory]

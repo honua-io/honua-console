@@ -44,7 +44,7 @@
                                 <tr>
                                     <td>@setting.Name</td>
                                     <td>@setting.Value</td>
-                                    <td>@setting.ApplyScope</td>
+                                    <td>@RuntimeSettingScope(setting)</td>
                                     <td>@(setting.RequiresRestart ? "Required" : "Not required")</td>
                                 </tr>
                             }
@@ -265,8 +265,9 @@
 
     }
 
-    // Splits a comma-/newline-separated role textbox into a trimmed, de-duplicated, non-empty role array.
-    // Returns an empty array (not null) when the textbox is blank so the access PUT clears the role list.
+    private static string RuntimeSettingScope(OperateRuntimeSetting setting) =>
+        setting.Name.StartsWith("mapServer.", StringComparison.OrdinalIgnoreCase) ? "Compatibility default" : setting.ApplyScope;
+
     private static string[] ParseRoles(string? raw) =>
         (raw ?? string.Empty)
             .Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

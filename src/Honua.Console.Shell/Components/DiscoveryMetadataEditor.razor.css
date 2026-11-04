@@ -1,0 +1,8 @@
+[data-discovery-metadata] {
+    min-width: 0;
+}
+
+[data-discovery-resource],
+[data-discovery-impact] li {
+    overflow-wrap: anywhere;
+}

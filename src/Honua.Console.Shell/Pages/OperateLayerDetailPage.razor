@@ -32,7 +32,7 @@
         <div class="console-page-heading">
             <p class="console-kicker">Operate / Layers</p>
             <h1>@_exposures[0].Layer.Name</h1>
-            <p>Layer @_exposures[0].Layer.LayerId is exposed by @_serviceSummary and reads metadata from @_exposures[0].Layer.CanonicalResourceName.</p>
+            <p>Admin layer @_exposures[0].Layer.LayerId is exposed by @_serviceSummary and reads metadata from @_exposures[0].Layer.CanonicalResourceName.</p>
             <div class="console-detail-actions">
                 <a class="console-button-link" href="@($"/operate/layers/{CanonicalResourceId}/style")" data-layer-style-link>Resource presentation / style</a>
                 <a class="console-button-link" href="@($"/operate/layers/{CanonicalResourceId}/relationships")" data-layer-relationships-link>Relationships</a>
@@ -64,7 +64,7 @@
                 <dl class="console-definition-list">
                     <dt>Resource</dt>
                     <dd><a href="@($"/operate/resources/{_exposures[0].Layer.CanonicalResourceId}")">@_exposures[0].Layer.CanonicalResourceName</a></dd>
-                    <dt>Resource ID</dt>
+                    <dt>Console layer reference</dt>
                     <dd>@_exposures[0].Layer.CanonicalResourceId</dd>
                     <dt>Ownership</dt>
                     <dd>@_exposures[0].Service.MetadataOwnership</dd>
