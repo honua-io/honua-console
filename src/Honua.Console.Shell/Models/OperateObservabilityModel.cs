@@ -517,7 +517,6 @@ public sealed record OperateJobControlOutcome(
 
 public static class OperateActionPresentation
 {
-    // Allowed actions stay disabled until Console wires the mutation, so the operator can see that the server already permits them.
     public const string ActionExecutionDeferredReason = "Allowed by the server; mutating actions are wired in a follow-on Console slice.";
 
     public const string ActionApiUnavailableReason = ActionExecutionDeferredReason;
