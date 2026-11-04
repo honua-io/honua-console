@@ -21,30 +21,34 @@
         startupFocus = index < 0 ? opener(control) : control.querySelectorAll('summary, a')[index];
         startupFocus?.focus({preventScroll: true});
     }
+    function transferControl(key, control) {
+        const previous = controls.get(key);
+        if (!previous || previous === control) return;
+        setExpanded(control, expanded(previous));
+        restoreControlFocus(previous, control);
+        hydrated = true;
+    }
     function collectControls() {
         const next = new Map([...document.querySelectorAll(menuSelector)].map(element => [element.dataset.navigationMenu, element]));
         const toggle = document.querySelector(toggleSelector);
         if (toggle) next.set('toggle', toggle);
         try {
-            for (const [key, control] of next) {
-                const previous = controls.get(key);
-                if (!previous || previous === control) continue;
-                setExpanded(control, expanded(previous));
-                restoreControlFocus(previous, control);
-                hydrated = true;
-            }
+            for (const [key, control] of next) transferControl(key, control);
         } finally {
             controls = next;
         }
     }
+    const isStartupHeading = element => element.matches('h1') && location.href === startupUrl;
+    const shouldRetainPrerenderFocus = element => !hydrated && isStartupHeading(element)
+        && focused && !focused.isConnected && keyFor(focused);
     document.addEventListener('focusin', event => {
-        if (event.target.matches('h1') && location.href === startupUrl && startupFocus?.isConnected) {
+        if (isStartupHeading(event.target) && startupFocus?.isConnected) {
             const target = startupFocus;
             startupFocus = undefined;
             target.focus({preventScroll: true});
             return;
         }
-        if (!hydrated && event.target.matches('h1') && focused && !focused.isConnected && keyFor(focused)) return;
+        if (shouldRetainPrerenderFocus(event.target)) return;
         if (event.target !== startupFocus) startupFocus = undefined;
         focused = event.target;
     }, true);
