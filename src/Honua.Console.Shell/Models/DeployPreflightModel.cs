@@ -2,15 +2,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// The deploy preflight gate for the upgrade card (console#290 acceptance criterion 3):
-/// before submitting a server-version upgrade, the operator sees whether pending contract
-/// migration scripts or a non-co-versioned platform release would block the coordinated
-/// deploy, with a clear explanation rather than a silent submit. Fields mirror
-/// <c>GET /api/v1/admin/deploy/preflight?includeDiagnostics=true</c> exactly; a field the
-/// server omits (nullable) is preserved as <see langword="null"/> rather than defaulted, per
-/// the honua-server PR #2577 null-omission contract this endpoint shares.
-/// </summary>
 public sealed record DeployPreflightView(
     OperateStatus Status,
     bool ReadyForCoordinatedDeploy,
@@ -30,17 +21,8 @@ public sealed record DeployPreflightView(
     IReadOnlyList<ServingRevisionView>? ObservedServing = null)
 {
     public IReadOnlyList<ServingRevisionView> Serving => ObservedServing ?? [];
-    /// <summary>
-    /// Whether the preflight gate blocks a coordinated-deploy submit: pending contract
-    /// migration scripts, an incompatible database, or a declared platform release that is
-    /// not co-versioned across planes. Mirrors the same signal the connected server itself
-    /// uses for <c>readyForCoordinatedDeploy</c>, but keeps the plane-skew reason visible
-    /// even when the server call omitted <c>includeDiagnostics</c> (in which case the
-    /// upstream boolean is the sole authority and this is left in lock-step with it).
-    /// </summary>
     public bool BlocksSubmit => !ReadyForCoordinatedDeploy;
 
-    /// <summary>Human-readable reasons the gate is blocking submit, for the upgrade card's explanation.</summary>
     public IReadOnlyList<string> BlockingReasons
     {
         get
@@ -82,7 +64,6 @@ public sealed record DeployPreflightView(
     }
 }
 
-/// <summary>A serving target's live readback; absent observation remains absent.</summary>
 public sealed record ServingRevisionView(
     string Id,
     string ObservationStatus,
@@ -91,7 +72,6 @@ public sealed record ServingRevisionView(
     string? ServerVersion,
     DateTimeOffset? ObservedAt);
 
-/// <summary>Maps the server preflight response onto the Console gate view.</summary>
 public static class DeployPreflightMapper
 {
     public static DeployPreflightView Map(DeployPreflightResponse response)

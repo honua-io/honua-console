@@ -48,11 +48,7 @@ public enum ConsoleAccountAuthMode
     Anonymous,
     AccountRbac,
 
-    /// <summary>
-    /// Explicit non-interactive profile whose mutations may use a configured service
-    /// API key only when the host also selects <c>HeadlessService</c> credential mode.
-    /// Interactive profile creation does not offer this mode.
-    /// </summary>
+    // Mutations may use a service API key only when the host also selects HeadlessService mode.
     ServiceApiKey
 }
 
@@ -62,7 +58,6 @@ public sealed record ConsoleClientCertificateBinding
 
     public ConsoleClientCertificateReference? Reference { get; init; }
 
-    /// <summary>Optional server trust profile id to pass to honua-server certificate validation.</summary>
     public string TrustProfileId { get; init; } = string.Empty;
 }
 
@@ -99,16 +94,12 @@ public sealed record ConsoleEnvironmentState
     // Console Patterns Charter section 11). The server exposes no fingerprint or
     // capability-discovery endpoint, so server-identity pinning is client-side.
 
-    /// <summary>Acknowledged server certificate SHA-256 fingerprint used to detect server-identity changes.</summary>
     public string PinnedServerFingerprint { get; init; } = string.Empty;
 
-    /// <summary>Acknowledged bound client certificate SHA-256 thumbprint used to detect client-certificate changes.</summary>
     public string PinnedClientCertificateThumbprint { get; init; } = string.Empty;
 
-    /// <summary>True when the native connection is refused until the operator acknowledges or revalidates.</summary>
     public bool TrustBlocked { get; init; }
 
-    /// <summary>Last server-validated trust state (shim of honua-sdk-dotnet#166 HonuaEnvironmentTrustState).</summary>
     public HonuaEnvironmentTrustState? Trust { get; init; }
 }
 
@@ -126,15 +117,10 @@ public sealed record ConsoleAccountSession
 
     public string[] PermissionIds { get; init; } = [];
 
-    /// <summary>The server base URI for which this operator credential was obtained.</summary>
     public Uri? ServerBaseUri { get; init; }
 
     public string AccessToken { get; init; } = string.Empty;
 
-    /// <summary>
-    /// Gets the expiry of the forwardable honua-server operator bearer, when known.
-    /// A null value is retained for edge-forwarded access tokens whose expiry is
-    /// managed by the trusted edge rather than exposed to the Console.
-    /// </summary>
+    // Null means an edge-forwarded token whose expiry stays at the edge.
     public DateTimeOffset? AccessTokenExpiresAt { get; init; }
 }

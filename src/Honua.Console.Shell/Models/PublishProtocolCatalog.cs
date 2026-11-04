@@ -1,22 +1,7 @@
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// The single source of truth for the resource-first publish step (redesign §3.0 / §5.4b): the set of
-/// protocol surfaces a <em>resource</em> can be exposed through, and the metadata-v2 mapping each protocol
-/// implies — its <c>ServiceProtocols</c> string constant, the <c>MetadataV2ServiceType</c> service category
-/// the binding lands under, and a human label/hint for the toggle grid.
-///
-/// Each enabled protocol toggle corresponds to exactly one metadata-v2 <b>Publication</b> (a binding of
-/// <c>resourceId</c> + <c>serviceId</c>). The picker, the treeview's "+ expose" affordance, and the
-/// go-live route preview all read this catalog so the protocol→publication mapping is defined once and
-/// stays coherent (Console Patterns Charter: no fabricated data, one mapping authority).
-/// </summary>
 public static class PublishProtocolCatalog
 {
-    /// <summary>
-    /// Protocol identifiers mirroring honua-server <c>ServiceProtocols</c> string constants. The toggle
-    /// set maps 1:1 onto the metadata-v2 services that publish a resource (redesign §3.0).
-    /// </summary>
     public static class Protocols
     {
         public const string FeatureServer = "FeatureServer";
@@ -30,10 +15,6 @@ public static class PublishProtocolCatalog
         public const string OData = "OData";
     }
 
-    /// <summary>
-    /// A single protocol surface: its <c>ServiceProtocols</c> id, the <c>MetadataV2ServiceType</c> category
-    /// its Publication binds under, a display label, a one-line hint, and the toggle-grid group it renders in.
-    /// </summary>
     public sealed record ProtocolDescriptor(
         string Id,
         string ServiceType,
@@ -41,7 +22,6 @@ public static class PublishProtocolCatalog
         string Hint,
         string Group);
 
-    /// <summary>The toggle-grid groups, in render order (GeoServices · OGC · STAC/Catalog).</summary>
     public static IReadOnlyList<(string Key, string Label)> Groups { get; } =
     [
         ("geoservices", "GeoServices (Esri)"),
@@ -49,10 +29,6 @@ public static class PublishProtocolCatalog
         ("catalog", "STAC / Catalog"),
     ];
 
-    /// <summary>
-    /// Every protocol the publish step exposes, keyed by its <c>ServiceProtocols</c> id. The
-    /// <c>ServiceType</c> values mirror <c>MetadataV2ServiceType</c> in honua-server metadata-v2.
-    /// </summary>
     public static IReadOnlyList<ProtocolDescriptor> All { get; } =
     [
         new(Protocols.FeatureServer, "esri-feature-service", "FeatureServer", "editable features", "geoservices"),
@@ -69,7 +45,6 @@ public static class PublishProtocolCatalog
     private static readonly IReadOnlyDictionary<string, ProtocolDescriptor> ById =
         All.ToDictionary(descriptor => descriptor.Id, StringComparer.Ordinal);
 
-    /// <summary>The default-on protocol set for a freshly-staged publish (redesign §5.4b: FeatureServer + MapServer + STAC).</summary>
     public static IReadOnlyList<string> DefaultEnabled { get; } =
     [
         Protocols.FeatureServer,
@@ -77,7 +52,6 @@ public static class PublishProtocolCatalog
         Protocols.Stac,
     ];
 
-    /// <summary>Looks up a protocol descriptor by its <c>ServiceProtocols</c> id, or <c>null</c> when unknown.</summary>
     public static ProtocolDescriptor? Find(string protocolId) =>
         protocolId is not null && ById.TryGetValue(protocolId, out var descriptor) ? descriptor : null;
 
@@ -112,14 +86,6 @@ public static class PublishProtocolCatalog
             ["Image service"] = Protocols.ImageServer,
         };
 
-    /// <summary>
-    /// Resolves a service's <c>ServiceType</c> value — a metadata-v2 service-type string
-    /// (<c>esri-feature-service</c>), a single <c>ServiceProtocols</c> id, a comma-joined list of protocol
-    /// names (<c>FeatureServer, MapServer</c>), or a display name (<c>Feature service</c>) — into the protocol
-    /// descriptors it exposes, in catalog order with duplicates removed. Unknown tokens are skipped (never
-    /// fabricated). This is what lets the resource→publications tree show already-published resources as
-    /// Running rather than Draft regardless of which source populated the service type.
-    /// </summary>
     public static IReadOnlyList<ProtocolDescriptor> ResolveServiceTypeProtocols(string? serviceType)
     {
         if (string.IsNullOrWhiteSpace(serviceType))
@@ -148,7 +114,6 @@ public static class PublishProtocolCatalog
         return resolved.OrderBy(d => order[d.Id]).ToArray();
     }
 
-    /// <summary>The descriptors in a group, in catalog order.</summary>
     public static IReadOnlyList<ProtocolDescriptor> InGroup(string group) =>
         All.Where(descriptor => string.Equals(descriptor.Group, group, StringComparison.Ordinal)).ToArray();
 

@@ -13,10 +13,6 @@ namespace Honua.Console.Shell.Models;
 // truth; these stay a thin read-only projection (the temporary Contracts-shim
 // boundary the repo uses until honua-sdk-dotnet projects STA).
 
-/// <summary>
-/// STA entity-collection envelope: a <c>value</c> array plus optional
-/// <c>@iot.count</c> and <c>@iot.nextLink</c> paging members.
-/// </summary>
 public sealed record StaEntitySet<T>
 {
     [JsonPropertyName("@iot.count")]
@@ -29,7 +25,6 @@ public sealed record StaEntitySet<T>
     public string? NextLink { get; init; }
 }
 
-/// <summary>STA v1.1 <c>Thing</c> entity.</summary>
 public sealed record StaThing
 {
     [JsonPropertyName("@iot.id")]
@@ -56,7 +51,6 @@ public sealed record StaThing
     public string? DatastreamsNavigationLink { get; init; }
 }
 
-/// <summary>STA v1.1 unit-of-measurement object embedded in a Datastream.</summary>
 public sealed record StaUnitOfMeasurement
 {
     [JsonPropertyName("name")]
@@ -69,7 +63,6 @@ public sealed record StaUnitOfMeasurement
     public string Definition { get; init; } = string.Empty;
 }
 
-/// <summary>STA v1.1 <c>Datastream</c> entity.</summary>
 public sealed record StaDatastream
 {
     [JsonPropertyName("@iot.id")]
@@ -112,7 +105,6 @@ public sealed record StaDatastream
     public StaThing? Thing { get; init; }
 }
 
-/// <summary>STA v1.1 <c>Observation</c> entity.</summary>
 public sealed record StaObservation
 {
     [JsonPropertyName("@iot.id")]
@@ -127,22 +119,13 @@ public sealed record StaObservation
     [JsonPropertyName("resultTime")]
     public string? ResultTime { get; init; }
 
-    // OGC STA v1.1 leaves Observation.result an open type: a number, string, boolean, JSON
-    // object/array, or null (category/truth datastreams, or a gap in an otherwise-numeric stream).
-    // Modelling it as a raw JsonElement keeps deserialization total — a single non-numeric or null
-    // result no longer throws JsonException and degrades the WHOLE collection to Unavailable.
-    // Numeric consumers project through <see cref="NumericResult"/>.
+    // OGC STA v1.1 leaves Observation.result an open type, so one non-numeric or null result must not fail the collection.
     [JsonPropertyName("result")]
     public JsonElement Result { get; init; }
 
     [JsonPropertyName("Datastream@iot.navigationLink")]
     public string? DatastreamNavigationLink { get; init; }
 
-    /// <summary>
-    /// The observation result as a <see cref="double"/> when it is numeric (a JSON number, or a
-    /// string that parses as an invariant number), otherwise <c>null</c> for non-numeric/null
-    /// results that cannot be plotted on a numeric axis.
-    /// </summary>
     [JsonIgnore]
     public double? NumericResult => Result.ValueKind switch
     {
@@ -155,19 +138,10 @@ public sealed record StaObservation
         _ => null
     };
 
-    /// <summary>
-    /// Builds an <see cref="StaObservation"/> result payload from a numeric value, for the
-    /// demo/in-memory shell and tests (the live client deserializes the wire value directly).
-    /// </summary>
     public static JsonElement NumericResultValue(double value) =>
         JsonSerializer.SerializeToElement(value);
 }
 
-/// <summary>
-/// Read-status vocabulary for the SensorThings surface, mirroring the Operate
-/// section-status pattern so missing/forbidden/unsupported/unavailable all
-/// degrade through one shared surface (per the Console exception constraint).
-/// </summary>
 public enum SensorThingsReadStatus
 {
     Ok,
@@ -177,7 +151,6 @@ public enum SensorThingsReadStatus
     Unavailable
 }
 
-/// <summary>Read envelope carrying a status that drives the shared empty/denied surfaces.</summary>
 public sealed record SensorThingsReadResult<T>
 {
     public SensorThingsReadStatus Status { get; init; }
@@ -195,7 +168,6 @@ public sealed record SensorThingsReadResult<T>
         new() { Status = status, Message = message };
 }
 
-/// <summary>Consistent titles/copy for non-ok SensorThings read states.</summary>
 public static class SensorThingsPresentation
 {
     public const string MissingBindingMessage =
@@ -218,10 +190,8 @@ public static class SensorThingsPresentation
     };
 }
 
-/// <summary>A single charted point of a datastream time series (phenomenon time + numeric result).</summary>
 public sealed record SensorThingsTimeSeriesPoint(DateTimeOffset PhenomenonTime, double Result);
 
-/// <summary>A datastream's observations projected for time-series charting.</summary>
 public sealed record SensorThingsTimeSeries(
     long DatastreamId,
     string DatastreamName,

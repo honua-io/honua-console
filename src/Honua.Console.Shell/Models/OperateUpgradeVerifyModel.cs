@@ -2,14 +2,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// Post-upgrade verification summary (console#290 addendum item 1b): a before/after diff of
-/// the live ops-health snapshot, captured once when the operator engages the upgrade card and
-/// again once the governed upgrade operation reaches <c>Succeeded</c> — "you upgraded; here's
-/// the proof it's healthy" instead of upgrading on faith. Both snapshots are real reads (the
-/// ops-health data source); when either read was denied, the corresponding row renders
-/// "unknown" rather than fabricating a status.
-/// </summary>
 public sealed record OperateUpgradeVerifyRow(string Label, string Before, string After, OperateStatus Verdict);
 
 public sealed record OperateUpgradeVerifySummaryData(IReadOnlyList<OperateUpgradeVerifyRow> Rows, bool BeforeAvailable, bool AfterAvailable)

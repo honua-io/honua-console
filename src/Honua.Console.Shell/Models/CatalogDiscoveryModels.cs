@@ -8,21 +8,14 @@ namespace Honua.Console.Shell.Models;
 // endpoint/item data — when the server is unbound or a read is rejected, the surface renders a capability
 // state instead (Console Patterns Charter section 11).
 
-/// <summary>
-/// A binding/permission/not-found/missing surface for the Catalogs pages, mirroring the RBAC/Share access
-/// capability-state pattern so missing bindings, missing permissions, and unsupported contracts render
-/// consistently across the registry, endpoint detail, and item editor surfaces.
-/// </summary>
 public sealed record CatalogDiscoveryCapabilityState(
     string Surface,
     string State,
     string Contract,
     string Detail);
 
-/// <summary>One feeder that populates a discovery endpoint (kind tag + label).</summary>
 public sealed record CatalogFeederView(string Kind, string Label);
 
-/// <summary>One discovery-endpoint card: dialect, on/off, auto-default vs opt-in, feeders, entries, issues.</summary>
 public sealed record CatalogEndpointView(
     string Key,
     string Title,
@@ -36,13 +29,11 @@ public sealed record CatalogEndpointView(
     IReadOnlyList<CatalogFeederView> Feeders,
     int IssueCount)
 {
-    /// <summary>True when the endpoint auto-mirrors publications; false when resources opt in per-resource.</summary>
     public bool IsAutoDefault => AutoDefault;
 
     public bool HasIssues => IssueCount > 0;
 }
 
-/// <summary>The CatalogsList projection: the endpoint cards plus the auto-default / opt-in aggregate counts.</summary>
 public sealed record CatalogDiscoveryRegistryView(
     string WorkspaceId,
     string? WorkspaceName,
@@ -54,7 +45,6 @@ public sealed record CatalogDiscoveryRegistryView(
     public string DisplayWorkspace => string.IsNullOrWhiteSpace(WorkspaceName) ? WorkspaceId : WorkspaceName!;
 }
 
-/// <summary>One row in the EsriCatalogDetail items table.</summary>
 public sealed record CatalogEndpointItemView(
     string Id,
     string Title,
@@ -69,14 +59,12 @@ public sealed record CatalogEndpointItemView(
     public bool HasIssues => IssueCount > 0;
 }
 
-/// <summary>The EsriCatalogDetail projection: the endpoint header plus its mirrored items table.</summary>
 public sealed record CatalogEndpointDetailView(
     CatalogEndpointView Endpoint,
     string? LastRebuild,
     bool AutoMirror,
     IReadOnlyList<CatalogEndpointItemView> Items);
 
-/// <summary>One field in the CatalogItemEditor with its source state and (for derived fields) its origin.</summary>
 public sealed record CatalogItemFieldView(
     string Label,
     string State,
@@ -90,14 +78,12 @@ public sealed record CatalogItemFieldView(
     public bool IsInput => string.Equals(State, HonuaCatalogFieldStates.Input, StringComparison.Ordinal);
 }
 
-/// <summary>One field group in the CatalogItemEditor (Identity, Catalog presentation, Service bindings, Standards).</summary>
 public sealed record CatalogItemFieldGroupView(
     string Title,
     string? Subtitle,
     string? Scope,
     IReadOnlyList<CatalogItemFieldView> Fields);
 
-/// <summary>The CatalogItemEditor projection: an auto-mirrored item with its field groups.</summary>
 public sealed record CatalogItemView(
     string Id,
     string Title,
@@ -111,7 +97,6 @@ public sealed record CatalogItemView(
     public bool HasIssues => IssueCount > 0;
 }
 
-/// <summary>Result of loading the discovery registry: the view, or the capability states explaining why not.</summary>
 public sealed record CatalogDiscoveryRegistryLoad(
     CatalogDiscoveryRegistryView? Registry,
     IReadOnlyList<CatalogDiscoveryCapabilityState> CapabilityStates)
@@ -119,7 +104,6 @@ public sealed record CatalogDiscoveryRegistryLoad(
     public bool HasRegistry => Registry is not null;
 }
 
-/// <summary>Result of loading one endpoint detail: the view, or the capability states explaining why not.</summary>
 public sealed record CatalogEndpointDetailLoad(
     CatalogEndpointDetailView? Detail,
     IReadOnlyList<CatalogDiscoveryCapabilityState> CapabilityStates)
@@ -127,7 +111,6 @@ public sealed record CatalogEndpointDetailLoad(
     public bool HasDetail => Detail is not null;
 }
 
-/// <summary>Result of loading one catalog item: the view, or the capability states explaining why not.</summary>
 public sealed record CatalogItemLoad(
     CatalogItemView? Item,
     IReadOnlyList<CatalogDiscoveryCapabilityState> CapabilityStates)
@@ -135,7 +118,6 @@ public sealed record CatalogItemLoad(
     public bool HasItem => Item is not null;
 }
 
-/// <summary>Maps the honua-server catalog discovery wire records to the Catalogs page view records.</summary>
 public static class CatalogDiscoveryMapper
 {
     public static CatalogEndpointView ToView(HonuaCatalogEndpoint endpoint)

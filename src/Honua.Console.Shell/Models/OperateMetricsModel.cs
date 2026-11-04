@@ -2,10 +2,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// One metrics sub-read carrying its own section status so the page degrades each
-/// metric independently (one unavailable metric must not blank the whole surface).
-/// </summary>
 public sealed record OperateMetricSection<T>(
     OperateSectionStatus Status,
     T? Value,
@@ -25,10 +21,6 @@ public sealed record OperateMetricSection<T>(
             : new(result.Status, default, result.Message);
 }
 
-/// <summary>
-/// A scannable utilization/ratio bar: a width-percentage plus the raw display value
-/// and a color-coded status, so the page renders a CSS bar (no charting library).
-/// </summary>
 public sealed record OperateMetricBar(
     double Percent,
     string DisplayValue,
@@ -114,10 +106,6 @@ public sealed record OperateComprehensiveHealthMetric(
     IReadOnlyList<OperateHealthCheckEntry> Entries,
     string Timestamp);
 
-/// <summary>
-/// Aggregated metrics snapshot: each section carries its own status so the page
-/// renders live values where bound and an honest missing-binding state per metric.
-/// </summary>
 public sealed record OperateMetricsSnapshot(
     OperateMetricSection<OperateConnectionPoolMetric> ConnectionPool,
     OperateMetricSection<OperateCacheMetric> Cache,
@@ -126,10 +114,6 @@ public sealed record OperateMetricsSnapshot(
     OperateMetricSection<OperateDatabaseResilienceMetric> DatabaseResilience,
     OperateMetricSection<OperateComprehensiveHealthMetric> Health)
 {
-    /// <summary>
-    /// True when every sub-read was denied with the same not-bound state — used by
-    /// the page to show one top-level missing-binding banner instead of six.
-    /// </summary>
     public bool IsEntirelyUnbound =>
         !ConnectionPool.IsAllowed
         && !Cache.IsAllowed

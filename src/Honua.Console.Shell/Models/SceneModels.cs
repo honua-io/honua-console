@@ -10,7 +10,6 @@ namespace Honua.Console.Shell.Models;
 // the server wire contract so the console can discover renderable point-cloud
 // scenes and view them in a 3D Tiles viewer.
 
-/// <summary>Bounding box of a scene in WGS-84 degrees.</summary>
 public sealed record SceneBounds
 {
     [JsonPropertyName("west")]
@@ -26,7 +25,6 @@ public sealed record SceneBounds
     public double North { get; init; }
 }
 
-/// <summary>A discoverable renderable scene summary from <c>GET /api/scenes</c>.</summary>
 public sealed record SceneSummary
 {
     [JsonPropertyName("id")]
@@ -54,17 +52,12 @@ public sealed record SceneSummary
     public DateTimeOffset? UpdatedAt { get; init; }
 }
 
-/// <summary>The <c>GET /api/scenes</c> discovery list response.</summary>
 public sealed record SceneListResponse
 {
     [JsonPropertyName("scenes")]
     public IReadOnlyList<SceneSummary> Scenes { get; init; } = [];
 }
 
-/// <summary>
-/// Result of <c>POST /api/v1/admin/scenes/ingest/pointcloud</c>: a servable
-/// 3D Tiles point tileset plus ingest statistics.
-/// </summary>
 public sealed record PointCloudIngestResult
 {
     [JsonPropertyName("sceneId")]
@@ -86,7 +79,6 @@ public sealed record PointCloudIngestResult
     public IReadOnlyList<double> BoundingRegionDegrees { get; init; } = [];
 }
 
-/// <summary>Read/operation-status vocabulary for the scene surface.</summary>
 public enum SceneReadStatus
 {
     Ok,
@@ -99,7 +91,6 @@ public enum SceneReadStatus
     Unavailable
 }
 
-/// <summary>Read/ingest envelope whose status drives the shared scene surfaces.</summary>
 public sealed record SceneReadResult<T>
 {
     public SceneReadStatus Status { get; init; }
@@ -117,7 +108,6 @@ public sealed record SceneReadResult<T>
         new() { Status = status, Message = message };
 }
 
-/// <summary>A LAS point cloud to ingest (in-memory bytes + optional metadata).</summary>
 public sealed record PointCloudIngestRequest
 {
     public required byte[] Content { get; init; }
@@ -131,7 +121,6 @@ public sealed record PointCloudIngestRequest
     public int? SourceCrs { get; init; }
 }
 
-/// <summary>Consistent titles/copy for non-ok scene states.</summary>
 public static class ScenePresentation
 {
     public const string MissingBindingMessage =
