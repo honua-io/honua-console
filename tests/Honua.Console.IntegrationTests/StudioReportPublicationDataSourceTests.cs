@@ -367,13 +367,6 @@ public sealed class StudioReportPublicationDataSourceTests
 
     private sealed class FakePublicationClient : IHonuaContentPublicationClient
     {
-
-        public HonuaAdminEndpointResult<HonuaReportGenerationResult>? GenerateReportResult { get; set; }
-
-        public int GenerateReportCalls { get; private set; }
-
-        public GenerateReportContentRequest? LastGenerateReportRequest { get; private set; }
-
         public FakePublicationClient(HonuaAdminEndpointResult<HonuaContentPublicationDetail>? getResult = null)
         {
             GetResult = getResult;

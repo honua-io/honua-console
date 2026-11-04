@@ -244,15 +244,6 @@ public sealed class StudioFormPackageDataSourceTests
 
     private sealed class FakeFormPackageClient : IHonuaFormPackageClient
     {
-
-        public HonuaAdminEndpointResult<HonuaFormGenerationResult>? GenerateFormResult { get; set; }
-
-        public int GenerateFormCalls { get; private set; }
-
-        public HonuaAdminEndpointResult<HonuaFormXlsFormImportResult>? ImportXlsFormResult { get; set; }
-
-        public int ImportXlsFormCalls { get; private set; }
-
         public Uri BaseUri { get; } = new("https://honua.test");
 
         public HonuaAdminEndpointResult<HonuaFormPackageSummary[]> Packages { get; set; } =
