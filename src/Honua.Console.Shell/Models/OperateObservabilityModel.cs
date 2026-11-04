@@ -509,13 +509,7 @@ public sealed record OperateJobAction(
     bool IsAllowed,
     string Reason);
 
-/// <summary>
-/// Stable identifiers which let an operator correlate one Console job with the
-/// Admin API, <c>honua admin</c>, MCP, OGC API Processes, and the Esri-compatible
-/// GPServer projection. Values are copied from the server-owned job detail and
-/// its allow-listed <c>selectedMetadata</c>; Console never invents an alias or a
-/// second job identity.
-/// </summary>
+// Copied from the server job detail. Console does not invent a second job identity.
 public sealed record OperateJobIdentity(
     string CorrelationId,
     string TraceId,
