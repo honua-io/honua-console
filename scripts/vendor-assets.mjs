@@ -29,8 +29,8 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { gunzipSync } from "node:zlib";
 import { canonicalJson, validateManifest } from "./lib/cesium-extracted-tree.mjs";
+import { readTarArchive } from "./lib/tar-archive.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const manifestPath = resolve(repoRoot, "scripts/vendored-assets.json");
@@ -46,42 +46,24 @@ function sha512Integrity(bytes) {
   return `sha512-${createHash("sha512").update(bytes).digest("base64")}`;
 }
 
-/**
- * Minimal gzip+tar reader. Node ships zlib but no tar, and this repo has zero dependencies by
- * design — a ~40-line ustar walker is a better trade than adding one for three files a year.
- * Returns a Map of entry path -> Buffer for regular files only.
- */
+// npm tarballs leave the owner fields empty. Only regular files are vendored; GNU long names
+// apply to the next entry, and pax and every other entry type are skipped as before.
+const NPM_EMPTY_OWNER_FIELDS = ["uid", "gid"];
+const REGULAR_FILE_TYPES = new Set(["0", "\0"]);
+const GNU_LONG_NAME_TYPE = "L";
+
 export function readTarGz(gzipped) {
-  const tar = gunzipSync(gzipped);
-  const entries = new Map();
-  let offset = 0;
-  let pendingLongName = null;
-
-  while (offset + 512 <= tar.length) {
-    const header = tar.subarray(offset, offset + 512);
-    // Two consecutive zero blocks terminate the archive; one is enough to stop reading.
-    if (header.every((byte) => byte === 0)) break;
-
-    const name = header.subarray(0, 100).toString("utf8").replace(/\0.*$/, "");
-    const prefix = header.subarray(345, 500).toString("utf8").replace(/\0.*$/, "");
-    const sizeField = header.subarray(124, 136).toString("utf8").replace(/\0.*$/, "").trim();
-    const size = Number.parseInt(sizeField, 8) || 0;
-    const typeFlag = String.fromCharCode(header[156]);
-    const body = tar.subarray(offset + 512, offset + 512 + size);
-    offset += 512 + Math.ceil(size / 512) * 512;
-
-    if (typeFlag === "L") {
-      // GNU long-name extension: the next header's name lives in this entry's body.
-      pendingLongName = body.toString("utf8").replace(/\0.*$/, "");
+  const files = new Map();
+  let longName;
+  for (const { name, type, body } of readTarArchive(gzipped, { emptyNumericFields: NPM_EMPTY_OWNER_FIELDS })) {
+    if (type === GNU_LONG_NAME_TYPE) {
+      longName = body.toString("utf8").replace(/\0[\s\S]*$/, "");
       continue;
     }
-    const fullName = pendingLongName ?? (prefix ? `${prefix}/${name}` : name);
-    pendingLongName = null;
-    if (typeFlag === "0" || typeFlag === "\0") {
-      entries.set(fullName, Buffer.from(body));
-    }
+    if (REGULAR_FILE_TYPES.has(type)) files.set(longName ?? name, Buffer.from(body));
+    longName = undefined;
   }
-  return entries;
+  return files;
 }
 
 async function fetchBuffer(url) {

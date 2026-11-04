@@ -5,7 +5,9 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 import { gzipSync } from "node:zlib";
 
-import { TAR_LIMITS, extractTarGz } from "../lib/tar-archive.mjs";
+import { TAR_LIMITS, readTarArchive } from "../lib/tar-archive.mjs";
+import { extractTarGz } from "../lib/tar-extraction.mjs";
+import { readTarGz } from "../vendor-assets.mjs";
 import {
   GNU_FORMAT,
   HEADER_OFFSETS,
@@ -71,7 +73,7 @@ test("entry types other than regular files and directories are refused", async (
   for (const type of ["1", "2", "3", "4", "6", "7", "x", "g", "L", "K", "\0"]) {
     await assertRefused(tarGz(withHeaderField(file("./a.js"), HEADER_OFFSETS.type, type)), /unsupported type/);
   }
-  await assertRefused(tarGz(withHeaderField(directory("./assets/"), HEADER_OFFSETS.size, "00000000001\0")), /carries 1 bytes/);
+  await assertRefused(tarGz(tarEntry("./assets/", { type: "5", body: Buffer.from("x") })), /carries 1 bytes/);
 });
 
 test("the archive must end with a complete end-of-archive marker and nothing after it", async () => {
@@ -115,4 +117,31 @@ test("the default limits leave headroom above the v0.1.1 release", () => {
   assert.ok(TAR_LIMITS.maxInflatedBytes >= 10 * release.inflatedBytes);
   assert.ok(TAR_LIMITS.maxEntries >= 100 * release.entries);
   assert.ok(TAR_LIMITS.maxEntryBytes >= 10 * release.largestEntryBytes);
+});
+
+test("owner fields may be empty only for a caller that allows it", () => {
+  const ownerless = withHeaderField(withHeaderField(file("package/LICENSE", "MIT"), 108, "\0".repeat(8)), 116, "\0".repeat(8));
+  assert.throws(() => readTarArchive(tarGz(ownerless)), /malformed uid field/);
+  const [entry] = readTarArchive(tarGz(ownerless), { emptyNumericFields: ["uid", "gid"] });
+  assert.equal(entry.body.toString(), "MIT");
+  assert.throws(
+    () => readTarArchive(tarGz(withHeaderField(ownerless, 108, "12x\0\0\0\0\0")), { emptyNumericFields: ["uid", "gid"] }),
+    /malformed uid field/,
+  );
+});
+
+test("npm vendoring reads regular files through the shared parser and skips other entry types", () => {
+  const longName = `package/${"nested/".repeat(16)}module.js`;
+  const archive = tarGz(
+    tarEntry("package/pax", { type: "x", body: Buffer.from("27 path=package/ignored.js\n") }),
+    file("package/LICENSE", "MIT"),
+    directory("package/dist/"),
+    tarEntry("././@LongLink", { type: "L", body: Buffer.from(`${longName}\0`) }),
+    file(longName.slice(0, 99), "long"),
+    tarEntry("package/link.js", { type: "2", link: "LICENSE" }),
+  );
+  const files = readTarGz(archive);
+  assert.deepEqual([...files.keys()], ["package/LICENSE", longName]);
+  assert.equal(files.get(longName).toString(), "long");
+  assert.throws(() => readTarGz(tarGz(withUnsealedHeaderField(file("package/LICENSE"), 0, "q"))), /checksum does not match/);
 });

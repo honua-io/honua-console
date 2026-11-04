@@ -7,7 +7,8 @@ import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 
 import { verifyCompressedCopies } from "./compressed-static-assets.mjs";
-import { MIB, TAR_LIMITS, extractTarGz } from "./tar-archive.mjs";
+import { MIB, TAR_LIMITS } from "./tar-archive.mjs";
+import { extractTarGz } from "./tar-extraction.mjs";
 
 export const RELEASE_LIMITS = Object.freeze({ maxArchiveBytes: 32 * MIB, ...TAR_LIMITS });
 
