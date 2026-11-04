@@ -1,4 +1,5 @@
 import { test, expect } from '../admin-api';
+import { GEOSERVICES_TOKEN_REQUIRED, anonymousGeoServicesQuery } from '../geoservices';
 import { isServicePublished } from '../published';
 
 // Live e2e for the Operate service-settings surface (/operate/services/{svc}/settings): it validates that
@@ -10,7 +11,7 @@ import { isServicePublished } from '../published';
 //   1. Protocol enablement — toggling a protocol on makes the layer serve through that protocol's endpoint,
 //      and toggling it off makes that per-service endpoint stop serving (negative check).
 //   2. Access policy (the access tier) — the anonymous-read toggle gates the live FeatureServer query for an
-//      unauthenticated caller (200 when public, 401 when private).
+//      unauthenticated caller (features when public, the GeoServices 499 error when private).
 //
 // Target: the published service `e2e_src_fs` (layer 1), seeded by services-layers.live.spec.ts. If it is not
 // present (the publish spec has not run on this server), the whole describe is skipped with a clear reason.
@@ -119,19 +120,19 @@ test.describe('Operate · Service settings (live)', () => {
     const base = admin.serverUrl;
     const query = `/rest/services/${SERVICE_NAME}/FeatureServer/${LAYER_ID}/query?where=1%3D1&outFields=*&f=json`;
     // An UNauthenticated caller (no X-API-Key) — its access is governed purely by the service access policy.
-    const anon = async () => (await page.request.get(`${base}${query}`)).status();
+    const anon = () => anonymousGeoServicesQuery(page.request, `${base}${query}`);
 
     await page.goto(`/operate/services/${SERVICE_NAME}/settings`);
     await expect(page.locator('[data-service-config]')).toBeVisible({ timeout: 30_000 });
     const allowAnon = page.locator('[data-allow-anonymous]');
 
-    // 1) Make the service PRIVATE (anonymous read off) and save → the anonymous query is refused (401/403).
+    // 1) Make the service PRIVATE (anonymous read off) and save → the anonymous query is refused.
     if (await allowAnon.isChecked()) await allowAnon.uncheck();
     await page.locator('[data-save-access]').click();
     await expect(page.locator('[data-config-result]')).toContainText('Updated', { timeout: 30_000 });
     await expect
       .poll(anon, { timeout: 20_000, intervals: [500, 1000, 2000] })
-      .toBeGreaterThanOrEqual(401);
+      .toEqual({ errorCode: GEOSERVICES_TOKEN_REQUIRED });
     // A keyed caller still succeeds (the policy gates anonymous, not admin).
     expect((await page.request.get(`${base}${query}`, { headers: ADMIN_HEADERS })).status()).toBe(200);
 
@@ -141,7 +142,7 @@ test.describe('Operate · Service settings (live)', () => {
     await expect(page.locator('[data-config-result]')).toContainText('Updated', { timeout: 30_000 });
     await expect
       .poll(anon, { timeout: 20_000, intervals: [500, 1000, 2000] })
-      .toBe(200);
+      .toEqual({ features: expect.any(Number) });
     // Leave the service public (its state on entry), so the rest of the suite sees it unchanged.
   });
 });

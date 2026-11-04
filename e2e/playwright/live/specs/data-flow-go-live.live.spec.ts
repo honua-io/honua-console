@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '../admin-api';
+import { GEOSERVICES_TOKEN_REQUIRED, anonymousGeoServicesQuery } from '../geoservices';
 import { SOURCE_DB, sourceConnectionBody } from '../source-db';
 
 // The core customer journey: an existing published layer goes live through /operate/data/new.
@@ -12,8 +13,6 @@ const SERVICE = `e2e_golive_${stamp}`;
 const LAYER_NAME = `E2E Go Live ${stamp}`;
 const CHOSEN_PROTOCOLS = ['FeatureServer', 'OgcFeatures'];
 const SEEDED_FEATURES = 3;
-// GeoServices answers a refused read with HTTP 200 and an error envelope, so "denied" is "no features[]".
-const DENIED = -1;
 
 test('an existing layer goes live through Apply & publish and is queryable anonymously', async ({ page, admin }) => {
   test.setTimeout(300_000);
@@ -30,13 +29,9 @@ test('an existing layer goes live through Apply & publish and is queryable anony
   const seeded = await admin.publishLayer(conn.connectionId, { schema, table, layerName: LAYER_NAME, serviceName: SERVICE });
   const featureServer = `/rest/services/${SERVICE}/FeatureServer`;
   const query = `${featureServer}/${seeded.layerId}/query?where=1%3D1&outFields=*&f=json`;
-  const anonymousFeatureCount = async () => {
-    const res = await page.request.get(`${admin.serverUrl}${query}`);
-    const body = res.ok() ? await res.json() : {};
-    return Array.isArray(body.features) ? body.features.length : DENIED;
-  };
+  const anonymousQuery = () => anonymousGeoServicesQuery(page.request, `${admin.serverUrl}${query}`);
   await admin.putJson(`/api/v1/admin/services/${SERVICE}/access-policy`, { allowAnonymous: false });
-  await expect.poll(anonymousFeatureCount, { timeout: 20_000 }).toBe(DENIED);
+  await expect.poll(anonymousQuery, { timeout: 20_000 }).toEqual({ errorCode: GEOSERVICES_TOKEN_REQUIRED });
 
   await page.goto('/operate/data/new?source=existingresource');
   const resource = page.getByLabel('Existing resource', { exact: true });
@@ -70,6 +65,6 @@ test('an existing layer goes live through Apply & publish and is queryable anony
   expect([...enabled].sort()).toEqual([...CHOSEN_PROTOCOLS].sort());
 
   await expect
-    .poll(anonymousFeatureCount, { message: 'the live layer serves the seeded features anonymously', timeout: 20_000 })
-    .toBe(SEEDED_FEATURES);
+    .poll(anonymousQuery, { message: 'the live layer serves the seeded features anonymously', timeout: 20_000 })
+    .toEqual({ features: SEEDED_FEATURES });
 });
