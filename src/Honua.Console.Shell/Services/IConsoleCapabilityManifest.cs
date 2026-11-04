@@ -18,7 +18,7 @@ namespace Honua.Console.Shell.Services;
 ///
 /// Server-backed gates resolve from <c>GET /api/v1/capabilities/manifest</c> and fail closed.
 /// <c>Honua:Console:Capabilities</c> is an optional intersection-only local policy; it cannot
-/// make a server-unavailable capability available. <c>studio-builders</c> remains local-only.
+/// make a server-unavailable capability available.
 /// </summary>
 public interface IConsoleCapabilityManifest
 {
@@ -91,7 +91,7 @@ public sealed class ConsoleCapabilityManifest : IConsoleCapabilityManifest
 
 /// <summary>
 /// Resolves server-backed Console gates from the live server manifest. Local
-/// configuration is intersection-only; <c>studio-builders</c> remains local.
+/// configuration is intersection-only.
 /// Failed or incomplete manifest reads clear every server-backed gate.
 /// </summary>
 public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapabilityManifest

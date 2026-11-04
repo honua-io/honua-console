@@ -2,13 +2,13 @@
 
 > Read-only investigation. Server repo: `honua-srv-finish`. Console repo: `honua-console-metrics` (Blazor Server, `src/Honua.Console.Shell`). All citations are `file:line`.
 
-## Status (2026-11-04)
+## Current surfaces
 
-The display, editing, discovery, spatial, settings-caps, subtypes, attribute-rules, extrusion and lifecycle
-endpoints this analysis planned were never merged to honua-server trunk; they live only on the
-`feat/finish-workflows-server` branch. The Console removed the pages that depended on them, and authors the
-editing policy through the registered `PUT /api/v1/admin/services/{service}/layers/{id}/metadata`. The server
-work is tracked in honua-server#6927–#6932.
+The Console authors field aliases, visibility and domains (`PUT /api/v1/admin/metadata/layers/{id}/fields`),
+relationships, the permanent filter, popup and drawing info, service protocols, access policy, MapServer
+settings and time info, and a layer's editing policy (`PUT /api/v1/admin/services/{service}/layers/{id}/metadata`).
+Display, spatial, discovery, settings-caps, subtypes, attribute-rule, extrusion and lifecycle authoring have no
+registered server route and no Console surface.
 
 ## Executive summary
 

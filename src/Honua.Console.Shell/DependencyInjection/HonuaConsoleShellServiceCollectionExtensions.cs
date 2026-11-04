@@ -39,7 +39,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IConsoleShortcutPlatform, RuntimeConsoleShortcutPlatform>();
 
         // Server-backed gates use the live SDK manifest independently of Studio intent resolution.
-        // Local capability configuration can only narrow that truth; studio-builders remains local.
+        // Local capability configuration can only narrow that truth.
         // Capability snapshots are mutable and belong to the current Blazor circuit. The registry
         // remains request-time/operator-aware, but the snapshot itself must not be shared between circuits.
         services.TryAddScoped<IConsoleCapabilityManifest>(serviceProvider =>
@@ -900,8 +900,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
     }
 
-    // Layer field-domain authoring (…/fields) and display/editing/CRS metadata authoring
-    // (…/display|editing|spatial).
+    // Layer field-domain authoring (…/fields) and the service-scoped layer editing policy.
     private static void AddOperateLayerMetadataOperations(IServiceCollection services, bool live)
     {
         if (live)

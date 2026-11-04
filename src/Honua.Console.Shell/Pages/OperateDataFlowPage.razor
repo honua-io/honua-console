@@ -1,12 +1,6 @@
 @page "/operate/data/new"
 @using Honua.Console.Shell.Components.Operate
 
-@*
-    Hosts the unified resource-first "data → publish" flow (redesign §5.2 NEW /operate/data/new). It is a
-    thin route shell: the DataToPublishFlow component owns the flow object and all server wiring. The query
-    param seeds the entry point so the old entry points can redirect here:
-        ?source=file|table|remoteservice|existingresource
-*@
 <DataToPublishFlow InitialSource="@Source" />
 
 @code {

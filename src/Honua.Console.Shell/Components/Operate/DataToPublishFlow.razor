@@ -8,21 +8,6 @@
 @inject IStudioMapStyleCatalogDataSource StyleData
 @inject NavigationManager Nav
 
-@*
-    The host of the unified resource-first "data → publish" flow (redesign §3 / §6.2 Phase 1). It owns one
-    DataToPublishFlowState (the shared flow object, §3.1), renders the step rail, and hands authoring to the
-    shared workspace conversation:
-
-        ① Add data    — AddDataIntake (file / table / remote / existing resource); a file opens the import
-                        task, a table opens the canonical quick-publish form, a remote service embeds the
-                        import surface, and an existing resource continues to Publish
-        ③ Publish     — PublishProtocolPicker: protocol toggles → metadata-v2 Publications (the spine, §3.0)
-        ④ Style       — dual-mode StudioStyleEditor (picked here, authored in the embedded editor; not forked)
-        ⑤ Go live     — per-protocol route review + visibility + Apply
-
-    When no server is bound the data-source reads return missing-binding states, which this host renders as a
-    first-class panel rather than fabricating a step result.
-*@
 <section class="console-page data-publish-flow" data-data-publish-flow>
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Add data</p>

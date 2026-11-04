@@ -6,8 +6,7 @@ using Honua.Console.Shell.Validation;
 namespace Honua.Console.Native.Core.Tests;
 
 /// <summary>
-/// Docker-free coverage for the Wave-3 Studio report + dashboard client validators and their server-error
-/// binders: required presence, unique binding aliases, panel→binding referential integrity, Vega-Lite spec
+/// Docker-free coverage for the Studio report client validator and its server-error binder: required presence, unique binding aliases, panel→binding referential integrity, Vega-Lite spec
 /// (JSON + vega-lite <c>$schema</c>), RouteSlug format / Visibility enum, and JSON-Pointer → field-key
 /// resolution for server findings.
 /// </summary>
