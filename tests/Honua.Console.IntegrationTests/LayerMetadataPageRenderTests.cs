@@ -61,19 +61,65 @@ public sealed class LayerMetadataPageRenderTests
             Assert.Contains("globalIdField must name a UUID field", page.Find("[data-editing-result]").TextContent, StringComparison.Ordinal));
     }
 
-    private static OperateServiceDetail Service(string name) =>
-        new(name, name, "FeatureServer", "Running", "honua-server", [Parcels], [], []);
+    [Fact]
+    public void OnlyFeatureServerServicesAreOffered()
+    {
+        var page = RenderPage(new RecordingMetadata(),
+            Service("a-map", "MapServer"), Service("b-mixed", "MapServer, FeatureServer"), Service("c-feature"));
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-editing-save]")));
+
+        var options = page.FindAll("[data-editing-service] option").Select(option => option.GetAttribute("value"));
+
+        Assert.Equal(["b-mixed", "c-feature"], options);
+    }
+
+    [Fact]
+    public void LayerWithoutAFeatureServer_OffersNoEditingForm()
+    {
+        var page = RenderPage(new RecordingMetadata(), Service("a-map", "MapServer"));
+
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-editing-unavailable]")));
+        Assert.Empty(page.FindAll("[data-editing-save]"));
+    }
+
+    [Fact]
+    public void NavigatingToAnotherLayer_StartsFromAnUnchangedForm()
+    {
+        var metadata = new RecordingMetadata();
+        var roads = new OperateServiceLayerProjection(2, "Roads", "LineString", "conn-1-layer-2", "roads");
+        using var ctx = CreateContext(metadata,
+            new OperateServiceDetail("cadastre", "cadastre", "FeatureServer", "Running", "honua-server", [Parcels, roads], [], []));
+        var page = ctx.Render<OperateLayerMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-editing-save]")));
+        page.Find("[data-editing-delete]").Change("false");
+        page.Find("[data-editing-save]").Click();
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-editing-result]")));
+
+        page.Render(p => p.Add(x => x.ResourceId, roads.CanonicalResourceId));
+        page.WaitForAssertion(() => Assert.Contains("Roads", page.Find("h1").TextContent, StringComparison.Ordinal));
+        Assert.Empty(page.FindAll("[data-editing-result]"));
+        page.Find("[data-editing-save]").Click();
+
+        page.WaitForAssertion(() => Assert.Equal(2, metadata.Changes.Count));
+        Assert.Equal(new ConsoleLayerEditingChange { ServiceName = "cadastre", LayerId = 2 }, metadata.Changes[1]);
+    }
+
+    private static OperateServiceDetail Service(string name, string protocols = "FeatureServer") =>
+        new(name, name, protocols, "Running", "honua-server", [Parcels], [], []);
 
     private static IRenderedComponent<OperateLayerMetadataPage> RenderPage(
         RecordingMetadata metadata,
-        params OperateServiceDetail[] services)
+        params OperateServiceDetail[] services) =>
+        CreateContext(metadata, services).Render<OperateLayerMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
+
+    private static BunitContext CreateContext(RecordingMetadata metadata, params OperateServiceDetail[] services)
     {
         var ctx = new BunitContext();
         ctx.AddConsoleNotifications();
         var data = services.Length == 0 ? FixedServicesDataSource.WithLayer(Parcels) : new FixedServicesDataSource(services);
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(data);
         ctx.Services.AddSingleton<IConsoleLayerMetadataOperation>(metadata);
-        return ctx.Render<OperateLayerMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        return ctx;
     }
 
     private sealed class RecordingMetadata : IConsoleLayerMetadataOperation

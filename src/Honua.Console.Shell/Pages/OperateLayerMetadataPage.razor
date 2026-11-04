@@ -22,39 +22,48 @@
             </div>
         </div>
 
-        <section class="console-section" data-editing-panel>
-            <div class="console-field-grid">
-                <label class="console-field">
-                    <span>Service</span>
-                    <select class="console-input" @bind="_edit.ServiceName" aria-label="Service" data-editing-service>
-                        @foreach (var exposure in _exposures)
-                        {
-                            <option value="@exposure.Service.Name">@exposure.Service.DisplayName</option>
-                        }
-                    </select>
-                </label>
-                <label class="console-field">
-                    <span>Global id field</span>
-                    <input class="console-input" @bind="_edit.GlobalIdField" aria-label="Global id field" data-editing-globalid placeholder="(unchanged)" />
-                </label>
-                <TriStateSelect Label="Supports attachments" @bind-Value="_edit.SupportsAttachments" data-editing-attachments />
-                <TriStateSelect Label="Allow create" @bind-Value="_edit.AllowCreate" data-editing-create />
-                <TriStateSelect Label="Allow update" @bind-Value="_edit.AllowUpdate" data-editing-update />
-                <TriStateSelect Label="Allow delete" @bind-Value="_edit.AllowDelete" data-editing-delete />
-            </div>
-            <div class="console-action-row">
-                <button class="console-button" type="button" disabled="@_saving" @onclick="SaveEditingAsync" data-editing-save>
-                    @(_saving ? "Saving…" : "Save editing policy")
-                </button>
-            </div>
-            @if (_result is { } result)
-            {
-                <div class="console-panel @(result.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-editing-result>
-                    <p class="console-kicker">@result.State</p>
-                    <p>@result.Detail</p>
+        @if (_editableExposures.Count == 0)
+        {
+            <article class="console-panel console-state-warning" role="status" data-editing-unavailable>
+                <p>Editing policy applies to FeatureServer services, and no FeatureServer service exposes this layer.</p>
+            </article>
+        }
+        else
+        {
+            <section class="console-section" data-editing-panel>
+                <div class="console-field-grid">
+                    <label class="console-field">
+                        <span>Service</span>
+                        <select class="console-input" @bind="_edit.ServiceName" aria-label="Service" data-editing-service>
+                            @foreach (var exposure in _editableExposures)
+                            {
+                                <option value="@exposure.Service.Name">@exposure.Service.DisplayName</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="console-field">
+                        <span>Global id field</span>
+                        <input class="console-input" @bind="_edit.GlobalIdField" aria-label="Global id field" data-editing-globalid placeholder="(unchanged)" />
+                    </label>
+                    <TriStateSelect Label="Supports attachments" @bind-Value="_edit.SupportsAttachments" data-editing-attachments />
+                    <TriStateSelect Label="Allow create" @bind-Value="_edit.AllowCreate" data-editing-create />
+                    <TriStateSelect Label="Allow update" @bind-Value="_edit.AllowUpdate" data-editing-update />
+                    <TriStateSelect Label="Allow delete" @bind-Value="_edit.AllowDelete" data-editing-delete />
                 </div>
-            }
-        </section>
+                <div class="console-action-row">
+                    <button class="console-button" type="button" disabled="@_saving" @onclick="SaveEditingAsync" data-editing-save>
+                        @(_saving ? "Saving…" : "Save editing policy")
+                    </button>
+                </div>
+                @if (_result is { } result)
+                {
+                    <div class="console-panel @(result.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-editing-result>
+                        <p class="console-kicker">@result.State</p>
+                        <p>@result.Detail</p>
+                    </div>
+                }
+            </section>
+        }
     }
 </section>
 
@@ -63,7 +72,9 @@
     public string ResourceId { get; set; } = string.Empty;
 
     private IReadOnlyList<OperateLayerExposure> _exposures = [];
-    private readonly EditingForm _edit = new();
+    private IReadOnlyList<OperateLayerExposure> _editableExposures = [];
+    private string? _loadedResourceId;
+    private EditingForm _edit = new();
     private bool _saving;
     private ConsoleSetLayerMetadataResult? _result;
 
@@ -73,17 +84,31 @@
     {
         var view = await OperateData.GetLayersViewAsync();
         _exposures = view.FindExposures(ResourceId);
-        if (_exposures.Count > 0)
+        _editableExposures = _exposures
+            .Where(exposure => exposure.Service.Serves(PublishProtocolCatalog.Protocols.FeatureServer))
+            .ToArray();
+        if (!string.Equals(_loadedResourceId, ResourceId, StringComparison.Ordinal))
         {
-            _edit.ServiceName = _exposures[0].Service.Name;
+            _loadedResourceId = ResourceId;
+            _edit = new EditingForm { ServiceName = _editableExposures.FirstOrDefault()?.Service.Name ?? string.Empty };
+            _result = null;
         }
     }
 
     private Task SaveEditingAsync()
     {
+        var submittedFor = ResourceId;
+        var change = _edit.ToChange(Layer.LayerId);
         _result = null;
         return Notifications.RunGuardedAsync(
-            async () => _result = await LayerMetadata.SetEditingAsync(_edit.ToChange(Layer.LayerId)),
+            async () =>
+            {
+                var result = await LayerMetadata.SetEditingAsync(change);
+                if (string.Equals(submittedFor, ResourceId, StringComparison.Ordinal))
+                {
+                    _result = result;
+                }
+            },
             setBusy: busy => { _saving = busy; StateHasChanged(); },
             failureMessage: "Couldn't save the editing policy");
     }

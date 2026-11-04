@@ -30,7 +30,7 @@ public sealed class HonuaServerConsoleLayerMetadataOperation : IConsoleLayerMeta
             },
         };
         var result = await _client
-            .UpdateServiceLayerMetadataAsync(change.ServiceName, change.LayerId, request, cancellationToken)
+            .UpdateServiceLayerMetadataAsync(new HonuaAdminServiceLayer(change.ServiceName, change.LayerId), request, cancellationToken)
             .ConfigureAwait(false);
 
         return result.Data is not null

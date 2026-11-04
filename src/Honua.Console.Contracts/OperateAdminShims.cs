@@ -613,16 +613,16 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
     }
 
     public Task<HonuaAdminEndpointResult<HonuaAdminLayerMetadataResponse>> UpdateServiceLayerMetadataAsync(
-        string serviceName,
-        int layerId,
+        HonuaAdminServiceLayer layer,
         HonuaAdminUpdateLayerMetadataRequest request,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        ArgumentNullException.ThrowIfNull(layer);
+        ArgumentException.ThrowIfNullOrWhiteSpace(layer.ServiceName);
         ArgumentNullException.ThrowIfNull(request);
 
         return PutApiResponseAsync<HonuaAdminUpdateLayerMetadataRequest, HonuaAdminLayerMetadataResponse>(
-            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/layers/{layerId.ToString(CultureInfo.InvariantCulture)}/metadata",
+            $"/api/v1/admin/services/{Uri.EscapeDataString(layer.ServiceName)}/layers/{layer.LayerId.ToString(CultureInfo.InvariantCulture)}/metadata",
             request,
             "PUT /api/v1/admin/services/{serviceName}/layers/{layerId}/metadata",
             cancellationToken);
@@ -1461,6 +1461,9 @@ public sealed record HonuaAdminLayerEditingPatch
 
     public bool? Delete { get; init; }
 }
+
+/// <summary>One layer in one service: the key of the service-scoped layer metadata route.</summary>
+public sealed record HonuaAdminServiceLayer(string ServiceName, int LayerId);
 
 /// <summary>The server's <c>LayerMetadataResponse</c>, limited to the fields the Console reads.</summary>
 public sealed record HonuaAdminLayerMetadataResponse

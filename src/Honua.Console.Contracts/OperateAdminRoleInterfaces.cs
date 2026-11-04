@@ -228,8 +228,7 @@ public interface IHonuaAdminServiceSettingsClient
     /// (<c>PUT /api/v1/admin/services/{serviceName}/layers/{layerId}/metadata</c>). Omitted fields keep their values.
     /// </summary>
     Task<HonuaAdminEndpointResult<HonuaAdminLayerMetadataResponse>> UpdateServiceLayerMetadataAsync(
-        string serviceName,
-        int layerId,
+        HonuaAdminServiceLayer layer,
         HonuaAdminUpdateLayerMetadataRequest request,
         CancellationToken cancellationToken = default);
 

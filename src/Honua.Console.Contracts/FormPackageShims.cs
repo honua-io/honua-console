@@ -826,4 +826,3 @@ public sealed record HonuaFormLink
     [JsonPropertyName("method")]
     public string Method { get; init; } = "GET";
 }
-
