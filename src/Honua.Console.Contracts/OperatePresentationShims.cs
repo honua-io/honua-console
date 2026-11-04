@@ -31,16 +31,12 @@ public sealed record HonuaAdminLayerAuthoringDocument
     public JsonElement? Document { get; init; }
 }
 
-// The presentation authoring method declarations moved to IHonuaAdminPresentationClient
-// (OperateAdminRoleInterfaces.cs) as part of the PA-242 ISP decomposition; the aggregate
-// IHonuaAdminOperateClient inherits that role interface. The concrete implementations remain below.
-
 public sealed partial class HonuaAdminOperateHttpClient
 {
     public Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> GetLayerPopupInfoAsync(
         int layerId,
         CancellationToken cancellationToken = default) =>
-        GetAuthoringDocumentAsync(
+        GetEnvelopeAsync<HonuaAdminLayerAuthoringDocument>(
             $"/api/v1/admin/metadata/layers/{layerId}/popup-info",
             "GET /api/v1/admin/metadata/layers/{layerId}/popup-info",
             cancellationToken);
@@ -49,16 +45,15 @@ public sealed partial class HonuaAdminOperateHttpClient
         int layerId,
         JsonElement? document,
         CancellationToken cancellationToken = default) =>
-        PutAuthoringDocumentAsync(
-            $"/api/v1/admin/metadata/layers/{layerId}/popup-info",
-            document,
+        SendEnvelopeAsync<HonuaAdminLayerAuthoringDocument>(
+            () => JsonRequest(HttpMethod.Put, $"/api/v1/admin/metadata/layers/{layerId}/popup-info", document),
             "PUT /api/v1/admin/metadata/layers/{layerId}/popup-info",
             cancellationToken);
 
     public Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> GetLayerDrawingInfoAsync(
         int layerId,
         CancellationToken cancellationToken = default) =>
-        GetAuthoringDocumentAsync(
+        GetEnvelopeAsync<HonuaAdminLayerAuthoringDocument>(
             $"/api/v1/admin/metadata/layers/{layerId}/drawing-info",
             "GET /api/v1/admin/metadata/layers/{layerId}/drawing-info",
             cancellationToken);
@@ -67,31 +62,8 @@ public sealed partial class HonuaAdminOperateHttpClient
         int layerId,
         JsonElement? document,
         CancellationToken cancellationToken = default) =>
-        PutAuthoringDocumentAsync(
-            $"/api/v1/admin/metadata/layers/{layerId}/drawing-info",
-            document,
+        SendEnvelopeAsync<HonuaAdminLayerAuthoringDocument>(
+            () => JsonRequest(HttpMethod.Put, $"/api/v1/admin/metadata/layers/{layerId}/drawing-info", document),
             "PUT /api/v1/admin/metadata/layers/{layerId}/drawing-info",
-            cancellationToken);
-
-    private Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> GetAuthoringDocumentAsync(
-        string path,
-        string contract,
-        CancellationToken cancellationToken) =>
-        GetApiResponseAsync<HonuaAdminLayerAuthoringDocument>(path, contract, cancellationToken);
-
-    // The authoring PUT takes the raw document JSON object directly as the body (NOT wrapped); a null
-    // document is sent as JSON null to clear the stored template. The response is the ApiResponse-enveloped
-    // echo, so reuse the same send/envelope core as the other bodied admin writes.
-    private Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> PutAuthoringDocumentAsync(
-        string path,
-        JsonElement? document,
-        string contract,
-        CancellationToken cancellationToken) =>
-        SendApiResponseAsync<HonuaAdminLayerAuthoringDocument>(
-            () => new HttpRequestMessage(HttpMethod.Put, path)
-            {
-                Content = JsonContent.Create(document, options: JsonOptions),
-            },
-            contract,
             cancellationToken);
 }

@@ -28,7 +28,7 @@ public sealed class ConsoleCatalogClientTests
     {
         var services = new ServiceCollection();
 
-        services.AddHonuaConsoleShell("https://console.honua.test", "admin-key");
+        services.AddHonuaConsoleShell(new HonuaConsoleShellOptions { ServerBaseUrl = "https://console.honua.test", ServerAdminApiKey = "admin-key" });
 
         using var provider = services.BuildServiceProvider();
         var catalog = provider.GetRequiredService<IConsoleCatalogClient>();
