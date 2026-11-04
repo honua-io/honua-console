@@ -692,8 +692,8 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             ["Overview", "Source", "Fields", "Validation"]);
     }
 
-    internal string BuildProtocolUrl(string serviceName, string protocol) =>
-        _client.BaseUri.ToString().TrimEnd('/') + HonuaServedRoutes.PathFor(serviceName, protocol);
+    internal string? BuildProtocolUrl(string serviceName, string protocol) =>
+        HonuaServedRoutes.PathFor(serviceName, protocol) is { } path ? _client.BaseUri.ToString().TrimEnd('/') + path : null;
 
     private static string FormatTarget(HonuaAdminConnectionSummary connection)
     {

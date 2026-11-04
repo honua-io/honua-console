@@ -559,8 +559,35 @@ public sealed class OperateTransitionDataSourceTests
         // None of the non-Esri protocols may live under /rest/services.
         foreach (var protocol in new[] { "Wms", "Wmts", "Wfs20", "OData", "OgcFeatures", "OgcApiTiles", "OgcApiMaps", "Stac" })
         {
-            Assert.DoesNotContain("/rest/services/", dataSource.BuildProtocolUrl(svc, protocol), StringComparison.Ordinal);
+            var url = dataSource.BuildProtocolUrl(svc, protocol);
+            Assert.NotNull(url);
+            Assert.DoesNotContain("/rest/services/", url, StringComparison.Ordinal);
         }
+    }
+
+    [Theory]
+    [InlineData("Terrain")]
+    [InlineData("Elevation")]
+    [InlineData("Grpc")]
+    [InlineData("SomeFutureProtocol")]
+    public void ProtocolsWithoutAServiceUrlGetNoSlotUrl(string protocol)
+    {
+        // Terrain and elevation are served per dataset (/terrain/{datasetId}/..., /elevation/{datasetId}/...)
+        // and gRPC per RPC method, so no single URL addresses the service; an unknown protocol gets none either.
+        var dataSource = CreateServerDataSource(new RecordingJsonFixtureHandler(new Dictionary<string, string>()));
+
+        Assert.Null(dataSource.BuildProtocolUrl("e2e_src_fs", protocol));
+    }
+
+    [Fact]
+    public void EveryCatalogProtocolHasAServedRoute()
+    {
+        foreach (var descriptor in PublishProtocolCatalog.All)
+        {
+            Assert.StartsWith("/", HonuaServedRoutes.CatalogPathFor("svc", descriptor.Id), StringComparison.Ordinal);
+        }
+
+        Assert.Throws<InvalidOperationException>(() => HonuaServedRoutes.CatalogPathFor("svc", "Terrain"));
     }
 
     [Fact]
@@ -609,6 +636,24 @@ public sealed class OperateTransitionDataSourceTests
             new BoundServiceConfiguration());
         Assert.Contains("data-allow-anonymous", html, StringComparison.Ordinal);
         Assert.Matches("<fieldset[^>]*disabled", html);
+    }
+
+    [Fact]
+    public async Task ServiceDetailShowsNoUrlForAPublicationSlotWithoutOne()
+    {
+        var service = new OperateServiceDetail("sample", "Sample", "FeatureServer", "Ready", "server", [], [],
+        [
+            new OperatePublicationSlot("FeatureServer", "https://server.example/rest/services/sample/FeatureServer", "Exposed by honua-server"),
+            new OperatePublicationSlot("Terrain", null, "Exposed by honua-server"),
+        ]);
+        var dataSource = new StubOperateTransitionDataSource(new OperateTransitionWorkspace([], [], [service], [], []));
+        var html = await RenderPageAsync<OperateServiceDetailPage>(dataSource,
+            ParameterView.FromDictionary(new Dictionary<string, object?> { ["ServiceName"] = "sample" }),
+            new BoundServiceConfiguration());
+
+        Assert.Contains("https://server.example/rest/services/sample/FeatureServer", html, StringComparison.Ordinal);
+        Assert.Contains("No single service URL", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("/terrain", html, StringComparison.Ordinal);
     }
 
     private sealed class BoundServiceConfiguration : IServiceConfigurationOperation

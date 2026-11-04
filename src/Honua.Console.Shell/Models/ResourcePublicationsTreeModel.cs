@@ -112,7 +112,7 @@ public static class ResourcePublicationsTreeBuilder
                     descriptor.Id,
                     descriptor.Label,
                     IsLive: true,
-                    Route: HonuaServedRoutes.PathFor(PublishProtocolCatalog.ServiceNameFor(serviceSlot), descriptor.Id)));
+                    Route: HonuaServedRoutes.CatalogPathFor(PublishProtocolCatalog.ServiceNameFor(serviceSlot), descriptor.Id)));
             }
         }
 

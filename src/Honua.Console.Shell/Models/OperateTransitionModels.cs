@@ -169,7 +169,7 @@ public sealed record OperateRuntimeSetting(
 
 public sealed record OperatePublicationSlot(
     string Name,
-    string Url,
+    string? Url,
     string Status);
 
 public sealed record OperateSettingsChange(

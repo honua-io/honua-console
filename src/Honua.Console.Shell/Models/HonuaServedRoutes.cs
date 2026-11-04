@@ -1,11 +1,12 @@
 namespace Honua.Console.Shell.Models;
 
 // Only the Esri GeoServices server types and the classic OGC services are routed per service; the other
-// protocols have one server root and expose the service as a collection or type name inside it. Checked
-// against the honua-server endpoint registry.
+// HTTP protocols have one server root and expose the service as a collection or type name inside it.
+// Terrain and elevation are addressed per dataset and gRPC per RPC method, so they have no service URL.
+// Checked against the honua-server endpoint registry.
 public static class HonuaServedRoutes
 {
-    public static string PathFor(string serviceName, string protocol)
+    public static string? PathFor(string serviceName, string protocol)
     {
         var service = Uri.EscapeDataString(serviceName);
 
@@ -25,10 +26,11 @@ public static class HonuaServedRoutes
             "OgcApiCoverages" => "/ogc/coverages",
             "OData" => "/odata",
             "Stac" => "/stac",
-            "Terrain" => "/terrain",
-            "Elevation" => "/elevation",
-            "Grpc" => "/grpc",
-            _ => $"/rest/services/{service}/{Uri.EscapeDataString(protocol)}",
+            _ => null,
         };
     }
+
+    public static string CatalogPathFor(string serviceName, string protocol) =>
+        PathFor(serviceName, protocol)
+        ?? throw new InvalidOperationException($"Catalog protocol '{protocol}' has no served route.");
 }

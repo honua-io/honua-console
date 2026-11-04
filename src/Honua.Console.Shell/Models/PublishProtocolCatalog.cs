@@ -166,7 +166,7 @@ public static class PublishProtocolCatalog
                 descriptor.Id,
                 descriptor.ServiceType,
                 descriptor.Label,
-                HonuaServedRoutes.PathFor(serviceName, descriptor.Id)))
+                HonuaServedRoutes.CatalogPathFor(serviceName, descriptor.Id)))
             .ToArray();
     }
 
