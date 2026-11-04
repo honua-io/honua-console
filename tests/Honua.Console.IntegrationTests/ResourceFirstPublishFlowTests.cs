@@ -350,6 +350,7 @@ public sealed class ResourceFirstPublishFlowTests
     [InlineData("operate/resources", "/operate/data")]
     [InlineData("operate/services", "/operate/data?view=services")]
     [InlineData("operate/resources/new", "/operate/data/new")]
+    [InlineData("operate/alerts", "/operate/observability#alerts")]
     public void Redirects_FoldOldListAliasesIntoTheUnifiedFlow(string from, string expectedTarget)
     {
         using var ctx = NewContext();

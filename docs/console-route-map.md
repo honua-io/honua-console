@@ -78,7 +78,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/license               License + entitlement workspace
 /operate/observability         Top-level observability tile
 /operate/events/:eventId       Event timeline detail deep link
-/operate/alerts                Alerts list (firing, acknowledged, suppressed, resolved)
+/operate/alerts                Redirects to the alert list on /operate/observability (#alerts)
 /operate/alerts/:alertId       Alert evidence detail deep link
 /operate/alerts/rules          Realtime/geofence rule list
 /operate/alerts/rules/new      Create a disabled alert rule
