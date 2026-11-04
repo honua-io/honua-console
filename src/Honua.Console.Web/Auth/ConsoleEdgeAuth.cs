@@ -4,7 +4,6 @@ using Microsoft.Extensions.Options;
 
 namespace Honua.Console.Web.Auth;
 
-/// <summary>Bound trusted-edge configuration (<c>Honua:Console:Auth:EdgeForwarded:*</c>).</summary>
 public sealed class ConsoleEdgeAuthOptions
 {
     public bool Enabled { get; set; }
@@ -15,19 +14,10 @@ public sealed class ConsoleEdgeAuthOptions
 
     public string AccessTokenHeader { get; set; } = ConsoleAuthConstants.DefaultAccessTokenHeader;
 
-    /// <summary>
-    /// Optional shared secret the trusted proxy must present (header <c>X-Honua-Edge-Auth</c>). When
-    /// set, forwarded-identity headers are honoured only if this secret matches — so a direct caller
-    /// that reaches the Console origin cannot spoof an operator identity. When unset, the deployment
-    /// MUST guarantee the proxy strips client-supplied identity headers and is the only network path.
-    /// </summary>
+    // When set, X-Honua-Edge-Auth must match or a direct caller can spoof an operator; when unset, the proxy must be the only path and must strip client headers.
     public string? SharedSecret { get; set; }
 
-    /// <summary>
-    /// Optional exact HTTPS OIDC issuer shared by the trusted edge and server admin session.
-    /// Requires the user header to contain the raw OIDC subject and binds BFF issuance/refresh
-    /// to the same issuer and subject. Leave unset for independent environment identities.
-    /// </summary>
+    // When set, the user header must be the raw OIDC subject, and issuance and refresh require that subject on this HTTPS issuer; when unset, environment identities stay independent.
     public string? ServerSessionIssuer { get; set; }
 
     internal static bool IsValidServerSessionIssuer(ConsoleEdgeAuthOptions options) =>
@@ -42,7 +32,6 @@ public sealed class ConsoleEdgeAuthOptions
             && !options.ServerSessionIssuer.Contains('#'));
 }
 
-/// <summary>Binds <see cref="ConsoleEdgeAuthOptions"/> from configuration.</summary>
 internal sealed class ConsoleEdgeAuthOptionsSetup : IConfigureOptions<ConsoleEdgeAuthOptions>
 {
     private readonly IConfiguration _configuration;
@@ -64,12 +53,6 @@ internal sealed class ConsoleEdgeAuthOptionsSetup : IConfigureOptions<ConsoleEdg
         string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
 }
 
-/// <summary>
-/// Establishes the operator identity from trusted edge-forwarded headers when the request is not
-/// already authenticated (e.g. by the dev cookie). Runs per request so a revoked edge session cannot
-/// be replayed from a stale cookie. The operator's forwarded bearer (when supplied) is captured as a
-/// claim and bridged into the account session for forwarding to honua-server.
-/// </summary>
 public sealed class ConsoleEdgeIdentityMiddleware
 {
     private readonly RequestDelegate _next;

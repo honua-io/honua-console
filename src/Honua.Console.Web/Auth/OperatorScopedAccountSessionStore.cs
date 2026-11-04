@@ -33,10 +33,6 @@ public sealed class OperatorScopedAccountSessionStore : IConsoleAccountSessionSt
     private InMemoryConsoleAccountSessionStore CurrentForWrite =>
         _byOperator.GetOrAdd(_operatorContext.RequireOperatorKey(), static () => new InMemoryConsoleAccountSessionStore());
 
-    /// <summary>
-    /// Removes the operator's partition on sign-out so its forwarded bearer/session state does not linger
-    /// for the life of the process (honua-console#279 PA-237). No-op if the operator has no partition.
-    /// </summary>
     public void EvictOperator(string operatorKey) => _byOperator.Evict(operatorKey);
 
     public Task<ConsoleAccountSession?> GetSessionAsync(string profileId, CancellationToken cancellationToken = default) =>

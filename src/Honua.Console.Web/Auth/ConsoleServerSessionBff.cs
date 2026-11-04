@@ -50,10 +50,7 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
 
     public HttpClient Client { get; }
 
-    /// <summary>
-    /// Other sign-in attempts that observed this partition after it was created.
-    /// The creator does not count. Mutated only under the store lock.
-    /// </summary>
+    // Other sign-in attempts that observed this partition. The creator does not count, and only the store lock mutates it.
     public int Observers { get; private set; }
 
     public DateTimeOffset LastAccess => DateTimeOffset.FromUnixTimeMilliseconds(
@@ -79,11 +76,7 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
     }
 }
 
-/// <summary>
-/// Owns bounded, process-local honua-server cookie sessions partitioned by Console
-/// operator, environment profile, and server origin. Cookie state is intentionally
-/// discarded on process restart so a host restart requires server reauthentication.
-/// </summary>
+// Cookie sessions are partitioned by operator, profile, and origin, and a process restart discards them so the server must authenticate again.
 internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
 {
     private const int MaximumPartitions = 2_048;
@@ -182,10 +175,6 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// Drops a partition created for a sign-in probe that never reached the identity provider.
-    /// A failed configuration read must not hold a slot until the idle lifetime.
-    /// </summary>
     public void Remove(string operatorKey, ConsoleEnvironmentProfile profile)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operatorKey);
@@ -206,7 +195,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         removed?.Dispose();
     }
 
-    /// <summary>Removes only the exact partition instance that completed this request.</summary>
+    // Removes only this instance, so a replacement partition for the same key survives.
     public bool TryRemove(ConsoleServerSessionPartition partition)
     {
         ArgumentNullException.ThrowIfNull(partition);
@@ -220,11 +209,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         return true;
     }
 
-    /// <summary>
-    /// Drops a partition created by this sign-in attempt only when no later attempt has observed it
-    /// and the table still holds that exact instance. A failed probe must not dispose a partition
-    /// another overlapping sign-in already adopted.
-    /// </summary>
+    // A failed configuration read drops its unadopted probe immediately so the slot is not held until the idle lifetime, and a partition another sign-in adopted stays.
     public bool TryRemoveIfUnadopted(ConsoleServerSessionPartition partition)
     {
         ArgumentNullException.ThrowIfNull(partition);

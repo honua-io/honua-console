@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 
 namespace Honua.Console.Web;
 
-/// <summary>Host-pinned transport to the same canonical gateway used by external clients.</summary>
+// The gateway must be an absolute http(s) origin, so a path, query, or user info cannot retarget the transport.
 internal sealed record AgentGatewayBinding(Uri BaseUri, string Key)
 {
     internal static AgentGatewayBinding? Resolve(IConfiguration configuration, string agentKey)
