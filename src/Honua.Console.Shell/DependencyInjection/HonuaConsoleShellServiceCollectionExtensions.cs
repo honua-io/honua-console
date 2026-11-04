@@ -1,7 +1,5 @@
-using System.Net.Http;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Services;
-using Honua.Console.Shell.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -18,1159 +16,594 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(options);
 
+        var server = HonuaServerBinding.From(options);
+        AddShellCore(services, options);
+        AddContentPublicationClient(services, server);
+        AddStudio(services, server, options);
+        AddCatalogAndShare(services, server);
+        AddOperate(services, server, options);
+        AddOperateObservability(services, options);
+        AddSupport(services, options);
+        return services;
+    }
+
+    public static IServiceCollection AddHonuaConsoleDemoOperateTransitionData(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.Replace(ServiceDescriptor.Singleton<IOperateTransitionDataSource>(_ => InMemoryOperateTransitionDataSource.CreateSeeded()));
+        return services;
+    }
+
+    public static IServiceCollection AddHonuaConsoleDemoCatalogContent(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.Replace(ServiceDescriptor.Singleton<IConsoleCatalogClient, InMemoryConsoleCatalogClient>());
+        return services;
+    }
+
+    public static IServiceCollection AddHonuaConsoleDemoStudioAuthoringShell(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.Replace(ServiceDescriptor.Singleton<IStudioAuthoringShell, InMemoryStudioAuthoringShell>());
+        return services;
+    }
+
+    public static IServiceCollection AddHonuaConsoleDemoStudioWorkflowPackages(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.Replace(ServiceDescriptor.Singleton<IStudioWorkflowPackageClient>(_ => InMemoryStudioWorkflowPackageClient.CreateSeeded()));
+        return services;
+    }
+
+    public static IServiceCollection AddHonuaConsoleDemoCollectAutomations(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.Replace(ServiceDescriptor.Singleton<ICollectAutomationClient>(_ => InMemoryCollectAutomationClient.CreateSeeded()));
+        return services;
+    }
+
+    private static void AddShellCore(IServiceCollection services, HonuaConsoleShellOptions options)
+    {
         services.TryAddSingleton(new ConsolePresentation(options.ConsoleMode));
         services.TryAddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
         services.TryAddSingleton<IConsoleProductMode>(
             _ => new ConfiguredConsoleProductMode(ConsoleProductModeParser.Parse(options.ConsoleMode)));
-
-        // Platform-adaptive keyboard-shortcut glyphs (honua-console#313): the primary modifier renders as
-        // ⌘ on macOS and Ctrl on Windows/Linux. The default follows the host OS (exact on the native desktop
-        // Console; Ctrl on Windows/Linux browser deployments — the overwhelming Console target).
         services.TryAddSingleton<IConsoleShortcutPlatform, RuntimeConsoleShortcutPlatform>();
 
-        // Server-backed gates use the live SDK manifest independently of Studio intent resolution.
-        // Local capability configuration can only narrow that truth.
-        // Capability snapshots are mutable and belong to the current Blazor circuit. The registry
-        // remains request-time/operator-aware, but the snapshot itself must not be shared between circuits.
+        // Capability snapshots are mutable per Blazor circuit and must never be shared between circuits.
         services.TryAddScoped<IConsoleCapabilityManifest>(serviceProvider =>
             new ManifestBackedConsoleCapabilityManifest(
                 serviceProvider.GetRequiredService<ICapabilityRegistryClient>(),
                 ConsoleCapabilityManifest.SplitList(options.AdvertisedCapabilities)));
 
-        // Shell-owned toast/notification surface. Scoped = one queue per Blazor circuit so a toast a
-        // page raises is shown only to that connected user. The single ConsoleNotificationHost in
-        // ConsoleLayout subscribes and renders them (success/error/info/warning, role=alert, auto +
-        // manual dismiss). Pages surface server failures here through RunGuardedAsync rather than
-        // letting an exception vanish silently.
+        // Scoped so a toast is shown only to the circuit that raised it.
         services.TryAddScoped<IConsoleNotificationService, ConsoleNotificationService>();
-        // Environment profiles are host-owned local state (Console Patterns Charter §11 local-state
-        // carve-out), but they must not ship fabricated demo profiles. The default store starts EMPTY so
-        // the first-run experience is "create your first environment", never seeded dev.honua.local /
-        // staging.honua.example fakes. The native host replaces this with the persistent
-        // JsonConsoleEnvironmentProfileStore (also empty until the operator adds one). The seeded factory
-        // (InMemoryConsoleEnvironmentProfileStore.CreateSeeded) stays test/demo-only — never the DI default.
-        services.TryAddSingleton<IConsoleEnvironmentProfileStore>(
-            _ => new InMemoryConsoleEnvironmentProfileStore([]));
+
+        // Starts empty: the first run creates a real environment, never seeded demo profiles.
+        services.TryAddSingleton<IConsoleEnvironmentProfileStore>(_ => new InMemoryConsoleEnvironmentProfileStore([]));
         services.TryAddSingleton<IConsoleAccountSessionStore, InMemoryConsoleAccountSessionStore>();
 
-        // Human-attributable Operate mutations are bearer-only by default. The exchange
-        // itself depends on deployment topology because honua-server authenticates it with
-        // an HttpOnly server-origin admin-session cookie. Stock Console leaves this seam
-        // unavailable until a per-operator/per-profile BFF exists; a process-wide cookie
-        // client would bleed identity. A process-wide API key is available only when
-        // HeadlessService is selected and the sessionless profile is ServiceApiKey.
-        var serverCredentialMode = ConsoleServerCredentialModeParser.Parse(options.ServerCredentialMode);
+        // The exchange needs a per-operator BFF; a process-wide cookie client would bleed one operator's identity.
         services.TryAddSingleton<IConsoleOperatorBearerExchange, UnavailableConsoleOperatorBearerExchange>();
         services.TryAddSingleton<IConsoleOperatorBearerProvider>(serviceProvider =>
             new ConsoleOperatorBearerProvider(
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 serviceProvider.GetRequiredService<IConsoleOperatorBearerExchange>(),
                 TimeProvider.System));
+    }
 
-        // Unsaved-changes dirty tracking (FormDirtyState) is intentionally NOT registered in DI: a
-        // Scoped service lives for the entire Blazor Server circuit, so every editor would share one
-        // flag. Each editor instead owns a private FormDirtyState instance and passes its IsDirty to
-        // the <UnsavedChangesGuard/>. Editors are wired in the per-surface waves.
+    // Shared by Studio report generation and the Operate publishing workspace.
+    private static void AddContentPublicationClient(IServiceCollection services, HonuaServerBinding server)
+    {
+        if (server.BaseUri is not { } baseUri)
+        {
+            return;
+        }
 
-        AddStudioAuthoringShell(services, options.ServerBaseUrl, options.ServerAdminApiKey);
-        AddStudioFormPackageDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey);
-        AddStudioMapStyleCatalogDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey);
-        AddStudioReportPublicationDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey);
-        AddStudioWorkflowPackageClient(services, options.ServerBaseUrl, options.ServerAdminApiKey);
-        AddCollectAutomationClient(services);
+        services.TryAddSingleton<IHonuaContentPublicationClient>(serviceProvider =>
+            new HonuaContentPublicationHttpClient(
+                HonuaServerClientFactory.Create(serviceProvider, baseUri, ShellHttpClients.LongRequestTimeout),
+                new HonuaContentPublicationClientOptions(baseUri, server.AdminApiKey)));
+    }
 
-        // The omni-prompt AI console (honua-console#203) routes one free-text prompt to the right lane —
-        // Studio (GIS authoring) or DevOps (ops → the deploy approval panel).
-        // The classifier is a thin, deterministic, server-independent heuristic (no server classify endpoint
-        // exists yet); it only chooses the lane and never actuates, so a singleton is safe.
+    private static void AddStudio(IServiceCollection services, HonuaServerBinding server, HonuaConsoleShellOptions options)
+    {
+        AddPackageAuthoring(services, server);
+        AddFormPackages(services, server);
+        AddMapStyleCatalog(services, server);
+        services.AddServerBound<IStudioReportPublicationDataSource, HonuaServerStudioReportPublicationDataSource, UnsupportedStudioReportPublicationDataSource>(server);
+        AddWorkflowPackages(services, server);
+        services.TryAddSingleton<ICollectAutomationClient, UnsupportedCollectAutomationClient>();
+
+        // Deterministic and server-independent: it only chooses the prompt lane and never actuates.
         services.TryAddSingleton<IOmniPromptIntentClassifier, OmniPromptIntentClassifier>();
+        AddIntentResolution(services, server, options);
+    }
 
-        // Registry-driven Studio-AI intent resolution (honua-console#266). Behind the
-        // Studio:RegistryIntentResolution flag (default OFF): when ON and a server is bound, the Studio
-        // generate/validate/preview/publish lifecycle resolves against the live capability-manifest
-        // registry and deferred/unavailable capabilities are hidden from Studio AI. OFF preserves current
-        // behavior via the no-op resolver (no registry gating).
-        AddStudioIntentResolution(services, options.ServerBaseUrl, options.RegistryIntentResolutionEnabled);
-        AddShareAccessDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey);
-        AddRbacAccessDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey);
-        AddCatalogDiscoveryDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey);
-        AddOperateTransitionDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey);
-        AddTemporalCapabilityClient(services, options.ServerBaseUrl, options.ServerAdminApiKey, options.ServerTemporalSources);
-        AddEsriMigrationRunDataSource(services);
-        AddPublishingWorkspaceDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey, options.ServerPublicationIds);
-        AddConsoleCatalogClient(services, options.ServerBaseUrl, options.ServerAdminApiKey);
-        AddConsoleSensorThingsClient(services, options.ServerBaseUrl, options.ServerAdminApiKey);
-        AddConsoleSceneClient(services, options.ServerBaseUrl, options.ServerAdminApiKey);
-        AddOperateAlertRulesDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey);
-        AddVersionManagementOperation(services, options.ServerBaseUrl, options.ServerAdminApiKey);
-        AddOperateLayerStyleOverrideDataSource(services, options.ServerBaseUrl);
+    private static void AddPackageAuthoring(IServiceCollection services, HonuaServerBinding server)
+    {
+        if (server.BaseUri is { } baseUri)
+        {
+            services.TryAddSingleton<IStudioPackageLifecycleClient>(serviceProvider =>
+                new HttpStudioPackageLifecycleClient(
+                    HonuaServerClientFactory.Create(serviceProvider, baseUri),
+                    new StudioPackageLifecycleClientOptions(baseUri, server.AdminApiKey)));
+        }
+
+        services.AddServerBound<IStudioAuthoringShell, ServerStudioAuthoringShell, UnsupportedStudioAuthoringShell>(server);
+    }
+
+    private static void AddFormPackages(IServiceCollection services, HonuaServerBinding server)
+    {
+        if (server.BaseUri is { } baseUri)
+        {
+            services.TryAddSingleton<IHonuaFormPackageClient>(serviceProvider =>
+                new HonuaFormPackageHttpClient(
+                    HonuaServerClientFactory.Create(serviceProvider, baseUri),
+                    new HonuaFormPackageClientOptions(baseUri, server.AdminApiKey)));
+        }
+
+        services.AddServerBound<IStudioFormPackageDataSource, HonuaServerStudioFormPackageDataSource, UnsupportedStudioFormPackageDataSource>(server);
+    }
+
+    // OGC API - Styles is a public read, so it uses the anonymous-capable client instead of failing closed.
+    private static void AddMapStyleCatalog(IServiceCollection services, HonuaServerBinding server)
+    {
+        if (server.BaseUri is { } baseUri)
+        {
+            services.TryAddSingleton<IHonuaOgcStylesClient>(serviceProvider =>
+                new HonuaOgcStylesHttpClient(
+                    HonuaServerClientFactory.CreatePublic(serviceProvider, baseUri),
+                    new HonuaOgcStylesClientOptions(
+                        baseUri,
+                        server.AdminApiKey,
+                        AuthorityBindingSupported: serviceProvider.GetService<IHonuaServerBoundClientFactory>() is not null)));
+        }
+
+        services.AddServerBound<IStudioMapStyleCatalogDataSource, HonuaServerStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>(server);
+    }
+
+    private static void AddWorkflowPackages(IServiceCollection services, HonuaServerBinding server)
+    {
+        if (server.BaseUri is { } baseUri)
+        {
+            services.TryAddSingleton<IWorkflowPackageApiClient>(serviceProvider =>
+                new HttpWorkflowPackageApiClient(
+                    HonuaServerClientFactory.Create(serviceProvider, baseUri, ShellHttpClients.LongRequestTimeout),
+                    new WorkflowPackageClientOptions(baseUri, server.AdminApiKey)));
+        }
+
+        services.AddServerBound<IStudioWorkflowPackageClient, ServerStudioWorkflowPackageClient, UnsupportedStudioWorkflowPackageClient>(server);
+    }
+
+    // Console gates always read the live capability registry when a server is bound; the flag only opts
+    // Studio AI into registry-driven intent resolution.
+    private static void AddIntentResolution(IServiceCollection services, HonuaServerBinding server, HonuaConsoleShellOptions options)
+    {
+        if (server.BaseUri is not { } baseUri)
+        {
+            services.TryAddSingleton<ICapabilityRegistryClient, UnsupportedCapabilityRegistryClient>();
+            services.TryAddSingleton<IStudioIntentResolver>(serviceProvider =>
+                new NoopStudioIntentResolver(serviceProvider.GetRequiredService<IOmniPromptIntentClassifier>()));
+            return;
+        }
+
+        services.TryAddSingleton<Honua.Sdk.Studio.Capabilities.IHonuaCapabilityManifestClient>(serviceProvider =>
+            new Honua.Sdk.Studio.Capabilities.HonuaCapabilityManifestClient(HonuaServerClientFactory.Create(serviceProvider, baseUri)));
+        services.TryAddSingleton<ICapabilityRegistryClient>(serviceProvider =>
+            new HonuaServerCapabilityRegistryClient(serviceProvider.GetRequiredService<Honua.Sdk.Studio.Capabilities.IHonuaCapabilityManifestClient>()));
+        services.TryAddSingleton<IStudioIntentResolver>(serviceProvider =>
+            options.RegistryIntentResolutionEnabled
+                ? new StudioIntentResolver(
+                    serviceProvider.GetRequiredService<IOmniPromptIntentClassifier>(),
+                    serviceProvider.GetRequiredService<ICapabilityRegistryClient>())
+                : new NoopStudioIntentResolver(serviceProvider.GetRequiredService<IOmniPromptIntentClassifier>()));
+    }
+
+    private static void AddCatalogAndShare(IServiceCollection services, HonuaServerBinding server)
+    {
+        AddCatalogContent(services, server);
+        AddShareAccess(services, server);
+        AddRbacAccess(services, server);
+        AddCatalogDiscovery(services, server);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
+    }
 
-        // Operate observability binds to a real honua-server through a thin
-        // typed HttpClient behind Honua.Console.Contracts (the sanctioned interim
-        // until honua-sdk-dotnet projects the Operate contracts). Server-owned
-        // telemetry/events/alerts/rules/jobs/investigations are no longer wired
-        // to OperateObservabilityFixture.Default at runtime. TryAdd keeps an
-        // explicit test/demo provider overridable.
+    // The content client also serves the anonymous /public open-data pages, so it forwards the operator
+    // bearer when one resolves but must not fail closed like the privileged clients.
+    private static void AddCatalogContent(IServiceCollection services, HonuaServerBinding server)
+    {
+        if (server.BaseUri is { } baseUri)
+        {
+            services.TryAddSingleton<IHonuaConsoleContentClient>(serviceProvider =>
+                new HonuaConsoleContentHttpClient(
+                    HonuaServerClientFactory.CreatePublic(serviceProvider, baseUri),
+                    new HonuaConsoleContentClientOptions(baseUri, server.AdminApiKey)));
+        }
+
+        services.AddServerBound<IConsoleCatalogClient, HonuaServerConsoleCatalogClient, UnsupportedConsoleCatalogClient>(server);
+    }
+
+    private static void AddShareAccess(IServiceCollection services, HonuaServerBinding server)
+    {
+        if (server.BaseUri is { } baseUri)
+        {
+            services.TryAddSingleton<IHonuaConsoleShareClient>(serviceProvider =>
+                new HonuaConsoleShareHttpClient(
+                    HonuaServerClientFactory.Create(serviceProvider, baseUri),
+                    new HonuaConsoleShareClientOptions(baseUri, server.AdminApiKey)));
+        }
+
+        services.AddServerBound<IShareAccessDataSource, HonuaServerShareAccessDataSource, UnsupportedShareAccessDataSource>(server);
+    }
+
+    private static void AddRbacAccess(IServiceCollection services, HonuaServerBinding server)
+    {
+        if (server.BaseUri is { } baseUri)
+        {
+            services.TryAddSingleton<IHonuaConsoleRbacClient>(serviceProvider =>
+                new HonuaConsoleRbacHttpClient(
+                    HonuaServerClientFactory.Create(serviceProvider, baseUri),
+                    new HonuaConsoleRbacClientOptions(baseUri, server.AdminApiKey)));
+        }
+
+        services.AddServerBound<IRbacAccessDataSource, HonuaServerRbacAccessDataSource, UnsupportedRbacAccessDataSource>(server);
+    }
+
+    private static void AddCatalogDiscovery(IServiceCollection services, HonuaServerBinding server)
+    {
+        if (server.BaseUri is { } baseUri)
+        {
+            services.TryAddSingleton<IHonuaCatalogDiscoveryClient>(serviceProvider =>
+                new HonuaCatalogDiscoveryHttpClient(
+                    HonuaServerClientFactory.Create(serviceProvider, baseUri),
+                    new HonuaCatalogDiscoveryClientOptions(baseUri, server.AdminApiKey)));
+        }
+
+        services.AddServerBound<ICatalogDiscoveryDataSource, HonuaServerCatalogDiscoveryDataSource, UnsupportedCatalogDiscoveryDataSource>(server);
+    }
+
+    private static void AddOperate(IServiceCollection services, HonuaServerBinding server, HonuaConsoleShellOptions options)
+    {
+        AddAdminClient(services, server);
+        AddAdminOperations(services, server);
+        AddTemporal(services, server, options);
+        services.TryAddSingleton<IEsriMigrationRunDataSource, UnsupportedEsriMigrationRunDataSource>();
+        AddPublishingWorkspace(services, server, options);
+        AddSensorThings(services, server);
+        AddScenes(services, server);
+        AddAlertRules(services, server);
+        AddVersionManagement(services, server);
+        AddLayerStyleOverride(services, server);
+    }
+
+    private static void AddAdminClient(IServiceCollection services, HonuaServerBinding server)
+    {
+        if (server.BaseUri is not { } baseUri)
+        {
+            return;
+        }
+
+        services.TryAddSingleton<IHonuaAdminOperateClient>(serviceProvider =>
+            new HonuaAdminOperateHttpClient(
+                HonuaServerClientFactory.Create(serviceProvider, baseUri),
+                new HonuaAdminOperateClientOptions(baseUri, server.AdminApiKey)));
+    }
+
+    private static void AddAdminOperations(IServiceCollection services, HonuaServerBinding server)
+    {
+        services.AddServerBound<IConsoleConnectionCreateOperation, HonuaServerConsoleConnectionCreateOperation, UnsupportedConsoleConnectionCreateOperation>(server);
+        services.AddServerBound<IConsoleFileImportOperation, HonuaServerConsoleFileImportOperation, UnsupportedConsoleFileImportOperation>(server);
+        services.AddServerBound<IConsoleServiceImportOperation, HonuaServerConsoleServiceImportOperation, UnsupportedConsoleServiceImportOperation>(server);
+        services.AddServerBound<IOperateTransitionDataSource, HonuaServerOperateTransitionDataSource, UnsupportedOperateTransitionDataSource>(server);
+        services.AddServerBound<IServiceLayerPublishOperation, HonuaServerServiceLayerPublishOperation, UnsupportedServiceLayerPublishOperation>(server);
+        services.AddServerBound<IServiceConfigurationOperation, HonuaServerServiceConfigurationOperation, UnsupportedServiceConfigurationOperation>(server);
+        services.AddServerBound<IConsoleTimeInfoOperation, HonuaServerConsoleTimeInfoOperation, UnsupportedConsoleTimeInfoOperation>(server);
+        services.AddServerBound<IConsoleLayerFieldsOperation, HonuaServerConsoleLayerFieldsOperation, UnsupportedConsoleLayerFieldsOperation>(server);
+        services.AddServerBound<IConsoleLayerMetadataOperation, HonuaServerConsoleLayerMetadataOperation, UnsupportedConsoleLayerMetadataOperation>(server);
+        services.AddServerBound<IConsoleLayerRelationshipsOperation, HonuaServerConsoleLayerRelationshipsOperation, UnsupportedConsoleLayerRelationshipsOperation>(server);
+        services.AddServerBound<IConsoleLayerFilterOperation, HonuaServerConsoleLayerFilterOperation, UnsupportedConsoleLayerFilterOperation>(server);
+    }
+
+    // The temporal API has no enumeration verb, so the viewer reads a configured "serviceId:layerId" list.
+    private static void AddTemporal(IServiceCollection services, HonuaServerBinding server, HonuaConsoleShellOptions options)
+    {
+        if (server.BaseUri is not { } baseUri)
+        {
+            services.TryAddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
+            return;
+        }
+
+        services.TryAddSingleton<IHonuaTemporalClient>(serviceProvider =>
+            new HonuaTemporalHttpClient(
+                HonuaServerClientFactory.Create(serviceProvider, baseUri),
+                new HonuaTemporalClientOptions(baseUri, server.AdminApiKey)));
+
+        var sources = HonuaServerTemporalOptions.FromConfiguredList(options.ServerTemporalSources);
+        services.TryAddSingleton<ITemporalCapabilityClient>(serviceProvider =>
+            new HonuaServerTemporalCapabilityClient(serviceProvider.GetRequiredService<IHonuaTemporalClient>(), sources));
+    }
+
+    // Publications are discovered from the server; configured ids only filter them.
+    private static void AddPublishingWorkspace(IServiceCollection services, HonuaServerBinding server, HonuaConsoleShellOptions options)
+    {
+        if (!server.IsLive)
+        {
+            services.TryAddSingleton<IPublishingWorkspaceDataSource, UnsupportedPublishingWorkspaceDataSource>();
+            return;
+        }
+
+        var publications = PublishingWorkspaceOptions.FromConfiguredList(options.ServerPublicationIds);
+        services.TryAddSingleton<IPublishingWorkspaceDataSource>(serviceProvider =>
+            new HonuaServerPublishingWorkspaceDataSource(
+                serviceProvider.GetRequiredService<IHonuaContentPublicationClient>(),
+                publications));
+    }
+
+    private static void AddSensorThings(IServiceCollection services, HonuaServerBinding server)
+    {
+        if (!server.IsLive)
+        {
+            services.TryAddSingleton<IConsoleSensorThingsClient, UnsupportedConsoleSensorThingsClient>();
+            return;
+        }
+
+        services.TryAddSingleton<IConsoleSensorThingsClient>(serviceProvider =>
+            new HttpConsoleSensorThingsClient(
+                ShellHttpClients.ServerBound(serviceProvider),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                server.AdminApiKey));
+    }
+
+    // Point-cloud ingest uploads up to 256 MB, so it gets the long-request budget.
+    private static void AddScenes(IServiceCollection services, HonuaServerBinding server)
+    {
+        if (!server.IsLive)
+        {
+            services.TryAddSingleton<IConsoleSceneClient, UnsupportedConsoleSceneClient>();
+            return;
+        }
+
+        services.TryAddSingleton<IConsoleSceneClient>(serviceProvider =>
+            new HttpConsoleSceneClient(
+                ShellHttpClients.ServerBoundUpload(serviceProvider),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                server.AdminApiKey));
+    }
+
+    private static void AddAlertRules(IServiceCollection services, HonuaServerBinding server)
+    {
+        if (!server.IsLive)
+        {
+            services.TryAddSingleton<IOperateAlertRulesDataSource, UnsupportedOperateAlertRulesDataSource>();
+            return;
+        }
+
+        services.TryAddSingleton<IConsoleAlertRulesClient>(serviceProvider =>
+            new HttpConsoleAlertRulesClient(
+                ShellHttpClients.ServerBound(serviceProvider),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                server.AdminApiKey));
+        services.TryAddSingleton<IOperateAlertRulesDataSource>(serviceProvider =>
+            new ServerOperateAlertRulesDataSource(
+                serviceProvider.GetRequiredService<IConsoleOperateObservabilityClient>(),
+                serviceProvider.GetRequiredService<IConsoleAlertRulesClient>()));
+    }
+
+    private static void AddVersionManagement(IServiceCollection services, HonuaServerBinding server)
+    {
+        if (server.BaseUri is { } baseUri)
+        {
+            services.TryAddSingleton<IHonuaVersionManagementClient>(serviceProvider =>
+                new HonuaVersionManagementHttpClient(
+                    HonuaServerClientFactory.Create(serviceProvider, baseUri),
+                    new HonuaVersionManagementClientOptions(baseUri, server.AdminApiKey)));
+        }
+
+        services.AddServerBound<IVersionManagementOperation, HonuaServerVersionManagementOperation, UnsupportedVersionManagementOperation>(server);
+    }
+
+    private static void AddLayerStyleOverride(IServiceCollection services, HonuaServerBinding server)
+    {
+        if (!server.IsLive)
+        {
+            services.TryAddSingleton<IOperateLayerStyleOverrideDataSource, UnsupportedOperateLayerStyleOverrideDataSource>();
+            return;
+        }
+
+        services.TryAddSingleton<IOperateLayerStyleOverrideDataSource>(serviceProvider =>
+            new ServerOperateLayerStyleOverrideDataSource(
+                serviceProvider.GetRequiredService<IOperateTransitionDataSource>(),
+                serviceProvider.GetRequiredService<IHonuaAdminOperateClient>()));
+    }
+
+    // These clients resolve the active environment profile per request, so they register without a base URL
+    // and render the missing-binding state while no environment is connected.
+    private static void AddOperateObservability(IServiceCollection services, HonuaConsoleShellOptions options)
+    {
+        var adminApiKey = options.ServerAdminApiKey;
+        var credentialMode = ConsoleServerCredentialModeParser.Parse(options.ServerCredentialMode);
+
         services.TryAddSingleton<IConsoleOperateObservabilityClient>(serviceProvider =>
             new HttpConsoleOperateObservabilityClient(
-                CreateOperateObservabilityHttpClient(serviceProvider),
+                ShellHttpClients.ServerBound(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                options.ServerAdminApiKey,
+                adminApiKey,
                 serviceProvider.GetService<ILogger<HttpConsoleOperateObservabilityClient>>()));
-
-        // GitOps metadata release visualization binds to a real honua-server through
-        // the SHIPPED GitOps metadata release contracts (honua-server#1163 release
-        // package + GitOps manifest, honua-server#1165 release-operation lifecycle /
-        // rollback) via a thin typed HttpClient behind Honua.Console.Contracts. No
-        // standing in-memory release data source is registered (Console Patterns
-        // Charter section 11); the by-id detail read activates against live data when
-        // an environment is connected, else the surface renders the missing-binding
-        // state. The admin API key is sent as X-API-Key (admin-authorized endpoints).
         services.TryAddSingleton<IConsoleGitOpsReleaseClient>(serviceProvider =>
             new HttpConsoleGitOpsReleaseClient(
-                CreateOperateObservabilityHttpClient(serviceProvider),
+                ShellHttpClients.ServerBound(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                options.ServerAdminApiKey));
+                adminApiKey));
+        AddDeployments(services, adminApiKey, credentialMode);
+        AddProposals(services, adminApiKey, credentialMode);
+        services.TryAddSingleton<IConsoleServerVersionClient>(serviceProvider =>
+            new HttpConsoleServerVersionClient(
+                ShellHttpClients.ServerBound(serviceProvider),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                adminApiKey));
+        services.TryAddSingleton<IConsoleMonitoringMetricsClient>(serviceProvider =>
+            new HttpConsoleMonitoringMetricsClient(
+                ShellHttpClients.ServerBound(serviceProvider),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                adminApiKey));
+        services.TryAddSingleton<IOperateMetricsDataSource>(serviceProvider =>
+            new OperateMetricsDataSource(serviceProvider.GetRequiredService<IConsoleMonitoringMetricsClient>()));
+        AddOpsHealth(services, adminApiKey, credentialMode);
+    }
 
-        // The human-in-the-loop deploy approval surface binds to the honua-server
-        // deploy-control admin endpoints (GET /operations/{id}, POST .../submit,
-        // POST .../rollback) via the same thin typed HttpClient. An agent
-        // creates-and-pauses an operation on pr-first; an operator reviews and approves
-        // (submit) / rejects / rolls back here, all through the server's governed
-        // endpoints (the OperatorApprovalGate stays the real gate — never bypassed). No
-        // standing in-memory source is registered (Charter section 11); when no
-        // environment is connected the surface renders the missing-binding state. The
-        // active operator bearer is required in interactive mode. The configured admin
-        // API key is available only to a sessionless caller in explicit HeadlessService mode.
+    // Interactive approvals require the operator bearer; the admin API key serves only sessionless
+    // HeadlessService callers.
+    private static void AddDeployments(IServiceCollection services, string? adminApiKey, ConsoleServerCredentialMode credentialMode)
+    {
         services.TryAddSingleton<IConsoleDeployApprovalClient>(serviceProvider =>
             new HttpConsoleDeployApprovalClient(
-                CreateManagerHttpClient(serviceProvider),
+                ShellHttpClients.ManagerBound(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                options.ServerAdminApiKey,
+                adminApiKey,
                 serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
-                serverCredentialMode));
-
-        // Deploy cockpit completion (console#290): the paged deploy-operations list
-        // (honua-server PR #2577), the preflight gate, and the speculative platform-release
-        // converge action bind through the same thin typed HttpClient. Every new route is
-        // feature-detected (404/501 -> Unsupported), so the cockpit degrades to the
-        // pre-existing tracked-id approval surface against an older server. No standing
-        // in-memory source is registered (Charter section 11).
+                credentialMode));
         services.TryAddSingleton<IConsoleDeployOperationsClient>(serviceProvider =>
             new HttpConsoleDeployOperationsClient(
-                CreateManagerHttpClient(serviceProvider),
+                ShellHttpClients.ManagerBound(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                options.ServerAdminApiKey));
-
-        // Live deploy-operation progress (console#290, honua-server#2554 deploy-operations hub
-        // group): connects to the same admin hub the proposals realtime client uses and joins
-        // the deploy-operations group. honua-server#2554 is not yet merged, so this degrades to
-        // FallbackEngaged against every server available today — the cockpit's existing poll
-        // loop (OperateDeploymentApprovalPanel's PeriodicTimer) stays authoritative until the
-        // group exists (console#293 shared realtime seam, PA-233 fix).
+                adminApiKey));
         services.TryAddScoped<IConsoleDeployOperationRealtimeClient>(serviceProvider =>
             new SignalRConsoleDeployOperationRealtimeClient(
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 serviceProvider.GetRequiredService<ILogger<SignalRConsoleDeployOperationRealtimeClient>>(),
-                options.ServerAdminApiKey,
+                adminApiKey,
                 serviceProvider.GetService<IConsoleManagerEndpoint>()));
+    }
 
-        // The first-class agent-operation approval API (issue #193, honua-server #1694):
-        // GET /api/v1/admin/proposals (list/filter), GET .../{id} (plan/diff/dry-run/risk),
-        // POST .../{id}/approve, POST .../{id}/reject (reason required). Approve/reject are
-        // gated server-side by the RBAC 'approve' grant + separation of duties; a denied
-        // decision returns 403 (surfaced as Forbidden — never bypassed). No standing
-        // in-memory source is registered (Charter section 11); when no environment is
-        // connected every call renders the missing-binding state. Approve/reject require a
-        // forwardable operator bearer in interactive mode; a human sentinel never downgrades
-        // to X-API-Key.
+    // A denied approve/reject surfaces as Forbidden; a human decision never falls back to the admin API key.
+    private static void AddProposals(IServiceCollection services, string? adminApiKey, ConsoleServerCredentialMode credentialMode)
+    {
         services.TryAddSingleton<IConsoleProposalsClient>(serviceProvider =>
         {
             var profiles = serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>();
             var sessions = serviceProvider.GetRequiredService<IConsoleAccountSessionStore>();
             var bearers = serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>();
             return new DualConsoleProposalsClient(
-                new HttpConsoleProposalsClient(CreateOperateObservabilityHttpClient(serviceProvider), profiles, sessions,
-                    options.ServerAdminApiKey, bearers, serverCredentialMode),
-                new HttpConsoleProposalsClient(CreateManagerHttpClient(serviceProvider), profiles, sessions,
-                    options.ServerAdminApiKey, bearers, serverCredentialMode),
+                new HttpConsoleProposalsClient(ShellHttpClients.ServerBound(serviceProvider), profiles, sessions,
+                    adminApiKey, bearers, credentialMode),
+                new HttpConsoleProposalsClient(ShellHttpClients.ManagerBound(serviceProvider), profiles, sessions,
+                    adminApiKey, bearers, credentialMode),
                 profiles, serviceProvider.GetService<IConsoleManagerEndpoint>());
         });
-
         services.TryAddSingleton<IConsoleReleaseWitnessClient>(serviceProvider =>
             new HttpConsoleReleaseWitnessClient(
-                CreateOperateObservabilityHttpClient(serviceProvider),
+                ShellHttpClients.ServerBound(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                options.ServerAdminApiKey));
-
-        // Live approval-inbox updates (issue #193, honua-server #1695): the console connects
-        // from its server process to the honua-server admin realtime hub's proposals group at
-        // {server}/hubs/admin and projects ProposalPending / ProposalResolved events onto the
-        // inbox without polling. A connect failure (no environment bound, hub unsupported)
-        // degrades to an inert no-op so the inbox stays usable via manual refresh.
+                adminApiKey));
         services.TryAddScoped<IConsoleProposalRealtimeClient>(serviceProvider =>
             new SignalRConsoleProposalRealtimeClient(
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 serviceProvider.GetRequiredService<ILogger<SignalRConsoleProposalRealtimeClient>>(),
-                options.ServerAdminApiKey,
+                adminApiKey,
                 serviceProvider.GetService<IConsoleManagerEndpoint>()));
 
-        // The approval inbox (#193) aggregates every proposal source into one GIS-department
-        // work queue, classified by ticket type. Per honua-server #1690's locked ownership split
-        // it merges TWO sources behind the shared IConsoleProposalSource seam: the honua-server
-        // proposals API (admin/deploy/metadata/seed) and the honua-devops console-bridge
-        // gitops/deliverable proposals. No standing in-memory source is registered (Charter
-        // section 11); when no source is reachable the inbox renders the missing-binding state
-        // surfaced by the primary (server) source's read.
-        //
-        // honua-devops does not expose a console-facing proposals endpoint yet (it is a CLI/MCP
-        // agent host; see IConsoleDevOpsProposalsClient), so the default devops client degrades
-        // gracefully to an empty allowed result — the seam and normalization are in place for the
-        // day that endpoint (or honua-server #1692's aggregating projection) lands.
+        // honua-devops exposes no Console proposals endpoint, so its source reads an empty, allowed result.
         services.TryAddSingleton<IConsoleDevOpsProposalsClient, UnavailableConsoleDevOpsProposalsClient>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IConsoleProposalSource, ServerConsoleProposalSource>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IConsoleProposalSource, DevOpsConsoleProposalSource>());
         services.TryAddSingleton<IConsoleApprovalInboxClient>(serviceProvider =>
             new ConsoleApprovalInboxClient(serviceProvider.GetServices<IConsoleProposalSource>()));
+    }
 
-        // Server-version detection for the server-upgrade flow binds to the connected
-        // honua-server's capability manifest (GET /api/v1/capabilities/manifest, the
-        // `server` block) via the same thin typed HttpClient. It detects the target
-        // environment's running Honua version — including when the target is on an OLDER
-        // version — so the upgrade path can be shown and a no-op/downgrade gated. No standing
-        // in-memory source is registered (Charter section 11); when no environment is
-        // connected the read renders the missing-binding state. The manifest is anonymous;
-        // the admin key is attached when present for admin-gated edges but is not required.
-        services.TryAddSingleton<IConsoleServerVersionClient>(serviceProvider =>
-            new HttpConsoleServerVersionClient(
-                CreateOperateObservabilityHttpClient(serviceProvider),
-                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                options.ServerAdminApiKey));
-
-        // Operate metrics binds to the connected honua-server's production-monitoring
-        // endpoints (group /monitoring, admin-authorized, bare JSON — NO ApiResponse
-        // envelope) via a thin typed HttpClient behind Honua.Console.Contracts. No
-        // standing in-memory metrics source is registered (Console Patterns Charter
-        // section 11); each metric activates against live data when an environment is
-        // connected, else the surface renders an honest per-section missing-binding
-        // state. The admin API key is sent as X-API-Key. The aggregator loads every
-        // metric in parallel into one snapshot, each carrying its own section status.
-        services.TryAddSingleton<IConsoleMonitoringMetricsClient>(serviceProvider =>
-            new HttpConsoleMonitoringMetricsClient(
-                CreateOperateObservabilityHttpClient(serviceProvider),
-                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                options.ServerAdminApiKey));
-        services.TryAddSingleton<IOperateMetricsDataSource>(serviceProvider =>
-            new OperateMetricsDataSource(
-                serviceProvider.GetRequiredService<IConsoleMonitoringMetricsClient>()));
-
-        // Ops Health (ADR-0060 WS4) + Copilot Findings (#193) bind to honua-server's
-        // consolidated ops-health snapshot and deterministic ops-findings engine (group
-        // /api/v1/admin/observability, admin-authorized, bare JSON — NO ApiResponse
-        // envelope) through the Honua.Console.Contracts shim. Findings are deterministic
-        // server output proposed by id through the existing approval gateway — no
-        // model/LLM anything (ADR-0028). No standing in-memory source is registered
-        // (Charter section 11); each read degrades to the shared missing-binding /
-        // section-status surface when unbound. Ops Health retains its current admin-key
-        // binding; ops-finding proposals require the active operator bearer in interactive
-        // mode. The configured admin API key is available only for sessionless explicit
-        // HeadlessService operation.
+    private static void AddOpsHealth(IServiceCollection services, string? adminApiKey, ConsoleServerCredentialMode credentialMode)
+    {
         services.TryAddSingleton<IConsoleOpsHealthClient>(serviceProvider =>
             new HttpConsoleOpsHealthClient(
-                CreateManagerHttpClient(serviceProvider),
+                ShellHttpClients.ManagerBound(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                options.ServerAdminApiKey));
+                adminApiKey));
         services.TryAddSingleton<IOpsHealthDataSource>(serviceProvider =>
-            new OpsHealthDataSource(
-                serviceProvider.GetRequiredService<IConsoleOpsHealthClient>()));
-
-        // Live Ops Health trend updates (console#288, honua-server PR #2591 ops-health hub group):
-        // connects to the same admin hub the proposals/deploy-operations realtime clients use and
-        // joins the ops-health group. honua-server PR #2591 was still landing at the time this
-        // ticket was authored, so this degrades to FallbackEngaged against every server available
-        // today — the trend charts' history-refresh poll stays authoritative until the group
-        // exists (console#293 shared realtime seam, PA-233 fix).
+            new OpsHealthDataSource(serviceProvider.GetRequiredService<IConsoleOpsHealthClient>()));
         services.TryAddScoped<IConsoleOpsHealthRealtimeClient>(serviceProvider =>
             new SignalRConsoleOpsHealthRealtimeClient(
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 serviceProvider.GetRequiredService<ILogger<SignalRConsoleOpsHealthRealtimeClient>>(),
-                options.ServerAdminApiKey,
+                adminApiKey,
                 serviceProvider.GetService<IConsoleManagerEndpoint>()));
         services.TryAddSingleton<IConsoleOpsFindingsClient>(serviceProvider =>
             new HttpConsoleOpsFindingsClient(
-                CreateManagerHttpClient(serviceProvider),
+                ShellHttpClients.ManagerBound(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                options.ServerAdminApiKey,
+                adminApiKey,
                 serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
-                serverCredentialMode));
-
-        // Graduated findings autonomy (console#289, honua-server#2557): a narrow
-        // capability-detected client reads server-confirmed global/per-rule policy,
-        // graduation counters and the unified action/policy audit trail. Human policy
-        // mutations use the same fail-closed operator bearer as findings proposals;
-        // older servers return Unsupported and leave the propose-only seat unchanged.
+                credentialMode));
         services.TryAddSingleton<IConsoleOpsAutonomyClient>(serviceProvider =>
             new HttpConsoleOpsAutonomyClient(
-                CreateManagerHttpClient(serviceProvider),
+                ShellHttpClients.ManagerBound(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                options.ServerAdminApiKey,
+                adminApiKey,
                 serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
-                serverCredentialMode));
+                credentialMode));
+    }
 
-        // In-product support loop (#164). The ticket client binds to the
-        // honua-support API (POST/GET /api/v1/tickets) through the
-        // Honua.Console.Contracts shim, with the bearer token from the active
-        // profile's account session. When no support base URL is configured the
-        // surface renders the missing-binding state (Console Patterns Charter
-        // section 11) rather than mocking a ticket round-trip. The context
-        // builder auto-captures session/env/build/route/recent-errors so
-        // customers ship context, not log dumps.
-        AddSupportTicketClient(services, options.SupportBaseUrl);
+    private static void AddSupport(IServiceCollection services, HonuaConsoleShellOptions options)
+    {
+        AddTicketClient(services, options.SupportBaseUrl);
 
-        // Canonical sanitized diagnostic-bundle emitter (honua-console#307). The exporter is the
-        // gate that validates every emitted bundle against the pinned diagnostic-bundle.v1 schema
-        // before it can be downloaded or uploaded; a non-conforming or unsafe bundle throws rather
-        // than emitting. Stateless — a single shared instance holds the parsed schema.
+        // Validates every bundle against the pinned diagnostic-bundle.v1 schema before it can leave the Console.
         services.TryAddSingleton<Diagnostics.DiagnosticBundleExporter>();
-
         services.TryAddSingleton<ConsoleSupportContextBuilder>(serviceProvider =>
             new ConsoleSupportContextBuilder(
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 serviceProvider.GetRequiredService<IConsoleOperateObservabilityClient>()));
 
-        // L0 self-service deflection (honua-console#165), shown BEFORE the ticket
-        // form on /support. Three self-contained pieces:
-        //   - the qwen assistant client, bound to the SAME OpenAI-compatible
-        //     /v1/chat/completions endpoint honua-support's L1 triage uses
-        //     (Honua:Llm:BaseUrl + model/key); degrades to the unsupported
-        //     client (assistant hidden) when no endpoint is configured;
-        //   - the lexical KB retriever over the bundled honua-gis-llm support KB
-        //     (optional Honua:Support:KbPath override); empty when absent;
-        //   - the deflection log (structured ILogger events) so the deflection
-        //     rate is measurable.
-        AddSupportAssistantClient(services, options.LlmBaseUrl, options.LlmModel, options.LlmApiKey);
-        services.TryAddSingleton<IConsoleSupportKnowledgeBase>(
-            _ => FileConsoleSupportKnowledgeBase.Load(options.SupportKbPath));
+        AddAssistantClient(services, options);
+        services.TryAddSingleton<IConsoleSupportKnowledgeBase>(_ => FileConsoleSupportKnowledgeBase.Load(options.SupportKbPath));
         services.TryAddSingleton<IConsoleSupportDeflectionLog, ConsoleSupportDeflectionLog>();
-
-        return services;
     }
 
-    private static void AddSupportAssistantClient(
-        IServiceCollection services,
-        string? honuaLlmBaseUrl,
-        string? honuaLlmModel,
-        string? honuaLlmApiKey)
+    private static void AddTicketClient(IServiceCollection services, string? supportBaseUrl)
     {
-        // Require both an absolute endpoint and a model id; missing either means
-        // the assistant gracefully degrades (the /support page hides it and keeps
-        // KB + form).
-        if (!string.IsNullOrWhiteSpace(honuaLlmBaseUrl)
-            && !string.IsNullOrWhiteSpace(honuaLlmModel)
-            && Uri.TryCreate(honuaLlmBaseUrl.Trim(), UriKind.Absolute, out var llmBaseUri)
-            && (llmBaseUri.Scheme == Uri.UriSchemeHttp || llmBaseUri.Scheme == Uri.UriSchemeHttps))
+        if (string.IsNullOrWhiteSpace(supportBaseUrl)
+            || !Uri.TryCreate(supportBaseUrl.Trim(), UriKind.Absolute, out var supportBaseUri))
         {
-            services.TryAddSingleton<IConsoleSupportAssistantClient>(_ =>
-                new HttpConsoleSupportAssistantClient(
-                    CreateSupportAssistantHttpClient(),
-                    llmBaseUri,
-                    honuaLlmModel.Trim(),
-                    honuaLlmApiKey));
+            services.TryAddSingleton<IConsoleSupportTicketClient, UnsupportedSupportTicketClient>();
             return;
         }
 
-        services.TryAddSingleton<IConsoleSupportAssistantClient, UnsupportedConsoleSupportAssistantClient>();
+        services.TryAddSingleton<IConsoleSupportTicketClient>(serviceProvider =>
+            new HttpSupportTicketClient(
+                ShellHttpClients.Standalone(ShellHttpClients.ReadTimeout),
+                supportBaseUri,
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()));
     }
 
-    private static void AddSupportTicketClient(IServiceCollection services, string? honuaSupportBaseUrl)
+    // Without both an http(s) endpoint and a model id the /support page hides the assistant.
+    private static void AddAssistantClient(IServiceCollection services, HonuaConsoleShellOptions options)
     {
-        if (!string.IsNullOrWhiteSpace(honuaSupportBaseUrl)
-            && Uri.TryCreate(honuaSupportBaseUrl.Trim(), UriKind.Absolute, out var supportBaseUri))
+        if (string.IsNullOrWhiteSpace(options.LlmBaseUrl)
+            || string.IsNullOrWhiteSpace(options.LlmModel)
+            || !Uri.TryCreate(options.LlmBaseUrl.Trim(), UriKind.Absolute, out var llmBaseUri)
+            || (llmBaseUri.Scheme != Uri.UriSchemeHttp && llmBaseUri.Scheme != Uri.UriSchemeHttps))
         {
-            services.TryAddSingleton<IConsoleSupportTicketClient>(serviceProvider =>
-                new HttpSupportTicketClient(
-                    new HttpClient(CreateBoundedLifetimeHandler()) { Timeout = TimeSpan.FromSeconds(30) },
-                    supportBaseUri,
-                    serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                    serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()));
+            services.TryAddSingleton<IConsoleSupportAssistantClient, UnsupportedConsoleSupportAssistantClient>();
             return;
         }
 
-        services.TryAddSingleton<IConsoleSupportTicketClient, UnsupportedSupportTicketClient>();
+        var model = options.LlmModel.Trim();
+        services.TryAddSingleton<IConsoleSupportAssistantClient>(_ =>
+            new HttpConsoleSupportAssistantClient(
+                ShellHttpClients.Standalone(ShellHttpClients.LongRequestTimeout),
+                llmBaseUri,
+                model,
+                options.LlmApiKey));
     }
-
-    public static IServiceCollection AddHonuaConsoleDemoOperateTransitionData(this IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        services.Replace(ServiceDescriptor.Singleton<IOperateTransitionDataSource>(
-            _ => InMemoryOperateTransitionDataSource.CreateSeeded()));
-
-        return services;
-    }
-
-    /// <summary>
-    /// Swaps the catalog/content client for the local in-memory seeded source. For explicit demo/local
-    /// composition or unit tests only — never the merged runtime path for server-owned catalog/content
-    /// metadata (issue #7). The merged runtime renders a missing-binding state until honua-server's
-    /// metadata/content projection is bound (honua-server#1162).
-    /// </summary>
-    public static IServiceCollection AddHonuaConsoleDemoCatalogContent(this IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        services.Replace(ServiceDescriptor.Singleton<IConsoleCatalogClient, InMemoryConsoleCatalogClient>());
-
-        return services;
-    }
-
-    /// <summary>
-    /// Swaps the Studio authoring shell for the local in-memory simulator. For explicit demo/local
-    /// composition only — never the merged runtime path for server-owned Studio package data.
-    /// </summary>
-    public static IServiceCollection AddHonuaConsoleDemoStudioAuthoringShell(this IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        services.Replace(ServiceDescriptor.Singleton<IStudioAuthoringShell, InMemoryStudioAuthoringShell>());
-
-        return services;
-    }
-
-    /// <summary>
-    /// Swaps the Studio workflow package client for the local in-memory seeded simulator. For explicit
-    /// demo/local composition only — never the merged runtime path for server-owned workflow package data
-    /// (#1185). Mirrors <see cref="AddHonuaConsoleDemoStudioAuthoringShell"/>.
-    /// </summary>
-    public static IServiceCollection AddHonuaConsoleDemoStudioWorkflowPackages(this IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        services.Replace(ServiceDescriptor.Singleton<IStudioWorkflowPackageClient>(
-            _ => InMemoryStudioWorkflowPackageClient.CreateSeeded()));
-
-        return services;
-    }
-
-    /// <summary>
-    /// Swaps the Collect automation client for the local in-memory seeded simulator. For explicit demo/local
-    /// composition only — never the merged runtime path for server/Collect-owned automation content
-    /// (honua-console#219). Mirrors <see cref="AddHonuaConsoleDemoStudioWorkflowPackages"/>.
-    /// </summary>
-    public static IServiceCollection AddHonuaConsoleDemoCollectAutomations(this IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        services.Replace(ServiceDescriptor.Singleton<ICollectAutomationClient>(
-            _ => InMemoryCollectAutomationClient.CreateSeeded()));
-
-        return services;
-    }
-
-    // Shared honua-server base-URI guard (honua-console#279 PA-243). The DI composition root gates every
-    // live server binding on "the configured base URL is an absolute http(s) URI"; that two-line check was
-    // duplicated 24 times and could drift independently. Centralise it so every Add* method validates the
-    // server URL identically and a live binding is only registered for a well-formed absolute http(s) URL.
-    private static bool TryGetHonuaServerBaseUri(string? honuaServerBaseUrl, out Uri baseUri)
-    {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var parsed)
-            && (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps))
-        {
-            baseUri = parsed;
-            return true;
-        }
-
-        baseUri = null!;
-        return false;
-    }
-
-    // Binds the Studio package draft/lifecycle/validation/preview-plan surface to honua-server
-    // (#1180/#1181) through the Honua.Console.Contracts shim when a server base address is configured;
-    // otherwise the shell renders a missing-binding state (never mock package data).
-    private static void AddStudioAuthoringShell(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<IStudioPackageLifecycleClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
-                return new HttpStudioPackageLifecycleClient(
-                    httpClient,
-                    new StudioPackageLifecycleClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-            services.TryAddSingleton<IStudioAuthoringShell, ServerStudioAuthoringShell>();
-            return;
-        }
-
-        services.TryAddSingleton<IStudioAuthoringShell, UnsupportedStudioAuthoringShell>();
-    }
-
-    // Binds the Studio form-builder surface (/studio/form) to honua-server's form package lifecycle
-    // (#1184) through the Honua.Console.Contracts shim when a server base address is configured;
-    // otherwise the builder renders a missing-binding state (never mock form data).
-    private static void AddStudioFormPackageDataSource(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<IHonuaFormPackageClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
-                return new HonuaFormPackageHttpClient(
-                    httpClient,
-                    new HonuaFormPackageClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-            services.TryAddSingleton<IStudioFormPackageDataSource, HonuaServerStudioFormPackageDataSource>();
-            return;
-        }
-
-        services.TryAddSingleton<IStudioFormPackageDataSource, UnsupportedStudioFormPackageDataSource>();
-    }
-
-    private static void AddStudioMapStyleCatalogDataSource(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            // The per-layer style picker (#161, ADR-0048) binds the layer's styleId to the styles the server
-            // advertises on the PUBLIC OGC API - Styles list (GET /ogc/styles). The admin key is forwarded
-            // only if configured (harmless on the public read; future-proof if the surface is ever gated).
-            // It reads a public surface, so it uses the anonymous-capable client rather than failing closed
-            // for an unresolved operator (honua-console#254).
-            services.TryAddSingleton<IHonuaOgcStylesClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.CreatePublic(serviceProvider, baseUri);
-                return new HonuaOgcStylesHttpClient(
-                    httpClient,
-                    new HonuaOgcStylesClientOptions(baseUri, honuaServerAdminApiKey, AuthorityBindingSupported: serviceProvider.GetService<IHonuaServerBoundClientFactory>() is not null));
-            });
-            services.TryAddSingleton<IStudioMapStyleCatalogDataSource, HonuaServerStudioMapStyleCatalogDataSource>();
-            return;
-        }
-
-        services.TryAddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
-    }
-
-    // Binds the Studio report-builder surface (/studio/report) read path to honua-server's content
-    // publication registry (#1183) through the Honua.Console.Contracts shim when a server base address
-    // is configured; otherwise the builder renders a missing-binding state (never mock publication data).
-    private static void AddStudioReportPublicationDataSource(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<IHonuaContentPublicationClient>(serviceProvider =>
-            {
-                // 10-min timeout: report/dashboard generation share this client and a local model can take
-                // minutes. Set it here too rather than relying on TryAdd ordering with the dashboard registration.
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri, TimeSpan.FromMinutes(10));
-                return new HonuaContentPublicationHttpClient(
-                    httpClient,
-                    new HonuaContentPublicationClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-            services.TryAddSingleton<IStudioReportPublicationDataSource, HonuaServerStudioReportPublicationDataSource>();
-            return;
-        }
-
-        services.TryAddSingleton<IStudioReportPublicationDataSource, UnsupportedStudioReportPublicationDataSource>();
-    }
-
-    // Binds the Studio GP/ETL workflow editor (node registry, package drafts, versions, dry-run, publish)
-    // to honua-server (#1185) through the Honua.Console.Contracts shim when a server base address is
-    // configured; otherwise the editor renders a missing-binding state (never seeded workflow data).
-    private static void AddStudioWorkflowPackageClient(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<IWorkflowPackageApiClient>(serviceProvider =>
-            {
-                // NL->workflow generation grounds + validates + runs a bounded repair loop on the
-                // server, and against a local CPU model a single turn can take minutes. The default
-                // HttpClient.Timeout of 100s cancels these legitimately-slow generations client-side
-                // (surfacing as a false "endpoint could not be reached"). Match the server's own
-                // request timeout (Limits:Connections:RequestTimeout = 10 min) so the real path works.
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri, TimeSpan.FromMinutes(10));
-                return new HttpWorkflowPackageApiClient(
-                    httpClient,
-                    new WorkflowPackageClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-            services.TryAddSingleton<IStudioWorkflowPackageClient, ServerStudioWorkflowPackageClient>();
-            return;
-        }
-
-        services.TryAddSingleton<IStudioWorkflowPackageClient, UnsupportedStudioWorkflowPackageClient>();
-    }
-
-    // Binds the Collect automation authoring + versioning surface (/studio/automations, honua-console#219) to
-    // the server/Collect-owned automation content + version projection over the shipped Data Events engine
-    // (Honua.Collect.Core, honua-collect PRs #58/#84/#94). That projection is not yet exposed to Console, so
-    // the merged runtime registers the missing-binding client and the surface renders the shared blocked
-    // state (Console Patterns Charter §11) instead of seeded automation data. The seeded in-memory client
-    // (AddHonuaConsoleDemoCollectAutomations) stays test/demo-only — never the DI default. TryAdd keeps an
-    // explicit test/demo provider overridable.
-    private static void AddCollectAutomationClient(IServiceCollection services)
-    {
-        services.TryAddSingleton<ICollectAutomationClient, UnsupportedCollectAutomationClient>();
-    }
-
-    // Binds the server-owned catalog/content metadata surfaces (Catalog list/search/detail, Share map
-    // package + embed reads, Studio draft hydration, open-data reads) to honua-server's Console metadata
-    // v2 content + RBAC API (honua-server#1162, CLOSED) through the Honua.Console.Contracts shim when a
-    // server base address is configured. Server-authored RBAC verbs drive the resolved role and viewer
-    // support, so route/item actions reflect entitlement checks. With no server configured the shell
-    // keeps the UnsupportedConsoleCatalogClient missing-binding state across Catalog/Studio/Share/Operate
-    // reads instead of fabricating content (issue #7, Console Patterns Charter section 11). The seeded
-    // InMemoryConsoleCatalogClient is never the runtime source; AddHonuaConsoleDemoCatalogContent restores
-    // it for explicit demo/local composition only.
-    private static void AddConsoleCatalogClient(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<IHonuaConsoleContentClient>(serviceProvider =>
-            {
-                // The catalog/content client serves BOTH authenticated operator reads AND the
-                // legitimately-anonymous /public open-data pages, so it uses the anonymous-capable client:
-                // the operator bearer is forwarded when resolved, but an anonymous visitor is tolerated by
-                // design (honua-console#254). It must NOT fail closed like the privileged surfaces.
-                var httpClient = HonuaServerClientFactory.CreatePublic(serviceProvider, baseUri);
-                return new HonuaConsoleContentHttpClient(
-                    httpClient,
-                    new HonuaConsoleContentClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-            services.TryAddSingleton<IConsoleCatalogClient, HonuaServerConsoleCatalogClient>();
-            return;
-        }
-
-        services.TryAddSingleton<IConsoleCatalogClient, UnsupportedConsoleCatalogClient>();
-    }
-
-    // SensorThings (STA v1.1) browse surface binds to a real honua-server through
-    // the conformance-shaped /sta/v1.1 read API (honua-server #1842 / #1747) via a
-    // thin typed HttpClient. No standing in-memory data source is registered
-    // (Console Patterns Charter section 11); when an environment is connected the
-    // browse + chart views read live data, else they render the missing-binding
-    // state. The InMemory client stays test/demo-only.
-    private static void AddConsoleSensorThingsClient(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<IConsoleSensorThingsClient>(serviceProvider =>
-                new HttpConsoleSensorThingsClient(
-                    CreateOperateObservabilityHttpClient(serviceProvider),
-                    serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                    serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                    honuaServerAdminApiKey));
-            return;
-        }
-
-        services.TryAddSingleton<IConsoleSensorThingsClient, UnsupportedConsoleSensorThingsClient>();
-    }
-
-    // 3D scene surface binds to a real honua-server: scene discovery
-    // (GET /api/scenes), LAS point-cloud ingest
-    // (POST /api/v1/admin/scenes/ingest/pointcloud, honua-server #1840 / #1201),
-    // and tileset URL resolution (/scenes/{id}/tileset.json) via a thin typed
-    // HttpClient. No standing in-memory data source is registered (Console
-    // Patterns Charter section 11); when an environment is connected the discover
-    // + ingest + view flow reads live data, else it renders missing-binding. The
-    // admin API key is sent as X-API-Key (admin-authorized ingest endpoint).
-    private static void AddConsoleSceneClient(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<IConsoleSceneClient>(serviceProvider =>
-                new HttpConsoleSceneClient(
-                    CreateSceneIngestHttpClient(serviceProvider),
-                    serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                    serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                    honuaServerAdminApiKey));
-            return;
-        }
-
-        services.TryAddSingleton<IConsoleSceneClient, UnsupportedConsoleSceneClient>();
-    }
-
-    // Binds the Share management surface (/share/manage, honua-console#35) to honua-server's Console Share
-    // access API (honua-server#1215: share projection read, access-tier change, dependency-closure preview,
-    // public-link mint/revoke, embed enablement/token mint) through the Honua.Console.Contracts shim when a
-    // server base address is configured; otherwise the surface renders a missing-binding state (never mock
-    // share data, Console Patterns Charter section 11).
-    private static void AddShareAccessDataSource(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<IHonuaConsoleShareClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
-                return new HonuaConsoleShareHttpClient(
-                    httpClient,
-                    new HonuaConsoleShareClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-            services.TryAddSingleton<IShareAccessDataSource, HonuaServerShareAccessDataSource>();
-            return;
-        }
-
-        services.TryAddSingleton<IShareAccessDataSource, UnsupportedShareAccessDataSource>();
-    }
-
-    private static void AddRbacAccessDataSource(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<IHonuaConsoleRbacClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
-                return new HonuaConsoleRbacHttpClient(
-                    httpClient,
-                    new HonuaConsoleRbacClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-            services.TryAddSingleton<IRbacAccessDataSource, HonuaServerRbacAccessDataSource>();
-            return;
-        }
-
-        services.TryAddSingleton<IRbacAccessDataSource, UnsupportedRbacAccessDataSource>();
-    }
-
-    // Binds the Operate > Catalogs discovery-endpoints surface (/operate/catalogs, honua-console#125) to
-    // honua-server's catalog discovery-endpoints registry (honua-server#1279) through the
-    // Honua.Console.Contracts shim when a server base address is configured; otherwise the surface renders an
-    // explicit missing-binding state (never mock endpoint/item data — Console Patterns Charter section 11).
-    // honua-server#1279 is not yet shipped, so in practice the merged runtime renders the missing-binding
-    // state today; the page, data source, and tests already consume the full registry contract so the live
-    // binding activates the moment the server endpoint lands.
-    private static void AddCatalogDiscoveryDataSource(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<IHonuaCatalogDiscoveryClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
-                return new HonuaCatalogDiscoveryHttpClient(
-                    httpClient,
-                    new HonuaCatalogDiscoveryClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-            services.TryAddSingleton<ICatalogDiscoveryDataSource, HonuaServerCatalogDiscoveryDataSource>();
-            return;
-        }
-
-        services.TryAddSingleton<ICatalogDiscoveryDataSource, UnsupportedCatalogDiscoveryDataSource>();
-    }
-
-    // Wires the Operate transition surface + the layer/service/connection admin OPERATIONS to honua-server
-    // (honua-console#279 PA-244). Previously one method bundled 16 unrelated singletons under a single URL
-    // gate with a second parallel 15-item "Unsupported" list, so the two lists could drift. It now resolves
-    // the URL gate ONCE and delegates to per-concern registration helpers aligned with the PA-242 admin role
-    // interfaces; each helper co-locates a concern's live vs. Unsupported binding so the pairing lives in one
-    // place. The live admin client is registered only when a server base URL is configured. Behavior-identical:
-    // live => admin client + the HonuaServer* operations; unbound => the Unsupported* operations, no client.
-    private static void AddOperateTransitionDataSource(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        var live = TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri);
-        if (live)
-        {
-            services.TryAddSingleton<IHonuaAdminOperateClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
-                return new HonuaAdminOperateHttpClient(
-                    httpClient,
-                    new HonuaAdminOperateClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-        }
-
-        AddOperateConnectionsOperations(services, live);
-        AddOperateImportOperations(services, live);
-        AddOperateLayerPublishingOperations(services, live);
-        AddOperateServiceSettingsOperations(services, live);
-        AddOperateLayerMetadataOperations(services, live);
-        AddOperateLayerSchemaOperations(services, live);
-    }
-
-    // Connection-create OPERATION: the Add Connection form performs a REAL create against honua-server
-    // (POST /api/v1/admin/connections) when a server is bound.
-    private static void AddOperateConnectionsOperations(IServiceCollection services, bool live)
-    {
-        if (live)
-        {
-            services.TryAddSingleton<IConsoleConnectionCreateOperation, HonuaServerConsoleConnectionCreateOperation>();
-        }
-        else
-        {
-            services.TryAddSingleton<IConsoleConnectionCreateOperation, UnsupportedConsoleConnectionCreateOperation>();
-        }
-    }
-
-    // File + service import OPERATIONS: streamed file upload (POST /api/v1/admin/import/upload) and remote
-    // Esri/OGC service discovery (POST /api/v1/admin/external-services/discover).
-    private static void AddOperateImportOperations(IServiceCollection services, bool live)
-    {
-        if (live)
-        {
-            services.TryAddSingleton<IConsoleFileImportOperation, HonuaServerConsoleFileImportOperation>();
-            services.TryAddSingleton<IConsoleServiceImportOperation, HonuaServerConsoleServiceImportOperation>();
-        }
-        else
-        {
-            services.TryAddSingleton<IConsoleFileImportOperation, UnsupportedConsoleFileImportOperation>();
-            services.TryAddSingleton<IConsoleServiceImportOperation, UnsupportedConsoleServiceImportOperation>();
-        }
-    }
-
-    // The Operate transition data source + the service-layer-publish OPERATION (issue #144): the publishing
-    // wizard's finish action performs a REAL publish against honua-server.
-    private static void AddOperateLayerPublishingOperations(IServiceCollection services, bool live)
-    {
-        if (live)
-        {
-            services.TryAddSingleton<IOperateTransitionDataSource, HonuaServerOperateTransitionDataSource>();
-            services.TryAddSingleton<IServiceLayerPublishOperation, HonuaServerServiceLayerPublishOperation>();
-        }
-        else
-        {
-            services.TryAddSingleton<IOperateTransitionDataSource, UnsupportedOperateTransitionDataSource>();
-            services.TryAddSingleton<IServiceLayerPublishOperation, UnsupportedServiceLayerPublishOperation>();
-        }
-    }
-
-    // Service configuration (Wave 5: layer enable/disable + protocol/access-policy changes) and time-info
-    // authoring (PUT /api/v1/admin/services/{svc}/timeinfo).
-    private static void AddOperateServiceSettingsOperations(IServiceCollection services, bool live)
-    {
-        if (live)
-        {
-            services.TryAddSingleton<IServiceConfigurationOperation, HonuaServerServiceConfigurationOperation>();
-            services.TryAddSingleton<IConsoleTimeInfoOperation, HonuaServerConsoleTimeInfoOperation>();
-        }
-        else
-        {
-            services.TryAddSingleton<IServiceConfigurationOperation, UnsupportedServiceConfigurationOperation>();
-            services.TryAddSingleton<IConsoleTimeInfoOperation, UnsupportedConsoleTimeInfoOperation>();
-        }
-    }
-
-    // Layer field-domain authoring (…/fields) and the service-scoped layer editing policy.
-    private static void AddOperateLayerMetadataOperations(IServiceCollection services, bool live)
-    {
-        if (live)
-        {
-            services.TryAddSingleton<IConsoleLayerFieldsOperation, HonuaServerConsoleLayerFieldsOperation>();
-            services.TryAddSingleton<IConsoleLayerMetadataOperation, HonuaServerConsoleLayerMetadataOperation>();
-        }
-        else
-        {
-            services.TryAddSingleton<IConsoleLayerFieldsOperation, UnsupportedConsoleLayerFieldsOperation>();
-            services.TryAddSingleton<IConsoleLayerMetadataOperation, UnsupportedConsoleLayerMetadataOperation>();
-        }
-    }
-
-    // Layer schema authoring: relationships (…/relationships) and the server-enforced permanent filter (…/filter).
-    private static void AddOperateLayerSchemaOperations(IServiceCollection services, bool live)
-    {
-        if (live)
-        {
-            services.TryAddSingleton<IConsoleLayerRelationshipsOperation, HonuaServerConsoleLayerRelationshipsOperation>();
-            services.TryAddSingleton<IConsoleLayerFilterOperation, HonuaServerConsoleLayerFilterOperation>();
-        }
-        else
-        {
-            services.TryAddSingleton<IConsoleLayerRelationshipsOperation, UnsupportedConsoleLayerRelationshipsOperation>();
-            services.TryAddSingleton<IConsoleLayerFilterOperation, UnsupportedConsoleLayerFilterOperation>();
-        }
-    }
-
-    // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal) to
-    // honua-server's temporal data history API (#1166 slice 1: capability discovery + as-of read) and the
-    // disconnected replica management API (#1167 slice 1: replica list + detail; slice 2: conflict review +
-    // resolution) through the IHonuaTemporalClient shim when a server base address is configured. The
-    // temporal API is per service/layer with no enumeration verb, so the viewer is keyed by a configured
-    // list of candidate sources
-    // (Honua:Server:TemporalSources / HONUA_SERVER_TEMPORAL_SOURCES, "serviceId:layerId"). The deferred
-    // server slice (diff/timeline/rollback execution #1285) is NOT merged; the live client binds what
-    // exists and renders the rest as the established not-yet-available state, never fabricated (Console
-    // Patterns Charter section 11). When no base URL is configured the missing-binding client is registered
-    // and the viewer renders an explicit capability explanation.
-    private static void AddTemporalCapabilityClient(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey,
-        string? honuaServerTemporalSources)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<IHonuaTemporalClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
-                return new HonuaTemporalHttpClient(
-                    httpClient,
-                    new HonuaTemporalClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-
-            var options = HonuaServerTemporalOptions.FromConfiguredList(honuaServerTemporalSources);
-            services.TryAddSingleton<ITemporalCapabilityClient>(serviceProvider =>
-                new HonuaServerTemporalCapabilityClient(
-                    serviceProvider.GetRequiredService<IHonuaTemporalClient>(),
-                    options));
-            return;
-        }
-
-        services.TryAddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
-    }
-
-    // The live SDK registry is used by Console gates whenever a server is configured.
-    // Studio:RegistryIntentResolution independently opts Studio AI into registry intent resolution;
-    // leaving that flag off does not replace live Console capability truth with an allowlist.
-    // TryAdd preserves explicit test/demo overrides.
-    private static void AddStudioIntentResolution(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        bool registryIntentResolutionEnabled)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<Honua.Sdk.Studio.Capabilities.IHonuaCapabilityManifestClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
-                return new Honua.Sdk.Studio.Capabilities.HonuaCapabilityManifestClient(httpClient);
-            });
-            services.TryAddSingleton<ICapabilityRegistryClient>(serviceProvider =>
-                new HonuaServerCapabilityRegistryClient(
-                    serviceProvider.GetRequiredService<Honua.Sdk.Studio.Capabilities.IHonuaCapabilityManifestClient>()));
-            services.TryAddSingleton<IStudioIntentResolver>(serviceProvider =>
-                registryIntentResolutionEnabled
-                    ? new StudioIntentResolver(
-                        serviceProvider.GetRequiredService<IOmniPromptIntentClassifier>(),
-                        serviceProvider.GetRequiredService<ICapabilityRegistryClient>())
-                    : new NoopStudioIntentResolver(
-                        serviceProvider.GetRequiredService<IOmniPromptIntentClassifier>()));
-            return;
-        }
-
-        services.TryAddSingleton<ICapabilityRegistryClient, UnsupportedCapabilityRegistryClient>();
-        services.TryAddSingleton<IStudioIntentResolver>(serviceProvider =>
-            new NoopStudioIntentResolver(
-                serviceProvider.GetRequiredService<IOmniPromptIntentClassifier>()));
-    }
-
-    // Binds the "Import from Esri" wizard run engine + parity scorecard (#102, /operate/import/esri Run and
-    // Scorecard steps) to the honua-devops migration-run API. The issue-122 handoff flags honua-devops as the
-    // migration-run owner; there is no Console-consumable run contract yet, so the merged build registers only
-    // the missing-binding client: the wizard's earlier steps (Source/Select/Map) render their deterministic,
-    // Console-side parsed conversion preview, but the Run and Scorecard steps stay on an explicit
-    // missing-binding state — Console never fabricates run progress, per-item results, or parity numbers
-    // (Console Patterns Charter section 11). When honua-devops exposes a Console-bindable run contract, wire
-    // the live HTTP-bound client here gated on a configured server base URL exactly like the other bindings;
-    // the wizard and tests already consume the full IEsriMigrationRunDataSource. TryAdd keeps a test/demo
-    // provider overridable.
-    private static void AddEsriMigrationRunDataSource(IServiceCollection services) =>
-        services.TryAddSingleton<IEsriMigrationRunDataSource, UnsupportedEsriMigrationRunDataSource>();
-
-    // Binds the Operate publishing workspace (/operate/publishing) matrix + review + republish/rollback
-    // lifecycle to the real honua-server content publication registry (honua-server#1183, shipped)
-    // through the IHonuaContentPublicationClient shim when a server base address is configured;
-    // otherwise the workspace renders a missing-binding state (never mock publishing data — Console
-    // Patterns Charter section 11 — no standing in-memory publishing data source). The workspace
-    // discovers publications from GET /api/v1/console/publications (honua-server#3357). Configured
-    // publication ids (Honua:Server:PublicationIds / HONUA_SERVER_PUBLICATION_IDS) are an optional
-    // filter, not a requirement.
-    private static void AddPublishingWorkspaceDataSource(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey,
-        string? honuaServerPublicationIds)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            // Reuse the content publication client already registered by the report-builder binding when
-            // present; otherwise register it here (TryAdd keeps a single client across both surfaces).
-            services.TryAddSingleton<IHonuaContentPublicationClient>(serviceProvider =>
-            {
-                // 10-min timeout to match the generation clients that share IHonuaContentPublicationClient
-                // (report/dashboard generation), independent of registration order.
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri, TimeSpan.FromMinutes(10));
-                return new HonuaContentPublicationHttpClient(
-                    httpClient,
-                    new HonuaContentPublicationClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-
-            var options = PublishingWorkspaceOptions.FromConfiguredList(honuaServerPublicationIds);
-            services.TryAddSingleton<IPublishingWorkspaceDataSource>(serviceProvider =>
-                new HonuaServerPublishingWorkspaceDataSource(
-                    serviceProvider.GetRequiredService<IHonuaContentPublicationClient>(),
-                    options));
-            return;
-        }
-
-        services.TryAddSingleton<IPublishingWorkspaceDataSource, UnsupportedPublishingWorkspaceDataSource>();
-    }
-
-    // Binds the alert RULE definition surface (/operate/alerts/rules and /operate/alerts/rules/{ruleId},
-    // honua-console UI-042) to honua-server. The rule LIST reuses the live observability rules projection
-    // (/api/v1/admin/observability, already registered); the rule detail/condition editor and rule save bind
-    // the SHIPPED alert-rule DEFINITION admin contract (honua-server#1169, /api/v{version}/admin/alerts/rules…)
-    // through HttpConsoleAlertRulesClient (X-API-Key admin auth, ApiResponse<T> envelope), all behind
-    // ServerOperateAlertRulesDataSource when a server base address is configured. With no server configured the
-    // unsupported source surfaces the missing-binding state across the list and editor (Console Patterns
-    // Charter section 11). TryAdd keeps a test/demo provider overridable.
-    private static void AddOperateAlertRulesDataSource(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<IConsoleAlertRulesClient>(serviceProvider =>
-                new HttpConsoleAlertRulesClient(
-                    CreateOperateObservabilityHttpClient(serviceProvider),
-                    serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                    honuaServerAdminApiKey));
-
-            services.TryAddSingleton<IOperateAlertRulesDataSource>(serviceProvider =>
-                new ServerOperateAlertRulesDataSource(
-                    serviceProvider.GetRequiredService<IConsoleOperateObservabilityClient>(),
-                    serviceProvider.GetRequiredService<IConsoleAlertRulesClient>()));
-            return;
-        }
-
-        services.TryAddSingleton<IOperateAlertRulesDataSource, UnsupportedOperateAlertRulesDataSource>();
-    }
-
-    // Binds the Operate branch-version manager + conflict-resolution surface (/operate/versions,
-    // honua-console#177) to honua-server's GeoServices VersionManagementServer (#371 / PR #1551):
-    // list/create/alter/delete versions, reconcile with an auto-resolution policy, inspect the pending 3-way
-    // conflict set, submit manual per-feature resolutions, and post to DEFAULT. Live only when a server base
-    // URL is configured; otherwise the unsupported source renders an explicit missing-binding state and never
-    // fabricates a version operation (Console Patterns Charter section 11).
-    private static void AddVersionManagementOperation(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<IHonuaVersionManagementClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
-                return new HonuaVersionManagementHttpClient(
-                    httpClient,
-                    new HonuaVersionManagementClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-            services.TryAddSingleton<IVersionManagementOperation, HonuaServerVersionManagementOperation>();
-            return;
-        }
-
-        services.TryAddSingleton<IVersionManagementOperation, UnsupportedVersionManagementOperation>();
-    }
-
-    // Binds the Operate resource-presentation per-layer popup-info + drawing-info (renderer) authoring surface
-    // (/operate/layers/{id}/style, honua-console UI-032) to the SHIPPED honua-server admin authoring endpoints
-    // (GET/PUT /api/v1/admin/metadata/layers/{id}/popup-info and .../drawing-info). When a server base URL is
-    // configured the live ServerOperateLayerStyleOverrideDataSource reads/writes both documents through the
-    // already-registered IHonuaAdminOperateClient (resolving the route's canonical resource id to the layer's
-    // global id via the live layers projection). With no server configured the unsupported source surfaces an
-    // honest missing-binding state and never fabricates a popup/renderer (Console Patterns Charter section 11);
-    // the page still reads the REAL /ogc/styles list through IStudioMapStyleCatalogDataSource. TryAdd keeps a
-    // test/demo provider overridable.
-    private static void AddOperateLayerStyleOverrideDataSource(IServiceCollection services, string? honuaServerBaseUrl)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            // IOperateTransitionDataSource + IHonuaAdminOperateClient are registered by
-            // AddOperateTransitionDataSource under the same base-URL gate.
-            services.TryAddSingleton<IOperateLayerStyleOverrideDataSource>(serviceProvider =>
-                new ServerOperateLayerStyleOverrideDataSource(
-                    serviceProvider.GetRequiredService<IOperateTransitionDataSource>(),
-                    serviceProvider.GetRequiredService<IHonuaAdminOperateClient>()));
-            return;
-        }
-
-        services.TryAddSingleton<IOperateLayerStyleOverrideDataSource, UnsupportedOperateLayerStyleOverrideDataSource>();
-    }
-
-    private static HttpClient CreateManagerHttpClient(IServiceProvider services) =>
-        services.GetService<IHonuaServerBoundClientFactory>() is { } factory
-            ? factory.CreateManagerBoundClient(new Uri("https://unbound.invalid/"), TimeSpan.FromSeconds(30))
-            : new HttpClient(CreateBoundedLifetimeHandler()) { Timeout = TimeSpan.FromSeconds(30) };
-
-    private static HttpClient CreateOperateObservabilityHttpClient(IServiceProvider services) =>
-        CreateInteractiveServerHttpClient(services, TimeSpan.FromSeconds(30));
-
-    // The L0 support assistant drives the SAME slow local-CPU LLM inference path as the Studio
-    // generation clients (qwen via NIM/vLLM/llama.cpp/Ollama) with a non-streaming chat completion,
-    // where a single turn can take minutes. Give it the same generation-appropriate budget those
-    // clients use (10 min) instead of the 30s observability/metrics budget, which cancels a
-    // legitimately-slow answer mid-generation and surfaces the false "assistant endpoint unreachable"
-    // failure — defeating the deflection goal on exactly the slow-but-valid path.
-    private static HttpClient CreateSupportAssistantHttpClient() =>
-        new(CreateBoundedLifetimeHandler())
-        {
-            Timeout = TimeSpan.FromMinutes(10)
-        };
-
-    // The scene client uploads LAS point clouds up to 256 MB (OperateScenesPage MaxFileBytes) as a
-    // multipart POST. HttpClient.Timeout is a whole-operation deadline (connect + full body upload +
-    // response), so the 30s observability/metrics-read budget cancels any realistically-sized upload
-    // mid-stream and the client surfaces a false "endpoint unreachable" (OperationCanceledException ->
-    // SceneReadStatus.Unavailable). Give the ingest path the same generation-class budget the slow
-    // generation/support clients use (10 min) instead of the 30s read budget; the caller's
-    // CancellationToken still governs user-initiated cancellation.
-    private static HttpClient CreateSceneIngestHttpClient(IServiceProvider services) =>
-        CreateInteractiveServerHttpClient(services, TimeSpan.FromMinutes(10));
-
-    private static HttpClient CreateInteractiveServerHttpClient(IServiceProvider services, TimeSpan timeout) =>
-        services.GetService<IHonuaServerBoundClientFactory>() is { } factory
-            // These clients supply absolute request URIs from the active profile.
-            ? factory.CreateServerBoundClient(new Uri("https://unbound.invalid/"), timeout)
-            : new HttpClient(CreateBoundedLifetimeHandler()) { Timeout = timeout };
-
-    // Native fallback and external-service clients use a bounded pool; browser server clients
-    // use the host factory's operator credential boundary and managed pool.
-    private static SocketsHttpHandler CreateBoundedLifetimeHandler() =>
-        new()
-        {
-            // Refresh pooled connections so a long-lived singleton client does
-            // not pin stale DNS for the active environment's server.
-            PooledConnectionLifetime = TimeSpan.FromMinutes(5)
-        };
 }
