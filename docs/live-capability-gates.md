@@ -24,8 +24,6 @@ including Preview opt-ins.
 `Honua:Console:Capabilities` / `HONUA_CONSOLE_CAPABILITIES` can restrict this set.
 An omitted server policy imposes no additional restriction. A configured list
 of server keys permits only those keys that the server also permits.
-`studio-builders` is a separate, local-only switch and is excluded from that
-server policy; setting only `studio-builders` does not hide server capabilities.
 
 Availability belongs to a Blazor circuit, not to the application singleton.
 Pages refresh before loading gated feature data; activating an environment
