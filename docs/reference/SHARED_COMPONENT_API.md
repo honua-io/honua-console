@@ -195,7 +195,7 @@ Source: `src/Honua.Console.Shell/Layout/`. Both inherit
 Source: `Layout/ConsoleLayout.razor`. The default shell layout
 (`DefaultLayout` in `ConsoleRoutes.razor`). Renders the brand, primary nav
 from `ConsoleRouteMap.Areas`, the Operate secondary nav (shown only on
-`/operate/*` routes via `ConsoleRouteMap.IsOperateRoute`), the native-host
+`/operate/*` routes via `ConsoleRouteMap.IsOperateRoute`), the Environments
 nav, and `@Body`. Injects `NavigationManager`.
 
 ### `EmbedLayout`

@@ -6,11 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the Environment Profiles card affordances hardened in the UCD sweep
-/// (honua-console#313): the active browser profile reports selection without claiming a verified connection, and
-/// the browser host states what a browser user can do rather than leaving a bare native-only "Connect" dead end.
-/// </summary>
 public sealed class EnvironmentProfilesPageRenderTests
 {
     private static ConsoleEnvironmentProfile Profile(string id, string name) =>
@@ -81,9 +76,8 @@ public sealed class EnvironmentProfilesPageRenderTests
     }
 
     [Fact]
-    public void BrowserProfileCard_StatesBrowserAlternative_ForNativeOnlyConnect()
+    public void ActiveProfileCard_StatesHowAccessIsGranted()
     {
-        // The native-only Connect must state the browser-user alternative, not dead-end (honua-console#313 item 3).
         var store = new InMemoryConsoleEnvironmentProfileStore(
             [Profile("dev", "Local honua-server")],
             states: null,
@@ -95,12 +89,7 @@ public sealed class EnvironmentProfilesPageRenderTests
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll("[data-browser-alt-note]")),
             TimeSpan.FromSeconds(5));
-        // Specialist settings remain discoverable, and the primary action explains browser access.
-        Assert.NotEmpty(page.FindAll("[data-native-only-note]"));
-        Assert.Contains("desktop Console", page.Markup, StringComparison.Ordinal);
         Assert.Contains("sign-in and permissions", page.Markup, StringComparison.Ordinal);
-        // The bare, guidance-free "Connect · Native host only" dead end is gone.
-        Assert.DoesNotContain("Connect · Native host only", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -128,7 +117,6 @@ public sealed class EnvironmentProfilesPageRenderTests
     {
         var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(store);
-        ctx.Services.AddSingleton<IConsoleHostCapabilities>(new BrowserConsoleHostCapabilities());
         ctx.Services.AddSingleton<IConsoleCapabilityManifest>(manifest ?? new ConsoleCapabilityManifest());
         return ctx;
     }

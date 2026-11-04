@@ -1,7 +1,6 @@
 @page "/auth/signin"
 @inject IConsoleEnvironmentProfileStore Profiles
 @inject IConsoleAccountSessionStore Sessions
-@inject IConsoleHostCapabilities Host
 @inject NavigationManager Navigation
 
 <section class="console-page">
@@ -82,8 +81,7 @@
             return;
         }
 
-        if (!Host.SupportsNativeTransports
-            && _profile.Account.AuthMode == ConsoleAccountAuthMode.AccountRbac)
+        if (_profile.Account.AuthMode == ConsoleAccountAuthMode.AccountRbac)
         {
             var current = await Sessions.GetSessionAsync(_profile.Id);
             if (!string.IsNullOrWhiteSpace(current?.AccessToken)

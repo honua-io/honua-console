@@ -57,7 +57,6 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     private static void AddShellCore(IServiceCollection services, HonuaConsoleShellOptions options)
     {
         services.TryAddSingleton(new ConsolePresentation(options.ConsoleMode));
-        services.TryAddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
         services.TryAddSingleton<IConsoleProductMode>(
             _ => new ConfiguredConsoleProductMode(ConsoleProductModeParser.Parse(options.ConsoleMode)));
         services.TryAddSingleton<IConsoleShortcutPlatform, RuntimeConsoleShortcutPlatform>();

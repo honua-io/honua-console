@@ -20,9 +20,9 @@ public sealed class PublishingWorkspaceFixture : IAsyncLifetime
 {
     private HonuaServerTestcontainer? _container;
 
-    public ConsoleTrustIntegrationOptions Options { get; } = ConsoleTrustIntegrationOptions.Load();
+    public LiveServerIntegrationOptions Options { get; } = LiveServerIntegrationOptions.Load();
 
-    public string? SkipReason { get; private set; } = ConsoleTrustIntegrationOptions.GetStudioSkipReason();
+    public string? SkipReason { get; private set; } = LiveServerIntegrationOptions.GetStudioSkipReason();
 
     public Uri BaseAddress { get; private set; } = new("https://localhost");
 

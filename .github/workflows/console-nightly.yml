@@ -38,7 +38,7 @@ jobs:
 
     env:
       # Single opt-in flag that enables every live-server lane. Must be the literal
-      # "true": ConsoleTrustIntegrationOptions accepts true/1/yes, but the Shell
+      # "true": LiveServerIntegrationOptions accepts true/1/yes, but the Shell
       # source-build tests (GitOpsReleaseLiveServerTests / OperateTransitionLiveServerTests)
       # compare exactly with string.Equals(..., "true", OrdinalIgnoreCase), so "1" would
       # keep those two facts skipped even when server_ref checks out honua-server source.

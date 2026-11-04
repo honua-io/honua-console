@@ -229,26 +229,11 @@ export const SCENARIO_STEPS = [
     id: "console/studio-draft",
     owningLayer: "console",
     description:
-      "Studio accepts the source-scoped draft route, clarifies an ambiguous prompt, and keeps the route-compatible package inspectable from the honua-server-bound package lifecycle.",
+      "Studio accepts the source-scoped draft route for the saved map without hydrating the source.",
     async run(ctx) {
       const draftUrl = `${ctx.originUrl}${CONSOLE_ROUTES.studioDraftForMap(ctx.savedMap.id)}`;
       assertSameOrigin(ctx.originUrl, { draft: draftUrl });
       const sourceContext = { kind: "saved-map", itemId: ctx.savedMap.id, itemType: "map", title: ctx.savedMap.title };
-      const authoringPackage = {
-        contractName: "studio-authoring-shell",
-        contractVersion: "v1",
-        packageRef: "draft-app-clarify",
-        packageType: "app.package",
-        // Server family schema version advertised by the bound honua-server lifecycle
-        // (StudioPackageFamilyCapabilities.currentSchemaVersion).
-        schemaVersion: "1.0",
-        lifecycleState: "Draft",
-        sourceHydrated: false,
-        inspectorSections: ["assumptions", "dataBindings", "warnings", "validation", "provenance"],
-        dataBindings: [
-          { id: "source-binding", sourceRef: "catalog:item/demo-city-observations", status: "Ready for validation" },
-        ],
-      };
       ctx.studioDraft = {
         sourceContext,
         routeCompatibility: {
@@ -257,25 +242,14 @@ export const SCENARIO_STEPS = [
           sourceHydrated: false,
         },
         url: draftUrl,
-        prompt: "Build a field app from this",
-        clarification: {
-          routed: true,
-          questionId: "publish-intent",
-          selectedChoice: "Prepare an organization preview",
-        },
-        package: authoringPackage,
       };
       return {
         evidence: {
           draftUrl,
           routeCompatibility: ctx.studioDraft.routeCompatibility,
           sourceContext,
-          prompt: ctx.studioDraft.prompt,
-          clarification: ctx.studioDraft.clarification,
-          package: authoringPackage,
-          lifecycleStates: ["Draft", "Saved version", "Published"],
         },
-        contracts: [findContract("studio-authoring-shell")],
+        contracts: [],
       };
     },
   },

@@ -25,7 +25,7 @@ Five binding rules every test in this suite MUST obey:
 ## 2. Harness Plan
 
 ### 2.1 Reuse the existing single live server
-- **Server boot:** `tests/Honua.Console.IntegrationTests/HonuaServerTestcontainer.cs` already boots `postgis/postgis:16-3.4` + the pinned honua-server image on a shared Docker network, honoring `ConsoleTrustIntegrationOptions` (image, port, scheme, health path, env, admin key). Keep one container per test collection (xUnit `[Collection]` fixture) to amortize the ~minute boot, exactly like `PublishingWorkspaceFixture` / `StudioPackageLifecycleFixture` / `ShareAccessFixture`.
+- **Server boot:** `tests/Honua.Console.IntegrationTests/HonuaServerTestcontainer.cs` already boots `postgis/postgis:16-3.4` + the pinned honua-server image on a shared Docker network, honoring `LiveServerIntegrationOptions` (image, port, scheme, health path, env, admin key). Keep one container per test collection (xUnit `[Collection]` fixture) to amortize the ~minute boot, exactly like `PublishingWorkspaceFixture` / `StudioPackageLifecycleFixture` / `ShareAccessFixture`.
 - **Dev-auth bypass:** nightly already sets `HONUA_DEV_AUTH=true;HONUA_DEV_AUTH_ALLOW_BYPASS=true;HONUA_REGISTER_TEST_INFRASTRUCTURE=true` so admin-gated routes are reachable; RBAC-enforcement tests (§5.1) need a *second* options profile that does NOT bypass, or a scoped low-privilege key.
 
 ### 2.2 New shared component — the **Admin Verification Client** (the missing piece)

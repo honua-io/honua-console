@@ -123,12 +123,11 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/server-info           Server info
 /operate/analytics             Usage analytics
 /operate/events                Event evidence view (?jobId=<id>)
-/operate/native-stream         Native gRPC streaming proof (shared route; native service optional)
 /operate/legacy/<path>         Transitional iframe container for legacy Admin pages
 
-/environments                  Native-ready environment profile list
-/environments/new              Add environment profile (native host only)
-/environments/:profileId       Environment profile diagnostics
+/environments                  Environment profile list; choose the active Honua Server
+/environments/new              Connect to a Honua Server (creates and activates a profile, then sign-in)
+/environments/:profileId       Environment profile details
 
 /share                         Share area entry; current slice renders the public open-data collection
 /share/public                  Open-data collection page (public + openData service/layer/document items)
@@ -168,13 +167,9 @@ Top-level placement notes:
 - `/operate/legacy/<path>` is a transitional container that mirrors the
   legacy `@page` path one-to-one (see §5, EMBED rows). This survives
   existing deep-links from internal docs and runbooks.
-- `/environments*` are host-support routes, not a fifth product area.
-  They let the same shell bind to browser HTTP profiles or native MAUI
-  profiles. The browser host renders native gRPC, native mTLS,
-  certificate selection, connect/disconnect, and trust validation as
-  unsupported states without loading native services. `/operate/native-stream`
-  is also a host-support proof route; it lives under `/operate` because
-  the proof is operator telemetry, but it is not a legacy Admin route.
+- `/environments*` are shell connection routes, not a fifth product area.
+  They list, add, and inspect the environment profiles that bind the
+  Console to a Honua Server.
 
 ---
 
@@ -236,13 +231,8 @@ workspace surface accessible to any authenticated user (§1, §6.1); it is
 surfaced via deep links and the workspace switcher menu until a dedicated
 Groups feature ticket lands (tracked alongside `honua-portal#15`).
 
-Native host support navigation is always visible in the shared shell:
-Environments (`/environments`) and Native Stream
-(`/operate/native-stream`). On the web host these routes remain usable
-for seeded profile inspection, active-profile selection, and
-unsupported-state rendering; native profile creation, native gRPC, native
-mTLS, certificate selection, connect/disconnect, and trust validation
-require the MAUI host.
+Environments (`/environments`) has its own secondary navigation group,
+visible in the shared shell outside witness mode.
 
 ### 2.3 Edition gates
 
@@ -493,7 +483,7 @@ Already in `honua-sdk-js:src/control-plane/types.ts`:
 - `HonuaShareRequest` (line 227), `HonuaShareResponse` (line 236).
 
 `honua-sdk-dotnet#166` projects the equivalent server-owned Console
-client contracts for the Blazor Web shell and optional MAUI host. The JS
+client contracts for the Blazor Web shell. The JS
 SDK remains the browser/runtime contract for generated apps, embeds,
 MCP/QGIS/browser integrations, and map/chart/editor interop.
 
@@ -655,9 +645,9 @@ the smoke pipeline (§10).
 | `/auth/callback` | `anonymous` | — | session-error | shell+auth |
 | `/auth/signed-out` | `anonymous` | — | — | shell+auth |
 | `/groups` | `auth` (any scope: `member`, `operator`, or `admin`) | empty-groups (no group memberships yet) | unauth-redirect / forbidden | shell |
-| `/environments` | `host-support` | empty environment profiles; browser native actions unsupported | — | shell |
-| `/environments/new` | `native-host` (`SupportsNativeTransports`) | unsupported-native on web | — | shell |
-| `/environments/:profileId` | `host-support` | missing environment profile | browser native actions unsupported | shell |
+| `/environments` | `auth` | empty environment profiles ("Connect to your first server") | — | shell |
+| `/environments/new` | `auth` | — | — | shell |
+| `/environments/:profileId` | `auth` | missing environment profile | — | shell |
 | `/support` | `auth` | unsupported-binding when honua-support base URL unset | unauth-redirect | shell |
 | `/support/tickets/:ticketId` | `auth` | missing/forbidden/unavailable ticket via shared section surface | unauth-redirect | shell |
 | `*` | `anonymous` | notfound | — | shell |
@@ -669,24 +659,13 @@ dedicated Groups feature ticket. Empty-state copy mirrors current Portal
 Authenticated sessions without `member`, `operator`, or `admin` render
 `ConsoleStateView Kind="forbidden"` rather than redirecting.
 
-The environment routes are shared host-support routes added by
-`honua-console#44`. They use the shell-owned `IConsoleHostCapabilities`
-seam: the web host keeps `SupportsNativeTransports = false`, does not
-register `IConsoleConnectionManager`, and renders native-only controls as
-"Native host only"; the MAUI host registers native profile storage,
-certificate resolution, connection management, server-certificate probe,
-and the honua-server#1171 validation client. The native trust gate
-resolves the bound client certificate once and passes it, with the
-accepted server fingerprint, into both the validation call and the native
-HTTP/gRPC connection factory, so the transport presents exactly the server
-identity and client certificate that were validated. When a fingerprint is supplied, the
-transport callback requires the presented certificate fingerprint to
-match it rather than accepting a different OS-trusted certificate; when
-no fingerprint is supplied, the callback falls back to the OS chain
-decision. This keeps pinned private or self-signed server identities
-usable after acknowledgement while still blocking changed server
-identities. Unreachable HTTPS probes preserve the previously persisted
-trust state. Environment profile state is Console-owned local host state;
+The environment routes are shell connection routes added by
+`honua-console#44`. `/environments/new` validates the display name and
+an absolute HTTPS server URL, creates the profile, activates it, and
+continues to `/auth/signin`. `/environments` switches the active profile
+and refreshes the capability manifest; `/environments/:profileId` shows
+one profile read-only: server, transports, recorded trust state, and
+session details. Environment profile state is Console-owned local host state;
 server-validated trust results remain behind `Honua.Console.Contracts`
 until `honua-sdk-dotnet#166` is consumable.
 
@@ -828,14 +807,7 @@ catalog detail.
 ### 6.5 Operate
 
 Operate landing and administration routes require `auth` and
-`canSeeOperatorLinks(session)` (scope `operator` or higher). The
-host-support `/operate/native-stream` proof route is the exception: it is
-shared by the web and native hosts, renders unavailable on web when no
-native streaming service is registered, and requires an active environment
-profile before emitting events. In the native host the proof opens the
-active profile through `IConsoleConnectionManager`; blocked or unreachable
-trust states emit no proof events, and successful streams update only
-resume/stream diagnostics while preserving profile trust pins. Job and
+`canSeeOperatorLinks(session)` (scope `operator` or higher). Job and
 event evidence routes can also be entered from builder workflows when the
 server authorizes read access to the specific job. Per-route gates listed
 below add edition or entitlement requirements on top.
@@ -885,7 +857,6 @@ surface as in-page capability states rather than seeded rows.
 | `/operate/server-info` | — | — | forbidden | operate |
 | `/operate/analytics` | `edition:Pro` | empty-operate | forbidden / upgrade | operate |
 | `/operate/events` | — | missing-item | forbidden | operate |
-| `/operate/native-stream` | `host-support`; native gRPC service + active profile for event stream | native proof unavailable / no active environment | — | operate |
 | `/operate/legacy/<path>` | — | — | forbidden | operate |
 
 `honua-console#24` replaces the native Blazor observability checkpoint
@@ -1022,7 +993,6 @@ read contract.
 | Loading | `ConsoleStateView Kind="loading"` | route mounted, content pending | never blocks shell paint |
 | Errored session | `<SessionErrorView retry>` | session is `ErroredSession` | distinct from unauthenticated; renders diagnostic id |
 | Unavailable (anonymous) | `ConsoleStateView Kind="unavailable"` | anonymous read or authorization denial on `/share/*`, `/public*`, `/catalog/:idOrSlug`, `/maps/:mapId`, or `/embed/maps/:mapId`, including private/org/group content, protected content, missing or invalid public-link tokens, failed embed authorization, and entitlement/license denials before authentication | does not reveal protected titles, token validity, or upgrade copy to anonymous users (§13 Q5) |
-| Unsupported native capability | native host-support panel / native-only disabled action | browser host reaches `/environments*` or `/operate/native-stream`, or a native-only action is visible without a registered native service | native gRPC, native mTLS, certificate selection, connect/disconnect, trust validation, and profile creation render as "Native host only" or unavailable states; the web host keeps no MAUI, native-core, or `Grpc.Net.Client` dependency |
 
 The catalog/share route-slice client returns `CatalogItemReadResult` or
 `MapPackageReadResult` with `Status` values `Allowed`, `Missing`,
@@ -1140,7 +1110,7 @@ work consumes the route map but is not edited by `#3`:
 | Repo / ticket | Consumer of |
 |---|---|
 | `honua-server#1162` | Metadata v2 / content / RBAC API baseline backing `/catalog/:idOrSlug` and Studio open-from-catalog. License snapshot DTO contract for `/operate/license` (avoid leaking `System.*` types through trimmer). |
-| `honua-sdk-dotnet#166` | Projects the server-owned Console client contracts for the Blazor Web shell and optional MAUI host, including metadata/content/package, route guard, RBAC, license, transport, and environment-profile DTOs. Until landed, Portal helpers remain behavior references (§4.7). |
+| `honua-sdk-dotnet#166` | Projects the server-owned Console client contracts for the Blazor Web shell, including metadata/content/package, route guard, RBAC, license, transport, and environment-profile DTOs. Until landed, Portal helpers remain behavior references (§4.7). |
 | `honua-sdk-dotnet#231` | Projects the Operate observability admin contracts currently mirrored by `OperateObservabilityContracts.cs` for events, logs, alerts, rules, zones, jobs, and investigations. |
 | `honua-sdk-js#225` | Projects `resolvePortalItemRole`, `evaluateShareEscalation`, `resolveEmbedAuthorization`, `buildShareLink`, open-data predicates/constants, and metadata/content/package DTOs for generated apps, embeds, MCP/QGIS/browser integrations, and map/chart/editor interop. Until landed, Portal helpers remain behavior references (§4.7). |
 | `honua-server#1171` | Backs native mTLS/client-certificate validation for `/environments*` diagnostics. Console calls `POST /api/v1/admin/security/client-certificates/validate` through the temporary `Honua.Console.Contracts` shim until the .NET SDK projects the trust client. |
@@ -1163,7 +1133,7 @@ PRs that touch each ticket should link to its section number(s).
 | `honua-console#7` — Wire Console to shared metadata / content / package / RBAC contracts | §4 (full RBAC and entitlement reference), §6 per-route gates, §11 (`honua-server#1162`, `honua-sdk-dotnet#166`, `honua-sdk-js#225` consumer notes). |
 | `honua-console#9` — Console parity smoke | §10 (smoke evidence map), §3 rows carrying smoke labels. |
 | `honua-console#41` — Native Blazor Operate observability checkpoint | §1 (`/operate/observability`, `/operate/events/:eventId`, `/operate/alerts/:alertId`, `/operate/jobs/:jobRunId`), §6.5 (Operate detail-route and neutral-state behavior), and [Operate Observability Information Model](./architecture/operate-observability-information-model.md). |
-| `honua-console#44` — Native Console profiles trust diagnostics and mTLS | §1 (`/environments`, `/environments/new`, `/environments/:profileId`, `/operate/native-stream`), §2.2 (native host support navigation), §6.1 (host-capability seam and profile routes), §6.5 (`/operate/native-stream` exception), and §7 (unsupported native capability). |
+| `honua-console#44` — Console environment profiles and trust diagnostics | §1 (`/environments`, `/environments/new`, `/environments/:profileId`), §2.2 (Environments navigation), and §6.1 (environment profile routes). |
 | `honua-console#24` — Server-backed Operate observability binding | §6.5 (`IConsoleOperateObservabilityClient`, admin API status contract, event/alert/job detail behavior), §11 (`honua-sdk-dotnet#231` consumer note), and [Operate Observability Information Model](./architecture/operate-observability-information-model.md). |
 
 `honua-console#2` (scaffold) seeds the `<RouteGuard>`, the exception

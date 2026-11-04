@@ -5,7 +5,6 @@
 @inject IConsoleEnvironmentProfileStore Profiles
 @inject IConsoleApprovalInboxClient Inbox
 @inject IServiceProvider ServiceProvider
-@inject IConsoleHostCapabilities Host
 @inject IConsoleCapabilityManifest Capabilities
 @implements IAsyncDisposable
 
@@ -159,7 +158,7 @@
                 <h2 id="home-first-run">Connect to a Honua Server</h2>
                 <p class="console-muted">No environment is set up yet. Point this Console at your Honua Server over HTTPS and sign in to start working.</p>
             </div>
-            <a class="console-button" href="/environments/new">@(Host.SupportsNativeTransports ? "Add environment" : "Connect to a server")</a>
+            <a class="console-button" href="/environments/new">Connect to a server</a>
         </article>
     }
 
