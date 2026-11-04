@@ -23,7 +23,7 @@ for(const input of ['pointer','focus']) test(`later ${input} input cancels pendi
   await replaceNavigation(page);
   const second=page.getByRole('link',{name:'Second'});
   if(input==='pointer') await second.dispatchEvent('pointerdown');
-  await second.focus();
+  else await second.focus();
   await page.locator('h1').focus();
   await expect(page.locator('h1')).toBeFocused();
 });
@@ -54,4 +54,22 @@ test('Escape in a dialog preserves its focus and leaves navigation handling to t
   await page.keyboard.press('Escape');
   await expect(page.locator('dialog')).not.toHaveAttribute('open','');
   await expect(page.locator('[data-navigation-toggle]')).toHaveAttribute('aria-expanded','true');
+});
+
+test('a handled Escape leaves the active menu alone',async({page})=>{
+  await openNavigationFixture(page);
+  const first=page.getByRole('link',{name:'First'});
+  await first.evaluate(element=>element.addEventListener('keydown',event=>event.preventDefault()));
+  await first.press('Escape');
+  await expect(page.locator('details')).toHaveAttribute('open','');
+  await expect(first).toBeFocused();
+});
+
+test('outside activation closes the narrow navigation control',async({page})=>{
+  await openNavigationFixture(page);
+  const toggle=page.locator('[data-navigation-toggle]');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded','true');
+  await page.locator('h1').click();
+  await expect(toggle).toHaveAttribute('aria-expanded','false');
 });
