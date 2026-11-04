@@ -1,12 +1,8 @@
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Reports which transports and trust features the current Console host supports so shared
-/// Razor routes can render native-only capabilities (native gRPC, native mTLS, certificate
-/// selection, trust validation) as unsupported on the browser host without taking a native
-/// dependency. The browser host keeps the default <see cref="BrowserConsoleHostCapabilities"/>;
-/// the native host replaces it through <c>AddHonuaConsoleNativeCore()</c>.
-/// </summary>
+// Reports which transports and trust features the current Console host supports, so shared Razor routes
+// render native-only capabilities (native gRPC, native mTLS, certificate selection, trust validation) as
+// unsupported on the browser host, which registers BrowserConsoleHostCapabilities.
 public interface IConsoleHostCapabilities
 {
     /// <summary>Stable host kind identifier: <c>browser</c> or <c>native</c>.</summary>

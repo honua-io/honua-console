@@ -9,17 +9,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Binds the Operate observability surface to a real honua-server through the
-/// <c>/api/v1/admin/...</c> contracts. Base address and bearer token come from
-/// the active <see cref="ConsoleEnvironmentProfile"/> and its account session,
-/// reusing the connection pattern from
-/// <c>NativeHonuaConnectionFactory</c> (BaseAddress = profile.ServerBaseUri,
-/// Authorization = Bearer &lt;token&gt;). A single shared <see cref="HttpClient"/>
-/// is reused across requests; each request builds an absolute URI and attaches
-/// its own auth header, so one client safely serves every environment/section.
-/// Deserialization is source-generated for trim/AOT safety.
-/// </summary>
+// Binds the Operate observability surface to a real honua-server through the /api/v1/admin/... contracts.
+// Base address and bearer token come from the active ConsoleEnvironmentProfile and its account session.
+// One shared HttpClient serves every environment and section: each request builds an absolute URI and
+// attaches its own auth header. Deserialization is source-generated for trim/AOT safety.
 public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObservabilityClient
 {
     private const int DefaultPageSize = 50;

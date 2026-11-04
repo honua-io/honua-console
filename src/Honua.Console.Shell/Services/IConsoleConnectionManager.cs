@@ -2,11 +2,8 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Native-host connection lifecycle and trust gate for an environment profile. Registered only by
-/// the native host (<c>AddHonuaConsoleNativeCore()</c>); the browser host leaves this unresolved, so
-/// shared routes resolve it as an optional service and render an unsupported state when absent.
-/// </summary>
+// Connection lifecycle and trust gate for an environment profile on a host with native transports.
+// Shared routes resolve it as an optional service and render an unsupported state when it is absent.
 public interface IConsoleConnectionManager
 {
     /// <summary>Whether a live native connection is currently held for the profile.</summary>

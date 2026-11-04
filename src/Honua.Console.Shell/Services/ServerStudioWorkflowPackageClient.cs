@@ -5,22 +5,18 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Server-backed <see cref="IStudioWorkflowPackageClient"/>. Binds the Studio GP/ETL workflow editor to
-/// honua-server (#1185) through the <see cref="IWorkflowPackageApiClient"/> shim: the node palette, package
-/// drafts, immutable versions, dry-runs, and publications/runs come from live server data - never seeded
-/// fixtures. When the server cannot be reached, rejects the request, or lacks the contract, the call carries
-/// a <see cref="StudioWorkflowBindingState"/> so the editor renders the shared blocked surface (charter
-/// §5/§11) instead of fabricated success. Mirrors <see cref="ServerStudioAuthoringShell"/> and
-/// <see cref="HonuaServerOperateTransitionDataSource"/>.
-///
-/// The server models a workflow package as a mutable draft graph plus immutable versions; dry-run and
-/// publish operate on versions, not the mutable draft. This adapter snapshots the editor draft into the
-/// server graph (server-owned: nodes, edges, schedule, worker, validation, versions, publications) and
-/// round-trips editor-only authoring fields (invocation parameters, retry policy, publication intent,
-/// authored output schemas, node layout) through the server's opaque editor metadata so nothing is
-/// fabricated and nothing is silently dropped.
-/// </summary>
+// Binds the Studio GP/ETL workflow editor to honua-server through the IWorkflowPackageApiClient shim: the
+// node palette, package drafts, immutable versions, dry-runs and publications/runs come from live server
+// data, never seeded fixtures. When the server cannot be reached, rejects the request or lacks the
+// contract, the call carries a StudioWorkflowBindingState so the editor renders the shared blocked
+// surface (charter sections 5 and 11) instead of fabricated success.
+//
+// The server models a workflow package as a mutable draft graph plus immutable versions; dry-run and
+// publish operate on versions, not the mutable draft. This adapter snapshots the editor draft into the
+// server graph (server-owned: nodes, edges, schedule, worker, validation, versions, publications) and
+// round-trips editor-only authoring fields (invocation parameters, retry policy, publication intent,
+// authored output schemas, node layout) through the server's opaque editor metadata so nothing is
+// fabricated and nothing is silently dropped.
 public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageClient
 {
     internal const string Surface = "Studio workflow.package";

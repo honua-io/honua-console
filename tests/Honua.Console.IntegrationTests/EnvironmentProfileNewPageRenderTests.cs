@@ -1,5 +1,4 @@
 using Bunit;
-using Honua.Console.Native.Core.Connections;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -155,7 +154,7 @@ public sealed class EnvironmentProfileNewPageRenderTests
         page.FindAll("button").First(b => b.TextContent.Contains("Create environment", StringComparison.Ordinal));
 
     private static IRenderedComponent<EnvironmentProfileNewPage> Render() =>
-        Render(new NativeConsoleHostCapabilities());
+        Render(new NativeTransportHost());
 
     private static IRenderedComponent<EnvironmentProfileNewPage> Render(IConsoleHostCapabilities host) =>
         CreateContext(host, new InMemoryConsoleEnvironmentProfileStore([])).Render<EnvironmentProfileNewPage>();
@@ -171,5 +170,12 @@ public sealed class EnvironmentProfileNewPageRenderTests
         ctx.Services.AddSingleton<IConsoleEnvironmentProfileStore>(store);
         ctx.Services.AddSingleton<IConsoleHostCapabilities>(host);
         return ctx;
+    }
+
+    private sealed class NativeTransportHost : IConsoleHostCapabilities
+    {
+        public string HostKind => "native";
+
+        public bool SupportsNativeTransports => true;
     }
 }

@@ -713,8 +713,7 @@ The current `/studio` implementation is the package-first Studio shell
 slice). It runs in the shared Razor component library and binds the
 server-owned package lifecycle — draft create/read/update, validation,
 preview-planning, content-version save, and publish — to honua-server
-(`honua-server#1180`/`#1181`) through the `IStudioPackageLifecycleClient`
-shim in `Honua.Console.Contracts`; prompt and structured clarification
+(`honua-server#1180`/`#1181`); prompt and structured clarification
 stay Console-local UX. Workflow choices cover map, dashboard, report,
 form, app, query, analysis, workflow, GP service, and ETL. Ambiguous
 prompts produce structured clarification questions; while any question
@@ -726,8 +725,7 @@ Preview is a transient preview-plan action (not a stored state), and
 rendered preview output / generated-app preview has no server contract
 yet, so it renders the shared missing-binding surface. When no server
 base address is configured the shell renders that missing-binding surface
-instead of mock package data; the in-memory authoring shell
-(`AddHonuaConsoleDemoStudioAuthoringShell`) is demo/test-only.
+instead of mock package data.
 
 `/studio/proof`, `/studio/drafts?source=<kind>&id=<itemId>`,
 `/studio?source=<kind>&itemId=<itemId>`, and
@@ -1165,7 +1163,7 @@ PRs that touch each ticket should link to its section number(s).
 | `honua-console#7` — Wire Console to shared metadata / content / package / RBAC contracts | §4 (full RBAC and entitlement reference), §6 per-route gates, §11 (`honua-server#1162`, `honua-sdk-dotnet#166`, `honua-sdk-js#225` consumer notes). |
 | `honua-console#9` — Console parity smoke | §10 (smoke evidence map), §3 rows carrying smoke labels. |
 | `honua-console#41` — Native Blazor Operate observability checkpoint | §1 (`/operate/observability`, `/operate/events/:eventId`, `/operate/alerts/:alertId`, `/operate/jobs/:jobRunId`), §6.5 (Operate detail-route and neutral-state behavior), and [Operate Observability Information Model](./architecture/operate-observability-information-model.md). |
-| `honua-console#44` — Native Console profiles trust diagnostics and mTLS | §1 (`/environments`, `/environments/new`, `/environments/:profileId`, `/operate/native-stream`), §2.2 (native host support navigation), §6.1 (host-capability seam and profile routes), §6.5 (`/operate/native-stream` exception), §7 (unsupported native capability), and [Optional MAUI Blazor Hybrid Host](./native/MAUI_BLAZOR_HOST.md). |
+| `honua-console#44` — Native Console profiles trust diagnostics and mTLS | §1 (`/environments`, `/environments/new`, `/environments/:profileId`, `/operate/native-stream`), §2.2 (native host support navigation), §6.1 (host-capability seam and profile routes), §6.5 (`/operate/native-stream` exception), and §7 (unsupported native capability). |
 | `honua-console#24` — Server-backed Operate observability binding | §6.5 (`IConsoleOperateObservabilityClient`, admin API status contract, event/alert/job detail behavior), §11 (`honua-sdk-dotnet#231` consumer note), and [Operate Observability Information Model](./architecture/operate-observability-information-model.md). |
 
 `honua-console#2` (scaffold) seeds the `<RouteGuard>`, the exception

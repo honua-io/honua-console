@@ -2,7 +2,7 @@
 
 Status: PLAN (analysis only; no product code changed)
 Repos: `honua-io/honua-console` @ trunk `c8b2c18`, `honua-io/honua-server` @ trunk `c5b03723`
-Author surface scanned: `src/Honua.Console.Shell/Services/*`, `src/Honua.Console.Contracts/*Shims.cs`, `src/Honua.Console.Shell/Pages/*`, `tests/Honua.Console.IntegrationTests/*`, `tests/Honua.Console.Native.Core.Tests/*`, `.github/workflows/console-nightly.yml`, and honua-server `src/Honua.Server/Features/Admin/*`, `src/Honua.Protocols.GeoServices/*`.
+Author surface scanned: `src/Honua.Console.Shell/Services/*`, `src/Honua.Console.Contracts/*Shims.cs`, `src/Honua.Console.Shell/Pages/*`, `tests/Honua.Console.IntegrationTests/*`, `tests/Honua.Console.Shell.Tests/*`, `.github/workflows/console-nightly.yml`, and honua-server `src/Honua.Server/Features/Admin/*`, `src/Honua.Protocols.GeoServices/*`.
 
 ---
 
@@ -45,7 +45,7 @@ This client is the verification oracle for rule #2. It is the central new build 
 - **Teardown:** container disposal per collection; within a collection, use unique GUID-suffixed slugs/names (existing convention) so tests don't collide. Where the server supports delete/unpublish, exercise it as its own operation test and as cleanup.
 
 ### 2.4 Where they run
-- Project: `tests/Honua.Console.IntegrationTests` (bUnit + Testcontainers already wired) and, for the source-build Operate/GitOps lanes, `tests/Honua.Console.Native.Core.Tests`.
+- Project: `tests/Honua.Console.IntegrationTests` (bUnit + Testcontainers already wired) and, for the source-build Operate/GitOps lanes, `tests/Honua.Console.Shell.Tests`.
 - Lane: `console-nightly.yml` `live-integration` job (already runs both projects with the opt-in env). New collections inherit the lane automatically. Add a step-summary row per operation family.
 
 ---
@@ -73,7 +73,7 @@ Legend — Coverage: **COVERED** (live round-trip exists), **PARTIAL** (live tes
 | Set publication policy/visibility | `PATCH /publications/{id}/policy` | catalog visibility/sharing changes; public route resolves/404s accordingly | policy chip | **GAP** | P1 |
 
 ### Family C — Studio authoring → publish (package draft→validate→publish→content)
-Covers map/dashboard/report/app/form/query/analysis/workflow. Routes in `StudioPackageShims.cs`, `FormPackageShims.cs`, `StudioWorkflowShims.cs`, `AnalysisContentShims.cs`.
+Covers map/dashboard/report/app/form/query/analysis/workflow. Routes in `FormPackageShims.cs`, `StudioWorkflowShims.cs`, `AnalysisContentShims.cs`.
 | Operation | Console method/page | Server output + verifying API | Console reflection | Coverage | Pri |
 |---|---|---|---|---|---|
 | Create draft | `POST /api/v1/studio/package-drafts` | `GET /package-drafts/{id}` returns draft | builder shows draft ref | **PARTIAL** (`StudioPackageLifecycleIntegrationTests` asserts session projection + render, not catalog landing) | P1 |

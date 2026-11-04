@@ -390,12 +390,9 @@ public sealed record WorkflowEndpointIssue(
 
 public sealed record WorkflowPackageClientOptions(Uri BaseUri, string? ApiKey = null);
 
-/// <summary>
-/// Thin typed client over the admin-authorized honua-server workflow package API (#1185, /api/v1/console).
-/// Mirrors <see cref="IStudioPackageLifecycleClient"/>: every call returns a
-/// <see cref="WorkflowEndpointResult{T}"/> so callers render shared blocked/missing-binding/forbidden
-/// surfaces instead of throwing or fabricating data.
-/// </summary>
+// Thin typed client over the admin-authorized honua-server workflow package API (/api/v1/console). Every
+// call returns a WorkflowEndpointResult so callers render shared blocked, missing-binding or forbidden
+// surfaces instead of throwing or fabricating data.
 public interface IWorkflowPackageApiClient
 {
     Uri BaseUri { get; }

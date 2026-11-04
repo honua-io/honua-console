@@ -284,32 +284,6 @@ internal static class StudioLifecycleAssertions
         Assert.True(succeeded, $"The console {operation} failed ({issueState}): {message}.");
     }
 
-    public static void AssertDraftReady(StudioEndpointIssue? issue)
-    {
-        if (issue is null)
-        {
-            return;
-        }
-
-        Assert.False(
-            issue.State is "Unsupported" or "Unavailable" || issue.StatusCode >= 500,
-            $"The pinned honua-server image could not service the Studio package-draft path ({issue.State} — {issue.Detail}); "
-            + "the authoring→publish round-trip needs a server build whose Studio package lifecycle (#1180) is ready.");
-    }
-
-    public static void AssertValidateReady(StudioEndpointIssue? issue)
-    {
-        if (issue is null)
-        {
-            return;
-        }
-
-        Assert.False(
-            issue.State is "Unsupported" or "Unavailable" || issue.StatusCode >= 500,
-            $"The pinned honua-server image could not service the Studio validate path ({issue.State} — {issue.Detail}); "
-            + "the field-level rejection round-trip needs a server build whose Studio validation (#1181) is ready.");
-    }
-
     public static void AssertFormValidateReady(StudioFormCommandResult result)
     {
         if (result.Issue is not { } issue)

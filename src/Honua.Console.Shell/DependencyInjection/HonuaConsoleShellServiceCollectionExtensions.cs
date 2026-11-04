@@ -40,13 +40,6 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddHonuaConsoleDemoStudioAuthoringShell(this IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        services.Replace(ServiceDescriptor.Singleton<IStudioAuthoringShell, InMemoryStudioAuthoringShell>());
-        return services;
-    }
-
     public static IServiceCollection AddHonuaConsoleDemoStudioWorkflowPackages(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);

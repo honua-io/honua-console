@@ -8,22 +8,10 @@ public sealed class ConsoleEndToEndSmokeCollection : ICollectionFixture<ConsoleE
     public const string Name = "ConsoleEndToEndSmoke";
 }
 
-/// <summary>
-/// Boots a single real honua-server (with PostgreSQL/PostGIS) via Testcontainers so the Console
-/// end-to-end smoke can drive the full cross-surface chain — catalog list, a Studio package render, and an
-/// operate/publishing surface — against ONE live server boot and assert live responses
-/// (issue #59; Console Patterns Charter section 11 real-server policy; supersedes the in-memory-only
-/// <c>smoke/parity</c> harness for the <c>honua-console#9</c> gate).
-///
-/// This consolidates the individual per-surface fixtures (<see cref="ConsoleContentFixture"/>,
-/// <see cref="StudioPackageLifecycleFixture"/>, <see cref="PublishingWorkspaceFixture"/>) into one server
-/// so the smoke proves the chain end to end rather than each surface in isolation. Off by default; skips
-/// cleanly when Docker, the configured server image, the opt-in flag
-/// (<c>HONUA_CONSOLE_INTEGRATION</c> / <c>HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS</c>), or the admin API key is
-/// unavailable, exactly like the existing live-server lanes — so the standard CI runner stays green
-/// without Docker. Reuses <see cref="HonuaServerTestcontainer"/> so the container-boot mechanics live in
-/// one place.
-/// </summary>
+// Boots one real honua-server (with PostgreSQL/PostGIS) via Testcontainers so the Console end-to-end
+// smoke drives the catalog, Studio host and operate/publishing chain against a single live server.
+// Off by default; skips cleanly when Docker, the configured server image, the opt-in flag
+// (HONUA_CONSOLE_INTEGRATION / HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS) or the admin API key is unavailable.
 public sealed class ConsoleEndToEndSmokeFixture : IAsyncLifetime
 {
     private HonuaServerTestcontainer? _container;
@@ -87,12 +75,6 @@ public sealed class ConsoleEndToEndSmokeFixture : IAsyncLifetime
         new HonuaConsoleContentHttpClient(
             CreateHttpClient(),
             new HonuaConsoleContentClientOptions(BaseAddress, Options.StudioAdminApiKey));
-
-    /// <summary>Production Studio package-lifecycle client bound to the live server (Studio package render flow).</summary>
-    public IStudioPackageLifecycleClient CreateStudioClient() =>
-        new HttpStudioPackageLifecycleClient(
-            CreateHttpClient(),
-            new StudioPackageLifecycleClientOptions(BaseAddress, Options.StudioAdminApiKey));
 
     /// <summary>Production content publication client bound to the live server (operate/publishing flow).</summary>
     public IHonuaContentPublicationClient CreatePublicationClient() =>

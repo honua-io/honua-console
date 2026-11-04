@@ -9,7 +9,7 @@ test in `scripts/__tests__/license-compliance.test.mjs` asserts this line).
 ```bash
 cp src/Honua.Console.Web/global.json global.json   # CI does this: pins the SDK for solution commands
 dotnet restore Honua.Console.slnx --configfile NuGet.config --locked-mode
-./scripts/fast-local-check.sh                      # native-core tests + web build
+./scripts/fast-local-check.sh                      # Shell tests + web build
 dotnet format Honua.Console.slnx --verify-no-changes
 npm ci && npm test                                 # Node tests (scripts, smoke harness, workflows)
 npm run smoke:parity                               # add -- --origin <url> for a deployed origin
@@ -23,19 +23,17 @@ dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http:
   `smoke/parity/sample-evidence/`.
 - Bind a live server with `HONUA_SERVER_BASE_URL` and `HONUA_ADMIN_API_KEY` (README "Connect
   it to a honua-server").
-- `src/Honua.Console.Native` (MAUI) builds only on Windows/macOS, or Linux with
-  `EnableHonuaConsoleAndroidTarget=true`; elsewhere it is a no-op library and CI skips it.
 
 ## Rules
 - **One Console/Studio workspace.** `/studio` is the realtime editor over the bundled
   `honua-studio` dependency; do not archive that dependency without an explicit migration.
   The standalone builder routes are retired; don't revive them.
-  Unrouted components and services may stay for migration and compatibility tests. Keep real
+  Delete unrouted components and services; tests cover routed behaviour, not dead code. Keep real
   operations, automation and Processes authoring; use one primary conversation, the canonical
   drafts, and separate human approval for consequential operations.
 - **Missing-binding is a first-class state.** With no server base URL, live routes render the
-  explicit missing-binding surface, never mock or seeded data. In-memory/demo shells
-  (`AddHonuaConsoleDemoStudioAuthoringShell`, `AddHonuaConsoleDemoStudioWorkflowPackages`) are
+  explicit missing-binding surface, never mock or seeded data. In-memory/demo registrations
+  (`AddHonuaConsoleDemoStudioWorkflowPackages` and the other `AddHonuaConsoleDemo*` helpers) are
   opt-in for tests and demos only.
 - **Services** in `src/Honua.Console.Shell/Services` follow interface + `InMemory*` (demo/test) +
   `Server*`/`Http*` (live) + `Unsupported*`; live bindings activate only when a base URL is set.
