@@ -1,4 +1,5 @@
 using Bunit;
+using Honua.Console.Shell.Components;
 using Honua.Console.Shell.DependencyInjection;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
@@ -19,7 +20,7 @@ public sealed class CatalogAvailabilityRenderTests
 
         var page = ctx.Render<CatalogPage>();
 
-        Assert.Equal(CatalogUnavailable.Title, page.Find("h1").TextContent);
+        Assert.Equal(CatalogAvailabilityGate.Title, page.Find("h1").TextContent);
         Assert.Equal("/operate/data", page.Find("a.console-button-link").GetAttribute("href"));
     }
 

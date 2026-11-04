@@ -10,12 +10,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @inject IConsoleCatalogClient Catalog
 
-<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.PersistentCatalog"
-                       Kicker="Not available yet"
-                       Title="@CatalogUnavailable.Title"
-                       Message="@CatalogUnavailable.Message"
-                       ActionHref="/operate/data"
-                       ActionLabel="Open Data &amp; Layers">
+<CatalogAvailabilityGate>
 <section class="console-page share-home">
     <div class="console-page-heading">
         <p class="console-kicker">Share workflow</p>
@@ -119,7 +114,7 @@
         </div>
     }
 </section>
-</ConsoleCapabilityGate>
+</CatalogAvailabilityGate>
 
 @code {
     internal const string MissingBindingMessage =

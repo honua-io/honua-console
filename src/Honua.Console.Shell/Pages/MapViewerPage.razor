@@ -4,12 +4,7 @@
 @inject NavigationManager Navigation
 @inject IConsoleCapabilityManifest Capabilities
 
-<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.PersistentCatalog"
-                       Kicker="Not available yet"
-                       Title="@CatalogUnavailable.Title"
-                       Message="@CatalogUnavailable.Message"
-                       ActionHref="/operate/data"
-                       ActionLabel="Open Data &amp; Layers">
+<CatalogAvailabilityGate>
 <section class="console-page console-viewer-page">
     @if (_result is null)
     {
@@ -61,7 +56,7 @@
         </div>
     }
 </section>
-</ConsoleCapabilityGate>
+</CatalogAvailabilityGate>
 
 @code {
     [Parameter]
