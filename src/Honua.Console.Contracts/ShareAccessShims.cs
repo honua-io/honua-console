@@ -258,7 +258,7 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
         string contract,
         CancellationToken cancellationToken) =>
         _transport.SendAsync(
-            new AdminEndpointCall<T>(createRequest, contract, CreateIssueAsync, ShareEnvelope<T>())
+            new AdminEndpointCall<T>(createRequest, contract, new(CreateIssueAsync, ShareEnvelope<T>()))
             {
                 Completion = HttpCompletionOption.ResponseHeadersRead
             },

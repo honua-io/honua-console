@@ -153,8 +153,9 @@ public sealed class HonuaCatalogDiscoveryHttpClient : IHonuaCatalogDiscoveryClie
             new AdminEndpointCall<T>(
                 () => new HttpRequestMessage(HttpMethod.Get, path),
                 contract,
-                AdminFailureMappings.FromStatus(CreateIssue),
-                AdminResponseBodies.Envelope<T>(EnvelopeFormat, "The Honua server catalog discovery response did not include data."))
+                new(
+                    AdminFailureMappings.FromStatus(CreateIssue),
+                    AdminResponseBodies.Envelope<T>(EnvelopeFormat, "The Honua server catalog discovery response did not include data.")))
             {
                 Completion = HttpCompletionOption.ResponseHeadersRead
             },

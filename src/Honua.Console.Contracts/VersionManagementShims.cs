@@ -533,7 +533,7 @@ public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementCl
         Func<HttpRequestMessage> createRequest,
         string contract,
         AdminResponseReader<T> readBody) =>
-        new(() => AcceptingJson(createRequest()), contract, MapFailureAsync, readBody);
+        new(() => AcceptingJson(createRequest()), contract, new AdminResponseHandling<T>(MapFailureAsync, readBody));
 
     private static HttpRequestMessage AcceptingJson(HttpRequestMessage request)
     {

@@ -8,19 +8,17 @@ internal delegate Task<HonuaAdminEndpointResult<T>> AdminResponseReader<T>(
 internal sealed record AdminEndpointCall<T>(
     Func<HttpRequestMessage> CreateRequest,
     string Contract,
-    AdminResponseReader<T> ReadFailure,
-    AdminResponseReader<T> ReadBody)
+    AdminResponseHandling<T> Responses)
 {
-    public AdminEndpointCall(
-        Func<HttpRequestMessage> createRequest,
-        string contract,
-        AdminFailureMapping mapFailure,
-        AdminResponseReader<T> readBody)
-        : this(createRequest, contract, AdminFailureMappings.AsReader<T>(mapFailure), readBody)
+    public HttpCompletionOption Completion { get; init; } = HttpCompletionOption.ResponseContentRead;
+}
+
+internal sealed record AdminResponseHandling<T>(AdminResponseReader<T> ReadFailure, AdminResponseReader<T> ReadBody)
+{
+    public AdminResponseHandling(AdminFailureMapping mapFailure, AdminResponseReader<T> readBody)
+        : this(AdminFailureMappings.AsReader<T>(mapFailure), readBody)
     {
     }
-
-    public HttpCompletionOption Completion { get; init; } = HttpCompletionOption.ResponseContentRead;
 }
 
 internal sealed class AdminEndpointTransport(HttpClient httpClient, string? apiKey, AdminTransportFailure transportFailure)
@@ -47,7 +45,7 @@ internal sealed class AdminEndpointTransport(HttpClient httpClient, string? apiK
 
         using (response)
         {
-            var read = response.IsSuccessStatusCode ? call.ReadBody : call.ReadFailure;
+            var read = response.IsSuccessStatusCode ? call.Responses.ReadBody : call.Responses.ReadFailure;
             return await read(call.Contract, response, cancellationToken).ConfigureAwait(false);
         }
     }

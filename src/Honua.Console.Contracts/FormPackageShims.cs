@@ -208,8 +208,9 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
         var call = new AdminEndpointCall<HonuaFormPackageVersion>(
             () => new HttpRequestMessage(HttpMethod.Post, $"{VersionPath(formId, packageVersion)}/publish"),
             "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/publish",
-            ReadPublishRejection(formId, packageVersion),
-            AdminResponseBodies.Required<HonuaFormPackageVersion>(BodyFormat, EmptyBody))
+            new(
+                ReadPublishRejection(formId, packageVersion),
+                AdminResponseBodies.Required<HonuaFormPackageVersion>(BodyFormat, EmptyBody)))
         {
             Completion = HttpCompletionOption.ResponseHeadersRead
         };
@@ -266,8 +267,9 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
             new AdminEndpointCall<T>(
                 createRequest,
                 contract,
-                AdminFailureMappings.StatusDetail,
-                AdminResponseBodies.Required<T>(BodyFormat, EmptyBody))
+                new(
+                    AdminFailureMappings.StatusDetail,
+                    AdminResponseBodies.Required<T>(BodyFormat, EmptyBody)))
             {
                 Completion = HttpCompletionOption.ResponseHeadersRead
             },

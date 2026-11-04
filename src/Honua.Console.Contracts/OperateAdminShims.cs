@@ -126,10 +126,11 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         var call = new AdminEndpointCall<HonuaAdminTableInfo[]>(
             () => Request(HttpMethod.Get, $"/api/v1/admin/connections/{Uri.EscapeDataString(connectionId)}/tables"),
             "GET /api/v1/admin/connections/{id}/tables",
-            AdminFailureMappings.StatusDetail,
-            AdminResponseBodies.Optional<HonuaAdminTableDiscoveryBody, HonuaAdminTableInfo[]>(
+            new(
+                AdminFailureMappings.StatusDetail,
+                AdminResponseBodies.Optional<HonuaAdminTableDiscoveryBody, HonuaAdminTableInfo[]>(
                 BareBody(AdminBodyRead.Streamed, "table-discovery"),
-                body => body?.Tables ?? []))
+                body => body?.Tables ?? [])))
         {
             Completion = HttpCompletionOption.ResponseHeadersRead
         };
@@ -142,10 +143,11 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         var call = new AdminEndpointCall<HonuaAdminImportFormats>(
             () => Request(HttpMethod.Get, "/api/v1/admin/import/formats"),
             "GET /api/v1/admin/import/formats",
-            AdminFailureMappings.StatusDetail,
-            AdminResponseBodies.Optional<HonuaAdminImportFormats, HonuaAdminImportFormats>(
+            new(
+                AdminFailureMappings.StatusDetail,
+                AdminResponseBodies.Optional<HonuaAdminImportFormats, HonuaAdminImportFormats>(
                 BareBody(AdminBodyRead.Streamed, "formats"),
-                formats => formats ?? new HonuaAdminImportFormats()))
+                formats => formats ?? new HonuaAdminImportFormats())))
         {
             Completion = HttpCompletionOption.ResponseHeadersRead
         };
@@ -169,10 +171,11 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
                 "/api/v1/admin/import/upload",
                 ImportUploadForm(new ImportUpload(fileContent, fileName, tableName, targetSchema))),
             "POST /api/v1/admin/import/upload",
-            AdminFailureMappings.AnyNonEmptyServerMessage,
-            AdminResponseBodies.Optional<HonuaAdminImportResult, HonuaAdminImportResult>(
+            new(
+                AdminFailureMappings.AnyNonEmptyServerMessage,
+                AdminResponseBodies.Optional<HonuaAdminImportResult, HonuaAdminImportResult>(
                 BareBody(AdminBodyRead.Buffered, "import-result"),
-                result => result ?? new HonuaAdminImportResult()));
+                result => result ?? new HonuaAdminImportResult())));
         return await _transport.SendAsync(call, cancellationToken).ConfigureAwait(false);
     }
 
@@ -186,10 +189,11 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         var call = new AdminEndpointCall<HonuaAdminExternalServiceDiscovery>(
             () => JsonRequest(HttpMethod.Post, "/api/v1/admin/external-services/discover", new ExternalServiceDiscoverBody(url, credentials)),
             "POST /api/v1/admin/external-services/discover",
-            AdminFailureMappings.ServerMessage,
-            AdminResponseBodies.Optional<HonuaAdminExternalServiceDiscovery, HonuaAdminExternalServiceDiscovery>(
+            new(
+                AdminFailureMappings.ServerMessage,
+                AdminResponseBodies.Optional<HonuaAdminExternalServiceDiscovery, HonuaAdminExternalServiceDiscovery>(
                 BareBody(AdminBodyRead.Buffered, "discovery"),
-                discovery => discovery ?? new HonuaAdminExternalServiceDiscovery()));
+                discovery => discovery ?? new HonuaAdminExternalServiceDiscovery())));
         return await _transport.SendAsync(call, cancellationToken).ConfigureAwait(false);
     }
 
@@ -202,12 +206,13 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         var call = new AdminEndpointCall<HonuaAdminGeoservicesImportJob>(
             () => JsonRequest(HttpMethod.Post, "/api/v1/admin/import/geoservices/start", request),
             "POST /api/v1/admin/import/geoservices/start",
-            AdminFailureMappings.ServerMessage,
-            AdminResponseBodies.Json<HonuaAdminGeoservicesImportJob, HonuaAdminGeoservicesImportJob>(
+            new(
+                AdminFailureMappings.ServerMessage,
+                AdminResponseBodies.Json<HonuaAdminGeoservicesImportJob, HonuaAdminGeoservicesImportJob>(
                 BareBody(AdminBodyRead.Buffered, "import-job"),
                 (job, context) => job is null || string.IsNullOrWhiteSpace(job.JobId)
                     ? context.Unsupported<HonuaAdminGeoservicesImportJob>("The Honua server did not return an import job id.")
-                    : HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>.FromData(job)));
+                    : HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>.FromData(job))));
         return await _transport.SendAsync(call, cancellationToken).ConfigureAwait(false);
     }
 
@@ -220,10 +225,11 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         var call = new AdminEndpointCall<HonuaAdminGeoservicesImportProgress>(
             () => Request(HttpMethod.Get, $"/api/v1/admin/import/geoservices/jobs/{Uri.EscapeDataString(jobId)}"),
             "GET /api/v1/admin/import/geoservices/jobs/{jobId}",
-            AdminFailureMappings.ServerMessage,
-            AdminResponseBodies.Optional<HonuaAdminGeoservicesImportProgress, HonuaAdminGeoservicesImportProgress>(
+            new(
+                AdminFailureMappings.ServerMessage,
+                AdminResponseBodies.Optional<HonuaAdminGeoservicesImportProgress, HonuaAdminGeoservicesImportProgress>(
                 BareBody(AdminBodyRead.Buffered, "import-progress"),
-                progress => progress ?? new HonuaAdminGeoservicesImportProgress()));
+                progress => progress ?? new HonuaAdminGeoservicesImportProgress())));
         return await _transport.SendAsync(call, cancellationToken).ConfigureAwait(false);
     }
 
@@ -504,8 +510,9 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             new AdminEndpointCall<T>(
                 () => Request(HttpMethod.Get, path),
                 contract,
-                AdminFailureMappings.StatusDetail,
-                AdminResponseBodies.Envelope<T>(ReadEnvelope, MissingData))
+                new(
+                    AdminFailureMappings.StatusDetail,
+                    AdminResponseBodies.Envelope<T>(ReadEnvelope, MissingData)))
             {
                 Completion = HttpCompletionOption.ResponseHeadersRead
             },
@@ -519,8 +526,9 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             new AdminEndpointCall<T>(
                 createRequest,
                 contract,
-                AdminFailureMappings.ServerMessageAndFieldErrors,
-                AdminResponseBodies.Envelope<T>(WriteEnvelope, MissingData)),
+                new(
+                    AdminFailureMappings.ServerMessageAndFieldErrors,
+                    AdminResponseBodies.Envelope<T>(WriteEnvelope, MissingData))),
             cancellationToken);
 }
 

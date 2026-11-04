@@ -193,8 +193,9 @@ public sealed class HonuaConsoleContentHttpClient : IHonuaConsoleContentClient, 
             new AdminEndpointCall<T>(
                 createRequest,
                 contract,
-                AdminFailureMappings.StatusDetail,
-                AdminResponseBodies.Envelope<T>(EnvelopeFormat, "The Honua server Console content response did not include data."))
+                new(
+                    AdminFailureMappings.StatusDetail,
+                    AdminResponseBodies.Envelope<T>(EnvelopeFormat, "The Honua server Console content response did not include data.")))
             {
                 Completion = HttpCompletionOption.ResponseHeadersRead
             },

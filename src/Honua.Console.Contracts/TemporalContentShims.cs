@@ -374,7 +374,7 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
         Func<HttpRequestMessage> createRequest,
         string contract,
         AdminResponseReader<T> readBody) =>
-        new(createRequest, contract, CreateTemporalIssueAsync, readBody)
+        new(createRequest, contract, new AdminResponseHandling<T>(CreateTemporalIssueAsync, readBody))
         {
             Completion = HttpCompletionOption.ResponseHeadersRead
         };

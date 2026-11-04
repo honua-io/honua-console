@@ -239,8 +239,9 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
             new AdminEndpointCall<T>(
                 createRequest,
                 contract,
-                AdminFailureMappings.StatusDetail,
-                AdminResponseBodies.Required<T>(BodyFormat, "The Honua server content publication response body was empty."))
+                new(
+                    AdminFailureMappings.StatusDetail,
+                    AdminResponseBodies.Required<T>(BodyFormat, "The Honua server content publication response body was empty.")))
             {
                 Completion = HttpCompletionOption.ResponseHeadersRead
             },

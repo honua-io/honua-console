@@ -196,8 +196,9 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
         var call = new AdminEndpointCall<bool>(
             () => new HttpRequestMessage(HttpMethod.Delete, path),
             "DELETE /api/v1/console/access/{workspaceId}/roles/{roleId}",
-            AdminFailureMappings.FromStatus(CreateWriteIssue),
-            static (_, _, _) => Task.FromResult(HonuaAdminEndpointResult<bool>.FromData(true)));
+            new(
+                AdminFailureMappings.FromStatus(CreateWriteIssue),
+                static (_, _, _) => Task.FromResult(HonuaAdminEndpointResult<bool>.FromData(true))));
         return await _transport.SendAsync(call, cancellationToken).ConfigureAwait(false);
     }
 
@@ -227,8 +228,9 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
             new AdminEndpointCall<T>(
                 createRequest,
                 contract,
-                AdminFailureMappings.FromStatus(CreateWriteIssue),
-                AdminResponseBodies.Envelope<T>(EnvelopeFormat, MissingData)),
+                new(
+                    AdminFailureMappings.FromStatus(CreateWriteIssue),
+                    AdminResponseBodies.Envelope<T>(EnvelopeFormat, MissingData))),
             cancellationToken);
 
     private Task<HonuaAdminEndpointResult<T>> SendAsync<T>(
@@ -239,8 +241,9 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
             new AdminEndpointCall<T>(
                 () => new HttpRequestMessage(HttpMethod.Get, path),
                 contract,
-                AdminFailureMappings.FromStatus(CreateReadIssue),
-                AdminResponseBodies.Envelope<T>(EnvelopeFormat, MissingData))
+                new(
+                    AdminFailureMappings.FromStatus(CreateReadIssue),
+                    AdminResponseBodies.Envelope<T>(EnvelopeFormat, MissingData)))
             {
                 Completion = HttpCompletionOption.ResponseHeadersRead
             },
