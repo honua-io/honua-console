@@ -7,6 +7,12 @@
 @inject IShareAccessDataSource ShareData
 @inject IConsoleCatalogClient Catalog
 
+<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.PersistentCatalog"
+                       Kicker="Not available yet"
+                       Title="@CatalogUnavailable.Title"
+                       Message="@CatalogUnavailable.Message"
+                       ActionHref="/operate/data"
+                       ActionLabel="Open Data &amp; Layers">
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved share configuration changes. Leave this page and discard them?" />
 
 <section class="console-page share-manage" data-share-config>
@@ -632,6 +638,7 @@
         </div>
     }
 </section>
+</ConsoleCapabilityGate>
 
 @code {
     private static readonly string[] AccessTiers =

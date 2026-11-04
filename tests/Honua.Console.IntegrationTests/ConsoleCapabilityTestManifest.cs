@@ -18,5 +18,6 @@ internal static class ConsoleCapabilityTestManifest
         ConsoleCapabilityKeys.RealtimeAlerting,
         ConsoleCapabilityKeys.CrossEnvironmentPromotion,
         ConsoleCapabilityKeys.SiemInvestigations,
+        ConsoleCapabilityKeys.PersistentCatalog,
     ]);
 }

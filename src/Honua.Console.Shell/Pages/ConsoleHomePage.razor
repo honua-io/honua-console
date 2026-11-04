@@ -6,6 +6,7 @@
 @inject IConsoleApprovalInboxClient Inbox
 @inject IServiceProvider ServiceProvider
 @inject IConsoleHostCapabilities Host
+@inject IConsoleCapabilityManifest Capabilities
 @implements IAsyncDisposable
 
 @* CONSOLE HOME — the information + approval landing (#193). The console's job is to
@@ -163,7 +164,7 @@
     }
 
     <div class="console-panel-grid console-panel-grid-wide">
-        @foreach (var area in ConsoleRouteMap.Areas)
+        @foreach (var area in ConsoleRouteMap.Areas.Where(area => area.IsAvailable(Capabilities)))
         {
             <a class="console-panel console-area-link" href="@area.Path">
                 <span class="console-kicker">@area.WorkflowBoundary</span>

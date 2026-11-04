@@ -278,7 +278,8 @@
     // Only the realtime editor is a Studio product entry. Legacy capability flags cannot restore it.
     private IEnumerable<ConsoleWorkflowArea> VisibleAreas =>
         ConsoleRouteMap.Areas.Where(area =>
-            (ProductMode.ShowsArea(area.Id) || (RealtimeStudioEnabled && area.Id == "studio"))
+            area.IsAvailable(Capabilities)
+            && (ProductMode.ShowsArea(area.Id) || (RealtimeStudioEnabled && area.Id == "studio"))
             && (!string.Equals(area.Id, "studio", StringComparison.OrdinalIgnoreCase)
                 || RealtimeStudioEnabled));
 

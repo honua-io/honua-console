@@ -58,6 +58,7 @@ public sealed class ConsoleHomePageTests
         services.AddSingleton<IConsoleApprovalInboxClient>(inbox);
         services.AddSingleton<IConsoleProposalRealtimeClient>(realtime);
         services.AddSingleton<IConsoleHostCapabilities>(new StubHostCapabilities());
+        services.AddSingleton<IConsoleCapabilityManifest>(new ConsoleCapabilityManifest());
 
         // ConsoleHomePage now embeds the shared ops-summary strip (console#292 scope item 2);
         // it needs its own narrow dependencies satisfied. Denied reads are enough for this test.

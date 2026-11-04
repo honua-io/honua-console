@@ -99,11 +99,6 @@ test('configured presentation is visible without changing the identity boundary'
   await expect(page.locator('[data-console-mode]')).toHaveAttribute('data-console-mode', testInfo.project.name);
   await expect(page.locator('[data-focused-preview]')).toContainText('Preview');
   await expect(page.locator('nav[aria-label="Primary"] a[href="/inbox"]')).toBeVisible();
-  const sharing = page.locator('nav[aria-label="All work areas"] a[href="/share/public"]');
-  if (testInfo.project.name === 'full') {
-    await page.locator('.console-more-tools > summary').click();
-    await expect(sharing).toBeVisible();
-  } else {
-    await expect(sharing).toHaveCount(0);
-  }
+  // Share stays out of the navigation until the server advertises a persistent catalog.
+  await expect(page.locator('nav[aria-label="All work areas"] a[href="/share/public"]')).toHaveCount(0);
 });
