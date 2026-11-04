@@ -8,7 +8,21 @@
 @inject IServiceProvider ServiceProvider
 
 <section class="console-page" data-layer-resource-id="@ResourceId" data-layer-loaded="@(_exposures.Count > 0)">
-    @if (_exposures.Count == 0)
+    @if (_ambiguousResourceIds.Count > 1)
+    {
+        <div class="console-page-heading" data-layer-ambiguous>
+            <p class="console-kicker">Operate / Layers</p>
+            <h1>Choose a layer</h1>
+            <p>Layer id @ResourceId exists on more than one connection. Open the one you mean:</p>
+            <ul>
+                @foreach (var canonicalResourceId in _ambiguousResourceIds)
+                {
+                    <li><a href="@($"/operate/layers/{canonicalResourceId}")">@canonicalResourceId</a></li>
+                }
+            </ul>
+        </div>
+    }
+    else if (_exposures.Count == 0)
     {
         <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
     }
@@ -19,10 +33,10 @@
             <h1>@_exposures[0].Layer.Name</h1>
             <p>Layer @_exposures[0].Layer.LayerId is exposed by @_serviceSummary and reads metadata from @_exposures[0].Layer.CanonicalResourceName.</p>
             <div class="console-detail-actions">
-                <a class="console-button-link" href="@($"/operate/layers/{ResourceId}/style")" data-layer-style-link>Resource presentation / style</a>
-                <a class="console-button-link" href="@($"/operate/layers/{ResourceId}/relationships")" data-layer-relationships-link>Relationships</a>
-                <a class="console-button-link" href="@($"/operate/layers/{ResourceId}/filter")" data-layer-filter-link>Permanent filter</a>
-                <a class="console-button-link" href="@($"/operate/layers/{ResourceId}/metadata")" data-layer-metadata-link>Edit metadata →</a>
+                <a class="console-button-link" href="@($"/operate/layers/{CanonicalResourceId}/style")" data-layer-style-link>Resource presentation / style</a>
+                <a class="console-button-link" href="@($"/operate/layers/{CanonicalResourceId}/relationships")" data-layer-relationships-link>Relationships</a>
+                <a class="console-button-link" href="@($"/operate/layers/{CanonicalResourceId}/filter")" data-layer-filter-link>Permanent filter</a>
+                <a class="console-button-link" href="@($"/operate/layers/{CanonicalResourceId}/metadata")" data-layer-metadata-link>Edit metadata →</a>
             </div>
         </div>
 
@@ -245,13 +259,9 @@
     [Parameter]
     public string ResourceId { get; set; } = string.Empty;
 
-    // A raw layer id is only unique within its connection, so the route keys on the canonical resource
-    // id ({connection}-layer-{layerId}) instead — matching the route-map's /operate/layers/:id. That id
-    // is shared across every service exposing the same layer (honua-server stores service exposure
-    // separately in honua.service_layers) but differs per connection, so grouping by it renders all of
-    // this layer's exposures without conflating a same-numbered layer from another connection.
-    private IReadOnlyList<(OperateServiceDetail Service, OperateServiceLayerProjection Layer)> _exposures =
-        Array.Empty<(OperateServiceDetail, OperateServiceLayerProjection)>();
+    private IReadOnlyList<OperateLayerExposure> _exposures = [];
+    private IReadOnlyList<string> _ambiguousResourceIds = [];
+    private string CanonicalResourceId => _exposures[0].Layer.CanonicalResourceId;
     private string _serviceSummary = string.Empty;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
     // Web-Mercator origin; a low zoom shows the whole world so the layer's features render wherever they sit.
@@ -295,11 +305,8 @@
         _environmentId = await ConsoleProxyRoutes.ResolveActiveEnvironmentIdAsync(
             ServiceProvider.GetService<IConsoleEnvironmentProfileStore>());
         var view = await OperateData.GetLayersViewAsync();
-        _exposures = view.Services
-            .SelectMany(service => service.Layers.Select(layer => (Service: service, Layer: layer)))
-            .Where(row => string.Equals(row.Layer.CanonicalResourceId, ResourceId, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(row => row.Service.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        _exposures = view.FindExposures(ResourceId);
+        _ambiguousResourceIds = view.MatchingCanonicalResourceIds(ResourceId);
         _serviceSummary = string.Join(", ", _exposures.Select(exposure => exposure.Service.DisplayName));
         _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Layers", "Services");
 

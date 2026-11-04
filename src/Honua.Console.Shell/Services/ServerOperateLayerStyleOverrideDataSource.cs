@@ -124,19 +124,13 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
         return new OperateLayerStyleOverrideSaveResult(Succeeded: true);
     }
 
-    private async Task<(IReadOnlyList<(OperateServiceDetail Service, OperateServiceLayerProjection Layer)> Exposures,
-        OperateLayerStyleBindingState? NotFound)> ResolveLayerAsync(
+    private async Task<(IReadOnlyList<OperateLayerExposure> Exposures, OperateLayerStyleBindingState? NotFound)> ResolveLayerAsync(
         string resourceId,
         CancellationToken cancellationToken)
     {
         var view = await _operate.GetLayersViewAsync(cancellationToken).ConfigureAwait(false);
-        var exposures = view.Services
-            .SelectMany(service => service.Layers.Select(layer => (Service: service, Layer: layer)))
-            .Where(row => string.Equals(row.Layer.CanonicalResourceId, resourceId, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(row => row.Service.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        if (exposures.Length == 0)
+        var exposures = view.FindExposures(resourceId);
+        if (exposures.Count == 0)
         {
             return ([], new OperateLayerStyleBindingState(
                 Surface,
