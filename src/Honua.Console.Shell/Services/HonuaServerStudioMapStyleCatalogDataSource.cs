@@ -4,14 +4,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Studio map-builder style-picker data source bound to the honua-server OGC API - Styles list
-/// (<c>GET /ogc/styles</c>, ADR-0048) through the <see cref="IHonuaOgcStylesClient"/> shim. The read speaks
-/// the live, public OGC metadata surface; there is no in-memory style list in the merged result (Console
-/// Patterns Charter section 11). An endpoint issue (missing permission, not found / unsupported, transport)
-/// surfaces as an explicit capability state on the returned catalog instead of throwing or fabricating
-/// styleIds, so the builder can fall back to the legacy free-form style string.
-/// </summary>
+// A failed styles read is a capability state on the catalog rather than thrown style ids, so the builder can fall back to a free-form style string.
 public sealed class HonuaServerStudioMapStyleCatalogDataSource : IStudioMapStyleCatalogDataSource
 {
     private const string Surface = "Map builder (style catalog)";

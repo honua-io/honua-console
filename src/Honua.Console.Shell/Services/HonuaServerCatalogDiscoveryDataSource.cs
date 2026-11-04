@@ -4,14 +4,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Operate &gt; Catalogs data source bound to the honua-server catalog discovery-endpoints registry
-/// (honua-server#1279) through the <see cref="IHonuaCatalogDiscoveryClient"/> shim. Every read speaks the
-/// live registry surface (<c>/api/v1/console/catalog-endpoints/...</c>); there is no in-memory discovery
-/// data in the merged result (Console Patterns Charter section 11). Endpoint issues (missing permission, not
-/// found, unsupported, transport) surface as explicit capability states instead of throwing or fabricating
-/// endpoint/item data.
-/// </summary>
 public sealed class HonuaServerCatalogDiscoveryDataSource : ICatalogDiscoveryDataSource
 {
     private const string Surface = "Catalogs (discovery endpoints)";

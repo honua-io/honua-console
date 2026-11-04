@@ -1,26 +1,10 @@
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Runs an asynchronous operation across a collection with a hard concurrency cap, so a single
-/// Operate page load cannot open hundreds of concurrent admin HTTP requests against honua-server
-/// (a thundering-herd / connection-exhaustion cliff). Results are returned in source order.
-/// </summary>
-/// <remarks>
-/// This mirrors the deliberate bound the Operate observability client applies for the same reason;
-/// it is the one shared helper data sources route their admin-API fan-outs through.
-/// </remarks>
+// The concurrency cap stops one Operate page load from opening hundreds of admin HTTP calls.
 internal static class BoundedFanOut
 {
-    /// <summary>
-    /// Default maximum number of concurrent in-flight operations for an admin-API fan-out.
-    /// </summary>
     public const int DefaultConcurrency = 8;
 
-    /// <summary>
-    /// Invokes <paramref name="body"/> for every element of <paramref name="source"/> with at most
-    /// <paramref name="maxConcurrency"/> operations running at once, returning the results in the
-    /// same order as the source. Returns an empty array for an empty source.
-    /// </summary>
     public static async Task<TResult[]> RunAsync<TSource, TResult>(
         IReadOnlyList<TSource> source,
         Func<TSource, CancellationToken, Task<TResult>> body,

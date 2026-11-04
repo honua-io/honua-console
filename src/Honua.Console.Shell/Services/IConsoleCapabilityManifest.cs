@@ -1,65 +1,31 @@
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Reports which capability-gated "exotic depth" surfaces the connected deployment ADVERTISES for
-/// this release. The first-release cut-line
-/// (<c>docs/roadmap/FIRST_RELEASE_STRATEGY_AND_CUT_LINE.md</c>) defers several depth capabilities
-/// (temporal "git over data", disconnected sync conflict review, realtime/geofence alerting,
-/// cross-environment promotion, full SIEM / investigations / AI DevOps advisory). They are designed
-/// broad in the contracts but not turned on until a customer pulls the trigger.
-///
-/// Deferred capabilities are ABSENT from the advertised set by default, so their Console surfaces
-/// render the first-class "unsupported" state (via <see cref="ConsoleCapabilityKeys"/> +
-/// <c>ConsoleCapabilityGate</c>) instead of live UI — and light up with no re-architecture once the
-/// capability is advertised. This is layered ABOVE the existing missing-binding gating: the
-/// missing-binding state answers "is a server contract bound?", whereas this manifest answers "does
-/// this release advertise the capability at all?", so a server that happens to serve a deferred
-/// endpoint still renders unsupported until the deployment opts the capability in.
-///
-/// Server-backed gates resolve from <c>GET /api/v1/capabilities/manifest</c> and fail closed.
-/// <c>Honua:Console:Capabilities</c> is an optional intersection-only local policy; it cannot
-/// make a server-unavailable capability available.
-/// </summary>
+// A capability the deployment does not advertise stays unsupported even when the server exposes the endpoint, and a failed manifest read fails closed.
 public interface IConsoleCapabilityManifest
 {
-    /// <summary>Notifies navigation when the resolved availability changes.</summary>
     event Action? Changed { add { } remove { } }
 
-    /// <summary>Refreshes capability truth for the current server binding.</summary>
     Task RefreshAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// True when the connected deployment advertises <paramref name="capabilityKey"/> for this
-    /// release (see <see cref="ConsoleCapabilityKeys"/>). Unknown/unadvertised keys return false so
-    /// the surface renders the "unsupported" state.
-    /// </summary>
+    // Unknown keys are not advertised.
     bool IsAdvertised(string capabilityKey);
 }
 
-/// <summary>Stable capability keys for the deferred, capability-gated exotic-depth surfaces.</summary>
 public static class ConsoleCapabilityKeys
 {
-    /// <summary>Temporal "git over data": as-of / diff / rollback / feature history.</summary>
     public const string Temporal = "temporal";
 
-    /// <summary>Disconnected sync conflict review (replica three-way merge).</summary>
     public const string DisconnectedSync = "disconnected-sync";
 
-    /// <summary>Realtime / geofence alerting rule authoring.</summary>
     public const string RealtimeAlerting = "realtime-alerting";
 
-    /// <summary>Cross-environment promotion (dev → staging → prod fleet).</summary>
     public const string CrossEnvironmentPromotion = "cross-environment-promotion";
 
-    /// <summary>Full SIEM / investigations / AI DevOps advisory over Operate event volume.</summary>
     public const string SiemInvestigations = "siem-investigations";
 
     public const string PersistentCatalog = "persistent-catalog";
 }
 
-/// <summary>
-/// Static <see cref="IConsoleCapabilityManifest"/> used by tests and local-only hosts.
-/// </summary>
 public sealed class ConsoleCapabilityManifest : IConsoleCapabilityManifest
 {
     private readonly HashSet<string> _advertised;
@@ -71,10 +37,7 @@ public sealed class ConsoleCapabilityManifest : IConsoleCapabilityManifest
             StringComparer.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// Builds a manifest from a delimited configuration list (comma / semicolon / whitespace
-    /// separated), e.g. <c>"temporal, realtime-alerting"</c>. Null/blank advertises nothing.
-    /// </summary>
+    // A null or blank list advertises nothing.
     public static ConsoleCapabilityManifest FromConfigurationList(string? capabilityList) =>
         new(SplitList(capabilityList));
 
@@ -91,11 +54,7 @@ public sealed class ConsoleCapabilityManifest : IConsoleCapabilityManifest
                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }
 
-/// <summary>
-/// Resolves server-backed Console gates from the live server manifest. Local
-/// configuration is intersection-only.
-/// Failed or incomplete manifest reads clear every server-backed gate.
-/// </summary>
+// Local configuration can only narrow the server manifest, and a failed or incomplete read clears every server-backed gate.
 public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapabilityManifest
 {
     private static readonly IReadOnlyDictionary<string, string> ServerCapabilityByConsoleKey =

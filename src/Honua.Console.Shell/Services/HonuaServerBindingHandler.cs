@@ -3,29 +3,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// One binding model for ALL honua-server clients (honua-console#234). The legacy "Family A"
-/// catalog/content/operate/temporal/share/RBAC/Studio clients were bound once at DI time to the
-/// startup <c>honuaServerBaseUrl</c> and authenticated with a process-wide admin <c>X-API-Key</c>.
-/// That had three failures: switching the active environment profile silently mis-targeted mutations
-/// to the startup server; every request ran as the shared admin principal (defeating per-principal
-/// RBAC); and the native host (no startup URL) froze every Family-A surface into "Unsupported".
-///
-/// This <see cref="DelegatingHandler"/> makes those clients profile/session-aware at request time —
-/// exactly like the Family-B observability client — without rewriting each typed client:
-/// <list type="number">
-/// <item>It rewrites the outgoing request onto the active environment profile's
-/// <c>ServerBaseUri</c>, including that profile's base path. The path relative to the startup
-/// base is preserved, so a gateway prefix on the active profile is not dropped and the startup
-/// prefix is not sent to a different environment. When there is no active profile it leaves the
-/// DI-time base address untouched.</item>
-/// <item>It attaches the active operator's bearer token (from the account session) as
-/// <c>Authorization: Bearer</c> and removes any shared <c>X-API-Key</c> the inner client added, so
-/// the request runs as the real operator principal. Only when no operator bearer exists does it
-/// leave the admin-key fallback in place (documented in <c>docs/console-authentication.md</c>).</item>
-/// </list>
-/// The profile + session stores are singletons, so resolving them per request is safe and cheap.
-/// </summary>
+// Each request is rewritten onto the active profile base URI while preserving the path relative to the startup base, and a shared API key is removed when an operator bearer exists.
 public sealed class HonuaServerBindingHandler : DelegatingHandler
 {
     private readonly IConsoleEnvironmentProfileStore _profiles;

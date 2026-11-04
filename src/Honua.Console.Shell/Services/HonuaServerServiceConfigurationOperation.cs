@@ -4,12 +4,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Live implementation of the service-configuration operations. Drives honua-server's admin layer
-/// enable/disable and service-settings endpoints through <see cref="IHonuaAdminOperateClient"/> and maps the
-/// server result (or rejection) into a <see cref="ServiceConfigurationResult"/>. It never fabricates
-/// success — every result reflects what the server read back (Wave 5).
-/// </summary>
 public sealed class HonuaServerServiceConfigurationOperation : IServiceConfigurationOperation
 {
     private readonly IHonuaAdminOperateClient _client;

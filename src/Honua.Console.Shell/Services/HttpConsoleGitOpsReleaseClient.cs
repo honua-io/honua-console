@@ -8,28 +8,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Binds the GitOps metadata release visualization surface to a real honua-server
-/// through the SHIPPED GitOps metadata release contracts: the release package and
-/// GitOps-safe manifest export (honua-server#1163, <c>GET /api/v1/admin/metadata/
-/// release-packages/{packageId}</c> and <c>.../gitops-manifest</c>) and the release-
-/// operation lifecycle / rollback plan (honua-server#1165, <c>GET /api/v1/admin/
-/// metadata/releases/{packageId}/operation</c>).
-///
-/// Base address comes from the active <see cref="ConsoleEnvironmentProfile"/>; the
-/// admin API key is sent as <c>X-API-Key</c> (the metadata release endpoints are
-/// admin-authorized). A single shared <see cref="HttpClient"/> is reused; each
-/// request builds an absolute URI and attaches its own key. Deserialization is
-/// source-generated for trim/AOT safety.
-///
-/// Charter section 11 (no standing mock for server-owned data) is preserved: this
-/// client never returns seeded release data. When no environment profile is bound,
-/// every read returns a missing-binding result. <see cref="GetReleaseProposalsAsync"/>
-/// binds the live release-package list endpoint (<c>GET /api/v1/admin/metadata/
-/// release-packages</c>) and maps the lightweight summaries to list-view proposals;
-/// the by-id detail read hydrates the full proposal, environment matrix, CI/GitOps
-/// timeline, and rollback readiness.
-/// </summary>
 public sealed class HttpConsoleGitOpsReleaseClient : IConsoleGitOpsReleaseClient
 {
     private const string NoProfileMessage =

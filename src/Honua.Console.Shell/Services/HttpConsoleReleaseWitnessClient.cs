@@ -5,11 +5,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Focused read client for the candidate receipt UI. Every value is observed
-/// from honua-server through the active operator session; the expected IDs are
-/// used only to select and validate server-owned records.
-/// </summary>
+// Expected ids only select and validate server records; every displayed value comes from the server.
 public sealed partial class HttpConsoleReleaseWitnessClient : IConsoleReleaseWitnessClient
 {
     private readonly HttpClient _http;

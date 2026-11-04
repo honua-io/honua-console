@@ -5,11 +5,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Live implementation of the layer field-configuration operation. Reads and writes a layer's field
-/// configuration (coded-value domains) on honua-server through <see cref="IHonuaAdminOperateClient"/> and maps
-/// the result (or rejection). It never fabricates success.
-/// </summary>
 public sealed class HonuaServerConsoleLayerFieldsOperation : IConsoleLayerFieldsOperation
 {
     private readonly IHonuaAdminOperateClient _client;

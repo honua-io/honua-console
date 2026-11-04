@@ -5,15 +5,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Studio report-builder data source bound to the real honua-server content publication registry
-/// (honua-server#1183) through the <see cref="IHonuaContentPublicationClient"/> shim. The read path
-/// speaks the live console lifecycle (<c>/api/v1/console/publications/{publicationId}</c>); there is
-/// no in-memory publication data in the merged result (Console Patterns Charter section 11). Endpoint
-/// issues (missing permission, not found, unsupported verb, transport) surface as explicit capability
-/// states instead of throwing or fabricating data. A publication that is not a report kind is rejected
-/// as unsupported so the report builder never renders a map/dashboard/app artifact.
-/// </summary>
+// A publication that is not a report is unsupported, so the builder does not render another artifact kind.
 public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReportPublicationDataSource
 {
     private const string Surface = "Report builder";

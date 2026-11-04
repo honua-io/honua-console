@@ -4,22 +4,12 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Configured candidate temporal source (serviceId + service-local layer index) the temporal viewer probes
-/// for capability. The temporal data history API (honua-server#1166) is per service/layer and exposes no
-/// enumeration verb, so the viewer is keyed by a configured list of candidate sources
-/// (Honua:Server:TemporalSources / HONUA_SERVER_TEMPORAL_SOURCES, "serviceId:layerId" comma/space
-/// separated). Each candidate's capability is then read live from the server.
-/// </summary>
+// The temporal history API has no enumeration verb, so the viewer probes this configured service and layer.
 public sealed record TemporalSourceCandidate(string ServiceId, int LayerId);
 
-/// <summary>Configured candidate temporal sources for <see cref="HonuaServerTemporalCapabilityClient"/>.</summary>
 public sealed record HonuaServerTemporalOptions(IReadOnlyList<TemporalSourceCandidate> Sources)
 {
-    /// <summary>
-    /// Parses the configured "serviceId:layerId" list (comma/space/semicolon separated). A bare "serviceId"
-    /// with no layer index defaults to layer 0. Invalid tokens are skipped.
-    /// </summary>
+    // A bare service id defaults to layer 0, and invalid tokens are skipped.
     public static HonuaServerTemporalOptions FromConfiguredList(string? configured)
     {
         if (string.IsNullOrWhiteSpace(configured))
@@ -50,24 +40,7 @@ public sealed record HonuaServerTemporalOptions(IReadOnlyList<TemporalSourceCand
     }
 }
 
-/// <summary>
-/// Live temporal data viewer client bound to the merged honua-server temporal data history API
-/// (honua-server#1166 slice 1: capability discovery + as-of read) and the disconnected replica management
-/// API (honua-server#1167 slice 1: replica list + detail) through the <see cref="IHonuaTemporalClient"/>
-/// shim. There is no in-memory temporal data in the merged result (Console Patterns Charter section 11).
-///
-/// LIVE (bound here): capability discovery per configured source, an as-of read surfaced as the current
-/// generation checkpoint, the diff/feature-timeline/governed-rollback slice (honua-server#1166 slices 2-5,
-/// shipped as honua-server#1285), the disconnected replica list/detail, and the replica
-/// conflict-review/resolution slice (honua-server#1167 slice 2: list conflicts, per-conflict
-/// base/client/server detail, and an operator-selected resolution write).
-///
-/// HONEST BINDING (Console Patterns Charter section 11): the diff/timeline/rollback endpoints are now live,
-/// but the per-source capability descriptor still gates which modes a layer exposes. When the descriptor
-/// reports diff/rollback unsupported for a layer, the viewer surfaces the established not-available state
-/// instead of probing; when the endpoints return 404/forbidden/unreachable, the real probe's issue is
-/// surfaced. The viewer never synthesizes diffs, revision histories, or rollback plans.
-/// </summary>
+// When the capability descriptor says diff or rollback is unsupported the viewer does not probe, and it never synthesizes diffs, histories, or rollback plans.
 public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityClient
 {
     internal const string Surface = "Temporal viewer";

@@ -7,15 +7,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Binds <see cref="IConsoleDeployOperationsClient"/> to a real honua-server through the
-/// deploy-control admin endpoints. Mirrors <see cref="HttpConsoleDeployApprovalClient"/>'s
-/// auth/error-mapping pattern; unlike that client, a 404 here means "this server build does
-/// not register the route" (these are collection/gate-level GETs and a speculative POST, none
-/// keyed by an id that could itself be "not found"), so it maps to
-/// <see cref="OperateSectionStatus.Unsupported"/> — the feature-detection signal console#290's
-/// acceptance criteria require for the list, preflight, and converge surfaces.
-/// </summary>
+// A 404 on these collection routes means the server build has no such route and is mapped to Unsupported, because the route is not keyed by an id that could be missing.
 public sealed class HttpConsoleDeployOperationsClient : IConsoleDeployOperationsClient
 {
     private const string NoProfileMessage =
@@ -197,8 +189,6 @@ public sealed class HttpConsoleDeployOperationsClient : IConsoleDeployOperations
         _ => $"{apiLabel} returned {(int)code}.",
     };
 
-    // Human-first variant (honua-console#311): the generic error no longer leads with the raw code —
-    // that moves into MapErrorDetail for the disclosure.
     private static string MapErrorHumanMessage(HttpStatusCode code, string apiLabel) => code switch
     {
         HttpStatusCode.Forbidden =>

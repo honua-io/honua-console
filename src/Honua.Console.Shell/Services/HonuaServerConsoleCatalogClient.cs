@@ -2,22 +2,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Server-bound catalog/content client (issue #7, Console Patterns Charter section 11). Binds the
-/// Catalog/Studio/Share/Operate-visible content metadata surfaces to honua-server's Console metadata
-/// v2 content + RBAC API (honua-server#1162, CLOSED) through the
-/// <see cref="IHonuaConsoleContentClient"/> shim. The live binding activates only when a server base
-/// URL is configured; with no server configured the shell keeps the
-/// <see cref="UnsupportedConsoleCatalogClient"/> missing-binding state instead of fabricating content.
-/// </summary>
-/// <remarks>
-/// honua-server#1162 ships the content item graph and server-authored RBAC verbs, but the public-link
-/// token / embed-token resolution and the saved-map package document live behind the separate Console
-/// Share facet (ConsoleShareEndpoints) and the content-publication registry (#1183). Until those read
-/// paths are projected for anonymous Console viewer reads, the map-package / embed / open-data reads
-/// resolve server item metadata and surface a typed unsupported/unavailable state where the package
-/// document or anonymous token resolution is not yet server-backed — never mock data.
-/// </remarks>
+// Map-package, embed, and open-data reads surface unsupported or unavailable when the package document or anonymous token is not server-backed, and they do not substitute mock data.
 public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
 {
     private readonly IHonuaConsoleContentClient _client;
