@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Page } from '@playwright/test';
-import { test, expect } from '../admin-api';
+import { test, expect, type AdminApi } from '../admin-api';
 import { GEOSERVICES_NOT_FOUND, GEOSERVICES_TOKEN_REQUIRED, anonymousGeoServicesQuery, geoServicesErrorCode } from '../geoservices';
 import { ensurePublishedLayer, type SeededLayer } from '../seeded-layer';
 import { SOURCE_DB } from '../source-db';
@@ -37,15 +37,23 @@ const protocolServes = (service: string): { protocol: string; path: string; mark
   { protocol: 'Stac', path: `/stac?f=json`, marker: '"links"' },
 ];
 
-// The protocol checkboxes render only after the settings read returns, and locator.count() does not
-// wait, so a check made before then would see no MapServer box and skip the test.
 async function openServiceSettings(page: Page, serviceName: string): Promise<void> {
   await page.goto(`/operate/services/${serviceName}/settings`);
-  await expect(page.locator('[data-protocol="FeatureServer"]')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-service-config]')).toBeVisible({ timeout: 30_000 });
+}
+
+// Which protocols the page offers is decided from the server's settings, not by counting checkboxes:
+// the boxes appear while the page is still rendering, so a count can miss one that is about to show.
+async function offeredProtocols(admin: AdminApi, serviceName: string): Promise<string[]> {
+  const settings = await admin.getJson(`/api/v1/admin/services/${serviceName}/settings`);
+  const offered: string[] = settings.data?.availableProtocols ?? settings.availableProtocols ?? [];
+  expect(offered.length, `${serviceName} reports the protocols it can serve`).toBeGreaterThan(0);
+  return offered;
 }
 
 test.describe('Operate · Service settings (live)', () => {
   let target: SeededLayer;
+  let offered: string[];
 
   test.beforeEach(async ({ admin }) => {
     test.setTimeout(180_000);
@@ -55,6 +63,7 @@ test.describe('Operate · Service settings (live)', () => {
       layerName: `E2E Settings ${stamp}`,
       serviceName: `e2e_settings_${stamp}`,
     });
+    offered = await offeredProtocols(admin, target.serviceName);
   });
 
   test('every applicable protocol enabled via the UI serves through its own endpoint', async ({ page, admin }) => {
@@ -65,10 +74,7 @@ test.describe('Operate · Service settings (live)', () => {
     await openServiceSettings(page, target.serviceName);
 
     for (const { protocol } of protocolServes(target.serviceName)) {
-      const box = page.locator(`[data-protocol="${protocol}"]`);
-      // Only protocols the server reports available for this service render a checkbox.
-      if ((await box.count()) === 0) continue;
-      if (!(await box.isChecked())) await box.check();
+      if (offered.includes(protocol)) await page.locator(`[data-protocol="${protocol}"]`).check();
     }
     await page.locator('[data-save-protocols]').click();
     await expect(page.locator('[data-config-result]')).toContainText('Updated', { timeout: 30_000 });
@@ -97,9 +103,9 @@ test.describe('Operate · Service settings (live)', () => {
     const mapServerPath = `/rest/services/${target.serviceName}/MapServer?f=json`;
     const mapServerError = () => geoServicesErrorCode(page.request, `${base}${mapServerPath}`, ADMIN_HEADERS);
 
+    test.skip(!offered.includes('MapServer'), 'MapServer protocol not offered for this service.');
     await openServiceSettings(page, target.serviceName);
     const mapServer = page.locator('[data-protocol="MapServer"]');
-    test.skip((await mapServer.count()) === 0, 'MapServer protocol not offered for this service.');
 
     // Ensure MapServer is on first and serving.
     if (!(await mapServer.isChecked())) {
