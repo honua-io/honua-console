@@ -121,6 +121,6 @@ public sealed record ConsoleAccountSession
 
     public string AccessToken { get; init; } = string.Empty;
 
-    // Null means an edge-forwarded token whose expiry stays at the edge.
+    // Null means expiry is unknown locally. Edge-forwarded tokens leave expiry management to the trusted edge.
     public DateTimeOffset? AccessTokenExpiresAt { get; init; }
 }

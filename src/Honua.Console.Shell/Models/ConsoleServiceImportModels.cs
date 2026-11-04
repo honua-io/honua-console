@@ -99,7 +99,7 @@ public sealed record ConsoleServiceImportJob
     public string? Detail { get; init; }
 }
 
-// Held only for the discovery request. The console does not persist these secrets.
+// Used for discovery and layer-import requests. The console does not persist these secrets.
 public sealed record ConsoleServiceImportAuth
 {
     // One of anonymous, arcgis-token, token, basic, or oauth.

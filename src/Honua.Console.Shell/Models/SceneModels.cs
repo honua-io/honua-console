@@ -10,6 +10,7 @@ namespace Honua.Console.Shell.Models;
 // the server wire contract so the console can discover renderable point-cloud
 // scenes and view them in a 3D Tiles viewer.
 
+// Scene bounds use WGS-84 degrees.
 public sealed record SceneBounds
 {
     [JsonPropertyName("west")]
