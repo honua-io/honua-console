@@ -57,12 +57,17 @@ jobs:
       - name: Fetch the locked Studio release
         uses: ./.github/actions/fetch-studio-release
 
-      - name: Exercise first-publish Cesium and Studio discovery
+      - name: Exercise first-publish Cesium discovery and a Studio release transition
         # Publish must fetch AND discover assets that were absent at project
         # evaluation. Prefetching alone masked a late BeforeTargets=Build hook.
+        # The Studio tree is made to look like an older release: publish must
+        # also drop its retired chunk and restore the file it lacked.
         run: |
           mv src/Honua.Console.Shell/wwwroot/vendor/cesium "$RUNNER_TEMP/cesium-before-publish"
-          mv src/Honua.Console.Web/wwwroot/_studio "$RUNNER_TEMP/studio-before-publish"
+          studio=src/Honua.Console.Web/wwwroot/_studio
+          rm "$studio/style.css"
+          echo 'export const retired = true;' > "$studio/retired-chunk-Older01.js"
+          echo '// older release' >> "$studio/console.js"
 
       - name: Publish Blazor Web host
         run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal -p:HonuaConsoleCommitSha=${{ github.sha }}

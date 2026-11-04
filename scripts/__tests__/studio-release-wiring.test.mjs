@@ -67,5 +67,14 @@ test("the Web project vendors the Studio release before Razor inventories static
   const project = readFileSync(resolve(repoRoot, "src/Honua.Console.Web/Honua.Console.Web.csproj"), "utf8");
   assert.match(project, /<Target Name="FetchStudioRelease" BeforeTargets="ResolveProjectStaticWebAssets"/);
   assert.match(project, /<Exec Command="node &quot;scripts\/fetch-studio-release\.mjs&quot;"/);
-  assert.match(project, /<Content Include="wwwroot\/_studio\/\*\*\/\*" Exclude="@\(Content\)" \/>/);
+  assert.match(project, /<Content Remove="@\(_EvaluatedStudioContent\)" \/>\s*<Content Include="wwwroot\/_studio\/\*\*\/\*" \/>/);
+});
+
+test("the e2e publish starts from a Studio tree that looks like an older release", () => {
+  const e2e = readFileSync(resolve(workflowDirectory, "console-e2e.yml"), "utf8");
+  const transition = e2e.indexOf('echo \'export const retired = true;\' > "$studio/retired-chunk-Older01.js"');
+  assert.ok(transition > e2e.indexOf(FETCH_ACTION), "the transition starts from the fetched release");
+  assert.ok(e2e.includes('rm "$studio/style.css"'), "a release file is missing at evaluation");
+  assert.ok(transition < e2e.indexOf("dotnet publish"), "the transition precedes the publish");
+  assert.ok(e2e.indexOf("dotnet publish") < e2e.indexOf(PUBLISHED_STUDIO_VERIFICATION), "the published tree is verified");
 });

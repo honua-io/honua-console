@@ -35,12 +35,16 @@
   </ItemGroup>
 
   <!-- The Studio release is vendored before Razor inventories static assets, so a clean checkout
-       builds, runs and publishes it. Files created after evaluation must join Content explicitly. -->
+       builds, runs and publishes it. Content was evaluated before the fetch, so the _studio items
+       are replaced with what the fetch left on disk: a new release drops chunks an older one had. -->
   <Target Name="FetchStudioRelease" BeforeTargets="ResolveProjectStaticWebAssets"
           Condition="'$(DesignTimeBuild)' != 'true'">
     <Exec Command="node &quot;scripts/fetch-studio-release.mjs&quot;" WorkingDirectory="$(MSBuildProjectDirectory)/../.." />
     <ItemGroup>
-      <Content Include="wwwroot/_studio/**/*" Exclude="@(Content)" />
+      <_EvaluatedStudioContent Include="@(Content)"
+                               Condition="$([System.String]::Copy('%(Content.Identity)').Replace('\', '/').StartsWith('wwwroot/_studio/'))" />
+      <Content Remove="@(_EvaluatedStudioContent)" />
+      <Content Include="wwwroot/_studio/**/*" />
     </ItemGroup>
   </Target>
 
