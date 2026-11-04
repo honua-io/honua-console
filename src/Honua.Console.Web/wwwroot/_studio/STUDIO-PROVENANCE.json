@@ -1,6 +1,13 @@
 {
   "schema": "honua.studio.console-assets/v1",
-  "sourceCommit": "bf45151407eec8530144fa50ff77b9c8545baf5c",
+  "sourceCommit": "733b094741b350a31c28e24988352e5bbec30346",
+  "release": {
+    "repository": "honua-io/honua-studio",
+    "tag": "v0.1.1",
+    "asset": "honua-studio-console-assets-v0.1.1.tar.gz",
+    "sha256": "e0259eeded632037ad990567fee78d2948e5416dab8b95ef014eb0acbfae5c91",
+    "signerWorkflow": "honua-io/honua-studio/.github/workflows/release.yml"
+  },
   "releaseQualified": false,
   "integrationQualification": "pending-installed-workspace-journey",
   "sdk": {
@@ -2143,18 +2150,6 @@
     "sessionSha256": "3eefae11a71b5aa8b2d549dd711b48f7d53d5048f8253ea642fb4c0523c292b2"
   },
   "files": {
-    "LICENSE": {
-      "bytes": 11335,
-      "sha256": "b354b971f0d9252a996e7cd4e72cd4e0d833cd0fe9068a5da3113b4a0ed53559"
-    },
-    "SDK-PROVENANCE.json": {
-      "bytes": 238268,
-      "sha256": "f5ddc270f0d71c8327301e4e7b30b83cf51a7571e8fa7d8e7fd219246a34da18"
-    },
-    "THIRD-PARTY-NOTICES.txt": {
-      "bytes": 80920,
-      "sha256": "1f9dc5486f5cb5430cdf7228072f340c6c2944bfc68b79d549be4d49edfb1e2a"
-    },
     "assets/maplibre-gl-worker-BRmM5V8w.js": {
       "bytes": 509004,
       "sha256": "5420da18c04dbefda660133d62583f6abe709233ca45a01139db121fe172f107"
@@ -2184,8 +2179,8 @@
       "sha256": "8dcf5f37f3942ac4fc2e076701be2d92d02d8f5d7bf3d06149da005efff906f4"
     },
     "console.js": {
-      "bytes": 944956,
-      "sha256": "28ddc47c636ba00b64deb2b022d84d5a0393fc0be4265f6dce1b792fec028c25"
+      "bytes": 945962,
+      "sha256": "58b02ff0e2078cdac32a9018351d1bb0c52b794980c2a588642b1543cae5e466"
     },
     "constants-B8tqYbYF.js": {
       "bytes": 149,
@@ -2203,6 +2198,10 @@
       "bytes": 25513,
       "sha256": "ec175a4d07f0c13302828513699e46e49cc9c4914a6426cc43ee1d72e88cbb96"
     },
+    "LICENSE": {
+      "bytes": 11335,
+      "sha256": "b354b971f0d9252a996e7cd4e72cd4e0d833cd0fe9068a5da3113b4a0ed53559"
+    },
     "maplibre-gl-D8l5aSvm.js": {
       "bytes": 1304259,
       "sha256": "22f45992fbbac596986073bf39f15834c5e37df78e338b10fde48d3bdf316caa"
@@ -2215,9 +2214,21 @@
       "bytes": 83076,
       "sha256": "7047ae6fbdcbc32aeb30bd24f0770a4d5aa3a58221c628fa9bf82fba2d191c75"
     },
+    "maputnik/editor.js": {
+      "bytes": 1794367,
+      "sha256": "1d96eb3c3872d160693e750ba344321dc29c07819d8742f6404e419084afdd67"
+    },
+    "maputnik/index.html": {
+      "bytes": 486,
+      "sha256": "9629e97ee12a08d5977d25e8cfcee0a7dff905f412c5ee640a60069a6c726976"
+    },
     "maputnik/LICENSE": {
       "bytes": 1124,
       "sha256": "1a155f965254b65d1aa9f44a618e2258f2c0cd6b85c096b0e72cb8ca3eb507ce"
+    },
+    "maputnik/maputnik.css": {
+      "bytes": 932099,
+      "sha256": "0026ae432ded84cd421ea70d545accba7326f3a33f4c08324a0ef33445296e48"
     },
     "maputnik/PROVENANCE.json": {
       "bytes": 1568,
@@ -2227,18 +2238,6 @@
       "bytes": 1948675,
       "sha256": "40e7bcabfeac691ba1a6cf1c33dbd561007046e9f93085ec837b70bb48c165f8"
     },
-    "maputnik/editor.js": {
-      "bytes": 1794367,
-      "sha256": "1d96eb3c3872d160693e750ba344321dc29c07819d8742f6404e419084afdd67"
-    },
-    "maputnik/index.html": {
-      "bytes": 486,
-      "sha256": "9629e97ee12a08d5977d25e8cfcee0a7dff905f412c5ee640a60069a6c726976"
-    },
-    "maputnik/maputnik.css": {
-      "bytes": 932099,
-      "sha256": "0026ae432ded84cd421ea70d545accba7326f3a33f4c08324a0ef33445296e48"
-    },
     "palette-BSfbwTvA.js": {
       "bytes": 669,
       "sha256": "10a729f7cd0cc76b10a57f1cc80bcc4139cfbfc0a86daa842fa421556a5ddbb8"
@@ -2247,6 +2246,10 @@
       "bytes": 248,
       "sha256": "2ae529aa369ca927116393faa00287bf0d6597a6ebde8433800d196a9a19e007"
     },
+    "SDK-PROVENANCE.json": {
+      "bytes": 238268,
+      "sha256": "f5ddc270f0d71c8327301e4e7b30b83cf51a7571e8fa7d8e7fd219246a34da18"
+    },
     "source-resolution-CURe54Oz.js": {
       "bytes": 5482,
       "sha256": "9911fbc003ca843ba066a053c48d5fbda44278fc0c0eb3b507921b5dbc6e6b75"
@@ -2254,6 +2257,10 @@
     "style.css": {
       "bytes": 5067,
       "sha256": "17236480fc3a0f3962c7d3ab7be9128a831451da3954e05ebe838033fa48943f"
+    },
+    "THIRD-PARTY-NOTICES.txt": {
+      "bytes": 80920,
+      "sha256": "1f9dc5486f5cb5430cdf7228072f340c6c2944bfc68b79d549be4d49edfb1e2a"
     },
     "visual-layer-owner-Cli7j7Sb.js": {
       "bytes": 1923,
