@@ -58,7 +58,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     {
         var outcome = await SendAsync(call, ScriptedHttpHandler.Throwing(new HttpRequestException("connection refused")));
 
-        AssertIssue(outcome, "Unavailable", Unreachable + "connection refused", statusCode: null);
+        AssertIssue(outcome, new("Unavailable", Unreachable + "connection refused", StatusCode: null));
     }
 
     [Theory]
@@ -67,7 +67,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     {
         var outcome = await SendAsync(call, ScriptedHttpHandler.Throwing(new TaskCanceledException("timed out")));
 
-        AssertIssue(outcome, "Unavailable", Unreachable + "timed out", statusCode: null);
+        AssertIssue(outcome, new("Unavailable", Unreachable + "timed out", StatusCode: null));
     }
 
     [Theory]
@@ -91,7 +91,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     {
         var outcome = await SendAsync(call, ScriptedHttpHandler.Returning(HttpStatusCode.BadRequest, """{"message":"server reason"}"""));
 
-        AssertIssue(outcome, "Rejected", "The Honua server rejected the admin request; resolve the reported issues before retrying.", 400);
+        AssertIssue(outcome, new("Rejected", "The Honua server rejected the admin request; resolve the reported issues before retrying.", 400));
     }
 
     [Theory]
@@ -100,7 +100,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     {
         var outcome = await SendAsync(call, ScriptedHttpHandler.Returning(HttpStatusCode.NotFound));
 
-        AssertIssue(outcome, "Unsupported", "The Honua server does not expose this admin API contract.", 404);
+        AssertIssue(outcome, new("Unsupported", "The Honua server does not expose this admin API contract.", 404));
     }
 
     [Theory]
@@ -109,7 +109,17 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     {
         var outcome = await SendAsync(call, ScriptedHttpHandler.Returning(HttpStatusCode.Conflict, """{"message":"Layer name already used"}"""));
 
-        AssertIssue(outcome, "Conflict", "Layer name already used", 409);
+        AssertIssue(outcome, new("Conflict", "Layer name already used", 409));
+    }
+
+    [Fact]
+    public async Task ImportUploadFailure_KeepsAWhitespaceServerMessage()
+    {
+        var outcome = await SendAsync(
+            PostImportUpload,
+            ScriptedHttpHandler.Returning(HttpStatusCode.Conflict, """{"message":" ","detail":"detail"}"""));
+
+        AssertIssue(outcome, new("Conflict", " ", 409));
     }
 
     [Theory]
@@ -118,7 +128,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     {
         var outcome = await SendAsync(call, ScriptedHttpHandler.Returning(HttpStatusCode.UnprocessableEntity, """{"title":"Invalid layer"}"""));
 
-        AssertIssue(outcome, "Rejected", "Invalid layer", 422);
+        AssertIssue(outcome, new("Rejected", "Invalid layer", 422));
     }
 
     [Theory]
@@ -127,7 +137,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     {
         var outcome = await SendAsync(call, ScriptedHttpHandler.Returning(HttpStatusCode.Conflict));
 
-        AssertIssue(outcome, "Conflict", "The Honua server reported a conflict for the admin request; reload before retrying.", 409);
+        AssertIssue(outcome, new("Conflict", "The Honua server reported a conflict for the admin request; reload before retrying.", 409));
     }
 
     [Theory]
@@ -156,7 +166,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     {
         var outcome = await SendAsync(call, ScriptedHttpHandler.Returning(HttpStatusCode.OK, """{"success":false,"message":"Licence expired"}"""));
 
-        AssertIssue(outcome, "Unavailable", "Licence expired", 200);
+        AssertIssue(outcome, new("Unavailable", "Licence expired", 200));
     }
 
     [Theory]
@@ -165,7 +175,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     {
         var outcome = await SendAsync(call, ScriptedHttpHandler.Returning(HttpStatusCode.OK, """{"success":true,"data":null}"""));
 
-        AssertIssue(outcome, "Unavailable", MissingData, 200);
+        AssertIssue(outcome, new("Unavailable", MissingData, 200));
     }
 
     [Theory]
@@ -194,7 +204,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     {
         var outcome = await SendAsync(call, ScriptedHttpHandler.Returning(HttpStatusCode.OK));
 
-        AssertIssue(outcome, "Unavailable", MissingData, 200);
+        AssertIssue(outcome, new("Unavailable", MissingData, 200));
     }
 
     [Theory]
@@ -278,7 +288,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     {
         var outcome = await SendAsync(PostGeoservicesImport, ScriptedHttpHandler.Returning(HttpStatusCode.Accepted, body));
 
-        AssertIssue(outcome, "Unsupported", "The Honua server did not return an import job id.", 202);
+        AssertIssue(outcome, new("Unsupported", "The Honua server did not return an import job id.", 202));
     }
 
     [Fact]
@@ -297,7 +307,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     {
         var handler = ScriptedHttpHandler.Returning(HttpStatusCode.NotFound);
 
-        await SendAsync(call, handler, apiKey: "test-key");
+        await SendAsync(call, handler, new ClientSettings(ApiKey: "test-key"));
 
         Assert.Equal("test-key", Assert.Single(handler.Requests).ApiKey);
     }
@@ -308,7 +318,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     {
         var handler = ScriptedHttpHandler.Returning(HttpStatusCode.NotFound);
 
-        await SendAsync(call, handler, apiKey: " ");
+        await SendAsync(call, handler, new ClientSettings(ApiKey: " "));
 
         Assert.Null(Assert.Single(handler.Requests).ApiKey);
     }
@@ -325,7 +335,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     {
         var handler = ScriptedHttpHandler.Returning(HttpStatusCode.NotFound);
 
-        await SendAsync(call, handler, baseUri: "https://server.example/honua");
+        await SendAsync(call, handler, new ClientSettings(BaseUri: "https://server.example/honua"));
 
         Assert.StartsWith("https://server.example/honua/api/v1/admin/", Assert.Single(handler.Requests).Uri?.AbsoluteUri);
     }
@@ -337,28 +347,24 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
         ]}
         """;
 
-    private static async Task<Outcome> SendAsync(
-        string call,
-        ScriptedHttpHandler handler,
-        string? apiKey = "test-key",
-        string baseUri = "https://server.example/")
+    private static async Task<Outcome> SendAsync(string call, ScriptedHttpHandler handler, ClientSettings? settings = null)
     {
-        using var client = CreateClient(handler, apiKey, baseUri);
+        using var client = CreateClient(handler, settings);
         return await Calls[call](client, CancellationToken.None);
     }
 
-    private static HonuaAdminOperateHttpClient CreateClient(
-        ScriptedHttpHandler handler,
-        string? apiKey = "test-key",
-        string baseUri = "https://server.example/") =>
-        new(new HttpClient(handler), new HonuaAdminOperateClientOptions(new Uri(baseUri), apiKey));
+    private static HonuaAdminOperateHttpClient CreateClient(ScriptedHttpHandler handler, ClientSettings? settings = null)
+    {
+        var (apiKey, baseUri) = settings ?? new ClientSettings();
+        return new(new HttpClient(handler), new HonuaAdminOperateClientOptions(new Uri(baseUri), apiKey));
+    }
 
-    private static void AssertIssue(Outcome outcome, string state, string detail, int? statusCode)
+    private static void AssertIssue(Outcome outcome, ExpectedIssue expected)
     {
         Assert.NotNull(outcome.Issue);
-        Assert.Equal(state, outcome.Issue.State);
-        Assert.Equal(detail, outcome.Issue.Detail);
-        Assert.Equal(statusCode, outcome.Issue.StatusCode);
+        Assert.Equal(expected.State, outcome.Issue.State);
+        Assert.Equal(expected.Detail, outcome.Issue.Detail);
+        Assert.Equal(expected.StatusCode, outcome.Issue.StatusCode);
     }
 
     private static async Task<Outcome> Run<T>(Task<HonuaAdminEndpointResult<T>> call)
@@ -368,4 +374,8 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     }
 
     private sealed record Outcome(object? Data, HonuaAdminEndpointIssue? Issue);
+
+    private sealed record ClientSettings(string? ApiKey = "test-key", string BaseUri = "https://server.example/");
+
+    private sealed record ExpectedIssue(string State, string Detail, int? StatusCode);
 }

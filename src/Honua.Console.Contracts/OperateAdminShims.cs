@@ -164,9 +164,12 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 
         var call = new AdminEndpointCall<HonuaAdminImportResult>(
-            () => Request(HttpMethod.Post, "/api/v1/admin/import/upload", ImportUploadForm(fileContent, fileName, tableName, targetSchema)),
+            () => Request(
+                HttpMethod.Post,
+                "/api/v1/admin/import/upload",
+                ImportUploadForm(new ImportUpload(fileContent, fileName, tableName, targetSchema))),
             "POST /api/v1/admin/import/upload",
-            AdminFailureMappings.ServerMessage,
+            AdminFailureMappings.AnyNonEmptyServerMessage,
             AdminResponseBodies.Optional<HonuaAdminImportResult, HonuaAdminImportResult>(
                 BareBody(AdminBodyRead.Buffered, "import-result"),
                 result => result ?? new HonuaAdminImportResult()));
@@ -470,20 +473,18 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
     private static string WithServiceName(string path, string? serviceName) =>
         string.IsNullOrWhiteSpace(serviceName) ? path : $"{path}?serviceName={Uri.EscapeDataString(serviceName)}";
 
-    private static MultipartFormDataContent ImportUploadForm(
-        byte[] fileContent,
-        string fileName,
-        string tableName,
-        string? targetSchema)
+    private sealed record ImportUpload(byte[] FileContent, string FileName, string TableName, string? TargetSchema);
+
+    private static MultipartFormDataContent ImportUploadForm(ImportUpload upload)
     {
         var form = new MultipartFormDataContent();
-        var fileEntry = new ByteArrayContent(fileContent);
+        var fileEntry = new ByteArrayContent(upload.FileContent);
         fileEntry.Headers.TryAddWithoutValidation("Content-Type", "application/octet-stream");
-        form.Add(fileEntry, "file", fileName);
-        form.Add(new StringContent(tableName), "TableName");
-        if (!string.IsNullOrWhiteSpace(targetSchema))
+        form.Add(fileEntry, "file", upload.FileName);
+        form.Add(new StringContent(upload.TableName), "TableName");
+        if (!string.IsNullOrWhiteSpace(upload.TargetSchema))
         {
-            form.Add(new StringContent(targetSchema), "TargetSchema");
+            form.Add(new StringContent(upload.TargetSchema), "TargetSchema");
         }
 
         return form;

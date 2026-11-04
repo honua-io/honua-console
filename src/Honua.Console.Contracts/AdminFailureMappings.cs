@@ -25,6 +25,14 @@ internal static class AdminFailureMappings
         return WithServerMessage(AdminEndpointIssueFactory.CreateIssue(contract, response, payload), payload);
     };
 
+    // The file upload surfaces any non-empty server message, whitespace included; other writes skip a blank one.
+    public static readonly AdminFailureMapping AnyNonEmptyServerMessage = async (contract, response, cancellationToken) =>
+    {
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        var issue = AdminEndpointIssueFactory.CreateIssue(contract, response, payload);
+        return ParseServerMessage(payload) is { Length: > 0 } message ? issue with { Detail = message } : issue;
+    };
+
     public static readonly AdminFailureMapping ServerMessageAndFieldErrors = async (contract, response, cancellationToken) =>
     {
         var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
