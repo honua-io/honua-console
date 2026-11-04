@@ -28,10 +28,6 @@ public sealed record ConsoleEnvironmentTransportCapabilities
     public bool BrowserHttp { get; init; } = true;
 
     public bool BrowserRealtime { get; init; } = true;
-
-    public bool NativeGrpc { get; init; }
-
-    public bool NativeMtls { get; init; }
 }
 
 public sealed record ConsoleAccountBinding
@@ -97,8 +93,6 @@ public sealed record ConsoleEnvironmentState
 
     public string LastRoute { get; init; } = "/";
 
-    public string LastStreamingResumeToken { get; init; } = string.Empty;
-
     public DateTimeOffset? LastConnectedAt { get; init; }
 
     // Console-owned trust pins (local/session state, exempt from the no-mock rule per
@@ -116,8 +110,6 @@ public sealed record ConsoleEnvironmentState
 
     /// <summary>Last server-validated trust state (shim of honua-sdk-dotnet#166 HonuaEnvironmentTrustState).</summary>
     public HonuaEnvironmentTrustState? Trust { get; init; }
-
-    public Dictionary<string, string> Diagnostics { get; init; } = new(StringComparer.Ordinal);
 }
 
 public sealed record ConsoleAccountSession

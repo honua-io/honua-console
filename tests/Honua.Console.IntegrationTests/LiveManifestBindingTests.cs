@@ -33,7 +33,6 @@ public sealed class LiveManifestBindingTests
         var manifest = new ManifestBackedConsoleCapabilityManifest(
             new HonuaServerCapabilityRegistryClient(new HonuaCapabilityManifestClient(http)));
         ctx.Services.AddSingleton<IConsoleCapabilityManifest>(manifest);
-        ctx.Services.AddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
         ctx.Services.AddSingleton<IConsoleProductMode>(
             new ConfiguredConsoleProductMode(ConsoleProductMode.Full));
         ctx.AddAuthorization().SetAuthorized("synthetic-operator");

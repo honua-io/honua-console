@@ -6,6 +6,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @inject IConsoleCatalogClient Catalog
 
+<CatalogAvailabilityGate>
 <section class="console-page share-opendata">
     @if (_result is null)
     {
@@ -82,6 +83,7 @@
         </article>
     }
 </section>
+</CatalogAvailabilityGate>
 
 @code {
     internal const string MissingBindingMessage =

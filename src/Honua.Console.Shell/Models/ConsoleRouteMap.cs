@@ -1,3 +1,5 @@
+using Honua.Console.Shell.Services;
+
 namespace Honua.Console.Shell.Models;
 
 public static class ConsoleRouteMap
@@ -5,9 +7,11 @@ public static class ConsoleRouteMap
     public static IReadOnlyList<ConsoleWorkflowArea> Areas { get; } =
     [
         new("studio", "Studio", "/studio", "Workspace", "Realtime visual editing alongside the shared Console conversation."),
-        new("catalog", "Catalog", "/catalog", "Builder", "Data, services, maps, dashboards, apps, metadata, and provenance."),
+        new("catalog", "Catalog", "/catalog", "Builder", "Data, services, maps, dashboards, apps, metadata, and provenance.",
+            ConsoleCapabilityKeys.PersistentCatalog),
         new("operate", "Operate", "/operate", "Operator", "Publishing, jobs, service configuration, identity, observability, and runtime administration."),
-        new("share", "Share", "/share/public", "Builder", "Public links, embeds, open-data pages, exports, and external publishing flows.")
+        new("share", "Share", "/share/public", "Builder", "Public links, embeds, open-data pages, exports, and external publishing flows.",
+            ConsoleCapabilityKeys.PersistentCatalog)
     ];
 
     public static IReadOnlyList<string> PortalParityRoutes { get; } =
@@ -64,4 +68,9 @@ public sealed record ConsoleWorkflowArea(
     string Name,
     string Path,
     string WorkflowBoundary,
-    string Description);
+    string Description,
+    string? RequiredCapability = null)
+{
+    public bool IsAvailable(IConsoleCapabilityManifest capabilities) =>
+        RequiredCapability is null || capabilities.IsAdvertised(RequiredCapability);
+}

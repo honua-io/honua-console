@@ -14,7 +14,6 @@
 
 * [How Console authenticates operators](console-authentication.md)
 * [Live Console capability gates](live-capability-gates.md)
-* [The optional native host](native/MAUI_BLAZOR_HOST.md)
 
 ## Reference
 

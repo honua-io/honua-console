@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -77,8 +77,13 @@ public sealed class HonuaCatalogDiscoveryHttpClient : IHonuaCatalogDiscoveryClie
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    private static readonly AdminBodyFormat EnvelopeFormat = new(
+        JsonOptions,
+        AdminBodyRead.Streamed,
+        "The Honua server catalog discovery response did not match the expected contract");
+
     private readonly HttpClient _httpClient;
-    private readonly string? _apiKey;
+    private readonly AdminEndpointTransport _transport;
 
     public HonuaCatalogDiscoveryHttpClient(HttpClient httpClient, HonuaCatalogDiscoveryClientOptions options)
     {
@@ -86,9 +91,12 @@ public sealed class HonuaCatalogDiscoveryHttpClient : IHonuaCatalogDiscoveryClie
         ArgumentNullException.ThrowIfNull(options);
 
         BaseUri = options.BaseUri;
-        _apiKey = options.ApiKey;
         _httpClient = httpClient;
         _httpClient.BaseAddress ??= BaseUri;
+        _transport = new AdminEndpointTransport(
+            httpClient,
+            options.ApiKey,
+            AdminTransportFailure.Unreachable("The Honua server catalog discovery endpoint"));
     }
 
     public Uri BaseUri { get; }
@@ -137,90 +145,39 @@ public sealed class HonuaCatalogDiscoveryHttpClient : IHonuaCatalogDiscoveryClie
 
     public void Dispose() => _httpClient.Dispose();
 
-    private async Task<HonuaAdminEndpointResult<T>> SendAsync<T>(
+    private Task<HonuaAdminEndpointResult<T>> SendAsync<T>(
         string path,
         string contract,
-        CancellationToken cancellationToken)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Get, path);
-        if (!string.IsNullOrWhiteSpace(_apiKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
-        }
-
-        HttpResponseMessage response;
-        try
-        {
-            response = await _httpClient.SendAsync(
-                    request,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (HttpRequestException ex)
-        {
-            return Unavailable<T>(contract, ex.Message);
-        }
-        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Unavailable<T>(contract, ex.Message);
-        }
-
-        using (response)
-        {
-            if (!response.IsSuccessStatusCode)
-            {
-                var state = response.StatusCode switch
-                {
-                    System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden => "Missing permission",
-                    System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.MethodNotAllowed or System.Net.HttpStatusCode.NotImplemented => "Unsupported",
-                    _ => "Unavailable"
-                };
-                var detail = response.StatusCode switch
-                {
-                    System.Net.HttpStatusCode.Unauthorized => "The Honua server rejected the request because admin authentication is missing.",
-                    System.Net.HttpStatusCode.Forbidden => "The current principal lacks permission to read catalog discovery endpoints.",
-                    System.Net.HttpStatusCode.NotFound => "The Honua server does not expose the catalog discovery-endpoints registry (honua-server#1279).",
-                    _ => $"The Honua server returned HTTP {(int)response.StatusCode} ({response.StatusCode})."
-                };
-                return HonuaAdminEndpointResult<T>.FromIssue(
-                    new HonuaAdminEndpointIssue(state, contract, detail, (int)response.StatusCode));
-            }
-
-            HonuaAdminApiResponse<T>? envelope;
-            try
-            {
-                envelope = await response.Content
-                    .ReadFromJsonAsync<HonuaAdminApiResponse<T>>(JsonOptions, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (JsonException ex)
-            {
-                return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                    "Unsupported",
-                    contract,
-                    $"The Honua server catalog discovery response did not match the expected contract: {ex.Message}",
-                    (int)response.StatusCode));
-            }
-
-            if (envelope?.Success == true && envelope.Data is not null)
-            {
-                return HonuaAdminEndpointResult<T>.FromData(envelope.Data);
-            }
-
-            return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                "Unavailable",
+        CancellationToken cancellationToken) =>
+        _transport.SendAsync(
+            new AdminEndpointCall<T>(
+                () => new HttpRequestMessage(HttpMethod.Get, path),
                 contract,
-                envelope?.Message ?? "The Honua server catalog discovery response did not include data.",
-                (int)response.StatusCode));
-        }
-    }
+                new(
+                    AdminFailureMappings.FromStatus(CreateIssue),
+                    AdminResponseBodies.Envelope<T>(EnvelopeFormat, "The Honua server catalog discovery response did not include data.")))
+            {
+                Completion = HttpCompletionOption.ResponseHeadersRead
+            },
+            cancellationToken);
 
-    private static HonuaAdminEndpointResult<T> Unavailable<T>(string contract, string detail) =>
-        HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-            "Unavailable",
-            contract,
-            $"The Honua server catalog discovery endpoint could not be reached: {detail}"));
+    private static HonuaAdminEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode)
+    {
+        var state = statusCode switch
+        {
+            HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Missing permission",
+            HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented => "Unsupported",
+            _ => "Unavailable"
+        };
+        var detail = statusCode switch
+        {
+            HttpStatusCode.Unauthorized => "The Honua server rejected the request because admin authentication is missing.",
+            HttpStatusCode.Forbidden => "The current principal lacks permission to read catalog discovery endpoints.",
+            HttpStatusCode.NotFound => "The Honua server does not expose the catalog discovery-endpoints registry (honua-server#1279).",
+            _ => $"The Honua server returned HTTP {(int)statusCode} ({statusCode})."
+        };
+        return new HonuaAdminEndpointIssue(state, contract, detail, (int)statusCode);
+    }
 }
 
 // --- Wire records mirroring the expected honua-server projection (#1279). ---

@@ -71,7 +71,7 @@ public sealed class CatalogServerBindingRenderTests
 
         // Page head exposes the mockup's primary actions.
         Assert.NotEmpty(page.FindAll("a.console-button-link[href='/operate/publishing']"));
-        Assert.Contains("+ New from Studio", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("+ New from Studio", page.Markup, StringComparison.Ordinal);
 
         // Type strip carries the per-type glyphs from the design.
         Assert.NotEmpty(page.FindAll("nav.console-type-strip .console-type-glyph"));

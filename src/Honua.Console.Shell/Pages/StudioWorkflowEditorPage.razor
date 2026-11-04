@@ -2,7 +2,6 @@
 @using Honua.Console.Shell.Validation
 @inject IStudioWorkflowPackageClient Workflows
 @inject NavigationManager Navigation
-@inject IConsoleCapabilityManifest Capabilities
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved workflow changes. Leave this page and discard them?" />
 
@@ -27,11 +26,6 @@
                 <dt>Contract</dt>
                 <dd>@_binding.Contract</dd>
             </dl>
-            @* Studio home is shelved behind the studio-builders capability; don't link into it. *@
-            @if (StudioBuildersAvailable)
-            {
-                <a class="console-button-link console-button-secondary" href="/studio">Studio Home</a>
-            }
         </article>
     }
     else if (_loading)
@@ -46,10 +40,6 @@
         <article class="console-panel">
             <h2>Workflow draft unavailable</h2>
             <p class="console-muted">The requested workflow draft was not found or cannot be opened in this workspace.</p>
-            @if (StudioBuildersAvailable)
-            {
-                <a class="console-button-link" href="/studio/workflows/new">Create Workflow Draft</a>
-            }
         </article>
     }
     else
@@ -63,10 +53,6 @@
             <button class="console-button console-button-secondary" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="DryRunAsync">Run once</button>
             <button class="console-button console-button-secondary" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="SaveAsync">Save draft</button>
             <button class="console-button" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="PublishAsync">Publish…</button>
-            @if (StudioBuildersAvailable)
-            {
-                <a class="console-button-link console-button-secondary" href="/studio">Studio Home</a>
-            }
         </header>
 
         @if (_validation.HasBlockingClientErrors)
@@ -631,10 +617,6 @@
 </section>
 
 @code {
-    // This editor stays reachable for existing drafts, but Studio home and "new workflow from prompt"
-    // are shelved behind the studio-builders capability, so their links are hidden until advertised.
-    private bool StudioBuildersAvailable => Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders);
-
     private static readonly string[] ParameterTypes = ["string", "date", "number", "boolean", "geometry"];
 
     [Parameter]

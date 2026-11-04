@@ -1,0 +1,23 @@
+@namespace Honua.Console.Shell.Components.Operate
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+
+<MapPreview Mode="MapPreviewMode.Layer"
+            StyleUrl="@ConsoleProxyRoutes.MapStyle(EnvironmentId, Layer.LayerId)"
+            Center="WorldCenter"
+            Zoom="1"
+            Bounds="Layer.Extent"
+            ShowLabels="false"
+            ShowHighlight="false"
+            ShowPopup="false"
+            Crs="EPSG:3857"
+            AriaLabel="@($"Map preview of layer {Layer.Name}")" />
+
+@code {
+    private static readonly double[] WorldCenter = [0, 0];
+
+    [Parameter, EditorRequired] public OperateServiceLayerProjection Layer { get; set; } = default!;
+
+    [Parameter] public string? EnvironmentId { get; set; }
+}

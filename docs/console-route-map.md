@@ -40,21 +40,11 @@ routes. Path prefixes are frozen for downstream tickets:
 /auth/callback                 OIDC callback (anonymous)
 /auth/signed-out               Post-signout landing (anonymous)
 
-/studio                        Studio entry (AI-assisted creation) — SHELVED (studio-builders)
-/studio/query                  Generated query.package editor — SHELVED (studio-builders)
-/studio/analysis               Server-bound spatial analysis builder (honua-server#1182 closed; list + cost-estimate degraded until honua-server#1237) — SHELVED (studio-builders)
-/studio/map                    Generated map.package editor — SHELVED (studio-builders)
-/studio/dashboard              Generated dashboard.package editor — SHELVED (studio-builders)
+/studio                        Studio workspace (embedded honua-studio); /studio/proof, /studio/drafts and /studio/apps/:itemId/preview open the same page
 /studio/report                 Generated report.package editor
 /studio/form                   Server-bound form package builder (honua-server#1184)
-/studio/form/import            XLSForm (ODK Collect) import surface over Honua.Collect.Core XlsFormImporter (honua-console#220)
-/studio/app                    Server-bound app.package builder (honua-server#1180/#1183) — SHELVED (studio-builders)
-/studio/proof                  Legacy alias for current proof flow — SHELVED (studio-builders)
-/studio/drafts                 Source-scoped draft start (source, id) — SHELVED (studio-builders)
-/studio/apps/:itemId/preview   Generated-app preview / publish lifecycle — SHELVED (studio-builders)
-/studio/report/ai              Report-from-prompt conversational authoring — SHELVED (studio-builders)
-/studio/form/ai                Form-from-prompt conversational authoring — SHELVED (studio-builders)
-/studio/workflows/new          New unified GP/ETL workflow package draft — SHELVED (studio-builders)
+/studio/map, /studio/app, /studio/dashboard, /studio/analysis, /studio/query, /studio/report/ai, /studio/form/ai, /studio/workflows/new
+                               Retired builder URLs: a notice pointing to /studio and /studio/processes
 /studio/workflows/:draftId     Reopen a workflow.package draft editor
 /studio/_dev/unsaved-changes-demo  Development-only manual test harness; unavailable outside Development
 
@@ -72,9 +62,9 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/connections/new       Create
 /operate/connections/:id       Detail
 /operate/connections/:id/diagnostics
-/operate/ai                    Omni-prompt AI console — one free-text prompt routes Studio (GIS authoring → AI publish outcome card #200) vs DevOps (ops → deploy approval queue #197); AI infers intent, human approves (honua-console#203). Alias: /studio/ai
+/operate/ai                    Omni-prompt AI console — one free-text prompt routes Studio (GIS authoring) vs DevOps (ops → deploy approval queue #197); AI infers intent, human approves (honua-console#203). Alias: /studio/ai
 /operate/data                  Data & Layers — resource→publications treeview + Layer Preview (the resource-first spine; merges Resources/Layers/Services lists; console-ux-redesign §5.3)
-/operate/data/new              Add data → publish flow host (?source=file|table|remoteservice|existingresource|ai, ?driver=manual|ai; console-ux-redesign §5.2/§5.4)
+/operate/data/new              Add data → publish flow host (?source=file|table|remoteservice|existingresource; console-ux-redesign §5.2/§5.4)
 /operate/resources             REDIRECT → /operate/data (resources fold into the treeview)
 /operate/resources/new         REDIRECT → /operate/data/new (the five entry points fold into one flow)
 /operate/resources/:id         Resource detail, validation, publish, access, presentation, and advanced tabs
@@ -88,7 +78,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/license               License + entitlement workspace
 /operate/observability         Top-level observability tile
 /operate/events/:eventId       Event timeline detail deep link
-/operate/alerts                Alerts list (firing, acknowledged, suppressed, resolved)
+/operate/alerts                Redirects to the alert list on /operate/observability (#alerts)
 /operate/alerts/:alertId       Alert evidence detail deep link
 /operate/alerts/rules          Realtime/geofence rule list
 /operate/alerts/rules/new      Create a disabled alert rule
@@ -103,7 +93,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/services              REDIRECT → /operate/data?view=services (services fold into the treeview)
 /operate/services/:name/settings
 /operate/layers                Layers list — dedicated page (OperateLayersPage) owns this route
-/operate/layers/:id            Layer configuration (default + ?tab=configure)
+/operate/layers/:id            Layer configuration (default + ?tab=configure); :id is the canonical resource id or the admin layer id publishing returns
 /operate/layers/:id/style      Layer style editor
 /operate/settings              Auth providers, API keys, CORS, license, server info, and catalog endpoints
 /operate/catalogs              Catalogs · discovery-endpoints surface (Esri/OGC/OData/STAC/DCAT endpoint cards, auto-default-on vs opt-in, feeders, per-endpoint issues; bound to the catalog discovery-endpoints registry honua-server#1279, else missing-binding). DISTINCT from the singular content catalog at /catalog.
@@ -133,12 +123,11 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/server-info           Server info
 /operate/analytics             Usage analytics
 /operate/events                Event evidence view (?jobId=<id>)
-/operate/native-stream         Native gRPC streaming proof (shared route; native service optional)
 /operate/legacy/<path>         Transitional iframe container for legacy Admin pages
 
-/environments                  Native-ready environment profile list
-/environments/new              Add environment profile (native host only)
-/environments/:profileId       Environment profile diagnostics
+/environments                  Environment profile list; choose the active Honua Server
+/environments/new              Connect to a Honua Server (creates and activates a profile, then sign-in)
+/environments/:profileId       Environment profile details
 
 /share                         Share area entry; current slice renders the public open-data collection
 /share/public                  Open-data collection page (public + openData service/layer/document items)
@@ -151,30 +140,10 @@ routes. Path prefixes are frozen for downstream tickets:
 *                              404 NotFound
 ```
 
-> **SHELVED (`studio-builders` capability).** The Console's *non-realtime* Studio builder
-> surfaces are gated OFF by default and removed from navigation. "Studio" is now the
-> realtime, SDK-driven app builder, which is **not** a Console surface; the Console keeps
-> its back-office roles — Catalog, Operate, Share, support, and the publish/approval flows.
->
-> Shelved is not deleted. The pages, their services, and the generation clients in
-> `Honua.Console.Contracts` stay in the tree behind `ConsoleCapabilityKeys.StudioBuilders`
-> (`ConsoleCapabilityGate`, the same first-release capability-manifest seam used by the
-> deferred Operate depth surfaces). A shelved route renders the first-class
-> `ConsoleStateView Kind="unsupported"` state with the kicker `Shelved` — never a blank
-> page and never fabricated data — and the Studio area is hidden from the primary nav.
-> Re-enable a deployment with `Honua:Console:Capabilities` /
-> `HONUA_CONSOLE_CAPABILITIES` = `studio-builders`; every surface returns unchanged.
->
-> Shelved routes: `/studio`, `/studio/proof`, `/studio/drafts`,
-> `/studio/apps/:itemId/preview` (all four resolve to the same `StudioPage` component),
-> `/studio/map`, `/studio/app`, `/studio/dashboard`, `/studio/analysis`, `/studio/query`,
-> `/studio/report/ai`, `/studio/form/ai`, `/studio/workflows/new`.
->
-> Removed: the `/studio/ai` alias on the omni-prompt AI console. That page is an Operate
-> surface and keeps its canonical `/operate/ai` route.
->
-> Still live: `/studio/form`, `/studio/form/import`, `/studio/report`, `/studio/styles*`,
-> `/studio/automations*`, and `/studio/workflows/:draftId` (existing drafts stay editable).
+> The Console's non-realtime Studio builders are deleted. Their old URLs render a notice that
+> points to the Studio workspace (`/studio`) and Processes (`/studio/processes`). Still live:
+> `/studio/form`, `/studio/report`, `/studio/styles*`, `/studio/automations*` and
+> `/studio/workflows/:draftId`.
 
 
 Top-level placement notes:
@@ -198,13 +167,9 @@ Top-level placement notes:
 - `/operate/legacy/<path>` is a transitional container that mirrors the
   legacy `@page` path one-to-one (see §5, EMBED rows). This survives
   existing deep-links from internal docs and runbooks.
-- `/environments*` are host-support routes, not a fifth product area.
-  They let the same shell bind to browser HTTP profiles or native MAUI
-  profiles. The browser host renders native gRPC, native mTLS,
-  certificate selection, connect/disconnect, and trust validation as
-  unsupported states without loading native services. `/operate/native-stream`
-  is also a host-support proof route; it lives under `/operate` because
-  the proof is operator telemetry, but it is not a legacy Admin route.
+- `/environments*` are shell connection routes, not a fifth product area.
+  They list, add, and inspect the environment profiles that bind the
+  Console to a Honua Server.
 
 ---
 
@@ -266,13 +231,8 @@ workspace surface accessible to any authenticated user (§1, §6.1); it is
 surfaced via deep links and the workspace switcher menu until a dedicated
 Groups feature ticket lands (tracked alongside `honua-portal#15`).
 
-Native host support navigation is always visible in the shared shell:
-Environments (`/environments`) and Native Stream
-(`/operate/native-stream`). On the web host these routes remain usable
-for seeded profile inspection, active-profile selection, and
-unsupported-state rendering; native profile creation, native gRPC, native
-mTLS, certificate selection, connect/disconnect, and trust validation
-require the MAUI host.
+Environments (`/environments`) has its own secondary navigation group,
+visible in the shared shell outside witness mode.
 
 ### 2.3 Edition gates
 
@@ -523,7 +483,7 @@ Already in `honua-sdk-js:src/control-plane/types.ts`:
 - `HonuaShareRequest` (line 227), `HonuaShareResponse` (line 236).
 
 `honua-sdk-dotnet#166` projects the equivalent server-owned Console
-client contracts for the Blazor Web shell and optional MAUI host. The JS
+client contracts for the Blazor Web shell. The JS
 SDK remains the browser/runtime contract for generated apps, embeds,
 MCP/QGIS/browser integrations, and map/chart/editor interop.
 
@@ -685,9 +645,9 @@ the smoke pipeline (§10).
 | `/auth/callback` | `anonymous` | — | session-error | shell+auth |
 | `/auth/signed-out` | `anonymous` | — | — | shell+auth |
 | `/groups` | `auth` (any scope: `member`, `operator`, or `admin`) | empty-groups (no group memberships yet) | unauth-redirect / forbidden | shell |
-| `/environments` | `host-support` | empty environment profiles; browser native actions unsupported | — | shell |
-| `/environments/new` | `native-host` (`SupportsNativeTransports`) | unsupported-native on web | — | shell |
-| `/environments/:profileId` | `host-support` | missing environment profile | browser native actions unsupported | shell |
+| `/environments` | `auth` | empty environment profiles ("Connect to your first server") | — | shell |
+| `/environments/new` | `auth` | — | — | shell |
+| `/environments/:profileId` | `auth` | missing environment profile | — | shell |
 | `/support` | `auth` | unsupported-binding when honua-support base URL unset | unauth-redirect | shell |
 | `/support/tickets/:ticketId` | `auth` | missing/forbidden/unavailable ticket via shared section surface | unauth-redirect | shell |
 | `*` | `anonymous` | notfound | — | shell |
@@ -699,24 +659,13 @@ dedicated Groups feature ticket. Empty-state copy mirrors current Portal
 Authenticated sessions without `member`, `operator`, or `admin` render
 `ConsoleStateView Kind="forbidden"` rather than redirecting.
 
-The environment routes are shared host-support routes added by
-`honua-console#44`. They use the shell-owned `IConsoleHostCapabilities`
-seam: the web host keeps `SupportsNativeTransports = false`, does not
-register `IConsoleConnectionManager`, and renders native-only controls as
-"Native host only"; the MAUI host registers native profile storage,
-certificate resolution, connection management, server-certificate probe,
-and the honua-server#1171 validation client. The native trust gate
-resolves the bound client certificate once and passes it, with the
-accepted server fingerprint, into both the validation call and the native
-HTTP/gRPC connection factory, so the transport presents exactly the server
-identity and client certificate that were validated. When a fingerprint is supplied, the
-transport callback requires the presented certificate fingerprint to
-match it rather than accepting a different OS-trusted certificate; when
-no fingerprint is supplied, the callback falls back to the OS chain
-decision. This keeps pinned private or self-signed server identities
-usable after acknowledgement while still blocking changed server
-identities. Unreachable HTTPS probes preserve the previously persisted
-trust state. Environment profile state is Console-owned local host state;
+The environment routes are shell connection routes added by
+`honua-console#44`. `/environments/new` validates the display name and
+an absolute HTTPS server URL, creates the profile, activates it, and
+continues to `/auth/signin`. `/environments` switches the active profile
+and refreshes the capability manifest; `/environments/:profileId` shows
+one profile read-only: server, transports, recorded trust state, and
+session details. Environment profile state is Console-owned local host state;
 server-validated trust results remain behind `Honua.Console.Contracts`
 until `honua-sdk-dotnet#166` is consumable.
 
@@ -731,7 +680,6 @@ until `honua-sdk-dotnet#166` is consumable.
 | `/studio/dashboard` | `auth` | missing-binding when no server base address; server-bound builder (honua-console#55) on the honua-server Studio package lifecycle + publication registry (#1180/#1181/#1183) — save draft, server validate, publish (save content version then publish request), and reopen against the live `dashboard` family; data bindings, layout panels, Vega-Lite charts, filters, narrative, version pinning, and responsive preview; publish blocked until every chart declares a Vega-Lite spec and every panel binds to a declared data binding; package-list surface is empty with an "Unsupported" capability state until honua-server exposes a Studio content-item listing endpoint (New/open-by-id is live) | unauth-redirect / missing-permission (server RBAC) | studio |
 | `/studio/report` | `auth` | missing-binding when no server base address; server-bound report builder (honua-console#56) on the content publication registry (honua-server#1183) — author a report (outline/sections, narrative, data bindings with version pins, Vega-Lite charts, map/table/filter panels, responsive preview), then publish (claims a route), republish (advances the active version), update visibility/embed policy, and roll back (pin) to an earlier immutable version; publish blocked until the report has a title, at least one panel bound to a declared data binding, and every chart declares a Vega-Lite spec | unauth-redirect / missing-permission (server RBAC) | studio |
 | `/studio/form` | `auth` | missing-binding when no server base address; empty form-package list when bound; publish blocked until the offline/sync policy is reviewed and the submit target validates | unauth-redirect / missing-permission (server RBAC) | studio |
-| `/studio/form/import` | `auth` | missing-binding when no server base address; XLSForm (ODK Collect) upload converted server-side via `Honua.Collect.Core` `XlsFormImporter` into a proposed draft (live preview + importer diagnostics), saved as a real draft then opened in the builder; honest "import unavailable" when the server lacks the import contract (honua-console#220) | unauth-redirect / missing-permission (server RBAC) | studio |
 | `/studio/app` | `auth` | missing-binding when no server base address; server-bound app.package builder (honua-console#58) on the Studio package lifecycle (honua-server#1180) and publication registry (honua-server#1183) — author pages/components/navigation/bindings/actions/permissions, review the share/embed policy, validate, preview, then save versions and publish; version history offers preview/reopen and rollback, and reopened edits create new content versions rather than mutating published state; publish blocked until a page binds content, every action declares a permission, and the share/embed policy is reviewed | unauth-redirect / missing-permission (server RBAC) | studio |
 | `/studio/proof` | `auth` | inline-authoring shell (prompt → clarification → server package draft → validate → preview-plan → save → publish); accepts `?prompt=…` to seed the prompt from the `/studio` home hero | unauth-redirect | studio |
 | `/studio/drafts` | `auth` | empty-studio (source-scoped draft start) | unauth-redirect | studio |
@@ -744,8 +692,7 @@ The current `/studio` implementation is the package-first Studio shell
 slice). It runs in the shared Razor component library and binds the
 server-owned package lifecycle — draft create/read/update, validation,
 preview-planning, content-version save, and publish — to honua-server
-(`honua-server#1180`/`#1181`) through the `IStudioPackageLifecycleClient`
-shim in `Honua.Console.Contracts`; prompt and structured clarification
+(`honua-server#1180`/`#1181`); prompt and structured clarification
 stay Console-local UX. Workflow choices cover map, dashboard, report,
 form, app, query, analysis, workflow, GP service, and ETL. Ambiguous
 prompts produce structured clarification questions; while any question
@@ -757,8 +704,7 @@ Preview is a transient preview-plan action (not a stored state), and
 rendered preview output / generated-app preview has no server contract
 yet, so it renders the shared missing-binding surface. When no server
 base address is configured the shell renders that missing-binding surface
-instead of mock package data; the in-memory authoring shell
-(`AddHonuaConsoleDemoStudioAuthoringShell`) is demo/test-only.
+instead of mock package data.
 
 `/studio/proof`, `/studio/drafts?source=<kind>&id=<itemId>`,
 `/studio?source=<kind>&itemId=<itemId>`, and
@@ -772,19 +718,8 @@ to hydrate a server-backed package. Save Version and Publish do create
 server-owned content versions and publication requests through the
 honua-server package lifecycle.
 
-The package editor routes above started as the `honua-console#39`
-Console-native Studio slice and per-editor families `honua-console#52`–
-`#58`. `/studio/form` is now the `honua-console#57` server-bound form
-package builder over `honua-server#1184`; it uses its own
-missing-binding and capability-state surface instead of the local package
-simulator. The remaining generated-package editor routes render shared
-Razor editors from the Studio package editor catalog and still use the
-local lifecycle simulator, but their validate/preview actions surface a
-missing-binding state rather than mock validation success until each
-editor's backend contract lands. The local projection is documented in
-[`docs/studio/package-editor-routes.md`](studio/package-editor-routes.md)
-and must be replaced behind the same editor model when shared contracts
-land; the shared `/studio` shell already binds that lifecycle.
+`/studio/form` is the server-bound form package builder over `honua-server#1184`, and `/studio/report`
+the report builder over the content publication registry; the other generated-package editors are retired.
 
 Workflow routes are builder-owned Studio surfaces. The real-server revisit
 (`honua-console#62`) binds the `workflow.package/v1` editor to honua-server
@@ -872,14 +807,7 @@ catalog detail.
 ### 6.5 Operate
 
 Operate landing and administration routes require `auth` and
-`canSeeOperatorLinks(session)` (scope `operator` or higher). The
-host-support `/operate/native-stream` proof route is the exception: it is
-shared by the web and native hosts, renders unavailable on web when no
-native streaming service is registered, and requires an active environment
-profile before emitting events. In the native host the proof opens the
-active profile through `IConsoleConnectionManager`; blocked or unreachable
-trust states emit no proof events, and successful streams update only
-resume/stream diagnostics while preserving profile trust pins. Job and
+`canSeeOperatorLinks(session)` (scope `operator` or higher). Job and
 event evidence routes can also be entered from builder workflows when the
 server authorizes read access to the specific job. Per-route gates listed
 below add edition or entitlement requirements on top.
@@ -929,7 +857,6 @@ surface as in-page capability states rather than seeded rows.
 | `/operate/server-info` | — | — | forbidden | operate |
 | `/operate/analytics` | `edition:Pro` | empty-operate | forbidden / upgrade | operate |
 | `/operate/events` | — | missing-item | forbidden | operate |
-| `/operate/native-stream` | `host-support`; native gRPC service + active profile for event stream | native proof unavailable / no active environment | — | operate |
 | `/operate/legacy/<path>` | — | — | forbidden | operate |
 
 `honua-console#24` replaces the native Blazor observability checkpoint
@@ -1066,7 +993,6 @@ read contract.
 | Loading | `ConsoleStateView Kind="loading"` | route mounted, content pending | never blocks shell paint |
 | Errored session | `<SessionErrorView retry>` | session is `ErroredSession` | distinct from unauthenticated; renders diagnostic id |
 | Unavailable (anonymous) | `ConsoleStateView Kind="unavailable"` | anonymous read or authorization denial on `/share/*`, `/public*`, `/catalog/:idOrSlug`, `/maps/:mapId`, or `/embed/maps/:mapId`, including private/org/group content, protected content, missing or invalid public-link tokens, failed embed authorization, and entitlement/license denials before authentication | does not reveal protected titles, token validity, or upgrade copy to anonymous users (§13 Q5) |
-| Unsupported native capability | native host-support panel / native-only disabled action | browser host reaches `/environments*` or `/operate/native-stream`, or a native-only action is visible without a registered native service | native gRPC, native mTLS, certificate selection, connect/disconnect, trust validation, and profile creation render as "Native host only" or unavailable states; the web host keeps no MAUI, native-core, or `Grpc.Net.Client` dependency |
 
 The catalog/share route-slice client returns `CatalogItemReadResult` or
 `MapPackageReadResult` with `Status` values `Allowed`, `Missing`,
@@ -1109,7 +1035,7 @@ constraint).
 | Chunk | Routes |
 |---|---|
 | shell + auth | `/`, `/auth/*`, `/groups`, `*` |
-| studio | `/studio`, `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/form/import`, `/studio/app`, `/studio/proof`, `/studio/apps/:itemId/preview` |
+| studio | `/studio`, `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/app`, `/studio/proof`, `/studio/apps/:itemId/preview` |
 | catalog | `/catalog`, `/catalog/:idOrSlug` |
 | viewer | `/maps/:mapId`, `/maps/new` |
 | operate | all `/operate/*` |
@@ -1184,7 +1110,7 @@ work consumes the route map but is not edited by `#3`:
 | Repo / ticket | Consumer of |
 |---|---|
 | `honua-server#1162` | Metadata v2 / content / RBAC API baseline backing `/catalog/:idOrSlug` and Studio open-from-catalog. License snapshot DTO contract for `/operate/license` (avoid leaking `System.*` types through trimmer). |
-| `honua-sdk-dotnet#166` | Projects the server-owned Console client contracts for the Blazor Web shell and optional MAUI host, including metadata/content/package, route guard, RBAC, license, transport, and environment-profile DTOs. Until landed, Portal helpers remain behavior references (§4.7). |
+| `honua-sdk-dotnet#166` | Projects the server-owned Console client contracts for the Blazor Web shell, including metadata/content/package, route guard, RBAC, license, transport, and environment-profile DTOs. Until landed, Portal helpers remain behavior references (§4.7). |
 | `honua-sdk-dotnet#231` | Projects the Operate observability admin contracts currently mirrored by `OperateObservabilityContracts.cs` for events, logs, alerts, rules, zones, jobs, and investigations. |
 | `honua-sdk-js#225` | Projects `resolvePortalItemRole`, `evaluateShareEscalation`, `resolveEmbedAuthorization`, `buildShareLink`, open-data predicates/constants, and metadata/content/package DTOs for generated apps, embeds, MCP/QGIS/browser integrations, and map/chart/editor interop. Until landed, Portal helpers remain behavior references (§4.7). |
 | `honua-server#1171` | Backs native mTLS/client-certificate validation for `/environments*` diagnostics. Console calls `POST /api/v1/admin/security/client-certificates/validate` through the temporary `Honua.Console.Contracts` shim until the .NET SDK projects the trust client. |
@@ -1207,7 +1133,7 @@ PRs that touch each ticket should link to its section number(s).
 | `honua-console#7` — Wire Console to shared metadata / content / package / RBAC contracts | §4 (full RBAC and entitlement reference), §6 per-route gates, §11 (`honua-server#1162`, `honua-sdk-dotnet#166`, `honua-sdk-js#225` consumer notes). |
 | `honua-console#9` — Console parity smoke | §10 (smoke evidence map), §3 rows carrying smoke labels. |
 | `honua-console#41` — Native Blazor Operate observability checkpoint | §1 (`/operate/observability`, `/operate/events/:eventId`, `/operate/alerts/:alertId`, `/operate/jobs/:jobRunId`), §6.5 (Operate detail-route and neutral-state behavior), and [Operate Observability Information Model](./architecture/operate-observability-information-model.md). |
-| `honua-console#44` — Native Console profiles trust diagnostics and mTLS | §1 (`/environments`, `/environments/new`, `/environments/:profileId`, `/operate/native-stream`), §2.2 (native host support navigation), §6.1 (host-capability seam and profile routes), §6.5 (`/operate/native-stream` exception), §7 (unsupported native capability), and [Optional MAUI Blazor Hybrid Host](./native/MAUI_BLAZOR_HOST.md). |
+| `honua-console#44` — Console environment profiles and trust diagnostics | §1 (`/environments`, `/environments/new`, `/environments/:profileId`), §2.2 (Environments navigation), and §6.1 (environment profile routes). |
 | `honua-console#24` — Server-backed Operate observability binding | §6.5 (`IConsoleOperateObservabilityClient`, admin API status contract, event/alert/job detail behavior), §11 (`honua-sdk-dotnet#231` consumer note), and [Operate Observability Information Model](./architecture/operate-observability-information-model.md). |
 
 `honua-console#2` (scaffold) seeds the `<RouteGuard>`, the exception
@@ -1258,7 +1184,7 @@ The primary rail follows Home (`/`), Data & Layers (`/operate/data`), realtime M
 
 `/setup/local` is the local-evaluation handoff guide. It explains external local-agent Docker inspection/install and copies an authored request; it cannot start Docker from the browser. `/environments/new` connects an existing deployment. `/operate/data/new` uses contextual source controls with the shared conversation, and its connected-table action opens the canonical shared-draft form at `/operate/publishing/quick`. See [the interaction model](design/unified-workspace-ux-implementation.md).
 
-Legacy Studio standalone builder URLs now show direct guidance to `/studio` or `/studio/processes`; the retired generated-package product is not restored by `studio-builders`. `/operate/ai` opens the same primary conversation rather than a separate classifier/generator. Real operations and automation routes remain available. The active editor dependency stays in `honua-studio` until a separately approved migration.
+Legacy Studio standalone builder URLs now show direct guidance to `/studio` or `/studio/processes`. `/operate/ai` opens the same primary conversation rather than a separate classifier/generator. Real operations and automation routes remain available. The active editor dependency stays in `honua-studio` until a separately approved migration.
 
 `/operate/resources/import/task` contributes a browser file to the immutable dataset-import task selected in the shared conversation. It uses the pinned SDK and authenticated bounded chunk capability, verifies the complete file digest, and reconciles original transfer receipts after interrupted requests. A retained source receipt does not establish import acceptance. The surface refuses when the deployment or pinned SDK does not expose the canonical transport.
 

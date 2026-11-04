@@ -39,7 +39,7 @@ public sealed class OperateLayerFieldAliasHiddenTests
         // The page hosts a <MapPreview/> that imports a JS module on render; the fields panel under test
         // needs no JS, so let unmatched interop calls no-op instead of failing the render.
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
-        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeLayersDataSource(ResourceId, LayerId));
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(LayerData(ResourceId, LayerId));
         ctx.Services.AddSingleton<IConsoleLayerFieldsOperation>(fields);
 
         var page = ctx.Render<OperateLayerDetailPage>(p => p.Add(c => c.ResourceId, ResourceId));
@@ -196,56 +196,21 @@ public sealed class OperateLayerFieldAliasHiddenTests
         public Task<HonuaAdminEndpointResult<HonuaAdminLicenseStatusResponse>> GetLicenseStatusAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<HonuaAdminEndpointResult<HonuaAdminApiKeyResponse[]>> ListApiKeysAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<HonuaAdminEndpointResult<HonuaAdminOidcProviderResponse[]>> ListOidcProvidersAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<bool>> ProbeEndpointAsync(string contract, string relativePath, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceMapServerSettingsAsync(string serviceName, HonuaAdminUpdateMapServerSettingsRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceTimeInfoAsync(string serviceName, HonuaAdminUpdateTimeInfoRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetLayerDiscoveryAsync(int layerId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> UpdateLayerDiscoveryAsync(int layerId, HonuaAdminDiscoveryMetadataUpdate request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetServiceDiscoveryAsync(string serviceName, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> UpdateServiceDiscoveryAsync(string serviceName, HonuaAdminDiscoveryMetadataUpdate request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<HonuaAdminEndpointResult<HonuaAdminLayerMetadataResponse>> UpdateServiceLayerMetadataAsync(HonuaAdminServiceLayer layer, HonuaAdminUpdateLayerMetadataRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<HonuaAdminEndpointResult<HonuaAdminLayerRelationships>> GetLayerRelationshipsAsync(int layerId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<HonuaAdminEndpointResult<HonuaAdminLayerRelationships>> UpdateLayerRelationshipsAsync(int layerId, HonuaAdminLayerRelationshipsUpdate request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminLayerDisplay>> GetLayerDisplayAsync(int layerId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminLayerDisplay>> UpdateLayerDisplayAsync(int layerId, HonuaAdminLayerDisplayUpdate request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminLayerEditing>> GetLayerEditingAsync(int layerId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminLayerEditing>> UpdateLayerEditingAsync(int layerId, HonuaAdminLayerEditingUpdate request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminLayerSpatial>> GetLayerSpatialAsync(int layerId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminLayerSpatial>> UpdateLayerSpatialAsync(int layerId, HonuaAdminLayerSpatialUpdate request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> GetLayerPopupInfoAsync(int layerId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> UpdateLayerPopupInfoAsync(int layerId, System.Text.Json.JsonElement? document, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> GetLayerDrawingInfoAsync(int layerId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> UpdateLayerDrawingInfoAsync(int layerId, System.Text.Json.JsonElement? document, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
-    /// <summary>Serves a single layer exposure so the page renders its fields panel; no fabricated content
-    /// beyond the one layer under test.</summary>
-    private sealed class FakeLayersDataSource : IOperateTransitionDataSource
-    {
-        private readonly OperateServicesView _view;
-
-        public FakeLayersDataSource(string resourceId, int layerId)
-        {
-            var layer = new OperateServiceLayerProjection(
-                layerId, "parcels", "Polygon", resourceId, "conn-1.parcels");
-            var service = new OperateServiceDetail(
-                "parcels-fs", "Parcels FeatureServer", "FeatureServer", "Running", "honua-server",
-                [layer], [], []);
-            _view = new OperateServicesView([service], []);
-        }
-
-        public Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(_view);
-
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new OperateTransitionWorkspace([], [], _view.Services, [], []));
-
-        public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateConnectionSummary?>(null);
-
-        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateResourceEditPreview?>(null);
-
-        public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateServiceDetail?>(_view.Services.FirstOrDefault());
-    }
+    private static FixedServicesDataSource LayerData(string resourceId, int layerId) =>
+        new(new OperateServiceDetail(
+            "parcels-fs", "Parcels FeatureServer", "FeatureServer", "Running", "honua-server",
+            [new OperateServiceLayerProjection(layerId, "parcels", "Polygon", resourceId, "conn-1.parcels")],
+            [],
+            []));
 }

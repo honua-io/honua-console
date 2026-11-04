@@ -206,12 +206,6 @@ public sealed class StudioReportBuilderRenderTests
 
     private sealed class FakeReportDataSource : IStudioReportPublicationDataSource
     {
-        public Task<StudioReportAiCapability> GetGenerationCapabilityAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(StudioReportAiCapability.Off);
-
-        public Task<StudioReportGenerationOutcome> GenerateAsync(
-            StudioReportEditorState currentState, StudioReportGenerationRequest request, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new StudioReportGenerationOutcome { Status = StudioReportGenerationStatuses.Unsupported });
 
         public StudioReportPublicationLoad Load { get; set; } = new(null, []);
 

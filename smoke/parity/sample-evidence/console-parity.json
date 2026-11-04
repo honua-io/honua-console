@@ -53,13 +53,6 @@
       "note": "Saved-map document; viewer hydrates and Studio drafts read this shape."
     },
     {
-      "name": "studio-authoring-shell",
-      "version": "v1",
-      "owningLayer": "console",
-      "sourceRepo": "honua-console",
-      "note": "Console authoring projection for prompt clarification and package inspection; draft/validation/preview-plan/saved-version/publish bind to the honua-server package lifecycle (#1180/#1181). Preview is a planning action, not a stored lifecycle state."
-    },
-    {
       "name": "generated-app-lifecycle",
       "version": "v1",
       "owningLayer": "sdk",
@@ -239,7 +232,7 @@
       "owningLayerLabel": "Honua Console (Studio, Catalog, Operate, Share UI)",
       "status": "ok",
       "durationMs": 0,
-      "description": "Studio accepts the source-scoped draft route, clarifies an ambiguous prompt, and keeps the route-compatible mock package inspectable.",
+      "description": "Studio accepts the source-scoped draft route for the saved map without hydrating the source.",
       "evidence": {
         "draftUrl": "http://127.0.0.1:4174/studio?source=map&itemId=01KS923C02F5XEMWXKBW2AB1SA",
         "routeCompatibility": {
@@ -252,41 +245,7 @@
           "itemId": "01KS923C02F5XEMWXKBW2AB1SA",
           "itemType": "map",
           "title": "City Parcels 2026 — overview"
-        },
-        "prompt": "Build a field app from this",
-        "clarification": {
-          "routed": true,
-          "questionId": "publish-intent",
-          "selectedChoice": "Prepare an organization preview"
-        },
-        "package": {
-          "contractName": "studio-authoring-shell",
-          "contractVersion": "v1",
-          "packageRef": "draft-app-clarify",
-          "packageType": "app.package",
-          "schemaVersion": "1.0",
-          "lifecycleState": "Draft",
-          "sourceHydrated": false,
-          "inspectorSections": [
-            "assumptions",
-            "dataBindings",
-            "warnings",
-            "validation",
-            "provenance"
-          ],
-          "dataBindings": [
-            {
-              "id": "source-binding",
-              "sourceRef": "catalog:item/demo-city-observations",
-              "status": "Ready for validation"
-            }
-          ]
-        },
-        "lifecycleStates": [
-          "Draft",
-          "Saved version",
-          "Published"
-        ]
+        }
       },
       "error": null
     },

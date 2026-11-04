@@ -31,40 +31,7 @@ builder.Services.AddHttpClient("honua-studio-audience").ConfigurePrimaryHttpMess
     new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
 builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-Token");
 
-builder.Services.AddHonuaConsoleShell(
-    builder.Configuration["Honua:Server:BaseUrl"] ?? builder.Configuration["HONUA_SERVER_BASE_URL"],
-    builder.Configuration["Honua:Server:AdminApiKey"] ?? builder.Configuration["HONUA_ADMIN_API_KEY"],
-    builder.Configuration["Honua:Server:PublicationIds"] ?? builder.Configuration["HONUA_SERVER_PUBLICATION_IDS"],
-    builder.Configuration["Honua:Server:TemporalSources"] ?? builder.Configuration["HONUA_SERVER_TEMPORAL_SOURCES"],
-    builder.Configuration["Honua:Support:BaseUrl"] ?? builder.Configuration["HONUA_SUPPORT_BASE_URL"],
-    // L0 deflection (honua-console#165): qwen assistant endpoint + bundled KB path.
-    builder.Configuration["Honua:Llm:BaseUrl"] ?? builder.Configuration["HONUA_LLM_BASE_URL"],
-    builder.Configuration["Honua:Llm:Model"] ?? builder.Configuration["HONUA_LLM_MODEL"],
-    builder.Configuration["Honua:Llm:ApiKey"] ?? builder.Configuration["HONUA_LLM_API_KEY"],
-    builder.Configuration["Honua:Support:KbPath"] ?? builder.Configuration["HONUA_SUPPORT_KB_PATH"],
-    // Optional local narrowing policy for server-backed capabilities. The live server manifest is
-    // always the upper bound; this list cannot widen it. The same list controls the local-only
-    // SHELVED Console Studio builder surfaces with "studio-builders" — they are
-    // gated off (and hidden from nav) because "Studio" is now the realtime, SDK-driven app builder.
-    builder.Configuration["Honua:Console:Capabilities"] ?? builder.Configuration["HONUA_CONSOLE_CAPABILITIES"],
-    // Registry-driven Studio-AI intent resolution (honua-console#266): OFF by default. When ON (and a
-    // server is bound) the Studio generate/validate/preview/publish lifecycle resolves against the live
-    // capability-manifest registry and deferred/unavailable capabilities are hidden from Studio AI.
-    ParseFlag(
-        builder.Configuration["Studio:RegistryIntentResolution"]
-        ?? builder.Configuration["HONUA_STUDIO_REGISTRY_INTENT_RESOLUTION"]),
-    // Human-facing mode is the default and requires an attributable operator bearer
-    // for approval/recovery mutations. API-key fallback is available only through the
-    // exact HeadlessService opt-in, a ServiceApiKey profile, and no interactive session.
-    builder.Configuration["Honua:Server:CredentialMode"]
-        ?? builder.Configuration["HONUA_SERVER_CREDENTIAL_MODE"],
-    // The normal image is the focused human Console. Witness mode keeps only the read/approve
-    // candidate-certification navigation; it does not weaken or replace server authorization.
-    builder.Configuration["Honua:Console:Mode"]
-        ?? builder.Configuration["HONUA_CONSOLE_MODE"]);
-
-static bool ParseFlag(string? value) =>
-    bool.TryParse(value, out var parsed) && parsed;
+builder.Services.AddHonuaConsoleShell(ConsoleShellConfiguration.ReadOptions(builder.Configuration));
 
 // Operator authentication (honua-console#233): fail-closed cookie/edge auth + RequireAuthenticatedUser
 // fallback policy so no Console route is reachable anonymously. See ConsoleAuthentication for the model.
@@ -77,12 +44,6 @@ var app = builder.Build();
 // Before HSTS, HTTPS redirection, auth, and the map-proxy tile origin. The ingress peer is a
 // private address; see ConsoleForwardedHeaders.
 app.UseForwardedHeaders();
-
-// Development testbed convenience: the browser host cannot create environment profiles (profile
-// creation runs on the native MAUI host), so a "Local honua-server" profile is seeded per-operator
-// on first use from HONUA_SERVER_BASE_URL. That seed now lives in AddConsoleAuthentication's
-// operator-partitioned profile store (per-operator so it survives the multi-operator partitioning,
-// honua-console#233 S1 #1) rather than a single shared startup seed. Never runs outside Development.
 
 // Content-Security-Policy: this origin holds the Blazor session and the admin-keyed map BFF proxy,
 // so it must constrain where executable code, styles, images, and network connections may come from

@@ -7,13 +7,7 @@ using Testcontainers.PostgreSql;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Boots a real honua-server container backed by a PostgreSQL/PostGIS container on a shared network,
-/// honouring <see cref="ConsoleTrustIntegrationOptions"/> (image, port, scheme, health path, env). Shared
-/// by the trust and Studio integration fixtures so the container-boot mechanics live in one place. The
-/// caller owns skip-on-failure semantics: <see cref="StartAsync"/> throws when the daemon/image/readiness
-/// is unavailable, and the fixture records the skip reason.
-/// </summary>
+// StartAsync throws when Docker, the image or server readiness is unavailable; callers record the skip reason.
 internal sealed class HonuaServerTestcontainer : IAsyncDisposable
 {
     private INetwork? _network;
@@ -46,7 +40,7 @@ internal sealed class HonuaServerTestcontainer : IAsyncDisposable
     public string PostgresConnectionString { get; }
 
     public static async Task<HonuaServerTestcontainer> StartAsync(
-        ConsoleTrustIntegrationOptions options,
+        LiveServerIntegrationOptions options,
         CancellationToken cancellationToken)
     {
         INetwork? network = null;

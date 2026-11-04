@@ -73,29 +73,6 @@ public sealed class FormPackageHttpClientTests
         Assert.Equal("asset_id", issue.FieldId);
     }
 
-    [Fact]
-    public async Task ImportXlsForm_UnregisteredRoute_FailsClosedWithoutHttp()
-    {
-        var calls = 0;
-        using var client = CreateClient(new StaticResponseHandler(_ =>
-        {
-            calls++;
-            return new HttpResponseMessage(HttpStatusCode.OK);
-        }));
-
-        var response = await client.ImportXlsFormAsync(new ImportXlsFormRequest
-        {
-            FileName = "survey.xlsx",
-            ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            Content = Convert.ToBase64String([1, 2, 3])
-        });
-
-        Assert.Equal(0, calls);
-        Assert.Equal(UnregisteredServerRoutes.State, response.Issue!.State);
-        Assert.Equal(UnregisteredServerRoutes.StatusCode, response.Issue.StatusCode);
-        Assert.Equal(UnregisteredServerRoutes.Detail, response.Issue.Detail);
-    }
-
     private static HonuaFormPackageHttpClient CreateClient(HttpMessageHandler handler, TimeSpan? timeout = null)
     {
         var httpClient = new HttpClient(handler) { BaseAddress = BaseAddress };

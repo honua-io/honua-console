@@ -1,0 +1,16 @@
+@* The connected server keeps catalog, share and open-data content in process memory, so it would be lost on
+   restart; these surfaces stay hidden until the server advertises a persistent store. *@
+<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.PersistentCatalog"
+                       Kicker="Not available yet"
+                       Title="@Title"
+                       Message="This server does not keep catalog and sharing content across restarts yet. Published layers and services are listed in Data &amp; Layers."
+                       ActionHref="/operate/data"
+                       ActionLabel="Open Data &amp; Layers">
+    @ChildContent
+</ConsoleCapabilityGate>
+
+@code {
+    public const string Title = "Catalog and sharing are not available yet";
+
+    [Parameter, EditorRequired] public RenderFragment ChildContent { get; set; } = default!;
+}

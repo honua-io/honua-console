@@ -3,12 +3,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Live implementation of the layer-metadata authoring operation. Reads and writes a layer's display hints,
-/// editor-tracking / edit-capability metadata, and spatial/CRS metadata on honua-server through
-/// <see cref="IHonuaAdminOperateClient"/> and maps the result (or rejection). It never fabricates success —
-/// every result reflects what the server read back.
-/// </summary>
 public sealed class HonuaServerConsoleLayerMetadataOperation : IConsoleLayerMetadataOperation
 {
     private readonly IHonuaAdminOperateClient _client;
@@ -18,158 +12,39 @@ public sealed class HonuaServerConsoleLayerMetadataOperation : IConsoleLayerMeta
         _client = client ?? throw new ArgumentNullException(nameof(client));
     }
 
-    public async Task<ConsoleLayerDisplay> GetDisplayAsync(int layerId, CancellationToken cancellationToken = default)
-    {
-        var result = await _client.GetLayerDisplayAsync(layerId, cancellationToken).ConfigureAwait(false);
-        if (result.Data is { } data)
-        {
-            return new ConsoleLayerDisplay
-            {
-                Bound = true,
-                LayerId = data.LayerId,
-                MinScale = data.MinScale,
-                MaxScale = data.MaxScale,
-                DefaultVisibility = data.DefaultVisibility,
-                DisplayField = data.DisplayField,
-                Queryable = data.Queryable,
-                HasZ = data.HasZ,
-                HasM = data.HasM,
-            };
-        }
-
-        return ConsoleLayerDisplay.Unbound(
-            result.Issue?.Detail ?? "The Honua server did not return display metadata for this layer.");
-    }
-
-    public async Task<ConsoleSetLayerMetadataResult> SetDisplayAsync(
-        int layerId,
-        ConsoleLayerDisplay display,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(display);
-
-        var request = new HonuaAdminLayerDisplayUpdate
-        {
-            MinScale = display.MinScale,
-            MaxScale = display.MaxScale,
-            DefaultVisibility = display.DefaultVisibility,
-            DisplayField = display.DisplayField,
-            Queryable = display.Queryable,
-            HasZ = display.HasZ,
-            HasM = display.HasM,
-        };
-
-        var result = await _client.UpdateLayerDisplayAsync(layerId, request, cancellationToken).ConfigureAwait(false);
-        return MapResult(result.Data is not null, result.Issue, "Saved the layer's display hints on honua-server.");
-    }
-
-    public async Task<ConsoleLayerEditing> GetEditingAsync(int layerId, CancellationToken cancellationToken = default)
-    {
-        var result = await _client.GetLayerEditingAsync(layerId, cancellationToken).ConfigureAwait(false);
-        if (result.Data is { } data)
-        {
-            return new ConsoleLayerEditing
-            {
-                Bound = true,
-                LayerId = data.LayerId,
-                GlobalIdField = data.GlobalIdField,
-                CreatorField = data.CreatorField,
-                CreatedAtField = data.CreatedAtField,
-                EditorField = data.EditorField,
-                UpdatedAtField = data.UpdatedAtField,
-                CanModify = data.CanModify,
-                SupportsAttachments = data.SupportsAttachments,
-                SupportsRelatedRecords = data.SupportsRelatedRecords,
-            };
-        }
-
-        return ConsoleLayerEditing.Unbound(
-            result.Issue?.Detail ?? "The Honua server did not return editing metadata for this layer.");
-    }
-
     public async Task<ConsoleSetLayerMetadataResult> SetEditingAsync(
-        int layerId,
-        ConsoleLayerEditing editing,
+        ConsoleLayerEditingChange change,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(editing);
+        ArgumentNullException.ThrowIfNull(change);
 
-        var request = new HonuaAdminLayerEditingUpdate
+        var request = new HonuaAdminUpdateLayerMetadataRequest
         {
-            GlobalIdField = editing.GlobalIdField,
-            CreatorField = editing.CreatorField,
-            CreatedAtField = editing.CreatedAtField,
-            EditorField = editing.EditorField,
-            UpdatedAtField = editing.UpdatedAtField,
-            CanModify = editing.CanModify,
-            SupportsAttachments = editing.SupportsAttachments,
-            SupportsRelatedRecords = editing.SupportsRelatedRecords,
-        };
-
-        var result = await _client.UpdateLayerEditingAsync(layerId, request, cancellationToken).ConfigureAwait(false);
-        return MapResult(result.Data is not null, result.Issue, "Saved the layer's editing metadata on honua-server.");
-    }
-
-    public async Task<ConsoleLayerSpatial> GetSpatialAsync(int layerId, CancellationToken cancellationToken = default)
-    {
-        var result = await _client.GetLayerSpatialAsync(layerId, cancellationToken).ConfigureAwait(false);
-        if (result.Data is { } data)
-        {
-            return new ConsoleLayerSpatial
+            Editing = new HonuaAdminLayerEditingPatch
             {
-                Bound = true,
-                LayerId = data.LayerId,
-                Srid = data.Srid,
-                GeometryType = data.GeometryType,
-                SupportedCrs = data.SupportedCrs ?? [],
-                StorageCrs = data.StorageCrs,
-                StorageCrsCoordinateEpoch = data.StorageCrsCoordinateEpoch,
-            };
-        }
-
-        return ConsoleLayerSpatial.Unbound(
-            result.Issue?.Detail ?? "The Honua server did not return spatial metadata for this layer.");
-    }
-
-    public async Task<ConsoleSetLayerMetadataResult> SetSpatialAsync(
-        int layerId,
-        IReadOnlyList<string>? supportedCrs,
-        string? storageCrs,
-        double? storageCrsCoordinateEpoch,
-        bool clearStorageCrs,
-        bool clearStorageCrsCoordinateEpoch,
-        CancellationToken cancellationToken = default)
-    {
-        var request = new HonuaAdminLayerSpatialUpdate
-        {
-            SupportedCrs = supportedCrs,
-            StorageCrs = clearStorageCrs ? null : storageCrs,
-            StorageCrsCoordinateEpoch = clearStorageCrsCoordinateEpoch ? null : storageCrsCoordinateEpoch,
-            ClearStorageCrs = clearStorageCrs,
-            ClearStorageCrsCoordinateEpoch = clearStorageCrsCoordinateEpoch,
+                GlobalIdField = change.GlobalIdField,
+                SupportsAttachments = change.SupportsAttachments,
+                Create = change.AllowCreate,
+                Update = change.AllowUpdate,
+                Delete = change.AllowDelete,
+            },
         };
+        var result = await _client
+            .UpdateServiceLayerMetadataAsync(new HonuaAdminServiceLayer(change.ServiceName, change.LayerId), request, cancellationToken)
+            .ConfigureAwait(false);
 
-        var result = await _client.UpdateLayerSpatialAsync(layerId, request, cancellationToken).ConfigureAwait(false);
-        return MapResult(result.Data is not null, result.Issue, "Saved the layer's CRS / spatial metadata on honua-server.");
-    }
-
-    private static ConsoleSetLayerMetadataResult MapResult(bool succeeded, HonuaAdminEndpointIssue? issue, string successDetail)
-    {
-        if (succeeded)
-        {
-            return new ConsoleSetLayerMetadataResult
+        return result.Data is not null
+            ? new ConsoleSetLayerMetadataResult
             {
                 Succeeded = true,
                 State = "Updated",
-                Detail = successDetail,
+                Detail = $"Saved the layer's editing policy for service '{change.ServiceName}' on honua-server.",
+            }
+            : new ConsoleSetLayerMetadataResult
+            {
+                Succeeded = false,
+                State = result.Issue?.State ?? "Unavailable",
+                Detail = result.Issue?.Detail ?? "The Honua server did not accept the editing policy update.",
             };
-        }
-
-        return new ConsoleSetLayerMetadataResult
-        {
-            Succeeded = false,
-            State = issue?.State ?? "Unavailable",
-            Detail = issue?.Detail ?? "The Honua server did not accept the metadata update.",
-        };
     }
 }

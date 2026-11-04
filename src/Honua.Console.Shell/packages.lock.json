@@ -439,10 +439,7 @@
         "contentHash": "7mu9v0QDv66ar3DpGSZHg9NuNcxDaaAcnMULuZlaTpP9+hwXhrxNGsF5GmLkSHxFdb5bBc1TzeujsRgTrPWi+Q=="
       },
       "honua.console.contracts": {
-        "type": "Project",
-        "dependencies": {
-          "Honua.Sdk.Studio": "[1.10.0, )"
-        }
+        "type": "Project"
       }
     }
   }

@@ -67,7 +67,7 @@ jobs:
         run: cp src/Honua.Console.Web/global.json global.json
 
       - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 20.x
           cache: npm
@@ -94,7 +94,7 @@ jobs:
       - name: Run .NET tests
         # Coverage is collected for visibility only (uploaded as an artifact below);
         # there is no coverage threshold gate.
-        run: dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --no-restore --nologo --verbosity minimal --collect:"XPlat Code Coverage" --results-directory artifacts/test-results/native-core
+        run: dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj --no-restore --nologo --verbosity minimal --collect:"XPlat Code Coverage" --results-directory artifacts/test-results/shell
 
       - name: Verify diagnostic-bundle contract conformance
         # Executes the support-owned diagnostic-bundle v1 conformance manifest + valid/invalid
@@ -102,7 +102,7 @@ jobs:
         # validator, and enforces the pinned provenance SHA-256 (honua-console#307, honua-support#54/#57).
         # Contract drift — a tampered schema, a mismatched pin, or a diverged embedded copy — fails
         # here with a clear provenance/hash error, distinct from the general test lane above.
-        run: dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --no-build --no-restore --nologo --verbosity minimal --filter "FullyQualifiedName~DiagnosticBundle"
+        run: dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj --no-build --no-restore --nologo --verbosity minimal --filter "FullyQualifiedName~DiagnosticBundle"
 
       - name: Run Console render + integration tests
         # Gates the bUnit component-render tests. The opt-in Testcontainers/live-server tests
@@ -141,7 +141,7 @@ jobs:
         run: npm run smoke:parity
 
       - name: Upload Console artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: honua-console-web
           path: artifacts/honua-console-web/
@@ -149,7 +149,7 @@ jobs:
 
       - name: Upload parity evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: console-parity-evidence
           path: smoke-evidence/console-parity.json
@@ -158,7 +158,7 @@ jobs:
       - name: Upload code coverage (cobertura)
         # Visibility only — no coverage threshold gate.
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: console-coverage
           path: artifacts/test-results/**/coverage.cobertura.xml

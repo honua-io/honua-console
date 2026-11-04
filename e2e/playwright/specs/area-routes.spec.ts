@@ -2,11 +2,12 @@ import { test, expect } from '@playwright/test';
 
 // Spec 2: the four product-area routes all resolve from the same Blazor Web host
 // and render their area heading. These are the IA anchors from docs/console-route-map.md.
+// Catalog and Share stay hidden until the server advertises a persistent catalog.
 const areas = [
   { path: '/studio', heading: 'Studio is unavailable on this deployment' },
-  { path: '/catalog', heading: 'Catalog' },
+  { path: '/catalog', heading: 'Catalog and sharing are not available yet' },
   { path: '/operate', heading: 'Operate' },
-  { path: '/share', heading: 'Share' },
+  { path: '/share', heading: 'Catalog and sharing are not available yet' },
 ] as const;
 
 for (const area of areas) {

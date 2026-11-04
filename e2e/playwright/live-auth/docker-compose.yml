@@ -70,7 +70,7 @@ services:
       HONUA_REGISTER_TEST_INFRASTRUCTURE: "true"
       Licensing__DevGrantEdition: Enterprise
       # Same backing-store shape the in-repo Testcontainers live lane uses
-      # (tests/Honua.Console.IntegrationTests/ConsoleTrustIntegrationOptions.BuildServerEnvironment).
+      # (tests/Honua.Console.IntegrationTests/LiveServerIntegrationOptions.BuildServerEnvironment).
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=honua;Username=honua;Password=honua
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=honua;Username=honua;Password=honua
       Security__ConnectionEncryption__MasterKey: console-live-auth-proof-master-key-0123456789

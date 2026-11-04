@@ -3,19 +3,9 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Web.Auth;
 
-/// <summary>
-/// Operator-partitioned <see cref="IConsoleAccountSessionStore"/> for the multi-operator browser host
-/// (honua-console#233 S1 fix). The previous singleton <see cref="InMemoryConsoleAccountSessionStore"/>
-/// held ONE session dictionary keyed only by profile id, so on a host serving multiple operators one
-/// operator's forwarded bearer (written keyed by the shared active profile id) was read back for every
-/// other operator — a cross-operator bearer/identity bleed.
-///
-/// This decorator keeps the singleton registration (the singleton honua-server clients resolve it at
-/// construction) but routes every operation to a per-operator backing store selected by
-/// <see cref="IConsoleOperatorContext.CurrentOperatorKey"/>, so an operator can only ever read its own
-/// session. The native single-operator host keeps its persistent
-/// <see cref="Honua.Console.Native.Core.Storage.JsonConsoleAccountSessionStore"/> singleton unchanged.
-/// </summary>
+// Routes every call to the current operator's own session store, selected by
+// IConsoleOperatorContext.CurrentOperatorKey, behind one singleton registration that the singleton
+// honua-server clients resolve at construction. An operator can only ever read its own session.
 public sealed class OperatorScopedAccountSessionStore : IConsoleAccountSessionStore, IConsoleAccountSessionSnapshotStore
 {
     private readonly IConsoleOperatorContext _operatorContext;

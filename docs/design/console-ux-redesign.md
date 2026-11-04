@@ -15,9 +15,9 @@ Audience: console product/design, frontend architecture, founder review.
 > protocol→publication mapping is the single authority `Models/PublishProtocolCatalog.cs`.
 > The old entry points (resources/layers/services/import/publish) redirect into the
 > unified flow (`Pages/OperateDataRedirects.razor`); the Operate nav adopts the
-> Data & Layers spine (§5.1). **Phase 3 (the AI outcome-approval driver) is a clean
-> seam, not built** — `FlowDriver.Ai` surfaces the deferred outcome+approval intent
-> over the same flow object; manual mode drives the flow today.
+> Data & Layers spine (§5.1). **Phase 3 (the AI outcome-approval driver) is not
+> built**: `/operate/data/new` has no AI driver or driver toggle; AI help comes from
+> the shared workspace conversation.
 
 > **What this revision adds (founder direction, post-#198).** The first cut of this
 > doc had the unified flow, the existing-resource intake, and dual-mode styling

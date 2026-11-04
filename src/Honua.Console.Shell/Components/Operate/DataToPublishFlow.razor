@@ -1,40 +1,13 @@
 @namespace Honua.Console.Shell.Components.Operate
-@using Microsoft.AspNetCore.Components.Forms
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Pages
 @using Honua.Console.Shell.Services
 @inject IConsoleFileImportOperation FileImport
-@inject IServiceLayerPublishOperation PublishOperation
 @inject IOperateTransitionDataSource OperateData
 @inject IStudioMapStyleCatalogDataSource StyleData
-@inject IAiPublishDriver AiDriver
-@inject IConsoleNotificationService Notifications
 @inject NavigationManager Nav
 
-@*
-    The host of the unified resource-first "data → publish" flow (redesign §3 / §6.2 Phase 1). It owns one
-    DataToPublishFlowState (the shared flow object, §3.1), renders the step rail + driver toggle, and wires
-    each step to the REAL honua-server admin clients:
-
-        ① Add data    — AddDataIntake (file / table / remote / existing resource / AI seam)
-        ② Resource    — ingest via IConsoleFileImportOperation / IServiceLayerPublishOperation table list;
-                        the "existing resource" path skips this step
-        ③ Publish     — PublishProtocolPicker: protocol toggles → metadata-v2 Publications (the spine, §3.0)
-        ④ Style       — dual-mode StudioStyleEditor (picked here, authored in the embedded editor; not forked)
-        ⑤ Go live     — per-protocol route review + visibility + the single Apply (publishes each Publication)
-
-    Both drivers are wired end-to-end (redesign Phase 3). The AI driver (FlowDriver.Ai) fills the SAME flow
-    object: the user states intent in plain language, the server's AI generation surface (Bedrock-capable —
-    honua-server #1737, via IAiPublishDriver) proposes a resource + protocols + style, and the console renders
-    a single OUTCOME + approval card (Approve / Edit / Reject) with the plan behind a Details disclosure only —
-    not a plan/spec/tool-call dump. Approve applies through the SAME wired admin publish path manual mode uses;
-    Edit drops the proposal into the manual controls and resumes; Reject discards. The human always approves.
-
-    Every server-touching call surfaces its real outcome; when no server is bound the underlying clients
-    return missing-binding states (and the AI driver an honest "AI unavailable" state), which this host renders
-    as a first-class panel rather than fabricating a step result.
-*@
 <section class="console-page data-publish-flow" data-data-publish-flow>
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Add data</p>
@@ -53,21 +26,7 @@
             }
         </ol>
 
-        @if (!SharedConversation)
-        {
-        <div class="data-publish-flow__driver" role="group" aria-label="Flow driver">
-            <button type="button"
-                    class="data-publish-flow__driver-btn @(_flow.Driver == FlowDriver.Ai ? "data-publish-flow__driver-btn--on" : "")"
-                    data-driver="ai" disabled="@_busy" @onclick="() => SetDriver(FlowDriver.Ai)">AI</button>
-            <button type="button"
-                    class="data-publish-flow__driver-btn @(_flow.Driver == FlowDriver.Manual ? "data-publish-flow__driver-btn--on" : "")"
-                    data-driver="manual" disabled="@_busy" @onclick="() => SetDriver(FlowDriver.Manual)">Manual</button>
-        </div>
-        }
-        else
-        {
-            <button type="button" class="console-button console-button-secondary" data-workspace-open>Ask in the conversation</button>
-        }
+        <button type="button" class="console-button console-button-secondary" data-workspace-open>Ask in the conversation</button>
     </div>
 
     @if (_missingBinding is { } binding)
@@ -80,323 +39,99 @@
         </article>
     }
 
-    @if (_flow.Driver == FlowDriver.Ai && _flow.Step != FlowStep.Done)
+    @switch (_flow.Step)
     {
-        <article class="console-panel data-publish-flow__ai" data-ai-driver>
-            <p class="console-kicker">AI driver</p>
-            <h2>Describe what to publish</h2>
-            <p class="console-muted">Say it in plain language — I&rsquo;ll propose a resource, the services to expose, and a style, then ask you to approve. Nothing publishes until you do.</p>
-
-            @if (_aiCapability is { Enabled: false })
-            {
-                <article class="console-panel console-state-warning" role="note" data-ai-unavailable>
-                    <p class="console-kicker">AI unavailable</p>
-                    <p>@(_aiCapability.Detail ?? "The honua-server AI generation surface is not available.")</p>
-                    <div class="console-action-row">
-                        <button type="button" class="console-button" @onclick="() => SetDriver(FlowDriver.Manual)" data-ai-use-manual>Use manual mode</button>
+        case FlowStep.AddData:
+            <article class="console-panel" data-step-body="AddData">
+                <AddDataIntake Connections="_connectionOptions"
+                               ExistingResources="_resourceOptions"
+                               SupportedExtensions="_supportedExtensions"
+                               InitialMode="_flow.Source.Mode"
+                               Loaded="@_intakeLoaded"
+                               OnSourceChosen="OnSourceChosen" />
+                @if (_flow.Source.Mode == AddDataMode.File)
+                {
+                    <p>Choose the original dataset, then describe its destination in the shared conversation.</p>
+                    <a class="console-button" href="/operate/resources/import/task">Choose dataset file</a>
+                }
+                @if (_flow.Source.Mode == AddDataMode.RemoteService)
+                {
+                    <div data-remote-service-import>
+                        <OperateImportServicePage />
+                        <p class="console-muted">Imported services land as resources — <a href="/operate/data">open the resource tree</a> to publish them as the protocols you want.</p>
                     </div>
-                </article>
-            }
-            else
-            {
-                <label class="studio-form-label">
-                    <span>Your intent</span>
-                    <textarea class="console-input" rows="3" @bind="_aiIntent" @bind:event="oninput"
-                              placeholder="publish Maui parcels as a feature service and a STAC catalog, styled by zoning"
-                              disabled="@_busy" data-ai-intent></textarea>
-                </label>
+                }
                 <div class="console-action-row">
-                    <button type="button" class="console-button" disabled="@(_busy || string.IsNullOrWhiteSpace(_aiIntent))" @onclick="ProposeAsync" data-ai-propose>
-                        @(_busy ? "Thinking…" : "Propose →")
-                    </button>
-                    <button type="button" disabled="@_busy" @onclick="() => SetDriver(FlowDriver.Manual)">Switch to manual</button>
-                </div>
-
-                @if (_aiOutcome is { Status: AiPublishOutcomeStatus.Proposed })
-                {
-                    <AiPublishOutcomeCard Proposal="_aiOutcome.Proposal"
-                                          Busy="_busy"
-                                          OnApprove="ApproveProposalAsync"
-                                          OnEdit="EditProposal"
-                                          OnReject="RejectProposal" />
-                }
-                else if (_aiOutcome is { Status: AiPublishOutcomeStatus.NeedsInput })
-                {
-                    <article class="console-panel console-state-info" role="note" data-ai-needs-input>
-                        <p class="console-kicker">A bit more detail</p>
-                        <p>@_aiOutcome.Detail</p>
-                        @if (_aiOutcome.Clarifications.Count > 0)
-                        {
-                            <ul>@foreach (var prompt in _aiOutcome.Clarifications){<li>@prompt</li>}</ul>
-                        }
-                    </article>
-                }
-                else if (_aiOutcome is { Status: AiPublishOutcomeStatus.Unavailable })
-                {
-                    <article class="console-panel console-state-warning" role="note" data-ai-unavailable>
-                        <p class="console-kicker">AI unavailable</p>
-                        <p>@_aiOutcome.Detail</p>
-                    </article>
-                }
-                else if (_aiOutcome is { Status: AiPublishOutcomeStatus.Blocked })
-                {
-                    <article class="console-panel console-state-danger" role="alert" data-ai-blocked>
-                        <p class="console-kicker">AI couldn&rsquo;t reach the server</p>
-                        <p>@_aiOutcome.Detail</p>
-                        <div class="console-action-row">
-                            <button type="button" class="console-button" @onclick="() => SetDriver(FlowDriver.Manual)" data-ai-use-manual>Use manual mode</button>
-                        </div>
-                    </article>
-                }
-
-                @if (_publishResults.Count > 0)
-                {
-                    <div class="console-panel-grid" data-ai-publish-results>
-                        @foreach (var entry in _publishResults)
-                        {
-                            <article class="console-panel @(entry.Succeeded ? "console-state-success" : "console-state-danger")" role="@(entry.Succeeded ? "status" : "alert")">
-                                <p class="console-kicker">@entry.ProtocolLabel — @entry.State</p>
-                                <p>@entry.Detail</p>
-                            </article>
-                        }
-                    </div>
-                }
-            }
-            @if (_missingBinding is null)
-            {
-                @StepError()
-            }
-        </article>
-    }
-    else if (_flow.Driver == FlowDriver.Ai)
-    {
-        @* AI approve landed → the shared Done panel below renders. *@
-        @DonePanel()
-    }
-    else
-    {
-        @switch (_flow.Step)
-        {
-            case FlowStep.AddData:
-                <article class="console-panel" data-step-body="AddData">
-                    <AddDataIntake Connections="_connectionOptions"
-                                   ExistingResources="_resourceOptions"
-                                   SupportedExtensions="_supportedExtensions"
-                                   InitialMode="_flow.Source.Mode"
-                                   AllowAi="@(!SharedConversation)"
-                                   Loaded="@_intakeLoaded"
-                                   OnSourceChosen="OnSourceChosen" />
-                    @if (SharedConversation && _flow.Source.Mode == AddDataMode.File)
+                    <a href="/operate/data">Cancel</a>
+                    @if (_flow.Source.Mode is AddDataMode.Table or AddDataMode.ExistingResource)
                     {
-                        <p>Choose the original dataset, then describe its destination in the shared conversation.</p>
-                        <a class="console-button" href="/operate/resources/import/task">Choose dataset file</a>
-                    }
-                    else if (_flow.Source.Mode == AddDataMode.File)
-                    {
-                        <label class="studio-form-label">
-                            <span>File to import</span>
-                            <InputFile OnChange="OnFileSelected" accept="@AcceptAttribute" />
-                        </label>
-                        @if (_selectedFile is not null)
-                        {
-                            <p class="console-muted" data-selected-file>@_selectedFile.Name (@FormatSize(_selectedFile.Size))</p>
-                        }
-                    }
-                    else if (_flow.Source.Mode == AddDataMode.Table && !string.IsNullOrWhiteSpace(_flow.Source.Reference))
-                    {
-                        <label class="studio-form-label">
-                            <span>Table</span>
-                            <select class="console-input" data-table-picker @bind="_flow.Source.TableKey" disabled="@(_tables.Count == 0)">
-                                <option value="">@(_loadingTables ? "Loading tables…" : _tables.Count == 0 ? "No publishable tables" : "Select a table…")</option>
-                                @foreach (var table in _tables)
-                                {
-                                    <option value="@table.QualifiedName">@table.QualifiedName @(table.GeometryType is { } gt ? $"· {gt}" : "")</option>
-                                }
-                            </select>
-                        </label>
-                    }
-                    @if (_flow.Source.Mode == AddDataMode.RemoteService)
-                    {
-                        @* Remote-service import owns its own discovery → select → import surface; embedding it here
-                           keeps it reachable through the unified flow (the old /operate/import/service route now
-                           redirects to source=remoteservice). Imported services land as resources you then publish
-                           from the tree. *@
-                        <div data-remote-service-import>
-                            <OperateImportServicePage />
-                            <p class="console-muted">Imported services land as resources — <a href="/operate/data">open the resource tree</a> to publish them as the protocols you want.</p>
-                        </div>
-                    }
-                    @StepError()
-                    <div class="console-action-row">
-                        <a href="/operate/data">Cancel</a>
-                        @if (_flow.Source.Mode != AddDataMode.RemoteService && !(SharedConversation && _flow.Source.Mode == AddDataMode.File))
-                        {
-                            <button type="button" class="console-button" disabled="@(_busy || !CanContinueFromAddData())" @onclick="ContinueFromAddData">
-                                @(_busy ? "Working…" : "Continue →")
-                            </button>
-                        }
-                    </div>
-                </article>
-                break;
-
-            case FlowStep.Resource:
-                <article class="console-panel" data-step-body="Resource">
-                    <p class="console-kicker">② Resource</p>
-                    <h2>@_flow.Resource.Name</h2>
-                    <dl class="console-definition-list">
-                        <dt>Resource id</dt><dd data-resource-id>@_flow.Resource.ResourceId</dd>
-                        <dt>Geometry</dt><dd>@(_flow.Resource.GeometryType ?? "—")</dd>
-                        <dt>SRID</dt><dd>@(_flow.Resource.Srid?.ToString() ?? "—")</dd>
-                        <dt>Features</dt><dd>@_flow.Resource.FeatureCount</dd>
-                        <dt>Fields</dt><dd>@(_flow.Resource.Fields.Count > 0 ? string.Join(", ", _flow.Resource.Fields) : "—")</dd>
-                    </dl>
-                    @if (_flow.Resource.ValidationFindings.Count > 0)
-                    {
-                        <div class="console-validation-summary" role="alert" data-validation-findings>
-                            <p class="console-kicker">Validation findings</p>
-                            <ul>@foreach (var finding in _flow.Resource.ValidationFindings){<li>@finding</li>}</ul>
-                        </div>
-                    }
-                    <div class="console-action-row">
-                        <button type="button" @onclick="() => GoToStep(FlowStep.AddData)">Back</button>
-                        <button type="button" class="console-button" @onclick="() => GoToStep(FlowStep.Publish)">Continue to publish →</button>
-                    </div>
-                </article>
-                break;
-
-            case FlowStep.Publish:
-                <article class="console-panel" data-step-body="Publish">
-                    <p class="console-kicker">③ Publish "@_flow.Resource.Name"</p>
-                    <h2>Choose how to expose this resource</h2>
-                    <PublishProtocolPicker Enabled="_flow.EnabledProtocols"
-                                           EnabledChanged="OnProtocolsChanged"
-                                           ServiceSlot="_flow.ServiceSlot"
-                                           OnRequestSlotChange="RequestSlotChange" />
-                    @if (_slotChanging)
-                    {
-                        <label class="studio-form-label">
-                            <span>Service slot</span>
-                            <input class="console-input" @bind="_flow.ServiceSlot" @bind:event="oninput" placeholder="city/parcels" />
-                            <small class="console-muted">Use <code>folder/service</code> to nest under a folder.</small>
-                        </label>
-                    }
-                    @StepError()
-                    <div class="console-action-row">
-                        <button type="button" @onclick="() => GoToStep(_flow.SkipsIngest ? FlowStep.AddData : FlowStep.Resource)">Back</button>
-                        <button type="button" class="console-button" disabled="@(_flow.EnabledProtocols.Count == 0)" @onclick="() => GoToStep(FlowStep.Style)">Continue to style →</button>
-                    </div>
-                </article>
-                break;
-
-            case FlowStep.Style:
-                <article class="console-panel" data-step-body="Style">
-                    <p class="console-kicker">④ Style</p>
-                    <h2>Style this resource</h2>
-                    <p class="console-muted">Dual-mode: author in MapLibre (canonical) or Esri drawingInfo — the server converts between encodings (ADR-0002). Styling is optional; you can publish first and refine later.</p>
-                    <div class="studio-field-grid">
-                        <label class="studio-form-label">
-                            <span>Style</span>
-                            <select class="console-input" @bind="_flow.StyleId">
-                                <option value="">Default style</option>
-                                @foreach (var style in _styles)
-                                {
-                                    <option value="@style.StyleId">@style.Label</option>
-                                }
-                            </select>
-                        </label>
-                        <fieldset class="data-publish-flow__encoding" data-style-encoding>
-                            <legend class="studio-form-label"><span>Encoding</span></legend>
-                            <label class="publish-protocol-picker__option">
-                                <input type="radio" name="style-encoding" checked="@(_flow.StyleEncoding == StyleEncoding.MapLibre)" @onchange="() => _flow.StyleEncoding = StyleEncoding.MapLibre" />
-                                <span>MapLibre</span>
-                            </label>
-                            <label class="publish-protocol-picker__option">
-                                <input type="radio" name="style-encoding" checked="@(_flow.StyleEncoding == StyleEncoding.Esri)" @onchange="() => _flow.StyleEncoding = StyleEncoding.Esri" />
-                                <span>Esri drawingInfo</span>
-                            </label>
-                        </fieldset>
-                    </div>
-                    @if (_styleBinding is { } sb)
-                    {
-                        <p class="console-muted" data-style-binding>@sb</p>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(_flow.StyleId))
-                    {
-                        <p><a class="console-link" href="@StyleEditorHref">Edit this shared catalog style →</a></p>
-                    }
-                    <div class="console-action-row">
-                        <button type="button" @onclick="() => GoToStep(FlowStep.Publish)">Back</button>
-                        <button type="button" class="console-button" @onclick="() => GoToStep(FlowStep.GoLive)">Continue to go live →</button>
-                    </div>
-                </article>
-                break;
-
-            case FlowStep.GoLive:
-                <article class="console-panel" data-step-body="GoLive">
-                    <p class="console-kicker">⑤ Go live — review &amp; approve</p>
-                    <h2>@_flow.Resource.Name → @_flow.PlannedPublications.Count publication@(_flow.PlannedPublications.Count == 1 ? "" : "s")</h2>
-                    <fieldset class="data-publish-flow__visibility" data-visibility>
-                        <legend class="studio-form-label"><span>Visibility</span></legend>
-                        @foreach (var visibility in Enum.GetValues<PublishVisibility>())
-                        {
-                            <label class="publish-protocol-picker__option">
-                                <input type="radio" name="visibility" checked="@(_flow.Visibility == visibility)" @onchange="() => _flow.Visibility = visibility" />
-                                <span>@visibility</span>
-                            </label>
-                        }
-                    </fieldset>
-                    <table class="console-table" data-route-preview>
-                        <thead><tr><th>Protocol</th><th>Route</th></tr></thead>
-                        <tbody>
-                            @foreach (var plan in _flow.PlannedPublications)
-                            {
-                                <tr><td>@plan.Label</td><td class="console-mono">@plan.Route</td></tr>
-                            }
-                        </tbody>
-                    </table>
-                    @if (_publishResults.Count > 0)
-                    {
-                        <div class="console-panel-grid" data-publish-results>
-                            @foreach (var entry in _publishResults)
-                            {
-                                <article class="console-panel @(entry.Succeeded ? "console-state-success" : "console-state-danger")" role="@(entry.Succeeded ? "status" : "alert")">
-                                    <p class="console-kicker">@entry.ProtocolLabel — @entry.State</p>
-                                    <p>@entry.Detail</p>
-                                </article>
-                            }
-                        </div>
-                    }
-                    @StepError()
-                    <div class="console-action-row">
-                        <button type="button" disabled="@_busy" @onclick="() => GoToStep(FlowStep.Style)">Back</button>
-                        <button type="button" class="console-button" disabled="@(_busy || _flow.EnabledProtocols.Count == 0)" @onclick="ApplyAsync">
-                            @(_busy ? "Publishing…" : "Apply & publish")
+                        <button type="button" class="console-button" disabled="@(!CanContinueToPublish)" @onclick="ContinueToPublish">
+                            Continue →
                         </button>
-                    </div>
-                </article>
-                break;
+                    }
+                </div>
+            </article>
+            break;
 
-            case FlowStep.Done:
-                @DonePanel()
-                break;
-        }
+        case FlowStep.Publish:
+            <article class="console-panel" data-step-body="Publish">
+                <p class="console-kicker">③ Publish "@_flow.Resource.Name"</p>
+                <h2>Choose how to expose this resource</h2>
+                <PublishProtocolPicker Enabled="_flow.EnabledProtocols"
+                                       EnabledChanged="OnProtocolsChanged"
+                                       ServiceSlot="@_flow.ServiceSlot" />
+                <p class="console-muted" data-service-fixed>
+                    honua-server serves a source table through one layer in one service, so this flow configures the
+                    service the resource is already in. To serve the data from a new service,
+                    <a href="/operate/publishing/quick">publish a table</a> into it.
+                </p>
+                <div class="console-action-row">
+                    <button type="button" @onclick="() => GoToStep(FlowStep.AddData)">Back</button>
+                    <button type="button" class="console-button" disabled="@(_flow.EnabledProtocols.Count == 0)" @onclick="() => GoToStep(FlowStep.Style)">Continue to style →</button>
+                </div>
+            </article>
+            break;
+
+        case FlowStep.Style:
+            <article class="console-panel" data-step-body="Style">
+                <p class="console-kicker">④ Style</p>
+                <h2>Style this resource</h2>
+                <p class="console-muted">Go live does not apply the style you pick here: honua-server has no operation that binds a catalog style to a layer. Pick a shared style to open it in the style editor, or skip this step.</p>
+                <div class="studio-field-grid">
+                    <label class="studio-form-label">
+                        <span>Style</span>
+                        <select class="console-input" @bind="_flow.StyleId">
+                            <option value="">Default style</option>
+                            @foreach (var style in _styles)
+                            {
+                                <option value="@style.StyleId">@style.Label</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+                @if (_styleBinding is { } sb)
+                {
+                    <p class="console-muted" data-style-binding>@sb</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(_flow.StyleId))
+                {
+                    <p><a class="console-link" href="@StyleEditorHref">Edit this shared catalog style →</a></p>
+                }
+                <div class="console-action-row">
+                    <button type="button" @onclick="() => GoToStep(FlowStep.Publish)">Back</button>
+                    <button type="button" class="console-button" @onclick="() => GoToStep(FlowStep.GoLive)">Continue to go live →</button>
+                </div>
+            </article>
+            break;
+
+        case FlowStep.GoLive:
+            <GoLiveStep Flow="_flow" OnBack="() => GoToStep(FlowStep.Style)" />
+            break;
     }
 </section>
 
 @code {
-    private const long MaxFileBytes = 100L * 1024 * 1024;
-
-    [Parameter] public bool SharedConversation { get; set; }
     [Parameter] public string? InitialSource { get; set; }
-    private bool _intakeLoaded;
-    [Parameter] public string? InitialDriver { get; set; }
-
-    /// <summary>
-    /// A plain-language publish intent handed in by the omni-prompt AI console (honua-console#203). When set, it
-    /// seeds the AI driver's intent box so the operator continues from the omni-prompt without retyping; the
-    /// outcome card + human approval gate are unchanged (nothing publishes until the operator approves).
-    /// </summary>
-    [Parameter] public string? InitialAiIntent { get; set; }
 
     private readonly DataToPublishFlowState _flow = new();
 
@@ -404,58 +139,18 @@
     private IReadOnlyList<AddDataIntake.IntakeOption> _resourceOptions = [];
     private IReadOnlyList<string> _supportedExtensions = [];
     private IReadOnlyList<StudioMapStyleOption> _styles = [];
+    private bool _intakeLoaded;
 
-    private IReadOnlyList<ServiceLayerPublishTable> _tables = [];
-    private IBrowserFile? _selectedFile;
-    private bool _loadingTables;
-    private bool _slotChanging;
-
-    private bool _busy;
-    private string? _stepError;
     private string? _missingBinding;
     private string? _styleBinding;
-    private int _successPublicationCount;
-
-    // AI driver state (redesign Phase 3): the plain-language intent, the server's capability probe, and the
-    // current outcome (proposal / needs-input / unavailable / blocked) the outcome card renders against.
-    private string _aiIntent = string.Empty;
-    private AiPublishCapability? _aiCapability;
-    private AiPublishOutcome? _aiOutcome;
-
-    // Publishable PostGIS tables the AI can resolve a proposal onto, keyed by display name. Loaded across the
-    // configured connections when AI mode opens so Approve publishes through the SAME wired admin operation
-    // manual mode uses (a Table source is the slice wired end-to-end against the live admin API in #199).
-    private readonly Dictionary<string, AiPublishableTable> _aiTables = new(StringComparer.OrdinalIgnoreCase);
-
-    private sealed record AiPublishableTable(string ConnectionId, ServiceLayerPublishTable Table);
-
-    private readonly List<PublishResultEntry> _publishResults = [];
+    private OperateServicesView _layers = new([], []);
 
     private static readonly FlowStep[] RailSteps =
         [FlowStep.AddData, FlowStep.Resource, FlowStep.Publish, FlowStep.Style, FlowStep.GoLive];
 
-    private sealed record PublishResultEntry(string ProtocolLabel, bool Succeeded, string State, string? Detail);
-
     protected override async Task OnInitializedAsync()
     {
-        if (Enum.TryParse<FlowDriver>(InitialDriver, ignoreCase: true, out var driver))
-        {
-            _flow.Driver = driver;
-        }
-
-        // An omni-prompt-seeded intent lands the operator straight in the AI driver with their words pre-filled.
-        if (!string.IsNullOrWhiteSpace(InitialAiIntent))
-        {
-            _aiIntent = InitialAiIntent;
-            _flow.Driver = FlowDriver.Ai;
-        }
-
         ApplyInitialSource(InitialSource);
-        if (SharedConversation)
-        {
-            _flow.Driver = FlowDriver.Manual;
-            if (_flow.Source.Mode == AddDataMode.Ai) _flow.Source.Mode = AddDataMode.File;
-        }
 
         _supportedExtensions = await FileImport.GetSupportedExtensionsAsync();
 
@@ -464,53 +159,21 @@
             .Select(connection => new AddDataIntake.IntakeOption(connection.Id, $"{connection.Name} ({connection.Provider})"))
             .ToArray();
 
-        var resourcesView = await OperateData.GetResourcesViewAsync();
-        _resourceOptions = resourcesView.ResourceEdits
-            .Select(resource => new AddDataIntake.IntakeOption(resource.ResourceId, resource.Name))
+        _layers = await OperateData.GetLayersViewAsync();
+        _resourceOptions = _layers.Services
+            .SelectMany(service => service.Layers)
+            .DistinctBy(layer => layer.CanonicalResourceId, StringComparer.OrdinalIgnoreCase)
+            .Select(layer => new AddDataIntake.IntakeOption(layer.CanonicalResourceId, layer.CanonicalResourceName))
             .ToArray();
 
-        _intakeLoaded = connectionsView.CapabilityStates.Count == 0 && resourcesView.CapabilityStates.Count == 0;
-        if (SharedConversation && !_intakeLoaded) _missingBinding = "The data sources could not be read. Review your connection or sign in again before choosing data.";
+        _intakeLoaded = connectionsView.CapabilityStates.Count == 0 && _layers.CapabilityStates.Count == 0;
+        if (!_intakeLoaded) _missingBinding = "The data sources could not be read. Review your connection or sign in again before choosing data.";
 
         var styleCatalog = await StyleData.GetStyleCatalogAsync();
         _styles = styleCatalog.Styles;
         if (styleCatalog.Issue is { } issue)
         {
             _styleBinding = $"{issue.State}: {issue.Detail}";
-        }
-
-        if (_flow.Driver == FlowDriver.Ai)
-        {
-            await ProbeAiCapabilityAsync();
-        }
-    }
-
-    private async Task ProbeAiCapabilityAsync()
-    {
-        // An honest capability probe up front so AI mode shows "AI unavailable" (not a dead Propose button)
-        // when the server lacks AI generation or no provider is configured.
-        _aiCapability = await AiDriver.GetCapabilityAsync();
-
-        // Load the publishable tables the AI can resolve a proposal onto. This is the same data manual mode
-        // uses on the Table source; loading it here lets Approve publish for real through the wired admin op.
-        if (_aiCapability is { Enabled: true } && _aiTables.Count == 0)
-        {
-            await LoadAiPublishableTablesAsync();
-        }
-    }
-
-    private async Task LoadAiPublishableTablesAsync()
-    {
-        foreach (var connection in _connectionOptions)
-        {
-            var tables = await PublishOperation.ListTablesAsync(connection.Id);
-            foreach (var table in tables)
-            {
-                // Keyed by the bare table name (what an intent says) and falling back to the qualified name;
-                // first one wins so a later connection never clobbers an already-resolvable name.
-                _aiTables.TryAdd(table.Table, new AiPublishableTable(connection.Id, table));
-                _aiTables.TryAdd(table.QualifiedName, new AiPublishableTable(connection.Id, table));
-            }
         }
     }
 
@@ -522,206 +185,53 @@
             "table" => AddDataMode.Table,
             "remoteservice" or "remote" or "service" => AddDataMode.RemoteService,
             "existingresource" or "existing" or "resource" => AddDataMode.ExistingResource,
-            "ai" or "describe" => AddDataMode.Ai,
             _ => _flow.Source.Mode,
         };
     }
 
-    private async Task OnSourceChosen(AddDataIntake.DataSourceIntake intake)
+    private void OnSourceChosen(AddDataIntake.DataSourceIntake intake)
     {
-        if (SharedConversation && intake.Mode == AddDataMode.Table)
+        if (intake.Mode == AddDataMode.Table)
         {
             // The canonical publish-layer form is bound to the same server draft as chat.
             Nav.NavigateTo("/operate/publishing/quick");
             return;
         }
-        _stepError = null;
-
-        // Choosing the "Describe it (AI)" intake mode flips the flow to the AI driver: the same flow object,
-        // reached through plain-language intent → outcome card (redesign §3.1). The typed prompt seeds the
-        // intent box so the user continues in AI mode without retyping.
-        if (intake.Mode == AddDataMode.Ai)
-        {
-            _aiIntent = intake.Reference ?? _aiIntent;
-            await SetDriver(FlowDriver.Ai);
-            return;
-        }
 
         _flow.Source.Mode = intake.Mode;
         _flow.Source.Reference = intake.Reference;
-
-        if (intake.Mode == AddDataMode.Table && !string.IsNullOrWhiteSpace(intake.Reference))
-        {
-            await LoadTablesAsync(intake.Reference!);
-        }
-        else if (intake.Mode != AddDataMode.Table)
-        {
-            _tables = [];
-            _flow.Source.TableKey = null;
-        }
     }
 
-    private async Task LoadTablesAsync(string connectionId)
+    private bool CanContinueToPublish =>
+        _flow.Source.Mode == AddDataMode.ExistingResource && !string.IsNullOrWhiteSpace(_flow.Source.Reference);
+
+    private void ContinueToPublish()
     {
-        _loadingTables = true;
-        _flow.Source.TableKey = null;
-        try
+        var resourceId = _flow.Source.Reference!;
+        if (_layers.FindExposures(resourceId).FirstOrDefault() is not { } current)
         {
-            _tables = await PublishOperation.ListTablesAsync(connectionId);
+            _missingBinding = "honua-server reports no published layer for this resource, so it cannot go live from here.";
+            return;
         }
-        finally
-        {
-            _loadingTables = false;
-        }
-    }
 
-    private void OnFileSelected(InputFileChangeEventArgs args)
-    {
-        _stepError = null;
-        _selectedFile = args.File;
-        _flow.Source.Mode = AddDataMode.File;
-        _flow.Source.Reference = args.File?.Name;
-    }
-
-    private bool CanContinueFromAddData() => _flow.Source.Mode switch
-    {
-        AddDataMode.File => !SharedConversation && _selectedFile is not null,
-        AddDataMode.Table => !string.IsNullOrWhiteSpace(_flow.Source.TableKey),
-        AddDataMode.ExistingResource => !string.IsNullOrWhiteSpace(_flow.Source.Reference),
-        _ => false,
-    };
-
-    private async Task ContinueFromAddData()
-    {
-        if (SharedConversation && _flow.Source.Mode == AddDataMode.File) return;
-        _stepError = null;
         _missingBinding = null;
-        _busy = true;
-        try
-        {
-            switch (_flow.Source.Mode)
-            {
-                case AddDataMode.File:
-                    await IngestFileAsync();
-                    break;
-                case AddDataMode.Table:
-                    StageTableResource();
-                    break;
-                case AddDataMode.ExistingResource:
-                    StageExistingResource();
-                    break;
-                case AddDataMode.RemoteService:
-                    // Remote-service import is driven by the embedded import surface (rendered in the AddData
-                    // step body); there is no separate Continue action for it. Imported services land as
-                    // resources the operator then publishes from the tree.
-                    return;
-                default:
-                    _stepError = "This source isn't drivable in manual mode.";
-                    return;
-            }
-
-            if (_flow.Resource.IsReady)
-            {
-                // Existing-resource path skips the ingest/Resource step → straight to Publish (§3.0).
-                _flow.Step = _flow.SkipsIngest ? FlowStep.Publish : FlowStep.Resource;
-                SeedServiceSlot();
-            }
-        }
-        finally
-        {
-            _busy = false;
-        }
-    }
-
-    private async Task IngestFileAsync()
-    {
-        if (_selectedFile is null)
-        {
-            _stepError = "Choose a file to import.";
-            return;
-        }
-
-        var tableName = SanitizeTableName(Path.GetFileNameWithoutExtension(_selectedFile.Name));
-        byte[] bytes;
-        await using (var source = _selectedFile.OpenReadStream(MaxFileBytes))
-        using (var buffer = new MemoryStream())
-        {
-            await source.CopyToAsync(buffer);
-            bytes = buffer.ToArray();
-        }
-
-        var result = await FileImport.ImportAsync(new ConsoleFileImportCommand
-        {
-            FileContent = bytes,
-            FileName = _selectedFile.Name,
-            TableName = tableName,
-        });
-
-        if (string.Equals(result.State, "Missing binding", StringComparison.OrdinalIgnoreCase))
-        {
-            _missingBinding = result.Detail ?? "Configure a honua-server base URL to import files.";
-            return;
-        }
-
-        if (!result.Succeeded)
-        {
-            _stepError = result.Detail ?? "Import failed.";
-            _flow.Resource.ValidationFindings = result.ValidationErrors;
-            return;
-        }
-
-        _flow.Resource = new ResourceStaging
-        {
-            ResourceId = result.TableName ?? tableName,
-            Name = result.TableName ?? tableName,
-            FeatureCount = result.FeatureCount,
-            ValidationFindings = result.ValidationErrors,
-        };
-    }
-
-    private void StageTableResource()
-    {
-        var table = _tables.FirstOrDefault(t => string.Equals(t.QualifiedName, _flow.Source.TableKey, StringComparison.Ordinal));
-        if (table is null)
-        {
-            _stepError = "Select a table to publish.";
-            return;
-        }
-
-        _flow.Resource = new ResourceStaging
-        {
-            ResourceId = table.QualifiedName,
-            Name = table.Table,
-            GeometryType = table.GeometryType,
-            Srid = table.Srid,
-            FeatureCount = table.EstimatedRows ?? 0,
-            Fields = table.Columns,
-        };
-    }
-
-    private void StageExistingResource()
-    {
-        var resourceId = _flow.Source.Reference;
-        if (string.IsNullOrWhiteSpace(resourceId))
-        {
-            _stepError = "Choose an existing resource.";
-            return;
-        }
-
-        var option = _resourceOptions.FirstOrDefault(o => string.Equals(o.Id, resourceId, StringComparison.Ordinal));
         _flow.Resource = new ResourceStaging
         {
             ResourceId = resourceId,
-            Name = option.Label ?? resourceId,
+            Name = current.Layer.CanonicalResourceName,
+            LayerEnabled = current.Layer.Enabled,
         };
+        _flow.ServiceSlot = current.Service.Name;
+        _flow.EnabledProtocols = ProtocolsServedBy(current.Service);
+        _flow.Step = FlowStep.Publish;
     }
 
-    private void SeedServiceSlot()
+    private static List<string> ProtocolsServedBy(OperateServiceDetail service)
     {
-        if (_flow.ServiceSlot == "service" && !string.IsNullOrWhiteSpace(_flow.Resource.Name))
-        {
-            _flow.ServiceSlot = SanitizeTableName(_flow.Resource.Name);
-        }
+        var served = PublishProtocolCatalog.ResolveServiceTypeProtocols(service.ServiceType)
+            .Select(descriptor => descriptor.Id)
+            .ToList();
+        return served.Count > 0 ? served : [.. PublishProtocolCatalog.DefaultEnabled];
     }
 
     private void OnProtocolsChanged(IReadOnlyCollection<string> protocols)
@@ -729,330 +239,7 @@
         _flow.EnabledProtocols = protocols.ToList();
     }
 
-    private void RequestSlotChange() => _slotChanging = true;
-
-    private async Task ApplyAsync()
-    {
-        _stepError = null;
-        _missingBinding = null;
-        _publishResults.Clear();
-        _successPublicationCount = 0;
-
-        // The Table source carries a real PostGIS table we can publish per protocol via the admin
-        // publish-layer operation; other sources stage a resource whose publish lands through the same
-        // operation once the resource is materialized. Manual mode publishes the protocols a Table source
-        // exposes (the slice that is wired end-to-end against the live admin API).
-        var table = _tables.FirstOrDefault(t => string.Equals(t.QualifiedName, _flow.Source.TableKey, StringComparison.Ordinal));
-        if (_flow.Source.Mode == AddDataMode.Table && table is null)
-        {
-            _stepError = "The selected table is no longer available. Go back and reselect it.";
-            return;
-        }
-
-        // Guarded so a thrown publish error surfaces as a toast instead of resetting the spinner silently;
-        // the per-protocol _publishResults panel still carries the in-band (non-throwing) server outcome.
-        await Notifications.RunGuardedAsync(
-            async () =>
-            {
-                await PublishTableResourceAsync(table);
-
-                if (_successPublicationCount > 0)
-                {
-                    _flow.Step = FlowStep.Done;
-                    Notifications.Success($"{_flow.Resource.Name} is live ({_successPublicationCount} publication(s)).");
-                }
-                else if (_publishResults.Count > 0)
-                {
-                    _stepError = "No publications landed. Review the per-protocol results above.";
-                }
-            },
-            setBusy: busy => { _busy = busy; StateHasChanged(); },
-            failureMessage: "Couldn't publish");
-    }
-
-    /// <summary>
-    /// Publishes the selected table once, then enables the planned protocols on its service slot in a single
-    /// admin call, and reports one result per planned protocol from the protocols the server actually exposes.
-    /// Publishing the layer once + enabling the protocol set (rather than re-posting the same layer publish per
-    /// protocol) is what makes a multi-protocol selection genuinely live on each protocol's preview route, and
-    /// stops the UI over-reporting publications that were never created.
-    /// </summary>
-    private async Task PublishTableResourceAsync(ServiceLayerPublishTable? table)
-    {
-        var plans = _flow.PlannedPublications;
-        if (plans.Count == 0)
-        {
-            return;
-        }
-
-        if (table is null)
-        {
-            // Existing-resource / file sources don't carry a connection+table to drive the admin
-            // publish-layer operation from the console; surface that honestly rather than faking a publish.
-            foreach (var plan in plans)
-            {
-                _publishResults.Add(new PublishResultEntry(
-                    plan.Label,
-                    Succeeded: false,
-                    State: "Unsupported here",
-                    Detail: "Publishing this source's protocols runs server-side after ingest; the console publishes table sources directly. (Resource is staged; protocol bindings pending server materialization.)"));
-            }
-
-            return;
-        }
-
-        var serviceName = $"{_flow.ServiceSlot.Trim('/')}".Replace(" ", "-");
-        var command = new ServiceLayerPublishCommand
-        {
-            ConnectionId = _flow.Source.Reference ?? string.Empty,
-            Schema = table.Schema,
-            Table = table.Table,
-            LayerName = _flow.Resource.Name,
-            ServiceName = serviceName,
-            GeometryColumn = table.GeometryColumn,
-            GeometryType = table.GeometryType,
-            Srid = table.Srid,
-            Fields = table.Columns,
-            Enabled = _flow.Visibility != PublishVisibility.Private,
-            Protocols = plans.Select(plan => plan.ProtocolId).ToArray(),
-        };
-
-        // Step 1: land the layer once.
-        var publish = await PublishOperation.PublishAsync(command);
-        if (string.Equals(publish.State, "Missing binding", StringComparison.OrdinalIgnoreCase))
-        {
-            _missingBinding = publish.Detail ?? "Configure a honua-server base URL to publish.";
-            return;
-        }
-
-        if (!publish.Succeeded)
-        {
-            // The layer publish failed → no protocol is live; report the failure against every planned protocol.
-            foreach (var plan in plans)
-            {
-                _publishResults.Add(new PublishResultEntry(
-                    plan.Label, Succeeded: false, publish.State, publish.Detail ?? "Publish rejected."));
-            }
-
-            return;
-        }
-
-        // Step 2: enable the selected protocols on the service in one call, then report each plan from the
-        // protocols the server actually exposes (so MapServer/STAC/OGC are only reported when truly live).
-        var enable = await PublishOperation.EnableProtocolsAsync(
-            command.ServiceName,
-            command.Protocols);
-        if (string.Equals(enable.State, "Missing binding", StringComparison.OrdinalIgnoreCase))
-        {
-            _missingBinding = enable.Detail ?? "Configure a honua-server base URL to publish.";
-            _publishResults.Clear();
-            return;
-        }
-
-        var liveProtocols = enable.Succeeded
-            ? enable.EnabledProtocols.ToHashSet(StringComparer.Ordinal)
-            : [];
-        foreach (var plan in plans)
-        {
-            var isLive = liveProtocols.Contains(plan.ProtocolId);
-            var entry = isLive
-                ? new PublishResultEntry(plan.Label, Succeeded: true, "Published", $"Published on {plan.Route}")
-                : new PublishResultEntry(
-                    plan.Label,
-                    Succeeded: false,
-                    enable.Succeeded ? "Not exposed" : enable.State,
-                    enable.Succeeded
-                        ? "The service did not expose this protocol after publishing."
-                        : enable.Detail ?? "Protocol enablement rejected.");
-
-            _publishResults.Add(entry);
-            if (isLive)
-            {
-                _successPublicationCount++;
-            }
-        }
-    }
-
-    private void GoToStep(FlowStep step)
-    {
-        _stepError = null;
-        _flow.Step = step;
-    }
-
-    private async Task SetDriver(FlowDriver driver)
-    {
-        _stepError = null;
-        _flow.Driver = driver;
-        if (driver == FlowDriver.Ai && _aiCapability is null)
-        {
-            await ProbeAiCapabilityAsync();
-        }
-    }
-
-    // -------------------------------------------------------------------------- AI driver (Phase 3)
-
-    private async Task ProposeAsync()
-    {
-        _stepError = null;
-        _missingBinding = null;
-        _aiOutcome = null;
-        _publishResults.Clear();
-
-        // Guarded so a thrown error from the AI generation surface surfaces as a toast; the outcome card
-        // still renders the in-band (non-throwing) proposal / needs-input / unavailable / blocked states.
-        await Notifications.RunGuardedAsync(
-            async () =>
-            {
-                // Resolve the intent against the real bound resources so the AI never fabricates a resource id:
-                // the publishable PostGIS tables (which Approve publishes for real through the wired admin
-                // operation) plus the catalog resources. Apply publishes the resolved resource — never made up.
-                var knownResources = _aiTables.Values
-                    .Select(entry => new AiPublishResourceRef(entry.Table.QualifiedName, entry.Table.Table))
-                    .Concat(_resourceOptions.Select(option => new AiPublishResourceRef(option.Id, option.Label)))
-                    .GroupBy(reference => reference.Name, StringComparer.OrdinalIgnoreCase)
-                    .Select(group => group.First())
-                    .ToArray();
-                _aiOutcome = await AiDriver.ProposeAsync(_aiIntent, knownResources);
-            },
-            setBusy: busy => { _busy = busy; StateHasChanged(); },
-            failureMessage: "Couldn't generate a proposal");
-    }
-
-    // Approve → apply through the SAME wired admin publish path manual mode uses. The proposal's protocols and
-    // service slot are projected onto the shared flow object first, so apply is the identical code path — the
-    // human approval is the single gate and is never weakened.
-    private async Task ApproveProposalAsync()
-    {
-        if (_aiOutcome?.Proposal is not { } proposal)
-        {
-            return;
-        }
-
-        ProjectProposalOntoFlow(proposal);
-        await AiDriver.RecordDecisionAsync(proposal.FeedbackId, "approved");
-        await ApplyAsync();
-    }
-
-    // Edit → drop the proposal into the manual controls and resume there (the redesign's "Edit → manual
-    // handoff"). The flow object already carries the proposal; switching to manual lands the user on Publish
-    // with the proposed protocols/slot pre-filled so they can adjust and finish by hand.
-    private async Task EditProposal()
-    {
-        if (_aiOutcome?.Proposal is not { } proposal)
-        {
-            return;
-        }
-
-        ProjectProposalOntoFlow(proposal);
-        await AiDriver.RecordDecisionAsync(proposal.FeedbackId, "edited");
-        _flow.Driver = FlowDriver.Manual;
-        // Land on Publish (the proposal's protocols/slot are pre-filled); the resource is staged from the
-        // resolved catalog resource so the manual controls pick up from there.
-        _flow.Step = FlowStep.Publish;
-        _aiOutcome = null;
-    }
-
-    private async Task RejectProposal()
-    {
-        var feedbackId = _aiOutcome?.Proposal?.FeedbackId;
-        _aiOutcome = null;
-        _publishResults.Clear();
-        await AiDriver.RecordDecisionAsync(feedbackId, "rejected");
-    }
-
-    // Projects an accepted proposal onto the shared flow object so Approve/Edit reuse the manual apply path.
-    // The resolved resource (a real catalog resource id/name) is staged as an existing resource — never
-    // fabricated — and the proposed protocols/slot/visibility fill the publish step.
-    private void ProjectProposalOntoFlow(AiPublishProposal proposal)
-    {
-        _flow.EnabledProtocols = proposal.Protocols.ToList();
-        _flow.ServiceSlot = proposal.ServiceSlot;
-        _flow.Visibility = proposal.Visibility;
-
-        // Prefer a publishable PostGIS table: it sets a Table source so ApplyAsync publishes for real through
-        // the wired admin op (the slice wired end-to-end in #199). The table list (_tables) is what ApplyAsync
-        // re-looks-up, so populate it with the resolved table.
-        if (_aiTables.TryGetValue(proposal.ResourceName, out var publishable))
-        {
-            _tables = [publishable.Table];
-            _flow.Source.Mode = AddDataMode.Table;
-            _flow.Source.Reference = publishable.ConnectionId;
-            _flow.Source.TableKey = publishable.Table.QualifiedName;
-            _flow.Resource = new ResourceStaging
-            {
-                ResourceId = publishable.Table.QualifiedName,
-                Name = publishable.Table.Table,
-                GeometryType = publishable.Table.GeometryType,
-                Srid = publishable.Table.Srid,
-                FeatureCount = publishable.Table.EstimatedRows ?? 0,
-                Fields = publishable.Table.Columns,
-            };
-            return;
-        }
-
-        // Otherwise the proposal resolved to a catalog resource: stage it as an existing resource (its
-        // per-protocol publish lands server-side after materialization — the same honest result manual mode
-        // surfaces for non-Table sources). Never fabricate a resource id.
-        var option = _resourceOptions.FirstOrDefault(o =>
-            string.Equals(o.Label, proposal.ResourceName, StringComparison.OrdinalIgnoreCase));
-        var resourceId = string.IsNullOrEmpty(option.Id) ? proposal.ResourceName : option.Id;
-        _flow.Source.Mode = AddDataMode.ExistingResource;
-        _flow.Source.Reference = resourceId;
-        _flow.Source.TableKey = null;
-        _flow.Resource = new ResourceStaging
-        {
-            ResourceId = resourceId,
-            Name = proposal.ResourceName,
-        };
-    }
-
-    private RenderFragment DonePanel() => builder =>
-    {
-        builder.OpenElement(0, "article");
-        builder.AddAttribute(1, "class", "console-panel console-state-success");
-        builder.AddAttribute(2, "role", "status");
-        builder.AddAttribute(3, "data-step-body", "Done");
-        builder.OpenElement(4, "p");
-        builder.AddAttribute(5, "class", "console-kicker");
-        builder.AddContent(6, "Published");
-        builder.CloseElement();
-        builder.OpenElement(7, "h2");
-        builder.AddContent(8, $"{_flow.Resource.Name} is live");
-        builder.CloseElement();
-        builder.OpenElement(9, "p");
-        builder.AddContent(10, $"{_successPublicationCount} of {_flow.PlannedPublications.Count} publications landed on honua-server.");
-        builder.CloseElement();
-        builder.OpenElement(11, "div");
-        builder.AddAttribute(12, "class", "console-action-row");
-        builder.OpenElement(13, "a");
-        builder.AddAttribute(14, "class", "console-button");
-        builder.AddAttribute(15, "href", $"/operate/data?focus={Uri.EscapeDataString(_flow.Resource.ResourceId ?? string.Empty)}");
-        builder.AddContent(16, "See it in the tree & preview →");
-        builder.CloseElement();
-        builder.OpenElement(17, "a");
-        builder.AddAttribute(18, "href", "/operate/data");
-        builder.AddContent(19, "Back to Data & Layers");
-        builder.CloseElement();
-        builder.CloseElement();
-        builder.CloseElement();
-    };
-
-    private RenderFragment StepError() => builder =>
-    {
-        if (_stepError is null)
-        {
-            return;
-        }
-
-        builder.OpenElement(0, "div");
-        builder.AddAttribute(1, "class", "console-validation-summary");
-        builder.AddAttribute(2, "role", "alert");
-        builder.AddAttribute(3, "data-step-error", "true");
-        builder.AddContent(4, _stepError);
-        builder.CloseElement();
-    };
-
-    private string AcceptAttribute => string.Join(",", _supportedExtensions);
+    private void GoToStep(FlowStep step) => _flow.Step = step;
 
     private string StyleEditorHref =>
         string.IsNullOrWhiteSpace(_flow.StyleId)
@@ -1063,7 +250,7 @@
     {
         var currentIndex = Array.IndexOf(RailSteps, _flow.Step);
         var stepIndex = Array.IndexOf(RailSteps, step);
-        if (_flow.Step == FlowStep.Done || stepIndex < currentIndex)
+        if (stepIndex < currentIndex)
         {
             return "data-publish-flow__rail-step--done";
         }
@@ -1080,29 +267,4 @@
         FlowStep.GoLive => "Go live",
         _ => step.ToString(),
     };
-
-    private static string SanitizeTableName(string value)
-    {
-        var sanitized = new string(value.Trim().ToLowerInvariant()
-            .Select(ch => char.IsLetterOrDigit(ch) ? ch : '_')
-            .ToArray());
-        return string.IsNullOrWhiteSpace(sanitized) ? "imported_resource" : sanitized;
-    }
-
-    private static string FormatSize(long bytes)
-    {
-        const long kib = 1024L;
-        const long mib = 1024L * 1024L;
-        if (bytes < kib)
-        {
-            return $"{bytes} B";
-        }
-
-        if (bytes < mib)
-        {
-            return $"{bytes / 1024.0:0.#} KB";
-        }
-
-        return $"{bytes / (1024.0 * 1024.0):0.#} MB";
-    }
 }
