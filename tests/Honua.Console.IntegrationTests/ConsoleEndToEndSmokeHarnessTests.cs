@@ -25,7 +25,7 @@ public sealed class ConsoleEndToEndSmokeHarnessTests
             "A live-server opt-in flag is set in this environment; the clean-skip contract is only "
             + "asserted on the standard runner.");
 
-        var skipReason = ConsoleTrustIntegrationOptions.GetEndToEndSkipReason();
+        var skipReason = LiveServerIntegrationOptions.GetEndToEndSkipReason();
         Assert.NotNull(skipReason);
         Assert.Contains("HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS", skipReason, StringComparison.Ordinal);
     }

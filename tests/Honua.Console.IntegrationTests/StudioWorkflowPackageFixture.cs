@@ -8,21 +8,13 @@ public sealed class StudioWorkflowPackageIntegrationCollection : ICollectionFixt
     public const string Name = "StudioWorkflowPackageIntegration";
 }
 
-/// <summary>
-/// Boots a real honua-server (with PostgreSQL) via Testcontainers so the server-backed Studio workflow
-/// package client can be asserted against the live GP/ETL workflow package + node registry + dry-run +
-/// publication API (#1185). Off by default; skips gracefully when Docker, the server image, the opt-in
-/// flag, or the admin API key is unavailable (AC: Testcontainers coverage with Docker-unavailable skip).
-/// Reuses <see cref="HonuaServerTestcontainer"/> and <see cref="ConsoleTrustIntegrationOptions"/> so the
-/// container-boot mechanics and admin API-key gating are not duplicated.
-/// </summary>
 public sealed class StudioWorkflowPackageFixture : IAsyncLifetime
 {
     private HonuaServerTestcontainer? _container;
 
-    public ConsoleTrustIntegrationOptions Options { get; } = ConsoleTrustIntegrationOptions.Load();
+    public LiveServerIntegrationOptions Options { get; } = LiveServerIntegrationOptions.Load();
 
-    public string? SkipReason { get; private set; } = ConsoleTrustIntegrationOptions.GetStudioSkipReason();
+    public string? SkipReason { get; private set; } = LiveServerIntegrationOptions.GetStudioSkipReason();
 
     public Uri BaseAddress { get; private set; } = new("https://localhost");
 

@@ -2,12 +2,7 @@ using System.Globalization;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Environment-driven options for the opt-in real-server trust integration suite. Mirrors the
-/// honua-sdk-dotnet ProtocolIntegration options pattern. The suite is off by default and skips with a
-/// clear reason unless explicitly enabled (Console Patterns Charter section 11).
-/// </summary>
-public sealed record ConsoleTrustIntegrationOptions
+public sealed record LiveServerIntegrationOptions
 {
     public bool Enabled { get; init; }
 
@@ -33,17 +28,17 @@ public sealed record ConsoleTrustIntegrationOptions
     public bool HasServerTarget =>
         ExternalBaseUri is not null || !string.IsNullOrWhiteSpace(ServerImage);
 
-    public static ConsoleTrustIntegrationOptions Load()
+    public static LiveServerIntegrationOptions Load()
     {
         // The image-based integration lane opts in with HONUA_CONSOLE_INTEGRATION; the end-to-end smoke
         // also honours HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS, the opt-in shared with the Shell live-server
         // lane, so a single flag can enable every live-server lane.
         if (!ReadBoolean("HONUA_CONSOLE_INTEGRATION") && !ReadBoolean("HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS"))
         {
-            return new ConsoleTrustIntegrationOptions();
+            return new LiveServerIntegrationOptions();
         }
 
-        return new ConsoleTrustIntegrationOptions
+        return new LiveServerIntegrationOptions
         {
             Enabled = true,
             ExternalBaseUri = ReadUri("HONUA_CONSOLE_EXTERNAL_BASE_URL"),
@@ -68,7 +63,7 @@ public sealed record ConsoleTrustIntegrationOptions
 
         if (!options.HasServerTarget)
         {
-            return "Set HONUA_CONSOLE_SERVER_IMAGE or HONUA_CONSOLE_EXTERNAL_BASE_URL to run the trust integration suite.";
+            return "Set HONUA_CONSOLE_SERVER_IMAGE or HONUA_CONSOLE_EXTERNAL_BASE_URL to run the real-server integration suite.";
         }
 
         if (options.ExternalBaseUri is null && !DockerIsAvailable())

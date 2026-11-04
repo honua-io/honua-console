@@ -15,11 +15,11 @@ public sealed class LicenseExpiryBannerIntegrationTests
     [SkippableFact]
     public async Task PaidServer_ActualLicenseStatusRendersExpiryWarning()
     {
-        var options = ConsoleTrustIntegrationOptions.Load();
+        var options = LiveServerIntegrationOptions.Load();
         Skip.IfNot(options.Enabled, "Enable HONUA_CONSOLE_INTEGRATION to run the license banner container proof.");
         Skip.If(string.IsNullOrWhiteSpace(options.ServerImage), "Set HONUA_CONSOLE_SERVER_IMAGE to the strict-license server candidate.");
-        Skip.If(ConsoleTrustIntegrationOptions.GetSkipReason() is not null,
-            ConsoleTrustIntegrationOptions.GetSkipReason());
+        Skip.If(LiveServerIntegrationOptions.GetSkipReason() is not null,
+            LiveServerIntegrationOptions.GetSkipReason());
 
         // Both the signing key and license are generated for this test only.
         var privateKey = new Ed25519PrivateKeyParameters(new SecureRandom());
