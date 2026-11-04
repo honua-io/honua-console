@@ -24,7 +24,7 @@ public sealed class ResourceFirstPublishFlowTests
     public void QuickPublish_GenericGeometryRequiresExplicitTypeAndPassesTheChoice()
     {
         using var ctx = NewContext();
-        var publish = new RecordingPublishOperation([], "GEOMETRY");
+        var publish = new RecordingPublishOperation("GEOMETRY");
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish);
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneConnectionDataSource("conn", "Source"));
         var page = ctx.Render<OperatePublishLayerPage>();
@@ -45,7 +45,7 @@ public sealed class ResourceFirstPublishFlowTests
     public void QuickPublish_ConcreteGeometryNeedsNoOverride()
     {
         using var ctx = NewContext();
-        var publish = new RecordingPublishOperation([], "Point");
+        var publish = new RecordingPublishOperation("Point");
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish);
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneConnectionDataSource("conn", "Source"));
         var page = ctx.Render<OperatePublishLayerPage>();
@@ -124,9 +124,9 @@ public sealed class ResourceFirstPublishFlowTests
         Assert.Equal(2, plans.Count);
         Assert.Equal("FeatureServer", plans[0].ProtocolId);
         Assert.Equal("esri-feature-service", plans[0].ServiceType);
-        Assert.Equal("/city/parcels/FeatureServer/0", plans[0].Route);
+        Assert.Equal("/rest/services/city%2Fparcels/FeatureServer", plans[0].Route);
         Assert.Equal("Stac", plans[1].ProtocolId);
-        Assert.Equal("/stac/collections/parcels", plans[1].Route);
+        Assert.Equal("/stac", plans[1].Route);
     }
 
     [Fact]
@@ -190,8 +190,8 @@ public sealed class ResourceFirstPublishFlowTests
         var parcels = nodes.Single(node => node.ResourceId == "rsc_parcels");
         Assert.Equal("Running", parcels.Status);
         Assert.Equal(new[] { "FeatureServer", "MapServer" }, parcels.Publications.Select(p => p.ProtocolId).ToArray());
-        Assert.Equal("/city/parcels/FeatureServer/0", parcels.Publications[0].Route);
-        Assert.Equal("/city/parcels/MapServer", parcels.Publications[1].Route);
+        Assert.Equal("/rest/services/city%2Fparcels/FeatureServer", parcels.Publications[0].Route);
+        Assert.Equal("/rest/services/city%2Fparcels/MapServer", parcels.Publications[1].Route);
     }
 
     // ----------------------------------------------------------------- tree builder
@@ -215,7 +215,7 @@ public sealed class ResourceFirstPublishFlowTests
         var parcels = nodes.Single(node => node.ResourceId == "rsc_parcels");
         Assert.Equal("Running", parcels.Status);
         Assert.Equal(new[] { "FeatureServer", "Stac" }, parcels.Publications.Select(p => p.ProtocolId).ToArray());
-        Assert.Equal("/city/parcels/FeatureServer/0", parcels.Publications[0].Route);
+        Assert.Equal("/rest/services/city%2Fparcels/FeatureServer", parcels.Publications[0].Route);
 
         // A resource with no published service layer is a draft node with no publications (not fabricated).
         var zoning = nodes.Single(node => node.ResourceId == "rsc_zoning");
@@ -253,9 +253,8 @@ public sealed class ResourceFirstPublishFlowTests
             .Add(c => c.Enabled, PublishProtocolCatalog.DefaultEnabled)
             .Add(c => c.ServiceSlot, "city/parcels"));
 
-        // Three default protocols checked → preview says 3 publications.
         Assert.Contains("data-publication-preview", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("Will create 3 publications", cut.Markup, StringComparison.Ordinal);
+        Assert.Contains("Will serve through: FeatureServer · MapServer · STAC API", cut.Markup, StringComparison.Ordinal);
         Assert.Contains("data-protocol=\"FeatureServer\"", cut.Markup, StringComparison.Ordinal);
     }
 
@@ -309,21 +308,39 @@ public sealed class ResourceFirstPublishFlowTests
     }
 
     [Fact]
-    public void Flow_ExistingResourceApply_ReportsEachPublicationAsServerSideWork()
+    public void Flow_ExistingResource_StartsFromItsCurrentServiceAndProtocols()
     {
         using var ctx = NewContext();
         RegisterExistingResource(ctx);
+
+        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "existingresource"));
+        cut.Find("select[aria-label=\"Existing resource\"]").Change("rsc_parcels");
+        cut.Find("[data-step-body=\"AddData\"] button.console-button").Click();
+
+        Assert.Equal("parcels", cut.Find("[data-service-slot]").TextContent);
+        Assert.True(cut.Find("[data-protocol='FeatureServer']").HasAttribute("checked"));
+        Assert.True(cut.Find("[data-protocol='MapServer']").HasAttribute("checked"));
+        Assert.False(cut.Find("[data-protocol='Stac']").HasAttribute("checked"));
+        Assert.Single(cut.FindAll("[data-service-fixed]"));
+    }
+
+    [Fact]
+    public void Flow_ExistingResourceReachesGoLiveWithTheRealApply()
+    {
+        using var ctx = NewContext();
+        RegisterExistingResource(ctx);
+        ctx.Services.AddSingleton<IServiceConfigurationOperation>(new UnsupportedServiceConfigurationOperation());
         var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "existingresource"));
         cut.Find("select[aria-label=\"Existing resource\"]").Change("rsc_parcels");
         cut.Find("[data-step-body=\"AddData\"] button.console-button").Click();
         cut.Find("[data-step-body=\"Publish\"] button.console-button").Click();
         cut.Find("[data-step-body=\"Style\"] button.console-button").Click();
 
-        cut.Find("[data-step-body=\"GoLive\"] button.console-button").Click();
+        cut.Find("[data-go-live-apply]").Click();
 
-        Assert.Equal(3, cut.FindAll("[data-publish-results] article").Count);
-        Assert.Contains("Unsupported here", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("No publications landed", cut.Find("[data-step-error]").TextContent, StringComparison.Ordinal);
+        Assert.Equal(2, cut.FindAll("[data-protocol-result]").Count);
+        Assert.DoesNotContain("publishes table sources directly", cut.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unsupported here", cut.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -459,16 +476,10 @@ public sealed class ResourceFirstPublishFlowTests
             Task.FromResult<OperateServiceDetail?>(null);
     }
 
-    /// <summary>
-    /// A recording publish operation: returns one table, records the publish command (so a test can assert the
-    /// planned protocols were threaded), and reports a controllable canonical protocol set from EnableProtocols.
-    /// </summary>
-    private sealed class RecordingPublishOperation(IReadOnlyList<string> enabledProtocols, string geometryType = "Polygon") : IServiceLayerPublishOperation
+    private sealed class RecordingPublishOperation(string geometryType) : IServiceLayerPublishOperation
     {
         public int PublishCalls { get; private set; }
-        public int EnableCalls { get; private set; }
         public ServiceLayerPublishCommand? LastCommand { get; private set; }
-        public IReadOnlyList<string>? LastEnableProtocols { get; private set; }
 
         public Task<ServiceLayerPublishResult> PublishAsync(
             ServiceLayerPublishCommand command, CancellationToken cancellationToken = default)
@@ -482,19 +493,6 @@ public sealed class ResourceFirstPublishFlowTests
                 LayerId = 1,
                 LayerName = command.LayerName,
                 ServiceName = command.ServiceName,
-            });
-        }
-
-        public Task<ServiceProtocolEnableResult> EnableProtocolsAsync(
-            string serviceName, IReadOnlyList<string> protocols, CancellationToken cancellationToken = default)
-        {
-            EnableCalls++;
-            LastEnableProtocols = protocols;
-            return Task.FromResult(new ServiceProtocolEnableResult
-            {
-                Succeeded = true,
-                State = "Published",
-                EnabledProtocols = enabledProtocols,
             });
         }
 
@@ -515,22 +513,21 @@ public sealed class ResourceFirstPublishFlowTests
             ]);
     }
 
-    /// <summary>A minimal data source that advertises exactly one resource, for the existing-resource path test.</summary>
     private sealed class OneResourceDataSource(string resourceId, string name) : IOperateTransitionDataSource
     {
-        private readonly OperateResourceEditPreview _resource =
-            EditPreview(resourceId, name);
+        private readonly OperateServiceDetail _service =
+            Service("parcels", "FeatureServer, MapServer", new OperateServiceLayerProjection(1, name, "Polygon", resourceId, name));
 
         public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new OperateTransitionWorkspace([], [_resource], [], [], []));
+            Task.FromResult(new OperateTransitionWorkspace([], [EditPreview(resourceId, name)], [_service], [], []));
 
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
             Task.FromResult<OperateConnectionSummary?>(null);
 
         public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateResourceEditPreview?>(_resource);
+            Task.FromResult<OperateResourceEditPreview?>(null);
 
         public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateServiceDetail?>(null);
+            Task.FromResult<OperateServiceDetail?>(_service);
     }
 }

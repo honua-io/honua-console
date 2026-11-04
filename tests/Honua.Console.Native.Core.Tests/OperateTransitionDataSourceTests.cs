@@ -71,7 +71,7 @@ public sealed class OperateTransitionDataSourceTests
                 {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":true,"serviceName":"planning"}]}
                 """,
             [$"/api/v1/admin/connections/{connectionId}/layers/?serviceName=public"] = """
-                {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":true,"serviceName":"public"}]}
+                {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":false,"serviceName":"public"}]}
                 """,
             ["/api/v1/admin/services/"] = """
                 {"success":true,"data":[{"serviceName":"planning","description":"Planning Service","layerCount":1,"enabledProtocols":["FeatureServer","MapServer"]},{"serviceName":"public","description":"Public Service","layerCount":1,"enabledProtocols":["FeatureServer"]}]}
@@ -115,6 +115,8 @@ public sealed class OperateTransitionDataSourceTests
         Assert.Equal(["planning", "public"], resource.BlastRadius.Services);
         Assert.Contains(workspace.Services, service => service.Name == "planning" && service.Layers.Any(layer => layer.Name == "Console Parcels"));
         Assert.Contains(workspace.Services, service => service.Name == "public" && service.Layers.Any(layer => layer.CanonicalResourceId == resource.ResourceId));
+        Assert.True(workspace.Services.Single(service => service.Name == "planning").Layers.Single().Enabled);
+        Assert.False(workspace.Services.Single(service => service.Name == "public").Layers.Single().Enabled);
         Assert.Contains(workspace.SettingsChanges, change => change.Id == "license" && change.ProposedChange.Contains("Community", StringComparison.Ordinal));
         // The non-actionable landing capability notices were removed: the Resources resource-edit
         // contract banner, the CORS/catalog-visibility hardcodes, and the TimeInfo over-report
@@ -559,8 +561,35 @@ public sealed class OperateTransitionDataSourceTests
         // None of the non-Esri protocols may live under /rest/services.
         foreach (var protocol in new[] { "Wms", "Wmts", "Wfs20", "OData", "OgcFeatures", "OgcApiTiles", "OgcApiMaps", "Stac" })
         {
-            Assert.DoesNotContain("/rest/services/", dataSource.BuildProtocolUrl(svc, protocol), StringComparison.Ordinal);
+            var url = dataSource.BuildProtocolUrl(svc, protocol);
+            Assert.NotNull(url);
+            Assert.DoesNotContain("/rest/services/", url, StringComparison.Ordinal);
         }
+    }
+
+    [Theory]
+    [InlineData("Terrain")]
+    [InlineData("Elevation")]
+    [InlineData("Grpc")]
+    [InlineData("SomeFutureProtocol")]
+    public void ProtocolsWithoutAServiceUrlGetNoSlotUrl(string protocol)
+    {
+        // Terrain and elevation are served per dataset (/terrain/{datasetId}/..., /elevation/{datasetId}/...)
+        // and gRPC per RPC method, so no single URL addresses the service; an unknown protocol gets none either.
+        var dataSource = CreateServerDataSource(new RecordingJsonFixtureHandler(new Dictionary<string, string>()));
+
+        Assert.Null(dataSource.BuildProtocolUrl("e2e_src_fs", protocol));
+    }
+
+    [Fact]
+    public void EveryCatalogProtocolHasAServedRoute()
+    {
+        foreach (var descriptor in PublishProtocolCatalog.All)
+        {
+            Assert.StartsWith("/", HonuaServedRoutes.CatalogPathFor("svc", descriptor.Id), StringComparison.Ordinal);
+        }
+
+        Assert.Throws<InvalidOperationException>(() => HonuaServedRoutes.CatalogPathFor("svc", "Terrain"));
     }
 
     [Fact]
@@ -609,6 +638,24 @@ public sealed class OperateTransitionDataSourceTests
             new BoundServiceConfiguration());
         Assert.Contains("data-allow-anonymous", html, StringComparison.Ordinal);
         Assert.Matches("<fieldset[^>]*disabled", html);
+    }
+
+    [Fact]
+    public async Task ServiceDetailShowsNoUrlForAPublicationSlotWithoutOne()
+    {
+        var service = new OperateServiceDetail("sample", "Sample", "FeatureServer", "Ready", "server", [], [],
+        [
+            new OperatePublicationSlot("FeatureServer", "https://server.example/rest/services/sample/FeatureServer", "Exposed by honua-server"),
+            new OperatePublicationSlot("Terrain", null, "Exposed by honua-server"),
+        ]);
+        var dataSource = new StubOperateTransitionDataSource(new OperateTransitionWorkspace([], [], [service], [], []));
+        var html = await RenderPageAsync<OperateServiceDetailPage>(dataSource,
+            ParameterView.FromDictionary(new Dictionary<string, object?> { ["ServiceName"] = "sample" }),
+            new BoundServiceConfiguration());
+
+        Assert.Contains("https://server.example/rest/services/sample/FeatureServer", html, StringComparison.Ordinal);
+        Assert.Contains("No single service URL", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("/terrain", html, StringComparison.Ordinal);
     }
 
     private sealed class BoundServiceConfiguration : IServiceConfigurationOperation

@@ -20,6 +20,11 @@ export const SOURCE_DB = {
   username: process.env.HONUA_CONSOLE_E2E_SOURCE_USER ?? 'honua_user',
   password: process.env.HONUA_CONSOLE_E2E_SOURCE_PASSWORD ?? 'honua_password',
   table: process.env.HONUA_CONSOLE_E2E_SOURCE_TABLE ?? 'public.e2e_layer_src',
+  // e2e/initdb/03-dedicated-sources.sql: 3-feature tables for specs that seed their own layer,
+  // because a source table backs only one layer.
+  goLiveTable: process.env.HONUA_CONSOLE_E2E_GO_LIVE_TABLE ?? 'public.e2e_golive_src',
+  settingsTable: process.env.HONUA_CONSOLE_E2E_SETTINGS_TABLE ?? 'public.e2e_settings_src',
+  typesTable: process.env.HONUA_CONSOLE_E2E_TYPES_TABLE ?? 'public.e2e_types_src',
 } as const;
 
 /** The connection body shape the admin API expects for the source datasource. */
