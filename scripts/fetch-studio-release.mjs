@@ -39,7 +39,7 @@ async function vendor(lock, force) {
     console.log(`honua-studio ${lock.tag}: the vendored tree already matches the release lock`);
     return;
   }
-  console.log(`honua-studio ${lock.tag}: fetching ${releaseAssetUrl(lock)}`);
+  console.log(`honua-studio ${lock.tag}: vendoring ${releaseAssetUrl(lock)}`);
   await fetchStudioRelease(lock, VENDORED_STUDIO_ROOT, { cacheDirectory: process.env.HONUA_STUDIO_RELEASE_CACHE });
   console.log(`honua-studio ${lock.tag}: vendored sha256 ${lock.sha256} into ${VENDORED_STUDIO_ROOT}`);
 }

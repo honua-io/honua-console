@@ -1,0 +1,26 @@
+name: Fetch the locked Studio release
+description: >-
+  Vendors the honua-studio release pinned by scripts/studio-release.lock.json into the Web host,
+  reusing the SHA-256-verified release archive cached under the lock's hash.
+outputs:
+  archive:
+    description: Path of the SHA-256-verified release archive.
+    value: ${{ steps.fetch.outputs.archive }}
+runs:
+  using: composite
+  steps:
+    - name: Restore the cached release archive
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/studio-release
+        key: studio-release-${{ hashFiles('scripts/studio-release.lock.json') }}
+
+    - name: Vendor the release
+      id: fetch
+      shell: bash
+      env:
+        HONUA_STUDIO_RELEASE_CACHE: ${{ runner.temp }}/studio-release
+      run: |
+        node scripts/fetch-studio-release.mjs --force
+        asset="$(node -p "require('./scripts/studio-release.lock.json').asset")"
+        echo "archive=$HONUA_STUDIO_RELEASE_CACHE/$asset" >> "$GITHUB_OUTPUT"

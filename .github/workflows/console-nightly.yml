@@ -104,6 +104,9 @@ jobs:
           node-version: 20.x
           cache: npm
 
+      - name: Fetch the locked Studio release
+        uses: ./.github/actions/fetch-studio-release
+
       - name: Pre-pull honua-server image
         run: |
           echo "Pulling pinned honua-server image: ${HONUA_CONSOLE_SERVER_IMAGE}"

@@ -49,12 +49,18 @@ jobs:
       - name: Fetch digest-verified Cesium assets
         run: node scripts/fetch-cesium.mjs --force
 
+      - name: Fetch the locked Studio release
+        uses: ./.github/actions/fetch-studio-release
+
       - name: Publish Console artifact
         working-directory: src/Honua.Console.Web
         run: dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal -p:HonuaConsoleCommitSha=${{ github.sha }}
 
       - name: Verify published Cesium assets
         run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
+
+      - name: Verify published Studio assets
+        run: node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/_studio
 
       - name: Stamp artifact metadata
         run: npm run build:metadata
@@ -167,12 +173,18 @@ jobs:
       - name: Fetch digest-verified Cesium assets
         run: node scripts/fetch-cesium.mjs --force
 
+      - name: Fetch the locked Studio release
+        uses: ./.github/actions/fetch-studio-release
+
       - name: Publish Console artifact
         working-directory: src/Honua.Console.Web
         run: dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal -p:HonuaConsoleCommitSha=${{ env.SOURCE_SHA }}
 
       - name: Verify published Cesium assets
         run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
+
+      - name: Verify published Studio assets
+        run: node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/_studio
 
       - name: Stamp artifact metadata
         run: npm run build:metadata

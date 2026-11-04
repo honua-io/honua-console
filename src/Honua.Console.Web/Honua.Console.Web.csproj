@@ -34,4 +34,14 @@
     <InternalsVisibleTo Include="Honua.Console.IntegrationTests" />
   </ItemGroup>
 
+  <!-- The Studio release is vendored before Razor inventories static assets, so a clean checkout
+       builds, runs and publishes it. Files created after evaluation must join Content explicitly. -->
+  <Target Name="FetchStudioRelease" BeforeTargets="ResolveProjectStaticWebAssets"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec Command="node &quot;scripts/fetch-studio-release.mjs&quot;" WorkingDirectory="$(MSBuildProjectDirectory)/../.." />
+    <ItemGroup>
+      <Content Include="wwwroot/_studio/**/*" Exclude="@(Content)" />
+    </ItemGroup>
+  </Target>
+
 </Project>
