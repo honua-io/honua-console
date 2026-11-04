@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Http.Features;
 
 namespace Honua.Console.Web;
 
-/// <summary>Human-only catalog and feature reads; this transport is never supplied to the agent SDK.</summary>
+// Catalog and feature reads require the operator bearer, a matching partition, and antiforgery on the catalog post.
 internal static class StudioReadBff
 {
     public static void MapStudioReadBff(this WebApplication app)

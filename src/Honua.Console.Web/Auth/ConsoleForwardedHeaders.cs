@@ -4,12 +4,7 @@ using Microsoft.Extensions.Options;
 
 namespace Honua.Console.Web.Auth;
 
-/// <summary>
-/// Trusts X-Forwarded-Proto and X-Forwarded-Host from loopback and private proxy peers
-/// (honua-console#422). Kestrel in the image listens on HTTP; the ingress peer is a cluster
-/// address, not loopback, so the framework's loopback-only default ignores the headers and
-/// map-proxy tile URLs are built as http. Public remotes stay untrusted.
-/// </summary>
+// Trust X-Forwarded-Proto and X-Forwarded-Host from private peers as well as loopback, because the image listens on HTTP and a public remote stays untrusted.
 public static class ConsoleForwardedHeaders
 {
     public static void Apply(ForwardedHeadersOptions options)

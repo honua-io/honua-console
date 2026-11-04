@@ -2,27 +2,11 @@ using System.Collections.Concurrent;
 
 namespace Honua.Console.Web.Auth;
 
-/// <summary>
-/// A bounded, per-operator partition map shared by the operator-scoped profile and account-session
-/// stores (honua-console#279 PA-237). Those stores previously kept one backing partition per operator in
-/// an unbounded <see cref="ConcurrentDictionary{TKey,TValue}"/> that was never pruned, so every operator
-/// that ever signed in — including short-lived edge-forwarded identities that never return — leaked its
-/// partition for the life of the process.
-///
-/// This table mirrors the bound the #305-era BFF cookie-jar store established
-/// (<c>ConsoleServerSessionClientStore</c>: a hard capacity plus idle-lifetime pruning): partitions are
-/// evicted explicitly on sign-out (<see cref="Evict"/>), pruned when idle past
-/// <see cref="IdleLifetime"/> (aligned with the 8h auth-cookie lifetime), and capped at
-/// <see cref="MaximumOperators"/> with least-recently-used eviction so a burst of distinct operators
-/// cannot grow the map without limit. Reads/writes touch the partition so an active operator is never a
-/// prune/eviction candidate.
-/// </summary>
+// The idle window matches the auth-cookie lifetime, and sign-out removes the partition immediately.
 internal sealed class OperatorPartitionTable<TPartition>
 {
-    /// <summary>Hard cap on live operator partitions, matching the BFF cookie-jar store's bound.</summary>
     internal const int MaximumOperators = 2_048;
 
-    /// <summary>Idle window after which an untouched partition is pruned, aligned with the 8h cookie.</summary>
     internal static readonly TimeSpan IdleLifetime = TimeSpan.FromHours(8);
 
     private sealed class Entry(TPartition partition, long lastAccessTicks)
@@ -37,14 +21,8 @@ internal sealed class OperatorPartitionTable<TPartition>
     public OperatorPartitionTable(TimeProvider? timeProvider = null)
         => _timeProvider = timeProvider ?? TimeProvider.System;
 
-    /// <summary>Current live partition count (test/diagnostic surface).</summary>
     public int Count => _entries.Count;
 
-    /// <summary>
-    /// Returns the operator's partition, creating it from <paramref name="factory"/> on first use. Every
-    /// call refreshes the partition's last-access stamp and opportunistically prunes idle/over-capacity
-    /// partitions.
-    /// </summary>
     public TPartition GetOrAdd(string operatorKey, Func<TPartition> factory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operatorKey);
@@ -57,7 +35,6 @@ internal sealed class OperatorPartitionTable<TPartition>
         return entry.Partition;
     }
 
-    /// <summary>Removes the operator's partition (invoked on sign-out). No-op if absent.</summary>
     public void Evict(string operatorKey)
     {
         if (!string.IsNullOrWhiteSpace(operatorKey))

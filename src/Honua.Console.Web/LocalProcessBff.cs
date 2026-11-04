@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Antiforgery;
 
 namespace Honua.Console.Web;
 
-/// <summary>Human-only bounded transport to the canonical workspace process gateway.</summary>
+// Operator-only transport to the workspace process gateway; a missing bearer, partition, or write antiforgery token is refused.
 internal static partial class LocalProcessBff
 {
     private const long MaximumArtifactBytes = 128L * 1024 * 1024;

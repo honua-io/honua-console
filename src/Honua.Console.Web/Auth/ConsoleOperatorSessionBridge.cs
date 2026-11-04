@@ -7,25 +7,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Web.Auth;
 
-/// <summary>
-/// Bridges the host's authenticated operator identity (<see cref="ClaimsPrincipal"/>) into the
-/// Console's profile/session model so the existing request-time server bindings forward the operator
-/// (honua-console#233/#234). On sign-in it:
-/// <list type="bullet">
-/// <item>ensures the active environment profile is bound to a non-anonymous operator account; and</item>
-/// <item>writes an account session whose access token is the operator's forwarded bearer when one was
-/// supplied (real per-principal RBAC on honua-server); otherwise, because this runs per request, it
-/// preserves an existing forwardable bearer the operator obtained out-of-band through the server-session
-/// BFF (honua-console#306) rather than erasing it, and falls back to a non-forwardable session sentinel
-/// only when no forwardable bearer exists (authenticated to the Console; privileged server requests
-/// require exchange/reauthentication).</item>
-/// </list>
-/// An explicitly enabled Development-only local bridge can exchange its independent host secret for
-/// a bounded human bearer bound to the configured server and cookie principal.
-/// When no environment profile is active (browser host first-run) there is nothing to bridge; the
-/// operator is still authenticated for routing and Family-A/B surfaces render their missing-binding
-/// state until an environment is connected.
-/// </summary>
 public sealed class ConsoleOperatorSessionBridge
 {
     private readonly IConsoleEnvironmentProfileStore _profiles;
@@ -130,6 +111,7 @@ public sealed class ConsoleOperatorSessionBridge
             }
         }
 
+        // A Development cookie session may exchange the host secret for a human bearer on the configured server.
         if ((ConsoleAuthConstants.IsSessionSentinel(accessToken) || accessTokenExpiresAt <= DateTimeOffset.UtcNow.AddMinutes(3)) && _environment?.IsDevelopment() == true &&
             _configuration?["Honua:Console:Auth:Mode"] == "Dev" &&
             principal.Identity?.AuthenticationType == ConsoleAuthConstants.CookieScheme &&

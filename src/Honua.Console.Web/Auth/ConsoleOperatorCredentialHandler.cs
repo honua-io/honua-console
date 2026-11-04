@@ -5,11 +5,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Web.Auth;
 
-/// <summary>
-/// Last credential boundary before transport for interactive server requests. Typed clients may
-/// stamp a service key, but the browser host can only forward the active operator's bearer.
-/// Server authorization remains responsible for scopes, tenant/owner checks and approval policy.
-/// </summary>
+// Typed clients may stamp a service key, but this host forwards only the active operator bearer; server authorization still owns scopes, tenant checks, and approval policy.
 public sealed class ConsoleOperatorCredentialHandler(
     IConsoleOperatorContext operators,
     IConsoleEnvironmentProfileStore profiles,
