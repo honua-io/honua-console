@@ -20,7 +20,21 @@
         Navigation.LocationChanged += OnLocationChanged;
         _realtime = Services.GetService<IConsoleProposalRealtimeClient>();
         if (_realtime is not null) _realtime.ProposalChanged += OnProposalChanged;
+        _ = StartRealtimeAsync();
         _ = RefreshAndRenderAsync();
+    }
+
+    private async Task StartRealtimeAsync()
+    {
+        if (_realtime is null) return;
+        try
+        {
+            await _realtime.StartAsync(_lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            return;
+        }
     }
 
     private async Task RefreshAndRenderAsync()

@@ -71,6 +71,44 @@ public sealed class ConsoleNavigationRenderTests
     }
 
     [Fact]
+    public void ApprovalBadgeStartsRealtimeWhileItsInitialReadIsPending()
+    {
+        using var context = CreateContext();
+        var inbox = new DeferredApprovalInboxClient();
+        var realtime = new FakeConsoleProposalRealtimeClient();
+        context.Services.AddSingleton<IConsoleApprovalInboxClient>(inbox);
+        context.Services.AddSingleton<IConsoleProposalRealtimeClient>(realtime);
+        var count = context.Render<ConsoleApprovalCount>();
+        Assert.Equal(1, realtime.StartCount);
+        Assert.True(realtime.IsConnected);
+        Assert.Empty(count.FindAll(".console-approval-count"));
+        inbox.Response.SetResult(OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty));
+        count.WaitForAssertion(() => Assert.Equal("0", count.Find(".console-approval-count").TextContent));
+    }
+
+    [Fact]
+    public void ApprovalBadgeRefreshesPendingAndResolvedEventsWithoutNavigation()
+    {
+        using var context = CreateContext();
+        var inbox = new ScriptedApprovalInboxClient();
+        var realtime = new FakeConsoleProposalRealtimeClient();
+        context.Services.AddSingleton<IConsoleApprovalInboxClient>(inbox);
+        context.Services.AddSingleton<IConsoleProposalRealtimeClient>(realtime);
+        var count = context.Render<ConsoleApprovalCount>();
+        count.WaitForAssertion(() => Assert.Equal("0", count.Find(".console-approval-count").TextContent));
+        Assert.True(realtime.IsConnected);
+        inbox.Result = OperateSectionResult<ApprovalInboxSnapshot>.Allowed(
+            FakeProposalFactory.Snapshot(FakeProposalFactory.Summary("pending", ConsoleProposalKind.Deploy)));
+        realtime.Raise(new ConsoleProposalEvent(ConsoleProposalEventKind.Pending, "pending", ConsoleProposalKind.Deploy,
+            ConsoleProposalStatus.AwaitingApproval, null, ConsoleProposalRisk.Low, DateTimeOffset.UtcNow));
+        count.WaitForAssertion(() => Assert.Equal("1", count.Find(".console-approval-count").TextContent));
+        inbox.Result = OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
+        realtime.Raise(new ConsoleProposalEvent(ConsoleProposalEventKind.Resolved, "pending", ConsoleProposalKind.Deploy,
+            ConsoleProposalStatus.Submitted, null, ConsoleProposalRisk.Low, DateTimeOffset.UtcNow));
+        count.WaitForAssertion(() => Assert.Equal("0", count.Find(".console-approval-count").TextContent));
+    }
+
+    [Fact]
     public void WitnessKeepsInspectionAndEnvironmentIdentityWithoutAdminMenus()
     {
         using var context = CreateContext(ConsoleProductMode.Witness);
