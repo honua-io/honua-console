@@ -25,76 +25,31 @@ for (const area of areas) {
   });
 }
 
-// Nav↔route integrity for the 2026.1 focused human Console. Authoring, broad admin parity,
-// 3D, and the Console AI accelerator remain deep-linkable preview routes but are not advertised
-// as part of the normal-image inspect/approve/operate/recover boundary.
-//
-// This list mirrors OperateSections in ConsoleLayout.razor. When a new section is added to
-// the nav, add a matching entry here so the test catches any path/page mismatch at CI time.
-const operateSections = [
-  // Data
-  { path: '/operate/health', label: 'Health' },
-  { path: '/operate/data', label: 'Data & Layers' },
-  { path: '/operate/connections', label: 'Connections' },
-  { path: '/operate/services', label: 'Services' },
-  // Services
-  { path: '/operate/geoprocessing', label: 'Geoprocessing' },
-  // Monitor
-  { path: '/operate/observability', label: 'Observability' },
-  { path: '/operate/metrics', label: 'Metrics' },
-  // Deploy
-  { path: '/operate/deploy', label: 'Deploy' },
-  { path: '/operate/releases', label: 'Releases' },
-] as const;
+const menus = [
+  {name:'Data', paths:['/operate/data','/operate/services','/operate/layers','/operate/connections','/operate/data/new']},
+  {name:'Protocols', paths:['/operate/catalogs']},
+  {name:'Operate', paths:['/operate','/inbox','/operate/health','/operate/copilot','/operate/geoprocessing','/operate/observability','/operate/metrics','/operate/deploy','/operate/releases']},
+  {name:'Access', paths:['/operate/access/members','/operate/access']},
+  {name:'Settings', paths:['/operate/settings']},
+];
 
-for (const section of operateSections) {
-  test(`${section.path} resolves to a real page (not 404)`, async ({ page }) => {
-    const response = await page.goto(section.path, { waitUntil: 'domcontentloaded' });
-    expect(response?.status(), `${section.path} should return 200`).toBe(200);
-
-    // Route must not redirect to the 404 surface.
-    await expect(page).not.toHaveURL(/\/not-found/);
-
-    // Advanced navigation stays available through its keyboard-operable disclosure.
-    const disclosure = page.locator('.console-more-tools > summary');
-    await disclosure.press('Enter');
-    await expect(
-      page.locator('nav[aria-label="Operate sections"]'),
-    ).toBeVisible();
-  });
-}
-
-test('operate sections sidebar advertises only the focused human-client boundary', async ({ page }) => {
-  await page.goto('/operate', { waitUntil: 'domcontentloaded' });
-
-  await page.locator('.console-more-tools > summary').click();
-  const nav = page.locator('nav[aria-label="Operate sections"]');
-  await expect(nav).toBeVisible();
-
-  await expect(nav.locator('a[href]')).toHaveCount(operateSections.length);
-  for (const section of operateSections) {
-    await expect(nav.locator(`a[href="${section.path}"]`)).toBeVisible();
-  }
-  for (const hidden of ['/operate/scenes', '/operate/publishing', '/operate/ai', '/operate/settings']) {
-    await expect(nav.locator(`a[href="${hidden}"]`)).toHaveCount(0);
-  }
-});
-
-for (const width of [390, 1440]) test(`advanced navigation is keyboard accessible at ${width}px`, async ({page}) => {
-  await page.setViewportSize({width,height:844});
+for (const menu of menus) test(`${menu.name} advertises working current destinations`, async ({page}) => {
   await page.goto('/operate');
-  if(width < 768) {
-    const toggle=page.getByRole('checkbox',{name:'Toggle navigation'});
-    await toggle.press('Space');
-    await expect(toggle).toBeChecked();
-  }
-  const summary=page.locator('.console-more-tools > summary');
-  await summary.press('Enter');
-  const nav=page.getByRole('navigation',{name:'Operate sections'});
+  const disclosure=page.locator(`[data-navigation-menu="${menu.name}"]`);
+  await disclosure.locator(':scope > summary').press('Enter');
+  const nav=disclosure.getByRole('navigation',{name:menu.name,exact:true});
   await expect(nav).toBeVisible();
-  for(const section of operateSections) await expect(nav.locator(`a[href="${section.path}"]`)).toBeVisible();
-  await summary.press('Space');
+  await expect(nav.locator('a[href]')).toHaveCount(menu.paths.length);
+  for(const path of menu.paths) {
+    await expect(nav.locator(`a[href="${path}"]`)).toBeVisible();
+    const response=await page.request.get(path);
+    expect(response.status()).toBe(200);
+    expect(response.url()).not.toContain('/not-found');
+  }
+  await expect(nav.locator('a').first()).toBeFocused();
+  await page.keyboard.press('Escape');
   await expect(nav).toBeHidden();
+  await expect(disclosure.locator(':scope > summary')).toBeFocused();
 });
 
 for (const width of [390, 1440]) test(`navigation preserves keyboard input during startup at ${width}px`, async ({page}) => {
@@ -107,32 +62,33 @@ for (const width of [390, 1440]) test(`navigation preserves keyboard input durin
   try {
     await page.setViewportSize({width, height:844});
     await page.goto('/operate', {waitUntil:'commit'});
-    const toggle=page.getByRole('checkbox',{name:'Toggle navigation'});
-    if(width < 768) {
-      await toggle.press('Space');
-      await expect(toggle).toBeChecked();
+    const toggle=page.getByRole('button',{name:'Toggle navigation'});
+    if(width < 1100) {
+      await toggle.press('Enter');
+      await expect(toggle).toHaveAttribute('aria-expanded','true');
     }
-    const summary=page.locator('.console-more-tools > summary');
+    const summary=page.locator('[data-navigation-menu="Operate"] > summary');
     await summary.press('Enter');
-    const nav=page.getByRole('navigation',{name:'Operate sections'});
+    const nav=page.getByRole('navigation',{name:'Operate',exact:true});
     await expect(nav).toBeVisible();
-    await page.locator('.console-more-tools').evaluate(element => {
+    await nav.locator('a').first().focus();
+    await page.locator('[data-navigation-menu="Operate"]').evaluate(element => {
       (window as unknown as {prerenderedNavigation: Element}).prerenderedNavigation=element;
     });
     startBlazor();
-    // Observe the actual interactive replacement; a timer cannot prove hydration happened.
-    await page.waitForFunction(() => document.querySelector('.console-more-tools') !==
+    await page.waitForFunction(() => document.querySelector('[data-navigation-menu="Operate"]') !==
       (window as unknown as {prerenderedNavigation: Element}).prerenderedNavigation);
     await expect(nav).toBeVisible();
-    await expect(summary).toBeFocused();
-    if(width < 768) await expect(toggle).toBeChecked();
-    await summary.press('Space');
+    await expect(nav.locator('a').first()).toBeFocused();
+    if(width < 1100) await expect(toggle).toHaveAttribute('aria-expanded','true');
+    await page.keyboard.press('Escape');
     await expect(nav).toBeHidden();
-    // Preserving startup input must not suppress focus on an actual route change.
+    await expect(summary).toBeFocused();
     await summary.press('Enter');
     await nav.locator('a[href="/operate/health"]').press('Enter');
     await expect(page).toHaveURL(/\/operate\/health$/);
     await expect(page.getByRole('heading', {level:1})).toBeFocused();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   } finally {
     startBlazor();
   }

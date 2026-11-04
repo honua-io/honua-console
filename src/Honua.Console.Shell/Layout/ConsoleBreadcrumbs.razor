@@ -1,0 +1,58 @@
+@implements IDisposable
+@inject NavigationManager Navigation
+
+<nav class="console-contextbar" aria-label="Breadcrumb">
+    <ol>
+        <li><a href="/">Home</a></li>
+        @if (Area is { } area)
+        {
+            <li><a href="@area.Path">@area.Name</a></li>
+        }
+        <li aria-current="page">
+            <details class="console-navigation-menu" data-navigation-menu="Context">
+                <summary>@CurrentLabel</summary>
+                <nav class="console-navigation-items" aria-label="Current context">
+                    <a href="/operate/data">Data &amp; Layers</a>
+                    <a href="/operate/data/new">Add data</a>
+                    <a href="/operate/health">Server health</a>
+                    @if (ServiceSettingsPath is { } path)
+                    {
+                        <a href="@path">Edit service</a>
+                    }
+                </nav>
+            </details>
+        </li>
+    </ol>
+</nav>
+
+@code {
+    private string RelativePath => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
+    private ConsoleWorkflowArea? Area => ConsoleRouteMap.FindAreaForPath(RelativePath);
+    private string CurrentLabel => ServiceName ?? RelativePath switch
+    {
+        "" => "Welcome",
+        "operate/data" => "Data & Layers",
+        "operate/data/new" => "Add data",
+        "operate/catalogs" => "Discovery catalogs",
+        "operate/access/members" => "Members",
+        "operate/access" => "Roles and permissions",
+        "operate/settings" => "Server settings",
+        "inbox" or "approvals" => "Approvals",
+        _ => Area?.Name ?? "Console"
+    };
+
+    private string? ServiceName
+    {
+        get
+        {
+            var segments = RelativePath.Split('/');
+            return segments is ["operate", "services", var name, "settings"] ? Uri.UnescapeDataString(name) : null;
+        }
+    }
+
+    private string? ServiceSettingsPath => ServiceName is null ? null : "/" + RelativePath;
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

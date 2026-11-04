@@ -1,0 +1,53 @@
+@implements IDisposable
+@inject IServiceProvider Services
+@inject NavigationManager Navigation
+
+@if (_count is { } count)
+{
+    <span class="console-approval-count" aria-label="@($"{count} awaiting approval{(_partial ? "; partial queue" : "")}")">@count@(_partial ? "+" : "")</span>
+}
+
+@code {
+    private readonly CancellationTokenSource _lifetime = new();
+    private IConsoleProposalRealtimeClient? _realtime;
+    private int? _count;
+    private bool _partial;
+    private int _readRevision;
+
+    protected override Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        _realtime = Services.GetService<IConsoleProposalRealtimeClient>();
+        if (_realtime is not null) _realtime.ProposalChanged += OnProposalChanged;
+        return RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        var revision = ++_readRevision;
+        _count = null;
+        var inbox = Services.GetService<IConsoleApprovalInboxClient>();
+        if (inbox is null) return;
+        var result = await ConsoleReadBudget.RunAsync(
+            token => inbox.GetInboxAsync(cancellationToken: token), ConsoleReadBudget.Default,
+            "The approval count is unavailable.", _lifetime.Token);
+        if (_lifetime.IsCancellationRequested || revision != _readRevision) return;
+        if (result.IsAllowed && result.Value is { } snapshot)
+        {
+            _count = snapshot.AwaitingApprovalCount;
+            _partial = result.PartialResult;
+        }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => QueueRefresh();
+    private void OnProposalChanged(ConsoleProposalEvent proposal) => QueueRefresh();
+    private void QueueRefresh() => _ = InvokeAsync(async () => { await RefreshAsync(); StateHasChanged(); });
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        if (_realtime is not null) _realtime.ProposalChanged -= OnProposalChanged;
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+    }
+}

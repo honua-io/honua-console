@@ -1,57 +1,73 @@
-// Native navigation controls work before the interactive circuit is ready.
-// Carry their actual DOM state across Blazor's replacement of the prerendered
-// shell, including keyboard focus, without waiting for a server round-trip.
-(() => {
-    let menu = document.querySelector('.console-more-tools');
-    let toggle = document.getElementById('console-collapse');
-    let focused = document.activeElement;
+{
+    const menuSelector = '[data-navigation-menu]';
+    let controls = new Map();
+    let focused;
     let startupFocus;
+    let hydrated = false;
     const startupUrl = location.href;
-    let prerendered = true;
-    const isNavigationFocus = element => element &&
-        (element === menu?.querySelector(':scope > summary') || element === toggle);
-    document.addEventListener('focusin', event => {
-        // FocusOnNavigate may focus the initial heading before or after the
-        // mutation observer sees hydration. Keep the user's navigation focus
-        // in either order; subsequent navigation still focuses its heading.
-        if (event.target.matches('h1') && location.href === startupUrl) {
-            if (prerendered && isNavigationFocus(focused) && !focused.isConnected)
-                return;
-            if (startupFocus?.isConnected) {
-                const target = startupFocus;
-                startupFocus = undefined;
-                target.focus({ preventScroll: true });
-                return;
+    const keyFor = element => element?.matches('[data-navigation-toggle]') ? 'toggle'
+        : element?.closest(menuSelector)?.dataset.navigationMenu;
+    const opener = control => control?.matches(menuSelector) ? control.querySelector(':scope > summary') : control;
+    const expanded = control => control?.matches(menuSelector) ? control.open : control?.getAttribute('aria-expanded') === 'true';
+    function setExpanded(control, value) {
+        if (control.matches(menuSelector)) control.open = value;
+        else control.setAttribute('aria-expanded', String(value));
+    }
+    function collectControls() {
+        const next = new Map([...document.querySelectorAll(menuSelector)].map(element => [element.dataset.navigationMenu, element]));
+        const toggle = document.querySelector('[data-navigation-toggle]');
+        if (toggle) next.set('toggle', toggle);
+        for (const [key, control] of next) {
+            const previous = controls.get(key);
+            if (!previous || previous === control) continue;
+            setExpanded(control, expanded(previous));
+            if (focused === opener(previous) || previous.contains(focused)) {
+                const index = [...previous.querySelectorAll('summary, a')].indexOf(focused);
+                startupFocus = index < 0 ? opener(control) : control.querySelectorAll('summary, a')[index];
+                startupFocus.focus({preventScroll: true});
             }
+            hydrated = true;
         }
+        controls = next;
+    }
+    document.addEventListener('focusin', event => {
+        if (event.target.matches('h1') && location.href === startupUrl && startupFocus?.isConnected) {
+            startupFocus.focus({preventScroll: true});
+            startupFocus = undefined;
+            return;
+        }
+        if (!hydrated && event.target.matches('h1') && focused && !focused.isConnected && keyFor(focused)) return;
         focused = event.target;
-        if (event.target !== startupFocus) startupFocus = undefined;
     }, true);
-    // A new human action takes precedence over any pending startup handoff.
-    for (const name of ['pointerdown', 'keydown'])
-        document.addEventListener(name, () => { startupFocus = undefined; }, true);
-
-    new MutationObserver(() => {
-        const nextMenu = document.querySelector('.console-more-tools');
-        const nextToggle = document.getElementById('console-collapse');
-        let restoreFocus;
-        if (menu && nextMenu && menu !== nextMenu) {
-            nextMenu.open = menu.open;
-            if (focused === menu.querySelector(':scope > summary'))
-                restoreFocus = nextMenu.querySelector(':scope > summary');
+    document.addEventListener('click', event => {
+        const toggle = event.target.closest('[data-navigation-toggle]');
+        if (toggle) setExpanded(toggle, !expanded(toggle));
+        if (event.target.closest('.console-navigation-items a, .console-topnav > a')) {
+            for (const control of controls.values()) setExpanded(control, false);
+        } else if (!event.target.closest(menuSelector)) {
+            for (const control of controls.values()) if (control.matches(menuSelector)) setExpanded(control, false);
         }
-        if (toggle && nextToggle && toggle !== nextToggle) {
-            nextToggle.checked = toggle.checked;
-            if (focused === toggle) restoreFocus = nextToggle;
-        }
-        const replacedPrerender = prerendered && menu && nextMenu && menu !== nextMenu;
-        if (nextMenu) menu = nextMenu;
-        if (nextToggle) toggle = nextToggle;
-        if (restoreFocus && (document.activeElement === document.body ||
-            (replacedPrerender && document.activeElement?.matches('h1')))) {
-            if (replacedPrerender && location.href === startupUrl) startupFocus = restoreFocus;
-            restoreFocus.focus({ preventScroll: true });
-        }
-        if (replacedPrerender) prerendered = false;
-    }).observe(document.body, { childList: true, subtree: true });
-})();
+    });
+    document.addEventListener('toggle', event => {
+        if (!event.target.matches(menuSelector) || !event.target.open) return;
+        for (const control of controls.values())
+            if (control.matches(menuSelector) && control !== event.target) control.open = false;
+        if (document.activeElement === opener(event.target) || !event.target.contains(document.activeElement))
+            event.target.querySelector('a')?.focus();
+    }, true);
+    document.addEventListener('keydown', event => {
+        startupFocus = undefined;
+        if (event.key !== 'Escape') return;
+        const menu = event.target.closest(menuSelector);
+        const target = menu?.open ? menu : controls.get('toggle');
+        if (!target || !expanded(target)) return;
+        event.preventDefault();
+        setExpanded(target, false);
+        opener(target)?.focus();
+    });
+    document.addEventListener('click', event => {
+        if (event.target.closest('.console-skip-link')) document.getElementById('console-main')?.focus({preventScroll: true});
+    }, true);
+    collectControls();
+    new MutationObserver(collectControls).observe(document.body, {childList: true, subtree: true});
+}

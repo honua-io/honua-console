@@ -19,10 +19,10 @@ for(const width of [1440,390]) test(`workspace setup and conversation remain usa
   if(width===390){
     const primary=page.getByRole('navigation',{name:'Primary',exact:true});
     await expect(primary).toBeHidden();
-    const toggle=page.getByRole('checkbox',{name:'Toggle navigation'});
-    await toggle.focus();await page.keyboard.press('Space');
+    const toggle=page.getByRole('button',{name:'Toggle navigation'});
+    await toggle.focus();await page.keyboard.press('Enter');
     await expect(primary).toBeVisible();
-    await page.keyboard.press('Space');await expect(primary).toBeHidden();
+    await page.keyboard.press('Enter');await expect(primary).toBeHidden();
   }
   const conversation=page.locator('[data-agent-workspace]');
   await expect(conversation.locator('.console-conversation-connection')).not.toHaveAttribute('open','');

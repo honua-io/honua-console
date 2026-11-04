@@ -56,10 +56,10 @@ const gatedSections = [
 // operator specs do, then assert the sidebar itself. Re-click inside the retry: a click that
 // lands before the Blazor circuit re-renders the layout can be undone by that render.
 async function openOperateSections(page: import('@playwright/test').Page) {
-  const nav = page.locator('nav[aria-label="Operate sections"]');
+  const nav = page.locator('nav[aria-label="Operate"]');
   await expect(async () => {
     if (!(await nav.isVisible())) {
-      await page.locator('.console-more-tools > summary').click();
+      await page.locator('[data-navigation-menu="Operate"] > summary').click();
     }
     await expect(nav).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 15_000 });
@@ -123,7 +123,7 @@ test.describe('Operate nav · no AI provider required (live)', () => {
     await expect(nav.locator('a[href]')).toHaveCount(9);
     expect(await nav.locator('a[href]').evaluateAll(links => links.map(link => link.getAttribute('href'))))
       .toEqual([
-        '/operate/health', '/operate/data', '/operate/connections', '/operate/services',
+        '/operate', '/inbox', '/operate/health', '/operate/copilot',
         '/operate/geoprocessing', '/operate/observability', '/operate/metrics',
         '/operate/deploy', '/operate/releases',
       ]);
@@ -140,7 +140,7 @@ test.describe('Operate nav · no AI provider required (live)', () => {
     const nav = await openOperateSections(page);
 
     // The core manual surfaces must be present in the sidebar.
-    const manualSurfaces = ['Health', 'Data & Layers', 'Connections', 'Services', 'Geoprocessing', 'Observability', 'Metrics', 'Deploy', 'Releases'];
+    const manualSurfaces = ['Dashboard', 'Approvals', 'Health', 'Findings', 'Geoprocessing', 'Observability', 'Metrics', 'Deploy', 'Releases'];
     for (const label of manualSurfaces) {
       await expect(nav.getByText(label), `sidebar must show "${label}"`).toBeVisible();
     }

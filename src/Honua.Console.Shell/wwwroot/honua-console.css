@@ -1,5 +1,6 @@
 @import url("css/tokens.css");
 @import url("css/accessibility.css");
+@import url("css/shell.css");
 
 * {
     box-sizing: border-box;
@@ -49,178 +50,6 @@ body {
 
 a {
     color: inherit;
-}
-
-.console-shell {
-    min-height: 100vh;
-    display: grid;
-    grid-template-columns: 280px minmax(0, 1fr);
-    transition: grid-template-columns 0.18s ease;
-}
-
-/* CSS-only collapse driver — the checkbox is never shown; its state collapses the rail. It stays
-   focusable and in the accessibility tree (it is the control), so its keyboard focus ring is
-   projected onto the visible .console-collapse-button below rather than drawn on a 1px box. */
-.console-collapse-toggle {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-    pointer-events: none;
-}
-
-.console-shell:has(.console-collapse-toggle:focus-visible) .console-collapse-button {
-    outline: 2px solid transparent;
-    outline-offset: 2px;
-    box-shadow: var(--honua-focus-ring);
-}
-
-.console-sidebar {
-    background: var(--honua-color-rail);
-    color: var(--honua-color-rail-ink);
-    padding: 24px 18px;
-    overflow: hidden;
-}
-
-.console-sidebar-head {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 28px;
-}
-
-.console-brand {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    color: inherit;
-    text-decoration: none;
-    flex: 1;
-    min-width: 0;
-}
-
-.console-brand-mark {
-    display: grid;
-    place-items: center;
-    width: 38px;
-    height: 38px;
-    flex: none;
-    border: 1px solid #7bbdb5;
-    background: #0f766e;
-    font-weight: 800;
-}
-
-.console-brand-label {
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-}
-
-.console-brand-label strong {
-    display: block;
-}
-
-.console-brand small,
-.console-nav small {
-    display: block;
-    color: #b8cac4;
-}
-
-.console-collapse-button {
-    display: grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    flex: none;
-    border-radius: 8px;
-    color: #b8cac4;
-    cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
-}
-
-.console-collapse-button:hover {
-    background: rgb(255 255 255 / 11%);
-    color: #f8fbfa;
-}
-
-.console-collapse-button svg {
-    width: 18px;
-    height: 18px;
-    transition: transform 0.18s ease;
-}
-
-.console-nav {
-    display: grid;
-    gap: 6px;
-}
-
-.console-nav-secondary {
-    margin-top: 24px;
-    padding-top: 24px;
-    border-top: 1px solid rgb(255 255 255 / 16%);
-}
-
-.console-nav a {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    text-decoration: none;
-    padding: 10px 12px;
-    border-radius: 8px;
-    color: #edf4f1;
-}
-
-.console-nav a.active,
-.console-nav a:hover {
-    background: rgb(255 255 255 / 11%);
-}
-
-.console-nav-icon {
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    flex: none;
-    color: #9fc6bd;
-}
-
-.console-nav a.active .console-nav-icon {
-    color: var(--teal-300);
-}
-
-.console-nav-icon svg {
-    width: 20px;
-    height: 20px;
-}
-
-.console-nav-label {
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-}
-
-/* ---- Collapsed state (checkbox checked) ---- */
-.console-shell:has(.console-collapse-toggle:checked) {
-    grid-template-columns: 76px minmax(0, 1fr);
-}
-
-.console-shell:has(.console-collapse-toggle:checked) .console-brand-label,
-.console-shell:has(.console-collapse-toggle:checked) .console-nav-label {
-    display: none;
-}
-
-.console-shell:has(.console-collapse-toggle:checked) .console-sidebar-head {
-    flex-direction: column;
-    gap: 12px;
-}
-
-.console-shell:has(.console-collapse-toggle:checked) .console-nav a {
-    justify-content: center;
-    padding: 10px 0;
-}
-
-.console-shell:has(.console-collapse-toggle:checked) .console-collapse-button svg {
-    transform: rotate(180deg);
 }
 
 .console-main {
@@ -4256,19 +4085,6 @@ p {
 }
 
 @media (max-width: 760px) {
-    .console-shell {
-        grid-template-columns: 1fr;
-    }
-
-    .console-sidebar {
-        position: static;
-        padding: 16px;
-    }
-
-    .console-nav {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
     .console-page {
         width: min(100vw - 28px, 720px);
         padding-top: 26px;
@@ -8652,10 +8468,6 @@ p {
     background: var(--honua-surface-muted, rgba(148, 163, 184, 0.15));
 }
 
-.console-nav-help {
-    margin-top: auto;
-}
-
 /* ----- branch-version manager + conflict resolution (honua-console#177) ----- */
 .console-field {
     display: flex;
@@ -9539,10 +9351,6 @@ button.console-chip:focus-visible {
 
 /* Unified workspace: conversation takes its own column and never covers task controls. */
 .console-workspace { min-width: 0; }
-.console-workspace-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem clamp(20px, 3vw, 44px); border-bottom: 1px solid var(--honua-border); background: var(--honua-surface); }
-.console-workspace-toolbar nav { display: flex; flex-wrap: wrap; gap: .4rem; }
-.console-workspace-toolbar nav a { padding: .55rem .8rem; border-radius: .5rem; text-decoration: none; }
-.console-workspace-toolbar nav a.active { background: var(--honua-accent-soft); font-weight: 650; }
 [data-workspace-header-target] { max-width: 28rem; overflow-wrap: anywhere; color: var(--honua-muted); font-size: .85rem; }
 .console-workspace-panes { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
 .console-workspace-panes > [data-agent-workspace] { position: sticky; inset: auto; top: .75rem; z-index: auto; margin: .75rem .75rem .75rem 0; width: 20rem; max-height: calc(100dvh - 1.5rem); box-shadow: none; }
@@ -9553,8 +9361,6 @@ button.console-chip:focus-visible {
 .console-conversation-connection { padding-block: .5rem; border-block: 1px solid var(--honua-border); }
 .console-conversation [data-workspace-messages] { max-height: 40dvh; }
 .console-conversation > summary { padding-block: .35rem; }
-.console-more-tools { margin-top: 1rem; }
-.console-more-tools > summary { padding: .7rem; cursor: pointer; }
 .console-start-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 1rem; margin-bottom: 2rem; }
 .console-start-option { text-decoration: none; display: flex; flex-direction: column; gap: .6rem; }
 .console-start-option h2,.console-start-option p { margin: 0; }
@@ -9563,7 +9369,6 @@ button.console-chip:focus-visible {
 .console-home-operations > summary { cursor: pointer; font-weight: 650; padding: 1rem 0; }
 .console-setup-steps { display: grid; gap: 1.5rem; padding-inline-start: 1.4rem; }
 .console-setup-steps blockquote { margin-inline: 0; padding: 1rem; border-inline-start: 3px solid var(--honua-accent); background: var(--honua-surface); }
-.console-sidebar { position: sticky; top: 0; max-height: 100dvh; overflow-y: auto; }
 @media (max-width: 1099px) {
     .console-workspace-panes { display: flex; flex-direction: column; }
     .console-workspace-panes > [data-agent-workspace] { position: static; width: calc(100% - 2rem); margin: 1rem; max-height: 55dvh; order: -1; box-sizing: border-box; }
@@ -9571,23 +9376,12 @@ button.console-chip:focus-visible {
     .console-workspace-panes > .console-main { width: 100%; box-sizing: border-box; }
 }
 @media (max-width: 760px) {
-    .console-shell,.console-shell:has(.console-collapse-toggle:checked) { grid-template-columns: minmax(0, 1fr); }
-    .console-sidebar { position: static; max-height: none; padding: .65rem 1rem; }
-    .console-sidebar-head { margin: 0; justify-content: space-between; }
-    .console-sidebar .console-brand-label,.console-shell:has(.console-collapse-toggle:checked) .console-brand-label { display: block; }
-    .console-sidebar nav,.console-sidebar .console-more-tools { display: none; }
-    .console-shell:has(.console-collapse-toggle:checked) .console-sidebar nav { display: grid; }
-    .console-shell:has(.console-collapse-toggle:checked) .console-sidebar .console-more-tools { display: block; }
-    .console-shell:has(.console-collapse-toggle:checked) .console-nav-label { display: block; }
-    .console-workspace-toolbar { padding: .75rem 1rem; gap: .6rem; }
-    .console-workspace-toolbar nav a { padding: .5rem; }
     .console-main { padding-inline: 1rem; }
     .console-page { width: 100%; }
-    .console-collapse-button { min-width: 44px; min-height: 44px; }
 }
 .console-connection-details { margin-block: 1.2rem; border-top: 1px solid var(--honua-border); padding-block: .8rem; }
 .console-connection-details > summary { cursor: pointer; font-weight: 600; padding-block: .4rem; }
-.console-connection-details > summary:focus-visible,.console-more-tools > summary:focus-visible,.console-home-operations > summary:focus-visible { outline: 2px solid var(--honua-accent); outline-offset: 3px; }
+.console-connection-details > summary:focus-visible,.console-home-operations > summary:focus-visible { outline: 2px solid var(--honua-accent); outline-offset: 3px; }
 
 .console-conversation-handoff { margin-block: .75rem; }
 .console-conversation-handoff > summary,.console-conversation-connection > summary { cursor: pointer; padding-block: .5rem; }
