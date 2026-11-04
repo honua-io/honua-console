@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { Page } from '@playwright/test';
 import { test, expect } from '../admin-api';
 import { GEOSERVICES_NOT_FOUND, GEOSERVICES_TOKEN_REQUIRED, anonymousGeoServicesQuery, geoServicesErrorCode } from '../geoservices';
 import { ensurePublishedLayer, type SeededLayer } from '../seeded-layer';
@@ -36,6 +37,13 @@ const protocolServes = (service: string): { protocol: string; path: string; mark
   { protocol: 'Stac', path: `/stac?f=json`, marker: '"links"' },
 ];
 
+// The protocol checkboxes render only after the settings read returns, and locator.count() does not
+// wait, so a check made before then would see no MapServer box and skip the test.
+async function openServiceSettings(page: Page, serviceName: string): Promise<void> {
+  await page.goto(`/operate/services/${serviceName}/settings`);
+  await expect(page.locator('[data-protocol="FeatureServer"]')).toBeVisible({ timeout: 30_000 });
+}
+
 test.describe('Operate · Service settings (live)', () => {
   let target: SeededLayer;
 
@@ -54,8 +62,7 @@ test.describe('Operate · Service settings (live)', () => {
     const base = admin.serverUrl;
 
     // Drive the real service-config UI: tick every applicable protocol, then save.
-    await page.goto(`/operate/services/${target.serviceName}/settings`);
-    await expect(page.locator('[data-service-config]')).toBeVisible({ timeout: 30_000 });
+    await openServiceSettings(page, target.serviceName);
 
     for (const { protocol } of protocolServes(target.serviceName)) {
       const box = page.locator(`[data-protocol="${protocol}"]`);
@@ -90,8 +97,7 @@ test.describe('Operate · Service settings (live)', () => {
     const mapServerPath = `/rest/services/${target.serviceName}/MapServer?f=json`;
     const mapServerError = () => geoServicesErrorCode(page.request, `${base}${mapServerPath}`, ADMIN_HEADERS);
 
-    await page.goto(`/operate/services/${target.serviceName}/settings`);
-    await expect(page.locator('[data-service-config]')).toBeVisible({ timeout: 30_000 });
+    await openServiceSettings(page, target.serviceName);
     const mapServer = page.locator('[data-protocol="MapServer"]');
     test.skip((await mapServer.count()) === 0, 'MapServer protocol not offered for this service.');
 
@@ -124,8 +130,7 @@ test.describe('Operate · Service settings (live)', () => {
     // An UNauthenticated caller (no X-API-Key) — its access is governed purely by the service access policy.
     const anon = () => anonymousGeoServicesQuery(page.request, `${base}${query}`);
 
-    await page.goto(`/operate/services/${target.serviceName}/settings`);
-    await expect(page.locator('[data-service-config]')).toBeVisible({ timeout: 30_000 });
+    await openServiceSettings(page, target.serviceName);
     const allowAnon = page.locator('[data-allow-anonymous]');
 
     // 1) Make the service PRIVATE (anonymous read off) and save → the anonymous query is refused.
