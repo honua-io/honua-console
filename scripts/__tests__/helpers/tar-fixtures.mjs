@@ -29,6 +29,16 @@ export function withHeaderField(entry, offset, value) {
   return patched;
 }
 
+export function withUtf8HeaderField(entry, offset, value, length) {
+  const patched = Buffer.from(entry);
+  patched.fill(0, offset, offset + length);
+  if (patched.write(value, offset, length, "utf8") !== Buffer.byteLength(value)) {
+    throw new Error(`${value} does not fit in ${length} bytes`);
+  }
+  sealChecksum(patched);
+  return patched;
+}
+
 export function withUnsealedHeaderField(entry, offset, value) {
   const patched = Buffer.from(entry);
   patched.write(value, offset, "latin1");

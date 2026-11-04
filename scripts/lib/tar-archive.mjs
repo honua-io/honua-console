@@ -89,10 +89,16 @@ function octal(header, field) {
 }
 
 function text(header, field) {
-  return raw(header, field).replace(/\0[\s\S]*$/, "");
+  const bytes = fieldBytes(header, field);
+  const end = bytes.indexOf(0);
+  return bytes.subarray(0, end === -1 ? bytes.length : end).toString("utf8");
 }
 
 function raw(header, field) {
+  return fieldBytes(header, field).toString("latin1");
+}
+
+function fieldBytes(header, field) {
   const [start, length] = HEADER_FIELDS[field];
-  return header.subarray(start, start + length).toString("latin1");
+  return header.subarray(start, start + length);
 }

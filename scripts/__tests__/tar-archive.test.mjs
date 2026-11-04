@@ -15,6 +15,7 @@ import {
   tarGz,
   withHeaderField,
   withUnsealedHeaderField,
+  withUtf8HeaderField,
 } from "./helpers/tar-fixtures.mjs";
 
 const scratch = await mkdtemp(join(tmpdir(), "honua-console-tar-archive-"));
@@ -128,6 +129,23 @@ test("owner fields may be empty only for a caller that allows it", () => {
     () => readTarArchive(tarGz(withHeaderField(ownerless, 108, "12x\0\0\0\0\0")), { emptyNumericFields: ["uid", "gid"] }),
     /malformed uid field/,
   );
+});
+
+test("entry names are UTF-8 in the short name, the POSIX prefix and a GNU long name", async () => {
+  const destination = await mkdtemp(join(scratch, "utf8-"));
+  await extractTarGz(tarGz(file("café.js", "short")), destination);
+  assert.equal(await readFile(join(destination, "café.js"), "utf8"), "short");
+
+  const prefixed = withUtf8HeaderField(file("café.js", "pref"), HEADER_OFFSETS.prefix, "目录", 155);
+  const [entry] = readTarArchive(tarGz(prefixed));
+  assert.equal(entry.name, "目录/café.js");
+
+  const longName = `package/${"nést/".repeat(20)}café.js`;
+  assert.ok(Buffer.byteLength(longName) > 100);
+  const files = readTarGz(
+    tarGz(tarEntry("././@LongLink", { type: "L", body: Buffer.from(`${longName}\0`) }), file("x", "long")),
+  );
+  assert.deepEqual([...files.keys()], [longName]);
 });
 
 test("npm vendoring reads regular files through the shared parser and skips other entry types", () => {
