@@ -1052,7 +1052,6 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddOperateServiceSettingsOperations(services, live);
         AddOperateLayerMetadataOperations(services, live);
         AddOperateLayerSchemaOperations(services, live);
-        AddOperatePublicationOverridesOperations(services, live);
     }
 
     // Connection-create OPERATION: the Add Connection form performs a REAL create against honua-server
@@ -1145,20 +1144,6 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         {
             services.TryAddSingleton<IConsoleLayerRelationshipsOperation, UnsupportedConsoleLayerRelationshipsOperation>();
             services.TryAddSingleton<IConsoleLayerFilterOperation, UnsupportedConsoleLayerFilterOperation>();
-        }
-    }
-
-    // Publication-overrides authoring (GET/PUT overrides for a publication — a layer's exposure within a
-    // service): titleOverride, per-publication field aliases, capabilities, supported formats, isPrimary.
-    private static void AddOperatePublicationOverridesOperations(IServiceCollection services, bool live)
-    {
-        if (live)
-        {
-            services.TryAddSingleton<IConsolePublicationOverridesOperation, HonuaServerConsolePublicationOverridesOperation>();
-        }
-        else
-        {
-            services.TryAddSingleton<IConsolePublicationOverridesOperation, UnsupportedConsolePublicationOverridesOperation>();
         }
     }
 

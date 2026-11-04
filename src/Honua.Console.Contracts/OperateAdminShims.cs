@@ -33,7 +33,6 @@ public partial interface IHonuaAdminOperateClient
       IHonuaAdminLayerMetadataClient,
       IHonuaAdminLayerPublishingClient,
       IHonuaAdminServiceSettingsClient,
-      IHonuaAdminPublicationOverridesClient,
       IHonuaAdminLayerSchemaClient,
       IHonuaAdminServerInfoClient,
       IHonuaAdminPresentationClient
@@ -610,60 +609,6 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/timeinfo",
             request,
             "PUT /api/v1/admin/services/{serviceName}/timeinfo",
-            cancellationToken);
-    }
-
-    public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsCapsResponse>> GetServiceSettingsCapsAsync(
-        string serviceName,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
-
-        return GetApiResponseAsync<HonuaAdminServiceSettingsCapsResponse>(
-            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/settings-caps",
-            "GET /api/v1/admin/services/{serviceName}/settings-caps",
-            cancellationToken);
-    }
-
-    public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsCapsResponse>> UpdateServiceSettingsCapsAsync(
-        string serviceName,
-        HonuaAdminUpdateServiceSettingsCapsRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
-        ArgumentNullException.ThrowIfNull(request);
-
-        return PutApiResponseAsync<HonuaAdminUpdateServiceSettingsCapsRequest, HonuaAdminServiceSettingsCapsResponse>(
-            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/settings-caps",
-            request,
-            "PUT /api/v1/admin/services/{serviceName}/settings-caps",
-            cancellationToken);
-    }
-
-    public Task<HonuaAdminEndpointResult<HonuaAdminPublicationOverrides>> GetPublicationOverridesAsync(
-        string publicationId,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(publicationId);
-
-        return GetApiResponseAsync<HonuaAdminPublicationOverrides>(
-            $"/api/v1/admin/metadata/publications/{Uri.EscapeDataString(publicationId)}/overrides",
-            "GET /api/v1/admin/metadata/publications/{publicationId}/overrides",
-            cancellationToken);
-    }
-
-    public Task<HonuaAdminEndpointResult<HonuaAdminPublicationOverrides>> UpdatePublicationOverridesAsync(
-        string publicationId,
-        HonuaAdminPublicationOverridesUpdate request,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(publicationId);
-        ArgumentNullException.ThrowIfNull(request);
-
-        return PutApiResponseAsync<HonuaAdminPublicationOverridesUpdate, HonuaAdminPublicationOverrides>(
-            $"/api/v1/admin/metadata/publications/{Uri.EscapeDataString(publicationId)}/overrides",
-            request,
-            "PUT /api/v1/admin/metadata/publications/{publicationId}/overrides",
             cancellationToken);
     }
 
@@ -2298,70 +2243,6 @@ public sealed record HonuaAdminUpdateMapServerSettingsRequest
     public int? MaxFeaturesPerLayer { get; init; }
 }
 
-/// <summary>
-/// Wire shape of the honua-server service settings-caps update request body
-/// (<c>PUT /api/v1/admin/services/{serviceName}/settings-caps</c>, mirrors
-/// <c>UpdateServiceSettingsCapsRequest</c>). Null fields are left unchanged server-side; the server rejects
-/// negative caps. Caps the service's result/request surface: max/default record counts, per-layer feature
-/// cap, query timeout, edit-transaction cap, payload size, supported output formats + default, default
-/// tile-matrix set, and attachment support + size cap.
-/// </summary>
-public sealed record HonuaAdminUpdateServiceSettingsCapsRequest
-{
-    public int? MaxRecordCount { get; init; }
-
-    public int? DefaultRecordCount { get; init; }
-
-    public int? MaxFeaturesPerLayer { get; init; }
-
-    public int? QueryTimeoutMs { get; init; }
-
-    public int? MaxEditsPerTransaction { get; init; }
-
-    public long? MaxPayloadBytes { get; init; }
-
-    public IReadOnlyList<string>? SupportedFormats { get; init; }
-
-    public string? DefaultFormat { get; init; }
-
-    public string? DefaultTileMatrixSet { get; init; }
-
-    public bool? SupportsAttachments { get; init; }
-
-    public long? MaxAttachmentSizeBytes { get; init; }
-}
-
-/// <summary>
-/// Wire shape of the honua-server service settings-caps projection
-/// (<c>GET/PUT /api/v1/admin/services/{serviceName}/settings-caps</c>, the <c>data</c> of
-/// <c>ApiResponse&lt;ServiceSettingsCapsResponse&gt;</c>). All fields nullable — the server only reports the
-/// caps it actually has configured. Pre-populates the settings-caps editor and is read back after a save.
-/// </summary>
-public sealed record HonuaAdminServiceSettingsCapsResponse
-{
-    public int? MaxRecordCount { get; init; }
-
-    public int? DefaultRecordCount { get; init; }
-
-    public int? MaxFeaturesPerLayer { get; init; }
-
-    public int? QueryTimeoutMs { get; init; }
-
-    public int? MaxEditsPerTransaction { get; init; }
-
-    public long? MaxPayloadBytes { get; init; }
-
-    public IReadOnlyList<string> SupportedFormats { get; init; } = [];
-
-    public string? DefaultFormat { get; init; }
-
-    public string? DefaultTileMatrixSet { get; init; }
-
-    public bool? SupportsAttachments { get; init; }
-
-    public long? MaxAttachmentSizeBytes { get; init; }
-}
-
 public sealed record HonuaAdminPublishedLayerSummary
 {
     public int LayerId { get; init; }
@@ -2430,12 +2311,6 @@ public sealed record HonuaAdminServiceSettingsResponse
 
     public HonuaAdminMapServerSettingsResponse? MapServer { get; init; }
 
-    /// <summary>
-    /// The service's current settings caps as read back from the server settings projection, or <c>null</c>
-    /// when the server build does not include a caps block in the settings GET. Pre-populates the
-    /// settings-caps editor when the dedicated caps GET is not separately queried.
-    /// </summary>
-    public HonuaAdminServiceSettingsCapsResponse? SettingsCaps { get; init; }
 }
 
 public sealed record HonuaAdminAccessPolicyResponse
