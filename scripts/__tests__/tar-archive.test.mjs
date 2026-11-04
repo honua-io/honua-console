@@ -136,7 +136,11 @@ test("entry names are UTF-8 in the short name, the POSIX prefix and a GNU long n
   await extractTarGz(tarGz(file("café.js", "short")), destination);
   assert.equal(await readFile(join(destination, "café.js"), "utf8"), "short");
 
-  const prefixed = withUtf8HeaderField(file("café.js", "pref"), HEADER_OFFSETS.prefix, "目录", 155);
+  const prefixed = withUtf8HeaderField(file("café.js", "pref"), {
+    offset: HEADER_OFFSETS.prefix,
+    value: "目录",
+    length: 155,
+  });
   const [entry] = readTarArchive(tarGz(prefixed));
   assert.equal(entry.name, "目录/café.js");
 

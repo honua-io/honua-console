@@ -29,7 +29,7 @@ export function withHeaderField(entry, offset, value) {
   return patched;
 }
 
-export function withUtf8HeaderField(entry, offset, value, length) {
+export function withUtf8HeaderField(entry, { offset, value, length }) {
   const patched = Buffer.from(entry);
   patched.fill(0, offset, offset + length);
   if (patched.write(value, offset, length, "utf8") !== Buffer.byteLength(value)) {
