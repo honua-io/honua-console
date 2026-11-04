@@ -72,9 +72,9 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/connections/new       Create
 /operate/connections/:id       Detail
 /operate/connections/:id/diagnostics
-/operate/ai                    Omni-prompt AI console — one free-text prompt routes Studio (GIS authoring → AI publish outcome card #200) vs DevOps (ops → deploy approval queue #197); AI infers intent, human approves (honua-console#203). Alias: /studio/ai
+/operate/ai                    Omni-prompt AI console — one free-text prompt routes Studio (GIS authoring) vs DevOps (ops → deploy approval queue #197); AI infers intent, human approves (honua-console#203). Alias: /studio/ai
 /operate/data                  Data & Layers — resource→publications treeview + Layer Preview (the resource-first spine; merges Resources/Layers/Services lists; console-ux-redesign §5.3)
-/operate/data/new              Add data → publish flow host (?source=file|table|remoteservice|existingresource|ai, ?driver=manual|ai; console-ux-redesign §5.2/§5.4)
+/operate/data/new              Add data → publish flow host (?source=file|table|remoteservice|existingresource; console-ux-redesign §5.2/§5.4)
 /operate/resources             REDIRECT → /operate/data (resources fold into the treeview)
 /operate/resources/new         REDIRECT → /operate/data/new (the five entry points fold into one flow)
 /operate/resources/:id         Resource detail, validation, publish, access, presentation, and advanced tabs

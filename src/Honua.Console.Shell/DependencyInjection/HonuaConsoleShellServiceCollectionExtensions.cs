@@ -88,10 +88,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddStudioReportPublicationDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddCollectAutomationClient(services);
-        AddAiPublishDriver(services, honuaServerBaseUrl);
 
         // The omni-prompt AI console (honua-console#203) routes one free-text prompt to the right lane —
-        // Studio (GIS authoring → the AI publish outcome card) or DevOps (ops → the deploy approval panel).
+        // Studio (GIS authoring) or DevOps (ops → the deploy approval panel).
         // The classifier is a thin, deterministic, server-independent heuristic (no server classify endpoint
         // exists yet); it only chooses the lane and never actuates, so a singleton is safe.
         services.TryAddSingleton<IOmniPromptIntentClassifier, OmniPromptIntentClassifier>();
@@ -644,23 +643,6 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     private static void AddCollectAutomationClient(IServiceCollection services)
     {
         services.TryAddSingleton<ICollectAutomationClient, UnsupportedCollectAutomationClient>();
-    }
-
-    // Binds the resource-first publish flow's AI driver (redesign Phase 3) to the honua-server AI generation
-    // surface. The driver reuses the same IWorkflowPackageApiClient (the Bedrock-capable WorkflowGeneration
-    // providers — honua-server #1737) AddStudioWorkflowPackageClient registers when a server is configured, so
-    // there is no second HttpClient. With no server bound it falls back to the UnsupportedAiPublishDriver,
-    // which surfaces an honest "AI unavailable" state in AI mode (never a fabricated proposal, never a crash —
-    // Console Patterns Charter §11). Manual mode is unaffected and drives without an AI binding.
-    private static void AddAiPublishDriver(IServiceCollection services, string? honuaServerBaseUrl)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<IAiPublishDriver, ServerAiPublishDriver>();
-            return;
-        }
-
-        services.TryAddSingleton<IAiPublishDriver, UnsupportedAiPublishDriver>();
     }
 
     // Binds the server-owned catalog/content metadata surfaces (Catalog list/search/detail, Share map
