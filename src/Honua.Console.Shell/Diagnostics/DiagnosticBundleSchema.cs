@@ -3,23 +3,9 @@ using System.Text.Json;
 
 namespace Honua.Console.Shell.Diagnostics;
 
-/// <summary>
-/// Validates a diagnostic bundle against the canonical, pinned JSON Schema
-/// (<c>contracts/diagnostics/diagnostic-bundle.v1.json</c>, embedded into this assembly).
-/// Console runs every emitted bundle through this before download/upload so the schema —
-/// string-length, array-count, and body-size bounds and required/enum/type/const rules —
-/// is the authoritative gate, not merely documented (honua-console#307).
-///
-/// This is a deliberately small validator covering exactly the JSON Schema subset the
-/// canonical document uses (type, required, additionalProperties:false, properties, items,
-/// enum, const, min/maxLength, min/maxItems, minimum/maximum, and internal <c>$ref</c> into
-/// <c>$defs</c>). It is a byte-for-byte behavioural port of the support-owned validator so
-/// the same language-neutral conformance corpus — including each case's expected error text —
-/// passes identically on both sides, without taking a third-party dependency.
-/// </summary>
+// Accepts only the keywords in the pinned bundle schema, matching the support validator without a third-party library.
 public sealed class DiagnosticBundleSchema
 {
-    /// <summary>Manifest resource name of the embedded canonical schema.</summary>
     public const string ResourceName = "Honua.Console.Shell.Diagnostics.diagnostic-bundle.v1.json";
 
     private const int MaxErrors = 50;
@@ -38,13 +24,8 @@ public sealed class DiagnosticBundleSchema
         _root = _schema.RootElement;
     }
 
-    /// <summary>The raw canonical schema JSON this validator enforces.</summary>
     public static string CanonicalSchemaJson => LoadEmbeddedSchemaJson();
 
-    /// <summary>
-    /// Validate an instance against the schema. Returns an empty list when valid, otherwise a
-    /// bounded list of human-readable violation messages.
-    /// </summary>
     public IReadOnlyList<string> Validate(JsonElement instance)
     {
         List<string> errors = [];

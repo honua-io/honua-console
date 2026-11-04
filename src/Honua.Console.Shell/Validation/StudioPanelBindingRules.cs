@@ -3,16 +3,8 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Validation;
 
-/// <summary>
-/// Shared, pure rule helpers for the report and dashboard builders, which both author the same
-/// bindings/panels graph. Extracting these keeps <see cref="StudioReportValidator"/> and
-/// <see cref="StudioDashboardValidator"/> declarative and guarantees both editors enforce identical
-/// referential / uniqueness / format rules. All methods are side-effect-free (append to a caller-owned
-/// error list) and culture-invariant.
-/// </summary>
 internal static partial class StudioPanelBindingRules
 {
-    /// <summary>A binding's authoring values, projected for validation regardless of editor type.</summary>
     public readonly record struct BindingView(string Alias, string ContentRef);
 
     // A server route slug: lowercase letters, digits, and single hyphens between segments. Mirrors the
@@ -20,10 +12,6 @@ internal static partial class StudioPanelBindingRules
     [GeneratedRegex("^[a-z0-9]+(?:-[a-z0-9]+)*$", RegexOptions.CultureInvariant)]
     private static partial Regex RouteSlugPattern();
 
-    /// <summary>
-    /// Validates the optional route slug's format. Blank is allowed (the server derives the slug from the
-    /// title); a non-blank slug must be lowercase alphanumeric with single hyphens between segments.
-    /// </summary>
     public static void EvaluateRouteSlug(string? routeSlug, string fieldKey, string surface, List<ConsoleFieldError> errors)
     {
         var trimmed = routeSlug?.Trim();
@@ -42,7 +30,6 @@ internal static partial class StudioPanelBindingRules
         }
     }
 
-    /// <summary>Validates that the visibility value is one of the allowed enum members.</summary>
     public static void EvaluateVisibility(
         string? visibility,
         IReadOnlyList<string> allowed,
@@ -66,11 +53,6 @@ internal static partial class StudioPanelBindingRules
         }
     }
 
-    /// <summary>
-    /// Validates every binding (alias + content ref required, aliases unique) and returns the set of
-    /// declared aliases for the panel referential check. Each finding is keyed to the offending binding's
-    /// per-index field key.
-    /// </summary>
     public static HashSet<string> EvaluateBindings(
         IEnumerable<BindingView> bindings,
         Func<int, string> aliasKey,
@@ -120,11 +102,6 @@ internal static partial class StudioPanelBindingRules
         return aliases;
     }
 
-    /// <summary>
-    /// Validates that a panel's binding alias references a declared binding (referential integrity). A blank
-    /// alias is a blocker (the panel reads from nowhere); a non-blank alias that is not a declared binding is
-    /// an error.
-    /// </summary>
     public static void EvaluatePanelBindingAlias(
         string? bindingAlias,
         HashSet<string> declaredAliases,
@@ -152,12 +129,6 @@ internal static partial class StudioPanelBindingRules
         }
     }
 
-    /// <summary>
-    /// Resolves a content-publication report/dashboard-document JSON Pointer to a console field key. Shared
-    /// by both editors' pointer resolvers (the document shape — <c>/bindings/{n}/…</c>,
-    /// <c>/panels/{n}/…</c>, scalar request fields — is identical). Pointers may be rooted at the request
-    /// body or carry a leading <c>body</c> token; both resolve.
-    /// </summary>
     public static string? ResolvePointer(
         string? pointer,
         Func<int, string> bindingAlias,

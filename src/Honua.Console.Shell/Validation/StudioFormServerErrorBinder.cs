@@ -2,25 +2,8 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Validation;
 
-/// <summary>
-/// Binds the server-returned <see cref="StudioFormValidationView"/> (the console projection of the
-/// honua-server form package validate response — items <c>{severity,code,fieldId,message}</c>) into the
-/// editor's shared <see cref="ValidationState"/> server channel, keyed by the same
-/// <see cref="StudioFormFieldKeys"/> the client validator uses. This lets a server finding for a field
-/// surface inline next to that field's input, merged with the client findings, instead of only in the flat
-/// validation list. It complements server validation — the authoritative result still drives the publish
-/// gate; this binder only re-homes the items onto fields.
-/// </summary>
 public static class StudioFormServerErrorBinder
 {
-    /// <summary>
-    /// Maps each <see cref="StudioFormValidationItem"/> in <paramref name="validation"/> onto a
-    /// <see cref="ConsoleFieldError"/>, resolving the item's <see cref="StudioFormValidationItem.FieldId"/>
-    /// (a field-id value) to the matching per-field console key against <paramref name="state"/>, and a
-    /// handful of well-known form-level codes to their form-level key. Items with an unresolvable locator
-    /// fall back to <see cref="ServerFieldErrorMapper.FormLevelFieldKey"/> so they still surface. Returns an
-    /// empty list when there is nothing to bind.
-    /// </summary>
     public static IReadOnlyList<ConsoleFieldError> Map(
         StudioFormEditorState state,
         StudioFormValidationView? validation)
