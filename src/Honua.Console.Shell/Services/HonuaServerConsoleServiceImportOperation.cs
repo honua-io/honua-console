@@ -3,12 +3,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Live implementation of the service-import operation. Calls honua-server's external-service discovery
-/// through <see cref="IHonuaAdminOperateClient"/> and maps the result (or rejection) into a
-/// <see cref="ConsoleServiceImportResult"/>, including the per-service catalog hierarchy. It never fabricates
-/// discovery results.
-/// </summary>
 public sealed class HonuaServerConsoleServiceImportOperation : IConsoleServiceImportOperation
 {
     private readonly IHonuaAdminOperateClient _client;

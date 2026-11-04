@@ -4,15 +4,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Studio form-builder data source bound to the real honua-server form package lifecycle
-/// (honua-server#1184) through the <see cref="IHonuaFormPackageClient"/> shim. Every read and
-/// mutating command speaks the live admin lifecycle (<c>/api/v1/admin/forms/packages</c>) and the
-/// runtime offline-policy contract (<c>/api/v1/forms/packages/{formId}/offline-policy</c>); there is
-/// no in-memory form data in the merged result (Console Patterns Charter section 11). Endpoint issues
-/// (missing permission, unsupported verb, conflict, transport) surface as explicit capability states
-/// instead of throwing or fabricating data.
-/// </summary>
 public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageDataSource
 {
     private const string Surface = "Form builder";

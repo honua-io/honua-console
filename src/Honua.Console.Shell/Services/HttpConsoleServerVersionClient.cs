@@ -6,18 +6,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Binds the server-version detection used by the server-upgrade flow to a real
-/// honua-server through the capability manifest (<c>GET /api/v1/capabilities/manifest</c>).
-/// The manifest is anonymous; the admin API key is still attached when present so the
-/// read works behind an admin-gated edge, but it is not required.
-///
-/// Base address comes from the active <see cref="ConsoleEnvironmentProfile"/>. Charter
-/// section 11 (no standing mock for server-owned data) is preserved: this client never
-/// returns seeded data; when no environment profile is bound the read returns a
-/// missing-binding result. Deserialization is source-generated for trim/AOT safety and
-/// ignores manifest fields outside the <c>server</c> block.
-/// </summary>
+// The capability manifest is anonymous, so the admin key is optional and only helps an admin-gated edge, and fields outside the server block are ignored.
 public sealed class HttpConsoleServerVersionClient : IConsoleServerVersionClient
 {
     private const string NoProfileMessage =

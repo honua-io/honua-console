@@ -4,16 +4,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Share management data source bound to the real honua-server Console Share access API (honua-server#1215)
-/// through the <see cref="IHonuaConsoleShareClient"/> shim. Every read/mutation speaks the live console
-/// share lifecycle (<c>/api/v1/console/content/{id}/share</c>); there is no in-memory share data in the
-/// merged result (Console Patterns Charter section 11). Endpoint issues (missing permission, not found,
-/// unsupported verb, transport) surface as explicit capability states instead of throwing or fabricating
-/// data. When a public access-tier change or embed enablement is blocked by the dependency closure (HTTP
-/// 409), the data source re-previews the closure so the Share panel can render the blocking dependencies
-/// as structured data rather than a generic failure.
-/// </summary>
+// An HTTP 409 on a public-tier or embed change re-previews the dependency closure so the panel can show the blocking dependencies.
 public sealed class HonuaServerShareAccessDataSource : IShareAccessDataSource
 {
     private const string Surface = "Share access";

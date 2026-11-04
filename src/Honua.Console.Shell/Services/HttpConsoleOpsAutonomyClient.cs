@@ -7,11 +7,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Live honua-server binding for graduated ops autonomy. Reads capability-detect the API
-/// (404/501 means unsupported); interactive mutations use the strict operator-bearer seam
-/// and never silently downgrade to the process-wide admin key.
-/// </summary>
+// A 404 or 501 on a read means unsupported, and interactive mutations never downgrade to the process-wide admin key.
 public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
 {
     private const int AuditPageSize = 100;
@@ -25,7 +21,6 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
     private readonly IConsoleOperatorBearerProvider _operatorBearerProvider;
     private readonly ConsoleServerCredentialMode _credentialMode;
 
-    /// <summary>Initializes the live autonomy client.</summary>
     public HttpConsoleOpsAutonomyClient(
         HttpClient http,
         IConsoleEnvironmentProfileStore profiles,
@@ -46,7 +41,6 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
         _credentialMode = credentialMode;
     }
 
-    /// <inheritdoc />
     public async Task<OperateSectionResult<OpsAutonomySnapshot>> LoadAsync(
         CancellationToken cancellationToken = default)
     {
@@ -108,7 +102,6 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
             message: auditMessage);
     }
 
-    /// <inheritdoc />
     public async Task<OperateSectionResult<OpsAutonomyPolicyResponse>> SetPolicyModeAsync(
         string rule,
         string mode,
@@ -137,7 +130,6 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
             .ConfigureAwait(false);
     }
 
-    /// <inheritdoc />
     public async Task<OperateSectionResult<OpsAutonomySettingsResponse>> SetKillSwitchAsync(
         bool enabled,
         string reason,

@@ -3,11 +3,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Live implementation of the file-import operation. Reads the server's supported formats and uploads the
-/// file through <see cref="IHonuaAdminOperateClient"/> to honua-server's streamed import endpoint, mapping
-/// the server result (or rejection) into a <see cref="ConsoleFileImportResult"/>. It never fabricates success.
-/// </summary>
 public sealed class HonuaServerConsoleFileImportOperation : IConsoleFileImportOperation
 {
     private readonly IHonuaAdminOperateClient _client;

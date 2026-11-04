@@ -2,30 +2,10 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Default <see cref="IConsoleApprovalInboxClient"/>: aggregates every proposal source into one
-/// GIS-department work queue (issue #193). The console surfaces proposals from BOTH the
-/// honua-server proposals API (admin/deploy/metadata/seed, honua-server #1694) and the
-/// honua-devops console-bridge gitops/deliverable proposals — honua-server #1690's locked
-/// ownership split — behind the shared <see cref="IConsoleProposalSource"/> seam. Each source
-/// normalizes its domain onto the shared <see cref="ConsoleProposalSummary"/> (tagged by source);
-/// this projection merges them, adds the GIS-desk ticket-type classification, and orders the
-/// queue awaiting-approval-first.
-///
-/// All data stays owned by the originating system; the projection never fabricates or mutates
-/// proposals (charter §11). Aggregation is fault-isolating: reachable sources still render when a
-/// supplementary source is unavailable (surfaced as a partial result), and the inbox denies only
-/// when NO source is reachable — carrying the primary (server) source's denial verbatim so the
-/// existing missing/forbidden/unsupported/unavailable surfaces are preserved.
-/// </summary>
 public sealed class ConsoleApprovalInboxClient : IConsoleApprovalInboxClient
 {
     private readonly IReadOnlyList<IConsoleProposalSource> _sources;
 
-    /// <summary>
-    /// Aggregates the given proposal sources. The server source is ordered first so it is the
-    /// primary: its denial is the inbox's denial when no source is reachable.
-    /// </summary>
     public ConsoleApprovalInboxClient(IEnumerable<IConsoleProposalSource> sources)
     {
         ArgumentNullException.ThrowIfNull(sources);
@@ -40,10 +20,6 @@ public sealed class ConsoleApprovalInboxClient : IConsoleApprovalInboxClient
         }
     }
 
-    /// <summary>
-    /// Back-compat convenience: aggregate over just the honua-server proposals API. Equivalent to
-    /// a single <see cref="ServerConsoleProposalSource"/>.
-    /// </summary>
     public ConsoleApprovalInboxClient(IConsoleProposalsClient proposals)
         : this([new ServerConsoleProposalSource(proposals)])
     {

@@ -3,12 +3,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Maps the GitOps metadata release wire contracts (release package + GitOps manifest
-/// from honua-server#1163, release-operation lifecycle/rollback from honua-server#1165)
-/// into the Console release view models. Pure and deterministic so it is fully unit
-/// testable without a live server.
-/// </summary>
 internal static class GitOpsReleaseMapper
 {
     public static GitOpsReleaseProposal MapProposal(
@@ -43,14 +37,7 @@ internal static class GitOpsReleaseMapper
             HasBlockingFindings: HasBlockingDrift(package));
     }
 
-    /// <summary>
-    /// Maps a lightweight release-package summary (list endpoint) into a proposal for
-    /// the GitOps Releases list. The summary carries no per-package entry graph, so the
-    /// changed-resource set is empty and rollback classification is unknown here; the
-    /// full proposal/diff/matrix/rollback hydrates on drill-down via the by-id detail
-    /// read. <c>HasBlockingFindings</c> stays false (blockers are an operation-level
-    /// determination not available from the summary).
-    /// </summary>
+    // A list summary has no entry graph, so the changed-resource set is empty, rollback is unknown, and blocking findings stay false until the by-id read.
     public static GitOpsReleaseProposal MapProposal(MetadataReleasePackageSummaryResponse summary)
     {
         ArgumentNullException.ThrowIfNull(summary);
@@ -73,11 +60,6 @@ internal static class GitOpsReleaseMapper
             HasBlockingFindings: false);
     }
 
-    /// <summary>
-    /// Builds the environment matrix from the per-entry target states. One cell per
-    /// (target environment, entry) combination; the worst drift per environment drives
-    /// the matrix presentation.
-    /// </summary>
     public static IReadOnlyList<GitOpsEnvironmentMatrixCell> MapEnvironmentMatrix(
         MetadataReleasePackageResponse package)
     {
@@ -101,11 +83,6 @@ internal static class GitOpsReleaseMapper
         return cells;
     }
 
-    /// <summary>
-    /// Maps the release bundle's data scripts and their rollback coverage (design
-    /// "data script coverage"). Returns an empty list when the server projects none;
-    /// the surface then renders the established empty/missing state rather than a mock.
-    /// </summary>
     public static IReadOnlyList<GitOpsDataScript> MapDataScripts(MetadataReleasePackageResponse package)
     {
         ArgumentNullException.ThrowIfNull(package);
@@ -216,11 +193,7 @@ internal static class GitOpsReleaseMapper
         _ => GitOpsTargetBindingState.Unknown
     };
 
-    /// <summary>
-    /// A release with a target environment that is unavailable is a blocking finding:
-    /// the proposal cannot be safely promoted there, so the Git PR/deploy action must
-    /// be disabled (acceptance criterion).
-    /// </summary>
+    // An unavailable target environment is a blocking finding and keeps promotion off.
     private static bool HasBlockingDrift(MetadataReleasePackageResponse package) =>
         (package.Entries ?? []).Any(entry => (entry.TargetStates ?? []).Any(target =>
             target.BindingState == MetadataEnvironmentBindingStateWire.EnvironmentUnavailable));
@@ -293,10 +266,6 @@ internal static class GitOpsReleaseMapper
         _ => "resource"
     };
 
-    /// <summary>
-    /// Maps the coordinated platform-upgrade release operation wire contract (Demo C,
-    /// honua-server#97) into the Console coordinated-release view model.
-    /// </summary>
     public static GitOpsCoordinatedRelease MapCoordinatedRelease(CoordinatedReleaseOperationResponse operation)
     {
         ArgumentNullException.ThrowIfNull(operation);

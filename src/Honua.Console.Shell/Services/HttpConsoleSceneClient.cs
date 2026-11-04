@@ -8,16 +8,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Binds the console's 3D scene surface to a real honua-server: scene discovery
-/// (<c>GET /api/scenes</c>), LAS point-cloud ingest
-/// (<c>POST /api/v1/admin/scenes/ingest/pointcloud</c>), and tileset URL
-/// resolution (<c>/scenes/{id}/tileset.json</c>). Base address and bearer token
-/// come from the active <see cref="ConsoleEnvironmentProfile"/> and its account
-/// session, reusing the Operate observability client's connection pattern (Bearer
-/// token, X-API-Key fallback for admin endpoints). Discovery deserialization is
-/// source-generated for trim/AOT safety.
-/// </summary>
 public sealed class HttpConsoleSceneClient : IConsoleSceneClient
 {
     private const string DiscoveryPath = "api/scenes";

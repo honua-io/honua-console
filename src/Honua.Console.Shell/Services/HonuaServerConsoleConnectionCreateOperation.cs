@@ -3,12 +3,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Live implementation of the connection-create operation. POSTs the operator's intent to honua-server's
-/// admin connections endpoint through <see cref="IHonuaAdminOperateClient"/> and maps the server result
-/// (or rejection) into a <see cref="ConsoleConnectionCreateResult"/>. This is the real create the Add
-/// Connection form drives — it never fabricates success.
-/// </summary>
 public sealed class HonuaServerConsoleConnectionCreateOperation : IConsoleConnectionCreateOperation
 {
     private readonly IHonuaAdminOperateClient _client;

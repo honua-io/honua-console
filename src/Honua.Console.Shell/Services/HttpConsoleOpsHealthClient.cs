@@ -5,18 +5,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Binds the Ops Health surface to a real honua-server through the consolidated
-/// ops-health snapshot endpoint (group <c>/api/v1/admin/observability</c>,
-/// admin-authorized, bare JSON — NO ApiResponse envelope). Base address comes from the
-/// active <see cref="ConsoleEnvironmentProfile"/>; the admin API key is sent as
-/// <c>X-API-Key</c>. Deserialization is source-generated for trim/AOT safety.
-///
-/// Charter section 11 (no standing mock for server-owned data) is preserved: this client
-/// never returns seeded data. When no environment profile is bound, the read returns a
-/// missing-binding (<see cref="OperateSectionStatus.Unavailable"/>) result. Mirrors
-/// <see cref="HttpConsoleMonitoringMetricsClient"/>.
-/// </summary>
+// The ops-health snapshot is bare JSON with no ApiResponse envelope.
 public sealed class HttpConsoleOpsHealthClient : IConsoleOpsHealthClient
 {
     private const string NoProfileMessage =
@@ -26,10 +15,6 @@ public sealed class HttpConsoleOpsHealthClient : IConsoleOpsHealthClient
     private readonly IConsoleEnvironmentProfileStore _profileStore;
     private readonly string? _adminApiKey;
 
-    /// <summary>Initializes a new instance of the <see cref="HttpConsoleOpsHealthClient"/> class.</summary>
-    /// <param name="http">The shared HTTP client.</param>
-    /// <param name="profileStore">The active-environment profile store.</param>
-    /// <param name="adminApiKey">The admin API key sent as <c>X-API-Key</c>, when configured.</param>
     public HttpConsoleOpsHealthClient(
         HttpClient http,
         IConsoleEnvironmentProfileStore profileStore,
@@ -40,7 +25,6 @@ public sealed class HttpConsoleOpsHealthClient : IConsoleOpsHealthClient
         _adminApiKey = string.IsNullOrWhiteSpace(adminApiKey) ? null : adminApiKey;
     }
 
-    /// <inheritdoc />
     public async Task<OperateSectionResult<OpsHealthSnapshotResponse>> GetSnapshotAsync(
         CancellationToken cancellationToken = default)
     {
@@ -97,7 +81,6 @@ public sealed class HttpConsoleOpsHealthClient : IConsoleOpsHealthClient
         }
     }
 
-    /// <inheritdoc />
     public async Task<OperateSectionResult<OpsHealthHistoryResponse>> GetHistoryAsync(
         ConsoleOpsHealthHistoryQuery query,
         CancellationToken cancellationToken = default)
