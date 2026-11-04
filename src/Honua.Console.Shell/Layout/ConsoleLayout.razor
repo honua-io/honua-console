@@ -3,17 +3,20 @@
 @inject NavigationManager Navigation
 @inject Honua.Console.Shell.Services.IConsoleCapabilityManifest Capabilities
 @inject Honua.Console.Shell.Services.IConsoleProductMode ProductMode
+@inject IServiceProvider WorkspaceServices
 
 @* Every Console route needs a descriptive document title (WCAG 2.4.2). The shell owns it rather than
    each of the ~100 pages repeating one, and names the area the operator is in so tabs and screen
    reader announcements are distinguishable: "Operate — Honua Console". *@
 <PageTitle>@DocumentTitle</PageTitle>
 
+@{ var navigationGroups = VisibleNavigation; }
+
 <div class="console-shell" data-console-mode="@ModeName">
     <a class="console-skip-link" href="#console-main">Skip to content</a>
-    <ConsoleTopNavigation />
+    <ConsoleTopNavigation Groups="navigationGroups" />
     <div class="console-workspace">
-        <ConsoleBreadcrumbs />
+        <ConsoleBreadcrumbs Groups="navigationGroups" />
         <div class="console-workspace-panes">
     <main id="console-main" class="console-main" tabindex="-1">
         @if (!ConsolePresentation.IsFocusedRoute(Navigation.ToBaseRelativePath(Navigation.Uri)))
@@ -99,6 +102,15 @@
 </div>
 
 @code {
+    private IReadOnlyList<ConsoleNavigationGroup> VisibleNavigation => ConsoleNavigation.Groups
+        .Where(group => group.Name != "Studio" || StudioEnabled)
+        .Select(group => group with { Destinations = group.Destinations
+            .Where(entry => ConsoleNavigation.IsVisible(entry, ProductMode, Capabilities)).ToArray() })
+        .Where(group => group.Destinations.Count > 0).ToArray();
+
+    private bool StudioEnabled => bool.TryParse(
+        WorkspaceServices.GetService<Microsoft.Extensions.Configuration.IConfiguration>()?["Studio:EmbedJsStudio"], out var enabled) && enabled;
+
     private const int CapabilityRefreshTimeoutSeconds = 5;
     private CancellationTokenSource? _capabilityRefreshCancellation;
     private bool _disposed;

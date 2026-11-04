@@ -37,7 +37,7 @@ for (const menu of menus) test(`${menu.name} advertises working current destinat
   await page.goto('/operate');
   const disclosure=page.locator(`[data-navigation-menu="${menu.name}"]`);
   await disclosure.locator(':scope > summary').press('Enter');
-  const nav=disclosure.getByRole('navigation',{name:menu.name,exact:true});
+  const nav=disclosure.getByRole('group',{name:menu.name,exact:true});
   await expect(nav).toBeVisible();
   await expect(nav.locator('a[href]')).toHaveCount(menu.paths.length);
   for(const path of menu.paths) {
@@ -69,7 +69,7 @@ for (const width of [390, 1440]) test(`navigation preserves keyboard input durin
     }
     const summary=page.locator('[data-navigation-menu="Operate"] > summary');
     await summary.press('Enter');
-    const nav=page.getByRole('navigation',{name:'Operate',exact:true});
+    const nav=page.getByRole('group',{name:'Operate',exact:true});
     await expect(nav).toBeVisible();
     await nav.locator('a').first().focus();
     await page.locator('[data-navigation-menu="Operate"]').evaluate(element => {

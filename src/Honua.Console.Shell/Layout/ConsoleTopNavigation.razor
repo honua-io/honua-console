@@ -1,7 +1,3 @@
-@inject IServiceProvider Services
-@inject IConsoleCapabilityManifest Capabilities
-@inject IConsoleProductMode ProductMode
-
 <header class="console-topbar">
     <a class="console-topbar-brand" href="/"><span>H</span><strong>Honua Console</strong></a>
     <button type="button" class="console-menu-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="console-primary" data-navigation-toggle>
@@ -13,49 +9,22 @@
         {
             <details class="console-navigation-menu" data-navigation-menu="@group.Name">
                 <summary>@group.Name@if (group.Name == "Operate") { <ConsoleApprovalCount /> }</summary>
-                <nav class="console-navigation-items" aria-label="@group.Name">
-                    @foreach (var entry in group.Entries)
+                <div class="console-navigation-items" role="group" aria-label="@group.Name">
+                    @foreach (var entry in group.Destinations)
                     {
-                        <NavLink href="@entry.Path" Match="NavLinkMatch.All">@entry.Label</NavLink>
+                        <NavLink href="@entry.Path" Match="NavLinkMatch.All">
+                            @entry.Label
+                            @if (!ConsolePresentation.IsFocusedRoute(entry.Path)) { <small>Preview</small> }
+                        </NavLink>
                     }
-                </nav>
+                </div>
             </details>
         }
     </nav>
-    @if (!ProductMode.IsWitness)
-    {
-        <a class="console-environment-link" href="/environments" data-workspace-header-target>Choose an environment</a>
-    }
+    <a class="console-environment-link" href="/environments" data-workspace-header-target>Choose an environment</a>
     <a class="console-help-link" href="/support">Help</a>
 </header>
 
 @code {
-    private sealed record Entry(string Path, string Label);
-    private sealed record Group(string Name, IReadOnlyList<Entry> Entries);
-
-    private bool StudioEnabled => bool.TryParse(
-        Services.GetService<Microsoft.Extensions.Configuration.IConfiguration>()?["Studio:EmbedJsStudio"], out var enabled) && enabled;
-
-    private IEnumerable<Group> Groups
-    {
-        get
-        {
-            var data = new List<Entry> { new("/operate/data", "Data & Layers"), new("/operate/services", "Services"),
-                new("/operate/layers", "Layers"), new("/operate/connections", "Connections"), new("/operate/data/new", "Add data") };
-            if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.PersistentCatalog) && ProductMode.ShowsArea("catalog"))
-                data.Add(new("/catalog", "Catalog"));
-            if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.PersistentCatalog) && ProductMode.ShowsArea("share"))
-                data.Add(new("/share/public", "Share"));
-            yield return new("Data", data);
-            yield return new("Protocols", [new("/operate/catalogs", "Discovery catalogs")]);
-            if (StudioEnabled)
-                yield return new("Studio", [new("/studio", "Studio"), new("/studio/processes", "Processes"),
-                    new("/studio/form", "Forms"), new("/studio/report", "Reports"), new("/studio/styles", "Styles"), new("/studio/automations", "Automations")]);
-            yield return new("Operate", [new("/operate", "Dashboard"), new("/inbox", "Approvals"), new("/operate/health", "Health"),
-                new("/operate/copilot", "Findings"), new("/operate/geoprocessing", "Geoprocessing"), new("/operate/observability", "Observability"),
-                new("/operate/metrics", "Metrics"), new("/operate/deploy", "Deploy"), new("/operate/releases", "Releases")]);
-            yield return new("Access", [new("/operate/access/members", "Members"), new("/operate/access", "Roles and permissions")]);
-            yield return new("Settings", [new("/operate/settings", "Server settings")]);
-        }
-    }
+    [Parameter] public IReadOnlyList<ConsoleNavigationGroup> Groups { get; set; } = [];
 }

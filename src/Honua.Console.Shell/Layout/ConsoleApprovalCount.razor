@@ -4,7 +4,7 @@
 
 @if (_count is { } count)
 {
-    <span class="console-approval-count" aria-label="@($"{count} awaiting approval{(_partial ? "; partial queue" : "")}")">@count@(_partial ? "+" : "")</span>
+    <span class="console-approval-count" data-count="@count" aria-label="@($"{count} awaiting approval{(_partial ? "; partial queue" : "")}")">@count@(_partial ? "+" : "")</span>
 }
 
 @code {
@@ -13,17 +13,25 @@
     private int? _count;
     private bool _partial;
     private int _readRevision;
+    private bool _disposed;
 
-    protected override Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         Navigation.LocationChanged += OnLocationChanged;
         _realtime = Services.GetService<IConsoleProposalRealtimeClient>();
         if (_realtime is not null) _realtime.ProposalChanged += OnProposalChanged;
-        return RefreshAsync();
+        _ = RefreshAndRenderAsync();
+    }
+
+    private async Task RefreshAndRenderAsync()
+    {
+        await RefreshAsync();
+        if (!_disposed) await InvokeAsync(StateHasChanged);
     }
 
     private async Task RefreshAsync()
     {
+        if (_disposed) return;
         var revision = ++_readRevision;
         _count = null;
         var inbox = Services.GetService<IConsoleApprovalInboxClient>();
@@ -31,7 +39,7 @@
         var result = await ConsoleReadBudget.RunAsync(
             token => inbox.GetInboxAsync(cancellationToken: token), ConsoleReadBudget.Default,
             "The approval count is unavailable.", _lifetime.Token);
-        if (_lifetime.IsCancellationRequested || revision != _readRevision) return;
+        if (_disposed || revision != _readRevision) return;
         if (result.IsAllowed && result.Value is { } snapshot)
         {
             _count = snapshot.AwaitingApprovalCount;
@@ -41,10 +49,11 @@
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => QueueRefresh();
     private void OnProposalChanged(ConsoleProposalEvent proposal) => QueueRefresh();
-    private void QueueRefresh() => _ = InvokeAsync(async () => { await RefreshAsync(); StateHasChanged(); });
+    private void QueueRefresh() => _ = InvokeAsync(RefreshAndRenderAsync);
 
     public void Dispose()
     {
+        _disposed = true;
         Navigation.LocationChanged -= OnLocationChanged;
         if (_realtime is not null) _realtime.ProposalChanged -= OnProposalChanged;
         _lifetime.Cancel();

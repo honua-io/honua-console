@@ -1,6 +1,7 @@
 {
     const menuSelector = '[data-navigation-menu]';
     const toggleSelector = '[data-navigation-toggle]';
+    const chromeSelector = '.console-topbar, .console-contextbar';
     let controls = new Map();
     let focused;
     let startupFocus;
@@ -14,44 +15,59 @@
         if (control.matches(menuSelector)) control.open = value;
         else control.setAttribute('aria-expanded', String(value));
     }
+    function restoreControlFocus(previous, control) {
+        if (focused !== opener(previous) && !previous.contains(focused)) return;
+        const index = [...previous.querySelectorAll('summary, a')].indexOf(focused);
+        startupFocus = index < 0 ? opener(control) : control.querySelectorAll('summary, a')[index];
+        startupFocus?.focus({preventScroll: true});
+    }
     function collectControls() {
         const next = new Map([...document.querySelectorAll(menuSelector)].map(element => [element.dataset.navigationMenu, element]));
         const toggle = document.querySelector(toggleSelector);
         if (toggle) next.set('toggle', toggle);
-        for (const [key, control] of next) {
-            const previous = controls.get(key);
-            if (!previous || previous === control) continue;
-            setExpanded(control, expanded(previous));
-            if (focused === opener(previous) || previous.contains(focused)) {
-                const index = [...previous.querySelectorAll('summary, a')].indexOf(focused);
-                startupFocus = index < 0 ? opener(control) : control.querySelectorAll('summary, a')[index];
-                startupFocus.focus({preventScroll: true});
+        try {
+            for (const [key, control] of next) {
+                const previous = controls.get(key);
+                if (!previous || previous === control) continue;
+                setExpanded(control, expanded(previous));
+                restoreControlFocus(previous, control);
+                hydrated = true;
             }
-            hydrated = true;
+        } finally {
+            controls = next;
         }
-        controls = next;
     }
     document.addEventListener('focusin', event => {
         if (event.target.matches('h1') && location.href === startupUrl && startupFocus?.isConnected) {
-            startupFocus.focus({preventScroll: true});
+            const target = startupFocus;
             startupFocus = undefined;
+            target.focus({preventScroll: true});
             return;
         }
         if (!hydrated && event.target.matches('h1') && focused && !focused.isConnected && keyFor(focused)) return;
+        if (event.target !== startupFocus) startupFocus = undefined;
         focused = event.target;
     }, true);
-    function closeMenus() {
-        for (const control of controls.values())
-            if (control.matches(menuSelector)) setExpanded(control, false);
+    document.addEventListener('pointerdown', () => {
+        startupFocus = undefined;
+        focused = undefined;
+    }, true);
+    document.addEventListener('focusout', event => {
+        const menu = event.target.closest(menuSelector);
+        if (menu) queueMicrotask(() => {
+            if (!menu.contains(document.activeElement)) menu.open = false;
+        });
+    });
+    function closeControls() {
+        for (const control of controls.values()) setExpanded(control, false);
     }
     document.addEventListener('click', event => {
         const toggle = event.target.closest(toggleSelector);
-        if (toggle) setExpanded(toggle, !expanded(toggle));
-        if (event.target.closest('.console-navigation-items a, .console-topnav > a')) {
-            for (const control of controls.values()) setExpanded(control, false);
-        } else if (!event.target.closest(menuSelector)) {
-            closeMenus();
+        if (toggle) {
+            setExpanded(toggle, !expanded(toggle));
+            return;
         }
+        if (!event.target.closest(menuSelector) || event.target.closest('.console-navigation-items a')) closeControls();
     });
     document.addEventListener('toggle', event => {
         if (!event.target.matches(menuSelector) || !event.target.open) return;
@@ -62,7 +78,8 @@
     }, true);
     document.addEventListener('keydown', event => {
         startupFocus = undefined;
-        if (event.key !== 'Escape') return;
+        if (event.defaultPrevented || event.key !== 'Escape') return;
+        if (event.target.closest('[role="dialog"], dialog[open]') && !event.target.closest(chromeSelector)) return;
         const menu = event.target.closest(menuSelector);
         const target = menu?.open ? menu : controls.get('toggle');
         if (!target || !expanded(target)) return;
