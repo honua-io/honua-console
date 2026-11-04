@@ -159,7 +159,8 @@ public sealed record OperateServiceLayerProjection(
     string CanonicalResourceName,
     // Layer's cached extent as [minLng, minLat, maxLng, maxLat] in EPSG:4326, or null when the
     // server has no stored extent for it yet. Lets a map preview frame the data instead of the world.
-    double[]? Extent = null);
+    double[]? Extent = null,
+    bool Enabled = true);
 
 public sealed record OperateRuntimeSetting(
     string Name,

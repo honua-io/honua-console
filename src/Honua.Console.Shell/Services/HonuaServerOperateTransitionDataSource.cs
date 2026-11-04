@@ -284,7 +284,8 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
                         resource.Name,
                         normalizedLayer.Extent is { } ext
                             ? new[] { ext.MinX, ext.MinY, ext.MaxX, ext.MaxY }
-                            : null)));
+                            : null,
+                        normalizedLayer.Enabled ?? true)));
             }
         }
 

@@ -108,6 +108,44 @@ public sealed class GoLiveStepTests
     }
 
     [Fact]
+    public void Apply_UsesTheVisibilityApprovedAtApply_AndLocksTheFormWhileItRuns()
+    {
+        using var ctx = NewContext();
+        var gate = new TaskCompletionSource();
+        var services = Bind(ctx, new RecordingServiceConfiguration { ProtocolsGate = gate.Task });
+        var flow = Flow(PublishVisibility.Private);
+
+        var cut = ctx.Render<GoLiveStep>(parameters => parameters.Add(step => step.Flow, flow));
+        cut.Find("[data-go-live-apply]").Click();
+        Assert.True(cut.Find("[data-visibility]").HasAttribute("disabled"));
+        Assert.True(cut.Find("button:not([data-go-live-apply])").HasAttribute("disabled"));
+        flow.Visibility = PublishVisibility.Public;
+        gate.SetResult();
+
+        cut.WaitForAssertion(() => Assert.NotNull(services.LastAccessPolicy));
+        Assert.False(services.LastAccessPolicy!.AllowAnonymous);
+        Assert.Equal(["admin"], services.LastAccessPolicy.AllowedRoles);
+    }
+
+    [Fact]
+    public void Apply_DisabledLayer_IsReportedInsteadOfLive()
+    {
+        using var ctx = NewContext();
+        Bind(ctx, new RecordingServiceConfiguration());
+        var flow = Flow(PublishVisibility.Public);
+        flow.Resource.LayerEnabled = false;
+
+        var cut = ctx.Render<GoLiveStep>(parameters => parameters.Add(step => step.Flow, flow));
+        cut.Find("[data-go-live-apply]").Click();
+
+        var layer = cut.Find("[data-layer-result]");
+        Assert.Equal("failed", layer.GetAttribute("data-state"));
+        Assert.Contains("Disabled", layer.TextContent, StringComparison.Ordinal);
+        Assert.Empty(cut.FindAll("[data-go-live-done]"));
+        Assert.Single(cut.FindAll("[data-step-error]"));
+    }
+
+    [Fact]
     public void GoLive_SaysTheStyleIsNotApplied()
     {
         using var ctx = NewContext();
@@ -163,10 +201,17 @@ public sealed class GoLiveStepTests
 
         public ServiceAccessPolicyCommand? LastAccessPolicy { get; private set; }
 
-        public Task<ServiceConfigurationResult> UpdateProtocolsAsync(ServiceProtocolsCommand command, CancellationToken cancellationToken = default)
+        public Task? ProtocolsGate { get; init; }
+
+        public async Task<ServiceConfigurationResult> UpdateProtocolsAsync(ServiceProtocolsCommand command, CancellationToken cancellationToken = default)
         {
             LastProtocols = command;
-            return Task.FromResult(ProtocolsResult ?? Updated(EnabledAfterUpdate ?? command.EnabledProtocols));
+            if (ProtocolsGate is not null)
+            {
+                await ProtocolsGate;
+            }
+
+            return ProtocolsResult ?? Updated(EnabledAfterUpdate ?? command.EnabledProtocols);
         }
 
         public Task<ServiceConfigurationResult> UpdateAccessPolicyAsync(ServiceAccessPolicyCommand command, CancellationToken cancellationToken = default)

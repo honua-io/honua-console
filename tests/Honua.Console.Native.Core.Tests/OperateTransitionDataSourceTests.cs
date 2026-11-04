@@ -71,7 +71,7 @@ public sealed class OperateTransitionDataSourceTests
                 {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":true,"serviceName":"planning"}]}
                 """,
             [$"/api/v1/admin/connections/{connectionId}/layers/?serviceName=public"] = """
-                {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":true,"serviceName":"public"}]}
+                {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":false,"serviceName":"public"}]}
                 """,
             ["/api/v1/admin/services/"] = """
                 {"success":true,"data":[{"serviceName":"planning","description":"Planning Service","layerCount":1,"enabledProtocols":["FeatureServer","MapServer"]},{"serviceName":"public","description":"Public Service","layerCount":1,"enabledProtocols":["FeatureServer"]}]}
@@ -115,6 +115,8 @@ public sealed class OperateTransitionDataSourceTests
         Assert.Equal(["planning", "public"], resource.BlastRadius.Services);
         Assert.Contains(workspace.Services, service => service.Name == "planning" && service.Layers.Any(layer => layer.Name == "Console Parcels"));
         Assert.Contains(workspace.Services, service => service.Name == "public" && service.Layers.Any(layer => layer.CanonicalResourceId == resource.ResourceId));
+        Assert.True(workspace.Services.Single(service => service.Name == "planning").Layers.Single().Enabled);
+        Assert.False(workspace.Services.Single(service => service.Name == "public").Layers.Single().Enabled);
         Assert.Contains(workspace.SettingsChanges, change => change.Id == "license" && change.ProposedChange.Contains("Community", StringComparison.Ordinal));
         // The non-actionable landing capability notices were removed: the Resources resource-edit
         // contract banner, the CORS/catalog-visibility hardcodes, and the TimeInfo over-report

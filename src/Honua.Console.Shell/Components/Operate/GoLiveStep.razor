@@ -12,7 +12,7 @@
         applies the visibility. Protocols and visibility are per service: every layer in
         <code>@Flow.TargetService</code> is served the same way.
     </p>
-    <fieldset class="data-publish-flow__visibility" data-visibility>
+    <fieldset class="data-publish-flow__visibility" data-visibility disabled="@_busy">
         <legend class="studio-form-label"><span>Visibility</span></legend>
         @foreach (var visibility in Enum.GetValues<PublishVisibility>())
         {
@@ -64,6 +64,7 @@
                 </tbody>
             </table>
             <p data-visibility-result data-state="@ResultState(_outcome.Visibility)">Visibility: <strong>@_outcome.Visibility.State</strong> @_outcome.Visibility.Detail</p>
+            <p data-layer-result data-state="@ResultState(_outcome.Layer)">Layer: <strong>@_outcome.Layer.State</strong> @_outcome.Layer.Detail</p>
             @if (_outcome.AllLive)
             {
                 <p role="status" data-go-live-done>Live on honua-server.</p>
@@ -75,7 +76,7 @@
         </section>
     }
     <div class="console-action-row">
-        <button type="button" @onclick="OnBack">Back</button>
+        <button type="button" disabled="@_busy" @onclick="OnBack">Back</button>
         <button type="button" class="console-button" data-go-live-apply disabled="@(_busy || Flow.EnabledProtocols.Count == 0)" @onclick="ApplyAsync">
             @(_busy ? "Publishing…" : "Apply & publish")
         </button>
@@ -95,9 +96,10 @@
     private Task ApplyAsync()
     {
         _outcome = null;
+        var intent = GoLiveIntent.From(Flow);
         var publisher = new GoLivePublisher(ServiceConfiguration);
         return Notifications.RunGuardedAsync(
-            async () => { _outcome = await publisher.ApplyAsync(Flow); },
+            async () => { _outcome = await publisher.ApplyAsync(intent); },
             setBusy: busy => { _busy = busy; StateHasChanged(); },
             failureMessage: "Couldn't publish");
     }

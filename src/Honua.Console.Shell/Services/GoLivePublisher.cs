@@ -7,20 +7,26 @@ public sealed class GoLivePublisher(IServiceConfigurationOperation serviceConfig
     // Matches honua-server's administrator role, so a private service stays readable by operators.
     private const string AdminRole = "admin";
 
-    public async Task<GoLiveOutcome> ApplyAsync(
-        DataToPublishFlowState flow,
-        CancellationToken cancellationToken = default)
+    public async Task<GoLiveOutcome> ApplyAsync(GoLiveIntent intent, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(flow);
+        ArgumentNullException.ThrowIfNull(intent);
 
-        var serviceName = flow.TargetService;
-        var protocols = await EnableProtocolsAsync(serviceName, flow.PlannedPublications, cancellationToken)
+        var protocols = await EnableProtocolsAsync(intent.ServiceName, intent.Plans, cancellationToken)
             .ConfigureAwait(false);
         var visibility = await serviceConfiguration
-            .UpdateAccessPolicyAsync(AccessPolicyFor(serviceName, flow.Visibility), cancellationToken)
+            .UpdateAccessPolicyAsync(AccessPolicyFor(intent.ServiceName, intent.Visibility), cancellationToken)
             .ConfigureAwait(false);
-        return new GoLiveOutcome(protocols, ToStepResult(visibility));
+        return new GoLiveOutcome(protocols, ToStepResult(visibility), intent.LayerEnabled ? LayerEnabled : LayerDisabled);
     }
+
+    private static readonly GoLiveStepResult LayerEnabled = new(true, "Enabled", null);
+
+    // Go live changes only the service's protocols and access; a disabled layer stays unqueryable until it
+    // is enabled on the service settings page, so it is reported instead of claimed as live.
+    private static readonly GoLiveStepResult LayerDisabled = new(
+        false,
+        "Disabled",
+        "This layer is disabled on honua-server, so it does not serve. Enable it in the service settings.");
 
     private async Task<IReadOnlyList<GoLiveProtocolResult>> EnableProtocolsAsync(
         string serviceName,

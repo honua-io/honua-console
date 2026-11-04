@@ -219,6 +219,7 @@
         {
             ResourceId = resourceId,
             Name = current.Layer.CanonicalResourceName,
+            LayerEnabled = current.Layer.Enabled,
         };
         _flow.ServiceSlot = current.Service.Name;
         _flow.EnabledProtocols = ProtocolsServedBy(current.Service);
