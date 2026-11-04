@@ -105,6 +105,8 @@ async function studioElement(session) {
     app.agentSessionAdapter = app.workspaceAgentAdapter;
     return app;
 }
+class StudioSignInRequired extends Error {}
+
 async function mount() {
     const host = document.querySelector('[data-studio-embed]');
     if (!host || host.dataset.mounted) return;
@@ -115,7 +117,7 @@ async function mount() {
         const module = await assets;
         module.registerAllStudioElements();
         const response = await fetch('/api/agent-workspace/session', { credentials: 'same-origin' });
-        if (!response.ok) throw new Error('Sign in to Honua to open Studio.');
+        if (!response.ok) throw new StudioSignInRequired();
         session = await response.json();
         element = await studioElement(session);
         element.currentPath = location.pathname;
@@ -155,7 +157,9 @@ async function mount() {
             link.dataset.studioStyle = 'true'; document.head.append(link);
         }
     } catch (error) {
-        status.textContent = 'Studio is unavailable. Verify the pinned Studio assets and your Honua session.';
+        status.textContent = error instanceof StudioSignInRequired
+            ? 'Sign in to Honua to open Studio.'
+            : 'Studio could not load. Reload the page; if it keeps failing, ask your administrator to check the Studio assets.';
         host.dataset.mounted = 'failed';
     }
 }
