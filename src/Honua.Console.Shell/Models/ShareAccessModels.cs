@@ -8,23 +8,12 @@ namespace Honua.Console.Shell.Models;
 // the item is missing, or a change is rejected/blocked, the surface renders a capability state instead
 // (Console Patterns Charter section 11).
 
-/// <summary>
-/// A binding/permission/conflict/missing surface for the Share management page, mirroring the report and
-/// form builder capability-state pattern so missing bindings, missing permissions, rejected requests,
-/// dependency-closure conflicts, and unsupported contracts render consistently.
-/// </summary>
 public sealed record ShareCapabilityState(
     string Surface,
     string State,
     string Contract,
     string Detail);
 
-/// <summary>
-/// The server-owned Share access projection of a content item: access tier, public-link and embed state,
-/// open-data eligibility, anonymous eligibility, the caller's share/embed/administer permissions, and the
-/// active public-link tokens. This is the read model the Share panel renders from without resolving share
-/// state client-side.
-/// </summary>
 public sealed record ShareAccessView(
     string ItemId,
     string ItemName,
@@ -49,7 +38,7 @@ public sealed record ShareAccessView(
     public bool IsPublic => HonuaConsoleShareAccessTiers.IsPublic(AccessTier);
 }
 
-/// <summary>One public-link token projected for the token panel. Token value is never carried here.</summary>
+// The token value is never carried on this view.
 public sealed record SharePublicLinkView(
     string TokenId,
     DateTimeOffset CreatedAt,
@@ -57,10 +46,7 @@ public sealed record SharePublicLinkView(
     string? CreatedById,
     bool IsExpired);
 
-/// <summary>
-/// A freshly minted secret returned by a mint command. The opaque value is disclosed exactly once by the
-/// server, so the page surfaces it once for copy and never re-reads it.
-/// </summary>
+// The server discloses this opaque value exactly once.
 public sealed record ShareMintedSecret(
     string Kind,
     string TokenId,
@@ -68,24 +54,18 @@ public sealed record ShareMintedSecret(
     DateTimeOffset? ExpiresAt,
     string? Audience);
 
-/// <summary>A single dependency blocking a public sharing or embed enablement request.</summary>
 public sealed record ShareDependencyConflictView(
     string ItemId,
     string? ItemType,
     string? ItemName,
     string BlockingReason);
 
-/// <summary>Result of a dependency-closure preview against a target tier.</summary>
 public sealed record ShareDependencyClosureView(
     string ItemId,
     string TargetTier,
     bool IsCompatible,
     IReadOnlyList<ShareDependencyConflictView> Conflicts);
 
-/// <summary>
-/// Result of loading the Share projection for an item: the view when the server returned data, otherwise
-/// the capability states explaining why (missing binding, missing permission, not found, unsupported).
-/// </summary>
 public sealed record ShareAccessLoad(
     ShareAccessView? Share,
     IReadOnlyList<ShareCapabilityState> CapabilityStates)
@@ -93,10 +73,6 @@ public sealed record ShareAccessLoad(
     public bool HasShare => Share is not null;
 }
 
-/// <summary>
-/// Result of a Share mutation (access tier change, embed toggle): the refreshed projection on success, a
-/// minted secret when one was produced, a dependency closure when blocked, or capability states on failure.
-/// </summary>
 public sealed record ShareCommandResult(
     ShareAccessView? Share,
     ShareMintedSecret? MintedSecret,
@@ -109,7 +85,6 @@ public sealed record ShareCommandResult(
         new(null, null, null, states);
 }
 
-/// <summary>Maps the honua-server Console Share wire records to the Share management view records.</summary>
 public static class ShareAccessMapper
 {
     public static ShareAccessView ToView(HonuaConsoleShareProjection projection)

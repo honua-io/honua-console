@@ -4,12 +4,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// Maps between the Console-owned <see cref="StudioFormEditorState"/> and the server-owned
-/// <c>honua.form-package.v1</c> document (honua-server#1184). The wire records are the single source
-/// of truth for the form package shape; this mapper keeps the authoring UI decoupled from that shape
-/// without duplicating the contract.
-/// </summary>
 public static class StudioFormPackageMapper
 {
     private const string ProvenanceSource = "honua-console.studio.form-builder";
@@ -208,24 +202,12 @@ public static class StudioFormPackageMapper
         return state;
     }
 
-    /// <summary>
-    /// Deterministic signature of the publishable content of <paramref name="state"/> — everything the
-    /// server document carries (title, target, fields, and the submit/attachment/privacy/offline
-    /// policies). Used to detect edits made after a save or validate so the publish gate can re-require
-    /// a fresh server validation. The operator's offline-policy review acknowledgment is intentionally
-    /// excluded: it is a Console-side decision, not part of the server document the validate runs over.
-    /// </summary>
     public static string ComputeContentSignature(StudioFormEditorState state)
     {
         ArgumentNullException.ThrowIfNull(state);
         return JsonSerializer.Serialize(ToDocument(state), SignatureOptions);
     }
 
-    /// <summary>
-    /// True when the editor's current content differs from the baseline captured the last time it was
-    /// loaded from or saved to the server (<see cref="StudioFormEditorState.SavedSignature"/>). A
-    /// never-saved draft (empty baseline) is always treated as having unsaved edits.
-    /// </summary>
     public static bool HasUnsavedEdits(StudioFormEditorState state)
     {
         ArgumentNullException.ThrowIfNull(state);

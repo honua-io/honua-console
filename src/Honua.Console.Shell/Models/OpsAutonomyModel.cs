@@ -4,10 +4,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// A server-confirmed autonomy snapshot: global settings, durable per-rule policy and
-/// track records, plus the policy/action audit events projected by the unified Operate feed.
-/// </summary>
 public sealed record OpsAutonomySnapshot(
     OpsAutonomySettingsResponse Settings,
     IReadOnlyList<OpsAutonomyPolicyResponse> Policies,
@@ -15,13 +11,8 @@ public sealed record OpsAutonomySnapshot(
     bool AuditPartialResult = false,
     string AuditMessage = "");
 
-/// <summary>A domain label paired with the shared Operate status vocabulary.</summary>
 public sealed record OpsAutonomyOutcome(string Label, OperateStatus Status);
 
-/// <summary>
-/// One autonomy-related audit event. Causal fields are parsed only from server-projected
-/// evidence; a missing <c>detailsJson</c> stays explicitly unreported rather than inferred.
-/// </summary>
 public sealed record OpsAutonomyAuditEntry(
     string EventId,
     DateTimeOffset OccurredAt,
@@ -41,7 +32,6 @@ public sealed record OpsAutonomyAuditEntry(
     string? PolicyMode = null,
     bool? KillSwitchEnabled = null)
 {
-    /// <summary>Projects this event through the shared, at-least-once-safe timeline primitive.</summary>
     public OperateTimelineEntry ToTimelineEntry() => new(
         Kind: IsPolicyChange ? "policy" : "autonomy",
         Severity: Outcome.Status.State,
@@ -60,7 +50,6 @@ public sealed record OpsAutonomyAuditEntry(
             : OperateObservabilityRoutes.EventDetail(EventId));
 }
 
-/// <summary>Maps unified Operate audit events into the autonomy causal-audit shape.</summary>
 public static class OpsAutonomyAuditMapper
 {
     private const string MissingEvidence = "Evidence detail was not projected by this server event.";
@@ -68,7 +57,6 @@ public static class OpsAutonomyAuditMapper
     private const int MaxEvidenceRefs = 12;
     private const int MaxDetailValueLength = 256;
 
-    /// <summary>Maps and newest-first sorts autonomy action and policy events.</summary>
     public static IReadOnlyList<OpsAutonomyAuditEntry> Map(IEnumerable<OperateEventResponse> events)
     {
         ArgumentNullException.ThrowIfNull(events);
