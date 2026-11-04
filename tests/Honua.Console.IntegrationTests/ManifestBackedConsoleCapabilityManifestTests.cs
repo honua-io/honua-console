@@ -97,35 +97,6 @@ public sealed class ManifestBackedConsoleCapabilityManifestTests
     }
 
     [Fact]
-    public async Task StudioBuilders_RemainsLocalAndOutsideServerMappings()
-    {
-        var subject = Create(ConsoleCapabilityKeys.StudioBuilders, new CapabilityRegistrySnapshot { Bound = false });
-        await subject.RefreshAsync();
-        Assert.True(subject.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders));
-    }
-
-    [Fact]
-    public async Task StudioBuildersOnlyPolicy_DoesNotNarrowServerCapabilities()
-    {
-        var subject = new ManifestBackedConsoleCapabilityManifest(
-            new StubRegistry(new CapabilityRegistrySnapshot
-            {
-                Bound = true,
-                Descriptors = [
-                    new CapabilityDescriptor("temporal.filtering", true, true, null),
-                    new CapabilityDescriptor("sync.offline", true, true, null),
-                ],
-            }),
-            [ConsoleCapabilityKeys.StudioBuilders]);
-
-        await subject.RefreshAsync();
-
-        Assert.True(subject.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders));
-        Assert.True(subject.IsAdvertised(ConsoleCapabilityKeys.Temporal));
-        Assert.True(subject.IsAdvertised(ConsoleCapabilityKeys.DisconnectedSync));
-    }
-
-    [Fact]
     public async Task OlderBindingResponse_CannotReenableNewerUnavailableBinding()
     {
         var old = new TaskCompletionSource<CapabilityRegistrySnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);

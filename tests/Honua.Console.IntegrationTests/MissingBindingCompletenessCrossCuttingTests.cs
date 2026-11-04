@@ -93,22 +93,6 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
     }
 
     [Fact]
-    public void StudioAnalysisBuilder_WithNoServer_RendersMissingBinding_AndNoFabricatedList()
-    {
-        using var ctx = new Bunit.BunitContext();
-        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
-        ctx.AddConsoleNotifications();
-        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
-        ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(new UnsupportedStudioAnalysisPackageDataSource());
-
-        var page = ctx.Render<StudioAnalysisBuilderPage>();
-
-        page.WaitForAssertion(
-            () => Assert.Contains("Analysis content lifecycle is not bound", page.Markup, StringComparison.Ordinal),
-            TimeSpan.FromSeconds(5));
-    }
-
-    [Fact]
     public void ShareManage_WithNoServer_RendersMissingBinding_AndNoFabricatedPanels()
     {
         using var ctx = new Bunit.BunitContext();

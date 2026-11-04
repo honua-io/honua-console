@@ -18,12 +18,6 @@
                                 Contract="GET /api/v1/admin/jobs/{jobId}"
                                 IssueRef="honua-server#1185" />
             <div class="console-toolbar">
-                @* "Workflow from prompt" is shelved behind the studio-builders capability; the
-                   jobs exit stays the always-available way out of this dead end. *@
-                @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders))
-                {
-                    <a class="console-button-link" href="/studio/workflows/new" data-events-exit-workflows>Open workflow editors</a>
-                }
                 <a class="console-button-link" href="/operate/observability" data-events-exit-jobs>View workflow jobs</a>
             </div>
         </article>

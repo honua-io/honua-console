@@ -53,20 +53,6 @@ public static class ConsoleCapabilityKeys
 
     /// <summary>Full SIEM / investigations / AI DevOps advisory over Operate event volume.</summary>
     public const string SiemInvestigations = "siem-investigations";
-
-    /// <summary>
-    /// The Console's non-realtime Studio builder surfaces (Studio home / inline authoring shell, and
-    /// the map, app, dashboard, analysis, query, report-from-prompt, form-from-prompt, and
-    /// workflow-from-prompt builders).
-    ///
-    /// SHELVED, not deleted. "Studio" is now the realtime, SDK-driven app builder, which is not a
-    /// Console surface; the Console keeps its back-office roles (Catalog, Operate, Share, support,
-    /// publish/approval flows). The pages, services, and generation clients stay in the tree behind
-    /// this capability so the decision is reversible: advertise <c>studio-builders</c> in
-    /// <c>Honua:Console:Capabilities</c> / <c>HONUA_CONSOLE_CAPABILITIES</c> and every surface lights
-    /// back up unchanged.
-    /// </summary>
-    public const string StudioBuilders = "studio-builders";
 }
 
 /// <summary>
@@ -125,7 +111,6 @@ public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapability
     private long _refreshVersion;
 
     private readonly HashSet<string> _localPolicy;
-    private readonly HashSet<string> _serverPolicy;
     private HashSet<string> _available = new(StringComparer.OrdinalIgnoreCase);
 
     public event Action? Changed;
@@ -136,21 +121,10 @@ public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapability
     {
         _registry = registry;
         _localPolicy = new HashSet<string>(localPolicy ?? [], StringComparer.OrdinalIgnoreCase);
-        _serverPolicy = new HashSet<string>(
-            _localPolicy.Where(key => !string.Equals(
-                key,
-                ConsoleCapabilityKeys.StudioBuilders,
-                StringComparison.OrdinalIgnoreCase)),
-            StringComparer.OrdinalIgnoreCase);
     }
 
     public bool IsAdvertised(string capabilityKey)
     {
-        if (string.Equals(capabilityKey, ConsoleCapabilityKeys.StudioBuilders, StringComparison.OrdinalIgnoreCase))
-        {
-            return _localPolicy.Contains(capabilityKey);
-        }
-
         lock (_refreshLock)
         {
             return _available.Contains(capabilityKey);
@@ -180,7 +154,7 @@ public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapability
                     var descriptors = snapshot.Descriptors.Where(item =>
                         string.Equals(item.Id, mapping.Value, StringComparison.Ordinal)).ToArray();
                     if (descriptors is [{ Supported: true, Available: true }]
-                        && (_serverPolicy.Count == 0 || _serverPolicy.Contains(mapping.Key)))
+                        && (_localPolicy.Count == 0 || _localPolicy.Contains(mapping.Key)))
                     {
                         next.Add(mapping.Key);
                     }

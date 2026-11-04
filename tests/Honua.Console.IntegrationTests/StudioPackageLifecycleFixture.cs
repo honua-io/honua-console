@@ -114,62 +114,6 @@ public sealed class StudioPackageLifecycleFixture : IAsyncLifetime
             new StudioPackageLifecycleClientOptions(BaseAddress, _proposerKey ?? Options.StudioAdminApiKey));
     }
 
-    public IStudioMapStyleCatalogDataSource CreateMapStyles() => new HonuaServerStudioMapStyleCatalogDataSource(
-        new HonuaOgcStylesHttpClient(CreateHttpClient(), new HonuaOgcStylesClientOptions(BaseAddress, _proposerKey)));
-
-    public async Task<StudioMapLayerEditor> CreatePublishedMapLayerAsync()
-    {
-        Assert.NotNull(_container);
-        var suffix = Guid.NewGuid().ToString("N")[..8];
-        var table = $"studio_{suffix}";
-        var service = $"studio_{suffix}";
-        await PublishedLayerSeeder.SeedPointTableAsync(_container.PostgresConnectionString, table);
-        using var http = CreateHttpClient(_proposerKey);
-        using var connection = await http.PostAsJsonAsync("/api/v1/admin/connections/", new
-        {
-            name = table,
-            host = "postgres",
-            port = 5432,
-            databaseName = "honua",
-            username = "honua",
-            password = "honua",
-            provider = "postgis",
-            sslRequired = false,
-            sslMode = "Disable"
-        });
-        connection.EnsureSuccessStatusCode();
-        using var connectionBody = JsonDocument.Parse(await connection.Content.ReadAsStringAsync());
-        var connectionId = connectionBody.RootElement.GetProperty("data").GetProperty("connectionId").GetString();
-        using var publication = await http.PostAsJsonAsync($"/api/v1/admin/connections/{connectionId}/layers", new
-        {
-            schema = "public",
-            table,
-            serviceName = service,
-            layerName = "Studio observations",
-            geometryColumn = "geom",
-            geometryType = "Point",
-            srid = 3857,
-            primaryKey = "id",
-            fields = new[] { "id", "name", "observed" },
-            enabled = true
-        });
-        var publicationJson = await publication.Content.ReadAsStringAsync();
-        Assert.True(publication.StatusCode == HttpStatusCode.Created, publicationJson);
-        using var published = JsonDocument.Parse(publicationJson);
-        var layerId = published.RootElement.GetProperty("data").GetProperty("layerId").GetInt32();
-        using var query = await http.GetAsync($"/rest/services/{service}/FeatureServer/{layerId}/query?where=1%3D1&returnCountOnly=true&f=json");
-        query.EnsureSuccessStatusCode();
-        using var count = JsonDocument.Parse(await query.Content.ReadAsStringAsync());
-        Assert.Equal(3, count.RootElement.GetProperty("count").GetInt32());
-        return new StudioMapLayerEditor
-        {
-            SourceRef = $"service:{service}/{layerId}",
-            Title = "Studio observations",
-            BoundServiceId = service,
-            BoundLayerId = layerId.ToString(System.Globalization.CultureInfo.InvariantCulture)
-        };
-    }
-
     public async Task AssertValidDraftAsync(Guid draftId)
     {
         using var lifecycle = (HttpStudioPackageLifecycleClient)CreateClient();
@@ -178,65 +122,6 @@ public sealed class StudioPackageLifecycleFixture : IAsyncLifetime
         Assert.NotNull(validation.Data);
         Assert.True(validation.Data.Status is StudioPackageValidationStatus.Valid or StudioPackageValidationStatus.Warning,
             JsonSerializer.Serialize(validation.Data));
-    }
-
-    /// <summary>Explicit test action: assert self-approval denial, then have a distinct scoped reviewer act.</summary>
-    public async Task<StudioPublicationRefresh> ApprovePublicationAsDistinctActorAsync(
-        StudioPendingPublication pending, bool expectValidationFailure = false)
-    {
-        Assert.NotNull(_container); // Never provision or approve through a configured external deployment.
-        Assert.NotNull(_proposerKey);
-        Assert.NotNull(_reviewerKey);
-        using var lifecycle = (HttpStudioPackageLifecycleClient)CreateClient();
-        var before = await lifecycle.GetContentItemPointersAsync(pending.ItemId);
-        Assert.True(before.IsSuccess, before.Issue?.Detail);
-        Assert.NotNull(before.Data);
-        Assert.NotEqual(pending.VersionId, before.Data.PublishedVersionId);
-
-        using var proposerHttp = CreateHttpClient();
-        var proposer = CreateProposalsClient(proposerHttp, _proposerKey);
-        var selfApproval = await proposer.ApproveAsync(pending.Operation.ProposalId!);
-        Assert.Equal(OperateSectionStatus.Forbidden, selfApproval.Status);
-        Assert.Contains("separation", selfApproval.Message + " " + selfApproval.Detail, StringComparison.OrdinalIgnoreCase);
-        var stillPending = await proposer.GetAsync(pending.Operation.ProposalId!);
-        Assert.True(stillPending.IsAllowed, stillPending.Message);
-        Assert.Equal(ConsoleProposalStatus.AwaitingApproval, stillPending.Value!.Status);
-        var afterSelf = await lifecycle.GetContentItemPointersAsync(pending.ItemId);
-        Assert.True(afterSelf.IsSuccess, afterSelf.Issue?.Detail);
-        Assert.Equal(before.Data.PublishedVersionId, afterSelf.Data!.PublishedVersionId);
-
-        using var reviewerHttp = CreateHttpClient();
-        var reviewer = CreateProposalsClient(reviewerHttp, _reviewerKey);
-        var decision = await reviewer.ApproveAsync(pending.Operation.ProposalId!);
-        Assert.True(decision.IsAllowed, decision.Message);
-        Assert.NotNull(decision.Value);
-        Assert.False(string.IsNullOrWhiteSpace(decision.Value.RequestedBy));
-        Assert.False(string.IsNullOrWhiteSpace(decision.Value.ResolvedBy));
-        Assert.NotEqual(decision.Value.RequestedBy, decision.Value.ResolvedBy);
-        var expectedStatus = expectValidationFailure ? ConsoleProposalStatus.Failed : ConsoleProposalStatus.Succeeded;
-        var failureDetail = decision.Value.ResolutionReason;
-        if (decision.Value.Status != expectedStatus && decision.Value.ExecutionOperationId is { } operationId)
-        {
-            using var operation = await proposerHttp.GetAsync($"/api/v1/operations/handles/{Uri.EscapeDataString(operationId)}");
-            failureDetail += await operation.Content.ReadAsStringAsync();
-        }
-        Assert.True(decision.Value.Status == expectedStatus,
-            $"Expected {expectedStatus}, received {decision.Value.Status}: {failureDetail}");
-
-        var observed = await new StudioPublicationStatusReader(lifecycle, proposer).RefreshAsync(pending);
-        Assert.True(observed.Succeeded, observed.Issue);
-        if (expectValidationFailure)
-        {
-            Assert.Equal(before.Data.PublishedVersionId, observed.Pointers!.PublishedVersionId);
-            Assert.NotEqual(pending.VersionId, observed.Pointers.PublishedVersionId);
-        }
-        else
-        {
-            Assert.Equal(pending.VersionId, observed.Pointers!.PublishedVersionId);
-            Assert.Equal(pending.VersionId, observed.PublishedVersion!.VersionId);
-        }
-
-        return observed;
     }
 
     /// <summary>Proves the focused read/approve key recipe without granting general administrative writes.</summary>

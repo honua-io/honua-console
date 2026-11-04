@@ -53,8 +53,6 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // manual dismiss). Pages surface server failures here through RunGuardedAsync rather than
         // letting an exception vanish silently.
         services.TryAddScoped<IConsoleNotificationService, ConsoleNotificationService>();
-        services.TryAddScoped<IStudioPublicationStatusReader>(provider => new StudioPublicationStatusReader(
-            provider.GetService<IStudioPackageLifecycleClient>(), provider.GetRequiredService<IConsoleProposalsClient>()));
         // Environment profiles are host-owned local state (Console Patterns Charter §11 local-state
         // carve-out), but they must not ship fabricated demo profiles. The default store starts EMPTY so
         // the first-run experience is "create your first environment", never seeded dev.honua.local /
@@ -85,13 +83,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // the <UnsavedChangesGuard/>. Editors are wired in the per-surface waves.
 
         AddStudioAuthoringShell(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddStudioAppPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioFormPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddStudioQueryPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddStudioMapPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddStudioMapCollaborationDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddStudioAnalysisPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddStudioDashboardPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddStudioMapStyleCatalogDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioReportPublicationDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddCollectAutomationClient(services);
@@ -536,40 +529,6 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IStudioAuthoringShell, UnsupportedStudioAuthoringShell>();
     }
 
-    // Binds the Studio app-builder surface (/studio/app, #58) to honua-server's Studio package
-    // lifecycle + app publication registry (#1180/#1181/#1183) when a server base address is
-    // configured, reusing the IStudioPackageLifecycleClient already registered by
-    // AddStudioAuthoringShell; otherwise the builder renders a missing-binding state (never mock app
-    // data). The from-prompt surface additionally binds the app generation client.
-    private static void AddStudioAppPackageDataSource(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            // NL->app generation grounds + validates + runs a bounded repair loop on the server, and against
-            // a local CPU model a single turn can take minutes. The default HttpClient.Timeout of 100s cancels
-            // these legitimately-slow generations client-side (surfacing as a false "endpoint could not be
-            // reached"). Match the server's own request timeout (10 min) so the real path works — mirrors the
-            // map/dashboard generation clients.
-            services.TryAddSingleton<IStudioAppGenerationClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri, TimeSpan.FromMinutes(10));
-                return new HttpStudioAppGenerationClient(
-                    httpClient,
-                    new StudioAppGenerationClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-            services.TryAddSingleton<IStudioAppPackageDataSource>(serviceProvider =>
-                new HonuaServerStudioAppPackageDataSource(
-                    serviceProvider.GetRequiredService<IStudioPackageLifecycleClient>(),
-                    serviceProvider.GetRequiredService<IStudioAppGenerationClient>()));
-            return;
-        }
-
-        services.TryAddSingleton<IStudioAppPackageDataSource, UnsupportedStudioAppPackageDataSource>();
-    }
-
     // Binds the Studio form-builder surface (/studio/form) to honua-server's form package lifecycle
     // (#1184) through the Honua.Console.Contracts shim when a server base address is configured;
     // otherwise the builder renders a missing-binding state (never mock form data).
@@ -594,66 +553,13 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IStudioFormPackageDataSource, UnsupportedStudioFormPackageDataSource>();
     }
 
-    // Binds the Studio query-builder surface (/studio/query, honua-console#52) to honua-server's saved
-    // query content/artifacts lifecycle (honua-server#1182, AnalysisContentKind.SavedQuery) through the
-    // Honua.Console.Contracts shim when a server base address is configured; otherwise the builder renders
-    // a missing-binding state (never mock query data, per Console Patterns Charter section 11). The query
-    // builder and the analysis builder (#53) share the single /api/v1/analysis/content client, so this
-    // registers IHonuaAnalysisContentClient with TryAdd (idempotent with AddStudioAnalysisPackageDataSource).
-    private static void AddStudioQueryPackageDataSource(
+    private static void AddStudioMapStyleCatalogDataSource(
         IServiceCollection services,
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
         if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
-            // The query + analysis builders share this client, and it now carries the NL-generation routes
-            // (POST .../queries/generate and .../generate). NL generation grounds + validates + runs a
-            // bounded repair loop on the server, and against a local CPU model a single turn can take
-            // minutes. The default HttpClient.Timeout of 100s cancels these legitimately-slow generations
-            // client-side (surfacing as a false "endpoint could not be reached"). Match the server's own
-            // request timeout (10 min) so the real path works — mirrors the workflow/map generation clients.
-            services.TryAddSingleton<IHonuaAnalysisContentClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri, TimeSpan.FromMinutes(10));
-                return new HonuaAnalysisContentHttpClient(
-                    httpClient,
-                    new HonuaAnalysisContentClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-            services.TryAddSingleton<IStudioQueryPackageDataSource, HonuaServerStudioQueryContentDataSource>();
-            return;
-        }
-
-        services.TryAddSingleton<IStudioQueryPackageDataSource, UnsupportedStudioQueryPackageDataSource>();
-    }
-
-    // Binds the Studio map-builder surface (/studio/map) to honua-server's Studio package lifecycle
-    // (#1180, closed) and the content publication registry (#1183, closed) through the
-    // IStudioPackageLifecycleClient shim when a server base address is configured, reusing the client
-    // already registered by AddStudioAuthoringShell; otherwise the builder renders an explicit
-    // missing-binding state (never mock map data — Console Patterns Charter section 11). TryAdd keeps an
-    // explicit test/demo provider overridable.
-    private static void AddStudioMapPackageDataSource(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            // NL->map generation grounds + validates + runs a bounded repair loop on the server, and against
-            // a local CPU model a single turn can take minutes. The default HttpClient.Timeout of 100s cancels
-            // these legitimately-slow generations client-side (surfacing as a false "endpoint could not be
-            // reached"). Match the server's own request timeout (10 min) so the real path works — mirrors the
-            // workflow generation client.
-            services.TryAddSingleton<IStudioMapGenerationClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri, TimeSpan.FromMinutes(10));
-                return new HttpStudioMapGenerationClient(
-                    httpClient,
-                    new StudioMapGenerationClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-            services.TryAddSingleton<IStudioMapPackageDataSource, HonuaServerStudioMapPackageDataSource>();
-
             // The per-layer style picker (#161, ADR-0048) binds the layer's styleId to the styles the server
             // advertises on the PUBLIC OGC API - Styles list (GET /ogc/styles). The admin key is forwarded
             // only if configured (harmless on the public read; future-proof if the surface is ever gated).
@@ -670,111 +576,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             return;
         }
 
-        services.TryAddSingleton<IStudioMapPackageDataSource, UnsupportedStudioMapPackageDataSource>();
         services.TryAddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
-    }
-
-    // Binds the Studio Map collaboration surface (/studio/map Comments + Activity tabs, honua-console#124)
-    // to honua-server's durable collaboration API (honua-server#1278, slice 1: feature-pinned comment
-    // threads + activity feed) through the Honua.Console.Contracts shim when a server base address is
-    // configured; otherwise the surface renders an explicit missing-binding state (never fabricated
-    // comments/activity, Console Patterns Charter section 11). Only the DURABLE slice is lit up: the
-    // comment drawer and activity sidebar bind live. The real-time presence/cursors/markup/follow-mode
-    // slots stay empty behind the deferred follow-up slice (honua-server#1290) — the live data source
-    // returns empty presence/cursor lists so the chrome renders those affordances disabled-pending. With no
-    // server configured the unsupported client surfaces the missing-binding state across every slot.
-    // TryAdd keeps an explicit test/demo provider overridable.
-    private static void AddStudioMapCollaborationDataSource(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<IHonuaStudioMapCollaborationClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
-                return new HonuaStudioMapCollaborationHttpClient(
-                    httpClient,
-                    new HonuaStudioMapCollaborationClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-            services.TryAddSingleton<IStudioMapCollaborationDataSource, HonuaServerStudioMapCollaborationDataSource>();
-            return;
-        }
-
-        services.TryAddSingleton<IStudioMapCollaborationDataSource, UnsupportedStudioMapCollaborationDataSource>();
-    }
-
-    // Binds the Studio analysis-builder surface (/studio/analysis, honua-console#53) to honua-server's
-    // analysis content/artifacts contract (#1182) and the closed execution engine (#681/#721/#724) through
-    // the Honua.Console.Contracts shim when a server base address is configured; otherwise the builder
-    // renders a missing-binding state (never mock analysis data, Console Patterns Charter section 11).
-    private static void AddStudioAnalysisPackageDataSource(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            // Shared with the query builder; the 10-minute timeout covers the NL-generation routes on this
-            // client (see AddStudioQueryPackageDataSource for the rationale). TryAdd keeps whichever
-            // registration ran first, so both register the identical client.
-            services.TryAddSingleton<IHonuaAnalysisContentClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri, TimeSpan.FromMinutes(10));
-                return new HonuaAnalysisContentHttpClient(
-                    httpClient,
-                    new HonuaAnalysisContentClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-            services.TryAddSingleton<IStudioAnalysisPackageDataSource, HonuaServerStudioAnalysisContentDataSource>();
-            return;
-        }
-
-        services.TryAddSingleton<IStudioAnalysisPackageDataSource, UnsupportedStudioAnalysisPackageDataSource>();
-    }
-
-    // Binds the Studio dashboard-builder surface (/studio/dashboard, #55) to honua-server's Studio package
-    // lifecycle + dashboard publication registry (#1180/#1181/#1183) through the Honua.Console.Contracts
-    // shim when a server base address is configured, reusing the IStudioPackageLifecycleClient already
-    // registered by AddStudioAuthoringShell. Otherwise the builder renders an explicit missing-binding
-    // state (never mock dashboard data — Console Patterns Charter section 11). The lifecycle client is
-    // registered defensively here too so the dashboard binding is self-contained even if the authoring
-    // shell registration order changes. TryAdd keeps an explicit test/demo provider overridable.
-    private static void AddStudioDashboardPackageDataSource(
-        IServiceCollection services,
-        string? honuaServerBaseUrl,
-        string? honuaServerAdminApiKey)
-    {
-        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
-        {
-            services.TryAddSingleton<IStudioPackageLifecycleClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
-                return new HttpStudioPackageLifecycleClient(
-                    httpClient,
-                    new StudioPackageLifecycleClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-            // Dashboard generation (NL -> dashboard.document) shares the content publications/generate
-            // endpoint with reports (dispatched on kind=dashboard), so it speaks the content-publication
-            // client rather than the Studio package lifecycle. TryAdd keeps a single client across the
-            // report/dashboard/publishing surfaces. Generation grounds + validates + runs a bounded repair
-            // loop on the server and against a local CPU model a single turn can take minutes, so match the
-            // server's own 10-min request timeout — mirrors the map/analysis/workflow generation clients.
-            services.TryAddSingleton<IHonuaContentPublicationClient>(serviceProvider =>
-            {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri, TimeSpan.FromMinutes(10));
-                return new HonuaContentPublicationHttpClient(
-                    httpClient,
-                    new HonuaContentPublicationClientOptions(baseUri, honuaServerAdminApiKey));
-            });
-            services.TryAddSingleton<IStudioDashboardPackageDataSource>(serviceProvider =>
-                new HonuaServerStudioDashboardPackageDataSource(
-                    serviceProvider.GetRequiredService<IStudioPackageLifecycleClient>(),
-                    serviceProvider.GetRequiredService<IHonuaContentPublicationClient>()));
-            return;
-        }
-
-        services.TryAddSingleton<IStudioDashboardPackageDataSource, UnsupportedStudioDashboardPackageDataSource>();
     }
 
     // Binds the Studio report-builder surface (/studio/report) read path to honua-server's content

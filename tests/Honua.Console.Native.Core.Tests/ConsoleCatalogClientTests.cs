@@ -246,15 +246,14 @@ public sealed class ConsoleCatalogClientTests
         var actions = ConsoleCatalogActionPolicy.Resolve(
             linkItem.Item!.Summary,
             isAuthenticated: !linkItem.AnonymousRead,
-            publicLinkToken: "stale-token",
-            studioAuthoringAvailable: true);
+            publicLinkToken: "stale-token");
 
         Assert.False(context.Anonymous);
         Assert.Equal(CatalogReadStatus.Allowed, linkItem.Status);
         Assert.False(linkItem.AnonymousRead);
         Assert.Equal(CatalogReadStatus.Allowed, linkMap.Status);
         Assert.False(linkMap.AnonymousRead);
-        Assert.Contains(actions, action => action.Id == "studio");
+        Assert.DoesNotContain(actions, action => action.Id == "studio");
         Assert.Contains(actions, action => action.Id == "share");
         Assert.DoesNotContain(actions, action => action.Href.Contains("token=", StringComparison.Ordinal));
     }
@@ -327,7 +326,7 @@ public sealed class ConsoleCatalogClientTests
     }
 
     [Fact]
-    public async Task ActionPolicyHidesStudioAndShareActionsForAnonymousReads()
+    public async Task ActionPolicyHidesShareActionsForAnonymousReadsAndNeverOffersStudioEditing()
     {
         var catalog = new InMemoryConsoleCatalogClient();
         var result = await catalog.GetCatalogItemAsync(
@@ -336,25 +335,16 @@ public sealed class ConsoleCatalogClientTests
 
         var anonymousActions = ConsoleCatalogActionPolicy.Resolve(
             result.Item!.Summary,
-            isAuthenticated: false,
-            studioAuthoringAvailable: true);
+            isAuthenticated: false);
         var authenticatedActions = ConsoleCatalogActionPolicy.Resolve(
-            result.Item!.Summary,
-            isAuthenticated: true,
-            studioAuthoringAvailable: true);
-        // The Console's non-realtime Studio is shelved by default (studio-builders capability), so the
-        // "Edit In Studio" action is absent unless the caller reports the capability as advertised.
-        var shelvedStudioActions = ConsoleCatalogActionPolicy.Resolve(
             result.Item!.Summary,
             isAuthenticated: true);
 
         Assert.DoesNotContain(anonymousActions, action => action.Id == "studio");
         Assert.DoesNotContain(anonymousActions, action => action.Id == "share");
-        Assert.Contains(authenticatedActions, action => action.Id == "studio");
+        Assert.DoesNotContain(authenticatedActions, action => action.Id == "studio");
         Assert.Contains(authenticatedActions, action => action.Id == "share");
         Assert.Contains(authenticatedActions, action => action.Id == "viewer" && action.Href == "/maps/storm-response-map");
-        Assert.DoesNotContain(shelvedStudioActions, action => action.Id == "studio");
-        Assert.Contains(shelvedStudioActions, action => action.Id == "share");
     }
 
     [Fact]
@@ -370,29 +360,19 @@ public sealed class ConsoleCatalogClientTests
 
         var viewerActions = MapViewerPage.ResolveViewerActions(
             viewerMap.MapPackage!.Summary,
-            isAuthenticated: true,
-            studioAuthoringAvailable: true);
+            isAuthenticated: true);
         var ownerActions = MapViewerPage.ResolveViewerActions(
             ownerMap.MapPackage!.Summary,
-            isAuthenticated: true,
-            studioAuthoringAvailable: true);
+            isAuthenticated: true);
         var anonymousActions = MapViewerPage.ResolveViewerActions(
             ownerMap.MapPackage!.Summary,
             isAuthenticated: false);
-        // Studio shelved (the shipped default): the viewer offers no "Edit In Studio" hand-off.
-        var shelvedStudioOwnerActions = MapViewerPage.ResolveViewerActions(
-            ownerMap.MapPackage!.Summary,
-            isAuthenticated: true);
 
         Assert.Contains(viewerActions, action => action.Id == "detail");
         Assert.DoesNotContain(viewerActions, action => action.Id is "studio" or "share");
-        Assert.Contains(
-            ownerActions,
-            action => action.Id == "studio" && action.Href == "/studio?source=map&itemId=map-storm-response");
+        Assert.DoesNotContain(ownerActions, action => action.Id == "studio");
         Assert.Contains(ownerActions, action => action.Id == "share");
         Assert.DoesNotContain(ownerActions, action => action.Id is "viewer" or "retire");
-        Assert.DoesNotContain(shelvedStudioOwnerActions, action => action.Id == "studio");
-        Assert.Contains(shelvedStudioOwnerActions, action => action.Id == "share");
         Assert.Empty(anonymousActions);
     }
 
