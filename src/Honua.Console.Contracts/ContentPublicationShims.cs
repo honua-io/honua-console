@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -97,8 +96,13 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    private static readonly AdminBodyFormat BodyFormat = new(
+        JsonOptions,
+        AdminBodyRead.Streamed,
+        "The Honua server content publication response did not match the expected contract");
+
     private readonly HttpClient _httpClient;
-    private readonly string? _apiKey;
+    private readonly AdminEndpointTransport _transport;
 
     public HonuaContentPublicationHttpClient(HttpClient httpClient, HonuaContentPublicationClientOptions options)
     {
@@ -106,9 +110,12 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
         ArgumentNullException.ThrowIfNull(options);
 
         BaseUri = options.BaseUri;
-        _apiKey = options.ApiKey;
         _httpClient = httpClient;
         _httpClient.BaseAddress ??= BaseUri;
+        _transport = new AdminEndpointTransport(
+            httpClient,
+            options.ApiKey,
+            AdminTransportFailure.Unreachable("The Honua server content publication endpoint"));
     }
 
     public Uri BaseUri { get; }
@@ -120,8 +127,7 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
         ArgumentException.ThrowIfNullOrWhiteSpace(publicationId);
 
         return SendAsync<HonuaContentPublicationDetail>(
-            HttpMethod.Get,
-            $"{Base}/{Uri.EscapeDataString(publicationId)}",
+            () => new HttpRequestMessage(HttpMethod.Get, $"{Base}/{Uri.EscapeDataString(publicationId)}"),
             "GET /api/v1/console/publications/{publicationId}",
             cancellationToken);
     }
@@ -147,8 +153,7 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
         }
 
         return SendAsync<HonuaContentPublicationListPage>(
-            HttpMethod.Get,
-            Base + "?" + string.Join('&', query),
+            () => new HttpRequestMessage(HttpMethod.Get, Base + "?" + string.Join('&', query)),
             "GET /api/v1/console/publications",
             cancellationToken);
     }
@@ -162,8 +167,7 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
         ArgumentException.ThrowIfNullOrWhiteSpace(versionSelector);
 
         return SendAsync<HonuaContentPublicationVersion>(
-            HttpMethod.Get,
-            $"{Base}/{Uri.EscapeDataString(publicationId)}/versions/{Uri.EscapeDataString(versionSelector)}",
+            () => new HttpRequestMessage(HttpMethod.Get, $"{Base}/{Uri.EscapeDataString(publicationId)}/versions/{Uri.EscapeDataString(versionSelector)}"),
             "GET /api/v1/console/publications/{publicationId}/versions/{versionSelector}",
             cancellationToken);
     }
@@ -175,11 +179,9 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
         ArgumentNullException.ThrowIfNull(request);
 
         return SendAsync<HonuaContentPublicationDetail>(
-            HttpMethod.Post,
-            Base,
+            () => JsonRequest(HttpMethod.Post, Base, request),
             "POST /api/v1/console/publications",
-            cancellationToken,
-            request);
+            cancellationToken);
     }
 
     public Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RepublishAsync(
@@ -191,11 +193,9 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
         ArgumentNullException.ThrowIfNull(request);
 
         return SendAsync<HonuaContentPublicationDetail>(
-            HttpMethod.Post,
-            $"{Base}/{Uri.EscapeDataString(publicationId)}/republish",
+            () => JsonRequest(HttpMethod.Post, $"{Base}/{Uri.EscapeDataString(publicationId)}/republish", request),
             "POST /api/v1/console/publications/{publicationId}/republish",
-            cancellationToken,
-            request);
+            cancellationToken);
     }
 
     public Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RollbackAsync(
@@ -207,11 +207,9 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
         ArgumentNullException.ThrowIfNull(request);
 
         return SendAsync<HonuaContentPublicationDetail>(
-            HttpMethod.Post,
-            $"{Base}/{Uri.EscapeDataString(publicationId)}/rollback",
+            () => JsonRequest(HttpMethod.Post, $"{Base}/{Uri.EscapeDataString(publicationId)}/rollback", request),
             "POST /api/v1/console/publications/{publicationId}/rollback",
-            cancellationToken,
-            request);
+            cancellationToken);
     }
 
     public Task<HonuaAdminEndpointResult<HonuaContentPublicationPolicyUpdateResponse>> UpdatePolicyAsync(
@@ -223,178 +221,30 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
         ArgumentNullException.ThrowIfNull(request);
 
         return SendAsync<HonuaContentPublicationPolicyUpdateResponse>(
-            HttpMethod.Patch,
-            $"{Base}/{Uri.EscapeDataString(publicationId)}/policy",
+            () => JsonRequest(HttpMethod.Patch, $"{Base}/{Uri.EscapeDataString(publicationId)}/policy", request),
             "PATCH /api/v1/console/publications/{publicationId}/policy",
-            cancellationToken,
-            request);
+            cancellationToken);
     }
 
     public void Dispose() => _httpClient.Dispose();
 
-    private async Task<HonuaAdminEndpointResult<T>> SendAsync<T>(
-        HttpMethod method,
-        string path,
+    private static HttpRequestMessage JsonRequest(HttpMethod method, string path, object body) =>
+        new(method, path) { Content = JsonContent.Create(body, body.GetType(), options: JsonOptions) };
+
+    private Task<HonuaAdminEndpointResult<T>> SendAsync<T>(
+        Func<HttpRequestMessage> createRequest,
         string contract,
-        CancellationToken cancellationToken,
-        object? body = null)
-    {
-        using var request = new HttpRequestMessage(method, path);
-        if (body is not null)
-        {
-            request.Content = JsonContent.Create(body, body.GetType(), options: JsonOptions);
-        }
-
-        if (!string.IsNullOrWhiteSpace(_apiKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
-        }
-
-        HttpResponseMessage response;
-        try
-        {
-            response = await _httpClient.SendAsync(
-                    request,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (HttpRequestException ex)
-        {
-            return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                "Unavailable",
+        CancellationToken cancellationToken) =>
+        _transport.SendAsync(
+            new AdminEndpointCall<T>(
+                createRequest,
                 contract,
-                $"The Honua server content publication endpoint could not be reached: {ex.Message}"));
-        }
-        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            // A TaskCanceledException whose token is not the caller's is an HttpClient timeout, not caller
-            // cancellation, so surface it as Unavailable. Caller-requested cancellation is left to propagate
-            // (not caught) so it cancels the calling operation instead of being masked as a transport
-            // failure — mirrors HonuaFormPackageHttpClient.
-            return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                "Unavailable",
-                contract,
-                $"The Honua server content publication endpoint could not be reached: {ex.Message}"));
-        }
-
-        using (response)
-        {
-            if (!response.IsSuccessStatusCode)
+                AdminFailureMappings.StatusDetail,
+                AdminResponseBodies.Required<T>(BodyFormat, "The Honua server content publication response body was empty."))
             {
-                var issue = await AdminEndpointIssueFactory.CreateIssueAsync(contract, response, cancellationToken)
-                    .ConfigureAwait(false);
-                return HonuaAdminEndpointResult<T>.FromIssue(issue);
-            }
-
-            T? payload;
-            try
-            {
-                payload = await response.Content
-                    .ReadFromJsonAsync<T>(JsonOptions, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (JsonException ex)
-            {
-                return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                    "Unsupported",
-                    contract,
-                    $"The Honua server content publication response did not match the expected contract: {ex.Message}",
-                    (int)response.StatusCode));
-            }
-
-            return payload is null
-                ? HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                    "Unavailable",
-                    contract,
-                    "The Honua server content publication response body was empty.",
-                    (int)response.StatusCode))
-                : HonuaAdminEndpointResult<T>.FromData(payload);
-        }
-    }
-
-    /// <summary>
-    /// Best-effort parse of the field-addressable validation errors carried on a 400 response: an RFC-7807
-    /// ProblemDetails whose <c>errors</c> extension is an array of the shared <c>FieldValidationError</c>
-    /// shape. Never throws — a body that is not JSON, not a problem document, or carries no <c>errors</c>
-    /// array yields an empty list so the caller still surfaces the flat HTTP-level issue.
-    /// </summary>
-    private static async Task<IReadOnlyList<HonuaFieldValidationError>> ReadFieldErrorsAsync(
-        HttpResponseMessage response,
-        CancellationToken cancellationToken)
-    {
-        string body;
-        try
-        {
-            body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException)
-        {
-            return [];
-        }
-
-        if (string.IsNullOrWhiteSpace(body))
-        {
-            return [];
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(body);
-            if (document.RootElement.ValueKind != JsonValueKind.Object
-                || !document.RootElement.TryGetProperty("errors", out var errors)
-                || errors.ValueKind != JsonValueKind.Array)
-            {
-                return [];
-            }
-
-            var parsed = new List<HonuaFieldValidationError>();
-            foreach (var item in errors.EnumerateArray())
-            {
-                if (item.ValueKind != JsonValueKind.Object)
-                {
-                    continue;
-                }
-
-                var error = item.Deserialize<HonuaFieldValidationError>(JsonOptions);
-                if (error is not null && !string.IsNullOrEmpty(error.Code))
-                {
-                    parsed.Add(error);
-                }
-            }
-
-            return parsed;
-        }
-        catch (JsonException)
-        {
-            return [];
-        }
-    }
-
-    private static HonuaAdminEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode)
-    {
-        // Canonical status→state mapping shared across all admin shims (honua-console#279 PA-239).
-        var state = AdminEndpointIssueFactory.MapState(statusCode);
-
-        var detail = statusCode switch
-        {
-            HttpStatusCode.Unauthorized => "The Honua server rejected the request because admin authentication is missing.",
-            HttpStatusCode.Forbidden => "The Honua server rejected the request because the current principal lacks content publication permission.",
-            HttpStatusCode.NotFound => "The Honua server content publication or version was not found.",
-            HttpStatusCode.MethodNotAllowed => "The Honua server exposes the content publication route but not the required verb.",
-            HttpStatusCode.NotImplemented => "The Honua server reports the content publication capability is not implemented.",
-            HttpStatusCode.Conflict => "The content publication route state changed; reload before retrying.",
-            HttpStatusCode.PreconditionFailed => "The content publication route etag no longer matches; reload before retrying.",
-            HttpStatusCode.BadRequest => "The Honua server rejected the content publication request.",
-            _ => string.Format(
-                CultureInfo.InvariantCulture,
-                "The Honua server returned HTTP {0} ({1}) for the content publication request.",
-                (int)statusCode,
-                statusCode)
-        };
-
-        return new HonuaAdminEndpointIssue(state, contract, detail, (int)statusCode);
-    }
+                Completion = HttpCompletionOption.ResponseHeadersRead
+            },
+            cancellationToken);
 }
 
 // --- Wire records mirroring honua-server Honua.Core.Features.Publishing.Content.Domain (#1183). ---

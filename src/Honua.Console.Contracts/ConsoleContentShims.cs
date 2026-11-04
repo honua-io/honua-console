@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -78,8 +77,13 @@ public sealed class HonuaConsoleContentHttpClient : IHonuaConsoleContentClient, 
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    private static readonly AdminBodyFormat EnvelopeFormat = new(
+        JsonOptions,
+        AdminBodyRead.Streamed,
+        "The Honua server Console content response did not match the expected contract");
+
     private readonly HttpClient _httpClient;
-    private readonly string? _apiKey;
+    private readonly AdminEndpointTransport _transport;
 
     public HonuaConsoleContentHttpClient(HttpClient httpClient, HonuaConsoleContentClientOptions options)
     {
@@ -87,9 +91,12 @@ public sealed class HonuaConsoleContentHttpClient : IHonuaConsoleContentClient, 
         ArgumentNullException.ThrowIfNull(options);
 
         BaseUri = options.BaseUri;
-        _apiKey = options.ApiKey;
         _httpClient = httpClient;
         _httpClient.BaseAddress ??= BaseUri;
+        _transport = new AdminEndpointTransport(
+            httpClient,
+            options.ApiKey,
+            AdminTransportFailure.Unreachable("The Honua server Console content endpoint"));
     }
 
     public Uri BaseUri { get; }
@@ -149,9 +156,8 @@ public sealed class HonuaConsoleContentHttpClient : IHonuaConsoleContentClient, 
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        return PostAsync<HonuaConsoleActionCheckRequest, HonuaConsoleActionCheckResponse>(
-            $"{ActionsBase}/check",
-            request,
+        return SendAsync<HonuaConsoleActionCheckResponse>(
+            () => JsonPost($"{ActionsBase}/check", request),
             "POST /api/v1/console/actions/check",
             cancellationToken);
     }
@@ -162,9 +168,8 @@ public sealed class HonuaConsoleContentHttpClient : IHonuaConsoleContentClient, 
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        return PostAsync<HonuaCreateConsoleContentItemRequest, HonuaConsoleContentItem>(
-            $"{ContentBase}/",
-            request,
+        return SendAsync<HonuaConsoleContentItem>(
+            () => JsonPost($"{ContentBase}/", request),
             "POST /api/v1/console/content",
             cancellationToken);
     }
@@ -174,103 +179,26 @@ public sealed class HonuaConsoleContentHttpClient : IHonuaConsoleContentClient, 
     private Task<HonuaAdminEndpointResult<T>> GetAsync<T>(
         string path,
         string contract,
-        CancellationToken cancellationToken)
-    {
-        var message = new HttpRequestMessage(HttpMethod.Get, path);
-        return SendAsync<T>(message, contract, cancellationToken);
-    }
+        CancellationToken cancellationToken) =>
+        SendAsync<T>(() => new HttpRequestMessage(HttpMethod.Get, path), contract, cancellationToken);
 
-    private Task<HonuaAdminEndpointResult<TResponse>> PostAsync<TRequest, TResponse>(
-        string path,
-        TRequest body,
+    private static HttpRequestMessage JsonPost<TBody>(string path, TBody body) =>
+        new(HttpMethod.Post, path) { Content = JsonContent.Create(body, options: JsonOptions) };
+
+    private Task<HonuaAdminEndpointResult<T>> SendAsync<T>(
+        Func<HttpRequestMessage> createRequest,
         string contract,
-        CancellationToken cancellationToken)
-    {
-        var message = new HttpRequestMessage(HttpMethod.Post, path)
-        {
-            Content = JsonContent.Create(body, options: JsonOptions)
-        };
-        return SendAsync<TResponse>(message, contract, cancellationToken);
-    }
-
-    private async Task<HonuaAdminEndpointResult<T>> SendAsync<T>(
-        HttpRequestMessage request,
-        string contract,
-        CancellationToken cancellationToken)
-    {
-        using (request)
-        {
-            if (!string.IsNullOrWhiteSpace(_apiKey))
+        CancellationToken cancellationToken) =>
+        _transport.SendAsync(
+            new AdminEndpointCall<T>(
+                createRequest,
+                contract,
+                AdminFailureMappings.StatusDetail,
+                AdminResponseBodies.Envelope<T>(EnvelopeFormat, "The Honua server Console content response did not include data."))
             {
-                request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
-            }
-
-            HttpResponseMessage response;
-            try
-            {
-                response = await _httpClient.SendAsync(
-                        request,
-                        HttpCompletionOption.ResponseHeadersRead,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (HttpRequestException ex)
-            {
-                return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                    "Unavailable",
-                    contract,
-                    $"The Honua server Console content endpoint could not be reached: {ex.Message}"));
-            }
-            catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-            {
-                // A TaskCanceledException whose token is not the caller's is an HttpClient timeout, not
-                // caller cancellation, so surface it as Unavailable. Caller-requested cancellation is left
-                // to propagate so it cancels the calling operation instead of being masked as a transport
-                // failure — mirrors HonuaContentPublicationHttpClient.
-                return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                    "Unavailable",
-                    contract,
-                    $"The Honua server Console content endpoint could not be reached: {ex.Message}"));
-            }
-
-            using (response)
-            {
-                if (!response.IsSuccessStatusCode)
-                {
-                    return HonuaAdminEndpointResult<T>.FromIssue(
-                        await AdminEndpointIssueFactory.CreateIssueAsync(contract, response, cancellationToken)
-                            .ConfigureAwait(false));
-                }
-
-                HonuaAdminApiResponse<T>? envelope;
-                try
-                {
-                    envelope = await response.Content
-                        .ReadFromJsonAsync<HonuaAdminApiResponse<T>>(JsonOptions, cancellationToken)
-                        .ConfigureAwait(false);
-                }
-                catch (JsonException ex)
-                {
-                    return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                        "Unsupported",
-                        contract,
-                        $"The Honua server Console content response did not match the expected contract: {ex.Message}",
-                        (int)response.StatusCode));
-                }
-
-                if (envelope?.Success == true && envelope.Data is not null)
-                {
-                    return HonuaAdminEndpointResult<T>.FromData(envelope.Data);
-                }
-
-                return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                    "Unavailable",
-                    contract,
-                    envelope?.Message ?? "The Honua server Console content response did not include data.",
-                    (int)response.StatusCode));
-            }
-        }
-    }
+                Completion = HttpCompletionOption.ResponseHeadersRead
+            },
+            cancellationToken);
 
     private static string BuildQueryString(IReadOnlyDictionary<string, string> parameters)
     {
@@ -283,30 +211,6 @@ public sealed class HonuaConsoleContentHttpClient : IHonuaConsoleContentClient, 
             .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
             .Select(static pair => $"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(pair.Value)}");
         return $"?{string.Join('&', pairs)}";
-    }
-
-    private static HonuaAdminEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode)
-    {
-        // Canonical status→state mapping shared across all admin shims (honua-console#279 PA-239).
-        var state = AdminEndpointIssueFactory.MapState(statusCode);
-
-        var detail = statusCode switch
-        {
-            HttpStatusCode.Unauthorized => "The Honua server rejected the request because admin authentication is missing.",
-            HttpStatusCode.Forbidden => "The Honua server rejected the request because the current principal lacks Console content permission.",
-            HttpStatusCode.NotFound => "The Honua server Console content item was not found.",
-            HttpStatusCode.MethodNotAllowed => "The Honua server exposes the Console content route but not the required verb.",
-            HttpStatusCode.NotImplemented => "The Honua server reports the Console content capability is not implemented.",
-            HttpStatusCode.Conflict => "The Console content item changed; reload before retrying.",
-            HttpStatusCode.BadRequest => "The Honua server rejected the Console content request.",
-            _ => string.Format(
-                CultureInfo.InvariantCulture,
-                "The Honua server returned HTTP {0} ({1}) for the Console content request.",
-                (int)statusCode,
-                statusCode)
-        };
-
-        return new HonuaAdminEndpointIssue(state, contract, detail, (int)statusCode);
     }
 }
 

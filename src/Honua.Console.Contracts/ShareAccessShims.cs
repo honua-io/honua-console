@@ -114,8 +114,13 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    private static readonly AdminBodyFormat EnvelopeFormat = new(
+        JsonOptions,
+        AdminBodyRead.Streamed,
+        "The Honua server Console share response did not match the expected contract");
+
     private readonly HttpClient _httpClient;
-    private readonly string? _apiKey;
+    private readonly AdminEndpointTransport _transport;
 
     public HonuaConsoleShareHttpClient(HttpClient httpClient, HonuaConsoleShareClientOptions options)
     {
@@ -123,9 +128,12 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
         ArgumentNullException.ThrowIfNull(options);
 
         BaseUri = options.BaseUri;
-        _apiKey = options.ApiKey;
         _httpClient = httpClient;
         _httpClient.BaseAddress ??= BaseUri;
+        _transport = new AdminEndpointTransport(
+            httpClient,
+            options.ApiKey,
+            AdminTransportFailure.Unreachable("The Honua server Console share endpoint"));
     }
 
     public Uri BaseUri { get; }
@@ -137,9 +145,7 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
         ArgumentException.ThrowIfNullOrWhiteSpace(itemId);
 
         return SendAsync<HonuaConsoleShareProjection>(
-            HttpMethod.Get,
-            ShareRoot(itemId),
-            content: null,
+            () => new HttpRequestMessage(HttpMethod.Get, ShareRoot(itemId)),
             "GET /api/v1/console/content/{id}/share",
             cancellationToken);
     }
@@ -153,9 +159,7 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
         ArgumentNullException.ThrowIfNull(request);
 
         return SendAsync<HonuaConsoleShareProjection>(
-            HttpMethod.Put,
-            $"{ShareRoot(itemId)}/access",
-            JsonContent.Create(request, options: JsonOptions),
+            () => JsonRequest(HttpMethod.Put, $"{ShareRoot(itemId)}/access", request),
             "PUT /api/v1/console/content/{id}/share/access",
             cancellationToken);
     }
@@ -169,9 +173,7 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
         ArgumentException.ThrowIfNullOrWhiteSpace(targetTier);
 
         return SendAsync<HonuaConsoleShareDependencyClosure>(
-            HttpMethod.Get,
-            $"{ShareRoot(itemId)}/dependencies?targetTier={Uri.EscapeDataString(targetTier)}",
-            content: null,
+            () => new HttpRequestMessage(HttpMethod.Get, $"{ShareRoot(itemId)}/dependencies?targetTier={Uri.EscapeDataString(targetTier)}"),
             "GET /api/v1/console/content/{id}/share/dependencies",
             cancellationToken);
     }
@@ -183,9 +185,7 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
         ArgumentException.ThrowIfNullOrWhiteSpace(itemId);
 
         return SendAsync<HonuaConsolePublicLinkList>(
-            HttpMethod.Get,
-            $"{ShareRoot(itemId)}/link",
-            content: null,
+            () => new HttpRequestMessage(HttpMethod.Get, $"{ShareRoot(itemId)}/link"),
             "GET /api/v1/console/content/{id}/share/link",
             cancellationToken);
     }
@@ -199,9 +199,7 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
         ArgumentNullException.ThrowIfNull(request);
 
         return SendAsync<HonuaConsolePublicLinkToken>(
-            HttpMethod.Post,
-            $"{ShareRoot(itemId)}/link",
-            JsonContent.Create(request, options: JsonOptions),
+            () => JsonRequest(HttpMethod.Post, $"{ShareRoot(itemId)}/link", request),
             "POST /api/v1/console/content/{id}/share/link",
             cancellationToken);
     }
@@ -215,9 +213,7 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
         ArgumentException.ThrowIfNullOrWhiteSpace(tokenId);
 
         return SendAsync<HonuaConsoleShareCommandAck>(
-            HttpMethod.Delete,
-            $"{ShareRoot(itemId)}/link/{Uri.EscapeDataString(tokenId)}",
-            content: null,
+            () => new HttpRequestMessage(HttpMethod.Delete, $"{ShareRoot(itemId)}/link/{Uri.EscapeDataString(tokenId)}"),
             "DELETE /api/v1/console/content/{id}/share/link/{tokenId}",
             cancellationToken);
     }
@@ -231,9 +227,7 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
         ArgumentNullException.ThrowIfNull(request);
 
         return SendAsync<HonuaConsoleShareProjection>(
-            HttpMethod.Put,
-            $"{ShareRoot(itemId)}/embed",
-            JsonContent.Create(request, options: JsonOptions),
+            () => JsonRequest(HttpMethod.Put, $"{ShareRoot(itemId)}/embed", request),
             "PUT /api/v1/console/content/{id}/share/embed",
             cancellationToken);
     }
@@ -247,9 +241,7 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
         ArgumentNullException.ThrowIfNull(request);
 
         return SendAsync<HonuaConsoleEmbedToken>(
-            HttpMethod.Post,
-            $"{ShareRoot(itemId)}/embed",
-            JsonContent.Create(request, options: JsonOptions),
+            () => JsonRequest(HttpMethod.Post, $"{ShareRoot(itemId)}/embed", request),
             "POST /api/v1/console/content/{id}/share/embed",
             cancellationToken);
     }
@@ -258,98 +250,30 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
 
     private static string ShareRoot(string itemId) => $"{Base}/{Uri.EscapeDataString(itemId)}/share";
 
-    private async Task<HonuaAdminEndpointResult<T>> SendAsync<T>(
-        HttpMethod method,
-        string path,
-        HttpContent? content,
+    private static HttpRequestMessage JsonRequest<TBody>(HttpMethod method, string path, TBody body) =>
+        new(method, path) { Content = JsonContent.Create(body, options: JsonOptions) };
+
+    private Task<HonuaAdminEndpointResult<T>> SendAsync<T>(
+        Func<HttpRequestMessage> createRequest,
         string contract,
-        CancellationToken cancellationToken)
-    {
-        using var request = new HttpRequestMessage(method, path);
-        if (content is not null)
-        {
-            request.Content = content;
-        }
-
-        if (!string.IsNullOrWhiteSpace(_apiKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
-        }
-
-        HttpResponseMessage response;
-        try
-        {
-            response = await _httpClient.SendAsync(
-                    request,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (HttpRequestException ex)
-        {
-            return Unavailable<T>(contract, ex.Message);
-        }
-        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            // A TaskCanceledException whose token is not the caller's is an HttpClient timeout, not caller
-            // cancellation, so surface it as Unavailable. Caller-requested cancellation is left to propagate
-            // (not caught) so it cancels the calling operation instead of being masked as a transport failure.
-            return Unavailable<T>(contract, ex.Message);
-        }
-
-        using (response)
-        {
-            if (!response.IsSuccessStatusCode)
+        CancellationToken cancellationToken) =>
+        _transport.SendAsync(
+            new AdminEndpointCall<T>(createRequest, contract, CreateIssueAsync, ShareEnvelope<T>())
             {
-                return HonuaAdminEndpointResult<T>.FromIssue(await CreateIssueAsync(contract, response, cancellationToken).ConfigureAwait(false));
-            }
+                Completion = HttpCompletionOption.ResponseHeadersRead
+            },
+            cancellationToken);
 
-            HonuaAdminApiResponse<T>? envelope;
-            try
-            {
-                envelope = await response.Content
-                    .ReadFromJsonAsync<HonuaAdminApiResponse<T>>(JsonOptions, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (JsonException ex)
-            {
-                return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                    "Unsupported",
-                    contract,
-                    $"The Honua server Console share response did not match the expected contract: {ex.Message}",
-                    (int)response.StatusCode));
-            }
-
-            if (envelope?.Success == true)
-            {
-                if (envelope.Data is not null)
-                {
-                    return HonuaAdminEndpointResult<T>.FromData(envelope.Data);
-                }
-
-                // A successful command that returns no projection (e.g. public-link revoke) wraps a
-                // message-only ack with data:null. Surface it as a successful ack rather than a false
-                // Unavailable so callers (and the Share lifecycle round-trip) see the operation succeed.
-                if (typeof(T) == typeof(HonuaConsoleShareCommandAck))
-                {
-                    var ack = (T)(object)new HonuaConsoleShareCommandAck { Message = envelope.Message };
-                    return HonuaAdminEndpointResult<T>.FromData(ack);
-                }
-            }
-
-            return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                "Unavailable",
-                contract,
-                envelope?.Message ?? "The Honua server Console share response did not include data.",
-                (int)response.StatusCode));
-        }
-    }
-
-    private static HonuaAdminEndpointResult<T> Unavailable<T>(string contract, string detail) =>
-        HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-            "Unavailable",
-            contract,
-            $"The Honua server Console share endpoint could not be reached: {detail}"));
+    // A command that returns no projection (e.g. public-link revoke) answers success with data:null and a
+    // message; that is a successful acknowledgement, not a missing projection.
+    private static AdminResponseReader<T> ShareEnvelope<T>() =>
+        AdminResponseBodies.Json<HonuaAdminApiResponse<T>, T>(EnvelopeFormat, (envelope, context) => envelope switch
+        {
+            { Success: true, Data: { } data } => HonuaAdminEndpointResult<T>.FromData(data),
+            { Success: true } when typeof(T) == typeof(HonuaConsoleShareCommandAck) =>
+                HonuaAdminEndpointResult<T>.FromData((T)(object)new HonuaConsoleShareCommandAck { Message = envelope.Message }),
+            _ => context.Unavailable<T>(envelope?.Message ?? "The Honua server Console share response did not include data.")
+        });
 
     private static async Task<HonuaAdminEndpointIssue> CreateIssueAsync(
         string contract,
@@ -357,11 +281,9 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
         CancellationToken cancellationToken)
     {
         var statusCode = response.StatusCode;
-        // Canonical status→state mapping shared across all admin shims (honua-console#279 PA-239).
         var state = AdminEndpointIssueFactory.MapState(statusCode);
 
-        // A 409 on access/embed change carries the dependency-closure body. Surface the server-authored
-        // message (the blocking-dependency detail) so the Share panel can explain why the change is blocked.
+        // A 409 on an access/embed change carries the blocking-dependency message.
         var serverMessage = await TryReadMessageAsync(response, cancellationToken).ConfigureAwait(false);
 
         var detail = serverMessage ?? statusCode switch

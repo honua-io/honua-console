@@ -296,41 +296,29 @@ public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementCl
         PropertyNameCaseInsensitive = true
     };
 
-    private readonly HttpClient _httpClient;
-    private readonly string? _apiKey;
+    private static readonly AdminBodyFormat BodyFormat = new(
+        JsonOptions,
+        AdminBodyRead.Buffered,
+        "The Honua server VersionManagementServer response did not match the expected contract");
 
-    /// <summary>Creates the client over a configured <see cref="HttpClient"/> and connection options.</summary>
+    private readonly HttpClient _httpClient;
+    private readonly AdminEndpointTransport _transport;
+
     public HonuaVersionManagementHttpClient(HttpClient httpClient, HonuaVersionManagementClientOptions options)
     {
         ArgumentNullException.ThrowIfNull(httpClient);
         ArgumentNullException.ThrowIfNull(options);
 
         BaseUri = options.BaseUri;
-        _apiKey = options.ApiKey;
         _httpClient = httpClient;
         _httpClient.BaseAddress ??= BaseUri;
+        _transport = new AdminEndpointTransport(
+            httpClient,
+            options.ApiKey,
+            AdminTransportFailure.Unreachable("The Honua server endpoint"));
     }
 
-    /// <summary>The configured server base URI.</summary>
     public Uri BaseUri { get; }
-
-    /// <summary>
-    /// Resolves a request path against <see cref="BaseUri"/> so a non-root base-path prefix is preserved.
-    /// A configured server URL may include a path segment (e.g. <c>https://host/honua/</c> behind a reverse
-    /// proxy). Relying on <see cref="HttpClient.BaseAddress"/> with a rooted request path (<c>/rest/...</c>)
-    /// drops that prefix — an absolute-path reference resolves against the authority only (RFC 3986 §5.3), so
-    /// the request would hit <c>https://host/rest/...</c> instead of <c>https://host/honua/rest/...</c>.
-    /// Building an absolute URI from a slash-terminated base plus a relativised path keeps the prefix
-    /// (honua-console#274).
-    /// </summary>
-    private Uri BuildRequestUri(string relativePath)
-    {
-        var normalizedBase = BaseUri.AbsoluteUri.EndsWith('/')
-            ? BaseUri
-            : new Uri(BaseUri.AbsoluteUri + "/", UriKind.Absolute);
-        var relative = relativePath.StartsWith('/') ? relativePath[1..] : relativePath;
-        return new Uri(normalizedBase, relative);
-    }
 
     private static string Base(string serviceId) =>
         $"/rest/services/{Uri.EscapeDataString(serviceId)}/VersionManagementServer";
@@ -343,10 +331,11 @@ public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementCl
         var path = $"{Base(serviceId)}/versions?f=json";
         const string contract = "GET .../VersionManagementServer/versions";
 
-        return SendAsync<VersionListBody, IReadOnlyList<HonuaVersionInfo>>(
-            () => new HttpRequestMessage(HttpMethod.Get, BuildRequestUri(path)),
-            contract,
-            body => body.Versions ?? [],
+        return _transport.SendAsync(
+            Call(
+                () => Get(path),
+                contract,
+                Body<VersionListBody, IReadOnlyList<HonuaVersionInfo>>(body => body.Versions ?? [])),
             cancellationToken);
     }
 
@@ -378,10 +367,11 @@ public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementCl
         }
 
         const string contract = "POST .../VersionManagementServer/create";
-        return SendAsync<CreateVersionBody, HonuaVersionInfo>(
-            () => Form($"{Base(serviceId)}/create", form),
-            contract,
-            body => body.VersionInfo ?? new HonuaVersionInfo(),
+        return _transport.SendAsync(
+            Call(
+                () => Form($"{Base(serviceId)}/create", form),
+                contract,
+                Body<CreateVersionBody, HonuaVersionInfo>(body => body.VersionInfo ?? new HonuaVersionInfo())),
             cancellationToken);
     }
 
@@ -413,10 +403,11 @@ public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementCl
         }
 
         const string contract = "POST .../VersionManagementServer/versions/{guid}/alter";
-        return SendAsync<HonuaVersionMomentResult, HonuaVersionMomentResult>(
-            () => Form($"{Base(serviceId)}/versions/{Uri.EscapeDataString(versionGuid)}/alter", form),
-            contract,
-            body => body,
+        return _transport.SendAsync(
+            Call(
+                () => Form($"{Base(serviceId)}/versions/{Uri.EscapeDataString(versionGuid)}/alter", form),
+                contract,
+                Body<HonuaVersionMomentResult>()),
             cancellationToken);
     }
 
@@ -430,10 +421,11 @@ public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementCl
 
         var form = new Dictionary<string, string>(StringComparer.Ordinal) { ["f"] = "json" };
         const string contract = "POST .../VersionManagementServer/versions/{guid}/delete";
-        return SendAsync<HonuaVersionMomentResult, HonuaVersionMomentResult>(
-            () => Form($"{Base(serviceId)}/versions/{Uri.EscapeDataString(versionGuid)}/delete", form),
-            contract,
-            body => body,
+        return _transport.SendAsync(
+            Call(
+                () => Form($"{Base(serviceId)}/versions/{Uri.EscapeDataString(versionGuid)}/delete", form),
+                contract,
+                Body<HonuaVersionMomentResult>()),
             cancellationToken);
     }
 
@@ -458,10 +450,11 @@ public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementCl
         }
 
         const string contract = "POST .../VersionManagementServer/versions/{guid}/reconcile";
-        return SendAsync<HonuaReconcileResult, HonuaReconcileResult>(
-            () => Form($"{Base(serviceId)}/versions/{Uri.EscapeDataString(versionGuid)}/reconcile", form),
-            contract,
-            body => body,
+        return _transport.SendAsync(
+            Call(
+                () => Form($"{Base(serviceId)}/versions/{Uri.EscapeDataString(versionGuid)}/reconcile", form),
+                contract,
+                Body<HonuaReconcileResult>()),
             cancellationToken);
     }
 
@@ -475,10 +468,11 @@ public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementCl
 
         var path = $"{Base(serviceId)}/versions/{Uri.EscapeDataString(versionGuid)}/inspectConflicts?f=json";
         const string contract = "GET .../VersionManagementServer/versions/{guid}/inspectConflicts";
-        return SendAsync<HonuaInspectConflictsResult, HonuaInspectConflictsResult>(
-            () => new HttpRequestMessage(HttpMethod.Get, BuildRequestUri(path)),
-            contract,
-            body => body,
+        return _transport.SendAsync(
+            Call(
+                () => Get(path),
+                contract,
+                Body<HonuaInspectConflictsResult>()),
             cancellationToken);
     }
 
@@ -504,10 +498,11 @@ public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementCl
         };
 
         const string contract = "POST .../VersionManagementServer/versions/{guid}/resolveConflicts";
-        return SendAsync<HonuaResolveConflictsResult, HonuaResolveConflictsResult>(
-            () => Form($"{Base(serviceId)}/versions/{Uri.EscapeDataString(versionGuid)}/resolveConflicts", form),
-            contract,
-            body => body,
+        return _transport.SendAsync(
+            Call(
+                () => Form($"{Base(serviceId)}/versions/{Uri.EscapeDataString(versionGuid)}/resolveConflicts", form),
+                contract,
+                Body<HonuaResolveConflictsResult>()),
             cancellationToken);
     }
 
@@ -521,84 +516,44 @@ public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementCl
 
         var form = new Dictionary<string, string>(StringComparer.Ordinal) { ["f"] = "json" };
         const string contract = "POST .../VersionManagementServer/versions/{guid}/post";
-        return SendAsync<HonuaPostResult, HonuaPostResult>(
-            () => Form($"{Base(serviceId)}/versions/{Uri.EscapeDataString(versionGuid)}/post", form),
-            contract,
-            body => body,
+        return _transport.SendAsync(
+            Call(
+                () => Form($"{Base(serviceId)}/versions/{Uri.EscapeDataString(versionGuid)}/post", form),
+                contract,
+                Body<HonuaPostResult>()),
             cancellationToken);
     }
 
+    private HttpRequestMessage Get(string path) => new(HttpMethod.Get, AdminEndpointPaths.Resolve(BaseUri, path));
+
     private HttpRequestMessage Form(string path, IReadOnlyDictionary<string, string> form) =>
-        new(HttpMethod.Post, BuildRequestUri(path)) { Content = new FormUrlEncodedContent(form) };
+        new(HttpMethod.Post, AdminEndpointPaths.Resolve(BaseUri, path)) { Content = new FormUrlEncodedContent(form) };
 
-    private async Task<HonuaAdminEndpointResult<TResult>> SendAsync<TBody, TResult>(
-        Func<HttpRequestMessage> requestFactory,
+    private static AdminEndpointCall<T> Call<T>(
+        Func<HttpRequestMessage> createRequest,
         string contract,
-        Func<TBody, TResult> project,
-        CancellationToken cancellationToken)
+        AdminResponseReader<T> readBody) =>
+        new(() => AcceptingJson(createRequest()), contract, MapFailureAsync, readBody);
+
+    private static HttpRequestMessage AcceptingJson(HttpRequestMessage request)
     {
-        using var request = requestFactory();
         request.Headers.TryAddWithoutValidation("Accept", "application/json");
-        if (!string.IsNullOrWhiteSpace(_apiKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
-        }
-
-        HttpResponseMessage response;
-        try
-        {
-            response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        }
-        catch (HttpRequestException ex)
-        {
-            return Unavailable<TResult>(contract, ex.Message);
-        }
-        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Unavailable<TResult>(contract, ex.Message);
-        }
-
-        using (response)
-        {
-            var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                return HonuaAdminEndpointResult<TResult>.FromIssue(CreateIssue(contract, response.StatusCode, payload));
-            }
-
-            TBody? body;
-            try
-            {
-                body = string.IsNullOrWhiteSpace(payload)
-                    ? default
-                    : JsonSerializer.Deserialize<TBody>(payload, JsonOptions);
-            }
-            catch (JsonException ex)
-            {
-                return HonuaAdminEndpointResult<TResult>.FromIssue(new HonuaAdminEndpointIssue(
-                    "Unsupported",
-                    contract,
-                    $"The Honua server VersionManagementServer response did not match the expected contract: {ex.Message}",
-                    (int)response.StatusCode));
-            }
-
-            if (body is null)
-            {
-                return HonuaAdminEndpointResult<TResult>.FromIssue(new HonuaAdminEndpointIssue(
-                    "Unavailable",
-                    contract,
-                    "The Honua server VersionManagementServer response did not include a body.",
-                    (int)response.StatusCode));
-            }
-
-            return HonuaAdminEndpointResult<TResult>.FromData(project(body));
-        }
+        return request;
     }
 
-    private static HonuaAdminEndpointResult<T> Unavailable<T>(string contract, string detail) =>
-        HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-            "Unavailable", contract, $"The Honua server endpoint could not be reached: {detail}"));
+    private static AdminResponseReader<T> Body<T>() => Body<T, T>(body => body);
+
+    private static AdminResponseReader<TResult> Body<TBody, TResult>(Func<TBody, TResult> project) =>
+        AdminResponseBodies.Required(BodyFormat, "The Honua server VersionManagementServer response did not include a body.", project);
+
+    private static async Task<HonuaAdminEndpointIssue> MapFailureAsync(
+        string contract,
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        return CreateIssue(contract, response.StatusCode, payload);
+    }
 
     private static HonuaAdminEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode, string? payload)
     {
@@ -629,48 +584,21 @@ public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementCl
         return new HonuaAdminEndpointIssue(state, contract, detail, (int)statusCode);
     }
 
-    // Extracts the actionable rejection text from a GeoServices error body ({ error: { message, details[] } })
-    // or an RFC-7807 ProblemDetails body, so a validation/conflict rejection reaches the operator verbatim.
-    private static string? ParseFailureMessage(string? payload)
+    // A GeoServices error body ({ error: { message } }) takes precedence over the ApiResponse/ProblemDetails text.
+    private static string? ParseFailureMessage(string? payload) =>
+        ParseGeoServicesErrorMessage(payload) ?? AdminFailureMappings.ParseServerMessage(payload);
+
+    private static string? ParseGeoServicesErrorMessage(string? payload)
     {
-        if (string.IsNullOrWhiteSpace(payload))
-        {
-            return null;
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(payload);
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                return null;
-            }
-
-            if (document.RootElement.TryGetProperty("error", out var error)
-                && error.ValueKind == JsonValueKind.Object
-                && error.TryGetProperty("message", out var errorMessage)
-                && errorMessage.ValueKind == JsonValueKind.String
-                && errorMessage.GetString() is { Length: > 0 } esriMessage)
-            {
-                return esriMessage;
-            }
-
-            foreach (var property in new[] { "message", "detail", "title" })
-            {
-                if (document.RootElement.TryGetProperty(property, out var value)
-                    && value.ValueKind == JsonValueKind.String
-                    && value.GetString() is { Length: > 0 } message)
-                {
-                    return message;
-                }
-            }
-
-            return null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+        using var document = AdminFailureMappings.TryParseObject(payload);
+        return document is not null
+            && document.RootElement.TryGetProperty("error", out var error)
+            && error.ValueKind == JsonValueKind.Object
+            && error.TryGetProperty("message", out var message)
+            && message.ValueKind == JsonValueKind.String
+            && message.GetString() is { Length: > 0 } text
+                ? text
+                : null;
     }
 
     private static string PolicyToString(HonuaVersionReconcilePolicy policy) => policy switch
@@ -695,7 +623,6 @@ public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementCl
         _ => "private"
     };
 
-    /// <summary>Disposes the underlying <see cref="HttpClient"/>.</summary>
     public void Dispose() => _httpClient.Dispose();
 
     private sealed record VersionListBody

@@ -112,8 +112,18 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    private static readonly AdminBodyFormat DirectFormat = new(
+        JsonOptions,
+        AdminBodyRead.Streamed,
+        "The Honua server temporal response did not match the expected contract");
+
+    private static readonly AdminBodyFormat EnvelopeFormat = new(
+        JsonOptions,
+        AdminBodyRead.Streamed,
+        "The Honua server response did not match the expected admin API shape");
+
     private readonly HttpClient _httpClient;
-    private readonly string? _apiKey;
+    private readonly AdminEndpointTransport _transport;
 
     public HonuaTemporalHttpClient(HttpClient httpClient, HonuaTemporalClientOptions options)
     {
@@ -121,9 +131,12 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
         ArgumentNullException.ThrowIfNull(options);
 
         BaseUri = options.BaseUri;
-        _apiKey = options.ApiKey;
         _httpClient = httpClient;
         _httpClient.BaseAddress ??= BaseUri;
+        _transport = new AdminEndpointTransport(
+            httpClient,
+            options.ApiKey,
+            AdminTransportFailure.Unreachable("The Honua server temporal endpoint"));
     }
 
     public Uri BaseUri { get; }
@@ -231,10 +244,11 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
         ArgumentNullException.ThrowIfNull(request);
 
-        return PostDirectAsync<HonuaTemporalRollbackPlanRequest, HonuaTemporalRollbackPlanResponse>(
-            $"/api/v1/temporal/services/{Uri.EscapeDataString(serviceId)}/layers/{Layer(layerId)}/rollback/plan",
-            "POST /api/v1/temporal/services/{serviceId}/layers/{layerId}/rollback/plan",
-            request,
+        return _transport.SendAsync(
+            Call(
+                () => JsonPost($"/api/v1/temporal/services/{Uri.EscapeDataString(serviceId)}/layers/{Layer(layerId)}/rollback/plan", request),
+                "POST /api/v1/temporal/services/{serviceId}/layers/{layerId}/rollback/plan",
+                DirectBody<HonuaTemporalRollbackPlanResponse>()),
             cancellationToken);
     }
 
@@ -247,10 +261,11 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
         ArgumentNullException.ThrowIfNull(request);
 
-        return PostDirectAsync<HonuaTemporalRollbackExecuteRequest, HonuaTemporalRollbackJobResponse>(
-            $"/api/v1/temporal/services/{Uri.EscapeDataString(serviceId)}/layers/{Layer(layerId)}/rollback",
-            "POST /api/v1/temporal/services/{serviceId}/layers/{layerId}/rollback",
-            request,
+        return _transport.SendAsync(
+            Call(
+                () => JsonPost($"/api/v1/temporal/services/{Uri.EscapeDataString(serviceId)}/layers/{Layer(layerId)}/rollback", request),
+                "POST /api/v1/temporal/services/{serviceId}/layers/{layerId}/rollback",
+                DirectBody<HonuaTemporalRollbackJobResponse>()),
             cancellationToken);
     }
 
@@ -327,10 +342,11 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(conflictId);
         ArgumentNullException.ThrowIfNull(request);
 
-        return PostEnvelopeAsync<HonuaReplicaConflictResolutionRequest, HonuaReplicaConflictResolutionResponse>(
-            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceId)}/replicas/{Uri.EscapeDataString(replicaId)}/conflicts/{Uri.EscapeDataString(conflictId)}/resolve",
-            "POST /api/v1/admin/services/{serviceId}/replicas/{replicaId}/conflicts/{conflictId}/resolve",
-            request,
+        return _transport.SendAsync(
+            Call(
+                () => JsonPost($"/api/v1/admin/services/{Uri.EscapeDataString(serviceId)}/replicas/{Uri.EscapeDataString(replicaId)}/conflicts/{Uri.EscapeDataString(conflictId)}/resolve", request),
+                "POST /api/v1/admin/services/{serviceId}/replicas/{replicaId}/conflicts/{conflictId}/resolve",
+                EnvelopeBody<HonuaReplicaConflictResolutionResponse>()),
             cancellationToken);
     }
 
@@ -338,251 +354,40 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
 
     private static string Layer(int layerId) => layerId.ToString(CultureInfo.InvariantCulture);
 
-    // The temporal capability/as-of endpoints return the DTO body directly (not wrapped in ApiResponse<T>).
-    private async Task<HonuaAdminEndpointResult<T>> GetDirectAsync<T>(
-        string path,
-        string contract,
-        CancellationToken cancellationToken)
-    {
-        var (response, transportIssue) = await SendAsync(path, contract, cancellationToken).ConfigureAwait(false);
-        if (transportIssue is not null)
-        {
-            return HonuaAdminEndpointResult<T>.FromIssue(transportIssue);
-        }
-
-        using var http = response!;
-        if (!http.IsSuccessStatusCode)
-        {
-            return HonuaAdminEndpointResult<T>.FromIssue(
-                await CreateTemporalIssueAsync(contract, http, cancellationToken).ConfigureAwait(false));
-        }
-
-        T? payload;
-        try
-        {
-            payload = await http.Content
-                .ReadFromJsonAsync<T>(JsonOptions, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (JsonException ex)
-        {
-            return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                "Unsupported",
-                contract,
-                $"The Honua server temporal response did not match the expected contract: {ex.Message}",
-                (int)http.StatusCode));
-        }
-
-        return payload is null
-            ? HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                "Unavailable",
-                contract,
-                "The Honua server temporal response body was empty.",
-                (int)http.StatusCode))
-            : HonuaAdminEndpointResult<T>.FromData(payload);
-    }
-
-    // The temporal rollback plan/execute endpoints are POSTs that return their DTO body directly (not
-    // wrapped in ApiResponse<T>). Plan returns 200; execute returns 202 Accepted with the job handle.
-    private async Task<HonuaAdminEndpointResult<TResponse>> PostDirectAsync<TRequest, TResponse>(
-        string path,
-        string contract,
-        TRequest body,
-        CancellationToken cancellationToken)
-    {
-        var (response, transportIssue) = await SendAsync(
-                HttpMethod.Post,
-                path,
-                contract,
-                () => JsonContent.Create(body, options: JsonOptions),
-                cancellationToken)
-            .ConfigureAwait(false);
-        if (transportIssue is not null)
-        {
-            return HonuaAdminEndpointResult<TResponse>.FromIssue(transportIssue);
-        }
-
-        using var http = response!;
-        if (!http.IsSuccessStatusCode)
-        {
-            return HonuaAdminEndpointResult<TResponse>.FromIssue(
-                await CreateTemporalIssueAsync(contract, http, cancellationToken).ConfigureAwait(false));
-        }
-
-        TResponse? payload;
-        try
-        {
-            payload = await http.Content
-                .ReadFromJsonAsync<TResponse>(JsonOptions, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (JsonException ex)
-        {
-            return HonuaAdminEndpointResult<TResponse>.FromIssue(new HonuaAdminEndpointIssue(
-                "Unsupported",
-                contract,
-                $"The Honua server temporal response did not match the expected contract: {ex.Message}",
-                (int)http.StatusCode));
-        }
-
-        return payload is null
-            ? HonuaAdminEndpointResult<TResponse>.FromIssue(new HonuaAdminEndpointIssue(
-                "Unavailable",
-                contract,
-                "The Honua server temporal response body was empty.",
-                (int)http.StatusCode))
-            : HonuaAdminEndpointResult<TResponse>.FromData(payload);
-    }
-
-    // The replica management endpoints wrap their payload in the shared ApiResponse<T> envelope.
-    private async Task<HonuaAdminEndpointResult<T>> GetEnvelopeAsync<T>(
-        string path,
-        string contract,
-        CancellationToken cancellationToken)
-    {
-        var (response, transportIssue) = await SendAsync(path, contract, cancellationToken).ConfigureAwait(false);
-        if (transportIssue is not null)
-        {
-            return HonuaAdminEndpointResult<T>.FromIssue(transportIssue);
-        }
-
-        using var http = response!;
-        if (!http.IsSuccessStatusCode)
-        {
-            return HonuaAdminEndpointResult<T>.FromIssue(
-                await CreateTemporalIssueAsync(contract, http, cancellationToken).ConfigureAwait(false));
-        }
-
-        HonuaTemporalApiResponse<T>? envelope;
-        try
-        {
-            envelope = await http.Content
-                .ReadFromJsonAsync<HonuaTemporalApiResponse<T>>(JsonOptions, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (JsonException ex)
-        {
-            return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-                "Unsupported",
-                contract,
-                $"The Honua server response did not match the expected admin API shape: {ex.Message}",
-                (int)http.StatusCode));
-        }
-
-        if (envelope?.Success == true && envelope.Data is not null)
-        {
-            return HonuaAdminEndpointResult<T>.FromData(envelope.Data);
-        }
-
-        return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
-            "Unavailable",
-            contract,
-            envelope?.Message ?? "The Honua server response did not include data.",
-            (int)http.StatusCode));
-    }
-
-    // The conflict-resolution endpoint is a POST that wraps its payload in the shared ApiResponse<T>
-    // envelope. The request body is the operator-selected resolution; the response is the resolved
-    // conflict detail plus whether a new committed server state was produced.
-    private async Task<HonuaAdminEndpointResult<TResponse>> PostEnvelopeAsync<TRequest, TResponse>(
-        string path,
-        string contract,
-        TRequest body,
-        CancellationToken cancellationToken)
-    {
-        var (response, transportIssue) = await SendAsync(
-                HttpMethod.Post,
-                path,
-                contract,
-                () => JsonContent.Create(body, options: JsonOptions),
-                cancellationToken)
-            .ConfigureAwait(false);
-        if (transportIssue is not null)
-        {
-            return HonuaAdminEndpointResult<TResponse>.FromIssue(transportIssue);
-        }
-
-        using var http = response!;
-        if (!http.IsSuccessStatusCode)
-        {
-            return HonuaAdminEndpointResult<TResponse>.FromIssue(
-                await CreateTemporalIssueAsync(contract, http, cancellationToken).ConfigureAwait(false));
-        }
-
-        HonuaTemporalApiResponse<TResponse>? envelope;
-        try
-        {
-            envelope = await http.Content
-                .ReadFromJsonAsync<HonuaTemporalApiResponse<TResponse>>(JsonOptions, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (JsonException ex)
-        {
-            return HonuaAdminEndpointResult<TResponse>.FromIssue(new HonuaAdminEndpointIssue(
-                "Unsupported",
-                contract,
-                $"The Honua server response did not match the expected admin API shape: {ex.Message}",
-                (int)http.StatusCode));
-        }
-
-        if (envelope?.Success == true && envelope.Data is not null)
-        {
-            return HonuaAdminEndpointResult<TResponse>.FromData(envelope.Data);
-        }
-
-        return HonuaAdminEndpointResult<TResponse>.FromIssue(new HonuaAdminEndpointIssue(
-            "Unavailable",
-            contract,
-            envelope?.Message ?? "The Honua server response did not include data.",
-            (int)http.StatusCode));
-    }
-
-    private Task<(HttpResponseMessage? Response, HonuaAdminEndpointIssue? Issue)> SendAsync(
+    private Task<HonuaAdminEndpointResult<T>> GetDirectAsync<T>(
         string path,
         string contract,
         CancellationToken cancellationToken) =>
-        SendAsync(HttpMethod.Get, path, contract, content: null, cancellationToken);
+        _transport.SendAsync(
+            Call(() => new HttpRequestMessage(HttpMethod.Get, path), contract, DirectBody<T>()),
+            cancellationToken);
 
-    private async Task<(HttpResponseMessage? Response, HonuaAdminEndpointIssue? Issue)> SendAsync(
-        HttpMethod method,
+    private Task<HonuaAdminEndpointResult<T>> GetEnvelopeAsync<T>(
         string path,
         string contract,
-        Func<HttpContent>? content,
-        CancellationToken cancellationToken)
-    {
-        using var request = new HttpRequestMessage(method, path);
-        if (content is not null)
-        {
-            request.Content = content();
-        }
+        CancellationToken cancellationToken) =>
+        _transport.SendAsync(
+            Call(() => new HttpRequestMessage(HttpMethod.Get, path), contract, EnvelopeBody<T>()),
+            cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(_apiKey))
+    private static AdminEndpointCall<T> Call<T>(
+        Func<HttpRequestMessage> createRequest,
+        string contract,
+        AdminResponseReader<T> readBody) =>
+        new(createRequest, contract, CreateTemporalIssueAsync, readBody)
         {
-            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
-        }
+            Completion = HttpCompletionOption.ResponseHeadersRead
+        };
 
-        try
-        {
-            var response = await _httpClient
-                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-                .ConfigureAwait(false);
-            return (response, null);
-        }
-        catch (HttpRequestException ex)
-        {
-            return (null, new HonuaAdminEndpointIssue(
-                "Unavailable",
-                contract,
-                $"The Honua server temporal endpoint could not be reached: {ex.Message}"));
-        }
-        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            return (null, new HonuaAdminEndpointIssue(
-                "Unavailable",
-                contract,
-                $"The Honua server temporal endpoint could not be reached: {ex.Message}"));
-        }
-    }
+    private static HttpRequestMessage JsonPost<TBody>(string path, TBody body) =>
+        new(HttpMethod.Post, path) { Content = JsonContent.Create(body, options: JsonOptions) };
+
+    // Temporal history endpoints answer with the DTO itself; replica management wraps it in ApiResponse<T>.
+    private static AdminResponseReader<T> DirectBody<T>() =>
+        AdminResponseBodies.Required<T>(DirectFormat, "The Honua server temporal response body was empty.");
+
+    private static AdminResponseReader<T> EnvelopeBody<T>() =>
+        AdminResponseBodies.Envelope<HonuaTemporalApiResponse<T>, T>(EnvelopeFormat, "The Honua server response did not include data.");
 
     private static HonuaAdminEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode)
     {
@@ -644,7 +449,7 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
 
 // --- ApiResponse envelope (mirrors Honua.Infrastructure.Models.ApiResponse<T> success body). ---
 
-internal sealed record HonuaTemporalApiResponse<T>
+internal sealed record HonuaTemporalApiResponse<T> : IAdminResponseEnvelope<T>
 {
     [JsonPropertyName("success")]
     public bool Success { get; init; }
