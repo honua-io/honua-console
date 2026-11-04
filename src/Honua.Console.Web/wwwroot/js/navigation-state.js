@@ -59,7 +59,7 @@
     document.addEventListener('focusout', event => {
         const menu = event.target.closest(menuSelector);
         if (menu) queueMicrotask(() => {
-            if (!menu.contains(document.activeElement)) menu.open = false;
+            if (menu.isConnected && !menu.contains(document.activeElement)) menu.open = false;
         });
     });
     function closeControls() {
