@@ -12,6 +12,7 @@ public sealed record ConsoleDeployOperationRealtimeEvent(
 
 public interface IConsoleDeployOperationRealtimeClient : IAsyncDisposable
 {
+    // Callbacks run on the connection thread, so a UI subscriber marshals its own update.
     event Action<ConsoleDeployOperationRealtimeEvent>? OperationChanged;
 
     // A missing hub group becomes the fallback state and does not throw, so callers keep their poll loop.

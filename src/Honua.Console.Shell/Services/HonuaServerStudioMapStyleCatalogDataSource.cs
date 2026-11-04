@@ -4,7 +4,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-// A failed styles read is a capability state on the catalog rather than thrown style ids, so the builder can fall back to a free-form style string.
+// A failed styles read returns a capability state instead of throwing or inventing style ids, so the builder can fall back to a free-form style string.
 public sealed class HonuaServerStudioMapStyleCatalogDataSource : IStudioMapStyleCatalogDataSource
 {
     private const string Surface = "Map builder (style catalog)";

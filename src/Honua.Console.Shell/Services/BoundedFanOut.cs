@@ -1,6 +1,6 @@
 namespace Honua.Console.Shell.Services;
 
-// The concurrency cap stops one Operate page load from opening hundreds of admin HTTP calls.
+// The concurrency cap stops one Operate page load from opening hundreds of admin HTTP calls, and results retain source order.
 internal static class BoundedFanOut
 {
     public const int DefaultConcurrency = 8;

@@ -2,7 +2,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-// The server approval gate is never bypassed, and an empty id set returns an empty allowed result rather than invented operations.
+// The server approval gate is never bypassed. ListPendingAsync is the tracked-id read when the paged operations list is unsupported, and an empty id set returns an empty allowed result rather than invented operations.
 public interface IConsoleDeployApprovalClient
 {
     Task<OperateSectionResult<DeployOperationProposal>> GetOperationAsync(
@@ -19,7 +19,7 @@ public interface IConsoleDeployApprovalClient
         string? reason,
         CancellationToken cancellationToken = default);
 
-    // A data-affecting rollback stays behind the server approval gate; a denial is Forbidden.
+    // A data-affecting rollback stays behind the server approval gate, and the caller confirms it before this method runs; a denial is Forbidden.
     Task<OperateSectionResult<DeployOperationProposal>> RollbackAsync(
         string operationId,
         string? reason,

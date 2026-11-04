@@ -11,7 +11,7 @@ public interface IConsoleDevOpsProposalsClient
         CancellationToken cancellationToken = default);
 }
 
-// Returns an empty allowed result so the inbox never shows a fabricated devops queue.
+// No proposal-list endpoint is bound, so this stand-in returns an empty allowed result and the inbox does not fabricate a devops queue.
 public sealed class UnavailableConsoleDevOpsProposalsClient : IConsoleDevOpsProposalsClient
 {
     public Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(

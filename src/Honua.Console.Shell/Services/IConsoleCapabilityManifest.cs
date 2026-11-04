@@ -37,7 +37,6 @@ public sealed class ConsoleCapabilityManifest : IConsoleCapabilityManifest
             StringComparer.OrdinalIgnoreCase);
     }
 
-    // A null or blank list advertises nothing.
     public static ConsoleCapabilityManifest FromConfigurationList(string? capabilityList) =>
         new(SplitList(capabilityList));
 

@@ -11,7 +11,7 @@ public interface ICollectAutomationClient
     // A null or "new" id opens a local draft; an unbound surface returns a binding state.
     Task<CollectAutomationEditorContext> OpenEditorAsync(string? draftId, CancellationToken cancellationToken = default);
 
-    // A validation failure returns issues and no version id and leaves the draft dirty; only a valid body commits an immutable version.
+    // A validation failure returns issues and no version id and leaves the draft dirty; a valid body commits an immutable version and advances it monotonically.
     Task<CollectAutomationSaveResult> SaveVersionAsync(
         CollectAutomationDraft draft,
         string changeNote,

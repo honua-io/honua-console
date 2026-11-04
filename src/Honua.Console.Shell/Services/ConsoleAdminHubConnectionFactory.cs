@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.Shell.Services;
 
-// Hub connections require the operator's forwardable bearer and never fall back to a shared API key; null means no environment is bound, not a connection failure.
+// Hub connections require the operator's forwardable bearer and never fall back to a shared API key. Null means no environment is bound, the bearer is missing, or the hub target did not resolve, and it is not a connection failure.
 internal static class ConsoleAdminHubConnectionFactory
 {
     public static async Task<HubConnection?> CreateAsync(
