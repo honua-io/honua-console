@@ -332,7 +332,7 @@ Information objects:
 
 Design challenges:
 
-- Keep Esri-compatible concepts available without forcing protocol details into the default UI.
+- Keep GeoServices concepts available without forcing protocol details into the default UI.
 - Make base/client/server comparison understandable.
 - Preserve audit trail and defer option.
 

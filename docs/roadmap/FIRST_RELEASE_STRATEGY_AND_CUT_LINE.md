@@ -32,7 +32,7 @@ We do **not** offer a path completely off the Esri ecosystem, and that is delibe
 
 - **Replace:** the ArcGIS Server / Portal / Enterprise *operational* sprawl and the "million toolboxes" authoring complexity. The felt promise is *a glimpse of what life looks like without a million toolboxes* — express intent, do not hunt through tool catalogs.
 - **Keep / interoperate:** Honua speaks **Esri REST** as a northbound interface, so existing Esri clients — including ArcGIS Pro — keep working against Honua with no forced client migration.
-- **The distinction that matters:** *server-side breadth* must be ours (otherwise the org runs two servers — the "second system" failure), while the *client-side protocol* stays Esri-compatible (so users keep the tools they already know). Esri REST interop is not a second system; it is one broad server speaking the incumbent's protocol.
+- **The distinction that matters:** *server-side breadth* must be ours (otherwise the org runs two servers — the "second system" failure), while the *client-side protocol* stays GeoServices REST (so users keep the tools they already know). Esri REST interop is not a second system; it is one broad server speaking the incumbent's protocol.
 
 ## Backend Readiness (honua-server, verified 2026-05-24)
 
@@ -130,7 +130,7 @@ Ship when a real org can run a real *new* project end to end on Honua alone, fro
 - Author across the whole surface — maps and query at spike depth, analysis/dashboard/report/form/app/workflow at least sufficient — as inspectable, governed packages with validation and provenance shown before publish.
 - Publish and share/embed through the unified runtime, with content/version/publication/job/event records linked by stable IDs (immutable audit/SIEM is enterprise-tier — see Backend Readiness).
 - Make a production change safely: propose → preflight → approve → apply → roll back, **without ever touching Git**, after a one-time repo bootstrap.
-- Existing Esri REST clients (including ArcGIS Pro) can consume and publish to Honua services through the Esri-compatible interface — no forced client migration.
+- Existing Esri REST clients (including ArcGIS Pro) can consume and publish to Honua services through the GeoServices REST interface — no forced client migration.
 - System-of-record reliability holds: server-authored RBAC/entitlement gates every route and action.
 - Gated exotic depth renders as unsupported via the capability manifest, with no dead UI.
 

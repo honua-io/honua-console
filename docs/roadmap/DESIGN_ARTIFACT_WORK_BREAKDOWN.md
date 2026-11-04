@@ -44,11 +44,11 @@ The AI mapmaking and analysis ambition is ArcGIS Pro breadth through a natural-l
 The target is AI-mediated capability coverage:
 
 - Prompt or conversation to typed `query.package`, `analysis.package`, `map.package`, `dashboard.package`, `report.package`, `form.package`, `app.package`, or `workflow.package`.
-- Natural-language intent resolution against a GIS capability registry that covers built-in tools, workflow templates, server-side Honua operations, ArcGIS/Esri-compatible operations, custom script/model tools where supported, and remote GP/process services.
+- Natural-language intent resolution against a GIS capability registry that covers built-in tools, workflow templates, server-side Honua operations, ArcGIS and GeoServices operations, custom script/model tools where supported, and remote GP/process services.
 - Inspectable assumptions, data bindings, parameters, environments, validation, license/extension requirements, cost/runtime estimates, permissions, warnings, and provenance before execution or publish.
 - Map authoring for layers, filters, styles, popups, legend, basemap, extent, interactions, labeling/cartographic intent where supported, share/embed policy, versioning, rollback, and standards sidecars where applicable.
 - Analysis authoring for source binding, method/tool selection, parameters, output schema, queued execution, result artifacts, rerun, failure evidence, and reuse as content, layers, reports, dashboards, apps, or workflows.
-- Esri-compatible concepts where they matter for interoperability: service/layer publication slots, GP/process service endpoints, named replica terminology, renderer/SLD sidecars, STAC/DCAT/open-data evidence, import/export behavior, and migration from ArcGIS-style tools or models.
+- GeoServices concepts where they matter for interoperability: service/layer publication slots, GP/process service endpoints, named replica terminology, renderer/SLD sidecars, STAC/DCAT/open-data evidence, import/export behavior, and migration from ArcGIS-style tools or models.
 
 Do not file child work that recreates ArcGIS Pro UI surfaces directly. File child work against capability registry coverage, tool/workflow planning, package generation, validation, execution adapters, provenance, and concrete ArcGIS/Esri interoperability behaviors.
 
