@@ -29,6 +29,8 @@ export interface AdminApi {
   listConnections(): Promise<AdminConnection[]>;
   findConnectionByName(name: string): Promise<AdminConnection | undefined>;
   createConnection(body: Record<string, unknown>): Promise<AdminConnection>;
+  /** Find a connection by name or create it WITHOUT tracking, so it outlives the test (and its retries). */
+  getOrCreateKeptConnection(body: Record<string, unknown> & { name: string }): Promise<AdminConnection>;
   deleteConnection(id: string): Promise<void>;
   /** Register a connection name so the fixture deletes it (by lookup) during teardown. */
   trackConnectionName(name: string): void;
@@ -53,6 +55,11 @@ export const test = base.extend<{ admin: AdminApi }>({
       extraHTTPHeaders: { 'X-API-Key': ADMIN_KEY },
     });
     const tracked = new Set<string>();
+    const postConnection = async (body: Record<string, unknown>) => {
+      const res = await ctx.post('/api/v1/admin/connections/', { data: body });
+      expect(res.ok(), `create connection failed: ${res.status()} ${await res.text()}`).toBeTruthy();
+      return (await res.json()).data as AdminConnection;
+    };
 
     const api: AdminApi = {
       serverUrl: SERVER_URL,
@@ -66,13 +73,14 @@ export const test = base.extend<{ admin: AdminApi }>({
         return (await this.listConnections()).find((c) => c.name === name);
       },
       async createConnection(body) {
-        const res = await ctx.post('/api/v1/admin/connections/', { data: body });
-        expect(res.ok(), `create connection failed: ${res.status()} ${await res.text()}`).toBeTruthy();
-        const json = await res.json();
+        const connection = await postConnection(body);
         if (typeof body.name === 'string') {
           tracked.add(body.name);
         }
-        return json.data as AdminConnection;
+        return connection;
+      },
+      async getOrCreateKeptConnection(body) {
+        return (await this.findConnectionByName(body.name)) ?? postConnection(body);
       },
       async deleteConnection(id) {
         await ctx.delete(`/api/v1/admin/connections/${id}`);

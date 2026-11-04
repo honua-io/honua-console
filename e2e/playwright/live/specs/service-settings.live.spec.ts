@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { test, expect } from '../admin-api';
 import { GEOSERVICES_NOT_FOUND, GEOSERVICES_TOKEN_REQUIRED, anonymousGeoServicesQuery, geoServicesErrorCode } from '../geoservices';
-import { isServicePublished } from '../published';
+import { ensurePublishedLayer, type SeededLayer } from '../seeded-layer';
+import { SOURCE_DB } from '../source-db';
 
 // Live e2e for the Operate service-settings surface (/operate/services/{svc}/settings): it validates that
 // EVERY service setting the console exposes actually takes effect on the live server — driven through the
@@ -13,22 +15,20 @@ import { isServicePublished } from '../published';
 //   2. Access policy (the access tier) — the anonymous-read toggle gates the live FeatureServer query for an
 //      unauthenticated caller (features when public, the GeoServices 499 error when private).
 //
-// Target: the published service `e2e_src_fs` (layer 1), seeded by services-layers.live.spec.ts. If it is not
-// present (the publish spec has not run on this server), the whole describe is skipped with a clear reason.
+// Target: a service this spec seeds itself through the admin API from its own table (see seeded-layer.ts).
 
-const SERVICE_NAME = 'e2e_src_fs';
-const LAYER_ID = 1;
+const stamp = randomUUID().replaceAll('-', '').slice(0, 10);
 const ADMIN_KEY = process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key';
 const ADMIN_HEADERS = { 'X-API-Key': ADMIN_KEY };
 
 // Protocols a vector (polygon) layer can serve, with the concrete endpoint that proves it serves when the
 // protocol is enabled. (Raster/elevation/GP protocols — ImageServer, Wcs, OgcApiCoverages, Terrain,
 // Elevation, GPServer, Grpc — do not apply to a vector layer and are intentionally excluded.)
-const PROTOCOL_SERVES: { protocol: string; path: string; marker: string | RegExp }[] = [
-  { protocol: 'FeatureServer', path: `/rest/services/${SERVICE_NAME}/FeatureServer?f=json`, marker: '"layers"' },
-  { protocol: 'MapServer', path: `/rest/services/${SERVICE_NAME}/MapServer?f=json`, marker: /"(name|mapName)"/ },
-  { protocol: 'Wms', path: `/rest/services/${SERVICE_NAME}/MapServer/WMS?service=WMS&request=GetCapabilities&version=1.3.0`, marker: 'WMS_Capabilities' },
-  { protocol: 'Wmts', path: `/rest/services/${SERVICE_NAME}/MapServer/WMTS?service=WMTS&request=GetCapabilities&version=1.0.0`, marker: 'Capabilities' },
+const protocolServes = (service: string): { protocol: string; path: string; marker: string | RegExp }[] => [
+  { protocol: 'FeatureServer', path: `/rest/services/${service}/FeatureServer?f=json`, marker: '"layers"' },
+  { protocol: 'MapServer', path: `/rest/services/${service}/MapServer?f=json`, marker: /"(name|mapName)"/ },
+  { protocol: 'Wms', path: `/rest/services/${service}/MapServer/WMS?service=WMS&request=GetCapabilities&version=1.3.0`, marker: 'WMS_Capabilities' },
+  { protocol: 'Wmts', path: `/rest/services/${service}/MapServer/WMTS?service=WMTS&request=GetCapabilities&version=1.0.0`, marker: 'Capabilities' },
   { protocol: 'Wfs20', path: `/wfs?service=WFS&request=GetCapabilities&version=2.0.0`, marker: 'WFS_Capabilities' },
   { protocol: 'OgcFeatures', path: `/ogc/features/collections?f=json`, marker: '"collections"' },
   { protocol: 'OgcApiTiles', path: `/ogc/tiles/tiles?f=json`, marker: /"(tilesets|tileMatrixSets)"/ },
@@ -37,11 +37,16 @@ const PROTOCOL_SERVES: { protocol: string; path: string; marker: string | RegExp
 ];
 
 test.describe('Operate · Service settings (live)', () => {
-  test.beforeEach(async ({ page, admin }) => {
-    // Guard: the settings target must be a published service on this server. NOTE the absolute server URL —
-    // a relative path would resolve against the Console baseURL, not honua-server.
-    const published = await isServicePublished(page, admin.serverUrl, SERVICE_NAME, ADMIN_HEADERS);
-    test.skip(!published, `${SERVICE_NAME} is not published on this server — run services-layers.live.spec first.`);
+  let target: SeededLayer;
+
+  test.beforeEach(async ({ admin }) => {
+    test.setTimeout(180_000);
+    target = await ensurePublishedLayer(admin, {
+      connectionName: 'e2e-settings-src',
+      table: SOURCE_DB.settingsTable,
+      layerName: `E2E Settings ${stamp}`,
+      serviceName: `e2e_settings_${stamp}`,
+    });
   });
 
   test('every applicable protocol enabled via the UI serves through its own endpoint', async ({ page, admin }) => {
@@ -49,10 +54,10 @@ test.describe('Operate · Service settings (live)', () => {
     const base = admin.serverUrl;
 
     // Drive the real service-config UI: tick every applicable protocol, then save.
-    await page.goto(`/operate/services/${SERVICE_NAME}/settings`);
+    await page.goto(`/operate/services/${target.serviceName}/settings`);
     await expect(page.locator('[data-service-config]')).toBeVisible({ timeout: 30_000 });
 
-    for (const { protocol } of PROTOCOL_SERVES) {
+    for (const { protocol } of protocolServes(target.serviceName)) {
       const box = page.locator(`[data-protocol="${protocol}"]`);
       // Only protocols the server reports available for this service render a checkbox.
       if ((await box.count()) === 0) continue;
@@ -62,11 +67,11 @@ test.describe('Operate · Service settings (live)', () => {
     await expect(page.locator('[data-config-result]')).toContainText('Updated', { timeout: 30_000 });
 
     // The server settings API now reports them enabled (independent path from the UI write).
-    const settings = await admin.getJson(`/api/v1/admin/services/${SERVICE_NAME}/settings`);
+    const settings = await admin.getJson(`/api/v1/admin/services/${target.serviceName}/settings`);
     const enabled: string[] = settings.enabledProtocols ?? settings.data?.enabledProtocols ?? [];
 
     // Each enabled protocol actually serves the layer through its public endpoint.
-    for (const { protocol, path, marker } of PROTOCOL_SERVES) {
+    for (const { protocol, path, marker } of protocolServes(target.serviceName)) {
       if (!enabled.includes(protocol)) continue; // server may not offer a given protocol for this service
       const res = await page.request.get(`${base}${path}`, { headers: ADMIN_HEADERS });
       expect(res.ok(), `${protocol}: ${path} -> ${res.status()}`).toBeTruthy();
@@ -82,10 +87,10 @@ test.describe('Operate · Service settings (live)', () => {
   test('disabling a protocol via the UI stops that per-service endpoint serving', async ({ page, admin }) => {
     test.slow();
     const base = admin.serverUrl;
-    const mapServerPath = `/rest/services/${SERVICE_NAME}/MapServer?f=json`;
+    const mapServerPath = `/rest/services/${target.serviceName}/MapServer?f=json`;
     const mapServerError = () => geoServicesErrorCode(page.request, `${base}${mapServerPath}`, ADMIN_HEADERS);
 
-    await page.goto(`/operate/services/${SERVICE_NAME}/settings`);
+    await page.goto(`/operate/services/${target.serviceName}/settings`);
     await expect(page.locator('[data-service-config]')).toBeVisible({ timeout: 30_000 });
     const mapServer = page.locator('[data-protocol="MapServer"]');
     test.skip((await mapServer.count()) === 0, 'MapServer protocol not offered for this service.');
@@ -106,7 +111,7 @@ test.describe('Operate · Service settings (live)', () => {
     // The per-service MapServer endpoint now answers not found, proving the toggle took effect.
     await expect.poll(mapServerError, { timeout: 20_000, intervals: [500, 1000, 2000] }).toBe(GEOSERVICES_NOT_FOUND);
 
-    // Restore: turn MapServer back on so the rest of the suite (and the testbed) sees it as before.
+    // Restore MapServer so the service ends the test as it started.
     await mapServer.check();
     await page.locator('[data-save-protocols]').click();
     await expect(page.locator('[data-config-result]')).toContainText('Updated', { timeout: 30_000 });
@@ -115,11 +120,11 @@ test.describe('Operate · Service settings (live)', () => {
   test('access policy: the anonymous-read toggle gates the live FeatureServer query', async ({ page, admin }) => {
     test.slow();
     const base = admin.serverUrl;
-    const query = `/rest/services/${SERVICE_NAME}/FeatureServer/${LAYER_ID}/query?where=1%3D1&outFields=*&f=json`;
+    const query = `/rest/services/${target.serviceName}/FeatureServer/${target.layerId}/query?where=1%3D1&outFields=*&f=json`;
     // An UNauthenticated caller (no X-API-Key) — its access is governed purely by the service access policy.
     const anon = () => anonymousGeoServicesQuery(page.request, `${base}${query}`);
 
-    await page.goto(`/operate/services/${SERVICE_NAME}/settings`);
+    await page.goto(`/operate/services/${target.serviceName}/settings`);
     await expect(page.locator('[data-service-config]')).toBeVisible({ timeout: 30_000 });
     const allowAnon = page.locator('[data-allow-anonymous]');
 
@@ -140,6 +145,5 @@ test.describe('Operate · Service settings (live)', () => {
     await expect
       .poll(anon, { timeout: 20_000, intervals: [500, 1000, 2000] })
       .toEqual({ features: expect.any(Number) });
-    // Leave the service public (its state on entry), so the rest of the suite sees it unchanged.
   });
 });
