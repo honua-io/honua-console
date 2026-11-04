@@ -70,7 +70,9 @@ export async function verifyTree(root, expected, { requirePublishedManifest = fa
     }
   }
   const derived = inventory.filter((file) => !expectedPaths.has(file.path)).map((file) => file.path);
-  await verifyCompressedCopies(root, derived, new Set([...expectedPaths, CESIUM_PUBLISHED_MANIFEST]), "Cesium");
+  await verifyCompressedCopies({
+    root, paths: derived, originals: new Set([...expectedPaths, CESIUM_PUBLISHED_MANIFEST]), label: "Cesium",
+  });
   return actual;
 }
 

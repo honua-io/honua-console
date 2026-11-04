@@ -22,7 +22,8 @@ try {
   const lock = await readStudioReleaseLock();
   if (extra.length > 0 || (target && mode !== "--verify")) throw new Error(USAGE);
   if (mode === "--verify") await verify(lock, resolve(target ?? VENDORED_STUDIO_ROOT));
-  else if (mode === undefined || mode === "--force") await vendor(lock, mode === "--force");
+  else if (mode === "--force") await vendorRelease(lock);
+  else if (mode === undefined) await ensureVendoredRelease(lock);
   else throw new Error(USAGE);
 } catch (error) {
   console.error(`honua-studio release (${STUDIO_RELEASE_LOCK_PATH}): ${error.message}`);
@@ -34,11 +35,15 @@ async function verify(lock, root) {
   console.log(`honua-studio ${lock.tag}: ${root} matches the release lock`);
 }
 
-async function vendor(lock, force) {
-  if (!force && await vendoredTreeMatches(lock)) {
+async function ensureVendoredRelease(lock) {
+  if (await vendoredTreeMatches(lock)) {
     console.log(`honua-studio ${lock.tag}: the vendored tree already matches the release lock`);
     return;
   }
+  await vendorRelease(lock);
+}
+
+async function vendorRelease(lock) {
   console.log(`honua-studio ${lock.tag}: vendoring ${releaseAssetUrl(lock)}`);
   await fetchStudioRelease(lock, VENDORED_STUDIO_ROOT, { cacheDirectory: process.env.HONUA_STUDIO_RELEASE_CACHE });
   console.log(`honua-studio ${lock.tag}: vendored sha256 ${lock.sha256} into ${VENDORED_STUDIO_ROOT}`);

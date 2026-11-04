@@ -154,7 +154,9 @@ export async function verifyStudioAssets(root, lock) {
   const absent = [...listed.keys()].find((path) => !presentPaths.has(path));
   if (absent) throw new Error(`the vendored Studio asset ${absent} is missing`);
   const unlisted = [...presentPaths].filter((path) => !listed.has(path));
-  await verifyCompressedCopies(root, unlisted, new Set([...listed.keys(), ARTIFACT_MANIFEST]), "Studio");
+  await verifyCompressedCopies({
+    root, paths: unlisted, originals: new Set([...listed.keys(), ARTIFACT_MANIFEST]), label: "Studio",
+  });
 }
 
 function requireLockedIdentity({ manifest, provenance, sdk }, lock) {

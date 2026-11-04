@@ -5,7 +5,7 @@ import { brotliDecompress, gunzip } from "node:zlib";
 
 const DECOMPRESSORS = { ".br": promisify(brotliDecompress), ".gz": promisify(gunzip) };
 
-export async function verifyCompressedCopies(root, paths, originals, label) {
+export async function verifyCompressedCopies({ root, paths, originals, label }) {
   for (const path of paths) {
     const extension = Object.keys(DECOMPRESSORS).find((candidate) => path.endsWith(candidate));
     if (!extension) throw new Error(`published ${label} tree contains unpinned file ${path}`);
