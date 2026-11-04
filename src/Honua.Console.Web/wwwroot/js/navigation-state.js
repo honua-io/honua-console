@@ -1,11 +1,12 @@
 {
     const menuSelector = '[data-navigation-menu]';
+    const toggleSelector = '[data-navigation-toggle]';
     let controls = new Map();
     let focused;
     let startupFocus;
     let hydrated = false;
     const startupUrl = location.href;
-    const keyFor = element => element?.matches('[data-navigation-toggle]') ? 'toggle'
+    const keyFor = element => element?.matches(toggleSelector) ? 'toggle'
         : element?.closest(menuSelector)?.dataset.navigationMenu;
     const opener = control => control?.matches(menuSelector) ? control.querySelector(':scope > summary') : control;
     const expanded = control => control?.matches(menuSelector) ? control.open : control?.getAttribute('aria-expanded') === 'true';
@@ -15,7 +16,7 @@
     }
     function collectControls() {
         const next = new Map([...document.querySelectorAll(menuSelector)].map(element => [element.dataset.navigationMenu, element]));
-        const toggle = document.querySelector('[data-navigation-toggle]');
+        const toggle = document.querySelector(toggleSelector);
         if (toggle) next.set('toggle', toggle);
         for (const [key, control] of next) {
             const previous = controls.get(key);
@@ -39,13 +40,17 @@
         if (!hydrated && event.target.matches('h1') && focused && !focused.isConnected && keyFor(focused)) return;
         focused = event.target;
     }, true);
+    function closeMenus() {
+        for (const control of controls.values())
+            if (control.matches(menuSelector)) setExpanded(control, false);
+    }
     document.addEventListener('click', event => {
-        const toggle = event.target.closest('[data-navigation-toggle]');
+        const toggle = event.target.closest(toggleSelector);
         if (toggle) setExpanded(toggle, !expanded(toggle));
         if (event.target.closest('.console-navigation-items a, .console-topnav > a')) {
             for (const control of controls.values()) setExpanded(control, false);
         } else if (!event.target.closest(menuSelector)) {
-            for (const control of controls.values()) if (control.matches(menuSelector)) setExpanded(control, false);
+            closeMenus();
         }
     });
     document.addEventListener('toggle', event => {
