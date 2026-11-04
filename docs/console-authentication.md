@@ -32,7 +32,7 @@ shipped, honua-server could **not yet issue a console-consumable operator bearer
   server origin — it does not hand a forwardable operator bearer back to a separately-deployed
   Console.
 - The only forwardable-bearer issuance is the **ArcGIS-shaped Portal OAuth2 named-user bridge**
-  (`PortalOAuthTokenService`, `POST /sharing/rest/oauth2/token`) — an Esri-compatibility surface, not
+  (`PortalOAuthTokenService`, `POST /sharing/rest/oauth2/token`) — a GeoServices token surface, not
   a general "console login → operator bearer" contract.
 
 So per the #233 branch ("if the server can't yet issue interactive operator sessions, ship A as an

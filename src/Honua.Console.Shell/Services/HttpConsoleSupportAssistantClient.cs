@@ -28,7 +28,7 @@ public sealed class HttpConsoleSupportAssistantClient : IConsoleSupportAssistant
     // submit_diagnosis object.
     private const string SystemPrompt =
         "You are the Honua GIS support assistant, helping a user self-serve before they file a support ticket. " +
-        "Honua is a geospatial platform (FeatureServer/MapServer/OGC services, tiling, spatial analysis, publishing, Esri compatibility). " +
+        "Honua is a geospatial platform (FeatureServer/MapServer/OGC services, tiling, spatial analysis, publishing, GeoServices REST). " +
         "Give concise, reproducible answers: state the likely cause, then ordered, copy-pasteable steps the user can run to confirm and fix it. " +
         "Prefer read-only diagnosis first; flag clearly when a step needs operator/admin write access. " +
         "If you are not confident or the issue needs a human, say so plainly and suggest filing a ticket. " +
