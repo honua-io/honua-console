@@ -2,6 +2,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Services;
 
+// The snapshot is bare JSON with no ApiResponse envelope.
 public interface IConsoleOpsHealthClient
 {
     Task<OperateSectionResult<OpsHealthSnapshotResponse>> GetSnapshotAsync(

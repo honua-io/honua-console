@@ -4,6 +4,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
+// A missing or unsupported telemetry signal stays neutral and does not mark the environment failed, and only a server-declared Allowed value of false disables an action.
 public static class OperateObservabilityMapper
 {
 

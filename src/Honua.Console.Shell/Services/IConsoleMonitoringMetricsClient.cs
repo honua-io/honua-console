@@ -2,6 +2,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Services;
 
+// Monitoring responses are bare JSON with no ApiResponse envelope.
 public interface IConsoleMonitoringMetricsClient
 {
     Task<OperateSectionResult<ConnectionPoolMetricsResponse>> GetConnectionPoolMetricsAsync(

@@ -2,6 +2,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
+// Test-only. Opt in from tests; this is not the DI default.
 public sealed class InMemoryConsoleSceneClient : IConsoleSceneClient
 {
     private readonly List<SceneSummary> _scenes;

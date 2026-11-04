@@ -36,6 +36,7 @@ public interface IVersionManagementOperation
         IReadOnlyList<ConflictResolutionChoice> resolutions,
         CancellationToken cancellationToken = default);
 
+    // Post is refused while conflicts remain.
     Task<VersionOperationResult> PostAsync(
         string serviceId,
         string versionGuid,

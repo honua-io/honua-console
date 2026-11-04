@@ -3,6 +3,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
+// Test-only. Opt in from tests; this is not the DI default.
 public sealed class InMemoryConsoleSensorThingsClient : IConsoleSensorThingsClient
 {
     private readonly IReadOnlyList<StaThing> _things;
@@ -119,6 +120,7 @@ public sealed class InMemoryConsoleSensorThingsClient : IConsoleSensorThingsClie
         return new StaEntitySet<T> { Value = value, Count = source.Count };
     }
 
+    // Datastream id 1 matches the server's synthetic air-temperature seed so tests can assert that demo id.
     public static SensorThingsSeed CreateSeed()
     {
         var thing = new StaThing

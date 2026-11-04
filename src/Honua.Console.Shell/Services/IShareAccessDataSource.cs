@@ -17,6 +17,7 @@ public interface IShareAccessDataSource
         string targetTier,
         CancellationToken cancellationToken = default);
 
+    // The server discloses this opaque value exactly once.
     Task<ShareCommandResult> MintPublicLinkAsync(
         string itemId,
         DateTimeOffset? expiresAt,
@@ -34,6 +35,7 @@ public interface IShareAccessDataSource
         bool allowDependencyConflicts,
         CancellationToken cancellationToken = default);
 
+    // The server discloses this opaque value exactly once.
     Task<ShareCommandResult> MintEmbedTokenAsync(
         string itemId,
         string audience,

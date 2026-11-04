@@ -18,6 +18,7 @@ public sealed record ConsoleNotification(
 
 public interface IConsoleNotificationService
 {
+    // Newest last, in arrival order.
     IReadOnlyList<ConsoleNotification> Notifications { get; }
 
     event Action? Changed;
@@ -115,7 +116,7 @@ public sealed class ConsoleNotificationService : IConsoleNotificationService
         }
     }
 
-    // Errors and warnings persist until dismissed (a null lifetime); info/success self-clear.
+    // Errors and warnings persist until dismissed (a null lifetime) so a failure is never missed; info/success self-clear.
     private static TimeSpan? DefaultAutoDismiss(ConsoleNotificationLevel level) => level switch
     {
         ConsoleNotificationLevel.Error => null,

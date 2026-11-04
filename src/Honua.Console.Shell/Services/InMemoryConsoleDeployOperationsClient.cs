@@ -2,6 +2,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
+// Test-only. This is not the DI default.
 public sealed class InMemoryConsoleDeployOperationsClient : IConsoleDeployOperationsClient
 {
     private readonly List<DeployOperationProposal> _operations;

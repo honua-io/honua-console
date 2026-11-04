@@ -3,6 +3,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
+// Test-only simulator. Do not register it as the merged data source; a live replacement must keep monotonic versions, validation-gated commits, and append-only restore.
 public sealed class InMemoryCollectAutomationClient : ICollectAutomationClient
 {
     public const string SeedDraftId = "automation-draft-permit-intake";

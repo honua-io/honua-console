@@ -20,6 +20,7 @@ public interface IConsoleSensorThingsClient
         int observationTop = 200,
         CancellationToken cancellationToken = default);
 
+    // Observations are ordered by phenomenon time so a chart can plot them in time order.
     Task<SensorThingsReadResult<StaEntitySet<StaObservation>>> ListDatastreamObservationsAsync(
         long datastreamId,
         int top = 200,

@@ -2,6 +2,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
+// Test-only. This is not the DI default, so a simulated version must not drive a real upgrade.
 public sealed class InMemoryConsoleServerVersionClient : IConsoleServerVersionClient
 {
     private readonly OperateSectionResult<ServerVersionInfo> _result;

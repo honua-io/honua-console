@@ -209,6 +209,7 @@ public sealed class SignalRConsoleProposalRealtimeClient : IConsoleProposalRealt
         GeneratedAt: wire.GeneratedAt);
 }
 
+// Bound case-insensitively from the hub's camelCase JSON.
 public sealed record ProposalRealtimeWire
 {
     public string? ProposalId { get; init; }

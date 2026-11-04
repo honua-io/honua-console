@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Honua.Console.Shell.Services;
 
+// The hub pushes the same OpsHealthSnapshotResponse the REST snapshot returns, so there is one wire shape.
 public sealed class SignalRConsoleOpsHealthRealtimeClient : IConsoleOpsHealthRealtimeClient, IConsoleRealtimeCapabilityClient
 {
     internal const string HubPath = "hubs/admin";

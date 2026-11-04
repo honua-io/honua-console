@@ -180,6 +180,7 @@ public sealed class SignalRConsoleDeployOperationRealtimeClient : IConsoleDeploy
         wire.GeneratedAt));
 }
 
+// Bound case-insensitively from the hub's camelCase JSON.
 public sealed record DeployOperationTransitionWire
 {
     public string? OperationId { get; init; }

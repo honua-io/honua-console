@@ -6,6 +6,7 @@ public interface IConsoleTimeInfoOperation
 {
     Task<ConsoleServiceTimeInfo> GetTimeInfoAsync(string serviceName, CancellationToken cancellationToken = default);
 
+    // Blank or whitespace fields are sent as null and clear the value on the server.
     Task<ConsoleSetTimeInfoResult> SetTimeInfoAsync(
         string serviceName,
         string? startTimeField,

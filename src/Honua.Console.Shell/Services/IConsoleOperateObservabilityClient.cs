@@ -23,6 +23,7 @@ public interface IConsoleOperateObservabilityClient
     Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(
         CancellationToken cancellationToken = default);
 
+    // kind is the server's wire enum name; a null or blank value leaves the list unfiltered.
     Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(
         string? kind,
         CancellationToken cancellationToken = default);
@@ -30,10 +31,12 @@ public interface IConsoleOperateObservabilityClient
     Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetGeoprocessingJobsAsync(
         CancellationToken cancellationToken = default);
 
+    // The list omits stages, logs, artifacts, and actions, so the viewer loads them for the open job only.
     Task<OperateSectionResult<OperateJobRun>> GetJobDetailAsync(
         string jobRunId,
         CancellationToken cancellationToken = default);
 
+    // Cancel and retry go through the server approval gate; this client does not bypass it.
     Task<OperateSectionResult<OperateJobControlOutcome>> CancelJobAsync(
         string jobRunId,
         CancellationToken cancellationToken = default);
@@ -46,6 +49,7 @@ public interface IConsoleOperateObservabilityClient
         string jobRunId,
         CancellationToken cancellationToken = default);
 
+    // Callers keep both cursors from the response and send the next one back as an opaque token.
     Task<OperateSectionResult<OperateJobDiagnosticsView>> GetJobDiagnosticsAsync(
         string jobRunId,
         string? eventCursor = null,

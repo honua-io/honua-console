@@ -19,12 +19,14 @@ public interface ITemporalCapabilityClient
         string featureId,
         CancellationToken cancellationToken = default);
 
+    // Planning returns a plan and does not change feature state.
     Task<TemporalRollbackPlan> CreateRollbackPlanAsync(
         string sourceId,
         TemporalRollbackScope scope,
         string targetCheckpointId,
         CancellationToken cancellationToken = default);
 
+    // Execute starts a governed job and a new result checkpoint, and it leaves earlier checkpoints in place.
     Task<TemporalRollbackOperation> ExecuteRollbackAsync(
         string rollbackPlanId,
         CancellationToken cancellationToken = default);

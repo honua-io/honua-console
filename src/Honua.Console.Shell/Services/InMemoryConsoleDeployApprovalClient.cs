@@ -2,6 +2,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
+// Test-only. This is not the DI default. A data-affecting rollback requires the caller to confirm first; this simulator does not enforce that confirmation.
 public sealed class InMemoryConsoleDeployApprovalClient : IConsoleDeployApprovalClient
 {
     private readonly Dictionary<string, DeployOperationProposal> _operations;

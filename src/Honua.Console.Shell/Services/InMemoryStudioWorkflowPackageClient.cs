@@ -3,6 +3,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
+// Test-only. Do not register it as the merged data source.
 public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackageClient
 {
     public const string SeedDraftId = "wf-draft-parcel-etl";

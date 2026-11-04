@@ -12,10 +12,12 @@ public interface IStudioFormPackageDataSource
         StudioFormEditorState state,
         CancellationToken cancellationToken = default);
 
+    // Validation runs against the saved draft version, so unsaved edits are refused.
     Task<StudioFormCommandResult> ValidateAsync(
         StudioFormEditorState state,
         CancellationToken cancellationToken = default);
 
+    // Publish runs only after the pre-publish gate passes.
     Task<StudioFormCommandResult> PublishAsync(
         StudioFormEditorState state,
         CancellationToken cancellationToken = default);

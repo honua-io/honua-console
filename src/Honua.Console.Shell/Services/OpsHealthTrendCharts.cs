@@ -4,6 +4,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
+// An empty series returns null so the caller keeps the no-backend schematic.
 public static class OpsHealthTrendCharts
 {
     public const string VegaLiteSchema = "https://vega.github.io/schema/vega-lite/v6.json";

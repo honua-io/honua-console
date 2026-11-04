@@ -78,6 +78,7 @@ public static class OperateAlertRuleMapper
     }
 
 
+    // An update copies service, layer, cooldown, severity, and edition from the persisted rule because the editor does not author them.
     public static bool TryBuildRequest(
         OperateAlertRuleEdit edit,
         AlertRuleResponse current,

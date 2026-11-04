@@ -6,6 +6,7 @@ public interface IConsoleLayerFieldsOperation
 {
     Task<ConsoleLayerFields> GetFieldsAsync(int layerId, CancellationToken cancellationToken = default);
 
+    // An empty coded-value list clears the domain.
     Task<ConsoleSetDomainResult> SetCodedValueDomainAsync(
         int layerId,
         string fieldName,

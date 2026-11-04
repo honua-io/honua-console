@@ -2,6 +2,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
+// When no source is reachable, this primary source's denial is the inbox denial.
 public sealed class ServerConsoleProposalSource : IConsoleProposalSource
 {
     private readonly IConsoleProposalsClient _proposals;

@@ -13,6 +13,7 @@ public interface IOpsHealthDataSource
         CancellationToken cancellationToken = default);
 }
 
+// Each offered window and resolution pair matches a server rollup tier that has rows once the store has been running.
 public sealed record OpsHealthTrendRangeSelection(string Label, string Window, string Resolution, bool PerReplica)
 {
     public static readonly OpsHealthTrendRangeSelection LastHour = new("Last hour", "1h", "1m", false);

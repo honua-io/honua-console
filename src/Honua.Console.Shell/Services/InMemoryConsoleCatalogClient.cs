@@ -2,6 +2,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Services;
 
+// Test-only. Do not register it as the merged data source. Anonymous reads see only public items and public-link items whose token matches, draft hydration requires an authenticated caller, and an embed bearer in the query string is rejected.
 public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
 {
     private static readonly DateTimeOffset SeedTime = new(2026, 5, 24, 8, 0, 0, TimeSpan.Zero);

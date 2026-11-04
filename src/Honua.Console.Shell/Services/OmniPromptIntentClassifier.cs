@@ -19,6 +19,7 @@ public readonly record struct OmniPromptClassification(
     OmniPromptConfidence Confidence,
     string Rationale);
 
+// Classification only chooses an approval surface and does not execute an operation.
 public interface IOmniPromptIntentClassifier
 {
     OmniPromptClassification Classify(string prompt);

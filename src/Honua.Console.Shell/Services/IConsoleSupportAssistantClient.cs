@@ -2,6 +2,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Services;
 
+// The assistant shares the L1 chat endpoint but stays conversational, and it does not lock the reply to the submit_diagnosis schema.
 public interface IConsoleSupportAssistantClient
 {
     bool IsConfigured { get; }

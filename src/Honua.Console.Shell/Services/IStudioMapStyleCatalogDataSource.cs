@@ -17,6 +17,7 @@ public interface IStudioMapStyleCatalogDataSource
         HonuaOgcStyleEncoding encoding,
         CancellationToken cancellationToken = default);
 
+    // The server stores MapLibre as the canonical stylesheet, whichever encoding was saved.
     Task<HonuaOgcStyleSaveResult> SaveStylesheetAsync(
         string styleId,
         HonuaOgcStyleEncoding encoding,
