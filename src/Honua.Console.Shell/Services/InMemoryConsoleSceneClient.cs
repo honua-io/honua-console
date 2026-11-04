@@ -2,12 +2,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Test/demo-only scene client backed by an in-memory scene catalog. Lets
-/// render/integration tests exercise the discovery list, the LAS ingest flow
-/// (upload -> result), and tileset URL resolution without a live server. NEVER
-/// the DI default — opt-in for tests, like the other InMemory* clients.
-/// </summary>
+// Test-only. Opt in from tests; this is not the DI default.
 public sealed class InMemoryConsoleSceneClient : IConsoleSceneClient
 {
     private readonly List<SceneSummary> _scenes;

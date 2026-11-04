@@ -2,14 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Missing-binding implementation of <see cref="IOperateAlertRulesDataSource"/>. This is the only alert
-/// rules data source registered in the merged build until the alert rule definition / condition contract
-/// (honua-server#1169) lands. Every operation returns no rules plus a single neutral missing-binding state
-/// so the list, the detail/editor, and a save render an explicit explanation rather than an empty or
-/// fabricated rule surface (Console Patterns Charter section 11). Mirrors
-/// <see cref="UnsupportedTemporalCapabilityClient"/>.
-/// </summary>
 public sealed class UnsupportedOperateAlertRulesDataSource : IOperateAlertRulesDataSource
 {
     internal const string Surface = "Alert rules";

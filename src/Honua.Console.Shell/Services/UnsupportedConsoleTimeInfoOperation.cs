@@ -2,10 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Missing-binding implementation of the service time-info operation. Used when no honua-server base URL is
-/// configured: it performs no network call and returns explicit missing-binding results.
-/// </summary>
 public sealed class UnsupportedConsoleTimeInfoOperation : IConsoleTimeInfoOperation
 {
     private const string BindingDetail =

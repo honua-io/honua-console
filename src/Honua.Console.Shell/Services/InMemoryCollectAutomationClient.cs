@@ -3,19 +3,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Transient in-memory simulator for <see cref="ICollectAutomationClient"/>.
-/// </summary>
-/// <remarks>
-/// <para>
-/// <b>Do not promote to a merged data source.</b> This client fakes the server/Collect-owned automation
-/// content + version lifecycle so Console UX and unit tests can be built ahead of the projection contract.
-/// Per <c>docs/migration/CONSOLE_PATTERNS_CHARTER.md</c> §11 it is a scaffold only; the merged runtime stays
-/// on <see cref="UnsupportedCollectAutomationClient"/> until the real projection lands. It deliberately
-/// enforces the version-lifecycle invariants (monotonic versions, validation-gated commits, append-only
-/// restore) the live replacement must preserve.
-/// </para>
-/// </remarks>
+// Test-only simulator. Do not register it as the merged data source; a live replacement must keep monotonic versions, validation-gated commits, and append-only restore.
 public sealed class InMemoryCollectAutomationClient : ICollectAutomationClient
 {
     public const string SeedDraftId = "automation-draft-permit-intake";

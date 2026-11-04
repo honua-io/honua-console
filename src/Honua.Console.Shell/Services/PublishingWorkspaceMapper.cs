@@ -4,17 +4,8 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Maps the honua-server content publication registry wire records (honua-server#1183) into the
-/// Console publishing workspace view models. Pure and side-effect free so it is unit-tested directly:
-/// it derives the matrix row, the review (slot, generated endpoints, catalog registration, policy,
-/// warnings, rollback class, provenance, evidence deep links), and the version history from one
-/// <see cref="HonuaContentPublicationDetail"/>. No data is fabricated; everything is projected from the
-/// server document graph.
-/// </summary>
 public static class PublishingWorkspaceMapper
 {
-    /// <summary>Projects a publication detail into a review record for the review surface.</summary>
     public static PublishingReview ToReview(HonuaContentPublicationDetail detail)
     {
         ArgumentNullException.ThrowIfNull(detail);
@@ -42,7 +33,6 @@ public static class PublishingWorkspaceMapper
             Links: BuildLinks(route, activeVersion));
     }
 
-    /// <summary>Projects a publication detail into a single matrix row (one publishable resource).</summary>
     public static PublishingMatrixRow ToMatrixRow(HonuaContentPublicationDetail detail)
     {
         ArgumentNullException.ThrowIfNull(detail);
@@ -60,7 +50,6 @@ public static class PublishingWorkspaceMapper
             Targets: BuildTargets(route));
     }
 
-    /// <summary>Projects the immutable version history (newest first) for the version/rollback panel.</summary>
     public static IReadOnlyList<PublishingVersion> ToVersions(HonuaContentPublicationDetail detail)
     {
         ArgumentNullException.ThrowIfNull(detail);

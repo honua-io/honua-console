@@ -4,19 +4,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Server-bound implementation of <see cref="IOperateAlertRulesDataSource"/>. The rule LIST reads the live
-/// realtime/alert rules the connected honua-server advertises through
-/// <see cref="IConsoleOperateObservabilityClient.GetRulesAsync"/> (the shipped
-/// <c>/api/v1/admin/observability</c> rules projection). The rule DETAIL/condition editor and the rule SAVE
-/// write bind the SHIPPED alert-rule DEFINITION admin contract (honua-server#1169,
-/// <c>/api/v{version}/admin/alerts/rules…</c>) through <see cref="IConsoleAlertRulesClient"/>: a rule read
-/// hydrates the editor from <c>GET /rules/{ruleId}</c> (+ <c>/health</c>); a save validates the draft via
-/// <c>POST /rules/test</c> and persists with <c>PUT /rules/{ruleId}</c>. On any failure (404/forbidden/
-/// unreachable/unsupported) or a draft that fails validation, the operation returns the appropriate
-/// <see cref="OperateAlertRulesBindingState"/> (or a blocked save) and never fabricates a rule or condition
-/// (Console Patterns Charter section 11).
-/// </summary>
 public sealed class ServerOperateAlertRulesDataSource : IOperateAlertRulesDataSource
 {
     private const string Surface = "Alert rules";

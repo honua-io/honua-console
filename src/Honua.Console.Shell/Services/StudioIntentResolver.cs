@@ -2,25 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Registry-backed <see cref="IStudioIntentResolver"/> (honua-console#266): gates each Studio-AI lifecycle
-/// phase on the live capability manifest snapshot so deferred/unavailable capabilities are HIDDEN from
-/// Studio AI. Registered only when the <c>Studio:RegistryIntentResolution</c> flag is ON and a server base
-/// URL is configured; otherwise the <see cref="NoopStudioIntentResolver"/> preserves current behavior.
-///
-/// Resolution order:
-/// <list type="number">
-///   <item>Classify the prompt; a HIGH-confidence DevOps verdict is out of the Studio lane, so it is
-///   hidden with an honest "not a Studio authoring intent" explanation (never misrouted).</item>
-///   <item>Read the registry snapshot; an unbound snapshot yields the shared missing-binding outcome.</item>
-///   <item>If a target package family is supplied and the manifest does not advertise it
-///   (<c>HasPackageFamily</c> false), the phase is hidden — the family is deferred.</item>
-///   <item>If the phase's capability is not available (<c>IsAvailable</c> false), the phase is hidden;
-///   the state distinguishes a supported-but-gated (deferred) capability from an unsupported one.</item>
-///   <item>Otherwise the phase resolves to its capability descriptor.</item>
-/// </list>
-/// Every path returns a <see cref="StudioIntentResolution"/> — no exceptions escape the gate.
-/// </summary>
 public sealed class StudioIntentResolver : IStudioIntentResolver
 {
     private readonly IOmniPromptIntentClassifier _classifier;
@@ -104,14 +85,6 @@ public sealed class StudioIntentResolver : IStudioIntentResolver
     }
 }
 
-/// <summary>
-/// No-op <see cref="IStudioIntentResolver"/> registered when the <c>Studio:RegistryIntentResolution</c>
-/// flag is OFF (the default). It preserves the CURRENT behavior: every Studio-AI lifecycle phase resolves
-/// as available WITHOUT registry gating, so the generate/validate/preview/publish affordances are offered
-/// exactly as they are today. It still delegates the lane annotation to the existing classifier (so the
-/// resolved result carries the same Studio-vs-DevOps rationale), but never hides a phase. This is the
-/// default so opting into registry-driven resolution changes nothing unless explicitly enabled.
-/// </summary>
 public sealed class NoopStudioIntentResolver : IStudioIntentResolver
 {
     private readonly IOmniPromptIntentClassifier _classifier;

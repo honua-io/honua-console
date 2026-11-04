@@ -2,14 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// #102 migration-run data source used when no honua-server / honua-devops run contract is bound. It renders
-/// an explicit missing-binding state for the wizard plan, the run progress, and the parity scorecard rather
-/// than fabricating run results, keeping the merged runtime free of a standing in-memory run engine (Console
-/// Patterns Charter section 11). honua-devops owns the migration-run API (issue-122 handoff open item); until
-/// it exposes a Console-bindable contract, the Run/Scorecard surfaces stay on this state and the wizard names
-/// the honua-devops dependency.
-/// </summary>
 public sealed class UnsupportedEsriMigrationRunDataSource : IEsriMigrationRunDataSource
 {
     private const string Surface = "Import from Esri · migration run";
