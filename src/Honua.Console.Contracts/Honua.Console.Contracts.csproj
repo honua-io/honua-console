@@ -7,8 +7,4 @@
     <RootNamespace>Honua.Console.Contracts</RootNamespace>
   </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Honua.Sdk.Studio" Version="1.10.0" />
-  </ItemGroup>
-
 </Project>

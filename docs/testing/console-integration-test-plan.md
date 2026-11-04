@@ -73,7 +73,7 @@ Legend — Coverage: **COVERED** (live round-trip exists), **PARTIAL** (live tes
 | Set publication policy/visibility | `PATCH /publications/{id}/policy` | catalog visibility/sharing changes; public route resolves/404s accordingly | policy chip | **GAP** | P1 |
 
 ### Family C — Studio authoring → publish (package draft→validate→publish→content)
-Covers map/dashboard/report/app/form/query/analysis/workflow. Routes in `StudioPackageShims.cs`, `FormPackageShims.cs`, `StudioWorkflowShims.cs`, `AnalysisContentShims.cs`.
+Covers map/dashboard/report/app/form/query/analysis/workflow. Routes in `FormPackageShims.cs`, `StudioWorkflowShims.cs`, `AnalysisContentShims.cs`.
 | Operation | Console method/page | Server output + verifying API | Console reflection | Coverage | Pri |
 |---|---|---|---|---|---|
 | Create draft | `POST /api/v1/studio/package-drafts` | `GET /package-drafts/{id}` returns draft | builder shows draft ref | **PARTIAL** (`StudioPackageLifecycleIntegrationTests` asserts session projection + render, not catalog landing) | P1 |

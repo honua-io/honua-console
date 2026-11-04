@@ -856,10 +856,7 @@
         }
       },
       "honua.console.contracts": {
-        "type": "Project",
-        "dependencies": {
-          "Honua.Sdk.Studio": "[1.10.0, )"
-        }
+        "type": "Project"
       },
       "honua.console.shell": {
         "type": "Project",

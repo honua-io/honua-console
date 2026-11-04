@@ -58,12 +58,9 @@ public sealed class StudioWorkflowDraftSummary
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
-/// <summary>
-/// Missing-binding / unsupported / forbidden surface for the workflow editor. Mirrors
-/// <c>OperateCapabilityState</c> and <c>StudioAuthoringBindingState</c>: when the workflow package data
-/// cannot bind to a real honua-server (#1185), the editor renders this shared blocked surface (charter
-/// §5/§11) instead of seeded workflow data.
-/// </summary>
+// Missing-binding, unsupported or forbidden surface for the workflow editor: when the workflow package data
+// cannot bind to a real honua-server, the editor renders this shared blocked surface (charter sections 5
+// and 11) instead of seeded workflow data.
 public sealed record StudioWorkflowBindingState(string Surface, string State, string Contract, string Detail);
 
 /// <summary>

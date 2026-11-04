@@ -32,8 +32,8 @@ dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http:
   operations, automation and Processes authoring; use one primary conversation, the canonical
   drafts, and separate human approval for consequential operations.
 - **Missing-binding is a first-class state.** With no server base URL, live routes render the
-  explicit missing-binding surface, never mock or seeded data. In-memory/demo shells
-  (`AddHonuaConsoleDemoStudioAuthoringShell`, `AddHonuaConsoleDemoStudioWorkflowPackages`) are
+  explicit missing-binding surface, never mock or seeded data. In-memory/demo registrations
+  (`AddHonuaConsoleDemoStudioWorkflowPackages` and the other `AddHonuaConsoleDemo*` helpers) are
   opt-in for tests and demos only.
 - **Services** in `src/Honua.Console.Shell/Services` follow interface + `InMemory*` (demo/test) +
   `Server*`/`Http*` (live) + `Unsupported*`; live bindings activate only when a base URL is set.

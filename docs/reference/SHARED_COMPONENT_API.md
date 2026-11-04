@@ -29,9 +29,8 @@ The Console Patterns Charter (§1, §10) names the shared component project
 `Honua.Console.Components`. The implemented project is currently
 `Honua.Console.Shell` (`src/Honua.Console.Shell/`), and the reusable
 components live under its `Components/` and `Layout/` folders. The charter
-intent — one shared Razor library consumed by the web host and the
-optional MAUI Blazor Hybrid host — is unchanged; only the assembly name
-differs from the charter's working name. This reference tracks the
+intent — one shared Razor library consumed by the web host — is
+unchanged; only the assembly name differs from the charter's working name. This reference tracks the
 implemented project.
 
 Namespaces (from `src/Honua.Console.Shell/_Imports.razor`):
@@ -185,73 +184,7 @@ Events: none. Composes `<EvidenceList>`.
 
 ---
 
-## 3. Studio authoring components
-
-Components for the package-first Studio shell (route map §6.2). Parameter
-model types are in `Models/StudioAuthoringModels.cs` and
-`Models/StudioPackageEditorCatalog.cs`.
-
-### `<StudioLifecycleRail>`
-
-Source: `Components/Studio/StudioLifecycleRail.razor`.
-
-Renders the package lifecycle states from
-`StudioAuthoringContract.LifecycleDescriptors` and highlights the current
-one. Uses `role="list"` with `aria-current="step"` on the active state.
-
-| Parameter | Type | Default | Notes |
-|---|---|---|---|
-| `CurrentState` | `StudioPackageLifecycleState` | `StudioPackageLifecycleState.Draft` | The lifecycle state to mark current. |
-
-Events: none.
-
-### `<StudioPackageInspector>`
-
-Source: `Components/Studio/StudioPackageInspector.razor`.
-
-The package inspector aside: contract/version, package ref, schema,
-lifecycle state, title/summary, assumptions, data bindings, validation
-(via `<StudioValidationPanel>`), and provenance.
-
-| Parameter | Type | Default | Notes |
-|---|---|---|---|
-| `Package` | `StudioPackageSnapshot` | (required) | `[Parameter, EditorRequired]`. Snapshot supplying all inspector fields including `ValidationItems` and `Warnings`. |
-
-Events: none. Composes `<StudioValidationPanel>`.
-
-### `<StudioValidationPanel>`
-
-Source: `Components/Studio/StudioValidationPanel.razor`.
-
-Renders warnings and validation items with severity-based CSS classes
-(`Blocker`, `Warning`, `Passed`, info). Used standalone or inside
-`<StudioPackageInspector>`.
-
-| Parameter | Type | Default | Notes |
-|---|---|---|---|
-| `Items` | `IReadOnlyList<StudioValidationItem>` | empty array | Validation rows (`Severity`, `Label`, `Detail`). |
-| `Warnings` | `IReadOnlyList<StudioPackageWarning>` | empty array | Warning rows (`Target`, `Message`); the warning list is omitted when empty. |
-
-Events: none.
-
-### `<WorkflowAreaPage>`
-
-Source: `Components/WorkflowAreaPage.razor`.
-
-A generic top-level area landing page that looks up a
-`ConsoleWorkflowArea` from `ConsoleRouteMap` by id and renders its name,
-description, boundary, and path. Renders an "Unsupported Console Area"
-state when the id is not registered.
-
-| Parameter | Type | Default | Notes |
-|---|---|---|---|
-| `AreaId` | `string` | `""` | Area id resolved via `ConsoleRouteMap.FindArea(AreaId)` in `OnParametersSet`. |
-
-Events: none.
-
----
-
-## 4. Layouts
+## 3. Layouts
 
 Source: `src/Honua.Console.Shell/Layout/`. Both inherit
 `LayoutComponentBase`; their content is supplied through the standard
@@ -273,7 +206,7 @@ Source: `Layout/EmbedLayout.razor`. The shell-less layout for
 
 ---
 
-## 5. Maintenance
+## 4. Maintenance
 
 When a reusable component is added, removed, or has its `[Parameter]`
 surface changed under `src/Honua.Console.Shell/Components/` or

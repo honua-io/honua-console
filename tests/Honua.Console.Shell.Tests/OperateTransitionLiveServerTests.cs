@@ -89,32 +89,29 @@ public sealed class OperateTransitionLiveServerTests
         var liveServiceCount = await GetLiveServiceCountAsync(adminClient);
 
         var connectionsHtml = await RenderPageAsync<OperateConnectionsPage>(dataSource);
-        var resourcesHtml = await RenderPageAsync<OperateResourcesPage>(dataSource);
-        var servicesHtml = await RenderPageAsync<OperateServicesPage>(dataSource);
         var layersHtml = await RenderPageAsync<OperateLayersPage>(dataSource);
         var settingsHtml = await RenderPageAsync<OperateSettingsPage>(dataSource);
 
-        // Connections and resources render the live connection and the published layer.
+        // Connections render the live connection; the resource view carries the published layer.
         Assert.Contains("Console Live PostGIS", connectionsHtml, StringComparison.Ordinal);
-        Assert.Contains("Console Live Fixture", resourcesHtml, StringComparison.Ordinal);
-        Assert.Contains("console_live", resourcesHtml, StringComparison.Ordinal);
+        var resources = (await dataSource.GetResourcesViewAsync()).ResourceEdits;
+        Assert.Contains(resources, resource =>
+            resource.Name == "Console Live Fixture" && resource.Source.Contains("console_live", StringComparison.Ordinal));
 
-        // Services, layers, and settings slices render their operate surface end to end against the
-        // same live honua-server fixture.
-        Assert.Contains("Services And Layers", servicesHtml, StringComparison.Ordinal);
+        // Layers and settings slices render their operate surface end to end against the same live
+        // honua-server fixture.
         Assert.Contains("Operate / Layers", layersHtml, StringComparison.Ordinal);
         Assert.Contains("Server Runtime &amp; Policy", settingsHtml, StringComparison.Ordinal);
 
         // The settings slice always reflects live server metadata read from GET /api/v1/admin/version.
         Assert.Contains("Admin API version", settingsHtml, StringComparison.Ordinal);
 
-        // When the Metadata v2 graph projects the published service, the services and layers surfaces
-        // render the live published layer; otherwise they render the shared empty operate surface
-        // rather than fabricated rows. Branching on the live services count keeps the assertion
-        // deterministic against either projection outcome.
+        // When the Metadata v2 graph projects the published service, the layers surface renders the
+        // live published layer; otherwise it renders the shared empty operate surface rather than
+        // fabricated rows. Branching on the live services count keeps the assertion deterministic
+        // against either projection outcome.
         if (liveServiceCount > 0)
         {
-            Assert.Contains("Console Live Fixture", servicesHtml, StringComparison.Ordinal);
             Assert.Contains("Console Live Fixture", layersHtml, StringComparison.Ordinal);
         }
     }

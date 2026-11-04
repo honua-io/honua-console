@@ -713,8 +713,7 @@ The current `/studio` implementation is the package-first Studio shell
 slice). It runs in the shared Razor component library and binds the
 server-owned package lifecycle — draft create/read/update, validation,
 preview-planning, content-version save, and publish — to honua-server
-(`honua-server#1180`/`#1181`) through the `IStudioPackageLifecycleClient`
-shim in `Honua.Console.Contracts`; prompt and structured clarification
+(`honua-server#1180`/`#1181`); prompt and structured clarification
 stay Console-local UX. Workflow choices cover map, dashboard, report,
 form, app, query, analysis, workflow, GP service, and ETL. Ambiguous
 prompts produce structured clarification questions; while any question
@@ -726,8 +725,7 @@ Preview is a transient preview-plan action (not a stored state), and
 rendered preview output / generated-app preview has no server contract
 yet, so it renders the shared missing-binding surface. When no server
 base address is configured the shell renders that missing-binding surface
-instead of mock package data; the in-memory authoring shell
-(`AddHonuaConsoleDemoStudioAuthoringShell`) is demo/test-only.
+instead of mock package data.
 
 `/studio/proof`, `/studio/drafts?source=<kind>&id=<itemId>`,
 `/studio?source=<kind>&itemId=<itemId>`, and

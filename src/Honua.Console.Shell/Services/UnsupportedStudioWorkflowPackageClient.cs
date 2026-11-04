@@ -2,12 +2,9 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// The runtime default when no honua-server base address is configured. Every operation returns a
-/// missing-binding state so the Studio workflow editor renders the shared blocked surface (charter §5/§11)
-/// instead of seeded workflow data. Mirrors <see cref="UnsupportedStudioAuthoringShell"/> and
-/// <see cref="UnsupportedOperateTransitionDataSource"/>.
-/// </summary>
+// The runtime default when no honua-server base address is configured. Every operation returns a
+// missing-binding state so the Studio workflow editor renders the shared blocked surface (charter sections
+// 5 and 11) instead of seeded workflow data.
 public sealed class UnsupportedStudioWorkflowPackageClient : IStudioWorkflowPackageClient
 {
     private const string Surface = "Studio workflow.package";

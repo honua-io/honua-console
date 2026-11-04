@@ -9,7 +9,6 @@ internal static class StudioRegistrations
 {
     public static void AddStudio(IServiceCollection services, HonuaServerBinding server, HonuaConsoleShellOptions options)
     {
-        AddPackageAuthoring(services, server);
         AddFormPackages(services, server);
         AddMapStyleCatalog(services, server);
         services.AddServerBound<IStudioReportPublicationDataSource, HonuaServerStudioReportPublicationDataSource, UnsupportedStudioReportPublicationDataSource>(server);
@@ -19,19 +18,6 @@ internal static class StudioRegistrations
         // Deterministic and server-independent: it only chooses the prompt lane and never actuates.
         services.TryAddSingleton<IOmniPromptIntentClassifier, OmniPromptIntentClassifier>();
         AddIntentResolution(services, server, options);
-    }
-
-    private static void AddPackageAuthoring(IServiceCollection services, HonuaServerBinding server)
-    {
-        if (server.BaseUri is { } baseUri)
-        {
-            services.TryAddSingleton<IStudioPackageLifecycleClient>(serviceProvider =>
-                new HttpStudioPackageLifecycleClient(
-                    HonuaServerClientFactory.Create(serviceProvider, baseUri),
-                    new StudioPackageLifecycleClientOptions(baseUri, server.AdminApiKey)));
-        }
-
-        services.AddServerBound<IStudioAuthoringShell, ServerStudioAuthoringShell, UnsupportedStudioAuthoringShell>(server);
     }
 
     private static void AddFormPackages(IServiceCollection services, HonuaServerBinding server)

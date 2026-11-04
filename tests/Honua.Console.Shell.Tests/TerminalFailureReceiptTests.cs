@@ -14,7 +14,7 @@ public sealed class TerminalFailureReceiptTests
     public static TheoryData<string, FailureClass> ConsoleCells()
     {
         TheoryData<string, FailureClass> cells = [];
-        foreach (var resultType in new[] { "admin", "studio", "support" })
+        foreach (var resultType in new[] { "admin", "support" })
         {
             foreach (var failure in Contract.FailureClasses)
             {
@@ -25,8 +25,8 @@ public sealed class TerminalFailureReceiptTests
     }
 
     [Fact]
-    public void Contract_has_exactly_15_console_cells() =>
-        Assert.Equal(15, 3 * Contract.FailureClasses.Count);
+    public void Contract_has_exactly_10_console_cells() =>
+        Assert.Equal(10, 2 * Contract.FailureClasses.Count);
 
     [Theory]
     [MemberData(nameof(ConsoleCells))]
@@ -58,10 +58,6 @@ public sealed class TerminalFailureReceiptTests
         var surfaced = resultType switch
         {
             "admin" => AdminEndpointIssueFactory.CreateIssue("contract", response, body).Receipt,
-            "studio" => new StudioEndpointIssue(State(failure), "contract", failure.Detail, failure.HttpStatus)
-            {
-                Receipt = receipt
-            }.Receipt,
             "support" => SupportTicketResult.Denied(Status(failure), failure.Detail, receipt).Receipt,
             _ => throw new InvalidOperationException(resultType)
         };
