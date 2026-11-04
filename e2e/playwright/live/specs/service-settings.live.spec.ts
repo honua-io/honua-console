@@ -22,19 +22,30 @@ const stamp = randomUUID().replaceAll('-', '').slice(0, 10);
 const ADMIN_KEY = process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key';
 const ADMIN_HEADERS = { 'X-API-Key': ADMIN_KEY };
 
-// Protocols a vector (polygon) layer can serve, with the concrete endpoint that proves it serves when the
-// protocol is enabled. (Raster/elevation/GP protocols — ImageServer, Wcs, OgcApiCoverages, Terrain,
-// Elevation, GPServer, Grpc — do not apply to a vector layer and are intentionally excluded.)
-const protocolServes = (service: string): { protocol: string; path: string; marker: string | RegExp }[] => [
-  { protocol: 'FeatureServer', path: `/rest/services/${service}/FeatureServer?f=json`, marker: '"layers"' },
-  { protocol: 'MapServer', path: `/rest/services/${service}/MapServer?f=json`, marker: /"(name|mapName)"/ },
-  { protocol: 'Wms', path: `/rest/services/${service}/MapServer/WMS?service=WMS&request=GetCapabilities&version=1.3.0`, marker: 'WMS_Capabilities' },
-  { protocol: 'Wmts', path: `/rest/services/${service}/MapServer/WMTS?service=WMTS&request=GetCapabilities&version=1.0.0`, marker: 'Capabilities' },
-  { protocol: 'Wfs20', path: `/wfs?service=WFS&request=GetCapabilities&version=2.0.0`, marker: 'WFS_Capabilities' },
-  { protocol: 'OgcFeatures', path: `/ogc/features/collections?f=json`, marker: '"collections"' },
-  { protocol: 'OgcApiTiles', path: `/ogc/tiles/tiles?f=json`, marker: /"(tilesets|tileMatrixSets)"/ },
-  { protocol: 'OData', path: `/odata/$metadata`, marker: 'Edmx' },
-  { protocol: 'Stac', path: `/stac?f=json`, marker: '"links"' },
+// Protocols a vector (polygon) layer can serve, each with the endpoint that serves it and the evidence that
+// it serves THIS seeded layer. The global endpoints (WFS, OGC API, OData, STAC) list a service's layer only
+// while that service enables the protocol, so finding the seeded layer there proves the setting took effect.
+// (Raster/elevation/GP protocols such as ImageServer, Wcs, Terrain, Elevation, GPServer and Grpc do not
+// apply to a vector layer.)
+interface ProtocolCase {
+  readonly protocol: string;
+  readonly path: (layer: SeededLayer) => string;
+  readonly exposes: (body: string, layer: SeededLayer) => boolean;
+}
+
+const listsLayer = (items: { id?: unknown }[] | undefined, layer: SeededLayer) =>
+  (items ?? []).some((item) => String(item.id) === String(layer.layerId));
+
+const VECTOR_PROTOCOLS: ProtocolCase[] = [
+  { protocol: 'FeatureServer', path: (l) => `/rest/services/${l.serviceName}/FeatureServer?f=json`, exposes: (b, l) => listsLayer(JSON.parse(b).layers, l) },
+  { protocol: 'MapServer', path: (l) => `/rest/services/${l.serviceName}/MapServer?f=json`, exposes: (b, l) => listsLayer(JSON.parse(b).layers, l) },
+  { protocol: 'Wms', path: (l) => `/rest/services/${l.serviceName}/MapServer/WMS?service=WMS&request=GetCapabilities&version=1.3.0`, exposes: (b, l) => b.includes(`<Name>${l.layerName}</Name>`) },
+  { protocol: 'Wmts', path: (l) => `/rest/services/${l.serviceName}/MapServer/WMTS?service=WMTS&request=GetCapabilities&version=1.0.0`, exposes: (b, l) => b.includes(`<ows:Identifier>${l.layerId}</ows:Identifier>`) },
+  { protocol: 'Wfs20', path: () => '/wfs?service=WFS&request=GetCapabilities&version=2.0.0', exposes: (b, l) => b.includes(`<Name>honua:${l.serviceName}</Name>`) },
+  { protocol: 'OgcFeatures', path: () => '/ogc/features/collections?f=json', exposes: (b, l) => listsLayer(JSON.parse(b).collections, l) },
+  { protocol: 'OGC-API-Tiles', path: () => '/ogc/tiles/collections?f=json', exposes: (b, l) => listsLayer(JSON.parse(b).collections, l) },
+  { protocol: 'OData', path: () => '/odata/Layers', exposes: (b, l) => (JSON.parse(b).value ?? []).some((v: any) => v.Id === l.layerId) },
+  { protocol: 'Stac', path: () => '/stac/collections?f=json', exposes: (b, l) => listsLayer(JSON.parse(b).collections, l) },
 ];
 
 async function openServiceSettings(page: Page, serviceName: string): Promise<void> {
@@ -42,18 +53,18 @@ async function openServiceSettings(page: Page, serviceName: string): Promise<voi
   await expect(page.locator('[data-service-config]')).toBeVisible({ timeout: 30_000 });
 }
 
-// Which protocols the page offers is decided from the server's settings, not by counting checkboxes:
-// the boxes appear while the page is still rendering, so a count can miss one that is about to show.
-async function offeredProtocols(admin: AdminApi, serviceName: string): Promise<string[]> {
-  const settings = await admin.getJson(`/api/v1/admin/services/${serviceName}/settings`);
-  const offered: string[] = settings.data?.availableProtocols ?? settings.availableProtocols ?? [];
-  expect(offered.length, `${serviceName} reports the protocols it can serve`).toBeGreaterThan(0);
-  return offered;
+// Read from the server rather than from the page: the checkboxes appear while the page is still rendering,
+// so a count can miss one. A missing field fails the test instead of shrinking what it verifies.
+async function protocolSettings(admin: AdminApi, serviceName: string): Promise<{ available: string[]; enabled: string[] }> {
+  const settings = (await admin.getJson(`/api/v1/admin/services/${serviceName}/settings`)).data;
+  expect(Array.isArray(settings?.availableProtocols), `${serviceName} settings report availableProtocols`).toBe(true);
+  expect(Array.isArray(settings?.enabledProtocols), `${serviceName} settings report enabledProtocols`).toBe(true);
+  return { available: settings.availableProtocols, enabled: settings.enabledProtocols };
 }
 
 test.describe('Operate · Service settings (live)', () => {
   let target: SeededLayer;
-  let offered: string[];
+  let available: string[];
 
   test.beforeEach(async ({ admin }) => {
     test.setTimeout(180_000);
@@ -63,37 +74,37 @@ test.describe('Operate · Service settings (live)', () => {
       layerName: `E2E Settings ${stamp}`,
       serviceName: `e2e_settings_${stamp}`,
     });
-    offered = await offeredProtocols(admin, target.serviceName);
+    available = (await protocolSettings(admin, target.serviceName)).available;
   });
 
   test('every applicable protocol enabled via the UI serves through its own endpoint', async ({ page, admin }) => {
     test.slow();
     const base = admin.serverUrl;
+    const expected = VECTOR_PROTOCOLS.filter(({ protocol }) => available.includes(protocol));
+    const expectedIds = expected.map(({ protocol }) => protocol);
+    expect(expectedIds, 'the server offers vector protocols to verify').not.toHaveLength(0);
 
-    // Drive the real service-config UI: tick every applicable protocol, then save.
+    // Drive the real service-config UI: select exactly the vector protocols, then save.
     await openServiceSettings(page, target.serviceName);
-
-    for (const { protocol } of protocolServes(target.serviceName)) {
-      if (offered.includes(protocol)) await page.locator(`[data-protocol="${protocol}"]`).check();
+    for (const protocol of available) {
+      await page.locator(`[data-protocol="${protocol}"]`).setChecked(expectedIds.includes(protocol));
     }
     await page.locator('[data-save-protocols]').click();
     await expect(page.locator('[data-config-result]')).toContainText('Updated', { timeout: 30_000 });
 
-    // The server settings API now reports them enabled (independent path from the UI write).
-    const settings = await admin.getJson(`/api/v1/admin/services/${target.serviceName}/settings`);
-    const enabled: string[] = settings.enabledProtocols ?? settings.data?.enabledProtocols ?? [];
+    // The settings API reports exactly that selection (independent path from the UI write).
+    const { enabled } = await protocolSettings(admin, target.serviceName);
+    expect([...enabled].sort()).toEqual([...expectedIds].sort());
 
-    // Each enabled protocol actually serves the layer through its public endpoint.
-    for (const { protocol, path, marker } of protocolServes(target.serviceName)) {
-      if (!enabled.includes(protocol)) continue; // server may not offer a given protocol for this service
-      const res = await page.request.get(`${base}${path}`, { headers: ADMIN_HEADERS });
-      expect(res.ok(), `${protocol}: ${path} -> ${res.status()}`).toBeTruthy();
-      const body = await res.text();
-      if (typeof marker === 'string') {
-        expect(body, `${protocol}: ${path} missing ${marker}`).toContain(marker);
-      } else {
-        expect(body, `${protocol}: ${path} missing ${marker}`).toMatch(marker);
-      }
+    // Each selected protocol serves the seeded layer through its public endpoint.
+    for (const { protocol, path, exposes } of expected) {
+      const url = `${base}${path(target)}`;
+      await expect
+        .poll(async () => {
+          const res = await page.request.get(url, { headers: ADMIN_HEADERS });
+          return res.ok() && exposes(await res.text(), target);
+        }, { message: `${protocol}: ${path(target)} serves ${target.layerName}`, timeout: 20_000 })
+        .toBe(true);
     }
   });
 
@@ -103,7 +114,7 @@ test.describe('Operate · Service settings (live)', () => {
     const mapServerPath = `/rest/services/${target.serviceName}/MapServer?f=json`;
     const mapServerError = () => geoServicesErrorCode(page.request, `${base}${mapServerPath}`, ADMIN_HEADERS);
 
-    test.skip(!offered.includes('MapServer'), 'MapServer protocol not offered for this service.');
+    expect(available, 'this testbed offers MapServer').toContain('MapServer');
     await openServiceSettings(page, target.serviceName);
     const mapServer = page.locator('[data-protocol="MapServer"]');
 
