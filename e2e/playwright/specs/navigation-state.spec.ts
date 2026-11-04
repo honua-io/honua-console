@@ -18,13 +18,17 @@ async function replaceNavigation(page: Page) {
   await expect(page.getByRole('link',{name:'First'})).toBeFocused();
 }
 
+async function focusHeadingOnce(page: Page) {
+  await page.locator('h1').evaluate(element=>(element as HTMLElement).focus());
+}
+
 for(const input of ['pointer','focus']) test(`later ${input} input cancels pending startup focus restoration`,async({page})=>{
   await openNavigationFixture(page);
   await replaceNavigation(page);
   const second=page.getByRole('link',{name:'Second'});
   if(input==='pointer') await second.dispatchEvent('pointerdown');
   else await second.focus();
-  await page.locator('h1').focus();
+  await focusHeadingOnce(page);
   await expect(page.locator('h1')).toBeFocused();
 });
 
