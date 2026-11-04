@@ -123,17 +123,20 @@ async function putJson(ctx: APIRequestContext, path: string, body: Record<string
   return res.json();
 }
 
-// Best effort: a connection still in use, or already gone, must not fail the suite.
 async function deleteTrackedConnections(api: AdminApi, tracked: Set<string>): Promise<void> {
   for (const name of tracked) {
-    try {
-      const conn = await api.findConnectionByName(name);
-      if (conn) {
-        await api.deleteConnection(conn.connectionId);
-      }
-    } catch {
-      // A stuck row is left for the testbed teardown.
-    }
+    await deleteConnectionNamed(api, name);
+  }
+}
+
+// Best effort: a connection still in use, or already gone, must not fail the suite; the testbed
+// teardown removes whatever is left.
+async function deleteConnectionNamed(api: AdminApi, name: string): Promise<void> {
+  try {
+    const conn = await api.findConnectionByName(name);
+    if (conn) await api.deleteConnection(conn.connectionId);
+  } catch {
+    return;
   }
 }
 
