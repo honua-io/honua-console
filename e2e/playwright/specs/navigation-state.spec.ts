@@ -22,6 +22,20 @@ async function focusHeadingOnce(page: Page) {
   await page.locator('h1').evaluate(element=>(element as HTMLElement).focus());
 }
 
+test('a closed replacement retains a later menu item through its opening toggle',async({page})=>{
+  await openNavigationFixture(page);
+  const second=page.getByRole('link',{name:'Second'});
+  await second.focus();
+  await page.locator('details').evaluate(previous=>{
+    const replacement=previous.cloneNode(true) as HTMLElement;
+    replacement.removeAttribute('open');
+    previous.replaceWith(replacement);
+  });
+  await expect(second).toBeFocused();
+  await focusHeadingOnce(page);
+  await expect(second).toBeFocused();
+});
+
 for(const input of ['pointer','focus']) test(`later ${input} input cancels pending startup focus restoration`,async({page})=>{
   await openNavigationFixture(page);
   await replaceNavigation(page);

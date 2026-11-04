@@ -48,7 +48,7 @@
         if (RelativePath.Length == 0)
             return [ConsoleNavigation.Data with { Label = "Layer Preview" }, ConsoleNavigation.AddData, ConsoleNavigation.Health];
         var group = Groups.FirstOrDefault(group => group.Destinations.Any(entry => entry.Path == Context.Path));
-        if (group is null || (group.Name == "Studio" && !StudioEnabled)) return [new("/", "Welcome")];
+        if (group is null) return [new("/", "Welcome")];
         var actions = group.Destinations.Where(entry => entry.Path != Context.Path).ToArray();
         return actions.Length > 0 ? actions : [new("/", "Welcome")];
     }

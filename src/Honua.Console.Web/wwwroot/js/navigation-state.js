@@ -15,17 +15,20 @@
         if (control.matches(menuSelector)) control.open = value;
         else control.setAttribute('aria-expanded', String(value));
     }
-    function restoreControlFocus(previous, control) {
+    function replacementFocusTarget(previous, control) {
         if (focused !== opener(previous) && !previous.contains(focused)) return;
         const index = [...previous.querySelectorAll('summary, a')].indexOf(focused);
-        startupFocus = index < 0 ? opener(control) : control.querySelectorAll('summary, a')[index];
-        startupFocus?.focus({preventScroll: true});
+        return index < 0 ? opener(control) : control.querySelectorAll('summary, a')[index];
     }
     function transferControl(key, control) {
         const previous = controls.get(key);
         if (!previous || previous === control) return;
+        const target = replacementFocusTarget(previous, control);
         setExpanded(control, expanded(previous));
-        restoreControlFocus(previous, control);
+        if (target) {
+            startupFocus = target;
+            target.focus({preventScroll: true});
+        }
         hydrated = true;
     }
     function collectControls() {

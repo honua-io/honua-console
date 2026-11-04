@@ -42,14 +42,18 @@ for (const menu of menus) test(`${menu.name} advertises working current destinat
   await expect(nav.locator('a[href]')).toHaveCount(menu.paths.length);
   for(const path of menu.paths) {
     await expect(nav.locator(`a[href="${path}"]`)).toBeVisible();
-    const response=await page.request.get(path);
-    expect(response.status()).toBe(200);
-    expect(response.url()).not.toContain('/not-found');
   }
   await expect(nav.locator('a').first()).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(nav).toBeHidden();
   await expect(disclosure.locator(':scope > summary')).toBeFocused();
+  for(const path of menu.paths) {
+    const response=await page.goto(path);
+    expect(response?.status()).toBe(200);
+    await expect(page.locator('main h1').first()).toBeVisible();
+    await expect(page).not.toHaveURL(/\/not-found/);
+    await expect(page.getByRole('heading',{name:'Page Not Found',exact:true})).toHaveCount(0);
+  }
 });
 
 for (const width of [390, 1440]) test(`navigation preserves keyboard input during startup at ${width}px`, async ({page}) => {

@@ -14,7 +14,7 @@
                     {
                         <NavLink href="@entry.Path" Match="NavLinkMatch.All">
                             @entry.Label
-                            @if (!ConsolePresentation.IsFocusedRoute(entry.Path)) { <small>Preview</small> }
+                            @if (entry.Path is not ("/studio" or "/studio/processes") && !ConsolePresentation.IsFocusedRoute(entry.Path)) { <small>Preview</small> }
                         </NavLink>
                     }
                 </div>

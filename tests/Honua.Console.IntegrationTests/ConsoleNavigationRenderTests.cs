@@ -20,6 +20,9 @@ public sealed class ConsoleNavigationRenderTests
         Assert.Equal(["Data", "Protocols", "Studio", "Operate", "Access", "Settings"],
             navigation.FindAll(".console-topnav [data-navigation-menu]").Select(element => element.GetAttribute("data-navigation-menu")));
         Assert.Equal("/studio/processes", navigation.Find("a[href='/studio/processes']").GetAttribute("href"));
+        Assert.Equal(["/studio", "/maps/new", "/studio/processes", "/studio/form", "/studio/report"],
+            navigation.FindAll("[data-navigation-menu='Studio'] a").Select(element => element.GetAttribute("href")));
+        Assert.Empty(navigation.FindAll("a[href='/studio'] small, a[href='/studio/processes'] small"));
         Assert.Single(navigation.FindAll("[data-navigation-menu='Protocols'] a"));
         Assert.Equal("/operate/catalogs", navigation.Find("[data-navigation-menu='Protocols'] a").GetAttribute("href"));
         Assert.Empty(navigation.FindAll("input[type='search'], a[href='/operate/license'], a[href='/operate/server-info']"));
@@ -57,11 +60,13 @@ public sealed class ConsoleNavigationRenderTests
     public void UnreadableApprovalQueueDoesNotDisplayAnInventedZero()
     {
         using var context = CreateContext();
-        context.Services.AddSingleton<IConsoleApprovalInboxClient>(new ScriptedApprovalInboxClient
-        {
-            Result = OperateSectionResult<ApprovalInboxSnapshot>.Denied(OperateSectionStatus.Forbidden, "Access denied.")
-        });
+        var inbox = new DeferredApprovalInboxClient();
+        context.Services.AddSingleton<IConsoleApprovalInboxClient>(inbox);
         var count = context.Render<ConsoleApprovalCount>();
+        Assert.Empty(count.FindAll(".console-approval-count"));
+        var initialRenderCount = count.RenderCount;
+        inbox.Response.SetResult(OperateSectionResult<ApprovalInboxSnapshot>.Denied(OperateSectionStatus.Forbidden, "Access denied."));
+        count.WaitForState(() => count.RenderCount > initialRenderCount);
         Assert.Empty(count.FindAll(".console-approval-count"));
     }
 
@@ -128,6 +133,15 @@ public sealed class ConsoleNavigationRenderTests
             _available = false;
             Changed?.Invoke();
         }
+    }
+
+    private sealed class DeferredApprovalInboxClient : IConsoleApprovalInboxClient
+    {
+        public TaskCompletionSource<OperateSectionResult<ApprovalInboxSnapshot>> Response { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<OperateSectionResult<ApprovalInboxSnapshot>> GetInboxAsync(
+            string? status = null, string? kind = null, CancellationToken cancellationToken = default) =>
+            Response.Task.WaitAsync(cancellationToken);
     }
 
     private static BunitContext CreateContext(ConsoleProductMode mode = ConsoleProductMode.Full)
