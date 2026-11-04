@@ -8,9 +8,9 @@ The shell and navigation retain their existing structure.
 
 | Route | Desktop | Mobile |
 | --- | --- | --- |
-| First run | [1440 px](first-run-1440.png) | [390 px](first-run-390.png) |
-| Data & Layers, unbound | [1440 px](data-unbound-1440.png) | [390 px](data-unbound-390.png) |
-| Temporal, unavailable | [1440 px](capability-unavailable-1440.png) | [390 px](capability-unavailable-390.png) |
+| First run | [1440 px](../images/console-phase-zero/first-run-1440.png) | [390 px](../images/console-phase-zero/first-run-390.png) |
+| Data & Layers, unbound | [1440 px](../images/console-phase-zero/data-unbound-1440.png) | [390 px](../images/console-phase-zero/data-unbound-390.png) |
+| Temporal, unavailable | [1440 px](../images/console-phase-zero/capability-unavailable-1440.png) | [390 px](../images/console-phase-zero/capability-unavailable-390.png) |
 
 The browser accessibility suite checks actual rendered Add data text/background
 contrast in normal and hover states, resolved semantic token pairs, system-dark

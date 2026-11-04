@@ -91,9 +91,31 @@ test('forced colors retain an outline and reduced motion stops shell animation',
   await action.focus();
   const style = await action.evaluate(element => {
     const computed = getComputedStyle(element);
-    return { outline: computed.outlineStyle, outlineWidth: computed.outlineWidth, animation: computed.animationName };
+    return { outline: computed.outlineStyle, outlineWidth: computed.outlineWidth };
   });
   expect(style.outline).toBe('solid');
   expect(parseFloat(style.outlineWidth)).toBeGreaterThanOrEqual(2);
-  expect(style.animation).toBe('none');
+  for (const selector of ['.console-shell', '.console-collapse-button', '.console-collapse-button svg']) {
+    const duration = await page.locator(selector).first().evaluate(element => getComputedStyle(element).transitionDuration);
+    expect(duration, selector).toBe('0s');
+  }
+});
+
+test('secondary button and tab style boundaries meet non-text contrast', async ({ page }, info) => {
+  await page.goto('/operate/data/new');
+  const observations = await page.evaluate(() => {
+    const tabs = document.createElement('nav');
+    tabs.className = 'console-tab-row';
+    tabs.innerHTML = '<a href="#details">Details</a><button type="button">Settings</button>';
+    document.querySelector('.console-page')!.append(tabs);
+    const secondary = document.querySelector('.console-button-secondary')!;
+    return [secondary, ...tabs.children].map(element => {
+      const style = getComputedStyle(element);
+      return { control: element.textContent!.trim(), border: style.borderTopColor, background: style.backgroundColor };
+    });
+  });
+  for (const observation of observations) {
+    expect(contrast(observation.border, observation.background), observation.control).toBeGreaterThanOrEqual(MINIMUM_CONTROL_CONTRAST);
+  }
+  await info.attach('computed-control-boundaries', { body: JSON.stringify(observations), contentType: 'application/json' });
 });

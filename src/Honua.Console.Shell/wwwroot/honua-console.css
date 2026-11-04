@@ -812,7 +812,7 @@ p {
 }
 
 .console-button-secondary {
-    border-color: var(--honua-border);
+    border-color: var(--c-border-strong);
     background: var(--honua-surface);
     color: var(--honua-accent-strong);
 }
@@ -1288,7 +1288,7 @@ p {
     background: var(--honua-surface);
 }
 
-.console-state h1 {
+.console-state :is(h1, h2) {
     font-size: 1.55rem;
 }
 
@@ -9606,4 +9606,15 @@ button.console-chip:focus-visible {
 
 [data-dataset-import-panel] dd {
     overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .console-shell,
+    .console-shell *,
+    .console-shell *::before,
+    .console-shell *::after {
+        scroll-behavior: auto !important;
+        transition: none !important;
+        animation: none !important;
+    }
 }
