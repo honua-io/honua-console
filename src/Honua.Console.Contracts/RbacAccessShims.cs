@@ -5,27 +5,7 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-server#1162): honua-server owns the Console metadata/RBAC contract — the hierarchical
-// scope model (workspace > environment > content > publication > resource-field), the role definitions
-// and their per-permission grants, the workspace membership roster, and pending invitations. These are
-// projected through the shared Console metadata/RBAC API in Honua.Server.Features.Console. honua-sdk-dotnet
-// does not yet project these as a consumable stable package, and honua-console wires no SDK NuGet feed
-// (see SDK_SHIM_POLICY.md and the share/operate/content-publication shims). Per the Console Patterns
-// Charter section 11 and SDK_SHIM_POLICY, the Console Access (RBAC) surface binds through a thin HttpClient
-// behind this single Honua.Console.Contracts boundary: the wire records below mirror the server projection
-// and the client speaks the real Console RBAC read surface. Do not add a sibling-repo ProjectReference.
-// Swap these for SDK types when honua-sdk-dotnet ships a consumable Console RBAC projection.
-//
-// The Console Access reads are admin reads wrapped in the shared {success,data,message,timestamp} envelope
-// (Honua.Infrastructure.Models.ApiResponse<T>), so this client reuses the shared HonuaAdminApiResponse<T>
-// envelope and the HonuaAdminEndpointResult<T>/HonuaAdminEndpointIssue result records (defined in
-// OperateAdminShims.cs). When no server base URL is configured, the Console Access surface renders an
-// explicit missing-binding state instead of fabricating role/member data.
-
-/// <summary>
-/// The five scope levels of the Console RBAC hierarchy, ordered from broadest to narrowest. Workspace roles
-/// inherit down; overrides at any narrower level take precedence (mirrors honua-server ConsoleAccessScope).
-/// </summary>
+// Workspace roles inherit downward; a narrower scope overrides them.
 public static class HonuaConsoleAccessScopeLevels
 {
     public const string Workspace = "workspace";
@@ -35,10 +15,6 @@ public static class HonuaConsoleAccessScopeLevels
     public const string ResourceField = "resource-field";
 }
 
-/// <summary>
-/// How a role grants a permission: a full grant, an environment-scoped grant, a per-content scope-only
-/// grant, a conditional/custom grant, or no grant (mirrors honua-server ConsolePermissionGrant).
-/// </summary>
 public static class HonuaConsolePermissionGrants
 {
     public const string Granted = "granted";
@@ -50,44 +26,34 @@ public static class HonuaConsolePermissionGrants
 
 public sealed record HonuaConsoleRbacClientOptions(Uri BaseUri, string? ApiKey = null);
 
-/// <summary>
-/// Typed client for the honua-server Console Access (RBAC) surface (honua-server#1162). All reads target
-/// the workspace-scoped admin routes under <c>/api/v1/console/access</c>.
-/// </summary>
 public interface IHonuaConsoleRbacClient
 {
     Uri BaseUri { get; }
 
-    /// <summary>Reads the server-owned role × permission overview (scope hierarchy, roles, matrix legend).</summary>
     Task<HonuaAdminEndpointResult<HonuaConsoleRbacOverview>> GetOverviewAsync(
         string workspaceId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Reads the server-owned workspace membership roster plus pending invitations.</summary>
     Task<HonuaAdminEndpointResult<HonuaConsoleTeamMembership>> GetMembershipAsync(
         string workspaceId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Creates a custom role from the console permission columns (honua-server#1162).</summary>
     Task<HonuaAdminEndpointResult<HonuaConsoleRbacRole>> CreateRoleAsync(
         string workspaceId,
         HonuaConsoleRoleWriteRequest request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Updates a custom role's name, description, and grants.</summary>
     Task<HonuaAdminEndpointResult<HonuaConsoleRbacRole>> UpdateRoleAsync(
         string workspaceId,
         string roleId,
         HonuaConsoleRoleWriteRequest request,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Deletes a custom role (built-in roles are rejected server-side).</summary>
     Task<HonuaAdminEndpointResult<bool>> DeleteRoleAsync(
         string workspaceId,
         string roleId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Reads the role-change audit trail (create/update/delete), newest first.</summary>
     Task<HonuaAdminEndpointResult<HonuaConsoleRoleAuditPage>> GetRoleAuditAsync(
         string workspaceId,
         int pageSize = 50,
@@ -283,7 +249,6 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
     }
 }
 
-/// <summary>Request body to create or update a custom role (honua-server#1162).</summary>
 public sealed record HonuaConsoleRoleWriteRequest
 {
     [JsonPropertyName("name")]
@@ -296,7 +261,6 @@ public sealed record HonuaConsoleRoleWriteRequest
     public IReadOnlyList<HonuaConsoleRbacGrant> Grants { get; init; } = Array.Empty<HonuaConsoleRbacGrant>();
 }
 
-/// <summary>One role-change audit entry (create/update/delete) projected from the server audit log.</summary>
 public sealed record HonuaConsoleRoleAuditEntry
 {
     [JsonPropertyName("id")]
@@ -321,7 +285,6 @@ public sealed record HonuaConsoleRoleAuditEntry
     public string? Details { get; init; }
 }
 
-/// <summary>A page of role-change audit entries, newest first.</summary>
 public sealed record HonuaConsoleRoleAuditPage
 {
     [JsonPropertyName("entries")]
@@ -331,9 +294,6 @@ public sealed record HonuaConsoleRoleAuditPage
     public string? NextCursor { get; init; }
 }
 
-// --- Wire records mirroring honua-server Honua.Core.Features.Console.Domain (#1162). ---
-
-/// <summary>One level of the Console RBAC scope hierarchy as projected by the server.</summary>
 public sealed record HonuaConsoleAccessScope
 {
     [JsonPropertyName("level")]
@@ -346,7 +306,6 @@ public sealed record HonuaConsoleAccessScope
     public string? Description { get; init; }
 }
 
-/// <summary>One permission column in the role × permission matrix.</summary>
 public sealed record HonuaConsoleRbacPermission
 {
     [JsonPropertyName("key")]
@@ -356,7 +315,6 @@ public sealed record HonuaConsoleRbacPermission
     public required string Label { get; init; }
 }
 
-/// <summary>How a role grants a single permission, with an optional qualifier label (e.g. "no PII").</summary>
 public sealed record HonuaConsoleRbacGrant
 {
     [JsonPropertyName("permission")]
@@ -369,7 +327,6 @@ public sealed record HonuaConsoleRbacGrant
     public string? Qualifier { get; init; }
 }
 
-/// <summary>A single role row in the matrix (built-in or custom) with its per-permission grants.</summary>
 public sealed record HonuaConsoleRbacRole
 {
     [JsonPropertyName("id")]
@@ -388,10 +345,6 @@ public sealed record HonuaConsoleRbacRole
     public IReadOnlyList<HonuaConsoleRbacGrant> Grants { get; init; } = Array.Empty<HonuaConsoleRbacGrant>();
 }
 
-/// <summary>
-/// The Console Access (RBAC) overview projection: the scope hierarchy strip, the permission columns, the
-/// role rows with their grants, and the aggregate counts the toolbar surfaces.
-/// </summary>
 public sealed record HonuaConsoleRbacOverview
 {
     [JsonPropertyName("workspaceId")]
@@ -418,12 +371,10 @@ public sealed record HonuaConsoleRbacOverview
     [JsonPropertyName("membersAffected")]
     public int MembersAffected { get; init; }
 
-    /// <summary>Whether the caller may author/clone roles (manage-roles permission at workspace scope).</summary>
     [JsonPropertyName("canManageRoles")]
     public bool CanManageRoles { get; init; }
 }
 
-/// <summary>A workspace member row: identity, role, scope, last-active, and identity source.</summary>
 public sealed record HonuaConsoleTeamMember
 {
     [JsonPropertyName("id")]
@@ -453,12 +404,11 @@ public sealed record HonuaConsoleTeamMember
     [JsonPropertyName("source")]
     public string? Source { get; init; }
 
-    /// <summary>Principal kind: "user", "api-key", or "group".</summary>
+    // One of "user", "api-key", or "group".
     [JsonPropertyName("principalKind")]
     public string? PrincipalKind { get; init; }
 }
 
-/// <summary>A pending invitation row awaiting acceptance.</summary>
 public sealed record HonuaConsoleTeamInvitation
 {
     [JsonPropertyName("id")]
@@ -480,10 +430,6 @@ public sealed record HonuaConsoleTeamInvitation
     public string? Status { get; init; }
 }
 
-/// <summary>
-/// The Console Access membership projection: the active/pending/deactivated counts, the member roster, and
-/// the pending invitations, plus whether the caller may issue new scoped invites.
-/// </summary>
 public sealed record HonuaConsoleTeamMembership
 {
     [JsonPropertyName("workspaceId")]
@@ -507,7 +453,6 @@ public sealed record HonuaConsoleTeamMembership
     [JsonPropertyName("deactivatedCount")]
     public int DeactivatedCount { get; init; }
 
-    /// <summary>Whether the caller may issue invitations (edit-access permission at workspace scope).</summary>
     [JsonPropertyName("canInvite")]
     public bool CanInvite { get; init; }
 }

@@ -3,91 +3,54 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// Mutable Studio report-builder authoring state. This is Console-owned editor state bound to the report
-/// builder UI: narrative, data bindings (with version pins), layout slots holding Vega-Lite charts, map
-/// panels, tables, and filters, plus the responsive-preview breakpoint. It is serialized to the canonical
-/// <c>honua.report-document.v1</c> payload and published through the server-owned content publication
-/// registry (honua-server#1183) via <c>IStudioReportPublicationDataSource</c>; it is never a server wire
-/// contract and is never persisted as a standing mock data source (Console Patterns Charter section 11).
-/// </summary>
 public sealed class StudioReportEditorState
 {
-    /// <summary>
-    /// Server publication id once the report has been published at least once. Null while the report is a
-    /// brand-new unpublished draft held only in the editor.
-    /// </summary>
     public string? PublicationId { get; set; }
 
-    /// <summary>Requested/normalized server route slug for the published report.</summary>
     public string RouteSlug { get; set; } = string.Empty;
 
-    /// <summary>Optimistic-concurrency etag of the server route state. Empty until first read/publish.</summary>
+    // Empty until the first read or publish, so there is no concurrency token yet.
     public string ETag { get; set; } = string.Empty;
 
-    /// <summary>Active server revision once published (0 while unpublished).</summary>
     public long ActiveRevision { get; set; }
 
     public string Title { get; set; } = string.Empty;
 
     public string Description { get; set; } = string.Empty;
 
-    /// <summary>Narrative block rendered above the layout (intro/context copy for the report).</summary>
     public string Narrative { get; set; } = string.Empty;
 
-    /// <summary>Server-owned visibility scope to publish under (private/organization/team/public).</summary>
     public string Visibility { get; set; } = StudioReportVisibilities.Private;
 
-    /// <summary>Whether the published report may be embedded.</summary>
     public bool Embeddable { get; set; }
 
-    /// <summary>
-    /// Data bindings: source content refs (with version pins) every panel can read. The version pin is a
-    /// deliberate authoring decision so a published report reads a known content version.
-    /// </summary>
     public List<StudioReportBindingEditor> Bindings { get; } = [];
 
-    /// <summary>Layout slots holding chart, map, table, and filter panels (top-to-bottom order).</summary>
     public List<StudioReportPanelEditor> Panels { get; } = [];
 
-    /// <summary>Responsive preview breakpoint currently selected in the editor.</summary>
     public string PreviewBreakpoint { get; set; } = StudioReportBreakpoints.Desktop;
 
-    /// <summary>True once the report has a server publication id (it has been published before).</summary>
     public bool IsPublished => !string.IsNullOrWhiteSpace(PublicationId);
 }
 
-/// <summary>A source content binding for report panels, with an explicit version pin.</summary>
 public sealed class StudioReportBindingEditor
 {
-    /// <summary>Author-facing alias panels reference (for example <c>incidents</c>).</summary>
     public string Alias { get; set; } = string.Empty;
 
-    /// <summary>Server content item id the alias resolves to.</summary>
     public string ContentRef { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Pinned content version. Blank pins to the latest published version at publish time; an explicit
-    /// value (for example <c>v7</c>) pins the report to a known version.
-    /// </summary>
+    // Blank means the latest published version at publish time.
     public string VersionPin { get; set; } = string.Empty;
 }
 
-/// <summary>A layout panel. Charts use Vega-Lite specs; map/table/filter are layout slots.</summary>
 public sealed class StudioReportPanelEditor
 {
     public string Title { get; set; } = string.Empty;
 
-    /// <summary>One of <see cref="StudioReportPanelKinds"/>.</summary>
     public string Kind { get; set; } = StudioReportPanelKinds.Chart;
 
-    /// <summary>Binding alias this panel reads from.</summary>
     public string BindingAlias { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Vega-Lite chart spec (JSON). Required for <see cref="StudioReportPanelKinds.Chart"/> panels;
-    /// Vega-Lite is the chart standard for all report charts (issue AC).
-    /// </summary>
     public string VegaLiteSpec { get; set; } = string.Empty;
 
     public bool IsChart =>
@@ -122,7 +85,6 @@ public static class StudioReportVisibilities
     public static IReadOnlyList<string> All { get; } = [Private, Organization, Team, Public];
 }
 
-/// <summary>Builds and validates the Vega-Lite chart spec for report chart panels.</summary>
 public static class StudioReportChartSpec
 {
     public const string VegaLiteSchema = "https://vega.github.io/schema/vega-lite/v6.json";
@@ -145,10 +107,6 @@ public static class StudioReportChartSpec
         return JsonSerializer.Serialize(spec, SpecOptions);
     }
 
-    /// <summary>
-    /// True when the spec is non-empty, parses as a JSON object, and declares the Vega-Lite schema URL.
-    /// The issue requires every report chart to declare a Vega-Lite schema before publish.
-    /// </summary>
     public static bool DeclaresVegaLiteSchema(string? spec)
     {
         if (string.IsNullOrWhiteSpace(spec))
@@ -171,12 +129,6 @@ public static class StudioReportChartSpec
     }
 }
 
-/// <summary>
-/// Pure pre-publish gate. Publish requires a titled report with at least one panel, every panel bound to a
-/// declared data binding, every data binding fully specified, and every chart panel declaring a Vega-Lite
-/// spec (issue AC). Server-side publish validation still applies; this gate keeps the Console from offering
-/// publish before those authoring decisions are made.
-/// </summary>
 public sealed record StudioReportPublishReadiness(bool CanPublish, IReadOnlyList<string> UnmetRequirements);
 
 public static class StudioReportPublishEvaluator
@@ -215,8 +167,6 @@ public static class StudioReportPublishEvaluator
                 unmet.Add($"Bind panel \"{PanelLabel(panel)}\" to a declared data binding.");
             }
 
-            // Issue AC: Vega-Lite is the chart spec for all report charts, and every chart must declare a
-            // Vega-Lite schema URL before publish.
             if (panel.IsChart && !StudioReportChartSpec.DeclaresVegaLiteSchema(panel.VegaLiteSpec))
             {
                 unmet.Add($"Chart panel \"{PanelLabel(panel)}\" must declare a Vega-Lite spec.");
@@ -230,13 +180,7 @@ public static class StudioReportPublishEvaluator
         string.IsNullOrWhiteSpace(panel.Title) ? $"untitled {panel.Kind}" : panel.Title;
 }
 
-/// <summary>
-/// Serializes the report editor state into the canonical <c>honua.report-document.v1</c> payload that is
-/// sent to the publication registry as the publish/republish content payload (the server hashes it with
-/// SHA-256 and never stores it). Chart specs are embedded verbatim when valid JSON so the Vega-Lite spec
-/// round-trips into the published document; otherwise the raw string is preserved for server validation to
-/// reject. The serializer is deterministic so two equal editor states hash identically.
-/// </summary>
+// The server hashes this payload and does not store the document, so serialization stays deterministic.
 public static class StudioReportDocument
 {
     public const string Format = "honua.report-document.v1";
@@ -279,11 +223,6 @@ public static class StudioReportDocument
         return JsonSerializer.Serialize(document, DocumentOptions);
     }
 
-    /// <summary>
-    /// Applies a server report document (the same shape <see cref="Serialize"/> produces) onto an editor
-    /// state. Used by the "Report from prompt" generated turn to project a server-proposed document into a
-    /// fresh, reviewable draft — the inverse of <see cref="Serialize"/>.
-    /// </summary>
     public static void ApplyTo(StudioReportEditorState state, JsonElement document)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -371,19 +310,6 @@ public static class StudioReportDocument
     }
 }
 
-// --- Data-source-facing projections for the authoring surface (immutable). ---
-
-/// <summary>Outcome of a mutating report lifecycle command (publish, republish, rollback, policy).</summary>
-/// <param name="Succeeded">Whether the command succeeded.</param>
-/// <param name="Message">Operator-facing status message.</param>
-/// <param name="Publication">The resulting publication view on success.</param>
-/// <param name="Issue">A capability state when the command failed at the binding/permission/transport level.</param>
-/// <param name="FieldErrors">
-/// Field-addressable server validation errors parsed from a 400 ProblemDetails <c>errors[]</c> (the shared
-/// honua-server <c>FieldValidationError</c> contract). Empty unless the server rejected the publish with
-/// field-level findings; the report builder binds these onto the offending inputs via
-/// <see cref="Honua.Console.Shell.Validation.StudioReportServerErrorBinder"/>.
-/// </param>
 public sealed record StudioReportCommandResult(
     bool Succeeded,
     string Message,
