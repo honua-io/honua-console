@@ -6,28 +6,12 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Honua.Console.Web.Auth;
 
-/// <summary>
-/// Registers the browser Web host's implementation of the Family-A server-bound client seam
-/// (honua-console#254): two <see cref="IHttpClientFactory"/> named clients — one PRIVILEGED (fail-closed
-/// for an unresolved operator) and one legitimately-ANONYMOUS-capable — both over a shared, managed
-/// connection pool, and an <see cref="IHonuaServerBoundClientFactory"/> that hands them to the Family-A
-/// typed-client registrations in place of the self-contained per-client pooled handler.
-///
-/// Connection-pool lifecycle: each named client uses <see cref="HttpClientFactoryBuilderExtensions"/>'s
-/// <c>ConfigurePrimaryHttpMessageHandler</c> with a bounded <see cref="SocketsHttpHandler"/> pool that
-/// IHttpClientFactory manages/rotates, so the whole multi-operator host shares ONE pool per named client
-/// (instead of one <see cref="SocketsHttpHandler"/> per singleton typed client) while a long-lived client
-/// never pins stale DNS for the active environment's server.
-/// </summary>
 public static class ConsoleServerBoundClients
 {
-    /// <summary>Named client for the PRIVILEGED server-bound surface (fail-closed for an unresolved operator).</summary>
     public const string ServerBoundClientName = "honua-server-bound";
 
-    /// <summary>Named client for the legitimately-ANONYMOUS-capable surface (/public, /ogc/styles).</summary>
     public const string PublicClientName = "honua-server-public";
 
-    /// <summary>Named client for explicitly configured management operations.</summary>
     public const string ManagerBoundClientName = "honua-manager-bound";
 
     public static IServiceCollection AddConsoleServerBoundClients(this IServiceCollection services)

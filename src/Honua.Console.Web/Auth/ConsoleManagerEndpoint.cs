@@ -4,13 +4,12 @@ using Microsoft.Extensions.Configuration;
 
 namespace Honua.Console.Web.Auth;
 
-/// <summary>Configuration-owned mapping; it cannot apply to another active environment.</summary>
+// Configuration-owned mapping; it cannot apply to another active environment.
 public sealed class ConsoleManagerEndpoint(IConfiguration? configuration) : IConsoleManagerEndpoint
 {
     private readonly string? _serving = configuration?["Honua:Server:BaseUrl"] ?? configuration?["HONUA_SERVER_BASE_URL"];
     private readonly string? _manager = configuration?["Honua:Manager:BaseUrl"] ?? configuration?["HONUA_MANAGER_BASE_URL"];
 
-    /// <inheritdoc />
     public Uri? Resolve(Uri servingBaseUri)
     {
         if (string.IsNullOrWhiteSpace(_manager)) return servingBaseUri;
@@ -33,7 +32,7 @@ public sealed class ConsoleManagerEndpoint(IConfiguration? configuration) : ICon
     private static Uri DirectoryUri(Uri value) => new(value.AbsoluteUri.TrimEnd('/') + "/");
 }
 
-/// <summary>Retargets only the authenticated management client to the configured manager.</summary>
+// This handler belongs only on the authenticated management client.
 public sealed class ConsoleManagerRoutingHandler(IConsoleEnvironmentProfileStore profiles, IConsoleManagerEndpoint endpoint)
     : DelegatingHandler
 {

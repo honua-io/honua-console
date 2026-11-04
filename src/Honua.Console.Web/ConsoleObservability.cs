@@ -5,18 +5,7 @@ using OpenTelemetry.Trace;
 
 namespace Honua.Console.Web;
 
-/// <summary>
-/// OpenTelemetry wiring for the Console web host (honua-console#279 PA-234). The console previously
-/// exported zero traces and zero metrics, so a request that crossed into honua-server (or stalled on the
-/// map proxy) was invisible to any collector. This registers AspNetCore + HttpClient instrumentation for
-/// both traces and metrics plus the console's own map-proxy meter, and exports over OTLP using the
-/// standard <c>OTEL_EXPORTER_OTLP_*</c> environment variables.
-///
-/// It is DEFAULT-SAFE: when no <c>OTEL_EXPORTER_OTLP_ENDPOINT</c> is configured no exporter is attached,
-/// so the SDK collects into no listener and stays effectively a no-op (matching honua-server's
-/// endpoint-gated exporter convention in <c>Honua.ServiceDefaults</c>). Nothing leaves the process and no
-/// collector connection is attempted unless a deployment opts in via the standard env vars.
-/// </summary>
+// No exporter is attached unless OTEL_EXPORTER_OTLP_ENDPOINT is set, so nothing leaves the process.
 internal static class ConsoleObservability
 {
     internal const string ServiceName = "honua-console-web";

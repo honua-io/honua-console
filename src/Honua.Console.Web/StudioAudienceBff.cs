@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Honua.Console.Web;
 
-/// <summary>Published definitions and bounded data reads under the current viewer's authority.</summary>
+// Published routes allow an anonymous viewer, and each read still uses only that HTTP viewer's authority.
 internal static class StudioAudienceBff
 {
     internal const string PartitionHeader = "X-Honua-Viewer-Partition";
