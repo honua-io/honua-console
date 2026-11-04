@@ -106,6 +106,7 @@ async function studioElement(session) {
     return app;
 }
 class StudioSignInRequired extends Error {}
+const SIGN_IN_REQUIRED_STATUSES = new Set([401, 403]);
 
 async function mount() {
     const host = document.querySelector('[data-studio-embed]');
@@ -117,7 +118,7 @@ async function mount() {
         const module = await assets;
         module.registerAllStudioElements();
         const response = await fetch('/api/agent-workspace/session', { credentials: 'same-origin' });
-        if (response.status === 401 || response.status === 403) throw new StudioSignInRequired();
+        if (SIGN_IN_REQUIRED_STATUSES.has(response.status)) throw new StudioSignInRequired();
         if (!response.ok) throw new Error(`The workspace session request failed with ${response.status}.`);
         session = await response.json();
         element = await studioElement(session);

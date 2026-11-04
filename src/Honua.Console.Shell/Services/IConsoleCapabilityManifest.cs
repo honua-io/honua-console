@@ -54,7 +54,6 @@ public static class ConsoleCapabilityKeys
     /// <summary>Full SIEM / investigations / AI DevOps advisory over Operate event volume.</summary>
     public const string SiemInvestigations = "siem-investigations";
 
-    /// <summary>Catalog, Share and open-data content that survives a server restart.</summary>
     public const string PersistentCatalog = "persistent-catalog";
 }
 
