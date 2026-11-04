@@ -15,7 +15,10 @@ public sealed class DiscoveryMetadataEditorTests
 {
     private static readonly DiscoveryMetadataResponse Initial = new()
     {
-        Etag = "revision-1", EntityId = "canonical-roads", Title = "Roads", Description = "Street survey",
+        Etag = "revision-1",
+        EntityId = "canonical-roads",
+        Title = "Roads",
+        Description = "Street survey",
         Keywords = ["roads", "survey"],
         AffectedPublications = [new("pub-a", "transport", "7"), new("pub-b", "public-data", "streets")]
     };
@@ -43,8 +46,11 @@ public sealed class DiscoveryMetadataEditorTests
     public void SaveDiscovery_UsesReadEtagAndShowsStoredResponse()
     {
         using var context = new BunitContext();
-        var client = new MetadataClient { WriteResult = HonuaAdminEndpointResult<DiscoveryMetadataResponse>.FromData(
-            Initial with { Etag = "revision-2", Title = "Stored survey" }) };
+        var client = new MetadataClient
+        {
+            WriteResult = HonuaAdminEndpointResult<DiscoveryMetadataResponse>.FromData(
+            Initial with { Etag = "revision-2", Title = "Stored survey" })
+        };
         context.Services.AddSingleton<IHonuaDiscoveryMetadataClient>(client);
         var component = context.Render<DiscoveryMetadataEditor>(parameters => parameters.Add(editor => editor.Address, DiscoveryMetadataAddress.ForLayer(42)));
         component.Find("[data-discovery-title]").Change("New survey");
@@ -64,8 +70,11 @@ public sealed class DiscoveryMetadataEditorTests
     public void SaveDescription_UnchangedKeywords_PreservesImportedEntries()
     {
         using var context = new BunitContext();
-        var client = new MetadataClient { ReadResult = HonuaAdminEndpointResult<DiscoveryMetadataResponse>.FromData(
-            Initial with { Title = null, Keywords = ["roads, streets", " survey ", "line\nbreak"] }) };
+        var client = new MetadataClient
+        {
+            ReadResult = HonuaAdminEndpointResult<DiscoveryMetadataResponse>.FromData(
+            Initial with { Title = null, Keywords = ["roads, streets", " survey ", "line\nbreak"] })
+        };
         context.Services.AddSingleton<IHonuaDiscoveryMetadataClient>(client);
         var component = context.Render<DiscoveryMetadataEditor>(parameters => parameters.Add(editor => editor.Address, DiscoveryMetadataAddress.ForLayer(42)));
         component.Find("[data-discovery-description]").Change("Updated description");
@@ -79,8 +88,11 @@ public sealed class DiscoveryMetadataEditorTests
     public void SaveDiscovery_Conflict_PreservesEditsUntilExplicitReload()
     {
         using var context = new BunitContext();
-        var client = new MetadataClient { WriteResult = HonuaAdminEndpointResult<DiscoveryMetadataResponse>.FromIssue(
-            AdminEndpointIssueFactory.CreateIssue("PUT discovery", HttpStatusCode.Conflict)) };
+        var client = new MetadataClient
+        {
+            WriteResult = HonuaAdminEndpointResult<DiscoveryMetadataResponse>.FromIssue(
+            AdminEndpointIssueFactory.CreateIssue("PUT discovery", HttpStatusCode.Conflict))
+        };
         context.Services.AddSingleton<IHonuaDiscoveryMetadataClient>(client);
         var component = context.Render<DiscoveryMetadataEditor>(parameters => parameters.Add(editor => editor.Address, DiscoveryMetadataAddress.ForLayer(42)));
         component.Find("[data-discovery-title]").Change("Unsaved title");
@@ -102,8 +114,11 @@ public sealed class DiscoveryMetadataEditorTests
     public void ReadDiscovery_UnavailableContract_OffersNoSave(HttpStatusCode status)
     {
         using var context = new BunitContext();
-        var client = new MetadataClient { ReadResult = HonuaAdminEndpointResult<DiscoveryMetadataResponse>.FromIssue(
-            AdminEndpointIssueFactory.CreateIssue("GET discovery", status)) };
+        var client = new MetadataClient
+        {
+            ReadResult = HonuaAdminEndpointResult<DiscoveryMetadataResponse>.FromIssue(
+            AdminEndpointIssueFactory.CreateIssue("GET discovery", status))
+        };
         context.Services.AddSingleton<IHonuaDiscoveryMetadataClient>(client);
         var component = context.Render<DiscoveryMetadataEditor>(parameters => parameters.Add(editor => editor.Address, DiscoveryMetadataAddress.ForLayer(42)));
         component.WaitForAssertion(() => Assert.Empty(component.FindAll("[data-discovery-save]")));
@@ -127,8 +142,11 @@ public sealed class DiscoveryMetadataEditorTests
         var oldAddress = DiscoveryMetadataAddress.ForLayer(42);
         var newAddress = DiscoveryMetadataAddress.ForLayer(43);
         var pending = new TaskCompletionSource<HonuaAdminEndpointResult<DiscoveryMetadataResponse>>();
-        var client = new MetadataClient { ReadHandler = address => address == oldAddress ? pending.Task
-            : Task.FromResult(HonuaAdminEndpointResult<DiscoveryMetadataResponse>.FromData(Initial with { EntityId = "canonical-rivers" })) };
+        var client = new MetadataClient
+        {
+            ReadHandler = address => address == oldAddress ? pending.Task
+            : Task.FromResult(HonuaAdminEndpointResult<DiscoveryMetadataResponse>.FromData(Initial with { EntityId = "canonical-rivers" }))
+        };
         context.Services.AddSingleton<IHonuaDiscoveryMetadataClient>(client);
         var component = context.Render<DiscoveryMetadataEditor>(parameters => parameters.Add(editor => editor.Address, oldAddress));
         component.Render(parameters => parameters.Add(editor => editor.Address, newAddress));
