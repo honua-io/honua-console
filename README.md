@@ -120,6 +120,7 @@ in [BUILD_ARTIFACT.md](docs/deployment/BUILD_ARTIFACT.md).
 | Publish the deployable artifact (consumed by honua-devops) | `dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web` |
 | Verify vendored browser assets | `node scripts/vendor-assets.mjs` (offline; also runs inside `npm test`) |
 | Re-vendor after a version bump | `node scripts/vendor-assets.mjs --update` |
+| Fetch or verify the locked Studio release (builds run it) | `node scripts/fetch-studio-release.mjs` |
 
 ### Vendored browser assets
 
@@ -158,6 +159,13 @@ For committed bundles, the script re-fetches from npm, checks the tarball agains
 fails if a committed asset ever stops matching its digest, if a wwwroot interop
 script reaches an origin nobody declared, or if the CSP and those scripts disagree
 about which external origins are still needed.
+
+The embedded Studio editor is not committed either. `scripts/studio-release.lock.json`
+pins an attested honua-studio release archive by tag and SHA-256, and
+`scripts/fetch-studio-release.mjs` vendors it into the gitignored
+`src/Honua.Console.Web/wwwroot/_studio` before every build, run and publish. To bump
+Studio, change the lock and run the fetch; the steps are in
+[Studio release pin](docs/agent-workspace.md#studio-release-pin).
 
 The parity smoke ([docs/smoke/parity.md](docs/smoke/parity.md)) drives the
 cross-surface publish → catalog → Studio → share/embed chain against in-process

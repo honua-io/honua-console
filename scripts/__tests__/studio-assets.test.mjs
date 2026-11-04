@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile,readdir} from 'node:fs/promises';
-import {createHash} from 'node:crypto';
-import {resolve,join} from 'node:path';
-const root=resolve('src/Honua.Console.Web/wwwroot/_studio');
-test('bundled recipe key validates in current browser Unicode Sets mode',async()=>{
+import {readFile} from 'node:fs/promises';
+import {join} from 'node:path';
+import {VENDORED_STUDIO_ROOT as root,readStudioReleaseLock,verifyStudioAssets} from '../lib/studio-release.mjs';
+import {skipWithoutVendoredStudio} from './helpers/vendored-studio.mjs';
+test('bundled recipe key validates in current browser Unicode Sets mode',{skip:skipWithoutVendoredStudio},async()=>{
     const bundle=await readFile(join(root,'console.js'),'utf8');
     const tag=bundle.match(/<input\b[^>]*data-testid="recipe-package-key"[^>]*>/)?.[0];
     assert.ok(tag,'embedded recipe key input is present');
@@ -14,40 +14,12 @@ test('bundled recipe key validates in current browser Unicode Sets mode',async()
     for(const key of ['map','map-1','map_a.b']) assert.equal(pattern.test(key),true,key);
     for(const key of ['', 'two words','map/1']) assert.equal(pattern.test(key),false,key);
 });
-test('production Studio assets are complete and pinned to reviewed source bytes',async()=>{
-    const manifest=JSON.parse(await readFile(join(root,'honua-studio-artifact.json'),'utf8'));
-    assert.equal(manifest.schemaVersion,'honua.console.studio-artifact.v1');
-    assert.match(manifest.studioRevision,/^[a-f0-9]{40}$/);
-    assert.match(manifest.sdkRevision,/^[a-f0-9]{40}$/);
-    const paths=new Set();
-    for(const entry of manifest.files){
-        assert.ok(!entry.path.startsWith('/')&&!entry.path.split('/').includes('..'));
-        assert.ok(!paths.has(entry.path));paths.add(entry.path);
-        const bytes=await readFile(join(root,entry.path));
-        assert.equal(bytes.length,entry.bytes,entry.path);
-        assert.equal(createHash('sha256').update(bytes).digest('hex'),entry.sha256,entry.path);
-    }
-    for(const path of ['console.js','style.css','LICENSE','THIRD-PARTY-NOTICES.txt','STUDIO-PROVENANCE.json','SDK-PROVENANCE.json'])assert.ok(paths.has(path),path);
+test('the vendored Studio tree is the production bundle of the locked release',{skip:skipWithoutVendoredStudio},async()=>{
+    const lock=await readStudioReleaseLock();
+    await verifyStudioAssets(root,lock);
     const provenance=JSON.parse(await readFile(join(root,'STUDIO-PROVENANCE.json'),'utf8'));
-    const sdk=JSON.parse(await readFile(join(root,'SDK-PROVENANCE.json'),'utf8'));
-    assert.equal(provenance.schema,'honua.studio.console-assets/v1');
-    assert.equal(provenance.sourceCommit,manifest.studioRevision);
-    assert.equal(provenance.sdk.sourceCommit,manifest.sdkRevision);
-    assert.deepEqual(provenance.sdk,sdk);
     assert.equal(provenance.releaseQualified,false);
-    assert.deepEqual(provenance.files,Object.fromEntries(manifest.files
-        .filter(entry=>entry.path!=='STUDIO-PROVENANCE.json')
-        .map(({path,bytes,sha256})=>[path,{bytes,sha256}])));
-    async function walk(directory,prefix=''){
-        const found=[];
-        for(const entry of await readdir(directory,{withFileTypes:true})){
-            assert.ok(!entry.isSymbolicLink());const path=prefix+entry.name;
-            if(entry.isDirectory())found.push(...await walk(join(directory,entry.name),path+'/'));
-            else if(path!=='honua-studio-artifact.json')found.push(path);
-        }
-        return found;
-    }
-    assert.deepEqual((await walk(root)).sort(),[...paths].sort());
+    assert.equal(provenance.release.tag,lock.tag);
     const main=await readFile(join(root,'console.js'),'utf8');
     assert.ok(main.includes('createWorkspaceAgentSession'));
     assert.ok(!main.includes('__honuaStudioFixtureToken'));

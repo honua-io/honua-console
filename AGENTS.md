@@ -28,6 +28,8 @@ dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http:
 - **One Console/Studio workspace.** `/studio` is the realtime editor over the bundled
   `honua-studio` dependency; do not archive that dependency without an explicit migration.
   The standalone builder routes are retired; don't revive them.
+  The bundle is never committed: bump `scripts/studio-release.lock.json` and run
+  `node scripts/fetch-studio-release.mjs` (`docs/agent-workspace.md` "Studio release pin").
   Delete unrouted components and services; tests cover routed behaviour, not dead code. Keep real
   operations, automation and Processes authoring; use one primary conversation, the canonical
   drafts, and separate human approval for consequential operations.

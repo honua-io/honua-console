@@ -42,3 +42,11 @@ test('a Studio load failure says what to do without naming internal paths', asyn
     await expect(status).toContainText('Studio could not load.');
     await expect(status).not.toContainText('/api/');
 });
+
+test('a host without the vendored Studio release reads as a load failure', async ({ page }) => {
+    await page.route('**/_studio/console.js', route => route.fulfill({ status: 404, body: '' }));
+
+    await openStudioEmbed(page);
+
+    await expect(page.locator('[data-studio-status]')).toContainText('Studio could not load.');
+});

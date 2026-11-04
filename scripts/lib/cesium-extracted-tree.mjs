@@ -1,11 +1,8 @@
 import { createHash } from "node:crypto";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { relative, resolve, sep } from "node:path";
-import { promisify } from "node:util";
-import { brotliDecompress, gunzip } from "node:zlib";
 
-const decompressBrotli = promisify(brotliDecompress);
-const decompressGzip = promisify(gunzip);
+import { verifyCompressedCopies } from "./compressed-static-assets.mjs";
 
 export const CESIUM_PACKAGE = "cesium";
 export const CESIUM_VERSION = "1.119.0";
@@ -72,23 +69,10 @@ export async function verifyTree(root, expected, { requirePublishedManifest = fa
       throw new Error("published Cesium manifest does not match the repository-pinned manifest");
     }
   }
-  const derived = inventory.filter((file) => !expectedPaths.has(file.path));
-  for (const file of derived) {
-    const extension = file.path.endsWith(".br") ? ".br" : file.path.endsWith(".gz") ? ".gz" : undefined;
-    if (!extension) throw new Error(`published Cesium tree contains unpinned file ${file.path}`);
-    const sourcePath = file.path.slice(0, -extension.length);
-    if (!expectedPaths.has(sourcePath) && sourcePath !== CESIUM_PUBLISHED_MANIFEST) {
-      throw new Error(`published Cesium tree contains unpinned compressed file ${file.path}`);
-    }
-    const compressed = await readFile(resolve(root, file.path));
-    const source = await readFile(resolve(root, sourcePath));
-    const decompressed = extension === ".br"
-      ? await decompressBrotli(compressed)
-      : await decompressGzip(compressed);
-    if (!decompressed.equals(source)) {
-      throw new Error(`published Cesium compression does not reproduce pinned bytes: ${file.path}`);
-    }
-  }
+  const derived = inventory.filter((file) => !expectedPaths.has(file.path)).map((file) => file.path);
+  await verifyCompressedCopies({
+    root, paths: derived, originals: new Set([...expectedPaths, CESIUM_PUBLISHED_MANIFEST]), label: "Cesium",
+  });
   return actual;
 }
 

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AgentWorkspace } from '../../src/Honua.Console.Web/wwwroot/js/agent-workspace.mjs';
+import {skipWithoutVendoredStudio} from './helpers/vendored-studio.mjs';
 const session = { conversationMode:'studio', environmentId:'env', environmentName:'Test', principalId:'human', csrfToken:'csrf' };
 const response = value => ({ok:true,status:200,json:async()=>value});
 const storage = () => { const values=new Map();return {getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)}; };
@@ -93,7 +94,7 @@ test('navigation during model execution cannot retarget the captured draft or ad
  assert.equal(workspace.context.task.id,'another');
 });
 
-test('the shipped SDK completes a canonical tool round trip against the trunk wire contract',async()=>{
+test('the shipped SDK completes a canonical tool round trip against the trunk wire contract',{skip:skipWithoutVendoredStudio},async()=>{
  globalThis.HTMLElement ||= class {};
  const module=await import('../../src/Honua.Console.Web/wwwroot/_studio/console.js');
  let modelCalls=0;const toolCalls=[];
@@ -160,7 +161,7 @@ test('each model turn receives the captured draft identity after changing drafts
  assert.doesNotMatch(options().system(),/draft-a/);
 });
 
-test('canonical admission refusal retains its actionable message through the shipped SDK',async()=>{
+test('canonical admission refusal retains its actionable message through the shipped SDK',{skip:skipWithoutVendoredStudio},async()=>{
  globalThis.HTMLElement ||= class {};
  const module=await import('../../src/Honua.Console.Web/wwwroot/_studio/console.js');
  const {workspace}=await readyWorkspace({request:async(path,init)=>{

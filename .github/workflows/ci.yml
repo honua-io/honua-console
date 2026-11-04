@@ -36,6 +36,36 @@ jobs:
       - name: Verify the table of contents is derived
         run: python3 scripts/generate-summary.py --check
 
+  studio-release-attestation:
+    name: Verify Studio release attestation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      attestations: read
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Fetch the locked Studio release
+        id: studio
+        uses: ./.github/actions/fetch-studio-release
+
+      # The repository and signer workflow are fixed here, so editing the lock selects a release but
+      # cannot redirect trust; the tag and commit come from the lock.
+      - name: Verify the release build-provenance attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE: ${{ steps.studio.outputs.archive }}
+          LOCK: scripts/studio-release.lock.json
+        run: |
+          gh attestation verify "$ARCHIVE" \
+            --repo honua-io/honua-studio \
+            --signer-workflow honua-io/honua-studio/.github/workflows/release.yml \
+            --source-ref "refs/tags/$(jq -r .tag "$LOCK")" \
+            --source-digest "$(jq -r .sourceCommit "$LOCK")" \
+            --deny-self-hosted-runners
+
   validate:
     name: Validate Console
     runs-on: ubuntu-latest
@@ -71,6 +101,9 @@ jobs:
         with:
           node-version: 20.x
           cache: npm
+
+      - name: Fetch the locked Studio release
+        uses: ./.github/actions/fetch-studio-release
 
       # Every later dotnet step in this job resolves packages only from the clean,
       # anonymously restored cache below, never from a pre-populated global folder.
@@ -129,6 +162,9 @@ jobs:
 
       - name: Verify published Cesium assets
         run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
+
+      - name: Verify published Studio assets
+        run: node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/_studio
 
       - name: Stamp artifact metadata
         run: npm run build:metadata
