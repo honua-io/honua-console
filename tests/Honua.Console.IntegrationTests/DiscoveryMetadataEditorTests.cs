@@ -30,6 +30,8 @@ public sealed class DiscoveryMetadataEditorTests
         context.Services.AddSingleton<IHonuaDiscoveryMetadataClient>(client);
         var component = context.Render<DiscoveryMetadataEditor>(parameters => parameters.Add(editor => editor.Address, Address(kind)));
         component.WaitForAssertion(() => Assert.Equal("Roads", component.Find("[data-discovery-title]").GetAttribute("value")));
+        Assert.Equal("Street survey", component.Find("[data-discovery-description]").GetAttribute("value"));
+        Assert.Equal("roads\nsurvey", component.Find("[data-discovery-keywords]").GetAttribute("value"));
         Assert.Contains("canonical-roads", component.Find("[data-discovery-resource]").TextContent, StringComparison.Ordinal);
         Assert.Contains("transport / 7", component.Find("[data-discovery-impact]").TextContent, StringComparison.Ordinal);
         Assert.Contains("public-data / streets", component.Find("[data-discovery-impact]").TextContent, StringComparison.Ordinal);

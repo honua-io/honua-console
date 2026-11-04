@@ -6,3 +6,8 @@
 [data-discovery-impact] li {
     overflow-wrap: anywhere;
 }
+
+[data-discovery-metadata] fieldset {
+    display: grid;
+    gap: var(--space-4);
+}
