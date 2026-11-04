@@ -1,19 +1,5 @@
-:root {
-    color-scheme: light;
-    --honua-bg: #f7f9f8;
-    --honua-surface: #ffffff;
-    --honua-surface-strong: #eef4f1;
-    --honua-border: #cfdbd6;
-    --honua-text: #17211d;
-    --honua-muted: #5f6f68;
-    --honua-accent: #0f766e;
-    --honua-accent-strong: #134e4a;
-    --honua-danger: #b3261e;
-    --honua-danger-strong: #8c1d18;
-    /* Single app-wide keyboard-focus ring token. The stylesheet previously had ZERO :focus-visible
-       rules, so keyboard focus was effectively invisible across the console. */
-    --honua-focus-ring: 0 0 0 2px var(--honua-surface), 0 0 0 4px var(--honua-accent);
-}
+@import url("css/tokens.css");
+@import url("css/accessibility.css");
 
 * {
     box-sizing: border-box;
@@ -58,7 +44,7 @@ body {
     margin: 0;
     background: var(--honua-bg);
     color: var(--honua-text);
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: var(--honua-font-sans);
 }
 
 a {
@@ -90,8 +76,8 @@ a {
 }
 
 .console-sidebar {
-    background: #17211d;
-    color: #f8fbfa;
+    background: var(--honua-color-rail);
+    color: var(--honua-color-rail-ink);
     padding: 24px 18px;
     overflow: hidden;
 }
@@ -199,7 +185,7 @@ a {
 }
 
 .console-nav a.active .console-nav-icon {
-    color: var(--honua-accent-strong, #5eead4);
+    color: var(--teal-300);
 }
 
 .console-nav-icon svg {
@@ -1289,12 +1275,10 @@ p {
     text-decoration: none;
 }
 
-/* Button-styled links keep their own foreground inside an action row: the plain-link color above
-   otherwise out-specifies .console-button-link and paints dark accent text on the accent button
-   (~1.4:1 contrast — catalog server-bridge CTA, #312). Secondary buttons already want the
-   accent-strong foreground, so only the filled primary variant is restored to white. */
-.console-action-row a.console-button-link:not(.console-button-secondary) {
-    color: #ffffff;
+/* Action-row links share the button foreground when they have a filled background. */
+.console-action-row a.console-button-link:not(.console-button-secondary),
+.console-action-row a.console-button:not(.console-button-secondary) {
+    color: var(--c-on-accent);
 }
 
 .console-state {

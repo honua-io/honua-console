@@ -25,7 +25,7 @@
 
     @if (_loading)
     {
-        <ConsoleStateView Kind="loading"
+        <ConsoleStateView HeadingLevel="2" Kind="loading"
                           Kicker="Temporal viewer"
                           Title="Loading temporal capability"
                           Message="Reading server-owned temporal capability from honua-server." />
@@ -33,7 +33,7 @@
     else if (_bindingState is not null)
     {
         @* AC #1: unsupported / unbound temporal sources render a capability explanation, not an empty viewer. *@
-        <ConsoleStateView Kind="missing"
+        <ConsoleStateView HeadingLevel="2" Kind="missing"
                           Kicker="@_bindingState.State"
                           Title="Temporal capability is not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
@@ -75,7 +75,7 @@
         else
         {
             <section class="console-section" aria-label="Temporal sources">
-                <div class="console-table-wrap">
+                <ConsoleTableRegion Class="console-table-wrap" Label="Temporal table">
                     <table class="console-table" aria-label="Temporal source capabilities">
                         <thead>
                             <tr>
@@ -112,7 +112,7 @@
                             }
                         </tbody>
                     </table>
-                </div>
+                </ConsoleTableRegion>
             </section>
 
             @if (_selectedSource is not null)
@@ -149,14 +149,14 @@
                     @if (!_selectedSource.HistoryReadPermitted)
                     {
                         @* Security/governance: history access is permissioned separately from current read. *@
-                        <ConsoleStateView Kind="unavailable"
+                        <ConsoleStateView HeadingLevel="2" Kind="unavailable"
                                           Kicker="Forbidden"
                                           Title="History access is not permitted"
                                           Message="History read is permissioned separately from current-data read. You do not hold the temporal history entitlement for this source." />
                     }
                     else if (_selectedSource.Mode == TemporalMode.None)
                     {
-                        <ConsoleStateView Kind="missing"
+                        <ConsoleStateView HeadingLevel="2" Kind="missing"
                                           Kicker="Unsupported"
                                           Title="This source has no temporal history"
                                           Message="The server reports this source does not retain temporal history. As-of, diff, rollback, and conflict review are unavailable." />

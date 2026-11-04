@@ -22,14 +22,14 @@
 
     @if (_loading)
     {
-        <ConsoleStateView Kind="loading"
+        <ConsoleStateView HeadingLevel="2" Kind="loading"
                           Kicker="Conflict resolution"
                           Title="Loading conflicts"
                           Message="Reading the pending conflict set from honua-server." />
     }
     else if (_conflicts is { Bound: false } unbound)
     {
-        <ConsoleStateView Kind="missing"
+        <ConsoleStateView HeadingLevel="2" Kind="missing"
                           Kicker="@(unbound.State ?? "Missing binding")"
                           Title="Conflict resolution is not bound"
                           Message="@DescribeBinding(unbound.Detail, unbound.Contract)" />

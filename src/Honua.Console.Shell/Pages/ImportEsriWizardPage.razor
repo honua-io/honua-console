@@ -203,7 +203,7 @@
                 <div class="esri-run-bar__fill" style="width:@(run.PercentComplete)%"></div>
             </div>
             <p class="console-muted">@run.CompletedItems of @run.TotalItems items · @run.EstimatedRemaining · @run.FailedItems failed (retryable)</p>
-            <div class="console-table-wrap">
+            <ConsoleTableRegion Class="console-table-wrap" Label="Migration progress">
                 <table class="console-table" data-run-table>
                     <thead><tr><th>Item</th><th>Type</th><th>State</th><th>Result</th></tr></thead>
                     <tbody>
@@ -213,7 +213,7 @@
                         }
                     </tbody>
                 </table>
-            </div>
+            </ConsoleTableRegion>
         }
         else
         {
@@ -248,7 +248,7 @@
                 <button type="button" class="console-button-ghost console-button-sm" data-export="csv" disabled
                         title="Scorecard export is not available yet; no honua-server export contract is bound.">Export findings (CSV)</button>
             </div>
-            <div class="console-table-wrap">
+            <ConsoleTableRegion Class="console-table-wrap" Label="Migration scorecard">
                 <table class="console-table" data-scorecard-table>
                     <thead><tr><th>Item</th><th>Result</th><th>Findings</th><th>Output</th></tr></thead>
                     <tbody>
@@ -258,7 +258,7 @@
                         }
                     </tbody>
                 </table>
-            </div>
+            </ConsoleTableRegion>
         }
         else
         {
@@ -270,7 +270,7 @@
         @{
             var state = states is { Count: > 0 } ? states[0] : null;
         }
-        <ConsoleStateView Kind="missing"
+        <ConsoleStateView HeadingLevel="2" Kind="missing"
                           Kicker="@(state?.State ?? "Missing binding")"
                           Title="No honua-server is configured"
                           Message="@(state?.Detail ?? "The Esri import wizard drives a migration run against a honua-server in the selected environment. This Console is not bound to one yet, so there is nothing to import into. Console never shows mocked data here.")"

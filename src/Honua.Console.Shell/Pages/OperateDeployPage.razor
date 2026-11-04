@@ -82,7 +82,7 @@
     @* Capability-gated depth (first-release cut-line): dev → staging → prod fleet promotion renders the
        first-class "unsupported" state until the deployment advertises cross-environment-promotion. The
        server-version upgrade capability above stays live (operate floor). *@
-    <ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.CrossEnvironmentPromotion"
+    <ConsoleCapabilityGate HeadingLevel="2" Capability="@ConsoleCapabilityKeys.CrossEnvironmentPromotion"
                            Title="Cross-environment promotion is not available in this release"
                            Message="Promoting metadata / service + layer changes across a dev → staging → prod fleet is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
     <section id="cross-env-promote" class="operate-section" aria-labelledby="cross-env-heading">

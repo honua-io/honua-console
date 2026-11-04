@@ -66,21 +66,21 @@
 
     @if (_loading)
     {
-        <ConsoleStateView Kind="loading"
+        <ConsoleStateView HeadingLevel="2" Kind="loading"
                           Kicker="Share access"
                           Title="Loading share access"
                           Message="Reading the Console Share access projection from honua-server." />
     }
     else if (_bindingState is not null)
     {
-        <ConsoleStateView Kind="error"
+        <ConsoleStateView HeadingLevel="2" Kind="error"
                           Kicker="@_bindingState.State"
                           Title="Share access API is not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
     }
     else if (_notFoundState is not null)
     {
-        <ConsoleStateView Kind="missing"
+        <ConsoleStateView HeadingLevel="2" Kind="missing"
                           Kicker="@_notFoundState.State"
                           Title="Share access not found"
                           Message="@($"{_notFoundState.Detail} (contract: {_notFoundState.Contract})")" />
@@ -133,7 +133,7 @@
                         <span class="console-status console-status-warning">blocked</span>
                     </div>
                     <p class="console-muted">The item's provenance closure has dependencies that are not shareable by the target audience. Resolve or override the conflicts below before sharing.</p>
-                    <div class="console-table-wrap">
+                    <ConsoleTableRegion Class="console-table-wrap" Label="Sharing dependency conflicts">
                         <table class="console-table">
                             <thead>
                                 <tr>
@@ -153,7 +153,7 @@
                                 }
                             </tbody>
                         </table>
-                    </div>
+                    </ConsoleTableRegion>
                 </article>
             </section>
         }
@@ -273,7 +273,7 @@
                         }
                         else
                         {
-                            <div class="console-table-wrap">
+                            <ConsoleTableRegion Class="console-table-wrap" Label="Public-link tokens">
                                 <table class="console-table">
                                     <thead>
                                         <tr>
@@ -307,7 +307,7 @@
                                         }
                                     </tbody>
                                 </table>
-                            </div>
+                            </ConsoleTableRegion>
                         }
                     </article>
                 }
@@ -357,14 +357,14 @@
                         }
                         else if (_detailMissingBinding)
                         {
-                            <ConsoleStateView Kind="error"
+                            <ConsoleStateView HeadingLevel="2" Kind="error"
                                               Kicker="Missing binding"
                                               Title="Open-data metadata is not bound to honua-server"
                                               Message="@OpenDataMissingBindingMessage" />
                         }
                         else if (_detail is null)
                         {
-                            <ConsoleStateView Kind="loading"
+                            <ConsoleStateView HeadingLevel="2" Kind="loading"
                                               Kicker="Open data"
                                               Title="Loading open-data metadata"
                                               Message="Reading the server-owned content metadata projection for this item." />
@@ -529,7 +529,7 @@
                         </div>
                         <p class="console-muted">Scheduled exports to S3, SFTP, webhook targets, and audit snapshots run as honua-server jobs. They are authored and monitored on the unified Console runtime; export runs and history surface in Operate jobs and the Event viewer. The scheduled-export registry is server-owned — Console renders it from honua-server and never fabricates export rows.</p>
 
-                        <div class="console-table-wrap" data-share-exports-table>
+                        <ConsoleTableRegion Class="console-table-wrap" Label="Export jobs" data-share-exports-table>
                             <table class="console-table">
                                 <thead>
                                     <tr>
@@ -569,7 +569,7 @@
                                     }
                                 </tbody>
                             </table>
-                        </div>
+                        </ConsoleTableRegion>
 
                         <div class="console-action-row">
                             <a class="console-button console-button-secondary" data-share-exports-link href="/operate/jobs?itemId=@share.ItemId">View export jobs in Operate ↗</a>

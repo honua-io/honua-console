@@ -1,14 +1,10 @@
-<section class="console-state console-state-@Kind" aria-live="polite">
-    <p class="console-kicker">@Kicker</p>
-    <h1>@Title</h1>
-    <p>@Message</p>
-    @if (!string.IsNullOrWhiteSpace(ActionHref) && !string.IsNullOrWhiteSpace(ActionLabel))
-    {
-        <a class="console-button-link" href="@ActionHref">@ActionLabel</a>
-    }
-</section>
+<HonuaState Kind="@Kind" Kicker="@Kicker" Title="@Title" Message="@Message"
+            HeadingLevel="@HeadingLevel" ActionHref="@ActionHref" ActionLabel="@ActionLabel" />
 
 @code {
+    [Parameter]
+    public int HeadingLevel { get; set; } = 1;
+
     [Parameter]
     public string Kind { get; set; } = "empty";
 

@@ -98,19 +98,19 @@
 
     @if (!_accessResolved)
     {
-        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Checking catalog access" Message="The workspace session is being checked before catalog summaries load." />
+        <ConsoleStateView HeadingLevel="2" Kind="loading" Kicker="Loading" Title="Checking catalog access" Message="The workspace session is being checked before catalog summaries load." />
     }
     else if (_requiresAuthentication)
     {
-        <ConsoleStateView Kind="unauthenticated" Kicker="Sign in required" Title="Sign in to browse catalog" Message="Catalog search requires a signed-in workspace session." ActionHref="@BuildSignInHref()" ActionLabel="Sign In" />
+        <ConsoleStateView HeadingLevel="2" Kind="unauthenticated" Kicker="Sign in required" Title="Sign in to browse catalog" Message="Catalog search requires a signed-in workspace session." ActionHref="@BuildSignInHref()" ActionLabel="Sign In" />
     }
     else if (_result is null)
     {
-        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading catalog" Message="Catalog summaries are loading." />
+        <ConsoleStateView HeadingLevel="2" Kind="loading" Kicker="Loading" Title="Loading catalog" Message="Catalog summaries are loading." />
     }
     else if (!_result.Succeeded)
     {
-        <ConsoleStateView Kind="error" Kicker="Catalog unavailable" Title="Catalog could not load" Message="@CatalogErrorMessage()" ActionHref="@Navigation.Uri" ActionLabel="Retry" />
+        <ConsoleStateView HeadingLevel="2" Kind="error" Kicker="Catalog unavailable" Title="Catalog could not load" Message="@CatalogErrorMessage()" ActionHref="@Navigation.Uri" ActionLabel="Retry" />
     }
     else if (_result.Items.Count == 0)
     {
@@ -122,7 +122,7 @@
                is omitted entirely on read failure or when the server is unbound (the plain empty state below). *@
             <section class="console-state console-state-empty" aria-live="polite" data-catalog-server-bridge>
                 <p class="console-kicker">Empty catalog</p>
-                <h1>No content matched</h1>
+                <h2>No content matched</h2>
                 <p>
                     This workspace hasn't published anything yet — the connected server has
                     <strong>@liveCount</strong> live @(liveCount == 1 ? "resource" : "resources").
@@ -136,12 +136,12 @@
         }
         else
         {
-            <ConsoleStateView Kind="empty" Kicker="Empty catalog" Title="No content matched" Message="Try a broader search or publish the first item into this workspace." ActionHref="/operate/publishing" ActionLabel="Open Publishing" />
+            <ConsoleStateView HeadingLevel="2" Kind="empty" Kicker="Empty catalog" Title="No content matched" Message="Try a broader search or publish the first item into this workspace." ActionHref="/operate/publishing" ActionLabel="Open Publishing" />
         }
     }
     else
     {
-        <div class="console-table-wrap">
+        <ConsoleTableRegion Class="console-table-wrap" Label="Catalog table">
             <table class="console-content-table">
                 <thead>
                     <tr>
@@ -196,7 +196,7 @@
                     }
                 </tbody>
             </table>
-        </div>
+        </ConsoleTableRegion>
     }
 </section>
 </CatalogAvailabilityGate>

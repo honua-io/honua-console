@@ -106,7 +106,7 @@
                     </div>
                 </div>
 
-                <div class="operate-table-scroll">
+                <ConsoleTableRegion Class="operate-table-scroll" Label="Telemetry status">
                     <table class="operate-table">
                         <thead>
                             <tr>
@@ -130,7 +130,7 @@
                             }
                         </tbody>
                     </table>
-                </div>
+                </ConsoleTableRegion>
             </div>
 
             <div class="console-panel operate-table-panel">
@@ -141,7 +141,7 @@
                     </div>
                 </div>
 
-                <div class="operate-table-scroll">
+                <ConsoleTableRegion Class="operate-table-scroll" Label="Drift and compatibility">
                     <table class="operate-table">
                         <thead>
                             <tr>
@@ -165,7 +165,7 @@
                             }
                         </tbody>
                     </table>
-                </div>
+                </ConsoleTableRegion>
             </div>
         }
     </section>
@@ -305,7 +305,7 @@
                             <p class="console-muted">Recent buffer capacity @LogsView.Capacity entries; raw entries come from /api/v1/admin/observability/logs.</p>
                         </div>
                     </div>
-                    <div class="operate-table-scroll">
+                    <ConsoleTableRegion Class="operate-table-scroll" Label="Server logs">
                         <table class="operate-table">
                             <thead>
                                 <tr>
@@ -331,7 +331,7 @@
                                 }
                             </tbody>
                         </table>
-                    </div>
+                    </ConsoleTableRegion>
                 </div>
 
                 <aside class="console-panel operate-detail-panel" aria-labelledby="log-groups-heading">
@@ -400,7 +400,7 @@
         {
             <div class="operate-detail-grid">
                 <div class="console-panel operate-table-panel">
-                    <div class="operate-table-scroll">
+                    <ConsoleTableRegion Class="operate-table-scroll" Label="Alerts">
                         <table class="operate-table">
                             <thead>
                                 <tr>
@@ -424,7 +424,7 @@
                                 }
                             </tbody>
                         </table>
-                    </div>
+                    </ConsoleTableRegion>
                 </div>
 
                 @if (SelectedAlert is { } selectedAlert)
@@ -496,7 +496,7 @@
                 }
                 else
                 {
-                    <div class="operate-table-scroll">
+                    <ConsoleTableRegion Class="operate-table-scroll" Label="Alert rule validation">
                         <table class="operate-table">
                             <thead>
                                 <tr>
@@ -534,7 +534,7 @@
                                 }
                             </tbody>
                         </table>
-                    </div>
+                    </ConsoleTableRegion>
                 }
             </div>
 
@@ -559,7 +559,7 @@
                     }
                     else
                     {
-                        <div class="operate-table-scroll">
+                        <ConsoleTableRegion Class="operate-table-scroll" Label="Geofence zones">
                             <table class="operate-table">
                                 <thead>
                                     <tr>
@@ -583,7 +583,7 @@
                                     }
                                 </tbody>
                             </table>
-                        </div>
+                        </ConsoleTableRegion>
                     }
                 </div>
             }
@@ -620,7 +620,7 @@
                 else if (JobRows.Count > 0)
                 {
                     <div class="console-panel operate-table-panel">
-                        <div class="operate-table-scroll">
+                        <ConsoleTableRegion Class="operate-table-scroll" Label="Jobs">
                             <table class="operate-table">
                                 <thead>
                                     <tr>
@@ -652,7 +652,7 @@
                                     }
                                 </tbody>
                             </table>
-                        </div>
+                        </ConsoleTableRegion>
                     </div>
                 }
                 else
@@ -696,7 +696,7 @@
     @* SIEM / investigations is capability-gated depth (first-release cut-line): renders the first-class
        "unsupported" state until the deployment advertises siem-investigations. Fleet/events/logs/alerts/
        rules/jobs above stay live (operate floor). *@
-    <ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.SiemInvestigations"
+    <ConsoleCapabilityGate HeadingLevel="2" Capability="@ConsoleCapabilityKeys.SiemInvestigations"
                            Title="Investigations are not available in this release"
                            Message="Full SIEM / investigations and AI DevOps advisory over Operate event volume is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
     <section id="investigations" class="operate-section" aria-labelledby="investigations-heading">

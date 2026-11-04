@@ -33,14 +33,14 @@
 
     @if (_loading)
     {
-        <ConsoleStateView Kind="loading"
+        <ConsoleStateView HeadingLevel="2" Kind="loading"
                           Kicker="Access (RBAC)"
                           Title="Loading members"
                           Message="Reading the Console metadata/RBAC membership projection from honua-server." />
     }
     else if (_bindingState is not null)
     {
-        <ConsoleStateView Kind="error"
+        <ConsoleStateView HeadingLevel="2" Kind="error"
                           Kicker="@_bindingState.State"
                           Title="Access (RBAC) API is not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
@@ -60,7 +60,7 @@
                     </span>
                 </div>
 
-                <div class="console-table-wrap">
+                <ConsoleTableRegion Class="console-table-wrap" Label="Members">
                     <table class="console-table rbac-members-table" data-rbac-members-table>
                         <thead>
                             <tr>
@@ -102,13 +102,13 @@
                             }
                         </tbody>
                     </table>
-                </div>
+                </ConsoleTableRegion>
 
                 @if (membership.Invitations.Count > 0)
                 {
                     <div class="rbac-invitations" data-rbac-invitations>
                         <h2 class="rbac-section-title">Pending invitations · @membership.Invitations.Count</h2>
-                        <div class="console-table-wrap">
+                        <ConsoleTableRegion Class="console-table-wrap" Label="Pending invitations">
                             <table class="console-table rbac-invitations-table">
                                 <tbody>
                                     @foreach (var invitation in membership.Invitations)
@@ -133,7 +133,7 @@
                                     }
                                 </tbody>
                             </table>
-                        </div>
+                        </ConsoleTableRegion>
                     </div>
                 }
             </div>
@@ -254,7 +254,7 @@
     }
     else
     {
-        <ConsoleStateView Kind="empty"
+        <ConsoleStateView HeadingLevel="2" Kind="empty"
                           Kicker="Access (RBAC)"
                           Title="No members to show"
                           Message="The Console metadata/RBAC API returned no members for this workspace." />

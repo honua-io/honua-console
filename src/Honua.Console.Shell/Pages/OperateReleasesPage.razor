@@ -223,7 +223,7 @@
                     }
                     else
                     {
-                        <div class="operate-table-scroll">
+                        <ConsoleTableRegion Class="operate-table-scroll" Label="Release operations">
                             <table class="operate-table operate-diff-table">
                                 <thead>
                                     <tr>
@@ -250,7 +250,7 @@
                                     }
                                 </tbody>
                             </table>
-                        </div>
+                        </ConsoleTableRegion>
                     }
                 </section>
 
@@ -284,7 +284,7 @@
                         var coordinated = _coordinated.Value!;
 
                         @* Three artifact kinds side by side. *@
-                        <div class="operate-table-scroll">
+                        <ConsoleTableRegion Class="operate-table-scroll" Label="Release artifacts">
                             <table class="operate-table operate-diff-table">
                                 <thead>
                                     <tr>
@@ -306,7 +306,7 @@
                                     }
                                 </tbody>
                             </table>
-                        </div>
+                        </ConsoleTableRegion>
 
                         @* Ordered step timeline with per-step gate / approve / rollback status. *@
                         <h4 class="operate-coordinated-subhead">Ordered steps</h4>
@@ -402,7 +402,7 @@
                         {
                             <p class="console-muted operate-release-empty">Drift detected: one or more targets are not aligned with the desired revision.</p>
                         }
-                        <div class="operate-table-scroll">
+                        <ConsoleTableRegion Class="operate-table-scroll" Label="Release validation">
                             <table class="operate-table operate-env-matrix">
                                 <thead>
                                     <tr>
@@ -428,7 +428,7 @@
                                     }
                                 </tbody>
                             </table>
-                        </div>
+                        </ConsoleTableRegion>
                     }
                 </section>
 

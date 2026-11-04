@@ -1,13 +1,12 @@
 <div class="console-page-heading">
-    @if (!string.IsNullOrWhiteSpace(AreaLabel))
-    {
-        <p class="console-kicker">@AreaLabel</p>
-    }
-    <h1>@FormatKind(Kind) Not Found</h1>
-    <p class="console-muted">The requested @Kind is not available.</p>
+    <HonuaState Kind="missing" Kicker="@AreaLabel" Title="@($"{FormatKind(Kind)} Not Found")"
+                HeadingLevel="@HeadingLevel" Message="@($"The requested {Kind} is not available.")" />
 </div>
 
 @code {
+    [Parameter]
+    public int HeadingLevel { get; set; } = 1;
+
     [Parameter]
     public string Kind { get; set; } = "item";
 
