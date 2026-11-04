@@ -20,7 +20,7 @@
 
     private Task OnChangedAsync(ChangeEventArgs args)
     {
-        bool? decoded = args.Value as string switch { "true" => true, "false" => false, _ => null };
+        bool? decoded = (args.Value as string) switch { "true" => true, "false" => false, _ => null };
         return ValueChanged.InvokeAsync(decoded);
     }
 }
