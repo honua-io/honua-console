@@ -2,12 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Missing-binding implementation of the branch-version management operations. Used when no honua-server base
-/// URL is configured: it performs no network call and returns explicit missing-binding results so the Operate
-/// version-manager and conflict-resolution surfaces require the binding instead of fabricating a version
-/// operation (Console Patterns Charter section 11).
-/// </summary>
 public sealed class UnsupportedVersionManagementOperation : IVersionManagementOperation
 {
     private const string MissingBindingDetail =

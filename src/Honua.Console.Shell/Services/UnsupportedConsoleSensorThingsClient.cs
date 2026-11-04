@@ -2,11 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Merged-build SensorThings client used when no honua-server base URL is
-/// configured. Every read returns the missing-binding surface (never seeded
-/// data), per the Console Patterns Charter.
-/// </summary>
 public sealed class UnsupportedConsoleSensorThingsClient : IConsoleSensorThingsClient
 {
     public Task<SensorThingsReadResult<StaEntitySet<StaThing>>> ListThingsAsync(

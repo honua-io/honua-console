@@ -2,12 +2,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Test/demo-only in-memory <see cref="IConsoleDeployOperationsClient"/>. It is NEVER the DI
-/// default (Console Patterns Charter section 11); it exists so bUnit/component tests and
-/// explicit demo shells can drive the deploy cockpit's list/preflight/converge surfaces
-/// without a backend. Mirrors <see cref="InMemoryConsoleDeployApprovalClient"/>'s shape.
-/// </summary>
+// Test-only. This is not the DI default.
 public sealed class InMemoryConsoleDeployOperationsClient : IConsoleDeployOperationsClient
 {
     private readonly List<DeployOperationProposal> _operations;

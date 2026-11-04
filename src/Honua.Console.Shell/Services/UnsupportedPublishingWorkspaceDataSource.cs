@@ -2,13 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Merged-runtime publishing data source used when no honua-server base URL is configured. It never
-/// returns mock matrix or review data (Console Patterns Charter section 11): every read and action
-/// surfaces an explicit missing-binding capability state so the publishing workspace renders the same
-/// first-class missing-binding surface as the rest of Operate. The server-bound
-/// <see cref="HonuaServerPublishingWorkspaceDataSource"/> replaces this once a server base URL is set.
-/// </summary>
 public sealed class UnsupportedPublishingWorkspaceDataSource : IPublishingWorkspaceDataSource
 {
     private static readonly OperateCapabilityState MissingBinding = new(

@@ -2,12 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Missing-binding implementation of the connection-create operation. Used when no honua-server base URL is
-/// configured: it performs no network call and returns an explicit missing-binding result so the Add
-/// Connection form surfaces the binding requirement instead of fabricating a create (Console Patterns Charter
-/// section 11).
-/// </summary>
 public sealed class UnsupportedConsoleConnectionCreateOperation : IConsoleConnectionCreateOperation
 {
     public Task<ConsoleConnectionCreateResult> CreateAsync(

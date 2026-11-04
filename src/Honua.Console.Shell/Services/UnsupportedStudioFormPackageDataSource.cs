@@ -2,12 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Form-builder data source used when no honua-server base address is configured. Every surface renders
-/// an explicit missing-binding state instead of fabricating form data, keeping the merged runtime free of
-/// a standing in-memory form client (Console Patterns Charter section 11). The form authoring surface
-/// stays bound to the real honua-server form package lifecycle (honua-server#1184) or shows this state.
-/// </summary>
 public sealed class UnsupportedStudioFormPackageDataSource : IStudioFormPackageDataSource
 {
     private static readonly StudioFormCapabilityState MissingBinding = new(

@@ -2,12 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Share management data source used when no honua-server base address is configured. It renders an
-/// explicit missing-binding state instead of fabricating share data, keeping the merged runtime free of a
-/// standing in-memory Console Share client (Console Patterns Charter section 11). The Share management
-/// surface stays bound to the real honua-server Console Share API (honua-server#1215) or shows this state.
-/// </summary>
 public sealed class UnsupportedShareAccessDataSource : IShareAccessDataSource
 {
     private const string Surface = "Share access";

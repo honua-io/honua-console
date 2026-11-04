@@ -4,23 +4,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Live <see cref="IConsoleProposalRealtimeClient"/> backed by the honua-server admin
-/// realtime hub (honua-server #1695). It connects from the console's server process to
-/// <c>{server}/hubs/admin</c> via <see cref="ConsoleAdminHubConnectionFactory"/>, joins the
-/// <c>proposals</c> group via the hub's <c>SubscribeToProposals</c> method, and projects each
-/// <c>ProposalPending</c> / <c>ProposalResolved</c> payload onto a <see cref="ConsoleProposalEvent"/>.
-///
-/// This is also the reference implementation of the console#293 shared realtime/capability seam
-/// (<see cref="IConsoleRealtimeCapabilityClient"/>): connection lifecycle and auth are delegated
-/// to <see cref="ConsoleAdminHubConnectionFactory"/>, and fallback engagement is tracked through
-/// <see cref="ConsoleRealtimeFallbackTracker"/> rather than the previous bare <c>catch {}</c>
-/// blocks (finding PA-233) — every connect/subscribe/reconnect failure and every unexpected close
-/// is now logged and reflected in <see cref="ConnectionState"/>, so the inbox's Live/Manual pill
-/// can be honest about whether it silently degraded. A missing environment binding still leaves
-/// the client inert (<see cref="ConsoleRealtimeConnectionState.NotConfigured"/>) and never
-/// fabricates events; the inbox stays usable via manual refresh either way.
-/// </summary>
 public sealed class SignalRConsoleProposalRealtimeClient : IConsoleProposalRealtimeClient, IConsoleRealtimeCapabilityClient
 {
     internal const string HubPath = "hubs/admin";
@@ -55,26 +38,20 @@ public sealed class SignalRConsoleProposalRealtimeClient : IConsoleProposalRealt
         _tracker = new ConsoleRealtimeFallbackTracker(_logger, HubPath);
     }
 
-    /// <inheritdoc />
     public event Action<ConsoleProposalEvent>? ProposalChanged;
 
-    /// <inheritdoc cref="IConsoleRealtimeCapabilityClient.ConnectionStateChanged" />
     public event Action<ConsoleRealtimeConnectionState>? ConnectionStateChanged
     {
         add => _tracker.StateChanged += value;
         remove => _tracker.StateChanged -= value;
     }
 
-    /// <inheritdoc cref="IConsoleRealtimeCapabilityClient.ConnectionState" />
     public ConsoleRealtimeConnectionState ConnectionState => _tracker.State;
 
-    /// <inheritdoc />
     public bool IsConnected => ConnectionState == ConsoleRealtimeConnectionState.Connected;
 
-    /// <inheritdoc />
     public bool IsFallbackEngaged => ConnectionState == ConsoleRealtimeConnectionState.FallbackEngaged;
 
-    /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -174,7 +151,6 @@ public sealed class SignalRConsoleProposalRealtimeClient : IConsoleProposalRealt
         }
     }
 
-    /// <inheritdoc />
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -214,7 +190,6 @@ public sealed class SignalRConsoleProposalRealtimeClient : IConsoleProposalRealt
         }
     }
 
-    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         await StopAsync().ConfigureAwait(false);
@@ -224,7 +199,6 @@ public sealed class SignalRConsoleProposalRealtimeClient : IConsoleProposalRealt
     private void Raise(ConsoleProposalEventKind kind, ProposalRealtimeWire wire) =>
         ProposalChanged?.Invoke(MapEvent(kind, wire));
 
-    /// <summary>Projects a hub wire payload onto a <see cref="ConsoleProposalEvent"/>.</summary>
     internal static ConsoleProposalEvent MapEvent(ConsoleProposalEventKind kind, ProposalRealtimeWire wire) => new(
         EventKind: kind,
         ProposalId: wire.ProposalId ?? string.Empty,
@@ -235,11 +209,7 @@ public sealed class SignalRConsoleProposalRealtimeClient : IConsoleProposalRealt
         GeneratedAt: wire.GeneratedAt);
 }
 
-/// <summary>
-/// Wire shape of the admin hub's proposal event payload (honua-server
-/// <c>ProposalRealtimeEvent</c>, #1695). Bound case-insensitively from the hub's camelCase
-/// JSON protocol.
-/// </summary>
+// Bound case-insensitively from the hub's camelCase JSON.
 public sealed record ProposalRealtimeWire
 {
     public string? ProposalId { get; init; }

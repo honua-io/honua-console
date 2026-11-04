@@ -1087,7 +1087,6 @@ public sealed class EsriContentImportParser
         };
     }
 
-    // ---- helpers (pure, deterministic) ----
 
     private static string? ReadRendererType(JsonElement layer)
     {

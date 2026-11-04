@@ -4,14 +4,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Loads the production-monitoring metrics in parallel into a single
-/// <see cref="OperateMetricsSnapshot"/>, mapping each server wire response into the
-/// color-coded Operate view models. Each sub-read degrades independently (one
-/// unavailable metric does not blank the page), and a not-bound server yields an
-/// honest missing-binding state per section — never fabricated metrics
-/// (Console Patterns Charter section 11).
-/// </summary>
 public interface IOperateMetricsDataSource
 {
     Task<OperateMetricsSnapshot> GetSnapshotAsync(CancellationToken cancellationToken = default);
@@ -50,11 +42,6 @@ public sealed class OperateMetricsDataSource : IOperateMetricsDataSource
     }
 }
 
-/// <summary>
-/// Maps the bare monitoring wire responses into the Operate view models, translating
-/// server health/utilization/pressure signals into the shared
-/// <see cref="OperateStatus"/> color vocabulary (success/info/warning/danger/neutral).
-/// </summary>
 internal static class OperateMetricsMapper
 {
     public static OperateMetricSection<OperateConnectionPoolMetric> MapConnectionPool(
@@ -257,7 +244,6 @@ internal static class OperateMetricsMapper
             FormatTimestamp(r.Timestamp)));
     }
 
-    // --- status mapping helpers -------------------------------------------------
 
     private static OperateStatus HealthStatusToOperate(string? healthStatus, bool isHealthy)
     {

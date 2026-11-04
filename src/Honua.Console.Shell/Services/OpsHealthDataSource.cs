@@ -4,40 +4,16 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Loads the consolidated ops-health snapshot and maps it into the color-coded Ops Health
-/// view. Degrades honestly to the shared section-status surface (missing/forbidden/
-/// unsupported/unavailable) when the environment is unbound or the server denies the read —
-/// never fabricated data (Console Patterns Charter section 11).
-/// </summary>
 public interface IOpsHealthDataSource
 {
-    /// <summary>Reads and maps the ops-health snapshot for the active environment.</summary>
-    /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>The mapped view, or a non-allowed section status.</returns>
     Task<OperateSectionResult<OpsHealthView>> GetSnapshotAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Reads and maps the ops-health trend history for the active environment (console#288): the
-    /// selectable-window/resolution/per-replica trend charts on the Ops Health page. Degrades to
-    /// <see cref="OperateSectionStatus.Unsupported"/> against an older server that does not yet
-    /// expose the history route.
-    /// </summary>
-    /// <param name="selection">The window/resolution/per-replica selection.</param>
-    /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>The mapped trend view, or a non-allowed section status.</returns>
     Task<OperateSectionResult<OpsHealthTrendView>> GetHistoryAsync(
         OpsHealthTrendRangeSelection selection,
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>
-/// One selectable trend range on the Ops Health page (console#288): a human label, the
-/// server-facing window/resolution pair, and whether to request the per-replica breakdown. The
-/// three offered ranges pair each rollup tier with its natural default window (mirroring the
-/// server's own <c>OpsHealthHistoryQuery.DefaultWindow</c>), so every combination is one the
-/// server always has real rollup rows for once the store has been running long enough.
-/// </summary>
+// Each offered window and resolution pair matches a server rollup tier that has rows once the store has been running.
 public sealed record OpsHealthTrendRangeSelection(string Label, string Window, string Resolution, bool PerReplica)
 {
     public static readonly OpsHealthTrendRangeSelection LastHour = new("Last hour", "1h", "1m", false);
@@ -49,7 +25,6 @@ public sealed record OpsHealthTrendRangeSelection(string Label, string Window, s
     public OpsHealthTrendRangeSelection WithPerReplica(bool perReplica) => this with { PerReplica = perReplica };
 }
 
-/// <summary>Default <see cref="IOpsHealthDataSource"/> over <see cref="IConsoleOpsHealthClient"/>.</summary>
 public sealed class OpsHealthDataSource : IOpsHealthDataSource
 {
     // Serving-latency SLO thresholds used to flag a protocol row. Display-only heuristics
@@ -60,14 +35,11 @@ public sealed class OpsHealthDataSource : IOpsHealthDataSource
 
     private readonly IConsoleOpsHealthClient _client;
 
-    /// <summary>Initializes a new instance of the <see cref="OpsHealthDataSource"/> class.</summary>
-    /// <param name="client">The ops-health client.</param>
     public OpsHealthDataSource(IConsoleOpsHealthClient client)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
     }
 
-    /// <inheritdoc />
     public async Task<OperateSectionResult<OpsHealthView>> GetSnapshotAsync(
         CancellationToken cancellationToken = default)
     {
@@ -80,7 +52,6 @@ public sealed class OpsHealthDataSource : IOpsHealthDataSource
         return OperateSectionResult<OpsHealthView>.Allowed(Map(result.Value!));
     }
 
-    /// <inheritdoc />
     public async Task<OperateSectionResult<OpsHealthTrendView>> GetHistoryAsync(
         OpsHealthTrendRangeSelection selection,
         CancellationToken cancellationToken = default)
@@ -333,7 +304,6 @@ public sealed class OpsHealthDataSource : IOpsHealthDataSource
             database.ConnectionAcquisitionFailures);
     }
 
-    // --- shared helpers ---------------------------------------------------------
 
     private static OperateStatus ReportStatus(string? status) =>
         (status?.Trim().ToLowerInvariant()) switch

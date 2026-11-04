@@ -2,16 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Missing-binding implementation of <see cref="ITemporalCapabilityClient"/>. This is the only temporal
-/// client registered in the merged build until the honua-server#1166 (temporal data history API) and
-/// honua-server#1167 (disconnected replica conflict review API) contracts land. Every operation returns
-/// no content plus a single neutral missing-binding state so each surface — viewer, checkpoint selector,
-/// diff, feature timeline, rollback review, replica conflict queue/review, and resolution write — renders
-/// an explicit explanation rather than an empty surface (issue AC #1), and it never fabricates temporal
-/// history, diffs, rollback plans, or sync conflicts from a standing mock (Console Patterns Charter
-/// section 11). Mirrors <see cref="UnsupportedStudioWorkflowPackageClient"/>.
-/// </summary>
 public sealed class UnsupportedTemporalCapabilityClient : ITemporalCapabilityClient
 {
     internal const string Surface = "Temporal viewer";
