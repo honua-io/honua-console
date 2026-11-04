@@ -9,7 +9,7 @@ test in `scripts/__tests__/license-compliance.test.mjs` asserts this line).
 ```bash
 cp src/Honua.Console.Web/global.json global.json   # CI does this: pins the SDK for solution commands
 dotnet restore Honua.Console.slnx --configfile NuGet.config --locked-mode
-./scripts/fast-local-check.sh                      # native-core tests + web build
+./scripts/fast-local-check.sh                      # Shell tests + web build
 dotnet format Honua.Console.slnx --verify-no-changes
 npm ci && npm test                                 # Node tests (scripts, smoke harness, workflows)
 npm run smoke:parity                               # add -- --origin <url> for a deployed origin

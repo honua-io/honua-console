@@ -38,7 +38,7 @@ jobs:
 
     env:
       # Single opt-in flag that enables every live-server lane. Must be the literal
-      # "true": ConsoleTrustIntegrationOptions accepts true/1/yes, but the Native.Core
+      # "true": ConsoleTrustIntegrationOptions accepts true/1/yes, but the Shell
       # source-build tests (GitOpsReleaseLiveServerTests / OperateTransitionLiveServerTests)
       # compare exactly with string.Equals(..., "true", OrdinalIgnoreCase), so "1" would
       # keep those two facts skipped even when server_ref checks out honua-server source.
@@ -112,13 +112,13 @@ jobs:
       - name: Restore .NET projects anonymously from public sources
         run: dotnet restore Honua.Console.slnx --configfile NuGet.config --no-cache --locked-mode
 
-      - name: Run Native.Core live-server + Testcontainers tests
+      - name: Run Shell live-server + Testcontainers tests
         run: |
-          dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj \
+          dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj \
             --no-restore --nologo --verbosity normal \
             --collect:"XPlat Code Coverage" \
-            --logger "trx;LogFileName=native-core.trx" \
-            --results-directory artifacts/test-results/native-core
+            --logger "trx;LogFileName=shell.trx" \
+            --results-directory artifacts/test-results/shell
 
       - name: Run Console integration live-server suites
         run: |

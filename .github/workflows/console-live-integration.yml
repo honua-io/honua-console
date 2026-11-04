@@ -37,7 +37,7 @@ jobs:
 
     env:
       # Single opt-in flag that enables every live-server lane. Must be the
-      # literal "true" (the Native.Core source-build facts compare exactly).
+      # literal "true" (the Shell source-build facts compare exactly).
       HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS: "true"
       HONUA_CONSOLE_INTEGRATION: "true"
       # Pinned, repo-variable-overridable connect-only honua-server image.
@@ -106,11 +106,11 @@ jobs:
       # ci.yml validate job. This is the PR-time proof that Console Studio
       # wiring works against a real honua-server.
       #
-      # The Native.Core live-server lane (Operate observability Testcontainers)
+      # The Shell live-server lane (Operate observability Testcontainers)
       # stays in console-nightly.yml for now: its dev-fixture seeding currently
       # 500s on the pinned server image (honua-server dev-fixtures bug), which
       # would make this PR lane red for a server-side reason unrelated to the
-      # Console Studio wiring. Re-add the Native.Core step here once that server
+      # Console Studio wiring. Re-add the Shell step here once that server
       # fixture 500 is fixed.
       # ConsoleEndToEndSmokeHarnessTests is structurally incompatible with THIS
       # lane (opt-in env SET) and is excluded so it doesn't red the lane for a

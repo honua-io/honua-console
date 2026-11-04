@@ -111,7 +111,7 @@ in [BUILD_ARTIFACT.md](docs/deployment/BUILD_ARTIFACT.md).
 |---|---|
 | Run the browser host | `dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:5174` |
 | Fast local check (unit tests + web build) | `./scripts/fast-local-check.sh` |
-| .NET unit tests | `dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj` |
+| .NET unit tests | `dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj` |
 | Format gate (CI-enforced) | `dotnet format Honua.Console.slnx --verify-no-changes` |
 | Node tests (smoke + metadata, no npm deps) | `npm ci && npm test` |
 | Parity smoke (in-memory contract shapes) | `npm run smoke:parity` |
@@ -175,7 +175,7 @@ explicitly enabled:
 # Operate transition binding against a honua-server source checkout
 HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true \
 HONUA_SERVER_PROJECT=/path/to/honua-server/src/Honua.Server/Honua.Server.csproj \
-dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --filter OperateTransitionLiveServerTests
+dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj --filter OperateTransitionLiveServerTests
 
 # Image-based lanes (Share access, catalog discovery, Studio collaboration) against a pinned image
 HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true \

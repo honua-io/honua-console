@@ -59,7 +59,7 @@ expired or sentinel human session.
 
 Common commands:
 
-- `dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj`
+- `dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj`
 - `dotnet build src/Honua.Console.Web/Honua.Console.Web.csproj`
 - `./scripts/fast-local-check.sh`
 - `npm test` - Node smoke and metadata-writer unit tests; no npm dependencies.
@@ -70,7 +70,7 @@ Optional live Operate binding evidence:
 ```bash
 HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true \
 HONUA_SERVER_PROJECT=/path/to/honua-server/src/Honua.Server/Honua.Server.csproj \
-dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --filter OperateTransitionLiveServerTests
+dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj --filter OperateTransitionLiveServerTests
 ```
 
 This evidence path skips when it is not opted in or when Docker/server
@@ -152,7 +152,7 @@ this gate for pushes to `main` and pull requests.
 The release pipeline (`honua-devops#56`) should run:
 
 1. `dotnet restore Honua.Console.slnx`
-2. `dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --nologo --verbosity minimal`
+2. `dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj --nologo --verbosity minimal`
 3. `dotnet build src/Honua.Console.Web/Honua.Console.Web.csproj --no-restore --nologo --verbosity minimal`
 4. `npm test`
 5. `dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web`

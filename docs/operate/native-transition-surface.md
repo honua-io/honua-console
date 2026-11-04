@@ -143,7 +143,7 @@ Testcontainers and boots a real honua-server checkout. Run it with:
 ```bash
 HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true \
 HONUA_SERVER_PROJECT=/path/to/honua-server/src/Honua.Server/Honua.Server.csproj \
-dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --filter OperateTransitionLiveServerTests
+dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj --filter OperateTransitionLiveServerTests
 ```
 
 The test skips cleanly when it is not opted in, when Docker is unavailable, or

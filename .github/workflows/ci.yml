@@ -94,7 +94,7 @@ jobs:
       - name: Run .NET tests
         # Coverage is collected for visibility only (uploaded as an artifact below);
         # there is no coverage threshold gate.
-        run: dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --no-restore --nologo --verbosity minimal --collect:"XPlat Code Coverage" --results-directory artifacts/test-results/native-core
+        run: dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj --no-restore --nologo --verbosity minimal --collect:"XPlat Code Coverage" --results-directory artifacts/test-results/shell
 
       - name: Verify diagnostic-bundle contract conformance
         # Executes the support-owned diagnostic-bundle v1 conformance manifest + valid/invalid
@@ -102,7 +102,7 @@ jobs:
         # validator, and enforces the pinned provenance SHA-256 (honua-console#307, honua-support#54/#57).
         # Contract drift — a tampered schema, a mismatched pin, or a diverged embedded copy — fails
         # here with a clear provenance/hash error, distinct from the general test lane above.
-        run: dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --no-build --no-restore --nologo --verbosity minimal --filter "FullyQualifiedName~DiagnosticBundle"
+        run: dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj --no-build --no-restore --nologo --verbosity minimal --filter "FullyQualifiedName~DiagnosticBundle"
 
       - name: Run Console render + integration tests
         # Gates the bUnit component-render tests. The opt-in Testcontainers/live-server tests
