@@ -253,9 +253,8 @@ public sealed class ResourceFirstPublishFlowTests
             .Add(c => c.Enabled, PublishProtocolCatalog.DefaultEnabled)
             .Add(c => c.ServiceSlot, "city/parcels"));
 
-        // Three default protocols checked → preview says 3 publications.
         Assert.Contains("data-publication-preview", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("Will create 3 publications", cut.Markup, StringComparison.Ordinal);
+        Assert.Contains("Will serve through: FeatureServer · MapServer · STAC API", cut.Markup, StringComparison.Ordinal);
         Assert.Contains("data-protocol=\"FeatureServer\"", cut.Markup, StringComparison.Ordinal);
     }
 
@@ -309,21 +308,39 @@ public sealed class ResourceFirstPublishFlowTests
     }
 
     [Fact]
-    public void Flow_ExistingResourceApply_ReportsEachPublicationAsServerSideWork()
+    public void Flow_ExistingResource_StartsFromItsCurrentServiceAndProtocols()
     {
         using var ctx = NewContext();
         RegisterExistingResource(ctx);
+
+        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "existingresource"));
+        cut.Find("select[aria-label=\"Existing resource\"]").Change("rsc_parcels");
+        cut.Find("[data-step-body=\"AddData\"] button.console-button").Click();
+
+        Assert.Equal("parcels", cut.Find("[data-service-slot]").TextContent);
+        Assert.True(cut.Find("[data-protocol='FeatureServer']").HasAttribute("checked"));
+        Assert.True(cut.Find("[data-protocol='MapServer']").HasAttribute("checked"));
+        Assert.False(cut.Find("[data-protocol='Stac']").HasAttribute("checked"));
+        Assert.Single(cut.FindAll("[data-service-fixed]"));
+    }
+
+    [Fact]
+    public void Flow_ExistingResourceReachesGoLiveWithTheRealApply()
+    {
+        using var ctx = NewContext();
+        RegisterExistingResource(ctx);
+        ctx.Services.AddSingleton<IServiceConfigurationOperation>(new UnsupportedServiceConfigurationOperation());
         var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "existingresource"));
         cut.Find("select[aria-label=\"Existing resource\"]").Change("rsc_parcels");
         cut.Find("[data-step-body=\"AddData\"] button.console-button").Click();
         cut.Find("[data-step-body=\"Publish\"] button.console-button").Click();
         cut.Find("[data-step-body=\"Style\"] button.console-button").Click();
 
-        cut.Find("[data-step-body=\"GoLive\"] button.console-button").Click();
+        cut.Find("[data-go-live-apply]").Click();
 
-        Assert.Equal(3, cut.FindAll("[data-publish-results] article").Count);
-        Assert.Contains("Unsupported here", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("No publications landed", cut.Find("[data-step-error]").TextContent, StringComparison.Ordinal);
+        Assert.Equal(2, cut.FindAll("[data-protocol-result]").Count);
+        Assert.DoesNotContain("publishes table sources directly", cut.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unsupported here", cut.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -496,22 +513,21 @@ public sealed class ResourceFirstPublishFlowTests
             ]);
     }
 
-    /// <summary>A minimal data source that advertises exactly one resource, for the existing-resource path test.</summary>
     private sealed class OneResourceDataSource(string resourceId, string name) : IOperateTransitionDataSource
     {
-        private readonly OperateResourceEditPreview _resource =
-            EditPreview(resourceId, name);
+        private readonly OperateServiceDetail _service =
+            Service("parcels", "FeatureServer, MapServer", new OperateServiceLayerProjection(1, name, "Polygon", resourceId, name));
 
         public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new OperateTransitionWorkspace([], [_resource], [], [], []));
+            Task.FromResult(new OperateTransitionWorkspace([], [EditPreview(resourceId, name)], [_service], [], []));
 
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
             Task.FromResult<OperateConnectionSummary?>(null);
 
         public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateResourceEditPreview?>(_resource);
+            Task.FromResult<OperateResourceEditPreview?>(null);
 
         public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateServiceDetail?>(null);
+            Task.FromResult<OperateServiceDetail?>(_service);
     }
 }

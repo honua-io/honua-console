@@ -79,16 +79,12 @@
                 <h2>Choose how to expose this resource</h2>
                 <PublishProtocolPicker Enabled="_flow.EnabledProtocols"
                                        EnabledChanged="OnProtocolsChanged"
-                                       ServiceSlot="_flow.ServiceSlot"
-                                       OnRequestSlotChange="RequestSlotChange" />
-                @if (_slotChanging)
-                {
-                    <label class="studio-form-label">
-                        <span>Service slot</span>
-                        <input class="console-input" @bind="_flow.ServiceSlot" @bind:event="oninput" placeholder="city/parcels" />
-                        <small class="console-muted">Use <code>folder/service</code> to nest under a folder.</small>
-                    </label>
-                }
+                                       ServiceSlot="@_flow.ServiceSlot" />
+                <p class="console-muted" data-service-fixed>
+                    honua-server serves a source table through one layer in one service, so this flow configures the
+                    service the resource is already in. To serve the data from a new service,
+                    <a href="/operate/publishing/quick">publish a table</a> into it.
+                </p>
                 <div class="console-action-row">
                     <button type="button" @onclick="() => GoToStep(FlowStep.AddData)">Back</button>
                     <button type="button" class="console-button" disabled="@(_flow.EnabledProtocols.Count == 0)" @onclick="() => GoToStep(FlowStep.Style)">Continue to style →</button>
@@ -100,7 +96,7 @@
             <article class="console-panel" data-step-body="Style">
                 <p class="console-kicker">④ Style</p>
                 <h2>Style this resource</h2>
-                <p class="console-muted">Dual-mode: author in MapLibre (canonical) or Esri drawingInfo — the server converts between encodings (ADR-0002). Styling is optional; you can publish first and refine later.</p>
+                <p class="console-muted">Go live does not apply the style you pick here: honua-server has no operation that binds a catalog style to a layer. Pick a shared style to open it in the style editor, or skip this step.</p>
                 <div class="studio-field-grid">
                     <label class="studio-form-label">
                         <span>Style</span>
@@ -112,17 +108,6 @@
                             }
                         </select>
                     </label>
-                    <fieldset class="data-publish-flow__encoding" data-style-encoding>
-                        <legend class="studio-form-label"><span>Encoding</span></legend>
-                        <label class="publish-protocol-picker__option">
-                            <input type="radio" name="style-encoding" checked="@(_flow.StyleEncoding == StyleEncoding.MapLibre)" @onchange="() => _flow.StyleEncoding = StyleEncoding.MapLibre" />
-                            <span>MapLibre</span>
-                        </label>
-                        <label class="publish-protocol-picker__option">
-                            <input type="radio" name="style-encoding" checked="@(_flow.StyleEncoding == StyleEncoding.Esri)" @onchange="() => _flow.StyleEncoding = StyleEncoding.Esri" />
-                            <span>Esri drawingInfo</span>
-                        </label>
-                    </fieldset>
                 </div>
                 @if (_styleBinding is { } sb)
                 {
@@ -140,59 +125,12 @@
             break;
 
         case FlowStep.GoLive:
-            <article class="console-panel" data-step-body="GoLive">
-                <p class="console-kicker">⑤ Go live — review &amp; approve</p>
-                <h2>@_flow.Resource.Name → @_flow.PlannedPublications.Count publication@(_flow.PlannedPublications.Count == 1 ? "" : "s")</h2>
-                <fieldset class="data-publish-flow__visibility" data-visibility>
-                    <legend class="studio-form-label"><span>Visibility</span></legend>
-                    @foreach (var visibility in Enum.GetValues<PublishVisibility>())
-                    {
-                        <label class="publish-protocol-picker__option">
-                            <input type="radio" name="visibility" checked="@(_flow.Visibility == visibility)" @onchange="() => _flow.Visibility = visibility" />
-                            <span>@visibility</span>
-                        </label>
-                    }
-                </fieldset>
-                <table class="console-table" data-route-preview>
-                    <thead><tr><th>Protocol</th><th>Route</th></tr></thead>
-                    <tbody>
-                        @foreach (var plan in _flow.PlannedPublications)
-                        {
-                            <tr><td>@plan.Label</td><td class="console-mono">@plan.Route</td></tr>
-                        }
-                    </tbody>
-                </table>
-                @if (_serverSidePublications.Count > 0)
-                {
-                    <div class="console-panel-grid" data-publish-results>
-                        @foreach (var plan in _serverSidePublications)
-                        {
-                            <article class="console-panel console-state-danger" role="alert">
-                                <p class="console-kicker">@plan.Label — Unsupported here</p>
-                                <p>@ServerSidePublishDetail</p>
-                            </article>
-                        }
-                    </div>
-                }
-                @if (_stepError is not null)
-                {
-                    <div class="console-validation-summary" role="alert" data-step-error="true">@_stepError</div>
-                }
-                <div class="console-action-row">
-                    <button type="button" @onclick="() => GoToStep(FlowStep.Style)">Back</button>
-                    <button type="button" class="console-button" disabled="@(_flow.EnabledProtocols.Count == 0)" @onclick="Apply">
-                        Apply &amp; publish
-                    </button>
-                </div>
-            </article>
+            <GoLiveStep Flow="_flow" OnBack="() => GoToStep(FlowStep.Style)" />
             break;
     }
 </section>
 
 @code {
-    private const string ServerSidePublishDetail =
-        "Publishing this source's protocols runs server-side after ingest; the console publishes table sources directly. (Resource is staged; protocol bindings pending server materialization.)";
-
     [Parameter] public string? InitialSource { get; set; }
 
     private readonly DataToPublishFlowState _flow = new();
@@ -202,12 +140,10 @@
     private IReadOnlyList<string> _supportedExtensions = [];
     private IReadOnlyList<StudioMapStyleOption> _styles = [];
     private bool _intakeLoaded;
-    private bool _slotChanging;
 
-    private string? _stepError;
     private string? _missingBinding;
     private string? _styleBinding;
-    private IReadOnlyList<PublishProtocolPlan> _serverSidePublications = [];
+    private OperateServicesView _layers = new([], []);
 
     private static readonly FlowStep[] RailSteps =
         [FlowStep.AddData, FlowStep.Resource, FlowStep.Publish, FlowStep.Style, FlowStep.GoLive];
@@ -223,12 +159,14 @@
             .Select(connection => new AddDataIntake.IntakeOption(connection.Id, $"{connection.Name} ({connection.Provider})"))
             .ToArray();
 
-        var resourcesView = await OperateData.GetResourcesViewAsync();
-        _resourceOptions = resourcesView.ResourceEdits
-            .Select(resource => new AddDataIntake.IntakeOption(resource.ResourceId, resource.Name))
+        _layers = await OperateData.GetLayersViewAsync();
+        _resourceOptions = _layers.Services
+            .SelectMany(service => service.Layers)
+            .DistinctBy(layer => layer.CanonicalResourceId, StringComparer.OrdinalIgnoreCase)
+            .Select(layer => new AddDataIntake.IntakeOption(layer.CanonicalResourceId, layer.CanonicalResourceName))
             .ToArray();
 
-        _intakeLoaded = connectionsView.CapabilityStates.Count == 0 && resourcesView.CapabilityStates.Count == 0;
+        _intakeLoaded = connectionsView.CapabilityStates.Count == 0 && _layers.CapabilityStates.Count == 0;
         if (!_intakeLoaded) _missingBinding = "The data sources could not be read. Review your connection or sign in again before choosing data.";
 
         var styleCatalog = await StyleData.GetStyleCatalogAsync();
@@ -270,23 +208,29 @@
     private void ContinueToPublish()
     {
         var resourceId = _flow.Source.Reference!;
-        var option = _resourceOptions.FirstOrDefault(o => string.Equals(o.Id, resourceId, StringComparison.Ordinal));
+        if (_layers.FindExposures(resourceId).FirstOrDefault() is not { } current)
+        {
+            _missingBinding = "honua-server reports no published layer for this resource, so it cannot go live from here.";
+            return;
+        }
+
         _missingBinding = null;
         _flow.Resource = new ResourceStaging
         {
             ResourceId = resourceId,
-            Name = option.Label ?? resourceId,
+            Name = current.Layer.CanonicalResourceName,
         };
+        _flow.ServiceSlot = current.Service.Name;
+        _flow.EnabledProtocols = ProtocolsServedBy(current.Service);
         _flow.Step = FlowStep.Publish;
-        SeedServiceSlot();
     }
 
-    private void SeedServiceSlot()
+    private static List<string> ProtocolsServedBy(OperateServiceDetail service)
     {
-        if (_flow.ServiceSlot == "service" && !string.IsNullOrWhiteSpace(_flow.Resource.Name))
-        {
-            _flow.ServiceSlot = SanitizeTableName(_flow.Resource.Name);
-        }
+        var served = PublishProtocolCatalog.ResolveServiceTypeProtocols(service.ServiceType)
+            .Select(descriptor => descriptor.Id)
+            .ToList();
+        return served.Count > 0 ? served : [.. PublishProtocolCatalog.DefaultEnabled];
     }
 
     private void OnProtocolsChanged(IReadOnlyCollection<string> protocols)
@@ -294,23 +238,7 @@
         _flow.EnabledProtocols = protocols.ToList();
     }
 
-    private void RequestSlotChange() => _slotChanging = true;
-
-    // An existing resource carries no connection + table for the admin publish-layer operation, so its
-    // protocol publications are reported as server-side work rather than faked as live.
-    private void Apply()
-    {
-        _serverSidePublications = _flow.PlannedPublications;
-        _stepError = _serverSidePublications.Count > 0
-            ? "No publications landed. Review the per-protocol results above."
-            : null;
-    }
-
-    private void GoToStep(FlowStep step)
-    {
-        _stepError = null;
-        _flow.Step = step;
-    }
+    private void GoToStep(FlowStep step) => _flow.Step = step;
 
     private string StyleEditorHref =>
         string.IsNullOrWhiteSpace(_flow.StyleId)
@@ -338,12 +266,4 @@
         FlowStep.GoLive => "Go live",
         _ => step.ToString(),
     };
-
-    private static string SanitizeTableName(string value)
-    {
-        var sanitized = new string(value.Trim().ToLowerInvariant()
-            .Select(ch => char.IsLetterOrDigit(ch) ? ch : '_')
-            .ToArray());
-        return string.IsNullOrWhiteSpace(sanitized) ? "imported_resource" : sanitized;
-    }
 }
