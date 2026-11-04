@@ -222,11 +222,7 @@
         else
         {
             var view = await OperateData.GetLayersViewAsync();
-            // A raw layer id is only unique within its connection, so the route keys on the canonical resource
-            // id ({connection}-layer-{layerId}) — matching /operate/layers/{id}.
-            var layer = view.Services
-                .SelectMany(service => service.Layers)
-                .FirstOrDefault(l => string.Equals(l.CanonicalResourceId, ResourceId, StringComparison.OrdinalIgnoreCase));
+            var layer = view.FindLayer(ResourceId);
             _resolved = layer is not null;
             if (layer is not null)
             {
