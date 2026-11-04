@@ -2,12 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// The runtime default when no honua-server / Collect projection is configured. Every operation returns a
-/// missing-binding state so the automation authoring + versioning surface renders the shared blocked surface
-/// (charter §5/§11) instead of seeded automation data. Mirrors
-/// <see cref="UnsupportedStudioWorkflowPackageClient"/>.
-/// </summary>
 public sealed class UnsupportedCollectAutomationClient : ICollectAutomationClient
 {
     private const string Surface = "Collect automation";

@@ -5,27 +5,9 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Pure projection between the alert-rule admin wire contracts
-/// (<see cref="AlertRuleResponse"/>/<see cref="AlertRuleHealthResponse"/>/
-/// <see cref="AlertRuleRequest"/>, honua-server#1169) and the Console rule editor
-/// models (<see cref="OperateAlertRuleDefinition"/>/<see cref="OperateAlertRuleCondition"/>/
-/// <see cref="OperateAlertRuleEdit"/>).
-///
-/// The tricky part is the condition mapping: the server carries a
-/// <c>triggerType</c> ("enter"|"exit"|"dwell"|"threshold"), a <c>zoneId</c>, and a
-/// <c>conditionsJson</c> STRING; the editor binds a flat
-/// <see cref="OperateAlertRuleCondition"/>. <see cref="MapCondition"/> reads the
-/// trigger + conditionsJson into the flat condition;
-/// <see cref="TryBuildConditionsJson"/> does the inverse and fails honestly
-/// (returns false) when an edited condition cannot be represented faithfully,
-/// rather than guessing.
-/// </summary>
 public static class OperateAlertRuleMapper
 {
-    // --- Wire -> Console -----------------------------------------------------
 
-    /// <summary>Projects a server rule (+ optional health) into the editor definition.</summary>
     public static OperateAlertRuleDefinition MapDefinition(
         AlertRuleResponse rule,
         AlertRuleHealthResponse? health,
@@ -53,12 +35,6 @@ public static class OperateAlertRuleMapper
             ValidationMessages: validationMessages);
     }
 
-    /// <summary>
-    /// Reads the server <c>triggerType</c> + <c>conditionsJson</c> + <c>zoneId</c>
-    /// into the flat editor condition. threshold.field-&gt;Subject,
-    /// operator-&gt;Operator, value-&gt;Threshold; dwell.dwellSeconds-&gt;DwellMinutes
-    /// (seconds-&gt;minutes); zoneId-&gt;GeofenceZoneId.
-    /// </summary>
     public static OperateAlertRuleCondition MapCondition(AlertRuleResponse rule)
     {
         var trigger = NormalizeToken(rule.TriggerType);
@@ -101,16 +77,7 @@ public static class OperateAlertRuleMapper
             DwellMinutes: null);
     }
 
-    // --- Console -> Wire -----------------------------------------------------
 
-    /// <summary>
-    /// Builds the create/update request for a save: the editor-owned fields
-    /// (name, enablement, condition, channels) overlay the immutable fields read
-    /// from the persisted <paramref name="current"/> rule (service/layer/cooldown/
-    /// severity/edition), so an UPDATE preserves what the editor does not author.
-    /// Returns false with an honest error when the edited condition cannot be
-    /// represented on the wire (Console Patterns Charter section 11).
-    /// </summary>
     public static bool TryBuildRequest(
         OperateAlertRuleEdit edit,
         AlertRuleResponse current,
@@ -144,13 +111,6 @@ public static class OperateAlertRuleMapper
         return true;
     }
 
-    /// <summary>
-    /// Inverse of <see cref="MapCondition"/>: derives the wire trigger type, zone
-    /// id, and conditionsJson string from the editor condition. The trigger is read
-    /// from the condition's Operator (which <see cref="MapCondition"/> populates for
-    /// the geofence triggers) or inferred as "threshold" when a metric subject +
-    /// operator + numeric threshold are present.
-    /// </summary>
     public static bool TryBuildConditionsJson(
         OperateAlertRuleCondition condition,
         out string triggerType,
@@ -226,7 +186,6 @@ public static class OperateAlertRuleMapper
         }
     }
 
-    // --- Helpers -------------------------------------------------------------
 
     private static string ResolveTriggerType(OperateAlertRuleCondition condition)
     {

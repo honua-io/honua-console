@@ -4,20 +4,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Live, server-bound implementation of <see cref="IOperateLayerStyleOverrideDataSource"/> backed by the
-/// shipped honua-server per-layer authoring endpoints (<c>GET/PUT /api/v1/admin/metadata/layers/{id}/popup-info</c>
-/// and <c>.../drawing-info</c>, AdminLayerAuthoringEndpoints.cs:38-41). The Operate resource-presentation
-/// editor route keys on a canonical resource id; this source resolves it to the layer's (global) integer id
-/// via the live layers projection (<see cref="IOperateTransitionDataSource.GetLayersViewAsync"/>) and then
-/// reads/writes the two GeoServices presentation documents.
-///
-/// popupInfo and drawingInfo are stored on the layer's canonical resource (not per service exposure), so the
-/// layer is presented as a single slot: <see cref="OperateLayerSlotStyleOverride.PopupInfoJson"/> carries the
-/// stored popupInfo template and <see cref="OperateLayerSlotStyleOverride.DrawingInfoJson"/> the stored
-/// drawingInfo renderer, both as the raw server JSON pretty-printed for editing. Nothing is fabricated: an
-/// unresolved layer or a server rejection surfaces an explicit binding state (Console Patterns Charter §11).
-/// </summary>
 public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerStyleOverrideDataSource
 {
     internal const string Surface = "Resource presentation overrides";

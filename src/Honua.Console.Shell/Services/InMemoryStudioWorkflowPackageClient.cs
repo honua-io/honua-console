@@ -3,26 +3,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Transient in-memory placeholder for <see cref="IStudioWorkflowPackageClient"/>.
-/// </summary>
-/// <remarks>
-/// <para>
-/// <b>Do not promote to a merged data source.</b> This client fakes the server-owned
-/// workflow.package lifecycle so Console UX, unit tests, and the
-/// <c>smoke/parity/workflow.mjs</c> harness can be built ahead of the server/SDK contract
-/// (honua-console#40). Per <c>docs/migration/CONSOLE_PATTERNS_CHARTER.md</c> section 11 it
-/// is a scaffold only: the workflow surface stays blocked until the real
-/// <c>honua-server</c>/<c>honua-sdk-dotnet</c> projection lands, at which point this type is
-/// replaced (not extended).
-/// </para>
-/// <para>
-/// The implementation deliberately enforces explicit state-machine transition checks and
-/// defensive input validation so a future server-backed replacement does not silently drop
-/// a contract nuance Console relies on. See <see cref="IStudioWorkflowPackageClient"/> for
-/// the enumerated invariants.
-/// </para>
-/// </remarks>
 public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackageClient
 {
     public const string SeedDraftId = "wf-draft-parcel-etl";

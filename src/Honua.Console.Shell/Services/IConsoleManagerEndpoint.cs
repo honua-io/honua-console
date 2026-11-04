@@ -1,8 +1,7 @@
 namespace Honua.Console.Shell.Services;
 
-/// <summary>Resolves an explicitly trusted manager for the active serving endpoint.</summary>
 public interface IConsoleManagerEndpoint
 {
-    /// <summary>Returns the manager URI, or null when this profile has no trusted mapping.</summary>
+    // Null means a configured manager does not match this serving URI; with no manager configured, Resolve returns the serving URI.
     Uri? Resolve(Uri servingBaseUri);
 }

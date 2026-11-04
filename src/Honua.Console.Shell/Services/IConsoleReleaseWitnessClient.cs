@@ -1,10 +1,5 @@
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Read-only release-bound evidence projected into the authenticated Console UI.
-/// This is deliberately narrower than an admin-form surface: it observes one
-/// approved Studio publication and its audit/runtime joins.
-/// </summary>
 public interface IConsoleReleaseWitnessClient
 {
     Task<OperateSectionResult<ConsoleReleaseWitnessEvidence>> ObserveAsync(

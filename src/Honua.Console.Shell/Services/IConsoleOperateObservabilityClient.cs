@@ -2,14 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Reads the Operate observability surface (server overview, events, alerts,
-/// realtime rules, jobs, logs, investigations) from a real honua-server through
-/// the <c>/api/v1/admin/...</c> contracts. Each section is independently
-/// permissioned, so every read returns an <see cref="OperateSectionResult{T}"/>
-/// carrying a status that drives the shared empty/forbidden/unsupported/
-/// unavailable surfaces, mirroring the catalog client's read envelope.
-/// </summary>
 public interface IConsoleOperateObservabilityClient
 {
     Task<OperateSectionResult<OperateFleetOverview>> GetOverviewAsync(
@@ -31,77 +23,29 @@ public interface IConsoleOperateObservabilityClient
     Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Reads the durable job list filtered to a single execution job kind
-    /// (<c>GET /api/v1/admin/jobs?kind=…</c>), so a kind-scoped dashboard (e.g.
-    /// the Geoprocessing jobs surface) does not pull the whole fleet job page and
-    /// filter client-side. <paramref name="kind"/> is the wire enum name the
-    /// server's <c>kind</c> query parser accepts (e.g. <c>Geoprocessing</c>);
-    /// a null/blank value loads the unfiltered list like
-    /// <see cref="GetJobsAsync(CancellationToken)"/>.
-    /// </summary>
     Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(
         string? kind,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Convenience over <see cref="GetJobsAsync(string?, CancellationToken)"/>
-    /// scoped to the <c>Geoprocessing</c> execution job kind, backing the
-    /// Operate &gt; Geoprocessing jobs dashboard.
-    /// </summary>
     Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetGeoprocessingJobsAsync(
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Loads a single job's stages, logs, artifacts, and server-declared
-    /// actions on demand (the list endpoint omits these), so the jobs viewer
-    /// does not fan out a detail/log/artifact request per row up front.
-    /// </summary>
     Task<OperateSectionResult<OperateJobRun>> GetJobDetailAsync(
         string jobRunId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Cancels a non-terminal durable job through the gated control endpoint
-    /// (<c>POST /api/v1/admin/jobs/{id}/cancel</c>). The server enforces the
-    /// Execute + destructive-approval gate; a denied cancel surfaces here as a
-    /// <see cref="OperateSectionStatus.Forbidden"/> result (carrying the server's
-    /// "approval required" message when the gate asks for approval), and a job
-    /// that is no longer cancellable surfaces as a conflict
-    /// (<see cref="OperateSectionStatus.Unavailable"/>). The console never
-    /// bypasses the gate; it only invokes the action and surfaces the result.
-    /// </summary>
     Task<OperateSectionResult<OperateJobControlOutcome>> CancelJobAsync(
         string jobRunId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Requeues a Failed or Cancelled durable job through the gated control
-    /// endpoint (<c>POST /api/v1/admin/jobs/{id}/retry</c>). Same gate/result
-    /// surfacing as <see cref="CancelJobAsync"/>; the server returns 409 (mapped
-    /// to a conflict result) when the job is not in a retryable state.
-    /// </summary>
     Task<OperateSectionResult<OperateJobControlOutcome>> RetryJobAsync(
         string jobRunId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Reads a single job's sanitized per-step glass-box
-    /// (<c>GET /api/v1/admin/jobs/{id}/steps</c>, honua-server #2182): the ordered
-    /// steps with phase, status, timeline/duration, the server-sanitized provider
-    /// command, the per-step artifacts, and metadata. Loaded lazily by the job
-    /// detail surface (the detail endpoint omits per-step depth). The command is
-    /// already sanitized server-side; the Console renders it verbatim.
-    /// </summary>
     Task<OperateSectionResult<OperateJobStepsView>> GetJobStepsAsync(
         string jobRunId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Reads <c>GET /api/v1/admin/jobs/{id}/diagnostics</c> (<c>honua.job-diagnostics/v1</c>).
-    /// <paramref name="eventCursor"/> is sent unchanged. Callers keep both cursors from the
-    /// response. A host that has not adopted the projection returns an unsupported result.
-    /// </summary>
     Task<OperateSectionResult<OperateJobDiagnosticsView>> GetJobDiagnosticsAsync(
         string jobRunId,
         string? eventCursor = null,
@@ -113,21 +57,11 @@ public interface IConsoleOperateObservabilityClient
     Task<OperateSectionResult<IReadOnlyList<OperateInvestigation>>> GetInvestigationsAsync(
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Reads the connected server's recent-error buffer
-    /// (<c>GET /api/v1/admin/observability/errors</c>) so callers can attach live
-    /// error context (e.g. the in-product support ticket loop) without forcing the
-    /// customer to copy log dumps. Returns the raw buffer rows on success.
-    /// </summary>
     Task<OperateSectionResult<IReadOnlyList<OperateRecentError>>> GetRecentErrorsAsync(
         int limit = 10,
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>
-/// A single recent-error buffer row projected from the server admin
-/// observability errors endpoint, surfaced for context attachment.
-/// </summary>
 public sealed record OperateRecentError(
     DateTimeOffset Timestamp,
     string CorrelationId,
@@ -146,11 +80,6 @@ public enum OperateSectionStatus
     Unsupported
 }
 
-/// <summary>
-/// Consistent titles and fallback copy for the non-allowed section states, so
-/// missing/forbidden/unsupported/unavailable render through one shared surface
-/// (per the Console exception-handling constraint).
-/// </summary>
 public static class OperateSectionPresentation
 {
     public static string Title(OperateSectionStatus status) => status switch
@@ -256,17 +185,10 @@ public sealed record OperateSectionResult<T>
 
     public string Message { get; init; } = string.Empty;
 
-    /// <summary>
-    /// Verbatim technical diagnostics (transport status, contract) relocated out of the
-    /// human-facing <see cref="Message"/> for the shared diagnostics disclosure (honua-console#311).
-    /// Null when the message needs no technical layer.
-    /// </summary>
+    // Transport status and contract text stay here so Message can be shown on its own.
     public string? Detail { get; init; }
 
-    /// <summary>
-    /// True when the server returned a partial result (e.g. one event source
-    /// was unreachable). The data is still live; the surface should annotate it.
-    /// </summary>
+    // The value is still live data when this is set.
     public bool PartialResult { get; init; }
 
     public bool IsAllowed => Status == OperateSectionStatus.Allowed;

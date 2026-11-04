@@ -2,14 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// The honua-server proposal source (issue #193, honua-server #1694): a thin adapter over the
-/// first-class proposals API (<see cref="IConsoleProposalsClient"/>) onto the shared
-/// <see cref="IConsoleProposalSource"/> seam. Summaries are tagged
-/// <see cref="ConsoleProposalSource.Server"/> so the aggregated inbox can attribute each work
-/// item to its owning system. This is the primary source: its denial is the inbox's denial when
-/// no source is reachable (charter §11 — the inbox never fabricates a queue).
-/// </summary>
 public sealed class ServerConsoleProposalSource : IConsoleProposalSource
 {
     private readonly IConsoleProposalsClient _proposals;

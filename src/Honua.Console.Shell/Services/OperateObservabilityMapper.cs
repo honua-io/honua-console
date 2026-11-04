@@ -4,18 +4,8 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Projects the server's Operate observability HTTP contracts into the existing
-/// Console UI records (<see cref="OperateObservabilitySnapshot"/> and friends),
-/// so the #41 Razor surface and components are unchanged in shape while binding
-/// to live data. All state strings flow through <see cref="OperateStatus"/>: a
-/// missing/disabled/unsupported telemetry signal stays neutral and never marks
-/// an environment failed, and a server-declared <c>Allowed=false</c> is the only
-/// thing that disables an action.
-/// </summary>
 public static class OperateObservabilityMapper
 {
-    // --- Events -------------------------------------------------------------
 
     public static IReadOnlyList<OperateEventRow> MapEvents(
         OperateEventPageResponse page,
@@ -92,7 +82,6 @@ public static class OperateObservabilityMapper
         }
     }
 
-    // --- Logs ---------------------------------------------------------------
 
     public static OperateLogsView MapLogs(OperateLogPageResponse page)
     {
@@ -153,7 +142,6 @@ public static class OperateObservabilityMapper
         return normalized.Length <= maxLength ? normalized : normalized[..maxLength];
     }
 
-    // --- Alerts -------------------------------------------------------------
 
     public static IReadOnlyList<OperateAlertRecord> MapAlerts(ObservabilityAlertEventPageResponse page) =>
         (page.Items ?? []).Select(MapAlert).ToArray();
@@ -230,7 +218,6 @@ public static class OperateObservabilityMapper
         ];
     }
 
-    // --- Rules + zones ------------------------------------------------------
 
     public static OperateAlertRule MapRule(AlertRuleResponse rule, AlertRuleHealthResponse? health)
     {
@@ -317,7 +304,6 @@ public static class OperateObservabilityMapper
                 .Select(pair => $"{pair.Key}: {pair.Value}")
                 .ToArray());
 
-    // --- Jobs ---------------------------------------------------------------
 
     public static OperateJobRun MapJobSummary(ConsoleJobSummary summary, ConsoleEnvironmentProfile profile) =>
         new(
@@ -629,7 +615,6 @@ public static class OperateObservabilityMapper
         return related;
     }
 
-    // --- Investigations -----------------------------------------------------
 
     public static IReadOnlyList<OperateInvestigation> MapInvestigations(InvestigationPageResponse page) =>
         (page.Items ?? []).Select(MapInvestigation).ToArray();
@@ -703,7 +688,6 @@ public static class OperateObservabilityMapper
         return notes;
     }
 
-    // --- Helpers ------------------------------------------------------------
 
     internal static string FormatTimestamp(DateTimeOffset value) =>
         value.ToString("yyyy-MM-dd HH:mm 'UTC'", CultureInfo.InvariantCulture);

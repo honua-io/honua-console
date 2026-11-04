@@ -2,15 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Missing-binding fallback for <see cref="IOperateLayerStyleOverrideDataSource"/>. When no honua-server base
-/// URL is configured there is nothing to bind the per-layer popup-info / drawing-info authoring to, so the
-/// merged build registers this source instead of <see cref="ServerOperateLayerStyleOverrideDataSource"/>: the
-/// override read and write return an explicit missing-binding state and never fabricate a popup/renderer
-/// (Console Patterns Charter section 11). The style editor page still reads the REAL /ogc/styles list through
-/// <see cref="IStudioMapStyleCatalogDataSource"/>; only the override portion is unbound. Mirrors the
-/// Server*/Unsupported* pairing of the other Operate data sources.
-/// </summary>
 public sealed class UnsupportedOperateLayerStyleOverrideDataSource : IOperateLayerStyleOverrideDataSource
 {
     internal const string Surface = "Resource presentation overrides";

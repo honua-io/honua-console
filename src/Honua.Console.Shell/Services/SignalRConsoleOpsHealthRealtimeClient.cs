@@ -4,18 +4,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Live <see cref="IConsoleOpsHealthRealtimeClient"/> backed by the honua-server admin realtime
-/// hub's <c>ops-health</c> group (honua-server PR #2591). Mirrors
-/// <see cref="SignalRConsoleDeployOperationRealtimeClient"/> exactly (same hub, same
-/// connect/reconnect/dispose pattern via <see cref="ConsoleAdminHubConnectionFactory"/> and
-/// <see cref="ConsoleRealtimeFallbackTracker"/>) — the console#293 shared seam this ticket
-/// consumes rather than reinventing.
-///
-/// The pushed payload is bound directly as <see cref="OpsHealthSnapshotResponse"/> (no
-/// intermediate wire record): the addendum pins this as the SAME DTO the REST snapshot read
-/// returns, so there is exactly one shape to keep in sync with the server, not two.
-/// </summary>
 public sealed class SignalRConsoleOpsHealthRealtimeClient : IConsoleOpsHealthRealtimeClient, IConsoleRealtimeCapabilityClient
 {
     internal const string HubPath = "hubs/admin";
@@ -49,20 +37,16 @@ public sealed class SignalRConsoleOpsHealthRealtimeClient : IConsoleOpsHealthRea
         _tracker = new ConsoleRealtimeFallbackTracker(_logger, HubPath + "/" + SubscribeMethod);
     }
 
-    /// <inheritdoc />
     public event Action<OpsHealthSnapshotResponse>? SnapshotReceived;
 
-    /// <inheritdoc cref="IConsoleRealtimeCapabilityClient.ConnectionStateChanged" />
     public event Action<ConsoleRealtimeConnectionState>? ConnectionStateChanged
     {
         add => _tracker.StateChanged += value;
         remove => _tracker.StateChanged -= value;
     }
 
-    /// <inheritdoc cref="IConsoleRealtimeCapabilityClient.ConnectionState" />
     public ConsoleRealtimeConnectionState ConnectionState => _tracker.State;
 
-    /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -149,7 +133,6 @@ public sealed class SignalRConsoleOpsHealthRealtimeClient : IConsoleOpsHealthRea
         }
     }
 
-    /// <inheritdoc />
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -187,7 +170,6 @@ public sealed class SignalRConsoleOpsHealthRealtimeClient : IConsoleOpsHealthRea
         }
     }
 
-    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         await StopAsync().ConfigureAwait(false);

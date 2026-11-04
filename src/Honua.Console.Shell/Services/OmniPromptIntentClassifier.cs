@@ -1,54 +1,29 @@
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// The top-level intent the omni-prompt AI console routes a free-text prompt to (honua-console#203).
-/// One prompt box handles BOTH lanes; the classifier decides which approval surface it lands in.
-/// </summary>
 public enum OmniPromptIntent
 {
-    /// <summary>GIS authoring: publish / map / dashboard / analysis / ETL / style → the Studio generate path,
-    /// whose <em>sub-type</em> is inferred server-side.</summary>
     Studio,
 
-    /// <summary>Operations: deploy / roll back / upgrade → the deploy-control path. Lands in the deploy approval
-    /// panel (#197) so the operator reviews and actuates through the server's governed approval gate.</summary>
     DevOps,
 }
 
-/// <summary>
-/// The confidence the classifier assigns to its <see cref="OmniPromptIntent"/> choice. Low confidence (an empty
-/// or genuinely ambiguous prompt) drives a confirm chip rather than silently routing into the wrong lane
-/// (honua-console#203: "fall back to a confirm chip if low-confidence").
-/// </summary>
 public enum OmniPromptConfidence
 {
-    /// <summary>Strong lane signal — route directly to the chosen lane's surface.</summary>
     High,
 
-    /// <summary>Weak / no lane signal — surface a confirm chip and let the human pick the lane.</summary>
     Low,
 }
 
-/// <summary>The classifier's verdict: the routed lane, the confidence, and a short human rationale for the chip.</summary>
 public readonly record struct OmniPromptClassification(
     OmniPromptIntent Intent,
     OmniPromptConfidence Confidence,
     string Rationale);
 
-/// <summary>
-/// Routes an omni-prompt's free text to a top-level lane — Studio (GIS authoring) or DevOps (ops) — for the
-/// unified AI console (honua-console#203). This is the thin, console-side v1 classifier the issue calls for:
-/// honua-server exposes no intent-classify / operations-catalog endpoint today, so a deterministic keyword
-/// heuristic decides the lane and surfaces a confirm chip when the signal is weak. It NEVER actuates anything —
-/// it only chooses which existing approval surface the prompt is handed to. Kept pure so the same words always
-/// resolve to the same lane and the routing is unit-testable without a server.
-/// </summary>
 public interface IOmniPromptIntentClassifier
 {
     OmniPromptClassification Classify(string prompt);
 }
 
-/// <inheritdoc />
 public sealed class OmniPromptIntentClassifier : IOmniPromptIntentClassifier
 {
     // DevOps / operations vocabulary: deploy, roll back, upgrade, promote a release, etc. These are the
