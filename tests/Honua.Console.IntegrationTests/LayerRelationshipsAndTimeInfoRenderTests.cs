@@ -7,14 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the two metadata-authoring gaps closed in this branch (gap report
-/// Bucket 3-A #3 relationships, #4 time-info): the relationships editor page
-/// (<c>/operate/layers/{id}/relationships</c>) and the self-contained time-info setter component on the
-/// temporal surface. Drives both through fakes (never a mock server). The merged-build Unsupported* sources
-/// are exercised through real DI to prove the honest missing-binding state, and the bound paths prove the
-/// GET load + the add/remove/save round-trip surface the result.
-/// </summary>
 public sealed class LayerRelationshipsAndTimeInfoRenderTests
 {
     private const string ResourceId = "conn-1-layer-1";
@@ -90,58 +82,14 @@ public sealed class LayerRelationshipsAndTimeInfoRenderTests
         Assert.Contains("HONUA_SERVER_BASE_URL", page.Markup, StringComparison.Ordinal);
     }
 
-    // ---- Time-info setter ----
-
     [Fact]
-    public void TimeInfo_WhenOperationMissing_RendersMissingBindingOnSave()
+    public void TimeInfo_Unsupported_HasNoWriteControls()
     {
-        // No IConsoleTimeInfoOperation registered: the component must still render and degrade honestly.
-        using var ctx = new Bunit.BunitContext();
+        using var ctx = new BunitContext();
         var component = ctx.Render<ServiceTimeInfoSetter>();
-
-        component.Find("[data-timeinfo-service]").Change("svc");
-        component.Find("[data-timeinfo-save]").Click();
-
-        component.WaitForAssertion(
-            () => Assert.Contains("data-timeinfo-result", component.Markup, StringComparison.Ordinal),
-            TimeSpan.FromSeconds(5));
-        Assert.Contains("Missing binding", component.Markup, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void TimeInfo_WhenBound_SaveIssuesTheTimeInfoUpdateWithFields()
-    {
-        var fake = new FakeTimeInfo
-        {
-            SaveResult = new ConsoleSetTimeInfoResult
-            {
-                Succeeded = true,
-                State = "Updated",
-                Detail = "The service's time-info was updated on honua-server.",
-                StartTimeField = "observed_at",
-                EndTimeField = "observed_until",
-                TrackIdField = "vehicle_id",
-            },
-        };
-        using var ctx = new Bunit.BunitContext();
-        ctx.Services.AddSingleton<IConsoleTimeInfoOperation>(fake);
-        var component = ctx.Render<ServiceTimeInfoSetter>();
-
-        component.Find("[data-timeinfo-service]").Change("svc");
-        component.Find("[data-timeinfo-start]").Change("observed_at");
-        component.Find("[data-timeinfo-end]").Change("observed_until");
-        component.Find("[data-timeinfo-track]").Change("vehicle_id");
-        component.Find("[data-timeinfo-save]").Click();
-
-        component.WaitForAssertion(
-            () => Assert.Contains("data-timeinfo-result", component.Markup, StringComparison.Ordinal),
-            TimeSpan.FromSeconds(5));
-
-        Assert.Equal("svc", fake.SavedService);
-        Assert.Equal("observed_at", fake.SavedStart);
-        Assert.Equal("observed_until", fake.SavedEnd);
-        Assert.Equal("vehicle_id", fake.SavedTrack);
-        Assert.Contains("time-info was updated", component.Markup, StringComparison.Ordinal);
+        Assert.Contains("Unsupported", component.Markup, StringComparison.Ordinal);
+        Assert.Contains("Resource time-field", component.Markup, StringComparison.Ordinal);
+        Assert.Empty(component.FindAll("input, button, textarea"));
     }
 
     private static IRenderedComponent<OperateLayerRelationshipsPage> RenderRelationships(FakeRelationships relationships)
@@ -173,26 +121,4 @@ public sealed class LayerRelationshipsAndTimeInfoRenderTests
         }
     }
 
-    private sealed class FakeTimeInfo : IConsoleTimeInfoOperation
-    {
-        public ConsoleSetTimeInfoResult? SaveResult { get; set; }
-        public string? SavedService { get; private set; }
-        public string? SavedStart { get; private set; }
-        public string? SavedEnd { get; private set; }
-        public string? SavedTrack { get; private set; }
-
-        public Task<ConsoleServiceTimeInfo> GetTimeInfoAsync(string serviceName, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ConsoleServiceTimeInfo { Bound = true, ServiceName = serviceName });
-
-        public Task<ConsoleSetTimeInfoResult> SetTimeInfoAsync(
-            string serviceName, string? startTimeField, string? endTimeField, string? trackIdField,
-            CancellationToken cancellationToken = default)
-        {
-            SavedService = serviceName;
-            SavedStart = startTimeField;
-            SavedEnd = endTimeField;
-            SavedTrack = trackIdField;
-            return Task.FromResult(SaveResult ?? new ConsoleSetTimeInfoResult { Succeeded = true, State = "Updated" });
-        }
-    }
 }
