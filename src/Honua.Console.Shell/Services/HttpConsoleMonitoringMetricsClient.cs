@@ -6,20 +6,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Binds the Operate metrics surface to a real honua-server through the production-
-/// monitoring endpoints (group <c>/monitoring</c>, admin-authorized, bare JSON — NO
-/// ApiResponse envelope). Base address comes from the active
-/// <see cref="ConsoleEnvironmentProfile"/>; the admin API key is sent as
-/// <c>X-API-Key</c>. A single shared <see cref="HttpClient"/> is reused; each request
-/// builds an absolute URI and attaches its own key. Deserialization is source-generated
-/// for trim/AOT safety.
-///
-/// Charter section 11 (no standing mock for server-owned data) is preserved: this client
-/// never returns seeded metrics. When no environment profile is bound, every read returns
-/// a missing-binding (<see cref="OperateSectionStatus.Unavailable"/>) result. Mirrors
-/// <see cref="HttpConsoleGitOpsReleaseClient"/>.
-/// </summary>
+// Monitoring responses are bare JSON with no ApiResponse envelope.
 public sealed class HttpConsoleMonitoringMetricsClient : IConsoleMonitoringMetricsClient
 {
     private const string NoProfileMessage =

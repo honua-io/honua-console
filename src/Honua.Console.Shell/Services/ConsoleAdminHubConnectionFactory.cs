@@ -4,25 +4,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Builds a <see cref="HubConnection"/> to a honua-server admin realtime hub for the active
-/// environment profile (console#293 shared seam, extracted from
-/// <c>SignalRConsoleProposalRealtimeClient</c>, honua-server #1695).
-///
-/// Every admin-hub-backed realtime client connects the same way: resolve the active environment
-/// profile, require the operator's forwardable bearer without a shared key fallback, and build the connection with automatic reconnect and case-insensitive
-/// JSON. Centralizing this here means the next admin-hub client (deploy operations, health) does
-/// not re-derive the auth decision — the same rule <see cref="ConsoleServerHttp"/> centralizes
-/// for the Family-B REST clients applies to hub connections too.
-/// </summary>
+// Hub connections require the operator's forwardable bearer and never fall back to a shared API key. Null means no environment is bound, the bearer is missing, or the hub target did not resolve, and it is not a connection failure.
 internal static class ConsoleAdminHubConnectionFactory
 {
-    /// <summary>
-    /// Resolves the active profile and builds a hub connection to <paramref name="hubPath"/> on
-    /// its server. Returns <see langword="null"/> when no environment profile is bound — the
-    /// caller should treat this as <see cref="ConsoleRealtimeConnectionState.NotConfigured"/>,
-    /// not a failure; there is nothing to connect to.
-    /// </summary>
     public static async Task<HubConnection?> CreateAsync(
         IConsoleEnvironmentProfileStore profileStore,
         IConsoleAccountSessionStore sessions,

@@ -1,8 +1,6 @@
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Selects the human Console boundary without changing any server authorization policy.
-/// </summary>
+// Selecting a product mode does not change server authorization.
 public enum ConsoleProductMode
 {
     Full,

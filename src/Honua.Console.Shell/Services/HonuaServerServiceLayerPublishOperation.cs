@@ -3,12 +3,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Live implementation of the service-layer-publish operation. POSTs the operator's intent to honua-server's
-/// admin layer-publishing endpoint through <see cref="IHonuaAdminOperateClient"/> and maps the server result
-/// (or rejection) into a <see cref="ServiceLayerPublishResult"/>. This is the real publish the publishing
-/// wizard's finish action drives (issue #144) — it never fabricates success.
-/// </summary>
 public sealed class HonuaServerServiceLayerPublishOperation : IServiceLayerPublishOperation
 {
     private readonly IHonuaAdminOperateClient _client;

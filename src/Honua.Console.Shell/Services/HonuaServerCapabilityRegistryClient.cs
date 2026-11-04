@@ -3,15 +3,6 @@ using Honua.Sdk.Studio.Capabilities;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Live <see cref="ICapabilityRegistryClient"/> bound to the server capability manifest
-/// (<c>GET /api/v1/capabilities/manifest</c>) through the shared <c>Honua.Sdk.Studio</c>
-/// <see cref="IHonuaCapabilityManifestClient"/> projection (honua-console#266). Projects the SDK
-/// <see cref="CapabilityManifest"/> into the console-side <see cref="CapabilityRegistrySnapshot"/> view
-/// model — never re-shimming the server wire DTO (Console Patterns Charter §11a). A manifest read failure
-/// (no environment bound, endpoint unreachable/forbidden, unsupported) is surfaced as an unavailable
-/// snapshot with an honest explanation rather than a fabricated one or an unhandled exception.
-/// </summary>
 public sealed class HonuaServerCapabilityRegistryClient : ICapabilityRegistryClient
 {
     internal const string Contract = "GET /api/v1/capabilities/manifest";

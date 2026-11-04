@@ -5,25 +5,17 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Calls honua-server's shipped operator-bearer issuance contract. The supplied
-/// <see cref="HttpClient"/> must already carry the authenticated server admin session,
-/// normally through a same-origin BFF. An instance that owns cookies must be isolated
-/// per operator and profile and must never be registered process-wide. This client never
-/// attaches an admin API key or an actor header.
-/// </summary>
+// The supplied client must already carry the admin session, must be isolated per operator and profile when it owns cookies, and this type never adds an API key or an actor header.
 internal sealed class HttpConsoleOperatorBearerExchange : IConsoleOperatorBearerExchange
 {
     private const string BearerPath = "api/v1/admin/auth/bearer";
     private readonly HttpClient _http;
 
-    /// <summary>Initializes a new exchange client.</summary>
     public HttpConsoleOperatorBearerExchange(HttpClient http)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
     }
 
-    /// <inheritdoc />
     public async Task<ConsoleOperatorBearerExchangeResult> ExchangeAsync(
         ConsoleEnvironmentProfile profile,
         CancellationToken cancellationToken = default)

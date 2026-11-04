@@ -3,24 +3,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Loads the honua-gis-llm support KB JSONL once at construction and serves
-/// lexical retrieval over it. The artifact is the bundled
-/// <c>SupportKb/support-kb.jsonl</c> (a copy of honua-gis-llm
-/// <c>kb/v0.1/support-kb.jsonl</c>, honua-gis-llm#26) or a configurable absolute
-/// path override; if neither resolves, <see cref="IsLoaded"/> is false and
-/// <see cref="Search"/> returns empty so the /support page degrades to the
-/// assistant + ticket form.
-///
-/// EMBEDDINGS TODO: the upstream artifact ships <c>embedding: null</c> (the
-/// ingestion, schema and embedding_text are real; vector population is
-/// deferred). Retrieval here is therefore lexical token overlap over
-/// embedding_text / title / symptoms. When an OpenAI-compatible
-/// <c>/v1/embeddings</c> backend is wired (same host as the triage model, per
-/// honua-gis-llm docs/support/triage-endpoint-contract.md), re-run the KB build
-/// with <c>--embed</c> and swap this ranker for cosine similarity over the
-/// populated vectors — <see cref="Search"/> is the single swap point.
-/// </summary>
 public sealed class FileConsoleSupportKnowledgeBase : IConsoleSupportKnowledgeBase
 {
     private readonly IReadOnlyList<KbEntry> _entries;
@@ -34,11 +16,6 @@ public sealed class FileConsoleSupportKnowledgeBase : IConsoleSupportKnowledgeBa
 
     public int RecordCount => _entries.Count;
 
-    /// <summary>
-    /// Resolves the KB artifact (configured path override first, then the
-    /// bundled copy next to the Shell assembly) and parses it. Never throws on a
-    /// missing/unreadable file — an empty KB is a valid degraded state.
-    /// </summary>
     public static FileConsoleSupportKnowledgeBase Load(string? configuredPath = null)
     {
         var path = ResolvePath(configuredPath);

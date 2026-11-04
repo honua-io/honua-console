@@ -8,22 +8,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Binds the alert-rule DEFINITION authoring surface to a real honua-server through
-/// the SHIPPED alert-rule admin contract (honua-server#1169,
-/// <c>/api/v{version}/admin/alerts/rules…</c>). Base address comes from the active
-/// <see cref="ConsoleEnvironmentProfile"/>; the admin API key is sent as
-/// <c>X-API-Key</c> (the alert admin group is admin-authorized), mirroring
-/// <see cref="HttpConsoleGitOpsReleaseClient"/>.
-///
-/// The group wraps every payload in the <c>ApiResponse&lt;T&gt;</c> envelope
-/// (<see cref="ConsoleApiEnvelope{T}"/>): each read/write unwraps <c>.data</c> and
-/// treats <c>success:false</c> or a non-2xx status as the mapped failure state.
-/// A single shared <see cref="HttpClient"/> is reused; each request builds an
-/// absolute URI and attaches its own key. Deserialization is source-generated for
-/// trim/AOT safety. Charter section 11 is preserved: no environment profile means
-/// every call returns the missing-binding (Unavailable) result, never seeded rules.
-/// </summary>
+// Alert-rule payloads use the ApiResponse envelope: success false or a non-success status is a failure, and no profile returns unavailable rather than seeded rules.
 public sealed class HttpConsoleAlertRulesClient : IConsoleAlertRulesClient
 {
     private const string NoProfileMessage =

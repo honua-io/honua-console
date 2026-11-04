@@ -1,6 +1,6 @@
 namespace Honua.Console.Shell.Services;
 
-/// <summary>Deployment presentation only. Server authentication and authorization do not depend on this mode.</summary>
+// Server authentication and authorization do not depend on this mode.
 public sealed record ConsolePresentation
 {
     public string Mode { get; }

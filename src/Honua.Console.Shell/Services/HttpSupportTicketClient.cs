@@ -8,15 +8,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Binds the in-product support surface to the honua-support API through the
-/// <c>/api/v1/tickets</c> contracts. The support service base address is supplied
-/// at registration; the bearer token comes from the active
-/// <see cref="ConsoleEnvironmentProfile"/>'s account session, reusing the
-/// connection pattern from <see cref="HttpConsoleOperateObservabilityClient"/>
-/// (one shared <see cref="HttpClient"/>, per-request absolute URI + auth header).
-/// Serialization is source-generated for trim/AOT safety.
-/// </summary>
 public sealed class HttpSupportTicketClient : IConsoleSupportTicketClient
 {
     private readonly HttpClient _http;

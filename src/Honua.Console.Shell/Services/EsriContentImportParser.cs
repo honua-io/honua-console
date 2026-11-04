@@ -3,19 +3,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Deterministic, Console-side parser that converts uploaded Esri content JSON into a Honua conversion
-/// preview. Web Map JSON maps to <c>honua.map-package.v1</c> (#100), Dashboard JSON to a dashboard package
-/// (#101), and a StoryMap export to report content (#104).
-///
-/// This is real work derived entirely from the supplied JSON — it contacts no server and fabricates no data.
-/// Per-layer / per-element / per-section fidelity is classified by inspecting the document (renderer type,
-/// element kind, block type), exactly mirroring the design-handoff <c>Fid</c> convention:
-/// clean (full fidelity) / degrade (usable, something changed) / drop (can't import) / manual (needs a
-/// data-resource binding). Anything that needs a live server stays gated behind the missing-binding state in
-/// the surfaces that consume this; the parser never decides bindings — it flags layers with no resolvable
-/// source as <see cref="ImportFidelity.Manual"/>.
-/// </summary>
+// The parser reads only the supplied JSON, contacts no server, and marks a layer with no resolvable source as manual instead of choosing a binding.
 public sealed class EsriContentImportParser
 {
     private static readonly JsonDocumentOptions DocOptions = new()
@@ -24,11 +12,6 @@ public sealed class EsriContentImportParser
         CommentHandling = JsonCommentHandling.Skip,
     };
 
-    /// <summary>
-    /// Parses an Esri Web Map JSON document into a <c>honua.map-package.v1</c> conversion preview. Layer
-    /// fidelity is classified from the operational-layer <c>layerType</c> and renderer; heatmaps and widgets
-    /// drop, Arcade/unique-value renderers degrade, layers with no resolvable URL/item need a manual binding.
-    /// </summary>
     public EsriParseOutcome ParseWebMap(string json, string? fileName = null)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -203,7 +186,6 @@ public sealed class EsriContentImportParser
         return new EsriMappingRow(name, NormalizeLayerType(layerType), targetLayer, ImportFidelity.Clean, note, BoundResource: Slugify(name));
     }
 
-    /// <summary>Parses an Esri Dashboard JSON document into a dashboard-package conversion preview (#101).</summary>
     public EsriParseOutcome ParseDashboard(string json, string? fileName = null)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -331,7 +313,6 @@ public sealed class EsriContentImportParser
         }
     }
 
-    /// <summary>Parses an Esri StoryMap export into report-content conversion preview (#104).</summary>
     public EsriParseOutcome ParseStoryMap(string json, string? sourceLabel = null)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -453,16 +434,7 @@ public sealed class EsriContentImportParser
         }
     }
 
-    /// <summary>
-    /// Parses an Esri Instant App configuration into a <c>honua.app-package.v1</c> conversion preview (#158).
-    /// The two most common templates — <c>instant/sidebar</c> and <c>instant/basic</c> — are recognised by
-    /// <c>templateId</c>; an unknown template degrades to the Basic mapping. The app's bound web map / scene /
-    /// group becomes the app's primary content (a <see cref="ImportFidelity.Manual"/> binding row — the map
-    /// itself imports through the Web Map surface), and each enabled <c>values.*</c> capability toggle maps to
-    /// a Console app panel/tool. Capabilities Honua can't represent (custom Arcade splash, express locate,
-    /// theme CSS) drop or degrade with the reason named. This is deterministic, Console-side work derived only
-    /// from the supplied JSON — it contacts no server and fabricates no data (Console Patterns Charter §11).
-    /// </summary>
+    // An unrecognized template id degrades to the Basic mapping, and the bound web map, scene, or group stays a manual binding.
     public EsriParseOutcome ParseInstantApp(string json, string? fileName = null)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -582,20 +554,7 @@ public sealed class EsriContentImportParser
         }
     }
 
-    /// <summary>
-    /// Parses an ArcGIS Notebook (hosted arcpy) definition into a <c>honua.notebook-package.v1</c> conversion
-    /// preview (#159). ArcGIS Notebooks export as Jupyter <c>.ipynb</c> JSON: a <c>cells</c> array (code /
-    /// markdown / raw), notebook <c>metadata</c> (the kernelspec + an ArcGIS-specific runtime), injected
-    /// <c>parameters</c> (notebook parameterisation / a tagged parameters cell), and an optional task
-    /// <c>schedule</c>. Each cell, parameter, and the schedule become a row in the source -> target mapping
-    /// with per-row fidelity; raw cells and unknown kernels degrade with the reason named.
-    ///
-    /// Scope boundary (#159): Console <em>represents/imports the definition only</em>. Executing hosted arcpy
-    /// needs a server-side notebook/arcpy runtime, which is out of Console scope and tracked as a dependency,
-    /// so this parser never claims an execution capability — the page gates execution behind an explicit
-    /// missing-binding state. This is deterministic, Console-side work derived only from the supplied JSON;
-    /// it contacts no server and fabricates no data (Console Patterns Charter §11).
-    /// </summary>
+    // The parser imports the notebook definition only and does not claim a hosted execution capability.
     public EsriParseOutcome ParseNotebook(string json, string? fileName = null)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -1051,7 +1010,6 @@ public sealed class EsriContentImportParser
         return dot > 0 ? fileName[..dot] : fileName;
     }
 
-    /// <summary>A single Instant App capability toggle and how it maps to a Console app element.</summary>
     private readonly record struct InstantAppCapability(
         string Key,
         string SourceName,
@@ -1060,7 +1018,6 @@ public sealed class EsriContentImportParser
         ImportFidelity Fidelity,
         string Note);
 
-    /// <summary>A recognised Instant App template and its capability -> Console element mapping.</summary>
     private readonly record struct InstantAppTemplate(
         string DisplayName,
         IReadOnlyList<InstantAppCapability> Capabilities);

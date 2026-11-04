@@ -2,7 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>Preserves distinct serving and manager approval sources for one bound environment.</summary>
 public sealed class DualConsoleProposalsClient(
     IConsoleProposalsClient serving,
     IConsoleProposalsClient manager,
@@ -21,7 +20,6 @@ public sealed class DualConsoleProposalsClient(
         return new Uri(target.AbsoluteUri.TrimEnd('/') + "/") != new Uri(profile.ServerBaseUri.AbsoluteUri.TrimEnd('/') + "/");
     }
 
-    /// <inheritdoc />
     public async Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(
         string? status = null, string? kind = null, string? requestedBy = null, CancellationToken cancellationToken = default)
     {
@@ -66,15 +64,12 @@ public sealed class DualConsoleProposalsClient(
         }
     }
 
-    /// <inheritdoc />
     public Task<OperateSectionResult<ConsoleProposalDetail>> GetAsync(string proposalId, CancellationToken cancellationToken = default) =>
         Route(proposalId, (client, id) => client.GetAsync(id, cancellationToken), cancellationToken);
 
-    /// <inheritdoc />
     public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(string proposalId, CancellationToken cancellationToken = default) =>
         Route(proposalId, (client, id) => client.ApproveAsync(id, cancellationToken), cancellationToken);
 
-    /// <inheritdoc />
     public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(string proposalId, string reason, CancellationToken cancellationToken = default) =>
         Route(proposalId, (client, id) => client.RejectAsync(id, reason, cancellationToken), cancellationToken);
 

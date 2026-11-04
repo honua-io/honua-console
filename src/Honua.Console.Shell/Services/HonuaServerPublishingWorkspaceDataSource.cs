@@ -4,19 +4,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Publishing workspace data source bound to the real honua-server content publication registry
-/// (honua-server#1183) through the <see cref="IHonuaContentPublicationClient"/> shim. The matrix and
-/// review surface are projected from live publication reads — there is no in-memory publishing data
-/// in the merged result (Console Patterns Charter section 11).
-///
-/// The workspace discovers publications from <c>GET /api/v1/console/publications</c> (honua-server#3357).
-/// <c>Honua:Server:PublicationIds</c> is an optional selection: when it is empty every listed publication
-/// is shown, and when it is set those ids are read individually. Lookup, republish, and rollback still drive
-/// the author-first / quick-publish flow against the live lifecycle verbs. Endpoint issues (missing
-/// permission, not found, conflict, unsupported verb, transport, incomplete pagination) surface as explicit capability states
-/// instead of throwing or fabricating data.
-/// </summary>
 public sealed class HonuaServerPublishingWorkspaceDataSource : IPublishingWorkspaceDataSource
 {
     private const string Surface = "Publishing";
@@ -244,12 +231,7 @@ public sealed class HonuaServerPublishingWorkspaceDataSource : IPublishingWorksp
     }
 }
 
-/// <summary>
-/// Composition options for the server-bound publishing workspace. Publication ids are an optional
-/// selection instead of collection discovery (comma-separated
-/// <c>Honua:Server:PublicationIds</c> / <c>HONUA_SERVER_PUBLICATION_IDS</c>). An empty list shows
-/// every publication the registry returns.
-/// </summary>
+// An empty publication-id list shows every registry publication; a non-empty list is read id by id.
 public sealed class PublishingWorkspaceOptions
 {
     public PublishingWorkspaceOptions(IReadOnlyList<string> publicationIds)
@@ -260,7 +242,6 @@ public sealed class PublishingWorkspaceOptions
 
     public IReadOnlyList<string> PublicationIds { get; }
 
-    /// <summary>Parses a comma/semicolon/whitespace-separated publication-id list into trimmed, distinct ids.</summary>
     public static PublishingWorkspaceOptions FromConfiguredList(string? configuredList)
     {
         if (string.IsNullOrWhiteSpace(configuredList))
