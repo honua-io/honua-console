@@ -70,10 +70,18 @@ test("a malformed lock is refused", () => {
   assert.throws(() => lockFor(archive, { sha256: "e".repeat(63) }), /invalid sha256/);
   assert.throws(() => lockFor(archive, { tag: "latest" }), /invalid tag/);
   assert.throws(() => lockFor(archive, { mirror: "https://example.test" }), /must contain exactly/);
-  assert.throws(
-    () => lockFor(archive, { signerWorkflow: "someone/fork/.github/workflows/release.yml" }),
-    /signer workflow must belong to the release repository/,
-  );
+});
+
+test("a lock cannot redirect trust to another repository or signer workflow", () => {
+  const archive = releaseArchive();
+  const redirections = [
+    { repository: "attacker/honua-studio", signerWorkflow: "attacker/honua-studio/.github/workflows/release.yml" },
+    { repository: "attacker/honua-studio" },
+    { signerWorkflow: "honua-io/honua-studio/.github/workflows/unreviewed.yml" },
+  ];
+  for (const redirection of redirections) {
+    assert.throws(() => lockFor(archive, redirection), /invalid (?:repository|signerWorkflow)/, JSON.stringify(redirection));
+  }
 });
 
 test("a release whose digest differs from the lock is refused before extraction", async () => {

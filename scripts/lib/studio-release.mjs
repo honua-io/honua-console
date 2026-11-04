@@ -24,15 +24,17 @@ const ARTIFACT_MANIFEST = "honua-studio-artifact.json";
 const SDK_PROVENANCE = "SDK-PROVENANCE.json";
 const REQUIRED_FILES = ["console.js", "style.css", "LICENSE", "THIRD-PARTY-NOTICES.txt", SDK_PROVENANCE, PROVENANCE];
 const GITHUB_NAME = "[A-Za-z0-9][A-Za-z0-9._-]*";
+export const STUDIO_REPOSITORY = "honua-io/honua-studio";
+export const STUDIO_SIGNER_WORKFLOW = `${STUDIO_REPOSITORY}/.github/workflows/release.yml`;
 const isCommit = (value) => /^[a-f0-9]{40}$/.test(value);
 const LOCK_FIELDS = {
   schemaVersion: (value) => value === LOCK_SCHEMA,
-  repository: (value) => new RegExp(`^${GITHUB_NAME}/${GITHUB_NAME}$`).test(value),
+  repository: (value) => value === STUDIO_REPOSITORY,
   tag: (value) => /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(value),
   asset: (value) => new RegExp(`^${GITHUB_NAME}\\.tar\\.gz$`).test(value),
   sha256: (value) => /^[a-f0-9]{64}$/.test(value),
   sourceCommit: isCommit,
-  signerWorkflow: (value) => new RegExp(`^${GITHUB_NAME}/${GITHUB_NAME}/\\.github/workflows/${GITHUB_NAME}\\.ya?ml$`).test(value),
+  signerWorkflow: (value) => value === STUDIO_SIGNER_WORKFLOW,
   sdkRevision: isCommit,
 };
 
@@ -44,9 +46,6 @@ export function parseStudioReleaseLock(text) {
   }
   const invalid = expectedFields.find((field) => typeof lock[field] !== "string" || !LOCK_FIELDS[field](lock[field]));
   if (invalid) throw new Error(`the Studio release lock has an invalid ${invalid}`);
-  if (!lock.signerWorkflow.startsWith(`${lock.repository}/`)) {
-    throw new Error("the Studio release signer workflow must belong to the release repository");
-  }
   return Object.freeze(lock);
 }
 
@@ -54,8 +53,8 @@ export async function readStudioReleaseLock(path = STUDIO_RELEASE_LOCK_PATH) {
   return parseStudioReleaseLock(await readFile(path, "utf8"));
 }
 
-export function releaseAssetUrl({ repository, tag, asset }) {
-  return `https://github.com/${repository}/releases/download/${tag}/${asset}`;
+export function releaseAssetUrl({ tag, asset }) {
+  return `https://github.com/${STUDIO_REPOSITORY}/releases/download/${tag}/${asset}`;
 }
 
 export async function fetchStudioRelease(lock, destination, { cacheDirectory, fetchImpl = fetch, limits = RELEASE_LIMITS } = {}) {

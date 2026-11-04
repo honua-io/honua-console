@@ -51,8 +51,8 @@ jobs:
         id: studio
         uses: ./.github/actions/fetch-studio-release
 
-      # The signer workflow, tag and commit all come from the lock: a release re-tagged, built from
-      # another commit or signed by any other workflow fails here.
+      # The repository and signer workflow are fixed here, so editing the lock selects a release but
+      # cannot redirect trust; the tag and commit come from the lock.
       - name: Verify the release build-provenance attestation
         env:
           GH_TOKEN: ${{ github.token }}
@@ -60,8 +60,8 @@ jobs:
           LOCK: scripts/studio-release.lock.json
         run: |
           gh attestation verify "$ARCHIVE" \
-            --repo "$(jq -r .repository "$LOCK")" \
-            --signer-workflow "$(jq -r .signerWorkflow "$LOCK")" \
+            --repo honua-io/honua-studio \
+            --signer-workflow honua-io/honua-studio/.github/workflows/release.yml \
             --source-ref "refs/tags/$(jq -r .tag "$LOCK")" \
             --source-digest "$(jq -r .sourceCommit "$LOCK")" \
             --deny-self-hosted-runners

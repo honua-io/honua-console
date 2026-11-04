@@ -3,6 +3,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { test } from "node:test";
 
+import { STUDIO_REPOSITORY, STUDIO_SIGNER_WORKFLOW } from "../lib/studio-release.mjs";
+
 const repoRoot = resolve(import.meta.dirname, "../..");
 const workflowDirectory = resolve(repoRoot, ".github/workflows");
 const workflows = readdirSync(workflowDirectory)
@@ -53,9 +55,10 @@ test("CI verifies the release attestation against the signer, tag and commit in 
   assert.match(job, /permissions:\n {6}attestations: read\n {6}contents: read\n/);
   assert.match(job, /GH_TOKEN: \$\{\{ github\.token \}\}/);
   assert.match(job, /gh attestation verify "\$ARCHIVE"/);
-  for (const [flag, field] of [["repo", ".repository"], ["signer-workflow", ".signerWorkflow"], ["source-digest", ".sourceCommit"]]) {
-    assert.ok(job.includes(`--${flag} "$(jq -r ${field} "$LOCK")"`), flag);
-  }
+  assert.ok(job.includes(`--repo ${STUDIO_REPOSITORY} \\\n`), "the attested repository is fixed in CI");
+  assert.ok(job.includes(`--signer-workflow ${STUDIO_SIGNER_WORKFLOW} \\\n`), "the signer workflow is fixed in CI");
+  assert.doesNotMatch(job, /jq -r \.(?:repository|signerWorkflow)/);
+  assert.ok(job.includes('--source-digest "$(jq -r .sourceCommit "$LOCK")"'));
   assert.ok(job.includes('--source-ref "refs/tags/$(jq -r .tag "$LOCK")"'));
   assert.match(job, /--deny-self-hosted-runners/);
 });

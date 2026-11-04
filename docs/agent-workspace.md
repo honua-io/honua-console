@@ -88,10 +88,12 @@ until the canonical workspace backend is integrated. This is an explicit GA bloc
 
 ### Studio release pin
 
-The Studio bundle is not committed. `scripts/studio-release.lock.json` names the
-honua-studio repository, the release tag, the console-assets archive and its
-SHA-256, the release's source commit, the workflow that signs its
-build-provenance attestation, and the SDK revision the bundle embeds.
+The Studio bundle is not committed. `scripts/studio-release.lock.json` selects the
+release: its tag, the console-assets archive and its SHA-256, the release's source
+commit and the SDK revision the bundle embeds. The trusted repository
+(`honua-io/honua-studio`) and attestation signer workflow (its `release.yml`) are fixed
+in `scripts/lib/studio-release.mjs` and the CI job; the lock repeats them for
+provenance and is refused when they differ, so a lock edit cannot redirect trust.
 `node scripts/fetch-studio-release.mjs` downloads that archive from the GitHub
 release over HTTPS, refuses a digest mismatch, extracts only regular files inside
 a fresh temporary directory and vendors them into the gitignored
@@ -106,8 +108,8 @@ before every build, run and publish, and every CI job that builds the host runs 
 first. `--verify DIR` checks a vendored or published tree without fetching.
 
 The CI job "Verify Studio release attestation" runs `gh attestation verify` on the
-locked archive with the lock's repository, signer workflow, tag ref and source
-commit. The managed provenance retains pending installed-workspace qualification;
+locked archive with the fixed repository and signer workflow and the lock's tag ref
+and source commit. The managed provenance retains pending installed-workspace qualification;
 the release alone does not qualify the complete Console customer and agent journeys.
 
 To move Console to another Studio release:
