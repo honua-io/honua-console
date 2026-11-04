@@ -46,7 +46,7 @@ public sealed partial class HonuaAdminOperateHttpClient
         JsonElement? document,
         CancellationToken cancellationToken = default) =>
         SendEnvelopeAsync<HonuaAdminLayerAuthoringDocument>(
-            () => AuthoringDocumentPut($"/api/v1/admin/metadata/layers/{layerId}/popup-info", document),
+            () => JsonRequest(HttpMethod.Put, $"/api/v1/admin/metadata/layers/{layerId}/popup-info", document),
             "PUT /api/v1/admin/metadata/layers/{layerId}/popup-info",
             cancellationToken);
 
@@ -63,12 +63,7 @@ public sealed partial class HonuaAdminOperateHttpClient
         JsonElement? document,
         CancellationToken cancellationToken = default) =>
         SendEnvelopeAsync<HonuaAdminLayerAuthoringDocument>(
-            () => AuthoringDocumentPut($"/api/v1/admin/metadata/layers/{layerId}/drawing-info", document),
+            () => JsonRequest(HttpMethod.Put, $"/api/v1/admin/metadata/layers/{layerId}/drawing-info", document),
             "PUT /api/v1/admin/metadata/layers/{layerId}/drawing-info",
             cancellationToken);
-
-    // The PUT body is the raw document (JSON null clears it). The path stays relative to
-    // HttpClient.BaseAddress, unlike the other admin requests.
-    private static HttpRequestMessage AuthoringDocumentPut(string path, JsonElement? document) =>
-        new(HttpMethod.Put, path) { Content = JsonContent.Create(document, options: JsonOptions) };
 }

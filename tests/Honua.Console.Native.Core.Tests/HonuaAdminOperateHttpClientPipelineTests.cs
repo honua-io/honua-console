@@ -317,6 +317,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     [InlineData(GetEnvelope)]
     [InlineData(PostEnvelope)]
     [InlineData(PutEnvelope)]
+    [InlineData(PutAuthoringDocument)]
     [InlineData(GetTableDiscovery)]
     [InlineData(PostImportUpload)]
     [InlineData(GetGeoservicesImportJob)]
