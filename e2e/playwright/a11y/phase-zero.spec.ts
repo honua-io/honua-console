@@ -1,7 +1,12 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 const MINIMUM_TEXT_CONTRAST = 4.5;
 const MINIMUM_CONTROL_CONTRAST = 3;
+
+async function openInteractiveRoute(page: Page, route: string): Promise<void> {
+  await page.goto(route);
+  await expect(page.locator('h1')).toBeFocused();
+}
 
 function luminance(color: string): number {
   const channels = color.match(/[\d.]+/g)!.slice(0, 3).map(Number).map(channel => {
@@ -19,7 +24,7 @@ function contrast(foreground: string, background: string): number {
 for (const colorScheme of ['light', 'dark'] as const) {
   test(`legacy routes retain the light palette in a system-${colorScheme} browser`, async ({ page }) => {
     await page.emulateMedia({ colorScheme });
-    await page.goto('/operate/data');
+    await openInteractiveRoute(page, '/operate/data');
     await expect(page.locator('h1')).toHaveCount(1);
     const palette = await page.evaluate(() => {
       const root = getComputedStyle(document.documentElement);
@@ -38,7 +43,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 }
 
 test('rendered Add data links retain readable text inside action rows', async ({ page }, info) => {
-  await page.goto('/operate/data');
+  await openInteractiveRoute(page, '/operate/data');
   const action = page.locator('.console-action-row a[href$="new"]').first();
   await expect(action).toBeVisible();
   const observations = [];
@@ -52,7 +57,9 @@ test('rendered Add data links retain readable text inside action rows', async ({
     observations.push({ state, ...colors, ratio });
     expect(ratio).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST);
   }
+  await page.keyboard.press('Tab');
   await action.focus();
+  await expect(action).toBeFocused();
   const focus = await action.evaluate(element => {
     const style = getComputedStyle(element);
     return { shadow: style.boxShadow, outline: style.outlineStyle };
@@ -62,7 +69,7 @@ test('rendered Add data links retain readable text inside action rows', async ({
 });
 
 test('semantic text, status and control pairs meet computed contrast', async ({ page }, info) => {
-  await page.goto('/operate/data');
+  await openInteractiveRoute(page, '/operate/data');
   const pairs = await page.evaluate(() => {
     const style = getComputedStyle(document.documentElement);
     const token = (name: string) => style.getPropertyValue(`--c-${name}`).trim();
@@ -86,9 +93,11 @@ test('semantic text, status and control pairs meet computed contrast', async ({ 
 
 test('forced colors retain an outline and reduced motion stops shell animation', async ({ page }) => {
   await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
-  await page.goto('/operate/data');
+  await openInteractiveRoute(page, '/operate/data');
   const action = page.locator('.console-action-row a[href$="new"]').first();
+  await page.keyboard.press('Tab');
   await action.focus();
+  await expect(action).toBeFocused();
   const style = await action.evaluate(element => {
     const computed = getComputedStyle(element);
     return { outline: computed.outlineStyle, outlineWidth: computed.outlineWidth };
@@ -102,7 +111,7 @@ test('forced colors retain an outline and reduced motion stops shell animation',
 });
 
 test('secondary button and tab style boundaries meet non-text contrast', async ({ page }, info) => {
-  await page.goto('/operate/data/new');
+  await openInteractiveRoute(page, '/operate/data/new');
   const observations = await page.evaluate(() => {
     const tabs = document.createElement('nav');
     tabs.className = 'console-tab-row';

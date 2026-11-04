@@ -866,7 +866,7 @@ p {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    border: 1px solid var(--honua-border);
+    border: 1px solid var(--c-border-strong);
     border-radius: 8px;
     padding: 0 11px;
     background: var(--honua-surface);
@@ -1602,7 +1602,6 @@ p {
 .console-tab-row a,
 .console-tab-row button {
     padding: 8px 10px;
-    border: 1px solid var(--honua-border);
     border-radius: 8px;
     background: var(--honua-surface);
     color: var(--honua-accent-strong);

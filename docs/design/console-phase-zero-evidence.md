@@ -13,8 +13,9 @@ The shell and navigation retain their existing structure.
 | Temporal, unavailable | [1440 px](../images/console-phase-zero/capability-unavailable-1440.png) | [390 px](../images/console-phase-zero/capability-unavailable-390.png) |
 
 The browser accessibility suite checks actual rendered Add data text/background
-contrast in normal and hover states, resolved semantic token pairs, system-dark
-consistency, forced-color outlines and reduced motion. Shared state tests cover
+contrast in normal and hover states, secondary-button and tab boundaries, resolved
+semantic token pairs, system-dark consistency, forced-color outlines and computed
+shell transition durations under reduced motion. Shared state tests cover
 page/embedded headings, denial without mounting children, labelled focusable table
 regions and native keyboard controls in the existing publication disclosure list.
 
