@@ -17,9 +17,7 @@ public static class ConsoleEnvironmentProfileDefaults
             TransportCapabilities = new ConsoleEnvironmentTransportCapabilities
             {
                 BrowserHttp = true,
-                BrowserRealtime = true,
-                NativeGrpc = true,
-                NativeMtls = false
+                BrowserRealtime = true
             },
             Account = new ConsoleAccountBinding
             {
@@ -40,9 +38,7 @@ public static class ConsoleEnvironmentProfileDefaults
             TransportCapabilities = new ConsoleEnvironmentTransportCapabilities
             {
                 BrowserHttp = true,
-                BrowserRealtime = true,
-                NativeGrpc = true,
-                NativeMtls = true
+                BrowserRealtime = true
             },
             Account = new ConsoleAccountBinding
             {
@@ -71,14 +67,12 @@ public static class ConsoleEnvironmentProfileDefaults
         new()
         {
             ProfileId = DevelopmentProfileId,
-            LastRoute = "/studio",
-            LastStreamingResumeToken = "dev-resume-0"
+            LastRoute = "/studio"
         },
         new()
         {
             ProfileId = StagingProfileId,
-            LastRoute = "/operate/native-stream",
-            LastStreamingResumeToken = "staging-resume-0"
+            LastRoute = "/operate"
         }
     ];
 }

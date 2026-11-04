@@ -57,7 +57,6 @@ public sealed class ConsoleHomePageTests
         services.AddSingleton<IConsoleEnvironmentProfileStore>(new StubProfileStore());
         services.AddSingleton<IConsoleApprovalInboxClient>(inbox);
         services.AddSingleton<IConsoleProposalRealtimeClient>(realtime);
-        services.AddSingleton<IConsoleHostCapabilities>(new StubHostCapabilities());
         services.AddSingleton<IConsoleCapabilityManifest>(new ConsoleCapabilityManifest());
 
         // ConsoleHomePage now embeds the shared ops-summary strip (console#292 scope item 2);
@@ -97,13 +96,6 @@ public sealed class ConsoleHomePageTests
 
         public Task SaveStateAsync(ConsoleEnvironmentState state, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("Not exercised by this test.");
-    }
-
-    private sealed class StubHostCapabilities : IConsoleHostCapabilities
-    {
-        public string HostKind => "browser";
-
-        public bool SupportsNativeTransports => false;
     }
 
     private sealed class StubInboxClient : IConsoleApprovalInboxClient

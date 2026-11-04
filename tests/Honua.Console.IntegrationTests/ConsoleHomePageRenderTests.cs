@@ -23,8 +23,6 @@ public sealed class ConsoleHomePageRenderTests
             new InMemoryConsoleEnvironmentProfileStore([]));
         ctx.Services.AddSingleton<IConsoleProposalsClient>(proposals);
         ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(new ConsoleApprovalInboxClient(proposals));
-        ctx.Services.AddSingleton<IConsoleHostCapabilities>(
-            new BrowserConsoleHostCapabilities());
         return ctx;
     }
 
@@ -88,7 +86,6 @@ public sealed class ConsoleHomePageRenderTests
             Result = OperateSectionResult<ApprovalInboxSnapshot>.Denied(
                 OperateSectionStatus.Unavailable, "The honua-server admin API returned 500."),
         });
-        ctx.Services.AddSingleton<IConsoleHostCapabilities>(new BrowserConsoleHostCapabilities());
 
         var page = ctx.Render<ConsoleHomePage>();
 

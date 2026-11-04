@@ -198,7 +198,7 @@ public sealed class Wave5ValidatorTests
     // --- Environment profile ---
 
     private static EnvironmentProfileState ValidProfile() =>
-        new("Honua Prod", "https://prod.honua.example", MtlsEnabled: false, CertValue: null);
+        new("Honua Prod", "https://prod.honua.example");
 
     [Fact]
     public void Environment_Valid_NoErrors() =>
@@ -223,22 +223,5 @@ public sealed class Wave5ValidatorTests
             EnvironmentProfileValidator.Instance.Evaluate(ValidProfile() with { ServerBaseUri = uri }),
             e => e.FieldKey == EnvironmentProfileFieldKeys.ServerBaseUri);
         Assert.Equal("environment.serverBaseUri.https", error.Code);
-    }
-
-    [Fact]
-    public void Environment_MtlsWithoutCert_Blocks()
-    {
-        var state = ValidProfile() with { MtlsEnabled = true, CertValue = null };
-        var error = Assert.Single(
-            EnvironmentProfileValidator.Instance.Evaluate(state),
-            e => e.FieldKey == EnvironmentProfileFieldKeys.CertValue);
-        Assert.Equal("environment.certValue.requiredWhenMtls", error.Code);
-    }
-
-    [Fact]
-    public void Environment_MtlsWithCert_IsValid()
-    {
-        var state = ValidProfile() with { MtlsEnabled = true, CertValue = "CN=Honua Operator" };
-        Assert.Empty(EnvironmentProfileValidator.Instance.Evaluate(state));
     }
 }

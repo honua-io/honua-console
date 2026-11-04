@@ -18,7 +18,6 @@ public sealed class ConsolePresentationTests
         context.AddConsoleNotifications();
         context.Services.AddSingleton<IConsoleProductMode>(
             new ConfiguredConsoleProductMode(ConsoleProductModeParser.Parse(mode)));
-        context.Services.AddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
         context.Services.AddSingleton<IConsoleCapabilityManifest>(ConsoleCapabilityManifest.FromConfigurationList(null));
         context.AddAuthorization().SetAuthorized("synthetic-operator");
         context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/settings");
