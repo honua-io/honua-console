@@ -55,11 +55,6 @@ export const test = base.extend<{ admin: AdminApi }>({
       extraHTTPHeaders: { 'X-API-Key': ADMIN_KEY },
     });
     const tracked = new Set<string>();
-    const postConnection = async (body: Record<string, unknown>) => {
-      const res = await ctx.post('/api/v1/admin/connections/', { data: body });
-      expect(res.ok(), `create connection failed: ${res.status()} ${await res.text()}`).toBeTruthy();
-      return (await res.json()).data as AdminConnection;
-    };
 
     const api: AdminApi = {
       serverUrl: SERVER_URL,
@@ -73,14 +68,14 @@ export const test = base.extend<{ admin: AdminApi }>({
         return (await this.listConnections()).find((c) => c.name === name);
       },
       async createConnection(body) {
-        const connection = await postConnection(body);
+        const connection = await postConnection(ctx, body);
         if (typeof body.name === 'string') {
           tracked.add(body.name);
         }
         return connection;
       },
       async getOrCreateKeptConnection(body) {
-        return (await this.findConnectionByName(body.name)) ?? postConnection(body);
+        return (await this.findConnectionByName(body.name)) ?? postConnection(ctx, body);
       },
       async deleteConnection(id) {
         await ctx.delete(`/api/v1/admin/connections/${id}`);
@@ -95,16 +90,8 @@ export const test = base.extend<{ admin: AdminApi }>({
         const body = await res.json();
         return (body.data ?? []) as any[];
       },
-      async publishLayer(connectionId, body) {
-        const res = await ctx.post(`/api/v1/admin/connections/${connectionId}/layers/`, { data: body });
-        expect(res.status(), `publish layer failed: ${await res.text()}`).toBe(201);
-        return (await res.json()).data;
-      },
-      async putJson(path, body) {
-        const res = await ctx.put(path, { data: body });
-        expect(res.ok(), `PUT ${path} failed: ${res.status()} ${await res.text()}`).toBeTruthy();
-        return res.json();
-      },
+      publishLayer: (connectionId, body) => publishLayer(ctx, connectionId, body),
+      putJson: (path, body) => putJson(ctx, path, body),
       async getJson(path) {
         const res = await ctx.get(path);
         expect(res.ok(), `GET ${path} failed: ${res.status()} ${await res.text()}`).toBeTruthy();
@@ -113,20 +100,41 @@ export const test = base.extend<{ admin: AdminApi }>({
     };
 
     await use(api);
-
-    // Teardown: delete every connection a spec created (best-effort; ignore in-use/404).
-    for (const name of tracked) {
-      try {
-        const conn = await api.findConnectionByName(name);
-        if (conn) {
-          await api.deleteConnection(conn.connectionId);
-        }
-      } catch {
-        // Leave cleanup failures non-fatal so one stuck row doesn't fail the suite.
-      }
-    }
+    await deleteTrackedConnections(api, tracked);
     await ctx.dispose();
   },
 });
+
+async function postConnection(ctx: APIRequestContext, body: Record<string, unknown>): Promise<AdminConnection> {
+  const res = await ctx.post('/api/v1/admin/connections/', { data: body });
+  expect(res.ok(), `create connection failed: ${res.status()} ${await res.text()}`).toBeTruthy();
+  return (await res.json()).data as AdminConnection;
+}
+
+async function publishLayer(ctx: APIRequestContext, connectionId: string, body: Record<string, unknown>): Promise<any> {
+  const res = await ctx.post(`/api/v1/admin/connections/${connectionId}/layers/`, { data: body });
+  expect(res.status(), `publish layer failed: ${await res.text()}`).toBe(201);
+  return (await res.json()).data;
+}
+
+async function putJson(ctx: APIRequestContext, path: string, body: Record<string, unknown>): Promise<any> {
+  const res = await ctx.put(path, { data: body });
+  expect(res.ok(), `PUT ${path} failed: ${res.status()} ${await res.text()}`).toBeTruthy();
+  return res.json();
+}
+
+// Best effort: a connection still in use, or already gone, must not fail the suite.
+async function deleteTrackedConnections(api: AdminApi, tracked: Set<string>): Promise<void> {
+  for (const name of tracked) {
+    try {
+      const conn = await api.findConnectionByName(name);
+      if (conn) {
+        await api.deleteConnection(conn.connectionId);
+      }
+    } catch {
+      // A stuck row is left for the testbed teardown.
+    }
+  }
+}
 
 export { expect };
