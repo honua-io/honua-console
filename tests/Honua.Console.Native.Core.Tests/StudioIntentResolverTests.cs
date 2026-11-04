@@ -202,7 +202,7 @@ public sealed class StudioIntentResolverTests
     public void FlagOff_RegistersNoopResolverButKeepsLiveRegistryForConsoleGates()
     {
         using var provider = new ServiceCollection()
-            .AddHonuaConsoleShell(honuaServerBaseUrl: ServerBaseUrl, registryIntentResolutionEnabled: false)
+            .AddHonuaConsoleShell(new HonuaConsoleShellOptions { ServerBaseUrl = ServerBaseUrl, RegistryIntentResolutionEnabled = false })
             .BuildServiceProvider();
 
         Assert.IsType<NoopStudioIntentResolver>(provider.GetRequiredService<IStudioIntentResolver>());
@@ -214,7 +214,7 @@ public sealed class StudioIntentResolverTests
     public void ConsoleCapabilityManifest_IsScopedPerCircuit()
     {
         var services = new ServiceCollection();
-        services.AddHonuaConsoleShell(honuaServerBaseUrl: ServerBaseUrl);
+        services.AddHonuaConsoleShell(new HonuaConsoleShellOptions { ServerBaseUrl = ServerBaseUrl });
 
         var descriptor = services.Single(item => item.ServiceType == typeof(IConsoleCapabilityManifest));
 
@@ -225,7 +225,7 @@ public sealed class StudioIntentResolverTests
     public void FlagOn_WithServerBound_RegistersRegistryBackedResolver()
     {
         using var provider = new ServiceCollection()
-            .AddHonuaConsoleShell(honuaServerBaseUrl: ServerBaseUrl, registryIntentResolutionEnabled: true)
+            .AddHonuaConsoleShell(new HonuaConsoleShellOptions { ServerBaseUrl = ServerBaseUrl, RegistryIntentResolutionEnabled = true })
             .BuildServiceProvider();
 
         Assert.IsType<StudioIntentResolver>(provider.GetRequiredService<IStudioIntentResolver>());
@@ -236,7 +236,7 @@ public sealed class StudioIntentResolverTests
     public void FlagOn_WithoutServer_FallsBackToNoopResolver()
     {
         using var provider = new ServiceCollection()
-            .AddHonuaConsoleShell(honuaServerBaseUrl: null, registryIntentResolutionEnabled: true)
+            .AddHonuaConsoleShell(new HonuaConsoleShellOptions { RegistryIntentResolutionEnabled = true })
             .BuildServiceProvider();
 
         Assert.IsType<NoopStudioIntentResolver>(provider.GetRequiredService<IStudioIntentResolver>());

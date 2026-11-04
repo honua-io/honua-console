@@ -10,28 +10,18 @@ namespace Honua.Console.Shell.DependencyInjection;
 
 public static class HonuaConsoleShellServiceCollectionExtensions
 {
-    public static IServiceCollection AddHonuaConsoleShell(
-        this IServiceCollection services,
-        string? honuaServerBaseUrl = null,
-        string? honuaServerAdminApiKey = null,
-        string? honuaServerPublicationIds = null,
-        string? honuaServerTemporalSources = null,
-        string? honuaSupportBaseUrl = null,
-        string? honuaLlmBaseUrl = null,
-        string? honuaLlmModel = null,
-        string? honuaLlmApiKey = null,
-        string? honuaSupportKbPath = null,
-        string? honuaConsoleAdvertisedCapabilities = null,
-        bool registryIntentResolutionEnabled = false,
-        string? honuaServerCredentialMode = null,
-        string? honuaConsoleMode = null)
+    public static IServiceCollection AddHonuaConsoleShell(this IServiceCollection services) =>
+        services.AddHonuaConsoleShell(new HonuaConsoleShellOptions());
+
+    public static IServiceCollection AddHonuaConsoleShell(this IServiceCollection services, HonuaConsoleShellOptions options)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
 
-        services.TryAddSingleton(new ConsolePresentation(honuaConsoleMode));
+        services.TryAddSingleton(new ConsolePresentation(options.ConsoleMode));
         services.TryAddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
         services.TryAddSingleton<IConsoleProductMode>(
-            _ => new ConfiguredConsoleProductMode(ConsoleProductModeParser.Parse(honuaConsoleMode)));
+            _ => new ConfiguredConsoleProductMode(ConsoleProductModeParser.Parse(options.ConsoleMode)));
 
         // Platform-adaptive keyboard-shortcut glyphs (honua-console#313): the primary modifier renders as
         // ⌘ on macOS and Ctrl on Windows/Linux. The default follows the host OS (exact on the native desktop
@@ -45,7 +35,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddScoped<IConsoleCapabilityManifest>(serviceProvider =>
             new ManifestBackedConsoleCapabilityManifest(
                 serviceProvider.GetRequiredService<ICapabilityRegistryClient>(),
-                ConsoleCapabilityManifest.SplitList(honuaConsoleAdvertisedCapabilities)));
+                ConsoleCapabilityManifest.SplitList(options.AdvertisedCapabilities)));
 
         // Shell-owned toast/notification surface. Scoped = one queue per Blazor circuit so a toast a
         // page raises is shown only to that connected user. The single ConsoleNotificationHost in
@@ -69,7 +59,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // unavailable until a per-operator/per-profile BFF exists; a process-wide cookie
         // client would bleed identity. A process-wide API key is available only when
         // HeadlessService is selected and the sessionless profile is ServiceApiKey.
-        var serverCredentialMode = ConsoleServerCredentialModeParser.Parse(honuaServerCredentialMode);
+        var serverCredentialMode = ConsoleServerCredentialModeParser.Parse(options.ServerCredentialMode);
         services.TryAddSingleton<IConsoleOperatorBearerExchange, UnavailableConsoleOperatorBearerExchange>();
         services.TryAddSingleton<IConsoleOperatorBearerProvider>(serviceProvider =>
             new ConsoleOperatorBearerProvider(
@@ -82,11 +72,11 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // flag. Each editor instead owns a private FormDirtyState instance and passes its IsDirty to
         // the <UnsavedChangesGuard/>. Editors are wired in the per-surface waves.
 
-        AddStudioAuthoringShell(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddStudioFormPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddStudioMapStyleCatalogDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddStudioReportPublicationDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddStudioAuthoringShell(services, options.ServerBaseUrl, options.ServerAdminApiKey);
+        AddStudioFormPackageDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey);
+        AddStudioMapStyleCatalogDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey);
+        AddStudioReportPublicationDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey);
+        AddStudioWorkflowPackageClient(services, options.ServerBaseUrl, options.ServerAdminApiKey);
         AddCollectAutomationClient(services);
 
         // The omni-prompt AI console (honua-console#203) routes one free-text prompt to the right lane —
@@ -100,20 +90,20 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // generate/validate/preview/publish lifecycle resolves against the live capability-manifest
         // registry and deferred/unavailable capabilities are hidden from Studio AI. OFF preserves current
         // behavior via the no-op resolver (no registry gating).
-        AddStudioIntentResolution(services, honuaServerBaseUrl, registryIntentResolutionEnabled);
-        AddShareAccessDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddRbacAccessDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddCatalogDiscoveryDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddTemporalCapabilityClient(services, honuaServerBaseUrl, honuaServerAdminApiKey, honuaServerTemporalSources);
+        AddStudioIntentResolution(services, options.ServerBaseUrl, options.RegistryIntentResolutionEnabled);
+        AddShareAccessDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey);
+        AddRbacAccessDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey);
+        AddCatalogDiscoveryDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey);
+        AddOperateTransitionDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey);
+        AddTemporalCapabilityClient(services, options.ServerBaseUrl, options.ServerAdminApiKey, options.ServerTemporalSources);
         AddEsriMigrationRunDataSource(services);
-        AddPublishingWorkspaceDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey, honuaServerPublicationIds);
-        AddConsoleCatalogClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddConsoleSensorThingsClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddConsoleSceneClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddOperateAlertRulesDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddVersionManagementOperation(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddOperateLayerStyleOverrideDataSource(services, honuaServerBaseUrl);
+        AddPublishingWorkspaceDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey, options.ServerPublicationIds);
+        AddConsoleCatalogClient(services, options.ServerBaseUrl, options.ServerAdminApiKey);
+        AddConsoleSensorThingsClient(services, options.ServerBaseUrl, options.ServerAdminApiKey);
+        AddConsoleSceneClient(services, options.ServerBaseUrl, options.ServerAdminApiKey);
+        AddOperateAlertRulesDataSource(services, options.ServerBaseUrl, options.ServerAdminApiKey);
+        AddVersionManagementOperation(services, options.ServerBaseUrl, options.ServerAdminApiKey);
+        AddOperateLayerStyleOverrideDataSource(services, options.ServerBaseUrl);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
 
         // Operate observability binds to a real honua-server through a thin
@@ -127,7 +117,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 CreateOperateObservabilityHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                honuaServerAdminApiKey,
+                options.ServerAdminApiKey,
                 serviceProvider.GetService<ILogger<HttpConsoleOperateObservabilityClient>>()));
 
         // GitOps metadata release visualization binds to a real honua-server through
@@ -142,7 +132,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             new HttpConsoleGitOpsReleaseClient(
                 CreateOperateObservabilityHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                honuaServerAdminApiKey));
+                options.ServerAdminApiKey));
 
         // The human-in-the-loop deploy approval surface binds to the honua-server
         // deploy-control admin endpoints (GET /operations/{id}, POST .../submit,
@@ -159,7 +149,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 CreateManagerHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                honuaServerAdminApiKey,
+                options.ServerAdminApiKey,
                 serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
                 serverCredentialMode));
 
@@ -173,7 +163,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             new HttpConsoleDeployOperationsClient(
                 CreateManagerHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                honuaServerAdminApiKey));
+                options.ServerAdminApiKey));
 
         // Live deploy-operation progress (console#290, honua-server#2554 deploy-operations hub
         // group): connects to the same admin hub the proposals realtime client uses and joins
@@ -186,7 +176,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 serviceProvider.GetRequiredService<ILogger<SignalRConsoleDeployOperationRealtimeClient>>(),
-                honuaServerAdminApiKey,
+                options.ServerAdminApiKey,
                 serviceProvider.GetService<IConsoleManagerEndpoint>()));
 
         // The first-class agent-operation approval API (issue #193, honua-server #1694):
@@ -205,9 +195,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             var bearers = serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>();
             return new DualConsoleProposalsClient(
                 new HttpConsoleProposalsClient(CreateOperateObservabilityHttpClient(serviceProvider), profiles, sessions,
-                    honuaServerAdminApiKey, bearers, serverCredentialMode),
+                    options.ServerAdminApiKey, bearers, serverCredentialMode),
                 new HttpConsoleProposalsClient(CreateManagerHttpClient(serviceProvider), profiles, sessions,
-                    honuaServerAdminApiKey, bearers, serverCredentialMode),
+                    options.ServerAdminApiKey, bearers, serverCredentialMode),
                 profiles, serviceProvider.GetService<IConsoleManagerEndpoint>());
         });
 
@@ -216,7 +206,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 CreateOperateObservabilityHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                honuaServerAdminApiKey));
+                options.ServerAdminApiKey));
 
         // Live approval-inbox updates (issue #193, honua-server #1695): the console connects
         // from its server process to the honua-server admin realtime hub's proposals group at
@@ -228,7 +218,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 serviceProvider.GetRequiredService<ILogger<SignalRConsoleProposalRealtimeClient>>(),
-                honuaServerAdminApiKey,
+                options.ServerAdminApiKey,
                 serviceProvider.GetService<IConsoleManagerEndpoint>()));
 
         // The approval inbox (#193) aggregates every proposal source into one GIS-department
@@ -261,7 +251,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             new HttpConsoleServerVersionClient(
                 CreateOperateObservabilityHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                honuaServerAdminApiKey));
+                options.ServerAdminApiKey));
 
         // Operate metrics binds to the connected honua-server's production-monitoring
         // endpoints (group /monitoring, admin-authorized, bare JSON — NO ApiResponse
@@ -275,7 +265,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             new HttpConsoleMonitoringMetricsClient(
                 CreateOperateObservabilityHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                honuaServerAdminApiKey));
+                options.ServerAdminApiKey));
         services.TryAddSingleton<IOperateMetricsDataSource>(serviceProvider =>
             new OperateMetricsDataSource(
                 serviceProvider.GetRequiredService<IConsoleMonitoringMetricsClient>()));
@@ -295,7 +285,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             new HttpConsoleOpsHealthClient(
                 CreateManagerHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                honuaServerAdminApiKey));
+                options.ServerAdminApiKey));
         services.TryAddSingleton<IOpsHealthDataSource>(serviceProvider =>
             new OpsHealthDataSource(
                 serviceProvider.GetRequiredService<IConsoleOpsHealthClient>()));
@@ -311,14 +301,14 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 serviceProvider.GetRequiredService<ILogger<SignalRConsoleOpsHealthRealtimeClient>>(),
-                honuaServerAdminApiKey,
+                options.ServerAdminApiKey,
                 serviceProvider.GetService<IConsoleManagerEndpoint>()));
         services.TryAddSingleton<IConsoleOpsFindingsClient>(serviceProvider =>
             new HttpConsoleOpsFindingsClient(
                 CreateManagerHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                honuaServerAdminApiKey,
+                options.ServerAdminApiKey,
                 serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
                 serverCredentialMode));
 
@@ -332,7 +322,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 CreateManagerHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                honuaServerAdminApiKey,
+                options.ServerAdminApiKey,
                 serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
                 serverCredentialMode));
 
@@ -344,7 +334,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // section 11) rather than mocking a ticket round-trip. The context
         // builder auto-captures session/env/build/route/recent-errors so
         // customers ship context, not log dumps.
-        AddSupportTicketClient(services, honuaSupportBaseUrl);
+        AddSupportTicketClient(services, options.SupportBaseUrl);
 
         // Canonical sanitized diagnostic-bundle emitter (honua-console#307). The exporter is the
         // gate that validates every emitted bundle against the pinned diagnostic-bundle.v1 schema
@@ -368,9 +358,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         //     (optional Honua:Support:KbPath override); empty when absent;
         //   - the deflection log (structured ILogger events) so the deflection
         //     rate is measurable.
-        AddSupportAssistantClient(services, honuaLlmBaseUrl, honuaLlmModel, honuaLlmApiKey);
+        AddSupportAssistantClient(services, options.LlmBaseUrl, options.LlmModel, options.LlmApiKey);
         services.TryAddSingleton<IConsoleSupportKnowledgeBase>(
-            _ => FileConsoleSupportKnowledgeBase.Load(honuaSupportKbPath));
+            _ => FileConsoleSupportKnowledgeBase.Load(options.SupportKbPath));
         services.TryAddSingleton<IConsoleSupportDeflectionLog, ConsoleSupportDeflectionLog>();
 
         return services;

@@ -33,7 +33,7 @@ public sealed class OperateTransitionDataSourceTests
     {
         var services = new ServiceCollection();
 
-        services.AddHonuaConsoleShell("https://server.example", "test-api-key");
+        services.AddHonuaConsoleShell(new HonuaConsoleShellOptions { ServerBaseUrl = "https://server.example", ServerAdminApiKey = "test-api-key" });
 
         using var provider = services.BuildServiceProvider();
         var dataSource = provider.GetRequiredService<IOperateTransitionDataSource>();
