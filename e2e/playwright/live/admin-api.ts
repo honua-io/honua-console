@@ -34,6 +34,10 @@ export interface AdminApi {
   trackConnectionName(name: string): void;
   /** Admin layer registry for a service slot (metadata validation). */
   listLayers(connectionId: string, serviceName?: string): Promise<any[]>;
+  /** Publish a table as a layer directly (seeds a layer a spec then drives through the UI). */
+  publishLayer(connectionId: string, body: Record<string, unknown>): Promise<any>;
+  /** PUT arbitrary server JSON (e.g. a service access policy a spec starts from). */
+  putJson(path: string, body: Record<string, unknown>): Promise<any>;
   /** GET arbitrary server JSON (e.g. GeoServices /rest/services catalog or a FeatureServer /query). */
   getJson(path: string): Promise<any>;
 }
@@ -82,6 +86,16 @@ export const test = base.extend<{ admin: AdminApi }>({
         expect(res.ok(), `list layers failed: ${res.status()}`).toBeTruthy();
         const body = await res.json();
         return (body.data ?? []) as any[];
+      },
+      async publishLayer(connectionId, body) {
+        const res = await ctx.post(`/api/v1/admin/connections/${connectionId}/layers/`, { data: body });
+        expect(res.status(), `publish layer failed: ${await res.text()}`).toBe(201);
+        return (await res.json()).data;
+      },
+      async putJson(path, body) {
+        const res = await ctx.put(path, { data: body });
+        expect(res.ok(), `PUT ${path} failed: ${res.status()} ${await res.text()}`).toBeTruthy();
+        return res.json();
       },
       async getJson(path) {
         const res = await ctx.get(path);
