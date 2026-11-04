@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Http.Features;
 
 namespace Honua.Console.Web;
 
-// Catalog and feature reads require the operator bearer, a matching partition, and antiforgery on the catalog post.
+// Catalog and feature reads require the operator bearer, a matching partition, and antiforgery on the catalog post, and this transport is not supplied to the agent SDK.
 internal static class StudioReadBff
 {
     public static void MapStudioReadBff(this WebApplication app)

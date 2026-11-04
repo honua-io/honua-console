@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Honua.Console.Web.Auth;
 
-// These prefixes render anonymously; every other route stays authenticated, and each item is still authorized inside the surface.
+// These prefixes are anonymous exceptions to the fallback policy; explicit endpoint metadata still applies, and each item is authorized inside the surface.
 public static class ConsolePublicSurfaces
 {
     public static readonly IReadOnlyList<string> AnonymousPathPrefixes =

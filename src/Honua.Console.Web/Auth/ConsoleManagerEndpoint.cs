@@ -32,6 +32,7 @@ public sealed class ConsoleManagerEndpoint(IConfiguration? configuration) : ICon
     private static Uri DirectoryUri(Uri value) => new(value.AbsoluteUri.TrimEnd('/') + "/");
 }
 
+// This handler belongs only on the authenticated management client.
 public sealed class ConsoleManagerRoutingHandler(IConsoleEnvironmentProfileStore profiles, IConsoleManagerEndpoint endpoint)
     : DelegatingHandler
 {

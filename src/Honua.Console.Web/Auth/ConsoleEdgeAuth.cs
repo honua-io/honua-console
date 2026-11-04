@@ -17,7 +17,7 @@ public sealed class ConsoleEdgeAuthOptions
     // When set, X-Honua-Edge-Auth must match or a direct caller can spoof an operator; when unset, the proxy must be the only path and must strip client headers.
     public string? SharedSecret { get; set; }
 
-    // When set, bearer issuance and refresh require this HTTPS issuer and the same subject; when unset, environment identities stay independent.
+    // When set, the user header must be the raw OIDC subject, and issuance and refresh require that subject on this HTTPS issuer; when unset, environment identities stay independent.
     public string? ServerSessionIssuer { get; set; }
 
     internal static bool IsValidServerSessionIssuer(ConsoleEdgeAuthOptions options) =>

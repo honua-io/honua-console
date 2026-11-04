@@ -12,6 +12,7 @@ using Microsoft.Extensions.Options;
 
 namespace Honua.Console.Web.Auth;
 
+// Forwarded identity headers are trusted only from the configured proxy.
 public static class ConsoleAuthentication
 {
     internal static CookieSecurePolicy CookieSecurePolicyFor(bool isDevelopment) =>

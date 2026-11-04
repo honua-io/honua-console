@@ -175,7 +175,6 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         }
     }
 
-    // Drops the matching partition immediately instead of waiting for the idle lifetime.
     public void Remove(string operatorKey, ConsoleEnvironmentProfile profile)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operatorKey);
@@ -210,7 +209,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         return true;
     }
 
-    // A failed probe must not dispose a partition another overlapping sign-in already adopted.
+    // A failed configuration read drops its unadopted probe immediately so the slot is not held until the idle lifetime, and a partition another sign-in adopted stays.
     public bool TryRemoveIfUnadopted(ConsoleServerSessionPartition partition)
     {
         ArgumentNullException.ThrowIfNull(partition);
