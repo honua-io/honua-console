@@ -35,7 +35,7 @@ Console writes the original turn ID to authority-partitioned session storage bef
 
 Processes uses bounded human transport under `/api/processes`. Built-in graphs save immutable workflow-package versions, validate with the existing compiler and run through the server's workflow publication pipeline. Custom source/run calls name the actual workspace and use the human bearer through `/api/v1/agent/workspaces/{workspaceId}/processes/local`. The Console does not receive a daemon key. The server owns the configured private daemon origin and credential; binding and revocation are human-only. Imported outputs use ordinary multipart import and connection-layer publication. A layer is added to Studio only after a real publication receipt resolves to one unique live catalog source and the existing composition orchestrator accepts it.
 
-Refresh the managed Studio assets with `node scripts/vendor-studio-assets.mjs BUILD_DIRECTORY STUDIO_COMMIT_SHA SDK_COMMIT_SHA`. The vendor manifest records every asset's SHA-256 and both exact source revisions. The build must include the SDK's schema-aware canonical tool dispatch; the published SDK 0.2.2 predates that fix and is insufficient for the native broad-tool session.
+The Studio assets come from the honua-studio release pinned in `scripts/studio-release.lock.json`; see [Studio release pin](#studio-release-pin). The pinned bundle must include the SDK's schema-aware canonical tool dispatch; the published SDK 0.2.2 predates that fix and is insufficient for the native broad-tool session.
 
 The opt-in Docker local human bridge requires Console `Honua__Console__Auth__Mode=Dev`, `Honua__Console__Auth__LocalHumanBridge__Enabled=true`, `ASPNETCORE_ENVIRONMENT=Development` and host-only `HONUA_LOCAL_HUMAN_BRIDGE_KEY`. Server configuration requires `AgentWorkspace__LocalHumanBridge__Enabled=true`, the independent bridge `Key`, a fixed `TenantId`, and the existing `Authentication__OperatorBearer` enabled with its own server-only signing key. The exchange is restricted to the configured server origin and cookie principal. It produces a ten-minute human bearer stored only in the operator/profile session. The agent key and transport never participate in this exchange; production environments do not expose the exchange endpoint.
 
@@ -86,71 +86,31 @@ in the shared Studio editor.
 The current server prerequisite adapter fails closed with `workspace-context-unavailable`
 until the canonical workspace backend is integrated. This is an explicit GA blocker.
 
-### Checked Studio filtering bundle
+### Studio release pin
 
-The managed assets include Studio `1e7902c58b7e3f586784bb616ce56ac367f6768c`:
-shared source filtering for maps, charts and tables, comparable ISO date ranges,
-preserved half-open date inputs, and local read-only audience controls for the
-same saved map/chart/table composition. Layer aliases resolve to their backing
-data source for controls and widgets, including authoring option domains;
-ambiguous aliases fail closed. Shared audience reads are cancelled when that viewer
-is replaced or disposed. Filtered, truncated table notices retain the original loaded
-count and server total; informational bounded notices remain distinct from render
-errors. The assets were imported with the normal vendor
-script from the successful [main Smoke Suite](https://github.com/honua-io/honua-studio/actions/runs/39934033982).
-The producer passed five browser checks, including actual worker requests and
-painted HTTP-backed maps with the unmodified bundle mounted at `/`, `/_studio/`,
-and `/tenants/kestrel/_studio/`. Relative worker URLs now follow the module's
-mount instead of requesting a missing root-level asset. The same source passed
-hosted typecheck, style, build and all 1,598 unit tests.
+The Studio bundle is not committed. `scripts/studio-release.lock.json` names the
+honua-studio repository, the release tag, the console-assets archive and its
+SHA-256, the release's source commit, the workflow that signs its
+build-provenance attestation, and the SDK revision the bundle embeds.
+`node scripts/fetch-studio-release.mjs` downloads that archive from the GitHub
+release over HTTPS, refuses a digest mismatch, extracts only regular files inside
+a fresh temporary directory and vendors them into the gitignored
+`src/Honua.Console.Web/wwwroot/_studio`. It writes `STUDIO-PROVENANCE.json`, which
+carries the release identity and every file digest, and `honua-studio-artifact.json`.
+It does nothing when the tree already matches the lock. The Web project runs it
+before every build, run and publish, and every CI job that builds the host runs it
+first. `--verify DIR` checks a vendored or published tree without fetching.
 
-GitHub artifact `12492528403`, named
-`console-studio-assets-1e7902c58b7e3f586784bb616ce56ac367f6768c`, was downloaded and
-its archive SHA-256 verified against GitHub's digest:
-`592be29b8fd4a0c4a9976b2eb860b75f177077ca2481c45d5a6c7c6a006b5d98`.
-The completed successful push run checked out that exact main source revision.
-The source repair's post-merge audit identified missing real Blazor worker
-coverage; [the follow-up](https://github.com/honua-io/honua-studio/pull/128) adds a
-production Blazor host check and preserves that audit's original status.
+The CI job "Verify Studio release attestation" runs `gh attestation verify` on the
+locked archive with the lock's repository, signer workflow, tag ref and source
+commit. The managed provenance retains pending installed-workspace qualification;
+the release alone does not qualify the complete Console customer and agent journeys.
 
-The bundle's SDK provenance matches the source's pinned public `@honua/sdk-js`
-`0.2.7` receipt and source commit `5765b427f421dca9c42832ae450fa1c5aad882c2`.
-Registry `gitHead`, archive SHA-256
-`33b2c0f7ca70692fd621d8bbdcc886dc83f464d53513092d40e6e43c24396f06`, and lockfile
-integrity were independently verified. No SDK revision was inferred from a local
-checkout. The vendor manifest checks the copied file set, sizes and hashes.
+To move Console to another Studio release:
 
-These checks do not establish a connected installed-workspace journey or full
-AI-03 qualification. Generated provenance retains `releaseQualified: false` and
-`pending-installed-workspace-journey`.
-
-
-The Console Playwright smoke job allows 20 minutes overall and caps Chromium/OS
-provisioning at 12 minutes. Run `39861978722` spent about nine minutes downloading
-Ubuntu browser dependencies before reaching the former ten-minute job limit;
-product/operator/accessibility checks had not started. This bounded infrastructure
-allowance preserves `--with-deps`, every existing check and its own limits. It does
-not convert that cancelled run into a product-test result or qualification pass.
-
-The Console host defers proactive Studio cookie-lease rotation while a human
-draft or version action is pending. The action keeps its original bounded lease;
-the host polls again after it settles. Expiry and authority changes still fail
-closed, and a mutation is never automatically retried. This avoids invalidating
-an accepted draft/version response merely because a background renewal overlaps it.
-
-### rc.2 Studio asset refresh
-
-The Console bundle pins merged Studio main
-`90bb5191d4bb999f3602438490d4dbb7953bde5b`, including Studio #171, #174, #176
-and #177. The production artifact came from successful main Smoke suite run
-[41356570013](https://github.com/honua-io/honua-studio/actions/runs/41356570013),
-artifact `13103338059`. Its downloaded archive SHA-256 matches GitHub's digest:
-`2f6b6ef6b5d098be230af5a5281e3477fb8879eaa4f5319972069d7e7e611111`.
-The normal `vendor-studio-assets.mjs` import preserves the SDK source receipt
-`5765b427f421dca9c42832ae450fa1c5aad882c2` and records the complete asset hashes.
-The bundle includes authenticated-source worker and installed-layer query repairs
-and same-authority lease recovery. A bounded feature GET interrupted during body
-consumption discards its partial response and can restart once under the same
-current authority; old bytes and mutation replay remain forbidden. The managed
-provenance retains pending installed-workspace qualification; the asset producer
-alone does not qualify the complete Console customer and agent journeys.
+1. Take the tag, archive name and SHA-256 from the release's `.sha256` asset, the
+   source commit from its `honua-studio-<tag>.receipt.json`, and the SDK
+   revision from `SDK-PROVENANCE.json` inside the archive.
+2. Update those fields in `scripts/studio-release.lock.json`.
+3. Run `node scripts/fetch-studio-release.mjs`, then `npm test` and the Playwright
+   smoke, and confirm `gh attestation verify` passes with the flags the CI job uses.
