@@ -1,5 +1,5 @@
 import { test, expect } from '../admin-api';
-import { GEOSERVICES_TOKEN_REQUIRED, anonymousGeoServicesQuery } from '../geoservices';
+import { GEOSERVICES_NOT_FOUND, GEOSERVICES_TOKEN_REQUIRED, anonymousGeoServicesQuery, geoServicesErrorCode } from '../geoservices';
 import { isServicePublished } from '../published';
 
 // Live e2e for the Operate service-settings surface (/operate/services/{svc}/settings): it validates that
@@ -83,6 +83,7 @@ test.describe('Operate · Service settings (live)', () => {
     test.slow();
     const base = admin.serverUrl;
     const mapServerPath = `/rest/services/${SERVICE_NAME}/MapServer?f=json`;
+    const mapServerError = () => geoServicesErrorCode(page.request, `${base}${mapServerPath}`, ADMIN_HEADERS);
 
     await page.goto(`/operate/services/${SERVICE_NAME}/settings`);
     await expect(page.locator('[data-service-config]')).toBeVisible({ timeout: 30_000 });
@@ -95,19 +96,15 @@ test.describe('Operate · Service settings (live)', () => {
       await page.locator('[data-save-protocols]').click();
       await expect(page.locator('[data-config-result]')).toContainText('Updated', { timeout: 30_000 });
     }
-    await expect
-      .poll(async () => (await page.request.get(`${base}${mapServerPath}`, { headers: ADMIN_HEADERS })).status(), { timeout: 20_000, intervals: [500, 1000, 2000] })
-      .toBe(200);
+    await expect.poll(mapServerError, { timeout: 20_000, intervals: [500, 1000, 2000] }).toBeNull();
 
     // Turn MapServer OFF through the UI and save.
     await mapServer.uncheck();
     await page.locator('[data-save-protocols]').click();
     await expect(page.locator('[data-config-result]')).toContainText('Updated', { timeout: 30_000 });
 
-    // The per-service MapServer endpoint now stops serving (404/disabled), proving the toggle took effect.
-    await expect
-      .poll(async () => (await page.request.get(`${base}${mapServerPath}`, { headers: ADMIN_HEADERS })).status(), { timeout: 20_000, intervals: [500, 1000, 2000] })
-      .not.toBe(200);
+    // The per-service MapServer endpoint now answers not found, proving the toggle took effect.
+    await expect.poll(mapServerError, { timeout: 20_000, intervals: [500, 1000, 2000] }).toBe(GEOSERVICES_NOT_FOUND);
 
     // Restore: turn MapServer back on so the rest of the suite (and the testbed) sees it as before.
     await mapServer.check();
@@ -134,7 +131,7 @@ test.describe('Operate · Service settings (live)', () => {
       .poll(anon, { timeout: 20_000, intervals: [500, 1000, 2000] })
       .toEqual({ errorCode: GEOSERVICES_TOKEN_REQUIRED });
     // A keyed caller still succeeds (the policy gates anonymous, not admin).
-    expect((await page.request.get(`${base}${query}`, { headers: ADMIN_HEADERS })).status()).toBe(200);
+    expect(await geoServicesErrorCode(page.request, `${base}${query}`, ADMIN_HEADERS)).toBeNull();
 
     // 2) Make the service PUBLIC (anonymous read on) and save → the anonymous query now succeeds.
     await allowAnon.check();
