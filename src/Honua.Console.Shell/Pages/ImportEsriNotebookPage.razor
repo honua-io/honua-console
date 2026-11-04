@@ -87,14 +87,14 @@
         @* #159 scope boundary: execution is deferred to a server-side hosted-arcpy runtime that does not
            exist in Console. This is surfaced as an honest missing-binding state — not a disabled "Run"
            button pretending the capability is one binding away, and never fabricated run output. *@
-        <ConsoleStateView Kind="missing"
+        <ConsoleStateView HeadingLevel="2" Kind="missing"
                           Kicker="Execution gated"
                           Title="Running this notebook needs a server hosted-arcpy runtime"
                           Message="Console imports and represents the ArcGIS Notebook definition (cells, parameters, schedule). Executing hosted arcpy requires a server-side notebook / arcpy runtime, which is out of Console scope and tracked as a dependency. The package and its schedule import as a draft; runs become available once a hosted-arcpy runtime is bound." />
     }
     else
     {
-        <ConsoleStateView Kind="empty"
+        <ConsoleStateView HeadingLevel="2" Kind="empty"
                           Kicker="Import from Esri"
                           Title="Paste or upload an ArcGIS Notebook (.ipynb)"
                           Message="Choose an intake mode above to convert an ArcGIS Notebook definition into a honua.notebook-package.v1 preview. Execution stays gated to a server hosted-arcpy runtime." />

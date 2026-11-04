@@ -19,11 +19,11 @@
     <article class="console-panel">
         @if (_loading)
         {
-            <ConsoleStateView Kind="loading" Kicker="Alert rules" Title="Checking alert-rule binding" Message="Checking the connected honua-server before opening the authoring form." />
+            <ConsoleStateView HeadingLevel="2" Kind="loading" Kicker="Alert rules" Title="Checking alert-rule binding" Message="Checking the connected honua-server before opening the authoring form." />
         }
         else if (_binding is { } binding)
         {
-            <ConsoleStateView Kind="@StateKind(binding.State)"
+            <ConsoleStateView HeadingLevel="2" Kind="@StateKind(binding.State)"
                               Kicker="@binding.State"
                               Title="Alert-rule creation is not bound"
                               Message="@(binding.Detail + " (contract: " + binding.Contract + ")")" />
@@ -54,7 +54,7 @@
             </div>
             @if (_result?.BindingState is { } resultBinding)
             {
-                <ConsoleStateView Kind="@StateKind(resultBinding.State)"
+                <ConsoleStateView HeadingLevel="2" Kind="@StateKind(resultBinding.State)"
                                   Kicker="@resultBinding.State"
                                   Title="Rule was not created"
                                   Message="@(resultBinding.Detail + " (contract: " + resultBinding.Contract + ")")" />

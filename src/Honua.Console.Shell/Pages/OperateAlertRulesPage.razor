@@ -21,21 +21,21 @@
 
     @if (_loading)
     {
-        <ConsoleStateView Kind="loading"
+        <ConsoleStateView HeadingLevel="2" Kind="loading"
                           Kicker="Alert rules"
                           Title="Loading alert rules"
                           Message="Reading server-owned alert rule definitions from honua-server." />
     }
     else if (_view.BindingState is { } binding)
     {
-        <ConsoleStateView Kind="@StateKind(binding.State)"
+        <ConsoleStateView HeadingLevel="2" Kind="@StateKind(binding.State)"
                           Kicker="@binding.State"
                           Title="Alert rules are not bound"
                           Message="@(binding.Detail + " (contract: " + binding.Contract + ")")" />
     }
     else if (_view.Rules.Count == 0)
     {
-        <ConsoleStateView Kind="empty"
+        <ConsoleStateView HeadingLevel="2" Kind="empty"
                           Kicker="Alert rules"
                           Title="No alert rules"
                           Message="Create a disabled webhook rule, test it explicitly, then enable it when qualification succeeds." />
@@ -43,7 +43,7 @@
     else
     {
         <section class="console-section" aria-label="Alert rules">
-            <div class="console-table-wrap">
+            <ConsoleTableRegion Class="console-table-wrap" Label="Alert rules and incidents">
                 <table class="console-table" aria-label="Alert rule definitions">
                     <thead>
                         <tr>
@@ -78,7 +78,7 @@
                         }
                     </tbody>
                 </table>
-            </div>
+            </ConsoleTableRegion>
         </section>
     }
 </section>

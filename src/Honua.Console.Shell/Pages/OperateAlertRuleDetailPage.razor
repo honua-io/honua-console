@@ -17,21 +17,21 @@
 
     @if (_loading)
     {
-        <ConsoleStateView Kind="loading"
+        <ConsoleStateView HeadingLevel="2" Kind="loading"
                           Kicker="Alert rule"
                           Title="Loading rule"
                           Message="Reading the server-owned alert rule definition from honua-server." />
     }
     else if (_view.BindingState is { } binding)
     {
-        <ConsoleStateView Kind="@StateKind(binding.State)"
+        <ConsoleStateView HeadingLevel="2" Kind="@StateKind(binding.State)"
                           Kicker="@binding.State"
                           Title="Alert rule editor is not bound"
                           Message="@(binding.Detail + " (contract: " + binding.Contract + ")")" />
     }
     else if (_rule is null)
     {
-        <MissingItemView Kind="alert rule" AreaLabel="Operate / Alert rules" />
+        <MissingItemView HeadingLevel="2" Kind="alert rule" AreaLabel="Operate / Alert rules" />
     }
     else
     {
@@ -121,7 +121,7 @@
             {
                 @if (test.BindingState is { } testBinding)
                 {
-                    <ConsoleStateView Kind="@StateKind(testBinding.State)"
+                    <ConsoleStateView HeadingLevel="2" Kind="@StateKind(testBinding.State)"
                                       Kicker="@testBinding.State"
                                       Title="Rule test is not bound"
                                       Message="@(testBinding.Detail + " (contract: " + testBinding.Contract + ")")" />
@@ -141,7 +141,7 @@
             {
                 @if (result.BindingState is { } saveBinding)
                 {
-                    <ConsoleStateView Kind="@StateKind(saveBinding.State)"
+                    <ConsoleStateView HeadingLevel="2" Kind="@StateKind(saveBinding.State)"
                                       Kicker="@saveBinding.State"
                                       Title="Rule save is not bound"
                                       Message="@(saveBinding.Detail + " (contract: " + saveBinding.Contract + ")")" />

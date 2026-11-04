@@ -96,7 +96,7 @@
             else
             {
                 <p class="console-muted">Edit a field's display alias and visibility, then Save to persist it through honua-server's field metadata. After saving, the table re-reads from the server.</p>
-                <div class="console-table-wrap">
+                <ConsoleTableRegion Class="console-table-wrap" Label="Layer fields">
                     <table class="console-table">
                         <thead>
                             <tr><th>Field</th><th>Type</th><th>Alias</th><th>Hidden</th><th>Domain</th><th></th></tr>
@@ -144,7 +144,7 @@
                             }
                         </tbody>
                     </table>
-                </div>
+                </ConsoleTableRegion>
                 @if (_fieldResult is { } fr)
                 {
                     <div class="console-panel @(fr.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-field-result>

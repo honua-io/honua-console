@@ -93,7 +93,7 @@
 
         @if (_publishBinding is not null)
         {
-            <ConsoleStateView Kind="missing"
+            <ConsoleStateView HeadingLevel="2" Kind="missing"
                               Kicker="@_publishBinding.State"
                               Title="No publish target is bound"
                               Message="@($"{_publishBinding.Detail} Create the package as a draft and bind it once a honua-server is connected.")" />
@@ -101,7 +101,7 @@
     }
     else
     {
-        <ConsoleStateView Kind="empty"
+        <ConsoleStateView HeadingLevel="2" Kind="empty"
                           Kicker="Import from Esri"
                           Title="Paste or upload a Web Map JSON"
                           Message="Choose an intake mode above to convert an ArcGIS Web Map into a honua.map-package.v1 preview." />

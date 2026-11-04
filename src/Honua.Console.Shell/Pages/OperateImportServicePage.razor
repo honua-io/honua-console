@@ -172,7 +172,7 @@
 
                 @if (_jobs.Count > 0)
                 {
-                    <div class="console-table-wrap">
+                    <ConsoleTableRegion Class="console-table-wrap" Label="Discovered service layers">
                         <table class="console-table" data-import-jobs>
                             <thead>
                                 <tr><th>Layer</th><th>Target table</th><th>Status</th><th>Features</th><th>Published</th></tr>
@@ -196,7 +196,7 @@
                                 }
                             </tbody>
                         </table>
-                    </div>
+                    </ConsoleTableRegion>
                 }
 
                 <div class="console-tree" data-discovered-tree>

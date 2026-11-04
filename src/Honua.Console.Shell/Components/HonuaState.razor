@@ -1,0 +1,31 @@
+<section class="console-state console-state-@Kind" aria-live="polite">
+    @if (!string.IsNullOrWhiteSpace(Kicker))
+    {
+        <p class="console-kicker">@Kicker</p>
+    }
+    @StateHeading
+    <p class="console-muted">@Message</p>
+    @if (!string.IsNullOrWhiteSpace(ActionHref) && !string.IsNullOrWhiteSpace(ActionLabel))
+    {
+        <a class="console-button-link" href="@ActionHref">@ActionLabel</a>
+    }
+    @ChildContent
+</section>
+
+@code {
+    [Parameter] public string Kind { get; set; } = "empty";
+    [Parameter] public string? Kicker { get; set; }
+    [Parameter] public string Title { get; set; } = "Nothing to show";
+    [Parameter] public string Message { get; set; } = string.Empty;
+    [Parameter] public int HeadingLevel { get; set; } = 1;
+    [Parameter] public string? ActionHref { get; set; }
+    [Parameter] public string? ActionLabel { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private RenderFragment StateHeading => builder =>
+    {
+        builder.OpenElement(0, $"h{Math.Clamp(HeadingLevel, 1, 6)}");
+        builder.AddContent(1, Title);
+        builder.CloseElement();
+    };
+}

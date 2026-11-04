@@ -46,14 +46,14 @@
 
         @if (_loading)
         {
-            <ConsoleStateView Kind="loading"
+            <ConsoleStateView HeadingLevel="2" Kind="loading"
                               Kicker="Resource presentation"
                               Title="Loading slot overrides"
                               Message="Reading server-owned per-slot style/popup overrides from honua-server." />
         }
         else if (_overrides.BindingState is { } binding)
         {
-            <ConsoleStateView Kind="@StateKind(binding.State)"
+            <ConsoleStateView HeadingLevel="2" Kind="@StateKind(binding.State)"
                               Kicker="@binding.State"
                               Title="Per-slot overrides are not bound"
                               Message="@(binding.Detail + " (contract: " + binding.Contract + ")")" />
@@ -98,7 +98,7 @@
 
             @if (_saveResult is { } result && result.BindingState is { } saveBinding)
             {
-                <ConsoleStateView Kind="@StateKind(saveBinding.State)"
+                <ConsoleStateView HeadingLevel="2" Kind="@StateKind(saveBinding.State)"
                                   Kicker="@saveBinding.State"
                                   Title="Override save is not bound"
                                   Message="@(saveBinding.Detail + " (contract: " + saveBinding.Contract + ")")" />
