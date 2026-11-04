@@ -105,14 +105,14 @@
 
     @if (_loading)
     {
-        <ConsoleStateView Kind="loading"
+        <ConsoleStateView HeadingLevel="2" Kind="loading"
                           Kicker="Access (RBAC)"
                           Title="Loading roles &amp; permissions"
                           Message="Reading the Console metadata/RBAC projection from honua-server." />
     }
     else if (_bindingState is not null)
     {
-        <ConsoleStateView Kind="error"
+        <ConsoleStateView HeadingLevel="2" Kind="error"
                           Kicker="@_bindingState.State"
                           Title="Access (RBAC) API is not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
@@ -151,7 +151,7 @@
             </span>
         </div>
 
-        <div class="console-table-wrap rbac-matrix-wrap">
+        <ConsoleTableRegion Class="console-table-wrap rbac-matrix-wrap" Label="Roles and permissions">
             <table class="console-table rbac-matrix" data-rbac-matrix>
                 <thead>
                     <tr>
@@ -193,7 +193,7 @@
                     }
                 </tbody>
             </table>
-        </div>
+        </ConsoleTableRegion>
 
         <div class="rbac-legend" data-rbac-legend>
             <span class="rbac-legend-item"><span class="rbac-dot rbac-dot-granted"></span> granted</span>
@@ -206,7 +206,7 @@
     }
     else
     {
-        <ConsoleStateView Kind="empty"
+        <ConsoleStateView HeadingLevel="2" Kind="empty"
                           Kicker="Access (RBAC)"
                           Title="No roles to show"
                           Message="The Console metadata/RBAC API returned no roles for this workspace." />

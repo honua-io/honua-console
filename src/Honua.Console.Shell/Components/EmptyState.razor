@@ -1,14 +1,7 @@
 <article class="console-panel">
-    @if (!string.IsNullOrWhiteSpace(Area))
-    {
-        <p class="console-kicker">@FormatArea(Area)</p>
-    }
-    <h2>No @Subject</h2>
-    <p class="console-muted">No @Subject are available in this @FormatArea(Area) environment.</p>
-    @if (!string.IsNullOrWhiteSpace(ActionHref) && !string.IsNullOrWhiteSpace(ActionText))
-    {
-        <a class="console-button-link" href="@ActionHref">@ActionText</a>
-    }
+    <HonuaState Kind="empty" Kicker="@(string.IsNullOrWhiteSpace(Area) ? null : FormatArea(Area))"
+                Title="@($"No {Subject}")" Message="@($"No {Subject} are available in this {FormatArea(Area)} environment.")"
+                HeadingLevel="2" ActionHref="@ActionHref" ActionLabel="@ActionText" />
 </article>
 
 @code {

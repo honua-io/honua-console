@@ -1,0 +1,146 @@
+[
+  {
+    "name": "data",
+    "route": "/operate/data",
+    "width": 1440,
+    "headings": [
+      "Data & Layers"
+    ],
+    "populated": true,
+    "rows": 0,
+    "documentWidth": 1440,
+    "blocking": []
+  },
+  {
+    "name": "service-settings",
+    "route": "/operate/services/e2e_src_fs_mw2hthz8/settings",
+    "width": 1440,
+    "headings": [
+      "Honua service 'e2e_src_fs_mw2hthz8'"
+    ],
+    "populated": true,
+    "rows": 5,
+    "documentWidth": 1440,
+    "blocking": []
+  },
+  {
+    "name": "health",
+    "route": "/operate/health",
+    "width": 1440,
+    "headings": [
+      "Ops Health"
+    ],
+    "populated": true,
+    "rows": 12,
+    "documentWidth": 1440,
+    "blocking": []
+  },
+  {
+    "name": "observability",
+    "route": "/operate/observability",
+    "width": 1440,
+    "headings": [
+      "Operate Observability"
+    ],
+    "populated": true,
+    "rows": 46,
+    "documentWidth": 1440,
+    "blocking": []
+  },
+  {
+    "name": "members",
+    "route": "/operate/access/members",
+    "width": 1440,
+    "headings": [
+      "Members · current"
+    ],
+    "populated": false,
+    "rows": 0,
+    "documentWidth": 1440,
+    "blocking": []
+  },
+  {
+    "name": "settings",
+    "route": "/operate/settings",
+    "width": 1440,
+    "headings": [
+      "Settings"
+    ],
+    "populated": true,
+    "rows": 5,
+    "documentWidth": 1440,
+    "blocking": []
+  },
+  {
+    "name": "data",
+    "route": "/operate/data",
+    "width": 390,
+    "headings": [
+      "Data & Layers"
+    ],
+    "populated": true,
+    "rows": 0,
+    "documentWidth": 390,
+    "blocking": []
+  },
+  {
+    "name": "service-settings",
+    "route": "/operate/services/e2e_src_fs_mw2hthz8/settings",
+    "width": 390,
+    "headings": [
+      "Honua service 'e2e_src_fs_mw2hthz8'"
+    ],
+    "populated": true,
+    "rows": 5,
+    "documentWidth": 390,
+    "blocking": []
+  },
+  {
+    "name": "health",
+    "route": "/operate/health",
+    "width": 390,
+    "headings": [
+      "Ops Health"
+    ],
+    "populated": true,
+    "rows": 12,
+    "documentWidth": 390,
+    "blocking": []
+  },
+  {
+    "name": "observability",
+    "route": "/operate/observability",
+    "width": 390,
+    "headings": [
+      "Operate Observability"
+    ],
+    "populated": true,
+    "rows": 46,
+    "documentWidth": 390,
+    "blocking": []
+  },
+  {
+    "name": "members",
+    "route": "/operate/access/members",
+    "width": 390,
+    "headings": [
+      "Members · current"
+    ],
+    "populated": false,
+    "rows": 0,
+    "documentWidth": 390,
+    "blocking": []
+  },
+  {
+    "name": "settings",
+    "route": "/operate/settings",
+    "width": 390,
+    "headings": [
+      "Settings"
+    ],
+    "populated": true,
+    "rows": 5,
+    "documentWidth": 390,
+    "blocking": []
+  }
+]

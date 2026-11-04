@@ -18,6 +18,20 @@ namespace Honua.Console.IntegrationTests;
 public sealed class OperateObservabilityPageRenderTests
 {
     [Fact]
+    public void UnadvertisedInvestigationSectionPreservesThePageHeading()
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<IConsoleCapabilityManifest>(new ConsoleCapabilityManifest());
+        context.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubOperateClient());
+
+        var page = context.Render<OperateObservabilityPage>();
+
+        Assert.Single(page.FindAll("h1"));
+        Assert.Contains(page.FindAll("h2"), heading => heading.TextContent == "Investigations are not available in this release");
+        Assert.Empty(page.FindAll("#investigations"));
+    }
+
+    [Fact]
     public void EventDeepLink_WhenEventPageEmpty_StillRendersMissingDetailSurface()
     {
         using var ctx = new Bunit.BunitContext();

@@ -82,7 +82,7 @@
                             @if (_lookup.Versions.Count > 1)
                             {
                                 <p class="console-kicker">Version history</p>
-                                <div class="console-table-wrap">
+                                <ConsoleTableRegion Class="console-table-wrap" Label="Publication version history">
                                     <table class="console-table">
                                         <thead>
                                             <tr>
@@ -120,7 +120,7 @@
                                             }
                                         </tbody>
                                     </table>
-                                </div>
+                                </ConsoleTableRegion>
                             }
                         </section>
                     }
@@ -144,7 +144,7 @@
                     <p>Each resource crossed with the output and catalog formats it can publish to. Unsupported or blocked targets render their blocker here, before any publish is attempted.</p>
                 </div>
 
-                <div class="console-table-wrap">
+                <ConsoleTableRegion Class="console-table-wrap" Label="Publication support matrix">
                     <table class="console-table">
                         <thead>
                             <tr>
@@ -175,7 +175,7 @@
                             }
                         </tbody>
                     </table>
-                </div>
+                </ConsoleTableRegion>
             </section>
 
             <section class="console-section">

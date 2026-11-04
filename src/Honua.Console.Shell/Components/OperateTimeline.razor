@@ -6,7 +6,7 @@
    id). The server's transition/event seam is at-least-once (honua-server PR #2577 review note),
    so a caller may pass a raw, non-deduped Entries list (e.g. a growing list fed by both an
    initial read and a live push) and this component still renders each event exactly once. *@
-<div class="operate-table-scroll operate-timeline">
+<ConsoleTableRegion Class="operate-table-scroll operate-timeline" Label="Operational events">
     @if (_rendered.Count == 0)
     {
         <p class="console-muted" data-timeline-empty>@EmptyMessage</p>
@@ -49,7 +49,7 @@
             </tbody>
         </table>
     }
-</div>
+</ConsoleTableRegion>
 
 @code {
     private IReadOnlyList<OperateTimelineEntry> _rendered = [];

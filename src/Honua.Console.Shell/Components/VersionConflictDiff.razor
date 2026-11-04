@@ -33,7 +33,7 @@
         </fieldset>
     </div>
 
-    <div class="console-table-wrap">
+    <ConsoleTableRegion Class="console-table-wrap" Label="Conflicting field values">
         <table class="console-table version-conflict-table" aria-label="Three-way diff for feature @Conflict.ObjectId">
             <thead>
                 <tr>
@@ -70,7 +70,7 @@
                 }
             </tbody>
         </table>
-    </div>
+    </ConsoleTableRegion>
     @if (HasGeometry)
     {
         <p class="console-muted">Geometry is shown as WKT text. A full map-overlay diff is a planned follow-up.</p>

@@ -20,18 +20,18 @@
 
     @if (_missingBinding)
     {
-        <ConsoleStateView Kind="error"
+        <ConsoleStateView HeadingLevel="2" Kind="error"
                           Kicker="Missing binding"
                           Title="Share is not bound to honua-server"
                           Message="@MissingBindingMessage" />
     }
     else if (_items is null)
     {
-        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading public items" Message="Open-data catalog items are loading." />
+        <ConsoleStateView HeadingLevel="2" Kind="loading" Kicker="Loading" Title="Loading public items" Message="Open-data catalog items are loading." />
     }
     else if (_items.Count == 0)
     {
-        <ConsoleStateView Kind="empty" Kicker="Empty share" Title="No public open-data items" Message="Publish a service, layer, or document as public open data to expose it here." ActionHref="/operate/publishing" ActionLabel="Open Publishing" />
+        <ConsoleStateView HeadingLevel="2" Kind="empty" Kicker="Empty share" Title="No public open-data items" Message="Publish a service, layer, or document as public open data to expose it here." ActionHref="/operate/publishing" ActionLabel="Open Publishing" />
     }
     else
     {
@@ -67,7 +67,7 @@
             <span class="console-muted">@_items.Count shared items</span>
         </div>
 
-        <div class="console-table-wrap" data-share-home-table>
+        <ConsoleTableRegion Class="console-table-wrap" Label="Public open-data items" data-share-home-table>
             <table class="console-content-table console-table">
                 <thead>
                     <tr>
@@ -111,7 +111,7 @@
                     }
                 </tbody>
             </table>
-        </div>
+        </ConsoleTableRegion>
     }
 </section>
 </CatalogAvailabilityGate>

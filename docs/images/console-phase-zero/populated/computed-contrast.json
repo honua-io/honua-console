@@ -1,0 +1,59 @@
+{
+  "source": "governed OIDC local testbed",
+  "actions": [
+    {
+      "name": "Add data",
+      "state": "normal",
+      "foreground": "rgb(255, 255, 255)",
+      "background": "rgb(15, 118, 110)",
+      "ratio": 5.473
+    },
+    {
+      "name": "Add data",
+      "state": "hover",
+      "foreground": "rgb(255, 255, 255)",
+      "background": "rgb(15, 118, 110)",
+      "ratio": 5.473
+    },
+    {
+      "name": "Add data",
+      "state": "keyboard-focus",
+      "focused": true,
+      "visible": true,
+      "outline": "solid",
+      "shadow": "rgb(255, 255, 255) 0px 0px 0px 2px, rgb(21, 149, 131) 0px 0px 0px 4px"
+    },
+    {
+      "name": "Selected publication route",
+      "state": "normal",
+      "foreground": "rgb(255, 255, 255)",
+      "background": "rgb(15, 118, 110)",
+      "ratio": 5.473
+    },
+    {
+      "name": "Selected publication route",
+      "state": "hover",
+      "foreground": "rgb(255, 255, 255)",
+      "background": "rgb(15, 118, 110)",
+      "ratio": 5.473
+    },
+    {
+      "name": "Selected publication route",
+      "state": "keyboard-focus",
+      "focused": true,
+      "visible": true,
+      "outline": "solid",
+      "shadow": "rgb(255, 255, 255) 0px 0px 0px 2px, rgb(21, 149, 131) 0px 0px 0px 4px"
+    }
+  ],
+  "scrollRegion": {
+    "before": 0,
+    "label": "Serving latency",
+    "focused": true,
+    "width": 352,
+    "contentWidth": 807,
+    "scrollLeft": 40,
+    "outlineOffset": "-2px",
+    "documentWidth": 390
+  }
+}

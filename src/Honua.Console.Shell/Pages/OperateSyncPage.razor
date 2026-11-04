@@ -17,14 +17,14 @@
 
     @if (_loading)
     {
-        <ConsoleStateView Kind="loading"
+        <ConsoleStateView HeadingLevel="2" Kind="loading"
                           Kicker="Disconnected sync review"
                           Title="Loading sync capability"
                           Message="Reading server-owned disconnected replica capability from honua-server." />
     }
     else if (_bindingState is not null)
     {
-        <ConsoleStateView Kind="missing"
+        <ConsoleStateView HeadingLevel="2" Kind="missing"
                           Kicker="@_bindingState.State"
                           Title="Sync conflict review is not bound"
                           Message="@(_bindingState.Detail + " (contract: " + _bindingState.Contract + ")")" />
@@ -38,7 +38,7 @@
         else
         {
             <section class="console-section" aria-label="Sync-eligible sources">
-                <div class="console-table-wrap">
+                <ConsoleTableRegion Class="console-table-wrap" Label="Synchronization sources">
                     <table class="console-table" aria-label="Disconnected sync sources">
                         <thead>
                             <tr>
@@ -67,7 +67,7 @@
                             }
                         </tbody>
                     </table>
-                </div>
+                </ConsoleTableRegion>
             </section>
 
             @if (_selectedSource is not null)
@@ -81,7 +81,7 @@
 
                     @if (_replicaBinding is not null)
                     {
-                        <ConsoleStateView Kind="missing"
+                        <ConsoleStateView HeadingLevel="2" Kind="missing"
                                           Kicker="@_replicaBinding.State"
                                           Title="Replica queue is not bound"
                                           Message="@(_replicaBinding.Detail + " (contract: " + _replicaBinding.Contract + ")")" />
@@ -92,7 +92,7 @@
                     }
                     else
                     {
-                        <div class="console-table-wrap">
+                        <ConsoleTableRegion Class="console-table-wrap" Label="Replicas">
                             <table class="console-table" aria-label="Disconnected replicas">
                                 <thead>
                                     <tr>
@@ -130,7 +130,7 @@
                                     }
                                 </tbody>
                             </table>
-                        </div>
+                        </ConsoleTableRegion>
 
                         <div class="console-panel operate-sync-rules" data-sync-region="auto-resolution">
                             <p class="console-kicker">Auto-resolution rules</p>
@@ -155,7 +155,7 @@
 
                     @if (_conflictReviewBinding is not null)
                     {
-                        <ConsoleStateView Kind="missing"
+                        <ConsoleStateView HeadingLevel="2" Kind="missing"
                                           Kicker="@_conflictReviewBinding.State"
                                           Title="Conflict review is not bound"
                                           Message="@(_conflictReviewBinding.Detail + " (contract: " + _conflictReviewBinding.Contract + ")")" />
@@ -210,7 +210,7 @@
 
                                 @if (conflict.FieldConflicts.Count > 0)
                                 {
-                                    <div class="console-table-wrap operate-sync-3way">
+                                    <ConsoleTableRegion Class="console-table-wrap operate-sync-3way" Label="Three-way conflicts">
                                         <table class="console-table" aria-label="Field comparison">
                                             <thead>
                                                 <tr>
@@ -232,7 +232,7 @@
                                                 }
                                             </tbody>
                                         </table>
-                                    </div>
+                                    </ConsoleTableRegion>
                                 }
 
                                 <div class="console-toolbar operate-sync-choices" role="group" aria-label="Resolution choices">
@@ -255,7 +255,7 @@
                     {
                         @if (_resolutionBinding is not null)
                         {
-                            <ConsoleStateView Kind="missing"
+                            <ConsoleStateView HeadingLevel="2" Kind="missing"
                                               Kicker="@_resolutionBinding.State"
                                               Title="Resolution write is not bound"
                                               Message="@(_resolutionBinding.Detail + " (contract: " + _resolutionBinding.Contract + ")")" />

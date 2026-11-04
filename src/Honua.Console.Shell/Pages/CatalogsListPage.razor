@@ -23,14 +23,14 @@
 
     @if (_loading)
     {
-        <ConsoleStateView Kind="loading"
+        <ConsoleStateView HeadingLevel="2" Kind="loading"
                           Kicker="Catalogs"
                           Title="Loading discovery endpoints"
                           Message="Reading the catalog discovery-endpoints registry from honua-server." />
     }
     else if (_bindingState is not null)
     {
-        <ConsoleStateView Kind="missing"
+        <ConsoleStateView HeadingLevel="2" Kind="missing"
                           Kicker="@_bindingState.State"
                           Title="Catalog discovery endpoints are not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
@@ -49,7 +49,7 @@
 
         @if (registry.Endpoints.Count == 0)
         {
-            <ConsoleStateView Kind="empty"
+            <ConsoleStateView HeadingLevel="2" Kind="empty"
                               Kicker="Catalogs"
                               Title="No discovery endpoints"
                               Message="The registry returned no catalog discovery endpoints for this workspace." />
@@ -146,7 +146,7 @@
     }
     else
     {
-        <ConsoleStateView Kind="empty"
+        <ConsoleStateView HeadingLevel="2" Kind="empty"
                           Kicker="Catalogs"
                           Title="No discovery endpoints"
                           Message="The catalog discovery-endpoints registry returned no data for this workspace." />
