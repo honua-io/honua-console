@@ -2,11 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Missing-binding implementation of the service-import operation. Used when no honua-server base URL is
-/// configured: it performs no network call and returns an explicit missing-binding result so the service
-/// import UI surfaces the binding requirement instead of fabricating discovery (Console Patterns Charter section 11).
-/// </summary>
 public sealed class UnsupportedConsoleServiceImportOperation : IConsoleServiceImportOperation
 {
     private const string BindingDetail =

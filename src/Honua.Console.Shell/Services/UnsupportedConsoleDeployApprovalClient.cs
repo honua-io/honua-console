@@ -2,12 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Active when the deploy-control approval surface has no live binding (no server
-/// configured for this Console build). Per the Console missing-binding convention, every
-/// call renders an explicit unsupported state rather than mocking a deploy approval
-/// round-trip. Missing-binding is a first-class state — no crash, no fabricated data.
-/// </summary>
 public sealed class UnsupportedConsoleDeployApprovalClient : IConsoleDeployApprovalClient
 {
     private const string Message =

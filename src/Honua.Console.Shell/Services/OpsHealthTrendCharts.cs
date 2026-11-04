@@ -4,18 +4,11 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Builds the Ops Health trend Vega-Lite specs for the shared <c>ChartPreview</c> component:
-/// serving-latency percentiles, error rate, geoprocessing queue depth and alert-dispatch backlog.
-/// Each spec carries its points inline and is returned only when there is at least one real point;
-/// an empty series returns <see langword="null"/> so the caller keeps the no-backend schematic.
-/// A dashed rule marks the seam between the downsampled history and the live band.
-/// </summary>
+// An empty series returns null so the caller keeps the no-backend schematic.
 public static class OpsHealthTrendCharts
 {
     public const string VegaLiteSchema = "https://vega.github.io/schema/vega-lite/v6.json";
 
-    /// <summary>Builds the p50/p95/p99 serving-latency percentile chart for one protocol series.</summary>
     public static string? BuildLatencySpec(OpsHealthLatencyTrendSeriesView series, DateTimeOffset? seamAt)
     {
         ArgumentNullException.ThrowIfNull(series);
@@ -29,7 +22,6 @@ public static class OpsHealthTrendCharts
         return BuildLineSpec(rows, "Latency (ms)", seamAt);
     }
 
-    /// <summary>Builds the error-rate-over-time chart for one protocol series.</summary>
     public static string? BuildErrorRateSpec(OpsHealthLatencyTrendSeriesView series, DateTimeOffset? seamAt)
     {
         ArgumentNullException.ThrowIfNull(series);
@@ -40,7 +32,6 @@ public static class OpsHealthTrendCharts
         return BuildLineSpec(rows, "Error rate (%)", seamAt);
     }
 
-    /// <summary>Builds the geoprocessing active-job-count trend chart (one line per replica when broken down).</summary>
     public static string? BuildGpQueueSpec(IReadOnlyList<OpsHealthVitalsTrendPointView> points, DateTimeOffset? seamAt)
     {
         ArgumentNullException.ThrowIfNull(points);
@@ -51,7 +42,6 @@ public static class OpsHealthTrendCharts
         return BuildLineSpec(rows, "Active jobs", seamAt);
     }
 
-    /// <summary>Builds the alert-dispatch pending + dead-lettered backlog trend chart.</summary>
     public static string? BuildAlertBacklogSpec(IReadOnlyList<OpsHealthVitalsTrendPointView> points, DateTimeOffset? seamAt)
     {
         ArgumentNullException.ThrowIfNull(points);

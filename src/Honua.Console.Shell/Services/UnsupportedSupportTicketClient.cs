@@ -2,11 +2,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Active when no honua-support base URL is configured. Per the Console
-/// missing-binding convention, the support surface renders an explicit
-/// unsupported state rather than mocking a ticket round-trip.
-/// </summary>
 public sealed class UnsupportedSupportTicketClient : IConsoleSupportTicketClient
 {
     private const string Message =

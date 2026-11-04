@@ -2,19 +2,8 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Catalog/content client used when no honua-server base address is configured. Every read returns an
-/// explicit missing-binding state instead of fabricating catalog content, keeping the merged runtime free
-/// of a standing in-memory catalog source (issue #7, Console Patterns Charter). Catalog, Studio, Share, and
-/// Operate-visible content metadata stays bound to a real honua-server (via <c>Honua:Server:BaseUrl</c> /
-/// <c>HONUA_SERVER_BASE_URL</c>) or surfaces this state. Mirrors
-/// <see cref="UnsupportedStudioFormPackageDataSource"/> and <see cref="UnsupportedOperateTransitionDataSource"/>.
-/// </summary>
 public sealed class UnsupportedConsoleCatalogClient : IConsoleCatalogClient
 {
-    /// <summary>
-    /// The server contract the catalog/content surfaces require before they can render live metadata.
-    /// </summary>
     public const string MissingBindingContract = "Honua:Server:BaseUrl";
 
     internal const string MissingBindingMessage =

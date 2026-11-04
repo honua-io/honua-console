@@ -4,22 +4,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Live <see cref="IConsoleDeployOperationRealtimeClient"/> backed by the honua-server admin
-/// realtime hub's <c>deploy-operations</c> group (honua-server#2554). Mirrors
-/// <see cref="SignalRConsoleProposalRealtimeClient"/> exactly (same hub, same
-/// connect/reconnect/dispose pattern via <see cref="ConsoleAdminHubConnectionFactory"/> and
-/// <see cref="ConsoleRealtimeFallbackTracker"/>) — the console#293 shared seam this ticket
-/// consumes rather than reinventing.
-///
-/// honua-server#2554 is still open at the time this client was authored, so joining the group
-/// fails against every server available today; that failure is caught exactly like any other
-/// subscribe failure and reported as <see cref="ConsoleRealtimeConnectionState.FallbackEngaged"/>
-/// — the deploy cockpit's poll loop (the approval panel's existing <see cref="PeriodicTimer"/>)
-/// stays the source of truth until the group exists. This is the "poll fallback until the hub
-/// group exists" behavior console#290's acceptance criteria require, expressed honestly through
-/// the same connection-state vocabulary the inbox's Live/Manual pill already uses.
-/// </summary>
 public sealed class SignalRConsoleDeployOperationRealtimeClient : IConsoleDeployOperationRealtimeClient, IConsoleRealtimeCapabilityClient
 {
     internal const string HubPath = "hubs/admin";
@@ -53,20 +37,16 @@ public sealed class SignalRConsoleDeployOperationRealtimeClient : IConsoleDeploy
         _tracker = new ConsoleRealtimeFallbackTracker(_logger, HubPath + "/" + SubscribeMethod);
     }
 
-    /// <inheritdoc />
     public event Action<ConsoleDeployOperationRealtimeEvent>? OperationChanged;
 
-    /// <inheritdoc cref="IConsoleRealtimeCapabilityClient.ConnectionStateChanged" />
     public event Action<ConsoleRealtimeConnectionState>? ConnectionStateChanged
     {
         add => _tracker.StateChanged += value;
         remove => _tracker.StateChanged -= value;
     }
 
-    /// <inheritdoc cref="IConsoleRealtimeCapabilityClient.ConnectionState" />
     public ConsoleRealtimeConnectionState ConnectionState => _tracker.State;
 
-    /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -138,9 +118,7 @@ public sealed class SignalRConsoleDeployOperationRealtimeClient : IConsoleDeploy
             }
             catch (Exception ex)
             {
-                // Expected against every server today (honua-server#2554 not yet merged): the hub
-                // method does not exist, InvokeAsync throws, and the cockpit falls back to polling
-                // — logged at the tracker's normal level, not an error condition on our side.
+                // A missing hub method throws, and the cockpit falls back to polling.
                 _tracker.MarkFallbackEngaged("Failed to connect or subscribe to the deploy-operations group.", ex);
                 await connection.DisposeAsync().ConfigureAwait(false);
             }
@@ -151,7 +129,6 @@ public sealed class SignalRConsoleDeployOperationRealtimeClient : IConsoleDeploy
         }
     }
 
-    /// <inheritdoc />
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -189,7 +166,6 @@ public sealed class SignalRConsoleDeployOperationRealtimeClient : IConsoleDeploy
         }
     }
 
-    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         await StopAsync().ConfigureAwait(false);
@@ -204,11 +180,7 @@ public sealed class SignalRConsoleDeployOperationRealtimeClient : IConsoleDeploy
         wire.GeneratedAt));
 }
 
-/// <summary>
-/// Wire shape of the admin hub's deploy-operation transition payload (honua-server#2554,
-/// projecting the honua-server PR #2577 <c>WorkflowOperationTransition</c> seam). Bound
-/// case-insensitively from the hub's camelCase JSON protocol.
-/// </summary>
+// Bound case-insensitively from the hub's camelCase JSON.
 public sealed record DeployOperationTransitionWire
 {
     public string? OperationId { get; init; }

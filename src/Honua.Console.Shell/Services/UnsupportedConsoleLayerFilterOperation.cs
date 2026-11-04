@@ -2,10 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Missing-binding implementation of the layer permanent-filter operation. Used when no honua-server base URL
-/// is configured: it performs no network call and returns explicit missing-binding results.
-/// </summary>
 public sealed class UnsupportedConsoleLayerFilterOperation : IConsoleLayerFilterOperation
 {
     private const string BindingDetail =

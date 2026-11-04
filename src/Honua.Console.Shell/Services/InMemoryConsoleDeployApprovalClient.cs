@@ -2,18 +2,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Test/demo-only in-memory deploy approval client. It is NEVER the DI default
-/// (Console Patterns Charter section 11: server-owned data binds to a live server, not a
-/// standing mock); it exists so bUnit/component tests and explicit demo shells can drive
-/// the approval surface without a backend.
-///
-/// It models the deploy-control lifecycle transitions the surface depends on: a submit
-/// advances an AwaitingApproval operation to Submitted; a rollback moves an eligible
-/// operation to RollbackRequested. A data-affecting rollback still requires the caller
-/// (the UI) to confirm first — this client does not weaken that gate, it simply records
-/// the transition the server would perform.
-/// </summary>
+// Test-only. This is not the DI default. A data-affecting rollback requires the caller to confirm first; this simulator does not enforce that confirmation.
 public sealed class InMemoryConsoleDeployApprovalClient : IConsoleDeployApprovalClient
 {
     private readonly Dictionary<string, DeployOperationProposal> _operations;

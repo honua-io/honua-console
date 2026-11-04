@@ -3,13 +3,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Test/demo-only SensorThings client backed by an in-memory STA catalog. Mirrors
-/// the conformance-shaped read surface (Things/Datastreams/Observations,
-/// <c>$expand</c> navigation, chart-ready time series) so render/integration
-/// tests can exercise the browse + chart views without a live server. NEVER the
-/// DI default — opt-in for tests, exactly like the other InMemory* clients.
-/// </summary>
+// Test-only. Opt in from tests; this is not the DI default.
 public sealed class InMemoryConsoleSensorThingsClient : IConsoleSensorThingsClient
 {
     private readonly IReadOnlyList<StaThing> _things;
@@ -126,11 +120,7 @@ public sealed class InMemoryConsoleSensorThingsClient : IConsoleSensorThingsClie
         return new StaEntitySet<T> { Value = value, Count = source.Count };
     }
 
-    /// <summary>
-    /// Seeds a single air-temperature datastream (id=1) with an hourly 48-point
-    /// series, matching the synthetic seed shipped by honua-server #1842 so tests
-    /// can assert against the same demo datastream id.
-    /// </summary>
+    // Datastream id 1 matches the server's synthetic air-temperature seed so tests can assert that demo id.
     public static SensorThingsSeed CreateSeed()
     {
         var thing = new StaThing
@@ -184,7 +174,6 @@ public sealed class InMemoryConsoleSensorThingsClient : IConsoleSensorThingsClie
     }
 }
 
-/// <summary>Seed payload for <see cref="InMemoryConsoleSensorThingsClient"/>.</summary>
 public sealed record SensorThingsSeed(
     IReadOnlyList<StaThing> Things,
     IReadOnlyList<StaDatastream> Datastreams,

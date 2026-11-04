@@ -3,31 +3,21 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-/// <summary>
-/// Supplies the Studio map builder's per-layer style picker with the styleIds the server advertises on the
-/// OGC API - Styles list (<c>GET /ogc/styles</c>, ADR-0048, umbrella honua-server#1387) through the
-/// Honua.Console.Contracts shim. The live binding activates only when a server base URL is configured; with
-/// no server configured the unsupported implementation returns a missing-binding capability state on the
-/// catalog so the builder degrades to the legacy free-form style string rather than fabricating a list.
-/// </summary>
 public interface IStudioMapStyleCatalogDataSource
 {
-    /// <summary>Loads the server-advertised style catalog, or a catalog carrying a capability issue.</summary>
     Task<StudioMapStyleCatalog> GetStyleCatalogAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Reads a real layer's default or stored canonical style.</summary>
     Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetLayerStylesheetAsync(
         int layerId, CancellationToken cancellationToken = default) => Task.FromResult(
             HonuaAdminEndpointResult<HonuaOgcStylesheet>.FromIssue(new HonuaAdminEndpointIssue(
                 "Unsupported", "GET /api/styles/{layerId}.json", "Layer styles are not bound.")));
 
-    /// <summary>Reads a style's stylesheet in the requested encoding for the dual-mode editor.</summary>
     Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetStylesheetAsync(
         string styleId,
         HonuaOgcStyleEncoding encoding,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Saves a style's stylesheet in the given encoding (server keeps MapLibre canonical).</summary>
+    // The server stores MapLibre as the canonical stylesheet, whichever encoding was saved.
     Task<HonuaOgcStyleSaveResult> SaveStylesheetAsync(
         string styleId,
         HonuaOgcStyleEncoding encoding,
