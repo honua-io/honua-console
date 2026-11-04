@@ -357,12 +357,6 @@ public sealed class PublishWizardWorkspaceRenderTests
             });
         }
 
-        public Task<ServiceProtocolEnableResult> EnableProtocolsAsync(
-            string serviceName,
-            IReadOnlyList<string> protocols,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ServiceProtocolEnableResult { Succeeded = true, State = "Enabled" });
-
         public Task<IReadOnlyList<ServiceLayerPublishTable>> ListTablesAsync(
             string connectionId,
             CancellationToken cancellationToken = default)

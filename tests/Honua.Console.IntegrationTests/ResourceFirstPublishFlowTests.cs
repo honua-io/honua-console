@@ -24,7 +24,7 @@ public sealed class ResourceFirstPublishFlowTests
     public void QuickPublish_GenericGeometryRequiresExplicitTypeAndPassesTheChoice()
     {
         using var ctx = NewContext();
-        var publish = new RecordingPublishOperation([], "GEOMETRY");
+        var publish = new RecordingPublishOperation("GEOMETRY");
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish);
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneConnectionDataSource("conn", "Source"));
         var page = ctx.Render<OperatePublishLayerPage>();
@@ -45,7 +45,7 @@ public sealed class ResourceFirstPublishFlowTests
     public void QuickPublish_ConcreteGeometryNeedsNoOverride()
     {
         using var ctx = NewContext();
-        var publish = new RecordingPublishOperation([], "Point");
+        var publish = new RecordingPublishOperation("Point");
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish);
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneConnectionDataSource("conn", "Source"));
         var page = ctx.Render<OperatePublishLayerPage>();
@@ -459,16 +459,10 @@ public sealed class ResourceFirstPublishFlowTests
             Task.FromResult<OperateServiceDetail?>(null);
     }
 
-    /// <summary>
-    /// A recording publish operation: returns one table, records the publish command (so a test can assert the
-    /// planned protocols were threaded), and reports a controllable canonical protocol set from EnableProtocols.
-    /// </summary>
-    private sealed class RecordingPublishOperation(IReadOnlyList<string> enabledProtocols, string geometryType = "Polygon") : IServiceLayerPublishOperation
+    private sealed class RecordingPublishOperation(string geometryType) : IServiceLayerPublishOperation
     {
         public int PublishCalls { get; private set; }
-        public int EnableCalls { get; private set; }
         public ServiceLayerPublishCommand? LastCommand { get; private set; }
-        public IReadOnlyList<string>? LastEnableProtocols { get; private set; }
 
         public Task<ServiceLayerPublishResult> PublishAsync(
             ServiceLayerPublishCommand command, CancellationToken cancellationToken = default)
@@ -482,19 +476,6 @@ public sealed class ResourceFirstPublishFlowTests
                 LayerId = 1,
                 LayerName = command.LayerName,
                 ServiceName = command.ServiceName,
-            });
-        }
-
-        public Task<ServiceProtocolEnableResult> EnableProtocolsAsync(
-            string serviceName, IReadOnlyList<string> protocols, CancellationToken cancellationToken = default)
-        {
-            EnableCalls++;
-            LastEnableProtocols = protocols;
-            return Task.FromResult(new ServiceProtocolEnableResult
-            {
-                Succeeded = true,
-                State = "Published",
-                EnabledProtocols = enabledProtocols,
             });
         }
 
