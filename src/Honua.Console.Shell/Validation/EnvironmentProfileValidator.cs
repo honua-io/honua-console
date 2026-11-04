@@ -14,10 +14,8 @@ public sealed record EnvironmentProfileState(
 
 public sealed class EnvironmentProfileValidator : IFieldValidator<EnvironmentProfileState>
 {
-    /// <summary>Shared singleton; the validator holds no state.</summary>
     public static EnvironmentProfileValidator Instance { get; } = new();
 
-    /// <inheritdoc />
     public IReadOnlyList<ConsoleFieldError> Evaluate(EnvironmentProfileState state)
     {
         ArgumentNullException.ThrowIfNull(state);

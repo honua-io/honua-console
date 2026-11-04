@@ -5,18 +5,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Diagnostics;
 
-/// <summary>
-/// Turns a raw, potentially-unsafe captured HTTP exchange into a sanitized
-/// <see cref="DiagnosticEnvelope"/> for a canonical diagnostic bundle (honua-console#307).
-///
-/// This is the security boundary. It NEVER emits raw request/response bytes, and it drops
-/// Authorization, Cookie, Set-Cookie, and every header not on a conservative allowlist, so
-/// secret-bearing headers can never reach a bundle. Bodies are reduced to a redacted, truncated
-/// text preview plus the ORIGINAL byte size and a SHA-256 of the original bytes, so integrity is
-/// verifiable without the bytes. The schema is still the final gate (see
-/// <see cref="DiagnosticBundleExporter"/>); this class makes the common case emit a clean,
-/// schema-valid, secret-free envelope.
-/// </summary>
 public static partial class DiagnosticBundleSanitizer
 {
     // Conservative allowlist of non-secret headers. Anything not listed here is dropped, so a new
@@ -61,10 +49,6 @@ public static partial class DiagnosticBundleSanitizer
 
     private const int MaxPreviewLength = 4096;
 
-    /// <summary>
-    /// Filters raw headers down to the allowlist. Returns <c>null</c> when nothing survives so the
-    /// optional array is omitted from the envelope rather than emitted empty.
-    /// </summary>
     public static IReadOnlyList<DiagnosticHeader>? SanitizeHeaders(IEnumerable<DiagnosticHeader>? rawHeaders)
     {
         if (rawHeaders is null)
@@ -83,7 +67,6 @@ public static partial class DiagnosticBundleSanitizer
         return safe.Count == 0 ? null : safe;
     }
 
-    /// <summary>True only for an explicitly allowlisted, non-denylisted header name.</summary>
     public static bool IsSafeHeader(string? name)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -99,12 +82,7 @@ public static partial class DiagnosticBundleSanitizer
         return AllowedHeaders.Contains(trimmed);
     }
 
-    /// <summary>
-    /// Normalizes a request path so no path-parameter or query VALUES survive: the path is kept
-    /// verbatim (callers that know a route template should pass it already templated) and every
-    /// query value is replaced with <c>{value}</c>. A raw query can carry tokens/ids, so its
-    /// values are always placeholdered.
-    /// </summary>
+    // Query values can carry tokens, so every value is replaced.
     public static string NormalizePath(string pathAndQuery)
     {
         if (string.IsNullOrWhiteSpace(pathAndQuery))
@@ -132,11 +110,6 @@ public static partial class DiagnosticBundleSanitizer
         return $"{rawPath}?{string.Join('&', normalizedPairs)}";
     }
 
-    /// <summary>
-    /// Reduces a raw body to a schema-safe preview: SHA-256 + original byte size are recorded, the
-    /// preview is secret-redacted and truncated to <see cref="MaxPreviewLength"/>. Returns
-    /// <c>null</c> for a null body so the optional field is omitted.
-    /// </summary>
     public static DiagnosticBodyPreview? RedactBody(string? rawBody)
     {
         if (rawBody is null)

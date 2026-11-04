@@ -2,11 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Validation;
 
-/// <summary>
-/// Stable console-owned field keys for the RBAC scoped-invite drawer
-/// (<c>OperateAccessMembersPage</c>). The client validator (<see cref="RbacInviteValidator"/>) and the
-/// inline render surfaces share these so a finding lands on the offending input.
-/// </summary>
 public static class RbacInviteFieldKeys
 {
     public const string Email = "rbac.invite.email";
@@ -14,17 +9,6 @@ public static class RbacInviteFieldKeys
     public const string IpAllowlist = "rbac.invite.ipAllowlist";
 }
 
-/// <summary>
-/// Console-owned snapshot of the RBAC scoped-invite drawer the client validator evaluates. The page binds
-/// its drawer inputs onto this and re-runs <see cref="RbacInviteValidator"/> on every edit. There is no
-/// server body-validator for invite today (catalog "RBAC / share: no dedicated body validators"); this is
-/// purely client-side form validation surfaced inline.
-/// </summary>
-/// <param name="Email">The invitee email / group identity (<c>InviteEmail</c>).</param>
-/// <param name="ScopeDev">Whether the dev environment scope is selected.</param>
-/// <param name="ScopeStaging">Whether the staging environment scope is selected.</param>
-/// <param name="ScopeProd">Whether the prod environment scope is selected.</param>
-/// <param name="IpAllowlist">The optional IP allowlist (one CIDR per line / comma-separated).</param>
 public sealed record RbacInviteState(
     string? Email,
     bool ScopeDev,
@@ -32,19 +16,10 @@ public sealed record RbacInviteState(
     bool ScopeProd,
     string? IpAllowlist);
 
-/// <summary>
-/// Pure client-side validator for the RBAC scoped-invite drawer, mirroring the <see cref="StudioMapValidator"/>
-/// pattern: it examines the console-owned <see cref="RbacInviteState"/> and emits field-addressable
-/// <see cref="ConsoleFieldError"/> findings keyed by <see cref="RbacInviteFieldKeys"/>. It covers the rules the
-/// catalog flags for the invite form: a valid invite email, at least one environment scope selected, and a valid
-/// CIDR per IP-allowlist entry (the allowlist itself is optional). Console-only — no server body-validator exists.
-/// </summary>
 public sealed class RbacInviteValidator : IFieldValidator<RbacInviteState>
 {
-    /// <summary>Shared singleton; the validator holds no state.</summary>
     public static RbacInviteValidator Instance { get; } = new();
 
-    /// <inheritdoc />
     public IReadOnlyList<ConsoleFieldError> Evaluate(RbacInviteState state)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -75,10 +50,7 @@ public sealed class RbacInviteValidator : IFieldValidator<RbacInviteState>
         return errors;
     }
 
-    /// <summary>
-    /// True when the identity is acceptable: an <c>@</c>-bearing value must be a valid email; any other
-    /// non-empty, whitespace-free token is accepted as a group / directory principal (e.g. <c>group:operators</c>).
-    /// </summary>
+    // A value without @ is a group or directory principal, not an email.
     private static bool IsValidIdentity(string? identity)
     {
         if (string.IsNullOrWhiteSpace(identity))
@@ -116,7 +88,6 @@ public sealed class RbacInviteValidator : IFieldValidator<RbacInviteState>
         }
     }
 
-    /// <summary>Splits the allowlist on commas, semicolons, and newlines, trimming each entry.</summary>
     public static IEnumerable<string> SplitEntries(string? allowlist) =>
         string.IsNullOrWhiteSpace(allowlist)
             ? Array.Empty<string>()

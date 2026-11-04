@@ -3,13 +3,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Validation;
 
-/// <summary>
-/// Stable console-owned field keys for the Studio form builder. The client validator
-/// (<see cref="StudioFormValidator"/>), the inline render surfaces, and the server-error resolver all
-/// share these so a client finding and a server finding for the same input land on the same key. Form-level
-/// keys are constants; per-field keys are derived from the field's <em>position</em> (not its FieldId, which
-/// can be blank or duplicated) so every authored row is independently addressable.
-/// </summary>
 public static class StudioFormFieldKeys
 {
     public const string Title = "form.title";
@@ -20,37 +13,21 @@ public static class StudioFormFieldKeys
     public const string PrivacyRetentionDays = "form.privacyRetentionDays";
     public const string OfflineTransports = "form.offlineTransports";
 
-    /// <summary>Per-field range-min key for the field at <paramref name="index"/>.</summary>
     public static string FieldRangeMin(int index) => $"form.field[{index}].rangeMin";
 
-    /// <summary>Per-field range-max key for the field at <paramref name="index"/>.</summary>
     public static string FieldRangeMax(int index) => $"form.field[{index}].rangeMax";
 
-    /// <summary>Per-field id key for the field at <paramref name="index"/>.</summary>
     public static string FieldId(int index) => $"form.field[{index}].id";
 
-    /// <summary>Per-field attachment-count key for the field at <paramref name="index"/>.</summary>
     public static string FieldAttachmentMaxCount(int index) => $"form.field[{index}].attachmentMaxCount";
 
-    /// <summary>Per-field visibility-dependency key for the field at <paramref name="index"/>.</summary>
     public static string FieldVisibilityDependsOn(int index) => $"form.field[{index}].visibilityDependsOn";
 }
 
-/// <summary>
-/// Pure client-side cross-field / bounds validator for the Studio form builder, mirroring the existing
-/// <see cref="StudioFormPublishEvaluator"/> pattern but emitting field-addressable
-/// <see cref="ConsoleFieldError"/> findings (keyed by <see cref="StudioFormFieldKeys"/>) so the editor can
-/// surface them inline next to the offending input. It complements — never replaces — server validation: it
-/// covers only the rules expressible against console-owned editor state (presence, bounds, ordering,
-/// uniqueness, referential), and deliberately omits server-only rules (e.g. maxLength-vs-target-length,
-/// target resolution) that need the live feature service.
-/// </summary>
 public sealed class StudioFormValidator : IFieldValidator<StudioFormEditorState>
 {
-    /// <summary>Shared singleton; the validator holds no state.</summary>
     public static StudioFormValidator Instance { get; } = new();
 
-    /// <inheritdoc />
     public IReadOnlyList<ConsoleFieldError> Evaluate(StudioFormEditorState state)
     {
         ArgumentNullException.ThrowIfNull(state);
