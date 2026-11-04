@@ -72,12 +72,8 @@ public sealed class StudioPageRenderTests
     }
 
     [Fact]
-    public void LegacyBuilderRoutesCannotBeResurrectedByCapability()
+    public void LegacyBuilderRoutesRenderTheRetiredNotice()
     {
-        Type[] legacy = [typeof(StudioMapBuilderPage),typeof(StudioAppBuilderPage),typeof(StudioDashboardBuilderPage),
-            typeof(StudioAnalysisBuilderPage),typeof(StudioQueryBuilderPage),typeof(StudioFormAiPage),
-            typeof(StudioReportAiPage),typeof(StudioWorkflowAiPage)];
-        Assert.All(legacy, component => Assert.Empty(component.GetCustomAttributes(typeof(RouteAttribute), false)));
         var routes = typeof(RetiredStudioBuilderPage).GetCustomAttributes(typeof(RouteAttribute), false).Cast<RouteAttribute>().ToArray();
         Assert.Equal(8, routes.Length);
         using var context = new BunitContext();

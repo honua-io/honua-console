@@ -34,13 +34,6 @@
                 <h1>@map.Summary.Title</h1>
                 <p>@map.Summary.Summary</p>
             </div>
-            <div class="console-detail-actions">
-                @* Studio is shelved behind the studio-builders capability; hide the hand-off. *@
-                @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders))
-                {
-                    <a class="console-button-link" href="/studio?source=catalog&itemId=@_sourceItemId">Continue In Studio</a>
-                }
-            </div>
         </div>
 
         <div class="console-map-surface" aria-label="Draft map preview">

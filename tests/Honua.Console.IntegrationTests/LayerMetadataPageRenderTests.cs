@@ -6,205 +6,135 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the layer-metadata authoring page (<c>/operate/layers/{id}/metadata</c>):
-/// the three sections (Display / Editing / CRS) each GET-load their part and PUT-save it. Drives the page
-/// through a fake operation (never a mock server). The merged-build Unsupported* source is exercised through
-/// real DI to prove the honest missing-binding state across all three sections.
-/// </summary>
 public sealed class LayerMetadataPageRenderTests
 {
     private const string ResourceId = "conn-1-layer-1";
 
-    [Fact]
-    public void Page_WhenBound_RendersDisplayEditingSpatialFromGet()
-    {
-        var fake = new FakeMetadata
-        {
-            Display = new ConsoleLayerDisplay { Bound = true, LayerId = 1, DisplayField = "name", MinScale = 100000 },
-            Editing = new ConsoleLayerEditing { Bound = true, LayerId = 1, GlobalIdField = "globalid", CanModify = true },
-            Spatial = new ConsoleLayerSpatial
-            {
-                Bound = true,
-                LayerId = 1,
-                Srid = 4326,
-                GeometryType = "polygon",
-                SupportedCrs = ["http://www.opengis.net/def/crs/EPSG/0/4326"],
-                StorageCrs = "http://www.opengis.net/def/crs/EPSG/0/4326",
-            },
-        };
-        var page = RenderPage(fake);
+    private static readonly OperateServiceLayerProjection Parcels =
+        new(1, "Parcels", "polygon", ResourceId, "parcels");
 
-        page.WaitForAssertion(
-            () => Assert.Contains("data-display-save", page.Markup, StringComparison.Ordinal),
-            TimeSpan.FromSeconds(5));
-        // Display field, editing global-id field, and the supported-CRS value all surfaced from the GET load.
-        Assert.Contains("value=\"name\"", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("value=\"globalid\"", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("data-editing-save", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("data-spatial-save", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("EPSG/0/4326", page.Markup, StringComparison.Ordinal);
+    [Fact]
+    public void Page_OffersOnlyTheEditingPolicy()
+    {
+        var page = RenderPage(new RecordingMetadata());
+
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-editing-save]")));
+        Assert.Empty(page.FindAll("[data-display-panel], [data-spatial-panel], [data-editing-creator], [data-editing-related]"));
     }
 
     [Fact]
-    public void Page_SaveDisplay_IssuesSetDisplayAndSurfacesResult()
+    public void Save_SendsOnlyTheChangedFieldsForTheChosenService()
     {
-        var fake = new FakeMetadata
+        var metadata = new RecordingMetadata();
+        var page = RenderPage(metadata, Service("zoning"), Service("cadastre"));
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-editing-save]")));
+
+        page.Find("[data-editing-service]").Change("zoning");
+        page.Find("[data-editing-globalid]").Change(" globalid ");
+        page.Find("[data-editing-delete]").Change("false");
+        page.Find("[data-editing-save]").Click();
+
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-editing-result]")));
+        var change = Assert.Single(metadata.Changes);
+        Assert.Equal(new ConsoleLayerEditingChange
         {
-            Display = new ConsoleLayerDisplay { Bound = true, LayerId = 1, DisplayField = "name" },
-            Editing = new ConsoleLayerEditing { Bound = true, LayerId = 1 },
-            Spatial = new ConsoleLayerSpatial { Bound = true, LayerId = 1 },
-            DisplaySaveResult = new ConsoleSetLayerMetadataResult { Succeeded = true, State = "Updated", Detail = "Saved the layer's display hints on honua-server." },
-        };
-        var page = RenderPage(fake);
-
-        page.WaitForAssertion(
-            () => Assert.Contains("data-display-save", page.Markup, StringComparison.Ordinal),
-            TimeSpan.FromSeconds(5));
-
-        page.Find("[data-display-save]").Click();
-
-        page.WaitForAssertion(
-            () => Assert.Contains("data-display-result", page.Markup, StringComparison.Ordinal),
-            TimeSpan.FromSeconds(5));
-        Assert.True(fake.DisplaySaved);
-        Assert.Contains("display hints", page.Markup, StringComparison.Ordinal);
+            ServiceName = "zoning",
+            LayerId = 1,
+            GlobalIdField = "globalid",
+            AllowDelete = false,
+        }, change);
     }
 
     [Fact]
-    public void Page_SaveEditing_IssuesSetEditingAndSurfacesResult()
+    public void Save_ShowsTheServerOutcome()
     {
-        var fake = new FakeMetadata
+        var metadata = new RecordingMetadata
         {
-            Display = new ConsoleLayerDisplay { Bound = true, LayerId = 1 },
-            Editing = new ConsoleLayerEditing { Bound = true, LayerId = 1, GlobalIdField = "globalid" },
-            Spatial = new ConsoleLayerSpatial { Bound = true, LayerId = 1 },
-            EditingSaveResult = new ConsoleSetLayerMetadataResult { Succeeded = true, State = "Updated", Detail = "Saved the layer's editing metadata on honua-server." },
+            Result = new ConsoleSetLayerMetadataResult { Succeeded = false, State = "Rejected", Detail = "globalIdField must name a UUID field" },
         };
-        var page = RenderPage(fake);
-
-        page.WaitForAssertion(
-            () => Assert.Contains("data-editing-save", page.Markup, StringComparison.Ordinal),
-            TimeSpan.FromSeconds(5));
+        var page = RenderPage(metadata);
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-editing-save]")));
 
         page.Find("[data-editing-save]").Click();
 
-        page.WaitForAssertion(
-            () => Assert.Contains("data-editing-result", page.Markup, StringComparison.Ordinal),
-            TimeSpan.FromSeconds(5));
-        Assert.True(fake.EditingSaved);
-        Assert.Contains("editing metadata", page.Markup, StringComparison.Ordinal);
+        page.WaitForAssertion(() =>
+            Assert.Contains("globalIdField must name a UUID field", page.Find("[data-editing-result]").TextContent, StringComparison.Ordinal));
     }
 
     [Fact]
-    public void Page_SaveSpatial_IssuesSetSpatialWithParsedCrsList()
+    public void OnlyFeatureServerServicesAreOffered()
     {
-        var fake = new FakeMetadata
-        {
-            Display = new ConsoleLayerDisplay { Bound = true, LayerId = 1 },
-            Editing = new ConsoleLayerEditing { Bound = true, LayerId = 1 },
-            Spatial = new ConsoleLayerSpatial
-            {
-                Bound = true,
-                LayerId = 1,
-                SupportedCrs = ["http://www.opengis.net/def/crs/EPSG/0/4326"],
-            },
-            SpatialSaveResult = new ConsoleSetLayerMetadataResult { Succeeded = true, State = "Updated", Detail = "Saved the layer's CRS / spatial metadata on honua-server." },
-        };
-        var page = RenderPage(fake);
+        var page = RenderPage(new RecordingMetadata(),
+            Service("a-map", "MapServer"), Service("b-mixed", "MapServer, FeatureServer"), Service("c-feature"));
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-editing-save]")));
 
-        page.WaitForAssertion(
-            () => Assert.Contains("data-spatial-save", page.Markup, StringComparison.Ordinal),
-            TimeSpan.FromSeconds(5));
+        var options = page.FindAll("[data-editing-service] option").Select(option => option.GetAttribute("value"));
 
-        page.Find("[data-spatial-save]").Click();
-
-        page.WaitForAssertion(
-            () => Assert.Contains("data-spatial-result", page.Markup, StringComparison.Ordinal),
-            TimeSpan.FromSeconds(5));
-        Assert.NotNull(fake.SpatialSavedCrs);
-        Assert.Single(fake.SpatialSavedCrs!);
-        Assert.Contains("CRS / spatial metadata", page.Markup, StringComparison.Ordinal);
+        Assert.Equal(["b-mixed", "c-feature"], options);
     }
 
     [Fact]
-    public void Page_MergedBuild_RendersMissingBindingThroughRealDi()
+    public void LayerWithoutAFeatureServer_OffersNoEditingForm()
     {
-        using var ctx = new Bunit.BunitContext();
-        ctx.AddConsoleNotifications();
-        ctx.Services.AddSingleton<IOperateTransitionDataSource>(LayerData());
-        ctx.Services.AddSingleton<IConsoleLayerMetadataOperation, UnsupportedConsoleLayerMetadataOperation>();
+        var page = RenderPage(new RecordingMetadata(), Service("a-map", "MapServer"));
 
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-editing-unavailable]")));
+        Assert.Empty(page.FindAll("[data-editing-save]"));
+    }
+
+    [Fact]
+    public void NavigatingToAnotherLayer_StartsFromAnUnchangedForm()
+    {
+        var metadata = new RecordingMetadata();
+        var roads = new OperateServiceLayerProjection(2, "Roads", "LineString", "conn-1-layer-2", "roads");
+        using var ctx = CreateContext(metadata,
+            new OperateServiceDetail("cadastre", "cadastre", "FeatureServer", "Running", "honua-server", [Parcels, roads], [], []));
         var page = ctx.Render<OperateLayerMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-editing-save]")));
+        page.Find("[data-editing-delete]").Change("false");
+        page.Find("[data-editing-save]").Click();
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-editing-result]")));
 
-        page.WaitForAssertion(
-            () => Assert.Contains("data-display-unbound", page.Markup, StringComparison.Ordinal),
-            TimeSpan.FromSeconds(5));
-        Assert.Contains("data-editing-unbound", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("data-spatial-unbound", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("HONUA_SERVER_BASE_URL", page.Markup, StringComparison.Ordinal);
+        page.Render(p => p.Add(x => x.ResourceId, roads.CanonicalResourceId));
+        page.WaitForAssertion(() => Assert.Contains("Roads", page.Find("h1").TextContent, StringComparison.Ordinal));
+        Assert.Empty(page.FindAll("[data-editing-result]"));
+        page.Find("[data-editing-save]").Click();
+
+        page.WaitForAssertion(() => Assert.Equal(2, metadata.Changes.Count));
+        Assert.Equal(new ConsoleLayerEditingChange { ServiceName = "cadastre", LayerId = 2 }, metadata.Changes[1]);
     }
 
-    private static IRenderedComponent<OperateLayerMetadataPage> RenderPage(FakeMetadata metadata)
+    private static OperateServiceDetail Service(string name, string protocols = "FeatureServer") =>
+        new(name, name, protocols, "Running", "honua-server", [Parcels], [], []);
+
+    private static IRenderedComponent<OperateLayerMetadataPage> RenderPage(
+        RecordingMetadata metadata,
+        params OperateServiceDetail[] services) =>
+        CreateContext(metadata, services).Render<OperateLayerMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
+
+    private static BunitContext CreateContext(RecordingMetadata metadata, params OperateServiceDetail[] services)
     {
-        var ctx = new Bunit.BunitContext();
+        var ctx = new BunitContext();
         ctx.AddConsoleNotifications();
-        ctx.Services.AddSingleton<IOperateTransitionDataSource>(LayerData());
+        var data = services.Length == 0 ? FixedServicesDataSource.WithLayer(Parcels) : new FixedServicesDataSource(services);
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(data);
         ctx.Services.AddSingleton<IConsoleLayerMetadataOperation>(metadata);
-        return ctx.Render<OperateLayerMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        return ctx;
     }
 
-    private static FixedServicesDataSource LayerData() =>
-        FixedServicesDataSource.WithLayer(new OperateServiceLayerProjection(1, "Parcels", "polygon", ResourceId, "parcels"));
-
-    private sealed class FakeMetadata : IConsoleLayerMetadataOperation
+    private sealed class RecordingMetadata : IConsoleLayerMetadataOperation
     {
-        public ConsoleLayerDisplay Display { get; set; } = ConsoleLayerDisplay.Unbound("test");
-        public ConsoleLayerEditing Editing { get; set; } = ConsoleLayerEditing.Unbound("test");
-        public ConsoleLayerSpatial Spatial { get; set; } = ConsoleLayerSpatial.Unbound("test");
+        public List<ConsoleLayerEditingChange> Changes { get; } = [];
 
-        public ConsoleSetLayerMetadataResult? DisplaySaveResult { get; set; }
-        public ConsoleSetLayerMetadataResult? EditingSaveResult { get; set; }
-        public ConsoleSetLayerMetadataResult? SpatialSaveResult { get; set; }
+        public ConsoleSetLayerMetadataResult Result { get; init; } =
+            new() { Succeeded = true, State = "Updated", Detail = "Saved." };
 
-        public bool DisplaySaved { get; private set; }
-        public bool EditingSaved { get; private set; }
-        public IReadOnlyList<string>? SpatialSavedCrs { get; private set; }
-        public bool SpatialSaveInvoked { get; private set; }
-
-        public Task<ConsoleLayerDisplay> GetDisplayAsync(int layerId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Display);
-
-        public Task<ConsoleSetLayerMetadataResult> SetDisplayAsync(int layerId, ConsoleLayerDisplay display, CancellationToken cancellationToken = default)
-        {
-            DisplaySaved = true;
-            return Task.FromResult(DisplaySaveResult ?? new ConsoleSetLayerMetadataResult { Succeeded = true, State = "Updated" });
-        }
-
-        public Task<ConsoleLayerEditing> GetEditingAsync(int layerId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Editing);
-
-        public Task<ConsoleSetLayerMetadataResult> SetEditingAsync(int layerId, ConsoleLayerEditing editing, CancellationToken cancellationToken = default)
-        {
-            EditingSaved = true;
-            return Task.FromResult(EditingSaveResult ?? new ConsoleSetLayerMetadataResult { Succeeded = true, State = "Updated" });
-        }
-
-        public Task<ConsoleLayerSpatial> GetSpatialAsync(int layerId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Spatial);
-
-        public Task<ConsoleSetLayerMetadataResult> SetSpatialAsync(
-            int layerId,
-            IReadOnlyList<string>? supportedCrs,
-            string? storageCrs,
-            double? storageCrsCoordinateEpoch,
-            bool clearStorageCrs,
-            bool clearStorageCrsCoordinateEpoch,
+        public Task<ConsoleSetLayerMetadataResult> SetEditingAsync(
+            ConsoleLayerEditingChange change,
             CancellationToken cancellationToken = default)
         {
-            SpatialSaveInvoked = true;
-            SpatialSavedCrs = supportedCrs;
-            return Task.FromResult(SpatialSaveResult ?? new ConsoleSetLayerMetadataResult { Succeeded = true, State = "Updated" });
+            Changes.Add(change);
+            return Task.FromResult(Result);
         }
     }
 }

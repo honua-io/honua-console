@@ -375,9 +375,10 @@ Key fields:
 
 ### Console Implementation Slice
 
-`honua-console#39` implements the first Console-native package editor slice for `query.package`, `analysis.package`, `map.package`, `dashboard.package`, `report.package`, and `app.package` at `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, and `/studio/app`. The form and map families have been split out: `honua-console#57` owns `/studio/form` as a server-bound form package builder over `honua-server#1184`, and `honua-console#54` owns `/studio/map` as a server-bound map package builder over the map lifecycle (`honua-server#1180`) and publication registry (`honua-server#1183`).
-
-The remaining `honua-console#39` editor routes use the temporary `studio-package-mock/v1` inspector and `StudioPackageLifecycleSimulator` lifecycle evidence until honua-server and honua-sdk-dotnet expose the content-version, publication, share, embed, and rollback APIs. `/studio/form` and `/studio/map` do not use that mock lifecycle; they bind the server-owned package contracts through the `IStudioFormPackageDataSource` / `IStudioMapPackageDataSource` seams (rendering an explicit missing-binding state until the server base address and SDK projection land). Those refs are documented in [Studio Package Editor Routes](../studio/package-editor-routes.md) and do not change the server-owned package schema guidance below.
+The Console keeps two Console-native package editors: `/studio/form` (form packages over the admin form-package
+lifecycle) and `/studio/report` (report documents over the content publication registry). Maps and apps are
+authored in the embedded Studio workspace at `/studio`; the other package families below describe the shared
+package schema, not Console routes.
 
 ### Query Package
 

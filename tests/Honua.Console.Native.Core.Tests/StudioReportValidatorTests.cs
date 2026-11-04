@@ -6,12 +6,11 @@ using Honua.Console.Shell.Validation;
 namespace Honua.Console.Native.Core.Tests;
 
 /// <summary>
-/// Docker-free coverage for the Wave-3 Studio report + dashboard client validators and their server-error
-/// binders: required presence, unique binding aliases, panel→binding referential integrity, Vega-Lite spec
+/// Docker-free coverage for the Studio report client validator and its server-error binder: required presence, unique binding aliases, panel→binding referential integrity, Vega-Lite spec
 /// (JSON + vega-lite <c>$schema</c>), RouteSlug format / Visibility enum, and JSON-Pointer → field-key
 /// resolution for server findings.
 /// </summary>
-public sealed class StudioReportDashboardValidatorTests
+public sealed class StudioReportValidatorTests
 {
     private const string ValidVegaSpec =
         """{ "$schema": "https://vega.github.io/schema/vega-lite/v5.json", "mark": "bar" }""";
@@ -129,56 +128,4 @@ public sealed class StudioReportDashboardValidatorTests
         Assert.Contains(mapped, e => e.FieldKey == StudioReportFieldKeys.PanelVegaLiteSpec(2));
     }
 
-    private static StudioDashboardEditorState ValidDashboard()
-    {
-        var state = new StudioDashboardEditorState { Title = "Ops" };
-        state.Bindings.Add(new StudioDashboardBindingEditor { Alias = "requests", ContentRef = "content:requests" });
-        state.Panels.Add(new StudioDashboardPanelEditor
-        {
-            Kind = StudioDashboardPanelKinds.Chart,
-            BindingAlias = "requests",
-            VegaLiteSpec = ValidVegaSpec,
-        });
-        return state;
-    }
-
-    [Fact]
-    public void Dashboard_ValidState_HasNoFindings()
-    {
-        var errors = StudioDashboardValidator.Instance.Evaluate(ValidDashboard());
-        Assert.Empty(errors);
-    }
-
-    [Fact]
-    public void Dashboard_DuplicateAlias_UnresolvedPanel_AndBadVega_AreFlagged()
-    {
-        var state = ValidDashboard();
-        state.Bindings.Add(new StudioDashboardBindingEditor { Alias = "requests", ContentRef = "content:dup" });
-        state.Panels.Add(new StudioDashboardPanelEditor
-        {
-            Kind = StudioDashboardPanelKinds.Chart,
-            BindingAlias = "missing",
-            VegaLiteSpec = "{}",
-        });
-
-        var errors = StudioDashboardValidator.Instance.Evaluate(state);
-        Assert.Contains(errors, e => e.FieldKey == StudioDashboardFieldKeys.BindingAlias(1) && e.Code == "binding.alias.duplicate");
-        Assert.Contains(errors, e => e.FieldKey == StudioDashboardFieldKeys.PanelBindingAlias(1) && e.Code == "panel.bindingAlias.unresolved");
-        Assert.Contains(errors, e => e.FieldKey == StudioDashboardFieldKeys.PanelVegaLiteSpec(1) && e.Code == "dashboard.panel.vegaLite.invalid");
-    }
-
-    [Fact]
-    public void DashboardServerErrorBinder_ResolvesBodyRootedPointers()
-    {
-        var diagnostics = new[]
-        {
-            new StudioValidationDiagnostic { Code = "studio.binding.key.duplicate", Severity = StudioPackageDiagnosticSeverity.Error, Path = "/body/bindings/1", Message = "dup" },
-            new StudioValidationDiagnostic { Code = "studio.panel.alias", Severity = StudioPackageDiagnosticSeverity.Error, Path = "/body/panels/0/bindingAlias", Message = "x" },
-        };
-
-        var mapped = StudioDashboardServerErrorBinder.Map(diagnostics);
-
-        Assert.Contains(mapped, e => e.FieldKey == StudioDashboardFieldKeys.BindingAlias(1));
-        Assert.Contains(mapped, e => e.FieldKey == StudioDashboardFieldKeys.PanelBindingAlias(0));
-    }
 }

@@ -17,13 +17,6 @@ internal sealed class TestMapStyles : IStudioMapStyleCatalogDataSource
     public List<int> RequestedLayers { get; } = [];
     public Func<int, string> ForLayer { get; init; } = _ => Style;
 
-    public static void MarkSaved(StudioMapEditorState state)
-    {
-        using var document = JsonDocument.Parse(Style);
-        state.CanonicalMapStyle = document.RootElement.Clone();
-        state.SavedStyleSignature = StudioMapStyleComposer.Signature(state);
-    }
-
     public Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetLayerStylesheetAsync(int layerId, CancellationToken cancellationToken = default)
     {
         RequestedLayers.Add(layerId);

@@ -43,9 +43,7 @@ builder.Services.AddHonuaConsoleShell(
     builder.Configuration["Honua:Llm:ApiKey"] ?? builder.Configuration["HONUA_LLM_API_KEY"],
     builder.Configuration["Honua:Support:KbPath"] ?? builder.Configuration["HONUA_SUPPORT_KB_PATH"],
     // Optional local narrowing policy for server-backed capabilities. The live server manifest is
-    // always the upper bound; this list cannot widen it. The same list controls the local-only
-    // SHELVED Console Studio builder surfaces with "studio-builders" — they are
-    // gated off (and hidden from nav) because "Studio" is now the realtime, SDK-driven app builder.
+    // always the upper bound; this list cannot widen it.
     builder.Configuration["Honua:Console:Capabilities"] ?? builder.Configuration["HONUA_CONSOLE_CAPABILITIES"],
     // Registry-driven Studio-AI intent resolution (honua-console#266): OFF by default. When ON (and a
     // server is bound) the Studio generate/validate/preview/publish lifecycle resolves against the live

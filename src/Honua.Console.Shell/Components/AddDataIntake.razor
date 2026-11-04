@@ -1,36 +1,10 @@
 @namespace Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 
-@*
-    DESIGN SKETCH (docs/design/console-ux-redesign.md, Phase 1, step ① "Add data").
-
-    The single intake bar that anchors the unified, RESOURCE-FIRST "data -> publish" flow
-    (redesign sections 3.0 and 3). It generalizes the Esri-only Components/EsriImportIntake.razor
-    "intake bar" pattern into the five data sources the redesign calls for:
-
-        Upload file - Connect a table - Remote service - Existing resource - Describe it (AI)
-
-    This is a presentational sketch: it owns the mode selection + source description and raises the
-    chosen DataSourceIntake to the host flow (Components/Operate DataToPublishFlow, not yet built) via
-    OnSourceChosen. It binds no services and fabricates no data, so it builds clean and renders the
-    same missing-binding/binding-required posture the existing intake uses for server-only modes.
-
-    Where this sits in the resource-first model (redesign section 3.0): every mode here produces (or
-    selects) a canonical RESOURCE. The next step is not "name a service" but the resource-first
-    PUBLISH step -- a protocol/service toggle grid (sketched companion: PublishProtocolPicker, step
-    (3), redesign section 5.4b) where each enabled protocol (FeatureServer / MapServer / STAC / WMS /
-    WFS / WMTS / OGC API / OData) becomes a metadata-v2 Publication.
-
-    The "Existing resource" mode is the explicit answer to the founder's "use an existing resource to
-    create a layer" gap: choosing it lets the flow skip the ingest/Resource step and jump straight to
-    the resource-first PUBLISH step. "Describe it (AI)" hands the source description to the AI driver,
-    which surfaces an outcome + single approval (plumbing hidden; redesign section 4.1/5.5) rather
-    than the existing StudioAiConversation plan/spec columns.
-*@
 <div class="add-data-intake" data-add-data-intake>
     <div class="add-data-intake__bar">
         <div class="add-data-intake__modes" role="tablist" aria-label="Add data source">
-            @foreach (var option in ModeOptions.Where(option => AllowAi || option.Mode != AddDataMode.Ai))
+            @foreach (var option in ModeOptions)
             {
                 <button type="button"
                         role="tab"
@@ -122,32 +96,16 @@
                 </p>
             </div>
             break;
-
-        default: // AddDataMode.Ai
-            <div class="add-data-intake__input">
-                <label class="studio-form-label">
-                    <span>Describe what you want</span>
-                    <textarea class="console-input add-data-intake__textarea" rows="3"
-                              placeholder="e.g. publish the parcels shapefile I uploaded as a public layer"
-                              aria-label="Describe the data and layer you want"
-                              @bind="_aiPrompt" @bind:event="oninput" @bind:after="RaiseAi"></textarea>
-                </label>
-                <p class="console-muted">The agent fills the flow and pauses at each step for your approval.</p>
-            </div>
-            break;
     }
 </div>
 
 @code {
-    [Parameter] public bool AllowAi { get; set; } = true;
     [Parameter] public bool Loaded { get; set; } = true;
     private AddDataMode _mode = AddDataMode.File;
     private string _connectionId = string.Empty;
     private string _resourceId = string.Empty;
     private string _remoteUrl = string.Empty;
-    private string _aiPrompt = string.Empty;
 
-    /// <summary>A chosen source, raised to the host flow. Ref is mode-specific (file name, table id, URL, resource id, prompt).</summary>
     public readonly record struct DataSourceIntake(AddDataMode Mode, string? Reference);
 
     /// <summary>A selectable option (connection / existing resource) the host supplies.</summary>
@@ -161,7 +119,6 @@
         new(AddDataMode.Table, "Connect a table"),
         new(AddDataMode.RemoteService, "Remote service"),
         new(AddDataMode.ExistingResource, "Existing resource"),
-        new(AddDataMode.Ai, "Describe it (AI)"),
     ];
 
     /// <summary>Connections available for the "Connect a table" mode (host-supplied; empty by default).</summary>
@@ -212,7 +169,6 @@
         AddDataMode.Table => string.IsNullOrEmpty(_connectionId) ? null : _connectionId,
         AddDataMode.RemoteService => string.IsNullOrWhiteSpace(_remoteUrl) ? null : _remoteUrl,
         AddDataMode.ExistingResource => string.IsNullOrEmpty(_resourceId) ? null : _resourceId,
-        AddDataMode.Ai => string.IsNullOrWhiteSpace(_aiPrompt) ? null : _aiPrompt,
         _ => null,
     };
 
@@ -221,8 +177,6 @@
     private Task RaiseRemote() => Raise(AddDataMode.RemoteService, string.IsNullOrWhiteSpace(_remoteUrl) ? null : _remoteUrl);
 
     private Task RaiseExisting() => Raise(AddDataMode.ExistingResource, string.IsNullOrEmpty(_resourceId) ? null : _resourceId);
-
-    private Task RaiseAi() => Raise(AddDataMode.Ai, string.IsNullOrWhiteSpace(_aiPrompt) ? null : _aiPrompt);
 
     private async Task Raise(AddDataMode mode, string? reference)
     {

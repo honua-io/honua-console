@@ -29,7 +29,7 @@ dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http:
 ## Rules
 - **One Console/Studio workspace.** `/studio` is the realtime editor over the bundled
   `honua-studio` dependency; do not archive that dependency without an explicit migration.
-  Retired standalone builder routes stay retired: never revive them with `studio-builders`.
+  The standalone builder routes are retired; don't revive them.
   Unrouted components and services may stay for migration and compatibility tests. Keep real
   operations, automation and Processes authoring; use one primary conversation, the canonical
   drafts, and separate human approval for consequential operations.
