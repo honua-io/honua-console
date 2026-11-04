@@ -755,7 +755,7 @@ public sealed record ConsoleJobActionsResponse
     public ConsoleJobActionDescriptor[] Actions { get; init; } = [];
 }
 
-// A denied action is a 403, not this body.
+// The server's Execute permission and destructive-approval gate decide the action, and a denial is a 403 rather than this body.
 public sealed record ConsoleJobControlResponse
 {
     public string JobId { get; init; } = string.Empty;

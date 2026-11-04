@@ -21,6 +21,7 @@ public interface IHonuaContentPublicationClient
         string? lifecycle = null,
         CancellationToken cancellationToken = default);
 
+    // The selector accepts a revision number, a "v{n}" token, or a version id.
     Task<HonuaAdminEndpointResult<HonuaContentPublicationVersion>> GetVersionAsync(
         string publicationId,
         string versionSelector,
@@ -30,16 +31,19 @@ public interface IHonuaContentPublicationClient
         HonuaPublishContentRequest request,
         CancellationToken cancellationToken = default);
 
+    // Creates a new immutable version and moves the active route to it; earlier versions stay immutable.
     Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RepublishAsync(
         string publicationId,
         HonuaRepublishContentRequest request,
         CancellationToken cancellationToken = default);
 
+    // Moves the active route to an earlier version and does not create a version row.
     Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RollbackAsync(
         string publicationId,
         HonuaRollbackContentRequest request,
         CancellationToken cancellationToken = default);
 
+    // Records an audited policy event and does not create a version row.
     Task<HonuaAdminEndpointResult<HonuaContentPublicationPolicyUpdateResponse>> UpdatePolicyAsync(
         string publicationId,
         HonuaUpdatePublicationPolicyRequest request,

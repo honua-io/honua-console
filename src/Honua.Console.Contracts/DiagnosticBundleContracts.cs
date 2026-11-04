@@ -51,10 +51,10 @@ public sealed record DiagnosticEnvelope
 
     public string? CapturedAt { get; init; }
 
-    // Authorization and Cookie are never included.
+    // Only allowlisted non-secret headers are included, and Authorization and Cookie never are.
     public IReadOnlyList<DiagnosticHeader>? RequestHeaders { get; init; }
 
-    // Set-Cookie is never included.
+    // Only allowlisted non-secret headers are included, and Set-Cookie never is.
     public IReadOnlyList<DiagnosticHeader>? ResponseHeaders { get; init; }
 
     public DiagnosticBodyPreview? RequestBody { get; init; }
@@ -64,11 +64,12 @@ public sealed record DiagnosticEnvelope
 
 public sealed record DiagnosticHeader(string Name, string Value);
 
+// Preview is redacted and truncated text, and the raw body bytes are never included.
 public sealed record DiagnosticBodyPreview
 {
     public string? Preview { get; init; }
 
-    // Hash of the original body bytes, taken before redaction or truncation.
+    // Lowercase hexadecimal SHA-256 of the original body bytes, taken before redaction or truncation.
     public string? ContentSha256 { get; init; }
 
     public long OriginalByteSize { get; init; }

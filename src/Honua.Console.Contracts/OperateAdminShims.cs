@@ -575,6 +575,7 @@ public sealed record HonuaAdminCreateConnectionRequest
     // Sent to the server secret store, never returned, and mutually exclusive with SecretReference.
     public string? Password { get; init; }
 
+    // The referenced secret holds the full connection string, not only a password.
     public string? SecretReference { get; init; }
 
     // SecretType is required when SecretReference is set.
@@ -705,22 +706,26 @@ public sealed record HonuaAdminLayerField
 
     public bool Hidden { get; init; }
 
+    // The persisted default is a JSON scalar, or null when the field has none.
     public JsonElement? DefaultValue { get; init; }
 }
 
-// Type codedValue carries CodedValues, type range carries a two-element min/max Range, and a null merge or split token leaves the server default.
 public sealed record HonuaAdminFieldDomain
 {
     public string? Name { get; init; }
 
+    // Type is codedValue, which carries CodedValues, or range, which carries Range.
     public string? Type { get; init; }
 
     public IReadOnlyList<HonuaAdminCodedValue> CodedValues { get; init; } = [];
 
+    // A two-element min and max, with min at most max, and null for a coded-value domain.
     public IReadOnlyList<double>? Range { get; init; }
 
+    // An Esri merge-policy token, and null leaves the server default.
     public string? MergePolicy { get; init; }
 
+    // An Esri split-policy token, and null leaves the server default.
     public string? SplitPolicy { get; init; }
 }
 
@@ -748,7 +753,7 @@ public sealed record HonuaAdminLayerFieldUpdate
 
     public bool? Hidden { get; init; }
 
-    // A JSON null clears the stored default; omit the property to leave the stored default unchanged.
+    // A non-null value must be a JSON scalar, a JSON null clears the stored default, and omitting the property leaves it unchanged.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonElement? DefaultValue { get; init; }
 }
@@ -891,7 +896,7 @@ public sealed record HonuaAdminGeoservicesImportProgress
 {
     public string? JobId { get; init; }
 
-    // Ordinal of the server import status, from 0 queued to 8 cancelled.
+    // Server import status ordinal: 0 Queued, 1 Discovering, 2 RetrievingFeatures, 3 CreatingTable, 4 InsertingFeatures, 5 Publishing, 6 Completed, 7 Failed, 8 Cancelled.
     [JsonPropertyName("status")]
     public int? StatusCode { get; init; }
 

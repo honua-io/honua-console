@@ -15,11 +15,12 @@ public interface IHonuaAdminConnectionsClient
         HonuaAdminCreateConnectionRequest request,
         CancellationToken cancellationToken = default);
 
+    // Unlike a draft test, the server stores the resulting health on the connection.
     Task<HonuaAdminEndpointResult<HonuaAdminConnectionTestResult>> TestConnectionAsync(
         string connectionId,
         CancellationToken cancellationToken = default);
 
-    // The body is a tables array, not the admin response envelope.
+    // The wire body is { "tables": [...] }, not the admin response envelope.
     Task<HonuaAdminEndpointResult<HonuaAdminTableInfo[]>> ListConnectionTablesAsync(
         string connectionId,
         CancellationToken cancellationToken = default);
