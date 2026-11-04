@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { gunzipSync } from "node:zlib";
 
-const MIB = 1024 * 1024;
+export const MIB = 1024 * 1024;
 export const TAR_LIMITS = Object.freeze({
   maxInflatedBytes: 128 * MIB,
   maxEntries: 4096,

@@ -7,9 +7,8 @@ import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 
 import { verifyCompressedCopies } from "./compressed-static-assets.mjs";
-import { TAR_LIMITS, extractTarGz } from "./tar-archive.mjs";
+import { MIB, TAR_LIMITS, extractTarGz } from "./tar-archive.mjs";
 
-const MIB = 1024 * 1024;
 export const RELEASE_LIMITS = Object.freeze({ maxArchiveBytes: 32 * MIB, ...TAR_LIMITS });
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
