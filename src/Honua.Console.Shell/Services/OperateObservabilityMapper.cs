@@ -4,7 +4,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-// A missing or unsupported telemetry signal stays neutral and does not mark the environment failed, and only a server-declared Allowed value of false disables an action.
+// A missing or unsupported telemetry signal stays neutral and does not mark the environment failed.
 public static class OperateObservabilityMapper
 {
 
@@ -403,6 +403,7 @@ public static class OperateObservabilityMapper
         return string.Empty;
     }
 
+    // Job action permission follows the server Allowed flag. Alert actions are disabled from lifecycle state instead.
     public static OperateJobAction MapJobAction(ConsoleJobActionDescriptor action) =>
         new(
             Label: Titleize(action.Name),

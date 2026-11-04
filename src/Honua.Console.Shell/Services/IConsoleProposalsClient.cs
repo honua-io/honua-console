@@ -2,7 +2,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-// Approve and reject require the server's distinct approve grant and the proposer-cannot-approve rule; this client does not bypass that gate.
+// Approve and reject both require the server approve grant, and only approval enforces proposer-cannot-approve. This client does not bypass that gate.
 public interface IConsoleProposalsClient
 {
     Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(

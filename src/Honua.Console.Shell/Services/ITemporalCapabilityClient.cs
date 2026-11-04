@@ -26,7 +26,7 @@ public interface ITemporalCapabilityClient
         string targetCheckpointId,
         CancellationToken cancellationToken = default);
 
-    // Execute starts a governed job and a new result checkpoint, and it leaves earlier checkpoints in place.
+    // Execute submits a governed corrective job and leaves earlier checkpoints in place. A new checkpoint is recorded only when corrective edits advance the generation.
     Task<TemporalRollbackOperation> ExecuteRollbackAsync(
         string rollbackPlanId,
         CancellationToken cancellationToken = default);

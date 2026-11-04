@@ -13,7 +13,7 @@ public interface IStudioReportPublicationDataSource
         StudioReportEditorState state,
         CancellationToken cancellationToken = default);
 
-    // Rollback moves the active pointer to an earlier version and does not create a version.
+    // Rollback moves the active pointer to an existing non-active version and does not create a version.
     Task<StudioReportCommandResult> RollbackAsync(
         string publicationId,
         string targetVersionId,
