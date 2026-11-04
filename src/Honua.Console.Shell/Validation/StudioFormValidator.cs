@@ -13,6 +13,7 @@ public static class StudioFormFieldKeys
     public const string PrivacyRetentionDays = "form.privacyRetentionDays";
     public const string OfflineTransports = "form.offlineTransports";
 
+    // Key rows by position because a blank or duplicate FieldId must stay independently addressable.
     public static string FieldRangeMin(int index) => $"form.field[{index}].rangeMin";
 
     public static string FieldRangeMax(int index) => $"form.field[{index}].rangeMax";

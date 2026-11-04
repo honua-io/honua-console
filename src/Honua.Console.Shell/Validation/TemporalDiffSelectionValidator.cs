@@ -36,9 +36,7 @@ public sealed class TemporalDiffSelectionValidator : IFieldValidator<TemporalDif
             errors.Add(Blocker(TemporalDiffFieldKeys.To, "temporal.diff.to.required", "Choose a now (to) checkpoint."));
         }
 
-        // Ordering: the as-of (from) checkpoint must be at or before the now (to) checkpoint. Checkpoints are
-        // listed newest-first, so "at or before" means the from checkpoint's list index is >= the to index.
-        // Only checked when both ids resolve to a known checkpoint position.
+        // Newest-first list position orders the pair, because timestamps can tie or disagree across clocks.
         if (fromIndex >= 0 && toIndex >= 0 && fromIndex < toIndex)
         {
             errors.Add(Error(

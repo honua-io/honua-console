@@ -4,7 +4,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Diagnostics;
 
-// The message lists schema violations, not captured payload contents.
+// Schema messages can quote a rejected value, so do not treat them as free of payload.
 public sealed class DiagnosticBundleValidationException : Exception
 {
     public DiagnosticBundleValidationException(IReadOnlyList<string> errors)

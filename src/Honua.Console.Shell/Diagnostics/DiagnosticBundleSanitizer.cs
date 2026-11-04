@@ -82,7 +82,7 @@ public static partial class DiagnosticBundleSanitizer
         return AllowedHeaders.Contains(trimmed);
     }
 
-    // Query values can carry tokens, so every value is replaced.
+    // Only query values are replaced, because they can carry tokens. Callers must template sensitive path parameters.
     public static string NormalizePath(string pathAndQuery)
     {
         if (string.IsNullOrWhiteSpace(pathAndQuery))
