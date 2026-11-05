@@ -65,7 +65,7 @@ jobs:
   publish-query:
     if: ${{ inputs.suite != 'studio-customer' }}
     name: Publish and query through a real server
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # The publish journey finishes well inside 30 minutes. The complete authenticated suite runs
     # 87 cases serially with up to two retries each, and a 30-minute cap cancelled it before it
     # reported (run 39705471348), so `suite=full` could never produce a result.
@@ -168,7 +168,7 @@ jobs:
   studio-customer:
     name: Studio customer journey on real images
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.suite == 'studio-customer' || inputs.suite == 'full' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
       CI: 'true'
