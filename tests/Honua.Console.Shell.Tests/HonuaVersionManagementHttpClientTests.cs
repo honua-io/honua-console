@@ -4,16 +4,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Transport-level coverage for <see cref="HonuaVersionManagementHttpClient"/>, the thin HttpClient behind the
-/// Honua.Console.Contracts boundary that binds the Operate branch-version manager + conflict-resolution surface
-/// (honua-console#177) to honua-server's GeoServices VersionManagementServer (#371 / PR #1551). These tests
-/// drive the real client over a recording <see cref="HttpMessageHandler"/> and feed it the BARE Esri-shaped
-/// JSON the live VersionManagementServer emits (NOT the admin {success,data} envelope), so a drift between the
-/// Console wire records and the server DTOs fails here. They assert the exact route + verb, the form-encoded
-/// parameter names (versionName/accessPermission/conflictResolution/abortIfConflicts/conflicts), the
-/// projection of versions/conflicts/counts, and the HTTP-status -> capability-state mapping.
-/// </summary>
+// Version management returns bare GeoServices JSON, not the admin success/data envelope, and parameters are form-encoded.
 public sealed class HonuaVersionManagementHttpClientTests
 {
     private static readonly Uri BaseUri = new("https://server.example");

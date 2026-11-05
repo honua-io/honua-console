@@ -6,11 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render regression for the Collect automation list page (<see cref="StudioAutomationsPage"/>,
-/// honua-console#219). An unbound runtime must render the shared missing-binding state (never a misleading
-/// "empty"); a bound runtime lists the automations with their rule count + version badge.
-/// </summary>
 public sealed class StudioAutomationsPageTests
 {
     [Fact]

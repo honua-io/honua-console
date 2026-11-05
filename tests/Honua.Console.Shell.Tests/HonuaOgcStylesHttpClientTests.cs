@@ -4,17 +4,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Transport-level coverage for <see cref="HonuaOgcStylesHttpClient"/>, the thin HttpClient behind the single
-/// Honua.Console.Contracts boundary that binds the Studio map builder's per-layer style picker (#161,
-/// honua-server ADR-0048) to the server's OGC API - Styles list (<c>GET /ogc/styles</c>). These tests drive
-/// the real client over a recording <see cref="HttpMessageHandler"/> and feed it byte-for-byte the JSON the
-/// live OGC surface emits — a PUBLIC OGC StylesList document (<c>{styles:[{id,title,links}],default}</c>) that
-/// is NOT wrapped in the admin <c>{success,data}</c> envelope — so a drift between the Console wire records and
-/// the server's OGC document fails here. They assert the exact route + verb, the styleId/title/default
-/// projection, the legacy/empty handling, and the HTTP-status -> capability-state mapping the picker degrades
-/// through.
-/// </summary>
+// The public OGC StylesList document is read directly, not through the admin envelope.
 public sealed class HonuaOgcStylesHttpClientTests
 {
     private static readonly Uri BaseUri = new("https://server.example");

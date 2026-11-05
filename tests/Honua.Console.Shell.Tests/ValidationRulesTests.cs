@@ -2,11 +2,6 @@ using Honua.Console.Shell.Validation;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Docker-free unit coverage for the Wave-0 shared validation rule helpers, proving the cross-field
-/// invariants the catalog flags as the priority class: bbox ordering, ISO temporal from&lt;=to, CRS
-/// format, and numeric bounds/ordering.
-/// </summary>
 public sealed class ValidationRulesTests
 {
     [Theory]

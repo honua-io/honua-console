@@ -6,13 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free bUnit coverage for the platform-release converge card (console#290 acceptance
-/// criterion 5). honua-server#2564 (the converge API) is still open at the time this ticket
-/// was authored, so the default (every real server today) is the capability-detected
-/// unavailable state; a seeded converge response exercises the approval-mediated proposal
-/// chip path for when the endpoint lands.
-/// </summary>
 public sealed class OperatePlatformReleaseConvergeCardTests
 {
     [Fact]

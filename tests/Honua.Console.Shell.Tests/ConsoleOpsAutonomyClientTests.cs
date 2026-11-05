@@ -9,11 +9,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Contract tests for the narrow graduated-autonomy client. Reads may use the configured
-/// admin credential, while every human policy/settings mutation must retain the active
-/// operator bearer and fail closed when that bearer is unavailable.
-/// </summary>
+// Policy and settings mutations send the operator bearer and fail closed; reads may use the service credential.
 public sealed class ConsoleOpsAutonomyClientTests
 {
     [Fact]

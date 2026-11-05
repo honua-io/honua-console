@@ -4,13 +4,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for the map-preview tile proxy's caching behavior
-/// (<see cref="MapProxySupport.ApplyTileCacheHeaders"/> and
-/// <see cref="MapProxySupport.ForwardConditionalHeaders"/>). The proxy is the hottest path, so it must
-/// forward the upstream caching/validator headers (and the browser's conditional headers) rather than
-/// stripping them and forcing every tile to be re-fetched through the admin-keyed proxy (honua-console#236).
-/// </summary>
+// Validators and conditional headers are forwarded so the proxy does not strip them and refetch every tile with the admin key.
 public sealed class MapProxyCacheHeaderTests
 {
     [Fact]

@@ -3,12 +3,6 @@ using Honua.Console.Shell.Validation;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Docker-free unit coverage for the Wave-6 Esri content-import intake validator and the new absolute-http
-/// URL rule. Proves the catalog's intake rules in pass and fail: a source must be provided, pasted JSON must
-/// parse to a JSON object, and a typed URL / item id must be an absolute http(s) URL or a plausible item id.
-/// Keyed by <see cref="EsriImportFieldKeys"/>.
-/// </summary>
 public sealed class Wave6ValidatorTests
 {
     private static EsriImportIntakeState PasteIntake(string? json) =>

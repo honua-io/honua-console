@@ -7,15 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free bUnit coverage for the human-in-the-loop deploy approval surface. The
-/// surface binds to a live honua-server deploy-control operation (charter section 11);
-/// these tests drive it through the test/demo <see cref="InMemoryConsoleDeployApprovalClient"/>
-/// and a stub client to exercise the approve / rollback actions (there is no Reject action —
-/// console#290 addendum item 2), the data-affecting rollback confirmation gate, the
-/// ManualInterventionRequired findings-driven recovery panel, and the missing/unsupported
-/// binding states without a backend.
-/// </summary>
+// Deploy-control approval has no Reject action.
 public sealed class OperateDeploymentApprovalTests
 {
     [Fact]
@@ -278,12 +270,6 @@ public sealed class OperateDeploymentApprovalTests
         RawStatus = "ManualInterventionRequired",
     };
 
-    /// <summary>
-    /// Minimal stub for the recovery-panel tests: reports one finding pinned to
-    /// <paramref name="recoverableOperationId"/> (or none, when null — the honest
-    /// "no recorded prior revision" case) with a recommended forward-deploy action, and
-    /// records propose calls as creating a gateway proposal (never executing directly).
-    /// </summary>
     private sealed class StubOpsFindingsClient(string? recoverableOperationId) : IConsoleOpsFindingsClient
     {
         public Task<OperateSectionResult<Honua.Console.Contracts.OpsFindingsListResponse>> ListAsync(

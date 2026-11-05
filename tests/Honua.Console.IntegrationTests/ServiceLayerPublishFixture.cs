@@ -8,15 +8,6 @@ public sealed class ServiceLayerPublishIntegrationCollection : ICollectionFixtur
     public const string Name = "ServiceLayerPublishIntegration";
 }
 
-/// <summary>
-/// Boots a real honua-server (with PostGIS) via Testcontainers for the flagship service-layer-publish
-/// round-trip (console-integration-test-plan.md §3.A, Wave 1). Exposes the host-reachable PostGIS
-/// connection string so the test can seed source tables directly in the same database the server reaches
-/// over the Docker network, plus factories for the production admin operate client (the publish OPERATION)
-/// and the independent <see cref="ServerStateVerifier"/> oracle. Off by default; skips gracefully when
-/// Docker, the server image, the opt-in flag, or the admin API key is unavailable (Console Patterns
-/// Charter section 11). Reuses <see cref="HonuaServerTestcontainer"/>.
-/// </summary>
 public sealed class ServiceLayerPublishFixture : IAsyncLifetime
 {
     private HonuaServerTestcontainer? _container;
@@ -27,7 +18,6 @@ public sealed class ServiceLayerPublishFixture : IAsyncLifetime
 
     public Uri BaseAddress { get; private set; } = new("https://localhost");
 
-    /// <summary>Host-reachable PostGIS connection string for seeding source tables, or <c>null</c> for an external server.</summary>
     public string? PostgresConnectionString { get; private set; }
 
     public async Task InitializeAsync()
@@ -76,17 +66,14 @@ public sealed class ServiceLayerPublishFixture : IAsyncLifetime
         }
     }
 
-    /// <summary>The production admin operate client (the publish OPERATION path), with admin key + dev-cert acceptance.</summary>
     public IHonuaAdminOperateClient CreateOperateClient() =>
         new HonuaAdminOperateHttpClient(
             CreateHttpClient(),
             new HonuaAdminOperateClientOptions(BaseAddress, Options.StudioAdminApiKey));
 
-    /// <summary>The independent verification oracle that reads server state back through canonical read APIs.</summary>
     public ServerStateVerifier CreateVerifier() =>
         new(BaseAddress, Options.StudioAdminApiKey);
 
-    /// <summary>Raw HttpClient (admin key + dev-cert acceptance) used to seed the secure connection over the admin API.</summary>
     public HttpClient CreateHttpClient()
     {
         var handler = new HttpClientHandler();

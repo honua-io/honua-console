@@ -9,13 +9,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the Share home surface (<c>/share</c>, <see cref="SharePage"/>) matching
-/// the <c>screens-share.jsx</c> <c>ShareHome</c> mockup: a KPI summary strip, a shared-items toolbar, and a
-/// shared-items table with unambiguous visibility/open-data state and a per-item Configure action. Drives the
-/// real <see cref="HonuaServerConsoleCatalogClient"/> over a recording handler so the binding + mapper run end
-/// to end; a server-unavailable read renders the empty surface rather than fabricating shared content.
-/// </summary>
 public sealed class ShareHomeRenderTests
 {
     private static readonly Uri BaseUri = new("https://console.honua.test");

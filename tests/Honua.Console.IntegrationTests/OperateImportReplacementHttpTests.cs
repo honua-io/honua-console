@@ -9,8 +9,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>Exercises the rendered controls through the production operation and HTTP client.
-/// Only the HTTP transport is stubbed; assertions inspect the serialized server requests.</summary>
 public sealed class OperateImportReplacementHttpTests
 {
     [Fact]

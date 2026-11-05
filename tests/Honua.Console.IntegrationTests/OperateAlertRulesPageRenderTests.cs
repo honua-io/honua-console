@@ -6,13 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the alert RULE list (/operate/alerts/rules) and rule detail / condition
-/// editor (/operate/alerts/rules/{ruleId}) — UI-042, honua-server#1169. Asserts the merged-build
-/// missing-binding state (no fabricated rules) plus the bound list and condition editor. Drives the pages
-/// through a fake IOperateAlertRulesDataSource (never a mock server). The merged-build
-/// UnsupportedOperateAlertRulesDataSource is exercised through real DI.
-/// </summary>
 public sealed class OperateAlertRulesPageRenderTests
 {
     private static readonly OperateAlertRulesBindingState MissingBinding = new(

@@ -4,12 +4,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Tests.Components;
 
-/// <summary>
-/// Coverage for the shared correlation-id chip (console#292 incident golden path): it deep-links
-/// every correlationId / operationId / eventId / findingId / proposalId onto the Console surface
-/// that owns it, so an operator never hand-copies an id between health, copilot, inbox, deploy,
-/// and timeline surfaces.
-/// </summary>
 public sealed class CorrelationIdChipTests : ConsoleComponentTestBase
 {
     [Fact]

@@ -3,14 +3,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Null-safety coverage for <see cref="ShareAccessMapper"/> against the deserialized-DTO contract: every
-/// share read/mutation re-projects the server wire records through <c>ToView</c>, and System.Text.Json
-/// overrides a collection's <c>[]</c> initializer with null when the server emits an explicit JSON
-/// <c>null</c> for the key. The mapper must coalesce before LINQ rather than throwing and tearing down the
-/// Blazor circuit (Console Patterns Charter section 11 — bind the real server, never throw on an
-/// honest-but-empty payload).
-/// </summary>
+// System.Text.Json replaces a collection initializer with null only when the payload sends explicit JSON null, so every share projection coalesces wire collections before LINQ.
 public sealed class ShareAccessMapperTests
 {
     [Fact]

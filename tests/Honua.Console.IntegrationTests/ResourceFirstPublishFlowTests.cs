@@ -11,13 +11,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for the resource-first publish flow (redesign Phase 1) and the resource→publications
-/// treeview (Phase 2). Asserts the protocol→publication mapping authority, the tree builder's grouping of
-/// services under their canonical resource, the flow host's step rail + existing-resource skip + the
-/// first-class missing-binding surfacing (never a fabricated step), the protocol-toggle picker, and the
-/// redirect of the old entry points into the unified flow.
-/// </summary>
 public sealed class ResourceFirstPublishFlowTests
 {
     [Fact]

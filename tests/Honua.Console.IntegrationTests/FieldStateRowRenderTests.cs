@@ -5,12 +5,6 @@ using Microsoft.AspNetCore.Components;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the shared <see cref="FieldStateRow"/> component
-/// (design-handoff console-canvas/field-state.jsx). Asserts that each field-state value renders the
-/// correct pill, slug class, and read-only/editable affordances so operators learn one visual
-/// language for who owns a value (input / discovered / calculated / system / admin).
-/// </summary>
 public sealed class FieldStateRowRenderTests
 {
     private static RenderFragment Control(string testId) => builder =>

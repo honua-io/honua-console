@@ -3,17 +3,11 @@ using Honua.Console.Shell.Validation;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Docker-free unit coverage for <see cref="StudioFormValidator"/>, the Wave-1 client cross-field/bounds
-/// validator for the Studio form builder. Each cross-field, bounds, uniqueness, referential, and presence
-/// rule from the catalog is proven in its pass and fail state, keyed by <see cref="StudioFormFieldKeys"/>.
-/// </summary>
 public sealed class StudioFormValidatorTests
 {
     private static IReadOnlyList<ConsoleFieldError> Evaluate(StudioFormEditorState state) =>
         StudioFormValidator.Instance.Evaluate(state);
 
-    /// <summary>A fully valid baseline editor so a single failing rule can be asserted in isolation.</summary>
     private static StudioFormEditorState Valid()
     {
         var state = new StudioFormEditorState

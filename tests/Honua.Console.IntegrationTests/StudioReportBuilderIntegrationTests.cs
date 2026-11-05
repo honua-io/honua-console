@@ -7,13 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Proves the server-bound report builder publishes to and renders from live honua-server data (AC#4:
-/// Testcontainers coverage boots honua-server/PostgreSQL, seeds a known report via the real publish path,
-/// and asserts the builder renders/behaves from live data; Docker-unavailable environments skip cleanly).
-/// Drives <see cref="HonuaServerStudioReportPublicationDataSource"/> over the real
-/// <c>/api/v1/console/publications</c> lifecycle (honua-server#1183) — never an in-memory client.
-/// </summary>
 [Collection(StudioReportPublicationIntegrationCollection.Name)]
 public sealed class StudioReportBuilderIntegrationTests
 {

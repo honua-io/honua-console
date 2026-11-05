@@ -6,21 +6,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Share token-grants-anonymous-access round-trip (console-integration-test-plan.md Wave 2, Family D, P0).
-///
-/// Drives the console Share OPERATION through the real <see cref="HonuaServerShareAccessDataSource"/> (the
-/// production <see cref="IShareAccessDataSource"/> over honua-server#1215): raise the access tier, mint a
-/// public-link token, mint an embed token. It then asserts the resulting grant INDEPENDENTLY through the
-/// <see cref="ServerStateVerifier"/> oracle hitting the ANONYMOUS Console Share surface
-/// (<c>/api/v1/console/share/...</c>) with a genuinely UNAUTHENTICATED client — proving the minted token
-/// actually grants access for its scope, and that an unminted/revoked token does NOT (independently
-/// verified). This converts the biggest Share PARTIAL cluster (mint/revoke/access-tier asserted only via the
-/// same admin projection) into a true round-trip per plan §4 rule #2.
-///
-/// Off by default; the SkippableFacts skip cleanly without Docker / the opt-in env (Console Patterns Charter
-/// section 11) and RUN in the nightly lane (.github/workflows/console-nightly.yml).
-/// </summary>
 [Collection(ShareAccessIntegrationCollection.Name)]
 public sealed class ShareTokenGrantsAccessRoundTripTests
 {

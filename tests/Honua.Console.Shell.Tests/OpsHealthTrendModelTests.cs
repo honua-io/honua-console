@@ -4,12 +4,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Pure-logic tests for the Ops Health trend charts (console#288): the history-response mapper,
-/// the reconnect-seam live-band merge (idempotent append, cutoff dedup, trim-on-refresh), and the
-/// Vega-Lite spec builder. None of these need a server or a hub connection — mirroring how
-/// <c>OpsHealthDataSource.Map</c> and <c>OperateTimelineEntries</c> are tested as pure statics.
-/// </summary>
 public sealed class OpsHealthTrendModelTests
 {
     [Fact]

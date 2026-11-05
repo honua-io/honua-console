@@ -21,12 +21,6 @@ namespace Honua.Console.IntegrationTests;
 // Off by default; every fact skips cleanly without Docker and the opt-in env, and runs in the nightly lane
 // (.github/workflows/console-nightly.yml).
 
-/// <summary>
-/// Report authoring→publish→content round-trip (content publication registry). Drives
-/// <see cref="HonuaServerStudioReportPublicationDataSource"/> publish and verifies the publication route
-/// (slug/kind/active-revision/visibility) through the admin publication detail — a DIFFERENT read API than the
-/// publish path — plus the report builder page reflection.
-/// </summary>
 [Collection(StudioReportPublicationIntegrationCollection.Name)]
 public sealed class StudioReportPublishRoundTripTests
 {
@@ -139,12 +133,6 @@ public sealed class StudioReportPublishRoundTripTests
     }
 }
 
-/// <summary>
-/// Form authoring→publish→content round-trip (admin form-package lifecycle). Drives
-/// <see cref="HonuaServerStudioFormPackageDataSource"/> save→validate→publish and verifies the published form
-/// through the admin form read AND the RUNTIME offline-policy contract — a different surface than the publish
-/// route — independently of the console projection.
-/// </summary>
 [Collection(StudioFormPackageIntegrationCollection.Name)]
 public sealed class StudioFormPublishRoundTripTests
 {
@@ -273,10 +261,7 @@ public sealed class StudioFormPublishRoundTripTests
     }
 }
 
-/// <summary>
-/// Required assertions for opted-in Studio authoring and publishing contract receipts.
-/// Missing routes, permission failures, and server errors must fail the configured live lane.
-/// </summary>
+// On an opted-in live lane, a missing route, permission failure, or server error fails the run.
 internal static class StudioLifecycleAssertions
 {
     public static void RequireConsoleOperation(bool succeeded, string? issueState, string message, string operation)

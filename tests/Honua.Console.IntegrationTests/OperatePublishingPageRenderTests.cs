@@ -6,12 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render regression for the Operate publishing workspace (<c>/operate/publishing</c>).
-/// Covers the merged-runtime missing-binding state (no honua-server configured, no mock data) and the
-/// server-bound state where the matrix and review surface render the slot, generated endpoints,
-/// catalog registration, policy, warnings, rollback class, provenance, and evidence deep links.
-/// </summary>
 public sealed class OperatePublishingPageRenderTests
 {
     [Fact]

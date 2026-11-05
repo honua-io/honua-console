@@ -4,17 +4,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Transport-level coverage for <see cref="HonuaTemporalHttpClient"/>, the thin HttpClient behind the single
-/// Honua.Console.Contracts boundary that binds the temporal viewer (honua-console#23) to the merged
-/// honua-server temporal data history API (honua-server#1166 slice 1: capabilities + as-of) and the
-/// disconnected replica management API (honua-server#1167 slice 1: replica list + detail). These tests drive
-/// the real client over a recording <see cref="HttpMessageHandler"/> and feed it byte-for-byte the JSON the
-/// live server emits (camelCase bodies; capability/as-of return the DTO directly, replicas wrap in the shared
-/// ApiResponse envelope), so a drift between the Console wire records and the server responses fails here
-/// rather than only in the opt-in Docker test. They assert the exact route + verb + admin-key header and the
-/// HTTP-status -> issue mapping.
-/// </summary>
+// Capability and as-of return the DTO directly; replica routes wrap it in ApiResponse.
 public sealed class HonuaTemporalHttpClientTests
 {
     private static readonly Uri BaseUri = new("https://server.example");

@@ -8,14 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Proves the server-bound publishing workspace renders and drives the lifecycle from live
-/// honua-server data (Console Patterns Charter section 11 real-server policy). Boots
-/// honua-server/PostgreSQL via Testcontainers, seeds a known publication through the real publish POST
-/// (<c>/api/v1/console/publications</c>, honua-server#1183), then drives
-/// <see cref="HonuaServerPublishingWorkspaceDataSource"/> over the live get/republish/rollback verbs —
-/// never an in-memory client. Docker-unavailable environments skip cleanly.
-/// </summary>
 [Collection(PublishingWorkspaceIntegrationCollection.Name)]
 public sealed class PublishingWorkspaceLiveServerTests
 {

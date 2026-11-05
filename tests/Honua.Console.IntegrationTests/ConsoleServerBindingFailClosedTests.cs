@@ -6,21 +6,7 @@ using Honua.Console.Web.Auth;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Fail-closed coverage for the broad server-bound chokepoint that ALL Family-A typed honua-server
-/// clients funnel through (honua-console#254): the singleton <see cref="HonuaServerBindingHandler"/>
-/// reading the operator-partitioned <see cref="OperatorScopedEnvironmentProfileStore"/> /
-/// <see cref="OperatorScopedAccountSessionStore"/>.
-///
-/// The S1 fail-open class this guards is cross-operator credential bleed / silent privilege fallback:
-/// on a host serving MANY operators from one process, the handler must forward EACH operator's OWN
-/// bearer (and never another operator's), and an unresolved operator must never inherit a different
-/// operator's forwarded bearer — it falls back to the documented anonymous/admin-key path rather than
-/// impersonating someone. <see cref="ConsoleOperatorScopeTests"/> proves the scoped-seam side
-/// (unresolved ⇒ null/deny, concurrent scopes isolated); <see cref="ConsoleOperatorCircuitPartitionTests"/>
-/// proves the circuit ambient feeds the partition; this proves the composition at the actual outbound
-/// HTTP boundary, so a regression in the partitioning surfaces as a wrong/leaked Authorization header.
-/// </summary>
+// An unresolved operator must not inherit another operator's forwarded bearer; fallback is not impersonation.
 public sealed class ConsoleServerBindingFailClosedTests
 {
     [Fact]

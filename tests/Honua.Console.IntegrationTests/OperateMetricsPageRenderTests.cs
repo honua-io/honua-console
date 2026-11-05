@@ -6,13 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render regression for the Operate metrics surface. The surface binds to
-/// the connected honua-server production-monitoring API (charter section 11) and never
-/// to a standing mock: with live data it renders the color-coded utilization/hit-ratio/
-/// queue bars, the cache recommendations, the database alerts, and the health-check
-/// entries; with no environment bound it renders an honest missing-binding state.
-/// </summary>
 public sealed class OperateMetricsPageRenderTests
 {
     [Fact]

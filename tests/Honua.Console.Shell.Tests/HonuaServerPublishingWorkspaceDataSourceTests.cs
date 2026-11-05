@@ -4,13 +4,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Behaviour coverage for <see cref="HonuaServerPublishingWorkspaceDataSource"/> against a recording
-/// <see cref="IHonuaContentPublicationClient"/>. Asserts the workspace enumerates the publication
-/// list (honua-server#3357) instead of requiring configured ids, endpoint issues surface as capability
-/// states rather than throwing or fabricating data, and the republish/rollback lifecycle drives the
-/// live verbs and refreshes the review.
-/// </summary>
 public sealed class HonuaServerPublishingWorkspaceDataSourceTests
 {
     [Fact]

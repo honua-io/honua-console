@@ -6,14 +6,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Host-independent coverage for the server-bound catalog/content client (issue #7). Drives the real
-/// <see cref="HonuaConsoleContentHttpClient"/> over a recording <see cref="HttpMessageHandler"/> and the
-/// <see cref="HonuaServerConsoleCatalogClient"/> over it, asserting the live binding speaks the real
-/// honua-server Console metadata v2 content + RBAC contract (honua-server#1162): query/auth wiring, the
-/// {success,data,message} envelope, itemType/visibility/RBAC-verb projection, anonymous visibility
-/// filtering, and the typed unsupported/unavailable/missing failure paths — never fabricated content.
-/// </summary>
 public sealed class HonuaServerConsoleCatalogClientTests
 {
     private static readonly Uri BaseUri = new("https://console.honua.test");

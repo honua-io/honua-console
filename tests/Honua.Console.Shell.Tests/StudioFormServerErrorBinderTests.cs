@@ -3,12 +3,6 @@ using Honua.Console.Shell.Validation;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Docker-free coverage for <see cref="StudioFormServerErrorBinder"/>, proving the server
-/// <see cref="StudioFormValidationView"/> items are re-homed onto the same per-field / form-level
-/// <see cref="StudioFormFieldKeys"/> the client validator uses, so a server finding surfaces inline next to
-/// its field.
-/// </summary>
 public sealed class StudioFormServerErrorBinderTests
 {
     private static StudioFormEditorState StateWithFields(params string[] fieldIds)

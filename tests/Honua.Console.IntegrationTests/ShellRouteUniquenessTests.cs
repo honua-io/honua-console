@@ -4,22 +4,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Route-uniqueness guard for the Console Shell's routable components.
-///
-/// The live Blazor interactive-server <c>Router</c> builds a single combined route table from
-/// every <c>[Route]</c> on the app assembly. Two components that declare the same route template
-/// make the router throw <c>InvalidOperationException: The following routes are ambiguous</c>,
-/// which terminates the interactive circuit on every navigation. Prerender still returns 200, so
-/// bUnit/render tests (which mount one component at a time and never build the combined route
-/// table) cannot observe the ambiguity — only the real router or a real-browser smoke does.
-///
-/// This test reconstructs the same enumeration the router performs — every route template across
-/// all <c>[RouteAttribute]</c>-bearing components in the Shell assembly — and asserts no template
-/// is declared by more than one component. It fails on the historical
-/// <c>/operate/jobs/{...}</c> collision (OperateJobPage vs OperateObservabilityPage) and passes
-/// once a single component owns each template.
-/// </summary>
+// Prerender still returns 200, so only assembly-wide route enumeration sees a duplicate that would kill interactive navigation.
 public sealed class ShellRouteUniquenessTests
 {
     [Fact]

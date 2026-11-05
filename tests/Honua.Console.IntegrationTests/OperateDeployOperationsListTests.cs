@@ -7,14 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free bUnit coverage for the deploy-operations list (console#290 acceptance
-/// criterion 1): consumes <see cref="IConsoleDeployOperationsClient"/> directly (the real
-/// paged list, honua-server PR #2577) rather than the retired release-scrape workaround, and
-/// renders the honest Manual pill when the deploy-operations realtime seam
-/// (<see cref="IConsoleDeployOperationRealtimeClient"/>) is not registered — exactly the state
-/// every server has today (honua-server#2554 not yet merged).
-/// </summary>
 public sealed class OperateDeployOperationsListTests
 {
     [Fact]

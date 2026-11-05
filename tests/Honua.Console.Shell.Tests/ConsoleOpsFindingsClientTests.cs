@@ -9,13 +9,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Recording-HttpClient unit tests proving the ops-findings client binds to honua-server's
-/// deterministic ops-findings endpoints (group /api/v1/admin/observability,
-/// admin-authorized, bare JSON — NO ApiResponse envelope), maps findings, routes a propose
-/// through the approval gateway, and treats a cleared-condition 404 as a stale-finding
-/// refresh cue (Missing) rather than a hard failure. No model/LLM reasoning is involved.
-/// </summary>
+// A cleared-condition 404 is a stale-finding refresh, the body is bare JSON, and mutations go through the approval gateway.
 public sealed class ConsoleOpsFindingsClientTests
 {
     [Fact]

@@ -7,21 +7,6 @@ using Npgsql;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Wave 5 service-CONFIGURATION round-trips (console-integration-test-plan.md §6 Wave 5 + §3 Family A).
-///
-/// Each test seeds a PostGIS table + admin connection, publishes a queryable service layer (the Wave-1
-/// publish OPERATION), then drives a Wave-5 CONFIGURATION operation through the console's real
-/// <see cref="IServiceConfigurationOperation"/> — layer enable/disable, service protocol change, or service
-/// access-policy change — and asserts the resulting server state INDEPENDENTLY through the
-/// <see cref="ServerStateVerifier"/> oracle (admin layer registry, admin service-settings projection, and
-/// the GeoServices FeatureServer protocol surface). The console operation lands a real mutation; the verify
-/// reads through a DIFFERENT API than the one the operation went through (plan rule #2). Negative +
-/// idempotency companions round out the family.
-///
-/// Off by default; the SkippableFacts skip cleanly without Docker / the opt-in env (Console Patterns
-/// Charter section 11) and RUN in the nightly lane (.github/workflows/console-nightly.yml).
-/// </summary>
 [Collection(ServiceConfigurationIntegrationCollection.Name)]
 public sealed class ServiceConfigurationRoundTripTests
 {

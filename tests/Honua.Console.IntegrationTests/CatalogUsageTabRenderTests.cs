@@ -7,14 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the Catalog item Usage tab (UI-011): the pre-retirement blast-radius /
-/// impact view. The honua-server Console metadata v2 content API (honua-server#1162) exposes no
-/// dependency/usage endpoint, so the server-bound detail leaves ConsoleContentDetail.UsageBound false and
-/// the Usage tab must render an explicit missing-binding state — never a falsely-reassuring "no consumers"
-/// empty state (Console Patterns Charter section 11). When a usage source binds (UsageBound true), the live
-/// closure renders. Drives CatalogDetailPage through a stub catalog client (never a mock server).
-/// </summary>
+// Unavailable usage shows a missing binding because the server exposes no usage endpoint, so UsageBound false must not be read as zero consumers.
 public sealed class CatalogUsageTabRenderTests
 {
     [Fact]

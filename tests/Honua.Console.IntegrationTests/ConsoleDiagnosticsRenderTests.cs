@@ -3,11 +3,6 @@ using Honua.Console.Shell.Components;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Coverage for the shared Diagnostics disclosure (honua-console#311): the plain-language first line reads
-/// on its own with the disclosure collapsed, the full technical detail (state, contract, HTTP status, issue
-/// link) lives inside the expandable block, and the tracking issue renders as a real link.
-/// </summary>
 public sealed class ConsoleDiagnosticsRenderTests
 {
     [Fact]

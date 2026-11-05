@@ -4,10 +4,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Publishes real layers through the supported API, then verifies the mapped workspace registry,
-/// Console detail/item reflection, namespace isolation and authentication against the hosted server.
-/// </summary>
 [Collection(TemporalReplicaIntegrationCollection.Name)]
 public sealed class CatalogDiscoveryRoundTripTests
 {

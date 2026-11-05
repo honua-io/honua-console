@@ -2,13 +2,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Pure (no-I/O) coverage of the server-upgrade version-mismatch gate. The gate is the
-/// safety core of the server-upgrade flow: an upgrade may proceed ONLY when the target
-/// environment is strictly behind the requested version. Already-current (no-op), ahead
-/// (downgrade), and unparseable cases are all gated. These cases pin that behavior so a
-/// regression cannot silently submit a no-op or a downgrade as an "upgrade".
-/// </summary>
+// The gate accepts only a strictly newer parseable version, so a no-op or downgrade cannot be submitted as an upgrade.
 public sealed class ServerUpgradePlanTests
 {
     private static ServerVersionInfo Version(string version) => new(

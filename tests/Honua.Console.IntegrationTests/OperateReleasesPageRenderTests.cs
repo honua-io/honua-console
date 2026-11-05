@@ -6,14 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render regression for the GitOps metadata release visualization surface.
-/// The surface binds to a real honua-server (charter section 11) and never to a standing
-/// mock. The list route honestly reports that the server has no release-package list
-/// endpoint; the by-id detail route renders the proposal summary, semantic diff, the
-/// environment matrix/drift, the CI/GitOps timeline, and rollback readiness. Blockers
-/// (proposal findings or operation-lifecycle blockers) disable the Git PR action.
-/// </summary>
 public sealed class OperateReleasesPageRenderTests
 {
     [Fact]

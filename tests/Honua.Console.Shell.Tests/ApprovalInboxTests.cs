@@ -3,14 +3,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Pins the approval-inbox (#193) projection over the first-class honua-server proposals API
-/// (#1694): the GIS-desk ticket-type classification (MetadataRelease/Seed → publish data,
-/// DataImport → import, Deploy → server upgrade, AdminConfigChange → access/config), the
-/// snapshot helpers (counts, present types, filter), the awaiting-approval-first ordering, and
-/// the aggregator's honest missing-binding pass-through. The aggregator never fabricates a
-/// queue; a denied proposals read surfaces as a denied inbox read (charter §11).
-/// </summary>
 public sealed class ApprovalInboxTests
 {
     private static ConsoleProposalSummary Proposal(

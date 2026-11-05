@@ -8,17 +8,6 @@ public sealed class TemporalReplicaIntegrationCollection : ICollectionFixture<Te
     public const string Name = "TemporalReplicaIntegration";
 }
 
-/// <summary>
-/// Boots a real honua-server (with PostGIS) via Testcontainers for the Wave 3 temporal + replica round-trips
-/// (console-integration-test-plan.md Wave 3, families E/F). Exposes the host-reachable PostGIS connection
-/// string so a test can seed a source table directly in the same database the server reaches over the Docker
-/// network, plus factories for the admin operate client (the publish OPERATION that creates a service/layer),
-/// the production temporal capability client (the console temporal OPERATION path), a raw admin HttpClient
-/// (for seeding a named replica through the GeoServices <c>createReplica</c> verb), and the independent
-/// <see cref="ServerStateVerifier"/> oracle. Off by default; skips gracefully when Docker, the server image,
-/// the opt-in flag, or the admin API key is unavailable (Console Patterns Charter section 11). Reuses
-/// <see cref="HonuaServerTestcontainer"/> and mirrors <see cref="ServiceLayerPublishFixture"/>.
-/// </summary>
 public sealed class TemporalReplicaFixture : IAsyncLifetime
 {
     public const string CatalogWorkspace = "default";
@@ -33,7 +22,6 @@ public sealed class TemporalReplicaFixture : IAsyncLifetime
 
     public Uri BaseAddress { get; private set; } = new("https://localhost");
 
-    /// <summary>Host-reachable PostGIS connection string for seeding source tables, or <c>null</c> for an external server.</summary>
     public string? PostgresConnectionString { get; private set; }
 
     public async Task InitializeAsync()
@@ -93,23 +81,19 @@ public sealed class TemporalReplicaFixture : IAsyncLifetime
         }
     }
 
-    /// <summary>The production admin operate client (the service-layer publish OPERATION path).</summary>
     public IHonuaAdminOperateClient CreateOperateClient() =>
         new HonuaAdminOperateHttpClient(
             CreateRawClient(),
             new HonuaAdminOperateClientOptions(BaseAddress, Options.StudioAdminApiKey));
 
-    /// <summary>The production temporal client (the console temporal capability + as-of OPERATION path).</summary>
     public IHonuaTemporalClient CreateTemporalClient() =>
         new HonuaTemporalHttpClient(
             CreateRawClient(),
             new HonuaTemporalClientOptions(BaseAddress, Options.StudioAdminApiKey));
 
-    /// <summary>The independent verification oracle that reads server state back through canonical read APIs.</summary>
     public ServerStateVerifier CreateVerifier() =>
         new(BaseAddress, Options.StudioAdminApiKey);
 
-    /// <summary>Raw HttpClient (admin key applied per-request, dev-cert acceptance) for seeding connections + replicas.</summary>
     public HttpClient CreateRawClient()
     {
         var handler = new HttpClientHandler();
