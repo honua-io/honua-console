@@ -14,7 +14,7 @@
     let selectedElement;
     let focusedElement;
     let focusedKey;
-    let pendingChild;
+    let parentPendingEntry;
     let pendingPage;
     let typed = '';
     let typedAt = 0;
@@ -135,22 +135,22 @@
     function finishPendingFocus(available) {
         if (pendingPage) {
             const target = available.find(row => !pendingPage.keys.has(key(row))
-                && row.dataset.treeParent === pendingPage.parent);
+                && row.dataset.treeParent === pendingPage.parentKey);
             if (target) { pendingPage = undefined; focusRow(target); }
         }
-        const parent = available.find(row => key(row) === pendingChild);
+        const parent = available.find(row => key(row) === parentPendingEntry);
         if (!parent) return;
         const first = children(parent)[0];
-        if (first) { pendingChild = undefined; focusRow(first); }
-        else if (parent.getAttribute(expansionAttribute) === 'true' && parent.getAttribute('aria-busy') !== 'true') pendingChild = undefined;
+        if (first) { parentPendingEntry = undefined; focusRow(first); }
+        else if (parent.getAttribute(expansionAttribute) === 'true' && parent.getAttribute('aria-busy') !== 'true') parentPendingEntry = undefined;
     }
     function moveRight(row) {
         if (row.getAttribute(expansionAttribute) === 'false') {
-            if (requestedExpansions.has(key(row))) pendingChild = key(row);
+            if (requestedExpansions.has(key(row))) parentPendingEntry = key(row);
             else { requestedExpansions.set(key(row), row); expander(row)?.click(); }
         }
         else if (children(row)[0]) focusRow(children(row)[0]);
-        else if (row.getAttribute('aria-busy') === 'true') pendingChild = key(row);
+        else if (row.getAttribute('aria-busy') === 'true') parentPendingEntry = key(row);
     }
     function moveLeft(row) {
         if (row.getAttribute(expansionAttribute) === 'true') expander(row)?.click();
@@ -219,7 +219,7 @@
         }
     }
     function clearPendingFocus() {
-        pendingChild = undefined;
+        parentPendingEntry = undefined;
         pendingPage = undefined;
     }
     const hasCommandModifier = event => event.altKey || event.ctrlKey || event.metaKey || event.isComposing;
@@ -238,7 +238,7 @@
         if (event.target.closest('[data-tree-toggle]')) { if (isOpen()) closeOverlay(); else openOverlay(); return; }
         if (event.target.closest('[data-tree-close], [data-tree-backdrop]')) { closeOverlay(); return; }
         const more = event.target.closest('[data-tree-more]');
-        if (more) pendingPage = {parent: more.dataset.treeMore, keys: new Set(rows().map(key))};
+        if (more) pendingPage = {parentKey: more.dataset.treeMore, keys: new Set(rows().map(key))};
         const retry = event.target.closest('[data-tree-retry]');
         if (retry) focusRetryOwner(retry);
         const row = event.target.closest(rowSelector);
@@ -268,5 +268,5 @@
     addEventListener('popstate', closeOverlay);
     document.addEventListener('enhancedload', closeOverlay);
     syncTree();
-    new MutationObserver(syncTree).observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['data-tree-revision']});
+    new MutationObserver(syncTree).observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['data-tree-revision', expansionAttribute]});
 }

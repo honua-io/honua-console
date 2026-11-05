@@ -35,7 +35,7 @@ async function addLongTree(page: Page) {
 test('tree arrows move focus, lazy right enters children, and Enter alone opens links',async({page})=>{
   await openFixture(page);
   const root=page.getByRole('treeitem',{name:'Services',exact:true});
-  const alpha=page.getByRole('treeitem',{name:'Alpha 1 layers',exact:true});
+  const alpha=page.getByRole('treeitem',{name:'Alpha 1 layer',exact:true});
   await root.focus();
   await page.keyboard.press('ArrowDown');
   await expect(alpha).toBeFocused();
@@ -108,7 +108,7 @@ test('committed navigation and resize close the mobile overlay without leaving i
 
 test('outside pointer input prevents focus theft when the tree DOM is replaced',async({page})=>{
   await openFixture(page);
-  await page.getByRole('treeitem',{name:'Alpha 1 layers',exact:true}).focus();
+  await page.getByRole('treeitem',{name:'Alpha 1 layer',exact:true}).focus();
   await page.getByRole('heading',{name:'Controller fixture'}).click();
   await expect(page.locator('body')).toBeFocused();
   await page.getByRole('tree').evaluate(tree=>tree.replaceWith(tree.cloneNode(true)));
@@ -118,7 +118,7 @@ test('outside pointer input prevents focus theft when the tree DOM is replaced',
 test('modified arrows remain unhandled and browser Back remains available',async({page})=>{
   await page.goto('/version.json');
   await openFixture(page);
-  await page.getByRole('treeitem',{name:'Alpha 1 layers',exact:true}).focus();
+  await page.getByRole('treeitem',{name:'Alpha 1 layer',exact:true}).focus();
   const prevented=page.evaluate(()=>new Promise<boolean>(resolve=>{
     window.addEventListener('keydown',event=>{
       if(event.altKey && event.key==='ArrowLeft') resolve(event.defaultPrevented);
@@ -126,7 +126,7 @@ test('modified arrows remain unhandled and browser Back remains available',async
   }));
   await page.keyboard.press('Alt+ArrowLeft');
   expect(await prevented).toBe(false);
-  await expect(page.getByRole('treeitem',{name:'Alpha 1 layers',exact:true})).toBeFocused();
+  await expect(page.getByRole('treeitem',{name:'Alpha 1 layer',exact:true})).toBeFocused();
   await page.goBack();
   await expect(page).toHaveURL(/\/version.json$/);
 });
@@ -139,7 +139,7 @@ test('sibling expansion preserves focus on the originating row',async({page})=>{
     button.dataset.treeExpand=''; button.tabIndex=-1; button.textContent='Expand';
     row.prepend(button);
   });
-  const alpha=page.getByRole('treeitem',{name:'Alpha 1 layers',exact:true});
+  const alpha=page.getByRole('treeitem',{name:'Alpha 1 layer',exact:true});
   await alpha.focus();
   await page.keyboard.press('*');
   await expect(alpha).toHaveAttribute('aria-expanded','true');
@@ -152,7 +152,7 @@ for(const selection of ['Beta','none']) test(`returning to the tree uses ${selec
   await openFixture(page);
   if(selection!=='none') await page.getByRole('treeitem',{name:`${selection} 0 layers`,exact:true})
     .evaluate(row=>row.setAttribute('aria-selected','true'));
-  await page.getByRole('treeitem',{name:'Alpha 1 layers',exact:true}).focus();
+  await page.getByRole('treeitem',{name:'Alpha 1 layer',exact:true}).focus();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button',{name:'Show more services'})).toBeFocused();
   await page.keyboard.press('Shift+Tab');
@@ -189,7 +189,7 @@ test('a newly selected node scrolls into view without changing page focus or scr
 
 test('leaving a loading branch cancels deferred focus entry',async({page})=>{
   await openFixture(page);
-  const alpha=page.getByRole('treeitem',{name:'Alpha 1 layers',exact:true});
+  const alpha=page.getByRole('treeitem',{name:'Alpha 1 layer',exact:true});
   await alpha.evaluate(row=>{(row as HTMLElement).dataset.fixtureDelay='300';});
   await alpha.focus();
   await page.keyboard.press('ArrowRight');
@@ -204,7 +204,7 @@ test('leaving a loading branch cancels deferred focus entry',async({page})=>{
 
 test('row-sized focus targets retain accessible group ownership',async({page})=>{
   await openFixture(page);
-  const alpha=page.getByRole('treeitem',{name:'Alpha 1 layers',exact:true});
+  const alpha=page.getByRole('treeitem',{name:'Alpha 1 layer',exact:true});
   await alpha.focus();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('treeitem',{name:'Bridges LineString',exact:true})).toBeVisible();
@@ -224,4 +224,20 @@ test('service navigation toggle is hidden on desktop and readable at narrow widt
   await page.setViewportSize({width:390,height:844});
   await expect(toggle).toBeVisible();
   expect((await toggle.boundingBox())!.width).toBeGreaterThan(100);
+});
+
+
+test('an empty branch can reopen after an expansion-only DOM update',async({page})=>{
+  await openFixture(page);
+  const root=page.getByRole('treeitem',{name:'Services',exact:true});
+  await root.focus();
+  await root.press('ArrowLeft');
+  await expect(root).toHaveAttribute('aria-expanded','false');
+  await root.press('ArrowRight');
+  await expect(root).toHaveAttribute('aria-expanded','true');
+  await root.press('ArrowLeft');
+  await expect(root).toHaveAttribute('aria-expanded','false');
+  await root.press('ArrowRight');
+  await expect(root).toHaveAttribute('aria-expanded','true');
+  await expect(root).toBeFocused();
 });

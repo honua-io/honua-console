@@ -7,9 +7,9 @@ public sealed record ConsolePublicationLayer(string ResourceId, string Name, str
 public interface IConsolePublicationNavigationSource
 {
     Task<OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadServicesAsync(CancellationToken cancellationToken);
-    Task<OperateSectionResult<IReadOnlyList<Guid>>> ReadConnectionsAsync(CancellationToken cancellationToken);
+    Task<OperateSectionResult<IReadOnlyList<string>>> ReadConnectionsAsync(CancellationToken cancellationToken);
     Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>> ReadLayersAsync(
-        string serviceName, IReadOnlyList<Guid> connectionIds, CancellationToken cancellationToken);
+        string serviceName, IReadOnlyList<string> connectionKeys, CancellationToken cancellationToken);
 }
 
 public sealed class UnsupportedConsolePublicationNavigationSource : IConsolePublicationNavigationSource
@@ -19,9 +19,9 @@ public sealed class UnsupportedConsolePublicationNavigationSource : IConsolePubl
 
     public Task<OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadServicesAsync(CancellationToken cancellationToken) =>
         Missing<IReadOnlyList<HonuaAdminServiceSummary>>();
-    public Task<OperateSectionResult<IReadOnlyList<Guid>>> ReadConnectionsAsync(CancellationToken cancellationToken) =>
-        Missing<IReadOnlyList<Guid>>();
+    public Task<OperateSectionResult<IReadOnlyList<string>>> ReadConnectionsAsync(CancellationToken cancellationToken) =>
+        Missing<IReadOnlyList<string>>();
     public Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>> ReadLayersAsync(
-        string serviceName, IReadOnlyList<Guid> connectionIds, CancellationToken cancellationToken) =>
+        string serviceName, IReadOnlyList<string> connectionKeys, CancellationToken cancellationToken) =>
         Missing<IReadOnlyList<ConsolePublicationLayer>>();
 }

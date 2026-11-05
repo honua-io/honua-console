@@ -1,10 +1,15 @@
 using System.Globalization;
 using System.Text;
+using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Models;
 
 public static class OperateResourceIdentity
 {
+    public static string ForConnection(HonuaAdminConnectionSummary connection) => connection.ConnectionId == Guid.Empty
+        ? NormalizeToken(new[] { connection.Name, connection.Host, "connection" }.First(value => !string.IsNullOrWhiteSpace(value))!)
+        : connection.ConnectionId.ToString("D");
+
     public static string ForPublishedLayer(string connectionId, int layerId) =>
         $"{NormalizeToken(connectionId)}-layer-{layerId.ToString(CultureInfo.InvariantCulture)}";
 

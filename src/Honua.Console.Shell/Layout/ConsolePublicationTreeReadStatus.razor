@@ -1,0 +1,31 @@
+@if (Node.HasReadStatus)
+{
+    <div id="@ConsolePublicationTreeContext.StatusId(Node)" data-tree-owner="@Node.Key">
+        @if (Node.Loading)
+        {
+            <p role="status" class="console-tree-message">Loading layers…</p>
+        }
+        @if (Node.ReadStatus is { } status)
+        {
+            <div class="console-tree-message" role="status">
+                <OperateSectionStatusPanel Heading="Service layers" Status="status" Message="@(Node.ReadMessage ?? string.Empty)" />
+                <button class="console-button console-button-secondary" type="button" data-tree-retry @onclick="() => View.Retry.InvokeAsync(Node)">Retry layers</button>
+            </div>
+        }
+        else if (Node.ReadMessage is { } message)
+        {
+            <p role="status" class="console-tree-message">@message
+                <button type="button" data-tree-retry @onclick="() => View.Retry.InvokeAsync(Node)">Retry connections</button>
+            </p>
+        }
+        @if (Node.IsLoadedEmptyService)
+        {
+            <p role="status" class="console-tree-message">No layers returned for this service.</p>
+        }
+    </div>
+}
+
+@code {
+    [CascadingParameter] public ConsolePublicationTreeContext View { get; set; } = default!;
+    [Parameter, EditorRequired] public ConsolePublicationNode Node { get; set; } = default!;
+}

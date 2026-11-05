@@ -35,7 +35,7 @@ public sealed class ConsolePublicationNavigationSourceTests
         using var http = new HttpClient(handler);
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
         var source = new ServerConsolePublicationNavigationSource(client);
-        var read = await source.ReadLayersAsync("public roads", [first, second], CancellationToken.None);
+        var read = await source.ReadLayersAsync("public roads", [first.ToString("D"), second.ToString("D")], CancellationToken.None);
         Assert.True(read.IsAllowed, read.Message);
         Assert.Equal(2, read.Value!.Count);
         Assert.Contains(read.Value, layer => layer.ResourceId == OperateResourceIdentity.ForPublishedLayer(first.ToString("D"), 7));
@@ -51,10 +51,35 @@ public sealed class ConsolePublicationNavigationSourceTests
         using var handler = new NavigationHandler(_ => SuccessfulEnvelope(new[] { new { layerId = 9, layerName = "Roads" } }));
         using var http = new HttpClient(handler);
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
-        var read = await new ServerConsolePublicationNavigationSource(client).ReadLayersAsync("roads", [Guid.Empty], CancellationToken.None);
+        var read = await new ServerConsolePublicationNavigationSource(client).ReadLayersAsync("roads", ["legacy-connection"], CancellationToken.None);
         Assert.True(read.IsAllowed, read.Message);
         Assert.Equal("Roads", Assert.Single(read.Value!).Name);
         Assert.Contains("serviceName=roads", Assert.Single(handler.Paths));
+    }
+
+    [Fact]
+    public async Task EmptyConnectionIdsKeepDistinctCanonicalNameAndHostKeys()
+    {
+        HonuaAdminConnectionSummary[] summaries =
+        [
+            new() { ConnectionId = Guid.Empty, Name = "Legacy First" },
+            new() { ConnectionId = Guid.Empty, Host = "second.example.test" }
+        ];
+        using var handler = new NavigationHandler(request => request.RequestUri!.AbsolutePath.EndsWith("/connections/", StringComparison.Ordinal)
+            ? SuccessfulEnvelope(summaries)
+            : SuccessfulEnvelope(new[] { new { layerId = 7, layerName = "Roads", serviceName = "transport" } }));
+        using var http = new HttpClient(handler);
+        using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
+        var source = new ServerConsolePublicationNavigationSource(client);
+        var connections = await source.ReadConnectionsAsync(CancellationToken.None);
+        Assert.True(connections.IsAllowed, connections.Message);
+        Assert.Equal(["legacy-first", "second-example-test"], connections.Value!);
+        var layerPageConnections = await new HonuaServerOperateTransitionDataSource(client).GetConnectionsViewAsync();
+        Assert.Equal(layerPageConnections.Connections.Select(connection => connection.Id), connections.Value!);
+        var layers = await source.ReadLayersAsync("transport", connections.Value!, CancellationToken.None);
+        Assert.True(layers.IsAllowed, layers.Message);
+        Assert.Equal(["legacy-first-layer-7", "second-example-test-layer-7"], layers.Value!.Select(layer => layer.ResourceId));
+        Assert.Equal(2, handler.Paths.Count(path => path.Contains("/layers/", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -94,7 +119,7 @@ public sealed class ConsolePublicationNavigationSourceTests
             : SuccessfulEnvelope(new[] { new { layerId = 1, layerName = "Roads", serviceName = "transport" } }));
         using var http = new HttpClient(handler);
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
-        var read = await new ServerConsolePublicationNavigationSource(client).ReadLayersAsync("transport", [Guid.NewGuid(), deniedConnection], CancellationToken.None);
+        var read = await new ServerConsolePublicationNavigationSource(client).ReadLayersAsync("transport", [Guid.NewGuid().ToString("D"), deniedConnection.ToString("D")], CancellationToken.None);
         Assert.True(read.IsAllowed, read.Message);
         Assert.True(read.PartialResult);
         Assert.Single(read.Value!);

@@ -607,9 +607,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
 
     private static OperateConnectionSummary MapConnection(HonuaAdminConnectionSummary connection)
     {
-        var id = connection.ConnectionId == Guid.Empty
-            ? OperateResourceIdentity.NormalizeToken(Coalesce(connection.Name, connection.Host, "connection"))
-            : connection.ConnectionId.ToString("D");
+        var id = OperateResourceIdentity.ForConnection(connection);
         var status = MapConnectionStatus(connection);
         var diagnostic = CreateConnectionDiagnostic(connection, status);
 

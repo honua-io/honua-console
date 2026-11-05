@@ -16,25 +16,25 @@ public sealed class ServerConsolePublicationNavigationSource(IHonuaAdminOperateC
         return OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Allowed(result.Data);
     }
 
-    public async Task<OperateSectionResult<IReadOnlyList<Guid>>> ReadConnectionsAsync(CancellationToken cancellationToken)
+    public async Task<OperateSectionResult<IReadOnlyList<string>>> ReadConnectionsAsync(CancellationToken cancellationToken)
     {
         var result = await client.ListConnectionsAsync(cancellationToken);
-        if (result.Issue is { } issue) return Denied<IReadOnlyList<Guid>>(issue);
-        if (result.Data is null) return Unreadable<IReadOnlyList<Guid>>();
-        return OperateSectionResult<IReadOnlyList<Guid>>.Allowed(result.Data.Select(connection => connection.ConnectionId).Distinct().ToArray());
+        if (result.Issue is { } issue) return Denied<IReadOnlyList<string>>(issue);
+        if (result.Data is null) return Unreadable<IReadOnlyList<string>>();
+        return OperateSectionResult<IReadOnlyList<string>>.Allowed(result.Data.Select(OperateResourceIdentity.ForConnection).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
     }
 
     public async Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>> ReadLayersAsync(
-        string serviceName, IReadOnlyList<Guid> connectionIds, CancellationToken cancellationToken)
+        string serviceName, IReadOnlyList<string> connectionKeys, CancellationToken cancellationToken)
     {
-        if (connectionIds.Count == 0)
+        if (connectionKeys.Count == 0)
             return OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>.Denied(OperateSectionStatus.Unsupported,
                 "The server returned no connections for browsing this service's layers.");
-        var reads = await BoundedFanOut.RunAsync(connectionIds,
-            (id, token) => client.ListConnectionLayersAsync(id.ToString("D"), serviceName, token), maxConcurrency: ConcurrentConnectionReads, cancellationToken: cancellationToken);
+        var reads = await BoundedFanOut.RunAsync(connectionKeys,
+            (connectionKey, token) => client.ListConnectionLayersAsync(connectionKey, serviceName, token), maxConcurrency: ConcurrentConnectionReads, cancellationToken: cancellationToken);
         var layers = new List<ConsolePublicationLayer>();
         for (var index = 0; index < reads.Length; index++)
-            layers.AddRange(ProjectServiceLayers(connectionIds[index], reads[index].Data ?? [], serviceName));
+            layers.AddRange(ProjectServiceLayers(connectionKeys[index], reads[index].Data ?? [], serviceName));
 
         var failure = reads.FirstOrDefault(read => read.Issue is not null || read.Data is null);
         if (failure is not null && layers.Count == 0)
@@ -46,9 +46,9 @@ public sealed class ServerConsolePublicationNavigationSource(IHonuaAdminOperateC
     }
 
     private static IEnumerable<ConsolePublicationLayer> ProjectServiceLayers(
-        Guid connectionId, IReadOnlyList<HonuaAdminPublishedLayerSummary> layers, string serviceName) => layers
+        string connectionKey, IReadOnlyList<HonuaAdminPublishedLayerSummary> layers, string serviceName) => layers
         .Where(layer => string.IsNullOrWhiteSpace(layer.ServiceName) || string.Equals(layer.ServiceName, serviceName, StringComparison.OrdinalIgnoreCase))
-        .Select(layer => new ConsolePublicationLayer(OperateResourceIdentity.ForPublishedLayer(connectionId.ToString("D"), layer.LayerId),
+        .Select(layer => new ConsolePublicationLayer(OperateResourceIdentity.ForPublishedLayer(connectionKey, layer.LayerId),
             string.IsNullOrWhiteSpace(layer.LayerName) ? $"Layer {layer.LayerId}" : layer.LayerName, layer.GeometryType ?? "Unknown"));
 
     private static OperateSectionResult<T> Unreadable<T>() =>

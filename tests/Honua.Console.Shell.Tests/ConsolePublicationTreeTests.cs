@@ -9,12 +9,7 @@ public sealed class ConsolePublicationTreeTests
     [Fact]
     public void FiveHundredFlatServicesUseBoundedPagesAndFilterTheEntireSummaryRead()
     {
-        var tree = new ConsolePublicationTree();
-        tree.Load(Enumerable.Range(0, 500).Select(index => new HonuaAdminServiceSummary
-        {
-            ServiceName = $"service-{index:D3}",
-            LayerCount = 200
-        }).ToArray(), "Synthetic environment");
+        var tree = CreateLargeTree(200);
         Assert.Equal(500, tree.ServiceCount);
         Assert.Equal(25, tree.VisibleChildren(tree.Root).Count);
         Assert.Equal(0, tree.LoadedLayerCount);
@@ -30,18 +25,36 @@ public sealed class ConsolePublicationTreeTests
     [Fact]
     public void DeepLinkedServiceIsRevealedWithoutRenderingThePrecedingFourHundredRows()
     {
-        var tree = new ConsolePublicationTree();
-        tree.Load(Enumerable.Range(0, 500).Select(index => new HonuaAdminServiceSummary
-        {
-            ServiceName = $"service-{index:D3}",
-            LayerCount = 1
-        }).ToArray(), "Services");
+        var tree = CreateLargeTree(1);
         tree.RevealPath("/operate/services/service-450/settings");
         Assert.Equal(25, tree.VisibleChildren(tree.Root).Count);
         Assert.Equal("service-450", tree.VisibleChildren(tree.Root)[0].Label);
         Assert.Equal(450, tree.Root.VisibleOffset);
         tree.ShowFirstPage(tree.Root);
         Assert.Equal("service-000", tree.VisibleChildren(tree.Root)[0].Label);
+    }
+
+    [Fact]
+    public void FilteredDeepLinkKeepsTheMatchingServiceOnItsFilteredPage()
+    {
+        var tree = CreateLargeTree(200);
+        tree.SetFilter("service-499");
+        tree.RevealPath("/operate/services/service-499/settings");
+        Assert.Equal("service-499", tree.Filter);
+        Assert.Equal("service-499", Assert.Single(tree.VisibleChildren(tree.Root)).Label);
+        Assert.Equal(0, tree.Root.VisibleOffset);
+    }
+
+    [Fact]
+    public void DeepLinkOutsideTheFilterClearsItAndRevealsABoundedSelectedPage()
+    {
+        var tree = CreateLargeTree(200);
+        tree.SetFilter("service-001");
+        tree.RevealPath("/operate/services/service-499/settings");
+        Assert.Empty(tree.Filter);
+        Assert.Equal(25, tree.VisibleChildren(tree.Root).Count);
+        Assert.Contains(tree.VisibleChildren(tree.Root), node => node.Label == "service-499");
+        Assert.Equal(475, tree.Root.VisibleOffset);
     }
 
     [Fact]
@@ -92,4 +105,14 @@ public sealed class ConsolePublicationTreeTests
         Assert.Equal(40, tree.Root.Children[1].ReportedCount);
         Assert.Empty(tree.Root.Children[1].Children);
     }
+    private static ConsolePublicationTree CreateLargeTree(int layerCount)
+    {
+        var tree = new ConsolePublicationTree();
+        tree.Load(Enumerable.Range(0, 500).Select(index => new HonuaAdminServiceSummary
+        {
+            ServiceName = $"service-{index:D3}", LayerCount = layerCount
+        }).ToArray(), "Synthetic environment");
+        return tree;
+    }
+
 }

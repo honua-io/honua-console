@@ -2,65 +2,26 @@
 @inject IServiceProvider Services
 @inject NavigationManager Navigation
 
-<div class="console-publication-navigation" data-publication-navigation data-tree-revision="@_locationRevision">
-    <button type="button" class="console-publication-toggle console-button console-button-secondary" data-tree-toggle
-            aria-expanded="false" aria-controls="console-publication-sidebar">Browse services</button>
-    <button type="button" class="console-tree-backdrop" data-tree-backdrop hidden tabindex="-1" aria-label="Close service navigation"></button>
-    <aside id="console-publication-sidebar" class="console-publication-sidebar" aria-label="Service navigation">
-        <div class="console-tree-toolbar">
-            <label for="console-tree-filter">Filter services and loaded layers</label>
-            <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter"
-                   @oninput="FilterChanged" disabled="@(_loading || _servicesRead?.IsAllowed != true)" data-tree-filter />
-            @if (Source is not UnsupportedConsolePublicationNavigationSource)
-            {
-                <button type="button" class="console-button console-button-secondary" aria-disabled="@(_loading ? "true" : "false")" @onclick="RefreshAsync">Refresh services</button>
-            }
-            <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation">Close</button>
-        </div>
-        @if (_loading)
-        {
-            <p role="status" class="console-tree-message">Loading services…</p>
-        }
-        else if (_servicesRead is { IsAllowed: false } result)
-        {
-            <div class="console-tree-message" role="status">
-                <OperateSectionStatusPanel Heading="Service navigation" Status="result.Status" Message="@result.Message" />
-                @if (Source is UnsupportedConsolePublicationNavigationSource)
+<CascadingValue Value="TreeContext">
+    <div class="console-publication-navigation" data-publication-navigation data-tree-revision="@_locationRevision">
+        <button type="button" class="console-publication-toggle console-button console-button-secondary" data-tree-toggle
+                aria-expanded="false" aria-controls="console-publication-sidebar">Browse services</button>
+        <button type="button" class="console-tree-backdrop" data-tree-backdrop hidden tabindex="-1" aria-label="Close service navigation"></button>
+        <aside id="console-publication-sidebar" class="console-publication-sidebar" aria-label="Service navigation">
+            <div class="console-tree-toolbar">
+                <label for="console-tree-filter">Filter services and loaded layers</label>
+                <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter"
+                       @oninput="FilterChanged" disabled="@(_loading || _servicesRead?.IsAllowed != true)" data-tree-filter />
+                @if (Source is not UnsupportedConsolePublicationNavigationSource)
                 {
-                    <a href="/environments/new">Connect an environment</a>
+                    <button type="button" class="console-button console-button-secondary" aria-disabled="@(_loading ? "true" : "false")" @onclick="RefreshAsync">Refresh services</button>
                 }
+                <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation">Close</button>
             </div>
-        }
-        else
-        {
-            <ul role="tree" aria-label="Services and layers" class="console-publication-tree" data-publication-tree>
-                <ConsolePublicationTreeItem Node="_tree.Root" Tree="_tree" SelectedPath="@SelectedPath" OnExpand="ExpandAsync" OnCollapse="Collapse" OnRetry="LoadChildrenAsync" />
-            </ul>
-            @foreach (var parent in PagedParents)
-            {
-                @if (parent.VisibleOffset > 0)
-                {
-                    <button type="button" class="console-tree-more" data-tree-more="@parent.Key" @onclick="() => ShowFirstPage(parent)">Show first page in @parent.Label</button>
-                }
-                @if (_tree.MatchingChildren(parent).Count > parent.VisibleOffset + parent.VisibleLimit)
-                {
-                    <button type="button" class="console-tree-more" data-tree-more="@parent.Key" @onclick="() => ShowMore(parent)">
-                        Show more in @parent.Label (@(parent.VisibleOffset + 1)–@(parent.VisibleOffset + _tree.VisibleChildren(parent).Count) of @_tree.MatchingChildren(parent).Count)
-                    </button>
-                }
-            }
-            @if (_tree.ServiceCount == 0)
-            {
-                <p class="console-tree-message" role="status">No services returned by this server. <a href="/operate/data/new">Add data</a></p>
-            }
-            else if (!string.IsNullOrWhiteSpace(_tree.Filter) && _tree.MatchingChildren(_tree.Root).Count == 0)
-            {
-                <p class="console-tree-message" role="status">No matches among service names and loaded layers.</p>
-            }
-            <p class="console-tree-coverage" role="status">Filtering @_tree.ServiceCount service names and @_tree.LoadedLayerCount loaded layers. Expand a service to load its layers.</p>
-        }
-    </aside>
-</div>
+            <ConsolePublicationNavigationContent ReadState="ReadState" />
+        </aside>
+    </div>
+</CascadingValue>
 
 @code {
     private const int ConcurrentServiceExpansions = 4;
@@ -68,13 +29,14 @@
     private readonly ConsolePublicationTree _tree = new();
     private CancellationTokenSource _authorityLifetime = new();
     private OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>? _servicesRead;
-    private Task<OperateSectionResult<IReadOnlyList<Guid>>>? _connectionsRead;
+    private Task<OperateSectionResult<IReadOnlyList<string>>>? _connectionsRead;
     private (string? ProfileId, Uri? ServerBaseUri, string? AccountId)? _authority;
     private string _environmentLabel = "Services";
     private int _authorityRevision;
     private int _locationRevision;
     private bool _loading = true;
     private bool _disposed;
+    private IConsoleCapabilityManifest? _capabilities;
     private IConsolePublicationNavigationSource Source => Services.GetService<IConsolePublicationNavigationSource>()
         ?? new UnsupportedConsolePublicationNavigationSource();
     private string CurrentPath => "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
@@ -86,12 +48,26 @@
             return ConsolePublicationTree.Descendants(_tree.Root).Prepend(_tree.Root).Count(node => node.Href == path) == 1 ? path : "";
         }
     }
-    private IEnumerable<ConsolePublicationNode> PagedParents => _tree.VisibleNodes()
-        .Where(node => node.Expanded && (node.VisibleOffset > 0 || _tree.MatchingChildren(node).Count > node.VisibleOffset + node.VisibleLimit));
+    private ConsolePublicationTreeContext TreeContext => new()
+    {
+        Tree = _tree, SelectedPath = SelectedPath,
+        Expand = EventCallback.Factory.Create<ConsolePublicationNode>(this, ExpandAsync),
+        Collapse = EventCallback.Factory.Create<ConsolePublicationNode>(this, Collapse),
+        Retry = EventCallback.Factory.Create<ConsolePublicationNode>(this, LoadChildrenAsync),
+        ShowFirstPage = EventCallback.Factory.Create<ConsolePublicationNode>(this, ShowFirstPage),
+        ShowMore = EventCallback.Factory.Create<ConsolePublicationNode>(this, ShowMore)
+    };
+    private ConsolePublicationNavigationReadState ReadState => new()
+    {
+        Loading = _loading, ServicesRead = _servicesRead,
+        CanConnectEnvironment = Source is UnsupportedConsolePublicationNavigationSource
+    };
 
     protected override void OnInitialized()
     {
         Navigation.LocationChanged += LocationChanged;
+        _capabilities = Services.GetService<IConsoleCapabilityManifest>();
+        if (_capabilities is not null) _capabilities.Changed += CapabilitiesChanged;
         if (Services.GetService<AuthenticationStateProvider>() is { } authentication)
             authentication.AuthenticationStateChanged += AuthenticationChanged;
         _ = CheckAuthorityAsync();
@@ -207,7 +183,7 @@
     }
 
     private async Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>> ReadServiceLayersAsync(
-        string serviceName, IReadOnlyList<Guid> connections, CancellationToken token)
+        string serviceName, IReadOnlyList<string> connections, CancellationToken token)
     {
         await _serviceExpansionSlots.WaitAsync(token);
         try { return await Source.ReadLayersAsync(serviceName, connections, token); }
@@ -235,12 +211,14 @@
         _locationRevision++;
         _ = InvokeAsync(CheckAuthorityAsync);
     }
+    private void CapabilitiesChanged() => _ = InvokeAsync(CheckAuthorityAsync);
     private void AuthenticationChanged(Task<AuthenticationState> state) => _ = InvokeAsync(ReloadAuthorityAsync);
 
     public void Dispose()
     {
         _disposed = true;
         Navigation.LocationChanged -= LocationChanged;
+        if (_capabilities is not null) _capabilities.Changed -= CapabilitiesChanged;
         if (Services.GetService<AuthenticationStateProvider>() is { } authentication)
             authentication.AuthenticationStateChanged -= AuthenticationChanged;
         _authorityLifetime.Cancel();

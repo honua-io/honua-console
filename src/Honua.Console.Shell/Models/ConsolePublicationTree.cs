@@ -22,6 +22,14 @@ public sealed class ConsolePublicationNode
     public OperateSectionStatus? ReadStatus { get; set; }
     public int VisibleOffset { get; set; }
     public int VisibleLimit { get; set; } = ConsolePublicationTree.PageSize;
+    public int? ChildCount => Kind switch
+    {
+        ConsolePublicationNodeKind.Folder => Children.Count,
+        ConsolePublicationNodeKind.Service => ReportedCount,
+        _ => null
+    };
+    public bool IsLoadedEmptyService => Kind == ConsolePublicationNodeKind.Service && ChildrenLoaded && Children.Count == 0 && ReadStatus is null;
+    public bool HasReadStatus => Loading || ReadStatus is not null || ReadMessage is not null || IsLoadedEmptyService;
     public bool HasChildren => Children.Count > 0 || (Kind == ConsolePublicationNodeKind.Service && ReportedCount > 0);
 }
 
@@ -128,12 +136,17 @@ public sealed class ConsolePublicationTree
             foreach (var descendant in VisibleNodes(child)) yield return descendant;
     }
 
-    public void RevealPath(string path) => RevealPath(Root, path);
+    public void RevealPath(string path)
+    {
+        var target = Descendants(Root).FirstOrDefault(node => node.Href == path);
+        if (target is not null && !Matches(target)) SetFilter("");
+        RevealPath(Root, path);
+    }
 
-    private static bool RevealPath(ConsolePublicationNode parent, string path)
+    private bool RevealPath(ConsolePublicationNode parent, string path)
     {
         if (parent.Href == path) return true;
-        var index = parent.Children.FindIndex(child => RevealPath(child, path));
+        var index = MatchingChildren(parent).ToList().FindIndex(child => RevealPath(child, path));
         if (index < 0) return false;
         parent.Expanded = true;
         parent.VisibleOffset = index / PageSize * PageSize;

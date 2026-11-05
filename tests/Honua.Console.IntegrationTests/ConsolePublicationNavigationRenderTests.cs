@@ -1,6 +1,7 @@
 using Bunit;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Layout;
+using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -124,6 +125,7 @@ public sealed class ConsolePublicationNavigationRenderTests
         tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 2);
         var folder = tree.Find("[data-publication-key='folder:public']");
         Assert.False(folder.HasAttribute("aria-selected"));
+        Assert.Equal("Public 1 service", folder.GetAttribute("aria-label"));
         Assert.Empty(folder.QuerySelectorAll("a"));
         folder.QuerySelector("[data-tree-expand]")!.Click();
         var service = tree.Find("[data-publication-key='service:internal%2Fparcels']");
@@ -149,7 +151,7 @@ public sealed class ConsolePublicationNavigationRenderTests
         using var context = new BunitContext();
         var authorization = context.AddAuthorization();
         authorization.SetAuthorized("first-synthetic-operator");
-        var source = new NavigationSource { PendingLayers = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var source = DelayedSource();
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
         var tree = context.Render<ConsolePublicationNavigation>();
         tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
@@ -165,6 +167,88 @@ public sealed class ConsolePublicationNavigationRenderTests
         Assert.Contains("500 service names and 0 loaded layers", tree.Markup);
     }
 
+    [Fact]
+    public void NavigatingToAFilteredHighIndexServicePreservesItsSelectedRow()
+    {
+        using var context = Context();
+        var source = new NavigationSource();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
+        tree.Find("input").Input("service-499");
+        context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/operate/services/service-499/settings");
+        tree.WaitForAssertion(() => Assert.Equal("true", tree.Find("[data-publication-key='service:service-499']").GetAttribute("aria-selected")));
+        Assert.Equal(2, tree.FindAll("[role='treeitem']").Count);
+        Assert.Equal("1", tree.Find("[data-publication-key='service:service-499']").GetAttribute("aria-posinset"));
+        Assert.Equal(0, source.ConnectionReads);
+    }
+
+    [Theory]
+    [InlineData("profile")]
+    [InlineData("server")]
+    [InlineData("account")]
+    public async Task SamePageAuthorityChangeClearsConnectionsAndRejectsPreviousChildren(string changedField)
+    {
+        using var context = Context();
+        var profile = new ConsoleEnvironmentProfile { Id = "first", ServerBaseUri = new Uri("https://first.example.test") };
+        var profiles = new InMemoryConsoleEnvironmentProfileStore([profile]);
+        var capabilities = new CapabilitySignals();
+        context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
+        context.Services.AddSingleton<IConsoleCapabilityManifest>(capabilities);
+        var source = DelayedSource();
+        var oldLayers = source.PendingLayers!;
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
+        var expansion = tree.Find("[data-publication-key='service:service-000'] [data-tree-expand]")
+            .ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        tree.WaitForAssertion(() => Assert.Equal(1, source.ChildReads));
+        await tree.InvokeAsync(() => capabilities.RefreshAsync());
+        Assert.Equal(1, source.ServiceReads);
+        Assert.Equal(1, source.ConnectionReads);
+        var changed = ChangedProfile(profile, changedField);
+        await profiles.UpsertProfileAsync(changed);
+        await profiles.ActivateProfileAsync(changed.Id);
+        source.ConnectionKeys = ["connection-two"];
+        source.PendingLayers = null;
+        source.LayerResult = OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>.Allowed([new("connection-two-layer-7", "Current layer", "Point")]);
+        await tree.InvokeAsync(() => capabilities.RefreshAsync());
+        tree.WaitForState(() => source.ServiceReads == 2 && tree.FindAll("[role='treeitem']").Count == 26);
+        tree.Find("[data-publication-key='service:service-000'] [data-tree-expand]").Click();
+        tree.WaitForAssertion(() => Assert.Single(tree.FindAll("a[href='/operate/layers/connection-two-layer-7']")));
+        oldLayers.SetResult(OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>.Allowed([new("connection-one-layer-7", "Previous layer", "Point")]));
+        await expansion;
+        Assert.Empty(tree.FindAll("a[href='/operate/layers/connection-one-layer-7']"));
+        Assert.Equal(["connection-one"], source.RequestedConnectionSets[0]);
+        Assert.Equal(["connection-two"], source.RequestedConnectionSets[1]);
+        Assert.Equal(2, source.ConnectionReads);
+    }
+
+    private static ConsoleEnvironmentProfile ChangedProfile(ConsoleEnvironmentProfile profile, string field) => field switch
+    {
+        "profile" => profile with { Id = "second" },
+        "server" => profile with { ServerBaseUri = new Uri("https://second.example.test") },
+        "account" => profile with { Account = profile.Account with { AccountId = "second-synthetic-account" } },
+        _ => throw new ArgumentOutOfRangeException(nameof(field))
+    };
+
+    private static NavigationSource DelayedSource() => new()
+    {
+        PendingLayers = new(TaskCreationOptions.RunContinuationsAsynchronously)
+    };
+
+    private sealed class CapabilitySignals : IConsoleCapabilityManifest
+    {
+        public event Action? Changed;
+        public bool IsAdvertised(string capabilityKey) => false;
+        public Task RefreshAsync(CancellationToken cancellationToken = default)
+        {
+            Changed?.Invoke();
+            return Task.CompletedTask;
+        }
+    }
+
     private static BunitContext Context()
     {
         var context = new BunitContext();
@@ -176,7 +260,9 @@ public sealed class ConsolePublicationNavigationRenderTests
     {
         public IReadOnlyList<HonuaAdminServiceSummary>? ServiceSummaries { get; init; }
         public int ServiceReads { get; private set; }
-        public TaskCompletionSource<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>>? PendingLayers { get; init; }
+        public TaskCompletionSource<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>>? PendingLayers { get; set; }
+        public IReadOnlyList<string> ConnectionKeys { get; set; } = ["connection-one"];
+        public List<IReadOnlyList<string>> RequestedConnectionSets { get; } = [];
         public int ChildReads { get; private set; }
         public int ConnectionReads { get; private set; }
         public List<string> RequestedServices { get; } = [];
@@ -188,16 +274,17 @@ public sealed class ConsolePublicationNavigationRenderTests
             return Task.FromResult(OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Allowed(ServiceSummaries ?? Enumerable.Range(0, 500)
                 .Select(index => new HonuaAdminServiceSummary { ServiceName = $"service-{index:D3}", LayerCount = 10 }).ToArray()));
         }
-        public Task<OperateSectionResult<IReadOnlyList<Guid>>> ReadConnectionsAsync(CancellationToken cancellationToken)
+        public Task<OperateSectionResult<IReadOnlyList<string>>> ReadConnectionsAsync(CancellationToken cancellationToken)
         {
             ConnectionReads++;
-            return Task.FromResult(OperateSectionResult<IReadOnlyList<Guid>>.Allowed([Guid.Empty]));
+            return Task.FromResult(OperateSectionResult<IReadOnlyList<string>>.Allowed(ConnectionKeys));
         }
         public Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>> ReadLayersAsync(
-            string serviceName, IReadOnlyList<Guid> connectionIds, CancellationToken cancellationToken)
+            string serviceName, IReadOnlyList<string> connectionKeys, CancellationToken cancellationToken)
         {
             ChildReads++;
             RequestedServices.Add(serviceName);
+            RequestedConnectionSets.Add(connectionKeys.ToArray());
             return PendingLayers?.Task ?? Task.FromResult(LayerResult);
         }
     }
