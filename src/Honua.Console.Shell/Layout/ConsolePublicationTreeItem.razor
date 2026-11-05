@@ -2,7 +2,7 @@
 <li role="none" @key="Node.Key">
     <div class="console-tree-row" role="treeitem" tabindex="-1" aria-level="@Level" aria-posinset="@Position" aria-setsize="@SiblingCount"
          aria-expanded="@(Node.HasChildren ? (IsExpanded ? "true" : "false") : null)"
-         aria-busy="@(Node.Loading ? "true" : null)" aria-selected="@(Node.Href == SelectedPath ? "true" : "false")"
+         aria-busy="@(Node.Loading ? "true" : null)" aria-selected="@(Node.Href is null ? null : Node.Href == SelectedPath ? "true" : "false")"
          aria-label="@AccessibleLabel" aria-owns="@OwnedContent" aria-describedby="@(HasReadStatus && IsExpanded ? StatusId : null)"
          data-publication-key="@Node.Key" data-tree-parent="@ParentKey" data-tree-label="@Node.Label">
         @if (Node.HasChildren)

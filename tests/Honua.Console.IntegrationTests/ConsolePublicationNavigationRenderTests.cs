@@ -112,6 +112,27 @@ public sealed class ConsolePublicationNavigationRenderTests
     }
 
     [Fact]
+    public void ReportedFoldersExpandWithoutClaimingSelectionOrInventingFolderLinks()
+    {
+        using var context = Context();
+        var source = new NavigationSource
+        {
+            ServiceSummaries = [new() { ServiceName = "internal/parcels", FolderId = "public", FolderName = "Public", Title = "Parcels" }]
+        };
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 2);
+        var folder = tree.Find("[data-publication-key='folder:public']");
+        Assert.False(folder.HasAttribute("aria-selected"));
+        Assert.Empty(folder.QuerySelectorAll("a"));
+        folder.QuerySelector("[data-tree-expand]")!.Click();
+        var service = tree.Find("[data-publication-key='service:internal%2Fparcels']");
+        Assert.Equal("false", service.GetAttribute("aria-selected"));
+        Assert.Equal("/operate/services/internal%2Fparcels/settings", service.QuerySelector("a")!.GetAttribute("href"));
+        Assert.Equal(0, source.ChildReads);
+    }
+
+    [Fact]
     public void MissingBindingDoesNotSeedATreeOrEnableAnInertFilter()
     {
         using var context = Context();
@@ -153,6 +174,7 @@ public sealed class ConsolePublicationNavigationRenderTests
 
     private sealed class NavigationSource : IConsolePublicationNavigationSource
     {
+        public IReadOnlyList<HonuaAdminServiceSummary>? ServiceSummaries { get; init; }
         public int ServiceReads { get; private set; }
         public TaskCompletionSource<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>>? PendingLayers { get; init; }
         public int ChildReads { get; private set; }
@@ -163,7 +185,7 @@ public sealed class ConsolePublicationNavigationRenderTests
         public Task<OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadServicesAsync(CancellationToken cancellationToken)
         {
             ServiceReads++;
-            return Task.FromResult(OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Allowed(Enumerable.Range(0, 500)
+            return Task.FromResult(OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Allowed(ServiceSummaries ?? Enumerable.Range(0, 500)
                 .Select(index => new HonuaAdminServiceSummary { ServiceName = $"service-{index:D3}", LayerCount = 10 }).ToArray()));
         }
         public Task<OperateSectionResult<IReadOnlyList<Guid>>> ReadConnectionsAsync(CancellationToken cancellationToken)
