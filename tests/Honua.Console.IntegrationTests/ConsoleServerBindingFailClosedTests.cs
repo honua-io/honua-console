@@ -6,6 +6,7 @@ using Honua.Console.Web.Auth;
 
 namespace Honua.Console.IntegrationTests;
 
+// An unresolved operator must not inherit another operator's forwarded bearer; fallback is not impersonation.
 public sealed class ConsoleServerBindingFailClosedTests
 {
     [Fact]

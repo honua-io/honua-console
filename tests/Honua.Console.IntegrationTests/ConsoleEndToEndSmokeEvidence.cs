@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.IntegrationTests;
 
+// sourceHydrated marks a real-server run so synthetic harness evidence cannot satisfy the live-server gate.
 public sealed record ConsoleEndToEndSmokeEvidence
 {
     [JsonPropertyName("scenario")]

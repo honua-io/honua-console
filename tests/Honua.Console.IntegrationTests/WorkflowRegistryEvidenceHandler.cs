@@ -2,6 +2,7 @@ using System.Text.Json;
 
 namespace Honua.Console.IntegrationTests;
 
+// The evidence projection allowlists fields and omits credentials and schemas.
 internal sealed class WorkflowRegistryEvidenceHandler(HttpMessageHandler innerHandler) : DelegatingHandler(innerHandler)
 {
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

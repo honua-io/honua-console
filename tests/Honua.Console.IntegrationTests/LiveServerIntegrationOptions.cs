@@ -83,6 +83,7 @@ public sealed record LiveServerIntegrationOptions
             : null;
     }
 
+    // End-to-end smoke calls admin-protected routes, so eligibility uses the same admin key check as the Studio lane.
     public static string? GetEndToEndSkipReason() => GetStudioSkipReason();
 
     public IReadOnlyDictionary<string, string> BuildServerEnvironment(string postgresConnectionString)

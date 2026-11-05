@@ -7,6 +7,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
+// The ops-health endpoint returns bare JSON, not an ApiResponse envelope.
 public sealed class ConsoleOpsHealthClientTests
 {
     [Fact]

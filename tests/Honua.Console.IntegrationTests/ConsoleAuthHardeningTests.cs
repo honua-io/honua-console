@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Honua.Console.IntegrationTests;
 
+// Singleton profile and session stores let one operator's bearer bleed into another request, so only genuinely public routes are anonymous.
 public sealed class ConsoleAuthHardeningTests
 {
     // ---- S1 #1: cross-operator bearer/identity isolation -------------------------------------------------

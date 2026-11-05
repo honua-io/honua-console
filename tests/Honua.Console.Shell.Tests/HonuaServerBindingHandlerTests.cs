@@ -7,6 +7,7 @@ using Xunit;
 
 namespace Honua.Console.Shell.Tests;
 
+// A real bearer is forwarded and the shared admin key is dropped; the sentinel falls back only when no bearer exists.
 public sealed class HonuaServerBindingHandlerTests
 {
     private static readonly Uri DiTimeBase = new("https://startup-server.example");

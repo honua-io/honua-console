@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Honua.Console.IntegrationTests;
 
+// Validators and conditional headers are forwarded so the proxy does not strip them and refetch every tile with the admin key.
 public sealed class MapProxyCacheHeaderTests
 {
     [Fact]

@@ -3,6 +3,7 @@ using Xunit;
 
 namespace Honua.Console.Shell.Tests;
 
+// Browsers normalize a slash followed by a backslash into a protocol-relative host, so that input is not a local path.
 public sealed class ConsoleReturnUrlTests
 {
     [Theory]

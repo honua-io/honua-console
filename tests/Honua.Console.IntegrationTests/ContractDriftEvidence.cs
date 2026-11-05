@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.IntegrationTests;
 
+// Server route and schema identity is stored with the run so a rename is caught with the results.
 public sealed record ContractDriftEvidence
 {
     [JsonPropertyName("scenario")]

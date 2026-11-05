@@ -30,6 +30,7 @@ internal static class CrossCuttingSeeder
         await command.ExecuteNonQueryAsync();
     }
 
+    // The server uses host postgres on the Docker network, not the host-mapped port the seed uses.
     public static async Task<string> CreateConnectionAsync(CrossCuttingFixture fixture, string name)
     {
         using var http = fixture.CreateHttpClient();

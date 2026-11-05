@@ -3,6 +3,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Tests;
 
+// The contract omits null properties, so route parity cannot see a deserialization default that an explicit null would show.
 public sealed class DeployOperationContractShapeTests
 {
     // Shaped exactly like PR #2577's pinned example, with every nullable field OMITTED (not

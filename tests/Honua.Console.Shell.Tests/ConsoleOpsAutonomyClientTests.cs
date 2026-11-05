@@ -9,6 +9,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
+// Policy and settings mutations send the operator bearer and fail closed; reads may use the service credential.
 public sealed class ConsoleOpsAutonomyClientTests
 {
     [Fact]

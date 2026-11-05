@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
+// Deploy-control approval has no Reject action.
 public sealed class OperateDeploymentApprovalTests
 {
     [Fact]

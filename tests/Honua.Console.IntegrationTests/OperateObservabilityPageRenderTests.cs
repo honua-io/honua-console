@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
+// Detail and missing surfaces render even when the list has no rows.
 public sealed class OperateObservabilityPageRenderTests
 {
     [Fact]

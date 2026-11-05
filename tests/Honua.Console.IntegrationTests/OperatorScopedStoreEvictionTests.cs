@@ -3,6 +3,7 @@ using Honua.Console.Web.Auth;
 
 namespace Honua.Console.IntegrationTests;
 
+// Sign-out, idle pruning, and capacity limits drop partitions, including transient edge identities, so a signed-in operator does not leak for the process lifetime.
 public sealed class OperatorScopedStoreEvictionTests
 {
     [Fact]

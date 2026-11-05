@@ -4,6 +4,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.IntegrationTests;
 
+// Caller cancellation aborts the operation; a timeout must not be reported as an Unavailable endpoint.
 public sealed class ContentPublicationHttpClientTests
 {
     private static readonly Uri BaseAddress = new("https://honua.test");

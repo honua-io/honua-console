@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Honua.Console.IntegrationTests;
 
+// The circuit has no HttpContext because the execution context does not flow there, so identity comes from circuit authentication state or operator partitions collapse.
 public sealed class ConsoleOperatorCircuitPartitionTests
 {
     [Fact]

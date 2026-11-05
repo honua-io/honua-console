@@ -8,6 +8,7 @@ using Testcontainers.PostgreSql;
 
 namespace Honua.Console.Shell.Tests;
 
+// An endpoint that is present with no package is Missing, not an unsupported endpoint contract.
 public sealed class GitOpsReleaseLiveServerTests
 {
     private const string RunLiveServerTestsVariable = "HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS";

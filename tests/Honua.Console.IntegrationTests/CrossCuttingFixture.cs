@@ -72,6 +72,7 @@ public sealed class CrossCuttingFixture : IAsyncLifetime
             CreateHttpClient(),
             new HonuaAdminOperateClientOptions(BaseAddress, Options.StudioAdminApiKey));
 
+    // This client omits the admin credential so a blocked mutation is proven on the server, not only behind the UI.
     public IHonuaAdminOperateClient CreateUnauthenticatedOperateClient() =>
         new HonuaAdminOperateHttpClient(
             CreateHttpClient(),

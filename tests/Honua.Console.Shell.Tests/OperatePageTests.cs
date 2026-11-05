@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Honua.Console.Shell.Tests;
 
+// An empty operator-action collection needs a fallback or the page indexes the first action and throws.
 public sealed class OperatePageTests
 {
     [Fact]

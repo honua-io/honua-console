@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Honua.Console.Shell.Tests;
 
+// Engaging the manual poll fallback both logs and exposes the connection state.
 public sealed class ConsoleRealtimeFallbackTrackerTests
 {
     [Fact]

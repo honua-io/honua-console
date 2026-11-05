@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace Honua.Console.IntegrationTests;
 
+// Prerender still returns 200, so only assembly-wide route enumeration sees a duplicate that would kill interactive navigation.
 public sealed class ShellRouteUniquenessTests
 {
     [Fact]

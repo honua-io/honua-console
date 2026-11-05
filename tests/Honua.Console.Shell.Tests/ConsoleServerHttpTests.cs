@@ -6,6 +6,7 @@ using Xunit;
 
 namespace Honua.Console.Shell.Tests;
 
+// The non-forwardable sentinel becomes null before credential selection, because forwarding it as a bearer rejects every Family-B call.
 public sealed class ConsoleServerHttpTests
 {
     [Theory]

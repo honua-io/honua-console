@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace Honua.Console.IntegrationTests;
 
+// An absent edge token must not replace an existing BFF bearer with the sentinel.
 public sealed class ConsoleEdgeIdentityBearerPersistenceTests
 {
     private static readonly Uri ServerOrigin = new("https://server.example/");

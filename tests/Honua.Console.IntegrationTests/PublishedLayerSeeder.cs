@@ -36,6 +36,7 @@ internal static class PublishedLayerSeeder
         await command.ExecuteNonQueryAsync();
     }
 
+    // An unready pinned server image skips; a real configuration error throws.
     public static async Task<SeededLayer?> SeedPublishedLayerAsync(
         TemporalReplicaFixture fixture,
         string slugSuffix)

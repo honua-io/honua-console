@@ -7,6 +7,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
+// Interactive decisions use the operator bearer, and a separation-of-duties conflict returns 403.
 public sealed class ConsoleProposalsClientTests
 {
     [Theory]

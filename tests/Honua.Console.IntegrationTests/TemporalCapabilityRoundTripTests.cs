@@ -4,6 +4,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
+// LayerPublishRequest cannot set the temporal column, so unsupported history returns HTTP 409 and the positive branch runs only when the image can.
 [Collection(TemporalReplicaIntegrationCollection.Name)]
 public sealed class TemporalCapabilityRoundTripTests
 {

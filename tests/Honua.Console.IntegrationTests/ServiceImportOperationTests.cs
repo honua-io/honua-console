@@ -5,6 +5,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
+// A transport blip or transient 5xx keeps the import job active so polling continues; authorization and unsupported outcomes are terminal.
 public sealed class ServiceImportOperationTests
 {
     private static readonly Uri BaseAddress = new("https://server.example/");

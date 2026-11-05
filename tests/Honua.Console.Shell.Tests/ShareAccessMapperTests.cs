@@ -3,6 +3,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Tests;
 
+// System.Text.Json replaces a collection initializer with null, so every share projection coalesces wire collections before LINQ.
 public sealed class ShareAccessMapperTests
 {
     [Fact]

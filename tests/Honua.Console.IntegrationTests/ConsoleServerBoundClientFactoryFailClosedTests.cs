@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
+// An unresolved operator is a hard deny on every privileged server-bound client, except genuinely public clients.
 public sealed class ConsoleServerBoundClientFactoryFailClosedTests
 {
     [Fact]

@@ -2,6 +2,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Tests;
 
+// The server delivers transitions at least once, so the timeline deduplicates events.
 public sealed class OperateTimelineModelsTests
 {
     private static OperateTimelineEntry Entry(string eventId, string message) =>

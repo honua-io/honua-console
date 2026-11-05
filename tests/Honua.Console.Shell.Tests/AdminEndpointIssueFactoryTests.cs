@@ -4,6 +4,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Tests;
 
+// A 409 or 400 stays Conflict or Rejected; mapping it to Unavailable would claim the server is down.
 public sealed class AdminEndpointIssueFactoryTests
 {
     [Theory]

@@ -33,6 +33,7 @@ internal sealed class HonuaServerTestcontainer : IAsyncDisposable
 
     public Uri BaseAddress { get; }
 
+    // The exposed seeding port reaches the same database the server uses over the Docker network.
     public string PostgresConnectionString { get; }
 
     public static async Task<HonuaServerTestcontainer> StartAsync(

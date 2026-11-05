@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Honua.Console.IntegrationTests;
 
+// An unresolved operator returns null and denies, because the anonymous sentinel used to stand in for both a public surface and a failed authenticated context.
 public sealed class ConsoleOperatorScopeTests
 {
     [Fact]

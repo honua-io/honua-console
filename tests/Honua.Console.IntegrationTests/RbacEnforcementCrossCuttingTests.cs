@@ -4,6 +4,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
+// Only a mounted route's authorization failure proves server-side RBAC; a missing route is not a denial.
 [Collection(CrossCuttingIntegrationCollection.Name)]
 public sealed class RbacEnforcementCrossCuttingTests
 {

@@ -4,6 +4,7 @@ using Honua.Console.Web;
 
 namespace Honua.Console.IntegrationTests;
 
+// Tile URLs are rewritten through the Console origin so the admin key stays server-side and the internal origin never reaches the browser.
 public sealed class MapProxyTileRewriteTests
 {
     private const string ProxyBase = "https://console.example/map-proxy/tiles/";

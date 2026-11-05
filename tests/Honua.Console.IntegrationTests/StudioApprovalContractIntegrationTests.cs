@@ -4,6 +4,7 @@ using System.Text.Json;
 
 namespace Honua.Console.IntegrationTests;
 
+// A pending operation is not a created draft and must not be treated as synchronous success.
 public sealed class StudioApprovalContractIntegrationTests
 {
     [SkippableFact]

@@ -4,6 +4,7 @@ using Honua.Console.Shell.Diagnostics;
 
 namespace Honua.Console.Shell.Tests;
 
+// Raw bytes, authorization, cookies, and secrets stay off the wire; the bundle is validated before transfer and absent optionals are omitted.
 public sealed class DiagnosticBundleEmitterTests
 {
     private static readonly DiagnosticConsent Consent = new()

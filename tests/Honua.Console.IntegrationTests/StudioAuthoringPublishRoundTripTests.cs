@@ -261,6 +261,7 @@ public sealed class StudioFormPublishRoundTripTests
     }
 }
 
+// On an opted-in live lane, a missing route, permission failure, or server error fails the run.
 internal static class StudioLifecycleAssertions
 {
     public static void RequireConsoleOperation(bool succeeded, string? issueState, string message, string operation)

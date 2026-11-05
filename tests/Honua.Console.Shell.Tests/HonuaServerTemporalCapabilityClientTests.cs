@@ -5,6 +5,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
+// Explicit JSON null is projected defensively because throwing would tear down the Blazor circuit.
 public sealed class HonuaServerTemporalCapabilityClientTests
 {
     private const string ServiceId = "svc-parcels";

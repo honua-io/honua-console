@@ -4,6 +4,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Tests.Components;
 
+// The label and class override exists because proposal risk is not in the shared status vocabulary.
 public sealed class OperateStatusPillTests : ConsoleComponentTestBase
 {
     [Fact]

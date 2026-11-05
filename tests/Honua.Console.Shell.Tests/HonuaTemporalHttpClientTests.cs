@@ -4,6 +4,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Tests;
 
+// Capability and as-of return the DTO directly; replica routes wrap it in ApiResponse.
 public sealed class HonuaTemporalHttpClientTests
 {
     private static readonly Uri BaseUri = new("https://server.example");

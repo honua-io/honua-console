@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
+// A hard-coded connection name 404s on deployments that do not own it, so the fixture rejects that literal.
 public sealed class PublishWizardWorkspaceRenderTests
 {
     private static Bunit.BunitContext NewContext(

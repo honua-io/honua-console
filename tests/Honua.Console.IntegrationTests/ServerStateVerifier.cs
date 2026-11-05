@@ -4,6 +4,7 @@ using System.Text.Json;
 
 namespace Honua.Console.IntegrationTests;
 
+// The verifier calls a different API so it does not re-read the operation's own projection.
 public sealed class ServerStateVerifier : IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -214,6 +215,7 @@ public sealed class ServerStateVerifier : IDisposable
     //  GeoServices service-root reachability: GET /rest/services/{service}/{protocol}
     // ---------------------------------------------------------------------------------------------
 
+    // Protocol reachability is probed on the protocol surface, not only the admin settings projection.
     public async Task<bool> GeoServicesProtocolResolvesAsync(
         string serviceName,
         string protocol,
@@ -353,6 +355,7 @@ public sealed class ServerStateVerifier : IDisposable
     //  Published-route reachability (anonymous): GET /api/v1/published/{routeSlug}
     // ---------------------------------------------------------------------------------------------
 
+    // Publication reachability is checked with no admin key so visibility is not proven with a privileged client.
     public Task<VerifiedAnonymousFetch> FetchPublishedRouteAnonymouslyAsync(
         string routeSlug,
         CancellationToken cancellationToken = default)
@@ -365,16 +368,19 @@ public sealed class ServerStateVerifier : IDisposable
     //  Anonymous Console Share resolution: GET /api/v1/console/share/...
     // ---------------------------------------------------------------------------------------------
 
+    // An unknown, expired, revoked, or forbidden anonymous token returns 404 with a constant denial body.
     public Task<VerifiedAnonymousFetch> ResolvePublicLinkAnonymouslyAsync(
         string token,
         CancellationToken cancellationToken = default) =>
         FetchAnonymousAsync($"/api/v1/console/share/link/{Uri.EscapeDataString(token)}", cancellationToken);
 
+    // A private, missing, or no-longer-public item returns 404.
     public Task<VerifiedAnonymousFetch> ResolvePublicContentAnonymouslyAsync(
         string itemId,
         CancellationToken cancellationToken = default) =>
         FetchAnonymousAsync($"/api/v1/console/share/content/{Uri.EscapeDataString(itemId)}", cancellationToken);
 
+    // An expired or disabled embed token returns 404.
     public Task<VerifiedAnonymousFetch> RedeemEmbedTokenAnonymouslyAsync(
         string token,
         CancellationToken cancellationToken = default) =>
@@ -384,6 +390,7 @@ public sealed class ServerStateVerifier : IDisposable
     //  Temporal capability: GET /api/v1/temporal/services/{serviceId}/layers/{layerId}/capabilities
     // ---------------------------------------------------------------------------------------------
 
+    // Null means the history route is absent; a descriptor with supportsHistory false means the route is mounted but unsupported.
     public async Task<VerifiedTemporalCapability?> GetTemporalCapabilityAsync(
         string serviceId,
         int layerId,
@@ -412,6 +419,7 @@ public sealed class ServerStateVerifier : IDisposable
             GetLong(root, "currentGeneration"));
     }
 
+    // An unsupported as-of read is HTTP 409 and maps to null, which is distinct from an absent route.
     public async Task<VerifiedTemporalAsOf?> ReadTemporalAsOfAsync(
         string serviceId,
         int layerId,
@@ -530,11 +538,13 @@ public sealed class ServerStateVerifier : IDisposable
         return new VerifiedCatalogRegistry(GetString(data, "workspaceId"), endpoints);
     }
 
+    // A mounted gated route returns 401, an absent route returns 404, and status zero means the server was unreachable.
     public Task<int> ProbeAdminRouteAnonymousStatusAsync(
         string path,
         CancellationToken cancellationToken = default) =>
         ProbeStatusAsync(path, cancellationToken);
 
+    // Mutation probes send a JSON body so model binding does not return 400 before the auth check, and 404 is not a denial.
     public async Task<int> ProbeAnonymousMutationStatusAsync(
         HttpMethod method,
         string path,
@@ -930,6 +940,7 @@ public sealed class ServerStateVerifier : IDisposable
         }
     }
 
+    // Status zero means the server was unreachable, not a denial, and the probe omits the admin credential.
     private async Task<VerifiedAnonymousFetch> FetchAnonymousAsync(
         string path,
         CancellationToken cancellationToken,
@@ -984,6 +995,7 @@ public sealed class ServerStateVerifier : IDisposable
         }
     }
 
+    // A gated route returns 401, an absent route returns 404, and transport failure is status zero.
     private async Task<int> ProbeStatusAsync(string path, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, path);
@@ -1134,6 +1146,7 @@ public sealed record VerifiedPublicationRoute(
     int? ActiveRevision,
     string? Visibility);
 
+// VerifiedAnonymousFetch uses status zero for transport failure.
 public sealed record VerifiedAnonymousFetch(
     int StatusCode,
     bool Granted,
@@ -1201,6 +1214,7 @@ public sealed record VerifiedFormPackage(
 
 public sealed record VerifiedFormOfflinePolicy(bool Enabled, IReadOnlyList<string> Transports);
 
+// VersionRouteMounted and CapabilitiesRouteMounted stay separate from the nullable descriptor so an empty descriptor is not an absent route, and the record shows contract drift against the pinned server.
 public sealed record VerifiedServerContract(
     string? Version,
     string? MetadataApiVersion,

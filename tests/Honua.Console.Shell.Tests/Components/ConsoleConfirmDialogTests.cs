@@ -3,6 +3,7 @@ using Honua.Console.Shell.Components;
 
 namespace Honua.Console.Shell.Tests.Components;
 
+// Open runs inside InvokeAsync because StateHasChanged must run on the Blazor dispatcher.
 public sealed class ConsoleConfirmDialogTests : ConsoleComponentTestBase
 {
     [Fact]

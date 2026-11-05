@@ -213,6 +213,7 @@ public sealed class StudioFormBuilderValidationRenderTests
     private sealed class FakeFormDataSource : IStudioFormPackageDataSource
     {
 
+        // The list button label stays fixed so tests can open the editor without depending on its title.
         public const string OpenLabel = "Open form";
 
         public StudioFormEditorLoad EditorLoad { get; set; } = new(null, []);

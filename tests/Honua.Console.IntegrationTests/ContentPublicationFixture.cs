@@ -81,6 +81,7 @@ public sealed class ContentPublicationFixture : IAsyncLifetime
 
     public string? AdminApiKey => Options.StudioAdminApiKey;
 
+    // Dev-auth bypass authenticates every request, including the anonymous probe, so denial assertions are skipped only for that profile.
     public bool DevAuthBypassEnabled =>
         (Options.ServerEnvironment ?? string.Empty)
             .Split([';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

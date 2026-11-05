@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Honua.Console.IntegrationTests;
 
+// SignInAsync does not set HttpContext.User for the same request, so the test signs in, assigns the principal, then synchronizes operator state or login fails closed.
 public sealed class ConsoleDevLoginOperatorSyncTests
 {
     // Mirrors ConsoleAuthentication.BuildDevPrincipal(): the Development dev operator identity.

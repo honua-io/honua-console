@@ -6,6 +6,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.IntegrationTests;
 
+// Graph-validation failures arrive in data.failures, and the transport test must keep those server messages.
 public sealed class WorkflowPackageHttpClientTests
 {
     private static readonly Uri BaseAddress = new("https://honua.test");

@@ -9,6 +9,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
+// A cleared-condition 404 is a stale-finding refresh, the body is bare JSON, and mutations go through the approval gateway.
 public sealed class ConsoleOpsFindingsClientTests
 {
     [Fact]

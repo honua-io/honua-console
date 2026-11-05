@@ -96,6 +96,7 @@ public sealed class StudioAutomationEditorPageTests
     private static IElement SaveButton(IRenderedComponent<StudioAutomationEditorPage> page) =>
         page.FindAll("button").Single(b => b.TextContent.Contains("Save version", StringComparison.Ordinal));
 
+    // The recording client returns issues with no version id and no binding state because that is the live server's 400 shape.
     private sealed class RecordingAutomationClient : ICollectAutomationClient
     {
         public const string DraftId = "draft-recording";

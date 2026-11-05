@@ -4,6 +4,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Tests;
 
+// The public OGC StylesList document is read directly, not through the admin envelope.
 public sealed class HonuaOgcStylesHttpClientTests
 {
     private static readonly Uri BaseUri = new("https://server.example");

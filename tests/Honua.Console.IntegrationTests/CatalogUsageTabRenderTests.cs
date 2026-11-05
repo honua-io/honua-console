@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
+// Unavailable usage shows a missing binding because the server exposes no usage endpoint, so UsageBound false must not be read as zero consumers.
 public sealed class CatalogUsageTabRenderTests
 {
     [Fact]

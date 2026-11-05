@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Honua.Console.IntegrationTests;
 
+// The host fallback prefix and AuthorizeRouteView can drift, exposing a route or sending an anonymous route to login.
 public sealed class ConsoleRouteAuthorizationAuditTests
 {
     // The reviewed, explicit inventory of route templates that are reachable anonymously at the HTTP

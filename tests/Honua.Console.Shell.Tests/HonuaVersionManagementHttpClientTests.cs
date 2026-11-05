@@ -4,6 +4,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Tests;
 
+// Version management returns bare GeoServices JSON, not the admin success/data envelope, and parameters are form-encoded.
 public sealed class HonuaVersionManagementHttpClientTests
 {
     private static readonly Uri BaseUri = new("https://server.example");

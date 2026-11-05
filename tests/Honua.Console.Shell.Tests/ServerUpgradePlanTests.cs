@@ -2,6 +2,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Tests;
 
+// The gate accepts only a strictly newer parseable version, so a no-op or downgrade cannot be submitted as an upgrade.
 public sealed class ServerUpgradePlanTests
 {
     private static ServerVersionInfo Version(string version) => new(

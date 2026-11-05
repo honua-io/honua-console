@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
+// A failed validation keeps the editor dirty so a later publish cannot reuse a stale version and drop the current edits.
 public sealed class StudioWorkflowEditorPageTests
 {
     [Fact]
@@ -146,6 +147,7 @@ public sealed class StudioWorkflowEditorPageTests
     private static IElement FindButton(IRenderedComponent<StudioWorkflowEditorPage> page, string label) =>
         page.FindAll("button").Single(button => button.TextContent.Contains(label, StringComparison.Ordinal));
 
+    // This double pairs a prior valid version with a failed server validation so the test can prove a blocked save does not publish the stale version.
     private sealed class RecordingWorkflowPackageClient : IStudioWorkflowPackageClient
     {
         public const string PackageId = "pkg-1";
