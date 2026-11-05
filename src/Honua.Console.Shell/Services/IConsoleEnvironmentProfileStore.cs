@@ -4,6 +4,8 @@ namespace Honua.Console.Shell.Services;
 
 public interface IConsoleEnvironmentProfileStore
 {
+    event Action? ActiveProfileChanged { add { } remove { } }
+
     Task<IReadOnlyList<ConsoleEnvironmentProfile>> ListProfilesAsync(CancellationToken cancellationToken = default);
 
     Task<ConsoleEnvironmentProfile?> GetProfileAsync(string profileId, CancellationToken cancellationToken = default);

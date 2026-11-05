@@ -10,6 +10,31 @@ namespace Honua.Console.Web.Auth;
 // binds to the same honua-server without sharing mutable identity state.
 public sealed class OperatorScopedEnvironmentProfileStore : IConsoleEnvironmentProfileStore
 {
+    private readonly object _subscriptionGate = new();
+    private readonly Dictionary<Action, InMemoryConsoleEnvironmentProfileStore> _subscriptions = [];
+
+    public event Action? ActiveProfileChanged
+    {
+        add
+        {
+            if (value is null) return;
+            lock (_subscriptionGate)
+            {
+                var store = Current;
+                _subscriptions.Add(value, store);
+                store.ActiveProfileChanged += value;
+            }
+        }
+        remove
+        {
+            if (value is null) return;
+            lock (_subscriptionGate)
+            {
+                if (_subscriptions.Remove(value, out var store)) store.ActiveProfileChanged -= value;
+            }
+        }
+    }
+
     private readonly IConsoleOperatorContext _operatorContext;
     private readonly Func<InMemoryConsoleEnvironmentProfileStore> _seedFactory;
 

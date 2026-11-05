@@ -1,42 +1,79 @@
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@using Microsoft.AspNetCore.Components.Authorization
 @implements IDisposable
 @inject NavigationManager Navigation
-@inject Honua.Console.Shell.Services.IConsoleCapabilityManifest Capabilities
+@inject IServiceProvider Services
 
-<span hidden data-console-location="@_path" data-console-location-revision="@_routeRevision" data-console-authority-revision="@_authorityRevision"></span>
+<span hidden data-console-location="@_path" data-console-authority-revision="@_authorityRevision"></span>
 
 @code {
     private string _path = "/";
-    private int _routeRevision;
     private int _authorityRevision;
+    private int _readRevision;
+    private bool _initialized;
     private bool _disposed;
+    private ConsoleEnvironmentAuthority? _authority;
+    private IConsoleEnvironmentProfileStore? _profiles;
+    private AuthenticationStateProvider? _authentication;
+    private readonly CancellationTokenSource _lifetime = new();
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         _path = new Uri(Navigation.Uri).AbsolutePath;
+        _profiles = Services.GetService<IConsoleEnvironmentProfileStore>();
+        _authentication = Services.GetService<AuthenticationStateProvider>();
         Navigation.LocationChanged += OnLocationChanged;
-        Capabilities.Changed += OnAuthorityChanged;
+        if (_profiles is not null) _profiles.ActiveProfileChanged += OnProfileChanged;
+        if (_authentication is not null) _authentication.AuthenticationStateChanged += OnAuthenticationChanged;
+        await CheckAuthorityAsync();
     }
+
+    private async Task CheckAuthorityAsync()
+    {
+        if (_disposed) return;
+        var revision = ++_readRevision;
+        var result = await ConsoleReadBudget.RunAsync(ReadProfileAsync, ConsoleReadBudget.Default,
+            "The active environment could not be read.", _lifetime.Token);
+        if (_disposed || revision != _readRevision) return;
+        var authority = result.IsAllowed ? ConsoleEnvironmentAuthority.From(result.Value) : null;
+        if (_initialized && authority != _authority) _authorityRevision++;
+        _initialized = true;
+        _authority = authority;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task<OperateSectionResult<ConsoleEnvironmentProfile?>> ReadProfileAsync(CancellationToken token) =>
+        OperateSectionResult<ConsoleEnvironmentProfile?>.Allowed(
+            _profiles is null ? null : await _profiles.GetActiveProfileAsync(token));
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args)
     {
         var path = new Uri(args.Location).AbsolutePath;
         if (_disposed || path == _path) return;
         _path = path;
-        _routeRevision++;
-        _ = InvokeAsync(StateHasChanged);
+        _ = InvokeAsync(CheckAuthorityAsync);
     }
 
-    private void OnAuthorityChanged()
+    private void OnProfileChanged() => _ = InvokeAsync(CheckAuthorityAsync);
+    private void OnAuthenticationChanged(Task<AuthenticationState> state)
     {
         if (_disposed) return;
-        _authorityRevision++;
-        _ = InvokeAsync(StateHasChanged);
+        if (_profiles is not null)
+        {
+            _profiles.ActiveProfileChanged -= OnProfileChanged;
+            _profiles.ActiveProfileChanged += OnProfileChanged;
+        }
+        _ = InvokeAsync(CheckAuthorityAsync);
     }
 
     public void Dispose()
     {
         _disposed = true;
         Navigation.LocationChanged -= OnLocationChanged;
-        Capabilities.Changed -= OnAuthorityChanged;
+        if (_profiles is not null) _profiles.ActiveProfileChanged -= OnProfileChanged;
+        if (_authentication is not null) _authentication.AuthenticationStateChanged -= OnAuthenticationChanged;
+        _lifetime.Cancel();
+        _lifetime.Dispose();
     }
 }

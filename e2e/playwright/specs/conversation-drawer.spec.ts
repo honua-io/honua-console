@@ -5,7 +5,7 @@ import {readConversationMarkup} from '../../../scripts/lib/conversation-markup.m
 
 async function openFixture(page:Page,path='/') {
   let html=readFileSync(new URL('../fixtures/publication-tree.html',import.meta.url),'utf8');
-  html=html.replace('<header class="console-topbar">',`<span hidden data-console-location="${path}" data-console-location-revision="0" data-console-authority-revision="0"></span><header class="console-topbar"><button data-conversation-toggle aria-controls="console-conversation-drawer" aria-expanded="false">Conversation</button>`);
+  html=html.replace('<header class="console-topbar">',`<span hidden data-console-location="${path}" data-console-authority-revision="0"></span><header class="console-topbar"><button data-conversation-toggle aria-controls="console-conversation-drawer" aria-expanded="false">Conversation</button>`);
   html=html.replace('<script src="/js/modal-surface.js">',`${readConversationMarkup()}<script src="/js/modal-surface.js">`);
   html=html.replace('</body>','<script src="/js/conversation-drawer.js"></script></body>');
   await page.route('**/drawer-fixture',route=>route.fulfill({contentType:'text/html',body:html}));
@@ -14,7 +14,6 @@ async function openFixture(page:Page,path='/') {
 async function commit(page:Page,path:string) {
   await page.locator('[data-console-location]').evaluate((marker,path)=>{
     marker.setAttribute('data-console-location',path);
-    marker.setAttribute('data-console-location-revision',String(Number(marker.getAttribute('data-console-location-revision'))+1));
   },path);
 }
 const drawer=(page:Page)=>page.locator('[data-agent-workspace]');
@@ -192,14 +191,14 @@ test('a pending validation cannot replace a newly adopted workspace authority',a
 for(const width of [1440,390]) test(`same-path query, fragment and hydration changes preserve explicit drawer choice at ${width}px`,async({page})=>{
   await page.setViewportSize({width,height:900});await openFixture(page,'/studio');
   await page.evaluate(()=>history.replaceState(null,'','/studio?draft=1#first'));
-  await page.locator('[data-console-location]').evaluate(marker=>marker.setAttribute('data-console-location-revision','1'));
+  await page.locator('[data-console-location]').evaluate(marker=>marker.replaceWith(marker.cloneNode(true)));
   await expect(drawer(page)).toHaveAttribute('open','');
   await page.getByRole('button',{name:'Close conversation',exact:true}).click();
   await page.evaluate(()=>history.replaceState(null,'','/studio?draft=2#second'));
   await page.locator('[data-console-location]').evaluate(marker=>marker.replaceWith(marker.cloneNode(true)));
   await expect(drawer(page)).not.toHaveAttribute('open','');
   await toggle(page).click();
-  await page.locator('[data-console-location]').evaluate(marker=>marker.setAttribute('data-console-location-revision','2'));
+  await page.locator('[data-console-location]').evaluate(marker=>marker.replaceWith(marker.cloneNode(true)));
   await expect(drawer(page)).toHaveAttribute('open','');
 });
 

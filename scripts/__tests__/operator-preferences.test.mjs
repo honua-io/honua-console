@@ -39,7 +39,7 @@ for (const invalid of [{authenticated: false}, {principalId: 'raw@example.test'}
     });
 }
 
-test('blocked or malformed browser storage keeps defaults and usable ephemeral controls', () => {
+test('blocked or malformed browser storage keeps the in-memory choice and usable ephemeral controls', () => {
     const broken = {getItem() {throw new Error('blocked');}, setItem() {throw new Error('blocked');}};
     const preferences = new OperatorPreferences(broken);
     preferences.bind(session()); preferences.save({follow: false}); assert.equal(preferences.follow, false);

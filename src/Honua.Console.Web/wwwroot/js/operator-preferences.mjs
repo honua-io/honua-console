@@ -32,7 +32,7 @@ export class OperatorPreferences {
             const record = JSON.parse(this.storage?.getItem(this.key) || 'null');
             if (record?.authority === this.authority && typeof record.follow === 'boolean') this.follow = record.follow;
             else this.storage?.removeItem(this.key);
-        } catch { /* Storage is optional; a denied or invalid record keeps ephemeral defaults. */ }
+        } catch { /* Storage is optional; a denied or invalid record preserves the in-memory choice. */ }
     }
     save(values) {
         if (!(this.expiresAt > Date.now())) this.clear();
