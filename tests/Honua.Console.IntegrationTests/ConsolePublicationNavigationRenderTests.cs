@@ -54,10 +54,12 @@ public sealed class ConsolePublicationNavigationRenderTests
     }
 
     [Fact]
-    public void OrdinaryNavigationRetainsLoadedBranchesWithinTheSameAuthority()
+    public async Task OrdinaryNavigationRetainsLoadedBranchesWithinTheSameAuthority()
     {
         using var context = Context();
         var source = new NavigationSource();
+        var capabilities = new CapabilitySignals();
+        context.Services.AddSingleton<IConsoleCapabilityManifest>(capabilities);
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
         var tree = context.Render<ConsolePublicationNavigation>();
         tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
@@ -69,6 +71,12 @@ public sealed class ConsolePublicationNavigationRenderTests
         Assert.Single(tree.FindAll("[aria-label='Bridges LineString']"));
         Assert.Equal(1, source.ServiceReads);
         Assert.Equal(1, source.ChildReads);
+        tree.Find("input").Input("service-499");
+        await tree.InvokeAsync(() => capabilities.RefreshAsync());
+        Assert.Equal("service-499", tree.Find("input").GetAttribute("value"));
+        Assert.Equal(1, source.ServiceReads);
+        Assert.Equal(1, source.ConnectionReads);
+        Assert.Contains("500 service names and 1 loaded layer", tree.Markup);
     }
 
     [Fact]

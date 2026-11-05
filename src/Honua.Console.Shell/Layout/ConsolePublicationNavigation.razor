@@ -96,11 +96,6 @@
             _authority = authority;
             await ReloadAsync();
         }
-        else
-        {
-            _tree.RevealPath(CurrentPath);
-            await InvokeAsync(StateHasChanged);
-        }
     }
 
     private async Task ReloadAsync()
@@ -206,10 +201,18 @@
     private void FilterChanged(ChangeEventArgs args) => _tree.SetFilter(args.Value?.ToString() ?? "");
     private void ShowFirstPage(ConsolePublicationNode node) => _tree.ShowFirstPage(node);
     private void ShowMore(ConsolePublicationNode node) => _tree.ShowMore(node);
+    private async Task ReconcileLocationAsync()
+    {
+        await CheckAuthorityAsync();
+        if (_disposed) return;
+        _tree.RevealPath(CurrentPath);
+        await InvokeAsync(StateHasChanged);
+    }
+
     private void LocationChanged(object? sender, LocationChangedEventArgs args)
     {
         _locationRevision++;
-        _ = InvokeAsync(CheckAuthorityAsync);
+        _ = InvokeAsync(ReconcileLocationAsync);
     }
     private void CapabilitiesChanged() => _ = InvokeAsync(CheckAuthorityAsync);
     private void AuthenticationChanged(Task<AuthenticationState> state) => _ = InvokeAsync(ReloadAuthorityAsync);
