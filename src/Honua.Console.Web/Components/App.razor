@@ -1,3 +1,4 @@
+@inject Microsoft.AspNetCore.Components.NavigationManager Navigation
 <!DOCTYPE html>
 <html lang="en">
 
@@ -18,7 +19,10 @@
 
 <body>
     <Routes @rendermode="InteractiveServer" />
-    <Honua.Console.Shell.Layout.ConsoleConversationDrawer />
+    @if (!IsEmbeddedViewer)
+    {
+        <Honua.Console.Shell.Layout.ConsoleConversationDrawer />
+    }
 
     @* Visible reconnect/error banner. app.css previously hid #blazor-error-ui outright, so a dropped
        circuit silently froze the page with no feedback. The markup is restored here and styled (visible,
@@ -62,3 +66,8 @@
 </body>
 
 </html>
+
+@code {
+    private bool IsEmbeddedViewer => new Uri(Navigation.Uri).AbsolutePath
+        .StartsWith("/embed/", StringComparison.OrdinalIgnoreCase);
+}

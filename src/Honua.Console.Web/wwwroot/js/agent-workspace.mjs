@@ -1,3 +1,4 @@
+import {hasOperatorShell} from './console-shell-context.mjs';
 import {mountWorkspacePreferences} from './operator-preferences.mjs';
 import {StudioConversation} from './studio-conversation.mjs';
 import {sameCookieAuthority} from './cookie-workspace-transport.mjs';
@@ -758,6 +759,7 @@ export function mountWorkspace() {
     let hadSharedStyle = false;
     const observer = new MutationObserver(() => {
         if (!host.isConnected) { clearTimeout(workspace._pollTimer); observer.disconnect(); formObserver.disconnect(); lifetime.abort(); return; }
+        if (!hasOperatorShell()) return;
         const focus = workspace.sharedStyleProvider?.();
         const provided = focus ? undefined : workspace.promptSelection();
         const selection = focus ? [] : provided ?? (workspace.selectionSourceHold !== undefined ? (workspace.context?.selectedResources ?? []) : selectedResource(location.pathname));
@@ -858,11 +860,12 @@ export function mountWorkspace() {
         clearTimeout(workspace._pollTimer);
         workspace._pollTimer = setTimeout(reconcile, 2000);
     };
+    const shouldObserveWorkspace = () => hasOperatorShell() && workspace.context && !document.hidden;
     const reconcile = async () => {
         if (!host.isConnected) { clearTimeout(workspace._pollTimer); observer.disconnect(); formObserver.disconnect(); lifetime.abort(); return; }
         const scope=workspace.executions.scope();
         try {
-            if (workspace.context && !document.hidden) {
+            if (shouldObserveWorkspace()) {
                 if (Date.parse(workspace.session?.expiresAt || '') < Date.now() + 180000) {
                     const renewed = await workspace.api('session');
                     if (renewed.environmentId !== workspace.session.environmentId || renewed.principalId !== workspace.session.principalId)

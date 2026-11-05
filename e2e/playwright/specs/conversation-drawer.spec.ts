@@ -228,3 +228,23 @@ test('persistent drawer controls retain visible keyboard outlines in forced colo
     expect(outline.visible).toBe(true);expect(outline.style).not.toBe('none');expect(outline.width).toBeGreaterThanOrEqual(2);
   }
 });
+
+test('fresh embedded map documents contain no authoring host or workspace session reads',async({page})=>{
+  const sessions:string[]=[];
+  page.on('request',request=>{if(new URL(request.url()).pathname==='/api/agent-workspace/session')sessions.push(request.method());});
+  await page.goto('/embed/maps/missing-map');
+  await expect(page.locator('.console-embed-page')).toBeVisible();
+  await expect(page.locator('[data-agent-workspace]')).toHaveCount(0);
+  await expect(page.getByRole('navigation',{name:'Primary',exact:true})).toHaveCount(0);
+  await page.waitForTimeout(1500);
+  expect(await page.evaluate(()=>Boolean((window as any).honuaAgentWorkspace))).toBe(false);
+  expect(sessions).toEqual([]);
+});
+
+test('leaving the operator shell suspends preference reads without changing follow choice',async({page})=>{
+  await openFixture(page);await installPreferences(page);
+  await page.locator('[data-console-location]').evaluate(marker=>marker.remove());
+  await expect(drawer(page)).not.toHaveAttribute('open','');
+  await expectFollowOff(page);
+  expect(await page.evaluate(()=>(window as any).preferenceTest.pending.length)).toBe(0);
+});

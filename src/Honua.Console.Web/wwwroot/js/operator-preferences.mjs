@@ -1,3 +1,5 @@
+import {hasOperatorShell} from './console-shell-context.mjs';
+
 function validatedPartition(session) {
     const opaqueId = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,256}$/.test(value);
     const expiresAt = Date.parse(session?.expiresAt);
@@ -81,7 +83,7 @@ class WorkspacePreferenceAdapter {
     }
     async refresh() {
         const revision = ++this.generation;
-        if (!validatedPartition(this.workspace.session)) { this.unavailable(revision); return; }
+        if (!hasOperatorShell() || !validatedPartition(this.workspace.session)) { this.unavailable(revision); return; }
         const workspaceAuthority = this.workspace.authorityKey();
         this.validated = false;
         if (this.follow) this.follow.disabled = true;
