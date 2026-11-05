@@ -12,10 +12,10 @@
 <div class="console-tree-row" role="treeitem" tabindex="-1" aria-level="1" aria-posinset="1" aria-setsize="1" aria-expanded="true" aria-selected="false" aria-label="Services" aria-owns="fixture-service-group" data-publication-key="environment" data-tree-parent="" data-tree-label="Services">
 <button data-tree-expand tabindex="-1" aria-label="Collapse Services"><span class="console-tree-chevron" aria-hidden="true"></span></button><a data-tree-link tabindex="-1" href="#home">Services</a></div>
 <ul role="group" id="fixture-service-group">
-<li role="none"><div class="console-tree-row" role="treeitem" tabindex="-1" aria-level="2" aria-posinset="1" aria-setsize="3" aria-expanded="false" aria-selected="false" aria-label="Alpha" data-publication-key="service:alpha" data-tree-parent="environment" data-tree-label="Alpha">
-<button data-tree-expand tabindex="-1" aria-label="Expand Alpha"><span class="console-tree-chevron" aria-hidden="true"></span></button><a data-tree-link tabindex="-1" href="#alpha">Alpha</a></div></li>
-<li role="none"><div class="console-tree-row" role="treeitem" tabindex="-1" aria-level="2" aria-posinset="2" aria-setsize="3" aria-selected="false" aria-label="Beta" data-publication-key="service:beta" data-tree-parent="environment" data-tree-label="Beta">
-<span class="console-tree-spacer"></span><a data-tree-link tabindex="-1" href="#beta">Beta</a></div></li>
+<li role="none"><div class="console-tree-row" role="treeitem" tabindex="-1" aria-level="2" aria-posinset="1" aria-setsize="3" aria-expanded="false" aria-selected="false" aria-label="Alpha 1 layers" data-publication-key="service:alpha" data-tree-parent="environment" data-tree-label="Alpha">
+<button data-tree-expand tabindex="-1" aria-label="Expand Alpha"><span class="console-tree-chevron" aria-hidden="true"></span></button><a data-tree-link tabindex="-1" href="#alpha">Alpha</a> <span class="console-tree-count" aria-hidden="true">1</span></div></li>
+<li role="none"><div class="console-tree-row" role="treeitem" tabindex="-1" aria-level="2" aria-posinset="2" aria-setsize="3" aria-selected="false" aria-label="Beta 0 layers" data-publication-key="service:beta" data-tree-parent="environment" data-tree-label="Beta">
+<span class="console-tree-spacer"></span><a data-tree-link tabindex="-1" href="#beta">Beta</a> <span class="console-tree-count" aria-hidden="true">0</span></div></li>
 </ul></li></ul>
 <button class="console-tree-more" data-tree-more="environment">Show more services</button>
 <p role="status">Controller fixture with synthetic Alpha/Beta services; no server data.</p></aside></div>
@@ -34,7 +34,7 @@
        row.setAttribute('aria-busy', 'true');
        setTimeout(() => {
          const group = document.createElement('ul'); group.setAttribute('role', 'group'); group.id='fixture-alpha-group';
-         group.innerHTML = '<li role="none"><div class="console-tree-row" role="treeitem" tabindex="-1" aria-level="3" aria-posinset="1" aria-setsize="1" aria-selected="false" aria-label="Bridges" data-publication-key="layer:bridges" data-tree-parent="service:alpha" data-tree-label="Bridges"><a tabindex="-1" data-tree-link href="#bridges">Bridges</a></div></li>';
+         group.innerHTML = '<li role="none"><div class="console-tree-row" role="treeitem" tabindex="-1" aria-level="3" aria-posinset="1" aria-setsize="1" aria-selected="false" aria-label="Bridges LineString" data-publication-key="layer:bridges" data-tree-parent="service:alpha" data-tree-label="Bridges"><a tabindex="-1" data-tree-link href="#bridges">Bridges</a> <span class="console-tree-geometry">LineString</span></div></li>';
          row.removeAttribute('aria-busy'); row.setAttribute('aria-owns',group.id); row.after(group);
        }, Number(row.dataset.fixtureDelay || 100));
      }
@@ -42,7 +42,7 @@
    if (event.target.closest('[data-tree-more]')) {
      const beta = document.querySelector('[data-publication-key="service:beta"]').parentElement;
      const gamma = beta.cloneNode(true), row=gamma.querySelector('[role=treeitem]');
-     row.setAttribute('aria-label', 'Gamma'); row.dataset.publicationKey = 'service:gamma'; row.dataset.treeLabel = 'Gamma';
+     row.setAttribute('aria-label', 'Gamma 0 layers'); row.dataset.publicationKey = 'service:gamma'; row.dataset.treeLabel = 'Gamma';
      row.setAttribute('aria-posinset', '3'); row.querySelector('a').textContent = 'Gamma'; row.querySelector('a').href = '#gamma';
      beta.after(gamma); event.target.remove();
    }

@@ -23,7 +23,7 @@ public sealed class ConsolePublicationNavigationRenderTests
         Assert.Equal(51, tree.FindAll("[role='treeitem']").Count);
         tree.Find("input").Input("service-499");
         Assert.Equal(2, tree.FindAll("[role='treeitem']").Count);
-        Assert.Equal("service-499", tree.FindAll("[role='treeitem']")[1].GetAttribute("aria-label"));
+        Assert.Equal("service-499 10 layers", tree.FindAll("[role='treeitem']")[1].GetAttribute("aria-label"));
         Assert.Equal(0, source.ChildReads);
         Assert.Contains("500 service names and 0 loaded layers", tree.Markup);
     }
@@ -42,6 +42,8 @@ public sealed class ConsolePublicationNavigationRenderTests
         Assert.Equal(1, source.ConnectionReads);
         var layer = tree.Find("[aria-label='Bridges LineString']");
         Assert.Equal("3", layer.GetAttribute("aria-level"));
+        Assert.Contains("Bridges LineString", layer.TextContent);
+        Assert.Contains("service-000 10", tree.Find("[data-publication-key='service:service-000']").TextContent);
         Assert.False(layer.HasAttribute("aria-expanded"));
         tree.Find("[data-publication-key='service:service-000'] [data-tree-expand]").Click();
         tree.Find("[data-publication-key='service:service-000'] [data-tree-expand]").Click();
@@ -62,7 +64,7 @@ public sealed class ConsolePublicationNavigationRenderTests
         tree.WaitForAssertion(() => Assert.Single(tree.FindAll("[aria-label='Bridges LineString']")));
         context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
             .NavigateTo("/operate/services/service-000/settings");
-        tree.WaitForAssertion(() => Assert.Equal("true", tree.Find("[aria-label='service-000']").GetAttribute("aria-selected")));
+        tree.WaitForAssertion(() => Assert.Equal("true", tree.Find("[data-publication-key='service:service-000']").GetAttribute("aria-selected")));
         Assert.Single(tree.FindAll("[aria-label='Bridges LineString']"));
         Assert.Equal(1, source.ServiceReads);
         Assert.Equal(1, source.ChildReads);

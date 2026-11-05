@@ -27,11 +27,11 @@
         }
         @if (Node.Kind == ConsolePublicationNodeKind.Service)
         {
-            <span class="console-tree-count" aria-hidden="true">@Node.ReportedCount</span>
+            @(" ")<span class="console-tree-count" aria-hidden="true">@Node.ReportedCount</span>
         }
         @if (Node.GeometryType is { } geometry)
         {
-            <span class="console-tree-geometry">@geometry</span>
+            @(" ")<span class="console-tree-geometry">@geometry</span>
         }
     </div>
     @if (IsExpanded)
@@ -87,7 +87,9 @@
     [Parameter] public EventCallback<ConsolePublicationNode> OnExpand { get; set; }
     [Parameter] public EventCallback<ConsolePublicationNode> OnCollapse { get; set; }
     [Parameter] public EventCallback<ConsolePublicationNode> OnRetry { get; set; }
-    private string AccessibleLabel => Node.GeometryType is { } geometry ? $"{Node.Label} {geometry}" : Node.Label;
+    private string AccessibleLabel => Node.Kind == ConsolePublicationNodeKind.Service
+        ? $"{Node.Label} {Node.ReportedCount} layers"
+        : Node.GeometryType is { } geometry ? $"{Node.Label} {geometry}" : Node.Label;
     private string GroupId => "console-tree-group-" + Node.Key;
     private string StatusId => "console-tree-status-" + Node.Key;
     private bool HasReadStatus => Node.Loading || Node.ReadStatus is not null || Node.ReadMessage is not null
