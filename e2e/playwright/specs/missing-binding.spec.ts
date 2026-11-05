@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
 test('share without a persistent catalog points to Data & Layers, not a crash', async ({ page }) => {
   await page.goto('/share', { waitUntil: 'domcontentloaded' });
 
-  const state = page.locator('.console-state').first();
+  const state = page.locator('#console-main .console-state').first();
   await expect(state).toBeVisible();
   await expect(state.locator('.console-kicker')).toBeVisible();
 

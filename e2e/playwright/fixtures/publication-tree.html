@@ -1,0 +1,50 @@
+<!doctype html><html lang="en"><head><title>Publication navigation controller fixture</title>
+<link rel="stylesheet" href="/_content/Honua.Console.Shell/honua-console.css"></head><body>
+<div class="console-shell"><header class="console-topbar"><a href="#outside">Outside navigation</a></header>
+<div class="console-service-workspace"><div class="console-publication-navigation" data-publication-navigation data-tree-revision="0">
+<button data-tree-toggle aria-expanded="false" aria-controls="console-publication-sidebar" class="console-publication-toggle">Browse services</button>
+<button class="console-tree-backdrop" data-tree-backdrop hidden tabindex="-1" aria-label="Close service navigation"></button>
+<aside id="console-publication-sidebar" class="console-publication-sidebar" aria-label="Service navigation">
+<div class="console-tree-toolbar"><label for="filter">Filter services and loaded layers</label><input id="filter" data-tree-filter>
+<button class="console-tree-close" data-tree-close>Close</button></div>
+<ul role="tree" aria-label="Services and layers" class="console-publication-tree" data-publication-tree>
+<li role="none">
+<div class="console-tree-row" role="treeitem" tabindex="-1" aria-level="1" aria-posinset="1" aria-setsize="1" aria-expanded="true" aria-selected="false" aria-label="Services" aria-owns="fixture-service-group" data-publication-key="environment" data-tree-parent="" data-tree-label="Services">
+<button data-tree-expand tabindex="-1" aria-label="Collapse Services"><span class="console-tree-chevron" aria-hidden="true"></span></button><a data-tree-link tabindex="-1" href="#home">Services</a></div>
+<ul role="group" id="fixture-service-group">
+<li role="none"><div class="console-tree-row" role="treeitem" tabindex="-1" aria-level="2" aria-posinset="1" aria-setsize="3" aria-expanded="false" aria-selected="false" aria-label="Alpha 1 layer" data-publication-key="service:alpha" data-tree-parent="environment" data-tree-label="Alpha">
+<button data-tree-expand tabindex="-1" aria-label="Expand Alpha"><span class="console-tree-chevron" aria-hidden="true"></span></button><a data-tree-link tabindex="-1" href="#alpha">Alpha</a> <span class="console-tree-count" aria-hidden="true">1</span></div></li>
+<li role="none"><div class="console-tree-row" role="treeitem" tabindex="-1" aria-level="2" aria-posinset="2" aria-setsize="3" aria-selected="false" aria-label="Beta 0 layers" data-publication-key="service:beta" data-tree-parent="environment" data-tree-label="Beta">
+<span class="console-tree-spacer"></span><a data-tree-link tabindex="-1" href="#beta">Beta</a> <span class="console-tree-count" aria-hidden="true">0</span></div></li>
+</ul></li></ul>
+<button class="console-tree-more" data-tree-more="environment">Show more services</button>
+<p role="status">Controller fixture with synthetic Alpha/Beta services; no server data.</p></aside></div>
+<div class="console-workspace"><main><h1>Controller fixture</h1><a href="#main">Main action</a></main></div></div></div>
+<script src="/js/publication-tree.js"></script>
+<script>
+ document.addEventListener('click', event => {
+   const button = event.target.closest('[data-tree-expand]');
+   if (button) {
+     const row = button.closest('[role=treeitem]');
+     const expanded = row.getAttribute('aria-expanded') === 'true';
+     row.setAttribute('aria-expanded', String(!expanded));
+     if (expanded) {
+       document.getElementById(row.getAttribute('aria-owns'))?.remove(); row.removeAttribute('aria-owns');
+     } else if (row.dataset.publicationKey === 'service:alpha') {
+       row.setAttribute('aria-busy', 'true');
+       setTimeout(() => {
+         const group = document.createElement('ul'); group.setAttribute('role', 'group'); group.id='fixture-alpha-group';
+         group.innerHTML = '<li role="none"><div class="console-tree-row" role="treeitem" tabindex="-1" aria-level="3" aria-posinset="1" aria-setsize="1" aria-selected="false" aria-label="Bridges LineString" data-publication-key="layer:bridges" data-tree-parent="service:alpha" data-tree-label="Bridges"><a tabindex="-1" data-tree-link href="#bridges">Bridges</a> <span class="console-tree-geometry">LineString</span></div></li>';
+         row.removeAttribute('aria-busy'); row.setAttribute('aria-owns',group.id); row.after(group);
+       }, Number(row.dataset.fixtureDelay || 100));
+     }
+   }
+   if (event.target.closest('[data-tree-more]')) {
+     const beta = document.querySelector('[data-publication-key="service:beta"]').parentElement;
+     const gamma = beta.cloneNode(true), row=gamma.querySelector('[role=treeitem]');
+     row.setAttribute('aria-label', 'Gamma 0 layers'); row.dataset.publicationKey = 'service:gamma'; row.dataset.treeLabel = 'Gamma';
+     row.setAttribute('aria-posinset', '3'); row.querySelector('a').textContent = 'Gamma'; row.querySelector('a').href = '#gamma';
+     beta.after(gamma); event.target.remove();
+   }
+ });
+</script></body></html>

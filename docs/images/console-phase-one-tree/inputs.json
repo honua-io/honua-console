@@ -1,0 +1,11 @@
+{
+  "sourceCommit": "9d00702f10ffcb5a950d40f0a8ada864ed4ef2d0",
+  "validationCommit": "e060d5a1b3e619f2d8a3ce2b76c8efb0bc7c093e",
+  "node": "v22.23.3",
+  "serverImageDigest": "sha256:24d20a8647f6dafcfc1bef683a31f4dddf6ef4476ebb33456afa8a96b11288da",
+  "locks": {
+    "package-lock.json": "1fd165a6d25ae300dd572702d724d2eaf7ccd4367723bcf94b121866702ac08a",
+    "e2e/playwright/package-lock.json": "5f7c519aef1a11e98e233077b9a7c0ac57cb0d0a9e4d16e73f13181620b644ac",
+    "scripts/studio-release.lock.json": "ecb328cf17ec522aaba0f1aabe92b25b6f99ca2fc8032ffc969b442c7b192310"
+  }
+}

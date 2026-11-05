@@ -1,0 +1,22 @@
+@if (ReadState.Loading)
+{
+    <p role="status" class="console-tree-message">Loading services…</p>
+}
+else if (ReadState.ServicesRead is { IsAllowed: false } result)
+{
+    <div class="console-tree-message" role="status">
+        <OperateSectionStatusPanel Heading="Service navigation" Status="result.Status" Message="@result.Message" />
+        @if (ReadState.CanConnectEnvironment)
+        {
+            <a href="/environments/new">Connect an environment</a>
+        }
+    </div>
+}
+else
+{
+    <ConsolePublicationTreeContents />
+}
+
+@code {
+    [Parameter, EditorRequired] public ConsolePublicationNavigationReadState ReadState { get; set; } = default!;
+}

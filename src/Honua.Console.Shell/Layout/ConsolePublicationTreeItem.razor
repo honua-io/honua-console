@@ -1,0 +1,13 @@
+<li role="none" @key="Node.Key">
+    <ConsolePublicationTreeRow Node="Node" Placement="Placement" />
+    @if (Node.Expanded)
+    {
+        <ConsolePublicationTreeReadStatus Node="Node" />
+        <ConsolePublicationTreeChildren Node="Node" Placement="Placement" />
+    }
+</li>
+
+@code {
+    [Parameter, EditorRequired] public ConsolePublicationNode Node { get; set; } = default!;
+    [Parameter] public ConsolePublicationTreePlacement Placement { get; set; } = new();
+}

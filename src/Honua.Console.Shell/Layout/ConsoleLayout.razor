@@ -15,6 +15,8 @@
 <div class="console-shell" data-console-mode="@ModeName">
     <a class="console-skip-link" href="#console-main">Skip to content</a>
     <ConsoleTopNavigation Groups="navigationGroups" />
+    <div class="console-service-workspace">
+        <AuthorizeView><Authorized><ConsolePublicationNavigation /></Authorized></AuthorizeView>
     <div class="console-workspace">
         <ConsoleBreadcrumbs Groups="navigationGroups" />
         <div class="console-workspace-panes">
@@ -96,6 +98,7 @@
             </details>
         </details>
         </div>
+    </div>
     </div>
 
     <ConsoleNotificationHost />

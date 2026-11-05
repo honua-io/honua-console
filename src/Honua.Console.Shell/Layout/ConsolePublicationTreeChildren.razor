@@ -1,0 +1,16 @@
+@if (Children.Count > 0)
+{
+    <ul role="group" id="@ConsolePublicationTreeContext.GroupId(Node)">
+        @for (var index = 0; index < Children.Count; index++)
+        {
+            <ConsolePublicationTreeItem Node="Children[index]" Placement="View.ChildPlacement(Node, Placement, index)" />
+        }
+    </ul>
+}
+
+@code {
+    [CascadingParameter] public ConsolePublicationTreeContext View { get; set; } = default!;
+    [Parameter, EditorRequired] public ConsolePublicationNode Node { get; set; } = default!;
+    [Parameter, EditorRequired] public ConsolePublicationTreePlacement Placement { get; set; } = default!;
+    private IReadOnlyList<ConsolePublicationNode> Children => View.Tree.VisibleChildren(Node);
+}

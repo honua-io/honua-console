@@ -1,0 +1,17 @@
+@foreach (var parent in View.PagedParents)
+{
+    @if (parent.VisibleOffset > 0)
+    {
+        <button type="button" class="console-tree-more" data-tree-more="@parent.Key" @onclick="() => View.ShowFirstPage.InvokeAsync(parent)">Show first page in @parent.Label</button>
+    }
+    @if (View.Tree.MatchingChildren(parent).Count > parent.VisibleOffset + parent.VisibleLimit)
+    {
+        <button type="button" class="console-tree-more" data-tree-more="@parent.Key" @onclick="() => View.ShowMore.InvokeAsync(parent)">
+            Show more in @parent.Label (@(parent.VisibleOffset + 1)–@(parent.VisibleOffset + View.Tree.VisibleChildren(parent).Count) of @View.Tree.MatchingChildren(parent).Count)
+        </button>
+    }
+}
+
+@code {
+    [CascadingParameter] public ConsolePublicationTreeContext View { get; set; } = default!;
+}

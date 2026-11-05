@@ -32,4 +32,7 @@
     <None Include="..\..\contracts\terminal-error-receipts.v1.json" Link="terminal-error-receipts.v1.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Fixtures/service-navigation-folders.json" />
+  </ItemGroup>
 </Project>

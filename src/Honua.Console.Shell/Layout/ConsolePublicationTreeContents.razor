@@ -1,0 +1,17 @@
+<ul role="tree" aria-label="Services and layers" class="console-publication-tree" data-publication-tree>
+    <ConsolePublicationTreeItem Node="View.Tree.Root" />
+</ul>
+<ConsolePublicationTreePaging />
+@if (View.Tree.ServiceCount == 0)
+{
+    <p class="console-tree-message" role="status">No services returned by this server. <a href="/operate/data/new">Add data</a></p>
+}
+else if (!string.IsNullOrWhiteSpace(View.Tree.Filter) && View.Tree.MatchingChildren(View.Tree.Root).Count == 0)
+{
+    <p class="console-tree-message" role="status">No matches among service names and loaded layers.</p>
+}
+<p class="console-tree-coverage" role="status">@($"Filtering {ConsolePublicationTreeContext.FormatCount(View.Tree.ServiceCount, "service name")} and {ConsolePublicationTreeContext.FormatCount(View.Tree.LoadedLayerCount, "loaded layer")}.") Expand a service to load its layers.</p>
+
+@code {
+    [CascadingParameter] public ConsolePublicationTreeContext View { get; set; } = default!;
+}

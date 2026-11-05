@@ -36,6 +36,7 @@ internal static class OperateRegistrations
 
     private static void AddAdminOperations(IServiceCollection services, HonuaServerBinding server)
     {
+        services.AddServerBound<IConsolePublicationNavigationSource, ServerConsolePublicationNavigationSource, UnsupportedConsolePublicationNavigationSource>(server);
         services.AddServerBound<IConsoleConnectionCreateOperation, HonuaServerConsoleConnectionCreateOperation, UnsupportedConsoleConnectionCreateOperation>(server);
         services.AddServerBound<IConsoleFileImportOperation, HonuaServerConsoleFileImportOperation, UnsupportedConsoleFileImportOperation>(server);
         services.AddServerBound<IConsoleServiceImportOperation, HonuaServerConsoleServiceImportOperation, UnsupportedConsoleServiceImportOperation>(server);

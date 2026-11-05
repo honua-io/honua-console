@@ -20,12 +20,31 @@ public sealed class ConsoleNavigationRenderTests
         Assert.Equal(["Data", "Protocols", "Studio", "Operate", "Access", "Settings"],
             navigation.FindAll(".console-topnav [data-navigation-menu]").Select(element => element.GetAttribute("data-navigation-menu")));
         Assert.Equal("/studio/processes", navigation.Find("a[href='/studio/processes']").GetAttribute("href"));
-        Assert.Equal(["/studio", "/maps/new", "/studio/processes", "/studio/form", "/studio/report"],
+        Assert.Equal(["/studio", "/studio/processes", "/studio/form", "/studio/report"],
             navigation.FindAll("[data-navigation-menu='Studio'] a").Select(element => element.GetAttribute("href")));
         Assert.Empty(navigation.FindAll("a[href='/studio'] small, a[href='/studio/processes'] small"));
         Assert.Single(navigation.FindAll("[data-navigation-menu='Protocols'] a"));
+        Assert.True(navigation.Find("[data-tree-filter]").HasAttribute("disabled"));
+        Assert.Empty(navigation.FindAll("[data-navigation-menu='Studio'] a[href='/maps/new']"));
         Assert.Equal("/operate/catalogs", navigation.Find("[data-navigation-menu='Protocols'] a").GetAttribute("href"));
-        Assert.Empty(navigation.FindAll("input[type='search'], a[href='/operate/license'], a[href='/operate/server-info']"));
+        Assert.Empty(navigation.FindAll("a[href='/operate/license'], a[href='/operate/server-info']"));
+    }
+
+    [Fact]
+    public void CatalogMapEntryNamesItsRequiredSourceAndFollowsCatalogAvailability()
+    {
+        using var context = CreateContext();
+        context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Studio:EmbedJsStudio"] = "true" }).Build());
+        var manifest = new MutableCatalogManifest();
+        context.Services.AddSingleton<IConsoleCapabilityManifest>(manifest);
+        manifest.AdvertiseCatalog();
+        var navigation = context.Render<ConsoleLayout>();
+        var entry = navigation.Find("[data-navigation-menu='Studio'] a[href='/catalog']");
+        Assert.Contains("Map from catalog", entry.TextContent);
+        Assert.Empty(navigation.FindAll("a[href='/maps/new']"));
+        manifest.RevokeCatalog();
+        navigation.WaitForAssertion(() => Assert.Empty(navigation.FindAll("[data-navigation-menu='Studio'] a[href='/catalog']")));
     }
 
     [Fact]

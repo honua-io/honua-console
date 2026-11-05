@@ -32,7 +32,7 @@ public static class ConsoleNavigation
             new("/operate/connections", "Connections"), AddData,
             new("/catalog", "Catalog") { RequiredArea = "catalog" }, new("/share/public", "Share") { RequiredArea = "share" }]),
         new("Protocols", [new("/operate/catalogs", "Discovery catalogs") { FullModeOnly = true }]),
-        new("Studio", [Studio, new("/maps/new", "New map") { FullModeOnly = true }, new("/studio/processes", "Processes"),
+        new("Studio", [Studio, new("/catalog", "Map from catalog") { FullModeOnly = true, RequiredArea = "catalog" }, new("/studio/processes", "Processes"),
             new("/studio/form", "Forms") { FullModeOnly = true }, new("/studio/report", "Reports") { FullModeOnly = true }]),
         new("Operate", [new("/operate", "Dashboard"), new("/inbox", "Approvals"), Health,
             new("/operate/copilot", "Findings") { FullModeOnly = true }, new("/operate/geoprocessing", "Geoprocessing"),

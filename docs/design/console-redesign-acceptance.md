@@ -74,6 +74,14 @@ controls; focusable labelled scroll regions work with keyboard. Keep skip link,
 page focus and notification host. Ordinary linked navigation is acceptable; a
 tree widget must implement its full keyboard contract rather than decorative ARIA.
 
+The phase 1 service tree must prove 500-service summary-only startup, bounded
+lazy children, canonical layer links across colliding connection-local integer
+IDs, honest denied/partial states, filtering coverage, paging and full keyboard
+navigation. Deep-linked services reveal a bounded page containing the selection.
+Folder fixtures preserve internal names and reported membership; absent folder
+metadata stays flat. Mobile service navigation closes on committed navigation,
+Escape and resize, restores focus and releases background inertness.
+
 Phase 1 desktop drawer is nonmodal; mobile is modal with background inert,
 contained focus, Escape and focus restoration. Apply the Studio-entry exception and within-Studio
 route-change rules from the identity table. Test open/close, route changes,

@@ -1,0 +1,230 @@
+@implements IDisposable
+@inject IServiceProvider Services
+@inject NavigationManager Navigation
+
+<CascadingValue Value="TreeContext">
+    <div class="console-publication-navigation" data-publication-navigation data-tree-revision="@_locationRevision">
+        <button type="button" class="console-publication-toggle console-button console-button-secondary" data-tree-toggle
+                aria-expanded="false" aria-controls="console-publication-sidebar">Browse services</button>
+        <button type="button" class="console-tree-backdrop" data-tree-backdrop hidden tabindex="-1" aria-label="Close service navigation"></button>
+        <aside id="console-publication-sidebar" class="console-publication-sidebar" aria-label="Service navigation">
+            <div class="console-tree-toolbar">
+                <label for="console-tree-filter">Filter services and loaded layers</label>
+                <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter"
+                       @oninput="FilterChanged" disabled="@(_loading || _servicesRead?.IsAllowed != true)" data-tree-filter />
+                @if (Source is not UnsupportedConsolePublicationNavigationSource)
+                {
+                    <button type="button" class="console-button console-button-secondary" aria-disabled="@(_loading ? "true" : "false")" @onclick="RefreshAsync">Refresh services</button>
+                }
+                <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation">Close</button>
+            </div>
+            <ConsolePublicationNavigationContent ReadState="ReadState" />
+        </aside>
+    </div>
+</CascadingValue>
+
+@code {
+    private const int ConcurrentServiceExpansions = 4;
+    private readonly SemaphoreSlim _serviceExpansionSlots = new(ConcurrentServiceExpansions);
+    private readonly ConsolePublicationTree _tree = new();
+    private CancellationTokenSource _authorityLifetime = new();
+    private OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>? _servicesRead;
+    private Task<OperateSectionResult<IReadOnlyList<string>>>? _connectionsRead;
+    private (string? ProfileId, Uri? ServerBaseUri, string? AccountId)? _authority;
+    private string _environmentLabel = "Services";
+    private int _authorityRevision;
+    private int _locationRevision;
+    private bool _loading = true;
+    private bool _disposed;
+    private IConsoleCapabilityManifest? _capabilities;
+    private IConsolePublicationNavigationSource Source => Services.GetService<IConsolePublicationNavigationSource>()
+        ?? new UnsupportedConsolePublicationNavigationSource();
+    private string CurrentPath => "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
+    private string SelectedPath
+    {
+        get
+        {
+            var path = CurrentPath;
+            return ConsolePublicationTree.Descendants(_tree.Root).Prepend(_tree.Root).Count(node => node.Href == path) == 1 ? path : "";
+        }
+    }
+    private ConsolePublicationTreeContext TreeContext => new()
+    {
+        Tree = _tree, SelectedPath = SelectedPath,
+        Expand = EventCallback.Factory.Create<ConsolePublicationNode>(this, ExpandAsync),
+        Collapse = EventCallback.Factory.Create<ConsolePublicationNode>(this, Collapse),
+        Retry = EventCallback.Factory.Create<ConsolePublicationNode>(this, LoadChildrenAsync),
+        ShowFirstPage = EventCallback.Factory.Create<ConsolePublicationNode>(this, ShowFirstPage),
+        ShowMore = EventCallback.Factory.Create<ConsolePublicationNode>(this, ShowMore)
+    };
+    private ConsolePublicationNavigationReadState ReadState => new()
+    {
+        Loading = _loading, ServicesRead = _servicesRead,
+        CanConnectEnvironment = Source is UnsupportedConsolePublicationNavigationSource
+    };
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += LocationChanged;
+        _capabilities = Services.GetService<IConsoleCapabilityManifest>();
+        if (_capabilities is not null) _capabilities.Changed += CapabilitiesChanged;
+        if (Services.GetService<AuthenticationStateProvider>() is { } authentication)
+            authentication.AuthenticationStateChanged += AuthenticationChanged;
+        _ = CheckAuthorityAsync();
+    }
+
+    private async Task CheckAuthorityAsync()
+    {
+        if (_disposed) return;
+        var revision = _authorityRevision;
+        var profileRead = await ConsoleReadBudget.RunAsync(ReadProfileAsync, ConsoleReadBudget.Default,
+            "The active environment could not be read.", _authorityLifetime.Token);
+        if (_disposed || revision != _authorityRevision) return;
+        if (!profileRead.IsAllowed)
+        {
+            _servicesRead = OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Denied(profileRead.Status, profileRead.Message);
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+        var profile = profileRead.Value;
+        var operatorId = profile?.Account.AccountId;
+        var authority = (profile?.Id, profile?.ServerBaseUri, operatorId);
+        _environmentLabel = string.IsNullOrWhiteSpace(profile?.DisplayName) ? "Services" : profile.DisplayName;
+        if (_authority != authority)
+        {
+            _authority = authority;
+            await ReloadAsync();
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (_disposed) return;
+        ResetReadState();
+        var revision = _authorityRevision;
+        await InvokeAsync(StateHasChanged);
+        var result = await ConsoleReadBudget.RunAsync(Source.ReadServicesAsync, ConsoleReadBudget.Default,
+            "Service navigation is unavailable. Retry when the server is reachable.", _authorityLifetime.Token);
+        if (_disposed || revision != _authorityRevision) return;
+        _servicesRead = result;
+        _tree.Load(result.Value ?? [], _environmentLabel);
+        _tree.RevealPath(CurrentPath);
+        _loading = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task<OperateSectionResult<ConsoleEnvironmentProfile?>> ReadProfileAsync(CancellationToken token)
+    {
+        var profiles = Services.GetService<IConsoleEnvironmentProfileStore>();
+        var profile = profiles is null ? null : await profiles.GetActiveProfileAsync(token);
+        return OperateSectionResult<ConsoleEnvironmentProfile?>.Allowed(profile);
+    }
+
+    private void ResetReadState()
+    {
+        _authorityRevision++;
+        _authorityLifetime.Cancel();
+        _authorityLifetime.Dispose();
+        _authorityLifetime = new();
+        _connectionsRead = null;
+        _tree.Load([], _environmentLabel);
+        _tree.SetFilter("");
+        _servicesRead = null;
+        _loading = true;
+    }
+
+    private Task RefreshAsync() => _loading ? Task.CompletedTask : ReloadAuthorityAsync();
+
+    private async Task ReloadAuthorityAsync()
+    {
+        if (_disposed) return;
+        _authority = null;
+        ResetReadState();
+        await InvokeAsync(StateHasChanged);
+        await CheckAuthorityAsync();
+    }
+
+    private async Task ExpandAsync(ConsolePublicationNode node)
+    {
+        node.Expanded = true;
+        if (node.Kind == ConsolePublicationNodeKind.Service && !node.ChildrenLoaded && !node.Loading)
+            await LoadChildrenAsync(node);
+    }
+
+    private static void Collapse(ConsolePublicationNode node) => node.Expanded = false;
+
+    private async Task LoadChildrenAsync(ConsolePublicationNode node)
+    {
+        if (_disposed || node.ServiceName is not { } serviceName || node.Loading) return;
+        var revision = _authorityRevision;
+        var token = _authorityLifetime.Token;
+        node.Loading = true;
+        node.ReadStatus = null;
+        node.ReadMessage = null;
+        await InvokeAsync(StateHasChanged);
+        _connectionsRead ??= ConsoleReadBudget.RunAsync(Source.ReadConnectionsAsync, ConsoleReadBudget.Default,
+            "Connections could not be read.", token);
+        var connections = await _connectionsRead;
+        if (_disposed || revision != _authorityRevision) return;
+        var result = connections.IsAllowed
+            ? await ConsoleReadBudget.RunAsync(readToken => ReadServiceLayersAsync(serviceName, connections.Value ?? [], readToken),
+                ConsoleReadBudget.Default, "Layers could not be read. Retry this service.", token)
+            : OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>.Denied(connections.Status, connections.Message);
+        if (_disposed || revision != _authorityRevision) return;
+        if (!result.IsAllowed || result.PartialResult) _connectionsRead = null;
+        CompleteChildren(node, result);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>> ReadServiceLayersAsync(
+        string serviceName, IReadOnlyList<string> connections, CancellationToken token)
+    {
+        await _serviceExpansionSlots.WaitAsync(token);
+        try { return await Source.ReadLayersAsync(serviceName, connections, token); }
+        finally { _serviceExpansionSlots.Release(); }
+    }
+
+    private static void CompleteChildren(ConsolePublicationNode node, OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>> result)
+    {
+        node.Loading = false;
+        node.ChildrenLoaded = result.IsAllowed;
+        node.ReadStatus = result.IsAllowed ? null : result.Status;
+        node.ReadMessage = string.IsNullOrEmpty(result.Message) ? null : result.Message;
+        node.Children = (result.Value ?? []).Select(layer => new ConsolePublicationNode
+        {
+            Key = node.Key + ":layer:" + layer.ResourceId, Label = layer.Name, Kind = ConsolePublicationNodeKind.Layer,
+            GeometryType = layer.GeometryType, Href = $"/operate/layers/{Uri.EscapeDataString(layer.ResourceId)}"
+        }).ToList();
+    }
+
+    private void FilterChanged(ChangeEventArgs args) => _tree.SetFilter(args.Value?.ToString() ?? "");
+    private void ShowFirstPage(ConsolePublicationNode node) => _tree.ShowFirstPage(node);
+    private void ShowMore(ConsolePublicationNode node) => _tree.ShowMore(node);
+    private async Task ReconcileLocationAsync()
+    {
+        await CheckAuthorityAsync();
+        if (_disposed) return;
+        _tree.RevealPath(CurrentPath);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void LocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        _locationRevision++;
+        _ = InvokeAsync(ReconcileLocationAsync);
+    }
+    private void CapabilitiesChanged() => _ = InvokeAsync(CheckAuthorityAsync);
+    private void AuthenticationChanged(Task<AuthenticationState> state) => _ = InvokeAsync(ReloadAuthorityAsync);
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Navigation.LocationChanged -= LocationChanged;
+        if (_capabilities is not null) _capabilities.Changed -= CapabilitiesChanged;
+        if (Services.GetService<AuthenticationStateProvider>() is { } authentication)
+            authentication.AuthenticationStateChanged -= AuthenticationChanged;
+        _authorityLifetime.Cancel();
+        _authorityLifetime.Dispose();
+    }
+}

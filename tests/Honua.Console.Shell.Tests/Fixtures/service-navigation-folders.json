@@ -1,0 +1,6 @@
+[
+  {"serviceName":"internal-parcels","publicName":"Parcels","folderId":"folder-internal","folderName":"Internal","layerCount":2,"enabledProtocols":["featureserver"]},
+  {"serviceName":"public-parcels","publicName":"Parcels","folderId":"folder-public","folderName":"Public","layerCount":1,"enabledProtocols":["featureserver"]},
+  {"serviceName":"roads/legacy","layerCount":1,"enabledProtocols":["featureserver"]},
+  {"serviceName":"unresolved-folder","folderId":"missing-name","layerCount":0,"enabledProtocols":[]}
+]
