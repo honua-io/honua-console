@@ -19,9 +19,14 @@ async function conversation(page: Page) {
   return page.evaluate(async () => (window as WorkspaceWindow).honuaAgentWorkspace.conversation());
 }
 
+async function openDisclosure(page:Page,selector:string) {
+  const panel=page.locator(selector);
+  if (!await panel.evaluate((node:HTMLDetailsElement)=>node.open)) await panel.locator(':scope > summary').click();
+}
+
 async function sendConsole(page: Page, prompt: string) {
   const drawer = page.locator('[data-agent-workspace]');
-  if (!await drawer.evaluate((node: HTMLDetailsElement)=>node.open)) await drawer.locator(':scope > summary').click();
+  if (!await drawer.evaluate((node: HTMLDetailsElement)=>node.open)) await page.getByRole('button',{name:'Conversation',exact:true}).click();
   const capture=await sendInstalled(page,prompt);
   await finishedInstalled(page,prompt,capture.turnId);
   return capture;
@@ -29,8 +34,8 @@ async function sendConsole(page: Page, prompt: string) {
 
 test('primary conversation retains one installed workspace and independently verified turns across views', async ({page}, testInfo) => {
   await session(page);
-  await page.locator('[data-agent-workspace]').evaluate((node: HTMLDetailsElement)=>{node.open=true;});
-  await page.locator('.console-conversation-connection').evaluate((node: HTMLDetailsElement)=>{node.open=true;});
+  await page.getByRole('button',{name:'Conversation',exact:true}).click();
+  await openDisclosure(page,'.console-conversation-connection');
   await page.locator('[data-workspace-id]').fill('');
   await page.locator('[data-workspace-connect]').click();
   await expect(page.locator('[data-workspace-status]')).toHaveText('Connected');
@@ -59,6 +64,7 @@ test('primary conversation retains one installed workspace and independently ver
     const workspace=(window as WorkspaceWindow).honuaAgentWorkspace;
     return {workspaceId:workspace.workspaceId,viewId:workspace.viewId,contextRevision:workspace.context.revision,targetId:workspace.context.targetId};
   });
+  await openDisclosure(page,'.console-conversation-handoff');
   await page.locator('[data-workspace-copy-context]').click();
   await expect.poll(async()=>JSON.parse(await page.locator('[data-workspace-context-reference]').textContent() || '{}')).toEqual(referenceBefore);
   expect(await page.evaluate(()=> (window as WorkspaceWindow).honuaAgentWorkspace.context.task)).toEqual(task);
@@ -101,6 +107,7 @@ test('primary conversation retains one installed workspace and independently ver
   await page.evaluate(()=> (window as WorkspaceWindow).honuaAgentWorkspace.observeContext());
   await expect(field).toHaveValue(dirty);
   const dirtyRevision=await page.evaluate(()=> (window as WorkspaceWindow).honuaAgentWorkspace.context.revision);
+  await openDisclosure(page,'.console-conversation-handoff');
   await page.locator('[data-workspace-copy-context]').click();
   await expect(page.locator('[data-workspace-status]')).toHaveText('Save your draft before copying its context.');
   await expect(field).toHaveValue(dirty);

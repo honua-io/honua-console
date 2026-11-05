@@ -8,22 +8,17 @@ function validatedPartition(session) {
 }
 
 export class OperatorPreferences {
-    constructor(storage) {
-        this.storage = storage;
-        this.key = null;
-        this.authority = null;
-        this.follow = true;
-    }
+    constructor(storage) { this.storage = storage; this.clear(); }
     clear() {
         this.key = null;
         this.authority = null;
         this.expiresAt = 0;
         this.follow = true;
     }
-    bind(session) {
-        this.clear();
-        const partition = validatedPartition(session);
-        if (!partition) return;
+    bind(session) { this.adopt(validatedPartition(session)); }
+    adopt(partition) {
+        if (!partition) { this.clear(); return; }
+        if (this.key !== partition.key || this.authority !== partition.authority) this.clear();
         Object.assign(this, partition);
         this.restore();
     }
@@ -43,33 +38,62 @@ export class OperatorPreferences {
     }
 }
 
-export function mountWorkspacePreferences(workspace, host, signal) {
-    let storage;
-    try { storage = globalThis.localStorage; } catch { /* Private contexts may deny storage access. */ }
-    const preferences = new OperatorPreferences(storage);
-    const follow = host.querySelector('[data-workspace-follow]');
-    let generation = 0, lastWorkspaceAuthority;
-    function render() {
-        workspace.follow = preferences.follow;
-        if (follow) { follow.checked = preferences.follow; follow.disabled = !preferences.key; }
+function browserStorage() {
+    try { return globalThis.localStorage; } catch { /* Private contexts may deny storage access. */ }
+}
+
+class WorkspacePreferenceAdapter {
+    constructor(workspace, host, signal) {
+        this.workspace = workspace;
+        this.signal = signal;
+        this.follow = host.querySelector('[data-workspace-follow]');
+        this.preferences = new OperatorPreferences(browserStorage());
+        this.generation = 0;
+        this.validated = false;
+        this.follow?.addEventListener('change', () => {
+            if (!this.validated) return;
+            this.preferences.save({follow: this.follow.checked}); this.render();
+        }, {signal});
+        for (const event of ['honua-console-navigation', 'honua-console-authority'])
+            window.addEventListener(event, () => { void this.refresh(); }, {signal});
     }
-    async function refresh() {
-        const revision = ++generation;
-        preferences.clear(); render();
-        try {
-            const session = await workspace.api('session');
-            if (signal.aborted || revision !== generation) return;
-            preferences.bind(session); render();
-        } catch {
-            if (!signal.aborted && revision === generation) { preferences.clear(); render(); }
+    render() {
+        this.workspace.follow = this.preferences.follow;
+        if (this.follow) {
+            this.follow.checked = this.preferences.follow;
+            this.follow.disabled = !this.validated || !this.preferences.key;
         }
     }
-    follow?.addEventListener('change', () => { preferences.save({follow: follow.checked}); render(); }, {signal});
-    window.addEventListener('honua-console-navigation', refresh, {signal});
-    return () => {
-        const authority = workspace.authorityKey();
-        if (authority === lastWorkspaceAuthority) return;
-        lastWorkspaceAuthority = authority;
-        void refresh();
-    };
+    unavailable(revision) {
+        if (this.signal.aborted || revision !== this.generation) return;
+        this.validated = false;
+        if (this.lastValidatedWorkspaceAuthority !== this.workspace.authorityKey()) this.preferences.clear();
+        this.render();
+    }
+    async refresh() {
+        const revision = ++this.generation;
+        this.validated = false;
+        if (this.follow) this.follow.disabled = true;
+        try {
+            const session = await this.workspace.api('session');
+            if (this.signal.aborted || revision !== this.generation) return;
+            const partition = validatedPartition(session);
+            if (!partition) { this.unavailable(revision); return; }
+            this.preferences.adopt(partition);
+            this.lastValidatedWorkspaceAuthority = this.workspace.authorityKey();
+            this.validated = true;
+            this.render();
+        } catch { this.unavailable(revision); }
+    }
+    sync() {
+        const lease = JSON.stringify([this.workspace.authorityKey(), this.workspace.session?.expiresAt]);
+        if (lease === this.lastWorkspaceLease) return;
+        this.lastWorkspaceLease = lease;
+        void this.refresh();
+    }
+}
+
+export function mountWorkspacePreferences(workspace, host, signal) {
+    const adapter = new WorkspacePreferenceAdapter(workspace, host, signal);
+    return () => adapter.sync();
 }

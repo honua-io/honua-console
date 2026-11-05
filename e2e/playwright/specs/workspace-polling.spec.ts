@@ -13,8 +13,11 @@ test('context polling resumes after navigation supersedes an observation', async
   });
   await page.goto('/operate');
   const prerendered = await page.locator('[data-agent-workspace]').elementHandle();
+  const routedMain=await page.locator('main').elementHandle();
   await page.evaluate(() => (window as any).Blazor.start());
-  await expect.poll(() => prerendered!.evaluate(element => element.isConnected)).toBe(false);
+  await expect.poll(()=>routedMain!.evaluate(element=>element.isConnected)).toBe(false);
+  expect(await prerendered!.evaluate(element=>element.isConnected)).toBe(true);
+  expect(await prerendered!.evaluate(element=>element===document.querySelector('[data-agent-workspace]'))).toBe(true);
   await page.evaluate(() => {
     const workspace = (window as any).honuaAgentWorkspace;
     const state = (window as any).pollingRace = { reads: 0, renewals: 0, followed: 0, skipped: false };

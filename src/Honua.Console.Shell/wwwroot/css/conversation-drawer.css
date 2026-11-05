@@ -12,10 +12,10 @@ body > #console-conversation-drawer:not([open]) { display: none; }
 body > #console-conversation-drawer[open] {
     position: fixed;
     inset: 4.5rem 0 0 auto;
-    z-index: 50;
+    z-index: var(--z-drawer);
     display: block;
     box-sizing: border-box;
-    width: 21rem;
+    width: var(--drawer-w);
     max-width: 100vw;
     max-height: calc(100dvh - 4.5rem);
     margin: 0;
@@ -28,13 +28,13 @@ body > #console-conversation-drawer[open] {
 }
 body > #console-conversation-drawer > summary { display: none; }
 body > #console-conversation-drawer .console-conversation-close { min-height: 44px; margin-block-end: 1rem; }
-body.console-conversation-open .console-shell { margin-inline-end: 21rem; }
-.console-conversation-backdrop { position: fixed; inset: 0; z-index: 49; background: color-mix(in srgb, var(--c-text) 35%, transparent); }
+body.console-conversation-open .console-shell { margin-inline-end: var(--drawer-w); }
+.console-conversation-backdrop { position: fixed; inset: 0; z-index: calc(var(--z-drawer) - 1); background: color-mix(in srgb, var(--c-text) 35%, transparent); }
 .console-conversation-backdrop[hidden] { display: none; }
 @media (max-width: 1000px) {
     body.console-conversation-open .console-shell { margin-inline-end: 0; }
-    body > #console-conversation-drawer[open] { inset: 0 0 0 auto; width: min(100vw, 26rem); max-height: 100dvh; z-index: 100; }
-    .console-conversation-backdrop { z-index: 99; }
+    body > #console-conversation-drawer[open] { inset: 0 0 0 auto; width: min(100vw, 26rem); max-height: 100dvh; z-index: var(--z-dialog); }
+    .console-conversation-backdrop { z-index: calc(var(--z-dialog) - 1); }
 }
 @media (forced-colors: active) {
     .console-conversation-toggle:focus-visible { outline: 2px solid Highlight; }

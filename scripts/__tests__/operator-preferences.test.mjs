@@ -43,7 +43,7 @@ test('blocked or malformed browser storage keeps defaults and usable ephemeral c
     const broken = {getItem() {throw new Error('blocked');}, setItem() {throw new Error('blocked');}};
     const preferences = new OperatorPreferences(broken);
     preferences.bind(session()); preferences.save({follow: false}); assert.equal(preferences.follow, false);
-    preferences.bind(session()); assert.equal(preferences.follow, true);
+    preferences.bind(session()); assert.equal(preferences.follow, false);
     const malformed = new OperatorPreferences({getItem: () => '{broken'});
     malformed.bind(session()); assert.equal(malformed.follow, true);
 });

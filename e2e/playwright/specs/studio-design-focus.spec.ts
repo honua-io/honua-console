@@ -85,7 +85,8 @@ test('inspector identities reach the visible conversation and frozen native turn
         await page.goto('/studio');
         const conversation = page.locator('[data-agent-workspace]');
         await expect(conversation).toHaveAttribute('data-mounted', 'true');
-        await conversation.evaluate((host: HTMLDetailsElement) => { host.open = true; });
+        if (!await conversation.evaluate((host: HTMLDetailsElement) => host.open))
+            await page.getByRole('button', {name: 'Conversation', exact: true}).click();
         await conversation.locator('.console-conversation-connection > summary').click();
         await conversation.locator('[data-workspace-id]').fill('design-workspace');
         await conversation.locator('[data-workspace-connect]').click();

@@ -53,7 +53,7 @@ export async function setup(page:Page) {
   expect(extent?.spatialReference?.wkid).toBe(4326);
   const bounds=[extent.xmin,extent.ymin,extent.xmax,extent.ymax];expect(bounds.every(Number.isFinite)).toBe(true);
   const host=page.locator('[data-agent-workspace]');
-  if (!await host.evaluate(node=>(node as HTMLDetailsElement).open)) await host.locator(':scope > summary').click();
+  if (!await host.evaluate(node=>(node as HTMLDetailsElement).open)) await page.getByRole('button',{name:'Conversation',exact:true}).click();
   await host.getByRole('button',{name:'Start conversation',exact:true}).click();
   await expect(host).toHaveAttribute('data-connected','true');
   await expect(page.locator('textarea:visible')).toHaveCount(1);

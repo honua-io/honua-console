@@ -116,7 +116,7 @@ test('installed workspace: visual and prompted styling persist on the same rende
   await expect(page.locator('[data-legacy-studio-retired]')).toHaveCount(0);
   const conversation = page.locator('[data-agent-workspace]');
   if (!(await conversation.evaluate(element => (element as HTMLDetailsElement).open)))
-    await conversation.locator(':scope > summary').click();
+    await page.getByRole('button',{name:'Conversation',exact:true}).click();
   await conversation.getByRole('button', { name: 'Start conversation', exact: true }).click();
   await expect(conversation).toHaveAttribute('data-connected', 'true');
   const originalWorkspace = await workspaceId(page);

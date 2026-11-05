@@ -17,7 +17,9 @@ pending replies, file selections and the existing captured-turn controls.
 “Follow proposed task views” is stored only after a current same-origin session
 validates the opaque operator/environment partition. Changing release or source
 path invalidates that partition's preference. Missing, expired or unavailable
-sessions use ephemeral defaults; browser storage is optional. These preferences
+sessions use ephemeral defaults before any validated choice. A same-authority
+revalidation keeps the current follow choice while pending or unavailable and
+disables persistence until validation succeeds; browser storage is optional. These preferences
 do not reconnect or change a pending turn's authority.
 
 Standard Server deployments use the [built-in Studio assistant](studio-assistant.md), backed by the Studio model proxy and MCP. The server-owned workspace integration below requires a separate matching server contract and explicit `Honua__Agent__WorkspaceApiEnabled=true` on Console. Standard trunk does not provide `/api/v1/agent/workspaces`.

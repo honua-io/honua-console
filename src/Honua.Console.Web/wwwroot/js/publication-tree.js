@@ -25,7 +25,7 @@
     const toggle = () => document.querySelector('[data-tree-toggle]');
     const modal = honuaModalSurface.create({
         surface: () => sidebar,
-        backgrounds: () => [...document.querySelectorAll('.console-shell > :not(.console-service-workspace), .console-service-workspace > .console-workspace, [data-agent-workspace]')],
+        backgrounds: () => [...document.querySelectorAll('.console-shell > :not(.console-service-workspace), .console-service-workspace > .console-workspace, [data-agent-workspace], [data-tree-toggle]')],
         returnFocus: toggle,
         onDismiss: closeOverlay
     });
@@ -80,7 +80,6 @@
         sidebar.removeAttribute('aria-modal');
         toggle()?.setAttribute(expansionAttribute, 'false');
         document.querySelector('[data-tree-backdrop]')?.setAttribute('hidden', '');
-        modal.release();
         sidebar.hidden = narrow.matches;
 
     }

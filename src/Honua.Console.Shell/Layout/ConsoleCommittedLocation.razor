@@ -1,19 +1,42 @@
 @implements IDisposable
 @inject NavigationManager Navigation
+@inject Honua.Console.Shell.Services.IConsoleCapabilityManifest Capabilities
 
-<span hidden data-console-location="@Path" data-console-location-revision="@_revision"></span>
+<span hidden data-console-location="@_path" data-console-location-revision="@_routeRevision" data-console-authority-revision="@_authorityRevision"></span>
 
 @code {
-    private int _revision;
-    private string Path => new Uri(Navigation.Uri).AbsolutePath;
+    private string _path = "/";
+    private int _routeRevision;
+    private int _authorityRevision;
+    private bool _disposed;
 
-    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+    protected override void OnInitialized()
+    {
+        _path = new Uri(Navigation.Uri).AbsolutePath;
+        Navigation.LocationChanged += OnLocationChanged;
+        Capabilities.Changed += OnAuthorityChanged;
+    }
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args)
     {
-        _revision++;
+        var path = new Uri(args.Location).AbsolutePath;
+        if (_disposed || path == _path) return;
+        _path = path;
+        _routeRevision++;
         _ = InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+    private void OnAuthorityChanged()
+    {
+        if (_disposed) return;
+        _authorityRevision++;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Navigation.LocationChanged -= OnLocationChanged;
+        Capabilities.Changed -= OnAuthorityChanged;
+    }
 }

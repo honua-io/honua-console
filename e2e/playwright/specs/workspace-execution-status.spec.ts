@@ -11,8 +11,11 @@ async function mountedWorkspace(page:Page) {
   });
   await page.goto('/operate');
   const original=await page.locator('[data-agent-workspace]').elementHandle();
+  const routedMain=await page.locator('main').elementHandle();
   await page.evaluate(()=>(window as any).Blazor.start());
-  await expect.poll(()=>original!.evaluate(element=>element.isConnected)).toBe(false);
+  await expect.poll(()=>routedMain!.evaluate(element=>element.isConnected)).toBe(false);
+  expect(await original!.evaluate(element=>element.isConnected)).toBe(true);
+  expect(await original!.evaluate(element=>element===document.querySelector('[data-agent-workspace]'))).toBe(true);
   await page.evaluate(()=>{
     const workspace=(window as any).honuaAgentWorkspace;
     const state=(window as any).executionTest={state:'queued',revision:1,denied:false,posts:0,operations:[]};
