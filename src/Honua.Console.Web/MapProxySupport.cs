@@ -6,14 +6,9 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Web;
 
-/// <summary>
-/// Shared gating + rewrite helpers for the map-preview BFF proxy endpoints.
-/// These endpoints forward only the active operator bearer through the browser transport boundary.
-/// Their responses must not be cached across operator sessions.
-/// </summary>
+// These endpoints forward only the active operator bearer, and a response must not be cached across operator sessions.
 public static class MapProxySupport
 {
-    /// <summary>Canonicalizes a relative asset path under a server-owned 3D Tiles scene.</summary>
     public static string? NormalizeSceneAssetPath(string? assetPath)
     {
         if (string.IsNullOrWhiteSpace(assetPath))
@@ -48,7 +43,6 @@ public static class MapProxySupport
         return string.Join('/', encoded);
     }
 
-    /// <summary>Builds a scene asset URI against the selected environment's server.</summary>
     public static Uri BuildSceneAssetUri(Uri serverBaseUri, string sceneId, string assetPath)
     {
         ArgumentNullException.ThrowIfNull(serverBaseUri);
@@ -60,20 +54,11 @@ public static class MapProxySupport
             $"scenes/{sceneId}/{assetPath}");
     }
 
-    /// <summary>
-    /// Neutralizes CR/LF in a user-provided value before it reaches a log entry, so a crafted
-    /// route/query value cannot forge additional log lines (CodeQL cs/log-forging). Structured
-    /// logging keeps the value as a property, but text-rendering sinks (console formatter, file
-    /// exporters) would still emit embedded newlines verbatim.
-    /// </summary>
+    // Neutralize CR/LF so a route or query value cannot forge extra log lines.
     public static string LogSafe(string? value) =>
         string.IsNullOrEmpty(value) ? string.Empty : value.ReplaceLineEndings(" ");
 
-    /// <summary>
-    /// True when there is an authenticated console session, using the same definition as
-    /// <see cref="ConsoleCatalogReadContextResolver"/>: an active environment profile whose
-    /// account is not Anonymous and that has a non-empty access token.
-    /// </summary>
+    // Same session test the catalog read uses.
     public static async Task<bool> HasAuthenticatedConsoleSessionAsync(
         IConsoleEnvironmentProfileStore profiles,
         IConsoleAccountSessionStore sessions,
@@ -89,12 +74,7 @@ public static class MapProxySupport
         return !string.IsNullOrWhiteSpace(session?.AccessToken);
     }
 
-    /// <summary>
-    /// Resolves the environment a pinned proxy URL was produced for (<see cref="ConsoleProxyRoutes"/>).
-    /// The pin must name the operator's CURRENT active profile: a view rendered under environment A that
-    /// keeps fetching after the operator activated B elsewhere gets 409 instead of B's assets rendered
-    /// with A's style/query state. No active profile is 503, as before pinning.
-    /// </summary>
+    // A mismatch is 409 so a view pinned to the previous profile cannot render the new profile's assets.
     public static async Task<(ConsoleEnvironmentProfile? Profile, IResult? Failure)> ResolvePinnedProfileAsync(
         IConsoleEnvironmentProfileStore profiles,
         string? environmentId,
@@ -117,7 +97,7 @@ public static class MapProxySupport
         return (activeProfile, null);
     }
 
-    /// <summary>Preserves server denial status without disclosing its response body.</summary>
+    // Preserve the denial status and do not disclose the upstream body.
     public static IResult UpstreamFailure(HttpContext context, System.Net.HttpStatusCode status)
     {
         if (status == System.Net.HttpStatusCode.Unauthorized)
@@ -137,11 +117,6 @@ public static class MapProxySupport
     private static readonly string[] CacheResponseHeaders =
         ["ETag", "Expires", "Last-Modified", "Vary", "Age"];
 
-    /// <summary>
-    /// Forwards the browser's cache-validation headers (<c>If-None-Match</c> / <c>If-Modified-Since</c>) onto
-    /// the upstream tile request so honua-server can answer <c>304 Not Modified</c> and the browser
-    /// revalidates cheaply instead of always re-downloading the tile body.
-    /// </summary>
     public static void ForwardConditionalHeaders(HttpRequest browserRequest, HttpRequestMessage upstreamRequest)
     {
         foreach (var name in ConditionalRequestHeaders)
@@ -153,11 +128,6 @@ public static class MapProxySupport
         }
     }
 
-    /// <summary>
-    /// Copies upstream validators onto the proxied response while forcing a private revalidation policy.
-    /// These endpoints can fetch bytes using an operator identity, so a shared intermediary must not cache
-    /// the response as public content.
-    /// </summary>
     public static void ApplyTileCacheHeaders(HttpResponseMessage upstream, HttpResponse browserResponse)
     {
         foreach (var name in CacheResponseHeaders)
@@ -175,16 +145,7 @@ public static class MapProxySupport
         browserResponse.Headers["Cache-Control"] = "private, no-cache, must-revalidate";
     }
 
-    /// <summary>
-    /// Rewrites every vector-tile URL in a MapLibre style document so the browser fetches tiles
-    /// back through this proxy (where the operator bearer is attached) rather than directly from
-    /// honua-server. Parses the style's <c>sources[*].tiles[]</c> entries and rewrites both
-    /// root-relative (<c>/tiles/...</c>) and absolute (<c>http(s)://server/tiles/...</c>) URL
-    /// shapes, replacing everything up to and including the <c>/tiles/</c> segment with the
-    /// proxy base. Falls back to the verbatim input if the document is not parseable JSON.
-    /// </summary>
-    /// <param name="styleJson">The raw style document from honua-server.</param>
-    /// <param name="proxyTileBase">Absolute proxy tile base, e.g. <c>https://host/map-proxy/tiles/</c>.</param>
+    // Rewrite style tile URLs through this proxy so the browser does not fetch honua-server directly.
     public static string RewriteTileUrls(string styleJson, string proxyTileBase)
     {
         if (string.IsNullOrWhiteSpace(styleJson))

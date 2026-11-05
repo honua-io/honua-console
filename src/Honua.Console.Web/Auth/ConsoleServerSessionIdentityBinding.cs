@@ -8,10 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace Honua.Console.Web.Auth;
 
-/// <summary>
-/// Binds a hosted deployment's server cookie session to its trusted edge subject before
-/// operator bearer issuance. Identity comes from the authenticated server session endpoint.
-/// </summary>
+// When a trusted edge issuer is configured, the authenticated server session must match that subject before a bearer is issued.
 internal sealed class ConsoleServerSessionIdentityBinding(
     IOptions<ConsoleEdgeAuthOptions> options,
     IConsoleAccountSessionStore sessions,

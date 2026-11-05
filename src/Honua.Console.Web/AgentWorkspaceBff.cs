@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Antiforgery;
 
 namespace Honua.Console.Web;
 
-/// <summary>Same-origin, operator-only transport. Never forwards browser credentials or upstream cookies.</summary>
+// Same-origin operator transport. Browser credentials and upstream cookies are not forwarded.
 internal static partial class AgentWorkspaceBff
 {
     public static void MapAgentWorkspaceBff(this WebApplication app)

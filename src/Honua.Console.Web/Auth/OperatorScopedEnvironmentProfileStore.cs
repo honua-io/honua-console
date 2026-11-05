@@ -38,11 +38,6 @@ public sealed class OperatorScopedEnvironmentProfileStore : IConsoleEnvironmentP
     private InMemoryConsoleEnvironmentProfileStore CurrentForWrite =>
         _byOperator.GetOrAdd(_operatorContext.RequireOperatorKey(), _seedFactory);
 
-    /// <summary>
-    /// Removes the operator's partition on sign-out so its profiles/active-selection/identity binding do
-    /// not linger for the life of the process (honua-console#279 PA-237). No-op if the operator has no
-    /// partition.
-    /// </summary>
     public void EvictOperator(string operatorKey) => _byOperator.Evict(operatorKey);
 
     public Task<IReadOnlyList<ConsoleEnvironmentProfile>> ListProfilesAsync(CancellationToken cancellationToken = default) =>

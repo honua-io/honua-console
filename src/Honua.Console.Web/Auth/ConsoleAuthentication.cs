@@ -12,30 +12,7 @@ using Microsoft.Extensions.Options;
 
 namespace Honua.Console.Web.Auth;
 
-/// <summary>
-/// Console operator authentication for the browser host (honua-console#233).
-///
-/// CHOSEN MODEL — Option A (interim) with an Option-C-ready forwarding path. honua-server today
-/// authenticates operators with OIDC (cookie-session bound to the server's own admin origin,
-/// <c>AdminAuthEndpoints</c>) and mints forwardable bearers only through the ArcGIS-shaped Portal
-/// OAuth2 bridge — it does not yet expose a console-consumable "log operator in → forwardable
-/// operator bearer" endpoint. Until it does (the honua-server follow-up for full Option C), the
-/// Console authenticates the operator at its own edge and forwards the operator identity/bearer to
-/// honua-server:
-/// <list type="bullet">
-/// <item><b>EdgeForwarded</b> — the deployment fronts the Console with an ingress/oauth2-proxy that
-/// authenticates against the customer IdP and injects signed forwarded-identity headers (and,
-/// ideally, <c>X-Forwarded-Access-Token</c>). The Console trusts those headers only from the
-/// configured proxy and forwards the operator's bearer to honua-server, where per-principal RBAC is
-/// enforced for real.</item>
-/// <item><b>Dev</b> — a documented developer login (Development only, or an explicit
-/// <c>Honua:Console:Auth:Mode=Dev</c> override) so local reads are not blocked. Human approval
-/// and recovery mutations still require a forwardable server bearer and fail closed otherwise.</item>
-/// </list>
-/// In every other case authentication is <b>fail-closed</b>: there is no anonymous access. The
-/// <see cref="AuthorizationOptions.FallbackPolicy"/> requires an authenticated operator on every
-/// endpoint that does not opt out with <see cref="Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute"/>.
-/// </summary>
+// Forwarded identity headers are trusted only from the configured proxy.
 public static class ConsoleAuthentication
 {
     internal static CookieSecurePolicy CookieSecurePolicyFor(bool isDevelopment) =>
@@ -168,10 +145,7 @@ public static class ConsoleAuthentication
         return builder;
     }
 
-    /// <summary>
-    /// Inserts authentication + the trusted edge-forwarded-identity middleware, then authorization.
-    /// Call after <c>UseRouting</c>/<c>MapStaticAssets</c> wiring and before endpoint execution.
-    /// </summary>
+    // Call after UseRouting and before endpoint execution so authentication sees the route and still gates it.
     public static WebApplication UseConsoleAuthentication(this WebApplication app)
     {
         ArgumentNullException.ThrowIfNull(app);
@@ -182,7 +156,6 @@ public static class ConsoleAuthentication
         return app;
     }
 
-    /// <summary>Maps the anonymous sign-in / sign-out endpoints (the cookie LoginPath target).</summary>
     public static WebApplication MapConsoleAuthEndpoints(this WebApplication app)
     {
         ArgumentNullException.ThrowIfNull(app);
