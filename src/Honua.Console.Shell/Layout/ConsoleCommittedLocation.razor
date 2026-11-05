@@ -1,0 +1,19 @@
+@implements IDisposable
+@inject NavigationManager Navigation
+
+<span hidden data-console-location="@Path" data-console-location-revision="@_revision"></span>
+
+@code {
+    private int _revision;
+    private string Path => new Uri(Navigation.Uri).AbsolutePath;
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args)
+    {
+        _revision++;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

@@ -1,0 +1,44 @@
+.console-conversation-toggle {
+    min-height: 44px;
+    padding: .5rem .75rem;
+    border: 1px solid var(--honua-border);
+    border-radius: var(--radius-sm);
+    background: var(--honua-surface);
+    color: var(--honua-text);
+    font: inherit;
+    cursor: pointer;
+}
+body > #console-conversation-drawer:not([open]) { display: none; }
+body > #console-conversation-drawer[open] {
+    position: fixed;
+    inset: 4.5rem 0 0 auto;
+    z-index: 50;
+    display: block;
+    box-sizing: border-box;
+    width: 21rem;
+    max-width: 100vw;
+    max-height: calc(100dvh - 4.5rem);
+    margin: 0;
+    overflow: auto;
+    border-radius: 0;
+    box-shadow: var(--shadow-2);
+    border-inline-start: 1px solid var(--honua-border);
+    background: var(--honua-surface);
+    color: var(--honua-text);
+}
+body > #console-conversation-drawer > summary { display: none; }
+body > #console-conversation-drawer .console-conversation-close { min-height: 44px; margin-block-end: 1rem; }
+body.console-conversation-open .console-shell { margin-inline-end: 21rem; }
+.console-conversation-backdrop { position: fixed; inset: 0; z-index: 49; background: color-mix(in srgb, var(--c-text) 35%, transparent); }
+.console-conversation-backdrop[hidden] { display: none; }
+@media (max-width: 1000px) {
+    body.console-conversation-open .console-shell { margin-inline-end: 0; }
+    body > #console-conversation-drawer[open] { inset: 0 0 0 auto; width: min(100vw, 26rem); max-height: 100dvh; z-index: 100; }
+    .console-conversation-backdrop { z-index: 99; }
+}
+@media (forced-colors: active) {
+    .console-conversation-toggle:focus-visible { outline: 2px solid Highlight; }
+}
+
+body.console-conversation-open .console-topbar { flex-wrap: wrap; }
+body.console-conversation-open .console-topnav { flex-wrap: wrap; }

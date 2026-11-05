@@ -4,12 +4,15 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const cancelNote = 'Cancel stops this turn. It does not roll back a server job that already started.';
-const layoutPath = fileURLToPath(new URL('../../src/Honua.Console.Shell/Layout/ConsoleLayout.razor', import.meta.url));
+const layoutPath = fileURLToPath(new URL('../../src/Honua.Console.Shell/Layout/ConsoleConversationDrawer.razor', import.meta.url));
 const modulePath = '../../src/Honua.Console.Web/wwwroot/js/agent-workspace.mjs';
 
 function extractWorkspace(source) {
-    const start = source.indexOf('<details class="console-panel console-conversation" data-agent-workspace>');
-    if (start < 0) throw new Error('ConsoleLayout is missing [data-agent-workspace].');
+    const start = source.indexOf('<details id="console-conversation-drawer"');
+    if (start < 0) throw new Error('ConsoleConversationDrawer is missing [data-agent-workspace].');
+    for (const name of ['Context', 'Composer', 'Review', 'Connections']) {
+        source = source.replace(`<ConsoleConversation${name} />`, fs.readFileSync(new URL(`../../src/Honua.Console.Shell/Layout/ConsoleConversation${name}.razor`, import.meta.url), 'utf8'));
+    }
     const re = /<\/?details\b[^>]*>/g;
     re.lastIndex = start;
     let depth = 0, match;

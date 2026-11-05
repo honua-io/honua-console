@@ -82,7 +82,7 @@ async function mountedWorkspace(page:Page) {
     };
     workspace.notify(workspace);
   });
-  await page.locator('[data-agent-workspace]').evaluate((element:any)=>{element.open=true;});
+  await page.getByRole('button',{name:'Conversation',exact:true}).click();
   await page.locator('[data-workspace-check-executions]').click();
 }
 

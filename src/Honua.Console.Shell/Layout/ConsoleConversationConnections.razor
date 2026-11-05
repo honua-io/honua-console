@@ -1,0 +1,14 @@
+<label><input type="checkbox" checked data-workspace-follow /> Follow proposed task views</label>
+<p role="status" data-workspace-status>Start a conversation, or join an existing workspace.</p>
+<details class="console-conversation-connection">
+    <summary>Join an existing workspace</summary>
+    <label>Workspace ID <input class="console-input" data-workspace-id maxlength="128" /></label>
+    <button type="button" class="console-button" data-workspace-connect>Connect workspace</button>
+    <p class="console-muted">Use the workspace ID shared by your agent.</p>
+</details>
+<details class="console-conversation-handoff">
+<summary>Continue with an external agent</summary>
+<button type="button" class="console-button console-button-secondary" data-workspace-copy-context>Copy context for my agent</button>
+<p class="console-muted">Share this tab's context with your external agent. If you change the selected task, copy a new reference.</p>
+<pre data-workspace-context-reference hidden></pre>
+</details>
