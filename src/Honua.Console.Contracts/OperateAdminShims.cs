@@ -1107,6 +1107,14 @@ public sealed record HonuaAdminServiceSummary
 {
     public string? ServiceName { get; init; }
 
+    public string? FolderId { get; init; }
+
+    public string? FolderName { get; init; }
+
+    public string? PublicName { get; init; }
+
+    public string? Title { get; init; }
+
     public string? Description { get; init; }
 
     public int LayerCount { get; init; }

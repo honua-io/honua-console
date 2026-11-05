@@ -15,7 +15,9 @@ Companions: [identities and mutations](console-redesign-identities.md),
 ## Phase 1 navigation
 
 Every target is an existing route. No new redirect, editor namespace, universal
-search, context tree, empty Actions menu, or replacement object page ships here.
+search, empty Actions menu, or replacement object page ships here. The approved
+GeoServer shell adds a service/layer navigation tree over existing reads. Folder
+grouping activates only when the server reports folder membership.
 The Studio entry may be labelled “Studio”; it must not conceal Processes.
 All destination reads retain server authorization; a visible link is not a grant.
 
@@ -55,7 +57,7 @@ Page names in the tables are under `src/Honua.Console.Shell/Pages/` unless noted
 | Route family | Phase 0–1 disposition | Identity / query / history acceptance |
 |---|---|---|
 | `/maps/{MapId}` | Keep content-map viewer (`MapViewerPage`) | Content ID; authorized anonymous `?token=` reads retained; never an editor |
-| `/maps/new?from=...` | Keep `MapDraftPage` | Authenticated catalog-source hydration and continuation unchanged |
+| `/maps/new?from=...` | Keep `MapDraftPage`; Studio’s capability-gated “Map from catalog” menu opens `/catalog` to choose a real source | Authenticated catalog-source hydration and continuation unchanged |
 | `/maps/published/{**route}` | Keep Web publication endpoint and `PublishedMapDocument` | Studio publication route, independently rendered; no operator chrome/auth substitution |
 | `/embed/maps/{MapId}` | Keep shellless viewer | Frozen path; eligible reads stay 200; bearer only in `#embedToken=`; query token rejection retained |
 | `/catalog/{IdOrSlug}` | Keep detail | Preserve filters, tab, validated public-link token behavior; signed-in read takes precedence |

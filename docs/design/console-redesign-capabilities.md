@@ -45,11 +45,16 @@ list. `DevOpsConsoleProposalSource` can refuse a missing bridge and the aggregat
 can return partial results. Home must show that annotation and may not claim a
 complete work queue when a supplementary source cannot be read.
 
+The approved service/layer tree reads admin service summaries once, then loads
+connection-scoped layers only when a service expands. Filtering covers returned
+service names and loaded layers; visible nodes page in groups of 25. Nullable
+folder metadata is fixture-tested against the pending server projection; no
+folder action or access rule is added.
+
 Connected Home promotes the current approvals, health, findings and working
 entry links, then adds partitioned recent visits. Omit mockup-only serving counts,
 upgrade availability, invitations, charts and jobs totals unless an existing
-projection supplies the exact fact and its time window. Search, global context,
-new object routes, catalog auto-registration, style assignment and server changes
+projection supplies the exact fact and its time window. Global search, new object routes, catalog auto-registration, style assignment and server changes
 are outside phases 0–1. If an implementation row requires a new server endpoint,
 projection, grant or Studio API, record `NEEDS-MAIN` and stop the lane rather than
 substituting seeded data or changing another repository.

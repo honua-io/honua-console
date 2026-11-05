@@ -11,9 +11,21 @@
         : element?.closest(menuSelector)?.dataset.navigationMenu;
     const opener = control => control?.matches(menuSelector) ? control.querySelector(':scope > summary') : control;
     const expanded = control => control?.matches(menuSelector) ? control.open : control?.getAttribute('aria-expanded') === 'true';
-    function setExpanded(control, value) {
-        if (control.matches(menuSelector)) control.open = value;
-        else control.setAttribute('aria-expanded', String(value));
+    function collapseControl(control) {
+        if (control.matches(menuSelector)) control.open = false;
+        else control.setAttribute('aria-expanded', 'false');
+    }
+    function expandControl(control) {
+        if (control.matches(menuSelector)) control.open = true;
+        else control.setAttribute('aria-expanded', 'true');
+    }
+    function copyExpansion(source, target) {
+        if (expanded(source)) expandControl(target);
+        else collapseControl(target);
+    }
+    function toggleControl(control) {
+        if (expanded(control)) collapseControl(control);
+        else expandControl(control);
     }
     function replacementFocusTarget(previous, control) {
         if (focused !== opener(previous) && !previous.contains(focused)) return;
@@ -24,7 +36,7 @@
         const previous = controls.get(key);
         if (!previous || previous === control) return;
         const target = replacementFocusTarget(previous, control);
-        setExpanded(control, expanded(previous));
+        copyExpansion(previous, control);
         if (target) {
             startupFocus = target;
             target.focus({preventScroll: true});
@@ -66,12 +78,12 @@
         });
     });
     function closeControls() {
-        for (const control of controls.values()) setExpanded(control, false);
+        for (const control of controls.values()) collapseControl(control);
     }
     document.addEventListener('click', event => {
         const toggle = event.target.closest(toggleSelector);
         if (toggle) {
-            setExpanded(toggle, !expanded(toggle));
+            toggleControl(toggle);
             return;
         }
         if (!event.target.closest(menuSelector) || event.target.closest('.console-navigation-items a')) closeControls();
@@ -91,7 +103,7 @@
         const target = menu?.open ? menu : controls.get('toggle');
         if (!target || !expanded(target)) return;
         event.preventDefault();
-        setExpanded(target, false);
+        collapseControl(target);
         opener(target)?.focus();
     });
     document.addEventListener('click', event => {

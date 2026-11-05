@@ -1,0 +1,82 @@
+
+<li role="treeitem" tabindex="-1" aria-level="@Level" aria-posinset="@Position" aria-setsize="@SiblingCount"
+    aria-expanded="@(Node.HasChildren ? (IsExpanded ? "true" : "false") : null)"
+    aria-busy="@(Node.Loading ? "true" : null)" aria-selected="@(Node.Href == SelectedPath ? "true" : "false")" aria-label="@Node.Label"
+    data-publication-key="@Node.Key" data-tree-label="@Node.Label" @key="Node.Key">
+    <div class="console-tree-row">
+        @if (Node.HasChildren)
+        {
+            <button type="button" tabindex="-1" data-tree-expand aria-label="@($"{(IsExpanded ? "Collapse" : "Expand")} {Node.Label}")"
+                    @onclick="() => OnToggle.InvokeAsync(Node)"><span class="console-tree-chevron" aria-hidden="true"></span></button>
+        }
+        else
+        {
+            <span class="console-tree-spacer" aria-hidden="true"></span>
+        }
+        <span class="console-tree-kind" data-kind="@Node.Kind" aria-hidden="true"></span>
+        @if (Node.Href is { } href)
+        {
+            <a href="@href" tabindex="-1" data-tree-link>@Node.Label</a>
+        }
+        else
+        {
+            <span class="console-tree-label">@Node.Label</span>
+        }
+        @if (Node.Kind == ConsolePublicationNodeKind.Service)
+        {
+            <span class="console-tree-count" aria-hidden="true">@Node.ReportedCount</span>
+        }
+        @if (Node.GeometryType is { } geometry)
+        {
+            <span class="console-tree-geometry">@geometry</span>
+        }
+    </div>
+    @if (IsExpanded)
+    {
+        @if (Node.Loading)
+        {
+            <p role="status" class="console-tree-message">Loading layers…</p>
+        }
+        @if (Node.ReadStatus is { } status)
+        {
+            <div class="console-tree-message" role="status">
+                <OperateSectionStatusPanel Heading="Service layers" Status="status" Message="Node.ReadMessage" />
+                <button class="console-button console-button-secondary" type="button" data-tree-retry @onclick="() => OnRetry.InvokeAsync(Node)">Retry layers</button>
+            </div>
+        }
+        else if (Node.ReadMessage is { } message)
+        {
+            <p role="status" class="console-tree-message">@message
+                <button type="button" data-tree-retry @onclick="() => OnRetry.InvokeAsync(Node)">Retry connections</button>
+            </p>
+        }
+        @if (Node.ChildrenLoaded && Node.Children.Count == 0 && Node.ReadStatus is null)
+        {
+            <p role="status" class="console-tree-message">No layers returned for this service.</p>
+        }
+        @if (Children.Count > 0)
+        {
+            <ul role="group">
+                @for (var index = 0; index < Children.Count; index++)
+                {
+                    <ConsolePublicationTreeItem Node="Children[index]" Tree="Tree" Level="@(Level + 1)" Position="@(Node.VisibleOffset + index + 1)"
+                        SiblingCount="@Tree.MatchingChildren(Node).Count" SelectedPath="SelectedPath" OnToggle="OnToggle" OnRetry="OnRetry" />
+                }
+            </ul>
+        }
+
+    }
+</li>
+
+@code {
+    [Parameter, EditorRequired] public ConsolePublicationNode Node { get; set; } = default!;
+    [Parameter, EditorRequired] public ConsolePublicationTree Tree { get; set; } = default!;
+    [Parameter] public int Level { get; set; } = 1;
+    [Parameter] public int Position { get; set; } = 1;
+    [Parameter] public int SiblingCount { get; set; } = 1;
+    [Parameter] public string SelectedPath { get; set; } = "";
+    [Parameter] public EventCallback<ConsolePublicationNode> OnToggle { get; set; }
+    [Parameter] public EventCallback<ConsolePublicationNode> OnRetry { get; set; }
+    private bool IsExpanded => Tree.IsExpanded(Node);
+    private IReadOnlyList<ConsolePublicationNode> Children => Tree.VisibleChildren(Node);
+}

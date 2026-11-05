@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Text;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 
@@ -609,7 +608,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
     private static OperateConnectionSummary MapConnection(HonuaAdminConnectionSummary connection)
     {
         var id = connection.ConnectionId == Guid.Empty
-            ? NormalizeToken(Coalesce(connection.Name, connection.Host, "connection"))
+            ? OperateResourceIdentity.NormalizeToken(Coalesce(connection.Name, connection.Host, "connection"))
             : connection.ConnectionId.ToString("D");
         var status = MapConnectionStatus(connection);
         var diagnostic = CreateConnectionDiagnostic(connection, status);
@@ -636,7 +635,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             return null;
         }
 
-        var failureCode = NormalizeToken(Coalesce(connection.HealthStatus, status)).ToUpperInvariant();
+        var failureCode = OperateResourceIdentity.NormalizeToken(Coalesce(connection.HealthStatus, status)).ToUpperInvariant();
         return new OperateConnectionDiagnostic(
             status,
             failureCode,
@@ -667,7 +666,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         var source = string.IsNullOrWhiteSpace(layer.Schema) && string.IsNullOrWhiteSpace(layer.Table)
             ? connection.Name
             : $"{connection.Name} / {Coalesce(layer.Schema, "schema")}.{Coalesce(layer.Table, "table")}";
-        var resourceId = $"{NormalizeToken(connection.Id)}-layer-{layer.LayerId.ToString(CultureInfo.InvariantCulture)}";
+        var resourceId = OperateResourceIdentity.ForPublishedLayer(connection.Id, layer.LayerId);
         var serviceName = Coalesce(layer.ServiceName, "default");
 
         return new OperateResourceEditPreview(
@@ -787,29 +786,6 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
 
     private static string Coalesce(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? string.Empty;
-
-    private static string NormalizeToken(string value)
-    {
-        var builder = new StringBuilder(value.Length);
-        foreach (var character in value)
-        {
-            if (char.IsAsciiLetterOrDigit(character))
-            {
-                builder.Append(char.ToLowerInvariant(character));
-            }
-            else if (character is '-' or '_')
-            {
-                builder.Append(character);
-            }
-            else if (char.IsWhiteSpace(character) || character is ':' or '/' or '.')
-            {
-                builder.Append('-');
-            }
-        }
-
-        var normalized = builder.ToString().Trim('-');
-        return string.IsNullOrWhiteSpace(normalized) ? "item" : normalized;
-    }
 
     private sealed record LayerRow(
         OperateConnectionSummary Connection,
