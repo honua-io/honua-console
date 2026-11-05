@@ -98,7 +98,7 @@ test('configured presentation is visible without changing the identity boundary'
   await page.goto('/studio');
   await expect(page.locator('[data-console-mode]')).toHaveAttribute('data-console-mode', testInfo.project.name);
   await expect(page.locator('[data-focused-preview]')).toContainText('Preview');
+  await page.locator('[data-navigation-menu="Operate"] > summary').click();
   await expect(page.locator('nav[aria-label="Primary"] a[href="/inbox"]')).toBeVisible();
-  // Share stays out of the navigation until the server advertises a persistent catalog.
-  await expect(page.locator('nav[aria-label="All work areas"] a[href="/share/public"]')).toHaveCount(0);
+  await expect(page.locator('nav[aria-label="Primary"] a[href="/share/public"]')).toHaveCount(0);
 });

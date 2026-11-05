@@ -1,0 +1,30 @@
+<header class="console-topbar">
+    <a class="console-topbar-brand" href="/"><span>H</span><strong>Honua Console</strong></a>
+    <button type="button" class="console-menu-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="console-primary" data-navigation-toggle>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+    </button>
+    <nav id="console-primary" class="console-topnav" aria-label="Primary">
+        <NavLink href="/" Match="NavLinkMatch.All">Home</NavLink>
+        @foreach (var group in Groups)
+        {
+            <details class="console-navigation-menu" data-navigation-menu="@group.Name">
+                <summary>@group.Name@if (group.Name == "Operate") { <ConsoleApprovalCount /> }</summary>
+                <div class="console-navigation-items" role="group" aria-label="@group.Name">
+                    @foreach (var entry in group.Destinations)
+                    {
+                        <NavLink href="@entry.Path" Match="NavLinkMatch.All">
+                            @entry.Label
+                            @if (entry.Path is not ("/studio" or "/studio/processes") && !ConsolePresentation.IsFocusedRoute(entry.Path)) { <small>Preview</small> }
+                        </NavLink>
+                    }
+                </div>
+            </details>
+        }
+    </nav>
+    <a class="console-environment-link" href="/environments" data-workspace-header-target>Choose an environment</a>
+    <a class="console-help-link" href="/support">Help</a>
+</header>
+
+@code {
+    [Parameter] public IReadOnlyList<ConsoleNavigationGroup> Groups { get; set; } = [];
+}

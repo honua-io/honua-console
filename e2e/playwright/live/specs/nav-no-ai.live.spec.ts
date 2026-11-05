@@ -1,29 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-// Live spec: every operate section in the sidebar nav is reachable and functional WITHOUT
-// depending on an AI provider. This enforces the product intent — forms/APIs are the
-// FOUNDATION, AI is an ACCELERATOR — and catches any regression where an operate surface
-// fails to render its missing-binding or capability-gate state and falls back to an AI
-// prompt or a blank page instead.
-//
-// Each test navigates directly to an operate section route and asserts:
-//   1. The page returns 200 (not 404/not-found).
-//   2. The operate sections sidebar nav is present.
-//   3. The page renders a primary heading — proving it is a real, navigable surface.
-//   4. No AI-provider error surface is shown as the PRIMARY content. An AI entry in the
-//      deep link remains reachable; an AI-only wall that blocks manual pages is not.
-//
-// Capability-gated sections (sync, alerts/rules, releases, temporal) render their
-// ConsoleCapabilityGate "unsupported" surface rather than live data — that is correct
-// first-class behaviour, not a failure. These tests confirm the gate surface itself is
-// reachable without an AI provider.
-//
-// This spec uses @playwright/test directly (no admin fixture) because it asserts nav
-// structure and page rendering, not live server state mutations. It runs under the live
-// config (playwright.live.config.ts) which boots the Console bound to a live honua-server,
-// so server-owned surfaces show real missing-binding states rather than demo data.
 
-// Manual operate routes remain reachable as deep links, including preview authoring surfaces.
 const ungatedSections = [
   { path: '/operate/data', heading: 'Data & Layers' },
   { path: '/operate/connections', heading: 'Connections' },
@@ -41,9 +18,6 @@ const ungatedSections = [
   { path: '/operate/deploy', heading: /Deploy/i },
 ] as const;
 
-// Capability-gated sections — visible when the deployment advertises the capability.
-// Their pages still resolve (not 404) even without the capability; they render a
-// ConsoleCapabilityGate surface with a heading that describes what is unavailable.
 const gatedSections = [
   { path: '/operate/sync', heading: /sync/i },
   { path: '/operate/alerts/rules', heading: /alert/i },
@@ -51,15 +25,11 @@ const gatedSections = [
   { path: '/operate/releases', heading: /release/i },
 ] as const;
 
-// Since the unified workspace shell (#432) the operate sections sit inside the "More tools"
-// disclosure. Open it the way an operator does, exactly as the backend-free area-routes and
-// operator specs do, then assert the sidebar itself. Re-click inside the retry: a click that
-// lands before the Blazor circuit re-renders the layout can be undone by that render.
-async function openOperateSections(page: import('@playwright/test').Page) {
-  const nav = page.locator('nav[aria-label="Operate sections"]');
+async function openOperateMenu(page: import('@playwright/test').Page) {
+  const nav = page.locator('[role="group"][aria-label="Operate"]');
   await expect(async () => {
     if (!(await nav.isVisible())) {
-      await page.locator('.console-more-tools > summary').click();
+      await page.locator('[data-navigation-menu="Operate"] > summary').click();
     }
     await expect(nav).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 15_000 });
@@ -73,25 +43,15 @@ test.describe('Operate nav · no AI provider required (live)', () => {
       expect(response?.status(), `${section.path} should return 200`).toBe(200);
       await expect(page).not.toHaveURL(/\/not-found/);
 
-      // The operate sections sidebar appears on every /operate/* route.
-      await openOperateSections(page);
+      await openOperateMenu(page);
 
-      // A primary heading is visible — the page is a navigable surface, not a blank stub.
       await expect(
         page.getByRole('heading', { name: section.heading }).first(),
       ).toBeVisible();
 
-      // The page must NOT show an AI-only wall as its primary content. An AI entry in the
-      // deep links may exist; this guard catches any route that mistakenly
-      // renders nothing but a "connect an AI provider" prompt as its page body.
       const main = page.locator('main.console-main');
       await expect(main).toBeVisible();
-      // The main content area should contain either real data, a missing-binding state, or
-      // a loading indicator — not ONLY an AI provider prompt. Check that the page body
-      // does not consist solely of an omni-prompt / AI intake.
       const hasNonAiContent = await main.evaluate((el) => {
-        // The omni-prompt console (Ask Honua AI) uses [data-omni-prompt]. If that is the
-        // ONLY content element, the surface is AI-gated. Real operate pages never use it.
         const hasOmniOnly = el.querySelectorAll('[data-omni-prompt]').length > 0 &&
           el.querySelectorAll('.console-page, .console-panel, .console-state').length === 0;
         return !hasOmniOnly;
@@ -109,8 +69,6 @@ test.describe('Operate nav · no AI provider required (live)', () => {
       expect(response?.status(), `${section.path} should return 200`).toBe(200);
       await expect(page).not.toHaveURL(/\/not-found/);
 
-      // Capability-gated pages render either the gate surface (no capability) or the live
-      // surface (capability advertised). Either way the page must show a heading.
       await expect(
         page.getByRole('heading', { name: section.heading }).first(),
       ).toBeVisible();
@@ -119,33 +77,29 @@ test.describe('Operate nav · no AI provider required (live)', () => {
 
   test('focused operate navigation advertises recovery and inspection, not authoring or AI', async ({ page }) => {
     await page.goto('/operate', { waitUntil: 'domcontentloaded' });
-    const nav = await openOperateSections(page);
+    const nav = await openOperateMenu(page);
     await expect(nav.locator('a[href]')).toHaveCount(9);
     expect(await nav.locator('a[href]').evaluateAll(links => links.map(link => link.getAttribute('href'))))
       .toEqual([
-        '/operate/health', '/operate/data', '/operate/connections', '/operate/services',
+        '/operate', '/inbox', '/operate/health', '/operate/copilot',
         '/operate/geoprocessing', '/operate/observability', '/operate/metrics',
         '/operate/deploy', '/operate/releases',
       ]);
     for (const path of ['/operate/ai', '/operate/publishing', '/operate/access', '/operate/settings']) {
       await expect(nav.locator(`a[href="${path}"]`)).toHaveCount(0);
     }
-    // Preview publishing/access/settings routes remain covered by the direct-navigation tests above.
   });
 
-  test('operate sidebar shows non-AI sections when AI provider is absent', async ({ page }) => {
-    // Navigate to a core manual surface — Data & Layers.
+  test('operate menu shows non-AI sections when AI provider is absent', async ({ page }) => {
     await page.goto('/operate/data', { waitUntil: 'domcontentloaded' });
 
-    const nav = await openOperateSections(page);
+    const nav = await openOperateMenu(page);
 
-    // The core manual surfaces must be present in the sidebar.
-    const manualSurfaces = ['Health', 'Data & Layers', 'Connections', 'Services', 'Geoprocessing', 'Observability', 'Metrics', 'Deploy', 'Releases'];
+    const manualSurfaces = ['Dashboard', 'Approvals', 'Health', 'Findings', 'Geoprocessing', 'Observability', 'Metrics', 'Deploy', 'Releases'];
     for (const label of manualSurfaces) {
-      await expect(nav.getByText(label), `sidebar must show "${label}"`).toBeVisible();
+      await expect(nav.getByText(label), `menu must show "${label}"`).toBeVisible();
     }
 
-    // The page body renders the Data & Layers surface — no AI provider required.
     await expect(page.getByRole('heading', { name: 'Data & Layers' }).first()).toBeVisible();
   });
 });

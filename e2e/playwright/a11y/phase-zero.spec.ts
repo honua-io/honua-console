@@ -104,7 +104,7 @@ test('forced colors retain an outline and reduced motion stops shell animation',
   });
   expect(style.outline).toBe('solid');
   expect(parseFloat(style.outlineWidth)).toBeGreaterThanOrEqual(2);
-  for (const selector of ['.console-shell', '.console-collapse-button', '.console-collapse-button svg']) {
+  for (const selector of ['.console-shell', '.console-menu-toggle', '.console-menu-toggle svg']) {
     const duration = await page.locator(selector).first().evaluate(element => getComputedStyle(element).transitionDuration);
     expect(duration, selector).toBe('0s');
   }

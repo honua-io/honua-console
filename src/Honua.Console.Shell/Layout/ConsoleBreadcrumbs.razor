@@ -1,0 +1,59 @@
+@implements IDisposable
+@inject NavigationManager Navigation
+
+<nav class="console-contextbar" aria-label="Breadcrumb">
+    <ol>
+        <li><a href="/">Home</a></li>
+        @if (ParentArea is { } area)
+        {
+            <li><a href="@area.Path">@area.Name</a></li>
+        }
+        <li aria-current="page">
+            <details class="console-navigation-menu" data-navigation-menu="Context">
+                <summary>@Context.Label</summary>
+                <div class="console-navigation-items" role="group" aria-label="Current context">
+                    @foreach (var entry in ContextActions)
+                    {
+                        <a href="@entry.Path">@entry.Label</a>
+                    }
+                    @if (StudioEnabled && Context.Kind is ConsoleNavigationContextKind.Service or ConsoleNavigationContextKind.Layer)
+                    {
+                        <a href="@ConsoleNavigation.Studio.Path">Open in Studio</a>
+                    }
+                </div>
+            </details>
+        </li>
+    </ol>
+</nav>
+
+@code {
+    [Parameter] public IReadOnlyList<ConsoleNavigationGroup> Groups { get; set; } = [];
+    private bool StudioEnabled => Groups.Any(group => group.Name == "Studio");
+    private string RelativePath => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
+    private ConsoleNavigationContext Context => ConsoleNavigation.ContextForPath(RelativePath);
+    private ConsoleWorkflowArea? ParentArea => ConsoleRouteMap.FindAreaForPath(RelativePath) is { } area
+        && area.Path.Trim('/') != RelativePath && area.Name != Context.Label ? area : null;
+
+    private IEnumerable<ConsoleNavigationDestination> ContextActions => Context.Kind switch
+    {
+        ConsoleNavigationContextKind.Service => [new(Context.Path, "Edit service"),
+            ConsoleNavigation.Data with { Label = "Layer Preview" }, ConsoleNavigation.AddData],
+        ConsoleNavigationContextKind.Layer => [new(Context.Path, "Layer home"),
+            new(Context.Path + "/style", "Edit style"), ConsoleNavigation.Data with { Label = "Layer Preview" }],
+        _ => PageActions()
+    };
+
+    private IEnumerable<ConsoleNavigationDestination> PageActions()
+    {
+        if (RelativePath.Length == 0)
+            return [ConsoleNavigation.Data with { Label = "Layer Preview" }, ConsoleNavigation.AddData, ConsoleNavigation.Health];
+        var group = Groups.FirstOrDefault(group => group.Destinations.Any(entry => entry.Path == Context.Path));
+        if (group is null) return [new("/", "Welcome")];
+        var actions = group.Destinations.Where(entry => entry.Path != Context.Path).ToArray();
+        return actions.Length > 0 ? actions : [new("/", "Welcome")];
+    }
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}
