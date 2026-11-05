@@ -87,11 +87,19 @@ test('outside pointer input prevents focus theft when the tree DOM is replaced',
   await expect(page.locator('body')).toBeFocused();
 });
 
-test('Alt+Left retains browser history behavior while the tree has focus',async({page})=>{
+test('modified arrows remain unhandled and browser Back remains available',async({page})=>{
   await page.goto('/version.json');
   await openFixture(page);
   await page.getByRole('treeitem',{name:'Alpha',exact:true}).focus();
+  const prevented=page.evaluate(()=>new Promise<boolean>(resolve=>{
+    window.addEventListener('keydown',event=>{
+      if(event.altKey && event.key==='ArrowLeft') resolve(event.defaultPrevented);
+    });
+  }));
   await page.keyboard.press('Alt+ArrowLeft');
+  expect(await prevented).toBe(false);
+  await expect(page.getByRole('treeitem',{name:'Alpha',exact:true})).toBeFocused();
+  await page.goBack();
   await expect(page).toHaveURL(/\/version.json$/);
 });
 

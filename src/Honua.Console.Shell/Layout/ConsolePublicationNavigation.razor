@@ -119,7 +119,7 @@
         var operatorId = profile?.Account.AccountId;
         var authority = (profile?.Id, profile?.ServerBaseUri, operatorId);
         _environmentLabel = string.IsNullOrWhiteSpace(profile?.DisplayName) ? "Services" : profile.DisplayName;
-        if (_authority != authority || operatorId is null)
+        if (_authority != authority)
         {
             _authority = authority;
             await ReloadAsync();

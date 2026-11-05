@@ -51,6 +51,24 @@ public sealed class ConsolePublicationNavigationRenderTests
     }
 
     [Fact]
+    public void OrdinaryNavigationRetainsLoadedBranchesWithinTheSameAuthority()
+    {
+        using var context = Context();
+        var source = new NavigationSource();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
+        tree.Find("[data-publication-key='service:service-000'] [data-tree-expand]").Click();
+        tree.WaitForAssertion(() => Assert.Single(tree.FindAll("[aria-label='Bridges']")));
+        context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/operate/services/service-000/settings");
+        tree.WaitForAssertion(() => Assert.Equal("true", tree.Find("[aria-label='service-000']").GetAttribute("aria-selected")));
+        Assert.Single(tree.FindAll("[aria-label='Bridges']"));
+        Assert.Equal(1, source.ServiceReads);
+        Assert.Equal(1, source.ChildReads);
+    }
+
+    [Fact]
     public void RefreshClearsTheTreeSnapshotAndItsConnectionCache()
     {
         using var context = Context();
