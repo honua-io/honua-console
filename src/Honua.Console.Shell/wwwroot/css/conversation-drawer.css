@@ -36,9 +36,6 @@ body.console-conversation-open .console-shell { margin-inline-end: var(--drawer-
     body > #console-conversation-drawer[open] { inset: 0 0 0 auto; width: min(100vw, 26rem); max-height: 100dvh; z-index: var(--z-dialog); }
     .console-conversation-backdrop { z-index: calc(var(--z-dialog) - 1); }
 }
-@media (forced-colors: active) {
-    .console-conversation-toggle:focus-visible { outline: 2px solid Highlight; }
-}
 
 body.console-conversation-open .console-topbar { flex-wrap: wrap; }
 body.console-conversation-open .console-topnav { flex-wrap: wrap; }

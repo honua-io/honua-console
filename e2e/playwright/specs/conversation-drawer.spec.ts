@@ -200,3 +200,16 @@ for(const width of [1440,390]) test(`actual Blazor query navigation preserves dr
   await page.evaluate(()=>(window as any).Blazor.navigateTo('/studio?draft=3'));
   await expect(page).toHaveURL(/\/studio\?draft=3$/);await expect(drawer(page)).toHaveAttribute('open','');
 });
+
+test('persistent drawer controls retain visible keyboard outlines in forced colors',async({page})=>{
+  await page.emulateMedia({forcedColors:'active'});await openFixture(page);await toggle(page).click();
+  await page.keyboard.press('Tab');
+  for(const selector of ['[data-workspace-prompt]','[data-workspace-deploy-target]','[data-conversation-close]']) {
+    const control=page.locator(selector);await control.focus();
+    const outline=await control.evaluate(element=>{
+      const style=getComputedStyle(element);
+      return {visible:element.matches(':focus-visible'),style:style.outlineStyle,width:parseFloat(style.outlineWidth)};
+    });
+    expect(outline.visible).toBe(true);expect(outline.style).not.toBe('none');expect(outline.width).toBeGreaterThanOrEqual(2);
+  }
+});
