@@ -1,0 +1,154 @@
+@using Honua.Console.Contracts
+@using Microsoft.Extensions.DependencyInjection
+@inject IServiceProvider Services
+
+<section class="console-section" data-discovery-metadata>
+    <div class="console-page-heading">
+        <h2>@Heading</h2>
+        <p>@ScopeMessage</p>
+    </div>
+    @if (_loading)
+    {
+        <HonuaState Kind="loading" Title="Loading metadata" Message="Reading the saved discovery metadata." HeadingLevel="3" />
+    }
+    else if (_loaded is null)
+    {
+        <HonuaState Kind="unavailable" Title="@(_issue?.State ?? "Missing binding")"
+                    Message="@(_issue?.Detail ?? "Configure a Honua server connection to read and edit discovery metadata.")" HeadingLevel="3" />
+    }
+    else
+    {
+        <article class="console-panel">
+            <p data-discovery-resource>Metadata owner: @_loaded.EntityId</p>
+            <div data-discovery-impact>
+                <h3>Affected publications</h3>
+                <p>Service / local publication identifier</p>
+                @if (_loaded.AffectedPublications.Count == 0)
+                {
+                    <p>This metadata has no publications yet.</p>
+                }
+                else
+                {
+                    <ul>
+                        @foreach (var publication in _loaded.AffectedPublications)
+                        {
+                            <li>@publication.ServiceName / @publication.Identifier <small>(@publication.PublicationId)</small></li>
+                        }
+                    </ul>
+                }
+            </div>
+            <fieldset disabled="@_saving" style="border:0; padding:0; margin:0; min-width:0">
+                <legend class="console-visually-hidden">@Heading</legend>
+                <label class="console-field">
+                    <span>Title</span>
+                    <input class="console-input" maxlength="512" @bind="_title" data-discovery-title />
+                </label>
+                <label class="console-field">
+                    <span>Description</span>
+                    <textarea class="console-input" rows="4" maxlength="16384" @bind="_description" data-discovery-description></textarea>
+                </label>
+                <label class="console-field">
+                    <span>Keywords</span>
+                    <textarea class="console-input" rows="3" @bind="_keywords" data-discovery-keywords></textarea>
+                    <small>One keyword per line. Use up to 100 keywords, each at most 256 characters.</small>
+                </label>
+                <div class="console-action-row">
+                    <button class="console-button" type="button" @onclick="SaveAsync" data-discovery-save>
+                        @(_saving ? "Saving…" : "Save metadata")
+                    </button>
+                    <button class="console-button console-button-secondary" type="button" @onclick="ReloadAsync" data-discovery-reload>
+                        Reload saved values
+                    </button>
+                </div>
+            </fieldset>
+            @if (_issue is not null)
+            {
+                <HonuaState Kind="denied" Title="@_issue.State" Message="@_issue.Detail" HeadingLevel="3" />
+            }
+            else if (_saved)
+            {
+                <p role="status" data-discovery-saved>Metadata saved.</p>
+            }
+        </article>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public required DiscoveryMetadataAddress Address { get; set; }
+    private DiscoveryMetadataAddress? _loadedAddress;
+    private DiscoveryMetadataResponse? _loaded;
+    private HonuaAdminEndpointIssue? _issue;
+    private string _title = string.Empty;
+    private string _description = string.Empty;
+    private string _keywords = string.Empty;
+    private bool _loading;
+    private bool _saving;
+    private bool _saved;
+    private long _viewRevision;
+
+    private IHonuaDiscoveryMetadataClient? Client => Services.GetService<IHonuaDiscoveryMetadataClient>()
+        ?? Services.GetService<IHonuaAdminOperateClient>() as IHonuaDiscoveryMetadataClient;
+    private string Heading => Address.Kind == DiscoveryMetadataTargetKind.Resource ? "Resource metadata" : "Service metadata";
+    private string ScopeMessage => Address.Kind == DiscoveryMetadataTargetKind.Resource
+        ? "This edits shared resource metadata used by the publications below. Existing publication overrides remain in effect."
+        : "This edits the service discovery metadata for its published endpoints.";
+
+    protected override Task OnParametersSetAsync() => _loadedAddress == Address ? Task.CompletedTask : ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        var address = Address;
+        var revision = ++_viewRevision;
+        _loadedAddress = address;
+        _loaded = null;
+        _issue = null;
+        _saved = false;
+        _loading = true;
+        if (Client is { } client)
+        {
+            var result = await client.ReadDiscoveryAsync(address);
+            if (revision != _viewRevision || Address != address) return;
+            _loaded = result.Data;
+            _issue = result.Issue;
+            PopulateFields();
+        }
+        if (revision == _viewRevision) _loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving || _loaded is null || Client is not { } client) return;
+        var address = Address;
+        var revision = _viewRevision;
+        _saving = true;
+        _saved = false;
+        try
+        {
+            var result = await client.UpdateDiscoveryAsync(address, new DiscoveryMetadataUpdateRequest
+            {
+                Etag = _loaded.Etag, Title = EditedText(_title, _loaded.Title), Description = EditedText(_description, _loaded.Description),
+                Keywords = EditedKeywords(_keywords, _loaded.Keywords)
+            });
+            if (revision != _viewRevision || Address != address) return;
+            _issue = result.Issue;
+            if (result.Data is null) return;
+            _loaded = result.Data;
+            PopulateFields();
+            _saved = true;
+        }
+        finally { _saving = false; }
+    }
+
+    private static string? EditedText(string current, string? saved) => current == (saved ?? string.Empty)
+        ? saved : string.IsNullOrWhiteSpace(current) ? null : current;
+
+    private static string[] EditedKeywords(string current, IReadOnlyList<string> saved) => current == string.Join('\n', saved)
+        ? saved.ToArray() : current.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+    private void PopulateFields()
+    {
+        _title = _loaded?.Title ?? string.Empty;
+        _description = _loaded?.Description ?? string.Empty;
+        _keywords = string.Join('\n', _loaded?.Keywords ?? []);
+    }
+}

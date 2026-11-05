@@ -1,0 +1,13 @@
+[data-discovery-metadata] {
+    min-width: 0;
+}
+
+[data-discovery-resource],
+[data-discovery-impact] li {
+    overflow-wrap: anywhere;
+}
+
+[data-discovery-metadata] fieldset {
+    display: grid;
+    gap: var(--space-4);
+}
