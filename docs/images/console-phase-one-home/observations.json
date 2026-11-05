@@ -1,0 +1,302 @@
+[
+  {
+    "name": "home-empty-recent",
+    "width": 1440,
+    "path": "/",
+    "headings": [
+      "Welcome"
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": false,
+    "recent": [],
+    "freshness": "Approvals live · Last health snapshot 2026-11-05 10:56:26 UTC · Findings read 10:56:26 UTC",
+    "violations": []
+  },
+  {
+    "name": "data",
+    "width": 1440,
+    "path": "/operate/data",
+    "headings": [
+      "Data & Layers"
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": false,
+    "recent": [],
+    "violations": []
+  },
+  {
+    "name": "service",
+    "width": 1440,
+    "path": "/operate/services/customer-b461abfc61384ffe/settings",
+    "headings": [
+      "Honua service 'customer-b461abfc61384ffe'"
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": false,
+    "recent": [],
+    "violations": []
+  },
+  {
+    "name": "home-recent",
+    "width": 1440,
+    "path": "/",
+    "headings": [
+      "Welcome"
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": false,
+    "recent": [
+      {
+        "path": "/operate/services/customer-b461abfc61384ffe/settings",
+        "label": "customer-b461abfc61384ffe"
+      },
+      {
+        "path": "/operate/data",
+        "label": "Data & Layers"
+      }
+    ],
+    "freshness": "Approvals live · Last health snapshot 2026-11-05 10:56:30 UTC · Findings read 10:56:30 UTC",
+    "violations": []
+  },
+  {
+    "name": "home-conversation",
+    "width": 1440,
+    "path": "/",
+    "headings": [
+      "Welcome"
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": true,
+    "recent": [
+      {
+        "path": "/operate/services/customer-b461abfc61384ffe/settings",
+        "label": "customer-b461abfc61384ffe"
+      },
+      {
+        "path": "/operate/data",
+        "label": "Data & Layers"
+      }
+    ],
+    "freshness": "Approvals live · Last health snapshot 2026-11-05 10:56:30 UTC · Findings read 10:56:30 UTC",
+    "violations": []
+  },
+  {
+    "name": "home-setup",
+    "width": 1440,
+    "path": "/",
+    "headings": [
+      "Welcome"
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": false,
+    "recent": [
+      {
+        "path": "/operate/services/customer-b461abfc61384ffe/settings",
+        "label": "customer-b461abfc61384ffe"
+      },
+      {
+        "path": "/operate/data",
+        "label": "Data & Layers"
+      }
+    ],
+    "freshness": "Approvals live · Last health snapshot 2026-11-05 10:56:30 UTC · Findings read 10:56:30 UTC",
+    "violations": []
+  },
+  {
+    "name": "health",
+    "width": 1440,
+    "path": "/operate/health",
+    "headings": [
+      "Ops Health"
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": false,
+    "recent": [],
+    "violations": []
+  },
+  {
+    "name": "studio",
+    "width": 1440,
+    "path": "/studio",
+    "headings": [
+      "Studio"
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": true,
+    "recent": [],
+    "violations": []
+  },
+  {
+    "name": "first-run",
+    "width": 1440,
+    "path": "/",
+    "headings": [
+      "Start with your data. Keep the conversation."
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": false,
+    "recent": [],
+    "partial": "Showing proposals from the reachable sources; the Server proposal source is unavailable.",
+    "freshness": "Approvals: manual refresh",
+    "violations": []
+  },
+  {
+    "name": "home-empty-recent",
+    "width": 390,
+    "path": "/",
+    "headings": [
+      "Welcome"
+    ],
+    "documentWidth": 390,
+    "viewport": 390,
+    "open": false,
+    "recent": [],
+    "freshness": "Approvals live · Last health snapshot 2026-11-05 10:56:42 UTC · Findings read 10:56:42 UTC",
+    "violations": []
+  },
+  {
+    "name": "data",
+    "width": 390,
+    "path": "/operate/data",
+    "headings": [
+      "Data & Layers"
+    ],
+    "documentWidth": 390,
+    "viewport": 390,
+    "open": false,
+    "recent": [],
+    "violations": []
+  },
+  {
+    "name": "service",
+    "width": 390,
+    "path": "/operate/services/customer-b461abfc61384ffe/settings",
+    "headings": [
+      "Honua service 'customer-b461abfc61384ffe'"
+    ],
+    "documentWidth": 390,
+    "viewport": 390,
+    "open": false,
+    "recent": [],
+    "violations": []
+  },
+  {
+    "name": "home-recent",
+    "width": 390,
+    "path": "/",
+    "headings": [
+      "Welcome"
+    ],
+    "documentWidth": 390,
+    "viewport": 390,
+    "open": false,
+    "recent": [
+      {
+        "path": "/operate/services/customer-b461abfc61384ffe/settings",
+        "label": "customer-b461abfc61384ffe"
+      },
+      {
+        "path": "/operate/data",
+        "label": "Data & Layers"
+      }
+    ],
+    "freshness": "Approvals live · Last health snapshot 2026-11-05 10:56:47 UTC · Findings read 10:56:47 UTC",
+    "violations": []
+  },
+  {
+    "name": "home-conversation",
+    "width": 390,
+    "path": "/",
+    "headings": [
+      "Welcome"
+    ],
+    "documentWidth": 390,
+    "viewport": 390,
+    "open": true,
+    "recent": [
+      {
+        "path": "/operate/services/customer-b461abfc61384ffe/settings",
+        "label": "customer-b461abfc61384ffe"
+      },
+      {
+        "path": "/operate/data",
+        "label": "Data & Layers"
+      }
+    ],
+    "freshness": "Approvals live · Last health snapshot 2026-11-05 10:56:47 UTC · Findings read 10:56:47 UTC",
+    "violations": []
+  },
+  {
+    "name": "home-setup",
+    "width": 390,
+    "path": "/",
+    "headings": [
+      "Welcome"
+    ],
+    "documentWidth": 390,
+    "viewport": 390,
+    "open": false,
+    "recent": [
+      {
+        "path": "/operate/services/customer-b461abfc61384ffe/settings",
+        "label": "customer-b461abfc61384ffe"
+      },
+      {
+        "path": "/operate/data",
+        "label": "Data & Layers"
+      }
+    ],
+    "freshness": "Approvals live · Last health snapshot 2026-11-05 10:56:47 UTC · Findings read 10:56:47 UTC",
+    "violations": []
+  },
+  {
+    "name": "health",
+    "width": 390,
+    "path": "/operate/health",
+    "headings": [
+      "Ops Health"
+    ],
+    "documentWidth": 390,
+    "viewport": 390,
+    "open": false,
+    "recent": [],
+    "violations": []
+  },
+  {
+    "name": "studio",
+    "width": 390,
+    "path": "/studio",
+    "headings": [
+      "Studio"
+    ],
+    "documentWidth": 390,
+    "viewport": 390,
+    "open": true,
+    "recent": [],
+    "violations": []
+  },
+  {
+    "name": "first-run",
+    "width": 390,
+    "path": "/",
+    "headings": [
+      "Start with your data. Keep the conversation."
+    ],
+    "documentWidth": 390,
+    "viewport": 390,
+    "open": false,
+    "recent": [],
+    "partial": "Showing proposals from the reachable sources; the Server proposal source is unavailable.",
+    "freshness": "Approvals: manual refresh",
+    "violations": []
+  }
+]
