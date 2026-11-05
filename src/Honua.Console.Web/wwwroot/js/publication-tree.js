@@ -230,16 +230,17 @@
         if (!row || event.target !== row || !row.closest(treeSelector)) return;
         handleRowKey(event, row);
     });
+    function focusRetryOwner(button) {
+        const owner = button.closest('[data-tree-owner]')?.dataset.treeOwner;
+        focusRow(rows().find(row => key(row) === owner));
+    }
     document.addEventListener('click', event => {
         if (event.target.closest('[data-tree-toggle]')) { if (isOpen()) closeOverlay(); else openOverlay(); return; }
         if (event.target.closest('[data-tree-close], [data-tree-backdrop]')) { closeOverlay(); return; }
         const more = event.target.closest('[data-tree-more]');
         if (more) pendingPage = {parent: more.dataset.treeMore, keys: new Set(rows().map(key))};
         const retry = event.target.closest('[data-tree-retry]');
-        if (retry) {
-            const owner = retry.closest('[data-tree-owner]')?.dataset.treeOwner;
-            focusRow(rows().find(row => key(row) === owner));
-        }
+        if (retry) focusRetryOwner(retry);
         const row = event.target.closest(rowSelector);
         if (row?.closest(treeSelector)) {
             focusedKey = key(row);
