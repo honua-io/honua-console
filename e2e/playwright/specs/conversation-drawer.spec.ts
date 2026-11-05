@@ -107,12 +107,12 @@ async function installPreferences(page:Page) {
     const state:any={pending:[],authority:'original'};
     state.session=(environmentId:string)=>({authenticated:true,principalId:'opaque-operator',environmentId,
       expiresAt:new Date(Date.now()+60000).toISOString(),releaseId:'release',sourcePathBase:''});
-    state.workspace={follow:true,session:{expiresAt:'initial'},authorityKey:()=>state.authority,
+    state.workspace={follow:true,session:state.session('original-environment'),authorityKey:()=>state.authority,
       api:()=>new Promise((resolve,reject)=>state.pending.push({resolve,reject}))};
     localStorage.setItem('honua.shell.preferences.v1:opaque-operator:original-environment',JSON.stringify({authority:JSON.stringify(['release','']),follow:false}));
     state.sync=mountWorkspacePreferences(state.workspace,document.querySelector('[data-agent-workspace]'),new AbortController().signal);
     (window as any).preferenceTest=state;
-    state.sync();state.pending[0].resolve(state.session('original-environment'));
+    state.sync();
   });
   await expect(page.locator('[data-workspace-follow]')).not.toBeChecked();
   await expect(page.locator('[data-workspace-follow]')).toBeEnabled();
@@ -130,9 +130,9 @@ test('pending and superseded preference validation never turns the operator foll
     window.dispatchEvent(new CustomEvent('honua-console-navigation'));
   });
   await expectFollowOff(page);await expect(page.locator('[data-workspace-follow]')).toBeDisabled();
-  await page.evaluate(()=>{const state=(window as any).preferenceTest;state.pending[2].resolve(state.session('new-environment'));});
+  await page.evaluate(()=>{const state=(window as any).preferenceTest;state.pending[1].resolve(state.session('new-environment'));});
   await expect(page.locator('[data-workspace-follow]')).toBeEnabled();
-  await page.evaluate(()=>{const state=(window as any).preferenceTest;state.pending[1].resolve(state.session('old-environment'));});
+  await page.evaluate(()=>{const state=(window as any).preferenceTest;state.pending[0].resolve(state.session('old-environment'));});
   await expectFollowOff(page);
 });
 
@@ -140,11 +140,11 @@ test('failed and invalid same-authority validation keep follow off',async({page}
   await openFixture(page);await installPreferences(page);
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('honua-console-navigation')));
   await expectFollowOff(page);
-  await page.evaluate(()=>(window as any).preferenceTest.pending[1].reject(new Error('Unavailable')));
+  await page.evaluate(()=>(window as any).preferenceTest.pending[0].reject(new Error('Unavailable')));
   await expect(page.locator('[data-workspace-follow]')).toBeDisabled();await expectFollowOff(page);
   await page.evaluate(()=>{
     window.dispatchEvent(new CustomEvent('honua-console-navigation'));
-    const state=(window as any).preferenceTest;state.pending[2].resolve({...state.session('original-environment'),authenticated:false});
+    const state=(window as any).preferenceTest;state.pending[1].resolve({...state.session('original-environment'),authenticated:false});
   });
   await expectFollowOff(page);
 });
@@ -154,7 +154,7 @@ test('same-URL authority refresh changes only the validated preference partition
   await installPreferences(page);
   await page.locator('[data-console-location]').evaluate(marker=>marker.setAttribute('data-console-authority-revision','1'));
   await expect(page.locator('[data-workspace-follow]')).toBeDisabled();await expectFollowOff(page);
-  await page.evaluate(()=>{const state=(window as any).preferenceTest;state.pending[1].resolve(state.session('new-environment'));});
+  await page.evaluate(()=>{const state=(window as any).preferenceTest;state.pending[0].resolve(state.session('new-environment'));});
   await expect(page.locator('[data-workspace-follow]')).toBeChecked();
   await expect(drawer(page)).not.toHaveAttribute('open','');
   await toggle(page).click();await page.locator('[data-workspace-follow]').uncheck();
@@ -162,16 +162,31 @@ test('same-URL authority refresh changes only the validated preference partition
   expect(record.follow).toBe(false);
 });
 
-test('same-authority lease renewal revalidates without changing follow while pending',async({page})=>{
-  await openFixture(page);await installPreferences(page);
+test('a validated same-authority lease renews preferences without redundant session reads',async({page})=>{
+  await page.clock.install();await openFixture(page);await installPreferences(page);
+  await page.clock.fastForward(61000);
   await page.evaluate(()=>{
     const state=(window as any).preferenceTest;
-    state.workspace.session.expiresAt=new Date(Date.now()+120000).toISOString();state.sync();
+    state.workspace.session=state.session('original-environment');state.sync();
   });
-  await expectFollowOff(page);await expect(page.locator('[data-workspace-follow]')).toBeDisabled();
-  expect(await page.evaluate(()=>(window as any).preferenceTest.pending.length)).toBe(2);
-  await page.evaluate(()=>{const state=(window as any).preferenceTest;state.pending[1].resolve(state.session('original-environment'));});
   await expect(page.locator('[data-workspace-follow]')).toBeEnabled();await expectFollowOff(page);
+  expect(await page.evaluate(()=>(window as any).preferenceTest.pending.length)).toBe(0);
+  await toggle(page).click();await page.locator('[data-workspace-follow]').check();
+  await expect(page.locator('[data-workspace-follow]')).toBeEnabled();
+  const record=await page.evaluate(()=>JSON.parse(localStorage.getItem('honua.shell.preferences.v1:opaque-operator:original-environment')!));
+  expect(record.follow).toBe(true);
+});
+
+test('a pending validation cannot replace a newly adopted workspace authority',async({page})=>{
+  await openFixture(page);await installPreferences(page);
+  await page.evaluate(()=>{
+    window.dispatchEvent(new CustomEvent('honua-console-navigation'));
+    const state=(window as any).preferenceTest;state.authority='new-workspace';
+    state.workspace.session=state.session('new-environment');state.sync();
+  });
+  await expect(page.locator('[data-workspace-follow]')).toBeChecked();
+  await page.evaluate(()=>{const state=(window as any).preferenceTest;state.pending[0].resolve(state.session('original-environment'));});
+  await expect(page.locator('[data-workspace-follow]')).toBeChecked();
 });
 
 for(const width of [1440,390]) test(`same-path query, fragment and hydration changes preserve explicit drawer choice at ${width}px`,async({page})=>{

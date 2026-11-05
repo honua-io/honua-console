@@ -35,6 +35,7 @@ for(const width of [1440,390]) test(`workspace setup and conversation remain usa
     const chat=document.querySelector('[data-agent-workspace]')!.getBoundingClientRect();
     return {overlap:main.left<chat.right&&main.right>chat.left&&main.top<chat.bottom&&main.bottom>chat.top,scroll:document.documentElement.scrollWidth,width:innerWidth};
   });
+  if(width===1440) expect((await page.getByRole('banner').boundingBox())!.width).toBeGreaterThanOrEqual(width-1);
   expect(geometry.overlap).toBe(width===390);expect(geometry.scroll).toBeLessThanOrEqual(geometry.width+1);
   if(width===390) {
     await expect(conversation).toHaveAttribute('aria-modal','true');

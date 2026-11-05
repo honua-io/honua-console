@@ -18,9 +18,12 @@ export class OperatorPreferences {
     bind(session) { this.adopt(validatedPartition(session)); }
     adopt(partition) {
         if (!partition) { this.clear(); return; }
-        if (this.key !== partition.key || this.authority !== partition.authority) this.clear();
+        if (!this.matchesPartition(partition)) this.clear();
         Object.assign(this, partition);
         this.restore();
+    }
+    matchesPartition(partition) {
+        return this.key === partition.key && this.authority === partition.authority;
     }
     restore() {
         try {
@@ -70,26 +73,36 @@ class WorkspacePreferenceAdapter {
         if (this.lastValidatedWorkspaceAuthority !== this.workspace.authorityKey()) this.preferences.clear();
         this.render();
     }
+    adoptCurrentPartition(partition) {
+        this.preferences.adopt(partition);
+        this.lastValidatedWorkspaceAuthority = this.workspace.authorityKey();
+        this.validated = true;
+        this.render();
+    }
     async refresh() {
         const revision = ++this.generation;
+        if (!validatedPartition(this.workspace.session)) { this.unavailable(revision); return; }
+        const workspaceAuthority = this.workspace.authorityKey();
         this.validated = false;
         if (this.follow) this.follow.disabled = true;
         try {
             const session = await this.workspace.api('session');
-            if (this.signal.aborted || revision !== this.generation) return;
+            if (this.signal.aborted || revision !== this.generation || workspaceAuthority !== this.workspace.authorityKey()) return;
             const partition = validatedPartition(session);
             if (!partition) { this.unavailable(revision); return; }
-            this.preferences.adopt(partition);
-            this.lastValidatedWorkspaceAuthority = this.workspace.authorityKey();
-            this.validated = true;
-            this.render();
+            this.adoptCurrentPartition(partition);
         } catch { this.unavailable(revision); }
     }
     sync() {
         const lease = JSON.stringify([this.workspace.authorityKey(), this.workspace.session?.expiresAt]);
         if (lease === this.lastWorkspaceLease) return;
         this.lastWorkspaceLease = lease;
-        void this.refresh();
+        this.generation++;
+        const partition = validatedPartition(this.workspace.session);
+        if (!partition) { this.unavailable(this.generation); return; }
+        const unchangedWorkspace = this.lastValidatedWorkspaceAuthority === this.workspace.authorityKey();
+        if (unchangedWorkspace && !this.preferences.matchesPartition(partition)) { void this.refresh(); return; }
+        this.adoptCurrentPartition(partition);
     }
 }
 

@@ -14,6 +14,8 @@ query/fragment changes and hydration do not start another Studio visit.
 The host stays mounted through interactive navigation, preserving unsent text,
 pending replies, file selections and the existing captured-turn controls.
 
+The existing validated workspace lease restores preferences without an extra
+request; unbound pages do not request a preference session.
 “Follow proposed task views” is stored only after a current same-origin session
 validates the opaque operator/environment partition. Changing release or source
 path invalidates that partition's preference. Missing, expired or unavailable
