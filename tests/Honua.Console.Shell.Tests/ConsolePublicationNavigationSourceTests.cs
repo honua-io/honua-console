@@ -13,7 +13,8 @@ public sealed class ConsolePublicationNavigationSourceTests
     {
         using var handler = new NavigationHandler(request => Json(new
         {
-            success = true, data = Enumerable.Range(0, 500).Select(index => new { serviceName = $"service-{index}", layerCount = 100 })
+            success = true,
+            data = Enumerable.Range(0, 500).Select(index => new { serviceName = $"service-{index}", layerCount = 100 })
         }));
         using var http = new HttpClient(handler);
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
