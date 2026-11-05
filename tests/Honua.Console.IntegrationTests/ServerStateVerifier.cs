@@ -390,7 +390,7 @@ public sealed class ServerStateVerifier : IDisposable
     //  Temporal capability: GET /api/v1/temporal/services/{serviceId}/layers/{layerId}/capabilities
     // ---------------------------------------------------------------------------------------------
 
-    // Null means the history route is absent; a descriptor with supportsHistory false means the route is mounted but unsupported.
+    // A descriptor with supportsHistory false means the route is mounted but unsupported; null also covers transport failure, an empty body, invalid JSON, or a missing supportsHistory field, so null does not prove the route is absent.
     public async Task<VerifiedTemporalCapability?> GetTemporalCapabilityAsync(
         string serviceId,
         int layerId,
@@ -419,7 +419,7 @@ public sealed class ServerStateVerifier : IDisposable
             GetLong(root, "currentGeneration"));
     }
 
-    // An unsupported as-of read is HTTP 409 and maps to null, which is distinct from an absent route.
+    // An absent route and an unsupported as-of response both become null here, so this result cannot tell them apart.
     public async Task<VerifiedTemporalAsOf?> ReadTemporalAsOfAsync(
         string serviceId,
         int layerId,

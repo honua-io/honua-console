@@ -4,7 +4,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-// System.Text.Json replaces a collection initializer with null, so projections coalesce before LINQ or the circuit dies.
+// System.Text.Json replaces a collection initializer with null only when the payload sends explicit JSON null, so projections coalesce before LINQ or the circuit dies.
 public sealed class DeserializedDtoNullCollectionMapperTests
 {
     private static ConsoleEnvironmentProfile Profile() =>

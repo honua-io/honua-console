@@ -5,7 +5,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.IntegrationTests;
 
-// Caller cancellation aborts the operation; a timeout must not be reported as an Unavailable endpoint.
+// Caller cancellation propagates, while an HttpClient timeout becomes Unavailable.
 public sealed class ConsoleContentHttpClientTests
 {
     private static readonly Uri BaseAddress = new("https://honua.test");

@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Honua.Console.Shell.Tests;
 
-// Engaging the manual poll fallback both logs and exposes the connection state.
+// A realtime failure must stay observable, or a swallowed connect error drops delivery with no operator-visible fallback.
 public sealed class ConsoleRealtimeFallbackTrackerTests
 {
     [Fact]

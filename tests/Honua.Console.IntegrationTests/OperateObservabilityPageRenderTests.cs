@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-// Detail and missing surfaces render even when the list has no rows.
+// Nesting the detail inside the populated-list branch swallows a deep link, including a job loaded by its own detail read.
 public sealed class OperateObservabilityPageRenderTests
 {
     [Fact]

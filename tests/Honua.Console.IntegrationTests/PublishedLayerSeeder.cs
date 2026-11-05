@@ -36,7 +36,7 @@ internal static class PublishedLayerSeeder
         await command.ExecuteNonQueryAsync();
     }
 
-    // An unready pinned server image skips; a real configuration error throws.
+    // An unsuccessful publish, including a configuration rejection, returns null so the caller skips; failures while seeding the table or connection still throw.
     public static async Task<SeededLayer?> SeedPublishedLayerAsync(
         TemporalReplicaFixture fixture,
         string slugSuffix)

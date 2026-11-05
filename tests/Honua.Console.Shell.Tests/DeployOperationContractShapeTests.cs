@@ -3,7 +3,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Tests;
 
-// The contract omits null properties, so route parity cannot see a deserialization default that an explicit null would show.
+// Route parity misses DTO-default drift, so these tests deserialize omitted optional properties; an explicit null would hide a wrong initializer.
 public sealed class DeployOperationContractShapeTests
 {
     // Shaped exactly like PR #2577's pinned example, with every nullable field OMITTED (not
