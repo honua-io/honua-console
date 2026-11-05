@@ -1,6 +1,6 @@
 # Conversation drawer evidence
 
-Source: `317065bab110a5c12663dab2fb541904461266ae`. This gallery and its inputs do not change the application source.
+Source: `82c50ef7499cb46bdfc200562e011aa28b237721`. This gallery and its inputs do not change the application source.
 
 The captures use the CI Studio customer Compose profile, governed OIDC sign-in, a real PostGIS publication and canonical Studio drafts. The existing recipe UI adds the actual published layer, and its rendered features are checked before capture. A separate manual New map action also opens a canonical draft on its first attempt. The local assistant has no configured model provider; the drawer shows that unsupported state honestly, and no model prompt is sent.
 
@@ -26,9 +26,9 @@ The desktop drawer remains beside the editor. On mobile the modal covers the bac
 
 ## Validation
 
-- Full format verification, Shell suite: 1,421 passed with 3 existing opt-in live skips; integration suite: 1,281 passed with 39 existing opt-in live skips. C# source is unchanged after the recorded suite commit.
+- Full format verification, Shell suite: 1,421 passed with 3 existing opt-in live skips; integration suite: 1,281 passed with 39 existing opt-in live skips. The final source passed the full suites and publish.
 - Node: 509 passed with no skips. Documentation and public-content checks passed.
-- Published browser smoke: 162 passed, including actual Blazor host retention, query navigation, strict zero-console-error boot, and the unchanged exact one-renewal polling assertion.
+- Published browser smoke: 165 passed, including actual Blazor host retention, query navigation, fresh embed isolation, internal embed observation pause/resume, strict zero-console-error boot, and the unchanged exact one-renewal polling assertion.
 - Accessibility/reflow: 12 passed. Operator credential boundaries: 28 passed in full and witness modes with unchanged assertions.
 - Governed sign-in and real PostGIS publish/catalog/metadata/query: 2 passed.
 - All 15 inspected frames retain one H1, fit the viewport and have no serious or critical WCAG findings. [Aggregated observations](../images/console-phase-one-drawer/observations.json) and the [manual draft result](../images/console-phase-one-drawer/manual-new-map.json) are retained; detailed axe output remains in the lane evidence.
