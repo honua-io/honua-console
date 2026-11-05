@@ -1,0 +1,87 @@
+{
+  "normal": {
+    "link": {
+      "foreground": "rgb(23, 28, 26)",
+      "background": "rgb(230, 246, 242)",
+      "ratio": 15.465994159945733
+    },
+    "geometry": {
+      "foreground": "rgb(75, 85, 81)",
+      "background": "rgb(230, 246, 242)",
+      "ratio": 6.929107028560195
+    },
+    "count": {
+      "foreground": "rgb(52, 60, 57)",
+      "background": "rgb(221, 228, 225)",
+      "ratio": 8.781844770385822
+    },
+    "coverage": {
+      "foreground": "rgb(75, 85, 81)",
+      "background": "rgb(247, 249, 248)",
+      "ratio": 7.308699443353814
+    },
+    "focus": {
+      "foreground": "rgb(23, 28, 26)",
+      "background": "rgb(230, 246, 242)",
+      "width": "3px",
+      "style": "none"
+    }
+  },
+  "hover": {
+    "link": {
+      "foreground": "rgb(23, 28, 26)",
+      "background": "rgb(238, 242, 240)",
+      "ratio": 15.273352304450022
+    },
+    "geometry": {
+      "foreground": "rgb(75, 85, 81)",
+      "background": "rgb(238, 242, 240)",
+      "ratio": 6.842799221825909
+    },
+    "count": {
+      "foreground": "rgb(52, 60, 57)",
+      "background": "rgb(221, 228, 225)",
+      "ratio": 8.781844770385822
+    },
+    "coverage": {
+      "foreground": "rgb(75, 85, 81)",
+      "background": "rgb(247, 249, 248)",
+      "ratio": 7.308699443353814
+    },
+    "focus": {
+      "foreground": "rgb(23, 28, 26)",
+      "background": "rgb(238, 242, 240)",
+      "width": "3px",
+      "style": "none"
+    }
+  },
+  "focused": {
+    "link": {
+      "foreground": "rgb(23, 28, 26)",
+      "background": "rgb(230, 246, 242)",
+      "ratio": 15.465994159945733
+    },
+    "geometry": {
+      "foreground": "rgb(75, 85, 81)",
+      "background": "rgb(230, 246, 242)",
+      "ratio": 6.929107028560195
+    },
+    "count": {
+      "foreground": "rgb(52, 60, 57)",
+      "background": "rgb(221, 228, 225)",
+      "ratio": 8.781844770385822
+    },
+    "coverage": {
+      "foreground": "rgb(75, 85, 81)",
+      "background": "rgb(247, 249, 248)",
+      "ratio": 7.308699443353814
+    },
+    "focus": {
+      "foreground": "rgb(21, 149, 131)",
+      "background": "rgb(230, 246, 242)",
+      "width": "2px",
+      "style": "solid",
+      "ratio": 3.327511500726545
+    }
+  }
+}

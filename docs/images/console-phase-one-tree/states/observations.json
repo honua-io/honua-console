@@ -1,0 +1,38 @@
+[
+  {
+    "name": "first-run",
+    "width": 1440,
+    "headings": [
+      "Start with your data. Keep the conversation."
+    ],
+    "documentWidth": 1440,
+    "blocking": []
+  },
+  {
+    "name": "unsupported-catalog",
+    "width": 1440,
+    "headings": [
+      "Catalog and sharing are not available yet"
+    ],
+    "documentWidth": 1440,
+    "blocking": []
+  },
+  {
+    "name": "first-run",
+    "width": 390,
+    "headings": [
+      "Start with your data. Keep the conversation."
+    ],
+    "documentWidth": 390,
+    "blocking": []
+  },
+  {
+    "name": "unsupported-catalog",
+    "width": 390,
+    "headings": [
+      "Catalog and sharing are not available yet"
+    ],
+    "documentWidth": 390,
+    "blocking": []
+  }
+]
