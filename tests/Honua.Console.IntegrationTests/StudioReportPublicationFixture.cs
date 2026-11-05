@@ -8,14 +8,6 @@ public sealed class StudioReportPublicationIntegrationCollection : ICollectionFi
     public const string Name = "StudioReportPublicationIntegration";
 }
 
-/// <summary>
-/// Boots a real honua-server (with PostgreSQL) via Testcontainers so the server-bound report builder can be
-/// asserted against the live content publication registry (honua-server#1183: publish / get / republish /
-/// rollback / policy). Off by default; skips gracefully when Docker, the server image, the opt-in flag, or
-/// the admin API key is unavailable (AC: Testcontainers coverage with Docker-unavailable skip). Reuses
-/// <see cref="HonuaServerTestcontainer"/> so the container-boot mechanics live in one place, mirroring
-/// <see cref="StudioAnalysisContentFixture"/>.
-/// </summary>
 public sealed class StudioReportPublicationFixture : IAsyncLifetime
 {
     private HonuaServerTestcontainer? _container;
@@ -67,11 +59,6 @@ public sealed class StudioReportPublicationFixture : IAsyncLifetime
         }
     }
 
-    /// <summary>
-    /// Builds the production content publication client against the live server, accepting the dev/self-signed
-    /// certificate only when the fixture server is TLS so the test exercises the real client + admin API-key
-    /// path (never an in-memory client).
-    /// </summary>
     public IHonuaContentPublicationClient CreatePublicationClient()
     {
         var handler = new HttpClientHandler();
@@ -87,7 +74,6 @@ public sealed class StudioReportPublicationFixture : IAsyncLifetime
             new HonuaContentPublicationClientOptions(BaseAddress, Options.StudioAdminApiKey));
     }
 
-    /// <summary>The independent verification oracle that reads server state back through canonical read APIs.</summary>
     public ServerStateVerifier CreateVerifier() =>
         new(BaseAddress, Options.StudioAdminApiKey);
 }

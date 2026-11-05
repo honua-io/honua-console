@@ -4,13 +4,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Regression coverage for the admin status→state mapping drift (honua-console#279 PA-239). The mapper was
-/// copy-pasted across the admin contract shims and OperateAdminShims drifted: it lacked the Conflict and
-/// BadRequest arms, so a 409 or 400 admin response surfaced to operators as "Unavailable" (server down)
-/// instead of the correct "Conflict"/"Rejected". These assert the canonical shared mapper — now the single
-/// source of truth every shim delegates to.
-/// </summary>
 public sealed class AdminEndpointIssueFactoryTests
 {
     [Theory]

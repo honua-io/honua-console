@@ -4,10 +4,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Tests.Components;
 
-/// <summary>
-/// Coverage for the shared operate timeline (console#293): idempotent append keyed on eventId
-/// (falling back to operationId+transitionKind), and the shared severity pill rendering.
-/// </summary>
 public sealed class OperateTimelineTests : ConsoleComponentTestBase
 {
     private static OperateTimelineEntry Entry(

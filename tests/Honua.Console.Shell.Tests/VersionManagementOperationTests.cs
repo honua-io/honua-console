@@ -4,13 +4,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Coverage for the branch-version management operation layer (honua-console#177): the live
-/// <see cref="HonuaServerVersionManagementOperation"/> mapping of client results/rejections into the Operate
-/// view/result models, and the <see cref="UnsupportedVersionManagementOperation"/> missing-binding behavior.
-/// These drive a fake <see cref="IHonuaVersionManagementClient"/> rather than HTTP, so they pin the
-/// operation-level projection (counts, can-post, post-blocked, state vocabulary) independently of transport.
-/// </summary>
 public sealed class VersionManagementOperationTests
 {
     private const string ServiceId = "parcels";

@@ -7,30 +7,6 @@ using Microsoft.AspNetCore.Http;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Deny-by-default route authorization audit (honua-console#254).
-///
-/// The Console is fail-closed by construction at the HTTP host layer: the
-/// <see cref="ConsoleAuthenticatedOrPublicHandler"/> fallback policy requires an authenticated
-/// operator for every route except the audited public-path-prefix allow-list in
-/// <see cref="ConsolePublicSurfaces"/>. The interactive Blazor render path has a SECOND gate
-/// (<c>AuthorizeRouteView</c>), which only opts a page out of the fallback when the page component
-/// declares <see cref="AllowAnonymousAttribute"/>.
-///
-/// These two layers can silently drift, which is the recurring fail-open class this issue tracks:
-/// <list type="bullet">
-/// <item>A new <c>@page</c> route placed under an allow-listed prefix becomes anonymous at the host
-/// layer without anyone explicitly deciding it should be public.</item>
-/// <item>A page that is anonymous at the host layer but is missing <c>[AllowAnonymous]</c> renders
-/// inconsistently (the host serves it anonymously, then <c>AuthorizeRouteView</c> redirects the
-/// anonymous visitor to sign-in) — which is exactly how the public <c>/public</c> open-data hub
-/// regressed before this audit.</item>
-/// </list>
-///
-/// This audit reflects over every routable Console component and enforces both invariants by
-/// construction, so the public surface cannot expand or drift without updating the reviewed
-/// inventory in this test.
-/// </summary>
 public sealed class ConsoleRouteAuthorizationAuditTests
 {
     // The reviewed, explicit inventory of route templates that are reachable anonymously at the HTTP

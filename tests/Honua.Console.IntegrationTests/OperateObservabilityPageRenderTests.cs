@@ -6,15 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render regression for the Operate observability deep-link surfaces.
-/// Regression target: an empty event/alert/job page must not swallow a
-/// <c>/operate/events|alerts|jobs/{id}</c> deep link. The previous markup nested every
-/// detail/missing surface inside the "list has rows" branch, so a deep link landing on an
-/// empty section silently showed only the generic empty-list panel. Each section must now
-/// surface the missing-detail state (events/alerts) or the independently-read job detail (jobs)
-/// even when the list page is empty.
-/// </summary>
 public sealed class OperateObservabilityPageRenderTests
 {
     [Fact]
@@ -161,10 +152,6 @@ public sealed class OperateObservabilityPageRenderTests
         AllowedActions: [],
         RelatedObjects: []);
 
-    /// <summary>
-    /// Test double whose sections all read as allowed-but-empty by default. Each test overrides
-    /// only the read it exercises; <see cref="JobDetail"/> resolves the deep-linked job id.
-    /// </summary>
     private sealed class StubOperateClient : IConsoleOperateObservabilityClient
     {
         public OperateSectionResult<IReadOnlyList<OperateJobRun>> Jobs { get; init; } =

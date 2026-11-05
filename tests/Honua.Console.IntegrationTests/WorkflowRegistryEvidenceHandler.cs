@@ -2,7 +2,6 @@ using System.Text.Json;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>Retains only registry node identity and runtime-kind wire values, without credentials or schemas.</summary>
 internal sealed class WorkflowRegistryEvidenceHandler(HttpMessageHandler innerHandler) : DelegatingHandler(innerHandler)
 {
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

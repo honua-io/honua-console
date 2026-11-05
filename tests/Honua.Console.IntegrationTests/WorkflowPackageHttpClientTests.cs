@@ -6,16 +6,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free wire-contract coverage for <see cref="HttpWorkflowPackageApiClient"/>, the thin typed HTTP
-/// boundary the Studio GP/ETL workflow editor binds to (honua-server #1185, <c>/api/v1/console/workflow-*</c>).
-/// The Testcontainers integration test proves end-to-end binding against a live server but skips without
-/// Docker, so this suite pins the transport semantics every environment must keep green: exact route/verb,
-/// the admin <c>X-API-Key</c> header, request-body serialization, the shared <c>ApiResponse&lt;T&gt;</c>
-/// envelope unwrap, and the status-code -> <see cref="WorkflowEndpointIssue"/> mapping (including surfacing the
-/// server's own graph-validation failure messages from <c>data.failures</c>). These are real failure/edge
-/// assertions, not a smoke test - a regression in any of them ships a broken or dishonest editor binding.
-/// </summary>
 public sealed class WorkflowPackageHttpClientTests
 {
     private static readonly Uri BaseAddress = new("https://honua.test");

@@ -8,12 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the Wave-1 validation wiring on the form builder page
-/// (<c>/studio/form</c>): inline client errors with <c>aria-invalid</c>, server validation items binding to
-/// their fields, and the unsaved-changes dirty guard (editing marks dirty → navigation is guarded; a
-/// successful save clears it). Drives the page through a fake <see cref="IStudioFormPackageDataSource"/>.
-/// </summary>
 public sealed class StudioFormBuilderValidationRenderTests
 {
     [Fact]
@@ -219,7 +213,6 @@ public sealed class StudioFormBuilderValidationRenderTests
     private sealed class FakeFormDataSource : IStudioFormPackageDataSource
     {
 
-        /// <summary>Stable list-button label so tests can open the editor regardless of the editor's title.</summary>
         public const string OpenLabel = "Open form";
 
         public StudioFormEditorLoad EditorLoad { get; set; } = new(null, []);

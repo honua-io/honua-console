@@ -6,14 +6,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Proves the server-bound Share management surface renders from live honua-server data (AC: the Share
-/// surface renders from a real honua-server started via Testcontainers and seeded with a known fixture; the
-/// in-memory client is removed from the merged build). Seeds a known Console content item through the real
-/// content API, then drives <see cref="HonuaServerShareAccessDataSource"/> over the real Console Share
-/// access lifecycle (honua-server#1215): read the projection, raise the access tier to public-indexed, mint
-/// and revoke a public-link token, and enable embedding. Docker-unavailable environments skip cleanly.
-/// </summary>
 [Collection(ShareAccessIntegrationCollection.Name)]
 public sealed class ShareAccessLiveServerTests
 {

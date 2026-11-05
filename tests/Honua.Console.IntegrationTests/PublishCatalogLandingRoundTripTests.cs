@@ -2,21 +2,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Publish→catalog-landing round-trip (console-integration-test-plan.md Wave 2, Family B, P0).
-///
-/// Performs a real content publish through the production <see cref="IHonuaContentPublicationClient"/> (the
-/// console publish OPERATION → <c>POST /api/v1/console/publications</c>, honua-server#1183) and then asserts
-/// the resulting publication LANDS correctly — title, kind, visibility, and route/slug — INDEPENDENTLY through
-/// the <see cref="ServerStateVerifier"/> oracle: the admin publication-route detail AND the ANONYMOUS public
-/// published-route surface (<c>GET /api/v1/published/{slug}</c>). A public publication must be reachable
-/// anonymously at its slug; a private one must NOT. The negative companion proves an invalid publish is
-/// rejected with a field-addressable error and NOTHING lands (no route at the slug, no anonymous reach).
-///
-/// This converts the Family B PARTIAL cluster (create asserted only via the same admin path) into a true
-/// round-trip per plan §4 rule #2. Off by default; the SkippableFacts skip cleanly without Docker / the
-/// opt-in env (Console Patterns Charter section 11) and RUN in the nightly lane.
-/// </summary>
 [Collection(ContentPublicationIntegrationCollection.Name)]
 public sealed class PublishCatalogLandingRoundTripTests
 {

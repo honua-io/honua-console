@@ -6,22 +6,6 @@ using Microsoft.AspNetCore.Http;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Fail-closed-by-construction coverage for the scoped operator accessor (honua-console#254).
-///
-/// The recurring S1 fail-open class was that operator identity flowed through a singleton store + a
-/// process-static ambient key whose <c>__anonymous__</c> sentinel silently stood in for BOTH a genuinely
-/// anonymous surface AND an authenticated operator whose execution context failed to resolve. The
-/// redesign replaces that, on the server-bound call path, with a per-circuit/per-request SCOPED service
-/// (<see cref="ConsoleOperatorScope"/>) that reads its scope's OWN authoritative identity and returns a
-/// strongly-typed <see cref="ConsoleOperatorIdentity"/> or <see langword="null"/> — never a shared
-/// "anonymous" operator. These tests prove an unresolved operator is a hard deny (never an ambient
-/// fallback) and that concurrent scopes stay isolated by construction.
-///
-/// This is the seam the map-proxy BFF endpoints (the highest-risk "acts with honua-server privileges"
-/// surface, in <c>Program.cs</c>) are converted to: each resolves <see cref="IConsoleOperatorScope"/>
-/// per request and denies (401) when it yields <c>null</c>.
-/// </summary>
 public sealed class ConsoleOperatorScopeTests
 {
     [Fact]

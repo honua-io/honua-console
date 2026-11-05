@@ -5,13 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the point-cloud / 3D scenes surface
-/// (/operate/scenes). Asserts the discovery list + LAS ingest form (driven by
-/// the InMemory scene client), the 3D Tiles viewer route, and the merged-build
-/// missing-binding surface (driven by the real UnsupportedConsoleSceneClient
-/// through DI). Drives the page through fakes, never a mock server.
-/// </summary>
 public sealed class ScenesPageRenderTests
 {
     [Fact]

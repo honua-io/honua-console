@@ -4,13 +4,6 @@ using Honua.Console.Web;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for the map-preview BFF proxy's style tile-URL rewrite
-/// (<see cref="MapProxySupport.RewriteTileUrls"/>). The proxy must route every vector-tile URL in a
-/// MapLibre style back through the console origin so the admin key is injected server-side and the
-/// internal honua-server origin never leaks to the browser — including absolute URLs the server may
-/// emit, not just root-relative "/tiles/..." (honua-console#213).
-/// </summary>
 public sealed class MapProxyTileRewriteTests
 {
     private const string ProxyBase = "https://console.example/map-proxy/tiles/";

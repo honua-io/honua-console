@@ -7,12 +7,6 @@ using Xunit;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Verifies the one binding model that unifies the Family-A honua-server clients
-/// (honua-console#234): the active environment profile drives the target server at request time, and
-/// the active operator's real bearer is forwarded (dropping the shared admin key), while a session
-/// sentinel leaves the admin-key fallback in place.
-/// </summary>
 public sealed class HonuaServerBindingHandlerTests
 {
     private static readonly Uri DiTimeBase = new("https://startup-server.example");

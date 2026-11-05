@@ -8,19 +8,6 @@ using Testcontainers.PostgreSql;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Opt-in Testcontainers live-server coverage for the GitOps metadata release binding.
-/// Boots a real honua-server (PostGIS via Testcontainers) and drives the Console
-/// <see cref="HttpConsoleGitOpsReleaseClient"/> against the SHIPPED GitOps metadata
-/// release contracts (honua-server#1163 release package + GitOps manifest,
-/// honua-server#1165 release-operation lifecycle).
-///
-/// The live assertion proves the contract is actually bound and reachable: a read of
-/// an unknown release package id returns the live endpoint's 404 mapped to the
-/// Console <see cref="OperateSectionStatus.Missing"/> state (endpoint present, package
-/// absent) rather than the <see cref="OperateSectionStatus.Unsupported"/> state that a
-/// server lacking the endpoint would yield. Skips without Docker / opt-in env.
-/// </summary>
 public sealed class GitOpsReleaseLiveServerTests
 {
     private const string RunLiveServerTestsVariable = "HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS";

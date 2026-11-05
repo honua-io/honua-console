@@ -3,13 +3,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Docker-free coverage for <see cref="ICollectAutomationClient"/> (honua-console#219). The seeded in-memory
-/// client (a test/demo scaffold, never the merged data source) must enforce the version-lifecycle invariants
-/// a live server/Collect projection has to preserve: monotonic versions, validation-gated commits, and
-/// append-only restore. The merged runtime default <see cref="UnsupportedCollectAutomationClient"/> must
-/// instead surface a missing-binding state on every operation rather than fabricate automation data.
-/// </summary>
 public sealed class CollectAutomationClientTests
 {
     [Fact]

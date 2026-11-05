@@ -4,19 +4,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Cross-cutting validation field-errors round-trip (console-integration-test-plan.md §5.3, Wave 6).
-///
-/// Submits an invalid configuration through the console operation and asserts the server returns field-level
-/// validation errors (RFC-7807 ProblemDetails <c>errors[]</c>, the shared field-validation contract from the
-/// merged validation initiative, task #70) bound to the offending fields — and that NOTHING lands (verified
-/// INDEPENDENTLY through the <see cref="ServerStateVerifier"/> oracle). Covers two representative surfaces:
-/// the service-layer publish (Family A) and the Studio analysis package (Family C), reusing the Wave 1 / Wave
-/// 4 negative pattern.
-///
-/// Off by default; the SkippableFacts skip cleanly without Docker / the opt-in env (Console Patterns Charter
-/// section 11) and RUN in the nightly lane (.github/workflows/console-nightly.yml).
-/// </summary>
 [Collection(CrossCuttingIntegrationCollection.Name)]
 public sealed class ValidationFieldErrorsCrossCuttingTests
 {

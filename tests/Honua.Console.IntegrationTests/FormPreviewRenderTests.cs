@@ -4,14 +4,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the shared <see cref="FormPreview"/> component — the "see the result"
-/// surface for the Studio FORM family, where the result IS the form. Asserts that the REAL generated
-/// schema renders as live HTML form controls (text input, a required select with an option per coded
-/// choice, a checkbox, a textarea, section headings, labels, required markers) with no external data,
-/// and that an empty schema shows an honest empty state rather than any fabricated sample field
-/// (Charter §11).
-/// </summary>
 public sealed class FormPreviewRenderTests
 {
     [Fact]

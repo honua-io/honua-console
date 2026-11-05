@@ -6,13 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render regression for the repositioned console home (#193). The landing is
-/// no longer a dead link grid: it leads with the approval-inbox summary (pending agent
-/// work) and a recent-activity panel, then the area work surfaces. These tests assert the
-/// inbox band binds the aggregated queue and deep-links into the full inbox, and that the
-/// four area cards still render as entry points.
-/// </summary>
 public sealed class ConsoleHomePageRenderTests
 {
     private static BunitContext NewContext(FakeConsoleProposalsClient proposals)

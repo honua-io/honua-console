@@ -3,11 +3,6 @@ using Honua.Console.Shell.Validation;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Docker-free coverage for the per-editor <see cref="ValidationState"/> container: it must merge the
-/// client-computed and server-returned channels keyed by FieldKey, keep them independently replaceable,
-/// and answer per-field and summary queries.
-/// </summary>
 public sealed class ValidationStateTests
 {
     private static ConsoleFieldError Client(string field, ConsoleValidationSeverity severity = ConsoleValidationSeverity.Error) =>

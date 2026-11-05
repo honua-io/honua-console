@@ -11,13 +11,6 @@ public sealed class StudioFormPackageIntegrationCollection : ICollectionFixture<
     public const string Name = "StudioFormPackageIntegration";
 }
 
-/// <summary>
-/// Boots a real honua-server (with PostgreSQL) via Testcontainers so the server-backed form builder can be
-/// asserted against the live form package lifecycle (honua-server#1184). Off by default; skips gracefully
-/// when Docker, the server image, the opt-in flag, or the admin API key is unavailable (AC: Testcontainers
-/// coverage with Docker-unavailable skip). Reuses <see cref="HonuaServerTestcontainer"/> so the container
-/// boot mechanics are not duplicated.
-/// </summary>
 public sealed class StudioFormPackageFixture : IAsyncLifetime
 {
     private HonuaServerTestcontainer? _container;
@@ -138,11 +131,6 @@ public sealed class StudioFormPackageFixture : IAsyncLifetime
         TargetLayerId = published.RootElement.GetProperty("data").GetProperty("layerId").GetInt32();
     }
 
-    /// <summary>
-    /// Builds the production form package client against the live server, accepting the dev/self-signed
-    /// certificate only when the fixture server is TLS so the test exercises the real client + admin
-    /// API-key path (never an in-memory client).
-    /// </summary>
     public IHonuaFormPackageClient CreateFormClient()
     {
         var handler = new HttpClientHandler();
@@ -158,7 +146,6 @@ public sealed class StudioFormPackageFixture : IAsyncLifetime
             new HonuaFormPackageClientOptions(BaseAddress, Options.StudioAdminApiKey));
     }
 
-    /// <summary>The independent verification oracle that reads server state back through canonical read APIs.</summary>
     public ServerStateVerifier CreateVerifier() =>
         new(BaseAddress, Options.StudioAdminApiKey);
 }

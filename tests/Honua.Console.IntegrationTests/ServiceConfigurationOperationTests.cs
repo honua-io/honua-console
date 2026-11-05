@@ -6,14 +6,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for the Wave 5 service-configuration OPERATIONS: the
-/// <see cref="HonuaServerServiceConfigurationOperation"/> over a stubbed admin client and the
-/// missing-binding <see cref="UnsupportedServiceConfigurationOperation"/>. Asserts the real route/verb/body
-/// each mutation issues and the result mapping (Enabled/Disabled/Updated + post-change state), plus that the
-/// unconfigured surface never performs a network call. These run in PR CI (no Docker); the live round-trips
-/// in <see cref="ServiceConfigurationRoundTripTests"/> cover the server state independently.
-/// </summary>
 public sealed class ServiceConfigurationOperationTests
 {
     private static readonly Uri BaseAddress = new("https://honua.test");

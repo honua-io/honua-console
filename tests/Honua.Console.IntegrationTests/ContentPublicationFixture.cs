@@ -8,15 +8,6 @@ public sealed class ContentPublicationIntegrationCollection : ICollectionFixture
     public const string Name = "ContentPublicationIntegration";
 }
 
-/// <summary>
-/// Boots a real honua-server (with PostgreSQL) via Testcontainers for the publish→catalog-landing round-trip
-/// (console-integration-test-plan.md Wave 2, Family B). Exposes the production content-publication client
-/// (the publish OPERATION → <c>POST /api/v1/console/publications</c>) and the independent
-/// <see cref="ServerStateVerifier"/> oracle that reads the resulting route/visibility back through the admin
-/// publication detail and the ANONYMOUS published-route surface. Off by default; skips gracefully when
-/// Docker, the server image, the opt-in flag, or the admin API key is unavailable (Console Patterns Charter
-/// section 11). Reuses <see cref="HonuaServerTestcontainer"/> and mirrors <see cref="ShareAccessFixture"/>.
-/// </summary>
 public sealed class ContentPublicationFixture : IAsyncLifetime
 {
     private HonuaServerTestcontainer? _container;
@@ -68,7 +59,6 @@ public sealed class ContentPublicationFixture : IAsyncLifetime
         }
     }
 
-    /// <summary>Raw HttpClient (admin key applied per-request, dev-cert acceptance) for seeding content items.</summary>
     public HttpClient CreateRawClient()
     {
         var handler = new HttpClientHandler();
@@ -81,24 +71,16 @@ public sealed class ContentPublicationFixture : IAsyncLifetime
         return new HttpClient(handler) { BaseAddress = BaseAddress };
     }
 
-    /// <summary>The production content-publication client (the publish OPERATION path) with the admin API key.</summary>
     public IHonuaContentPublicationClient CreateContentPublicationClient() =>
         new HonuaContentPublicationHttpClient(
             CreateRawClient(),
             new HonuaContentPublicationClientOptions(BaseAddress, Options.StudioAdminApiKey));
 
-    /// <summary>The independent verification oracle that reads server state back through canonical read APIs.</summary>
     public ServerStateVerifier CreateVerifier() =>
         new(BaseAddress, Options.StudioAdminApiKey);
 
     public string? AdminApiKey => Options.StudioAdminApiKey;
 
-    /// <summary>
-    /// True when the server target runs with dev-auth bypass (HONUA_DEV_AUTH_ALLOW_BYPASS), which
-    /// auto-authenticates every request — including the verifier's "anonymous" probe — on auth-gated
-    /// surfaces like /api/v1/published. Negative anonymous-denial assertions cannot be proven in that
-    /// profile and are skipped ONLY when this is set, so a genuine leak still fails in a non-bypass run.
-    /// </summary>
     public bool DevAuthBypassEnabled =>
         (Options.ServerEnvironment ?? string.Empty)
             .Split([';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

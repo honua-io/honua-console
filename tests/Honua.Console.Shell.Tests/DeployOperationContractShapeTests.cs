@@ -3,15 +3,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Console#290 addendum item 3: the pinned <c>DeployOperationResponse</c> / <c>DeployOperationListResponse</c>
-/// wire contract (honua-server PR #2577) OMITS null-valued properties
-/// (<c>DefaultIgnoreCondition = WhenWritingNull</c>). This test deserializes JSON shaped exactly like the
-/// server's pinned example — including keys that are entirely absent, not present-as-null — through the real
-/// source-generated Console DTOs, and asserts every absent optional property deserializes to
-/// <see langword="null"/> (never a zero-value default such as <c>""</c> or <c>0</c>). #291's route-level
-/// parity check does not catch this class of drift; only a shape test that actually deserializes does.
-/// </summary>
 public sealed class DeployOperationContractShapeTests
 {
     // Shaped exactly like PR #2577's pinned example, with every nullable field OMITTED (not

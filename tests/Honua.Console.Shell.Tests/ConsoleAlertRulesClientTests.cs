@@ -7,14 +7,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Recording-HttpClient unit tests proving the alert-rule DEFINITION editor binds to the SHIPPED honua-server
-/// alert-rule admin contract (honua-server#1169, /api/v{version}/admin/alerts/rules…): get a rule (+ health +
-/// draft validation), save (PUT) a rule, block a save whose draft fails server validation, and report an
-/// unreachable/denied server honestly rather than fabricating a rule (Console Patterns Charter section 11).
-/// The data source is wired to a real HttpConsoleAlertRulesClient so the ApiResponse&lt;T&gt; envelope unwrap
-/// and the conditionsJson&lt;-&gt;condition mapping are exercised end-to-end.
-/// </summary>
 public sealed class ConsoleAlertRulesClientTests
 {
     private const long RuleId = 42;
@@ -357,7 +349,6 @@ public sealed class ConsoleAlertRulesClientTests
         };
     }
 
-    /// <summary>The rule LIST path is not under test here; the editor get/save are.</summary>
     private sealed class StubObservabilityClient : IConsoleOperateObservabilityClient
     {
         public Task<OperateSectionResult<OperateFleetOverview>> GetOverviewAsync(CancellationToken cancellationToken = default) =>

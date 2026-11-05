@@ -10,19 +10,6 @@ using Microsoft.Extensions.Options;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Regression coverage for honua-console#306: an edge-forwarded operator (trusted-edge identity headers
-/// with NO <c>X-Forwarded-Access-Token</c>) must retain a bearer obtained out-of-band through the
-/// server-session BFF (<c>/auth/server/login</c> → <c>/admin/auth/callback</c>, honua-console#305). Before
-/// the fix, <see cref="ConsoleEdgeIdentityMiddleware"/> re-ran <see cref="ConsoleOperatorSessionBridge.SyncAsync"/>
-/// on every request and, seeing no forwarded token, overwrote the operator's session with the
-/// non-forwardable sentinel — wiping the BFF-exchanged bearer on the very next request.
-///
-/// These tests drive the production stack (real <see cref="ConsoleOperatorContext"/> resolving the operator
-/// from <see cref="HttpContext.User"/>, the operator-partitioned stores, the edge middleware, and — for the
-/// full flow — the server-session BFF coordinator against a simulated honua-server) to prove the now-supported
-/// combination and to lock the #305 isolation/sign-out invariants that must still hold.
-/// </summary>
 public sealed class ConsoleEdgeIdentityBearerPersistenceTests
 {
     private static readonly Uri ServerOrigin = new("https://server.example/");

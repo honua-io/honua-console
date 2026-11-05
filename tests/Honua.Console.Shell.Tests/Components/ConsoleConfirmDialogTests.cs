@@ -3,21 +3,6 @@ using Honua.Console.Shell.Components;
 
 namespace Honua.Console.Shell.Tests.Components;
 
-/// <summary>
-/// bUnit component tests for <see cref="ConsoleConfirmDialog"/>: the shared confirm gate
-/// used for destructive actions across the Operate admin surface.
-///
-/// Tests verify:
-///   - Dialog is initially hidden
-///   - <c>Open()</c> renders the dialog with the supplied title, body, and labels
-///   - Cancel closes the dialog without calling the onConfirm callback
-///   - Confirming calls the onConfirm callback and then closes the dialog
-///   - A body-less open renders no body paragraph
-///
-/// Note: <c>ConsoleConfirmDialog.Open()</c> calls <c>StateHasChanged()</c> which must run on
-/// the Blazor Dispatcher.  All direct calls to <c>cut.Instance.Open()</c> are therefore
-/// wrapped in <c>await cut.InvokeAsync(...)</c>.
-/// </summary>
 public sealed class ConsoleConfirmDialogTests : ConsoleComponentTestBase
 {
     [Fact]

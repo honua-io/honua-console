@@ -7,19 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Cross-cutting missing-binding completeness sweep (console-integration-test-plan.md §5.2, Wave 6).
-///
-/// With NO honua-server configured, a representative set of live surfaces — across Operate, Studio, and Share
-/// — must render the EXPLICIT missing-binding state and NEVER fabricate data (Charter §11: missing-binding is
-/// a first-class state). Each page is wired to its production <c>Unsupported*</c> data source (the binding
-/// the DI container resolves when no server base URL is configured) and asserted to surface the missing-binding
-/// copy while NOT rendering any data table / projection that would imply fabricated content. This is a focused
-/// completeness check spanning families, complementing the per-surface render tests.
-///
-/// These are pure bUnit render facts: they need NO Docker and run in PR CI as well as the nightly lane (the
-/// no-fabrication invariant must hold everywhere), so they are plain <see cref="FactAttribute"/>s.
-/// </summary>
 public sealed class MissingBindingCompletenessCrossCuttingTests
 {
     [Fact]

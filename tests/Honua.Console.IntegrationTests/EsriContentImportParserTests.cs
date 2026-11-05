@@ -3,12 +3,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Unit coverage for the deterministic, Console-side <see cref="EsriContentImportParser"/>. Feeds small
-/// Esri-shaped JSON documents and asserts the honua.map-package / dashboard / report mapping and the
-/// clean / degrade / drop / manual fidelity classification (the design-handoff Fid convention). The parser
-/// contacts no server and fabricates no data (Console Patterns Charter section 11).
-/// </summary>
 public sealed class EsriContentImportParserTests
 {
     private readonly EsriContentImportParser _parser = new();

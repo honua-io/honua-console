@@ -6,13 +6,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for the service time-info OPERATION (gap report Bucket 3-A #4): the
-/// <see cref="HonuaServerConsoleTimeInfoOperation"/> over a stubbed admin client and the missing-binding
-/// <see cref="UnsupportedConsoleTimeInfoOperation"/>. Asserts the time-info read comes off the service
-/// settings, the save issues the real timeinfo PUT (PUT /api/v1/admin/services/{svc}/timeinfo) carrying the
-/// three fields, and that the unconfigured surface never performs a network call. No fabricated time fields.
-/// </summary>
 public sealed class TimeInfoOperationTests
 {
     private static readonly Uri BaseAddress = new("https://honua.test");

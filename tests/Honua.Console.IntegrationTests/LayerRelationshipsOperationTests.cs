@@ -7,15 +7,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for the layer-relationships OPERATION (gap report Bucket 3-A #3): the
-/// <see cref="HonuaServerConsoleLayerRelationshipsOperation"/> over a stubbed admin client and the
-/// missing-binding <see cref="UnsupportedConsoleLayerRelationshipsOperation"/>. Asserts the real
-/// route/verb/body each read+write issues (GET/PUT
-/// /api/v1/admin/metadata/layers/{id}/relationships), the result mapping, and that the unconfigured surface
-/// never performs a network call. No mocks of relationship data — every assertion is over the wire the
-/// operation actually sends, or what a recorded server response maps to.
-/// </summary>
 public sealed class LayerRelationshipsOperationTests
 {
     private static readonly Uri BaseAddress = new("https://honua.test");

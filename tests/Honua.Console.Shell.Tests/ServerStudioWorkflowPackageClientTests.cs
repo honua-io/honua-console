@@ -4,12 +4,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Unit coverage for <see cref="ServerStudioWorkflowPackageClient"/> over an in-memory fake of the
-/// honua-server #1185 workflow API. Proves the editor binds to and maps live server data (node registry,
-/// package draft, save/version, dry-run, publish + run), round-trips editor-only authoring fields, and
-/// surfaces missing-binding states instead of fabricating success - without Docker.
-/// </summary>
 public sealed class ServerStudioWorkflowPackageClientTests
 {
     [Fact]
@@ -318,7 +312,6 @@ public sealed class ServerStudioWorkflowPackageClientTests
         return draft;
     }
 
-    /// <summary>In-memory simulation of the honua-server #1185 workflow API for fast, deterministic tests.</summary>
     private sealed class FakeWorkflowApi : IWorkflowPackageApiClient
     {
         private int _packageSequence;

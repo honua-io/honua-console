@@ -2,13 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Pure-function coverage for the shared timeline dedup primitive (console#293) independent of
-/// any rendering: <see cref="OperateTimelineEntries.Deduplicate"/> and
-/// <see cref="OperateTimelineEntries.Append"/> both key on
-/// <see cref="OperateTimelineEntry.DedupeKey"/>, matching the honua-server at-least-once
-/// transition/event delivery guarantee (PR #2577 review note).
-/// </summary>
 public sealed class OperateTimelineModelsTests
 {
     private static OperateTimelineEntry Entry(string eventId, string message) =>

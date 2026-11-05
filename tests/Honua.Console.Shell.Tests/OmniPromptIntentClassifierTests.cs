@@ -2,11 +2,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Host-independent coverage for the omni-prompt intent classifier (honua-console#203) — the thin, console-side
-/// router that sends one free-text prompt to the Studio (GIS authoring) or DevOps (ops) lane, or to a confirm
-/// chip when the signal is weak. Pure and deterministic: the same words always resolve to the same lane.
-/// </summary>
 public sealed class OmniPromptIntentClassifierTests
 {
     private readonly OmniPromptIntentClassifier _classifier = new();

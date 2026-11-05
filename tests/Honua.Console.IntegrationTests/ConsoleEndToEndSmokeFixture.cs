@@ -22,7 +22,6 @@ public sealed class ConsoleEndToEndSmokeFixture : IAsyncLifetime
 
     public Uri BaseAddress { get; private set; } = new("https://localhost");
 
-    /// <summary>The resolved honua-server image/origin recorded in the smoke evidence (sourceHydrated provenance).</summary>
     public string ServerImageOrOrigin =>
         Options.ExternalBaseUri?.ToString() ?? Options.ServerImage ?? "(unknown)";
 
@@ -70,22 +69,16 @@ public sealed class ConsoleEndToEndSmokeFixture : IAsyncLifetime
         }
     }
 
-    /// <summary>Production Console content/catalog client bound to the live server (catalog flow).</summary>
     public IHonuaConsoleContentClient CreateContentClient() =>
         new HonuaConsoleContentHttpClient(
             CreateHttpClient(),
             new HonuaConsoleContentClientOptions(BaseAddress, Options.StudioAdminApiKey));
 
-    /// <summary>Production content publication client bound to the live server (operate/publishing flow).</summary>
     public IHonuaContentPublicationClient CreatePublicationClient() =>
         new HonuaContentPublicationHttpClient(
             CreateHttpClient(),
             new HonuaContentPublicationClientOptions(BaseAddress, Options.StudioAdminApiKey));
 
-    /// <summary>
-    /// Raw HttpClient (with admin key + dev-cert acceptance only when the fixture server is TLS) used to
-    /// seed publications via the real publish POST. Never an in-memory client.
-    /// </summary>
     public HttpClient CreateHttpClient()
     {
         var handler = new HttpClientHandler();

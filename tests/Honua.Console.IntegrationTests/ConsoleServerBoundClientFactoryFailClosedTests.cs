@@ -12,27 +12,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// End-state "fail-closed by construction" coverage for the honua-console#254 refactor: the Family-A
-/// server-bound typed clients now obtain their <see cref="HttpClient"/> from the browser Web host's
-/// <see cref="ConsoleServerBoundClients"/> IHttpClientFactory named clients + scoped operator-injected
-/// binding chain, instead of a self-contained per-client pooled handler.
-///
-/// These tests exercise the REAL registered chain (<see cref="ConsoleServerBoundClients.AddConsoleServerBoundClients"/>
-/// + <see cref="ConsoleServerBoundOperatorGuardHandler"/> + <c>HonuaServerBindingHandler</c> over the
-/// operator-partitioned stores), swapping only the pooled primary handler for a capturing one, and prove:
-/// <list type="number">
-/// <item>an UNRESOLVED operator is a hard deny on EVERY privileged server-bound client (they all funnel
-/// through the one <see cref="ConsoleServerBoundClients.ServerBoundClientName"/> chain) — the
-/// <c>__anonymous__</c> sentinel no longer yields a usable server-bound identity;</item>
-/// <item>concurrent operators stay isolated — each call carries that operator's OWN bearer, never
-/// another's, even under interleaving on the shared factory;</item>
-/// <item>the legitimately-anonymous PUBLIC client tolerates an unresolved operator by design (keeps the
-/// /public + /ogc/styles surfaces working).</item>
-/// </list>
-/// The existing <see cref="ConsoleServerBindingFailClosedTests"/> locks the binding-handler chokepoint in
-/// isolation; this locks the composed IHttpClientFactory surface the refactor introduces.
-/// </summary>
 public sealed class ConsoleServerBoundClientFactoryFailClosedTests
 {
     [Fact]

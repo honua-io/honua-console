@@ -2,13 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Pins the deliverable-request card treatment (#193): the map / analysis / dashboard / app
-/// proposal kinds parse from their wire strings, classify onto the GIS-desk "Deliverable request"
-/// ticket type, and drive the kind-appropriate first-class card (kicker / plan-diff heading /
-/// preview heading / CSS variant) in the approval panel — consistent with the existing
-/// data-import card. Classification is derived from the server-owned kind, never guessed from prose.
-/// </summary>
 public sealed class DeliverableCardTests
 {
     [Theory]

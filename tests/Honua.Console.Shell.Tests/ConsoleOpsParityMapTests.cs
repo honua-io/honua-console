@@ -5,10 +5,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Guards the route-level Console/operator seat-parity contract tracked by #291.
-/// DTO and response-shape drift belongs to the individual contract tests, not this map.
-/// </summary>
 public sealed class ConsoleOpsParityMapTests
 {
     private const string ParityMapRelativePath = "contracts/honua-server/ops-parity-map.yaml";

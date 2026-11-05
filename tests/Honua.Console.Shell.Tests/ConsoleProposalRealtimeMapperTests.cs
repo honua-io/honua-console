@@ -3,12 +3,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Pins the projection from the honua-server admin hub's proposal event payload
-/// (<c>ProposalPending</c> / <c>ProposalResolved</c>, honua-server #1695) onto the console
-/// <see cref="ConsoleProposalEvent"/> the inbox reacts to. The wire strings are mapped through
-/// the same shared parsers as the REST projection so kind/status/risk stay consistent.
-/// </summary>
 public sealed class ConsoleProposalRealtimeMapperTests
 {
     [Fact]

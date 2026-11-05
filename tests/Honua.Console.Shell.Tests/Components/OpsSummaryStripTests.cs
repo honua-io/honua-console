@@ -7,13 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.Shell.Tests.Components;
 
-/// <summary>
-/// Coverage for the shared ops-summary strip (console#292 scope item 2; founder decision
-/// 2026-07-07 ships it on both the operate hub and the console home): overall health, awaiting
-/// approvals, open findings, and SLO breaches, each deep-linking to its actionable surface, with
-/// honest degrade (never a fabricated zero) and a live/manual approvals indicator that never
-/// claims a liveness it does not have.
-/// </summary>
 public sealed class OpsSummaryStripTests : ConsoleComponentTestBase
 {
     [Fact]

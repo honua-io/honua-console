@@ -3,14 +3,6 @@ using Honua.Console.Web.Auth;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Regression coverage for the unbounded-growth defect in the multi-operator browser host's
-/// operator-scoped profile/session stores (honua-console#279 PA-237). Before the fix each operator that
-/// ever signed in leaked one in-memory partition for the life of the process — including short-lived
-/// edge-forwarded identities that never return. The stores now evict a departed operator's partition on
-/// sign-out and bound the partition map with idle-lifetime + capacity pruning, mirroring the #305-era BFF
-/// cookie-jar store.
-/// </summary>
 public sealed class OperatorScopedStoreEvictionTests
 {
     [Fact]

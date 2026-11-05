@@ -7,13 +7,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Recording-HttpClient unit tests proving the approval-surface proposals client (#193)
-/// binds to the honua-server console approval REST API (honua-server #1694): list/filter,
-/// detail (plan/diff/dry-run/risk/blockers), approve, and reject (reason required). Interactive
-/// decisions use the operator bearer; the RBAC approve gate / separation-of-duties 403 surfaces as a
-/// Forbidden result and the client never fabricates data (charter §11).
-/// </summary>
 public sealed class ConsoleProposalsClientTests
 {
     [Theory]

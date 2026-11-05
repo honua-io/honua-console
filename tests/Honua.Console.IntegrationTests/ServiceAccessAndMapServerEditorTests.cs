@@ -6,17 +6,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for the metadata-UI gap-analysis Bucket 3-A closures:
-/// <list type="bullet">
-/// <item>#6 access-by-role — the access-policy PUT now carries <c>allowedRoles</c>/<c>allowedWriteRoles</c>;</item>
-/// <item>#5 MapServer render settings — a new <c>PUT /mapserver</c> client + operation, with an honest
-/// 501-Not-Implemented surface (the known V2 gap) rather than a fabricated success.</item>
-/// </list>
-/// These assert the real route/verb/body each mutation issues (over a stubbed admin client) and the result
-/// mapping, plus that a recording fake operation receives the role arrays / MapServer command from the
-/// command surface. They run in PR CI (no Docker).
-/// </summary>
 public sealed class ServiceAccessAndMapServerEditorTests
 {
     private static readonly Uri BaseAddress = new("https://honua.test");
@@ -229,7 +218,6 @@ public sealed class ServiceAccessAndMapServerEditorTests
         }
     }
 
-    /// <summary>Recording fake that captures the last access-policy and MapServer commands it was handed.</summary>
     private sealed class RecordingServiceConfigurationOperation : IServiceConfigurationOperation
     {
         public ServiceAccessPolicyCommand? LastAccessPolicy { get; private set; }

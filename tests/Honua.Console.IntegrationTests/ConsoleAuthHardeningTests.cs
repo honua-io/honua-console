@@ -7,16 +7,6 @@ using Microsoft.AspNetCore.Http;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Regression coverage for the two S1 console-auth defects introduced by the fail-closed operator-auth
-/// change (honua-console#233 / PR #242):
-/// <list type="number">
-/// <item>S1 #1 — the process-wide singleton profile/session stores let one operator's active profile and
-/// forwarded bearer bleed into another operator's requests on the multi-operator browser host.</item>
-/// <item>S1 #2 — the bare <c>RequireAuthenticatedUser</c> fallback policy blocked the legitimately-anonymous
-/// public embed / public-link / open-data surfaces.</item>
-/// </list>
-/// </summary>
 public sealed class ConsoleAuthHardeningTests
 {
     // ---- S1 #1: cross-operator bearer/identity isolation -------------------------------------------------

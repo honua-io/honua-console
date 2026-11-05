@@ -8,14 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the Share management page (<c>/share/manage</c>). Verifies the
-/// missing-binding surface, a loaded projection rendering an unambiguous public/private state plus the
-/// public-link and embed panels gated on the caller's facets, a blocked dependency closure rendering the
-/// blocking dependencies, and a minted token surfacing its one-time secret value. Drives the page through a
-/// fake <see cref="IShareAccessDataSource"/> rather than a mock server; the live binding ships its own
-/// opt-in Testcontainers suite.
-/// </summary>
 public sealed class ShareManagePageRenderTests
 {
     [Fact]

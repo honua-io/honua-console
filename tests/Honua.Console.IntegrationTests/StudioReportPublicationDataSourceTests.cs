@@ -5,12 +5,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for the report-builder publication data source. The server-bound source maps the
-/// content publication detail into the report view, rejects non-report artifacts as unsupported, and surfaces
-/// endpoint issues as capability states; the unsupported source returns an explicit missing-binding state and
-/// never fabricates publication data (Console Patterns Charter section 11).
-/// </summary>
 public sealed class StudioReportPublicationDataSourceTests
 {
 

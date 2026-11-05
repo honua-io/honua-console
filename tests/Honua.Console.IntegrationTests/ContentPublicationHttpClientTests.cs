@@ -4,12 +4,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for <see cref="HonuaContentPublicationHttpClient"/> transport semantics. Caller-requested
-/// cancellation must propagate (it cancels the calling operation rather than masquerading as an Unavailable
-/// endpoint issue), while an HttpClient timeout still surfaces as Unavailable. Status mapping (404 not found,
-/// 403 missing permission) and the success path are also asserted. Mirrors the form package client's contract.
-/// </summary>
 public sealed class ContentPublicationHttpClientTests
 {
     private static readonly Uri BaseAddress = new("https://honua.test");

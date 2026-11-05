@@ -4,29 +4,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Temporal capability + as-of round-trip (console-integration-test-plan.md Wave 3, Family E, P0;
-/// honua-console#23 / honua-server#1166).
-///
-/// Seeds a real queryable service/layer, then drives the production
-/// <see cref="HonuaServerTemporalCapabilityClient"/> (the console temporal OPERATION path) to read the
-/// layer's temporal capability, and asserts the result INDEPENDENTLY through the
-/// <see cref="ServerStateVerifier"/> oracle hitting the server's own temporal capability + as-of API
-/// (<c>/api/v1/temporal/services/{serviceId}/layers/{layerId}/...</c>) — proving the console reflection
-/// matches the server-owned capability descriptor (rule #2: a DIFFERENT read API than the console client).
-///
-/// CONTRACT NOTE: honua-server derives temporal history support from a storage-binding <c>temporalColumn</c>
-/// option on the Metadata v2 graph (TemporalHistoryService.GetCapabilityAsync). The admin layer-publish path
-/// (LayerPublishRequest) exposes no way to configure that column, so a layer published through the live admin
-/// API reports <c>supportsHistory=false</c> and the as-of read answers 409 Conflict. This suite therefore
-/// asserts the UNSUPPORTED round-trip end to end (the negative the plan calls for: a non-temporal layer
-/// reports unsupported, verified independently AND reflected by the console). When a server build later
-/// exposes a temporal-capable layer through a public path, the positive as-of branch lights up automatically
-/// (it is attempted and skips cleanly today rather than fabricating a temporal column).
-///
-/// Off by default; the SkippableFacts skip cleanly without Docker / the opt-in env (Console Patterns Charter
-/// section 11) and RUN in the nightly lane.
-/// </summary>
 [Collection(TemporalReplicaIntegrationCollection.Name)]
 public sealed class TemporalCapabilityRoundTripTests
 {

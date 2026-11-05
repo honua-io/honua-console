@@ -7,13 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render regression for the server-backed Studio GP/ETL workflow editor
-/// (<see cref="StudioWorkflowEditorPage"/>). A save that fails honua-server (#1185) graph validation creates
-/// no immutable version; the editor must keep the draft dirty so a follow-on publish cannot reuse a stale
-/// prior version and silently drop the current edits. Regression for the honua-console#62 review finding
-/// "failed version saves can still mark stale drafts as publishable".
-/// </summary>
 public sealed class StudioWorkflowEditorPageTests
 {
     [Fact]
@@ -153,11 +146,6 @@ public sealed class StudioWorkflowEditorPageTests
     private static IElement FindButton(IRenderedComponent<StudioWorkflowEditorPage> page, string label) =>
         page.FindAll("button").Single(button => button.TextContent.Contains(label, StringComparison.Ordinal));
 
-    /// <summary>
-    /// Test double that always returns a bound draft carrying a prior valid version and a save that fails
-    /// server validation (no version id, no binding state). Records call counts so the test can assert that a
-    /// blocked save never escalates into a stale publish.
-    /// </summary>
     private sealed class RecordingWorkflowPackageClient : IStudioWorkflowPackageClient
     {
         public const string PackageId = "pkg-1";

@@ -5,11 +5,6 @@ using Honua.Console.Shell.Validation;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for <see cref="ValidationMessageInline"/>, the sibling surface for plain
-/// studio-form-label fields: it renders the field's findings from a shared <see cref="ValidationState"/>
-/// and renders nothing when the field is clean.
-/// </summary>
 public sealed class ValidationMessageInlineTests
 {
     [Fact]

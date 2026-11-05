@@ -8,16 +8,6 @@ public sealed class CrossCuttingIntegrationCollection : ICollectionFixture<Cross
     public const string Name = "CrossCuttingIntegration";
 }
 
-/// <summary>
-/// Boots a real honua-server (with PostGIS) via Testcontainers for the Wave 6 cross-cutting suite
-/// (console-integration-test-plan.md §5): RBAC enforcement, validation field-errors, idempotency/round-trip
-/// fidelity, and version/contract drift. Exposes both an ADMIN-authenticated and a genuinely UNAUTHENTICATED
-/// operate client (the RBAC matrix attempts mutations without admin auth), the analysis content client (a
-/// validation surface), the independent <see cref="ServerStateVerifier"/> oracle, and a host-reachable
-/// PostGIS connection string for seeding source tables. Off by default; skips gracefully when Docker, the
-/// server image, the opt-in flag, or the admin API key is unavailable (Console Patterns Charter section 11).
-/// Reuses <see cref="HonuaServerTestcontainer"/> and mirrors <see cref="ServiceLayerPublishFixture"/>.
-/// </summary>
 public sealed class CrossCuttingFixture : IAsyncLifetime
 {
     private HonuaServerTestcontainer? _container;
@@ -28,7 +18,6 @@ public sealed class CrossCuttingFixture : IAsyncLifetime
 
     public Uri BaseAddress { get; private set; } = new("https://localhost");
 
-    /// <summary>Host-reachable PostGIS connection string for seeding source tables, or <c>null</c> for an external server.</summary>
     public string? PostgresConnectionString { get; private set; }
 
     public async Task InitializeAsync()
@@ -78,40 +67,31 @@ public sealed class CrossCuttingFixture : IAsyncLifetime
         }
     }
 
-    /// <summary>The production admin operate client WITH the admin API key (the privileged operation path).</summary>
     public IHonuaAdminOperateClient CreateOperateClient() =>
         new HonuaAdminOperateHttpClient(
             CreateHttpClient(),
             new HonuaAdminOperateClientOptions(BaseAddress, Options.StudioAdminApiKey));
 
-    /// <summary>
-    /// The production admin operate client with NO admin API key — a genuinely unauthenticated principal. The
-    /// RBAC matrix uses this to prove a mutation is blocked server-side (not just behind a UI gate).
-    /// </summary>
     public IHonuaAdminOperateClient CreateUnauthenticatedOperateClient() =>
         new HonuaAdminOperateHttpClient(
             CreateHttpClient(),
             new HonuaAdminOperateClientOptions(BaseAddress, ApiKey: null));
 
-    /// <summary>The production content-publication client WITH the admin API key (the privileged publish path).</summary>
     public IHonuaContentPublicationClient CreateContentPublicationClient() =>
         new HonuaContentPublicationHttpClient(
             CreateHttpClient(),
             new HonuaContentPublicationClientOptions(BaseAddress, Options.StudioAdminApiKey));
 
-    /// <summary>The production Console Share client WITH the admin API key (a validation/Studio-package surface).</summary>
     public IHonuaConsoleShareClient CreateShareClient() =>
         new HonuaConsoleShareHttpClient(
             CreateHttpClient(),
             new HonuaConsoleShareClientOptions(BaseAddress, Options.StudioAdminApiKey));
 
-    /// <summary>The independent verification oracle that reads server state back through canonical read APIs.</summary>
     public ServerStateVerifier CreateVerifier() =>
         new(BaseAddress, Options.StudioAdminApiKey);
 
     public string? AdminApiKey => Options.StudioAdminApiKey;
 
-    /// <summary>Raw HttpClient (admin key + dev-cert acceptance) used to seed connections/content over the admin API.</summary>
     public HttpClient CreateHttpClient()
     {
         var handler = new HttpClientHandler();

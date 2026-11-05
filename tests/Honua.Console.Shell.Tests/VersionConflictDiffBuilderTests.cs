@@ -3,12 +3,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Unit coverage for <see cref="VersionConflictDiffBuilder"/>, the pure projection that turns the server's raw
-/// three-way conflict images into the operator-facing 3-way diff view used by the conflict-resolution surface
-/// (honua-console#177). Pins the changed-flag computation that drives the per-field and geometry highlighting:
-/// a field/geometry is "changed" exactly when its base/DEFAULT/version images are not all equal.
-/// </summary>
 public sealed class VersionConflictDiffBuilderTests
 {
     [Fact]

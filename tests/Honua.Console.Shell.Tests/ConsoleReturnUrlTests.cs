@@ -3,12 +3,6 @@ using Xunit;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Guards the shared returnTo open-redirect sanitiser. The regression of record is the
-/// slash+backslash bypass (<c>/\evil.com</c>): it passes a naive "starts with / but not //"
-/// check, but browsers normalise <c>\</c> to <c>/</c>, yielding the protocol-relative external
-/// host <c>//evil.com</c>.
-/// </summary>
 public sealed class ConsoleReturnUrlTests
 {
     [Theory]

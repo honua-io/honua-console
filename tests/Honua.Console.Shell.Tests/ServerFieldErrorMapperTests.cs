@@ -5,12 +5,6 @@ using Honua.Console.Shell.Validation;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Docker-free coverage for <see cref="ServerFieldErrorMapper"/>, proving each of the four server
-/// validation shapes (Studio diagnostics, Form issues, Workflow failures, RFC-7807 ProblemDetails
-/// errors[]) maps onto the single <see cref="ConsoleFieldError"/> vocabulary, and that the
-/// FieldKey-resolver hook is honoured.
-/// </summary>
 public sealed class ServerFieldErrorMapperTests
 {
     [Fact]

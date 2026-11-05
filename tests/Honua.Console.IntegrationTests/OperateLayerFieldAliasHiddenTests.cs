@@ -7,15 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for the layer fields alias/hidden authoring gap (metadata-ui-gap Bucket 3-A #8).
-/// Drives the real <see cref="OperateLayerDetailPage"/> through fakes (never a mock server) to prove:
-///   (1) editing a field's alias + hidden and clicking Save issues the field-configuration update with
-///       Alias/Hidden populated, and
-///   (2) the page re-reads fields from the server afterwards so the table reflects the new state.
-/// A second test pins the REAL <see cref="HonuaServerConsoleLayerFieldsOperation"/> so the
-/// <c>PUT /api/v1/admin/metadata/layers/{id}/fields</c> request body actually carries Alias/Hidden.
-/// </summary>
 public sealed class OperateLayerFieldAliasHiddenTests
 {
     private const string ResourceId = "conn-1-layer-7";
@@ -91,8 +82,6 @@ public sealed class OperateLayerFieldAliasHiddenTests
         Assert.Same(client.CurrentDomain, field.Domain);
     }
 
-    /// <summary>Records the page's calls into <see cref="IConsoleLayerFieldsOperation"/> and serves the
-    /// updated field state on re-read so the round-trip is observable.</summary>
     private sealed class RecordingLayerFieldsOperation : IConsoleLayerFieldsOperation
     {
         private ConsoleLayerFields _state;
@@ -129,8 +118,6 @@ public sealed class OperateLayerFieldAliasHiddenTests
         }
     }
 
-    /// <summary>Minimal recording admin client: captures the PUT body for the fields endpoint and echoes it
-    /// back; every other member is unused by these tests.</summary>
     private sealed class RecordingAdminClient : IHonuaAdminOperateClient
     {
         public HonuaAdminFieldDomain CurrentDomain { get; } = new()

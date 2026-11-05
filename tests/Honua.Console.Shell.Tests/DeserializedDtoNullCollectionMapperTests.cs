@@ -4,15 +4,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Null-safety coverage for the non-Studio wire-DTO mappers that re-project freshly-deserialized server
-/// records. System.Text.Json overrides a collection's <c>[]</c>/<c>Array.Empty()</c> initializer (and a
-/// nested object's <c>new()</c> initializer) with null when the server emits an explicit JSON <c>null</c>
-/// for the key, so every mapper must coalesce before LINQ rather than throwing and tearing down the Blazor
-/// circuit (Console Patterns Charter section 11 — bind the real server, never throw on an honest-but-empty
-/// payload). Each test feeds an explicit <c>null</c> into a collection/nested-object the wire contract
-/// declares non-null and asserts the projection succeeds with an empty result.
-/// </summary>
 public sealed class DeserializedDtoNullCollectionMapperTests
 {
     private static ConsoleEnvironmentProfile Profile() =>

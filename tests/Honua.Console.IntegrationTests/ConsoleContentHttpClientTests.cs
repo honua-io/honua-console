@@ -5,14 +5,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for <see cref="HonuaConsoleContentHttpClient"/> transport semantics against the
-/// honua-server Console metadata v2 content + RBAC contract (honua-server#1162, issue #7). Caller-requested
-/// cancellation must propagate (it cancels the calling operation rather than masquerading as an Unavailable
-/// endpoint issue), while an HttpClient timeout still surfaces as Unavailable. The shared
-/// {success,data,message} envelope, status mapping, admin X-API-Key header, list query composition, and the
-/// action-check / create POST bodies are asserted. Mirrors the content publication client contract test.
-/// </summary>
 public sealed class ConsoleContentHttpClientTests
 {
     private static readonly Uri BaseAddress = new("https://honua.test");

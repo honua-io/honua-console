@@ -7,18 +7,10 @@ using Npgsql;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Shared seeding helper for the Wave 3 temporal + replica round-trips: creates a PostGIS source table in the
-/// shared container, registers it under an admin secure connection, and performs the console's real
-/// service-layer-publish OPERATION so a queryable service/layer exists for the temporal capability read and
-/// the named-replica <c>createReplica</c> seed to target. Mirrors the seeding the flagship
-/// <see cref="ServiceLayerPublishRoundTripTests"/> performs, factored out so both Wave 3 families reuse it.
-/// </summary>
 internal static class PublishedLayerSeeder
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    /// <summary>The seeded layer's service name + service-local layer id, returned to the round-trip tests.</summary>
     public sealed record SeededLayer(string ServiceName, int LayerId, string ConnectionId, string Table);
 
     public static async Task SeedPointTableAsync(string postgresConnectionString, string table)
@@ -44,11 +36,6 @@ internal static class PublishedLayerSeeder
         await command.ExecuteNonQueryAsync();
     }
 
-    /// <summary>
-    /// Seeds the point table, registers a secure connection, and publishes it through the console operation.
-    /// Returns <c>null</c> when the publish failed because the pinned server image is not ready for the
-    /// layer-publish path (5xx / Unavailable) so the caller can skip cleanly; throws on a real config error.
-    /// </summary>
     public static async Task<SeededLayer?> SeedPublishedLayerAsync(
         TemporalReplicaFixture fixture,
         string slugSuffix)
@@ -85,7 +72,6 @@ internal static class PublishedLayerSeeder
         return new SeededLayer(serviceName, result.LayerId.Value, connectionId, table);
     }
 
-    /// <summary>Creates real source data and publishes scoped metadata through the supported admin API.</summary>
     public static async Task<SeededLayer> PublishNamespacedLayerAsync(
         TemporalReplicaFixture fixture, string suffix, string metadataNamespace)
     {

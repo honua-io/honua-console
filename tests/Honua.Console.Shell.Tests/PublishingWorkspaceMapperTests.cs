@@ -4,12 +4,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Pure unit coverage for <see cref="PublishingWorkspaceMapper"/>. Asserts the projection from the
-/// honua-server content publication registry (honua-server#1183) route/version graph into the
-/// publishing workspace review + matrix + version models: slot, generated endpoints, catalog
-/// registration, policy summary, warnings, rollback class, provenance, and evidence deep links.
-/// </summary>
 public sealed class PublishingWorkspaceMapperTests
 {
     [Fact]

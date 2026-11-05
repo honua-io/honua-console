@@ -2,12 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Pins the operation-kind classification the Operate Deploy page uses to route the two
-/// capabilities: a Deploy/Rollback-kind deploy-control operation is a server-version
-/// upgrade; a MetadataRelease-kind operation is a cross-environment promotion. A
-/// Migration kind is neither.
-/// </summary>
 public sealed class DeployOperationKindTests
 {
     private static DeployOperationProposal WithKind(string kind) => new(

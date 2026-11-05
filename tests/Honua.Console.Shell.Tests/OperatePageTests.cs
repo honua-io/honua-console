@@ -10,13 +10,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Coverage for the Operate hub's "Current attention" list (console#292 scope item 5): a
-/// connection diagnostic with an empty <c>OperatorActions</c> list used to throw
-/// <see cref="IndexOutOfRangeException"/> from the unguarded <c>OperatorActions[0]</c> index at
-/// <c>OperatePage.razor:181</c>. The guard must render an honest fallback instead of indexing an
-/// empty list, and must not regress the normal (non-empty) path.
-/// </summary>
 public sealed class OperatePageTests
 {
     [Fact]

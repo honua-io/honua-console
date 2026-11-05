@@ -4,12 +4,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for the form-builder data sources: the server-backed source maps live shim
-/// results and surfaces endpoint issues as capability states (never throwing or fabricating), enforces
-/// the pre-publish gate before calling the server, and the unsupported source renders a missing-binding
-/// state instead of mock data (Console Patterns Charter section 11).
-/// </summary>
 public sealed class StudioFormPackageDataSourceTests
 {
 

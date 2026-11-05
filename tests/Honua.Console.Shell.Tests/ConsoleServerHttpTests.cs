@@ -6,13 +6,6 @@ using Xunit;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Guards the single auth + URI rule shared by the Family-B honua-server clients
-/// (observability, scenes, SensorThings, support, etc.). The non-forwardable Console
-/// session sentinel must resolve to <see langword="null"/> so the admin-key fallback
-/// engages — mirroring <see cref="HonuaServerBindingHandler"/> — instead of being
-/// forwarded as a Bearer token (which 401/403-ed every Family-B surface before the fix).
-/// </summary>
 public sealed class ConsoleServerHttpTests
 {
     [Theory]

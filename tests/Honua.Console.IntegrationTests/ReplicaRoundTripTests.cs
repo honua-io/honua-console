@@ -5,21 +5,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Named-replica round-trip (console-integration-test-plan.md Wave 3, Family F, P1; honua-server#1167).
-///
-/// Seeds a real queryable service/layer, then creates a NAMED replica server-side through the GeoServices
-/// FeatureServer <c>createReplica</c> verb (the durable-sync entry point operators see). It then drives the
-/// production <see cref="HonuaServerTemporalCapabilityClient"/> replica list (the console replica OPERATION
-/// path) and asserts the result INDEPENDENTLY through the <see cref="ServerStateVerifier"/> oracle hitting
-/// the server's own replica-management API (<c>/api/v1/admin/services/{serviceId}/replicas</c> + detail) —
-/// proving the console replica list reflects the server-owned replica registry (rule #2: a DIFFERENT read
-/// API than the console client). The negative companion asserts a foreign replica id is not-found
-/// independently.
-///
-/// Off by default; the SkippableFacts skip cleanly without Docker / the opt-in env (Console Patterns Charter
-/// section 11) and RUN in the nightly lane.
-/// </summary>
 [Collection(TemporalReplicaIntegrationCollection.Name)]
 public sealed class ReplicaRoundTripTests
 {

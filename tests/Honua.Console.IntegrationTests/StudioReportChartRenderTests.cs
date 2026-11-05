@@ -4,16 +4,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the Studio REPORT family's final visible output: a report chart
-/// panel renders the shared <see cref="ChartPreview"/> over the panel's REAL generated Vega-Lite spec
-/// (the report model's <see cref="StudioReportPanelEditor.VegaLiteSpec"/>, mirroring the dashboard's
-/// chart panel), and a report map panel renders the shared <see cref="MapPreview"/>. The preview must
-/// render fully without any Vega/JS runtime or map backend bound, degrading to the honest schematic
-/// placeholder rather than fabricating data (Charter §11). Rendering the full builder page requires the
-/// publication data source + a load flow, so this exercises the smallest renderable unit — the panel's
-/// spec driving ChartPreview — which is exactly what the report page emits per chart panel.
-/// </summary>
 public sealed class StudioReportChartRenderTests
 {
     [Fact]

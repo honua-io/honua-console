@@ -4,19 +4,6 @@ using System.Text.Json;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Independent read-only verification oracle for the live-server operation→output integration suite
-/// (console-integration-test-plan.md §2.2, Wave 1). It talks DIRECTLY to honua-server's canonical read
-/// APIs — the admin layer registry, the GeoServices FeatureServer metadata + query surface, the admin
-/// service-settings surface, the console catalog, and STAC — rather than through the console's own data
-/// sources. This is the single most important rule of the suite (plan rule #2): assert server-side state
-/// through a DIFFERENT API than the one the operation went through, so the test proves the server is
-/// actually configured correctly rather than re-reading the same code path.
-///
-/// The verifier owns no mutation. It reuses the Testcontainer base URL + admin key, accepts the
-/// dev/self-signed certificate for TLS fixtures, and parses responses defensively from raw JSON so it
-/// stays resilient to incidental shape changes in the read surfaces.
-/// </summary>
 public sealed class ServerStateVerifier : IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -45,10 +32,6 @@ public sealed class ServerStateVerifier : IDisposable
     //  Admin layer registry: GET /api/v1/admin/connections/{id}/layers
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Reads the published-layer registry for a connection and returns the layer matching <paramref name="layerId"/>,
-    /// or <c>null</c> when absent. Verifies the layer was actually registered (enabled flag, name, source table).
-    /// </summary>
     public async Task<VerifiedLayerRegistration?> GetRegisteredLayerAsync(
         string connectionId,
         string serviceName,
@@ -85,11 +68,6 @@ public sealed class ServerStateVerifier : IDisposable
     //  FeatureServer metadata: GET /rest/services/{service}/FeatureServer/{layerId}
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Reads the GeoServices FeatureServer layer metadata: fields (name → esri type), geometryType,
-    /// the extent + its spatial-reference wkid, and the capability list. This is the canonical
-    /// service-metadata read, independent of the admin publish path.
-    /// </summary>
     public async Task<VerifiedFeatureServerLayer?> GetFeatureServerLayerAsync(
         string serviceName,
         int layerId,
@@ -155,11 +133,6 @@ public sealed class ServerStateVerifier : IDisposable
     //  FeatureServer query: GET /rest/services/{service}/FeatureServer/{layerId}/query
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Runs a FeatureServer query and projects the returned feature count, attribute maps, and the
-    /// returned spatial-reference wkid. Proves the layer is actually queryable with the right data + SRID,
-    /// and (via the <paramref name="where"/> filter) that the configured fields are real and filterable.
-    /// </summary>
     public async Task<VerifiedQueryResult?> QueryFeatureServerAsync(
         string serviceName,
         int layerId,
@@ -209,10 +182,6 @@ public sealed class ServerStateVerifier : IDisposable
     //  Admin service settings: GET /api/v1/admin/services/{service}/settings
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Reads the admin service-settings projection (enabled protocols, available protocols) for a service.
-    /// Returns <c>null</c> when the server does not expose settings for the service.
-    /// </summary>
     public async Task<VerifiedServiceSettings?> GetServiceSettingsAsync(
         string serviceName,
         CancellationToken cancellationToken = default)
@@ -245,13 +214,6 @@ public sealed class ServerStateVerifier : IDisposable
     //  GeoServices service-root reachability: GET /rest/services/{service}/{protocol}
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Probes a GeoServices protocol surface for a service (e.g. <c>FeatureServer</c> / <c>MapServer</c>) and
-    /// returns whether it currently resolves to a real service document (HTTP 200 with no error payload).
-    /// Used to independently confirm a service protocol-configuration change flipped the protocol on/off in
-    /// the actual protocol surface — not just in the admin settings projection. Returns <c>false</c> when the
-    /// surface is absent (404), errored, or unreachable.
-    /// </summary>
     public async Task<bool> GeoServicesProtocolResolvesAsync(
         string serviceName,
         string protocol,
@@ -279,11 +241,6 @@ public sealed class ServerStateVerifier : IDisposable
     //  Console catalog: GET /api/v1/console/content/search?query=...
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Reads the console catalog search listing and returns the titles of the returned items. Used to
-    /// independently confirm published content landed in the catalog (best-effort; returns an empty list
-    /// when the surface is unavailable).
-    /// </summary>
     public async Task<IReadOnlyList<string>> SearchCatalogTitlesAsync(
         string query,
         CancellationToken cancellationToken = default)
@@ -332,11 +289,6 @@ public sealed class ServerStateVerifier : IDisposable
     //  Console catalog detail: GET /api/v1/console/content/{id}
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Reads a single console content item's catalog projection (title, itemType, visibility) independently
-    /// of the operation that created it. Returns <c>null</c> when the item is absent or the surface is
-    /// unavailable.
-    /// </summary>
     public async Task<VerifiedCatalogItem?> GetCatalogItemAsync(
         string itemId,
         CancellationToken cancellationToken = default)
@@ -371,10 +323,6 @@ public sealed class ServerStateVerifier : IDisposable
     //  Content publication admin detail: GET /api/v1/console/publications/{id}
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Reads the admin content-publication route state (route slug/path, kind, active revision, visibility)
-    /// independently of the console publish operation. Returns <c>null</c> when absent / unavailable.
-    /// </summary>
     public async Task<VerifiedPublicationRoute?> GetPublicationRouteAsync(
         string publicationId,
         CancellationToken cancellationToken = default)
@@ -405,12 +353,6 @@ public sealed class ServerStateVerifier : IDisposable
     //  Published-route reachability (anonymous): GET /api/v1/published/{routeSlug}
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Fetches a published artifact by its route slug through the public <c>/api/v1/published</c> surface as
-    /// an UNAUTHENTICATED client (no admin key). Returns the HTTP status and the resolved title/revision so a
-    /// test can assert a public publication is actually reachable anonymously (200) while a private one is
-    /// denied (401/403/404) — the independent proof the route landed and enforces visibility.
-    /// </summary>
     public Task<VerifiedAnonymousFetch> FetchPublishedRouteAnonymouslyAsync(
         string routeSlug,
         CancellationToken cancellationToken = default)
@@ -423,33 +365,16 @@ public sealed class ServerStateVerifier : IDisposable
     //  Anonymous Console Share resolution: GET /api/v1/console/share/...
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Resolves a public-link token through the anonymous Console Share surface
-    /// (<c>GET /api/v1/console/share/link/{token}</c>) as an UNAUTHENTICATED client. A granted token returns
-    /// 200 with the item's presentation projection; an unknown/expired/revoked/forbidden token returns 404
-    /// with a constant denial body. This is the independent proof a minted token actually grants the scope.
-    /// </summary>
     public Task<VerifiedAnonymousFetch> ResolvePublicLinkAnonymouslyAsync(
         string token,
         CancellationToken cancellationToken = default) =>
         FetchAnonymousAsync($"/api/v1/console/share/link/{Uri.EscapeDataString(token)}", cancellationToken);
 
-    /// <summary>
-    /// Resolves a public-indexed content item through the anonymous Console Share surface
-    /// (<c>GET /api/v1/console/share/content/{id}</c>) as an UNAUTHENTICATED client. A public-indexed item
-    /// returns 200; a private/missing/no-longer-public item returns 404. The independent proof an access-tier
-    /// raise actually grants anonymous content access.
-    /// </summary>
     public Task<VerifiedAnonymousFetch> ResolvePublicContentAnonymouslyAsync(
         string itemId,
         CancellationToken cancellationToken = default) =>
         FetchAnonymousAsync($"/api/v1/console/share/content/{Uri.EscapeDataString(itemId)}", cancellationToken);
 
-    /// <summary>
-    /// Redeems an embed token through the anonymous Console Share surface
-    /// (<c>POST /api/v1/console/share/embed/{token}/redeem</c>) as an UNAUTHENTICATED client. A live embed
-    /// token returns 200 with the embed resolution; an expired/disabled token returns 404.
-    /// </summary>
     public Task<VerifiedAnonymousFetch> RedeemEmbedTokenAnonymouslyAsync(
         string token,
         CancellationToken cancellationToken = default) =>
@@ -459,13 +384,6 @@ public sealed class ServerStateVerifier : IDisposable
     //  Temporal capability: GET /api/v1/temporal/services/{serviceId}/layers/{layerId}/capabilities
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Reads the server-owned temporal capability descriptor for a layer (honua-server#1166) — whether the
-    /// layer supports history / as-of reads, the backing temporal column + cursor kind, and the current
-    /// generation. This is the canonical server temporal read, independent of the console temporal client.
-    /// Returns <c>null</c> when the capability route is absent (404) so a caller can distinguish a
-    /// route-mounted-but-unsupported layer (200 with supportsHistory=false) from a missing contract.
-    /// </summary>
     public async Task<VerifiedTemporalCapability?> GetTemporalCapabilityAsync(
         string serviceId,
         int layerId,
@@ -494,12 +412,6 @@ public sealed class ServerStateVerifier : IDisposable
             GetLong(root, "currentGeneration"));
     }
 
-    /// <summary>
-    /// Performs an as-of read for a layer at a generation cursor (honua-server#1166). Returns the resolved /
-    /// current generation and the collapsed feature-change set (object ids + net operations). Returns
-    /// <c>null</c> when the layer does not support temporal reads (the server answers 409 Conflict) or the
-    /// route is absent, so the caller can assert the unsupported path independently.
-    /// </summary>
     public async Task<VerifiedTemporalAsOf?> ReadTemporalAsOfAsync(
         string serviceId,
         int layerId,
@@ -539,12 +451,6 @@ public sealed class ServerStateVerifier : IDisposable
     //  Replica management: GET /api/v1/admin/services/{serviceId}/replicas (+ /{replicaId})
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Reads the named-replica registry for a service (honua-server#1167) and returns each replica's id /
-    /// name / sync model / last-sync generation. This is the canonical server replica read, independent of
-    /// the console replica list. Returns an empty list when the service exposes no replicas or the surface
-    /// is unavailable.
-    /// </summary>
     public async Task<IReadOnlyList<VerifiedReplica>> ListReplicasAsync(
         string serviceId,
         CancellationToken cancellationToken = default)
@@ -570,10 +476,6 @@ public sealed class ServerStateVerifier : IDisposable
         return results;
     }
 
-    /// <summary>
-    /// Reads a single named replica's detail (honua-server#1167). Returns <c>null</c> for a foreign /
-    /// unknown replica id (the server answers 404) or when the surface is unavailable.
-    /// </summary>
     public async Task<VerifiedReplica?> GetReplicaAsync(
         string serviceId,
         string replicaId,
@@ -601,11 +503,6 @@ public sealed class ServerStateVerifier : IDisposable
     //  Catalog discovery registry: GET /api/v1/console/catalog-endpoints/{workspaceId}
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Reads the server-owned catalog discovery-endpoints registry (honua-server#1279) and returns the
-    /// endpoint keys/dialects + per-endpoint entry counts. This is the canonical server registry read,
-    /// independent of the console catalogs data source. Returns <c>null</c> when the registry route is absent.
-    /// </summary>
     public async Task<VerifiedCatalogRegistry?> GetCatalogDiscoveryRegistryAsync(
         string workspaceId,
         CancellationToken cancellationToken = default)
@@ -633,26 +530,11 @@ public sealed class ServerStateVerifier : IDisposable
         return new VerifiedCatalogRegistry(GetString(data, "workspaceId"), endpoints);
     }
 
-    /// <summary>
-    /// Probes an admin-gated route as a genuinely UNAUTHENTICATED client and returns the raw HTTP status.
-    /// This is the strong route-mounted discriminator (vs. asserting an opaque "Unsupported" projection): a
-    /// mounted + gated route rejects an anonymous request with 401 (matching the server's
-    /// <c>AnonymousRequests_AreRejectedWithoutAdminAuthorization</c> tests), while an absent route returns
-    /// 404. Status 0 signals the server was unreachable.
-    /// </summary>
     public Task<int> ProbeAdminRouteAnonymousStatusAsync(
         string path,
         CancellationToken cancellationToken = default) =>
         ProbeStatusAsync(path, cancellationToken);
 
-    /// <summary>
-    /// Probes an admin-gated MUTATING route (POST/PUT/DELETE) as a genuinely UNAUTHENTICATED client (no admin
-    /// key) and returns the raw HTTP status. A mounted + gated mutation rejects the anonymous request with
-    /// 401/403 BEFORE applying any change; an absent route returns 404. This is the RBAC-enforcement
-    /// discriminator (plan §5.1): it proves the mutation is gated server-side, not merely behind a UI gate.
-    /// A small JSON body is attached so the route's model binding does not 400 before the auth check runs.
-    /// Status 0 signals the server was unreachable.
-    /// </summary>
     public async Task<int> ProbeAnonymousMutationStatusAsync(
         HttpMethod method,
         string path,
@@ -680,15 +562,6 @@ public sealed class ServerStateVerifier : IDisposable
     //  Version / capabilities (contract pinning): GET /api/v1/admin/version + /capabilities
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Reads the server's own version + metadata-contract descriptor through the canonical admin version and
-    /// capabilities routes (<c>GET /api/v1/admin/version</c> + <c>/capabilities</c>), independently of the
-    /// console operate projection. Returns the server version, metadata API version, and metadata schema
-    /// version so a test can record them in the run evidence and assert the pinned <c>:nightly</c> contract is
-    /// what the console expects — making a drift between the console's expected contract and the live server
-    /// visible (plan §5.5). Returns <c>null</c> when neither version route is mounted (a contract-drift signal
-    /// in its own right).
-    /// </summary>
     private static JsonElement UnwrapData(JsonElement root) =>
         root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object ? data : root;
 
@@ -741,11 +614,6 @@ public sealed class ServerStateVerifier : IDisposable
     //  Collaboration comments: GET /api/v1/console/maps/{mapId}/collab/comments (+ /activity)
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Reads the durable comment threads for a map through the server collaboration API (honua-server#1278),
-    /// independently of the console collaboration data source. Returns each thread's id / feature label /
-    /// resolved flag / message count + bodies. Returns an empty list when the surface is unavailable.
-    /// </summary>
     public async Task<IReadOnlyList<VerifiedCommentThread>> ListCollabThreadsAsync(
         string mapId,
         CancellationToken cancellationToken = default)
@@ -790,10 +658,6 @@ public sealed class ServerStateVerifier : IDisposable
         return results;
     }
 
-    /// <summary>
-    /// Reads the durable collaboration activity feed for a map through the server collaboration API
-    /// (honua-server#1278), independently of the console data source. Returns the activity action strings.
-    /// </summary>
     public async Task<IReadOnlyList<string>> ListCollabActivityAsync(
         string mapId,
         CancellationToken cancellationToken = default)
@@ -827,15 +691,6 @@ public sealed class ServerStateVerifier : IDisposable
     //  Studio content-item version: GET /api/v1/studio/content-items/{itemId}/versions[/{versionId}]
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Reads a single immutable Studio content-item version back through the canonical server content API
-    /// (honua-server#1180/#1183), independently of the console builder data source: the package family/kind,
-    /// the envelope schema version, the integer version number, the content hash, and the publication-intent
-    /// visibility/route carried on the frozen envelope. This is the round-trip proof that a Studio
-    /// authoring→publish (map / dashboard) actually landed a content version with the right shape, read via
-    /// a DIFFERENT client than the one the publish went through (plan §4 rule #2). Returns <c>null</c> when the
-    /// version is absent (404) or the surface is unavailable.
-    /// </summary>
     public async Task<VerifiedStudioContentVersion?> GetStudioContentVersionAsync(
         Guid itemId,
         Guid versionId,
@@ -887,12 +742,6 @@ public sealed class ServerStateVerifier : IDisposable
             route);
     }
 
-    /// <summary>
-    /// Lists the immutable Studio content-item versions for an item through the canonical server content API,
-    /// independently of the console builder. Returns the integer version numbers present, so a test can prove a
-    /// freshly cut version actually landed (and that a republish advanced to a second version). Empty when the
-    /// item is absent or the surface is unavailable.
-    /// </summary>
     public async Task<IReadOnlyList<int>> ListStudioContentVersionNumbersAsync(
         Guid itemId,
         CancellationToken cancellationToken = default)
@@ -931,13 +780,6 @@ public sealed class ServerStateVerifier : IDisposable
     //               + GET /api/v1/forms/packages/{formId}/offline-policy
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Reads a form package's current server-side state back through the admin form-package API
-    /// (honua-server#1184), independently of the console form builder data source: the form id, title, target
-    /// service/layer, version number, and the lifecycle status (draft / published). This is the round-trip
-    /// proof a form authoring→publish actually flipped the published version on the server. Returns
-    /// <c>null</c> when the form is absent (404) or the surface is unavailable.
-    /// </summary>
     public async Task<VerifiedFormPackage?> GetFormPackageAsync(
         string formId,
         CancellationToken cancellationToken = default)
@@ -981,12 +823,6 @@ public sealed class ServerStateVerifier : IDisposable
             GetString(item, "status"));
     }
 
-    /// <summary>
-    /// Reads a published form's runtime offline-sync policy through the canonical RUNTIME contract
-    /// (<c>GET /api/v1/forms/packages/{formId}/offline-policy</c>, honua-server#1184) — a genuinely different
-    /// surface than the admin publish route the operation went through. Returns whether offline is enabled and
-    /// the available transports, or <c>null</c> when the form has no published version / the route is absent.
-    /// </summary>
     public async Task<VerifiedFormOfflinePolicy?> GetFormOfflinePolicyAsync(
         string formId,
         CancellationToken cancellationToken = default)
@@ -1027,10 +863,6 @@ public sealed class ServerStateVerifier : IDisposable
     //  STAC: GET /stac/collections
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Reads the STAC collection listing and returns the collection ids. Used for the open-data / catalog
-    /// read family; best-effort (returns an empty list when STAC is unavailable).
-    /// </summary>
     public async Task<IReadOnlyList<string>> ListStacCollectionIdsAsync(CancellationToken cancellationToken = default)
     {
         using var document = await GetJsonAsync("/stac/collections", cancellationToken).ConfigureAwait(false);
@@ -1098,11 +930,6 @@ public sealed class ServerStateVerifier : IDisposable
         }
     }
 
-    /// <summary>
-    /// Issues a request WITHOUT the admin API key (a genuinely anonymous client) and projects the HTTP status
-    /// plus, on success, a few presentation fields parsed defensively from the response body. Transport
-    /// failures surface as status 0 so a caller can distinguish "server unreachable" from a real denial.
-    /// </summary>
     private async Task<VerifiedAnonymousFetch> FetchAnonymousAsync(
         string path,
         CancellationToken cancellationToken,
@@ -1157,11 +984,6 @@ public sealed class ServerStateVerifier : IDisposable
         }
     }
 
-    /// <summary>
-    /// Issues a request WITHOUT the admin API key and returns the raw HTTP status code (0 on transport
-    /// failure). Used for the 401-vs-404 route-mounted discriminator: a gated route returns 401 while an
-    /// absent route returns 404.
-    /// </summary>
     private async Task<int> ProbeStatusAsync(string path, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, path);
@@ -1312,11 +1134,6 @@ public sealed record VerifiedPublicationRoute(
     int? ActiveRevision,
     string? Visibility);
 
-/// <summary>
-/// Result of an UNAUTHENTICATED fetch against a public/anonymous surface: the HTTP status (0 on transport
-/// failure), whether it was a 2xx grant, and the presentation fields parsed on success. Lets a test assert
-/// "an anonymous client is granted (200) / denied (4xx) access" without trusting the operation's own path.
-/// </summary>
 public sealed record VerifiedAnonymousFetch(
     int StatusCode,
     bool Granted,
@@ -1363,12 +1180,6 @@ public sealed record VerifiedCommentThread(
     int? CommentCount,
     IReadOnlyList<string> Messages);
 
-/// <summary>
-/// An immutable Studio content-item version read back through the canonical server content API: the content
-/// item + version ids, the integer version number, the package key, the envelope family (map/dashboard/…),
-/// the envelope schema version, the content hash, and the publication-intent visibility/route. Lets a test
-/// assert a Studio authoring→publish landed the right content shape independently of the publish path.
-/// </summary>
 public sealed record VerifiedStudioContentVersion(
     string? ItemId,
     string? VersionId,
@@ -1380,11 +1191,6 @@ public sealed record VerifiedStudioContentVersion(
     string? Visibility,
     string? Route);
 
-/// <summary>
-/// A form package's server-side state read back through the admin form-package API: the form id, title,
-/// target service/layer, version number, and lifecycle status (draft / published). Lets a test assert a form
-/// authoring→publish flipped the published version with the right shape independently of the publish path.
-/// </summary>
 public sealed record VerifiedFormPackage(
     string? FormId,
     string? Title,
@@ -1393,19 +1199,8 @@ public sealed record VerifiedFormPackage(
     int? Version,
     string? Status);
 
-/// <summary>
-/// A published form's runtime offline-sync policy read back through the runtime offline-policy contract (a
-/// different surface than the admin publish route): whether offline use is enabled and the available
-/// transports. Lets a test prove the publish landed a resolvable runtime policy, not just an admin row.
-/// </summary>
 public sealed record VerifiedFormOfflinePolicy(bool Enabled, IReadOnlyList<string> Transports);
 
-/// <summary>
-/// The server-owned version + metadata-contract descriptor read through the admin version/capabilities
-/// routes. Recorded in the run evidence so a drift between the console's expected contract and the pinned
-/// <c>:nightly</c> server is visible (plan §5.5). <see cref="VersionRouteMounted"/> /
-/// <see cref="CapabilitiesRouteMounted"/> distinguish a present-but-empty descriptor from an absent route.
-/// </summary>
 public sealed record VerifiedServerContract(
     string? Version,
     string? MetadataApiVersion,

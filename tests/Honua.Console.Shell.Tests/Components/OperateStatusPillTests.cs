@@ -4,12 +4,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Tests.Components;
 
-/// <summary>
-/// Coverage for the shared status badge/pill (console#293): it renders the
-/// <see cref="OperateStatus"/> mapping-table output (label + CSS class), and supports the
-/// explicit label/class override path used for an axis the shared vocabulary does not model
-/// (proposal risk level).
-/// </summary>
 public sealed class OperateStatusPillTests : ConsoleComponentTestBase
 {
     [Fact]

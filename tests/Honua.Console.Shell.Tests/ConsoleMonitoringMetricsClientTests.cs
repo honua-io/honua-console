@@ -7,12 +7,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Recording-HttpClient unit tests proving the monitoring metrics client binds to
-/// honua-server's production-monitoring endpoints (group /monitoring, admin-authorized,
-/// bare JSON — NO ApiResponse envelope) and degrades honestly on failure / no-profile
-/// rather than fabricating metrics (Console Patterns Charter section 11).
-/// </summary>
 public sealed class ConsoleMonitoringMetricsClientTests
 {
     [Fact]

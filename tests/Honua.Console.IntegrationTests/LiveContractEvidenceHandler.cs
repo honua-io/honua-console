@@ -1,6 +1,5 @@
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>Retains synthetic draft payloads for diagnosing live server/SDK contract drift.</summary>
 internal sealed class LiveContractEvidenceHandler(HttpMessageHandler innerHandler) : DelegatingHandler(innerHandler)
 {
     protected override async Task<HttpResponseMessage> SendAsync(

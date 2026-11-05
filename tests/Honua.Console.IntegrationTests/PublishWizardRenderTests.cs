@@ -6,12 +6,6 @@ using Microsoft.AspNetCore.Components;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the shared <see cref="PublishWizard"/> shell. Asserts the
-/// design-handoff wizard chrome (screens-quick-publish.jsx / screens-publish-flow.jsx): the labelled
-/// stepper with the active step marked current, the current step's body slot, ←/→ footer nav, and
-/// per-step validity gating disabling the forward control.
-/// </summary>
 public sealed class PublishWizardRenderTests
 {
     private static IReadOnlyList<PublishWizardStep> QuickSteps(bool serviceValid = true) =>

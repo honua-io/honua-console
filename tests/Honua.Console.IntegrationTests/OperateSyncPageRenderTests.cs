@@ -6,13 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the disconnected-sync conflict review surface (/operate/sync, UI-046;
-/// honua-server#1167/#1287). Asserts the merged-build missing-binding capability state (no fabricated
-/// replicas/conflicts) plus the bound queue, base/client/server comparison, and committed change-set
-/// evidence. Drives the page through the sync slice of ITemporalCapabilityClient (a fake, never a mock
-/// server). The merged-build UnsupportedTemporalCapabilityClient is exercised through real DI.
-/// </summary>
 public sealed class OperateSyncPageRenderTests
 {
     [Fact]
