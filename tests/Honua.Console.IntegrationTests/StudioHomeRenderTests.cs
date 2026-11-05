@@ -8,15 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the Studio home landing (issue #123), built to the StudioHome mockup in
-/// docs/design-handoff/console-canvas/screens-studio.jsx. Asserts the hero prompt and the recent-projects
-/// region across the live-bound, empty, and missing-binding states. Recent projects bind to
-/// <see cref="IConsoleCatalogClient"/>; the missing-binding path is the explicit ConsoleStateView (Charter §11),
-/// never seeded rows. The within-Studio content-type picker was removed in honua-console#203 (the omni-prompt AI
-/// console infers the sub-type), so the home leads with the prompt + the "Ask Honua anything" omni entry instead
-/// of an eight-card type grid.
-/// </summary>
 public sealed class StudioHomeRenderTests
 {
     [Fact]

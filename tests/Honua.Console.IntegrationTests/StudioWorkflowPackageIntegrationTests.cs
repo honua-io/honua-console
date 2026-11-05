@@ -7,14 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Proves the server-backed Studio GP/ETL workflow editor renders from live honua-server data (AC:
-/// Testcontainers coverage boots honua-server/PostgreSQL, creates a workflow package fixture, and asserts
-/// live-data rendering; Docker-unavailable environments skip cleanly). Drives
-/// <see cref="ServerStudioWorkflowPackageClient"/> over the real <c>/api/v1/console/workflow-*</c> contract
-/// (#1185): hydrates the node registry, creates a real package, renders it through the editor page, and -
-/// when the geoprocessing palette is available - versions, dry-runs, and publishes it. Never a mock.
-/// </summary>
 [Collection(StudioWorkflowPackageIntegrationCollection.Name)]
 public sealed class StudioWorkflowPackageIntegrationTests
 {

@@ -6,16 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render + behavior coverage for the temporal viewer and disconnected sync conflict review
-/// surface (<c>/operate/temporal</c>, honua-console#43). Drives <see cref="OperateTemporalPage"/> through a
-/// configurable fake <see cref="ITemporalCapabilityClient"/> (never a mock server) to assert each
-/// acceptance criterion and failure path: the missing-binding capability explanation (AC #1), RBAC /
-/// unsupported gates, the now-vs-as-of diff and feature timeline, the governed rollback that yields a job +
-/// result checkpoint rather than erasing history (AC #2), and the conflict resolution that writes a
-/// committed change set + audit evidence (AC #3). The merged-build <see cref="UnsupportedTemporalCapabilityClient"/>
-/// is also exercised through real DI to prove it never fabricates temporal data.
-/// </summary>
 public sealed class OperateTemporalPageRenderTests
 {
     // ---- AC #1: unsupported / unbound temporal sources render a capability explanation, not an empty viewer.

@@ -4,13 +4,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the shared <see cref="MapPreview"/> component. Asserts the
-/// design-handoff landmarks (map-preview.jsx): the no-backend SVG schematic placeholder, scale
-/// control, zoom chrome, basemap chips, label/popup/highlight toggles, the optional class-break
-/// legend, the service-mode layer-list overlay, and the as-of/now temporal framing. The component
-/// must render fully without any map backend or JS runtime bound.
-/// </summary>
 public sealed class MapPreviewRenderTests
 {
     [Fact]

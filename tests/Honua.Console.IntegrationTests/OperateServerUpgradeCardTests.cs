@@ -6,16 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free bUnit coverage for the server-version upgrade card. The card binds to a
-/// live honua-server capability manifest for version detection (charter section 11);
-/// these tests drive it through the test/demo <see cref="InMemoryConsoleServerVersionClient"/>
-/// and <see cref="InMemoryConsoleDeployApprovalClient"/> to exercise:
-///   - the happy path (older target detected -> upgrade available -> proceed enabled),
-///   - the version-mismatch gate (already-current / downgrade -> proceed disabled), and
-///   - the governed outcome surface (rollback) when an upgrade operation is in flight,
-/// all without a backend. The gitops plumbing must stay behind a Details toggle.
-/// </summary>
 public sealed class OperateServerUpgradeCardTests
 {
     [Fact]

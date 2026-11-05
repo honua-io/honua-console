@@ -6,12 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render regression for the Collect automation versions page
-/// (<see cref="StudioAutomationVersionsPage"/>, honua-console#219). Covers the missing-binding surface, the
-/// append-only history listing, version-body preview toggling, and a confirmed restore that commits a NEW
-/// version (history grows; the prior version is never rewritten).
-/// </summary>
 public sealed class StudioAutomationVersionsPageTests
 {
     [Fact]

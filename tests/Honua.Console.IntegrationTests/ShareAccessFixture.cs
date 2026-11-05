@@ -8,12 +8,6 @@ public sealed class ShareAccessIntegrationCollection : ICollectionFixture<ShareA
     public const string Name = "ShareAccessIntegration";
 }
 
-/// <summary>
-/// Boots a real honua-server (with PostgreSQL) via Testcontainers so the server-bound Share management
-/// surface can be asserted against the live Console Share access API (honua-server#1215). Off by default;
-/// skips gracefully when Docker, the server image, the opt-in flag, or the admin API key is unavailable.
-/// Reuses <see cref="HonuaServerTestcontainer"/> and mirrors <see cref="StudioFormPackageFixture"/>.
-/// </summary>
 public sealed class ShareAccessFixture : IAsyncLifetime
 {
     private HonuaServerTestcontainer? _container;
@@ -65,7 +59,6 @@ public sealed class ShareAccessFixture : IAsyncLifetime
         }
     }
 
-    /// <summary>Builds a raw HttpClient (admin key applied per-request) for seeding content items.</summary>
     public HttpClient CreateRawClient()
     {
         var handler = new HttpClientHandler();
@@ -78,7 +71,6 @@ public sealed class ShareAccessFixture : IAsyncLifetime
         return new HttpClient(handler) { BaseAddress = BaseAddress };
     }
 
-    /// <summary>Builds the production Console Share client against the live server with the admin API key.</summary>
     public IHonuaConsoleShareClient CreateShareClient()
     {
         var httpClient = CreateRawClient();
@@ -87,10 +79,6 @@ public sealed class ShareAccessFixture : IAsyncLifetime
             new HonuaConsoleShareClientOptions(BaseAddress, Options.StudioAdminApiKey));
     }
 
-    /// <summary>
-    /// The independent verification oracle that reads server state back through canonical read APIs and the
-    /// anonymous Console Share surface — never the admin Share mutation path the operation went through.
-    /// </summary>
     public ServerStateVerifier CreateVerifier() =>
         new(BaseAddress, Options.StudioAdminApiKey);
 

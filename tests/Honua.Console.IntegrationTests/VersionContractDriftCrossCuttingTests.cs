@@ -2,21 +2,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Cross-cutting version / contract-drift fact (console-integration-test-plan.md §5.5, Wave 6).
-///
-/// Mirrors the SDK conformance lane's pinning: asserts the pinned <c>:nightly</c> server's version + metadata
-/// contract is recorded in the run evidence, and that the console's expected version/capabilities routes
-/// resolve against the live server — so a drift between the console's expected contract and the server is
-/// VISIBLE (a route rename or schema bump shows up in evidence + a failing route-resolution assertion before
-/// it reaches users). It reads the contract two ways: INDEPENDENTLY through the
-/// <see cref="ServerStateVerifier"/> oracle and through the console's own operate client
-/// (<see cref="IHonuaAdminOperateClient.GetVersionAsync"/> / <see cref="IHonuaAdminOperateClient.GetCapabilitiesAsync"/>),
-/// then asserts the two agree (rule #2: a different read path must see the same server).
-///
-/// Off by default; the SkippableFact skips cleanly without Docker / the opt-in env (Console Patterns Charter
-/// section 11) and RUNS in the nightly lane (.github/workflows/console-nightly.yml).
-/// </summary>
 [Collection(CrossCuttingIntegrationCollection.Name)]
 public sealed class VersionContractDriftCrossCuttingTests
 {

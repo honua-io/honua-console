@@ -7,13 +7,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Recording-HttpClient unit tests proving the ops-health client binds to honua-server's
-/// consolidated ops-health snapshot endpoint (group /api/v1/admin/observability,
-/// admin-authorized, bare JSON — NO ApiResponse envelope), maps the snapshot into the
-/// color-coded view, and degrades honestly on failure / no-profile rather than fabricating
-/// data (Console Patterns Charter section 11).
-/// </summary>
+// The ops-health endpoint returns bare JSON, not an ApiResponse envelope.
 public sealed class ConsoleOpsHealthClientTests
 {
     [Fact]

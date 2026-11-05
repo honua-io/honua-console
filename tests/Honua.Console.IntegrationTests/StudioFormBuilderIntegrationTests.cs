@@ -6,12 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Proves the server-backed form builder renders from live honua-server data (AC#4: Testcontainers coverage
-/// boots honua-server/PostgreSQL, seeds a known form package fixture, and asserts the surface renders from
-/// live data; Docker-unavailable environments skip cleanly). Drives <see cref="HonuaServerStudioFormPackageDataSource"/>
-/// over the real <c>/api/v1/admin/forms/packages</c> lifecycle (honua-server#1184) — never an in-memory client.
-/// </summary>
 [Collection(StudioFormPackageIntegrationCollection.Name)]
 public sealed class StudioFormBuilderIntegrationTests
 {

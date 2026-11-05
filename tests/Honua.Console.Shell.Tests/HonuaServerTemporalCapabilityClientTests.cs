@@ -5,16 +5,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Host-independent coverage for the server-bound temporal client
-/// (<see cref="HonuaServerTemporalCapabilityClient"/>). Covers the deserialized-DTO null-safety contract
-/// (System.Text.Json overrides a collection's <c>[]</c> initializer with null when the server emits an
-/// explicit JSON <c>null</c> for the key, so reads must coalesce before LINQ rather than throwing and
-/// tearing down the Blazor circuit) AND the live disconnected-sync conflict review/resolution binding
-/// (honua-server#1167 slice 2): the conflict list + per-conflict base/client/server detail bind, a resolve
-/// write that commits a new server state, and the honest not-available/forbidden mapping on failure
-/// (Console Patterns Charter section 11 — bind the real server, never fabricate conflicts or outcomes).
-/// </summary>
+// Explicit JSON null is projected defensively because throwing would tear down the Blazor circuit.
 public sealed class HonuaServerTemporalCapabilityClientTests
 {
     private const string ServiceId = "svc-parcels";

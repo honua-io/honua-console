@@ -5,15 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.Shell.Tests.Components;
 
-/// <summary>
-/// bUnit / unit tests for the shell notification stack:
-///
-///   1. <see cref="ConsoleNotificationService"/> — the in-circuit toast queue.
-///   2. <see cref="ConsoleNotificationHost"/> — the Razor host that renders toasts from the service.
-///   3. <see cref="ConsoleGuardedRunner.RunGuardedAsync"/> — the busy-flag + catch → error-toast wrapper.
-///
-/// These verify the three layers of the action-feedback system added by the trust-feedback sweep.
-/// </summary>
 public sealed class ConsoleNotificationTests : ConsoleComponentTestBase
 {
     public ConsoleNotificationTests()

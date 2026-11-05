@@ -7,13 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for the Wave-0 <see cref="UnsavedChangesGuard"/>. Uses bUnit's fake
-/// NavigationManager (which invokes registered location-changing handlers on NavigateTo and records
-/// whether the navigation succeeded or was prevented) plus a loose JSInterop so the in-app confirm()
-/// and the beforeunload module import resolve. Verifies: dirty + decline => prevented; dirty + confirm
-/// => allowed; clean => never prompts; and the location-changing handler is unregistered on dispose.
-/// </summary>
 public sealed class UnsavedChangesGuardTests
 {
     private static Bunit.BunitContext CreateContext()

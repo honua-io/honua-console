@@ -8,17 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for the extended layer-fields domain editor (range domain + per-field default value
-/// + merge/split policy). Drives the real <see cref="OperateLayerDetailPage"/> through fakes (never a mock
-/// server) to prove:
-///   (1) authoring a RANGE domain with min/max + policies + a default value and clicking Save issues one
-///       field-domain authoring update carrying the range/policies/default, and
-///   (2) the page re-reads fields afterwards so the table reflects the new domain (round-trip).
-/// A second pair of tests pins the REAL <see cref="HonuaServerConsoleLayerFieldsOperation"/> so the
-/// <c>PUT /api/v1/admin/metadata/layers/{id}/fields</c> request body actually carries the range bounds, the
-/// merge/split policy tokens, and the default value (and that the clear-default intent sends a JSON null).
-/// </summary>
 public sealed class OperateLayerFieldRangeDomainTests
 {
     private const string ResourceId = "conn-1-layer-7";
@@ -189,8 +178,6 @@ public sealed class OperateLayerFieldRangeDomainTests
         Assert.Null(client.LastUpdate);
     }
 
-    /// <summary>Records the page's domain-authoring calls and serves the updated field state on re-read so the
-    /// round-trip is observable. The bUnit test only exercises SetDomainAsync + GetFieldsAsync.</summary>
     private sealed class RecordingLayerFieldsOperation : IConsoleLayerFieldsOperation
     {
         private ConsoleLayerFields _state;
@@ -244,8 +231,6 @@ public sealed class OperateLayerFieldRangeDomainTests
             Task.FromResult(new ConsoleSetDomainResult { Succeeded = true, State = "Updated" });
     }
 
-    /// <summary>Minimal recording admin client: captures the PUT body for the fields endpoint and echoes it
-    /// back; every other member is unused by these tests.</summary>
     private sealed class RecordingAdminClient(HonuaAdminLayerFields? fieldsOverride = null) : IHonuaAdminOperateClient
     {
         public HonuaAdminLayerFieldsUpdate? LastUpdate { get; private set; }

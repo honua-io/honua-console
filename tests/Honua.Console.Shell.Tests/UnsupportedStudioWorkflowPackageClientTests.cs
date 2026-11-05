@@ -2,10 +2,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// The runtime default when no honua-server is configured must render the shared blocked surface for the
-/// workflow editor - never seeded workflow data (Console Patterns Charter §11).
-/// </summary>
 public sealed class UnsupportedStudioWorkflowPackageClientTests
 {
     [Fact]

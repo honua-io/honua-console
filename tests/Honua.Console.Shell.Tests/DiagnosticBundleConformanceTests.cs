@@ -5,12 +5,6 @@ using Honua.Console.Shell.Diagnostics;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Executes the support-owned, language-neutral diagnostic-bundle conformance corpus
-/// (honua-support#54/#57, mirrored read-only under <c>contracts/diagnostics/</c>) against the
-/// Console validator, and pins the schema bytes to the published provenance so contract drift
-/// fails CI with a clear provenance/hash error (honua-console#307).
-/// </summary>
 public sealed class DiagnosticBundleConformanceTests
 {
     private const string ExpectedSchemaSha256 =
@@ -118,7 +112,6 @@ public sealed class DiagnosticBundleConformanceTests
     }
 }
 
-/// <summary>Locates the pinned diagnostic-bundle kit under <c>contracts/diagnostics/</c>.</summary>
 internal static class DiagnosticKit
 {
     public static string Root()

@@ -6,14 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Proves the server-bound catalog/content client renders Console catalog surfaces from live honua-server
-/// data (issue #7 Definition of Done: Testcontainers coverage boots honua-server/PostgreSQL, seeds content
-/// metadata, and asserts Catalog/Studio/Share/Operate-visible metadata renders from live server data;
-/// Docker-unavailable environments skip cleanly). Drives <see cref="HonuaServerConsoleCatalogClient"/> over
-/// the real <c>/api/v1/console/content</c> + <c>/api/v1/console/actions</c> contract (honua-server#1162) —
-/// never an in-memory client.
-/// </summary>
 [Collection(ConsoleContentIntegrationCollection.Name)]
 public sealed class CatalogServerBindingIntegrationTests
 {

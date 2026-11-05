@@ -10,12 +10,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Coverage for the console home's approval-inbox band going live (console#292 scope item 4):
-/// it now subscribes to the same admin-hub proposals group the approval inbox uses, instead of
-/// the one-shot read it had on trunk, and renders an honest Live/Manual pill rather than
-/// claiming a liveness the connection does not have.
-/// </summary>
 public sealed class ConsoleHomePageTests
 {
     [Fact]

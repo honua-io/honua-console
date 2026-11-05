@@ -6,15 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render regression for the unified Operate → Deploy page. The page hosts
-/// both governed capabilities behind one flow: server-version upgrade and cross-environment
-/// metadata promotion. The deploy-control queues bind to a live server (charter section 11);
-/// these tests drive the page through the test/demo in-memory clients to assert:
-///   - both capability sections render with the missing/empty surfaces honestly,
-///   - a tracked server-upgrade operation binds the governed outcome panel (with rollback), and
-///   - a tracked metadata-promotion operation routes into the promotion list, not the upgrade card.
-/// </summary>
 public sealed class OperateDeployPageRenderTests
 {
     private static BunitContext NewContext(

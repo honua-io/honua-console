@@ -5,11 +5,6 @@ using Honua.Console.Shell.Validation;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Docker-free coverage for the Studio report client validator and its server-error binder: required presence, unique binding aliases, panel→binding referential integrity, Vega-Lite spec
-/// (JSON + vega-lite <c>$schema</c>), RouteSlug format / Visibility enum, and JSON-Pointer → field-key
-/// resolution for server findings.
-/// </summary>
 public sealed class StudioReportValidatorTests
 {
     private const string ValidVegaSpec =

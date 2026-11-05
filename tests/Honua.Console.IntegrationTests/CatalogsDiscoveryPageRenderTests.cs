@@ -7,16 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the Operate &gt; Catalogs discovery-endpoints surfaces —
-/// <c>/operate/catalogs</c> (CatalogsList), <c>/operate/catalogs/{key}</c> (EsriCatalogDetail), and
-/// <c>/operate/catalogs/{key}/items/{itemId}</c> (CatalogItemEditor). Asserts the design landmarks from the
-/// screens-catalogs.jsx mockup — the endpoint list, the ON/OFF state badge, the auto-default-on vs opt-in
-/// distinction, the feeder list, per-endpoint issues, the detail drill-down items table, the auto-mirror
-/// item field groups with the field-state legend — plus the missing-binding surface. Drives the pages
-/// through a fake <see cref="ICatalogDiscoveryDataSource"/> rather than a mock server; the live binding
-/// follows the established opt-in Testcontainers pattern once honua-server#1279 ships.
-/// </summary>
 public sealed class CatalogsDiscoveryPageRenderTests
 {
     private static readonly CatalogDiscoveryCapabilityState MissingBinding = new(

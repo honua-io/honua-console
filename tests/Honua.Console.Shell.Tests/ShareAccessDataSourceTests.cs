@@ -4,14 +4,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Behavior coverage for <see cref="HonuaServerShareAccessDataSource"/> and
-/// <see cref="UnsupportedShareAccessDataSource"/> driving a fake <see cref="IHonuaConsoleShareClient"/>
-/// (no HTTP, no Docker). Asserts the edge/failure paths the Share panel depends on: a blocked public
-/// change re-previews the dependency closure into structured conflicts; a mint surfaces the one-time
-/// secret AND reloads the refreshed projection; revoke reloads; a transport issue becomes a capability
-/// state; and the unbound source always renders missing-binding rather than fabricating share data.
-/// </summary>
 public sealed class ShareAccessDataSourceTests
 {
     private static HonuaConsoleShareProjection Projection(

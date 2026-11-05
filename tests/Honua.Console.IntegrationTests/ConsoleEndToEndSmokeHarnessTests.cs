@@ -2,14 +2,6 @@ using System.Text.Json;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// CI-runnable coverage for the Console end-to-end real-server smoke harness (issue #59). These facts run
-/// on the standard runner WITHOUT Docker: they prove the live chain skips cleanly when the opt-in env is
-/// absent, and that the evidence emitter records the server image, the seed profile, and
-/// <c>sourceHydrated: true</c> in the shape the <c>honua-console#9</c> gate consumes — without booting a
-/// container. This keeps the deliverable honestly tested even though the live chain itself only runs
-/// behind the opt-in flag.
-/// </summary>
 public sealed class ConsoleEndToEndSmokeHarnessTests
 {
     [SkippableFact]

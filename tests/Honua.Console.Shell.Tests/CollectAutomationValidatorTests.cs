@@ -3,18 +3,11 @@ using Honua.Console.Shell.Validation;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Docker-free unit coverage for <see cref="CollectAutomationValidator"/>, the client validator for the
-/// Collect automation editor (honua-console#219). Each console-owned rule (name + bound form, cascade-depth
-/// bounds, at-least-one rule/action, supported trigger + field-change naming, supported action kind + the
-/// target a kind requires) is proven in its pass and fail state, keyed by <see cref="CollectAutomationFieldKeys"/>.
-/// </summary>
 public sealed class CollectAutomationValidatorTests
 {
     private static IReadOnlyList<ConsoleFieldError> Evaluate(CollectAutomationDraft draft) =>
         CollectAutomationValidator.Instance.Evaluate(draft);
 
-    /// <summary>A minimal valid automation: named, bound to a form, in-bounds cascade depth, one rule + action.</summary>
     private static CollectAutomationDraft Valid()
     {
         return new CollectAutomationDraft

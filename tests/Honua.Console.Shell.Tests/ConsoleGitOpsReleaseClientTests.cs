@@ -7,11 +7,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Recording-HttpClient unit tests proving the GitOps metadata release client binds
-/// to the SHIPPED honua-server contracts: the release package + GitOps manifest
-/// (honua-server#1163) and the release-operation lifecycle / rollback (honua-server#1165).
-/// </summary>
 public sealed class ConsoleGitOpsReleaseClientTests
 {
     private static readonly Guid PackageId = Guid.Parse("11111111-2222-3333-4444-555555555555");

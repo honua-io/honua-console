@@ -11,21 +11,6 @@ using Npgsql;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// FLAGSHIP service-layer-publish round-trip (console-integration-test-plan.md §3.A, Wave 1).
-///
-/// Seeds a PostGIS <c>parcels</c> table (3 polygon features, EPSG:3857) in the shared container, registers
-/// it under an admin connection, then performs the console's service-layer-publish OPERATION
-/// (<see cref="IServiceLayerPublishOperation"/> → <c>POST /api/v1/admin/connections/{id}/layers</c>, issue
-/// #144). It then asserts the resulting server state INDEPENDENTLY through the
-/// <see cref="ServerStateVerifier"/> oracle — the FeatureServer metadata + query surface and the admin
-/// registry — proving the layer actually landed and is queryable with the right fields/SRID/extent/
-/// capability, and re-renders the console layers page to prove it reflects the new state (not a
-/// missing-binding placeholder). Negative + idempotency companions round out the family.
-///
-/// Off by default; the SkippableFacts skip cleanly without Docker / the opt-in env (Console Patterns
-/// Charter section 11) and RUN in the nightly lane (.github/workflows/console-nightly.yml).
-/// </summary>
 [Collection(ServiceLayerPublishIntegrationCollection.Name)]
 public sealed class ServiceLayerPublishRoundTripTests
 {

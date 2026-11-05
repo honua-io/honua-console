@@ -5,14 +5,6 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for <see cref="HonuaConsoleShareHttpClient"/> transport + contract semantics against
-/// the honua-server Console Share access API (honua-server#1215). Asserts: the {success,data} envelope is
-/// unwrapped to the typed projection; requests target the exact console share routes and carry the admin
-/// API key; the public-link mint POST serializes the request body and surfaces the one-time token value;
-/// a 409 surfaces a typed Conflict issue carrying the server's blocking-dependency message; 404/403 map to
-/// Unsupported/Missing-permission; caller cancellation propagates while an HttpClient timeout is Unavailable.
-/// </summary>
 public sealed class ShareAccessHttpClientTests
 {
     private static readonly Uri BaseAddress = new("https://honua.test");

@@ -4,12 +4,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free unit coverage for the Console-owned form authoring state: the
-/// <see cref="StudioFormPackageMapper"/> round-trip against the server <c>honua.form-package.v1</c>
-/// wire records, and the <see cref="StudioFormPublishEvaluator"/> pre-publish gate that enforces an
-/// explicit offline policy (AC#2) and a configured + validated submit target (AC#3).
-/// </summary>
 public sealed class StudioFormPackageMapperTests
 {
     [Fact]

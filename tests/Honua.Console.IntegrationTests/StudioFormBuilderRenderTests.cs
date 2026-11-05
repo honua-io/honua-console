@@ -7,12 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the form builder page (<c>/studio/form</c>). Verifies the missing-binding
-/// surface, that the editor renders the authored fields and the explicit offline-policy review (AC#2), and
-/// that Publish stays gated until the submit target is validated and the offline policy reviewed (AC#2/AC#3).
-/// Drives the page through a fake <see cref="IStudioFormPackageDataSource"/> rather than a mock server.
-/// </summary>
 public sealed class StudioFormBuilderRenderTests
 {
     [Fact]
@@ -279,7 +273,6 @@ public sealed class StudioFormBuilderRenderTests
 
         public StudioFormEditorLoad EditorLoad { get; set; } = new(null, []);
 
-        /// <summary>When set, the workspace fetch completes asynchronously to mimic the real HTTP path.</summary>
         public bool SimulateAsyncWorkspace { get; set; }
 
         public async Task<StudioFormWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)

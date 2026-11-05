@@ -4,10 +4,7 @@ using System.Text.Json;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Pins the governed Enterprise contract independently of the release-posture authoring lane.
-/// A pending operation is not a created draft and must never be treated as synchronous success.
-/// </summary>
+// A pending operation is not a created draft and must not be treated as synchronous success.
 public sealed class StudioApprovalContractIntegrationTests
 {
     [SkippableFact]

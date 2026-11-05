@@ -33,10 +33,7 @@ internal sealed class HonuaServerTestcontainer : IAsyncDisposable
 
     public Uri BaseAddress { get; }
 
-    /// <summary>
-    /// Host-reachable connection string for the shared PostGIS container (mapped host port), so a test can
-    /// seed source tables directly in the same database the server connects to over the Docker network.
-    /// </summary>
+    // The exposed seeding port reaches the same database the server uses over the Docker network.
     public string PostgresConnectionString { get; }
 
     public static async Task<HonuaServerTestcontainer> StartAsync(

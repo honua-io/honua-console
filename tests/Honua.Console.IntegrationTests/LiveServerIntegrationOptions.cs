@@ -16,13 +16,10 @@ public sealed record LiveServerIntegrationOptions
 
     public string ServerHealthPath { get; init; } = "/health";
 
-    /// <summary>Admin API key sent as <c>X-API-Key</c> to the admin-protected Studio package endpoints.</summary>
     public string? StudioAdminApiKey { get; init; }
 
-    /// <summary>Server env key that receives the PostgreSQL connection string (image-specific).</summary>
     public string DbConnectionEnvKey { get; init; } = "ConnectionStrings__Postgres";
 
-    /// <summary>Extra <c>KEY=VALUE</c> server env entries (newline or semicolon separated), image-specific.</summary>
     public string? ServerEnvironment { get; init; }
 
     public bool HasServerTarget =>
@@ -52,7 +49,6 @@ public sealed record LiveServerIntegrationOptions
         };
     }
 
-    /// <summary>Reason this suite cannot run, or <c>null</c> if it can. Drives graceful skips.</summary>
     public static string? GetSkipReason()
     {
         var options = Load();
@@ -74,7 +70,6 @@ public sealed record LiveServerIntegrationOptions
         return null;
     }
 
-    /// <summary>Reason the live Studio package-lifecycle facts cannot run (need an admin API key).</summary>
     public static string? GetStudioSkipReason()
     {
         var baseReason = GetSkipReason();
@@ -88,11 +83,7 @@ public sealed record LiveServerIntegrationOptions
             : null;
     }
 
-    /// <summary>
-    /// Reason the Console end-to-end smoke cannot run. The smoke seeds and drives the catalog, Studio
-    /// package, and operate/publishing surfaces, all of which are admin-protected, so it needs the same
-    /// admin API key as the Studio lane.
-    /// </summary>
+    // End-to-end smoke calls admin-protected routes, so eligibility uses the same admin key check as the Studio lane.
     public static string? GetEndToEndSkipReason() => GetStudioSkipReason();
 
     public IReadOnlyDictionary<string, string> BuildServerEnvironment(string postgresConnectionString)

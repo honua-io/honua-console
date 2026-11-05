@@ -2,15 +2,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Pins the shared status-vocabulary mapping table (console#293): the platform's status space —
-/// proposal lifecycle, deploy/workflow lifecycle (including <c>ManualInterventionRequired</c>),
-/// and any other raw server status string — all normalize onto <see cref="OperateStatus"/>'s five
-/// visual buckets identically, so <c>ConsoleProposalPresentation.StatusClass</c> and
-/// <c>DeployOperationPresentation.StateClass</c> (which now delegate to
-/// <see cref="OperateStatus.CssClass"/>) render the same class as every other Operate surface for
-/// the same word.
-/// </summary>
 public sealed class OperateStatusVocabularyTests
 {
     [Theory]

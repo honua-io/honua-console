@@ -8,14 +8,6 @@ public sealed class PublishingWorkspaceIntegrationCollection : ICollectionFixtur
     public const string Name = "PublishingWorkspaceIntegration";
 }
 
-/// <summary>
-/// Boots a real honua-server (with PostgreSQL) via Testcontainers so the server-backed publishing
-/// workspace can be asserted against the live content publication registry (honua-server#1183,
-/// shipped — <c>/api/v1/console/publications</c>). Off by default; skips gracefully when Docker, the
-/// server image, the opt-in flag, or the admin API key is unavailable (Console Patterns Charter
-/// section 11 real-server policy). Reuses <see cref="HonuaServerTestcontainer"/> so the container-boot
-/// mechanics live in one place, mirroring <see cref="StudioAnalysisContentFixture"/>.
-/// </summary>
 public sealed class PublishingWorkspaceFixture : IAsyncLifetime
 {
     private HonuaServerTestcontainer? _container;
@@ -67,17 +59,11 @@ public sealed class PublishingWorkspaceFixture : IAsyncLifetime
         }
     }
 
-    /// <summary>
-    /// Builds the production content publication client against the live server, accepting the
-    /// dev/self-signed certificate only when the fixture server is TLS so the test exercises the real
-    /// client + admin API-key path (never an in-memory client).
-    /// </summary>
     public IHonuaContentPublicationClient CreatePublicationClient() =>
         new HonuaContentPublicationHttpClient(
             CreateHttpClient(),
             new HonuaContentPublicationClientOptions(BaseAddress, Options.StudioAdminApiKey));
 
-    /// <summary>Raw HttpClient (with admin key + dev-cert acceptance) used to seed a publication via the publish POST.</summary>
     public HttpClient CreateHttpClient()
     {
         var handler = new HttpClientHandler();

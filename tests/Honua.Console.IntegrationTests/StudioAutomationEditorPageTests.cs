@@ -7,12 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render regression for the Collect automation editor (<see cref="StudioAutomationEditorPage"/>,
-/// honua-console#219). Covers the missing-binding surface, disabled-until-valid save gating, inline client
-/// validation, and the invariant that a validation-failing save commits no version and surfaces its issues
-/// (mirrors the workflow editor's "no stale version on a blocked save" guard).
-/// </summary>
 public sealed class StudioAutomationEditorPageTests
 {
     [Fact]
@@ -102,10 +96,7 @@ public sealed class StudioAutomationEditorPageTests
     private static IElement SaveButton(IRenderedComponent<StudioAutomationEditorPage> page) =>
         page.FindAll("button").Single(b => b.TextContent.Contains("Save version", StringComparison.Ordinal));
 
-    /// <summary>
-    /// Returns a bound, client-valid draft but a save that fails server validation (issues with no version id
-    /// and no binding state) — the shape a live server returns on a 400 from the versions endpoint.
-    /// </summary>
+    // The recording client returns issues with no version id and no binding state because that is the live server's 400 shape.
     private sealed class RecordingAutomationClient : ICollectAutomationClient
     {
         public const string DraftId = "draft-recording";

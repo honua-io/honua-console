@@ -7,18 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render regression for the approval inbox (#193) — the GIS-department work
-/// queue bound to the first-class honua-server proposals API (#1694). A live page binds to a
-/// server (charter §11); these tests drive it through a fake proposals client to assert:
-///   - a denied proposals read renders the shared missing/forbidden surface,
-///   - an empty queue renders the honest empty state and zero counts,
-///   - a populated queue renders summary counts, ticket-type filter chips, and rows,
-///   - selecting a row binds the governed approval panel (plan/diff/risk),
-///   - approve / reject (reason required) call the server and refresh the queue,
-///   - a 403 (missing RBAC approve grant) disables the actions and surfaces the gate, and
-///   - a live ProposalPending event refreshes the queue without polling.
-/// </summary>
 public sealed class ApprovalInboxPageRenderTests
 {
     private static BunitContext NewContext(

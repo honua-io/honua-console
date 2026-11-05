@@ -5,14 +5,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the shared <see cref="ChartPreview"/> component (the dashboard/
-/// report/analysis "graphs" result, analog to <see cref="MapPreview"/>) and the
-/// <see cref="StudioQueryResultChart"/> spec/binding helper that drives the query family's live result.
-/// The component must render its no-backend SVG bar-chart schematic fully without any Vega runtime or
-/// JS interop bound, and only ever charts a query that carries a real source binding (no fabricated
-/// data — Charter §11).
-/// </summary>
 public sealed class ChartPreviewRenderTests
 {
     [Fact]

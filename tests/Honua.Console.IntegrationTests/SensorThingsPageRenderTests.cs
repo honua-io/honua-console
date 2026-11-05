@@ -5,13 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the SensorThings browser
-/// (/operate/sensors). Asserts the live browse + chart surface (driven by the
-/// InMemory STA client) and the merged-build missing-binding surface (driven by
-/// the real UnsupportedConsoleSensorThingsClient through DI). Drives the page
-/// through fakes, never a mock server.
-/// </summary>
 public sealed class SensorThingsPageRenderTests
 {
     [Fact]

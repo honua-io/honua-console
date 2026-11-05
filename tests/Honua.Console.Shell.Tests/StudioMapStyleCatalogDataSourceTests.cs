@@ -4,14 +4,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Coverage for the Studio map builder's style-picker catalog source (#161, honua-server ADR-0048). Verifies
-/// the server data source projects the OGC API - Styles list into picker options, maps an endpoint issue onto
-/// a capability state (so the builder degrades to the legacy free-form style input rather than fabricating a
-/// list), the unsupported (no-server) source surfaces the missing-binding state, and the
-/// <see cref="StudioMapStyleCatalog"/> backward-compatibility helper recognises advertised styleIds while
-/// keeping a legacy/unknown value selectable.
-/// </summary>
 public sealed class StudioMapStyleCatalogDataSourceTests
 {
     [Fact]

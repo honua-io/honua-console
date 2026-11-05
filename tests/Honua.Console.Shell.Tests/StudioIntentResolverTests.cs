@@ -6,14 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Host-independent coverage for the registry-driven Studio-AI intent resolution path (honua-console#266):
-/// the capability registry client, the intent resolver, and the Studio:RegistryIntentResolution flag DI
-/// gate. Flag OFF (default) preserves current behavior via the no-op resolver; flag ON + a bound server
-/// resolves the generate/validate/preview/publish lifecycle against the live capability-manifest registry
-/// and hides deferred/unavailable capabilities. Uses a stub manifest client (a test double, never a
-/// standing production mock).
-/// </summary>
 public sealed class StudioIntentResolverTests
 {
     private const string StudioPrompt = "publish Maui parcels as a feature service";

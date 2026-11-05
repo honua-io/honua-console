@@ -7,16 +7,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for the layer permanent-filter OPERATION: the
-/// <see cref="HonuaServerConsoleLayerFilterOperation"/> over a stubbed admin client and the missing-binding
-/// <see cref="UnsupportedConsoleLayerFilterOperation"/>. Asserts the real route/verb/body each read+write
-/// issues (GET/PUT /api/v1/admin/metadata/layers/{id}/filter), that a save sends
-/// { permanentFilter: { expression, language } }, that a clear sends { permanentFilter: null }, that a 400
-/// surfaces the server's validation reason verbatim (Charter section 11 — never claim success), and that the
-/// unconfigured surface never performs a network call. No mocks of filter data — every assertion is over the
-/// wire the operation actually sends, or what a recorded server response maps to.
-/// </summary>
 public sealed class LayerFilterOperationTests
 {
     private static readonly Uri BaseAddress = new("https://honua.test");

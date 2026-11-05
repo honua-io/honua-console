@@ -7,13 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the Operate resource-presentation style editor
-/// (/operate/layers/{id}/style, UI-032). Asserts the merged-build missing-binding state for per-slot
-/// overrides (no fabricated overrides) while the page still reuses the REAL /ogc/styles list, plus the
-/// bound per-slot editor. Drives the page through fakes (never a mock server). The merged-build
-/// UnsupportedOperateLayerStyleOverrideDataSource is exercised through real DI.
-/// </summary>
 public sealed class OperateLayerStylePageRenderTests
 {
     [Fact]

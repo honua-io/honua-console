@@ -8,13 +8,6 @@ public sealed class ConsoleContentIntegrationCollection : ICollectionFixture<Con
     public const string Name = "ConsoleContentIntegration";
 }
 
-/// <summary>
-/// Boots a real honua-server (with PostgreSQL) via Testcontainers so the server-bound catalog/content
-/// client can be asserted against the live Console metadata v2 content + RBAC API (honua-server#1162,
-/// issue #7 Definition of Done). Off by default; skips gracefully when Docker, the server image, the
-/// opt-in flag, or the admin API key is unavailable. Reuses <see cref="HonuaServerTestcontainer"/> so the
-/// container boot mechanics are not duplicated.
-/// </summary>
 public sealed class ConsoleContentFixture : IAsyncLifetime
 {
     private HonuaServerTestcontainer? _container;
@@ -66,11 +59,6 @@ public sealed class ConsoleContentFixture : IAsyncLifetime
         }
     }
 
-    /// <summary>
-    /// Builds the production Console content client against the live server, accepting the dev/self-signed
-    /// certificate only when the fixture server is TLS so the test exercises the real client + admin
-    /// API-key path (never an in-memory client).
-    /// </summary>
     public IHonuaConsoleContentClient CreateContentClient()
     {
         var handler = new HttpClientHandler();

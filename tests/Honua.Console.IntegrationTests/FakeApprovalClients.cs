@@ -3,13 +3,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Test double for <see cref="IConsoleProposalsClient"/> used by the Docker-free approval
-/// render regressions (#193). A live page binds to a server through this contract (charter
-/// §11); this fake stands in for the honua-server proposals API so the page can be driven
-/// without a network. It can be seeded with a list, per-id detail, a denied list status, and
-/// a forbidden approve/reject (the RBAC approve-gate path), and records the decisions made.
-/// </summary>
 public sealed class FakeConsoleProposalsClient : IConsoleProposalsClient
 {
     private readonly OperateSectionStatus? _deniedListStatus;
@@ -107,14 +100,6 @@ public sealed class FakeConsoleProposalsClient : IConsoleProposalsClient
     }
 }
 
-/// <summary>
-/// Test double for <see cref="IConsoleProposalRealtimeClient"/> (and the shared capability seam
-/// <see cref="IConsoleRealtimeCapabilityClient"/>, console#293): lets a test raise
-/// <see cref="ConsoleProposalEvent"/>s to drive the inbox's live-update path, and drive the
-/// connection state (connect / degrade / reconnect) to exercise the freshness affordance
-/// (console#309), without a real SignalR hub. Records whether the page started/stopped the
-/// subscription.
-/// </summary>
 public sealed class FakeConsoleProposalRealtimeClient : IConsoleProposalRealtimeClient, IConsoleRealtimeCapabilityClient
 {
     private ConsoleRealtimeConnectionState _state = ConsoleRealtimeConnectionState.NotConfigured;
@@ -123,7 +108,6 @@ public sealed class FakeConsoleProposalRealtimeClient : IConsoleProposalRealtime
 
     public event Action<ConsoleRealtimeConnectionState>? ConnectionStateChanged;
 
-    /// <summary>Whether <see cref="StartAsync"/> connects (default) or degrades to fallback.</summary>
     public bool ConnectOnStart { get; set; } = true;
 
     public ConsoleRealtimeConnectionState ConnectionState => _state;
@@ -152,7 +136,6 @@ public sealed class FakeConsoleProposalRealtimeClient : IConsoleProposalRealtime
         return Task.CompletedTask;
     }
 
-    /// <summary>Drives a connection-state transition, raising <see cref="ConnectionStateChanged"/>.</summary>
     public void SetConnectionState(ConsoleRealtimeConnectionState state)
     {
         if (_state == state)
@@ -169,10 +152,6 @@ public sealed class FakeConsoleProposalRealtimeClient : IConsoleProposalRealtime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
-/// <summary>
-/// A queue read that never completes, to exercise the ~5s bounded-loading budget (console#308):
-/// the surface must resolve to its explicit error card rather than spin on "Loading…" forever.
-/// </summary>
 public sealed class HangingApprovalInboxClient : IConsoleApprovalInboxClient
 {
     public Task<OperateSectionResult<ApprovalInboxSnapshot>> GetInboxAsync(
@@ -184,10 +163,6 @@ public sealed class HangingApprovalInboxClient : IConsoleApprovalInboxClient
     }
 }
 
-/// <summary>
-/// A queue read that returns an Unavailable error a fixed number of times, then succeeds — models
-/// a backend that recovers so a Retry after an error card can resolve back to the queue (console#308).
-/// </summary>
 public sealed class RecoveringApprovalInboxClient(int failuresBeforeSuccess, ApprovalInboxSnapshot onRecovery)
     : IConsoleApprovalInboxClient
 {
@@ -210,10 +185,6 @@ public sealed class RecoveringApprovalInboxClient(int failuresBeforeSuccess, App
     }
 }
 
-/// <summary>
-/// A queue read whose result a test flips between calls — for asserting the persistent
-/// last-successful-refresh marker survives a later failure (console#308).
-/// </summary>
 public sealed class ScriptedApprovalInboxClient : IConsoleApprovalInboxClient
 {
     public OperateSectionResult<ApprovalInboxSnapshot> Result { get; set; } =
@@ -224,10 +195,8 @@ public sealed class ScriptedApprovalInboxClient : IConsoleApprovalInboxClient
         Task.FromResult(Result);
 }
 
-/// <summary>Shared builders for proposal projections in the render regressions.</summary>
 public static class FakeProposalFactory
 {
-    /// <summary>Projects proposals into an inbox snapshot, classified onto GIS-desk ticket types.</summary>
     public static ApprovalInboxSnapshot Snapshot(params ConsoleProposalSummary[] proposals) =>
         new(proposals
             .Select(p => new ApprovalInboxItem(ApprovalTicketPresentation.Classify(p), p))

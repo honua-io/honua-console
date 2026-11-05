@@ -4,22 +4,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Cross-cutting RBAC-enforcement round-trip (console-integration-test-plan.md §5.1, Wave 6 — the final
-/// cross-cutting suite).
-///
-/// Proves a forbidden/unauthorized mutation is BLOCKED server-side — not merely behind a UI gate — and that
-/// the server state did NOT change as a result. The console mutation OPERATION is driven through an
-/// UNAUTHENTICATED client (no admin key) so the rejection comes from the server's authorization layer; the
-/// resulting state is then read back INDEPENDENTLY through the <see cref="ServerStateVerifier"/> oracle (with
-/// admin credentials) to confirm nothing landed. Uses the 401/403-vs-404 route-mounted discriminator from
-/// Wave 3 (<see cref="ServerStateVerifier.ProbeAnonymousMutationStatusAsync"/>): a gated mutation rejects an
-/// anonymous request with 401/403 while an absent route returns 404, so a missing route never masquerades as
-/// an enforced denial.
-///
-/// Off by default; the SkippableFacts skip cleanly without Docker / the opt-in env (Console Patterns Charter
-/// section 11) and RUN in the nightly lane (.github/workflows/console-nightly.yml).
-/// </summary>
+// Only a mounted route's authorization failure proves server-side RBAC; a missing route is not a denial.
 [Collection(CrossCuttingIntegrationCollection.Name)]
 public sealed class RbacEnforcementCrossCuttingTests
 {

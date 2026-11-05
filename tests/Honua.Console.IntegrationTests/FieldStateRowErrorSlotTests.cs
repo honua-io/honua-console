@@ -5,11 +5,6 @@ using Microsoft.AspNetCore.Components;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the Wave-0 error slot added to <see cref="FieldStateRow"/>: the row
-/// must surface inline messages + aria-invalid when findings are present, render nothing extra when
-/// absent (existing callers unchanged), and reflect the worst severity in the message styling.
-/// </summary>
 public sealed class FieldStateRowErrorSlotTests
 {
     private static RenderFragment Control(string testId) => builder =>

@@ -7,15 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// trust-visibility (#166) + trust-data relay (honua-support#23): Docker-free
-/// render coverage for the escalation rationale card, the live remote-session
-/// banner, and the diagnosis scorecard checklist on the ticket detail page.
-/// Drives the page through a fake <see cref="IConsoleSupportTicketClient"/>
-/// serving a single ticket response, covering BOTH the authoritative `trust.*`
-/// path and the absent-`trust` best-effort fallback (so the consume side is safe
-/// to merge before support#23 ships).
-/// </summary>
 public sealed class SupportTicketDetailTrustRenderTests
 {
     [Fact]

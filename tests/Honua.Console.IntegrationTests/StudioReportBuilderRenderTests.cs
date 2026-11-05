@@ -7,13 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the report builder page (<c>/studio/report</c>). Verifies the
-/// missing-binding surface and that an opened report publication renders its server-owned route and
-/// immutable version history. Drives the page through a fake <see cref="IStudioReportPublicationDataSource"/>
-/// rather than a mock server, in line with the form builder render-test pattern; the live server binding
-/// ships its own opt-in Testcontainers suite.
-/// </summary>
 public sealed class StudioReportBuilderRenderTests
 {
     [Fact]

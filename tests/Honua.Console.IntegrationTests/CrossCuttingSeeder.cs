@@ -4,12 +4,6 @@ using Npgsql;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Shared seeding helper for the Wave 6 cross-cutting suite: creates a PostGIS source table in the shared
-/// container and registers it under an admin secure connection, so the RBAC / idempotency / validation
-/// round-trips have a real source to publish against. Mirrors the seeding the flagship
-/// <see cref="ServiceLayerPublishRoundTripTests"/> and <see cref="PublishedLayerSeeder"/> perform.
-/// </summary>
 internal static class CrossCuttingSeeder
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -36,11 +30,7 @@ internal static class CrossCuttingSeeder
         await command.ExecuteNonQueryAsync();
     }
 
-    /// <summary>
-    /// Registers the shared PostGIS container as an admin secure connection over the real admin API. The
-    /// server reaches PostGIS over the Docker network via the "postgres" alias, so the connection targets
-    /// host=postgres:5432 (NOT the host-mapped port the seed uses).
-    /// </summary>
+    // The server uses host postgres on the Docker network, not the host-mapped port the seed uses.
     public static async Task<string> CreateConnectionAsync(CrossCuttingFixture fixture, string name)
     {
         using var http = fixture.CreateHttpClient();

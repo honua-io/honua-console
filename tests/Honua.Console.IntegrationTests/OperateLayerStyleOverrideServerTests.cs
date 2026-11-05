@@ -7,19 +7,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for the server-bound per-layer presentation authoring data source
-/// (<see cref="ServerOperateLayerStyleOverrideDataSource"/>), which closes the Bucket 3-A popup-info +
-/// drawing-info gap. Drives the real <see cref="HonuaAdminOperateHttpClient"/> over a recording HTTP handler
-/// (never a mock server) to assert it:
-///   - resolves the route's canonical resource id to the layer's global id via the live layers projection,
-///   - GET-loads popupInfo + drawingInfo and surfaces them as the slot's raw JSON,
-///   - PUT-saves both to the right admin routes with the exact server body shapes (the same shapes the live
-///     e2e sends: popup-info {title,fieldInfos:[...]} and drawing-info {renderer:{...}}),
-///   - clears a document by saving a blank editor value (PUT null),
-///   - blocks an invalid-JSON edit before any network call, and surfaces a server rejection as a binding state.
-/// The unconfigured (missing-binding) path stays covered by the existing render tests.
-/// </summary>
 public sealed class OperateLayerStyleOverrideServerTests
 {
     private const string ResourceId = "conn-1-layer-1";

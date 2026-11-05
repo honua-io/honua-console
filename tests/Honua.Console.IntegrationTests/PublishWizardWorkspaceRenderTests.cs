@@ -6,25 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render + interaction coverage for <see cref="PublishWizardWorkspace"/>, the publish
-/// wizard on the Operate publishing workspace.
-/// </summary>
-/// <remarks>
-/// <para>
-/// These tests exist because the wizard used to be a mockup that made one real call. It carried a
-/// <c>prod-postgis</c> connection constant, a <c>public.parcels_2024</c> table, a seeded service
-/// tree, and review panels quoting a feature count, a field count, a PII flag, a layer slot and a
-/// published URL — none of it read from a server. The finish action then built its genuine publish
-/// command from those constants, so publishing 404'd on every deployment that did not happen to own
-/// a connection with that exact name.
-/// </para>
-/// <para>
-/// The suite therefore asserts two things the old tests could not: that every rendered value comes
-/// from the stubbed data sources, and that the publish command carries the operator's selection. The
-/// last test is a fixture guard — it fails if any retired mockup literal reappears in the markup.
-/// </para>
-/// </remarks>
+// A hard-coded connection name 404s on deployments that do not own it, so the fixture rejects that literal.
 public sealed class PublishWizardWorkspaceRenderTests
 {
     private static Bunit.BunitContext NewContext(
@@ -278,7 +260,6 @@ public sealed class PublishWizardWorkspaceRenderTests
         return Task.CompletedTask;
     }
 
-    /// <summary>Server projections the wizard reads, with no relationship to the retired fixtures.</summary>
     private sealed class StubOperateData : IOperateTransitionDataSource
     {
         private readonly OperateTransitionWorkspace _workspace;
@@ -335,7 +316,6 @@ public sealed class PublishWizardWorkspaceRenderTests
             Task.FromResult(_workspace.Services.FirstOrDefault(s => s.Name == serviceName));
     }
 
-    /// <summary>Records what the wizard actually asked the server to do.</summary>
     private sealed class RecordingPublishOperation(ServiceLayerPublishResult? result = null) : IServiceLayerPublishOperation
     {
         public List<ServiceLayerPublishCommand> Commands { get; } = [];

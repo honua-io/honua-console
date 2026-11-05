@@ -4,18 +4,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Cross-cutting idempotency / round-trip fidelity (console-integration-test-plan.md §5.4, Wave 6).
-///
-/// Performs a config operation, reads it back INDEPENDENTLY through the <see cref="ServerStateVerifier"/>
-/// oracle, re-applies the identical config, and asserts a stable result — no spurious change, no silent
-/// duplicate, and a deterministic outcome (idempotent same-layer OR a clean conflict that leaves the original
-/// unchanged). The read-back asserts deep fidelity of the configured state (table, layer name, service,
-/// geometry, SRID, extent, fields) so a config-in → state-out drift would surface.
-///
-/// Off by default; the SkippableFacts skip cleanly without Docker / the opt-in env (Console Patterns Charter
-/// section 11) and RUN in the nightly lane (.github/workflows/console-nightly.yml).
-/// </summary>
 [Collection(CrossCuttingIntegrationCollection.Name)]
 public sealed class IdempotencyFidelityCrossCuttingTests
 {

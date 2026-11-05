@@ -3,11 +3,6 @@ using Honua.Console.Shell.Validation;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Docker-free unit coverage for the Wave-5 non-Studio client validators: RBAC scoped-invite, Share manage,
-/// Operate temporal diff selection, Operate publishing lookup, and the native environment-profile create form.
-/// Each rule from the catalog is proven in its pass and fail state, keyed by the surface's field keys.
-/// </summary>
 public sealed class Wave5ValidatorTests
 {
     // --- RBAC scoped-invite ---

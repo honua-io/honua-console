@@ -3,14 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Coverage for the console#293 shared realtime seam's fallback-engagement surfacing — the fix
-/// for finding PA-233 (<c>SignalRConsoleProposalRealtimeClient</c> used to swallow connect/
-/// subscribe/reconnect failures in a bare <c>catch {}</c> with no logger, so a live surface could
-/// silently degrade to its manual/poll fallback). <see cref="ConsoleRealtimeFallbackTracker"/> is
-/// the one place that is now allowed to happen, and it must always log it and expose it via
-/// <see cref="ConsoleRealtimeConnectionState"/>.
-/// </summary>
+// A realtime failure must stay observable, or a swallowed connect error drops delivery with no operator-visible fallback.
 public sealed class ConsoleRealtimeFallbackTrackerTests
 {
     [Fact]

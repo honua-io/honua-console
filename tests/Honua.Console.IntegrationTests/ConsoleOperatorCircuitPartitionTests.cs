@@ -7,23 +7,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Regression coverage for the S1 circuit-partition-collapse defect (honua-console#256).
-///
-/// honua-console#252 partitioned the multi-operator browser host's profile/session/bearer state by the
-/// authenticated operator, but resolved the operator key from <see cref="HttpContext"/> with an
-/// <c>AsyncLocal</c> ambient set on the sign-in HTTP thread. In Blazor <b>Server interactive</b> rendering
-/// there is NO active <see cref="HttpContext"/> and the sign-in thread's execution context does not flow to
-/// the circuit, so every interactive operator collapsed to the shared anonymous partition — re-introducing
-/// the cross-operator bearer/identity bleed #252 was meant to fix.
-///
-/// #252's tests missed this because they drove the operator context through a settable test double
-/// (<c>SwitchableOperatorContext</c>), never exercising the real <see cref="ConsoleOperatorContext"/> with
-/// no <see cref="HttpContext"/>. These tests drive the REAL context the way a circuit does: the operator
-/// identity comes only from the circuit's <see cref="AuthenticationStateProvider"/> via the production
-/// <see cref="CircuitOperatorContextHandler"/>, with the <see cref="IHttpContextAccessor"/> deliberately
-/// returning <c>null</c> (interactive rendering has no request).
-/// </summary>
+// The circuit has no HttpContext because the execution context does not flow there, so identity comes from circuit authentication state or operator partitions collapse.
 public sealed class ConsoleOperatorCircuitPartitionTests
 {
     [Fact]

@@ -3,14 +3,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Host-independent unit coverage for the merged-build temporal client
-/// (<see cref="UnsupportedTemporalCapabilityClient"/>) and the temporal result-model invariants
-/// (honua-console#43). Asserts that every operation reports the honua-server#1166/#1167 missing-binding
-/// state and returns no fabricated temporal/sync content (Console Patterns Charter section 11), and that
-/// the result envelopes encode the acceptance-criteria invariants (governed rollback evidence, audited
-/// resolution change set).
-/// </summary>
 public sealed class TemporalCapabilityClientTests
 {
     private readonly UnsupportedTemporalCapabilityClient _client = new();

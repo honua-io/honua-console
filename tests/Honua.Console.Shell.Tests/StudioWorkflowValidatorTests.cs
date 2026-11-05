@@ -4,18 +4,11 @@ using Honua.Console.Shell.Validation;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Docker-free unit coverage for <see cref="StudioWorkflowValidator"/>, the Wave-4 client validator for the
-/// Studio workflow editor. Each catalog rule (worker/retry bounds, cron format, route-slug format,
-/// source→sink graph connectivity, unique output field names) is proven in its pass and fail state, keyed by
-/// <see cref="StudioWorkflowFieldKeys"/>.
-/// </summary>
 public sealed class StudioWorkflowValidatorTests
 {
     private static IReadOnlyList<ConsoleFieldError> Evaluate(StudioWorkflowPackageDraft draft) =>
         StudioWorkflowValidator.Instance.Evaluate(draft);
 
-    /// <summary>A valid source→transform→sink graph with in-bounds worker/retry and a manual schedule.</summary>
     private static StudioWorkflowPackageDraft Valid()
     {
         var draft = new StudioWorkflowPackageDraft { Title = "Nightly normalizer" };

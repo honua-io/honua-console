@@ -4,11 +4,7 @@ using Honua.Console.Shell.Diagnostics;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// The Console diagnostic-bundle emitter: every emitted bundle validates against the canonical
-/// schema before download/upload, absent optional fields are omitted (never explicit null), and
-/// raw bytes / Authorization / Cookie / secrets never reach the wire (honua-console#307).
-/// </summary>
+// Raw bytes, authorization, cookies, and secrets stay off the wire; the bundle is validated before transfer and absent optionals are omitted.
 public sealed class DiagnosticBundleEmitterTests
 {
     private static readonly DiagnosticConsent Consent = new()

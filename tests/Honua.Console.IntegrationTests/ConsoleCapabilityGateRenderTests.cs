@@ -6,12 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free coverage for the first-release capability-manifest gate
-/// (docs/roadmap/FIRST_RELEASE_STRATEGY_AND_CUT_LINE.md). Deferred "exotic depth" surfaces must render
-/// the first-class "unsupported" state — never dead/live UI — when the connected deployment does not
-/// advertise the capability, and light up unchanged when it does.
-/// </summary>
 public sealed class ConsoleCapabilityGateRenderTests
 {
     [Fact]

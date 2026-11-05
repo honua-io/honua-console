@@ -59,11 +59,6 @@ public sealed class StudioWorkflowPackageFixture : IAsyncLifetime
         }
     }
 
-    /// <summary>
-    /// Builds the production workflow package API client against the live server. Accepts the dev/self-signed
-    /// certificate only when the fixture server is TLS, so the test exercises the real client + admin
-    /// API-key path against the admin-authorized <c>/api/v1/console/workflow-*</c> endpoints.
-    /// </summary>
     public IWorkflowPackageApiClient CreateApiClient()
     {
         var handler = new HttpClientHandler();

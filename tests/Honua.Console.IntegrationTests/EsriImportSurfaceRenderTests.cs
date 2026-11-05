@@ -8,14 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the four Esri content-import surfaces (issue #122 / #100, #101, #104,
-/// #102) and their shared components. Asserts the design-handoff landmarks from screens-import-esri.jsx and
-/// screens-import-wizard.jsx — the intake modes, the source -> target mapping table with each Fid badge
-/// state, the target preview, the inline + full-screen missing-binding states, the wizard steps, and the
-/// scorecard counts / parity bar. The Esri-JSON parse is deterministic Console-side work; the migration-run
-/// engine binds honua-devops, else the missing-binding state.
-/// </summary>
 public sealed class EsriImportSurfaceRenderTests
 {
     private static Bunit.BunitContext NewContext()

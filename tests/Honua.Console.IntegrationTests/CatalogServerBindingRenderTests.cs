@@ -10,13 +10,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the Catalog page bound to honua-server's Console metadata v2 content
-/// + RBAC API (issue #7, honua-server#1162). Drives the real <see cref="HonuaServerConsoleCatalogClient"/>
-/// over a recording <see cref="HttpMessageHandler"/> so the test exercises the live binding + mapper end
-/// to end, asserting the catalog table renders server-mapped items (itemType/visibility/RBAC projection)
-/// and that a server-unavailable read falls back to the empty surface instead of fabricating content.
-/// </summary>
 public sealed class CatalogServerBindingRenderTests
 {
     private static readonly Uri BaseUri = new("https://console.honua.test");

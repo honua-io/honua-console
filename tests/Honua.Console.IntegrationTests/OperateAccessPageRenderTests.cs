@@ -7,15 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Docker-free render coverage for the Settings &gt; Access (RBAC) surfaces — <c>/operate/access</c>
-/// (roles &amp; permissions overview) and <c>/operate/access/members</c> (team members + scoped invite).
-/// Asserts the design landmarks from the screens-collab-rbac.jsx mockup (the five-level scope strip, the
-/// role × permission matrix with the granted/scoped/env-scoped/custom legend, the members roster with
-/// pending invitations, and the scoped-invite drawer with the "what this grants" preview) plus the
-/// missing-binding surface. Drives the pages through a fake <see cref="IRbacAccessDataSource"/> rather than
-/// a mock server; the live binding follows the established opt-in Testcontainers pattern.
-/// </summary>
 public sealed class OperateAccessPageRenderTests
 {
     private static readonly RbacCapabilityState MissingBinding = new(

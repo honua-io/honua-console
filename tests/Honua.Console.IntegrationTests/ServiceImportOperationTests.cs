@@ -5,12 +5,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
-/// <summary>
-/// Unit coverage for <see cref="HonuaServerConsoleServiceImportOperation"/>'s job-status mapping. A failed
-/// reading is not the same as a failed import: transport blips and transient 5xx must keep the job active so
-/// the poller keeps polling, while definitive client outcomes (auth/permission, unsupported) end polling.
-/// Backed by the real HTTP admin client over a stubbed transport; contacts no server.
-/// </summary>
+// A transport blip or transient 5xx keeps the import job active so polling continues; authorization and unsupported outcomes are terminal.
 public sealed class ServiceImportOperationTests
 {
     private static readonly Uri BaseAddress = new("https://server.example/");

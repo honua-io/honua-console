@@ -3,12 +3,6 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Tests;
 
-/// <summary>
-/// Host-independent coverage for the report-builder authoring model: the pure pre-publish gate that backs
-/// the issue's "Vega-Lite is the chart spec for all report charts" + "version pinning/responsive preview
-/// before publish" acceptance criteria, and the deterministic report-document serializer used as the
-/// publish payload. No server or DOM is involved.
-/// </summary>
 public sealed class StudioReportBuilderModelsTests
 {
     [Fact]
