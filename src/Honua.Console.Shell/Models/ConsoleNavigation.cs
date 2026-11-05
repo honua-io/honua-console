@@ -1,4 +1,5 @@
 using Honua.Console.Shell.Services;
+using Microsoft.Extensions.Configuration;
 
 namespace Honua.Console.Shell.Models;
 
@@ -42,6 +43,19 @@ public static class ConsoleNavigation
             new("/operate/access", "Roles and permissions") { FullModeOnly = true }]),
         new("Settings", [new("/operate/settings", "Server settings") { FullModeOnly = true }])
     ];
+
+    public static IReadOnlyList<ConsoleNavigationGroup> VisibleGroups(
+        IConsoleProductMode mode, IConsoleCapabilityManifest capabilities, IConfiguration? configuration)
+    {
+        var studioEnabled = bool.TryParse(configuration?["Studio:EmbedJsStudio"], out var enabled) && enabled;
+        return Groups.Where(group => group.Name != "Studio" || studioEnabled)
+            .Select(group => group with
+            {
+                Destinations = group.Destinations
+                .Where(entry => IsVisible(entry, mode, capabilities)).ToArray()
+            })
+            .Where(group => group.Destinations.Count > 0).ToArray();
+    }
 
     public static ConsoleNavigationContext ContextForPath(string relativePath)
     {

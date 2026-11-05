@@ -1,0 +1,30 @@
+@inject IConsoleCapabilityManifest Capabilities
+@inject IServiceProvider Services
+@implements IDisposable
+
+<nav aria-label="Work areas" class="console-home-links">
+    @foreach (var group in VisibleGroups)
+    {
+        <section>
+            <h3>@group.Name</h3>
+            <ul>
+                @foreach (var entry in group.Destinations)
+                {
+                    <li><a href="@entry.Path">@entry.Label</a></li>
+                }
+            </ul>
+        </section>
+    }
+</nav>
+
+@code {
+    protected override void OnInitialized() => Capabilities.Changed += OnCapabilitiesChanged;
+    private void OnCapabilitiesChanged() => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() => Capabilities.Changed -= OnCapabilitiesChanged;
+
+    private IConsoleProductMode ProductMode => Services.GetService<IConsoleProductMode>() ??
+        new ConfiguredConsoleProductMode(ConsoleProductMode.Full);
+
+    private IReadOnlyList<ConsoleNavigationGroup> VisibleGroups => ConsoleNavigation.VisibleGroups(
+        ProductMode, Capabilities, Services.GetService<Microsoft.Extensions.Configuration.IConfiguration>());
+}

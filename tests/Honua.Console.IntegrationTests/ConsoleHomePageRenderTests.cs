@@ -3,6 +3,7 @@ using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -11,6 +12,8 @@ public sealed class ConsoleHomePageRenderTests
     private static BunitContext NewContext(FakeConsoleProposalsClient proposals)
     {
         var ctx = new BunitContext();
+        ctx.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?> { ["Studio:EmbedJsStudio"] = "true" }).Build());
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IConsoleEnvironmentProfileStore>(
             new InMemoryConsoleEnvironmentProfileStore([]));
@@ -48,7 +51,7 @@ public sealed class ConsoleHomePageRenderTests
     }
 
     [Fact]
-    public void Home_StillRendersTheFourAreaWorkSurfaces()
+    public void Home_ExposesWorkingAreaDestinationsUnderTheirCapabilityGates()
     {
         using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []));
 

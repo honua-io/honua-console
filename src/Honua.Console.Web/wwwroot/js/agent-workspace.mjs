@@ -1,5 +1,6 @@
 import {hasOperatorShell} from './console-shell-context.mjs';
 import {mountWorkspacePreferences} from './operator-preferences.mjs';
+import {mountRecentVisits} from './operator-recent-visits.mjs';
 import {StudioConversation} from './studio-conversation.mjs';
 import {sameCookieAuthority} from './cookie-workspace-transport.mjs';
 import {GaSpecReview, reviewSummary, reviewDetails} from './ga-spec-review.mjs';
@@ -633,7 +634,8 @@ export function mountWorkspace() {
         workspace.contextGeneration++;
         notify(workspace);
     }, {signal:lifetime.signal});
-    const syncPreferences = mountWorkspacePreferences(workspace, host, lifetime.signal);
+    const syncPreferences = mountWorkspacePreferences(workspace, host, {signal: lifetime.signal,
+        onPartitionChanged: mountRecentVisits(lifetime.signal)});
     workspace.notify = state => { notify(state); syncPreferences(); void refreshDeployTargets(state); };
     workspace.notify(workspace);
     const connectionPanel = host.querySelector('.console-conversation-connection');

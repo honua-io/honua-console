@@ -43,12 +43,14 @@ export class OperatorPreferences {
     }
 }
 
-function browserStorage() {
+export function browserStorage() {
     try { return globalThis.localStorage; } catch { /* Private contexts may deny storage access. */ }
 }
 
 class WorkspacePreferenceAdapter {
-    constructor(workspace, host, signal) {
+    constructor(workspace, host, options) {
+        const {signal, onPartitionChanged} = options;
+        this.onPartitionChanged = onPartitionChanged;
         this.workspace = workspace;
         this.signal = signal;
         this.follow = host.querySelector('[data-workspace-follow]');
@@ -63,6 +65,9 @@ class WorkspacePreferenceAdapter {
             window.addEventListener(event, () => { void this.refresh(); }, {signal});
     }
     render() {
+        this.onPartitionChanged?.(this.validated && this.preferences.key ? {
+            key: this.preferences.key, authority: this.preferences.authority, expiresAt: this.preferences.expiresAt
+        } : null);
         this.workspace.follow = this.preferences.follow;
         if (this.follow) {
             this.follow.checked = this.preferences.follow;
@@ -86,7 +91,7 @@ class WorkspacePreferenceAdapter {
         if (!hasOperatorShell() || !validatedPartition(this.workspace.session)) { this.unavailable(revision); return; }
         const workspaceAuthority = this.workspace.authorityKey();
         this.validated = false;
-        if (this.follow) this.follow.disabled = true;
+        this.render();
         try {
             const session = await this.workspace.api('session');
             if (this.signal.aborted || revision !== this.generation || workspaceAuthority !== this.workspace.authorityKey()) return;
@@ -108,7 +113,7 @@ class WorkspacePreferenceAdapter {
     }
 }
 
-export function mountWorkspacePreferences(workspace, host, signal) {
-    const adapter = new WorkspacePreferenceAdapter(workspace, host, signal);
+export function mountWorkspacePreferences(workspace, host, options) {
+    const adapter = new WorkspacePreferenceAdapter(workspace, host, options);
     return () => adapter.sync();
 }

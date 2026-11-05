@@ -2,324 +2,127 @@
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
+@using Microsoft.AspNetCore.Components.Authorization
 @inject IConsoleEnvironmentProfileStore Profiles
-@inject IConsoleApprovalInboxClient Inbox
-@inject IServiceProvider ServiceProvider
-@inject IConsoleCapabilityManifest Capabilities
-@implements IAsyncDisposable
+@inject IServiceProvider Services
+@implements IDisposable
 
-@* CONSOLE HOME — the information + approval landing (#193). The console's job is to
-   witness and authorize the work agents and APIs propose, so the landing leads with the
-   approval inbox (pending agent-proposed operations the operator can act on) rather than a
-   dead grid of links. The inbox band binds to live server data through the aggregator and
-   renders an honest missing-binding / empty state when no work — never seeded data. The
-   four area work surfaces follow as the entry points into the department's tools.
-
-   The inbox band goes live (console#292 scope item 4): it subscribes to the same admin-hub
-   proposals group the approval inbox uses (console#294's shared realtime seam), so a
-   ProposalPending/ProposalResolved event updates the count here without a page reload. A
-   failed connect degrades to the existing one-shot read (manual refresh via navigation) — the
-   Live/Manual pill states this honestly rather than claiming a liveness that failed. The
-   realtime client is resolved optionally (GetService, not a required inject): a host that has
-   not registered the seam gets the same honest Manual state, never a render exception. *@
-
-<section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Your GIS workspace</p>
-        <h1>Start with your data. Keep the conversation.</h1>
-        <p>Connect Honua, add a dataset, and build a map. Work through the forms or ask in the shared conversation.</p>
-    </div>
-    <div class="console-start-options" data-first-run-actions>
-        <a class="console-panel console-start-option" href="/setup/local" data-start-local>
-            <span class="console-kicker">New to Honua</span><h2>Set up Honua locally</h2>
-            <p>Use your local agent to check Docker and start Honua on your computer.</p><strong>Start with Docker →</strong>
-        </a>
-        <a class="console-panel console-start-option" href="/environments/new" data-connect-existing>
-            <span class="console-kicker">Already have a server?</span><h2>Connect an existing deployment</h2>
-            <p>Choose your server address and sign in with your own account.</p><strong>Connect →</strong>
-        </a>
-        @if (_profiles.Count > 0)
-        {
-            <a class="console-panel console-start-option" href="/operate/data" data-continue-work>
-                <span class="console-kicker">Welcome back</span><h2>Continue your work</h2>
-                <p>Open your data and resume the shared conversation in @ServerName.</p><strong>Open workspace →</strong>
-            </a>
-        }
-    </div>
-    @if (_profiles.Count > 0 && _inboxLoaded && !_inbox.IsAllowed)
+<section class="console-page console-home-page">
+    @if (!_loaded)
     {
-        <article class="console-panel console-state-info" data-home-connection-state role="status">
-            <h2>Check your connection and access</h2>
-            <p>The approval queue could not be read from @ServerName. Sign in or review the selected server before continuing.</p>
-            <a class="console-button-link" href="/environments">Review connection</a>
-        </article>
+        <div class="console-page-heading"><h1>Welcome</h1></div>
+        <p role="status">Reading the selected environment…</p>
     }
-    <details class="console-home-operations">
-        <summary>Operations, approvals and work areas</summary>
-    @* Ops-summary strip (console#292, founder decision 2026-07-07: ships on home, not hub-only):
-       the landing's "is my server healthy, what needs me?" glance — overall health, awaiting
-       approvals, open findings, and SLO breaches, each deep-linking to its actionable surface. *@
-    <OpsSummaryStrip />
-
-    <div class="console-home-band">
-        @* ── Pending approvals (the work queue at a glance) ──────────────────── *@
-        <section class="console-panel console-home-inbox" aria-labelledby="home-inbox-heading">
-            <div>
-                <p class="console-kicker">Human-in-the-loop</p>
-                <h2 id="home-inbox-heading">Approval inbox</h2>
-            </div>
-            @* Freshness affordance (console#309): Live when the proposals hub is connected;
-               otherwise an honest paused signal carrying the last good refresh time. Flips on
-               reconnect without a reload via the shared realtime state-changed seam. *@
-            @if (RealtimeConnected)
-            {
-                <span class="approval-inbox-live is-live" data-home-live-state="live"
-                      data-fallback-engaged="@FallbackEngaged">
-                    Live
-                </span>
-            }
-            else
-            {
-                <span class="approval-inbox-live approval-inbox-paused" data-home-live-state="paused"
-                      data-fallback-engaged="@FallbackEngaged">
-                    Updates paused — last refreshed
-                    <span data-home-inbox-paused-since>@ConsoleFreshness.LastRefreshedShort(_lastInboxSuccessUtc)</span>
-                </span>
-            }
-            @if (!_inboxLoaded)
-            {
-                <p class="console-muted">Reading the work queue…</p>
-            }
-            else if (!_inbox.IsAllowed && ConsoleReadBudget.IsErrorState(_inbox.Status))
-            {
-                @* Bounded-loading error (console#308): the queue read failed or blew its budget.
-                   Name the failing source, keep the last good refresh time, offer a working Retry —
-                   distinct from the "nothing pending" empty state below. *@
-                <div class="console-home-inbox-error" role="alert" data-home-inbox-error>
-                    <p data-home-inbox-error-title>Couldn't read the approval queue from @ServerName</p>
-                    @if (!string.IsNullOrWhiteSpace(_inbox.Message))
-                    {
-                        <p class="console-muted" data-home-inbox-error-detail>@_inbox.Message</p>
-                    }
-                    <p class="console-muted" data-home-inbox-last-refreshed>@ConsoleFreshness.LastRefreshed(_lastInboxSuccessUtc)</p>
-                    <button type="button" class="console-button console-button-secondary"
-                            disabled="@_inboxBusy" data-home-inbox-retry @onclick="RefreshInboxAsync">
-                        Retry
-                    </button>
-                </div>
-            }
-            else if (!_inbox.IsAllowed)
-            {
-                <p class="console-muted">
-                    @(string.IsNullOrWhiteSpace(_inbox.Message)
-                        ? OperateSectionPresentation.FallbackMessage(_inbox.Status)
-                        : _inbox.Message)
-                </p>
-            }
-            else
-            {
-                var snapshot = _inbox.Value ?? ApprovalInboxSnapshot.Empty;
-                <div class="console-home-inbox-metrics" role="status" aria-live="polite">
-                    <span class="approval-inbox-metric @(snapshot.AwaitingApprovalCount > 0 ? "is-actionable" : null)"
-                          data-home-awaiting-count>
-                        <strong>@snapshot.AwaitingApprovalCount</strong>
-                        <span class="console-muted">awaiting approval</span>
-                    </span>
-                    <span class="approval-inbox-metric" data-home-total-count>
-                        <strong>@snapshot.TotalCount</strong>
-                        <span class="console-muted">in the queue</span>
-                    </span>
-                </div>
-                <p class="console-muted">
-                    @if (snapshot.AwaitingApprovalCount > 0)
-                    {
-                        <text>Agent-proposed operations are waiting for your decision.</text>
-                    }
-                    else
-                    {
-                        <text>No agent-proposed operations are awaiting a decision right now.</text>
-                    }
-                </p>
-            }
-            <a class="console-button-link console-home-inbox-cta" href="/inbox" data-open-inbox>Open inbox</a>
-        </section>
-
-        <section class="console-panel" aria-labelledby="home-activity-heading">
-            <h2 id="home-activity-heading">Activity</h2><p>Inspect operations, service health and recent changes.</p>
-            <a class="console-button-link" href="/operate/observability" data-open-activity>View activity</a>
-        </section>
-    </div>
-
-    @if (_profiles.Count == 0)
+    else if (_profile is { } profile)
     {
-        <article class="console-panel console-state-info console-environment-summary" role="note" aria-labelledby="home-first-run">
-            <div>
-                <p class="console-kicker">Get started</p>
-                <h2 id="home-first-run">Connect to a Honua Server</h2>
-                <p class="console-muted">No environment is set up yet. Point this Console at your Honua Server over HTTPS and sign in to start working.</p>
-            </div>
-            <a class="console-button" href="/environments/new">Connect to a server</a>
-        </article>
-    }
-
-    <div class="console-panel-grid console-panel-grid-wide">
-        @foreach (var area in ConsoleRouteMap.Areas.Where(area => area.IsAvailable(Capabilities)))
-        {
-            <a class="console-panel console-area-link" href="@area.Path">
-                <span class="console-kicker">@area.WorkflowBoundary</span>
-                <h2>@area.Name</h2>
-                <p>@area.Description</p>
-            </a>
-        }
-    </div>
-
-    <section class="console-panel console-environment-summary" aria-labelledby="home-environments">
-        <div>
-            <p class="console-kicker">Environment profiles</p>
-            <h2 id="home-environments">Native-ready profile state</h2>
-            <p class="console-muted">The same shell can bind to browser HTTP flows or native gRPC and mTLS-capable environments.</p>
+        <div class="console-page-heading">
+            <h1>Welcome</h1>
+            <p data-home-environment><strong>@profile.DisplayName</strong> · @profile.ServerBaseUri.GetLeftPart(UriPartial.Authority)</p>
+            <p>Review pending decisions, inspect server health, or choose a service in the tree to browse its layers.</p>
         </div>
-        <div class="console-profile-count">@_profiles.Count</div>
-        <a class="console-button-link" href="/environments">Manage</a>
-    </section>
-    </details>
+        @Operations
+        <section class="console-panel console-home-administration" aria-labelledby="home-admin-heading">
+            <h2 id="home-admin-heading">Administration</h2>
+            <ConsoleHomeWorkAreas />
+            <a href="/environments">Manage environments</a>
+        </section>
+        <details class="console-home-setup"><summary>Set up another deployment</summary><ConsoleHomeSetup /></details>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <h1>Start with your data. Keep the conversation.</h1>
+            <p>Connect Honua, add a dataset, and build a map. Work through the forms or ask in the shared conversation.</p>
+        </div>
+        <ConsoleHomeSetup />
+        @if (!_environment.IsAllowed || _profileCount > 0)
+        {
+            <article class="console-panel console-state-info" data-home-connection-state role="status">
+                <h2>Review the selected environment</h2>
+                <p>The active environment could not be read. Choose a saved environment or review its connection.</p>
+                <a class="console-button-link" href="/environments">Review connection</a>
+                <button class="console-button console-button-secondary" type="button" @onclick="RefreshEnvironmentAsync">Retry</button>
+            </article>
+        }
+        <details class="console-home-operations">
+            <summary>Operations, approvals and work areas</summary>
+            @Operations
+            <h2>Work areas</h2>
+            <ConsoleHomeWorkAreas />
+        </details>
+    }
 </section>
 
 @code {
-    /// <summary>
-    /// The bounded-loading budget for the inbox-band read (console#308). A parameter so tests can
-    /// drive the timeout path deterministically without waiting the full ~5s.
-    /// </summary>
-    [Parameter]
-    public TimeSpan LoadBudget { get; set; } = ConsoleReadBudget.Default;
+    [Parameter] public TimeSpan LoadBudget { get; set; } = ConsoleReadBudget.Default;
+    private readonly CancellationTokenSource _lifetime = new();
+    private AuthenticationStateProvider? _authentication;
+    private OperateSectionResult<HomeEnvironment> _environment =
+        OperateSectionResult<HomeEnvironment>.Allowed(new(null, 0));
+    private ConsoleEnvironmentProfile? _profile;
+    private int _profileCount;
+    private int _generation;
+    private bool _loaded;
+    private bool _disposed;
 
-    private IReadOnlyList<ConsoleEnvironmentProfile> _profiles = Array.Empty<ConsoleEnvironmentProfile>();
-
-    private bool _inboxLoaded;
-    private bool _inboxBusy;
-    private OperateSectionResult<ApprovalInboxSnapshot> _inbox =
-        OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
-
-    // Last successful band read — persisted across failures so the paused pill / error card shows
-    // the last good time rather than "never" (console#308/#309).
-    private DateTimeOffset? _lastInboxSuccessUtc;
-    private string? _serverName;
-
-    // Resolved optionally (console#292): a host without the realtime seam registered renders
-    // the honest Manual state instead of failing DI at render time. Never a required inject.
-    private IConsoleProposalRealtimeClient? _realtime;
-
-    // The concrete realtime client also implements the shared capability seam (console#293): its
-    // state-changed event flips the freshness pill on reconnect without a reload (console#309).
-    private IConsoleRealtimeCapabilityClient? _realtimeState;
-
-    private bool RealtimeConnected => _realtime?.IsConnected == true;
-
-    private bool FallbackEngaged => _realtime?.IsFallbackEngaged == true;
-
-    private string ServerName =>
-        string.IsNullOrWhiteSpace(_serverName) ? "the connected honua-server" : _serverName;
+    private RenderFragment Operations => @<div class="console-home-workload" @key="ConsoleEnvironmentAuthority.From(_profile)">
+        <ConsoleHomeWorkQueue LoadBudget="LoadBudget" ServerName="@(_profile?.DisplayName ?? "the selected server")" />
+        <section aria-labelledby="home-health-heading">
+            <h2 id="home-health-heading">Health and findings</h2>
+            <OpsSummaryStrip LoadBudget="LoadBudget" />
+        </section>
+        <ConsoleHomeRecentVisits />
+    </div>;
 
     protected override async Task OnInitializedAsync()
     {
-        _profiles = await Profiles.ListProfilesAsync();
-        await ResolveServerNameAsync();
-
-        // The landing shows the queue at a glance; the inbox page is where operators filter and
-        // act. Both read the same first-class server proposals API, under the same ~5s budget.
-        await RefreshInboxAsync();
-
-        // Console#292 scope item 4: subscribe to the same admin-hub proposals group the
-        // approval inbox uses so a pending/resolved event refreshes this band live, with no
-        // polling. Best-effort twice over: an unregistered client means Manual mode (no
-        // subscription to open), and a failed connect leaves the band on its one-shot read.
-        _realtime = ServiceProvider.GetService<IConsoleProposalRealtimeClient>();
-        if (_realtime is not null)
-        {
-            _realtime.ProposalChanged += OnProposalEvent;
-            if (_realtime is IConsoleRealtimeCapabilityClient capability)
-            {
-                _realtimeState = capability;
-                _realtimeState.ConnectionStateChanged += OnConnectionStateChanged;
-            }
-
-            await _realtime.StartAsync();
-        }
+        Profiles.ActiveProfileChanged += OnProfileChanged;
+        _authentication = Services.GetService<AuthenticationStateProvider>();
+        if (_authentication is not null) _authentication.AuthenticationStateChanged += OnAuthenticationChanged;
+        await RefreshEnvironmentAsync();
     }
 
-    private async Task ResolveServerNameAsync()
+    private async Task RefreshEnvironmentAsync()
     {
-        try
-        {
-            var active = await Profiles.GetActiveProfileAsync();
-            if (active is { DisplayName.Length: > 0 })
-            {
-                _serverName = active.DisplayName;
-            }
-        }
-        catch
-        {
-            // The source name is a nicety, never a gate: fall back to the generic server label.
-        }
+        if (_disposed) return;
+        var generation = ++_generation;
+        _loaded = false;
+        await InvokeAsync(StateHasChanged);
+        var environment = await ConsoleReadBudget.RunAsync(ReadEnvironmentAsync, LoadBudget,
+            "The selected environment could not be read.", _lifetime.Token);
+        if (_disposed || generation != _generation) return;
+        _environment = environment;
+        _profile = environment.IsAllowed ? environment.Value?.Profile : null;
+        _profileCount = environment.Value?.ProfileCount ?? 0;
+        _loaded = true;
+        await InvokeAsync(StateHasChanged);
     }
 
-    private async Task RefreshInboxAsync()
+    private async Task<OperateSectionResult<HomeEnvironment>> ReadEnvironmentAsync(CancellationToken token)
     {
-        if (_inboxBusy)
-        {
-            return;
-        }
-
-        _inboxBusy = true;
-        try
-        {
-            // Bounded loading (console#308): a hung or failing read resolves to an explicit,
-            // retryable Unavailable error rather than sticking on "Reading the work queue…".
-            _inbox = await ConsoleReadBudget.RunAsync(
-                token => Inbox.GetInboxAsync(cancellationToken: token),
-                LoadBudget,
-                $"The approval queue did not respond within {LoadBudget.TotalSeconds:0} seconds.");
-
-            if (_inbox.IsAllowed)
-            {
-                _lastInboxSuccessUtc = DateTimeOffset.UtcNow;
-            }
-        }
-        finally
-        {
-            _inboxBusy = false;
-            _inboxLoaded = true;
-        }
+        var profiles = await Profiles.ListProfilesAsync(token);
+        var active = await Profiles.GetActiveProfileAsync(token);
+        return OperateSectionResult<HomeEnvironment>.Allowed(new(active, profiles.Count));
     }
 
-    private void OnProposalEvent(ConsoleProposalEvent evt)
+    private void OnProfileChanged() => _ = InvokeAsync(RefreshEnvironmentAsync);
+
+    private void OnAuthenticationChanged(Task<AuthenticationState> state)
     {
-        _ = InvokeAsync(async () =>
-        {
-            await RefreshInboxAsync();
-            StateHasChanged();
-        });
+        if (_disposed) return;
+        Profiles.ActiveProfileChanged -= OnProfileChanged;
+        Profiles.ActiveProfileChanged += OnProfileChanged;
+        _ = InvokeAsync(RefreshEnvironmentAsync);
     }
 
-    // A realtime connect / reconnect / degrade: re-render so the freshness pill reflects the true
-    // connection state immediately, with no proposal event and no page reload (console#309).
-    private void OnConnectionStateChanged(ConsoleRealtimeConnectionState state) =>
-        _ = InvokeAsync(StateHasChanged);
+    private sealed record HomeEnvironment(ConsoleEnvironmentProfile? Profile, int ProfileCount);
 
-    public ValueTask DisposeAsync()
+    public void Dispose()
     {
-        // The realtime client is an app-lifetime singleton shared across circuits; only detach
-        // this page's handler (mirrors ApprovalInboxPage's disposal note).
-        if (_realtime is not null)
-        {
-            _realtime.ProposalChanged -= OnProposalEvent;
-        }
-
-        if (_realtimeState is not null)
-        {
-            _realtimeState.ConnectionStateChanged -= OnConnectionStateChanged;
-        }
-
-        return ValueTask.CompletedTask;
+        _disposed = true;
+        Profiles.ActiveProfileChanged -= OnProfileChanged;
+        if (_authentication is not null) _authentication.AuthenticationStateChanged -= OnAuthenticationChanged;
+        _lifetime.Cancel();
+        _lifetime.Dispose();
     }
 }
