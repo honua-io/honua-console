@@ -1,0 +1,212 @@
+[
+  {
+    "heading": [
+      "Start with your data. Keep the conversation."
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": false,
+    "modal": null,
+    "inert": false,
+    "hosts": 1,
+    "name": "home-closed",
+    "width": 1440,
+    "blocking": []
+  },
+  {
+    "heading": [
+      "Start with your data. Keep the conversation."
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": true,
+    "modal": null,
+    "inert": false,
+    "hosts": 1,
+    "name": "home-open",
+    "width": 1440,
+    "blocking": []
+  },
+  {
+    "heading": [
+      "Studio"
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": true,
+    "modal": null,
+    "inert": false,
+    "hosts": 1,
+    "name": "studio-open",
+    "width": 1440,
+    "blocking": []
+  },
+  {
+    "heading": [
+      "Studio"
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": true,
+    "modal": null,
+    "inert": false,
+    "hosts": 1,
+    "name": "studio-canvas-open",
+    "width": 1440,
+    "blocking": []
+  },
+  {
+    "heading": [
+      "Studio"
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": false,
+    "modal": null,
+    "inert": false,
+    "hosts": 1,
+    "name": "studio-closed",
+    "width": 1440,
+    "blocking": []
+  },
+  {
+    "heading": [
+      "Studio"
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": false,
+    "modal": null,
+    "inert": false,
+    "hosts": 1,
+    "name": "studio-canvas-closed",
+    "width": 1440,
+    "blocking": []
+  },
+  {
+    "heading": [
+      "Data & Layers"
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": false,
+    "modal": null,
+    "inert": false,
+    "hosts": 1,
+    "name": "data-closed",
+    "width": 1440,
+    "blocking": []
+  },
+  {
+    "heading": [
+      "Data & Layers"
+    ],
+    "documentWidth": 1440,
+    "viewport": 1440,
+    "open": true,
+    "modal": null,
+    "inert": false,
+    "hosts": 1,
+    "name": "data-open",
+    "width": 1440,
+    "blocking": []
+  },
+  {
+    "heading": [
+      "Start with your data. Keep the conversation."
+    ],
+    "documentWidth": 390,
+    "viewport": 390,
+    "open": false,
+    "modal": null,
+    "inert": false,
+    "hosts": 1,
+    "name": "home-closed",
+    "width": 390,
+    "blocking": []
+  },
+  {
+    "heading": [
+      "Start with your data. Keep the conversation."
+    ],
+    "documentWidth": 390,
+    "viewport": 390,
+    "open": true,
+    "modal": "true",
+    "inert": true,
+    "hosts": 1,
+    "name": "home-open",
+    "width": 390,
+    "blocking": []
+  },
+  {
+    "heading": [
+      "Studio"
+    ],
+    "documentWidth": 390,
+    "viewport": 390,
+    "open": true,
+    "modal": "true",
+    "inert": true,
+    "hosts": 1,
+    "name": "studio-open",
+    "width": 390,
+    "blocking": []
+  },
+  {
+    "heading": [
+      "Studio"
+    ],
+    "documentWidth": 390,
+    "viewport": 390,
+    "open": false,
+    "modal": null,
+    "inert": false,
+    "hosts": 1,
+    "name": "studio-closed",
+    "width": 390,
+    "blocking": []
+  },
+  {
+    "heading": [
+      "Studio"
+    ],
+    "documentWidth": 390,
+    "viewport": 390,
+    "open": false,
+    "modal": null,
+    "inert": false,
+    "hosts": 1,
+    "name": "studio-canvas-closed",
+    "width": 390,
+    "blocking": []
+  },
+  {
+    "heading": [
+      "Data & Layers"
+    ],
+    "documentWidth": 390,
+    "viewport": 390,
+    "open": false,
+    "modal": null,
+    "inert": false,
+    "hosts": 1,
+    "name": "data-closed",
+    "width": 390,
+    "blocking": []
+  },
+  {
+    "heading": [
+      "Data & Layers"
+    ],
+    "documentWidth": 390,
+    "viewport": 390,
+    "open": true,
+    "modal": "true",
+    "inert": true,
+    "hosts": 1,
+    "name": "data-open",
+    "width": 390,
+    "blocking": []
+  }
+]
