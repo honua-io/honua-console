@@ -214,3 +214,14 @@ test('row-sized focus targets retain accessible group ownership',async({page})=>
   const results=await new AxeBuilder({page}).include('[data-publication-tree]').analyze();
   expect(results.violations.filter(item=>['serious','critical'].includes(item.impact || ''))).toEqual([]);
 });
+
+
+test('service navigation toggle is hidden on desktop and readable at narrow widths',async({page})=>{
+  await page.setViewportSize({width:1440,height:900});
+  await openFixture(page);
+  const toggle=page.locator('[data-tree-toggle]');
+  await expect(toggle).toBeHidden();
+  await page.setViewportSize({width:390,height:844});
+  await expect(toggle).toBeVisible();
+  expect((await toggle.boundingBox())!.width).toBeGreaterThan(100);
+});
