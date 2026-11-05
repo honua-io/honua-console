@@ -757,12 +757,17 @@ export function mountWorkspace() {
     // Navigation publishes only typed selections. Never forward a URL, query, fragment or page contents.
     let lastSelection = JSON.stringify(selectedResource(location.pathname));
     let hadSharedStyle = false;
+    function currentSelection(focus) {
+        if (focus) return [];
+        const provided = workspace.promptSelection();
+        return provided ?? (workspace.selectionSourceHold !== undefined
+            ? (workspace.context?.selectedResources ?? []) : selectedResource(location.pathname));
+    }
     const observer = new MutationObserver(() => {
         if (!host.isConnected) { clearTimeout(workspace._pollTimer); observer.disconnect(); formObserver.disconnect(); lifetime.abort(); return; }
         if (!hasOperatorShell()) return;
         const focus = workspace.sharedStyleProvider?.();
-        const provided = focus ? undefined : workspace.promptSelection();
-        const selection = focus ? [] : provided ?? (workspace.selectionSourceHold !== undefined ? (workspace.context?.selectedResources ?? []) : selectedResource(location.pathname));
+        const selection = currentSelection(focus);
         const key = JSON.stringify(focus ? {resources:selection,task:focus.task} : selection);
         if (workspace.context && key !== lastSelection) {
             lastSelection = key;

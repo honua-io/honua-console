@@ -231,6 +231,7 @@ function installBrowser(markup) {
         for (const entry of [...windowListeners]) if (entry.type === event.type) entry.fn(event);
         return true;
     };
+    dom.document.body.append(dom.parse('<span hidden data-console-location="/operate" data-console-location-revision="0" data-console-authority-revision="0"></span>'));
     dom.document.body.append(dom.parse(markup));
     return dom;
 }
