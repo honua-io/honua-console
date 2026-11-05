@@ -11,11 +11,8 @@ public sealed class ConsolePublicationNavigationSourceTests
     [Fact]
     public async Task InitialReadForFiveHundredServicesDoesNotFetchConnectionsOrLayers()
     {
-        using var handler = new NavigationHandler(request => Json(new
-        {
-            success = true,
-            data = Enumerable.Range(0, 500).Select(index => new { serviceName = $"service-{index}", layerCount = 100 })
-        }));
+        using var handler = new NavigationHandler(_ => SuccessfulEnvelope(Enumerable.Range(0, 500)
+            .Select(index => new { serviceName = $"service-{index}", layerCount = 100 })));
         using var http = new HttpClient(handler);
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
         var source = new ServerConsolePublicationNavigationSource(client);
@@ -30,13 +27,10 @@ public sealed class ConsolePublicationNavigationSourceTests
     {
         var first = Guid.NewGuid();
         var second = Guid.NewGuid();
-        using var handler = new NavigationHandler(request => Json(new
-        {
-            data = new[]
+        using var handler = new NavigationHandler(_ => SuccessfulEnvelope(new[]
         {
             new { layerId = 7, layerName = "Parcels", serviceName = "public roads", geometryType = "Polygon" },
             new { layerId = 8, layerName = "Other", serviceName = "private", geometryType = "Point" }
-        }
         }));
         using var http = new HttpClient(handler);
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
@@ -54,7 +48,7 @@ public sealed class ConsolePublicationNavigationSourceTests
     [Fact]
     public async Task RequestedServiceScopeSupportsResponsesWithoutOptionalServiceName()
     {
-        using var handler = new NavigationHandler(_ => Json(new { success = true, data = new[] { new { layerId = 9, layerName = "Roads" } } }));
+        using var handler = new NavigationHandler(_ => SuccessfulEnvelope(new[] { new { layerId = 9, layerName = "Roads" } }));
         using var http = new HttpClient(handler);
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
         var read = await new ServerConsolePublicationNavigationSource(client).ReadLayersAsync("roads", [Guid.Empty], CancellationToken.None);
@@ -84,7 +78,7 @@ public sealed class ConsolePublicationNavigationSourceTests
         var deniedConnection = Guid.NewGuid();
         using var handler = new NavigationHandler(request => request.RequestUri!.AbsolutePath.Contains(deniedConnection.ToString("D"))
             ? new(HttpStatusCode.Forbidden)
-            : Json(new { success = true, data = new[] { new { layerId = 1, layerName = "Roads", serviceName = "transport" } } }));
+            : SuccessfulEnvelope(new[] { new { layerId = 1, layerName = "Roads", serviceName = "transport" } }));
         using var http = new HttpClient(handler);
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
         var read = await new ServerConsolePublicationNavigationSource(client).ReadLayersAsync("transport", [Guid.NewGuid(), deniedConnection], CancellationToken.None);
@@ -94,7 +88,10 @@ public sealed class ConsolePublicationNavigationSourceTests
         Assert.Contains("partial", read.Message);
     }
 
-    private static HttpResponseMessage Json(object body) => new(HttpStatusCode.OK) { Content = JsonContent.Create(body) };
+    private static HttpResponseMessage SuccessfulEnvelope(object data) => new(HttpStatusCode.OK)
+    {
+        Content = JsonContent.Create(new { success = true, data })
+    };
 
     private sealed class NavigationHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
     {
