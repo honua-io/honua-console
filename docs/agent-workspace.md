@@ -5,6 +5,25 @@ description: "Console and embedded Studio workspace composition, credential boun
 ---
 # Unified agent workspace host
 
+The Conversation control opens one document-level drawer. It starts closed outside
+Studio and opens on entry to `/studio`, `/studio/proof`, `/studio/drafts`, or
+`/studio/apps/{id}/preview`. Closing it lasts for that visit. Desktop keeps the
+page beside the drawer; mobile uses a modal with contained focus, Escape, and
+focus return. Navigation closes the mobile modal, including within Studio;
+query/fragment changes and hydration do not start another Studio visit.
+The host stays mounted through interactive navigation, preserving unsent text,
+pending replies, file selections and the existing captured-turn controls.
+
+The existing validated workspace lease restores preferences without an extra
+request; unbound pages do not request a preference session.
+“Follow proposed task views” is stored only after a current same-origin session
+validates the opaque operator/environment partition. Changing release or source
+path invalidates that partition's preference. Missing, expired or unavailable
+sessions use ephemeral defaults before any validated choice. A same-authority
+revalidation keeps the current follow choice while pending or unavailable and
+disables persistence until validation succeeds; browser storage is optional. These preferences
+do not reconnect or change a pending turn's authority.
+
 Standard Server deployments use the [built-in Studio assistant](studio-assistant.md), backed by the Studio model proxy and MCP. The server-owned workspace integration below requires a separate matching server contract and explicit `Honua__Agent__WorkspaceApiEnabled=true` on Console. Standard trunk does not provide `/api/v1/agent/workspaces`.
 
 When an installed worker owns a native execution, Console shows its durable request progress separately from conversation text. **Reply to question** answers a verified `awaiting-input` question; **Open approval** uses the separate human approval workflow. Selecting a question keeps the typed message and displays its original target. Sending from another selection or with unsaved edits is refused without losing the answer. **Open original task** returns to the existing task editor, and **Review current target** explicitly accepts a newer revision of that same task for the reply. The new request retains its original question, turn and execution references. It does not carry prior approval forward. These controls depend on Server #6538 and still require qualification against the installed worker and current human session.

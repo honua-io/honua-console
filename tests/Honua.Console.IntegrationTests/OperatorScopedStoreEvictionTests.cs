@@ -7,6 +7,34 @@ namespace Honua.Console.IntegrationTests;
 public sealed class OperatorScopedStoreEvictionTests
 {
     [Fact]
+    public async Task ProfileNotificationsStayWithTheirSubscribedOperatorAndDetachAfterASwitch()
+    {
+        var context = new SettableOperatorContext { CurrentOperatorKey = "operator-a" };
+        var profiles = new OperatorScopedEnvironmentProfileStore(context);
+        var notifications = 0;
+        Action changed = () => notifications++;
+        profiles.ActiveProfileChanged += changed;
+        context.CurrentOperatorKey = "operator-b";
+        await profiles.UpsertProfileAsync(new ConsoleEnvironmentProfile { Id = "one" });
+        Assert.Equal(0, notifications);
+        context.CurrentOperatorKey = "operator-a";
+        await profiles.UpsertProfileAsync(new ConsoleEnvironmentProfile { Id = "one" });
+        Assert.Equal(1, notifications);
+        context.CurrentOperatorKey = "operator-b";
+        profiles.ActiveProfileChanged -= changed;
+        profiles.ActiveProfileChanged += changed;
+        context.CurrentOperatorKey = "operator-a";
+        await profiles.ActivateProfileAsync("one");
+        Assert.Equal(1, notifications);
+        context.CurrentOperatorKey = "operator-b";
+        await profiles.ActivateProfileAsync("one");
+        Assert.Equal(2, notifications);
+        profiles.ActiveProfileChanged -= changed;
+        await profiles.ActivateProfileAsync("one");
+        Assert.Equal(2, notifications);
+    }
+
+    [Fact]
     public async Task EvictOperator_DropsThePartition_SoASubsequentReadStartsFresh()
     {
         var context = new SettableOperatorContext { CurrentOperatorKey = "operator-a" };

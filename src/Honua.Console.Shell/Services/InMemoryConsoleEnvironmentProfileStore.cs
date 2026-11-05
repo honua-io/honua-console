@@ -4,6 +4,8 @@ namespace Honua.Console.Shell.Services;
 
 public sealed class InMemoryConsoleEnvironmentProfileStore : IConsoleEnvironmentProfileStore
 {
+    public event Action? ActiveProfileChanged;
+
     private readonly object _gate = new();
     private readonly Dictionary<string, ConsoleEnvironmentProfile> _profiles;
     private readonly Dictionary<string, ConsoleEnvironmentState> _states;
@@ -81,6 +83,7 @@ public sealed class InMemoryConsoleEnvironmentProfileStore : IConsoleEnvironment
             _activeProfileId ??= profile.Id;
         }
 
+        ActiveProfileChanged?.Invoke();
         return Task.CompletedTask;
     }
 
@@ -99,6 +102,7 @@ public sealed class InMemoryConsoleEnvironmentProfileStore : IConsoleEnvironment
             _activeProfileId = profileId;
         }
 
+        ActiveProfileChanged?.Invoke();
         return Task.CompletedTask;
     }
 

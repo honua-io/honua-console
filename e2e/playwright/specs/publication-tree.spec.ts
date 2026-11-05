@@ -78,6 +78,7 @@ for(const width of [320,390]) test(`mobile tree contains focus and restores it a
   await expect(page.getByRole('tree')).not.toBeVisible();
   await opener.click();
   await expect(page.getByRole('dialog',{name:'Service navigation'})).toBeVisible();
+  expect(await opener.evaluate((button:HTMLElement)=>button.inert)).toBe(true);
   await expect(page.getByRole('textbox',{name:'Filter services and loaded layers'})).toBeFocused();
   expect(await page.locator('.console-workspace').evaluate(element=>element.inert)).toBe(true);
   await page.keyboard.press('Shift+Tab');
@@ -86,6 +87,7 @@ for(const width of [320,390]) test(`mobile tree contains focus and restores it a
   await expect(page.getByRole('textbox')).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(opener).toBeFocused();
+  expect(await opener.evaluate((button:HTMLElement)=>button.inert)).toBe(false);
   await expect(opener).toHaveAttribute('aria-expanded','false');
   expect(await page.locator('.console-workspace').evaluate(element=>element.inert)).toBe(false);
   await expect(page.getByRole('tree')).not.toBeVisible();

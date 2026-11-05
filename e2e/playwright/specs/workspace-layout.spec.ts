@@ -27,15 +27,24 @@ for(const width of [1440,390]) test(`workspace setup and conversation remain usa
   const conversation=page.locator('[data-agent-workspace]');
   await expect(conversation.locator('.console-conversation-connection')).not.toHaveAttribute('open','');
   await expect(conversation.locator('.console-conversation-handoff')).not.toHaveAttribute('open','');
-  if(width===1440) await expect(conversation).toHaveAttribute('open','');
-  if(!await conversation.evaluate((node:HTMLDetailsElement)=>node.open)) await conversation.locator(':scope > summary').click();
+  await expect(conversation).not.toHaveAttribute('open','');
+  await page.getByRole('button',{name:'Conversation',exact:true}).click();
   await expect(conversation.locator('[data-workspace-prompt]')).toBeVisible();
   const geometry=await page.evaluate(()=>{
     const main=document.querySelector('main')!.getBoundingClientRect();
     const chat=document.querySelector('[data-agent-workspace]')!.getBoundingClientRect();
     return {overlap:main.left<chat.right&&main.right>chat.left&&main.top<chat.bottom&&main.bottom>chat.top,scroll:document.documentElement.scrollWidth,width:innerWidth};
   });
-  expect(geometry.overlap).toBe(false);expect(geometry.scroll).toBeLessThanOrEqual(geometry.width+1);
+  if(width===1440) expect((await page.getByRole('banner').boundingBox())!.width).toBeGreaterThanOrEqual(width-1);
+  expect(geometry.overlap).toBe(width===390);expect(geometry.scroll).toBeLessThanOrEqual(geometry.width+1);
+  if(width===390) {
+    await expect(conversation).toHaveAttribute('aria-modal','true');
+    expect(await page.locator('.console-shell').evaluate(node=>(node as HTMLElement).inert)).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button',{name:'Conversation',exact:true})).toBeFocused();
+    await expect(conversation).not.toHaveAttribute('open','');
+    expect(await page.locator('.console-shell').evaluate(node=>(node as HTMLElement).inert)).toBe(false);
+  }
   await testInfo.attach(`workspace-${width}.png`,{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
 });
 

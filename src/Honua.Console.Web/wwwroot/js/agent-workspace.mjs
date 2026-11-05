@@ -1,3 +1,5 @@
+import {hasOperatorShell} from './console-shell-context.mjs';
+import {mountWorkspacePreferences} from './operator-preferences.mjs';
 import {StudioConversation} from './studio-conversation.mjs';
 import {sameCookieAuthority} from './cookie-workspace-transport.mjs';
 import {GaSpecReview, reviewSummary, reviewDetails} from './ga-spec-review.mjs';
@@ -584,7 +586,6 @@ export function mountWorkspace() {
         host.dataset.connected = String(Boolean(state.context));
         const start = host.querySelector('[data-workspace-start]');
         if (start) start.hidden = Boolean(state.context);
-        host.classList.toggle('console-first-run-conversation', !state.context && location.pathname === '/');
         state.renderPublicationReview?.();
         const reviewPanel = host.querySelector('[data-ga-spec-review]');
         if (reviewPanel) reviewPanel.hidden = !state.session?.gaSpecWorkflow;
@@ -632,13 +633,11 @@ export function mountWorkspace() {
         workspace.contextGeneration++;
         notify(workspace);
     }, {signal:lifetime.signal});
-    workspace.notify = state => { notify(state); void refreshDeployTargets(state); };
+    const syncPreferences = mountWorkspacePreferences(workspace, host, lifetime.signal);
+    workspace.notify = state => { notify(state); syncPreferences(); void refreshDeployTargets(state); };
     workspace.notify(workspace);
-    workspace.open ??= window.matchMedia('(min-width: 1100px)').matches;
-    host.open = workspace.open;
     const connectionPanel = host.querySelector('.console-conversation-connection');
     if (connectionPanel) connectionPanel.open = false;
-    host.addEventListener('toggle', () => { workspace.open = host.open; }, { signal: lifetime.signal });
     workspace.sharedStyleProvider ||= () => readSharedStyleFocus(document, workspace.session?.principalId);
     workspace.selectionProvider ||= () => selectedResource(location.pathname);
     // One session instance lives above route components; embedded Studio receives this same object.
@@ -709,7 +708,6 @@ export function mountWorkspace() {
             catch { status.textContent = 'Copy the tab context shown below and give it to your agent. It contains no credentials.'; }
         } catch (error) { report(error); }
     });
-    host.querySelector('[data-workspace-follow]').addEventListener('change', event => { workspace.follow = event.target.checked; });
     const working = host.querySelector('[data-workspace-working]');
     const cancelButton = host.querySelector('[data-workspace-cancel]');
     const cancelNote = host.querySelector('[data-workspace-cancel-note]');
@@ -759,11 +757,17 @@ export function mountWorkspace() {
     // Navigation publishes only typed selections. Never forward a URL, query, fragment or page contents.
     let lastSelection = JSON.stringify(selectedResource(location.pathname));
     let hadSharedStyle = false;
+    function currentSelection(focus) {
+        if (focus) return [];
+        const provided = workspace.promptSelection();
+        return provided ?? (workspace.selectionSourceHold !== undefined
+            ? (workspace.context?.selectedResources ?? []) : selectedResource(location.pathname));
+    }
     const observer = new MutationObserver(() => {
         if (!host.isConnected) { clearTimeout(workspace._pollTimer); observer.disconnect(); formObserver.disconnect(); lifetime.abort(); return; }
+        if (!hasOperatorShell()) return;
         const focus = workspace.sharedStyleProvider?.();
-        const provided = focus ? undefined : workspace.promptSelection();
-        const selection = focus ? [] : provided ?? (workspace.selectionSourceHold !== undefined ? (workspace.context?.selectedResources ?? []) : selectedResource(location.pathname));
+        const selection = currentSelection(focus);
         const key = JSON.stringify(focus ? {resources:selection,task:focus.task} : selection);
         if (workspace.context && key !== lastSelection) {
             lastSelection = key;
@@ -861,11 +865,12 @@ export function mountWorkspace() {
         clearTimeout(workspace._pollTimer);
         workspace._pollTimer = setTimeout(reconcile, 2000);
     };
+    const shouldObserveWorkspace = () => hasOperatorShell() && workspace.context && !document.hidden;
     const reconcile = async () => {
         if (!host.isConnected) { clearTimeout(workspace._pollTimer); observer.disconnect(); formObserver.disconnect(); lifetime.abort(); return; }
         const scope=workspace.executions.scope();
         try {
-            if (workspace.context && !document.hidden) {
+            if (shouldObserveWorkspace()) {
                 if (Date.parse(workspace.session?.expiresAt || '') < Date.now() + 180000) {
                     const renewed = await workspace.api('session');
                     if (renewed.environmentId !== workspace.session.environmentId || renewed.principalId !== workspace.session.principalId)
@@ -1114,11 +1119,6 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
 }
 
 if (typeof document !== 'undefined') document.addEventListener('click', async event => {
-    const opener = event.target.closest?.('[data-workspace-open]');
-    if (opener) {
-        const host = document.querySelector('[data-agent-workspace]');
-        if (host) { host.open = true; host.querySelector('[data-workspace-prompt]')?.focus(); }
-    }
     const handoff = event.target.closest?.('[data-agent-handoff]');
     if (handoff) {
         const text = document.querySelector('[data-local-agent-prompt]')?.textContent?.trim();

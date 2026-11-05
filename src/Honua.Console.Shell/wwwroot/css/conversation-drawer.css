@@ -1,0 +1,41 @@
+.console-conversation-toggle {
+    min-height: 44px;
+    padding: .5rem .75rem;
+    border: 1px solid var(--honua-border);
+    border-radius: var(--radius-sm);
+    background: var(--honua-surface);
+    color: var(--honua-text);
+    font: inherit;
+    cursor: pointer;
+}
+body > #console-conversation-drawer:not([open]) { display: none; }
+body > #console-conversation-drawer[open] {
+    position: fixed;
+    inset: 4.5rem 0 0 auto;
+    z-index: var(--z-drawer);
+    display: block;
+    box-sizing: border-box;
+    width: var(--drawer-w);
+    max-width: 100vw;
+    max-height: calc(100dvh - 4.5rem);
+    margin: 0;
+    overflow: auto;
+    border-radius: 0;
+    box-shadow: var(--shadow-2);
+    border-inline-start: 1px solid var(--honua-border);
+    background: var(--honua-surface);
+    color: var(--honua-text);
+}
+body > #console-conversation-drawer > summary { display: none; }
+body > #console-conversation-drawer .console-conversation-close { min-height: 44px; margin-block-end: 1rem; }
+body.console-conversation-open .console-service-workspace { margin-inline-end: var(--drawer-w); }
+.console-conversation-backdrop { position: fixed; inset: 0; z-index: calc(var(--z-drawer) - 1); background: color-mix(in srgb, var(--c-text) 35%, transparent); }
+.console-conversation-backdrop[hidden] { display: none; }
+@media (max-width: 1000px) {
+    body.console-conversation-open .console-service-workspace { margin-inline-end: 0; }
+    body > #console-conversation-drawer[open] { inset: 0 0 0 auto; width: min(100vw, 26rem); max-height: 100dvh; z-index: var(--z-dialog); }
+    .console-conversation-backdrop { z-index: calc(var(--z-dialog) - 1); }
+}
+
+
+body > #console-conversation-drawer [hidden] { display: none !important; }

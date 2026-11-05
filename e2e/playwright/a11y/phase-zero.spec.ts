@@ -154,3 +154,32 @@ test('long service and publication identifiers fit the mobile content column', a
   });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewportWidth);
 });
+
+for (const width of [1440, 390]) test(`resource names stay readable in a narrow panel at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 });
+  await openInteractiveRoute(page, '/operate/data');
+  await page.evaluate(() => {
+    const tree = document.createElement('section');
+    tree.className = 'resource-tree';
+    tree.dataset.narrowResourceRegression = '';
+    tree.style.maxWidth = '340px';
+    tree.innerHTML = `<div class="resource-tree__row">
+      <button class="resource-tree__toggle" aria-label="Expand resource">▶</button>
+      <button class="resource-tree__name">Customer transportation_resource_0123456789</button>
+      <span class="resource-tree__meta">connection-one / public.transportation_resource_0123456789</span>
+      <span class="console-status console-status-success">Running</span>
+    </div>`;
+    document.querySelector('.console-page')!.append(tree);
+  });
+  const layout = await page.locator('[data-narrow-resource-regression]').evaluate(tree => {
+    const name = tree.querySelector('.resource-tree__name')!.getBoundingClientRect();
+    const source = tree.querySelector('.resource-tree__meta')!.getBoundingClientRect();
+    const bounds = tree.getBoundingClientRect();
+    return { nameWidth: name.width, nameBottom: name.bottom, sourceTop: source.top,
+      sourceRight: source.right, treeRight: bounds.right };
+  });
+  expect(layout.nameWidth, 'the resource name must have room for readable words').toBeGreaterThanOrEqual(128);
+  expect(layout.sourceTop, 'metadata wraps below the name in a narrow panel').toBeGreaterThanOrEqual(layout.nameBottom);
+  expect(layout.sourceRight).toBeLessThanOrEqual(layout.treeRight + 1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+});

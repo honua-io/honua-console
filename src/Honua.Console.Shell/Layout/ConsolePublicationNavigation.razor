@@ -30,7 +30,7 @@
     private CancellationTokenSource _authorityLifetime = new();
     private OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>? _servicesRead;
     private Task<OperateSectionResult<IReadOnlyList<string>>>? _connectionsRead;
-    private (string? ProfileId, Uri? ServerBaseUri, string? AccountId)? _authority;
+    private ConsoleEnvironmentAuthority? _authority;
     private string _environmentLabel = "Services";
     private int _authorityRevision;
     private int _locationRevision;
@@ -88,8 +88,7 @@
             return;
         }
         var profile = profileRead.Value;
-        var operatorId = profile?.Account.AccountId;
-        var authority = (profile?.Id, profile?.ServerBaseUri, operatorId);
+        var authority = ConsoleEnvironmentAuthority.From(profile);
         _environmentLabel = string.IsNullOrWhiteSpace(profile?.DisplayName) ? "Services" : profile.DisplayName;
         if (_authority != authority)
         {

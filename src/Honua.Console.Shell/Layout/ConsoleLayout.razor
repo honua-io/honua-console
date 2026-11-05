@@ -12,6 +12,7 @@
 
 @{ var navigationGroups = VisibleNavigation; }
 
+<ConsoleCommittedLocation />
 <div class="console-shell" data-console-mode="@ModeName">
     <a class="console-skip-link" href="#console-main">Skip to content</a>
     <ConsoleTopNavigation Groups="navigationGroups" />
@@ -34,69 +35,7 @@
         </AuthorizeView>
         @Body
     </main>
-        <details class="console-panel console-conversation" data-agent-workspace>
-            <summary>Conversation</summary>
-            <p data-workspace-target>Start a conversation in your selected environment.</p>
-            <p data-workspace-selection>
-                <span data-workspace-selection-label>No map or object selected.</span>
-                <button type="button" class="console-button console-button-secondary" data-workspace-change-selection>Change selection</button>
-                <button type="button" class="console-button console-button-secondary" data-workspace-clear-selection hidden>Clear selection</button>
-            </p>
-            <label>Deployment target
-                <select class="console-input" data-workspace-deploy-target aria-label="Deployment target">
-                    <option value="">No deployment selected</option>
-                </select>
-            </label>
-            <button type="button" class="console-button" data-workspace-start>Start conversation</button>
-            <div data-workspace-messages role="log" aria-label="Workspace conversation"></div>
-            <div data-workspace-executions hidden aria-label="Agent request progress" aria-live="polite"></div>
-            <button type="button" class="console-button console-button-secondary" data-workspace-check-executions>Check request progress</button>
-            <form>
-                <section data-workspace-reply hidden aria-label="Reply to agent question">
-                    <p data-workspace-reply-description></p>
-                    <button type="button" class="console-button console-button-secondary" data-workspace-reply-open>Open original task</button>
-                    <button type="button" class="console-button console-button-secondary" data-workspace-reply-review>Review current target</button>
-                    <button type="button" class="console-button console-button-secondary" data-workspace-reply-cancel>Cancel reply</button>
-                </section>
-                <label>Message <textarea class="console-input" data-workspace-prompt maxlength="16000"></textarea></label>
-                <p data-workspace-working role="status" hidden>Working on this turn.</p>
-                <p data-workspace-partial hidden></p>
-                <button class="console-button" type="submit">Send</button>
-                <button type="button" class="console-button console-button-secondary" data-workspace-cancel hidden aria-describedby="workspace-cancel-note">Cancel</button>
-                <p id="workspace-cancel-note" data-workspace-cancel-note hidden>Cancel stops this turn. It does not roll back a server job that already started.</p>
-            </form>
-            <section data-ga-spec-review hidden aria-label="Server change review">
-                <p>Review a layer publication plan. Apply uses your current permissions.</p>
-                <button type="button" class="console-button" data-ga-plan-current>Review layer publication</button>
-                <details>
-                    <summary>Open a review from another agent</summary>
-                    <label>Plan ID <input class="console-input" data-ga-plan-id maxlength="128" /></label>
-                    <label>Exact plan revision <input class="console-input" data-ga-plan-revision maxlength="256" /></label>
-                    <button type="button" class="console-button" data-ga-plan-open>Open review</button>
-                </details>
-                <div data-ga-plan-summary style="white-space: pre-line"></div>
-                <details>
-                    <summary>Pinned context and technical details</summary>
-                    <pre data-ga-plan-details></pre>
-                </details>
-                <button type="button" class="console-button" data-ga-plan-apply disabled>Apply server change</button>
-                <button type="button" class="console-button" data-ga-plan-refresh>Check progress</button>
-            </section>
-            <label><input type="checkbox" checked data-workspace-follow /> Follow proposed task views</label>
-            <p role="status" data-workspace-status>Start a conversation, or join an existing workspace.</p>
-            <details class="console-conversation-connection">
-                <summary>Join an existing workspace</summary>
-                <label>Workspace ID <input class="console-input" data-workspace-id maxlength="128" /></label>
-                <button type="button" class="console-button" data-workspace-connect>Connect workspace</button>
-                <p class="console-muted">Use the workspace ID shared by your agent.</p>
-            </details>
-            <details class="console-conversation-handoff">
-            <summary>Continue with an external agent</summary>
-            <button type="button" class="console-button console-button-secondary" data-workspace-copy-context>Copy context for my agent</button>
-            <p class="console-muted">Share this tab's context with your external agent. If you change the selected task, copy a new reference.</p>
-            <pre data-workspace-context-reference hidden></pre>
-            </details>
-        </details>
+
         </div>
     </div>
     </div>

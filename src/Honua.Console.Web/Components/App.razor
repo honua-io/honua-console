@@ -1,4 +1,5 @@
-﻿<!DOCTYPE html>
+@inject Microsoft.AspNetCore.Components.NavigationManager Navigation
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -18,6 +19,10 @@
 
 <body>
     <Routes @rendermode="InteractiveServer" />
+    @if (!IsEmbeddedViewer)
+    {
+        <Honua.Console.Shell.Layout.ConsoleConversationDrawer />
+    }
 
     @* Visible reconnect/error banner. app.css previously hid #blazor-error-ui outright, so a dropped
        circuit silently froze the page with no feedback. The markup is restored here and styled (visible,
@@ -30,7 +35,9 @@
     </div>
 
     <script src="@Assets["js/navigation-state.js"]"></script>
+    <script src="@Assets["js/modal-surface.js"]"></script>
     <script src="@Assets["js/publication-tree.js"]"></script>
+    <script src="@Assets["js/conversation-drawer.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     @* Entry URLs must match ImportMap's dependency URLs. Mixing a plain entry
        with its fingerprinted dependency evaluates stateful modules twice. *@
@@ -59,3 +66,8 @@
 </body>
 
 </html>
+
+@code {
+    private bool IsEmbeddedViewer => new Uri(Navigation.Uri).AbsolutePath
+        .StartsWith("/embed/", StringComparison.OrdinalIgnoreCase);
+}

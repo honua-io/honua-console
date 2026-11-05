@@ -7,7 +7,6 @@
     const rowSelector = '[role="treeitem"]';
     const sidebarSelector = '.console-publication-sidebar';
     const narrow = matchMedia('(max-width: 1000px)');
-    const suspended = new Map();
     const requestedExpansions = new Map();
     let sidebar;
     let routeRevision;
@@ -24,6 +23,12 @@
     const parentRow = row => rows().find(item => key(item) === row.dataset.treeParent);
     const expander = row => row.querySelector(':scope > [data-tree-expand]');
     const toggle = () => document.querySelector('[data-tree-toggle]');
+    const modal = honuaModalSurface.create({
+        surface: () => sidebar,
+        backgrounds: () => [...document.querySelectorAll('.console-shell > :not(.console-service-workspace), .console-service-workspace > .console-workspace, [data-agent-workspace], [data-tree-toggle]')],
+        returnFocus: toggle,
+        onDismiss: closeOverlay
+    });
     const isOpen = () => sidebar?.hasAttribute(overlayAttribute);
 
     function focusRow(row) {
@@ -56,19 +61,6 @@
         focusedElement = undefined;
         for (const row of available) row.tabIndex = row === target ? 0 : -1;
     }
-    function suspendBackground() {
-        const backgrounds = document.querySelectorAll('.console-shell > :not(.console-service-workspace), .console-service-workspace > .console-workspace');
-        for (const element of backgrounds) {
-            if (!suspended.has(element)) suspended.set(element, element.inert);
-            element.inert = true;
-        }
-        if (toggle()) toggle().inert = true;
-    }
-    function resumeBackground() {
-        for (const [element, inert] of suspended) element.inert = inert;
-        suspended.clear();
-        if (toggle()) toggle().inert = false;
-    }
     function openOverlay() {
         if (!sidebar || !narrow.matches) return;
         sidebar.hidden = false;
@@ -77,25 +69,24 @@
         sidebar.setAttribute('aria-modal', 'true');
         toggle()?.setAttribute(expansionAttribute, 'true');
         document.querySelector('[data-tree-backdrop]')?.removeAttribute('hidden');
-        suspendBackground();
+        modal.activate();
         sidebar.querySelector('input:not(:disabled), button:not(:disabled), [tabindex="0"]')?.focus();
     }
     function closeOverlay() {
         if (!sidebar) return;
-        const restoreFocus = isOpen() && sidebar.contains(document.activeElement);
+        modal.deactivate();
         sidebar.removeAttribute(overlayAttribute);
         sidebar.removeAttribute('role');
         sidebar.removeAttribute('aria-modal');
         toggle()?.setAttribute(expansionAttribute, 'false');
         document.querySelector('[data-tree-backdrop]')?.setAttribute('hidden', '');
-        resumeBackground();
         sidebar.hidden = narrow.matches;
-        if (restoreFocus) toggle()?.focus();
+
     }
     function reconcileSidebar() {
         const current = document.querySelector(sidebarSelector);
         if (current === sidebar) return;
-        resumeBackground();
+        modal.release();
         sidebar = current;
         closeOverlay();
     }
@@ -124,7 +115,7 @@
         restoreReplacedFocus(available);
         reconcileRequestedExpansions(available);
         finishPendingFocus(available);
-        if (isOpen()) suspendBackground();
+        if (isOpen()) modal.activate();
     }
     function reconcileRequestedExpansions(available) {
         for (const [requestedKey, element] of requestedExpansions) {
@@ -176,18 +167,6 @@
         const ordered = [...available.slice(offset), ...available.slice(0, offset)];
         focusRow(ordered.find(item => item.dataset.treeLabel.toLocaleLowerCase().startsWith(prefix)));
     }
-    function trapFocus(event) {
-        if (!isOpen() || event.key !== 'Tab') return false;
-        const targets = [...sidebar.querySelectorAll('a, button, input, [tabindex="0"]')]
-            .filter(element => element.tabIndex >= 0 && !element.disabled && element.getClientRects().length);
-        const first = targets[0], last = targets.at(-1);
-        if (event.shiftKey && (document.activeElement === first || !sidebar.contains(document.activeElement))) {
-            event.preventDefault(); last?.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-            event.preventDefault(); first?.focus();
-        }
-        return true;
-    }
     function handleEscape(event) {
         if (event.key !== 'Escape' || !event.target.closest(sidebarSelector)) return false;
         event.preventDefault();
@@ -225,7 +204,7 @@
     const hasCommandModifier = event => event.altKey || event.ctrlKey || event.metaKey || event.isComposing;
     document.addEventListener('keydown', event => {
         clearPendingFocus();
-        if (event.defaultPrevented || handleEscape(event) || trapFocus(event) || hasCommandModifier(event)) return;
+        if (event.defaultPrevented || handleEscape(event) || modal.trapFocus(event) || hasCommandModifier(event)) return;
         const row = event.target.closest(rowSelector);
         if (!row || event.target !== row || !row.closest(treeSelector)) return;
         handleRowKey(event, row);

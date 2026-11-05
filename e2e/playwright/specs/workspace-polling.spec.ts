@@ -13,8 +13,11 @@ test('context polling resumes after navigation supersedes an observation', async
   });
   await page.goto('/operate');
   const prerendered = await page.locator('[data-agent-workspace]').elementHandle();
+  const routedMain=await page.locator('main').elementHandle();
   await page.evaluate(() => (window as any).Blazor.start());
-  await expect.poll(() => prerendered!.evaluate(element => element.isConnected)).toBe(false);
+  await expect.poll(()=>routedMain!.evaluate(element=>element.isConnected)).toBe(false);
+  expect(await prerendered!.evaluate(element=>element.isConnected)).toBe(true);
+  expect(await prerendered!.evaluate(element=>element===document.querySelector('[data-agent-workspace]'))).toBe(true);
   await page.evaluate(() => {
     const workspace = (window as any).honuaAgentWorkspace;
     const state = (window as any).pollingRace = { reads: 0, renewals: 0, followed: 0, skipped: false };
@@ -62,4 +65,25 @@ test('context polling resumes after navigation supersedes an observation', async
   await expect.poll(() => page.evaluate(() => (window as any).pollingRace.reads)).toBeGreaterThan(1);
   await expect.poll(() => page.evaluate(() => (window as any).pollingRace.renewals)).toBe(1);
   await expect.poll(() => page.evaluate(() => (window as any).pollingRace.followed)).toBeGreaterThan(0);
+});
+
+test('workspace observations pause in an embedded view and resume with the same host',async({page})=>{
+  await page.goto('/operate');await page.waitForFunction(()=>Boolean((window as any).honuaAgentWorkspace));
+  await page.evaluate(()=>{
+    const workspace=(window as any).honuaAgentWorkspace;
+    (window as any).shellObservation={reads:0,host:document.querySelector('[data-agent-workspace]')};
+    workspace.session={environmentId:'environment',principalId:'human',expiresAt:new Date(Date.now()+600000).toISOString()};
+    workspace.context={revision:1,selectedResources:[],task:null};
+    workspace.observeContext=async()=>{(window as any).shellObservation.reads++;return null;};
+  });
+  await expect.poll(()=>page.evaluate(()=>(window as any).shellObservation.reads)).toBeGreaterThan(0);
+  await page.evaluate(()=>(window as any).Blazor.navigateTo('/embed/maps/missing-map'));
+  await expect(page.locator('[data-console-location]')).toHaveCount(0);
+  const paused=await page.evaluate(()=>(window as any).shellObservation.reads);
+  await page.waitForTimeout(2500);
+  expect(await page.evaluate(()=>(window as any).shellObservation.reads)).toBe(paused);
+  await page.evaluate(()=>(window as any).Blazor.navigateTo('/operate'));
+  await expect(page.locator('[data-console-location]')).toHaveCount(1);
+  await expect.poll(()=>page.evaluate(()=>(window as any).shellObservation.reads)).toBeGreaterThan(paused);
+  expect(await page.locator('[data-agent-workspace]').evaluate(host=>host===(window as any).shellObservation.host)).toBe(true);
 });

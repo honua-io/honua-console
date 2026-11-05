@@ -88,7 +88,10 @@ route-change rules from the identity table. Test open/close, route changes,
 Studio entry/exit and manual close, hydration/enhanced navigation, resize, reload,
 Back/Forward, account/environment change, delayed response, pending reply, selected
 file, in-flight turn/cancel, external handoff, progress and pinned approval review.
-One live host/controller owns state; duplicate listeners or replaced file inputs
+`App` owns the persistent `ConsoleConversationDrawer`; `conversation-drawer.js`
+owns open/closed state through the native details adapter. `conversation-drawer.spec.ts`
+covers route, hydration, focus, file, prompt and host retention; `operator-preferences.test.mjs`
+covers scoped persistence and invalidation. One live host/controller owns state; duplicate listeners or replaced file inputs
 fail acceptance. Follow the exact local-state rules in the identity table.
 
 ## Deliberate test migration and candidate gate
