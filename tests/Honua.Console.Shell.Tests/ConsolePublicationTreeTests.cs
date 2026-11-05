@@ -110,7 +110,8 @@ public sealed class ConsolePublicationTreeTests
         var tree = new ConsolePublicationTree();
         tree.Load(Enumerable.Range(0, 500).Select(index => new HonuaAdminServiceSummary
         {
-            ServiceName = $"service-{index:D3}", LayerCount = layerCount
+            ServiceName = $"service-{index:D3}",
+            LayerCount = layerCount
         }).ToArray(), "Synthetic environment");
         return tree;
     }
