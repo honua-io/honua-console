@@ -30,7 +30,7 @@
         }
         focusTargets() {
             return [...this.surface().querySelectorAll(focusable)]
-                .filter(element => element.tabIndex >= 0 && !element.disabled && !element.inert && element.getClientRects().length);
+                .filter(element => element.tabIndex >= 0 && !element.disabled && !element.inert && element.checkVisibility());
         }
         trapFocus(event) {
             if (!this.active || event.key !== 'Tab') return false;

@@ -42,3 +42,5 @@ body.console-conversation-open .console-shell { margin-inline-end: 21rem; }
 
 body.console-conversation-open .console-topbar { flex-wrap: wrap; }
 body.console-conversation-open .console-topnav { flex-wrap: wrap; }
+
+body > #console-conversation-drawer [hidden] { display: none !important; }
