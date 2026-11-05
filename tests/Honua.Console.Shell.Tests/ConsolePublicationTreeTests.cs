@@ -63,6 +63,17 @@ public sealed class ConsolePublicationTreeTests
     }
 
     [Fact]
+    public void OpaqueServiceNamesCannotCollideWithDescendantKeySeparators()
+    {
+        var tree = new ConsolePublicationTree();
+        tree.Load([new() { ServiceName = "roads:layer:connection-layer-7", LayerCount = 1 }], "Services");
+        var service = Assert.Single(tree.Root.Children);
+        Assert.Equal("service:roads%3Alayer%3Aconnection-layer-7", service.Key);
+        Assert.Equal("roads:layer:connection-layer-7", service.ServiceName);
+        Assert.Equal("/operate/services/roads%3Alayer%3Aconnection-layer-7/settings", service.Href);
+    }
+
+    [Fact]
     public void FilteringLoadedLayersKeepsTheirAncestorsWithoutInventingUnloadedMatches()
     {
         var tree = new ConsolePublicationTree();

@@ -13,13 +13,13 @@ public sealed class ConsolePublicationNavigationSourceTests
     {
         using var handler = new NavigationHandler(request => Json(new
         {
-            data = Enumerable.Range(0, 500).Select(index => new { serviceName = $"service-{index}", layerCount = 100 })
+            success = true, data = Enumerable.Range(0, 500).Select(index => new { serviceName = $"service-{index}", layerCount = 100 })
         }));
         using var http = new HttpClient(handler);
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
         var source = new ServerConsolePublicationNavigationSource(client);
         var read = await source.ReadServicesAsync(CancellationToken.None);
-        Assert.True(read.IsAllowed);
+        Assert.True(read.IsAllowed, read.Message);
         Assert.Equal(500, read.Value!.Count);
         Assert.Equal("/api/v1/admin/services/", Assert.Single(handler.Paths));
     }
@@ -41,7 +41,7 @@ public sealed class ConsolePublicationNavigationSourceTests
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
         var source = new ServerConsolePublicationNavigationSource(client);
         var read = await source.ReadLayersAsync("public roads", [first, second], CancellationToken.None);
-        Assert.True(read.IsAllowed);
+        Assert.True(read.IsAllowed, read.Message);
         Assert.Equal(2, read.Value!.Count);
         Assert.Contains(read.Value, layer => layer.ResourceId == OperateResourceIdentity.ForPublishedLayer(first.ToString("D"), 7));
         Assert.Contains(read.Value, layer => layer.ResourceId == OperateResourceIdentity.ForPublishedLayer(second.ToString("D"), 7));
@@ -53,11 +53,11 @@ public sealed class ConsolePublicationNavigationSourceTests
     [Fact]
     public async Task RequestedServiceScopeSupportsResponsesWithoutOptionalServiceName()
     {
-        using var handler = new NavigationHandler(_ => Json(new { data = new[] { new { layerId = 9, layerName = "Roads" } } }));
+        using var handler = new NavigationHandler(_ => Json(new { success = true, data = new[] { new { layerId = 9, layerName = "Roads" } } }));
         using var http = new HttpClient(handler);
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
         var read = await new ServerConsolePublicationNavigationSource(client).ReadLayersAsync("roads", [Guid.Empty], CancellationToken.None);
-        Assert.True(read.IsAllowed);
+        Assert.True(read.IsAllowed, read.Message);
         Assert.Equal("Roads", Assert.Single(read.Value!).Name);
         Assert.Contains("serviceName=roads", Assert.Single(handler.Paths));
     }
@@ -83,11 +83,11 @@ public sealed class ConsolePublicationNavigationSourceTests
         var deniedConnection = Guid.NewGuid();
         using var handler = new NavigationHandler(request => request.RequestUri!.AbsolutePath.Contains(deniedConnection.ToString("D"))
             ? new(HttpStatusCode.Forbidden)
-            : Json(new { data = new[] { new { layerId = 1, layerName = "Roads", serviceName = "transport" } } }));
+            : Json(new { success = true, data = new[] { new { layerId = 1, layerName = "Roads", serviceName = "transport" } } }));
         using var http = new HttpClient(handler);
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
         var read = await new ServerConsolePublicationNavigationSource(client).ReadLayersAsync("transport", [Guid.NewGuid(), deniedConnection], CancellationToken.None);
-        Assert.True(read.IsAllowed);
+        Assert.True(read.IsAllowed, read.Message);
         Assert.True(read.PartialResult);
         Assert.Single(read.Value!);
         Assert.Contains("partial", read.Message);

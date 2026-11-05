@@ -68,7 +68,7 @@ public sealed class ConsolePublicationTree
         if (folders.TryGetValue(service.FolderId, out var parent)) return parent;
         parent = new()
         {
-            Key = "folder:" + service.FolderId,
+            Key = "folder:" + Uri.EscapeDataString(service.FolderId),
             Label = service.FolderName,
             Kind = ConsolePublicationNodeKind.Folder,
             ChildrenLoaded = true
@@ -137,7 +137,7 @@ public sealed class ConsolePublicationTree
 
     private static ConsolePublicationNode ServiceNode(HonuaAdminServiceSummary service) => new()
     {
-        Key = "service:" + service.ServiceName,
+        Key = "service:" + Uri.EscapeDataString(service.ServiceName!),
         Label = DisplayName(service),
         Kind = ConsolePublicationNodeKind.Service,
         ServiceName = service.ServiceName,

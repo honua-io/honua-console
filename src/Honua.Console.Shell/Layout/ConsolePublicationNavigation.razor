@@ -10,14 +10,18 @@
         <div class="console-tree-toolbar">
             <label for="console-tree-filter">Filter services and loaded layers</label>
             <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter"
-                   @oninput="FilterChanged" disabled="@(_loading || _result?.IsAllowed != true)" data-tree-filter />
+                   @oninput="FilterChanged" disabled="@(_loading || _servicesRead?.IsAllowed != true)" data-tree-filter />
+            @if (_servicesRead?.IsAllowed == true)
+            {
+                <button type="button" class="console-button console-button-secondary" @onclick="ReloadAuthorityAsync">Refresh services</button>
+            }
             <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation">Close</button>
         </div>
         @if (_loading)
         {
             <p role="status" class="console-tree-message">Loading services…</p>
         }
-        else if (_result is { IsAllowed: false } result)
+        else if (_servicesRead is { IsAllowed: false } result)
         {
             <div class="console-tree-message" role="status">
                 <OperateSectionStatusPanel Heading="Service navigation" Status="result.Status" Message="result.Message" />
@@ -64,14 +68,14 @@
 
 @code {
     private const int ConcurrentServiceExpansions = 4;
-    private readonly SemaphoreSlim _layerReads = new(ConcurrentServiceExpansions);
+    private readonly SemaphoreSlim _serviceExpansionSlots = new(ConcurrentServiceExpansions);
     private readonly ConsolePublicationTree _tree = new();
     private CancellationTokenSource _authorityLifetime = new();
-    private OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>? _result;
-    private Task<OperateSectionResult<IReadOnlyList<Guid>>>? _connections;
-    private (string?, Uri?, string?)? _authority;
+    private OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>? _servicesRead;
+    private Task<OperateSectionResult<IReadOnlyList<Guid>>>? _connectionsRead;
+    private (string? ProfileId, Uri? ServerBaseUri, string? AccountId)? _authority;
     private string _environmentLabel = "Services";
-    private int _revision;
+    private int _authorityRevision;
     private int _locationRevision;
     private bool _loading = true;
     private bool _disposed;
@@ -100,13 +104,13 @@
     private async Task CheckAuthorityAsync()
     {
         if (_disposed) return;
-        var revision = _revision;
+        var revision = _authorityRevision;
         var profileRead = await ConsoleReadBudget.RunAsync(ReadProfileAsync, ConsoleReadBudget.Default,
             "The active environment could not be read.", _authorityLifetime.Token);
-        if (_disposed || revision != _revision) return;
+        if (_disposed || revision != _authorityRevision) return;
         if (!profileRead.IsAllowed)
         {
-            _result = OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Denied(profileRead.Status, profileRead.Message);
+            _servicesRead = OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Denied(profileRead.Status, profileRead.Message);
             _loading = false;
             await InvokeAsync(StateHasChanged);
             return;
@@ -131,12 +135,12 @@
     {
         if (_disposed) return;
         ResetReadState();
-        var revision = _revision;
+        var revision = _authorityRevision;
         await InvokeAsync(StateHasChanged);
         var result = await ConsoleReadBudget.RunAsync(Source.ReadServicesAsync, ConsoleReadBudget.Default,
             "Service navigation is unavailable. Retry when the server is reachable.", _authorityLifetime.Token);
-        if (_disposed || revision != _revision) return;
-        _result = result;
+        if (_disposed || revision != _authorityRevision) return;
+        _servicesRead = result;
         _tree.Load(result.Value ?? [], _environmentLabel);
         _tree.RevealPath(CurrentPath);
         _loading = false;
@@ -152,14 +156,14 @@
 
     private void ResetReadState()
     {
-        _revision++;
+        _authorityRevision++;
         _authorityLifetime.Cancel();
         _authorityLifetime.Dispose();
         _authorityLifetime = new();
-        _connections = null;
+        _connectionsRead = null;
         _tree.Load([], _environmentLabel);
         _tree.SetFilter("");
-        _result = null;
+        _servicesRead = null;
         _loading = true;
     }
 
@@ -182,22 +186,22 @@
     private async Task LoadChildrenAsync(ConsolePublicationNode node)
     {
         if (_disposed || node.ServiceName is not { } serviceName || node.Loading) return;
-        var revision = _revision;
+        var revision = _authorityRevision;
         var token = _authorityLifetime.Token;
         node.Loading = true;
         node.ReadStatus = null;
         node.ReadMessage = null;
         await InvokeAsync(StateHasChanged);
-        _connections ??= ConsoleReadBudget.RunAsync(Source.ReadConnectionsAsync, ConsoleReadBudget.Default,
+        _connectionsRead ??= ConsoleReadBudget.RunAsync(Source.ReadConnectionsAsync, ConsoleReadBudget.Default,
             "Connections could not be read.", token);
-        var connections = await _connections;
-        if (_disposed || revision != _revision) return;
+        var connections = await _connectionsRead;
+        if (_disposed || revision != _authorityRevision) return;
         var result = connections.IsAllowed
             ? await ConsoleReadBudget.RunAsync(readToken => ReadServiceLayersAsync(serviceName, connections.Value ?? [], readToken),
                 ConsoleReadBudget.Default, "Layers could not be read. Retry this service.", token)
             : OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>.Denied(connections.Status, connections.Message);
-        if (_disposed || revision != _revision) return;
-        if (!connections.IsAllowed || result.PartialResult) _connections = null;
+        if (_disposed || revision != _authorityRevision) return;
+        if (!connections.IsAllowed || result.PartialResult) _connectionsRead = null;
         CompleteChildren(node, result);
         await InvokeAsync(StateHasChanged);
     }
@@ -205,9 +209,9 @@
     private async Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>> ReadServiceLayersAsync(
         string serviceName, IReadOnlyList<Guid> connections, CancellationToken token)
     {
-        await _layerReads.WaitAsync(token);
+        await _serviceExpansionSlots.WaitAsync(token);
         try { return await Source.ReadLayersAsync(serviceName, connections, token); }
-        finally { _layerReads.Release(); }
+        finally { _serviceExpansionSlots.Release(); }
     }
 
     private static void CompleteChildren(ConsolePublicationNode node, OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>> result)

@@ -1,4 +1,5 @@
 {
+    const expansionAttribute = 'aria-expanded';
     const menuSelector = '[data-navigation-menu]';
     const toggleSelector = '[data-navigation-toggle]';
     const chromeSelector = '.console-topbar, .console-contextbar';
@@ -10,14 +11,14 @@
     const keyFor = element => element?.matches(toggleSelector) ? 'toggle'
         : element?.closest(menuSelector)?.dataset.navigationMenu;
     const opener = control => control?.matches(menuSelector) ? control.querySelector(':scope > summary') : control;
-    const expanded = control => control?.matches(menuSelector) ? control.open : control?.getAttribute('aria-expanded') === 'true';
+    const expanded = control => control?.matches(menuSelector) ? control.open : control?.getAttribute(expansionAttribute) === 'true';
     function collapseControl(control) {
         if (control.matches(menuSelector)) control.open = false;
-        else control.setAttribute('aria-expanded', 'false');
+        else control.setAttribute(expansionAttribute, 'false');
     }
     function expandControl(control) {
         if (control.matches(menuSelector)) control.open = true;
-        else control.setAttribute('aria-expanded', 'true');
+        else control.setAttribute(expansionAttribute, 'true');
     }
     function copyExpansion(source, target) {
         if (expanded(source)) expandControl(target);

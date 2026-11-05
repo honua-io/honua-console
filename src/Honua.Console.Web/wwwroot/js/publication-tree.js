@@ -1,4 +1,8 @@
 {
+    const expansionAttribute = 'aria-expanded';
+    const overlayAttribute = 'data-tree-open';
+    const treeSelector = '[data-publication-tree]';
+    const typeAheadResetMilliseconds = 700;
     const rowSelector = '[role="treeitem"]';
     const sidebarSelector = '.console-publication-sidebar';
     const narrow = matchMedia('(max-width: 1000px)');
@@ -16,7 +20,7 @@
     const children = row => [...row.querySelectorAll(':scope > [role="group"] > [role="treeitem"]')];
     const expander = row => row.querySelector(':scope > .console-tree-row > [data-tree-expand]');
     const toggle = () => document.querySelector('[data-tree-toggle]');
-    const isOpen = () => sidebar?.hasAttribute('data-tree-open');
+    const isOpen = () => sidebar?.hasAttribute(overlayAttribute);
 
     function focusRow(row) {
         if (!row) return;
@@ -42,10 +46,10 @@
     function openOverlay() {
         if (!sidebar || !narrow.matches) return;
         sidebar.hidden = false;
-        sidebar.setAttribute('data-tree-open', '');
+        sidebar.setAttribute(overlayAttribute, '');
         sidebar.setAttribute('role', 'dialog');
         sidebar.setAttribute('aria-modal', 'true');
-        toggle()?.setAttribute('aria-expanded', 'true');
+        toggle()?.setAttribute(expansionAttribute, 'true');
         document.querySelector('[data-tree-backdrop]')?.removeAttribute('hidden');
         suspendBackground();
         sidebar.querySelector('input:not(:disabled), button:not(:disabled), [tabindex="0"]')?.focus();
@@ -53,31 +57,43 @@
     function closeOverlay() {
         if (!sidebar) return;
         const restoreFocus = isOpen() && sidebar.contains(document.activeElement);
-        sidebar.removeAttribute('data-tree-open');
+        sidebar.removeAttribute(overlayAttribute);
         sidebar.removeAttribute('role');
         sidebar.removeAttribute('aria-modal');
-        toggle()?.setAttribute('aria-expanded', 'false');
+        toggle()?.setAttribute(expansionAttribute, 'false');
         document.querySelector('[data-tree-backdrop]')?.setAttribute('hidden', '');
         resumeBackground();
         sidebar.hidden = narrow.matches;
         if (restoreFocus) toggle()?.focus();
     }
-    function syncTree() {
+    function reconcileSidebar() {
         const current = document.querySelector(sidebarSelector);
-        if (current !== sidebar) {
-            resumeBackground();
-            sidebar = current;
-            closeOverlay();
-        }
-        if (!sidebar) return;
+        if (current === sidebar) return;
+        resumeBackground();
+        sidebar = current;
+        closeOverlay();
+    }
+    function reconcileRoute() {
         const revision = sidebar.closest('[data-publication-navigation]')?.dataset.treeRevision;
-        if (revision !== routeRevision) { routeRevision = revision; closeOverlay(); }
-        const available = rows();
-        const focused = available.find(row => key(row) === focusedKey);
-        const selected = available.find(row => row.getAttribute('aria-selected') === 'true');
-        const target = focused || selected || available[0];
+        if (revision === routeRevision) return;
+        routeRevision = revision;
+        closeOverlay();
+    }
+    function rovingTarget(available) {
+        return available.find(row => key(row) === focusedKey)
+            || available.find(row => row.getAttribute('aria-selected') === 'true') || available[0];
+    }
+    function restoreReplacedFocus(available) {
+        if (!focusedElement || focusedElement.isConnected || document.activeElement !== document.body) return;
+        focusRow(available.find(row => key(row) === focusedKey));
+    }
+    function syncTree() {
+        reconcileSidebar();
+        if (!sidebar) return;
+        reconcileRoute();
+        const available = rows(), target = rovingTarget(available);
         for (const row of available) row.tabIndex = row === target ? 0 : -1;
-        if (focusedElement && !focusedElement.isConnected && document.activeElement === document.body && focused) focusRow(focused);
+        restoreReplacedFocus(available);
         finishPendingFocus(available);
         if (isOpen()) suspendBackground();
     }
@@ -91,16 +107,16 @@
         if (!parent) return;
         const first = children(parent)[0];
         if (first) { pendingChild = undefined; focusRow(first); }
-        else if (parent.getAttribute('aria-expanded') === 'true' && parent.getAttribute('aria-busy') !== 'true') pendingChild = undefined;
+        else if (parent.getAttribute(expansionAttribute) === 'true' && parent.getAttribute('aria-busy') !== 'true') pendingChild = undefined;
     }
     function moveRight(row) {
-        if (row.getAttribute('aria-expanded') === 'false') {
+        if (row.getAttribute(expansionAttribute) === 'false') {
             pendingChild = key(row);
             expander(row)?.click();
         } else if (children(row)[0]) focusRow(children(row)[0]);
     }
     function moveLeft(row) {
-        if (row.getAttribute('aria-expanded') === 'true') expander(row)?.click();
+        if (row.getAttribute(expansionAttribute) === 'true') expander(row)?.click();
         else focusRow(row.parentElement.closest(rowSelector));
     }
     function activate(row) {
@@ -110,12 +126,12 @@
     }
     function expandSiblings(row) {
         for (const sibling of rows().filter(item => item.parentElement === row.parentElement))
-            if (sibling.getAttribute('aria-expanded') === 'false') expander(sibling)?.click();
+            if (sibling.getAttribute(expansionAttribute) === 'false') expander(sibling)?.click();
         focusRow(row);
     }
     function typeAhead(row, letter) {
         const now = performance.now();
-        typed = now - typedAt > 700 ? letter : typed + letter;
+        typed = now - typedAt > typeAheadResetMilliseconds ? letter : typed + letter;
         typedAt = now;
         const prefix = [...typed].every(character => character === letter) ? letter : typed;
         const available = rows();
@@ -145,11 +161,7 @@
         else focusRow(rows()[0]);
         return true;
     }
-    document.addEventListener('keydown', event => {
-        if (event.defaultPrevented || handleEscape(event) || trapFocus(event)) return;
-        if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
-        const row = event.target.closest(rowSelector);
-        if (!row || event.target !== row || !row.closest('[data-publication-tree]')) return;
+    function commandFor(row, pressedKey) {
         const available = rows(), index = available.indexOf(row);
         const commands = {
             ArrowDown: () => focusRow(available[Math.min(index + 1, available.length - 1)]),
@@ -158,14 +170,24 @@
             Home: () => focusRow(available[0]), End: () => focusRow(available.at(-1)),
             Enter: () => activate(row), ' ': () => expander(row)?.click(), '*': () => expandSiblings(row)
         };
-        const command = commands[event.key];
+        return commands[pressedKey];
+    }
+    function handleRowKey(event, row) {
+        const command = commandFor(row, event.key);
         if (command) {
             event.preventDefault();
             if (event.key !== 'ArrowRight') pendingChild = undefined;
             command();
-        } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        } else if (event.key.length === 1) {
             event.preventDefault(); typeAhead(row, event.key.toLocaleLowerCase());
         }
+    }
+    const hasCommandModifier = event => event.altKey || event.ctrlKey || event.metaKey || event.isComposing;
+    document.addEventListener('keydown', event => {
+        if (event.defaultPrevented || handleEscape(event) || trapFocus(event) || hasCommandModifier(event)) return;
+        const row = event.target.closest(rowSelector);
+        if (!row || event.target !== row || !row.closest(treeSelector)) return;
+        handleRowKey(event, row);
     });
     document.addEventListener('click', event => {
         if (event.target.closest('[data-tree-toggle]')) { if (isOpen()) closeOverlay(); else openOverlay(); return; }
@@ -173,7 +195,7 @@
         const more = event.target.closest('[data-tree-more]');
         if (more) pendingPage = {parent: more.dataset.treeMore, keys: new Set(rows().map(key))};
         const row = event.target.closest(rowSelector);
-        if (row?.closest('[data-publication-tree]')) {
+        if (row?.closest(treeSelector)) {
             focusedKey = key(row);
             if (event.target.closest('[data-tree-expand]')) focusRow(row);
         }
@@ -181,12 +203,12 @@
     });
     document.addEventListener('pointerdown', () => { focusedElement = undefined; }, true);
     document.addEventListener('focusin', event => {
-        if (event.target.matches(rowSelector) && event.target.closest('[data-publication-tree]')) {
+        if (event.target.matches(rowSelector) && event.target.closest(treeSelector)) {
             pendingPage = undefined;
             focusedKey = key(event.target);
             focusedElement = event.target;
             for (const row of rows()) row.tabIndex = row === event.target ? 0 : -1;
-        } else if (!event.target.closest('[data-publication-tree]')) focusedElement = undefined;
+        } else if (!event.target.closest(treeSelector)) focusedElement = undefined;
     });
     narrow.addEventListener('change', closeOverlay);
     addEventListener('popstate', closeOverlay);

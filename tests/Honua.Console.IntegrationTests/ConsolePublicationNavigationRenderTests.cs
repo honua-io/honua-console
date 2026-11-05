@@ -51,6 +51,24 @@ public sealed class ConsolePublicationNavigationRenderTests
     }
 
     [Fact]
+    public void RefreshClearsTheTreeSnapshotAndItsConnectionCache()
+    {
+        using var context = Context();
+        var source = new NavigationSource();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
+        tree.Find("[data-publication-key='service:service-000'] [data-tree-expand]").Click();
+        tree.WaitForAssertion(() => Assert.Equal(1, source.ConnectionReads));
+        tree.FindAll("button").Single(button => button.TextContent == "Refresh services").Click();
+        tree.WaitForAssertion(() => Assert.Equal(2, source.ServiceReads));
+        Assert.Empty(tree.FindAll("[aria-label='Bridges']"));
+        tree.Find("[data-publication-key='service:service-000'] [data-tree-expand]").Click();
+        tree.WaitForAssertion(() => Assert.Equal(2, source.ConnectionReads));
+        Assert.Equal(2, source.ChildReads);
+    }
+
+    [Fact]
     public void ForbiddenChildrenShowPermissionStateAndRetryWithoutClaimingEmpty()
     {
         using var context = Context();
