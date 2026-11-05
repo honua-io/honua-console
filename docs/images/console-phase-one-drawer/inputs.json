@@ -1,9 +1,9 @@
 {
-  "sourceCommit": "82c50ef7499cb46bdfc200562e011aa28b237721",
-  "dotnetSuiteCodeCommit": "82c50ef7499cb46bdfc200562e011aa28b237721",
+  "sourceCommit": "b504b6e2f7558acc31d8fcb6365bd6c4394cf696",
+  "dotnetSuiteCodeCommit": "74f8457437da668db0d845aed89d11933b340907",
   "node": "v22.23.3",
   "serverImageDigest": "sha256:24d20a8647f6dafcfc1bef683a31f4dddf6ef4476ebb33456afa8a96b11288da",
-  "consoleLocalImage": "sha256:7ecc672be01e1c233a4f6eee02b0f723dd92d6c833475f735980a546c1596b9d",
+  "consoleLocalImage": "sha256:49a5caa65f177f39d212632aa0a1861d01371d89bcb3a9c14593f16a4dc735b6",
   "testbedProfile": "CI studio-customer",
   "runtimeEntry": "native AppHost over the same published assembly",
   "locks": {
