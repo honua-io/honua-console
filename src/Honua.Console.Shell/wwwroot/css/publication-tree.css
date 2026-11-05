@@ -38,6 +38,7 @@
     .console-tree-backdrop:not([hidden]) { display: block; position: fixed; inset: 0; background: color-mix(in srgb, var(--c-text) 35%, transparent); z-index: calc(var(--z-dialog) - 1); }
     .console-tree-row, .console-tree-row > button, .console-tree-more { min-height: 44px; }
     .console-tree-row > button, .console-tree-spacer { width: 44px; }
+    .console-tree-row > a { display: flex; align-items: center; min-height: 44px; }
 }
 @media (forced-colors: active) {
     .console-publication-tree [role="treeitem"]:focus-visible > .console-tree-row { outline-color: Highlight; }
