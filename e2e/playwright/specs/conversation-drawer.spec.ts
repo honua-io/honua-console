@@ -109,7 +109,7 @@ async function installPreferences(page:Page) {
     state.workspace={follow:true,session:state.session('original-environment'),authorityKey:()=>state.authority,
       api:()=>new Promise((resolve,reject)=>state.pending.push({resolve,reject}))};
     localStorage.setItem('honua.shell.preferences.v1:opaque-operator:original-environment',JSON.stringify({authority:JSON.stringify(['release','']),follow:false}));
-    state.sync=mountWorkspacePreferences(state.workspace,document.querySelector('[data-agent-workspace]'),{signal:new AbortController().signal});
+    state.sync=mountWorkspacePreferences(state.workspace,document.querySelector('[data-agent-workspace]'),new AbortController().signal);
     (window as any).preferenceTest=state;
     state.sync();
   });

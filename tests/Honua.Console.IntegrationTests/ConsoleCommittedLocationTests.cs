@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Bunit;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
@@ -115,6 +116,71 @@ public sealed class ConsoleCommittedLocationTests
         profiles.Publish();
         authentication.Publish();
         Assert.Equal(reads, profiles.Reads);
+    }
+
+    [Fact]
+    public async Task HostScopeIsPublishedWithoutAConversationAndFollowsAuthenticationIndependently()
+    {
+        using var context = new BunitContext();
+        var bindings = new BindingReads { Current = new string('a', 64) };
+        var authentication = new AuthenticationSignals();
+        context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([Profile]));
+        context.Services.AddSingleton<IConsoleAuthorityBindingValidator>(bindings);
+        context.Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var marker = context.Render<ConsoleCommittedLocation>();
+        marker.WaitForAssertion(() => Assert.Equal(bindings.Current, marker.Find("span").GetAttribute("data-console-recent-scope")));
+        Assert.True(long.Parse(marker.Find("span").GetAttribute("data-console-recent-until")!) > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        bindings.Current = new string('b', 64);
+        await marker.InvokeAsync(authentication.Publish);
+        marker.WaitForAssertion(() => Assert.Equal(bindings.Current, marker.Find("span").GetAttribute("data-console-recent-scope")));
+        Assert.Equal("0", Revision(marker));
+        Assert.DoesNotContain("operator-one", marker.Markup);
+    }
+
+    [Fact]
+    public async Task FailedRecentScopeReadDoesNotMasqueradeAsADrawerAuthorityChange()
+    {
+        using var context = new BunitContext();
+        var bindings = new BindingReads { Current = new string('a', 64) };
+        var profiles = new ProfileReads { Current = Profile };
+        context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
+        context.Services.AddSingleton<IConsoleAuthorityBindingValidator>(bindings);
+        var marker = context.Render<ConsoleCommittedLocation>();
+        bindings.Failure = new InvalidOperationException("Unavailable");
+        await marker.InvokeAsync(profiles.Publish);
+        marker.WaitForAssertion(() => Assert.False(marker.Find("span").HasAttribute("data-console-recent-scope")));
+        Assert.Equal("0", Revision(marker));
+    }
+
+    [Fact]
+    public async Task DelayedScopeReadCannotRestoreAPreviousOperatorsHistory()
+    {
+        using var context = new BunitContext();
+        var bindings = new BindingReads { Current = new string('a', 64) };
+        var profiles = new ProfileReads { Current = Profile };
+        context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
+        context.Services.AddSingleton<IConsoleAuthorityBindingValidator>(bindings);
+        var marker = context.Render<ConsoleCommittedLocation>();
+        var delayed = new TaskCompletionSource<string?>();
+        bindings.Pending = delayed.Task;
+        await marker.InvokeAsync(profiles.Publish);
+        Assert.False(marker.Find("span").HasAttribute("data-console-recent-scope"));
+        bindings.Pending = null;
+        bindings.Current = new string('b', 64);
+        await marker.InvokeAsync(profiles.Publish);
+        marker.WaitForAssertion(() => Assert.Equal(bindings.Current, marker.Find("span").GetAttribute("data-console-recent-scope")));
+        await marker.InvokeAsync(() => delayed.SetResult(new string('a', 64)));
+        Assert.Equal(bindings.Current, marker.Find("span").GetAttribute("data-console-recent-scope"));
+    }
+
+    private sealed class BindingReads : IConsoleAuthorityBindingValidator
+    {
+        public string? Current { get; set; }
+        public Task<string?>? Pending { get; set; }
+        public Exception? Failure { get; set; }
+        public Task<string?> CaptureAsync(CancellationToken token = default) =>
+            Failure is not null ? Task.FromException<string?>(Failure) : Pending ?? Task.FromResult(Current);
+        public Task<bool> IsCurrentAsync(string binding, CancellationToken token = default) => Task.FromResult(binding == Current);
     }
 
     private static string? Revision(IRenderedComponent<ConsoleCommittedLocation> marker) =>

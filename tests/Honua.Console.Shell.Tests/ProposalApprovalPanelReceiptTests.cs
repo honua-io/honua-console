@@ -18,6 +18,7 @@ public sealed class ProposalApprovalPanelReceiptTests
         context.Services.AddSingleton<IConsoleApprovalInboxClient>(new EmptyInboxClient());
         context.Services.AddSingleton<IConsoleProposalRealtimeClient>(new NoOpRealtimeClient());
 
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         var navigation = context.Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo(navigation.GetUriWithQueryParameter("proposalId", "proposal-1"));
         var page = context.Render<ApprovalInboxPage>();
@@ -35,6 +36,7 @@ public sealed class ProposalApprovalPanelReceiptTests
     {
         using var context = new BunitContext();
         context.Services.AddSingleton<IConsoleProposalsClient>(new ProposalClient());
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
             .Add(component => component.ProposalId, "proposal-1"));
 

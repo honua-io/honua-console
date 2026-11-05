@@ -35,7 +35,7 @@
             <p>Connect Honua, add a dataset, and build a map. Work through the forms or ask in the shared conversation.</p>
         </div>
         <ConsoleHomeSetup />
-        @if (!_environment.IsAllowed || _profileCount > 0)
+        @if (!_environment.IsAllowed)
         {
             <article class="console-panel console-state-info" data-home-connection-state role="status">
                 <h2>Review the selected environment</h2>
@@ -57,15 +57,15 @@
     [Parameter] public TimeSpan LoadBudget { get; set; } = ConsoleReadBudget.Default;
     private readonly CancellationTokenSource _lifetime = new();
     private AuthenticationStateProvider? _authentication;
-    private OperateSectionResult<HomeEnvironment> _environment =
-        OperateSectionResult<HomeEnvironment>.Allowed(new(null, 0));
+    private OperateSectionResult<ConsoleEnvironmentProfile?> _environment =
+        OperateSectionResult<ConsoleEnvironmentProfile?>.Allowed(null);
     private ConsoleEnvironmentProfile? _profile;
-    private int _profileCount;
     private int _generation;
+    private int _displayGeneration;
     private bool _loaded;
     private bool _disposed;
 
-    private RenderFragment Operations => @<div class="console-home-workload" @key="ConsoleEnvironmentAuthority.From(_profile)">
+    private RenderFragment Operations => @<div class="console-home-workload" @key="_displayGeneration">
         <ConsoleHomeWorkQueue LoadBudget="LoadBudget" ServerName="@(_profile?.DisplayName ?? "the selected server")" />
         <section aria-labelledby="home-health-heading">
             <h2 id="home-health-heading">Health and findings</h2>
@@ -82,40 +82,42 @@
         await RefreshEnvironmentAsync();
     }
 
-    private async Task RefreshEnvironmentAsync()
+    private Task RefreshEnvironmentAsync() => RefreshEnvironmentAsync(Interlocked.Increment(ref _generation));
+
+    private async Task RefreshEnvironmentAsync(int generation)
     {
         if (_disposed) return;
-        var generation = ++_generation;
         _loaded = false;
         await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+        if (_disposed || generation != _generation) return;
         var environment = await ConsoleReadBudget.RunAsync(ReadEnvironmentAsync, LoadBudget,
             "The selected environment could not be read.", _lifetime.Token);
         if (_disposed || generation != _generation) return;
+        _displayGeneration = generation;
         _environment = environment;
-        _profile = environment.IsAllowed ? environment.Value?.Profile : null;
-        _profileCount = environment.Value?.ProfileCount ?? 0;
+        _profile = environment.IsAllowed ? environment.Value : null;
         _loaded = true;
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task<OperateSectionResult<HomeEnvironment>> ReadEnvironmentAsync(CancellationToken token)
-    {
-        var profiles = await Profiles.ListProfilesAsync(token);
-        var active = await Profiles.GetActiveProfileAsync(token);
-        return OperateSectionResult<HomeEnvironment>.Allowed(new(active, profiles.Count));
-    }
+    private async Task<OperateSectionResult<ConsoleEnvironmentProfile?>> ReadEnvironmentAsync(CancellationToken token) =>
+        OperateSectionResult<ConsoleEnvironmentProfile?>.Allowed(await Profiles.GetActiveProfileAsync(token));
 
-    private void OnProfileChanged() => _ = InvokeAsync(RefreshEnvironmentAsync);
+    private void OnProfileChanged()
+    {
+        if (_disposed) return;
+        var generation = Interlocked.Increment(ref _generation);
+        _ = InvokeAsync(() => RefreshEnvironmentAsync(generation));
+    }
 
     private void OnAuthenticationChanged(Task<AuthenticationState> state)
     {
         if (_disposed) return;
         Profiles.ActiveProfileChanged -= OnProfileChanged;
         Profiles.ActiveProfileChanged += OnProfileChanged;
-        _ = InvokeAsync(RefreshEnvironmentAsync);
+        OnProfileChanged();
     }
-
-    private sealed record HomeEnvironment(ConsoleEnvironmentProfile? Profile, int ProfileCount);
 
     public void Dispose()
     {

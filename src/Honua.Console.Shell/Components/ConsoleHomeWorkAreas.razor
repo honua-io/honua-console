@@ -18,9 +18,17 @@
 </nav>
 
 @code {
+    private bool _disposed;
     protected override void OnInitialized() => Capabilities.Changed += OnCapabilitiesChanged;
-    private void OnCapabilitiesChanged() => _ = InvokeAsync(StateHasChanged);
-    public void Dispose() => Capabilities.Changed -= OnCapabilitiesChanged;
+    private void OnCapabilitiesChanged()
+    {
+        if (!_disposed) _ = InvokeAsync(StateHasChanged);
+    }
+    public void Dispose()
+    {
+        _disposed = true;
+        Capabilities.Changed -= OnCapabilitiesChanged;
+    }
 
     private IConsoleProductMode ProductMode => Services.GetService<IConsoleProductMode>() ??
         new ConfiguredConsoleProductMode(ConsoleProductMode.Full);

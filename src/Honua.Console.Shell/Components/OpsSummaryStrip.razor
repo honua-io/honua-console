@@ -67,7 +67,7 @@
     {
         <span class="ops-summary-error" role="alert" data-summary-error>
             <span data-summary-error-title>Couldn't reach @ServerName</span>
-            <span class="console-muted" data-summary-last-refreshed>&middot; @ConsoleFreshness.LastRefreshed(_lastRefreshedAtUtc)</span>
+            <span class="console-muted" data-summary-last-refreshed>Source reads: @ConsoleFreshness.LastRefreshed(_lastRefreshedAtUtc)</span>
             <button type="button" class="console-button console-button-secondary ops-summary-retry"
                     disabled="@_busy" data-summary-retry @onclick="RetryAsync">
                 Retry
@@ -100,12 +100,13 @@
     private IOpsHealthDataSource? _healthData;
     private IConsoleOpsFindingsClient? _findings;
     private IConsoleApprovalInboxClient? _inbox;
-    private IConsoleProposalRealtimeClient? _realtime;
-    private IConsoleRealtimeCapabilityClient? _realtimeState;
+    private ConsoleProposalSubscription? _updates;
+    private CancellationToken _lifetimeToken;
+    private int _inboxRevision;
     private PeriodicTimer? _timer;
 
-    private bool RealtimeConnected => _realtime?.IsConnected == true;
-    private bool FallbackEngaged => _realtime?.IsFallbackEngaged == true;
+    private bool RealtimeConnected => _updates?.IsConnected == true;
+    private bool FallbackEngaged => _updates?.IsFallbackEngaged == true;
     private string ServerName => string.IsNullOrWhiteSpace(_serverName) ? "the connected honua-server" : _serverName;
     private bool ReadError => _healthStatus == OperateSectionStatus.Unavailable
         || _findingsStatus == OperateSectionStatus.Unavailable || _inboxStatus == OperateSectionStatus.Unavailable;
@@ -114,40 +115,22 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _lifetimeToken = _lifetime.Token;
         _healthData = ServiceProvider.GetService<IOpsHealthDataSource>();
         _findings = ServiceProvider.GetService<IConsoleOpsFindingsClient>();
         _inbox = ServiceProvider.GetService<IConsoleApprovalInboxClient>();
-        _realtime = ServiceProvider.GetService<IConsoleProposalRealtimeClient>();
         await ResolveServerNameAsync();
         if (_disposed) return;
-        SubscribeRealtime();
+        _updates = new ConsoleProposalSubscription(ServiceProvider.GetService<IConsoleProposalRealtimeClient>(),
+            new ConsoleProposalObservers(OnProposalEvent, OnConnectionStateChanged));
         await RefreshAsync();
         if (_disposed) return;
-        await StartRealtimeAsync();
+        await _updates.StartAsync(_lifetimeToken);
         if (!_disposed && (_healthData is not null || _findings is not null || _inbox is not null))
         {
             _timer = new PeriodicTimer(PollInterval);
-            _ = PollLoopAsync(_timer, _lifetime.Token);
+            _ = PollLoopAsync(_timer, _lifetimeToken);
         }
-    }
-
-    private void SubscribeRealtime()
-    {
-        if (_realtime is null) return;
-        _realtime.ProposalChanged += OnProposalEvent;
-        if (_realtime is IConsoleRealtimeCapabilityClient capability)
-        {
-            _realtimeState = capability;
-            _realtimeState.ConnectionStateChanged += OnConnectionStateChanged;
-        }
-    }
-
-    private async Task StartRealtimeAsync()
-    {
-        if (_realtime is null) return;
-        try { await _realtime.StartAsync(_lifetime.Token); }
-        catch (OperationCanceledException) when (_disposed) { return; }
-        catch { /* A failed subscription leaves bounded reads and manual refresh available. */ }
     }
 
     private async Task RefreshAsync()
@@ -164,9 +147,9 @@
 
     private async Task ReadHealthAsync()
     {
-        if (_healthData is null) return;
+        if (_disposed || _healthData is null) return;
         var health = await ConsoleReadBudget.RunAsync(_healthData.GetSnapshotAsync, LoadBudget,
-            "The server health read did not respond in time.", _lifetime.Token);
+            "The server health read did not respond in time.", _lifetimeToken);
         if (_disposed) return;
         _healthStatus = health.Status;
         _overallHealth = health.IsAllowed ? health.Value!.Overall : null;
@@ -180,9 +163,9 @@
 
     private async Task ReadFindingsAsync()
     {
-        if (_findings is null) return;
+        if (_disposed || _findings is null) return;
         var result = await ConsoleReadBudget.RunAsync(_findings.ListAsync, LoadBudget,
-            "The findings read did not respond in time.", _lifetime.Token);
+            "The findings read did not respond in time.", _lifetimeToken);
         if (_disposed) return;
         _findingsStatus = result.Status;
         _openFindings = result.IsAllowed ? OpsFindingsMapper.Map(result.Value!).Count : null;
@@ -191,25 +174,26 @@
 
     private async Task ReadInboxAsync()
     {
-        if (_inbox is null) return;
+        if (_disposed || _inbox is null) return;
+        var revision = ++_inboxRevision;
         var result = await ConsoleReadBudget.RunAsync(token => _inbox.GetInboxAsync(cancellationToken: token), LoadBudget,
-            "The approval queue read did not respond in time.", _lifetime.Token);
-        if (_disposed) return;
+            "The approval queue read did not respond in time.", _lifetimeToken);
+        if (_disposed || revision != _inboxRevision) return;
         _inboxStatus = result.Status;
         _awaitingApprovals = result.IsAllowed ? result.Value!.AwaitingApprovalCount : null;
         _inboxPartial = result.IsAllowed && result.PartialResult;
-        _inboxPartialMessage = string.IsNullOrWhiteSpace(result.Message)
-            ? "Some proposal sources could not be read. This queue is incomplete." : result.Message;
+        _inboxPartialMessage = ApprovalInboxPresentation.PartialMessage(result.Message);
         if (result.IsAllowed) _lastRefreshedAtUtc = DateTimeOffset.UtcNow;
     }
 
     private async Task ResolveServerNameAsync()
     {
+        if (_disposed) return;
         var profiles = ServiceProvider.GetService<IConsoleEnvironmentProfileStore>();
         if (profiles is null) return;
         var result = await ConsoleReadBudget.RunAsync(async token =>
             OperateSectionResult<ConsoleEnvironmentProfile?>.Allowed(await profiles.GetActiveProfileAsync(token)),
-            LoadBudget, "The selected environment could not be read.", _lifetime.Token);
+            LoadBudget, "The selected environment could not be read.", _lifetimeToken);
         if (!_disposed && result.IsAllowed) _serverName = result.Value?.DisplayName;
     }
 
@@ -245,6 +229,7 @@
             }
         }
         catch (OperationCanceledException) when (_disposed) { return; }
+        catch (ObjectDisposedException) when (_disposed) { return; }
     }
 
     public ValueTask DisposeAsync()
@@ -252,8 +237,7 @@
         _disposed = true;
         _lifetime.Cancel();
         _timer?.Dispose();
-        if (_realtime is not null) _realtime.ProposalChanged -= OnProposalEvent;
-        if (_realtimeState is not null) _realtimeState.ConnectionStateChanged -= OnConnectionStateChanged;
+        _updates?.Dispose();
         _lifetime.Dispose();
         return ValueTask.CompletedTask;
     }

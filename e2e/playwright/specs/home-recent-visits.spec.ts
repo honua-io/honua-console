@@ -1,26 +1,22 @@
 import {test, expect, type Page} from '@playwright/test';
 import {readFileSync} from 'node:fs';
-import {readConversationMarkup} from '../../../scripts/lib/conversation-markup.mjs';
+
+const firstScope = 'a'.repeat(64);
+const secondScope = 'b'.repeat(64);
+const thirdScope = 'c'.repeat(64);
 
 async function openRecentFixture(page: Page) {
   const recent = readFileSync(new URL('../../../src/Honua.Console.Shell/Components/ConsoleHomeRecentVisits.razor', import.meta.url), 'utf8');
   await page.route('**/recent-fixture', route => route.fulfill({contentType: 'text/html', body: `
     <html lang="en"><head><title>Recent visits fixture</title></head><body>
-    <span hidden data-console-location="/operate/data"></span>
-    <main id="console-main"><h1>Data &amp; Layers</h1>${recent}</main>${readConversationMarkup()}</body></html>`}));
+    <span hidden data-console-location="/operate/data" data-console-recent-label="Data &amp; Layers"
+      data-console-recent-scope="${firstScope}" data-console-recent-until="${Date.now() + 60000}"></span>
+    <main id="console-main"><h1>Data &amp; Layers</h1>${recent}</main></body></html>`}));
   await page.goto('/recent-fixture');
   await page.evaluate(async () => {
-    const {mountWorkspacePreferences} = await import('/js/operator-preferences.mjs');
     const {mountRecentVisits} = await import('/js/operator-recent-visits.mjs');
     const lifetime = new AbortController();
-    const state = (window as any).recentFixture = {reads: 0, pending: false, lifetime};
-    state.workspace = {session: {authenticated: true, principalId: 'operator-one', environmentId: 'environment-one',
-      releaseId: 'release-one', sourcePathBase: '', expiresAt: new Date(Date.now() + 60000).toISOString()},
-      follow: true, authorityKey: () => JSON.stringify([state.workspace.session.principalId, state.workspace.session.environmentId]),
-      api: async () => {state.reads++; if (state.pending) return new Promise(resolve => {state.resolve = resolve;}); return state.workspace.session;}};
-    state.sync = mountWorkspacePreferences(state.workspace, document.querySelector('[data-agent-workspace]'),
-      {signal: lifetime.signal, onPartitionChanged: mountRecentVisits(lifetime.signal)});
-    state.sync();
+    (window as any).recentFixture = {lifetime}; mountRecentVisits(lifetime.signal);
   });
 }
 
@@ -28,61 +24,45 @@ async function visitHome(page: Page) {
   await page.evaluate(() => {
     document.querySelector('[data-console-location]')!.setAttribute('data-console-location', '/');
     document.querySelector('h1')!.textContent = 'Welcome';
-    window.dispatchEvent(new CustomEvent('honua-console-navigation'));
   });
 }
 
-for (const width of [1440, 390]) test(`recent visits survive Home rendering at ${width}px without extra session polling`, async ({page}) => {
-  await page.setViewportSize({width, height: 900});
-  await openRecentFixture(page);
-  await visitHome(page);
+for (const width of [1440, 390]) test(`recent visits work without starting a conversation at ${width}px`, async ({page}) => {
+  let workspaceRequests = 0;
+  page.on('request', request => {if (request.url().includes('/api/agent-workspace/')) workspaceRequests++;});
+  await page.setViewportSize({width, height: 900}); await openRecentFixture(page); await visitHome(page);
   await expect(page.locator('[data-recent-items] a')).toHaveText('Data & Layers');
   await expect(page.locator('[data-recent-items] a')).toHaveAttribute('href', '/operate/data');
   await page.locator('[data-home-recent]').evaluate(host => host.replaceWith(host.cloneNode(true)));
   await expect(page.locator('[data-recent-items] a')).toHaveText('Data & Layers');
-  expect(await page.evaluate(() => (window as any).recentFixture.reads)).toBe(1);
+  await expect(page.locator('[data-agent-workspace]')).toHaveCount(0);
+  expect(workspaceRequests).toBe(0);
 });
 
-test('operator and environment changes hide prior recent visits while preserving the right namespace', async ({page}) => {
+test('operator and environment scope changes isolate recent visits and restore only their own namespace', async ({page}) => {
   await openRecentFixture(page); await visitHome(page);
   await expect(page.locator('[data-recent-items] a')).toHaveCount(1);
-  for (const change of [{principalId: 'operator-two'}, {principalId: 'operator-one', environmentId: 'environment-two'}]) {
-    await page.evaluate(change => {
-      const state = (window as any).recentFixture; Object.assign(state.workspace.session, change); state.sync();
-    }, change);
+  for (const scope of [secondScope, thirdScope]) {
+    await page.locator('[data-console-location]').evaluate((marker, scope) => marker.setAttribute('data-console-recent-scope', scope), scope);
     await expect(page.locator('[data-recent-items]')).toBeHidden();
     await expect(page.locator('[data-recent-status]')).toBeVisible();
   }
-  await page.evaluate(() => {
-    const state = (window as any).recentFixture;
-    Object.assign(state.workspace.session, {principalId: 'operator-one', environmentId: 'environment-one'}); state.sync();
-  });
+  await page.locator('[data-console-location]').evaluate((marker, scope) => marker.setAttribute('data-console-recent-scope', scope), firstScope);
   await expect(page.locator('[data-recent-items] a')).toHaveText('Data & Layers');
 });
 
-test('pending validation hides links and a late prior-authority response cannot restore them', async ({page}) => {
+test('pending scope validation hides history and an expiry without a validated scope cannot reveal it', async ({page}) => {
   await openRecentFixture(page); await visitHome(page);
-  await page.evaluate(() => {
-    const state = (window as any).recentFixture; state.oldSession = {...state.workspace.session}; state.pending = true;
-    window.dispatchEvent(new CustomEvent('honua-console-authority'));
-  });
+  await page.locator('[data-console-location]').evaluate(marker => marker.removeAttribute('data-console-recent-scope'));
   await expect(page.locator('[data-recent-items]')).toBeHidden();
-  await page.evaluate(() => {
-    const state = (window as any).recentFixture;
-    state.workspace.session = {...state.workspace.session, principalId: 'operator-two'}; state.sync();
-    state.resolve(state.oldSession);
-  });
+  await page.locator('[data-console-location]').evaluate(marker => marker.setAttribute('data-console-recent-until', String(Date.now() + 60000)));
   await expect(page.locator('[data-recent-items]')).toBeHidden();
   await expect(page.locator('[data-recent-items] a')).toHaveCount(0);
 });
 
-test('recent links disappear when the validated lease expires', async ({page}) => {
-  await openRecentFixture(page); await visitHome(page);
-  await page.clock.install();
-  await page.evaluate(() => {
-    const state = (window as any).recentFixture;
-    state.workspace.session = {...state.workspace.session, expiresAt: new Date(Date.now() + 60000).toISOString()}; state.sync();
-  });
+test('recent links disappear when the validated host scope snapshot expires', async ({page}) => {
+  await openRecentFixture(page); await visitHome(page); await page.clock.install();
+  await page.locator('[data-console-location]').evaluate(marker => marker.setAttribute('data-console-recent-until', String(Date.now() + 60000)));
   await expect(page.locator('[data-recent-items]')).toBeVisible();
   await page.clock.fastForward(60001);
   await expect(page.locator('[data-recent-items]')).toBeHidden();

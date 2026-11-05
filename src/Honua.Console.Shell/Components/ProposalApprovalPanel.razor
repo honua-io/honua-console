@@ -143,6 +143,7 @@ else
         @if (detail.IsAwaitingApproval)
         {
             <div class="proposal-approval-actions">
+                @if (!RendererInfo.IsInteractive) { <p role="status">Connecting approval controls…</p> }
                 <label class="proposal-approval-reason-label" for="proposal-approval-reason">
                     Reason <span class="console-muted">(required to reject)</span>
                 </label>
@@ -150,14 +151,14 @@ else
                           class="proposal-approval-reason"
                           rows="2"
                           placeholder="Why are you approving or rejecting this proposal?"
-                          disabled="@(_busy || _approveForbidden)"
+                          disabled="@DecisionUnavailable"
                           data-proposal-reason
                           @bind="_reason"></textarea>
 
                 <div class="proposal-approval-action-row">
                     <button type="button"
                             class="console-button"
-                            disabled="@(_busy || _approveForbidden || detail.BlockingReasons.Count > 0)"
+                            disabled="@(DecisionUnavailable || detail.BlockingReasons.Count > 0)"
                             title="@(_approveForbidden
                                 ? "You lack the approve permission for this server."
                                 : detail.BlockingReasons.Count > 0
@@ -169,7 +170,7 @@ else
                     </button>
                     <button type="button"
                             class="console-button console-button-secondary"
-                            disabled="@(_busy || _approveForbidden || string.IsNullOrWhiteSpace(_reason))"
+                            disabled="@(DecisionUnavailable || string.IsNullOrWhiteSpace(_reason))"
                             title="@(_approveForbidden
                                 ? "You lack the approve permission for this server."
                                 : string.IsNullOrWhiteSpace(_reason)
@@ -237,6 +238,7 @@ else
     private string? _reason;
     private bool _busy;
     private bool _approveForbidden;
+    private bool DecisionUnavailable => !RendererInfo.IsInteractive || _busy || _approveForbidden;
     private string? _actionMessage;
     private string? _actionDetail;
     private string _actionMessageClass = string.Empty;

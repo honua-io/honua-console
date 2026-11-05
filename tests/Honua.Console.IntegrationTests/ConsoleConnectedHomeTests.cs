@@ -42,6 +42,7 @@ public sealed class ConsoleConnectedHomeTests
             Assert.Contains("supplementary proposal source", home.Find("[data-home-inbox-partial]").TextContent);
             Assert.Contains("No pending approvals in the sources returned.", home.Markup);
             Assert.DoesNotContain("No agent-proposed operations are awaiting a decision right now.", home.Markup);
+            Assert.Contains("in returned sources", home.Find("[data-home-total-count]").TextContent);
             Assert.Contains("Partial queue", home.Find("[data-summary-tile='approvals']").TextContent);
         });
     }
@@ -80,6 +81,40 @@ public sealed class ConsoleConnectedHomeTests
             Assert.DoesNotContain("Production", home.Find("[data-home-environment]").TextContent);
             Assert.Single(home.FindAll("h1"));
         });
+    }
+
+    [Fact]
+    public async Task SameAuthorityRefresh_DisposesPreviousQueueAndSummarySubscriptions()
+    {
+        using var context = CreateContext();
+        var updates = new SubscriptionTracker();
+        context.Services.AddSingleton<IConsoleProposalRealtimeClient>(updates);
+        var home = context.Render<ConsoleHomePage>();
+        home.WaitForAssertion(() => Assert.Equal(2, updates.Starts));
+        var profiles = context.Services.GetRequiredService<IConsoleEnvironmentProfileStore>();
+        await home.InvokeAsync(() => profiles.UpsertProfileAsync(Profile("production", "Production")));
+        home.WaitForAssertion(() =>
+        {
+            Assert.Equal(4, updates.Starts);
+            Assert.Equal(2, updates.Removed);
+            Assert.Equal(2, updates.Subscribers);
+        });
+    }
+
+    private sealed class SubscriptionTracker : IConsoleProposalRealtimeClient
+    {
+        public int Starts { get; private set; }
+        public int Removed { get; private set; }
+        public int Subscribers { get; private set; }
+        public bool IsConnected => false;
+        public event Action<ConsoleProposalEvent>? ProposalChanged
+        {
+            add { Subscribers++; }
+            remove { Subscribers--; Removed++; }
+        }
+        public Task StartAsync(CancellationToken token = default) { Starts++; return Task.CompletedTask; }
+        public Task StopAsync(CancellationToken token = default) => Task.CompletedTask;
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private static BunitContext CreateContext(OperateSectionResult<ApprovalInboxSnapshot>? result = null)

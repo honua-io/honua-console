@@ -17,6 +17,7 @@ public sealed class ApprovalInboxPageRenderTests
         ctx.Services.AddSingleton<IConsoleProposalsClient>(proposals);
         ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(new ConsoleApprovalInboxClient(proposals));
         ctx.Services.AddSingleton<IConsoleProposalRealtimeClient>(realtime ?? new FakeConsoleProposalRealtimeClient());
+        ctx.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         return ctx;
     }
 
@@ -29,6 +30,7 @@ public sealed class ApprovalInboxPageRenderTests
         var ctx = new BunitContext();
         ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(inbox);
         ctx.Services.AddSingleton<IConsoleProposalRealtimeClient>(realtime ?? new FakeConsoleProposalRealtimeClient());
+        ctx.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         return ctx;
     }
 
@@ -278,6 +280,7 @@ public sealed class ApprovalInboxPageRenderTests
         ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(new ConsoleApprovalInboxClient(proposals));
         ctx.Services.AddSingleton<IConsoleProposalRealtimeClient>(realtime);
 
+        ctx.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         var page = ctx.Render<ApprovalInboxPage>();
         page.WaitForAssertion(
             () => Assert.Equal("0", page.Find("[data-total-count] strong").TextContent.Trim()),

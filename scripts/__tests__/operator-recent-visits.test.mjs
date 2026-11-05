@@ -7,7 +7,7 @@ function storage() {
     return {records, getItem: key => records.get(key), setItem: (key, value) => records.set(key, value),
         removeItem: key => records.delete(key)};
 }
-const partition = overrides => ({key: 'preferences:operator-one:environment-one', authority: 'release-one',
+const partition = overrides => ({key: 'history:operator-one:environment-one', authority: 'release-one',
     expiresAt: Date.now() + 60000, ...overrides});
 
 test('recent visits reload only in the validated operator and environment partition', () => {
@@ -15,7 +15,7 @@ test('recent visits reload only in the validated operator and environment partit
     history.bind(partition()); history.record({path: '/operate/services/roads/settings', label: 'Roads'});
     const reloaded = new OperatorRecentVisits(browser);
     reloaded.bind(partition()); assert.deepEqual(reloaded.items, history.items);
-    for (const key of ['preferences:operator-two:environment-one', 'preferences:operator-one:environment-two']) {
+    for (const key of ['history:operator-two:environment-one', 'history:operator-one:environment-two']) {
         reloaded.bind(partition({key})); assert.deepEqual(reloaded.items, []);
     }
     reloaded.bind(partition()); assert.equal(reloaded.items[0].label, 'Roads');
@@ -31,7 +31,9 @@ test('recent visits deduplicate and retain only six current links', () => {
 });
 
 for (const path of ['//example.test', 'https://example.test', '/auth/login', '/embed/maps/one',
-    '/operate/../auth', '/operate/%2e%2e/auth', '/operate/data?secret=value', '/operate/data#token', '/missing-route']) {
+    '/operate/../auth', '/operate/%2e%2e/auth', '/operate/%2e%2e%2fauth', '/operate/..%2fauth',
+    '/operate/%2e%2e%2f%2e%2e/auth', '/operate/foo%5c..%5cauth', '/operate/data%23token',
+    '/operate/%2f%2fevil.test', '/operate/foo%00', '/operate/%252f/auth', '/operate/%zz', '/operate/data?secret=value', '/operate/data#token', '/missing-route']) {
     test(`recent visits reject unsupported or credential-bearing locations: ${path}`, () => {
         const browser = storage(), history = new OperatorRecentVisits(browser);
         history.bind(partition()); history.record({path, label: 'Untrusted location'});
@@ -60,5 +62,15 @@ test('blocked browser storage retains same-partition visits in memory', () => {
     const history = new OperatorRecentVisits(blocked); history.bind(partition());
     history.record({path: '/operate/health', label: 'Health'}); history.bind(partition());
     assert.equal(history.items[0].label, 'Health');
-    history.bind(partition({key: 'preferences:operator-two:environment-one'})); assert.deepEqual(history.items, []);
+    history.bind(partition({key: 'history:operator-two:environment-one'})); assert.deepEqual(history.items, []);
 });
+
+for (const path of ['/share/public', '/studio/form', '/studio/report', '/approvals', '/studio/proof',
+    '/studio/drafts', '/studio/apps/map-one/preview', '/catalog/map-one', '/environments/production',
+    '/studio/workflows/draft-one', '/studio/styles/style-one', '/maps/published-one',
+    '/operate/services/caf%C3%A9/settings']) {
+    test(`recent visits retain supported current destinations: ${path}`, () => {
+        const history = new OperatorRecentVisits(storage()); history.bind(partition());
+        history.record({path, label: 'Visited item'}); assert.equal(history.items[0].path, path);
+    });
+}

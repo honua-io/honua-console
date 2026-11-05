@@ -634,8 +634,8 @@ export function mountWorkspace() {
         workspace.contextGeneration++;
         notify(workspace);
     }, {signal:lifetime.signal});
-    const syncPreferences = mountWorkspacePreferences(workspace, host, {signal: lifetime.signal,
-        onPartitionChanged: mountRecentVisits(lifetime.signal)});
+    mountRecentVisits(lifetime.signal);
+    const syncPreferences = mountWorkspacePreferences(workspace, host, lifetime.signal);
     workspace.notify = state => { notify(state); syncPreferences(); void refreshDeployTargets(state); };
     workspace.notify(workspace);
     const connectionPanel = host.querySelector('.console-conversation-connection');
