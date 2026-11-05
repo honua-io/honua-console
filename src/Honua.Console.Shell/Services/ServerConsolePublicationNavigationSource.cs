@@ -27,6 +27,9 @@ public sealed class ServerConsolePublicationNavigationSource(IHonuaAdminOperateC
     public async Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>> ReadLayersAsync(
         string serviceName, IReadOnlyList<Guid> connectionIds, CancellationToken cancellationToken)
     {
+        if (connectionIds.Count == 0)
+            return OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>.Denied(OperateSectionStatus.Unsupported,
+                "The server returned no connections for browsing this service's layers.");
         var reads = await BoundedFanOut.RunAsync(connectionIds,
             (id, token) => client.ListConnectionLayersAsync(id.ToString("D"), serviceName, token), maxConcurrency: ConcurrentConnectionReads, cancellationToken: cancellationToken);
         var layers = new List<ConsolePublicationLayer>();

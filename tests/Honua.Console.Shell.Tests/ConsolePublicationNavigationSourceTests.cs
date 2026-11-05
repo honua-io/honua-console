@@ -57,6 +57,19 @@ public sealed class ConsolePublicationNavigationSourceTests
         Assert.Contains("serviceName=roads", Assert.Single(handler.Paths));
     }
 
+    [Fact]
+    public async Task MissingConnectionProjectionCannotBecomeAnAllowedEmptyService()
+    {
+        using var handler = new NavigationHandler(_ => throw new InvalidOperationException("No layer request should be sent."));
+        using var http = new HttpClient(handler);
+        using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
+        var read = await new ServerConsolePublicationNavigationSource(client).ReadLayersAsync("roads", [], CancellationToken.None);
+        Assert.False(read.IsAllowed);
+        Assert.Equal(OperateSectionStatus.Unsupported, read.Status);
+        Assert.Null(read.Value);
+        Assert.Empty(handler.Paths);
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.Forbidden, OperateSectionStatus.Forbidden)]
     [InlineData(HttpStatusCode.NotImplemented, OperateSectionStatus.Unsupported)]

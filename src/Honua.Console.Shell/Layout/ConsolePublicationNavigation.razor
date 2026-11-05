@@ -201,7 +201,7 @@
                 ConsoleReadBudget.Default, "Layers could not be read. Retry this service.", token)
             : OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>.Denied(connections.Status, connections.Message);
         if (_disposed || revision != _authorityRevision) return;
-        if (!connections.IsAllowed || result.PartialResult) _connectionsRead = null;
+        if (!result.IsAllowed || result.PartialResult) _connectionsRead = null;
         CompleteChildren(node, result);
         await InvokeAsync(StateHasChanged);
     }
