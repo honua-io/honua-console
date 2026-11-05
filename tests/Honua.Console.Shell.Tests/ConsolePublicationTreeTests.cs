@@ -82,6 +82,11 @@ public sealed class ConsolePublicationTreeTests
         tree.SetFilter("bridge");
         Assert.Equal("roads", Assert.Single(tree.VisibleChildren(tree.Root)).Label);
         Assert.Equal(1, tree.LoadedLayerCount);
+        Assert.True(tree.Root.Children[0].Expanded);
+        tree.Root.Children[0].Expanded = false;
+        Assert.False(tree.Root.Children[0].Expanded);
+        tree.SetFilter("");
+        Assert.False(tree.Root.Children[0].Expanded);
         tree.SetFilter("pipes");
         Assert.Empty(tree.VisibleChildren(tree.Root));
         Assert.Equal(40, tree.Root.Children[1].ReportedCount);

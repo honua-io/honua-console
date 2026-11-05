@@ -11,9 +11,9 @@
             <label for="console-tree-filter">Filter services and loaded layers</label>
             <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter"
                    @oninput="FilterChanged" disabled="@(_loading || _servicesRead?.IsAllowed != true)" data-tree-filter />
-            @if (_servicesRead?.IsAllowed == true)
+            @if (Source is not UnsupportedConsolePublicationNavigationSource)
             {
-                <button type="button" class="console-button console-button-secondary" @onclick="ReloadAuthorityAsync">Refresh services</button>
+                <button type="button" class="console-button console-button-secondary" aria-disabled="@(_loading ? "true" : "false")" @onclick="RefreshAsync">Refresh services</button>
             }
             <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation">Close</button>
         </div>
@@ -24,21 +24,17 @@
         else if (_servicesRead is { IsAllowed: false } result)
         {
             <div class="console-tree-message" role="status">
-                <OperateSectionStatusPanel Heading="Service navigation" Status="result.Status" Message="result.Message" />
+                <OperateSectionStatusPanel Heading="Service navigation" Status="result.Status" Message="@result.Message" />
                 @if (Source is UnsupportedConsolePublicationNavigationSource)
                 {
                     <a href="/environments/new">Connect an environment</a>
-                }
-                else
-                {
-                    <button type="button" class="console-button console-button-secondary" @onclick="ReloadAuthorityAsync">Retry services</button>
                 }
             </div>
         }
         else
         {
             <ul role="tree" aria-label="Services and layers" class="console-publication-tree" data-publication-tree>
-                <ConsolePublicationTreeItem Node="_tree.Root" Tree="_tree" SelectedPath="SelectedPath" OnToggle="ToggleAsync" OnRetry="LoadChildrenAsync" />
+                <ConsolePublicationTreeItem Node="_tree.Root" Tree="_tree" SelectedPath="@SelectedPath" OnExpand="ExpandAsync" OnCollapse="Collapse" OnRetry="LoadChildrenAsync" />
             </ul>
             @foreach (var parent in PagedParents)
             {
@@ -91,7 +87,7 @@
         }
     }
     private IEnumerable<ConsolePublicationNode> PagedParents => _tree.VisibleNodes()
-        .Where(node => _tree.IsExpanded(node) && (node.VisibleOffset > 0 || _tree.MatchingChildren(node).Count > node.VisibleOffset + node.VisibleLimit));
+        .Where(node => node.Expanded && (node.VisibleOffset > 0 || _tree.MatchingChildren(node).Count > node.VisibleOffset + node.VisibleLimit));
 
     protected override void OnInitialized()
     {
@@ -167,6 +163,8 @@
         _loading = true;
     }
 
+    private Task RefreshAsync() => _loading ? Task.CompletedTask : ReloadAuthorityAsync();
+
     private async Task ReloadAuthorityAsync()
     {
         if (_disposed) return;
@@ -176,12 +174,14 @@
         await CheckAuthorityAsync();
     }
 
-    private async Task ToggleAsync(ConsolePublicationNode node)
+    private async Task ExpandAsync(ConsolePublicationNode node)
     {
-        node.Expanded = !node.Expanded;
-        if (node.Expanded && node.Kind == ConsolePublicationNodeKind.Service && !node.ChildrenLoaded && !node.Loading)
+        node.Expanded = true;
+        if (node.Kind == ConsolePublicationNodeKind.Service && !node.ChildrenLoaded && !node.Loading)
             await LoadChildrenAsync(node);
     }
+
+    private static void Collapse(ConsolePublicationNode node) => node.Expanded = false;
 
     private async Task LoadChildrenAsync(ConsolePublicationNode node)
     {

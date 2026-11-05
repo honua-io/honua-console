@@ -28,6 +28,7 @@ public sealed class ConsolePublicationNode
 public sealed class ConsolePublicationTree
 {
     public const int PageSize = 25;
+    private Dictionary<string, bool>? _unfilteredExpansion;
     public ConsolePublicationNode Root { get; private set; } = new()
     {
         Key = "environment",
@@ -42,6 +43,8 @@ public sealed class ConsolePublicationTree
 
     public void Load(IReadOnlyList<HonuaAdminServiceSummary> services, string environmentLabel)
     {
+        Filter = string.Empty;
+        _unfilteredExpansion = null;
         ServiceCount = services.Count;
         Root = new()
         {
@@ -88,8 +91,25 @@ public sealed class ConsolePublicationTree
 
     public void SetFilter(string filter)
     {
+        if (string.IsNullOrWhiteSpace(Filter) && !string.IsNullOrWhiteSpace(filter))
+            _unfilteredExpansion = Descendants(Root).Prepend(Root).ToDictionary(node => node.Key, node => node.Expanded);
         Filter = filter;
         foreach (var node in Descendants(Root).Prepend(Root)) ShowFirstPage(node);
+        if (string.IsNullOrWhiteSpace(filter))
+        {
+            RestoreUnfilteredExpansion();
+            return;
+        }
+        Root.Expanded = true;
+        foreach (var node in Descendants(Root).Where(node => MatchingChildren(node).Count > 0)) node.Expanded = true;
+    }
+
+    private void RestoreUnfilteredExpansion()
+    {
+        if (_unfilteredExpansion is null) return;
+        foreach (var node in Descendants(Root).Prepend(Root))
+            if (_unfilteredExpansion.TryGetValue(node.Key, out var expanded)) node.Expanded = expanded;
+        _unfilteredExpansion = null;
     }
 
     public void ShowFirstPage(ConsolePublicationNode parent)
@@ -98,15 +118,12 @@ public sealed class ConsolePublicationTree
         parent.VisibleLimit = PageSize;
     }
 
-    public bool IsExpanded(ConsolePublicationNode node) => node.Expanded
-        || (!string.IsNullOrWhiteSpace(Filter) && VisibleChildren(node).Count > 0);
-
     public IEnumerable<ConsolePublicationNode> VisibleNodes() => VisibleNodes(Root);
 
     private IEnumerable<ConsolePublicationNode> VisibleNodes(ConsolePublicationNode parent)
     {
         yield return parent;
-        if (!IsExpanded(parent)) yield break;
+        if (!parent.Expanded) yield break;
         foreach (var child in VisibleChildren(parent))
             foreach (var descendant in VisibleNodes(child)) yield return descendant;
     }

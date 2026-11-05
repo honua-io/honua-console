@@ -40,7 +40,7 @@ public sealed class ConsolePublicationNavigationRenderTests
         tree.WaitForAssertion(() => Assert.Single(tree.FindAll("a[href='/operate/layers/connection-one-layer-7']")));
         Assert.Equal(["service-000"], source.RequestedServices);
         Assert.Equal(1, source.ConnectionReads);
-        var layer = tree.Find("[aria-label='Bridges']");
+        var layer = tree.Find("[aria-label='Bridges LineString']");
         Assert.Equal("3", layer.GetAttribute("aria-level"));
         Assert.False(layer.HasAttribute("aria-expanded"));
         tree.Find("[data-publication-key='service:service-000'] [data-tree-expand]").Click();
@@ -59,11 +59,11 @@ public sealed class ConsolePublicationNavigationRenderTests
         var tree = context.Render<ConsolePublicationNavigation>();
         tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
         tree.Find("[data-publication-key='service:service-000'] [data-tree-expand]").Click();
-        tree.WaitForAssertion(() => Assert.Single(tree.FindAll("[aria-label='Bridges']")));
+        tree.WaitForAssertion(() => Assert.Single(tree.FindAll("[aria-label='Bridges LineString']")));
         context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
             .NavigateTo("/operate/services/service-000/settings");
         tree.WaitForAssertion(() => Assert.Equal("true", tree.Find("[aria-label='service-000']").GetAttribute("aria-selected")));
-        Assert.Single(tree.FindAll("[aria-label='Bridges']"));
+        Assert.Single(tree.FindAll("[aria-label='Bridges LineString']"));
         Assert.Equal(1, source.ServiceReads);
         Assert.Equal(1, source.ChildReads);
     }
@@ -80,7 +80,7 @@ public sealed class ConsolePublicationNavigationRenderTests
         tree.WaitForAssertion(() => Assert.Equal(1, source.ConnectionReads));
         tree.FindAll("button").Single(button => button.TextContent == "Refresh services").Click();
         tree.WaitForAssertion(() => Assert.Equal(2, source.ServiceReads));
-        Assert.Empty(tree.FindAll("[aria-label='Bridges']"));
+        Assert.Empty(tree.FindAll("[aria-label='Bridges LineString']"));
         tree.Find("[data-publication-key='service:service-000'] [data-tree-expand]").Click();
         tree.WaitForAssertion(() => Assert.Equal(2, source.ConnectionReads));
         Assert.Equal(2, source.ChildReads);
@@ -101,6 +101,8 @@ public sealed class ConsolePublicationNavigationRenderTests
         tree.Find("[data-publication-key='service:service-000'] [data-tree-expand]").Click();
         tree.WaitForAssertion(() => Assert.Contains("Permission required", tree.Markup));
         Assert.DoesNotContain("No layers returned", tree.Markup);
+        Assert.Contains("Service layers require permission.", tree.Markup);
+        Assert.DoesNotContain("Node.ReadMessage", tree.Markup);
         source.LayerResult = OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>.Allowed([]);
         tree.Find("[data-tree-retry]").Click();
         tree.WaitForAssertion(() => Assert.Contains("No layers returned for this service", tree.Markup));
