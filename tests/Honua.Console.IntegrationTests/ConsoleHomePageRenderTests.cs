@@ -3,6 +3,7 @@ using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -11,6 +12,8 @@ public sealed class ConsoleHomePageRenderTests
     private static BunitContext NewContext(FakeConsoleProposalsClient proposals)
     {
         var ctx = new BunitContext();
+        ctx.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?> { ["Studio:EmbedJsStudio"] = "true" }).Build());
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IConsoleEnvironmentProfileStore>(
             new InMemoryConsoleEnvironmentProfileStore([]));
@@ -24,11 +27,14 @@ public sealed class ConsoleHomePageRenderTests
     {
         using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []));
         var page = ctx.Render<ConsoleHomePage>();
-        Assert.Equal("/setup/local", page.Find("[data-start-local]").GetAttribute("href"));
-        Assert.Equal("/environments/new", page.Find("[data-connect-existing]").GetAttribute("href"));
-        Assert.True(page.Markup.IndexOf("data-first-run-actions", StringComparison.Ordinal)
-            < page.Markup.IndexOf("data-open-inbox", StringComparison.Ordinal));
-        Assert.False(page.Find(".console-home-operations").HasAttribute("open"));
+        page.WaitForAssertion(() =>
+        {
+            Assert.Equal("/setup/local", page.Find("[data-start-local]").GetAttribute("href"));
+            Assert.Equal("/environments/new", page.Find("[data-connect-existing]").GetAttribute("href"));
+            Assert.True(page.Markup.IndexOf("data-first-run-actions", StringComparison.Ordinal)
+                < page.Markup.IndexOf("data-open-inbox", StringComparison.Ordinal));
+            Assert.False(page.Find(".console-home-operations").HasAttribute("open"));
+        });
     }
 
     [Fact]
@@ -48,7 +54,7 @@ public sealed class ConsoleHomePageRenderTests
     }
 
     [Fact]
-    public void Home_StillRendersTheFourAreaWorkSurfaces()
+    public void Home_ExposesWorkingAreaDestinationsUnderTheirCapabilityGates()
     {
         using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []));
 

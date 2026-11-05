@@ -87,3 +87,9 @@ public sealed record ApprovalInboxSnapshot(IReadOnlyList<ApprovalInboxItem> Item
     public IReadOnlyList<ConsoleProposalSource> PresentSources =>
         Items.Select(item => item.Source).Distinct().OrderBy(source => (int)source).ToArray();
 }
+
+public static class ApprovalInboxPresentation
+{
+    public static string PartialMessage(string? message) => string.IsNullOrWhiteSpace(message)
+        ? "Some proposal sources could not be read. This queue is incomplete." : message;
+}

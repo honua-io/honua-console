@@ -3,6 +3,7 @@
 @import url("css/accessibility.css");
 @import url("css/shell.css");
 @import url("css/publication-tree.css");
+@import url("css/home.css");
 
 * {
     box-sizing: border-box;

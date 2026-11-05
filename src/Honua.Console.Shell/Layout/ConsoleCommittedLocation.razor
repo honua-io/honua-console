@@ -5,10 +5,17 @@
 @inject NavigationManager Navigation
 @inject IServiceProvider Services
 
-<span hidden data-console-location="@_path" data-console-authority-revision="@_authorityRevision"></span>
+<span hidden data-console-location="@_path" data-console-authority-revision="@_authorityRevision"
+      data-console-recent-scope="@_recentScope" data-console-recent-until="@_recentUntil"
+      data-console-recent-label="@ConsoleNavigation.ContextForPath(_path).Label"></span>
 
 @code {
     private string _path = "/";
+    private static readonly TimeSpan RecentScopeLifetime = TimeSpan.FromMinutes(5);
+    private string _requestedPath = "/";
+    private string? _recentScope;
+    private long? _recentUntil;
+    private IConsoleAuthorityBindingValidator? _bindings;
     private int _authorityRevision;
     private int _readRevision;
     private bool _initialized;
@@ -17,29 +24,42 @@
     private IConsoleEnvironmentProfileStore? _profiles;
     private AuthenticationStateProvider? _authentication;
     private readonly CancellationTokenSource _lifetime = new();
+    private CancellationToken _readToken;
 
     protected override async Task OnInitializedAsync()
     {
-        _path = new Uri(Navigation.Uri).AbsolutePath;
+        _readToken = _lifetime.Token;
+        _path = _requestedPath = new Uri(Navigation.Uri).AbsolutePath;
+        _bindings = Services.GetService<IConsoleAuthorityBindingValidator>();
         _profiles = Services.GetService<IConsoleEnvironmentProfileStore>();
         _authentication = Services.GetService<AuthenticationStateProvider>();
         Navigation.LocationChanged += OnLocationChanged;
         if (_profiles is not null) _profiles.ActiveProfileChanged += OnProfileChanged;
         if (_authentication is not null) _authentication.AuthenticationStateChanged += OnAuthenticationChanged;
-        await CheckAuthorityAsync();
+        await CheckAuthorityAsync(Interlocked.Increment(ref _readRevision));
     }
 
-    private async Task CheckAuthorityAsync()
+    private async Task CheckAuthorityAsync(int revision)
     {
         if (_disposed) return;
-        var revision = ++_readRevision;
-        var result = await ConsoleReadBudget.RunAsync(ReadProfileAsync, ConsoleReadBudget.Default,
-            "The active environment could not be read.", _lifetime.Token);
+        _recentScope = null;
+        _recentUntil = null;
+        await InvokeAsync(StateHasChanged);
+        var profile = await ConsoleReadBudget.RunAsync(ReadProfileAsync, ConsoleReadBudget.Default,
+            "The active environment could not be read.", _readToken);
         if (_disposed || revision != _readRevision) return;
-        var authority = result.IsAllowed ? ConsoleEnvironmentAuthority.From(result.Value) : null;
+        _path = _requestedPath;
+        var authority = profile.IsAllowed ? ConsoleEnvironmentAuthority.From(profile.Value) : null;
         if (_initialized && authority != _authority) _authorityRevision++;
         _initialized = true;
         _authority = authority;
+        await InvokeAsync(StateHasChanged);
+        if (_disposed || !profile.IsAllowed || profile.Value is null || _bindings is null) return;
+        var scope = await ConsoleReadBudget.RunAsync(ReadRecentScopeAsync, ConsoleReadBudget.Default,
+            "Recent visits could not be bound to the current operator.", _readToken);
+        if (_disposed || revision != _readRevision) return;
+        _recentScope = scope.IsAllowed ? scope.Value : null;
+        if (_recentScope is not null) _recentUntil = DateTimeOffset.UtcNow.Add(RecentScopeLifetime).ToUnixTimeMilliseconds();
         await InvokeAsync(StateHasChanged);
     }
 
@@ -47,15 +67,29 @@
         OperateSectionResult<ConsoleEnvironmentProfile?>.Allowed(
             _profiles is null ? null : await _profiles.GetActiveProfileAsync(token));
 
+    private async Task<OperateSectionResult<string?>> ReadRecentScopeAsync(CancellationToken token)
+    {
+        var scope = await _bindings!.CaptureAsync(token);
+        if (scope is not null && !await _bindings.IsCurrentAsync(scope, token)) scope = null;
+        return OperateSectionResult<string?>.Allowed(scope);
+    }
+
+    private void QueueRead()
+    {
+        if (_disposed) return;
+        var revision = Interlocked.Increment(ref _readRevision);
+        _ = InvokeAsync(() => CheckAuthorityAsync(revision));
+    }
+
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args)
     {
         var path = new Uri(args.Location).AbsolutePath;
-        if (_disposed || path == _path) return;
-        _path = path;
-        _ = InvokeAsync(CheckAuthorityAsync);
+        if (_disposed || path == _requestedPath) return;
+        _requestedPath = path;
+        QueueRead();
     }
 
-    private void OnProfileChanged() => _ = InvokeAsync(CheckAuthorityAsync);
+    private void OnProfileChanged() => QueueRead();
     private void OnAuthenticationChanged(Task<AuthenticationState> state)
     {
         if (_disposed) return;
@@ -64,7 +98,7 @@
             _profiles.ActiveProfileChanged -= OnProfileChanged;
             _profiles.ActiveProfileChanged += OnProfileChanged;
         }
-        _ = InvokeAsync(CheckAuthorityAsync);
+        QueueRead();
     }
 
     public void Dispose()

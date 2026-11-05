@@ -43,7 +43,7 @@ export class OperatorPreferences {
     }
 }
 
-function browserStorage() {
+export function browserStorage() {
     try { return globalThis.localStorage; } catch { /* Private contexts may deny storage access. */ }
 }
 

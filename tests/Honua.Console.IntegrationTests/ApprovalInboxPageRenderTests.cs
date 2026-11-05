@@ -11,12 +11,15 @@ public sealed class ApprovalInboxPageRenderTests
 {
     private static BunitContext NewContext(
         FakeConsoleProposalsClient proposals,
-        FakeConsoleProposalRealtimeClient? realtime = null)
+        FakeConsoleProposalRealtimeClient? realtime = null,
+        Action<BunitContext>? registerServices = null)
     {
         var ctx = new BunitContext();
         ctx.Services.AddSingleton<IConsoleProposalsClient>(proposals);
         ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(new ConsoleApprovalInboxClient(proposals));
         ctx.Services.AddSingleton<IConsoleProposalRealtimeClient>(realtime ?? new FakeConsoleProposalRealtimeClient());
+        registerServices?.Invoke(ctx);
+        ctx.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         return ctx;
     }
 
@@ -29,6 +32,7 @@ public sealed class ApprovalInboxPageRenderTests
         var ctx = new BunitContext();
         ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(inbox);
         ctx.Services.AddSingleton<IConsoleProposalRealtimeClient>(realtime ?? new FakeConsoleProposalRealtimeClient());
+        ctx.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         return ctx;
     }
 
@@ -55,10 +59,12 @@ public sealed class ApprovalInboxPageRenderTests
     [Fact]
     public void SeparateManager_DisclosesServingRefreshRequirement()
     {
-        using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []));
-        ctx.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore(
-            [new ConsoleEnvironmentProfile { Id = "local", ServerBaseUri = new Uri("https://serving.example/") }], activeProfileId: "local"));
-        ctx.Services.AddSingleton<IConsoleManagerEndpoint>(new ManagerEndpoint());
+        using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []), registerServices: context =>
+        {
+            context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore(
+                [new ConsoleEnvironmentProfile { Id = "local", ServerBaseUri = new Uri("https://serving.example/") }], activeProfileId: "local"));
+            context.Services.AddSingleton<IConsoleManagerEndpoint>(new ManagerEndpoint());
+        });
 
         var page = ctx.Render<ApprovalInboxPage>();
         page.WaitForAssertion(() => Assert.Contains("Manager live — refresh for serving updates",
@@ -278,6 +284,7 @@ public sealed class ApprovalInboxPageRenderTests
         ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(new ConsoleApprovalInboxClient(proposals));
         ctx.Services.AddSingleton<IConsoleProposalRealtimeClient>(realtime);
 
+        ctx.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         var page = ctx.Render<ApprovalInboxPage>();
         page.WaitForAssertion(
             () => Assert.Equal("0", page.Find("[data-total-count] strong").TextContent.Trim()),

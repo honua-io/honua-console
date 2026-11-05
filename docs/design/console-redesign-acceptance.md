@@ -96,6 +96,27 @@ fail acceptance. Follow the exact local-state rules in the identity table.
 
 ## Deliberate test migration and candidate gate
 
+Connected Home uses the selected environment profile, while each operational
+section reports its own read outcome. A saved profile does not prove API health.
+Partial approval totals refer only to returned sources. Health freshness names
+the server's snapshot time; successful approval reads cannot advance it.
+
+Recently visited stores at most six supported paths and labels, without queries,
+fragments or credentials. The existing host authority validator supplies an
+opaque operator/profile/server partition independently of conversation startup.
+History is hidden while that scope is pending, unavailable or expired. Its
+five-minute UI snapshot lifetime does not extend authentication or grant access;
+opening a link still uses the destination's current authorization and capability
+checks. No session polling is added. Scope failures do not become drawer
+authority changes. New namespaces show an explicit empty state after validation.
+
+Approval controls remain disabled in prerendered HTML until interactive handlers
+are available. The customer journey must still attempt self-approval, verify the
+unchanged proposal, and require a separate approver. The hydration regression
+holds framework startup, verifies disabled controls, then permits one dispatch
+after activation and checks the server denial. A lost prerender click cannot
+stand in for a denial.
+
 | Existing contract | Phase 0 treatment | Phase 1 deliberate update |
 |---|---|---|
 | `specs/workspace-layout.spec.ts` desktop details-open / checkbox / mobile nonoverlap | Preserve until drawer lands | Assert closed outside Studio, open on Studio entry, named hamburger, modal mobile focus/inert behavior and usable canvas |

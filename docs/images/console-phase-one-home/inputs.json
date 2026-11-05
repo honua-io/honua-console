@@ -1,0 +1,13 @@
+{
+  "sourceCommit": "949989cf356a6339830059ab4080058bc77a2e5e",
+  "localConsoleImage": "sha256:233e5bbf5615db48e36de4e31cde23654af16da1fcc16f8583dbd8347169641c",
+  "serverImage": "ghcr.io/honua-io/honua-server:nightly-8628668@sha256:24d20a8647f6dafcfc1bef683a31f4dddf6ef4476ebb33456afa8a96b11288da",
+  "profile": "CI docker-compose.yml + auth + studio-customer overlays, fresh database",
+  "studioTag": "v0.1.1",
+  "studioSource": "733b094741b350a31c28e24988352e5bbec30346",
+  "widths": [
+    1440,
+    390
+  ],
+  "states": 18
+}

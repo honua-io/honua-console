@@ -1,0 +1,171 @@
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IConsoleApprovalInboxClient Inbox
+@inject IServiceProvider ServiceProvider
+@implements IAsyncDisposable
+
+<section class="console-panel console-home-inbox" aria-labelledby="home-inbox-heading">
+    <div>
+        <h2 id="home-inbox-heading">Approval inbox</h2>
+    </div>
+    @if (RealtimeConnected)
+    {
+        <span class="approval-inbox-live is-live" data-home-live-state="live"
+              data-fallback-engaged="@FallbackEngaged">
+            Live
+        </span>
+    }
+    else
+    {
+        <span class="approval-inbox-live approval-inbox-paused" data-home-live-state="paused"
+              data-fallback-engaged="@FallbackEngaged">
+            Updates paused — last refreshed
+            <span data-home-inbox-paused-since>@ConsoleFreshness.LastRefreshedShort(_lastInboxSuccessUtc)</span>
+        </span>
+    }
+    @if (!_inboxLoaded)
+    {
+        <p class="console-muted">Reading the work queue…</p>
+    }
+    else if (!_inbox.IsAllowed && ConsoleReadBudget.IsErrorState(_inbox.Status))
+    {
+        <div class="console-home-inbox-error" role="alert" data-home-inbox-error>
+            <p data-home-inbox-error-title>Couldn't read the approval queue from @ServerName</p>
+            @if (!string.IsNullOrWhiteSpace(_inbox.Message))
+            {
+                <p class="console-muted" data-home-inbox-error-detail>@_inbox.Message</p>
+            }
+            <p class="console-muted" data-home-inbox-last-refreshed>@ConsoleFreshness.LastRefreshed(_lastInboxSuccessUtc)</p>
+            <button type="button" class="console-button console-button-secondary"
+                    disabled="@_inboxBusy" data-home-inbox-retry @onclick="RefreshInboxAsync">
+                Retry
+            </button>
+        </div>
+    }
+    else if (!_inbox.IsAllowed)
+    {
+        <p class="console-muted">
+            @(string.IsNullOrWhiteSpace(_inbox.Message)
+                ? OperateSectionPresentation.FallbackMessage(_inbox.Status)
+                : _inbox.Message)
+        </p>
+    }
+    else
+    {
+        var snapshot = _inbox.Value ?? ApprovalInboxSnapshot.Empty;
+        <div class="console-home-inbox-metrics" role="status" aria-live="polite">
+            <span class="approval-inbox-metric @(snapshot.AwaitingApprovalCount > 0 ? "is-actionable" : null)"
+                  data-home-awaiting-count>
+                <strong>@snapshot.AwaitingApprovalCount</strong>
+                <span class="console-muted">@(_inbox.PartialResult ? "awaiting approval in returned sources" : "awaiting approval")</span>
+            </span>
+            <span class="approval-inbox-metric" data-home-total-count>
+                <strong>@snapshot.TotalCount</strong>
+                <span class="console-muted">@(_inbox.PartialResult ? "in returned sources" : "in the queue")</span>
+            </span>
+        </div>
+        <p class="console-muted">
+            @if (snapshot.AwaitingApprovalCount > 0)
+            {
+                <text>Agent-proposed operations are waiting for your decision.</text>
+            }
+            else
+            {
+                <text>@(_inbox.PartialResult ? "No pending approvals in the sources returned." : "No agent-proposed operations are awaiting a decision right now.")</text>
+            }
+        </p>
+    }
+    @if (_inbox.IsAllowed && _inbox.PartialResult)
+    {
+        <p role="note" data-home-inbox-partial>@ApprovalInboxPresentation.PartialMessage(_inbox.Message)</p>
+    }
+    <a class="console-button-link console-home-inbox-cta" href="/inbox" data-open-inbox>Open inbox</a>
+</section>
+
+@code {
+    [Parameter]
+    public TimeSpan LoadBudget { get; set; } = ConsoleReadBudget.Default;
+
+    private readonly CancellationTokenSource _lifetime = new();
+    private bool _disposed;
+    private bool _inboxLoaded;
+    private bool _inboxBusy;
+    private OperateSectionResult<ApprovalInboxSnapshot> _inbox =
+        OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
+
+    private DateTimeOffset? _lastInboxSuccessUtc;
+    [Parameter] public string ServerName { get; set; } = "the selected server";
+
+    private ConsoleProposalSubscription? _updates;
+
+    private bool RealtimeConnected => _updates?.IsConnected == true;
+
+    private bool FallbackEngaged => _updates?.IsFallbackEngaged == true;
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        await RefreshInboxAsync();
+        if (_disposed) return;
+
+        _updates = new ConsoleProposalSubscription(ServiceProvider.GetService<IConsoleProposalRealtimeClient>(),
+            new ConsoleProposalObservers(OnProposalEvent, OnConnectionStateChanged));
+        await _updates.StartAsync(_lifetime.Token);
+    }
+
+    private async Task RefreshInboxAsync()
+    {
+        if (_inboxBusy || _disposed)
+        {
+            return;
+        }
+
+        _inboxBusy = true;
+        try
+        {
+
+            var inbox = await ConsoleReadBudget.RunAsync(
+                token => Inbox.GetInboxAsync(cancellationToken: token),
+                LoadBudget,
+                $"The approval queue did not respond within {LoadBudget.TotalSeconds:0} seconds.", _lifetime.Token);
+            if (_disposed) return;
+            _inbox = inbox;
+
+            if (_inbox.IsAllowed)
+            {
+                _lastInboxSuccessUtc = DateTimeOffset.UtcNow;
+            }
+        }
+        finally
+        {
+            _inboxBusy = false;
+            _inboxLoaded = true;
+        }
+    }
+
+    private void OnProposalEvent(ConsoleProposalEvent proposal)
+    {
+        if (_disposed) return;
+        _ = InvokeAsync(async () =>
+        {
+            await RefreshInboxAsync();
+            if (!_disposed) StateHasChanged();
+        });
+    }
+
+    private void OnConnectionStateChanged(ConsoleRealtimeConnectionState state)
+    {
+        if (!_disposed) _ = InvokeAsync(StateHasChanged);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+
+        _updates?.Dispose();
+
+        return ValueTask.CompletedTask;
+    }
+}

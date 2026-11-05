@@ -4,7 +4,7 @@ import http from 'node:http';
 // An instrumented upstream proves Console transport behavior. This is deliberately not
 // evidence of honua-server authorization: its real policy matrix is a separate release criterion.
 let upstream: http.Server;
-let requests: Array<{ url: string; bearer?: string; key?: string }> = [];
+let requests: Array<{ url: string; method: string; bearer?: string; key?: string }> = [];
 const tileBytes = Buffer.from([0x1a, 0x03, 0x0a, 0x01, 0x41]);
 const edge = (actor: string, token?: string) => ({
   'X-Honua-Edge-Auth': 'operator-test-edge-secret',
@@ -14,12 +14,19 @@ const edge = (actor: string, token?: string) => ({
 
 test.beforeAll(async () => {
   upstream = http.createServer((req, res) => {
-    requests.push({ url: req.url!, bearer: req.headers.authorization, key: req.headers['x-api-key'] as string | undefined });
+    requests.push({ url: req.url!, method: req.method!, bearer: req.headers.authorization, key: req.headers['x-api-key'] as string | undefined });
     res.setHeader('Content-Type', 'application/json');
     if (req.headers.authorization !== 'Bearer alice-valid') {
       res.writeHead(req.headers.authorization === 'Bearer expired' ? 401 : 403);
       // A hostile diagnostic must never be copied into proxy denial responses.
       res.end('{"detail":"secret upstream tenant and resource identifier"}');
+    } else if (req.url!.startsWith('/api/v1/admin/proposals')) {
+      const proposal = {proposalId: 'hydration-probe', kind: 'Deploy', status: 'AwaitingApproval',
+        requestedBy: 'hydration-operator', summary: 'Hydration fixture', riskLevel: 'Low',
+        createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', blockingReasons: []};
+      if (req.method === 'POST') {
+        res.writeHead(403); res.end(JSON.stringify({message: 'The requester cannot approve this proposal.'}));
+      } else res.end(JSON.stringify(req.url!.includes('/hydration-probe') ? proposal : {proposals: [proposal]}));
     } else if (req.url!.startsWith('/tiles/')) {
       res.setHeader('Content-Type', 'application/vnd.mapbox-vector-tile');
       res.setHeader('Cache-Control', 'public, max-age=86400');
@@ -101,4 +108,25 @@ test('configured presentation is visible without changing the identity boundary'
   await page.locator('[data-navigation-menu="Operate"] > summary').click();
   await expect(page.locator('nav[aria-label="Primary"] a[href="/inbox"]')).toBeVisible();
   await expect(page.locator('nav[aria-label="Primary"] a[href="/share/public"]')).toHaveCount(0);
+});
+
+test('approval controls wait for hydration before dispatching a decision and retain server denial', async ({page}) => {
+  await page.setExtraHTTPHeaders(edge('hydration-operator', 'alice-valid'));
+  await page.route('**/inbox?proposalId=hydration-probe', async route => {
+    const response = await route.fetch(); const html = await response.text();
+    const manual = html.replace(/<script src="([^"]*_framework\/blazor\.web\.[^"]+)"/, '<script autostart="false" src="$1"');
+    expect(manual).not.toBe(html); await route.fulfill({response, body: manual});
+  });
+  await page.goto('/inbox?proposalId=hydration-probe');
+  const approve = page.locator('[data-proposal-approve]');
+  await expect(approve).toBeVisible(); await expect(approve).toBeDisabled();
+  await expect(page.locator('[data-proposal-reason]')).toBeDisabled();
+  expect(requests.filter(request => request.method === 'POST' && request.url.endsWith('/approve'))).toHaveLength(0);
+  const renderedStatus = await page.locator('[data-proposal-status]').elementHandle();
+  await page.evaluate(() => (window as any).Blazor.start());
+  await expect.poll(() => renderedStatus!.evaluate(node => node.isConnected)).toBe(false);
+  await expect(approve).toBeEnabled(); await approve.click();
+  await expect(page.locator('[data-proposal-rbac-denied]')).toBeVisible();
+  await expect(approve).toBeDisabled();
+  expect(requests.filter(request => request.method === 'POST' && request.url.endsWith('/approve'))).toHaveLength(1);
 });

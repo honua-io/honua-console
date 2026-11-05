@@ -10,6 +10,33 @@ namespace Honua.Console.Shell.Tests.Components;
 public sealed class OpsSummaryStripTests : ConsoleComponentTestBase
 {
     [Fact]
+    public void SnapshotFreshness_UsesServerGenerationTime_AndDoesNotLetOtherReadsRefreshIt()
+    {
+        const string generatedAt = "2020-01-01 01:02 UTC";
+        var health = new StubHealthDataSource
+        {
+            Result = OperateSectionResult<OpsHealthView>.Allowed(HealthyView() with { GeneratedAt = generatedAt })
+        };
+        Services.AddSingleton<IOpsHealthDataSource>(health);
+        Services.AddSingleton<IConsoleApprovalInboxClient>(new StubInboxClient
+        {
+            Result = OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty)
+        });
+        var strip = Render<OpsSummaryStrip>(parameters => parameters.Add(component => component.PollInterval,
+            TimeSpan.FromMilliseconds(25)));
+        Assert.Contains($"Last health snapshot {generatedAt}", strip.Find("[data-summary-liveness]").TextContent);
+
+        health.Result = OperateSectionResult<OpsHealthView>.Denied(OperateSectionStatus.Unavailable, "Unavailable");
+        strip.WaitForAssertion(() =>
+        {
+            Assert.NotNull(strip.Find("[data-summary-error]"));
+            Assert.Equal("Unavailable", strip.Find("[data-summary-unavailable='health']").TextContent.Trim());
+            Assert.Contains($"Last health snapshot {generatedAt}", strip.Find("[data-summary-liveness]").TextContent);
+            Assert.DoesNotContain("health/findings as of", strip.Markup);
+        });
+    }
+
+    [Fact]
     public void AllowedReads_RenderCountsAndLinkEachTileToItsSurface()
     {
         Services.AddSingleton<IOpsHealthDataSource>(new StubHealthDataSource
