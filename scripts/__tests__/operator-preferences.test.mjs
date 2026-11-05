@@ -47,3 +47,11 @@ test('blocked or malformed browser storage keeps defaults and usable ephemeral c
     const malformed = new OperatorPreferences({getItem: () => '{broken'});
     malformed.bind(session()); assert.equal(malformed.follow, true);
 });
+
+test('an expired validated partition cannot persist a later preference edit', () => {
+    const browser = storage(), preferences = new OperatorPreferences(browser);
+    preferences.bind(session()); preferences.expiresAt = Date.now() - 1;
+    preferences.save({follow: false});
+    assert.equal(preferences.key, null); assert.equal(browser.records.size, 0);
+    assert.equal(preferences.follow, false);
+});

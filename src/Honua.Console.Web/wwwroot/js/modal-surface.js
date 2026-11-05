@@ -28,16 +28,18 @@
             this.release();
             if (restore) this.options.returnFocus()?.focus();
         }
+        focusTargets() {
+            return [...this.surface().querySelectorAll(focusable)]
+                .filter(element => element.tabIndex >= 0 && !element.disabled && !element.inert && element.getClientRects().length);
+        }
         trapFocus(event) {
             if (!this.active || event.key !== 'Tab') return false;
-            const targets = [...this.surface().querySelectorAll(focusable)]
-                .filter(element => element.tabIndex >= 0 && !element.disabled && !element.inert && element.getClientRects().length);
-            const first = targets[0], last = targets.at(-1);
-            const outside = !this.surface().contains(document.activeElement);
-            if (event.shiftKey && (document.activeElement === first || outside)) {
-                event.preventDefault(); last?.focus();
-            } else if (!event.shiftKey && (document.activeElement === last || outside)) {
-                event.preventDefault(); first?.focus();
+            const targets = this.focusTargets();
+            const boundary = event.shiftKey ? targets[0] : targets.at(-1);
+            if (!this.surface().contains(document.activeElement) || document.activeElement === boundary) {
+                event.preventDefault();
+                const destination = event.shiftKey ? targets.at(-1) : targets[0];
+                destination?.focus();
             }
             return true;
         }

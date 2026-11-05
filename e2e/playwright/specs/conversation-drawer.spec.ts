@@ -101,3 +101,22 @@ test('actual Blazor navigation preserves the same host and unsent draft',async({
   expect(await drawer(page).evaluate(host=>host===(window as any).originalDrawer)).toBe(true);
   await expect(page.locator('[data-workspace-prompt]')).toHaveValue('Keep this draft');
 });
+
+test('delayed preference validation cannot cross a newer operator/environment selection',async({page})=>{
+  await openFixture(page);
+  await page.evaluate(async()=>{
+    const {mountWorkspacePreferences}=await import('/js/operator-preferences.mjs');
+    const pending:any[]=[];
+    const workspace={follow:true,authorityKey:()=> 'original',api:()=>new Promise(resolve=>pending.push(resolve))};
+    const session=(environmentId:string)=>({authenticated:true,principalId:'opaque-operator',environmentId,
+      expiresAt:new Date(Date.now()+60000).toISOString(),releaseId:'release',sourcePathBase:''});
+    localStorage.setItem('honua.shell.preferences.v1:opaque-operator:new-environment',JSON.stringify({authority:JSON.stringify(['release','']),follow:false}));
+    mountWorkspacePreferences(workspace,document.querySelector('[data-agent-workspace]'),new AbortController().signal)();
+    window.dispatchEvent(new CustomEvent('honua-console-navigation'));
+    pending[1](session('new-environment'));await new Promise(resolve=>setTimeout(resolve,0));
+    pending[0](session('old-environment'));await new Promise(resolve=>setTimeout(resolve,0));
+    (window as any).preferenceWorkspace=workspace;
+  });
+  await expect(page.locator('[data-workspace-follow]')).not.toBeChecked();
+  expect(await page.evaluate(()=>(window as any).preferenceWorkspace.follow)).toBe(false);
+});

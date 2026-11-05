@@ -1,3 +1,12 @@
+function validatedPartition(session) {
+    const opaqueId = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,256}$/.test(value);
+    const expiresAt = Date.parse(session?.expiresAt);
+    if (session?.authenticated !== true || !opaqueId(session.principalId) || !opaqueId(session.environmentId)
+        || !(expiresAt > Date.now())) return null;
+    return {key: `honua.shell.preferences.v1:${session.principalId}:${session.environmentId}`,
+        authority: JSON.stringify([session.releaseId ?? null, session.sourcePathBase ?? null]), expiresAt};
+}
+
 export class OperatorPreferences {
     constructor(storage) {
         this.storage = storage;
@@ -8,15 +17,17 @@ export class OperatorPreferences {
     clear() {
         this.key = null;
         this.authority = null;
+        this.expiresAt = 0;
         this.follow = true;
     }
     bind(session) {
         this.clear();
-        const opaqueId = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,256}$/.test(value);
-        if (session?.authenticated !== true || !opaqueId(session.principalId) || !opaqueId(session.environmentId)
-            || !(Date.parse(session.expiresAt) > Date.now())) return;
-        this.key = `honua.shell.preferences.v1:${session.principalId}:${session.environmentId}`;
-        this.authority = JSON.stringify([session.releaseId ?? null, session.sourcePathBase ?? null]);
+        const partition = validatedPartition(session);
+        if (!partition) return;
+        Object.assign(this, partition);
+        this.restore();
+    }
+    restore() {
         try {
             const record = JSON.parse(this.storage?.getItem(this.key) || 'null');
             if (record?.authority === this.authority && typeof record.follow === 'boolean') this.follow = record.follow;
@@ -24,6 +35,7 @@ export class OperatorPreferences {
         } catch { /* Storage is optional; a denied or invalid record keeps ephemeral defaults. */ }
     }
     save(values) {
+        if (!(this.expiresAt > Date.now())) this.clear();
         this.follow = values.follow === true;
         if (!this.key) return;
         try { this.storage?.setItem(this.key, JSON.stringify({authority: this.authority, follow: this.follow})); }
