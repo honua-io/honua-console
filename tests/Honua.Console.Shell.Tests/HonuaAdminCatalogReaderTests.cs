@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Tests;
@@ -44,7 +45,6 @@ public sealed class HonuaAdminCatalogReaderTests
         var all = await ReadAllServices(client);
         Assert.True(all.Data is not null, all.Issue?.Detail);
         Assert.Equal(2, all.Data!.Count);
-
     }
 
     [Fact]
@@ -150,6 +150,88 @@ public sealed class HonuaAdminCatalogReaderTests
             CancellationToken.None);
         Assert.True(all.Data is not null, all.Issue?.Detail);
         Assert.Equal(2, all.Data!.Count);
+    }
+
+    [Theory]
+    [InlineData("\"x\"")]
+    [InlineData("5")]
+    [InlineData("{\"items\":{}}")]
+    public async Task MalformedCatalogShapesAreRejected(string catalogJson)
+    {
+        using var client = Client(_ => "{\"success\":true,\"data\":" + catalogJson + "}");
+
+        var services = await client.ListServicesAsync(HonuaAdminCatalogQuery.First);
+        var layers = await client.ListConnectionLayersAsync("conn", new HonuaAdminLayerListRequest(null, HonuaAdminCatalogQuery.First));
+
+        Assert.Null(services.Data);
+        Assert.NotNull(services.Issue);
+        Assert.Null(layers.Data);
+        Assert.NotNull(layers.Issue);
+    }
+
+    [Theory]
+    [InlineData(2147483647, 1)]
+    [InlineData(-2147483648, -1)]
+    public async Task OverflowingServiceLayerTotalIsRejected(int firstCount, int secondCount)
+    {
+        var services = new[]
+        {
+            new HonuaAdminServiceSummary { ServiceName = "roads", LayerCount = firstCount },
+            new HonuaAdminServiceSummary { ServiceName = "parcels", LayerCount = secondCount }
+        };
+        var body = JsonSerializer.Serialize(new { success = true, data = services });
+        using var client = Client(_ => body);
+
+        var page = await client.ListServicesAsync(HonuaAdminCatalogQuery.First);
+
+        Assert.Null(page.Data);
+        Assert.NotNull(page.Issue);
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize(
+            body, OperateObservabilityJsonContext.Default.AdminServiceListEnvelope));
+    }
+
+    [Theory]
+    [InlineData("[{\"serviceName\":\"roads\",\"layerCount\":\"2\"}]")]
+    [InlineData("{\"items\":[{\"serviceName\":\"roads\",\"layerCount\":\"2\"}],\"total\":1}")]
+    public async Task EntryNumbersUseTheConsumersNumberHandling(string catalogJson)
+    {
+        var body = "{\"success\":true,\"data\":" + catalogJson + "}";
+        using var client = Client(_ => body);
+
+        var page = await client.ListServicesAsync(HonuaAdminCatalogQuery.First);
+
+        Assert.True(page.Data is not null, page.Issue?.Detail);
+        Assert.Equal(2, Assert.Single(page.Data!.Items).LayerCount);
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize(
+            body, OperateObservabilityJsonContext.Default.AdminServiceListEnvelope));
+    }
+
+    [Theory]
+    [InlineData(JsonSerializerDefaults.General)]
+    [InlineData(JsonSerializerDefaults.Web)]
+    public void PageSerializationUsesTheCallersNamingAndNumberPolicies(JsonSerializerDefaults defaults)
+    {
+        var options = new JsonSerializerOptions(defaults) { NumberHandling = JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString };
+        var page = new HonuaAdminServicePage
+        {
+            Items = [new HonuaAdminServiceSummary { ServiceName = "roads", LayerCount = 2 }],
+            Page = 1,
+            PageSize = 100,
+            Total = 1,
+            LayerTotal = 2
+        };
+
+        var json = JsonSerializer.Serialize(page, options);
+        using var document = JsonDocument.Parse(json);
+        var itemsName = defaults == JsonSerializerDefaults.Web ? "items" : "Items";
+        var serviceName = defaults == JsonSerializerDefaults.Web ? "serviceName" : "ServiceName";
+        var totalName = defaults == JsonSerializerDefaults.Web ? "total" : "Total";
+        Assert.Equal("roads", document.RootElement.GetProperty(itemsName)[0].GetProperty(serviceName).GetString());
+        Assert.Equal("1", document.RootElement.GetProperty(totalName).GetString());
+        var roundTrip = JsonSerializer.Deserialize<HonuaAdminServicePage>(json, options);
+        Assert.NotNull(roundTrip);
+        Assert.Equal(2, Assert.Single(roundTrip.Items).LayerCount);
+        Assert.Equal(1, roundTrip.Total);
     }
 
     private static string PageEnvelope(string items, int page, string totalJson) =>

@@ -982,6 +982,7 @@ public sealed record InvestigationLinkResponse
 [JsonSerializable(typeof(ObservabilityAuditPageResponse))]
 [JsonSerializable(typeof(ObservabilityAlertEventPageResponse))]
 [JsonSerializable(typeof(HonuaAdminServicePage))]
+[JsonSerializable(typeof(HonuaAdminServiceSummary[]))]
 [JsonSerializable(typeof(ConsoleApiEnvelope<HonuaAdminServicePage>), TypeInfoPropertyName = "AdminServiceListEnvelope")]
 [JsonSerializable(typeof(ConsoleApiEnvelope<AlertRuleResponse[]>), TypeInfoPropertyName = "AlertRuleListEnvelope")]
 [JsonSerializable(typeof(ConsoleApiEnvelope<AlertRuleResponse>), TypeInfoPropertyName = "AlertRuleEnvelope")]
