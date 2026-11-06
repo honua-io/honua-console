@@ -214,21 +214,6 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         return await _transport.SendAsync(call, cancellationToken).ConfigureAwait(false);
     }
 
-    public Task<HonuaAdminEndpointResult<HonuaAdminLayerPage>> ListConnectionLayersAsync(
-        string connectionId,
-        HonuaAdminLayerListRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
-
-        return GetEnvelopeAsync<HonuaAdminLayerPage>(
-            request.Page.AppendTo(
-                $"/api/v1/admin/connections/{Uri.EscapeDataString(connectionId)}/layers/",
-                request.ServiceName),
-            "GET /api/v1/admin/connections/{id}/layers",
-            cancellationToken);
-    }
-
     public Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary>> PublishLayerAsync(
         string connectionId,
         HonuaAdminPublishLayerRequest request,
@@ -260,14 +245,6 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             "PUT /api/v1/admin/connections/{id}/layers/{layerId}/enabled",
             cancellationToken);
     }
-
-    public Task<HonuaAdminEndpointResult<HonuaAdminServicePage>> ListServicesAsync(
-        HonuaAdminCatalogQuery query,
-        CancellationToken cancellationToken = default) =>
-        GetEnvelopeAsync<HonuaAdminServicePage>(
-            query.AppendTo("/api/v1/admin/services/"),
-            "GET /api/v1/admin/services",
-            cancellationToken);
 
     public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> GetServiceSettingsAsync(
         string serviceName,
