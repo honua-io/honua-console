@@ -196,6 +196,30 @@ public sealed class ConsolePublicationNavigationRenderTests
     }
 
     [Fact]
+    public void FailedEnvironmentProfileRetriesTheReadAndRestoresTheCatalog()
+    {
+        using var context = Context();
+        var profiles = new OneShotProfileFailure(new ConsoleEnvironmentProfile
+        {
+            Id = "field",
+            DisplayName = "Field",
+            ServerBaseUri = new Uri("https://field.example.test")
+        });
+        var source = new NavigationSource();
+        context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForAssertion(() => Assert.Contains("The active environment could not be read.", tree.Markup));
+        Assert.Equal(1, profiles.Reads);
+        Assert.Equal(0, source.ServiceReads);
+        tree.Find("[data-tree-retry]").Click();
+        tree.WaitForAssertion(() => Assert.Contains("service-000", tree.Markup));
+        Assert.Equal(2, profiles.Reads);
+        Assert.Equal(1, source.ServiceReads);
+        Assert.DoesNotContain("The active environment could not be read.", tree.Markup);
+    }
+
+    [Fact]
     public async Task NewerSearchWinsWhenTheOlderSearchCompletesLast()
     {
         using var context = Context();
@@ -349,6 +373,24 @@ public sealed class ConsolePublicationNavigationRenderTests
     {
         PendingLayers = new(TaskCreationOptions.RunContinuationsAsynchronously)
     };
+
+    private sealed class OneShotProfileFailure(ConsoleEnvironmentProfile profile) : IConsoleEnvironmentProfileStore
+    {
+        public int Reads { get; private set; }
+        public event Action? ActiveProfileChanged { add { } remove { } }
+        public Task<ConsoleEnvironmentProfile?> GetActiveProfileAsync(CancellationToken cancellationToken = default)
+        {
+            Reads++;
+            if (Reads == 1) throw new IOException("environment profile unavailable");
+            return Task.FromResult<ConsoleEnvironmentProfile?>(profile);
+        }
+        public Task<IReadOnlyList<ConsoleEnvironmentProfile>> ListProfilesAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ConsoleEnvironmentProfile?> GetProfileAsync(string profileId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task UpsertProfileAsync(ConsoleEnvironmentProfile next, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task ActivateProfileAsync(string profileId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ConsoleEnvironmentState?> GetStateAsync(string profileId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task SaveStateAsync(ConsoleEnvironmentState state, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
 
     private sealed class CapabilitySignals : IConsoleCapabilityManifest
     {

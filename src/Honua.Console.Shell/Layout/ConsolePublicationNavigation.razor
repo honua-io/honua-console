@@ -87,6 +87,7 @@
         if (_disposed || revision != _authorityRevision) return;
         if (!profileRead.IsAllowed)
         {
+            RecordAuthorityFailure(revision);
             _servicesRead = OperateSectionResult<HonuaAdminServicePage>.Denied(profileRead.Status, profileRead.Message);
             _loading = false;
             await InvokeAsync(StateHasChanged);
@@ -149,10 +150,21 @@
         return CatalogOutcome.Applied;
     }
 
+    private void RecordAuthorityFailure(int revision)
+    {
+        _inflight = null;
+        _failed = new CatalogAttempt(++_catalogGeneration, HonuaAdminCatalogQuery.First, CatalogApply.Authority, _filterRevision, revision);
+    }
+
     private async Task RetryCatalogAsync()
     {
         if (_disposed || _loading || _inflight is not null || _failed is not { } failed) return;
         if (failed.FilterRevision != _filterRevision || failed.AuthorityRevision != _authorityRevision) return;
+        if (failed.Apply == CatalogApply.Authority)
+        {
+            await ReloadAuthorityAsync();
+            return;
+        }
         var attempt = BeginCatalog(failed.Query, failed.Apply);
         var outcome = await FinishCatalogAsync(attempt);
         if (outcome == CatalogOutcome.Obsolete) return;
@@ -166,7 +178,7 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private enum CatalogApply { Replace, Append }
+    private enum CatalogApply { Replace, Append, Authority }
 
     private enum CatalogOutcome { Obsolete, Failed, Applied }
 
