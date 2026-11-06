@@ -35,8 +35,10 @@
     private int _authorityRevision;
     private int _locationRevision;
     private bool _loading = true;
-    private HonuaAdminCatalogQuery _catalogQuery = HonuaAdminCatalogQuery.First;
-    private bool _appendNextPage;
+    private int _catalogGeneration;
+    private CatalogAttempt? _inflight;
+    private CatalogAttempt? _settled;
+    private CatalogAttempt? _failed;
     private bool _disposed;
     private IConsoleCapabilityManifest? _capabilities;
     private IConsolePublicationNavigationSource Source => Services.GetService<IConsolePublicationNavigationSource>()
@@ -104,46 +106,72 @@
     {
         if (_disposed) return;
         ResetReadState();
+        var authorityRevision = _authorityRevision;
         await InvokeAsync(StateHasChanged);
-        if (await ReadCatalogAsync(HonuaAdminCatalogQuery.First, append: false, filterRevision: null))
-            _tree.RevealPath(CurrentPath);
+        var attempt = BeginCatalog(HonuaAdminCatalogQuery.First, CatalogApply.Replace);
+        var outcome = await FinishCatalogAsync(attempt);
+        if (_disposed || authorityRevision != _authorityRevision || outcome == CatalogOutcome.Obsolete) return;
+        if (outcome == CatalogOutcome.Applied) _tree.RevealPath(CurrentPath);
         _loading = false;
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task<bool> ReadCatalogAsync(HonuaAdminCatalogQuery query, bool append, int? filterRevision)
+    private CatalogAttempt BeginCatalog(HonuaAdminCatalogQuery query, CatalogApply apply)
     {
-        var authorityRevision = _authorityRevision;
+        var attempt = new CatalogAttempt(++_catalogGeneration, query, apply, _filterRevision, _authorityRevision);
+        _inflight = attempt;
+        return attempt;
+    }
+
+    private bool IsCurrent(CatalogAttempt attempt) =>
+        !_disposed && _inflight == attempt
+        && attempt.AuthorityRevision == _authorityRevision
+        && attempt.FilterRevision == _filterRevision;
+
+    private async Task<CatalogOutcome> FinishCatalogAsync(CatalogAttempt attempt)
+    {
         var result = await ConsoleReadBudget.RunAsync(
-            token => Source.ReadServicesAsync(query, token), ConsoleReadBudget.Default,
+            token => Source.ReadServicesAsync(attempt.Query, token), ConsoleReadBudget.Default,
             "Service navigation is unavailable. Retry when the server is reachable.", _authorityLifetime.Token);
-        if (_disposed || authorityRevision != _authorityRevision) return false;
-        if (filterRevision is { } expected && expected != _filterRevision) return false;
-        _catalogQuery = query;
-        _appendNextPage = append;
+        if (!IsCurrent(attempt)) return CatalogOutcome.Obsolete;
+        _inflight = null;
         _servicesRead = result;
-        if (!result.IsAllowed || result.Value is null) return false;
-        if (append) _tree.Append(result.Value);
+        if (!result.IsAllowed || result.Value is null)
+        {
+            _failed = attempt;
+            return CatalogOutcome.Failed;
+        }
+
+        _failed = null;
+        _settled = attempt;
+        if (attempt.Apply == CatalogApply.Append) _tree.Append(result.Value);
         else _tree.Load(result.Value, _environmentLabel);
-        return true;
+        return CatalogOutcome.Applied;
     }
 
     private async Task RetryCatalogAsync()
     {
-        if (_disposed || _loading) return;
-        var append = _appendNextPage;
-        if (await ReadCatalogAsync(_catalogQuery, append, _filterRevision))
+        if (_disposed || _loading || _inflight is not null || _failed is not { } failed) return;
+        if (failed.FilterRevision != _filterRevision || failed.AuthorityRevision != _authorityRevision) return;
+        var attempt = BeginCatalog(failed.Query, failed.Apply);
+        var outcome = await FinishCatalogAsync(attempt);
+        if (outcome == CatalogOutcome.Obsolete) return;
+        if (outcome == CatalogOutcome.Applied && attempt.Apply == CatalogApply.Replace)
         {
-            if (!append)
-            {
-                if (!string.IsNullOrWhiteSpace(_catalogQuery.NameQuery))
-                    _tree.SetFilter(_catalogQuery.NameQuery);
-                _tree.RevealPath(CurrentPath);
-            }
-            _loading = false;
+            if (!string.IsNullOrWhiteSpace(attempt.Query.NameQuery))
+                _tree.SetFilter(attempt.Query.NameQuery);
+            _tree.RevealPath(CurrentPath);
         }
+        _loading = false;
         await InvokeAsync(StateHasChanged);
     }
+
+    private enum CatalogApply { Replace, Append }
+
+    private enum CatalogOutcome { Obsolete, Failed, Applied }
+
+    private readonly record struct CatalogAttempt(
+        int Generation, HonuaAdminCatalogQuery Query, CatalogApply Apply, int FilterRevision, int AuthorityRevision);
 
     private async Task<OperateSectionResult<ConsoleEnvironmentProfile?>> ReadProfileAsync(CancellationToken token)
     {
@@ -239,7 +267,10 @@
         _tree.SetFilter(filter);
         var nameQuery = string.IsNullOrWhiteSpace(filter) ? null : filter.Trim();
         if (_disposed || revision != _authorityRevision || filterRevision != _filterRevision) return;
-        if (await ReadCatalogAsync(HonuaAdminCatalogQuery.First with { NameQuery = nameQuery }, append: false, filterRevision))
+        var attempt = BeginCatalog(HonuaAdminCatalogQuery.First with { NameQuery = nameQuery }, CatalogApply.Replace);
+        var outcome = await FinishCatalogAsync(attempt);
+        if (outcome == CatalogOutcome.Obsolete) return;
+        if (outcome == CatalogOutcome.Applied)
         {
             _tree.SetFilter(filter);
             _tree.RevealPath(CurrentPath);
@@ -249,11 +280,19 @@
     private void ShowFirstPage(ConsolePublicationNode node) => _tree.ShowFirstPage(node);
     private async Task ShowMore(ConsolePublicationNode node)
     {
-        if (!_tree.HasHiddenLoadedChildren(node) && _tree.HasUnloadedServices
-            && !await ReadCatalogAsync(_catalogQuery.Next(), append: true, _filterRevision))
-        {
-            await InvokeAsync(StateHasChanged);
+        if (_inflight is not null || _settled is not { } settled
+            || settled.FilterRevision != _filterRevision
+            || settled.AuthorityRevision != _authorityRevision)
             return;
+        if (!_tree.HasHiddenLoadedChildren(node) && _tree.HasUnloadedServices)
+        {
+            var attempt = BeginCatalog(settled.Query.Next(), CatalogApply.Append);
+            var outcome = await FinishCatalogAsync(attempt);
+            if (outcome != CatalogOutcome.Applied)
+            {
+                if (outcome != CatalogOutcome.Obsolete) await InvokeAsync(StateHasChanged);
+                return;
+            }
         }
         _tree.ShowMore(node);
         await InvokeAsync(StateHasChanged);

@@ -196,6 +196,68 @@ public sealed class ConsolePublicationNavigationRenderTests
     }
 
     [Fact]
+    public async Task NewerSearchWinsWhenTheOlderSearchCompletesLast()
+    {
+        using var context = Context();
+        var source = new NavigationSource();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
+        source.HoldCount = 1;
+        tree.Find("input").Input("service-001");
+        tree.WaitForAssertion(() => Assert.Equal(2, source.ServiceReads));
+        tree.Find("input").Input("service-499");
+        tree.WaitForAssertion(() => Assert.Contains("service-499 10 layers", tree.Markup));
+        source.ReleaseNext();
+        await Task.Delay(50);
+        Assert.Contains("service-499 10 layers", tree.Markup);
+        Assert.Equal("service-499", source.LastQuery.NameQuery);
+        Assert.Equal(3, source.ServiceReads);
+    }
+
+    [Fact]
+    public async Task ShowMoreDoesNotPageASearchThatHasNotSettled()
+    {
+        using var context = Context();
+        var source = new NavigationSource();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
+        source.HoldCount = 1;
+        tree.Find("input").Input("service-499");
+        tree.WaitForAssertion(() => Assert.Equal(2, source.ServiceReads));
+        tree.Find("[data-tree-more='environment']").Click();
+        Assert.Equal(2, source.ServiceReads);
+        source.ReleaseNext();
+        tree.WaitForAssertion(() => Assert.Contains("service-499 10 layers", tree.Markup));
+        Assert.Equal(1, source.LastQuery.Page);
+    }
+
+    [Fact]
+    public async Task SupersededReloadLeavesTheReplacementLoading()
+    {
+        using var context = new BunitContext();
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("first-synthetic-operator");
+        var source = new NavigationSource();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
+        source.HoldCount = 2;
+        authorization.SetAuthorized("second-synthetic-operator");
+        tree.WaitForAssertion(() => Assert.Equal(2, source.ServiceReads));
+        Assert.True(tree.Find("input").HasAttribute("disabled"));
+        authorization.SetAuthorized("third-synthetic-operator");
+        tree.WaitForAssertion(() => Assert.Equal(3, source.ServiceReads));
+        source.ReleaseNext();
+        await Task.Delay(50);
+        Assert.True(tree.Find("input").HasAttribute("disabled"));
+        source.ReleaseNext();
+        tree.WaitForAssertion(() => Assert.False(tree.Find("input").HasAttribute("disabled")));
+        Assert.Contains("service-000", tree.Markup);
+    }
+
+    [Fact]
     public async Task AuthorityChangeRejectsDelayedChildrenFromThePreviousOperator()
     {
         using var context = new BunitContext();
@@ -310,7 +372,9 @@ public sealed class ConsolePublicationNavigationRenderTests
     {
         public IReadOnlyList<HonuaAdminServiceSummary>? ServiceSummaries { get; init; }
         public OperateSectionResult<HonuaAdminServicePage>? FailNext { get; set; }
+        public int HoldCount { get; set; }
         public int ServiceReads { get; private set; }
+        private readonly Queue<TaskCompletionSource<OperateSectionResult<HonuaAdminServicePage>?>> _holds = new();
         public HonuaAdminCatalogQuery LastQuery { get; private set; }
         public TaskCompletionSource<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>>? PendingLayers { get; set; }
         public IReadOnlyList<string> ConnectionKeys { get; set; } = ["connection-one"];
@@ -320,15 +384,24 @@ public sealed class ConsolePublicationNavigationRenderTests
         public List<string> RequestedServices { get; } = [];
         public OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>> LayerResult { get; set; } =
             OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>.Allowed([new("connection-one-layer-7", "Bridges", "LineString")]);
-        public Task<OperateSectionResult<HonuaAdminServicePage>> ReadServicesAsync(
+        public async Task<OperateSectionResult<HonuaAdminServicePage>> ReadServicesAsync(
             HonuaAdminCatalogQuery query, CancellationToken cancellationToken)
         {
             ServiceReads++;
             LastQuery = query;
+            if (HoldCount > 0)
+            {
+                HoldCount--;
+                var gate = new TaskCompletionSource<OperateSectionResult<HonuaAdminServicePage>?>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                _holds.Enqueue(gate);
+                var held = await gate.Task;
+                if (held is { } heldResult) return heldResult;
+            }
             if (FailNext is { } failed)
             {
                 FailNext = null;
-                return Task.FromResult(failed);
+                return failed;
             }
 
             var services = ServiceSummaries?.ToArray() ?? Enumerable.Range(0, 500)
@@ -345,15 +418,18 @@ public sealed class ConsolePublicationNavigationRenderTests
             var pageSize = query.PageSize <= 0 ? HonuaAdminCatalogQuery.MaxPageSize : query.PageSize;
             var start = Math.Max(0, query.Page - 1) * pageSize;
             var pageItems = services.Skip(start).Take(pageSize).ToArray();
-            return Task.FromResult(OperateSectionResult<HonuaAdminServicePage>.Allowed(new HonuaAdminServicePage
+            return OperateSectionResult<HonuaAdminServicePage>.Allowed(new HonuaAdminServicePage
             {
                 Items = pageItems,
                 Page = query.Page,
                 PageSize = pageSize,
                 Total = services.Length,
                 LayerTotal = services.Sum(service => service.LayerCount)
-            }));
+            });
         }
+
+        public void ReleaseNext(OperateSectionResult<HonuaAdminServicePage>? result = null) =>
+            _holds.Dequeue().SetResult(result);
         public Task<OperateSectionResult<IReadOnlyList<string>>> ReadConnectionsAsync(CancellationToken cancellationToken)
         {
             ConnectionReads++;
