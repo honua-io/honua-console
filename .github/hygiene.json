@@ -1,0 +1,28 @@
+{
+  "roots": [
+    ".dockerignore",
+    ".gitattributes",
+    ".github/",
+    ".gitignore",
+    "AGENTS.md",
+    "Dockerfile",
+    "Honua.Console.slnx",
+    "LICENSE",
+    "Makefile",
+    "NOTICE",
+    "NuGet.config",
+    "README.md",
+    "config/",
+    "contracts/",
+    "docs/",
+    "e2e/",
+    "package-lock.json",
+    "package.json",
+    "release/",
+    "scripts/",
+    "smoke/",
+    "src/",
+    "tests/"
+  ],
+  "gate_inputs": {}
+}
