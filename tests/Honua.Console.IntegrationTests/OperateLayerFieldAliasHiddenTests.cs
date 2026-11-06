@@ -118,7 +118,7 @@ public sealed class OperateLayerFieldAliasHiddenTests
         }
     }
 
-    private sealed class RecordingAdminClient : IHonuaAdminOperateClient
+    private sealed class RecordingAdminClient : UnusedAdminOperateClient
     {
         public HonuaAdminFieldDomain CurrentDomain { get; } = new()
         {
@@ -136,9 +136,7 @@ public sealed class OperateLayerFieldAliasHiddenTests
 
         public HonuaAdminLayerFieldsUpdate? LastUpdate { get; private set; }
 
-        public Uri BaseUri => new("https://server.test");
-
-        public Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> GetLayerFieldsAsync(
+        public override Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> GetLayerFieldsAsync(
             int layerId, CancellationToken cancellationToken = default) =>
             Task.FromResult(HonuaAdminEndpointResult<HonuaAdminLayerFields>.FromData(
                 new HonuaAdminLayerFields
@@ -147,7 +145,7 @@ public sealed class OperateLayerFieldAliasHiddenTests
                     Fields = [new HonuaAdminLayerField { Name = "status", Domain = CurrentDomain }],
                 }));
 
-        public Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> UpdateLayerFieldsAsync(
+        public override Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> UpdateLayerFieldsAsync(
             int layerId, HonuaAdminLayerFieldsUpdate request, CancellationToken cancellationToken = default)
         {
             LastUpdate = request;
@@ -160,38 +158,6 @@ public sealed class OperateLayerFieldAliasHiddenTests
             };
             return Task.FromResult(HonuaAdminEndpointResult<HonuaAdminLayerFields>.FromData(echoed));
         }
-
-        public Task<HonuaAdminEndpointResult<HonuaAdminConnectionSummary[]>> ListConnectionsAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminConnectionSummary>> CreateConnectionAsync(HonuaAdminCreateConnectionRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminConnectionTestResult>> TestDraftConnectionAsync(HonuaAdminCreateConnectionRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminConnectionTestResult>> TestConnectionAsync(string connectionId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminTableInfo[]>> ListConnectionTablesAsync(string connectionId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminImportFormats>> GetImportFormatsAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminImportResult>> ImportFileAsync(byte[] fileContent, string fileName, string tableName, string? targetSchema, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>> DiscoverExternalServiceAsync(string url, HonuaAdminExternalServiceCredentials? credentials = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>> StartGeoservicesImportAsync(HonuaAdminGeoservicesImportRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminGeoservicesImportProgress>> GetGeoservicesImportJobAsync(string jobId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary[]>> ListConnectionLayersAsync(string connectionId, string? serviceName = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary>> PublishLayerAsync(string connectionId, HonuaAdminPublishLayerRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary>> SetLayerEnabledAsync(string connectionId, int layerId, bool enabled, string? serviceName = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminServiceSummary[]>> ListServicesAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> GetServiceSettingsAsync(string serviceName, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceProtocolsAsync(string serviceName, IReadOnlyList<string> enabledProtocols, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceAccessPolicyAsync(string serviceName, HonuaAdminUpdateAccessPolicyRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminVersionResponse>> GetVersionAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminCapabilitiesResponse>> GetCapabilitiesAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminLicenseStatusResponse>> GetLicenseStatusAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminApiKeyResponse[]>> ListApiKeysAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminOidcProviderResponse[]>> ListOidcProvidersAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceMapServerSettingsAsync(string serviceName, HonuaAdminUpdateMapServerSettingsRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceTimeInfoAsync(string serviceName, HonuaAdminUpdateTimeInfoRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminLayerMetadataResponse>> UpdateServiceLayerMetadataAsync(HonuaAdminServiceLayer layer, HonuaAdminUpdateLayerMetadataRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminLayerRelationships>> GetLayerRelationshipsAsync(int layerId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminLayerRelationships>> UpdateLayerRelationshipsAsync(int layerId, HonuaAdminLayerRelationshipsUpdate request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> GetLayerPopupInfoAsync(int layerId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> UpdateLayerPopupInfoAsync(int layerId, System.Text.Json.JsonElement? document, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> GetLayerDrawingInfoAsync(int layerId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> UpdateLayerDrawingInfoAsync(int layerId, System.Text.Json.JsonElement? document, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private static FixedServicesDataSource LayerData(string resourceId, int layerId) =>

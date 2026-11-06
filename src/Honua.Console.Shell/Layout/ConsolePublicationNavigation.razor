@@ -9,9 +9,9 @@
         <button type="button" class="console-tree-backdrop" data-tree-backdrop hidden tabindex="-1" aria-label="Close service navigation"></button>
         <aside id="console-publication-sidebar" class="console-publication-sidebar" aria-label="Service navigation">
             <div class="console-tree-toolbar">
-                <label for="console-tree-filter">Filter services and loaded layers</label>
+                <label for="console-tree-filter">Filter services</label>
                 <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter"
-                       @oninput="FilterChanged" disabled="@(_loading || _servicesRead?.IsAllowed != true)" data-tree-filter />
+                       @oninput="FilterChanged" disabled="@(_loading || Source is UnsupportedConsolePublicationNavigationSource)" data-tree-filter />
                 @if (Source is not UnsupportedConsolePublicationNavigationSource)
                 {
                     <button type="button" class="console-button console-button-secondary" aria-disabled="@(_loading ? "true" : "false")" @onclick="RefreshAsync">Refresh services</button>
@@ -28,13 +28,17 @@
     private readonly SemaphoreSlim _serviceExpansionSlots = new(ConcurrentServiceExpansions);
     private readonly ConsolePublicationTree _tree = new();
     private CancellationTokenSource _authorityLifetime = new();
-    private OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>? _servicesRead;
+    private OperateSectionResult<HonuaAdminServicePage>? _servicesRead;
     private Task<OperateSectionResult<IReadOnlyList<string>>>? _connectionsRead;
     private ConsoleEnvironmentAuthority? _authority;
     private string _environmentLabel = "Services";
     private int _authorityRevision;
     private int _locationRevision;
     private bool _loading = true;
+    private int _catalogGeneration;
+    private CatalogAttempt? _inflight;
+    private CatalogAttempt? _settled;
+    private CatalogAttempt? _failed;
     private bool _disposed;
     private IConsoleCapabilityManifest? _capabilities;
     private IConsolePublicationNavigationSource Source => Services.GetService<IConsolePublicationNavigationSource>()
@@ -60,7 +64,8 @@
     private ConsolePublicationNavigationReadState ReadState => new()
     {
         Loading = _loading, ServicesRead = _servicesRead,
-        CanConnectEnvironment = Source is UnsupportedConsolePublicationNavigationSource
+        CanConnectEnvironment = Source is UnsupportedConsolePublicationNavigationSource,
+        Retry = EventCallback.Factory.Create(this, RetryCatalogAsync)
     };
 
     protected override void OnInitialized()
@@ -82,7 +87,8 @@
         if (_disposed || revision != _authorityRevision) return;
         if (!profileRead.IsAllowed)
         {
-            _servicesRead = OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Denied(profileRead.Status, profileRead.Message);
+            RecordAuthorityFailure(revision);
+            _servicesRead = OperateSectionResult<HonuaAdminServicePage>.Denied(profileRead.Status, profileRead.Message);
             _loading = false;
             await InvokeAsync(StateHasChanged);
             return;
@@ -101,17 +107,83 @@
     {
         if (_disposed) return;
         ResetReadState();
-        var revision = _authorityRevision;
+        var authorityRevision = _authorityRevision;
         await InvokeAsync(StateHasChanged);
-        var result = await ConsoleReadBudget.RunAsync(Source.ReadServicesAsync, ConsoleReadBudget.Default,
-            "Service navigation is unavailable. Retry when the server is reachable.", _authorityLifetime.Token);
-        if (_disposed || revision != _authorityRevision) return;
-        _servicesRead = result;
-        _tree.Load(result.Value ?? [], _environmentLabel);
-        _tree.RevealPath(CurrentPath);
+        var attempt = BeginCatalog(HonuaAdminCatalogQuery.First, CatalogApply.Replace);
+        var outcome = await FinishCatalogAsync(attempt);
+        if (_disposed || authorityRevision != _authorityRevision || outcome == CatalogOutcome.Obsolete) return;
+        if (outcome == CatalogOutcome.Applied) _tree.RevealPath(CurrentPath);
         _loading = false;
         await InvokeAsync(StateHasChanged);
     }
+
+    private CatalogAttempt BeginCatalog(HonuaAdminCatalogQuery query, CatalogApply apply)
+    {
+        var attempt = new CatalogAttempt(++_catalogGeneration, query, apply, _filterRevision, _authorityRevision);
+        _inflight = attempt;
+        return attempt;
+    }
+
+    private bool IsCurrent(CatalogAttempt attempt) =>
+        !_disposed && _inflight == attempt
+        && attempt.AuthorityRevision == _authorityRevision
+        && attempt.FilterRevision == _filterRevision;
+
+    private async Task<CatalogOutcome> FinishCatalogAsync(CatalogAttempt attempt)
+    {
+        var result = await ConsoleReadBudget.RunAsync(
+            token => Source.ReadServicesAsync(attempt.Query, token), ConsoleReadBudget.Default,
+            "Service navigation is unavailable. Retry when the server is reachable.", _authorityLifetime.Token);
+        if (!IsCurrent(attempt)) return CatalogOutcome.Obsolete;
+        _inflight = null;
+        _servicesRead = result;
+        if (!result.IsAllowed || result.Value is null)
+        {
+            _failed = attempt;
+            return CatalogOutcome.Failed;
+        }
+
+        _failed = null;
+        _settled = attempt;
+        if (attempt.Apply == CatalogApply.Append) _tree.Append(result.Value);
+        else _tree.Load(result.Value, _environmentLabel);
+        return CatalogOutcome.Applied;
+    }
+
+    private void RecordAuthorityFailure(int revision)
+    {
+        _inflight = null;
+        _failed = new CatalogAttempt(++_catalogGeneration, HonuaAdminCatalogQuery.First, CatalogApply.Authority, _filterRevision, revision);
+    }
+
+    private async Task RetryCatalogAsync()
+    {
+        if (_disposed || _loading || _inflight is not null || _failed is not { } failed) return;
+        if (failed.FilterRevision != _filterRevision || failed.AuthorityRevision != _authorityRevision) return;
+        if (failed.Apply == CatalogApply.Authority)
+        {
+            await ReloadAuthorityAsync();
+            return;
+        }
+        var attempt = BeginCatalog(failed.Query, failed.Apply);
+        var outcome = await FinishCatalogAsync(attempt);
+        if (outcome == CatalogOutcome.Obsolete) return;
+        if (outcome == CatalogOutcome.Applied && attempt.Apply == CatalogApply.Replace)
+        {
+            if (!string.IsNullOrWhiteSpace(attempt.Query.NameQuery))
+                _tree.SetFilter(attempt.Query.NameQuery);
+            _tree.RevealPath(CurrentPath);
+        }
+        _loading = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private enum CatalogApply { Replace, Append, Authority }
+
+    private enum CatalogOutcome { Obsolete, Failed, Applied }
+
+    private readonly record struct CatalogAttempt(
+        int Generation, HonuaAdminCatalogQuery Query, CatalogApply Apply, int FilterRevision, int AuthorityRevision);
 
     private async Task<OperateSectionResult<ConsoleEnvironmentProfile?>> ReadProfileAsync(CancellationToken token)
     {
@@ -127,7 +199,7 @@
         _authorityLifetime.Dispose();
         _authorityLifetime = new();
         _connectionsRead = null;
-        _tree.Load([], _environmentLabel);
+        _tree.Load(new HonuaAdminServicePage(), _environmentLabel);
         _tree.SetFilter("");
         _servicesRead = null;
         _loading = true;
@@ -197,9 +269,46 @@
         }).ToList();
     }
 
-    private void FilterChanged(ChangeEventArgs args) => _tree.SetFilter(args.Value?.ToString() ?? "");
+    private int _filterRevision;
+
+    private async Task FilterChanged(ChangeEventArgs args)
+    {
+        var filter = args.Value?.ToString() ?? "";
+        var revision = _authorityRevision;
+        var filterRevision = ++_filterRevision;
+        _tree.SetFilter(filter);
+        var nameQuery = string.IsNullOrWhiteSpace(filter) ? null : filter.Trim();
+        if (_disposed || revision != _authorityRevision || filterRevision != _filterRevision) return;
+        var attempt = BeginCatalog(HonuaAdminCatalogQuery.First with { NameQuery = nameQuery }, CatalogApply.Replace);
+        var outcome = await FinishCatalogAsync(attempt);
+        if (outcome == CatalogOutcome.Obsolete) return;
+        if (outcome == CatalogOutcome.Applied)
+        {
+            _tree.SetFilter(filter);
+            _tree.RevealPath(CurrentPath);
+        }
+        await InvokeAsync(StateHasChanged);
+    }
     private void ShowFirstPage(ConsolePublicationNode node) => _tree.ShowFirstPage(node);
-    private void ShowMore(ConsolePublicationNode node) => _tree.ShowMore(node);
+    private async Task ShowMore(ConsolePublicationNode node)
+    {
+        if (_inflight is not null || _settled is not { } settled
+            || settled.FilterRevision != _filterRevision
+            || settled.AuthorityRevision != _authorityRevision)
+            return;
+        if (!_tree.HasHiddenLoadedChildren(node) && _tree.HasUnloadedServices)
+        {
+            var attempt = BeginCatalog(settled.Query.Next(), CatalogApply.Append);
+            var outcome = await FinishCatalogAsync(attempt);
+            if (outcome != CatalogOutcome.Applied)
+            {
+                if (outcome != CatalogOutcome.Obsolete) await InvokeAsync(StateHasChanged);
+                return;
+            }
+        }
+        _tree.ShowMore(node);
+        await InvokeAsync(StateHasChanged);
+    }
     private async Task ReconcileLocationAsync()
     {
         await CheckAuthorityAsync();

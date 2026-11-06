@@ -122,9 +122,9 @@ public sealed class OperateTransitionLiveServerTests
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
         using var json = await JsonDocument.ParseAsync(stream).ConfigureAwait(false);
-        return json.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array
-            ? data.GetArrayLength()
-            : 0;
+        if (!json.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
+            return 0;
+        return data.TryGetProperty("total", out var total) && total.TryGetInt32(out var count) ? count : 0;
     }
 
     private static async Task<Guid> CreateConnectionAsync(HttpClient client, PostgreSqlContainer postgres)

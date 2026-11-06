@@ -19,14 +19,16 @@ public sealed class ConsolePublicationNavigationRenderTests
         tree.WaitForAssertion(() => Assert.Equal(26, tree.FindAll("[role='treeitem']").Count));
         Assert.Equal(0, source.ChildReads);
         Assert.Equal(0, source.ConnectionReads);
-        Assert.Equal("500", tree.FindAll("[role='treeitem']")[1].GetAttribute("aria-setsize"));
+        Assert.Equal("100", tree.FindAll("[role='treeitem']")[1].GetAttribute("aria-setsize"));
+        Assert.Contains("500 service names and 5000 layers", tree.Markup);
         tree.Find("[data-tree-more]").Click();
         Assert.Equal(51, tree.FindAll("[role='treeitem']").Count);
         tree.Find("input").Input("service-499");
+        tree.WaitForAssertion(() => Assert.Contains("1 service name and 10 layers", tree.Markup));
         Assert.Equal(2, tree.FindAll("[role='treeitem']").Count);
         Assert.Equal("service-499 10 layers", tree.FindAll("[role='treeitem']")[1].GetAttribute("aria-label"));
         Assert.Equal(0, source.ChildReads);
-        Assert.Contains("500 service names and 0 loaded layers", tree.Markup);
+        Assert.Equal("service-499", source.LastQuery.NameQuery);
     }
 
     [Fact]
@@ -50,7 +52,10 @@ public sealed class ConsolePublicationNavigationRenderTests
         tree.Find("[data-publication-key='service:service-000'] [data-tree-expand]").Click();
         Assert.Equal(1, source.ChildReads);
         tree.Find("input").Input("Bridges");
-        Assert.Equal(3, tree.FindAll("[role='treeitem']").Count);
+        tree.WaitForAssertion(() => Assert.Contains("No services match this filter.", tree.Markup));
+        Assert.Equal("Bridges", source.LastQuery.NameQuery);
+        Assert.Equal(1, source.ChildReads);
+        Assert.DoesNotContain("Bridges LineString", tree.Markup);
     }
 
     [Fact]
@@ -72,11 +77,11 @@ public sealed class ConsolePublicationNavigationRenderTests
         Assert.Equal(1, source.ServiceReads);
         Assert.Equal(1, source.ChildReads);
         tree.Find("input").Input("service-499");
+        tree.WaitForAssertion(() => Assert.Contains("1 service name and 10 layers", tree.Markup));
         await tree.InvokeAsync(() => capabilities.RefreshAsync());
         Assert.Equal("service-499", tree.Find("input").GetAttribute("value"));
-        Assert.Equal(1, source.ServiceReads);
+        Assert.Equal(2, source.ServiceReads);
         Assert.Equal(1, source.ConnectionReads);
-        Assert.Contains("500 service names and 1 loaded layer", tree.Markup);
     }
 
     [Fact]
@@ -154,6 +159,129 @@ public sealed class ConsolePublicationNavigationRenderTests
     }
 
     [Fact]
+    public void ShowMoreLoadsTheNextServicePageWhenTheFirstPageIsVisible()
+    {
+        using var context = Context();
+        var source = new NavigationSource();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
+        for (var click = 0; click < 3; click++) tree.Find("[data-tree-more='environment']").Click();
+        Assert.Equal(1, source.ServiceReads);
+        Assert.Equal(101, tree.FindAll("[role='treeitem']").Count);
+        tree.Find("[data-tree-more='environment']").Click();
+        tree.WaitForAssertion(() => Assert.Equal(2, source.ServiceReads));
+        Assert.Equal(2, source.LastQuery.Page);
+        Assert.Contains("service-100", tree.Markup);
+    }
+
+    [Fact]
+    public void FailedSearchShowsTheFailureAndRetryRestoresTheCatalog()
+    {
+        using var context = Context();
+        var source = new NavigationSource();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
+        source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Denied(
+            OperateSectionStatus.Forbidden, "Service navigation: Forbidden.");
+        tree.Find("input").Input("secret");
+        tree.WaitForAssertion(() => Assert.Contains("Forbidden", tree.Markup));
+        Assert.Empty(tree.FindAll("[role='tree']"));
+        Assert.False(tree.Find("input").HasAttribute("disabled"));
+        source.FailNext = null;
+        tree.Find("[data-tree-retry]").Click();
+        tree.WaitForAssertion(() => Assert.Contains("No services match this filter", tree.Markup));
+        Assert.Equal(HonuaAdminCatalogQuery.First with { NameQuery = "secret" }, source.LastQuery);
+    }
+
+    [Fact]
+    public void FailedEnvironmentProfileRetriesTheReadAndRestoresTheCatalog()
+    {
+        using var context = Context();
+        var profiles = new OneShotProfileFailure(new ConsoleEnvironmentProfile
+        {
+            Id = "field",
+            DisplayName = "Field",
+            ServerBaseUri = new Uri("https://field.example.test")
+        });
+        var source = new NavigationSource();
+        context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForAssertion(() => Assert.Contains("The active environment could not be read.", tree.Markup));
+        Assert.Equal(1, profiles.Reads);
+        Assert.Equal(0, source.ServiceReads);
+        tree.Find("[data-tree-retry]").Click();
+        tree.WaitForAssertion(() => Assert.Contains("service-000", tree.Markup));
+        Assert.Equal(2, profiles.Reads);
+        Assert.Equal(1, source.ServiceReads);
+        Assert.DoesNotContain("The active environment could not be read.", tree.Markup);
+    }
+
+    [Fact]
+    public async Task NewerSearchWinsWhenTheOlderSearchCompletesLast()
+    {
+        using var context = Context();
+        var source = new NavigationSource();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
+        source.HoldCount = 1;
+        tree.Find("input").Input("service-001");
+        tree.WaitForAssertion(() => Assert.Equal(2, source.ServiceReads));
+        tree.Find("input").Input("service-499");
+        tree.WaitForAssertion(() => Assert.Contains("service-499 10 layers", tree.Markup));
+        source.ReleaseNext();
+        await Task.Delay(50);
+        Assert.Contains("service-499 10 layers", tree.Markup);
+        Assert.Equal("service-499", source.LastQuery.NameQuery);
+        Assert.Equal(3, source.ServiceReads);
+    }
+
+    [Fact]
+    public async Task ShowMoreDoesNotPageASearchThatHasNotSettled()
+    {
+        using var context = Context();
+        var source = new NavigationSource();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
+        source.HoldCount = 1;
+        tree.Find("input").Input("service-499");
+        tree.WaitForAssertion(() => Assert.Equal(2, source.ServiceReads));
+        tree.Find("[data-tree-more='environment']").Click();
+        Assert.Equal(2, source.ServiceReads);
+        source.ReleaseNext();
+        tree.WaitForAssertion(() => Assert.Contains("service-499 10 layers", tree.Markup));
+        Assert.Equal(1, source.LastQuery.Page);
+    }
+
+    [Fact]
+    public async Task SupersededReloadLeavesTheReplacementLoading()
+    {
+        using var context = new BunitContext();
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("first-synthetic-operator");
+        var source = new NavigationSource();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
+        source.HoldCount = 2;
+        authorization.SetAuthorized("second-synthetic-operator");
+        tree.WaitForAssertion(() => Assert.Equal(2, source.ServiceReads));
+        Assert.True(tree.Find("input").HasAttribute("disabled"));
+        authorization.SetAuthorized("third-synthetic-operator");
+        tree.WaitForAssertion(() => Assert.Equal(3, source.ServiceReads));
+        source.ReleaseNext();
+        await Task.Delay(50);
+        Assert.True(tree.Find("input").HasAttribute("disabled"));
+        source.ReleaseNext();
+        tree.WaitForAssertion(() => Assert.False(tree.Find("input").HasAttribute("disabled")));
+        Assert.Contains("service-000", tree.Markup);
+    }
+
+    [Fact]
     public async Task AuthorityChangeRejectsDelayedChildrenFromThePreviousOperator()
     {
         using var context = new BunitContext();
@@ -172,7 +300,7 @@ public sealed class ConsolePublicationNavigationRenderTests
         await expansion;
         tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
         Assert.Empty(tree.FindAll("a[href='/operate/layers/connection-one-layer-7']"));
-        Assert.Contains("500 service names and 0 loaded layers", tree.Markup);
+        Assert.Contains("500 service names and 5000 layers", tree.Markup);
     }
 
     [Fact]
@@ -246,6 +374,24 @@ public sealed class ConsolePublicationNavigationRenderTests
         PendingLayers = new(TaskCreationOptions.RunContinuationsAsynchronously)
     };
 
+    private sealed class OneShotProfileFailure(ConsoleEnvironmentProfile profile) : IConsoleEnvironmentProfileStore
+    {
+        public int Reads { get; private set; }
+        public event Action? ActiveProfileChanged { add { } remove { } }
+        public Task<ConsoleEnvironmentProfile?> GetActiveProfileAsync(CancellationToken cancellationToken = default)
+        {
+            Reads++;
+            if (Reads == 1) throw new IOException("environment profile unavailable");
+            return Task.FromResult<ConsoleEnvironmentProfile?>(profile);
+        }
+        public Task<IReadOnlyList<ConsoleEnvironmentProfile>> ListProfilesAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ConsoleEnvironmentProfile?> GetProfileAsync(string profileId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task UpsertProfileAsync(ConsoleEnvironmentProfile next, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task ActivateProfileAsync(string profileId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ConsoleEnvironmentState?> GetStateAsync(string profileId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task SaveStateAsync(ConsoleEnvironmentState state, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
     private sealed class CapabilitySignals : IConsoleCapabilityManifest
     {
         public event Action? Changed;
@@ -267,7 +413,11 @@ public sealed class ConsolePublicationNavigationRenderTests
     private sealed class NavigationSource : IConsolePublicationNavigationSource
     {
         public IReadOnlyList<HonuaAdminServiceSummary>? ServiceSummaries { get; init; }
+        public OperateSectionResult<HonuaAdminServicePage>? FailNext { get; set; }
+        public int HoldCount { get; set; }
         public int ServiceReads { get; private set; }
+        private readonly Queue<TaskCompletionSource<OperateSectionResult<HonuaAdminServicePage>?>> _holds = new();
+        public HonuaAdminCatalogQuery LastQuery { get; private set; }
         public TaskCompletionSource<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>>? PendingLayers { get; set; }
         public IReadOnlyList<string> ConnectionKeys { get; set; } = ["connection-one"];
         public List<IReadOnlyList<string>> RequestedConnectionSets { get; } = [];
@@ -276,12 +426,52 @@ public sealed class ConsolePublicationNavigationRenderTests
         public List<string> RequestedServices { get; } = [];
         public OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>> LayerResult { get; set; } =
             OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>.Allowed([new("connection-one-layer-7", "Bridges", "LineString")]);
-        public Task<OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadServicesAsync(CancellationToken cancellationToken)
+        public async Task<OperateSectionResult<HonuaAdminServicePage>> ReadServicesAsync(
+            HonuaAdminCatalogQuery query, CancellationToken cancellationToken)
         {
             ServiceReads++;
-            return Task.FromResult(OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Allowed(ServiceSummaries ?? Enumerable.Range(0, 500)
-                .Select(index => new HonuaAdminServiceSummary { ServiceName = $"service-{index:D3}", LayerCount = 10 }).ToArray()));
+            LastQuery = query;
+            if (HoldCount > 0)
+            {
+                HoldCount--;
+                var gate = new TaskCompletionSource<OperateSectionResult<HonuaAdminServicePage>?>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                _holds.Enqueue(gate);
+                var held = await gate.Task;
+                if (held is { } heldResult) return heldResult;
+            }
+            if (FailNext is { } failed)
+            {
+                FailNext = null;
+                return failed;
+            }
+
+            var services = ServiceSummaries?.ToArray() ?? Enumerable.Range(0, 500)
+                .Select(index => new HonuaAdminServiceSummary { ServiceName = $"service-{index:D3}", LayerCount = 10 })
+                .ToArray();
+            if (!string.IsNullOrWhiteSpace(query.NameQuery))
+            {
+                services = services.Where(service =>
+                    service.ServiceName?.Contains(query.NameQuery, StringComparison.OrdinalIgnoreCase) == true
+                    || service.Title?.Contains(query.NameQuery, StringComparison.OrdinalIgnoreCase) == true
+                    || service.PublicName?.Contains(query.NameQuery, StringComparison.OrdinalIgnoreCase) == true).ToArray();
+            }
+
+            var pageSize = query.PageSize <= 0 ? HonuaAdminCatalogQuery.MaxPageSize : query.PageSize;
+            var start = Math.Max(0, query.Page - 1) * pageSize;
+            var pageItems = services.Skip(start).Take(pageSize).ToArray();
+            return OperateSectionResult<HonuaAdminServicePage>.Allowed(new HonuaAdminServicePage
+            {
+                Items = pageItems,
+                Page = query.Page,
+                PageSize = pageSize,
+                Total = services.Length,
+                LayerTotal = services.Sum(service => service.LayerCount)
+            });
         }
+
+        public void ReleaseNext(OperateSectionResult<HonuaAdminServicePage>? result = null) =>
+            _holds.Dequeue().SetResult(result);
         public Task<OperateSectionResult<IReadOnlyList<string>>> ReadConnectionsAsync(CancellationToken cancellationToken)
         {
             ConnectionReads++;

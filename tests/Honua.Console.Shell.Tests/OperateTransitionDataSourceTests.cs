@@ -64,17 +64,17 @@ public sealed class OperateTransitionDataSourceTests
             ["/api/v1/admin/connections/"] = $$"""
                 {"success":true,"data":[{"connectionId":"{{connectionId}}","name":"Live PostGIS","host":"db.internal","port":5432,"databaseName":"honua","username":"operator","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","lastHealthCheck":"2026-05-24T10:00:00Z","storageType":"managed","sslMode":"Require"}]}
                 """,
-            [$"/api/v1/admin/connections/{connectionId}/layers/"] = """
-                {"success":true,"data":[]}
+            [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100"] = """
+                {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0}}
                 """,
-            [$"/api/v1/admin/connections/{connectionId}/layers/?serviceName=planning"] = """
-                {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":true,"serviceName":"planning"}]}
+            [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100&serviceName=planning"] = """
+                {"success":true,"data":{"items":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
                 """,
-            [$"/api/v1/admin/connections/{connectionId}/layers/?serviceName=public"] = """
-                {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":false,"serviceName":"public"}]}
+            [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100&serviceName=public"] = """
+                {"success":true,"data":{"items":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":false,"serviceName":"public"}],"page":1,"pageSize":100,"total":1}}
                 """,
-            ["/api/v1/admin/services/"] = """
-                {"success":true,"data":[{"serviceName":"planning","description":"Planning Service","layerCount":1,"enabledProtocols":["FeatureServer","MapServer"]},{"serviceName":"public","description":"Public Service","layerCount":1,"enabledProtocols":["FeatureServer"]}]}
+            ["/api/v1/admin/services/?page=1&pageSize=100"] = """
+                {"success":true,"data":{"items":[{"serviceName":"planning","description":"Planning Service","layerCount":1,"enabledProtocols":["FeatureServer","MapServer"]},{"serviceName":"public","description":"Public Service","layerCount":1,"enabledProtocols":["FeatureServer"]}],"page":1,"pageSize":100,"total":2,"layerTotal":2}}
                 """,
             ["/api/v1/admin/services/planning/settings"] = """
                 {"success":true,"data":{"serviceName":"planning","enabledProtocols":["FeatureServer"],"availableProtocols":["FeatureServer","MapServer"],"accessPolicy":{"allowAnonymous":true,"allowAnonymousWrite":false,"allowedRoles":["operator"],"allowedWriteRoles":[]},"mapServer":{"maxImageWidth":4096,"maxImageHeight":4096,"defaultFormat":"png","maxFeaturesPerLayer":1000}}}
@@ -200,14 +200,14 @@ public sealed class OperateTransitionDataSourceTests
             ["/api/v1/admin/connections/"] = $$"""
                 {"success":true,"data":[{"connectionId":"{{connectionId}}","name":"Live PostGIS","host":"db.internal","port":5432,"databaseName":"honua","username":"operator","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy"}]}
                 """,
-            ["/api/v1/admin/services/"] = """
-                {"success":true,"data":[{"serviceName":"planning","description":"Planning Service","layerCount":1,"enabledProtocols":["FeatureServer"]}]}
+            ["/api/v1/admin/services/?page=1&pageSize=100"] = """
+                {"success":true,"data":{"items":[{"serviceName":"planning","description":"Planning Service","layerCount":1,"enabledProtocols":["FeatureServer"]}],"page":1,"pageSize":100,"total":1,"layerTotal":1}}
                 """,
-            [$"/api/v1/admin/connections/{connectionId}/layers/"] = """
-                {"success":true,"data":[]}
+            [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100"] = """
+                {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0}}
                 """,
-            [$"/api/v1/admin/connections/{connectionId}/layers/?serviceName=planning"] = """
-                {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}]}
+            [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100&serviceName=planning"] = """
+                {"success":true,"data":{"items":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
                 """
         });
         var dataSource = CreateServerDataSource(handler);
@@ -233,11 +233,11 @@ public sealed class OperateTransitionDataSourceTests
             ["/api/v1/admin/connections/"] = $$"""
                 {"success":true,"data":[{"connectionId":"{{connectionId}}","name":"Live PostGIS","host":"db.internal","port":5432,"databaseName":"honua","username":"operator","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy"}]}
                 """,
-            ["/api/v1/admin/services/"] = """
-                {"success":true,"data":[]}
+            ["/api/v1/admin/services/?page=1&pageSize=100"] = """
+                {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0,"layerTotal":0}}
                 """,
-            [$"/api/v1/admin/connections/{connectionId}/layers/"] = """
-                {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}]}
+            [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100"] = """
+                {"success":true,"data":{"items":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
                 """
         });
         var dataSource = CreateServerDataSource(handler);
@@ -339,17 +339,17 @@ public sealed class OperateTransitionDataSourceTests
             ["/api/v1/admin/connections/"] = $$"""
                 {"success":true,"data":[{"connectionId":"{{connectionId}}","name":"Live PostGIS","host":"db.internal","port":5432,"databaseName":"honua","username":"operator","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy"}]}
                 """,
-            ["/api/v1/admin/services/"] = """
-                {"success":true,"data":[{"serviceName":"planning","description":"Planning Service","layerCount":1,"enabledProtocols":["FeatureServer"]},{"serviceName":"public","description":"Public Service","layerCount":1,"enabledProtocols":["FeatureServer"]}]}
+            ["/api/v1/admin/services/?page=1&pageSize=100"] = """
+                {"success":true,"data":{"items":[{"serviceName":"planning","description":"Planning Service","layerCount":1,"enabledProtocols":["FeatureServer"]},{"serviceName":"public","description":"Public Service","layerCount":1,"enabledProtocols":["FeatureServer"]}],"page":1,"pageSize":100,"total":2,"layerTotal":2}}
                 """,
-            [$"/api/v1/admin/connections/{connectionId}/layers/"] = """
-                {"success":true,"data":[]}
+            [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100"] = """
+                {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0}}
                 """,
-            [$"/api/v1/admin/connections/{connectionId}/layers/?serviceName=planning"] = """
-                {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}]}
+            [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100&serviceName=planning"] = """
+                {"success":true,"data":{"items":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
                 """,
-            [$"/api/v1/admin/connections/{connectionId}/layers/?serviceName=public"] = """
-                {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"public"}]}
+            [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100&serviceName=public"] = """
+                {"success":true,"data":{"items":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"public"}],"page":1,"pageSize":100,"total":1}}
                 """
         });
         var dataSource = CreateServerDataSource(handler);
@@ -389,20 +389,20 @@ public sealed class OperateTransitionDataSourceTests
             ["/api/v1/admin/connections/"] = $$"""
                 {"success":true,"data":[{"connectionId":"{{connectionA}}","name":"Connection A","host":"a.internal","port":5432,"databaseName":"honua","username":"operator","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy"},{"connectionId":"{{connectionB}}","name":"Connection B","host":"b.internal","port":5432,"databaseName":"honua","username":"operator","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy"}]}
                 """,
-            ["/api/v1/admin/services/"] = """
-                {"success":true,"data":[{"serviceName":"planning","description":"Planning Service","layerCount":2,"enabledProtocols":["FeatureServer"]}]}
+            ["/api/v1/admin/services/?page=1&pageSize=100"] = """
+                {"success":true,"data":{"items":[{"serviceName":"planning","description":"Planning Service","layerCount":2,"enabledProtocols":["FeatureServer"]}],"page":1,"pageSize":100,"total":1,"layerTotal":2}}
                 """,
-            [$"/api/v1/admin/connections/{connectionA}/layers/"] = """
-                {"success":true,"data":[]}
+            [$"/api/v1/admin/connections/{connectionA}/layers/?page=1&pageSize=100"] = """
+                {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0}}
                 """,
-            [$"/api/v1/admin/connections/{connectionB}/layers/"] = """
-                {"success":true,"data":[]}
+            [$"/api/v1/admin/connections/{connectionB}/layers/?page=1&pageSize=100"] = """
+                {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0}}
                 """,
-            [$"/api/v1/admin/connections/{connectionA}/layers/?serviceName=planning"] = """
-                {"success":true,"data":[{"layerId":7,"layerName":"Connection A Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}]}
+            [$"/api/v1/admin/connections/{connectionA}/layers/?page=1&pageSize=100&serviceName=planning"] = """
+                {"success":true,"data":{"items":[{"layerId":7,"layerName":"Connection A Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
                 """,
-            [$"/api/v1/admin/connections/{connectionB}/layers/?serviceName=planning"] = """
-                {"success":true,"data":[{"layerId":7,"layerName":"Connection B Roads","schema":"public","table":"roads","geometryType":"Line","enabled":true,"serviceName":"planning"}]}
+            [$"/api/v1/admin/connections/{connectionB}/layers/?page=1&pageSize=100&serviceName=planning"] = """
+                {"success":true,"data":{"items":[{"layerId":7,"layerName":"Connection B Roads","schema":"public","table":"roads","geometryType":"Line","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
                 """
         });
         var dataSource = CreateServerDataSource(handler);

@@ -222,24 +222,13 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
     {
         // Use only the service catalog returned to this authenticated caller. Never fall back to
         // the unscoped alert endpoints: they deliberately require an explicit serviceId.
-        var servicesFetch = await FetchAsync(
-            OperateAdminRoutes.Services,
-            OperateObservabilityJsonContext.Default.AdminServiceListEnvelope,
-            cancellationToken).ConfigureAwait(false);
-        if (!servicesFetch.Ok)
+        var servicesRead = await ReadServiceCatalogAsync(cancellationToken).ConfigureAwait(false);
+        if (!servicesRead.IsAllowed)
         {
-            return OperateSectionResult<OperateRulesView>.Denied(servicesFetch.Status, servicesFetch.Message);
+            return OperateSectionResult<OperateRulesView>.Denied(servicesRead.Status, servicesRead.Message);
         }
 
-        if (!servicesFetch.Value!.Success || servicesFetch.Value.Data is null ||
-            servicesFetch.Value.Data.Any(service => service is null || string.IsNullOrWhiteSpace(service.ServiceName)))
-        {
-            return OperateSectionResult<OperateRulesView>.Denied(
-                OperateSectionStatus.Unavailable,
-                FirstNonBlank(servicesFetch.Value.Message, "The server did not return an available service catalog."));
-        }
-
-        var services = servicesFetch.Value.Data.Select(service => service.ServiceName!)
+        var services = servicesRead.Value!.Select(service => service.ServiceName!)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var scoped = await BoundedFanOutAsync(services, async service =>
         {
@@ -1141,6 +1130,52 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             },
             cancellationToken).ConfigureAwait(false);
     }
+
+    private async Task<OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadServiceCatalogAsync(
+        CancellationToken cancellationToken)
+    {
+        var result = await HonuaAdminCatalogReader.ReadAllAsync(
+            ReadServicePageAsync,
+            page => page.Items,
+            page => page.Total,
+            cancellationToken).ConfigureAwait(false);
+        return result.Issue is { } issue
+            ? OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Denied(CatalogStatus(issue), issue.Detail)
+            : OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Allowed(result.Data ?? []);
+    }
+
+    private async Task<HonuaAdminEndpointResult<HonuaAdminServicePage>> ReadServicePageAsync(
+        HonuaAdminCatalogQuery query, CancellationToken cancellationToken)
+    {
+        var fetch = await FetchAsync(
+            query.AppendTo(OperateAdminRoutes.Services),
+            OperateObservabilityJsonContext.Default.AdminServiceListEnvelope,
+            cancellationToken).ConfigureAwait(false);
+        if (!fetch.Ok)
+        {
+            return HonuaAdminEndpointResult<HonuaAdminServicePage>.FromIssue(new HonuaAdminEndpointIssue(
+                fetch.Status.ToString(), OperateAdminRoutes.Services, fetch.Message));
+        }
+
+        var envelope = fetch.Value;
+        var page = envelope?.Data;
+        var pageItems = page?.Items ?? [];
+        if (envelope is null || !envelope.Success || page is null ||
+            pageItems.Any(service => string.IsNullOrWhiteSpace(service?.ServiceName)))
+        {
+            return HonuaAdminEndpointResult<HonuaAdminServicePage>.FromIssue(new HonuaAdminEndpointIssue(
+                nameof(OperateSectionStatus.Unavailable),
+                OperateAdminRoutes.Services,
+                FirstNonBlank(envelope?.Message, "The server did not return an available service catalog.")));
+        }
+
+        return HonuaAdminEndpointResult<HonuaAdminServicePage>.FromData(page);
+    }
+
+    private static OperateSectionStatus CatalogStatus(HonuaAdminEndpointIssue issue) =>
+        Enum.TryParse<OperateSectionStatus>(issue.State, out var status)
+            ? status
+            : OperateSectionStatus.Unavailable;
 
     private async Task<FetchResult<T>> FetchAsync<T>(
         string relativePath,

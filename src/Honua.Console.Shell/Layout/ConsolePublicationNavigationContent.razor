@@ -10,6 +10,10 @@ else if (ReadState.ServicesRead is { IsAllowed: false } result)
         {
             <a href="/environments/new">Connect an environment</a>
         }
+        else
+        {
+            <button type="button" class="console-button console-button-secondary" data-tree-retry @onclick="ReadState.Retry">Retry</button>
+        }
     </div>
 }
 else

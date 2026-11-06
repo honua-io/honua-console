@@ -47,13 +47,21 @@ public sealed class ConsolePublicationTree
     };
     public string Filter { get; set; } = "";
     public int ServiceCount { get; private set; }
+    public int LayerTotal { get; private set; }
+    public int LoadedServiceCount => Descendants(Root).Count(node => node.Kind == ConsolePublicationNodeKind.Service);
     public int LoadedLayerCount => Descendants(Root).Count(node => node.Kind == ConsolePublicationNodeKind.Layer);
+    public bool HasUnloadedServices => LoadedServiceCount < ServiceCount;
 
-    public void Load(IReadOnlyList<HonuaAdminServiceSummary> services, string environmentLabel)
+    public bool HasHiddenLoadedChildren(ConsolePublicationNode parent) =>
+        MatchingChildren(parent).Count > parent.VisibleOffset + parent.VisibleLimit;
+
+    public void Load(HonuaAdminServicePage page, string environmentLabel)
     {
+        var services = page.Items ?? [];
         Filter = string.Empty;
         _unfilteredExpansion = null;
-        ServiceCount = services.Count;
+        ServiceCount = page.Total;
+        LayerTotal = page.LayerTotal;
         Root = new()
         {
             Key = "environment",
@@ -62,7 +70,7 @@ public sealed class ConsolePublicationTree
             Href = "/",
             Expanded = true,
             ChildrenLoaded = true,
-            ReportedCount = services.Count
+            ReportedCount = page.Total
         };
         var folders = new Dictionary<string, ConsolePublicationNode>(StringComparer.Ordinal);
         foreach (var service in services.OrderBy(DisplayName, StringComparer.OrdinalIgnoreCase))
@@ -70,8 +78,53 @@ public sealed class ConsolePublicationTree
             var parent = GetOrAddServiceParent(service, folders);
             parent.Children.Add(ServiceNode(service));
         }
-        Root.Children = Root.Children.OrderBy(node => node.Kind).ThenBy(node => node.Label, StringComparer.OrdinalIgnoreCase).ToList();
+        Root.Children = Ordered(Root.Children);
     }
+
+    public void Append(HonuaAdminServicePage page)
+    {
+        ServiceCount = page.Total;
+        LayerTotal = page.LayerTotal;
+        var known = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var node in Descendants(Root))
+        {
+            if (node.Kind == ConsolePublicationNodeKind.Service && node.ServiceName is { } name)
+                known.Add(name);
+        }
+
+        var folders = IndexFolders();
+        foreach (var service in page.Items ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(service.ServiceName) || !known.Add(service.ServiceName)) continue;
+            InsertSorted(GetOrAddServiceParent(service, folders), ServiceNode(service));
+        }
+
+        Root.Children = Ordered(Root.Children);
+    }
+
+    private Dictionary<string, ConsolePublicationNode> IndexFolders()
+    {
+        var folders = new Dictionary<string, ConsolePublicationNode>(StringComparer.Ordinal);
+        foreach (var node in Root.Children)
+        {
+            if (node.Kind != ConsolePublicationNodeKind.Folder || !node.Key.StartsWith("folder:", StringComparison.Ordinal))
+                continue;
+            folders[Uri.UnescapeDataString(node.Key["folder:".Length..])] = node;
+        }
+
+        return folders;
+    }
+
+    private static void InsertSorted(ConsolePublicationNode parent, ConsolePublicationNode service)
+    {
+        var index = parent.Children.FindIndex(child =>
+            string.Compare(child.Label, service.Label, StringComparison.OrdinalIgnoreCase) > 0);
+        if (index < 0) parent.Children.Add(service);
+        else parent.Children.Insert(index, service);
+    }
+
+    private static List<ConsolePublicationNode> Ordered(List<ConsolePublicationNode> children) =>
+        children.OrderBy(node => node.Kind).ThenBy(node => node.Label, StringComparer.OrdinalIgnoreCase).ToList();
 
     private ConsolePublicationNode GetOrAddServiceParent(HonuaAdminServiceSummary service, Dictionary<string, ConsolePublicationNode> folders)
     {
