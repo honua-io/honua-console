@@ -11,7 +11,7 @@
             <div class="console-tree-toolbar">
                 <label for="console-tree-filter">Filter services</label>
                 <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter"
-                       @oninput="FilterChanged" disabled="@(_loading || _servicesRead?.IsAllowed != true)" data-tree-filter />
+                       @oninput="FilterChanged" disabled="@(_loading || Source is UnsupportedConsolePublicationNavigationSource)" data-tree-filter />
                 @if (Source is not UnsupportedConsolePublicationNavigationSource)
                 {
                     <button type="button" class="console-button console-button-secondary" aria-disabled="@(_loading ? "true" : "false")" @onclick="RefreshAsync">Refresh services</button>
@@ -35,6 +35,8 @@
     private int _authorityRevision;
     private int _locationRevision;
     private bool _loading = true;
+    private HonuaAdminCatalogQuery _catalogQuery = HonuaAdminCatalogQuery.First;
+    private bool _appendNextPage;
     private bool _disposed;
     private IConsoleCapabilityManifest? _capabilities;
     private IConsolePublicationNavigationSource Source => Services.GetService<IConsolePublicationNavigationSource>()
@@ -60,7 +62,8 @@
     private ConsolePublicationNavigationReadState ReadState => new()
     {
         Loading = _loading, ServicesRead = _servicesRead,
-        CanConnectEnvironment = Source is UnsupportedConsolePublicationNavigationSource
+        CanConnectEnvironment = Source is UnsupportedConsolePublicationNavigationSource,
+        Retry = EventCallback.Factory.Create(this, RetryCatalogAsync)
     };
 
     protected override void OnInitialized()
@@ -101,16 +104,44 @@
     {
         if (_disposed) return;
         ResetReadState();
-        var revision = _authorityRevision;
         await InvokeAsync(StateHasChanged);
-        var result = await ConsoleReadBudget.RunAsync(
-            token => Source.ReadServicesAsync(HonuaAdminCatalogQuery.First, token), ConsoleReadBudget.Default,
-            "Service navigation is unavailable. Retry when the server is reachable.", _authorityLifetime.Token);
-        if (_disposed || revision != _authorityRevision) return;
-        _servicesRead = result;
-        _tree.Load(result.Value ?? new HonuaAdminServicePage(), _environmentLabel);
-        _tree.RevealPath(CurrentPath);
+        if (await ReadCatalogAsync(HonuaAdminCatalogQuery.First, append: false, filterRevision: null))
+            _tree.RevealPath(CurrentPath);
         _loading = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task<bool> ReadCatalogAsync(HonuaAdminCatalogQuery query, bool append, int? filterRevision)
+    {
+        var authorityRevision = _authorityRevision;
+        var result = await ConsoleReadBudget.RunAsync(
+            token => Source.ReadServicesAsync(query, token), ConsoleReadBudget.Default,
+            "Service navigation is unavailable. Retry when the server is reachable.", _authorityLifetime.Token);
+        if (_disposed || authorityRevision != _authorityRevision) return false;
+        if (filterRevision is { } expected && expected != _filterRevision) return false;
+        _catalogQuery = query;
+        _appendNextPage = append;
+        _servicesRead = result;
+        if (!result.IsAllowed || result.Value is null) return false;
+        if (append) _tree.Append(result.Value);
+        else _tree.Load(result.Value, _environmentLabel);
+        return true;
+    }
+
+    private async Task RetryCatalogAsync()
+    {
+        if (_disposed || _loading) return;
+        var append = _appendNextPage;
+        if (await ReadCatalogAsync(_catalogQuery, append, _filterRevision))
+        {
+            if (!append)
+            {
+                if (!string.IsNullOrWhiteSpace(_catalogQuery.NameQuery))
+                    _tree.SetFilter(_catalogQuery.NameQuery);
+                _tree.RevealPath(CurrentPath);
+            }
+            _loading = false;
+        }
         await InvokeAsync(StateHasChanged);
     }
 
@@ -207,23 +238,26 @@
         var filterRevision = ++_filterRevision;
         _tree.SetFilter(filter);
         var nameQuery = string.IsNullOrWhiteSpace(filter) ? null : filter.Trim();
-        var result = await ConsoleReadBudget.RunAsync(
-            token => Source.ReadServicesAsync(HonuaAdminCatalogQuery.First with { NameQuery = nameQuery }, token),
-            ConsoleReadBudget.Default,
-            "Service navigation is unavailable. Retry when the server is reachable.",
-            _authorityLifetime.Token);
         if (_disposed || revision != _authorityRevision || filterRevision != _filterRevision) return;
-        if (result.IsAllowed && result.Value is not null)
+        if (await ReadCatalogAsync(HonuaAdminCatalogQuery.First with { NameQuery = nameQuery }, append: false, filterRevision))
         {
-            _servicesRead = result;
-            _tree.Load(result.Value, _environmentLabel);
             _tree.SetFilter(filter);
             _tree.RevealPath(CurrentPath);
         }
         await InvokeAsync(StateHasChanged);
     }
     private void ShowFirstPage(ConsolePublicationNode node) => _tree.ShowFirstPage(node);
-    private void ShowMore(ConsolePublicationNode node) => _tree.ShowMore(node);
+    private async Task ShowMore(ConsolePublicationNode node)
+    {
+        if (!_tree.HasHiddenLoadedChildren(node) && _tree.HasUnloadedServices
+            && !await ReadCatalogAsync(_catalogQuery.Next(), append: true, _filterRevision))
+        {
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+        _tree.ShowMore(node);
+        await InvokeAsync(StateHasChanged);
+    }
     private async Task ReconcileLocationAsync()
     {
         await CheckAuthorityAsync();

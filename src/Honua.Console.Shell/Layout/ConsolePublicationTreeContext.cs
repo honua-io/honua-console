@@ -14,7 +14,10 @@ public sealed class ConsolePublicationTreeContext
     public EventCallback<ConsolePublicationNode> ShowMore { get; init; }
 
     public IEnumerable<ConsolePublicationNode> PagedParents => Tree.VisibleNodes()
-        .Where(node => node.Expanded && (node.VisibleOffset > 0 || Tree.MatchingChildren(node).Count > node.VisibleOffset + node.VisibleLimit));
+        .Where(node => node.Expanded && (node.VisibleOffset > 0 || Tree.HasHiddenLoadedChildren(node) || OffersMoreServices(node)));
+
+    public bool OffersMoreServices(ConsolePublicationNode node) =>
+        node.Kind == ConsolePublicationNodeKind.Environment && Tree.HasUnloadedServices && !Tree.HasHiddenLoadedChildren(node);
 
     public ConsolePublicationTreePlacement ChildPlacement(ConsolePublicationNode parent, ConsolePublicationTreePlacement placement, int index) => new()
     {

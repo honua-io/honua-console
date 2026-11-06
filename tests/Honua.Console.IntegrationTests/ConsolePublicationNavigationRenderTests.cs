@@ -19,7 +19,8 @@ public sealed class ConsolePublicationNavigationRenderTests
         tree.WaitForAssertion(() => Assert.Equal(26, tree.FindAll("[role='treeitem']").Count));
         Assert.Equal(0, source.ChildReads);
         Assert.Equal(0, source.ConnectionReads);
-        Assert.Equal("500", tree.FindAll("[role='treeitem']")[1].GetAttribute("aria-setsize"));
+        Assert.Equal("100", tree.FindAll("[role='treeitem']")[1].GetAttribute("aria-setsize"));
+        Assert.Contains("500 service names and 5000 layers", tree.Markup);
         tree.Find("[data-tree-more]").Click();
         Assert.Equal(51, tree.FindAll("[role='treeitem']").Count);
         tree.Find("input").Input("service-499");
@@ -158,6 +159,43 @@ public sealed class ConsolePublicationNavigationRenderTests
     }
 
     [Fact]
+    public void ShowMoreLoadsTheNextServicePageWhenTheFirstPageIsVisible()
+    {
+        using var context = Context();
+        var source = new NavigationSource();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
+        for (var click = 0; click < 3; click++) tree.Find("[data-tree-more='environment']").Click();
+        Assert.Equal(1, source.ServiceReads);
+        Assert.Equal(101, tree.FindAll("[role='treeitem']").Count);
+        tree.Find("[data-tree-more='environment']").Click();
+        tree.WaitForAssertion(() => Assert.Equal(2, source.ServiceReads));
+        Assert.Equal(2, source.LastQuery.Page);
+        Assert.Contains("service-100", tree.Markup);
+    }
+
+    [Fact]
+    public void FailedSearchShowsTheFailureAndRetryRestoresTheCatalog()
+    {
+        using var context = Context();
+        var source = new NavigationSource();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
+        source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Denied(
+            OperateSectionStatus.Forbidden, "Service navigation: Forbidden.");
+        tree.Find("input").Input("secret");
+        tree.WaitForAssertion(() => Assert.Contains("Forbidden", tree.Markup));
+        Assert.Empty(tree.FindAll("[role='tree']"));
+        Assert.False(tree.Find("input").HasAttribute("disabled"));
+        source.FailNext = null;
+        tree.Find("[data-tree-retry]").Click();
+        tree.WaitForAssertion(() => Assert.Contains("No services match this filter", tree.Markup));
+        Assert.Equal(HonuaAdminCatalogQuery.First with { NameQuery = "secret" }, source.LastQuery);
+    }
+
+    [Fact]
     public async Task AuthorityChangeRejectsDelayedChildrenFromThePreviousOperator()
     {
         using var context = new BunitContext();
@@ -271,6 +309,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     private sealed class NavigationSource : IConsolePublicationNavigationSource
     {
         public IReadOnlyList<HonuaAdminServiceSummary>? ServiceSummaries { get; init; }
+        public OperateSectionResult<HonuaAdminServicePage>? FailNext { get; set; }
         public int ServiceReads { get; private set; }
         public HonuaAdminCatalogQuery LastQuery { get; private set; }
         public TaskCompletionSource<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>>? PendingLayers { get; set; }
@@ -286,6 +325,12 @@ public sealed class ConsolePublicationNavigationRenderTests
         {
             ServiceReads++;
             LastQuery = query;
+            if (FailNext is { } failed)
+            {
+                FailNext = null;
+                return Task.FromResult(failed);
+            }
+
             var services = ServiceSummaries?.ToArray() ?? Enumerable.Range(0, 500)
                 .Select(index => new HonuaAdminServiceSummary { ServiceName = $"service-{index:D3}", LayerCount = 10 })
                 .ToArray();
@@ -296,11 +341,15 @@ public sealed class ConsolePublicationNavigationRenderTests
                     || service.Title?.Contains(query.NameQuery, StringComparison.OrdinalIgnoreCase) == true
                     || service.PublicName?.Contains(query.NameQuery, StringComparison.OrdinalIgnoreCase) == true).ToArray();
             }
+
+            var pageSize = query.PageSize <= 0 ? HonuaAdminCatalogQuery.MaxPageSize : query.PageSize;
+            var start = Math.Max(0, query.Page - 1) * pageSize;
+            var pageItems = services.Skip(start).Take(pageSize).ToArray();
             return Task.FromResult(OperateSectionResult<HonuaAdminServicePage>.Allowed(new HonuaAdminServicePage
             {
-                Items = services,
+                Items = pageItems,
                 Page = query.Page,
-                PageSize = query.PageSize,
+                PageSize = pageSize,
                 Total = services.Length,
                 LayerTotal = services.Sum(service => service.LayerCount)
             }));
