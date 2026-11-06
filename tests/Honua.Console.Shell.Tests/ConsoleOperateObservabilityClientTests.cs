@@ -1058,8 +1058,10 @@ public sealed class ConsoleOperateObservabilityClientTests
         Assert.Contains("Geofence zone store is unavailable", result.Value.ZonesMessage, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task RulesSurfaceScopesEveryReadToReturnedServicesAndEscapesNames()
+    [Theory]
+    [InlineData("{\"success\":true,\"data\":[{\"serviceName\":\"svc-a\"},{\"serviceName\":\"folder/harbor & coast\"}]}")]
+    [InlineData("{\"success\":true,\"data\":{\"items\":[{\"serviceName\":\"svc-a\"},{\"serviceName\":\"folder/harbor & coast\"}],\"page\":1,\"pageSize\":100,\"total\":2}}")]
+    public async Task RulesSurfaceScopesReadsToServicesFromEitherCatalogShape(string serviceCatalogJson)
     {
         var names = new[] { "svc-a", "folder/harbor & coast" };
         var handler = new RecordingHandler(request =>
@@ -1067,7 +1069,10 @@ public sealed class ConsoleOperateObservabilityClientTests
             var uri = request.RequestUri!;
             if (uri.AbsolutePath == "/api/v1/admin/services/")
             {
-                return ServicesResponse(names);
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(serviceCatalogJson, Encoding.UTF8, "application/json")
+                };
             }
 
             Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
@@ -1092,6 +1097,8 @@ public sealed class ConsoleOperateObservabilityClientTests
 
         Assert.Equal(OperateSectionStatus.Allowed, result.Status);
         Assert.Equal(2, result.Value!.Zones.Count);
+        Assert.Equal(names, result.Value.Zones.Select(zone => zone.ServiceId));
+        Assert.Single(handler.Requests, request => request.RequestUri!.AbsolutePath == "/api/v1/admin/services/");
         Assert.Equal(5, handler.Requests.Count);
     }
 
