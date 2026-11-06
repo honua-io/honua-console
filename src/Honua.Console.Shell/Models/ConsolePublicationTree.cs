@@ -47,13 +47,16 @@ public sealed class ConsolePublicationTree
     };
     public string Filter { get; set; } = "";
     public int ServiceCount { get; private set; }
+    public int LayerTotal { get; private set; }
     public int LoadedLayerCount => Descendants(Root).Count(node => node.Kind == ConsolePublicationNodeKind.Layer);
 
-    public void Load(IReadOnlyList<HonuaAdminServiceSummary> services, string environmentLabel)
+    public void Load(HonuaAdminServicePage page, string environmentLabel)
     {
+        var services = page.Items ?? [];
         Filter = string.Empty;
         _unfilteredExpansion = null;
-        ServiceCount = services.Count;
+        ServiceCount = page.Total;
+        LayerTotal = page.LayerTotal;
         Root = new()
         {
             Key = "environment",
@@ -62,7 +65,7 @@ public sealed class ConsolePublicationTree
             Href = "/",
             Expanded = true,
             ChildrenLoaded = true,
-            ReportedCount = services.Count
+            ReportedCount = page.Total
         };
         var folders = new Dictionary<string, ConsolePublicationNode>(StringComparer.Ordinal);
         foreach (var service in services.OrderBy(DisplayName, StringComparer.OrdinalIgnoreCase))

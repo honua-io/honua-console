@@ -71,9 +71,9 @@ public interface IHonuaAdminLayerMetadataClient
 
 public interface IHonuaAdminLayerPublishingClient
 {
-    Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary[]>> ListConnectionLayersAsync(
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerPage>> ListConnectionLayersAsync(
         string connectionId,
-        string? serviceName = null,
+        HonuaAdminLayerListRequest request,
         CancellationToken cancellationToken = default);
 
     Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary>> PublishLayerAsync(
@@ -88,7 +88,8 @@ public interface IHonuaAdminLayerPublishingClient
         string? serviceName = null,
         CancellationToken cancellationToken = default);
 
-    Task<HonuaAdminEndpointResult<HonuaAdminServiceSummary[]>> ListServicesAsync(
+    Task<HonuaAdminEndpointResult<HonuaAdminServicePage>> ListServicesAsync(
+        HonuaAdminCatalogQuery query,
         CancellationToken cancellationToken = default);
 }
 

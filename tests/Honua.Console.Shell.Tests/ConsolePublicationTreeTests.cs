@@ -64,7 +64,7 @@ public sealed class ConsolePublicationTreeTests
             "Honua.Console.Shell.Tests.Fixtures.service-navigation-folders.json")!;
         var summaries = JsonSerializer.Deserialize<HonuaAdminServiceSummary[]>(stream, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
         var tree = new ConsolePublicationTree();
-        tree.Load(summaries, "Synthetic environment");
+        tree.Load(Page(summaries), "Synthetic environment");
         var folders = tree.Root.Children.Where(node => node.Kind == ConsolePublicationNodeKind.Folder).ToArray();
         Assert.Equal(["Internal", "Public"], folders.Select(node => node.Label));
         Assert.Equal("Parcels", Assert.Single(folders[0].Children).Label);
@@ -79,7 +79,7 @@ public sealed class ConsolePublicationTreeTests
     public void OpaqueServiceNamesCannotCollideWithDescendantKeySeparators()
     {
         var tree = new ConsolePublicationTree();
-        tree.Load([new() { ServiceName = "roads:layer:connection-layer-7", LayerCount = 1 }], "Services");
+        tree.Load(Page([new() { ServiceName = "roads:layer:connection-layer-7", LayerCount = 1 }]), "Services");
         var service = Assert.Single(tree.Root.Children);
         Assert.Equal("service:roads%3Alayer%3Aconnection-layer-7", service.Key);
         Assert.Equal("roads:layer:connection-layer-7", service.ServiceName);
@@ -87,10 +87,28 @@ public sealed class ConsolePublicationTreeTests
     }
 
     [Fact]
+    public void TreeCountsComeFromThePageRatherThanTheLoadedItems()
+    {
+        var tree = new ConsolePublicationTree();
+        tree.Load(new HonuaAdminServicePage
+        {
+            Items = [new() { ServiceName = "roads", LayerCount = 4 }],
+            Page = 1,
+            PageSize = 100,
+            Total = 2000,
+            LayerTotal = 2000
+        }, "Services");
+        Assert.Equal(2000, tree.ServiceCount);
+        Assert.Equal(2000, tree.LayerTotal);
+        Assert.Equal(2000, tree.Root.ReportedCount);
+        Assert.Single(tree.Root.Children);
+    }
+
+    [Fact]
     public void FilteringLoadedLayersKeepsTheirAncestorsWithoutInventingUnloadedMatches()
     {
         var tree = new ConsolePublicationTree();
-        tree.Load([new() { ServiceName = "roads", LayerCount = 10 }, new() { ServiceName = "water", LayerCount = 40 }], "Services");
+        tree.Load(Page([new() { ServiceName = "roads", LayerCount = 10 }, new() { ServiceName = "water", LayerCount = 40 }]), "Services");
         tree.Root.Children[0].Children.Add(new() { Key = "layer-one", Label = "Bridges", Kind = ConsolePublicationNodeKind.Layer });
         tree.SetFilter("bridge");
         Assert.Equal("roads", Assert.Single(tree.VisibleChildren(tree.Root)).Label);
@@ -108,12 +126,21 @@ public sealed class ConsolePublicationTreeTests
     private static ConsolePublicationTree CreateLargeTree(int layerCount)
     {
         var tree = new ConsolePublicationTree();
-        tree.Load(Enumerable.Range(0, 500).Select(index => new HonuaAdminServiceSummary
+        tree.Load(Page(Enumerable.Range(0, 500).Select(index => new HonuaAdminServiceSummary
         {
             ServiceName = $"service-{index:D3}",
             LayerCount = layerCount
-        }).ToArray(), "Synthetic environment");
+        }).ToArray()), "Synthetic environment");
         return tree;
     }
+
+    private static HonuaAdminServicePage Page(IReadOnlyList<HonuaAdminServiceSummary> services) => new()
+    {
+        Items = services.ToArray(),
+        Page = 1,
+        PageSize = HonuaAdminCatalogQuery.MaxPageSize,
+        Total = services.Count,
+        LayerTotal = services.Sum(service => service.LayerCount),
+    };
 
 }

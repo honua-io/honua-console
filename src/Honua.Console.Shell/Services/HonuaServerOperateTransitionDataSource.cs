@@ -181,7 +181,11 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         LoadServiceSummariesAsync(CancellationToken cancellationToken)
     {
         var states = new List<OperateCapabilityState>();
-        var serviceResult = await _client.ListServicesAsync(cancellationToken).ConfigureAwait(false);
+        var serviceResult = await HonuaAdminCatalogReader.ReadAllAsync(
+            (query, token) => _client.ListServicesAsync(query, token),
+            page => page.Items,
+            page => page.Total,
+            cancellationToken).ConfigureAwait(false);
         AddIssue(states, "Services", serviceResult.Issue);
         var summaries = (serviceResult.Data ?? [])
             .Where(service => !string.IsNullOrWhiteSpace(service.ServiceName))
@@ -245,7 +249,14 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         // thundering herd against the admin API). Cap concurrency the way the observability client does.
         var layerResults = await BoundedFanOut.RunAsync(
             layerScopes,
-            (scope, token) => _client.ListConnectionLayersAsync(scope.Connection.Id, scope.ServiceName, token),
+            (scope, token) => HonuaAdminCatalogReader.ReadAllAsync(
+                (query, readToken) => _client.ListConnectionLayersAsync(
+                    scope.Connection.Id,
+                    new HonuaAdminLayerListRequest(scope.ServiceName, query),
+                    readToken),
+                page => page.Items,
+                page => page.Total,
+                token),
             cancellationToken: cancellationToken).ConfigureAwait(false);
 
         var rows = new List<LayerRow>();

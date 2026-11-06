@@ -7,13 +7,14 @@ public sealed class ServerConsolePublicationNavigationSource(IHonuaAdminOperateC
 {
     private const int ConcurrentConnectionReads = 2;
 
-    public async Task<OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadServicesAsync(CancellationToken cancellationToken)
+    public async Task<OperateSectionResult<HonuaAdminServicePage>> ReadServicesAsync(
+        HonuaAdminCatalogQuery query, CancellationToken cancellationToken)
     {
-        var result = await client.ListServicesAsync(cancellationToken);
-        if (result.Issue is { } issue) return Denied<IReadOnlyList<HonuaAdminServiceSummary>>(issue);
-        if (result.Data is null || result.Data.Any(service => string.IsNullOrWhiteSpace(service.ServiceName)))
-            return Unreadable<IReadOnlyList<HonuaAdminServiceSummary>>();
-        return OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Allowed(result.Data);
+        var result = await client.ListServicesAsync(query, cancellationToken);
+        if (result.Issue is { } issue) return Denied<HonuaAdminServicePage>(issue);
+        if (result.Data is null || (result.Data.Items ?? []).Any(service => string.IsNullOrWhiteSpace(service?.ServiceName)))
+            return Unreadable<HonuaAdminServicePage>();
+        return OperateSectionResult<HonuaAdminServicePage>.Allowed(result.Data);
     }
 
     public async Task<OperateSectionResult<IReadOnlyList<string>>> ReadConnectionsAsync(CancellationToken cancellationToken)
@@ -31,7 +32,12 @@ public sealed class ServerConsolePublicationNavigationSource(IHonuaAdminOperateC
             return OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>.Denied(OperateSectionStatus.Unsupported,
                 "The server returned no connections for browsing this service's layers.");
         var reads = await BoundedFanOut.RunAsync(connectionKeys,
-            (connectionKey, token) => client.ListConnectionLayersAsync(connectionKey, serviceName, token), maxConcurrency: ConcurrentConnectionReads, cancellationToken: cancellationToken);
+            (connectionKey, token) => HonuaAdminCatalogReader.ReadAllAsync(
+                (page, readToken) => client.ListConnectionLayersAsync(connectionKey, new HonuaAdminLayerListRequest(serviceName, page), readToken),
+                page => page.Items,
+                page => page.Total,
+                token),
+            maxConcurrency: ConcurrentConnectionReads, cancellationToken: cancellationToken);
         var layers = new List<ConsolePublicationLayer>();
         for (var index = 0; index < reads.Length; index++)
             layers.AddRange(ProjectServiceLayers(connectionKeys[index], reads[index].Data ?? [], serviceName));

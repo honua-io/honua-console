@@ -1115,10 +1115,10 @@ public sealed class ConsoleOperateObservabilityClientTests
     public async Task RulesSurfaceDoesNotTreatInvalidServiceCatalogAsEmptySuccess(bool success, bool missingData)
     {
         var handler = new RecordingHandler(_ => JsonResponse(
-            new ConsoleApiEnvelope<HonuaAdminServiceSummary[]>
+            new ConsoleApiEnvelope<HonuaAdminServicePage>
             {
                 Success = success,
-                Data = missingData ? null : [],
+                Data = missingData ? null : new HonuaAdminServicePage(),
                 Message = "Catalog unavailable"
             }, OperateObservabilityJsonContext.Default.AdminServiceListEnvelope));
 
@@ -1135,10 +1135,16 @@ public sealed class ConsoleOperateObservabilityClientTests
     public async Task RulesSurfaceRejectsServiceCatalogWithoutExplicitNames(string? serviceName)
     {
         var handler = new RecordingHandler(_ => JsonResponse(
-            new ConsoleApiEnvelope<HonuaAdminServiceSummary[]>
+            new ConsoleApiEnvelope<HonuaAdminServicePage>
             {
                 Success = true,
-                Data = [new HonuaAdminServiceSummary { ServiceName = serviceName }]
+                Data = new HonuaAdminServicePage
+                {
+                    Items = [new HonuaAdminServiceSummary { ServiceName = serviceName }],
+                    Page = 1,
+                    PageSize = HonuaAdminCatalogQuery.MaxPageSize,
+                    Total = 1
+                }
             }, OperateObservabilityJsonContext.Default.AdminServiceListEnvelope));
 
         var result = await CreateClient(handler).GetRulesAsync();
@@ -1263,10 +1269,16 @@ public sealed class ConsoleOperateObservabilityClientTests
     }
 
     private static HttpResponseMessage ServicesResponse(params string[] names) => JsonResponse(
-        new ConsoleApiEnvelope<HonuaAdminServiceSummary[]>
+        new ConsoleApiEnvelope<HonuaAdminServicePage>
         {
             Success = true,
-            Data = names.Select(name => new HonuaAdminServiceSummary { ServiceName = name }).ToArray()
+            Data = new HonuaAdminServicePage
+            {
+                Items = names.Select(name => new HonuaAdminServiceSummary { ServiceName = name }).ToArray(),
+                Page = 1,
+                PageSize = HonuaAdminCatalogQuery.MaxPageSize,
+                Total = names.Length
+            }
         }, OperateObservabilityJsonContext.Default.AdminServiceListEnvelope);
 
     private static HttpConsoleOperateObservabilityClient CreateClient(HttpMessageHandler handler)

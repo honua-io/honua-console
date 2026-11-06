@@ -222,24 +222,13 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
     {
         // Use only the service catalog returned to this authenticated caller. Never fall back to
         // the unscoped alert endpoints: they deliberately require an explicit serviceId.
-        var servicesFetch = await FetchAsync(
-            OperateAdminRoutes.Services,
-            OperateObservabilityJsonContext.Default.AdminServiceListEnvelope,
-            cancellationToken).ConfigureAwait(false);
-        if (!servicesFetch.Ok)
+        var servicesRead = await ReadServiceCatalogAsync(cancellationToken).ConfigureAwait(false);
+        if (!servicesRead.IsAllowed)
         {
-            return OperateSectionResult<OperateRulesView>.Denied(servicesFetch.Status, servicesFetch.Message);
+            return OperateSectionResult<OperateRulesView>.Denied(servicesRead.Status, servicesRead.Message);
         }
 
-        if (!servicesFetch.Value!.Success || servicesFetch.Value.Data is null ||
-            servicesFetch.Value.Data.Any(service => service is null || string.IsNullOrWhiteSpace(service.ServiceName)))
-        {
-            return OperateSectionResult<OperateRulesView>.Denied(
-                OperateSectionStatus.Unavailable,
-                FirstNonBlank(servicesFetch.Value.Message, "The server did not return an available service catalog."));
-        }
-
-        var services = servicesFetch.Value.Data.Select(service => service.ServiceName!)
+        var services = servicesRead.Value!.Select(service => service.ServiceName!)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var scoped = await BoundedFanOutAsync(services, async service =>
         {
@@ -1140,6 +1129,43 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
                 };
             },
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadServiceCatalogAsync(
+        CancellationToken cancellationToken)
+    {
+        var collected = new List<HonuaAdminServiceSummary>();
+        var query = HonuaAdminCatalogQuery.First;
+        while (true)
+        {
+            var fetch = await FetchAsync(
+                query.AppendTo(OperateAdminRoutes.Services),
+                OperateObservabilityJsonContext.Default.AdminServiceListEnvelope,
+                cancellationToken).ConfigureAwait(false);
+            if (!fetch.Ok)
+            {
+                return OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Denied(fetch.Status, fetch.Message);
+            }
+
+            var envelope = fetch.Value;
+            var pageItems = envelope?.Data?.Items ?? [];
+            if (envelope is null || !envelope.Success || envelope.Data is null ||
+                pageItems.Any(service => string.IsNullOrWhiteSpace(service?.ServiceName)))
+            {
+                return OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Denied(
+                    OperateSectionStatus.Unavailable,
+                    FirstNonBlank(envelope?.Message, "The server did not return an available service catalog."));
+            }
+
+            collected.AddRange(pageItems);
+            var pageCount = Math.Max(1, (envelope.Data.Total + query.PageSize - 1) / query.PageSize);
+            if (pageItems.Length == 0 || collected.Count >= envelope.Data.Total || query.Page >= pageCount)
+            {
+                return OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Allowed(collected);
+            }
+
+            query = query.Next();
+        }
     }
 
     private async Task<FetchResult<T>> FetchAsync<T>(

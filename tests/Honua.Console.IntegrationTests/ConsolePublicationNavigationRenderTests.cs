@@ -23,10 +23,11 @@ public sealed class ConsolePublicationNavigationRenderTests
         tree.Find("[data-tree-more]").Click();
         Assert.Equal(51, tree.FindAll("[role='treeitem']").Count);
         tree.Find("input").Input("service-499");
+        tree.WaitForAssertion(() => Assert.Contains("1 service name and 10 layers", tree.Markup));
         Assert.Equal(2, tree.FindAll("[role='treeitem']").Count);
         Assert.Equal("service-499 10 layers", tree.FindAll("[role='treeitem']")[1].GetAttribute("aria-label"));
         Assert.Equal(0, source.ChildReads);
-        Assert.Contains("500 service names and 0 loaded layers", tree.Markup);
+        Assert.Equal("service-499", source.LastQuery.NameQuery);
     }
 
     [Fact]
@@ -50,7 +51,10 @@ public sealed class ConsolePublicationNavigationRenderTests
         tree.Find("[data-publication-key='service:service-000'] [data-tree-expand]").Click();
         Assert.Equal(1, source.ChildReads);
         tree.Find("input").Input("Bridges");
-        Assert.Equal(3, tree.FindAll("[role='treeitem']").Count);
+        tree.WaitForAssertion(() => Assert.Contains("No services match this filter.", tree.Markup));
+        Assert.Equal("Bridges", source.LastQuery.NameQuery);
+        Assert.Equal(1, source.ChildReads);
+        Assert.DoesNotContain("Bridges LineString", tree.Markup);
     }
 
     [Fact]
@@ -72,11 +76,11 @@ public sealed class ConsolePublicationNavigationRenderTests
         Assert.Equal(1, source.ServiceReads);
         Assert.Equal(1, source.ChildReads);
         tree.Find("input").Input("service-499");
+        tree.WaitForAssertion(() => Assert.Contains("1 service name and 10 layers", tree.Markup));
         await tree.InvokeAsync(() => capabilities.RefreshAsync());
         Assert.Equal("service-499", tree.Find("input").GetAttribute("value"));
-        Assert.Equal(1, source.ServiceReads);
+        Assert.Equal(2, source.ServiceReads);
         Assert.Equal(1, source.ConnectionReads);
-        Assert.Contains("500 service names and 1 loaded layer", tree.Markup);
     }
 
     [Fact]
@@ -172,7 +176,7 @@ public sealed class ConsolePublicationNavigationRenderTests
         await expansion;
         tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
         Assert.Empty(tree.FindAll("a[href='/operate/layers/connection-one-layer-7']"));
-        Assert.Contains("500 service names and 0 loaded layers", tree.Markup);
+        Assert.Contains("500 service names and 5000 layers", tree.Markup);
     }
 
     [Fact]
@@ -268,6 +272,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     {
         public IReadOnlyList<HonuaAdminServiceSummary>? ServiceSummaries { get; init; }
         public int ServiceReads { get; private set; }
+        public HonuaAdminCatalogQuery LastQuery { get; private set; }
         public TaskCompletionSource<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>>? PendingLayers { get; set; }
         public IReadOnlyList<string> ConnectionKeys { get; set; } = ["connection-one"];
         public List<IReadOnlyList<string>> RequestedConnectionSets { get; } = [];
@@ -276,11 +281,29 @@ public sealed class ConsolePublicationNavigationRenderTests
         public List<string> RequestedServices { get; } = [];
         public OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>> LayerResult { get; set; } =
             OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>.Allowed([new("connection-one-layer-7", "Bridges", "LineString")]);
-        public Task<OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadServicesAsync(CancellationToken cancellationToken)
+        public Task<OperateSectionResult<HonuaAdminServicePage>> ReadServicesAsync(
+            HonuaAdminCatalogQuery query, CancellationToken cancellationToken)
         {
             ServiceReads++;
-            return Task.FromResult(OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Allowed(ServiceSummaries ?? Enumerable.Range(0, 500)
-                .Select(index => new HonuaAdminServiceSummary { ServiceName = $"service-{index:D3}", LayerCount = 10 }).ToArray()));
+            LastQuery = query;
+            var services = ServiceSummaries?.ToArray() ?? Enumerable.Range(0, 500)
+                .Select(index => new HonuaAdminServiceSummary { ServiceName = $"service-{index:D3}", LayerCount = 10 })
+                .ToArray();
+            if (!string.IsNullOrWhiteSpace(query.NameQuery))
+            {
+                services = services.Where(service =>
+                    service.ServiceName?.Contains(query.NameQuery, StringComparison.OrdinalIgnoreCase) == true
+                    || service.Title?.Contains(query.NameQuery, StringComparison.OrdinalIgnoreCase) == true
+                    || service.PublicName?.Contains(query.NameQuery, StringComparison.OrdinalIgnoreCase) == true).ToArray();
+            }
+            return Task.FromResult(OperateSectionResult<HonuaAdminServicePage>.Allowed(new HonuaAdminServicePage
+            {
+                Items = services,
+                Page = query.Page,
+                PageSize = query.PageSize,
+                Total = services.Length,
+                LayerTotal = services.Sum(service => service.LayerCount)
+            }));
         }
         public Task<OperateSectionResult<IReadOnlyList<string>>> ReadConnectionsAsync(CancellationToken cancellationToken)
         {

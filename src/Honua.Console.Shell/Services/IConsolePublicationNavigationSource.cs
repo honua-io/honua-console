@@ -6,7 +6,8 @@ public sealed record ConsolePublicationLayer(string ResourceId, string Name, str
 
 public interface IConsolePublicationNavigationSource
 {
-    Task<OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadServicesAsync(CancellationToken cancellationToken);
+    Task<OperateSectionResult<HonuaAdminServicePage>> ReadServicesAsync(
+        HonuaAdminCatalogQuery query, CancellationToken cancellationToken);
     Task<OperateSectionResult<IReadOnlyList<string>>> ReadConnectionsAsync(CancellationToken cancellationToken);
     Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>> ReadLayersAsync(
         string serviceName, IReadOnlyList<string> connectionKeys, CancellationToken cancellationToken);
@@ -17,8 +18,9 @@ public sealed class UnsupportedConsolePublicationNavigationSource : IConsolePubl
     private static Task<OperateSectionResult<T>> Missing<T>() => Task.FromResult(
         OperateSectionResult<T>.Denied(OperateSectionStatus.Missing, "Connect an environment to browse services."));
 
-    public Task<OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadServicesAsync(CancellationToken cancellationToken) =>
-        Missing<IReadOnlyList<HonuaAdminServiceSummary>>();
+    public Task<OperateSectionResult<HonuaAdminServicePage>> ReadServicesAsync(
+        HonuaAdminCatalogQuery query, CancellationToken cancellationToken) =>
+        Missing<HonuaAdminServicePage>();
     public Task<OperateSectionResult<IReadOnlyList<string>>> ReadConnectionsAsync(CancellationToken cancellationToken) =>
         Missing<IReadOnlyList<string>>();
     public Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>> ReadLayersAsync(

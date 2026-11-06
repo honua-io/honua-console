@@ -257,9 +257,9 @@ public sealed class OperateObservabilityTestcontainersTests
             Enabled = true
         });
         Assert.True(published.Succeeded, published.Detail);
-        var catalog = await admin.ListServicesAsync();
+        var catalog = await admin.ListServicesAsync(HonuaAdminCatalogQuery.First);
         Assert.True(catalog.Data is not null, catalog.Issue?.Detail);
-        Assert.Contains(catalog.Data!, service => service.ServiceName == FixtureServiceId);
+        Assert.Contains(catalog.Data!.Items, service => service.ServiceName == FixtureServiceId);
     }
 
     private static async Task<JsonElement> SeedOperateFixtureAsync(HttpClient client)
