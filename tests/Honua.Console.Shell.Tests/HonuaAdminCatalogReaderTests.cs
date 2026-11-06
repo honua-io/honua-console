@@ -64,6 +64,55 @@ public sealed class HonuaAdminCatalogReaderTests
     }
 
     [Fact]
+    public async Task QuotedServiceTotalWalksTheNextPage()
+    {
+        var calls = 0;
+        using var client = Client(_ =>
+        {
+            calls++;
+            var items = calls == 1 ? HundredServices() : """[{"serviceName":"last"}]""";
+            return PageEnvelope(items, calls, "\"101\"");
+        });
+        var all = await ReadAllServices(client);
+        Assert.True(all.Data is not null, all.Issue?.Detail);
+        Assert.Equal(101, all.Data!.Count);
+        Assert.Equal("last", all.Data[^1].ServiceName);
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task MalformedServiceTotalIsRejected()
+    {
+        using var client = Client(_ => """
+            {"success":true,"data":{"items":[{"serviceName":"roads"}],"page":1,"pageSize":100,"total":true}}
+            """);
+        var page = await client.ListServicesAsync(HonuaAdminCatalogQuery.First);
+        Assert.Null(page.Data);
+        Assert.NotNull(page.Issue);
+    }
+
+    [Fact]
+    public async Task NullServiceEntryIsRejected()
+    {
+        using var client = Client(_ => """{"success":true,"data":[null]}""");
+        var page = await client.ListServicesAsync(HonuaAdminCatalogQuery.First);
+        Assert.Null(page.Data);
+        Assert.NotNull(page.Issue);
+    }
+
+    [Fact]
+    public void OperateObservabilityRejectsANullServiceEntry() =>
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize(
+            """{"success":true,"data":[null]}""",
+            OperateObservabilityJsonContext.Default.AdminServiceListEnvelope));
+
+    [Fact]
+    public void OperateObservabilityRejectsAQuotedTotal() =>
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize(
+            """{"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":"101"}}""",
+            OperateObservabilityJsonContext.Default.AdminServiceListEnvelope));
+
+    [Fact]
     public async Task PagedLayerListKeepsTheServerPage()
     {
         using var client = Client(_ => """
@@ -101,6 +150,22 @@ public sealed class HonuaAdminCatalogReaderTests
             CancellationToken.None);
         Assert.True(all.Data is not null, all.Issue?.Detail);
         Assert.Equal(2, all.Data!.Count);
+    }
+
+    private static string PageEnvelope(string items, int page, string totalJson) =>
+        "{\"success\":true,\"data\":{\"items\":" + items
+        + ",\"page\":" + page.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        + ",\"pageSize\":100,\"total\":" + totalJson + "}}";
+
+    private static string HundredServices()
+    {
+        var names = new string[100];
+        for (var index = 0; index < names.Length; index++)
+        {
+            names[index] = "{\"serviceName\":\"s" + index.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\"}";
+        }
+
+        return "[" + string.Join(',', names) + "]";
     }
 
     private static async Task<HonuaAdminEndpointResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadAllServices(

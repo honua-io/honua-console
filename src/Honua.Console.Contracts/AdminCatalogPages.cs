@@ -100,22 +100,29 @@ public static class HonuaAdminCatalogReader
         }
     }
 
-    internal static HonuaAdminServicePage ReadServicePage(JsonElement body) =>
-        Read<HonuaAdminServicePage, HonuaAdminServiceSummary>(body, CompleteServices, ServicePage);
+    internal static HonuaAdminServicePage ReadServicePage(JsonElement body, JsonSerializerOptions options) =>
+        Read<HonuaAdminServicePage, HonuaAdminServiceSummary>(
+            body,
+            CompleteServices,
+            (items, element) => ServicePage(items, element, options));
 
-    internal static HonuaAdminLayerPage ReadLayerPage(JsonElement body) =>
-        Read<HonuaAdminLayerPage, HonuaAdminPublishedLayerSummary>(body, CompleteLayers, LayerPage);
+    internal static HonuaAdminLayerPage ReadLayerPage(JsonElement body, JsonSerializerOptions options) =>
+        Read<HonuaAdminLayerPage, HonuaAdminPublishedLayerSummary>(
+            body,
+            CompleteLayers,
+            (items, element) => LayerPage(items, element, options));
 
     internal static void WriteServicePage(Utf8JsonWriter writer, HonuaAdminServicePage page, JsonSerializerOptions options) =>
-        WritePage(writer, page.Items, new PageNumbers(page.Page, page.PageSize, page.Total, page.LayerTotal), options);
+        new CatalogWriter(writer, options).Write(page.Items, new PageNumbers(page.Page, page.PageSize, page.Total, page.LayerTotal));
 
     internal static void WriteLayerPage(Utf8JsonWriter writer, HonuaAdminLayerPage page, JsonSerializerOptions options) =>
-        WritePage(writer, page.Items, new PageNumbers(page.Page, page.PageSize, page.Total, null), options);
+        new CatalogWriter(writer, options).Write(page.Items, new PageNumbers(page.Page, page.PageSize, page.Total, null));
 
     private static TPage Read<TPage, TItem>(
         JsonElement body,
         Func<TItem[], TPage> completeList,
         Func<TItem[], JsonElement, TPage> page)
+        where TItem : class
     {
         if (body.ValueKind == JsonValueKind.Array)
         {
@@ -141,14 +148,17 @@ public static class HonuaAdminCatalogReader
         LayerTotal = items.Sum(static service => service.LayerCount)
     };
 
-    private static HonuaAdminServicePage ServicePage(HonuaAdminServiceSummary[] items, JsonElement body) => new()
-    {
-        Items = items,
-        Page = Number(body, "page"),
-        PageSize = Number(body, "pageSize"),
-        Total = Number(body, "total"),
-        LayerTotal = Number(body, "layerTotal")
-    };
+    private static HonuaAdminServicePage ServicePage(
+        HonuaAdminServiceSummary[] items,
+        JsonElement body,
+        JsonSerializerOptions options) => new()
+        {
+            Items = items,
+            Page = Number(body, "page", options),
+            PageSize = Number(body, "pageSize", options),
+            Total = Number(body, "total", options),
+            LayerTotal = Number(body, "layerTotal", options)
+        };
 
     private static HonuaAdminLayerPage CompleteLayers(HonuaAdminPublishedLayerSummary[] items) => new()
     {
@@ -158,39 +168,46 @@ public static class HonuaAdminCatalogReader
         Total = items.Length
     };
 
-    private static HonuaAdminLayerPage LayerPage(HonuaAdminPublishedLayerSummary[] items, JsonElement body) => new()
-    {
-        Items = items,
-        Page = Number(body, "page"),
-        PageSize = Number(body, "pageSize"),
-        Total = Number(body, "total")
-    };
+    private static HonuaAdminLayerPage LayerPage(
+        HonuaAdminPublishedLayerSummary[] items,
+        JsonElement body,
+        JsonSerializerOptions options) => new()
+        {
+            Items = items,
+            Page = Number(body, "page", options),
+            PageSize = Number(body, "pageSize", options),
+            Total = Number(body, "total", options)
+        };
 
     private readonly record struct PageNumbers(int Page, int PageSize, int Total, int? LayerTotal);
 
-    private static void WritePage<TItem>(Utf8JsonWriter writer, TItem[] items, PageNumbers numbers, JsonSerializerOptions options)
+    private readonly record struct CatalogWriter(Utf8JsonWriter Json, JsonSerializerOptions Options)
     {
-        writer.WriteStartObject();
-        writer.WritePropertyName(Name(options, "Items"));
-        JsonSerializer.Serialize(writer, items, ItemJson);
-        WriteNumber(writer, options, "Page", numbers.Page);
-        WriteNumber(writer, options, "PageSize", numbers.PageSize);
-        WriteNumber(writer, options, "Total", numbers.Total);
-        if (numbers.LayerTotal is { } layerTotal)
+        public void Write<TItem>(TItem[] items, PageNumbers numbers)
         {
-            WriteNumber(writer, options, "LayerTotal", layerTotal);
+            Json.WriteStartObject();
+            Json.WritePropertyName(Name(Options, "Items"));
+            JsonSerializer.Serialize(Json, items, ItemJson);
+            WriteNumber("Page", numbers.Page);
+            WriteNumber("PageSize", numbers.PageSize);
+            WriteNumber("Total", numbers.Total);
+            if (numbers.LayerTotal is { } layerTotal)
+            {
+                WriteNumber("LayerTotal", layerTotal);
+            }
+
+            Json.WriteEndObject();
         }
 
-        writer.WriteEndObject();
+        private void WriteNumber(string propertyName, int value) =>
+            Json.WriteNumber(Name(Options, propertyName), value);
     }
-
-    private static void WriteNumber(Utf8JsonWriter writer, JsonSerializerOptions options, string propertyName, int value) =>
-        writer.WriteNumber(Name(options, propertyName), value);
 
     private static string Name(JsonSerializerOptions options, string propertyName) =>
         options.PropertyNamingPolicy?.ConvertName(propertyName) ?? propertyName;
 
     private static TItem[] Items<TItem>(JsonElement body)
+        where TItem : class
     {
         if (body.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
         {
@@ -202,18 +219,30 @@ public static class HonuaAdminCatalogReader
             throw new JsonException("An admin catalog list is an array.");
         }
 
-        return body.Deserialize<TItem[]>(ItemJson) ?? [];
+        var items = body.Deserialize<TItem[]>(ItemJson) ?? [];
+        foreach (var item in items)
+        {
+            if (item is null)
+            {
+                throw new JsonException("An admin catalog list entry is missing.");
+            }
+        }
+
+        return items;
     }
 
-    private static int Number(JsonElement body, string name)
+    private static int Number(JsonElement body, string name, JsonSerializerOptions options)
     {
-        if (Property(body, name) is not { } value || value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out var number))
+        if (Property(body, name) is not { } value)
         {
             return 0;
         }
 
-        return number;
+        return value.Deserialize<int>(NumberJson(options.NumberHandling));
     }
+
+    private static JsonSerializerOptions NumberJson(JsonNumberHandling handling) =>
+        handling.HasFlag(JsonNumberHandling.AllowReadingFromString) ? NumbersFromStrings : StrictNumbers;
 
     private static JsonElement? Property(JsonElement body, string name)
     {
@@ -227,6 +256,13 @@ public static class HonuaAdminCatalogReader
 
         return null;
     }
+
+    private static readonly JsonSerializerOptions StrictNumbers = new();
+
+    private static readonly JsonSerializerOptions NumbersFromStrings = new()
+    {
+        NumberHandling = JsonNumberHandling.AllowReadingFromString
+    };
 
     private static readonly JsonSerializerOptions ItemJson = new(JsonSerializerDefaults.Web)
     {
@@ -264,7 +300,7 @@ public sealed class HonuaAdminCatalogPageConverter : JsonConverterFactory
     private sealed class ServiceConverter : JsonConverter<HonuaAdminServicePage>
     {
         public override HonuaAdminServicePage Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
-            ReadDocument(ref reader, HonuaAdminCatalogReader.ReadServicePage);
+            ReadDocument(ref reader, body => HonuaAdminCatalogReader.ReadServicePage(body, options));
 
         public override void Write(Utf8JsonWriter writer, HonuaAdminServicePage value, JsonSerializerOptions options) =>
             HonuaAdminCatalogReader.WriteServicePage(writer, value, options);
@@ -273,7 +309,7 @@ public sealed class HonuaAdminCatalogPageConverter : JsonConverterFactory
     private sealed class LayerConverter : JsonConverter<HonuaAdminLayerPage>
     {
         public override HonuaAdminLayerPage Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
-            ReadDocument(ref reader, HonuaAdminCatalogReader.ReadLayerPage);
+            ReadDocument(ref reader, body => HonuaAdminCatalogReader.ReadLayerPage(body, options));
 
         public override void Write(Utf8JsonWriter writer, HonuaAdminLayerPage value, JsonSerializerOptions options) =>
             HonuaAdminCatalogReader.WriteLayerPage(writer, value, options);
