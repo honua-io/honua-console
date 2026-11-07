@@ -1,3 +1,4 @@
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;

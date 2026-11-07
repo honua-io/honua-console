@@ -1,3 +1,4 @@
+using Honua.Console.Contracts;
 using System.Text.Json.Serialization;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;

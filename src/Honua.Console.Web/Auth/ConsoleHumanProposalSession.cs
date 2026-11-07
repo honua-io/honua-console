@@ -152,11 +152,6 @@ internal sealed class ConsoleHumanProposalSession(
     };
 }
 
-internal sealed record ConsolePrivateProposalReviewResponse(ProposalDetailWire? Proposal, ConsoleProposalHumanReviewWire? Review);
-
-internal sealed record ConsoleProposalHumanReviewWire(
-    string ProposalId, long ProposalVersion, string PlanHash, string Capability, DateTimeOffset ExpiresAt);
-
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(ConsolePrivateProposalReviewResponse))]
 [JsonSerializable(typeof(ProposalDetailWire))]

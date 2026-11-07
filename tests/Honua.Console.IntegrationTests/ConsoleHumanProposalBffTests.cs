@@ -1,3 +1,4 @@
+using Honua.Console.Contracts;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;

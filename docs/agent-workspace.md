@@ -76,6 +76,30 @@ A pending custom-source save may replace its own cleared task only after the sam
 
 The native bundle must advertise `workspaceAgentFeatures.toolApproval === true`. Each serialized turn clears the previous capability verdict, revalidates same-origin session metadata, reconnects discovery and refreshes the actual canonical tool catalog on the persistent SDK session. Known family selection includes `honua.workspace.local-process`; optional private DevOps tools additionally require that turn’s verified gateway capability pins. Discovery failure exposes no stale tools and never replays mutations.
 
+### Human proposal approval
+
+The approval inbox reviews the exact proposal version and sealed plan before a
+human decides. The requester may approve. Server approval requires its live OIDC
+code/PKCE cookie session; API keys, exchanged operator bearers and agent/MCP tokens
+cannot approve. Sign in to the original proposal server when prompted. Management
+proposals use the configured management authority, with a separate private cookie
+partition; this does not replace the serving account or its bearer.
+
+The browser uses same-origin antiforgery-protected review and decision requests.
+The upstream cookie and short-lived review capability remain in the Console host,
+bound to the operator, environment and complete server origin. A version, plan,
+identity or environment change prevents submission. The capability is consumed
+before sending once. After a lost response, read the original proposal status
+before explicitly opening another review; Console never automatically retries the
+decision. Read and rejection grants still apply separately.
+
+Deploy Server's human approval contract before this Console version. An older
+Console's bearer/key approval requests then fail closed; this Console also refuses
+approval when Server has no private review contract. Pending proposals without
+versioned initiation require a fresh proposal. Existing execution/history reads
+remain available under their current read grants. Deployment must drain legacy
+approval writers and workers before enabling the new contract.
+
 ### Experimental GA spec review
 
 `Honua:Agent:GaSpecWorkflowEnabled` defaults to false. It exposes a review in the

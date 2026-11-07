@@ -1,3 +1,4 @@
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 using Microsoft.JSInterop;

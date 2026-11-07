@@ -1226,3 +1226,19 @@ re-read the original turn and the human-authorized Studio item/draft, select its
 current generation, and open the existing `/studio` editor. Unsaved work or a
 changed target/authority prevents delayed navigation. No new builder route,
 automatic approval, prompt replay or execution authority is introduced.
+
+### Private human proposal review
+
+`/inbox?proposalId=...` keeps its existing route. Approval requires a fresh review
+of that proposal's version and sealed plan through the original Server's private
+OIDC session; the requester may approve. Missing authority displays sign-in and
+refresh guidance, while separately authorized rejection remains available.
+`/auth/server/login` accepts `authority=Serving` or `authority=Management` alongside
+its existing profile and return path. Management resolves only the configured
+manager endpoint and does not replace the serving account.
+
+The host's `/api/console/proposals/session` and proposal review/approve BFF routes
+require the authenticated browser session; mutation routes require antiforgery.
+They expose no upstream cookie or review capability. A changed profile, origin,
+plan or proposal version invalidates the review. An uncertain decision response
+requires a status read before another explicit review.
