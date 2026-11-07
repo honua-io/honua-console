@@ -109,8 +109,8 @@ public static class EsriImportSampleDocuments
         { "cell_type": "raw", "metadata": {}, "source": ["nbconvert template directive"] }
       ],
       "metadata": {
-        "kernelspec": { "display_name": "source notebook Python 3 (Advanced)", "name": "python3" },
-        "esriNotebookRuntime": "source notebook Python 3 Advanced",
+        "kernelspec": { "display_name": "ArcGIS Notebook Python 3 (Advanced)", "name": "python3" },
+        "esriNotebookRuntime": "ArcGIS Notebook Python 3 Advanced",
         "parameters": { "county_url": "https://services.arcgis.com/abc/County/FeatureServer/0", "max_records": 5000 },
         "schedule": { "cron": "0 2 * * *", "timezone": "Pacific/Honolulu" }
       },

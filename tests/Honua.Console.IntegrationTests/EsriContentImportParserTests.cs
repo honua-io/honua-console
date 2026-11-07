@@ -259,7 +259,7 @@ public sealed class EsriContentImportParserTests
         Assert.NotNull(outcome.Error);
     }
 
-    // ---- #159 source notebook (hosted arcpy) ----
+    // ---- source notebook (hosted arcpy) ----
 
     [Fact]
     public void ParseNotebook_ClassifiesCellsParametersAndScheduleFidelity()
@@ -274,8 +274,8 @@ public sealed class EsriContentImportParserTests
             { "cell_type": "raw", "source": ["template directive"] }
           ],
           "metadata": {
-            "kernelspec": { "display_name": "source notebook Python 3 (Advanced)", "name": "python3" },
-            "esriNotebookRuntime": "source notebook Python 3 Advanced",
+            "kernelspec": { "display_name": "ArcGIS Notebook Python 3 (Advanced)", "name": "python3" },
+            "esriNotebookRuntime": "ArcGIS Notebook Python 3 Advanced",
             "parameters": { "county_url": "https://x", "max_records": 5000 },
             "schedule": { "cron": "0 2 * * *" }
           }

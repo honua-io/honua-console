@@ -139,12 +139,12 @@ data→publish AI mode reads as an outcome + one approval, plan-on-demand (§4.1
 ### 1.4 What is actually good and reusable (don't rebuild)
 
 - **`Components/EsriImportIntake.razor`** — a generalized "intake bar" with four
-  modes (*Paste JSON / Upload file / From URL or item ID / From connected source GIS platform*),
+  modes (*Paste JSON / Upload file / From URL or item ID / From connected source*),
   inline validation, dirty-state + unsaved-changes guard. This is 80% of a unified
   "Add data" intake control already.
 - **`Components/StudioAiConversation.razor`** — the AI conversation + clarification
   + live-preview + evidence surface. This *is* the approval surface from console#193.
-- **`Pages/StudioStyleEditorPage.razor`** — dual-mode (MapLibre/source platform) styling, server
+- **`Pages/StudioStyleEditorPage.razor`** — dual-mode (MapLibre/GeoServices renderer) styling, server
   converts between encodings. Keep as-is; the new flow just *embeds/links* it.
 - **`OperateResourcesPage.razor`'s blast-radius model** (services/layers/maps/share
   links affected) — excellent "information + approval" content; it becomes the
@@ -170,7 +170,7 @@ several of its interaction patterns are exactly what honua-console is missing.
 | **B5** | **Built-in onboarding that teaches the model.** An intro tour narrates Folder→Service→Layer, auto-triggered on an empty catalog. | `manage-metadata-component.js:117–133, 313–316` | The **empty state** of the unified view explains "Add data → it becomes a layer → publish/share" in one breath and is the launch point of the flow. |
 | **B6** | **Test-then-pick for data sources.** The connection editor authenticates first (`Connect`), then populates the database dropdown from what the server *actually* exposes. | `manage-connection-component.html:40–76` | Keep the connect-then-pick pattern for the "connect a source" intake mode; surface the live table list inline (we already do this in `OperatePublishLayerPage`). |
 | **B7** | **Progress over a hub for every long ingest**, with a shared progress bar + a "`"<name>" was generated successfully.`" toast — never an opaque spinner. | `add-layer-from-file-component.js:94–162`; `import-service-modal-component.js:72–118` | Every ingest/publish step in the flow shows determinate progress + a named completion, then advances the wizard rather than dead-ending. |
-| **B8** | **The published REST URL is the contract between authoring and preview.** Preview is one click to `/MapPreview/Map.html?layer=<rest-url>` — the *same* URL a GeoServices REST/OGC client consumes ("what I preview is what I publish"). | `manage-metadata-component.html:111`; `PreviewPlugin/MapPreview/map.js` | Preview a layer via its **actual served endpoint** (FeatureServer slot), reusing the existing MapPreview target the source platform-import pages already use. |
+| **B8** | **The published REST URL is the contract between authoring and preview.** Preview is one click to `/MapPreview/Map.html?layer=<rest-url>` — the *same* URL a GeoServices REST/OGC client consumes ("what I preview is what I publish"). | `manage-metadata-component.html:111`; `PreviewPlugin/MapPreview/map.js` | Preview a layer via its **actual served endpoint** (FeatureServer slot), reusing the existing MapPreview target the source-content import pages already use. |
 
 **Deliberate divergence from BlueSpatial:** B2's tree must *not* force the user to
 pre-build Folder→Service→Connection as prerequisites. We keep B1's single-act
@@ -469,7 +469,7 @@ Why this is the cure, not cosmetic:
 - **Context-sensitive actions** (B3) live on the selected node: a resource offers
   *Publish / Preview / Style / Share*; a single publication offers *Preview / Open
   route / Unpublish*.
-- **Migration advantage:** this is the IA source platform (Portal/Server "service → layers") and
+- **Migration advantage:** this is the source platform information architecture (Portal/Server "service → layers") and
   GeoServer ("store → layers") users already have in muscle memory. The tree lowers
   the switching cost — an explicit moat note for the redesign.
 
@@ -632,7 +632,7 @@ manual step. Wire Approve to the devops console-bridge proposal/operation surfac
 (console#193); the plan/diff is the *Details* body.
 
 **Phase 4 — preview + polish.** Per-protocol preview via each served endpoint (B8,
-reuse the MapPreview target the source platform-import pages use); empty-state onboarding that
+reuse the MapPreview target the source-content import pages use); empty-state onboarding that
 teaches resource→publish→expose (B5); determinate ingest progress everywhere (B7).
 
 ### 6.3 Risks / constraints

@@ -78,7 +78,7 @@ public sealed class EsriImportValidator : IFieldValidator<EsriImportIntakeState>
             errors.Add(Error(
                 EsriImportFieldKeys.Url,
                 "esri.import.url.invalid",
-                "Enter an absolute http(s) URL or an source item id (letters, numbers, '-', '_', '.', ':')."));
+                "Enter an absolute http(s) URL or a source item id (letters, numbers, '-', '_', '.', ':')."));
         }
 
         return errors;

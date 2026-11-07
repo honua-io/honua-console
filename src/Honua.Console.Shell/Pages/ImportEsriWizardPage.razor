@@ -3,7 +3,7 @@
 @using Honua.Console.Shell.Services
 @inject IEsriMigrationRunDataSource MigrationRun
 
-@* #102 · "Import source content" wizard (screens-import-wizard.jsx). Multi-step, REUSING the shared
+@* "Import source content" wizard (screens-import-wizard.jsx). Multi-step, REUSING the shared
    PublishWizard shell: Source connect → Select content → Map → Run → Scorecard. The Map step shows mixed
    content types + per-item fidelity (deterministic from the selected content). The Run engine and the
    Parity scorecard are driven by honua-devops (issue-122 "migration-run API owner"): Console does not own
@@ -118,8 +118,8 @@
         <h2>Connect a source GIS system</h2>
         <p class="console-muted">Choose where the content comes from. Reading from a connected source organization binds a honua-server in the selected environment.</p>
         <div class="esri-intake__modes" role="group" aria-label="Source kind">
-            <span class="esri-intake__mode esri-intake__mode--on">hosted GIS portal</span>
-            <span class="esri-intake__mode">enterprise GIS portal</span>
+            <span class="esri-intake__mode esri-intake__mode--on">Hosted GIS portal</span>
+            <span class="esri-intake__mode">Enterprise GIS portal</span>
             <span class="esri-intake__mode">Upload export</span>
         </div>
         @if (PlanView is { } plan)
@@ -170,7 +170,7 @@
                 <SourceTargetMappingTable Rows="MapRows"
                                           Heading="Map selected content"
                                           Subhead="Each item is converted to a Console content package; items needing a data binding are flagged."
-                                          SourceHeader="source item"
+                                          SourceHeader="Source item"
                                           TargetHeader="→ Console"
                                           BoundHeader="Blockers" />
             </div>

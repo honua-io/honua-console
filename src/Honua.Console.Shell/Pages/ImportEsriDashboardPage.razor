@@ -5,9 +5,9 @@
 @using Honua.Console.Shell.Validation
 @implements IDisposable
 
-@* #101 · Import source dashboard JSON → dashboard package (screens-import-esri.jsx ImportEsriDashboard).
+@* Import Source dashboard JSON → dashboard package (screens-import-esri.jsx ImportEsriDashboard).
    Dashboard JSON intake → element inventory → element → widget mapping grid with supported/unsupported
-   callouts, target layout preview, "Create dashboard package →" CTA. The GeoServices JSON parse is deterministic
+   callouts, target layout preview, "Create dashboard package →" CTA. The source-format JSON parse is deterministic
    Console-side work. *@
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have an unsaved Dashboard import. Leave this page and discard it?" />
@@ -18,7 +18,7 @@
             <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import source content <span class="console-crumb-sep">/</span> Dashboard</p>
             <h1>Import source dashboard</h1>
             <p class="console-muted">
-                Convert an source dashboard JSON into a Honua dashboard package. Element-by-element support is
+                Convert a Source dashboard JSON into a Honua dashboard package. Element-by-element support is
                 shown before commit.
             </p>
         </div>
@@ -44,7 +44,7 @@
                 <SourceTargetMappingTable Rows="result.Rows"
                                           Heading="Element → widget mapping"
                                           Subhead="source dashboard element → Honua dashboard widget"
-                                          SourceHeader="source element"
+                                          SourceHeader="Source element"
                                           SourceTypeHeader="Kind"
                                           TargetHeader="→ Honua widget"
                                           BoundHeader="Data"
@@ -85,7 +85,7 @@
         <ConsoleStateView HeadingLevel="2" Kind="empty"
                           Kicker="Import source content"
                           Title="Paste or upload a Dashboard JSON"
-                          Message="Choose an intake mode above to convert an source dashboard into a dashboard-package preview." />
+                          Message="Choose an intake mode above to convert a source dashboard into a dashboard-package preview." />
     }
 </section>
 

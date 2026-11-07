@@ -212,7 +212,7 @@ public sealed class EsriImportSurfaceRenderTests
         Assert.Contains("Web Map", banner.TextContent, StringComparison.Ordinal);
     }
 
-    // ---- #159 source notebook ----
+    // ---- source notebook ----
 
     [Fact]
     public void NotebookPage_RendersCellMappingPreviewAndGatedExecutionState()
@@ -390,12 +390,12 @@ public sealed class EsriImportSurfaceRenderTests
 
         // A garbage value (spaces) is neither an absolute URL nor an item id -> inline error + aria-invalid.
         urlInput.Input("not a url");
-        Assert.Contains("absolute http(s) URL or an source item id", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("absolute http(s) URL or a source item id", page.Markup, StringComparison.Ordinal);
         Assert.Equal("true", page.Find("input[data-intake-url]").GetAttribute("aria-invalid"));
 
         // A valid absolute https URL clears the finding.
         page.Find("input[data-intake-url]").Input("https://org.maps.arcgis.com/home/item.html?id=abc");
-        Assert.DoesNotContain("absolute http(s) URL or an source item id", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("absolute http(s) URL or a source item id", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]

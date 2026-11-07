@@ -117,7 +117,7 @@ public sealed class EsriContentImportParser
 
             var result = new EsriConversionResult(
                 EsriContentKind.WebMap,
-                "source Web Map JSON",
+                "Source Web Map JSON",
                 fileName ?? "web-map.json",
                 "honua.map-package.v1",
                 Slugify(title ?? "imported-web-map"),
@@ -263,7 +263,7 @@ public sealed class EsriContentImportParser
 
             var result = new EsriConversionResult(
                 EsriContentKind.Dashboard,
-                "source dashboard JSON",
+                "Source dashboard JSON",
                 fileName ?? "dashboard.json",
                 "honua.dashboard-package.v1",
                 Slugify(title ?? "imported-dashboard"),
@@ -384,7 +384,7 @@ public sealed class EsriContentImportParser
 
             var result = new EsriConversionResult(
                 EsriContentKind.StoryMap,
-                "source story map",
+                "Source story map",
                 sourceLabel ?? "storymap-export.json",
                 "honua.report.v1",
                 Slugify(title ?? "imported-storymap"),
@@ -542,7 +542,7 @@ public sealed class EsriContentImportParser
 
             var result = new EsriConversionResult(
                 EsriContentKind.InstantApp,
-                $"source app · {template.DisplayName}",
+                $"Source Instant App · {template.DisplayName}",
                 fileName ?? "instant-app.json",
                 "honua.app-package.v1",
                 Slugify(title ?? "imported-instant-app"),

@@ -35,7 +35,7 @@ function EsriIntake({ kind, file, summary }) {
   );
 }
 
-/* ---------- #100 · Import source Web Map JSON → honua.map-package.v1 ---------- */
+/* ---------- #100 · Import Source Web Map JSON → honua.map-package.v1 ---------- */
 function ImportEsriWebMap() {
   return (
     <div className="scr">
@@ -44,10 +44,10 @@ function ImportEsriWebMap() {
       <div className="main">
         <PageHead
           title="Import source Web Map"
-          sub={<span>Convert an source Web Map JSON into a Honua map package (<span className="mono">honua.map-package.v1</span>). Layer-by-layer fidelity shown before you commit.</span>}
+          sub={<span>Convert a Source Web Map JSON into a Honua map package (<span className="mono">honua.map-package.v1</span>). Layer-by-layer fidelity shown before you commit.</span>}
           actions={<><Btn>Discard</Btn><Btn kind="p">Create map package →</Btn></>}
         />
-        <EsriIntake kind="source Web Map JSON · v2.27" file="public-works-webmap.json · 84 KB"
+        <EsriIntake kind="Source Web Map JSON · v2.27" file="public-works-webmap.json · 84 KB"
           summary={['7 operational layers','1 basemap','4 bookmarks','5 popups','2 unsupported widgets']} />
 
         <div style={{display:'grid', gridTemplateColumns:'1fr 380px', flex:1, overflow:'hidden'}}>
@@ -123,7 +123,7 @@ function ImportEsriWebMap() {
   );
 }
 
-/* ---------- #101 · Import source dashboard JSON → dashboard package ---------- */
+/* ---------- #101 · Import Source dashboard JSON → dashboard package ---------- */
 function ImportEsriDashboard() {
   return (
     <div className="scr">
@@ -132,10 +132,10 @@ function ImportEsriDashboard() {
       <div className="main">
         <PageHead
           title="Import source dashboard"
-          sub="Convert an source dashboard JSON into a Honua dashboard package. Element-by-element support shown before commit."
+          sub="Convert a Source dashboard JSON into a Honua dashboard package. Element-by-element support shown before commit."
           actions={<><Btn>Discard</Btn><Btn kind="p">Create dashboard package →</Btn></>}
         />
-        <EsriIntake kind="source dashboard JSON" file="q3-ops-dashboard.json · 142 KB"
+        <EsriIntake kind="Source dashboard JSON" file="q3-ops-dashboard.json · 142 KB"
           summary={['12 elements','3 selectors','1 header','2 unsupported widgets']} />
 
         <div style={{display:'grid', gridTemplateColumns:'1fr 380px', flex:1, overflow:'hidden'}}>
@@ -204,10 +204,10 @@ function ImportStoryMap() {
       <div className="main">
         <PageHead
           title="Import StoryMap / Hub site"
-          sub="Convert a source story map or Hub/Open-Data site into Console content (report + linked maps). P4 · lowest priority of the four."
+          sub="Convert a Source story map or Hub/Open-Data site into Console content (report + linked maps). P4 · lowest priority of the four."
           actions={<><Btn>Discard</Btn><Btn kind="p">Create content →</Btn></>}
         />
-        <EsriIntake kind="source story map" file="https://storymaps.arcgis.com/stories/a3bf…"
+        <EsriIntake kind="Source story map" file="https://storymaps.arcgis.com/stories/a3bf…"
           summary={['9 sections','4 embedded maps','12 media','3 sidecar blocks','1 swipe block']} />
 
         <div style={{display:'grid', gridTemplateColumns:'1fr 380px', flex:1, overflow:'hidden'}}>

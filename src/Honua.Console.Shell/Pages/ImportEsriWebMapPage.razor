@@ -6,10 +6,10 @@
 @implements IDisposable
 @inject IPublishingWorkspaceDataSource PublishingData
 
-@* #100 · Import source Web Map JSON → honua.map-package.v1 (screens-import-esri.jsx ImportEsriWebMap).
+@* Import Source Web Map JSON → honua.map-package.v1 (screens-import-esri.jsx ImportEsriWebMap).
    Intake (paste/upload/URL/connected ArcGIS) → layer-by-layer source → target mapping with per-layer
    fidelity badge + reason note, MapPreview target, "Create map package →" CTA wired to /operate/publishing.
-   The GeoServices JSON parse is deterministic Console-side work; the publish target binds the real publishing
+   The source-format JSON parse is deterministic Console-side work; the publish target binds the real publishing
    workspace contract, else the inline missing-binding banner shows (Console Patterns Charter section 11). *@
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have an unsaved Web Map import. Leave this page and discard it?" />
@@ -20,7 +20,7 @@
             <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import source content <span class="console-crumb-sep">/</span> Web Map</p>
             <h1>Import source Web Map</h1>
             <p class="console-muted">
-                Convert an source Web Map JSON into a Honua map package (<code>honua.map-package.v1</code>).
+                Convert a Source Web Map JSON into a Honua map package (<code>honua.map-package.v1</code>).
                 Layer-by-layer fidelity is shown before you commit.
             </p>
         </div>
@@ -46,7 +46,7 @@
                 <SourceTargetMappingTable Rows="result.Rows"
                                           Heading="Layer mapping"
                                           Subhead="source operational layer → Honua map-package layer"
-                                          SourceHeader="source layer"
+                                          SourceHeader="Source layer"
                                           TargetHeader="→ Honua layer"
                                           ShowBoundColumn="true"
                                           CarryOver="result.CarryOver" />
@@ -104,7 +104,7 @@
         <ConsoleStateView HeadingLevel="2" Kind="empty"
                           Kicker="Import source content"
                           Title="Paste or upload a Web Map JSON"
-                          Message="Choose an intake mode above to convert an source Web Map into a honua.map-package.v1 preview." />
+                          Message="Choose an intake mode above to convert a source Web Map into a honua.map-package.v1 preview." />
     }
 </section>
 

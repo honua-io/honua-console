@@ -1,4 +1,4 @@
-// Issue #122 · #102 — "Import source content" wizard + parity scorecard (Operate)
+// Issue — "Import source content" wizard + parity scorecard (Operate)
 // screens-import-wizard.jsx
 // Multi-step: source connect → select content → map → run → scorecard.
 // Covers: empty · loading · run progress (resumable/retry) · partial · error · missing-binding.
@@ -13,7 +13,7 @@ function ImportEsriWizard() {
 
         {/* source context */}
         <div style={{padding:'10px 18px', background:'#fffdf3', borderBottom:'1px solid #e4e4e4', display:'flex', alignItems:'center', gap:10, fontSize:11.5}}>
-          <span className="tag">hosted GIS portal</span>
+          <span className="tag">Hosted GIS portal</span>
           <b>org.maps.arcgis.com / state-gis</b>
           <span className="muted">· 18 items selected · 3 content types</span>
           <div style={{flex:1}}/>

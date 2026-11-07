@@ -63,7 +63,7 @@ checkboxes.
 | STAC | opt-in per resource | resource-led publish |
 | DCAT | opt-in per resource | resource-led publish |
 
-GeoServices REST + OGC catalogs auto-mirror service publications (checkbox pre-checked,
+GeoServices service catalog + OGC catalogs auto-mirror service publications (checkbox pre-checked,
 operator can uncheck). OData / STAC / DCAT require explicit opt-in.
 
 **Portal was folded in.** Originally STAC + DCAT lived in a separate "Portal"
@@ -225,7 +225,7 @@ Use instead: Source, Style, Access, Slot label, Catalog entry.
 **Never say "Portal" as a separate product.** STAC + DCAT publishing lives in
 Honua Admin.
 
-**Service catalog terminology**: it's **"GeoServices service catalog"** (not source item, not
+**Service catalog terminology**: it's **"GeoServices service catalog"** (not GeoServices item, not
 GSR, not GeoServices REST catalog).
 
 **Migration** (one-time copy), not **sync** / **proxy** / **mirror**, when

@@ -32,7 +32,7 @@ Use the [Design Artifact Work Breakdown Matrix](DESIGN_ARTIFACT_WORK_BREAKDOWN.m
 - Shared package contracts: Console, MCP, QGIS, generated apps, and embeds use the same server/SDK contract family.
 - Every route has loading, empty, warning, blocked, partial success, error, permission denied, and filtered-empty handling.
 - AI is advisory or authoring assistance only; governed operations require explicit user action and evidence.
-- AI mapmaking and analysis target desktop GIS client-style capability breadth through natural-language planning, package generation, validation, and governed execution. Console must not clone desktop GIS client desktop UI surfaces; it should expose equivalent GIS intent through Honua packages, capability registry coverage, execution adapters, and interoperability behaviors.
+- AI mapmaking and analysis target desktop GIS client-style capability breadth through natural-language planning, package generation, validation, and governed execution. Console must not clone desktop GIS UI surfaces; it should expose equivalent GIS intent through Honua packages, capability registry coverage, execution adapters, and interoperability behaviors.
 
 ## Implementation Milestones
 

@@ -19,9 +19,9 @@ It replaces an earlier "MVP wedge" framing. A narrow feature wedge is the wrong 
 
 ## Strategic Frame: Consolidation, Not A Wedge
 
-Every GIS org has the same job: deliver maps, apps, analysis, ETL, GP, forms, dashboards, and publishing — and operate it reliably. GIS is a horizontal capability inside the org, not a point need. source GIS platform won by being the broad platform.
+Every GIS org has the same job: deliver maps, apps, analysis, ETL, GP, forms, dashboards, and publishing — and operate it reliably. GIS is a horizontal capability inside the org, not a point need. The incumbent GIS platform won by being the broad platform.
 
-Consequence: a narrow tool that does only one or two of those is not a beachhead — it is a **second system running alongside source GIS platform**, which *adds* operational surface. That directly contradicts the "easy to operate" thesis. Therefore:
+Consequence: a narrow tool that does only one or two of those is not a beachhead — it is a **second system running alongside the incumbent GIS platform**, which *adds* operational surface. That directly contradicts the "easy to operate" thesis. Therefore:
 
 - **Breadth is mandatory.** First release must cover the whole authoring surface to be credible as a replacement rather than an addition.
 - **We consolidate the server, operations, and authoring layer**, not land-and-expand. The differentiator — one artifact, easy to operate — only delivers value when Honua absorbs the breadth itself, rather than being one more system to run.
@@ -31,7 +31,7 @@ Consequence: a narrow tool that does only one or two of those is not a beachhead
 We do **not** offer a path completely off the source platform ecosystem, and that is deliberate — it collapses switching cost.
 
 - **Replace:** the source GIS platform Server / Portal / Enterprise *operational* sprawl and the "million toolboxes" authoring complexity. The felt promise is *a glimpse of what life looks like without a million toolboxes* — express intent, do not hunt through tool catalogs.
-- **Keep / interoperate:** Honua speaks **GeoServices REST** as a northbound interface, so existing source platform clients — including desktop GIS client — keep working against Honua with no forced client migration.
+- **Keep / interoperate:** Honua speaks **GeoServices REST** as a northbound interface, so existing source platform clients — including the qualified desktop GIS client — keep working against Honua with no forced client migration.
 - **The distinction that matters:** *server-side breadth* must be ours (otherwise the org runs two servers — the "second system" failure), while the *client-side protocol* stays GeoServices REST (so users keep the tools they already know). GeoServices REST interop is not a second system; it is one broad server speaking the incumbent's protocol.
 
 ## Backend Readiness (honua-server, verified 2026-05-24)
@@ -130,7 +130,7 @@ Ship when a real org can run a real *new* project end to end on Honua alone, fro
 - Author across the whole surface — maps and query at spike depth, analysis/dashboard/report/form/app/workflow at least sufficient — as inspectable, governed packages with validation and provenance shown before publish.
 - Publish and share/embed through the unified runtime, with content/version/publication/job/event records linked by stable IDs (immutable audit/SIEM is enterprise-tier — see Backend Readiness).
 - Make a production change safely: propose → preflight → approve → apply → roll back, **without ever touching Git**, after a one-time repo bootstrap.
-- Existing GeoServices REST clients (including desktop GIS client) can consume and publish to Honua services through the GeoServices REST interface — no forced client migration.
+- Existing GeoServices REST clients (including the qualified desktop GIS client) can consume and publish to Honua services through the GeoServices REST interface — no forced client migration.
 - System-of-record reliability holds: server-authored RBAC/entitlement gates every route and action.
 - Gated exotic depth renders as unsupported via the capability manifest, with no dead UI.
 

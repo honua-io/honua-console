@@ -14,7 +14,7 @@ Companion artifacts:
 
 External capability benchmark:
 
-- [desktop GIS client geoprocessing tool reference](https://doc.esri.com/en/arcgis-pro/latest/tool-reference/main/arcgis-pro-tool-reference.html)
+- [Esri ArcGIS Pro geoprocessing tool reference](https://doc.esri.com/en/arcgis-pro/latest/tool-reference/main/arcgis-pro-tool-reference.html)
 
 ## Purpose
 
@@ -39,7 +39,7 @@ Use this file before creating child implementation work from the design handoff.
 
 ## desktop GIS client Capability Boundary
 
-The AI mapmaking and analysis ambition is desktop GIS client breadth through a natural-language and package interface, not a clone of the desktop GIS client desktop UI. The benchmark is whether a GIS analyst can express the same classes of mapmaking, geoprocessing, analysis, cartographic, data-management, and publishing intent and receive a governed Honua execution plan, not whether Console recreates desktop GIS client panes, ribbons, project files, or mouse-driven workflows.
+The AI mapmaking and analysis ambition is desktop GIS client breadth through a natural-language and package interface, not a clone of the desktop GIS UI. The benchmark is whether a GIS analyst can express the same classes of mapmaking, geoprocessing, analysis, cartographic, data-management, and publishing intent and receive a governed Honua execution plan, not whether Console recreates desktop GIS client panes, ribbons, project files, or mouse-driven workflows.
 
 The target is AI-mediated capability coverage:
 
@@ -50,7 +50,7 @@ The target is AI-mediated capability coverage:
 - Analysis authoring for source binding, method/tool selection, parameters, output schema, queued execution, result artifacts, rerun, failure evidence, and reuse as content, layers, reports, dashboards, apps, or workflows.
 - GeoServices concepts where they matter for interoperability: service/layer publication slots, GP/process service endpoints, named replica terminology, renderer/SLD sidecars, STAC/DCAT/open-data evidence, import/export behavior, and migration from enterprise GIS-style tools or models.
 
-Do not file child work that recreates desktop GIS client UI surfaces directly. File child work against capability registry coverage, tool/workflow planning, package generation, validation, execution adapters, provenance, and concrete source GIS platform/source platform interoperability behaviors.
+Do not file child work that recreates desktop GIS client UI surfaces directly. File child work against capability registry coverage, tool/workflow planning, package generation, validation, execution adapters, provenance, and concrete source GIS interoperability behaviors.
 
 ## Work Breakdown Matrix
 

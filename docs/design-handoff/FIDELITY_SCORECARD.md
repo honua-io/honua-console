@@ -43,7 +43,7 @@ _Snapshot: 2026-05-31, against trunk after the parity-remediation + high-severit
    tabs. Structural chrome to mockup; live data renders explicit missing-binding until the server
    collaboration API (honua-server#1278) lands. PR #130 (closes #124).
 3. **Catalogs discovery endpoints** (was 10) → `Pages/CatalogsListPage.razor` +
-   `CatalogsEndpointDetailPage` + `CatalogItemEditorPage` — GeoServices REST/OGC/STAC discovery endpoints,
+   `CatalogsEndpointDetailPage` + `CatalogItemEditorPage` — GeoServices service catalog/OGC/STAC discovery endpoints,
    default-on vs opt-in, feeders, per-endpoint issues, detail drill-down, item editor. Live data
    gated on honua-server#1279 (missing-binding until then). PR #131 (closes #125).
 

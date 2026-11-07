@@ -8,7 +8,7 @@ Honua Console should optionally expose temporal data history for datasets that a
 
 This complements, but does not replace, versioned editing in [honua-server#371](https://github.com/honua-io/honua-server/issues/371). Versioned editing is about concurrent named edit versions, reconcile, and post. Temporal data history is about inspectable, attributable history for committed data states.
 
-It also provides the right review surface for disconnected sync conflicts. The GeoServices REST models offline/disconnected editing through the Feature Service `Sync` capability, `createReplica`, `synchronizeReplica`, server generations, and named replicas. Honua already has lower-level replication foundation in [honua-server#305](https://github.com/honua-io/honua-server/issues/305), [honua-server#383](https://github.com/honua-io/honua-server/issues/383), and mobile conflict policy work in [honua-server#831](https://github.com/honua-io/honua-server/issues/831). The missing layer is a first-class conflict review information model that Console can use.
+It also provides the right review surface for disconnected sync conflicts. The GeoServices REST API models offline/disconnected editing through the Feature Service `Sync` capability, `createReplica`, `synchronizeReplica`, server generations, and named replicas. Honua already has lower-level replication foundation in [honua-server#305](https://github.com/honua-io/honua-server/issues/305), [honua-server#383](https://github.com/honua-io/honua-server/issues/383), and mobile conflict policy work in [honua-server#831](https://github.com/honua-io/honua-server/issues/831). The missing layer is a first-class conflict review information model that Console can use.
 
 ## Product Promise
 
@@ -69,7 +69,7 @@ Honua should explicitly map the GeoServices REST concepts instead of inventing o
 - `replicaName`: optional user-friendly replica name, unique per feature service.
 - `replicaServerGen` and `layerServerGens`: sync cursors that establish the base state for later uploads/downloads.
 - `ChangeTracking`: efficient server-side change extraction; useful for history and sync but not equivalent to `Sync`.
-- Branch-version-per-replica: the source system can create a branch version for each downloaded map when data is branch versioned. Honua should model this as an optional `replica_version_ref`, not as the only offline strategy.
+- Branch-version-per-replica: a source system using GeoServices REST can create a branch version for each downloaded map when data is branch versioned. Honua should model this as an optional `replica_version_ref`, not as the only offline strategy.
 
 ## Core Objects
 
