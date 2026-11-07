@@ -15,12 +15,22 @@ internal sealed class ConsoleServerSessionIdentityBinding(
     ConsoleServerSessionClientStore serverSessions,
     TimeProvider timeProvider)
 {
-    public async Task<bool> EnsureAsync(
+    public Task<bool> EnsureAsync(
         ConsoleServerSessionPartition partition,
         ConsoleEnvironmentProfile profile,
         string operatorKey,
         string? providerKey,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) => EnsureCoreAsync(
+            partition, profile, operatorKey, providerKey, ConsoleServerSessionUse.OperatorBearer, cancellationToken);
+
+    public Task<bool> EnsureHumanSessionAsync(
+        ConsoleServerSessionPartition partition, ConsoleEnvironmentProfile profile,
+        string operatorKey, string? providerKey, CancellationToken cancellationToken) => EnsureCoreAsync(
+            partition, profile, operatorKey, providerKey, ConsoleServerSessionUse.HumanDecision, cancellationToken);
+
+    private async Task<bool> EnsureCoreAsync(
+        ConsoleServerSessionPartition partition, ConsoleEnvironmentProfile profile, string operatorKey,
+        string? providerKey, ConsoleServerSessionUse use, CancellationToken cancellationToken)
     {
         var issuer = options.Value.ServerSessionIssuer;
         if (string.IsNullOrEmpty(issuer))
@@ -28,9 +38,11 @@ internal sealed class ConsoleServerSessionIdentityBinding(
             return true;
         }
 
-        var snapshots = sessions as IConsoleAccountSessionSnapshotStore
-            ?? throw new InvalidOperationException("Hosted server identity binding requires conditional session storage.");
-        var snapshot = await snapshots.CaptureSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
+        var snapshots = use == ConsoleServerSessionUse.OperatorBearer
+            ? sessions as IConsoleAccountSessionSnapshotStore
+                ?? throw new InvalidOperationException("Hosted server identity binding requires conditional session storage.")
+            : null;
+        var snapshot = snapshots is null ? null : await snapshots.CaptureSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
         var matches = false;
         try
         {
@@ -62,7 +74,7 @@ internal sealed class ConsoleServerSessionIdentityBinding(
             // HttpClient timeout: discard this session instead of retaining an unchecked bearer.
         }
 
-        if (!matches && serverSessions.TryRemove(partition))
+        if (!matches && serverSessions.TryRemove(partition) && snapshots is not null && snapshot is not null)
         {
             await snapshots.TryClearSessionAsync(snapshot, CancellationToken.None).ConfigureAwait(false);
         }
@@ -87,6 +99,12 @@ internal sealed class ConsoleServerSessionIdentityBinding(
             && values.All(value => !string.IsNullOrWhiteSpace(value)
                 && string.Equals(value, expected, StringComparison.Ordinal));
     }
+}
+
+internal enum ConsoleServerSessionUse
+{
+    OperatorBearer,
+    HumanDecision
 }
 
 // Temporary private wire shapes: the published SDK has no admin auth/session projection.

@@ -82,7 +82,7 @@ internal static class OperateObservabilityRegistrations
                     adminApiKey, bearers, credentialMode, serviceProvider.GetService<IConsoleHumanProposalSession>()),
                 new HttpConsoleProposalsClient(ShellHttpClients.ManagerBound(serviceProvider), profiles, sessions,
                     adminApiKey, bearers, credentialMode, serviceProvider.GetService<IConsoleHumanProposalSession>(),
-                    ConsoleProposalAuthority.Management),
+                    ConsoleServerAuthority.Management),
                 profiles, serviceProvider.GetService<IConsoleManagerEndpoint>());
         });
         services.TryAddSingleton<IConsoleReleaseWitnessClient>(serviceProvider =>

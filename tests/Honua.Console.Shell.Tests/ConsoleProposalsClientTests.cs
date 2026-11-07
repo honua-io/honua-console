@@ -7,7 +7,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-// Interactive decisions use the operator bearer, and a separation-of-duties conflict returns 403.
 public sealed class ConsoleProposalsClientTests
 {
     [Theory]
@@ -312,12 +311,49 @@ public sealed class ConsoleProposalsClientTests
         Assert.Empty(handler.Requests);
     }
 
+    [Fact]
+    public async Task Get_PrivateManagementSession_DoesNotRequireAForwardableReadCredential()
+    {
+        var handler = new RecordingHandler(_ => throw new InvalidOperationException("A bearer request must not be sent."));
+        var human = new FixedHumanReview();
+        var client = CreateClient(handler, humanSession: human, authority: ConsoleServerAuthority.Management);
+
+        var result = await client.GetAsync("prop-1");
+
+        Assert.True(result.IsAllowed);
+        Assert.Equal(7, result.Value!.Version);
+        Assert.Equal("private-environment", result.Value.HumanReviewEnvironment);
+        Assert.Equal(ConsoleServerAuthority.Management, human.Authority);
+        Assert.Contains("authority=Management", result.Value.HumanApprovalSignInPath, StringComparison.Ordinal);
+        Assert.Empty(handler.Requests);
+    }
+
+    private sealed class FixedHumanReview : IConsoleHumanProposalSession
+    {
+        public ConsoleServerAuthority Authority { get; private set; }
+        public Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync(
+            ConsoleEnvironmentProfile profile, ConsoleServerAuthority authority, string proposalId,
+            CancellationToken cancellationToken = default)
+        {
+            Authority = authority;
+            return Task.FromResult(OperateSectionResult<ConsoleHumanProposalReview>.Allowed(new(
+                new ProposalDetailWire { ProposalId = proposalId, Version = 7, PlanHash = "plan", Status = "AwaitingApproval" },
+                "private-environment", DateTimeOffset.UtcNow.AddMinutes(5))));
+        }
+        public Task<OperateSectionResult<ProposalDetailWire>> ApproveAsync(
+            ConsoleEnvironmentProfile profile, ConsoleServerAuthority authority, ConsoleProposalDecision decision,
+            CancellationToken cancellationToken = default) => Task.FromResult(
+                OperateSectionResult<ProposalDetailWire>.Denied(OperateSectionStatus.Forbidden, "Not used."));
+    }
+
     private static HttpConsoleProposalsClient CreateClient(
         HttpMessageHandler handler,
         string? adminApiKey = null,
         IConsoleAccountSessionStore? sessions = null,
         ConsoleServerCredentialMode credentialMode = ConsoleServerCredentialMode.Interactive,
-        ConsoleAccountAuthMode accountAuthMode = ConsoleAccountAuthMode.AccountRbac)
+        ConsoleAccountAuthMode accountAuthMode = ConsoleAccountAuthMode.AccountRbac,
+        IConsoleHumanProposalSession? humanSession = null,
+        ConsoleServerAuthority authority = ConsoleServerAuthority.Serving)
     {
         var profile = new ConsoleEnvironmentProfile
         {
@@ -337,7 +373,7 @@ public sealed class ConsoleProposalsClientTests
             profiles,
             sessions ?? new InMemoryConsoleAccountSessionStore(),
             adminApiKey,
-            credentialMode: credentialMode);
+            credentialMode: credentialMode, humanSession: humanSession, authority: authority);
     }
 
     private static IConsoleAccountSessionStore BearerSessions()

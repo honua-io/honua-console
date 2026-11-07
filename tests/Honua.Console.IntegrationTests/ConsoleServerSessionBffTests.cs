@@ -372,6 +372,102 @@ public sealed class ConsoleServerSessionBffTests
         Assert.False(store.TryGet("operator-a", Profile("env"), out _));
     }
 
+    [Fact]
+    public async Task ManagementSignIn_UsesItsOwnOriginWithoutReplacingServingCredentials()
+    {
+        var context = new SwitchableOperatorContext("operator");
+        var profile = Profile("environment");
+        var profiles = new InMemoryConsoleEnvironmentProfileStore([profile], activeProfileId: profile.Id);
+        var accounts = new InMemoryConsoleAccountSessionStore();
+        await accounts.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = profile.Id, ServerBaseUri = profile.ServerBaseUri, AccessToken = "serving-cached-bearer"
+        });
+        var handlers = new List<SimulatedServerAuthHandler>();
+        await using var serverSessions = new ConsoleServerSessionClientStore(TimeProvider.System, (key, cookies) =>
+        {
+            var handler = new SimulatedServerAuthHandler(key, cookies);
+            handlers.Add(handler);
+            return handler;
+        });
+        var management = new MutableManagementEndpoint();
+        var coordinator = new ConsoleServerSessionBffCoordinator(context, profiles, accounts, serverSessions,
+            TimeProvider.System, management: management);
+
+        var begin = await coordinator.BeginAuthoritySignInAsync(profile.Id, ConsoleServerAuthority.Management, null, "/inbox");
+        var complete = await coordinator.CompleteSignInAsync("code", State(begin.RedirectUri), null);
+
+        Assert.Equal(ConsoleServerSignInStatus.Redirect, complete.Status);
+        Assert.Equal("serving-cached-bearer", (await accounts.GetSessionAsync(profile.Id))!.AccessToken);
+        Assert.True(serverSessions.TryGet("operator", profile with { ServerBaseUri = management.Target }, out var managerSession));
+        Assert.Contains("honua_admin_session=", managerSession!.Cookies.GetCookieHeader(management.Target), StringComparison.Ordinal);
+        Assert.False(serverSessions.TryGet("operator", profile, out _));
+        Assert.Equal(0, Assert.Single(handlers).BearerCalls);
+    }
+
+    [Theory]
+    [InlineData("manager")]
+    [InlineData("profile")]
+    public async Task ManagementSignIn_ChangedBinding_RefusesCallbackBeforeTokenExchange(string change)
+    {
+        var context = new SwitchableOperatorContext("operator");
+        var profile = Profile("environment");
+        var profiles = new InMemoryConsoleEnvironmentProfileStore([profile], activeProfileId: profile.Id);
+        var accounts = new InMemoryConsoleAccountSessionStore();
+        SimulatedServerAuthHandler? handler = null;
+        await using var serverSessions = new ConsoleServerSessionClientStore(TimeProvider.System, (key, cookies) =>
+            handler = new SimulatedServerAuthHandler(key, cookies));
+        var management = new MutableManagementEndpoint();
+        var coordinator = new ConsoleServerSessionBffCoordinator(context, profiles, accounts, serverSessions,
+            TimeProvider.System, management: management);
+        var begin = await coordinator.BeginAuthoritySignInAsync(profile.Id, ConsoleServerAuthority.Management, null, "/inbox");
+        if (change == "manager") management.Target = new Uri("https://other-manager.example/");
+        else await profiles.UpsertProfileAsync(profile with { TenantId = "changed-tenant" });
+
+        var result = await coordinator.CompleteSignInAsync("code", State(begin.RedirectUri), null);
+
+        Assert.Equal(ConsoleServerSignInStatus.Denied, result.Status);
+        Assert.Equal(0, handler!.TokenCalls);
+    }
+
+    [Fact]
+    public async Task PendingState_DifferentAuthorityFlows_DoNotReplaceEachOther()
+    {
+        await using var store = new ConsoleServerSessionClientStore(TimeProvider.System);
+        var serving = new ConsoleServerAuthPendingFlow("serving-state", "operator", "profile", "oidc", ServerOrigin,
+            "/inbox", DateTimeOffset.UtcNow.AddMinutes(5));
+        var manager = serving with { State = "manager-state", ServerBaseUri = new Uri("https://manager.example/") };
+
+        store.RegisterPending(serving);
+        store.RegisterPending(manager);
+
+        Assert.True(store.TryConsumePending(serving.State, "operator", out var originalServing));
+        Assert.Equal(serving, originalServing);
+        Assert.True(store.TryConsumePending(manager.State, "operator", out var originalManager));
+        Assert.Equal(manager, originalManager);
+    }
+
+    [Fact]
+    public async Task PendingState_AuthorityCollision_PreservesTheOriginalFlow()
+    {
+        await using var store = new ConsoleServerSessionClientStore(TimeProvider.System);
+        var original = new ConsoleServerAuthPendingFlow("same-state", "operator", "profile", "oidc", ServerOrigin,
+            "/inbox", DateTimeOffset.UtcNow.AddMinutes(5));
+        store.RegisterPending(original);
+
+        Assert.Throws<InvalidOperationException>(() => store.RegisterPending(
+            original with { ServerBaseUri = new Uri("https://manager.example/") }));
+
+        Assert.True(store.TryConsumePending(original.State, "operator", out var retained));
+        Assert.Equal(original, retained);
+    }
+
+    private sealed class MutableManagementEndpoint : IConsoleManagerEndpoint
+    {
+        public Uri Target { get; set; } = new("https://manager.example/");
+        public Uri? Resolve(Uri servingBaseUri) => Target;
+    }
+
     private static async Task SeedOperatorAsync(
         SwitchableOperatorContext context,
         IConsoleEnvironmentProfileStore profiles,
@@ -444,6 +540,10 @@ public sealed class ConsoleServerSessionBffTests
         CookieContainer cookies,
         bool rejectToken = false) : HttpMessageHandler
     {
+        private readonly Uri _origin = new(key.ServerOrigin);
+        public int TokenCalls { get; private set; }
+        public int BearerCalls { get; private set; }
+
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
@@ -459,12 +559,13 @@ public sealed class ConsoleServerSessionBffTests
             if (path.EndsWith("/authorize-url", StringComparison.Ordinal))
             {
                 var state = $"state-{key.OperatorKey}-{key.ProfileId}";
-                cookies.SetCookies(ServerOrigin, $"honua_admin_pending=pending-{key.OperatorKey}-{key.ProfileId}; Path=/; HttpOnly");
+                cookies.SetCookies(_origin, $"honua_admin_pending=pending-{key.OperatorKey}-{key.ProfileId}; Path=/; HttpOnly");
                 return Json($"{{\"authorizeUrl\":\"https://idp.example/authorize?state={state}\"}}");
             }
 
             if (path.EndsWith("/token", StringComparison.Ordinal))
             {
+                TokenCalls++;
                 if (rejectToken)
                 {
                     return new HttpResponseMessage(HttpStatusCode.BadRequest);
@@ -472,14 +573,15 @@ public sealed class ConsoleServerSessionBffTests
 
                 var body = await request.Content!.ReadAsStringAsync(cancellationToken);
                 Assert.Contains($"state-{key.OperatorKey}-{key.ProfileId}", body, StringComparison.Ordinal);
-                Assert.Contains($"pending-{key.OperatorKey}-{key.ProfileId}", cookies.GetCookieHeader(ServerOrigin), StringComparison.Ordinal);
-                cookies.SetCookies(ServerOrigin, $"honua_admin_session=session-{key.OperatorKey}-{key.ProfileId}; Path=/; HttpOnly");
+                Assert.Contains($"pending-{key.OperatorKey}-{key.ProfileId}", cookies.GetCookieHeader(_origin), StringComparison.Ordinal);
+                cookies.SetCookies(_origin, $"honua_admin_session=session-{key.OperatorKey}-{key.ProfileId}; Path=/; HttpOnly");
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
             }
 
             if (path.EndsWith("/bearer", StringComparison.Ordinal))
             {
-                Assert.Contains($"session-{key.OperatorKey}-{key.ProfileId}", cookies.GetCookieHeader(ServerOrigin), StringComparison.Ordinal);
+                BearerCalls++;
+                Assert.Contains($"session-{key.OperatorKey}-{key.ProfileId}", cookies.GetCookieHeader(_origin), StringComparison.Ordinal);
                 return Json($$"""
                     {"accessToken":"bearer-{{key.OperatorKey}}-{{key.ProfileId}}","tokenType":"Bearer","expiresAt":"2099-01-01T00:00:00Z","expiresIn":300}
                     """);

@@ -134,6 +134,7 @@ public sealed record ConsoleProposalDetail(
     public string? HumanReviewEnvironment { get; init; }
     public DateTimeOffset? HumanReviewExpiresAt { get; init; }
     public string? HumanApprovalMessage { get; init; }
+    public string? HumanApprovalSignInPath { get; init; }
     public bool RequiresReproposal { get; init; }
 
     public bool IsAwaitingApproval => Status == ConsoleProposalStatus.AwaitingApproval;

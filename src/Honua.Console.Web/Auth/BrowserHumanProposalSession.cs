@@ -9,17 +9,17 @@ internal sealed class BrowserHumanProposalSession(IJSRuntime javascript) : ICons
     private IJSObjectReference? _module;
 
     public Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync(
-        ConsoleEnvironmentProfile profile, ConsoleProposalAuthority authority, string proposalId,
+        ConsoleEnvironmentProfile profile, ConsoleServerAuthority authority, string proposalId,
         CancellationToken cancellationToken = default) => SendAsync<ConsoleHumanProposalReview>(
             "review", profile.Id, authority, proposalId, null, cancellationToken);
 
     public Task<OperateSectionResult<ProposalDetailWire>> ApproveAsync(
-        ConsoleEnvironmentProfile profile, ConsoleProposalAuthority authority, ConsoleProposalDecision decision,
+        ConsoleEnvironmentProfile profile, ConsoleServerAuthority authority, ConsoleProposalDecision decision,
         CancellationToken cancellationToken = default) => SendAsync<ProposalDetailWire>(
             "approve", profile.Id, authority, decision.ProposalId, decision, cancellationToken);
 
     private async Task<OperateSectionResult<T>> SendAsync<T>(
-        string action, string profileId, ConsoleProposalAuthority authority, string proposalId,
+        string action, string profileId, ConsoleServerAuthority authority, string proposalId,
         ConsoleProposalDecision? decision, CancellationToken cancellationToken)
     {
         try

@@ -170,6 +170,10 @@ else
                     <p role="note" data-proposal-human-review-required>
                         @(detail.HumanApprovalMessage ?? "Sign in to this server, then refresh the review to approve.")
                     </p>
+                    @if (detail.HumanApprovalSignInPath is { } signInPath)
+                    {
+                        <a class="console-button console-button-secondary" href="@signInPath">Sign in to approval server</a>
+                    }
                     <button type="button" class="console-button console-button-secondary"
                             disabled="@DecisionUnavailable" @onclick="LoadAsync">Refresh review</button>
                 }

@@ -23,7 +23,11 @@ internal sealed record ConsoleServerAuthPendingFlow(
     string ProviderKey,
     Uri ServerBaseUri,
     string ReturnTo,
-    DateTimeOffset ExpiresAt);
+    DateTimeOffset ExpiresAt)
+{
+    public ConsoleServerAuthority Authority { get; init; }
+    public string? ProfileBinding { get; init; }
+}
 
 internal sealed class ConsoleServerSessionPartition : IDisposable
 {
@@ -246,9 +250,14 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         lock (_gate)
         {
             RemoveExpiredPendingLocked(now);
+            if (_pending.TryGetValue(pending.State, out var existing)
+                && (existing.OperatorKey != pending.OperatorKey || existing.ProfileId != pending.ProfileId
+                    || existing.ServerBaseUri != pending.ServerBaseUri))
+                throw new InvalidOperationException("The server sign-in state conflicts with another authority.");
             foreach (var state in _pending
                          .Where(item => string.Equals(item.Value.OperatorKey, pending.OperatorKey, StringComparison.Ordinal)
-                             && string.Equals(item.Value.ProfileId, pending.ProfileId, StringComparison.Ordinal))
+                             && string.Equals(item.Value.ProfileId, pending.ProfileId, StringComparison.Ordinal)
+                             && item.Value.ServerBaseUri == pending.ServerBaseUri)
                          .Select(static item => item.Key)
                          .ToArray())
             {
@@ -386,7 +395,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         }
     }
 
-    private static Uri NormalizeOrigin(Uri serverBaseUri)
+    internal static Uri NormalizeOrigin(Uri serverBaseUri)
     {
         ArgumentNullException.ThrowIfNull(serverBaseUri);
         if (!serverBaseUri.IsAbsoluteUri
@@ -451,6 +460,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
     private readonly ConsoleServerSessionClientStore _serverSessions;
     private readonly TimeProvider _timeProvider;
     private readonly ConsoleServerSessionIdentityBinding? _identityBinding;
+    private readonly IConsoleManagerEndpoint? _management;
 
     public ConsoleServerSessionBffCoordinator(
         IConsoleOperatorContext operatorContext,
@@ -458,8 +468,10 @@ internal sealed class ConsoleServerSessionBffCoordinator
         IConsoleAccountSessionStore sessions,
         ConsoleServerSessionClientStore serverSessions,
         TimeProvider timeProvider,
-        ConsoleServerSessionIdentityBinding? identityBinding = null)
+        ConsoleServerSessionIdentityBinding? identityBinding = null,
+        IConsoleManagerEndpoint? management = null)
     {
+        _management = management;
         _identityBinding = identityBinding;
         _operatorContext = operatorContext ?? throw new ArgumentNullException(nameof(operatorContext));
         _profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
@@ -468,18 +480,26 @@ internal sealed class ConsoleServerSessionBffCoordinator
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
     }
 
-    public async Task<ConsoleServerSignInResult> BeginSignInAsync(
+    public Task<ConsoleServerSignInResult> BeginSignInAsync(
         string profileId,
         string? providerKey,
         string? returnTo,
+        CancellationToken cancellationToken = default) => BeginAuthoritySignInAsync(
+            profileId, ConsoleServerAuthority.Serving, providerKey, returnTo, cancellationToken);
+
+    public async Task<ConsoleServerSignInResult> BeginAuthoritySignInAsync(
+        string profileId, ConsoleServerAuthority authority, string? providerKey, string? returnTo,
         CancellationToken cancellationToken = default)
     {
         var operatorKey = _operatorContext.RequireOperatorKey();
-        var profile = await _profiles.GetProfileAsync(profileId, cancellationToken).ConfigureAwait(false);
+        var selected = await _profiles.GetProfileAsync(profileId, cancellationToken).ConfigureAwait(false);
+        var profile = selected is null ? null : ResolveAuthorityProfile(selected, authority);
         if (profile is null || profile.Account.AuthMode != ConsoleAccountAuthMode.AccountRbac)
         {
             return Unavailable("The selected environment is not configured for an operator account.", returnTo);
         }
+
+        var profileBinding = ConsoleServerProfileBinding.Capture(selected!);
 
         var created = false;
         var retainPartition = false;
@@ -577,7 +597,11 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 provider.Key,
                 profile.ServerBaseUri,
                 ConsoleReturnUrl.Sanitize(returnTo),
-                _timeProvider.GetUtcNow().Add(PendingLifetime)));
+                _timeProvider.GetUtcNow().Add(PendingLifetime))
+            {
+                Authority = authority,
+                ProfileBinding = profileBinding
+            });
             retainPartition = true;
             return new ConsoleServerSignInResult
             {
@@ -600,6 +624,17 @@ internal sealed class ConsoleServerSessionBffCoordinator
         }
     }
 
+    private ConsoleEnvironmentProfile? ResolveAuthorityProfile(ConsoleEnvironmentProfile selected, ConsoleServerAuthority authority)
+    {
+        var target = authority switch
+        {
+            ConsoleServerAuthority.Serving => selected.ServerBaseUri,
+            ConsoleServerAuthority.Management => _management?.Resolve(selected.ServerBaseUri),
+            _ => null
+        };
+        return target is null ? null : selected with { ServerBaseUri = target };
+    }
+
     public async Task<ConsoleServerSignInResult> CompleteSignInAsync(
         string? code,
         string? state,
@@ -619,8 +654,10 @@ internal sealed class ConsoleServerSessionBffCoordinator
             return Denied("The identity provider did not complete server sign-in.", pending.ReturnTo);
         }
 
-        var profile = await _profiles.GetProfileAsync(pending.ProfileId, cancellationToken).ConfigureAwait(false);
-        if (profile is null || !SameServer(profile.ServerBaseUri, pending.ServerBaseUri))
+        var selected = await _profiles.GetProfileAsync(pending.ProfileId, cancellationToken).ConfigureAwait(false);
+        var profile = selected is null ? null : ResolveAuthorityProfile(selected, pending.Authority);
+        if (profile is null || !SameServer(profile.ServerBaseUri, pending.ServerBaseUri)
+            || (pending.ProfileBinding is not null && pending.ProfileBinding != ConsoleServerProfileBinding.Capture(selected!)))
         {
             return Denied("The environment profile changed while server sign-in was in progress.", pending.ReturnTo);
         }
@@ -651,14 +688,18 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 return Denied("honua-server rejected the operator sign-in response.", pending.ReturnTo);
             }
 
-            if (_identityBinding is not null
-                && !await _identityBinding.EnsureAsync(
-                    partition, profile, operatorKey, pending.ProviderKey, cancellationToken).ConfigureAwait(false))
+            var identityMatches = _identityBinding is null || (pending.Authority == ConsoleServerAuthority.Management
+                ? await _identityBinding.EnsureHumanSessionAsync(partition, profile, operatorKey, pending.ProviderKey, cancellationToken).ConfigureAwait(false)
+                : await _identityBinding.EnsureAsync(partition, profile, operatorKey, pending.ProviderKey, cancellationToken).ConfigureAwait(false));
+            if (!identityMatches)
             {
                 return Denied("The server session does not match the authenticated Console operator.", pending.ReturnTo);
             }
 
             partition.AuthenticatedProviderKey = pending.ProviderKey;
+            partition.ProposalReviews.Clear();
+            if (pending.Authority == ConsoleServerAuthority.Management)
+                return new ConsoleServerSignInResult { Status = ConsoleServerSignInStatus.Redirect, RedirectUri = pending.ReturnTo };
             var exchange = await new HttpConsoleOperatorBearerExchange(partition.Client)
                 .ExchangeAsync(profile, cancellationToken).ConfigureAwait(false);
             if (exchange.Status != ConsoleOperatorBearerExchangeStatus.Issued
@@ -878,15 +919,17 @@ internal static class ConsoleServerSessionBffExtensions
             string profileId,
             string? provider,
             string? returnTo,
+            ConsoleServerAuthority? authority,
             ConsoleServerSessionBffCoordinator coordinator,
             CancellationToken cancellationToken) =>
         {
-            var result = await coordinator.BeginSignInAsync(
+            var result = await coordinator.BeginAuthoritySignInAsync(
                 profileId,
+                authority ?? ConsoleServerAuthority.Serving,
                 provider,
                 returnTo,
                 cancellationToken).ConfigureAwait(false);
-            return ToHttpResult(result, profileId, returnTo);
+            return ToHttpResult(result, profileId, returnTo, authority ?? ConsoleServerAuthority.Serving);
         });
 
         app.MapGet("/admin/auth/callback", async (
@@ -912,11 +955,12 @@ internal static class ConsoleServerSessionBffExtensions
     private static IResult ToHttpResult(
         ConsoleServerSignInResult result,
         string profileId,
-        string? returnTo) => result.Status switch
+        string? returnTo,
+        ConsoleServerAuthority authority) => result.Status switch
         {
             ConsoleServerSignInStatus.Redirect => Results.Redirect(result.RedirectUri),
             ConsoleServerSignInStatus.SelectProvider => Results.Content(
-                BuildProviderSelection(result, profileId, returnTo),
+                BuildProviderSelection(result, profileId, returnTo, authority),
                 "text/html; charset=utf-8"),
             ConsoleServerSignInStatus.Denied => Results.Redirect(BuildFailureUri(result)),
             _ => Results.Redirect(BuildFailureUri(result))
@@ -925,7 +969,8 @@ internal static class ConsoleServerSessionBffExtensions
     private static string BuildProviderSelection(
         ConsoleServerSignInResult result,
         string profileId,
-        string? returnTo)
+        string? returnTo,
+        ConsoleServerAuthority authority)
     {
         var encoder = HtmlEncoder.Default;
         var links = string.Join(
@@ -935,6 +980,7 @@ internal static class ConsoleServerSessionBffExtensions
                 var href = QueryHelpers.AddQueryString("/auth/server/login", new Dictionary<string, string?>
                 {
                     ["profileId"] = profileId,
+                    ["authority"] = authority.ToString(),
                     ["provider"] = provider.Key,
                     ["returnTo"] = ConsoleReturnUrl.Sanitize(returnTo)
                 });

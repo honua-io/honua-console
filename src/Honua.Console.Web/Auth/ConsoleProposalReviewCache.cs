@@ -42,6 +42,11 @@ internal sealed class ConsoleProposalReviewCache(TimeProvider clock)
         }
     }
 
+    public void Discard(string proposalId)
+    {
+        lock (_gate) _reviews.RemoveAll(entry => entry.ProposalId == proposalId);
+    }
+
     public void Clear()
     {
         lock (_gate) _reviews.Clear();

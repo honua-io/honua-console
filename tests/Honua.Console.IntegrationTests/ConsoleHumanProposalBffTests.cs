@@ -56,7 +56,7 @@ public sealed class ConsoleHumanProposalBffTests
             case "anonymous": host.Authenticated = false; break;
         }
         using var response = await host.Client.PostAsJsonAsync("/api/console/proposals/proposal/review",
-            new ConsoleHumanProposalRequest(change == "profile" ? "other" : "environment", ConsoleProposalAuthority.Serving, null),
+            new ConsoleHumanProposalRequest(change == "profile" ? "other" : "environment", ConsoleServerAuthority.Serving, null),
             ConsoleHumanProposalBffJsonContext.Default.ConsoleHumanProposalRequest);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -107,6 +107,26 @@ public sealed class ConsoleHumanProposalBffTests
         Assert.Equal(1, host.ApprovalCalls);
     }
 
+    [Fact]
+    public async Task BrowserRead_ResolvedProposal_UsesPrivateSessionAndDiscardsOldApproval()
+    {
+        await using var host = await Host.StartAsync();
+        var pending = (await host.OpenReviewAsync()).Value!;
+        var decision = new ConsoleProposalDecision("proposal", pending.Proposal.Version,
+            pending.Proposal.PlanHash!, pending.EnvironmentReference);
+        host.ProposalStatus = "Executing";
+
+        var resolved = await host.OpenReviewAsync();
+        var oldApproval = await host.DecideAsync(decision);
+
+        Assert.True(resolved.IsAllowed);
+        Assert.Equal("Executing", resolved.Value!.Proposal.Status);
+        Assert.Empty(resolved.Value.EnvironmentReference);
+        Assert.False(oldApproval.IsAllowed);
+        Assert.Equal(0, host.ApprovalCalls);
+        Assert.True(host.SawPrivateCookie);
+    }
+
     private sealed class Host : IAsyncDisposable
     {
         private WebApplication _browser = null!;
@@ -115,6 +135,7 @@ public sealed class ConsoleHumanProposalBffTests
         public ConsoleEnvironmentProfile Profile { get; private set; } = null!;
         public ConsoleServerSessionClientStore Sessions { get; private set; } = null!;
         public bool Authenticated { get; set; } = true;
+        public string ProposalStatus { get; set; } = "AwaitingApproval";
         public bool LoseDecisionResponse { get; set; }
         public int ReviewCalls { get; private set; }
         public int ApprovalCalls { get; private set; }
@@ -130,10 +151,19 @@ public sealed class ConsoleHumanProposalBffTests
                 host.ReviewCalls++;
                 host.Observe(context);
                 context.Response.Headers.CacheControl = "no-store";
+                if (host.ProposalStatus != "AwaitingApproval") return Results.Conflict();
                 return Results.Json(new ConsolePrivateProposalReviewResponse(
                     new ProposalDetailWire { ProposalId = "proposal", Status = "AwaitingApproval", Version = 7, PlanHash = "plan" },
                     new ConsoleProposalHumanReviewWire("proposal", 7, "plan", "private-capability", DateTimeOffset.UtcNow.AddMinutes(5))),
                     ConsoleHumanProposalJsonContext.Default.ConsolePrivateProposalReviewResponse);
+            });
+            host._upstream.MapGet("/api/v1/admin/proposals/proposal", (HttpContext context) =>
+            {
+                host.Observe(context);
+                return Results.Json(new ProposalDetailWire
+                {
+                    ProposalId = "proposal", Status = host.ProposalStatus, Version = 7, PlanHash = "plan"
+                }, ConsoleHumanProposalJsonContext.Default.ProposalDetailWire);
             });
             host._upstream.MapPost("/api/v1/admin/proposals/proposal/approve", (HttpContext context) =>
             {
@@ -176,7 +206,7 @@ public sealed class ConsoleHumanProposalBffTests
         public async Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync()
         {
             using var response = await Client.PostAsJsonAsync("/api/console/proposals/proposal/review",
-                new ConsoleHumanProposalRequest(Profile.Id, ConsoleProposalAuthority.Serving, null),
+                new ConsoleHumanProposalRequest(Profile.Id, ConsoleServerAuthority.Serving, null),
                 ConsoleHumanProposalBffJsonContext.Default.ConsoleHumanProposalRequest);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.True(response.Headers.CacheControl?.NoStore);
@@ -187,7 +217,7 @@ public sealed class ConsoleHumanProposalBffTests
         public async Task<OperateSectionResult<ProposalDetailWire>> DecideAsync(ConsoleProposalDecision decision)
         {
             using var response = await Client.PostAsJsonAsync("/api/console/proposals/proposal/approve",
-                new ConsoleHumanProposalRequest(Profile.Id, ConsoleProposalAuthority.Serving, decision),
+                new ConsoleHumanProposalRequest(Profile.Id, ConsoleServerAuthority.Serving, decision),
                 ConsoleHumanProposalBffJsonContext.Default.ConsoleHumanProposalRequest);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             return (await response.Content.ReadFromJsonAsync(

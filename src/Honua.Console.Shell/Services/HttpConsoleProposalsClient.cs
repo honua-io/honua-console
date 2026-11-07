@@ -15,7 +15,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         "No active environment profile is selected. Connect an environment to review approvals.";
 
     private readonly IConsoleHumanProposalSession? _humanSession;
-    private readonly ConsoleProposalAuthority _authority;
+    private readonly ConsoleServerAuthority _authority;
     private readonly HttpClient _http;
     private readonly IConsoleEnvironmentProfileStore _profileStore;
     private readonly IConsoleAccountSessionStore _sessionStore;
@@ -31,7 +31,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         IConsoleOperatorBearerProvider? operatorBearerProvider = null,
         ConsoleServerCredentialMode credentialMode = ConsoleServerCredentialMode.Interactive,
         IConsoleHumanProposalSession? humanSession = null,
-        ConsoleProposalAuthority authority = ConsoleProposalAuthority.Serving)
+        ConsoleServerAuthority authority = ConsoleServerAuthority.Serving)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
@@ -88,24 +88,27 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(proposalId);
+        var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        if (_humanSession is not null && profile is not null)
+        {
+            var review = await _humanSession.OpenReviewAsync(profile, _authority, proposalId.Trim(), cancellationToken)
+                .ConfigureAwait(false);
+            if (review.IsAllowed && review.Value is { } opened)
+                return OperateSectionResult<ConsoleProposalDetail>.Allowed(MapDetail(opened.Proposal) with
+                {
+                    HumanReviewEnvironment = opened.EnvironmentReference,
+                    HumanReviewExpiresAt = opened.ExpiresAt,
+                    HumanApprovalMessage = opened.ApprovalMessage,
+                    HumanApprovalSignInPath = BuildSignInPath(profile, proposalId.Trim()),
+                });
+        }
         var result = await SendDetailAsync(HttpMethod.Get, ProposalAdminRoutes.Detail(proposalId.Trim()), content: null, cancellationToken)
             .ConfigureAwait(false);
-        if (!result.IsAllowed || result.Value is not { IsAwaitingApproval: true } detail) return result;
-        var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-        if (_humanSession is null || profile is null) return result with
-        {
-            Value = detail with { HumanApprovalMessage = "Sign in to the server and reopen this review to approve." }
-        };
-
-        var review = await _humanSession.OpenReviewAsync(profile, _authority, proposalId.Trim(), cancellationToken)
-            .ConfigureAwait(false);
-        return review.IsAllowed && review.Value is { } opened
-            ? OperateSectionResult<ConsoleProposalDetail>.Allowed(MapDetail(opened.Proposal) with
-            {
-                HumanReviewEnvironment = opened.EnvironmentReference,
-                HumanReviewExpiresAt = opened.ExpiresAt,
-            })
-            : result with { Value = detail with { HumanApprovalMessage = review.Message } };
+        return result.Value is { IsAwaitingApproval: true } detail
+            ? result with { Value = detail with { HumanApprovalMessage = detail.HumanApprovalMessage
+                ?? "Sign in to this server, then refresh this review to approve.",
+                HumanApprovalSignInPath = profile is null ? null : BuildSignInPath(profile, proposalId.Trim()) } }
+            : result;
     }
 
     public async Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
@@ -347,6 +350,14 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
             "The connected server does not expose the proposals approval endpoints.",
         _ => $"The honua-server proposals API returned {(int)code} for {method.Method} {relativePath}.",
     };
+
+    private string BuildSignInPath(ConsoleEnvironmentProfile profile, string proposalId)
+    {
+        var ownerId = _authority == ConsoleServerAuthority.Management ? "manager:" + proposalId : proposalId;
+        var returnTo = "/inbox?proposalId=" + Uri.EscapeDataString(ownerId);
+        return "/auth/server/login?profileId=" + Uri.EscapeDataString(profile.Id)
+            + "&authority=" + _authority + "&returnTo=" + Uri.EscapeDataString(returnTo);
+    }
 
     private static Uri BuildUri(Uri baseUri, string relativePath) =>
         ConsoleServerHttp.BuildUri(baseUri, relativePath);

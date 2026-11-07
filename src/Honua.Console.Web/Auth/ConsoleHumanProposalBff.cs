@@ -62,7 +62,7 @@ internal static class ConsoleHumanProposalBff
 }
 
 internal sealed record ConsoleHumanProposalRequest(
-    string ProfileId, ConsoleProposalAuthority Authority, ConsoleProposalDecision? Decision);
+    string ProfileId, ConsoleServerAuthority Authority, ConsoleProposalDecision? Decision);
 
 internal sealed record ConsoleHumanProposalBrowserSession(string ProfileId, string? CsrfToken);
 
