@@ -35,7 +35,7 @@ function EsriIntake({ kind, file, summary }) {
   );
 }
 
-/* ---------- #100 · Import source Web Map JSON → honua.map-package.v1 ---------- */
+/* Import source Web Map JSON to honua.map-package.v1. */
 function ImportEsriWebMap() {
   return (
     <div className="scr">
@@ -123,7 +123,7 @@ function ImportEsriWebMap() {
   );
 }
 
-/* ---------- #101 · Import source dashboard JSON → dashboard package ---------- */
+/* Import source dashboard JSON to a dashboard package. */
 function ImportEsriDashboard() {
   return (
     <div className="scr">
