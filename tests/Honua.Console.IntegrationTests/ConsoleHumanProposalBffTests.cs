@@ -149,7 +149,7 @@ public sealed class ConsoleHumanProposalBffTests
             host.Sessions = new ConsoleServerSessionClientStore(TimeProvider.System);
             host.Sessions.GetOrCreate("human", host.Profile).Cookies.SetCookies(host.Profile.ServerBaseUri,
                 "honua_admin_session=private-server-session; Path=/; HttpOnly");
-            var profiles = new InMemoryConsoleEnvironmentProfileStore([host.Profile], host.Profile.Id);
+            var profiles = new InMemoryConsoleEnvironmentProfileStore([host.Profile], activeProfileId: host.Profile.Id);
             var builder = Builder();
             builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-Token");
             builder.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
