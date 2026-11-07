@@ -129,6 +129,13 @@ public sealed record ConsoleProposalDetail(
 
     public string? ActionDiscriminator { get; init; }
 
+    public long Version { get; init; }
+    public string? PlanHash { get; init; }
+    public string? HumanReviewEnvironment { get; init; }
+    public DateTimeOffset? HumanReviewExpiresAt { get; init; }
+    public string? HumanApprovalMessage { get; init; }
+    public bool RequiresReproposal { get; init; }
+
     public bool IsAwaitingApproval => Status == ConsoleProposalStatus.AwaitingApproval;
 
     public bool IsTerminal => Status

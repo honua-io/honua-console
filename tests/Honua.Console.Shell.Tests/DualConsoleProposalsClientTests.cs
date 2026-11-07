@@ -18,10 +18,11 @@ public sealed class DualConsoleProposalsClientTests
         Assert.True(list.IsAllowed);
         Assert.Contains(list.Value!, item => item.ProposalId == "serving-proposal");
         Assert.Contains(list.Value!, item => item.ProposalId == "manager:manager-proposal");
-        await client.ApproveAsync("serving-proposal");
-        await client.ApproveAsync("manager:manager-proposal");
+        await client.ApproveReviewedAsync(new("serving-proposal", 7, "plan", "serving-environment"));
+        await client.ApproveReviewedAsync(new("manager:manager-proposal", 9, "manager-plan", "manager-environment"));
         Assert.Equal("serving-proposal", serving.Approved);
         Assert.Equal("manager-proposal", manager.Approved);
+        Assert.Equal(new ConsoleProposalDecision("manager-proposal", 9, "manager-plan", "manager-environment"), manager.Decision);
     }
 
     [Fact]
@@ -61,6 +62,7 @@ public sealed class DualConsoleProposalsClientTests
     private sealed class FakeProposals(string id) : IConsoleProposalsClient
     {
         public string? Approved { get; private set; }
+        public ConsoleProposalDecision? Decision { get; private set; }
         public bool Unavailable { get; init; }
         public bool Hang { get; init; }
         public Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(
@@ -76,6 +78,13 @@ public sealed class DualConsoleProposalsClientTests
         {
             Approved = proposalId;
             return GetAsync(proposalId, cancellationToken);
+        }
+        public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveReviewedAsync(
+            ConsoleProposalDecision decision, CancellationToken cancellationToken = default)
+        {
+            Decision = decision;
+            Approved = decision.ProposalId;
+            return GetAsync(decision.ProposalId, cancellationToken);
         }
         public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(string proposalId, string reason, CancellationToken cancellationToken = default) =>
             GetAsync(proposalId, cancellationToken);

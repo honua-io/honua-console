@@ -35,7 +35,8 @@ public sealed class ProposalApprovalPanelReceiptTests
     public void ApprovalKeepsServerStatusAndExecutionOperationMachineReadable()
     {
         using var context = new BunitContext();
-        context.Services.AddSingleton<IConsoleProposalsClient>(new ProposalClient());
+        var proposals = new ProposalClient();
+        context.Services.AddSingleton<IConsoleProposalsClient>(proposals);
         context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
             .Add(component => component.ProposalId, "proposal-1"));
@@ -44,6 +45,7 @@ public sealed class ProposalApprovalPanelReceiptTests
             Assert.Equal("AwaitingApproval", panel.Find("[data-proposal-status]").GetAttribute("data-proposal-status")));
 
         panel.Find("[data-proposal-approve]").Click();
+        Assert.Equal(new ConsoleProposalDecision("proposal-1", 7, "sealed-plan", "environment"), proposals.Decision);
 
         panel.WaitForAssertion(() =>
         {
@@ -57,6 +59,8 @@ public sealed class ProposalApprovalPanelReceiptTests
     private sealed class ProposalClient(ConsoleProposalStatus initialStatus = ConsoleProposalStatus.AwaitingApproval)
         : IConsoleProposalsClient
     {
+        public ConsoleProposalDecision? Decision { get; private set; }
+
         public Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(
             string? status = null,
             string? kind = null,
@@ -71,6 +75,13 @@ public sealed class ProposalApprovalPanelReceiptTests
         public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
             string proposalId,
             CancellationToken cancellationToken = default) => Task.FromResult(Allowed(ConsoleProposalStatus.Submitted));
+
+        public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveReviewedAsync(
+            ConsoleProposalDecision decision, CancellationToken cancellationToken = default)
+        {
+            Decision = decision;
+            return Task.FromResult(Allowed(ConsoleProposalStatus.Submitted));
+        }
 
         public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(
             string proposalId,
@@ -97,7 +108,13 @@ public sealed class ProposalApprovalPanelReceiptTests
                 status == ConsoleProposalStatus.AwaitingApproval ? null : "operation-1",
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow,
-                status == ConsoleProposalStatus.AwaitingApproval ? null : DateTimeOffset.UtcNow));
+                status == ConsoleProposalStatus.AwaitingApproval ? null : DateTimeOffset.UtcNow)
+            {
+                Version = 7,
+                PlanHash = "sealed-plan",
+                HumanReviewEnvironment = "environment",
+                HumanReviewExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5)
+            });
     }
 
     private sealed class EmptyInboxClient : IConsoleApprovalInboxClient

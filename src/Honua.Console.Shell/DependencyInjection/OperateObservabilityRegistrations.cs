@@ -72,16 +72,17 @@ internal static class OperateObservabilityRegistrations
     // A denied approve/reject surfaces as Forbidden; a human decision never falls back to the admin API key.
     private static void AddProposals(IServiceCollection services, string? adminApiKey, ConsoleServerCredentialMode credentialMode)
     {
-        services.TryAddSingleton<IConsoleProposalsClient>(serviceProvider =>
+        services.TryAddScoped<IConsoleProposalsClient>(serviceProvider =>
         {
             var profiles = serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>();
             var sessions = serviceProvider.GetRequiredService<IConsoleAccountSessionStore>();
             var bearers = serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>();
             return new DualConsoleProposalsClient(
                 new HttpConsoleProposalsClient(ShellHttpClients.ServerBound(serviceProvider), profiles, sessions,
-                    adminApiKey, bearers, credentialMode),
+                    adminApiKey, bearers, credentialMode, serviceProvider.GetService<IConsoleHumanProposalSession>()),
                 new HttpConsoleProposalsClient(ShellHttpClients.ManagerBound(serviceProvider), profiles, sessions,
-                    adminApiKey, bearers, credentialMode),
+                    adminApiKey, bearers, credentialMode, serviceProvider.GetService<IConsoleHumanProposalSession>(),
+                    ConsoleProposalAuthority.Management),
                 profiles, serviceProvider.GetService<IConsoleManagerEndpoint>());
         });
         services.TryAddSingleton<IConsoleReleaseWitnessClient>(serviceProvider =>
@@ -100,9 +101,9 @@ internal static class OperateObservabilityRegistrations
 
         // honua-devops exposes no Console proposals endpoint, so its source reads an empty, allowed result.
         services.TryAddSingleton<IConsoleDevOpsProposalsClient, UnavailableConsoleDevOpsProposalsClient>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConsoleProposalSource, ServerConsoleProposalSource>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConsoleProposalSource, DevOpsConsoleProposalSource>());
-        services.TryAddSingleton<IConsoleApprovalInboxClient>(serviceProvider =>
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IConsoleProposalSource, ServerConsoleProposalSource>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IConsoleProposalSource, DevOpsConsoleProposalSource>());
+        services.TryAddScoped<IConsoleApprovalInboxClient>(serviceProvider =>
             new ConsoleApprovalInboxClient(serviceProvider.GetServices<IConsoleProposalSource>()));
     }
 

@@ -34,11 +34,13 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
         ConsoleServerSessionPartitionKey key,
         CookieContainer cookies,
         HttpClient client,
-        DateTimeOffset createdAt)
+        DateTimeOffset createdAt,
+        TimeProvider timeProvider)
     {
         Key = key;
         Cookies = cookies;
         Client = client;
+        ProposalReviews = new(timeProvider);
         Touch(createdAt);
     }
 
@@ -49,6 +51,8 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
     public string? AuthenticatedProviderKey { get; set; }
 
     public HttpClient Client { get; }
+
+    public ConsoleProposalReviewCache ProposalReviews { get; }
 
     // Other sign-in attempts that observed this partition. The creator does not count, and only the store lock mutates it.
     public int Observers { get; private set; }
@@ -68,7 +72,11 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
         return new AuthenticationLease(_authenticationGate);
     }
 
-    public void Dispose() => Client.Dispose();
+    public void Dispose()
+    {
+        ProposalReviews.Clear();
+        Client.Dispose();
+    }
 
     private sealed class AuthenticationLease(SemaphoreSlim gate) : IDisposable
     {
@@ -167,7 +175,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
                 BaseAddress = origin,
                 Timeout = TimeSpan.FromSeconds(30)
             };
-            var partition = new ConsoleServerSessionPartition(key, cookies, client, now);
+            var partition = new ConsoleServerSessionPartition(key, cookies, client, now, _timeProvider);
             _partitions.Add(key, partition);
             created = true;
             DisposeAll(discarded);
@@ -814,22 +822,24 @@ internal sealed class PartitionedConsoleOperatorBearerExchange : IConsoleOperato
     {
         try
         {
-            var operatorKey = _operatorContext.RequireOperatorKey();
-            if (!_serverSessions.TryGet(operatorKey, profile, out var partition)
-                || partition is null)
-            {
-                return new UnavailableLease(ConsoleOperatorBearerExchangeResult.Denied(
+            return await EnterPrivateSessionAsync(profile, cancellationToken).ConfigureAwait(false)
+                ?? (IConsoleOperatorBearerExchangeLease)new UnavailableLease(ConsoleOperatorBearerExchangeResult.Denied(
                     "No honua-server session is available. Sign in to the server again."));
-            }
-
-            var authentication = await partition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
-            return new PartitionLease(partition, profile, operatorKey, _identityBinding, authentication);
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
         {
             return new UnavailableLease(ConsoleOperatorBearerExchangeResult.Unavailable(
                 "The per-operator honua-server session is unavailable. Sign in to the server again."));
         }
+    }
+
+    internal async Task<ConsoleAuthenticatedServerSession?> EnterPrivateSessionAsync(
+        ConsoleEnvironmentProfile profile, CancellationToken cancellationToken)
+    {
+        var operatorKey = _operatorContext.RequireOperatorKey();
+        if (!_serverSessions.TryGet(operatorKey, profile, out var partition) || partition is null) return null;
+        var authentication = await partition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
+        return new ConsoleAuthenticatedServerSession(partition, profile, operatorKey, _identityBinding, authentication);
     }
 
     private sealed class UnavailableLease(ConsoleOperatorBearerExchangeResult result) : IConsoleOperatorBearerExchangeLease
@@ -840,45 +850,7 @@ internal sealed class PartitionedConsoleOperatorBearerExchange : IConsoleOperato
         public void Dispose() { }
     }
 
-    private sealed class PartitionLease(
-        ConsoleServerSessionPartition partition,
-        ConsoleEnvironmentProfile boundProfile,
-        string operatorKey,
-        ConsoleServerSessionIdentityBinding? identityBinding,
-        IDisposable authentication) : IConsoleOperatorBearerExchangeLease
-    {
-        private IDisposable? _authentication = authentication;
 
-        public async Task<ConsoleOperatorBearerExchangeResult> ExchangeAsync(
-            ConsoleEnvironmentProfile profile, CancellationToken cancellationToken = default)
-        {
-            if (_authentication is null || profile.Id != boundProfile.Id || profile.ServerBaseUri != boundProfile.ServerBaseUri)
-            {
-                return ConsoleOperatorBearerExchangeResult.Unavailable("The authenticated environment scope changed.");
-            }
-
-            try
-            {
-                if (identityBinding is not null
-                    && !await identityBinding.EnsureAsync(
-                        partition, profile, operatorKey, partition.AuthenticatedProviderKey, cancellationToken).ConfigureAwait(false))
-                {
-                    return ConsoleOperatorBearerExchangeResult.Denied(
-                        "The server session does not match the authenticated Console operator. Sign in again.");
-                }
-
-                return await new HttpConsoleOperatorBearerExchange(partition.Client)
-                    .ExchangeAsync(profile, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
-            {
-                return ConsoleOperatorBearerExchangeResult.Unavailable(
-                    "The per-operator honua-server session is unavailable. Sign in to the server again.");
-            }
-        }
-
-        public void Dispose() => Interlocked.Exchange(ref _authentication, null)?.Dispose();
-    }
 }
 
 internal static class ConsoleServerSessionBffExtensions
@@ -890,8 +862,11 @@ internal static class ConsoleServerSessionBffExtensions
         builder.Services.TryAddSingleton<ConsoleServerSessionClientStore>();
         builder.Services.TryAddSingleton<ConsoleServerSessionIdentityBinding>();
         builder.Services.TryAddSingleton<ConsoleServerSessionBffCoordinator>();
-        builder.Services.Replace(ServiceDescriptor.Singleton<IConsoleOperatorBearerExchange,
-            PartitionedConsoleOperatorBearerExchange>());
+        builder.Services.TryAddSingleton<PartitionedConsoleOperatorBearerExchange>();
+        builder.Services.TryAddSingleton<ConsoleHumanProposalSession>();
+        builder.Services.TryAddScoped<IConsoleHumanProposalSession, BrowserHumanProposalSession>();
+        builder.Services.Replace(ServiceDescriptor.Singleton<IConsoleOperatorBearerExchange>(
+            services => services.GetRequiredService<PartitionedConsoleOperatorBearerExchange>()));
         return builder;
     }
 

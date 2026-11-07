@@ -141,72 +141,16 @@ public sealed class ConsoleProposalsClientTests
     }
 
     [Fact]
-    public async Task ApprovePostsApproveEndpoint_AndReturnsResolvedDetail()
+    public async Task ApproveWithoutDisplayedReview_RefusesForwardableOperatorBearer()
     {
-        const string body = """
-        {
-          "proposalId": "prop-1",
-          "kind": "Deploy",
-          "status": "Submitted",
-          "summary": "Upgrade server to v21",
-          "diff": [],
-          "dryRun": [],
-          "riskLevel": "High",
-          "blockingReasons": [],
-          "warnings": [],
-          "resolvedBy": "operator.alice",
-          "executionOperationId": "deploy-op-7",
-          "createdAt": "2026-06-28T10:00:00Z",
-          "updatedAt": "2026-06-28T10:10:00Z",
-          "resolvedAt": "2026-06-28T10:10:00Z"
-        }
-        """;
-        var handler = new RecordingHandler(_ => Json(body));
-        var client = CreateClient(handler, sessions: BearerSessions());
+        var handler = new RecordingHandler(_ => throw new InvalidOperationException("No request may be forwarded."));
+        var client = CreateClient(handler, adminApiKey: "shared-admin-key", sessions: BearerSessions());
 
         var result = await client.ApproveAsync("prop-1");
 
-        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
-        Assert.Equal(ConsoleProposalStatus.Submitted, result.Value!.Status);
-        Assert.Equal("deploy-op-7", result.Value!.ExecutionOperationId);
-
-        var request = Assert.Single(handler.Requests);
-        Assert.Equal(HttpMethod.Post, request.Method);
-        Assert.EndsWith("/api/v1/admin/proposals/prop-1/approve", request.RequestUri!.AbsolutePath, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task ApprovePrefersSignedInOperatorBearer_AndLeavesAuditIdentityToServerClaims()
-    {
-        var handler = new RecordingHandler(_ => Json("""
-        {
-          "proposalId": "prop-1",
-          "kind": "Deploy",
-          "status": "Submitted",
-          "summary": "Upgrade server",
-          "diff": [],
-          "dryRun": [],
-          "riskLevel": "High",
-          "blockingReasons": [],
-          "warnings": [],
-          "createdAt": "2026-06-28T10:00:00Z",
-          "updatedAt": "2026-06-28T10:10:00Z"
-        }
-        """));
-        var sessions = new InMemoryConsoleAccountSessionStore();
-        await sessions.SaveSessionAsync(new ConsoleAccountSession
-        {
-            ProfileId = "live",
-            AccessToken = "operator-alice-bearer"
-        });
-        var client = CreateClient(handler, adminApiKey: "shared-admin-key", sessions: sessions);
-
-        _ = await client.ApproveAsync("prop-1");
-
-        var request = Assert.Single(handler.Requests);
-        Assert.Equal(new AuthenticationHeaderValue("Bearer", "operator-alice-bearer"), request.Headers.Authorization);
-        Assert.False(request.Headers.Contains("X-API-Key"));
-        Assert.DoesNotContain(request.Headers, header => header.Key.Contains("Actor", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
+        Assert.Contains("review", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(handler.Requests);
     }
 
     [Fact]
@@ -229,36 +173,19 @@ public sealed class ConsoleProposalsClientTests
     }
 
     [Fact]
-    public async Task ApproveExplicitHeadlessModeUsesAdminKeyOnlyWithoutInteractiveSession()
+    public async Task ApproveExplicitHeadlessMode_RefusesSharedAdminKey()
     {
-        var handler = new RecordingHandler(_ => Json("""
-        {
-          "proposalId": "prop-1",
-          "kind": "Deploy",
-          "status": "Submitted",
-          "summary": "Upgrade server",
-          "diff": [],
-          "dryRun": [],
-          "riskLevel": "High",
-          "blockingReasons": [],
-          "warnings": [],
-          "createdAt": "2026-06-28T10:00:00Z",
-          "updatedAt": "2026-06-28T10:10:00Z"
-        }
-        """));
-        var client = CreateClient(
-            handler,
-            adminApiKey: "shared-admin-key",
+        var handler = new RecordingHandler(_ => throw new InvalidOperationException("No request may be forwarded."));
+        var client = CreateClient(handler, adminApiKey: "shared-admin-key",
             credentialMode: ConsoleServerCredentialMode.HeadlessService,
             accountAuthMode: ConsoleAccountAuthMode.ServiceApiKey);
 
         var result = await client.ApproveAsync("prop-1");
+        var reviewed = await client.ApproveReviewedAsync(new("prop-1", 1, "plan", "environment"));
 
-        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
-        var request = Assert.Single(handler.Requests);
-        Assert.True(request.Headers.TryGetValues("X-API-Key", out var values));
-        Assert.Equal("shared-admin-key", Assert.Single(values));
-        Assert.Null(request.Headers.Authorization);
+        Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
+        Assert.Equal(OperateSectionStatus.Forbidden, reviewed.Status);
+        Assert.Empty(handler.Requests);
     }
 
     [Fact]
@@ -275,7 +202,7 @@ public sealed class ConsoleProposalsClientTests
     }
 
     [Fact]
-    public async Task ApproveFailurePreservesProblemDetailAndComparableIdentifiers()
+    public async Task RejectFailurePreservesProblemDetailAndComparableIdentifiers()
     {
         var handler = new RecordingHandler(_ =>
         {
@@ -286,8 +213,8 @@ public sealed class ConsoleProposalsClientTests
                     """
                     {
                       "title": "Approval denied",
-                      "detail": "The requester cannot approve their own proposal.",
-                      "code": "separation-of-duties",
+                      "detail": "The current operation authority denied the decision.",
+                      "code": "operation-authority",
                       "proposalId": "prop-identity-1",
                       "operationId": "op-identity-1",
                       "correlationId": "corr-identity-1"
@@ -301,11 +228,11 @@ public sealed class ConsoleProposalsClientTests
         });
         var client = CreateClient(handler, sessions: BearerSessions());
 
-        var result = await client.ApproveAsync("prop-identity-1");
+        var result = await client.RejectAsync("prop-identity-1", "Human rejected the proposal");
 
         Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
-        Assert.Equal("The requester cannot approve their own proposal.", result.Message);
-        Assert.Contains("code=separation-of-duties", result.Detail, StringComparison.Ordinal);
+        Assert.Equal("The current operation authority denied the decision.", result.Message);
+        Assert.Contains("code=operation-authority", result.Detail, StringComparison.Ordinal);
         Assert.Contains("proposalId=prop-identity-1", result.Detail, StringComparison.Ordinal);
         Assert.Contains("operationId=op-identity-1", result.Detail, StringComparison.Ordinal);
         Assert.Contains("correlationId=corr-identity-1", result.Detail, StringComparison.Ordinal);

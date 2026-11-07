@@ -66,6 +66,17 @@ public sealed class FakeConsoleProposalsClient : IConsoleProposalsClient
         return Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Allowed(detail));
     }
 
+    public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveReviewedAsync(
+        ConsoleProposalDecision decision, CancellationToken cancellationToken = default)
+    {
+        if (!_details.TryGetValue(decision.ProposalId, out var detail)
+            || detail.Version != decision.ProposalVersion || detail.PlanHash != decision.PlanHash
+            || detail.HumanReviewEnvironment != decision.EnvironmentReference)
+            return Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(
+                OperateSectionStatus.Forbidden, "The displayed review changed."));
+        return ApproveAsync(decision.ProposalId, cancellationToken);
+    }
+
     public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(
         string proposalId, string reason, CancellationToken cancellationToken = default)
     {
@@ -245,5 +256,11 @@ public static class FakeProposalFactory
         ExecutionOperationId: null,
         CreatedAt: DateTimeOffset.UtcNow,
         UpdatedAt: DateTimeOffset.UtcNow,
-        ResolvedAt: null);
+        ResolvedAt: null)
+    {
+        Version = 7,
+        PlanHash = "sealed-plan",
+        HumanReviewEnvironment = "environment",
+        HumanReviewExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5)
+    };
 }

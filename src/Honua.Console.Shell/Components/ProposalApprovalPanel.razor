@@ -2,19 +2,6 @@
 @using Honua.Console.Shell.Services
 @inject IConsoleProposalsClient Proposals
 
-@* Human-in-the-loop approval panel for a single operation proposal (#193, honua-server
-   #1694). It renders the server-owned plan/diff/dry-run/risk/blockers/warnings — the same
-   artifacts the direct-execute path would have produced — and the governed actions:
-     Approve -> POST /api/v1/admin/proposals/{id}/approve
-     Reject  -> POST /api/v1/admin/proposals/{id}/reject  (reason REQUIRED)
-   Approve/reject are gated server-side by the RBAC 'approve' grant and the
-   proposer-cannot-approve separation-of-duties rule; a denied decision returns 403 and is
-   surfaced here, disabling the actions (the server is the only safety gate; never bypassed).
-   Each first-class kind gets its own card treatment: the Data import proposal (honua-server
-   #1630) leads with an import treatment, and each deliverable request (map / analysis /
-   dashboard / app) leads with a kind-appropriate deliverable treatment — then all render the
-   same plan/diff/preview/risk as every other kind. *@
-
 @if (_detail is null)
 {
     <OperateSectionStatusPanel Heading="Proposal review" Status="_status" Message="@_message" Detail="@_detailMessage" />
@@ -136,10 +123,6 @@ else
             </div>
         }
 
-        @* GOVERNED ACTIONS — approve / reject (reason required). Offered only while
-           AwaitingApproval; approve is blocked while there are blocking findings. The RBAC
-           'approve' grant is the server's gate: once a 403 tells us the operator lacks it,
-           the actions are disabled and the reason is surfaced. *@
         @if (detail.IsAwaitingApproval)
         {
             <div class="proposal-approval-actions">
@@ -158,7 +141,7 @@ else
                 <div class="proposal-approval-action-row">
                     <button type="button"
                             class="console-button"
-                            disabled="@(DecisionUnavailable || detail.BlockingReasons.Count > 0)"
+                            disabled="@(DecisionUnavailable || !HumanReviewReady || detail.BlockingReasons.Count > 0)"
                             title="@(_approveForbidden
                                 ? "You lack the approve permission for this server."
                                 : detail.BlockingReasons.Count > 0
@@ -182,13 +165,21 @@ else
                     </button>
                 </div>
 
+                @if (!HumanReviewReady)
+                {
+                    <p role="note" data-proposal-human-review-required>
+                        @(detail.HumanApprovalMessage ?? "Sign in to this server, then refresh the review to approve.")
+                    </p>
+                    <button type="button" class="console-button console-button-secondary"
+                            disabled="@DecisionUnavailable" @onclick="LoadAsync">Refresh review</button>
+                }
+
                 @if (_approveForbidden)
                 {
                     <p class="console-status console-state-warning proposal-approval-rbac" role="note"
                        data-proposal-rbac-denied>
-                        Approving or rejecting requires the <span class="console-mono">approve</span> grant on the
-                        connected server (and a proposal's requester cannot approve their own). Ask an operator with
-                        that grant to decide this one.
+                        Decisions require the <span class="console-mono">approve</span> grant on the connected server.
+                        Approval also requires a live human session. The requester may approve.
                     </p>
                 }
             </div>
@@ -212,22 +203,15 @@ else
 }
 
 @code {
-    /// <summary>The proposal id under review.</summary>
     [Parameter, EditorRequired]
     public required string ProposalId { get; set; }
 
-    /// <summary>
-    /// Bumped by the parent (e.g. on a live ProposalResolved event for this proposal) to force
-    /// a detail reload without changing the selected id.
-    /// </summary>
     [Parameter]
     public int ReloadToken { get; set; }
 
-    /// <summary>Raised after a successful approve/reject so the parent can refresh its queue.</summary>
     [Parameter]
     public EventCallback<ConsoleProposalDetail> OnActioned { get; set; }
 
-    /// <summary>Reports the server-owned detail state to the parent. </summary>
     [Parameter]
     public EventCallback<ConsoleProposalDetail> OnDetailLoaded { get; set; }
 
@@ -239,6 +223,9 @@ else
     private bool _busy;
     private bool _approveForbidden;
     private bool DecisionUnavailable => !RendererInfo.IsInteractive || _busy || _approveForbidden;
+    private bool HumanReviewReady => _detail is { RequiresReproposal: false, HumanReviewExpiresAt: { } expiresAt } detail
+        && expiresAt > DateTimeOffset.UtcNow && !string.IsNullOrEmpty(detail.HumanReviewEnvironment)
+        && !string.IsNullOrEmpty(detail.PlanHash);
     private string? _actionMessage;
     private string? _actionDetail;
     private string _actionMessageClass = string.Empty;
@@ -282,9 +269,24 @@ else
         _detail = result.IsAllowed ? result.Value : null;
     }
 
-    private Task ApproveAsync() => RunActionAsync(
-        () => Proposals.ApproveAsync(ProposalId),
-        successMessage: "Approved — proposal submitted for execution.");
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && RendererInfo.IsInteractive)
+        {
+            await LoadAsync();
+            StateHasChanged();
+        }
+    }
+
+    private Task ApproveAsync()
+    {
+        if (!HumanReviewReady || _detail is not { } detail) return Task.CompletedTask;
+        return RunActionAsync(
+            () => Proposals.ApproveReviewedAsync(new ConsoleProposalDecision(
+                detail.ProposalId, detail.Version, detail.PlanHash!, detail.HumanReviewEnvironment!)),
+            successMessage: "Approved — proposal submitted for execution.",
+            onForbidden: () => _detail = detail with { HumanReviewEnvironment = null });
+    }
 
     private Task RejectAsync()
     {
@@ -297,12 +299,14 @@ else
 
         return RunActionAsync(
             () => Proposals.RejectAsync(ProposalId, _reason!),
-            successMessage: "Rejected — recorded with your reason.");
+            successMessage: "Rejected — recorded with your reason.",
+            onForbidden: () => _approveForbidden = true);
     }
 
     private async Task RunActionAsync(
         Func<Task<OperateSectionResult<ConsoleProposalDetail>>> action,
-        string successMessage)
+        string successMessage,
+        Action onForbidden)
     {
         if (_busy || _approveForbidden)
         {
@@ -324,11 +328,9 @@ else
             }
             else
             {
-                // A Forbidden result means the RBAC approve grant / separation-of-duties gate
-                // denied the decision — disable the actions and surface the reason.
                 if (result.Status == OperateSectionStatus.Forbidden)
                 {
-                    _approveForbidden = true;
+                    onForbidden();
                 }
 
                 _actionMessage = string.IsNullOrWhiteSpace(result.Message)

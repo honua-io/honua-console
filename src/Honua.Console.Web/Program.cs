@@ -121,6 +121,7 @@ app.UseAntiforgery();
 // Anonymous sign-in / sign-out endpoints (the cookie LoginPath target).
 app.MapConsoleAuthEndpoints();
 app.MapConsoleServerSessionBff();
+app.MapConsoleHumanProposalBff();
 app.MapAgentWorkspaceBff();
 app.MapAgentSessionBff();
 app.MapLocalProcessBff();

@@ -8,12 +8,14 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-// A 403 from the server approve grant or separation of duties is Forbidden and is not bypassed.
+// Human decisions never use the forwardable credentials used for reads and rejection.
 public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
 {
     private const string NoProfileMessage =
         "No active environment profile is selected. Connect an environment to review approvals.";
 
+    private readonly IConsoleHumanProposalSession? _humanSession;
+    private readonly ConsoleProposalAuthority _authority;
     private readonly HttpClient _http;
     private readonly IConsoleEnvironmentProfileStore _profileStore;
     private readonly IConsoleAccountSessionStore _sessionStore;
@@ -27,7 +29,9 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         IConsoleAccountSessionStore sessionStore,
         string? adminApiKey = null,
         IConsoleOperatorBearerProvider? operatorBearerProvider = null,
-        ConsoleServerCredentialMode credentialMode = ConsoleServerCredentialMode.Interactive)
+        ConsoleServerCredentialMode credentialMode = ConsoleServerCredentialMode.Interactive,
+        IConsoleHumanProposalSession? humanSession = null,
+        ConsoleProposalAuthority authority = ConsoleProposalAuthority.Serving)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
@@ -39,6 +43,8 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
                 new UnavailableConsoleOperatorBearerExchange(),
                 TimeProvider.System);
         _credentialMode = credentialMode;
+        _humanSession = humanSession;
+        _authority = authority;
     }
 
     public async Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(
@@ -82,20 +88,47 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(proposalId);
-        return await SendDetailAsync(HttpMethod.Get, ProposalAdminRoutes.Detail(proposalId.Trim()), content: null, cancellationToken)
+        var result = await SendDetailAsync(HttpMethod.Get, ProposalAdminRoutes.Detail(proposalId.Trim()), content: null, cancellationToken)
             .ConfigureAwait(false);
+        if (!result.IsAllowed || result.Value is not { IsAwaitingApproval: true } detail) return result;
+        var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        if (_humanSession is null || profile is null) return result with
+        {
+            Value = detail with { HumanApprovalMessage = "Sign in to the server and reopen this review to approve." }
+        };
+
+        var review = await _humanSession.OpenReviewAsync(profile, _authority, proposalId.Trim(), cancellationToken)
+            .ConfigureAwait(false);
+        return review.IsAllowed && review.Value is { } opened
+            ? OperateSectionResult<ConsoleProposalDetail>.Allowed(MapDetail(opened.Proposal) with
+            {
+                HumanReviewEnvironment = opened.EnvironmentReference,
+                HumanReviewExpiresAt = opened.ExpiresAt,
+            })
+            : result with { Value = detail with { HumanApprovalMessage = review.Message } };
     }
 
     public async Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
-        string proposalId,
-        CancellationToken cancellationToken = default)
+        string proposalId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(proposalId);
-        return await SendDetailAsync(
-            HttpMethod.Post,
-            ProposalAdminRoutes.Approve(proposalId.Trim()),
-            content: null,
-            cancellationToken).ConfigureAwait(false);
+        var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        return OperateSectionResult<ConsoleProposalDetail>.Denied(
+            profile is null ? OperateSectionStatus.Unavailable : OperateSectionStatus.Forbidden,
+            profile is null ? NoProfileMessage : "Sign in to the server and open the exact proposal review before approving.");
+    }
+
+    public async Task<OperateSectionResult<ConsoleProposalDetail>> ApproveReviewedAsync(
+        ConsoleProposalDecision decision, CancellationToken cancellationToken = default)
+    {
+        var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        if (_humanSession is null || profile is null)
+            return OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Forbidden,
+                "Sign in to the server and reopen this review to approve.");
+        var result = await _humanSession.ApproveAsync(profile, _authority, decision, cancellationToken).ConfigureAwait(false);
+        return result.IsAllowed && result.Value is { } proposal
+            ? OperateSectionResult<ConsoleProposalDetail>.Allowed(MapDetail(proposal))
+            : OperateSectionResult<ConsoleProposalDetail>.Denied(result.Status, result.Message, result.Detail);
     }
 
     public async Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(
@@ -290,6 +323,10 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         UpdatedAt: wire.UpdatedAt,
         ResolvedAt: wire.ResolvedAt)
     {
+        Version = wire.Version,
+        PlanHash = wire.PlanHash,
+        RequiresReproposal = wire.RequiresReproposal,
+        HumanApprovalMessage = wire.ReproposalReason,
         FindingId = wire.FindingId,
         AutonomyRule = wire.AutonomyRule,
         ActionDiscriminator = wire.ActionDiscriminator,
@@ -299,7 +336,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
     {
         HttpStatusCode.Forbidden =>
             "The server's approval gate denied this action. Approving or rejecting a proposal requires the "
-            + "'approve' permission, and a proposal's requester cannot approve their own proposal.",
+            + "'approve' permission. Approval also requires a live human session and the exact reviewed plan.",
         HttpStatusCode.Conflict =>
             "The proposal is not in a state that allows this action (it may already be approved, rejected, or terminal).",
         HttpStatusCode.BadRequest =>
@@ -341,6 +378,11 @@ public sealed record ProposalSummaryWire
 
 public sealed record ProposalDetailWire
 {
+    public long Version { get; init; }
+    public string? PlanHash { get; init; }
+    public bool RequiresReproposal { get; init; }
+    public string? ReproposalReason { get; init; }
+
     public string? ProposalId { get; init; }
     public string? Kind { get; init; }
     public string? Status { get; init; }
