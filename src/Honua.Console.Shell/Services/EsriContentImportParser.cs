@@ -661,7 +661,7 @@ public sealed class EsriContentImportParser
 
             var result = new EsriConversionResult(
                 EsriContentKind.Notebook,
-                $"source notebook · {runtime.DisplayName}",
+                $"Source notebook · {runtime.DisplayName}",
                 fileName ?? "notebook.ipynb",
                 "honua.notebook-package.v1",
                 Slugify(title ?? "imported-notebook"),

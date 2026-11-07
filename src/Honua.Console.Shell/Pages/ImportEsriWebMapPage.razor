@@ -6,7 +6,7 @@
 @implements IDisposable
 @inject IPublishingWorkspaceDataSource PublishingData
 
-@* Import Source Web Map JSON → honua.map-package.v1 (screens-import-esri.jsx ImportEsriWebMap).
+@* Import source Web Map JSON → honua.map-package.v1 (screens-import-esri.jsx ImportEsriWebMap).
    Intake (paste/upload/URL/connected ArcGIS) → layer-by-layer source → target mapping with per-layer
    fidelity badge + reason note, MapPreview target, "Create map package →" CTA wired to /operate/publishing.
    The source-format JSON parse is deterministic Console-side work; the publish target binds the real publishing
@@ -20,7 +20,7 @@
             <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import source content <span class="console-crumb-sep">/</span> Web Map</p>
             <h1>Import source Web Map</h1>
             <p class="console-muted">
-                Convert a Source Web Map JSON into a Honua map package (<code>honua.map-package.v1</code>).
+                Convert a source Web Map JSON into a Honua map package (<code>honua.map-package.v1</code>).
                 Layer-by-layer fidelity is shown before you commit.
             </p>
         </div>

@@ -1,4 +1,4 @@
-// Issue — "Import source content" wizard + parity scorecard (Operate)
+// "Import source content" wizard + parity scorecard (Operate)
 // screens-import-wizard.jsx
 // Multi-step: source connect → select content → map → run → scorecard.
 // Covers: empty · loading · run progress (resumable/retry) · partial · error · missing-binding.

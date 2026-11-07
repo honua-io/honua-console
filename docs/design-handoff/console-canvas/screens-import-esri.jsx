@@ -35,7 +35,7 @@ function EsriIntake({ kind, file, summary }) {
   );
 }
 
-/* ---------- #100 · Import Source Web Map JSON → honua.map-package.v1 ---------- */
+/* ---------- #100 · Import source Web Map JSON → honua.map-package.v1 ---------- */
 function ImportEsriWebMap() {
   return (
     <div className="scr">
@@ -44,7 +44,7 @@ function ImportEsriWebMap() {
       <div className="main">
         <PageHead
           title="Import source Web Map"
-          sub={<span>Convert a Source Web Map JSON into a Honua map package (<span className="mono">honua.map-package.v1</span>). Layer-by-layer fidelity shown before you commit.</span>}
+          sub={<span>Convert a source Web Map JSON into a Honua map package (<span className="mono">honua.map-package.v1</span>). Layer-by-layer fidelity shown before you commit.</span>}
           actions={<><Btn>Discard</Btn><Btn kind="p">Create map package →</Btn></>}
         />
         <EsriIntake kind="Source Web Map JSON · v2.27" file="public-works-webmap.json · 84 KB"
@@ -123,7 +123,7 @@ function ImportEsriWebMap() {
   );
 }
 
-/* ---------- #101 · Import Source dashboard JSON → dashboard package ---------- */
+/* ---------- #101 · Import source dashboard JSON → dashboard package ---------- */
 function ImportEsriDashboard() {
   return (
     <div className="scr">
@@ -132,7 +132,7 @@ function ImportEsriDashboard() {
       <div className="main">
         <PageHead
           title="Import source dashboard"
-          sub="Convert a Source dashboard JSON into a Honua dashboard package. Element-by-element support shown before commit."
+          sub="Convert a source dashboard JSON into a Honua dashboard package. Element-by-element support shown before commit."
           actions={<><Btn>Discard</Btn><Btn kind="p">Create dashboard package →</Btn></>}
         />
         <EsriIntake kind="Source dashboard JSON" file="q3-ops-dashboard.json · 142 KB"
@@ -204,7 +204,7 @@ function ImportStoryMap() {
       <div className="main">
         <PageHead
           title="Import StoryMap / Hub site"
-          sub="Convert a Source story map or Hub/Open-Data site into Console content (report + linked maps). P4 · lowest priority of the four."
+          sub="Convert a source story map or Hub/Open-Data site into Console content (report + linked maps). P4 · lowest priority of the four."
           actions={<><Btn>Discard</Btn><Btn kind="p">Create content →</Btn></>}
         />
         <EsriIntake kind="Source story map" file="https://storymaps.arcgis.com/stories/a3bf…"

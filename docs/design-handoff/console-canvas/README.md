@@ -103,7 +103,7 @@ Absorbs old Activity + Alerts into one timeline.
 (These are the earlier screens, before the Console reframe — still valid, mostly for the Operate area:)
 
 - `screens-overview.jsx` — IA map + Dashboard A/B
-- `screens-connections.jsx` — Connections list + Postgres detail + add-connection wizard. **Important**: remote services (GeoServices service catalog/OGC/WMS) are NOT connections — they're imports (see `screens-wizards.jsx · WizImportEsri` which is the **migration** flow).
+- `screens-connections.jsx` — Connections list + Postgres detail + add-connection wizard. **Important**: remote services (GeoServices REST/OGC/WMS) are NOT connections — they're imports (see `screens-wizards.jsx · WizImportEsri` which is the **migration** flow).
 - `screens-resources.jsx` — Data Resources list + 9 resource detail tabs (Overview / Source / Fields / Metadata / Publish / Access / Validation / Presentation / Advanced)
 - `screens-wizards.jsx` — Create resource from table / file / remote-service-migration
 - `screens-services.jsx` — Services & Layers list + Explorer (folders → services → layers tree with right-click context menus) + Service detail

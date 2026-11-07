@@ -263,7 +263,7 @@ A few externally visible contracts worth knowing (full detail in the
 | [honua-sdk-dotnet](https://github.com/honua-io/honua-sdk-dotnet) | .NET SDKs; the shared contract packages Console consumes |
 | [honua-sdk-js](https://github.com/honua-io/honua-sdk-js) | JavaScript/TypeScript SDKs + MCP server |
 | [honua-collect](https://github.com/honua-io/honua-collect) | Offline-first mobile field data collection app |
-| [honua-migrate](https://github.com/honua-io/honua-migrate) | source platform migration CLI suite — read-only footprint assessment, service and content migration, codemods, durable runs, reconciliation |
+| [honua-migrate](https://github.com/honua-io/honua-migrate) | Migration CLI suite — read-only footprint assessment, service and content migration, codemods, durable runs, reconciliation |
 
 ## Contributing
 

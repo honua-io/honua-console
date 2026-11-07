@@ -58,10 +58,10 @@ function App() {
   return (
     <DesignCanvas>
       <DCSection id="import-esri" title="①·d Import source content · content migration (issue #122)" subtitle="Content-import surfaces — distinct from the data-layer→PostGIS importer. Web Map / Dashboard / StoryMap conversion with per-item fidelity (clean / degrades / dropped), plus the Operate wizard + parity scorecard. Covers empty · loading · partial · error · missing-binding (Charter §11).">
-        <DCArtboard id="import-webmap" label="#100 · Import Source Web Map JSON → honua.map-package.v1 (layer mapping + fidelity)" width={WIDE} height={H}>
+        <DCArtboard id="import-webmap" label="#100 · Import source Web Map JSON → honua.map-package.v1 (layer mapping + fidelity)" width={WIDE} height={H}>
           <ImportEsriWebMap />
         </DCArtboard>
-        <DCArtboard id="import-dashboard" label="#101 · Import Source dashboard JSON → dashboard package (element→widget grid)" width={WIDE} height={H}>
+        <DCArtboard id="import-dashboard" label="#101 · Import source dashboard JSON → dashboard package (element→widget grid)" width={WIDE} height={H}>
           <ImportEsriDashboard />
         </DCArtboard>
         <DCArtboard id="import-storymap" label="#104 · Import StoryMap / Hub site → Console report (section→block mapping)" width={WIDE} height={H}>
@@ -353,7 +353,7 @@ function App() {
         <DCArtboard id="wiz-file" label="Create resource · from file (FileGDB)" width={W} height={H}>
           <WizFromFile />
         </DCArtboard>
-        <DCArtboard id="wiz-esri" label="Import remote service (GeoServices service catalog / OGC / WMS / WFS)" width={W} height={H}>
+        <DCArtboard id="wiz-esri" label="Import remote service (GeoServices REST / OGC / WMS / WFS)" width={W} height={H}>
           <WizImportEsri />
         </DCArtboard>
       </DCSection>
@@ -459,7 +459,7 @@ function App() {
               <li><b>Validation is both global and per-resource.</b> Global center groups by severity + target + area. Each row deep-links to the fix location. Targets: OGC Records, DCAT, STAC, ISO 19115, source item, GeoServices REST, OGC API, OData.</li>
               <li><b>No tenant / org switching.</b> First-release constraint honoured everywhere.</li>
               <li><b>Drafts are first-class.</b> Every wizard saves drafts; every list shows them as their own state alongside Live/Stale/Blocked.</li>
-              <li><b>Partial success matters.</b> source content import + file import surface "2 of 3 layers OK" prominently rather than swallowing the wins because one row failed.</li>
+              <li><b>Partial success matters.</b> Source content import + file import surface "2 of 3 layers OK" prominently rather than swallowing the wins because one row failed.</li>
             </ol>
             <div className="hand" style={{marginTop:14, fontFamily:'Kalam, cursive', color:'var(--pencil)', fontSize:14}}>
               next round: (a) tighten copy on every empty state, (b) try a "publish basket" pattern as a C variant on publishing, (c) wireframe the projection-preview drawer for STAC and DCAT (not just WMS).
