@@ -117,7 +117,7 @@ public sealed class EsriContentImportParser
 
             var result = new EsriConversionResult(
                 EsriContentKind.WebMap,
-                "Esri Web Map JSON",
+                "Source Web Map JSON",
                 fileName ?? "web-map.json",
                 "honua.map-package.v1",
                 Slugify(title ?? "imported-web-map"),
@@ -263,7 +263,7 @@ public sealed class EsriContentImportParser
 
             var result = new EsriConversionResult(
                 EsriContentKind.Dashboard,
-                "Esri Dashboard JSON",
+                "Source dashboard JSON",
                 fileName ?? "dashboard.json",
                 "honua.dashboard-package.v1",
                 Slugify(title ?? "imported-dashboard"),
@@ -384,7 +384,7 @@ public sealed class EsriContentImportParser
 
             var result = new EsriConversionResult(
                 EsriContentKind.StoryMap,
-                "ArcGIS StoryMap",
+                "Source story map",
                 sourceLabel ?? "storymap-export.json",
                 "honua.report.v1",
                 Slugify(title ?? "imported-storymap"),
@@ -542,7 +542,7 @@ public sealed class EsriContentImportParser
 
             var result = new EsriConversionResult(
                 EsriContentKind.InstantApp,
-                $"Esri Instant App · {template.DisplayName}",
+                $"Source Instant App · {template.DisplayName}",
                 fileName ?? "instant-app.json",
                 "honua.app-package.v1",
                 Slugify(title ?? "imported-instant-app"),
@@ -559,7 +559,7 @@ public sealed class EsriContentImportParser
     {
         if (string.IsNullOrWhiteSpace(json))
         {
-            return EsriParseOutcome.Failure("Paste or upload an ArcGIS Notebook (.ipynb) to see the cell mapping.");
+            return EsriParseOutcome.Failure("Paste or upload a source notebook (.ipynb) to see the cell mapping.");
         }
 
         JsonDocument doc;
@@ -577,12 +577,12 @@ public sealed class EsriContentImportParser
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
             {
-                return EsriParseOutcome.Failure("An ArcGIS Notebook must be a JSON object with a cells array (the Jupyter .ipynb shape).");
+                return EsriParseOutcome.Failure("A source notebook must be a JSON object with a cells array (the Jupyter .ipynb shape).");
             }
 
             if (!root.TryGetProperty("cells", out var cells) || cells.ValueKind != JsonValueKind.Array)
             {
-                return EsriParseOutcome.Failure("No cells array found in the notebook. Export the ArcGIS Notebook as .ipynb and import that.");
+                return EsriParseOutcome.Failure("No cells array found in the notebook. Export the source notebook as .ipynb and import that.");
             }
 
             var metadata = root.TryGetProperty("metadata", out var meta) && meta.ValueKind == JsonValueKind.Object
@@ -611,7 +611,7 @@ public sealed class EsriContentImportParser
                 return EsriParseOutcome.Failure("The notebook has no cells to import.");
             }
 
-            // Parameters: an ArcGIS notebook carries injected parameters either as a metadata "parameters"
+            // Parameters: a source notebook carries injected parameters either as a metadata "parameters"
             // object or as a "parameters"-tagged code cell (papermill convention). Each parameter is a row.
             var parameterCount = MapNotebookParameters(metadata, cells, rows);
 
@@ -661,7 +661,7 @@ public sealed class EsriContentImportParser
 
             var result = new EsriConversionResult(
                 EsriContentKind.Notebook,
-                $"ArcGIS Notebook · {runtime.DisplayName}",
+                $"Source notebook · {runtime.DisplayName}",
                 fileName ?? "notebook.ipynb",
                 "honua.notebook-package.v1",
                 Slugify(title ?? "imported-notebook"),
@@ -827,7 +827,7 @@ public sealed class EsriContentImportParser
                 }
             }
 
-            // ArcGIS nests notebook metadata under "esriNotebook" / "esri".
+            // The source format nests notebook metadata under "esriNotebook" / "esri".
             foreach (var nestedKey in new[] { "esriNotebook", "esri" })
             {
                 if (container.TryGetProperty(nestedKey, out var nested) && nested.ValueKind == JsonValueKind.Object)
@@ -853,7 +853,7 @@ public sealed class EsriContentImportParser
             return new NotebookRuntime("Python runtime", false);
         }
 
-        // ArcGIS stamps the hosted runtime on the notebook metadata; otherwise the kernelspec names it.
+        // The source format stamps the hosted runtime on the notebook metadata; otherwise the kernelspec names it.
         var esriRuntime = ReadString(metadata, "esriNotebookRuntime");
         if (esriRuntime is null
             && metadata.TryGetProperty("esriNotebook", out var esri) && esri.ValueKind == JsonValueKind.Object)
@@ -1042,7 +1042,7 @@ public sealed class EsriContentImportParser
         new("header", "Header", "header", "app header bar", ImportFidelity.Clean, "title + logo"),
         new("splash", "Splash screen", "splash", null, ImportFidelity.Drop, "custom splash HTML not supported · re-add in Studio"),
         new("customUrlParam", "Custom URL params", "urlParams", null, ImportFidelity.Drop, "custom URL parameter handling dropped"),
-        new("theme", "Theme", "theme", "app theme tokens", ImportFidelity.Degrade, "Esri theme → nearest Console theme tokens"),
+        new("theme", "Theme", "theme", "app theme tokens", ImportFidelity.Degrade, "source theme → nearest Console theme tokens"),
     ];
 
     private static readonly IReadOnlyList<InstantAppCapability> SidebarExtraCapabilities =

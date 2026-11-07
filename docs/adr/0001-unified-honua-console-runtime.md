@@ -18,7 +18,7 @@ Honua has three related web surfaces:
 
 Earlier planning separated `honua-portal` from `honua-server-admin` to prevent end-user content workflows from becoming another operator screen. That boundary was useful, but it now creates a different risk: Honua can appear fragmented before the user has even created a map.
 
-That risk conflicts with a core Honua premise: spatial software should not inherit the deployment complexity and fragility associated with ArcGIS Enterprise-style stacks. A user should not need to reason about separate products, deployment artifacts, auth systems, UI conventions, or metadata models just to publish a service and turn it into a map, dashboard, report, form, app, or workflow.
+That risk conflicts with a core Honua premise: spatial software should not inherit the deployment complexity and fragility associated with enterprise GIS portal-style stacks. A user should not need to reason about separate products, deployment artifacts, auth systems, UI conventions, or metadata models just to publish a service and turn it into a map, dashboard, report, form, app, or workflow.
 
 Current implementation also has a framework split:
 

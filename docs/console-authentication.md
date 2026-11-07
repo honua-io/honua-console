@@ -31,7 +31,7 @@ shipped, honua-server could **not yet issue a console-consumable operator bearer
   OIDC access token is held server-side; the endpoint returns only a session cookie scoped to the
   server origin — it does not hand a forwardable operator bearer back to a separately-deployed
   Console.
-- The only forwardable-bearer issuance is the **ArcGIS-shaped Portal OAuth2 named-user bridge**
+- The only forwardable-bearer issuance is the **Portal OAuth2 named-user token bridge**
   (`PortalOAuthTokenService`, `POST /sharing/rest/oauth2/token`) — a GeoServices token surface, not
   a general "console login → operator bearer" contract.
 

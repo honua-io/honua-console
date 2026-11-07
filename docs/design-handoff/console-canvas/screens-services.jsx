@@ -5,7 +5,7 @@ const SERVICE_FORMATS = [
   'OGC API Records',
   'WMS','WMTS','WFS',
   'GeoServices FeatureServer','GeoServices MapServer','GeoServices ImageServer',
-  'OData','STAC','DCAT','Esri catalog item',
+  'OData','STAC','DCAT','GeoServices service catalog item',
 ];
 
 function ServicesList() {
@@ -16,7 +16,7 @@ function ServicesList() {
       <div className="main">
         <PageHead
           title="Services & layers"
-          sub={<span>Endpoints that expose your Data Resources. Each service contains one or more layer slots. <span className="muted">Catalog entries (Esri catalog, OGC Records) appear automatically when you publish to Esri or OGC services. DCAT &amp; STAC live in the separate <b>Portal</b> product.</span></span>}
+          sub={<span>Endpoints that expose your Data Resources. Each service contains one or more layer slots. <span className="muted">Catalog entries (GeoServices service catalog, OGC Records) appear automatically when you publish to GeoServices or OGC services. DCAT &amp; STAC live in the separate <b>Portal</b> product.</span></span>}
           actions={<><Btn>Import existing</Btn><Btn kind="p" ico="+">New service</Btn></>}
         />
         <Toolbar
@@ -102,10 +102,10 @@ function ServiceDetail() {
             <code className="mono" style={{flex:1, fontSize:11, color:'#333', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
               https://honua.example.gov/public/pw/FeatureServer
             </code>
-            <Btn ghost sm title="Copy service URL — paste into ArcGIS Pro, QGIS, etc.">⧉ Copy URL</Btn>
+            <Btn ghost sm title="Copy service URL — paste into desktop GIS client, QGIS, etc.">⧉ Copy URL</Btn>
             <Btn sm title="Open all layers of this service in Honua's map preview">🗺 Map preview</Btn>
             <Btn ghost sm>Open in QGIS ↗</Btn>
-            <Btn ghost sm>Open in ArcGIS Pro ↗</Btn>
+            <Btn ghost sm>Open in desktop GIS client ↗</Btn>
           </div>
         </div>
         <Tabs items={[
@@ -243,7 +243,7 @@ function PublishMatrixA() {
     'obs_stations','watersheds_v3','land_cover_2024','sentinel_2_tiles',
     'roads_osm','census_blocks','air_quality_obs','noaa_wms_layers',
   ];
-  const cols = ['OGC API Features','OGC API Records','WMS','WMTS','WFS','FeatureServer','MapServer','ImageServer','OData','STAC','DCAT','Esri catalog'];
+  const cols = ['OGC API Features','OGC API Records','WMS','WMTS','WFS','FeatureServer','MapServer','ImageServer','OData','STAC','DCAT','GeoServices service catalog'];
 
   // state[res][format]: 'pub' | 'drft' | 'err' | null (not applicable)
   function st(r, c) {
@@ -362,7 +362,7 @@ function PublishMatrixB() {
               { f:'DCAT',             svc:'dcat-eu',        path:'/dcat/parcels_2024',        s:'live', ver:'v4', fields:'metadata only', note:'' },
               { f:'ImageServer',      svc:'—',              path:'—',                          s:'na', ver:'—', fields:'—', note:'feature data, not raster' },
               { f:'OData',            svc:'odata-bi',       path:'/odata/Parcels',            s:'live', ver:'v4', fields:'18 / 24', note:'no geometry' },
-              { f:'Esri catalog',     svc:'esri-catalog',   path:'catalog / item / abc123',   s:'warn', ver:'v3', fields:'metadata only', note:'thumbnail missing' },
+              { f:'GeoServices service catalog',     svc:'esri-catalog',   path:'catalog / item / abc123',   s:'warn', ver:'v3', fields:'metadata only', note:'thumbnail missing' },
             ].map((p,i) => {
               const selected = i === 2; // show drawer for WMS row
               return (
@@ -677,7 +677,7 @@ function ServicesExplorer() {
                 <Btn ghost sm title="Copy full URL to clipboard">⧉ Copy URL</Btn>
                 <Btn sm title="Open this layer in Honua's map preview">🗺 Map preview</Btn>
                 <Btn ghost sm>Open in QGIS ↗</Btn>
-                <Btn ghost sm>Open in ArcGIS Pro ↗</Btn>
+                <Btn ghost sm>Open in desktop GIS client ↗</Btn>
               </div>
             </div>
 
@@ -958,13 +958,13 @@ function ServiceRuntimeSettings() {
 
             {/* INTEGRATIONS */}
             <Group title="Catalog registration">
-              <Row label="Register in Esri catalog" hint="default on for FeatureServer · keeps title, description, thumbnail in sync · uncheck to keep service live but uncataloged">
+              <Row label="Register in GeoServices service catalog" hint="default on for FeatureServer · keeps title, description, thumbnail in sync · uncheck to keep service live but uncataloged">
                 <div className="row" style={{gap:8}}>
                   <label className="row" style={{gap:6, fontSize:11}}>
                     <input type="checkbox" readOnly defaultChecked />
                     <span>enabled</span>
                   </label>
-                  <a style={{fontSize:11, color:'var(--pencil)', textDecoration:'underline dotted', cursor:'pointer'}}>Open in Esri catalog ↗</a>
+                  <a style={{fontSize:11, color:'var(--pencil)', textDecoration:'underline dotted', cursor:'pointer'}}>Open in GeoServices service catalog ↗</a>
                   <span className="muted mono" style={{fontSize:10}}>/catalog/item/a3bf…0214</span>
                 </div>
               </Row>

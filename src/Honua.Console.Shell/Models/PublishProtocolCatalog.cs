@@ -24,7 +24,7 @@ public static class PublishProtocolCatalog
 
     public static IReadOnlyList<(string Key, string Label)> Groups { get; } =
     [
-        ("geoservices", "GeoServices (Esri)"),
+        ("geoservices", "GeoServices REST"),
         ("ogc", "OGC"),
         ("catalog", "STAC / Catalog"),
     ];

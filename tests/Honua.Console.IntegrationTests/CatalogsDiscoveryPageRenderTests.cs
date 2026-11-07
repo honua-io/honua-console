@@ -87,7 +87,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
         Assert.Contains("data-catalog-feeder=\"MapServer\"", page.Markup, StringComparison.Ordinal);
         Assert.Contains("public-works-fs · 8", page.Markup, StringComparison.Ordinal);
 
-        // Per-endpoint issues badge on the Esri card.
+        // Per-endpoint issues badge on the GeoServices card.
         Assert.Contains("data-catalog-issues=\"1\"", page.Markup, StringComparison.Ordinal);
 
         // A disabled endpoint shows the disabled callout rather than facts.
@@ -411,14 +411,14 @@ public sealed class CatalogsDiscoveryPageRenderTests
             new HonuaCatalogEndpoint
             {
                 Key = HonuaCatalogDialects.Esri,
-                Title = "Esri catalog",
-                Description = "Esri-style catalog. Items are FeatureServer / MapServer / ImageServer publications.",
+                Title = "GeoServices service catalog",
+                Description = "GeoServices REST-style catalog. Items are FeatureServer / MapServer / ImageServer publications.",
                 Dialect = HonuaCatalogDialects.Esri,
                 Enabled = true,
                 AutoDefault = true,
                 Url = "/catalog",
                 Entries = 38,
-                FedBy = "auto-mirror from Esri services",
+                FedBy = "auto-mirror from GeoServices services",
                 IssueCount = 1,
                 Feeders =
                 [
@@ -490,7 +490,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
         Endpoint = new HonuaCatalogEndpoint
         {
             Key = HonuaCatalogDialects.Esri,
-            Title = "Esri catalog",
+            Title = "GeoServices service catalog",
             Dialect = HonuaCatalogDialects.Esri,
             Enabled = true,
             AutoDefault = true,

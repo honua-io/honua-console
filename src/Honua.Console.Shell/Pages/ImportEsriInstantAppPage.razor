@@ -5,9 +5,9 @@
 @using Honua.Console.Shell.Validation
 @implements IDisposable
 
-@* #158 · Import Esri Instant App configuration → app package (honua.app-package.v1).
+@* Import source Instant App configuration → app package (honua.app-package.v1).
    Instant App JSON intake → template + capability inventory → capability → Console app element mapping with
-   per-capability fidelity badges, target app-shell preview, "Create app package →" CTA. The Esri-JSON parse
+   per-capability fidelity badges, target app-shell preview, "Create app package →" CTA. The source-format JSON parse
    is deterministic Console-side work; the app's primary web map imports via the Web Map surface, so it shows
    as a binding row (Console Patterns Charter §11). *@
 
@@ -16,10 +16,10 @@
 <section class="console-page esri-import" data-esri-import="instant-app">
     <div class="console-detail-heading">
         <div>
-            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import from Esri <span class="console-crumb-sep">/</span> Instant App</p>
-            <h1>Import Esri Instant App</h1>
+            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import source content <span class="console-crumb-sep">/</span> Instant App</p>
+            <h1>Import source Instant App</h1>
             <p class="console-muted">
-                Convert an ArcGIS Instant App configuration (Sidebar / Basic template) into a Honua app package
+                Convert a source app configuration (Sidebar / Basic template) into a Honua app package
                 (<code>honua.app-package.v1</code>). Capability-by-capability fidelity is shown before commit.
             </p>
         </div>
@@ -44,8 +44,8 @@
             <div class="esri-import__mapping">
                 <SourceTargetMappingTable Rows="result.Rows"
                                           Heading="Capability → app element mapping"
-                                          Subhead="Esri Instant App capability → Honua app panel / tool"
-                                          SourceHeader="Esri capability"
+                                          Subhead="source app capability → Honua app panel / tool"
+                                          SourceHeader="Source capability"
                                           SourceTypeHeader="Kind"
                                           TargetHeader="→ Honua app element"
                                           BoundHeader="Binding"
@@ -102,9 +102,9 @@
     else
     {
         <ConsoleStateView HeadingLevel="2" Kind="empty"
-                          Kicker="Import from Esri"
+                          Kicker="Import source content"
                           Title="Paste or upload an Instant App configuration"
-                          Message="Choose an intake mode above to convert an ArcGIS Instant App into a honua.app-package.v1 preview." />
+                          Message="Choose an intake mode above to convert a source Instant App into a honua.app-package.v1 preview." />
     }
 </section>
 

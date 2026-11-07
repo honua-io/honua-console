@@ -1,5 +1,7 @@
 # Portal Parity Checklist
 
+Source format names and documentation cited here belong to Esri. Neutral labels describe the source content; they do not broaden the supported conversion surface.
+
 Status: filed 2026-05-23; reconciled 2026-05-24 for
 `honua-console#34` catalog/share route-slice behavior.
 
@@ -38,7 +40,7 @@ The Portal surface column mirrors the section headings in [`honua-portal/docs/fe
 | Collaboration (annotations and comments) | Future viewer annotation workspace on `/maps/:id`; embed read-only with public-moderation seam | [honua-console#4](https://github.com/honua-io/honua-console/issues/4) | in-progress | `honua-portal/smoke/annotations-comments.smoke.md`; `honua-portal/docs/features/ANNOTATIONS_COMMENTS.md`; Console #9 |
 | Collaborative Map Editing (MVP contract) | Future viewer collaboration panel + presence/cursor/lock seam on `/maps/:id` | [honua-console#4](https://github.com/honua-io/honua-console/issues/4) (MVP contract only; WebSocket/CRDT GA tracked separately) | in-progress | `honua-portal/docs/features/COLLABORATIVE_MAP_EDITING.md`; Console #9 |
 | Admin Handoff (publish → catalog item) | `/operate` transitional surface + portal-equivalent catalog write boundary; `surfaceForSourceService` semantics preserved | [honua-console#6](https://github.com/honua-io/honua-console/issues/6) | in-progress | `honua-portal/smoke/publish-handoff.smoke.md`; `honua-portal/docs/contracts/content-item-v1.md`; Console #9 |
-| Migration Compatibility (ArcGIS web map import/export spike) | `/catalog` import path; spike output | [honua-console#4](https://github.com/honua-io/honua-console/issues/4) (spike-level only; broader ArcGIS GA remains a separate Console backlog item) | in-progress | `honua-portal/docs/migration/ARCGIS_WEBMAP_COMPATIBILITY.md`; Console #9 |
+| Migration Compatibility (source GIS platform web map import/export spike) | `/catalog` import path; spike output | [honua-console#4](https://github.com/honua-io/honua-console/issues/4) (spike-level only; broader source GIS platform GA remains a separate Console backlog item) | in-progress | `honua-portal/docs/migration/ARCGIS_WEBMAP_COMPATIBILITY.md`; Console #9 |
 | AI App-Builder GTM Proof (`/app-builder/proof`, fixtures #46–#50) | Superseded by Studio production loop on `/studio` | [honua-console#5](https://github.com/honua-io/honua-console/issues/5) | not-ported | Reason: Studio (Console #5) ports the production AI app-builder and generated-app lifecycle. The Portal `/app-builder/proof` route, model-free smoke harness, and operations-dashboard fixtures were scoped to validate the prompt→preview→edit→publish loop ahead of Studio and are obsoleted once Studio lands. `honua-portal/docs/runbook/app-builder-proof.md` and `fixtures/app-builder/operations-dashboard/` remain readable in the archived Portal as design reference but are not re-implemented in Console. |
 
 ## Deferred Portal Scope (informational, not parity rows)

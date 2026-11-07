@@ -1,4 +1,4 @@
-// Create resource wizards: from Table, from File, Import remote service (Esri / OGC / WMS / WFS)
+// Create resource wizards: from Table, from File, Import remote service (GeoServices REST / OGC / WMS / WFS)
 
 function WizFromTable() {
   return (
@@ -178,7 +178,7 @@ function WizImportEsri() {
         <Stepper steps={['URL','Discover','Select layers','Map','Destination','Access','Run']} on={2} />
 
         <div style={{padding:'10px 18px', background:'#fffdf3', borderBottom:'1px solid #e4e4e4', fontSize:11.5}}>
-          <b>Migration mode.</b> This brings data <i>off</i> of an existing Esri / OGC / WMS / WFS service and into Honua-managed storage as new Data Resources. One-time copy — Honua doesn't proxy the remote service or hold its credentials. To pull fresher data later, run this wizard again.
+          <b>Migration mode.</b> This brings data <i>off</i> of an existing GeoServices REST / OGC / WMS / WFS service and into Honua-managed storage as new Data Resources. One-time copy — Honua doesn't proxy the remote service or hold its credentials. To pull fresher data later, run this wizard again.
         </div>
 
         <div className="body" style={{display:'grid',gridTemplateColumns:'1.4fr 1fr',gap:24}}>

@@ -96,7 +96,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/layers/:id            Layer configuration (default + ?tab=configure); :id is the canonical resource id or the admin layer id publishing returns
 /operate/layers/:id/style      Layer style editor
 /operate/settings              Auth providers, API keys, CORS, license, server info, and catalog endpoints
-/operate/catalogs              Catalogs · discovery-endpoints surface (Esri/OGC/OData/STAC/DCAT endpoint cards, auto-default-on vs opt-in, feeders, per-endpoint issues; bound to the catalog discovery-endpoints registry honua-server#1279, else missing-binding). DISTINCT from the singular content catalog at /catalog.
+/operate/catalogs              Catalogs · discovery-endpoints surface (GeoServices service catalog/OGC/OData/STAC/DCAT endpoint cards, auto-default-on vs opt-in, feeders, per-endpoint issues; bound to the catalog discovery-endpoints registry honua-server#1279, else missing-binding). DISTINCT from the singular content catalog at /catalog.
 /operate/catalogs/:key         Catalogs · one discovery endpoint drill-down (Items/Settings/Access/Activity/Validation tabs + mirrored-items table; honua-server#1279)
 /operate/catalogs/:key/items/:itemId  Catalogs · single catalog item editor (auto-mirror item: derived identity, catalog-only presentation, service bindings, standards mapping; honua-server#1279)
 /operate/sensors               SensorThings (STA v1.1) browser · list Things/Datastreams/Observations read-only, discover datastreams via the /sta/v1.1 collections (bound to honua-server #1842 / #1747, else missing-binding)
@@ -114,12 +114,12 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/sync                  Disconnected sync conflict review (capability-gated)
 /operate/versions              Branch-version manager (#177): list/create/alter/delete branch versions + reconcile with an auto-resolution policy (none/last-write-wins/version-wins/default-wins) + abort-if-conflicts; surfaces auto-resolved/remaining counts. Bound to honua-server GeoServices VersionManagementServer (#371 / PR #1551), else the missing-binding state.
 /operate/versions/:service/:guid/conflicts  Conflict resolution (#177): per-feature 3-way diff (base vs DEFAULT vs version) for attributes + geometry (WKT) with per-field highlighting; take-version/take-default/take-base per feature → resolveConflicts; Post to DEFAULT disabled while conflicts remain.
-/operate/import/esri           Import-from-Esri wizard (#102): Source → Select content → Map → Run → Scorecard (?step=0..4). REUSES PublishWizard. Map step shows deterministic per-item conversion fidelity; Run + Scorecard bind the honua-devops migration-run API, else the missing-binding state (Console Patterns Charter §11). Content imports — DISTINCT from the data-layer→PostGIS importer.
-/operate/import/esri/web-map   Import Esri Web Map JSON → honua.map-package.v1 (#100): paste/upload/URL/connected-ArcGIS intake, layer→layer mapping with per-layer fidelity badge, MapPreview target, Create map package CTA → /operate/publishing, inline missing-binding banner when a layer has no resource
-/operate/import/esri/dashboard Import Esri Dashboard JSON → dashboard package (#101): element→widget mapping grid with supported/unsupported callouts, target layout preview, create CTA
+/operate/import/esri           Source-content import wizard (#102): Source → Select content → Map → Run → Scorecard (?step=0..4). REUSES PublishWizard. Map step shows deterministic per-item conversion fidelity; Run + Scorecard bind the honua-devops migration-run API, else the missing-binding state (Console Patterns Charter §11). Content imports — DISTINCT from the data-layer→PostGIS importer.
+/operate/import/esri/web-map   Import source Web Map JSON → honua.map-package.v1 (#100): paste/upload/URL/connected-ArcGIS intake, layer→layer mapping with per-layer fidelity badge, MapPreview target, Create map package CTA → /operate/publishing, inline missing-binding banner when a layer has no resource
+/operate/import/esri/dashboard Import source dashboard JSON → dashboard package (#101): element→widget mapping grid with supported/unsupported callouts, target layout preview, create CTA
 /operate/import/esri/storymap  Import StoryMap / Hub → report content (#104, P4): section→content-block mapping with fidelity badges, target content preview, create CTA
-/operate/import/esri/instant-app Import Esri Instant App → honua.app-package.v1 (#158): Sidebar/Basic template + capability→app-element mapping with per-capability fidelity badges, target app-shell preview, create CTA. The app's primary web map imports via the Web Map surface (shown as a binding row).
-/operate/import/esri/notebook  Import ArcGIS Notebook (hosted arcpy) → honua.notebook-package.v1 (#159): .ipynb intake, cell/parameter/schedule→notebook-package mapping with per-row fidelity badges, target notebook preview, create CTA. The DEFINITION imports; execution is explicitly gated to a server hosted-arcpy runtime (missing-binding state, out of Console scope — Console Patterns Charter §11).
+/operate/import/esri/instant-app Import source Instant App → honua.app-package.v1 (#158): Sidebar/Basic template + capability→app-element mapping with per-capability fidelity badges, target app-shell preview, create CTA. The app's primary web map imports via the Web Map surface (shown as a binding row).
+/operate/import/esri/notebook  Import source notebook (hosted arcpy) → honua.notebook-package.v1 (#159): .ipynb intake, cell/parameter/schedule→notebook-package mapping with per-row fidelity badges, target notebook preview, create CTA. The DEFINITION imports; execution is explicitly gated to a server hosted-arcpy runtime (missing-binding state, out of Console scope — Console Patterns Charter §11).
 /operate/server-info           Server info
 /operate/analytics             Usage analytics
 /operate/events                Event evidence view (?jobId=<id>)
@@ -206,7 +206,7 @@ Resources/Services/Layers nav routes redirect into `/operate/data`.
 
 Catalogs (`/operate/catalogs`) is the discovery-endpoints surface
 (`honua-console#125`): which catalog dialects the server publishes
-(Esri / OGC API Records / OData / STAC / DCAT), their server-wide on/off
+(GeoServices service catalog / OGC API Records / OData / STAC / DCAT), their server-wide on/off
 state, auto-default-on vs opt-in registration, feeders, and per-endpoint
 issues. It lives under Operate (not the top-level `/catalog`) because it
 is operator administration of server-published endpoints — the same

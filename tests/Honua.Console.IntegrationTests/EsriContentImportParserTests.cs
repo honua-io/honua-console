@@ -259,7 +259,7 @@ public sealed class EsriContentImportParserTests
         Assert.NotNull(outcome.Error);
     }
 
-    // ---- #159 ArcGIS Notebook (hosted arcpy) ----
+    // ---- source notebook (hosted arcpy) ----
 
     [Fact]
     public void ParseNotebook_ClassifiesCellsParametersAndScheduleFidelity()

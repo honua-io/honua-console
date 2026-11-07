@@ -248,7 +248,7 @@ function ResPresentation() {
                 <div style={{padding:'4px 10px', background:'#fff', color:'#666'}}>+ Variant</div>
               </div>
               <span className="tag mono" style={{fontSize:10}}>MapLibre GL JSON</span>
-              <span className="muted" style={{fontSize:11}}>· translates on publish to Esri Renderer JSON (FS/MS), SLD (WMS)</span>
+              <span className="muted" style={{fontSize:11}}>· translates on publish to GeoServices renderer JSON (FS/MS), SLD (WMS)</span>
               <div style={{flex:1}}/>
               <span className="muted" style={{fontSize:10.5}}>Edited 2h ago · jamie</span>
               <Btn ghost sm>Discard</Btn>
@@ -614,7 +614,7 @@ function ResAdvanced() {
 {`{
   "OGC API Features": { "fields": { "exclude": ["owner_name"] } },
   "STAC":             { "extensions": ["raster","label"] },
-  "Esri catalog":     { "thumbnail": "ref://thumb/parcels_v4.png" }
+  "GeoServices service catalog":     { "thumbnail": "ref://thumb/parcels_v4.png" }
 }`}
               </pre>
             </div>
@@ -910,11 +910,11 @@ function SettingsCatalogs() {
 
             <div className="col" style={{gap:10}}>
               {[
-                { k:'esri', t:'Esri catalog',
+                { k:'esri', t:'GeoServices service catalog',
                   d:'Discovery endpoint for FeatureServer / MapServer / ImageServer publications.',
                   on:true, url:'/catalog', n:38, anon:true, auto:true,
                   feeds:'GeoServices FeatureServer · GeoServices MapServer · ImageServer',
-                  note:'Auto-default: every Esri service publication is registered here unless explicitly unchecked.' },
+                  note:'Auto-default: every GeoServices service publication is registered here unless explicitly unchecked.' },
                 { k:'ogc',  t:'OGC API Records',
                   d:'Discovery endpoint for OGC API Features publications. Open standard.',
                   on:true, url:'/records', n:38, anon:true, auto:true,
@@ -1012,7 +1012,7 @@ function SettingsCatalogs() {
             </div>
 
             <Callout kind="info" style={{marginTop:14}}>
-              <b>Auto-default vs opt-in.</b> Esri catalog and OGC API Records auto-register every matching service publication (checkbox is pre-checked, operator can uncheck). OData catalog, STAC, and DCAT are opt-in — nothing is registered until you explicitly check the box per entity set / resource.
+              <b>Auto-default vs opt-in.</b> GeoServices service catalog and OGC API Records auto-register every matching service publication (checkbox is pre-checked, operator can uncheck). OData catalog, STAC, and DCAT are opt-in — nothing is registered until you explicitly check the box per entity set / resource.
             </Callout>
           </div>
         </div>

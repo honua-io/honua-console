@@ -1,8 +1,8 @@
 namespace Honua.Console.Shell.Models;
 
-// Console-side projections for the four Esri content-import surfaces (issue #122 / #100, #101, #104, #102).
+// Console-side projections for the four source content-import surfaces.
 //
-// The Esri-JSON parsing and the source -> target mapping are deterministic, Console-side work derived
+// The source-format JSON parsing and the source -> target mapping are deterministic, Console-side work derived
 // entirely from the uploaded JSON — that is real, not mocked (Console Patterns Charter section 11). Anything
 // that needs a live server (the publish target, the #102 migration RUN engine) is gated behind an explicit
 // missing-binding state via IEsriMigrationRunDataSource; these records carry only the parsed conversion

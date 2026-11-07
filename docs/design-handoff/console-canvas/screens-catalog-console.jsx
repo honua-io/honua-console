@@ -245,7 +245,7 @@ function ContentItemDetail() {
                 <dt>URL</dt><dd className="mono" style={{fontSize:10}}>honua.example.gov/m/parcels-heatmap</dd>
                 <dt>Embeddable</dt><dd>any origin</dd>
                 <dt>Open data</dt><dd>opt-in · off</dd>
-                <dt>In catalogs</dt><dd className="row" style={{gap:4,flexWrap:'wrap'}}><Badge kind="info">Esri catalog</Badge> <Badge kind="info">OGC Records</Badge></dd>
+                <dt>In catalogs</dt><dd className="row" style={{gap:4,flexWrap:'wrap'}}><Badge kind="info">GeoServices service catalog</Badge> <Badge kind="info">OGC Records</Badge></dd>
               </dl>
             </div>
 

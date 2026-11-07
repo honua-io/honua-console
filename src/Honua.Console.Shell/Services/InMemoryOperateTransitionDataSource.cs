@@ -95,8 +95,8 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
                         })),
                 new OperateConnectionSummary(
                     "agol-open-data",
-                    "ArcGIS Online Open Data",
-                    "ArcGIS REST",
+                    "Hosted GIS portal Open Data",
+                    "GeoServices REST",
                     "https://services.arcgis.com/honua/open-data",
                     "portal-publisher",
                     "Passed",

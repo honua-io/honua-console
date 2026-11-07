@@ -49,7 +49,7 @@ public sealed class EsriImportValidator : IFieldValidator<EsriImportIntakeState>
         var hasPaste = !string.IsNullOrWhiteSpace(state.PastedJson);
         var hasUpload = !string.IsNullOrWhiteSpace(state.UploadFileName);
         var hasUrl = !string.IsNullOrWhiteSpace(state.Url);
-        // Connected-ArcGIS reads bind a live server: the intake itself carries no console-side payload, so
+        // Connected-source reads bind a live server: the intake itself carries no console-side payload, so
         // it counts as "a source has been chosen" and defers the actual resolvability to the server binding.
         var hasConnected = state.Mode == EsriIntakeMode.ConnectedArcGis;
 
@@ -58,10 +58,10 @@ public sealed class EsriImportValidator : IFieldValidator<EsriImportIntakeState>
             errors.Add(Blocker(
                 EsriImportFieldKeys.Source,
                 "esri.import.source.required",
-                "Provide a source: paste JSON, upload a file, enter a URL / item id, or read from a connected ArcGIS organization."));
+                "Provide a source: paste JSON, upload a file, enter a URL / item id, or read from a connected source organization."));
         }
 
-        // Pasted JSON must parse and be a JSON object (the shape every Esri export uses).
+        // Pasted JSON must parse and be a JSON object (the shape every source export uses).
         if (hasPaste)
         {
             var jsonError = ValidateJsonObject(state.PastedJson!);
@@ -78,7 +78,7 @@ public sealed class EsriImportValidator : IFieldValidator<EsriImportIntakeState>
             errors.Add(Error(
                 EsriImportFieldKeys.Url,
                 "esri.import.url.invalid",
-                "Enter an absolute http(s) URL or an ArcGIS item id (letters, numbers, '-', '_', '.', ':')."));
+                "Enter an absolute http(s) URL or a source item id (letters, numbers, '-', '_', '.', ':')."));
         }
 
         return errors;
@@ -91,7 +91,7 @@ public sealed class EsriImportValidator : IFieldValidator<EsriImportIntakeState>
             using var document = JsonDocument.Parse(json, DocOptions);
             return document.RootElement.ValueKind == JsonValueKind.Object
                 ? null
-                : "The pasted content must be a JSON object (an Esri Web Map / Dashboard / StoryMap document).";
+                : "The pasted content must be a JSON object (a source Web Map / Dashboard / StoryMap document).";
         }
         catch (JsonException ex)
         {

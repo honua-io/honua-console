@@ -47,7 +47,7 @@ This document is a contract brief for follow-up implementation, not a separate C
 - Execution is queued: analysis, GP, ETL, scheduled work, and batch publication run through Honua's job runner rather than a browser-only runtime.
 - Charts use standards: Vega-Lite remains the dashboard/report chart spec layer.
 - Visual editors are projections: forms, maps, dashboards, and workflows can have UI editors, but the saved contract is the source of truth.
-- ArcGIS Pro parity is a capability benchmark, not a desktop UI benchmark. Studio should let natural-language requests reach ArcGIS Pro-style mapmaking and analysis breadth through inspectable packages, tool/workflow planning, validation evidence, server-backed execution, execution adapters where needed, and publishable outputs.
+- Desktop GIS capability parity is a capability benchmark, not a desktop UI benchmark. Studio should let natural-language requests reach desktop GIS client-style mapmaking and analysis breadth through inspectable packages, tool/workflow planning, validation evidence, server-backed execution, execution adapters where needed, and publishable outputs.
 
 ## Contract Ownership Matrix
 
@@ -205,7 +205,7 @@ Every package should carry:
 
 ### GIS Capability Registry
 
-Catalog of GIS operations that the natural-language planner can target. The registry is how Studio aims at ArcGIS Pro-style capability breadth without recreating ArcGIS Pro UI surfaces.
+Catalog of GIS operations that the natural-language planner can target. The registry is how Studio aims at desktop GIS client-style capability breadth without recreating desktop GIS client UI surfaces.
 
 Key fields:
 

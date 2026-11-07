@@ -103,7 +103,7 @@ Source of truth is the Metadata v2 graph. Field-by-field, with where it lives:
 - `AdminLayerStyleEndpoints.cs:38-44`: GET/**PUT** layer style.
 - `AdminLayerAuthoringEndpoints.cs:38-43`: GET/**PUT popup-info**, GET/**PUT drawing-info**, GET/**PUT relationships**.
 - `AdminSldStyleEndpoints.cs`, `AdminStyleSuggestionEndpoints.cs`: SLD + style suggestions.
-- `LayerPublishingEndpoints.cs:41-78`: list/publish layer, set enabled, refresh extents, validate table. Publish request `LayerPublishRequest` (`Honua.Core/Features/Admin/Domain/LayerPublishingModels.cs:9`) also accepts `FieldDomains`, `Subtypes`, `AttributeRules` (`:79`,`:90`,`:99`) — but these are populated only by the Esri-import path, not by an interactive author.
+- `LayerPublishingEndpoints.cs:41-78`: list/publish layer, set enabled, refresh extents, validate table. Publish request `LayerPublishRequest` (`Honua.Core/Features/Admin/Domain/LayerPublishingModels.cs:9`) also accepts `FieldDomains`, `Subtypes`, `AttributeRules` (`:79`,`:90`,`:99`) — but these are populated only by the source-content import path, not by an interactive author.
 
 ---
 
@@ -114,7 +114,7 @@ Source of truth is the Metadata v2 graph. Field-by-field, with where it lives:
 | **Enabled protocols** (`Service.protocols`) | `PUT /api/v1/admin/services/{svc}/protocols` (`ServiceSettingsEndpoints.cs:51`) | `Pages/OperateServiceDetailPage.razor:239` (`SaveProtocolsAsync`); client `Services/HonuaServerServiceConfigurationOperation.cs` |
 | **Service access — anonymous read/write** (`Service.accessPolicy.allowAnonymous*`) | `PUT .../access-policy` (`ServiceSettingsEndpoints.cs:59`) | `OperateServiceDetailPage.razor:261` (`SaveAccessAsync`) — **only the two anonymous flags** are bound |
 | **Field coded-value domain** (`Field.domain`, codedValue) | `PUT /api/v1/admin/metadata/layers/{id}/fields` (`AdminLayerFieldConfigurationEndpoints.cs:45`) | `Pages/OperateLayerDetailPage.razor:206` (`SaveDomainAsync`); client `Services/...ConsoleLayerFieldsOperation`, contract `OperateAdminShims.cs:757` |
-| **Canonical style body** (`ResourceStyle.encodings[]` — MapLibre + Esri drawingInfo) | `GET/PUT /ogc/styles/{styleId}` (ADR-0048/0002) | `Pages/StudioStyleEditorPage.razor` (dual-mode MapLibre/Esri editor); client `IHonuaOgcStylesClient` (`StyleCatalogShims.cs:81-95`) |
+| **Canonical style body** (`ResourceStyle.encodings[]` — MapLibre + GeoServices drawingInfo) | `GET/PUT /ogc/styles/{styleId}` (ADR-0048/0002) | `Pages/StudioStyleEditorPage.razor` (dual-mode MapLibre/GeoServices renderer editor); client `IHonuaOgcStylesClient` (`StyleCatalogShims.cs:81-95`) |
 | **Layer publish core** (name, description, geometryColumn/type, SRID, primaryKey, field selection, enabled, service name) | `POST /api/v1/admin/.../layers` (`LayerPublishingEndpoints.cs:45`) | `Pages/OperatePublishLayerPage.razor`; command `Models/ServiceLayerPublishModels.cs:8` |
 | **Layer enabled/disabled** (`Publication`/serving) | `PUT layers/{id}/enabled` (`LayerPublishingEndpoints.cs:55`) | publish flow / publishing page |
 
@@ -148,7 +148,7 @@ Ordered by how cheaply each could be closed (server contract already exists → 
    - Console: the *only* popup UI is the per-slot override on `OperateLayerStylePage.razor:88`, which is wired to the **Unsupported** source. No client calls `/popup-info`.
    - Why it matters: popups are the single most-requested layer-presentation knob; the server is ready and the UI shell already exists.
 
-2. **Drawing info / renderer (Esri symbology)**
+2. **Drawing info / renderer (GeoServices renderer symbology)**
    - Server: `PUT .../layers/{id}/drawing-info` (`AdminLayerAuthoringEndpoints.cs:41`).
    - Console: the Studio style editor writes the *canonical* style over `/ogc/styles` (`StudioStyleEditorPage.razor`), but there is no per-layer drawing-info authoring wired to this admin endpoint. The per-slot style override that would target it is Unsupported.
    - Why it matters: layer-scoped renderer overrides without touching the canonical style.
@@ -185,15 +185,15 @@ Ordered by how cheaply each could be closed (server contract already exists → 
 
 10. **Editor-tracking & edit capability** — `globalIdField`, `creator/editor/created/updatedAtField`, `canModify`, `supportsAttachments`, `supportsRelatedRecords` (`MetadataV2ResourceEditing`, `MetadataV2Graph.cs:382`). No authoring path.
 
-11. **Subtypes** (`MetadataV2Subtypes`, `MetadataV2Common.cs:536`) — only importable from Esri (`LayerPublishRequest.Subtypes`); no interactive authoring or admin PUT.
+11. **Subtypes** (`MetadataV2Subtypes`, `MetadataV2Common.cs:536`) — only importable from source platform (`LayerPublishRequest.Subtypes`); no interactive authoring or admin PUT.
 
-12. **Attribute rules** (calculation/constraint/validation Arcade rules, `MetadataV2AttributeRule`, `MetadataV2Common.cs:618`) — Esri-import only; no UI.
+12. **Attribute rules** (calculation/constraint/validation Arcade rules, `MetadataV2AttributeRule`, `MetadataV2Common.cs:618`) — source-content import only; no UI.
 
 13. **Field-domain RANGE type, defaultValue, mergePolicy/splitPolicy** — console authors only `codedValue` domains (`OperateAdminShims.cs:1399-1402`); range domains, per-field default values, and merge/split policy are unauthorable.
 
 14. **CRS authoring** — `supportedCrs[]`, `storageCrs`, `storageCrsCoordinateEpoch`, service output `spatialReference` (`MetadataV2Spatial.cs:136-155`, `MetadataV2Graph.cs:608`). SRID is set once at publish; the supported-CRS list and output CRS are not authorable.
 
-15. **Discovery / catalog metadata** — `keywords`, `themes`, `language`, `license`, `attribution`/copyright, `publisher`, `contactPoint`, `links[]`, `tags`/`labels`/`annotations`, `title`/`description` post-publish (`MetadataV2ObjectMetadata`, `MetadataV2Common.cs:34`). These drive OGC API Records / STAC / DCAT / Esri documentInfo output. None are editable after publish; description/title are publish-time only.
+15. **Discovery / catalog metadata** — `keywords`, `themes`, `language`, `license`, `attribution`/copyright, `publisher`, `contactPoint`, `links[]`, `tags`/`labels`/`annotations`, `title`/`description` post-publish (`MetadataV2ObjectMetadata`, `MetadataV2Common.cs:34`). These drive OGC API Records / STAC / DCAT / source platform documentInfo output. None are editable after publish; description/title are publish-time only.
 
 16. **Service settings caps** — `maxRecordCount`, `defaultRecordCount`, `maxFeaturesPerLayer`, `queryTimeoutMs`, `maxEditsPerTransaction`, `maxPayloadBytes`, `supportedFormats`, `defaultFormat`, `defaultTileMatrixSet`, attachment caps (`MetadataV2ServiceSettings`, `MetadataV2Graph.cs:681`). Only the MapServer subset is even read back; none are editable.
 

@@ -1,6 +1,6 @@
-# Issue #122 · Esri content-import surfaces — build handoff
+# Issue #122 · source content-import surfaces — build handoff
 
-Mockups for the four Esri content-import tickets (#100 / #101 / #102 / #104).
+Mockups for the four source content-import tickets (#100 / #101 / #102 / #104).
 These are **content imports** — distinct from the existing data-layer → PostGIS
 importer (`screens-wizards.jsx#WizImportEsri`), which the issue explicitly calls
 out as a different flow.
@@ -19,8 +19,8 @@ is `Object.assign(window, …)`-exported. Built on `wireframe.css` tokens.
 
 | Artboard | Ticket | Purpose |
 |---|---|---|
-| Import Esri Web Map | #100 | Web Map JSON → `honua.map-package.v1`. Intake (paste/upload/URL/connected ArcGIS), layer mapping table, per-layer fidelity, MapPreview target, missing-binding banner. |
-| Import Esri Dashboard | #101 | Dashboard JSON → dashboard package. Element inventory, element→widget grid, target layout preview. |
+| Import source Web Map | #100 | Web Map JSON → `honua.map-package.v1`. Intake (paste/upload/URL/connected source GIS platform), layer mapping table, per-layer fidelity, MapPreview target, missing-binding banner. |
+| Import source dashboard | #101 | Dashboard JSON → dashboard package. Element inventory, element→widget grid, target layout preview. |
 | Import StoryMap / Hub | #104 | StoryMap/Hub → report. Section→block mapping, target content preview. (P4) |
 | Import wizard · Map | #102 | Multi-step wizard, step 3. Mixed content types, per-item fidelity + blockers. |
 | Import wizard · Run | #102 | Progress, resumable, per-item state, 1 failed/retry. |
@@ -36,7 +36,7 @@ Every per-item row carries a fidelity badge via the `Fid` helper:
 - `drop` → **dropped** (red) — can't import (named + reason)
 - `manual` → **needs review** (blue) — usually a data-resource binding required
 
-Source→target mapping is always explicit (Esri thing → Honua thing) with the
+Source→target mapping is always explicit (source item → Honua thing) with the
 reason for any degrade/drop in the adjacent note column.
 
 ## State coverage (per shared requirements + Charter §11)

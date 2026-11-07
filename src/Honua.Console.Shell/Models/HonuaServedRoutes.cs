@@ -1,6 +1,6 @@
 namespace Honua.Console.Shell.Models;
 
-// Only the Esri GeoServices server types and the classic OGC services are routed per service; the other
+// Only the GeoServices REST server types and the classic OGC services are routed per service; the other
 // HTTP protocols have one server root and expose the service as a collection or type name inside it.
 // Terrain and elevation are addressed per dataset and gRPC per RPC method, so they have no service URL.
 // Checked against the honua-server endpoint registry.

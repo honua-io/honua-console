@@ -5,7 +5,7 @@ function PublishFlowMap() {
     <div style={{padding:'20px 24px', overflow:'auto', height:'100%', background:'#fcfcfa', position:'relative', fontFamily:'Inter, system-ui, sans-serif'}}>
       <h2 style={{margin:'0 0 4px', font:'600 16px var(--ui)'}}>Publish flow · conceptual</h2>
       <div className="muted" style={{fontSize:11.5, marginBottom:16}}>
-        How one canonical Data Resource gets exposed via service slots and catalog entries. Esri services → Esri catalog and OGC API → OGC Records are <b>opt-in checkboxes, default on</b>. STAC and DCAT publishing live in the separate Portal product.
+        How one canonical Data Resource gets exposed via service slots and catalog entries. GeoServices services → GeoServices service catalog and OGC API → OGC Records are <b>opt-in checkboxes, default on</b>. STAC and DCAT publishing live in the separate Portal product.
       </div>
 
       <div style={{position:'relative', minHeight: 720}}>
@@ -72,14 +72,14 @@ function PublishFlowMap() {
                 <div className="mono" style={{fontSize:10.5}}>{t.f}</div>
                 <div className="muted" style={{fontSize:10}}>slot label: {t.s}</div>
               </div>
-              {t.mirror === 'esri' && <Badge kind="info">↪ Esri catalog</Badge>}
+              {t.mirror === 'esri' && <Badge kind="info">↪ GeoServices service catalog</Badge>}
               {t.mirror === 'ogc' && <Badge kind="info">↪ OGC Records</Badge>}
             </div>
           ))}
 
           <div className="muted" style={{fontSize:10, margin:'10px 0 4px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em'}}>Catalog records · metadata</div>
           {[
-            { f:'Esri catalog entry',                 path:'catalog / item / a3bf…0214', kind:'auto-mirror' },
+            { f:'GeoServices service catalog entry',                 path:'catalog / item / a3bf…0214', kind:'auto-mirror' },
             { f:'OGC Records',                         path:'records-public / parcels_2024', kind:'auto-mirror' },
             { f:'STAC collection',                     path:'stac-public / parcels_2024', kind:'explicit' },
             { f:'DCAT dataset',                        path:'dcat-eu / parcels_2024', kind:'explicit' },
@@ -108,8 +108,8 @@ function PublishFlowMap() {
           ))}
           {/* Auto-mirror dotted curves: service slot → catalog mirror */}
           {[
-            { from: 85,  to: 290 },  // FS → Esri catalog
-            { from: 130, to: 290 },  // MS → Esri catalog (same record)
+            { from: 85,  to: 290 },  // FS → GeoServices service catalog
+            { from: 130, to: 290 },  // MS → GeoServices service catalog (same record)
             { from: 175, to: 335 },  // OGC API → OGC Records
           ].map((m, i) => (
             <path key={'mir'+i} d={`M 1010 ${m.from} C 1080 ${m.from}, 1080 ${m.to}, 1010 ${m.to}`} stroke="var(--pencil)" strokeWidth="1.2" fill="none" strokeDasharray="2 3" markerEnd="url(#arrow-mirror)" />
@@ -140,7 +140,7 @@ function PublishFlowMap() {
             <div className="card">
               <h3>Catalog registration</h3>
               <div style={{fontSize:11.5,lineHeight:1.55}}>
-                When you publish to an <b>Esri service</b>, a "Register in Esri catalog" checkbox is offered, default checked. Same for <b>OGC API Features</b> → <b>OGC Records</b>. Uncheck if you want the service live but hidden from catalog discovery. STAC and DCAT live in the separate Portal product.
+                When you publish to an <b>GeoServices service</b>, a "Register in GeoServices service catalog" checkbox is offered, default checked. Same for <b>OGC API Features</b> → <b>OGC Records</b>. Uncheck if you want the service live but hidden from catalog discovery. STAC and DCAT live in the separate Portal product.
               </div>
             </div>
             <div className="card">

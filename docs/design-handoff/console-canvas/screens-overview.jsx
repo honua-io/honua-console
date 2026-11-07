@@ -188,7 +188,7 @@ function DashboardA() {
                   { st: 'run', t: 'Importing fire_obs.csv (62%)', m: 'now', who: 'jamie' },
                   { st: 'ok', t: 'Refreshed wetlands_2025', m: '14m', who: 'system' },
                   { st: 'bad', t: 'Failed: publish tile cache', m: '22m', who: 'system' },
-                  { st: 'ok', t: 'Connection synced: ArcGIS Online', m: '1h', who: 'system' },
+                  { st: 'ok', t: 'Connection synced: hosted GIS portal', m: '1h', who: 'system' },
                 ].map((a,i) => (
                   <div key={i} className="row" style={{fontSize:11, padding:'4px 0', borderBottom:'1px dashed #eee'}}>
                     <span style={{

@@ -91,7 +91,7 @@ public sealed class EsriImportSurfaceRenderTests
         Assert.Contains("Paste JSON", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Upload file", page.Markup, StringComparison.Ordinal);
         Assert.Contains("From URL / item ID", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("From connected ArcGIS", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("From connected source", page.Markup, StringComparison.Ordinal);
 
         // Default state is the empty intake — no preloaded sample masquerading as the user's import.
         Assert.DoesNotContain("Layer mapping", page.Markup, StringComparison.Ordinal);
@@ -212,7 +212,7 @@ public sealed class EsriImportSurfaceRenderTests
         Assert.Contains("Web Map", banner.TextContent, StringComparison.Ordinal);
     }
 
-    // ---- #159 ArcGIS Notebook ----
+    // ---- source notebook ----
 
     [Fact]
     public void NotebookPage_RendersCellMappingPreviewAndGatedExecutionState()
@@ -222,7 +222,7 @@ public sealed class EsriImportSurfaceRenderTests
         var page = ctx.Render<ImportEsriNotebookPage>();
 
         // Default state is the empty intake — the sample is not preloaded as the user's import.
-        Assert.Contains("Paste or upload an ArcGIS Notebook", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Paste or upload a source notebook", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Cell → notebook-package mapping", page.Markup, StringComparison.Ordinal);
 
         // Loading the bundled sample parses it through the real parser and populates the surface.
@@ -390,12 +390,12 @@ public sealed class EsriImportSurfaceRenderTests
 
         // A garbage value (spaces) is neither an absolute URL nor an item id -> inline error + aria-invalid.
         urlInput.Input("not a url");
-        Assert.Contains("absolute http(s) URL or an ArcGIS item id", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("absolute http(s) URL or a source item id", page.Markup, StringComparison.Ordinal);
         Assert.Equal("true", page.Find("input[data-intake-url]").GetAttribute("aria-invalid"));
 
         // A valid absolute https URL clears the finding.
         page.Find("input[data-intake-url]").Input("https://org.maps.arcgis.com/home/item.html?id=abc");
-        Assert.DoesNotContain("absolute http(s) URL or an ArcGIS item id", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("absolute http(s) URL or a source item id", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]

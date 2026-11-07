@@ -17,7 +17,7 @@ its source revision and image ID separately from release evidence.
 - Node.js >= 20 with `npx` on `PATH`
 - .NET 10 SDK (the Console host starts via `dotnet run`)
 - `openssl` and `bash` (the runner generates a throwaway TLS cert for the test IdP)
-- Outbound HTTPS (service-import specs contact public ArcGIS sample servers)
+- Outbound HTTPS (service-import specs contact public source GIS platform sample servers)
 
 ## What it does
 
@@ -69,7 +69,7 @@ keeps the seed connection and reuses the layer on a retry; `services-layers` pub
 |-----------|-------------------|
 | `connections.live.spec.ts` | PostGIS connection create/test, secret-reference connections, duplicate name guard |
 | `file-import.live.spec.ts` | Format gating (unsupported rejected), GeoJSON upload flow + progress |
-| `service-import.live.spec.ts` | URL validation, auth gating, ArcGIS FeatureServer discovery, select-all/deselect-all, import job |
+| `service-import.live.spec.ts` | URL validation, auth gating, source GIS platform FeatureServer discovery, select-all/deselect-all, import job |
 | `services-layers.live.spec.ts` | Full publish workflow: connection → table → service; verified via catalog + FeatureServer metadata + live query |
 | `data-flow-go-live.live.spec.ts` | `/operate/data/new` Go live on an existing layer: sets exactly the chosen protocols and Public visibility, then the layer is queried anonymously |
 | `service-settings.live.spec.ts` | On its own seeded service: protocol enable/disable via UI takes effect on live endpoints; access policy gates anonymous reads |

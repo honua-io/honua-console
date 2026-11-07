@@ -15,7 +15,7 @@
     <div class="console-page-heading">
         <p class="console-kicker">Studio / Styles</p>
         <h1>Shared catalog style editor</h1>
-        <p>Author a style in either MapLibre (canonical) or Esri renderer mode over one canonical style. Switching modes re-fetches the style in the target encoding — the server converts (ADR-0002), so the two views never diverge.</p>
+        <p>Author a style in either MapLibre (canonical) or GeoServices renderer mode over one canonical style. Switching modes re-fetches the style in the target encoding — the server converts (ADR-0002), so the two views never diverge.</p>
     </div>
 
     <article class="console-panel" role="note" data-shared-style-scope>
@@ -32,7 +32,7 @@
                 <span>Edit mode</span>
                 <select class="console-input" aria-label="Edit mode" disabled="@_saving" @bind="_modeValue" @bind:after="OnModeChangedAsync" data-style-mode>
                     <option value="MapLibre">MapLibre JSON (canonical)</option>
-                    <option value="Esri">Esri renderer (drawingInfo)</option>
+                    <option value="Esri">GeoServices renderer (drawingInfo)</option>
                 </select>
                 <small class="console-muted">Switching re-fetches the style in this encoding from the server.</small>
             </label>
@@ -58,7 +58,7 @@
                 <p role="status" data-style-readback-pending>The update was accepted, but canonical readback is unavailable. Your candidate is retained below. Review the accepted update before editing or saving again.</p>
             }
             <label>
-                <span>@(_mode == HonuaOgcStyleEncoding.Esri ? "Esri drawingInfo (JSON)" : "MapLibre style (JSON)")</span>
+                <span>@(_mode == HonuaOgcStyleEncoding.Esri ? "GeoServices drawingInfo (JSON)" : "MapLibre style (JSON)")</span>
                 <textarea class="console-input console-mono" rows="18" @bind="_content" @bind:event="oninput" @bind:after="MarkDirty"
                           disabled="@(_saving || _loading)" readonly="@(!CanEditShared)" spellcheck="false" data-style-content></textarea>
             </label>
@@ -112,7 +112,7 @@
                     }
                     else if (result.Succeeded)
                     {
-                        <p>Saved. The canonical MapLibre style was stored@(_mode == HonuaOgcStyleEncoding.Esri ? " (converted from the Esri renderer)" : "").</p>
+                        <p>Saved. The canonical MapLibre style was stored@(_mode == HonuaOgcStyleEncoding.Esri ? " (converted from the GeoServices renderer)" : "").</p>
                     }
                     @if (result.UnsupportedSymbolizers.Count > 0)
                     {

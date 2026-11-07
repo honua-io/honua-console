@@ -57,17 +57,17 @@ const WIDE = 1480, TALL = 900;
 function App() {
   return (
     <DesignCanvas>
-      <DCSection id="import-esri" title="①·d Import from Esri · content migration (issue #122)" subtitle="Content-import surfaces — distinct from the data-layer→PostGIS importer. Web Map / Dashboard / StoryMap conversion with per-item fidelity (clean / degrades / dropped), plus the Operate wizard + parity scorecard. Covers empty · loading · partial · error · missing-binding (Charter §11).">
-        <DCArtboard id="import-webmap" label="#100 · Import Esri Web Map JSON → honua.map-package.v1 (layer mapping + fidelity)" width={WIDE} height={H}>
+      <DCSection id="import-esri" title="①·d Import source content · content migration (issue #122)" subtitle="Content-import surfaces — distinct from the data-layer→PostGIS importer. Web Map / Dashboard / StoryMap conversion with per-item fidelity (clean / degrades / dropped), plus the Operate wizard + parity scorecard. Covers empty · loading · partial · error · missing-binding (Charter §11).">
+        <DCArtboard id="import-webmap" label="#100 · Import source Web Map JSON → honua.map-package.v1 (layer mapping + fidelity)" width={WIDE} height={H}>
           <ImportEsriWebMap />
         </DCArtboard>
-        <DCArtboard id="import-dashboard" label="#101 · Import Esri Dashboard JSON → dashboard package (element→widget grid)" width={WIDE} height={H}>
+        <DCArtboard id="import-dashboard" label="#101 · Import source dashboard JSON → dashboard package (element→widget grid)" width={WIDE} height={H}>
           <ImportEsriDashboard />
         </DCArtboard>
         <DCArtboard id="import-storymap" label="#104 · Import StoryMap / Hub site → Console report (section→block mapping)" width={WIDE} height={H}>
           <ImportStoryMap />
         </DCArtboard>
-        <DCArtboard id="import-wizard" label="#102 · Import-from-Esri wizard · step 3 Map (mixed content + fidelity)" width={W} height={H}>
+        <DCArtboard id="import-wizard" label="#102 · Source-content import wizard · step 3 Map (mixed content + fidelity)" width={W} height={H}>
           <ImportEsriWizard />
         </DCArtboard>
         <DCArtboard id="import-run" label="#102 · wizard step 4 Run (progress · resumable · 1 failed/retry)" width={W} height={H}>
@@ -326,7 +326,7 @@ function App() {
         <DCArtboard id="res-style-endpoint" label="Resource → Presentation · Style endpoint (OGC API Styles · MapLibre canonical · SLD/Esri auto-generated)" width={W} height={H}>
           <ResStyleEndpoint />
         </DCArtboard>
-        <DCArtboard id="slot-style-override" label="Service slot → Styling · per-slot Esri Renderer override (arcade + dotDensity, can't round-trip)" width={W} height={H}>
+        <DCArtboard id="slot-style-override" label="Service slot → Styling · per-slot GeoServices renderer override (arcade + dotDensity, can't round-trip)" width={W} height={H}>
           <SlotStylingOverride />
         </DCArtboard>
         <DCArtboard id="slot-style-wms" label="Service slot → Styling · WMS SLD override (raster ColorMap, can't round-trip)" width={W} height={H}>
@@ -353,12 +353,12 @@ function App() {
         <DCArtboard id="wiz-file" label="Create resource · from file (FileGDB)" width={W} height={H}>
           <WizFromFile />
         </DCArtboard>
-        <DCArtboard id="wiz-esri" label="Import remote service (Esri / OGC / WMS / WFS)" width={W} height={H}>
+        <DCArtboard id="wiz-esri" label="Import remote service (GeoServices REST / OGC / WMS / WFS)" width={W} height={H}>
           <WizImportEsri />
         </DCArtboard>
       </DCSection>
 
-      <DCSection id="svc" title="⑦ Services & Layers" subtitle="Endpoints (FeatureServer, MapServer, OGC API, WMS, WMTS, OData…) with their layer slots. Catalogs (Esri catalog, OGC Records) auto-appear when you publish services. DCAT/STAC publishing lives in the separate Portal product.">
+      <DCSection id="svc" title="⑦ Services & Layers" subtitle="Endpoints (FeatureServer, MapServer, OGC API, WMS, WMTS, OData…) with their layer slots. Catalogs (GeoServices service catalog, OGC Records) auto-appear when you publish services. DCAT/STAC publishing lives in the separate Portal product.">
         <DCArtboard id="svc-list" label="Services & layers · flat list" width={W} height={H}>
           <ServicesList />
         </DCArtboard>
@@ -373,11 +373,11 @@ function App() {
         </DCArtboard>
       </DCSection>
 
-      <DCSection id="catalogs" title="⑦·b Catalogs" subtitle="Discovery endpoints — Esri catalog, OGC API Records, OData catalog (auto-mirror from services); STAC + DCAT (stubs into the Portal product).">
+      <DCSection id="catalogs" title="⑦·b Catalogs" subtitle="Discovery endpoints — GeoServices service catalog, OGC API Records, OData catalog (auto-mirror from services); STAC + DCAT (stubs into the Portal product).">
         <DCArtboard id="catalogs-list" label="Catalogs · all five (3 live + 2 Portal stubs)" width={W} height={H}>
           <CatalogsList />
         </DCArtboard>
-        <DCArtboard id="catalog-esri" label="Esri catalog · items grid (auto-mirrored from services)" width={W} height={H}>
+        <DCArtboard id="catalog-esri" label="GeoServices service catalog · items grid (auto-mirrored from services)" width={W} height={H}>
           <EsriCatalogDetail />
         </DCArtboard>
         <DCArtboard id="catalog-item" label="Catalog item editor · auto-mirror with thin catalog-only presentation layer" width={W} height={H}>
@@ -435,7 +435,7 @@ function App() {
         <DCArtboard id="settings" label="Settings · Auth providers + API keys + CORS + License" width={W} height={H}>
           <Settings />
         </DCArtboard>
-        <DCArtboard id="settings-catalogs" label="Settings · Catalog endpoints (Esri / OGC Records / STAC — top-level on/off)" width={W} height={H}>
+        <DCArtboard id="settings-catalogs" label="Settings · Catalog endpoints (GeoServices service catalog / OGC Records / STAC — top-level on/off)" width={W} height={H}>
           <SettingsCatalogs />
         </DCArtboard>
       </DCSection>
@@ -456,10 +456,10 @@ function App() {
               <li><b>Forbidden labels live only in Advanced.</b> "storageBinding", "projectionProfile", "ABAC", "canonical graph", "distribution object", "policy condition", "runtime snapshot" — never on a primary surface. Advanced has them, badged.</li>
               <li><b>Two publishing views.</b> A) the matrix lets one operator scan the whole catalog × every format at once. B) the per-resource panel + projection preview drawer is the work surface — preview the exact GetCapabilities / STAC JSON / DCAT XML before commit, side-by-side with the canonical metadata.</li>
               <li><b>Unified Activity center.</b> Imports, publishes, refreshes, tile builds, validation runs, webhooks all live in one filterable feed. Jobs still have their own detail page (steps + logs + inputs/outputs).</li>
-              <li><b>Validation is both global and per-resource.</b> Global center groups by severity + target + area. Each row deep-links to the fix location. Targets: OGC Records, DCAT, STAC, ISO 19115, Esri item, GeoServices REST, OGC API, OData.</li>
+              <li><b>Validation is both global and per-resource.</b> Global center groups by severity + target + area. Each row deep-links to the fix location. Targets: OGC Records, DCAT, STAC, ISO 19115, source item, GeoServices REST, OGC API, OData.</li>
               <li><b>No tenant / org switching.</b> First-release constraint honoured everywhere.</li>
               <li><b>Drafts are first-class.</b> Every wizard saves drafts; every list shows them as their own state alongside Live/Stale/Blocked.</li>
-              <li><b>Partial success matters.</b> Esri import + file import surface "2 of 3 layers OK" prominently rather than swallowing the wins because one row failed.</li>
+              <li><b>Partial success matters.</b> Source content import + file import surface "2 of 3 layers OK" prominently rather than swallowing the wins because one row failed.</li>
             </ol>
             <div className="hand" style={{marginTop:14, fontFamily:'Kalam, cursive', color:'var(--pencil)', fontSize:14}}>
               next round: (a) tighten copy on every empty state, (b) try a "publish basket" pattern as a C variant on publishing, (c) wireframe the projection-preview drawer for STAC and DCAT (not just WMS).

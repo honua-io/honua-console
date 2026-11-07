@@ -2,22 +2,7 @@
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Validation
 
-@*
-    Shared intake bar for the three single-content Esri import surfaces (#100 Web Map, #101 Dashboard,
-    #104 StoryMap), mirroring the design-handoff EsriIntake. Four intake modes — Paste JSON / Upload file /
-    From URL or item ID / From connected ArcGIS. Paste and Upload are deterministic Console-side parses; URL
-    / item ID and connected-ArcGIS need a live server fetch and surface a binding-required note instead of
-    fabricating a fetch (Console Patterns Charter section 11).
-
-    Intake is validated before a parse / fetch (EsriImportValidator): a source must be provided, pasted JSON
-    must parse to a JSON object, and a typed URL / item id must be an absolute http(s) URL or a plausible
-    item-id token. Findings render inline via ValidationMessageInline. The intake carries unsaved state, so
-    it marks the host's FormDirtyState on edit and clears it on a successful parse; the host renders the
-    <UnsavedChangesGuard/> bound to that dirty flag.
-
-    On a successful parse the host page receives the EsriConversionResult via OnParsed and renders the
-    mapping table + target preview. The summary chips reflect the parsed document.
-*@
+@* Shared source-content intake. Connected reads require a live server binding; local JSON intake is parsed in Console. *@
 <div class="esri-intake" data-esri-intake>
     <div class="esri-intake__bar">
         <div class="esri-intake__modes" role="tablist" aria-label="Intake mode">
@@ -97,7 +82,7 @@
             <div class="esri-intake__binding" data-intake-binding>
                 <span class="console-status console-state-info">binding required</span>
                 <span>
-                    Fetching by URL or item ID reads from a connected ArcGIS source through honua-server.
+                    Fetching by URL or item ID reads from a connected source GIS system through honua-server.
                     Paste or upload the @Noun JSON to convert it now without a server.
                 </span>
             </div>
@@ -109,7 +94,7 @@
         <div class="esri-intake__binding" data-intake-binding>
             <span class="console-status console-state-info">binding required</span>
             <span>
-                Reading from a connected ArcGIS organization requires a bound honua-server.
+                Reading from a connected source organization requires a bound honua-server.
                 Paste or upload the @Noun JSON to convert it now without a server.
             </span>
         </div>
@@ -141,7 +126,7 @@
         new("paste", "Paste JSON"),
         new("upload", "Upload file"),
         new("url", "From URL / item ID"),
-        new("arcgis", "From connected ArcGIS"),
+        new("arcgis", "From connected source"),
     ];
 
     /// <summary>The parsed conversion result the host page is currently showing (null before any parse).</summary>

@@ -387,7 +387,7 @@ function ResPublish() {
           <div className="col">
             <Callout kind="info">
               <b>parcels_2024 is the canonical home.</b> Below are the {' '}
-              <b>service / layer slots</b> where it's exposed. Catalog entries are <b>opt-in but default on</b> for the formats that have one: Esri service → Esri catalog, OGC API Features → OGC Records. Each row has a direct link out. <span className="muted">DCAT &amp; STAC publishing happens in the separate <b>Portal</b> product.</span>
+              <b>service / layer slots</b> where it's exposed. Catalog entries are <b>opt-in but default on</b> for the formats that have one: GeoServices service → GeoServices service catalog, OGC API Features → OGC Records. Each row has a direct link out. <span className="muted">DCAT &amp; STAC publishing happens in the separate <b>Portal</b> product.</span>
             </Callout>
 
             <div className="card" style={{padding:0}}>
@@ -418,7 +418,7 @@ function ResPublish() {
                     <td>
                       <label className="row" style={{gap:4, fontSize:10.5}}>
                         <input type="checkbox" readOnly defaultChecked />
-                        <a style={{color:'var(--pencil)', textDecoration:'underline dotted'}}>Esri catalog ↗</a>
+                        <a style={{color:'var(--pencil)', textDecoration:'underline dotted'}}>GeoServices service catalog ↗</a>
                       </label>
                     </td>
                     <td className="muted">2m</td>
@@ -433,7 +433,7 @@ function ResPublish() {
                     <td>
                       <label className="row" style={{gap:4, fontSize:10.5}}>
                         <input type="checkbox" readOnly defaultChecked />
-                        <a style={{color:'var(--pencil)', textDecoration:'underline dotted'}}>Esri catalog ↗</a>
+                        <a style={{color:'var(--pencil)', textDecoration:'underline dotted'}}>GeoServices service catalog ↗</a>
                       </label>
                       <span className="muted mono" style={{fontSize:10}}>same entry as FS/0</span>
                     </td>
@@ -509,7 +509,7 @@ function ResPublish() {
             <div className="card" style={{background:'#fffdf3', borderLeft:'3px solid var(--accent-deep)'}}>
               <h3>Catalog registration rules</h3>
               <div className="col" style={{gap:6,fontSize:11}}>
-                <div className="row"><Badge>Esri service</Badge><span style={{flex:1,marginLeft:6}}>→</span><Badge kind="info">Esri catalog</Badge><span className="tag" style={{marginLeft:4}}>default on</span></div>
+                <div className="row"><Badge>GeoServices service</Badge><span style={{flex:1,marginLeft:6}}>→</span><Badge kind="info">GeoServices service catalog</Badge><span className="tag" style={{marginLeft:4}}>default on</span></div>
                 <div className="row"><Badge>OGC API Features</Badge><span style={{flex:1,marginLeft:6}}>→</span><Badge kind="info">OGC Records</Badge><span className="tag" style={{marginLeft:4}}>default on</span></div>
                 <div className="row"><Badge>OData service</Badge><span style={{flex:1,marginLeft:6}}>→</span><Badge kind="info">OData catalog</Badge><span className="tag" style={{marginLeft:4}}>opt-in per entity set</span></div>
                 <div className="row"><Badge>resource (any)</Badge><span style={{flex:1,marginLeft:6}}>→</span><Badge kind="info">DCAT · STAC</Badge><span className="tag" style={{marginLeft:4}}>opt-in per resource</span></div>

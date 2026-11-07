@@ -200,7 +200,7 @@ Design implications:
 
 ### Disconnected Replica
 
-Durable server-side record for an offline/disconnected dataset copy. Aligned with Esri Sync concepts.
+Durable server-side record for an offline/disconnected dataset copy. Aligned with source platform Sync concepts.
 
 Design implications:
 

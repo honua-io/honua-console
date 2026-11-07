@@ -121,10 +121,10 @@ Routes in `ShareAccessShims.cs`.
 |---|---|---|
 | Load roles / members overview | `HonuaServerRbacAccessDataSource` — **GET only** (`/console/access/{ws}/roles`, `/members`) | **COVERED-as-read** (`OperateAccessPageRenderTests`). RBAC *invite / role-assignment mutations* are NOT wired in the console (datasource exposes only `LoadOverviewAsync`/`LoadMembershipAsync`). **GAP (operation does not exist yet)** — when invite/assign lands, assert member+scope via `GET /console/access/{ws}/members`. |
 
-### Family I — Esri content imports
+### Family I — source content imports
 | Operation | Status |
 |---|---|
-| Esri import (#100/#101/#102/#104) | No dedicated live datasource/POST in `Services/` today (UI/mockup surfaces only). **GAP (operation not wired to server).** Defer round-trip tests until an import POST + server ingest endpoint exists; then verify the imported layer is queryable (same oracle as Family A). |
+| source content import (#100/#101/#102/#104) | No dedicated live datasource/POST in `Services/` today (UI/mockup surfaces only). **GAP (operation not wired to server).** Defer round-trip tests until an import POST + server ingest endpoint exists; then verify the imported layer is queryable (same oracle as Family A). |
 
 ### Family J — Environment trust / mTLS
 | Operation | Console method | Status |
@@ -238,18 +238,18 @@ These prove the console↔server contract for one code path. They do **not** pro
   (the independent version/contract read), and the drift fact emits `ContractDriftEvidence` so the pinned
   `:nightly` contract is recorded in the run artifacts. **This completes the integration-test plan (W1–W6).**
 
-**Deferred (operations not yet wired — track as product gaps, not test gaps):** GitOps release/rollback/promote mutations (Family F), RBAC invite/role-assignment mutations (Family H), Esri import POST (Family I). Add round-trip tests when the operations land.
+**Deferred (operations not yet wired — track as product gaps, not test gaps):** GitOps release/rollback/promote mutations (Family F), RBAC invite/role-assignment mutations (Family H), source content import POST (Family I). Add round-trip tests when the operations land.
 
 ---
 
 ## 7. Summary of Counts
 
-Operation families: **10** (A Service-layer publishing, B Content publications, C Studio authoring→publish, D Share, E Operate temporal/observability/connections, F GitOps, G Catalog/discovery, H RBAC, I Esri import, J Trust/mTLS).
+Operation families: **10** (A Service-layer publishing, B Content publications, C Studio authoring→publish, D Share, E Operate temporal/observability/connections, F GitOps, G Catalog/discovery, H RBAC, I source content import, J Trust/mTLS).
 
 Distinct mutating/configuring operations enumerated: **~38**.
 - **COVERED / COVERED-as-read:** ~10 (catalog seed-search-detail round-trip; trust cert-validate; the read-only Operate/observability/GitOps-read/RBAC-read/discovery-read surfaces).
 - **PARTIAL** (live test exists, same-path only — needs independent server-state read): ~14 (publication create/republish/rollback, studio draft/validate/form/analysis/workflow, share access/mint/revoke/embed, temporal rollback/replica).
-- **GAP** (no operation→output test, or operation not wired to POST): ~14 (service-layer quick/author publish, layer enable/extents, service settings PUT, table validate, publication policy, studio cut-version + publish-request catalog landing, studio reopen/rollback, share open-data/STAC, plus deferred GitOps/RBAC/Esri mutations).
+- **GAP** (no operation→output test, or operation not wired to POST): ~14 (service-layer quick/author publish, layer enable/extents, service settings PUT, table validate, publication policy, studio cut-version + publish-request catalog landing, studio reopen/rollback, share open-data/STAC, plus deferred GitOps/RBAC/source platform mutations).
 
 The flagship GAP — **the service-layer publish round-trip** — is the worked example in §3.A and Wave 1.
 

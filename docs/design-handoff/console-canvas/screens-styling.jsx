@@ -1,7 +1,7 @@
 // Styling surfaces:
 //   1. Resource → Presentation → Styles (CANONICAL · MapLibre via Maputnik) — already in screens-settings-states.jsx
 //   2. Resource → Presentation → Style endpoint (OGC API Styles · all encodings via content-neg) — NEW here
-//   3. Service Slot → Styling override (per-slot Esri renderer override + drift status) — NEW here
+//   3. Service Slot → Styling override (per-slot GeoServices renderer override + drift status) — NEW here
 
 function ResStyleEndpoint() {
   // Resource-level OGC API Styles endpoint. One source of truth, many encodings.
@@ -26,7 +26,7 @@ function ResStyleEndpoint() {
             ))}
             <div className="muted" style={{padding:'12px 12px', fontSize:10.5, borderTop:'1px dashed #d8d8d8', marginTop:6}}>
               <b>Canonical:</b> MapLibre GL.<br/>
-              SLD &amp; Esri Renderer are <i>generated</i> build artefacts.<br/>
+              SLD &amp; GeoServices renderer are <i>generated</i> build artefacts.<br/>
               Slot overrides are explicit.
             </div>
           </div>
@@ -70,7 +70,7 @@ function ResStyleEndpoint() {
                   <span className="muted" style={{fontSize:11}}>same style, served in each format on request</span>
                 </div>
                 <div className="muted" style={{fontSize:11, marginTop:2}}>
-                  All encodings except MapLibre are <b>generated build artefacts</b>. They regenerate on every canonical change. Don't author SLD or Esri Renderer here — use a per-slot override if you need to.
+                  All encodings except MapLibre are <b>generated build artefacts</b>. They regenerate on every canonical change. Don't author SLD or GeoServices renderer here — use a per-slot override if you need to.
                 </div>
               </div>
               <table className="tbl tbl--cmpt">
@@ -114,7 +114,7 @@ function ResStyleEndpoint() {
                     </td>
                   </tr>
                   <tr>
-                    <td>Esri Renderer JSON</td>
+                    <td>GeoServices renderer JSON</td>
                     <td className="mono">application/json; profile=esri-renderer</td>
                     <td className="muted">generated from canonical</td>
                     <td><Badge kind="ok">in sync · v4</Badge></td>
@@ -162,14 +162,14 @@ function ResStyleEndpoint() {
                 <tbody>
                   <tr>
                     <td className="mono">public-works-fs / layer 0</td>
-                    <td>Esri Renderer JSON</td>
+                    <td>GeoServices renderer JSON</td>
                     <td><Badge kind="ok">tracking canonical</Badge></td>
                     <td className="muted">2h ago · propagated</td>
                     <td><a style={{fontSize:10.5,cursor:'pointer'}}>Open slot ↗</a></td>
                   </tr>
                   <tr>
                     <td className="mono">public-works-ms / layer 2</td>
-                    <td>Esri Renderer JSON</td>
+                    <td>GeoServices renderer JSON</td>
                     <td><Badge kind="warn">override active</Badge></td>
                     <td className="muted">2h ago · not propagated</td>
                     <td><a style={{fontSize:10.5,cursor:'pointer'}}>Open slot ↗</a></td>
@@ -190,7 +190,7 @@ function ResStyleEndpoint() {
                   </tr>
                   <tr>
                     <td className="mono">fs-internal / layer 4</td>
-                    <td>Esri Renderer JSON</td>
+                    <td>GeoServices renderer JSON</td>
                     <td><Badge kind="warn">override active · resync available</Badge></td>
                     <td className="muted">2h ago · diverged on v3</td>
                     <td><div className="row" style={{gap:4}}><a style={{fontSize:10.5,cursor:'pointer',color:'var(--pencil)'}}>Resync</a><span style={{color:'#ddd'}}>·</span><a style={{fontSize:10.5,cursor:'pointer'}}>Open slot</a></div></td>
@@ -203,7 +203,7 @@ function ResStyleEndpoint() {
               <b>Override semantics.</b> A slot can stay <i>tracking canonical</i> (default), or be <i>overridden</i> with a hand-authored style in its native encoding. Overrides have provenance — you can always see the canonical they diverged from and resync if you want.
             </Callout>
 
-            <Ann red>generated artefacts (SLD, Esri Renderer JSON) live in the build cache. they're disposable.</Ann>
+            <Ann red>generated artefacts (SLD, GeoServices renderer JSON) live in the build cache. they're disposable.</Ann>
           </div>
         </div>
       </div>
@@ -232,7 +232,7 @@ function SlotStylingOverride() {
             <Btn kind="p">↗ Open Data Resource</Btn>
           </div>
           <div className="muted" style={{fontSize:11.5, marginTop:4}}>
-            Layer slot backed by <a className="mono" style={{color:'var(--pencil)'}}>◇ parcels_2024</a>. Style for this slot has been hand-overridden — Esri renderer is using arcade expressions that MapLibre can't represent.
+            Layer slot backed by <a className="mono" style={{color:'var(--pencil)'}}>◇ parcels_2024</a>. Style for this slot has been hand-overridden — GeoServices renderer is using arcade expressions that MapLibre can't represent.
           </div>
         </div>
 
@@ -270,7 +270,7 @@ function SlotStylingOverride() {
             </div>
 
             <div style={{padding:'8px 12px', fontSize:10.5, color:'#666'}}>
-              Auto-translates to Esri Renderer JSON:
+              Auto-translates to GeoServices renderer JSON:
             </div>
             <pre className="mono" style={{margin:0,padding:'8px 12px', background:'#0e0e0e', color:'#d8d8d8', fontSize:10.5, lineHeight:1.55, flex:1, overflow:'auto', whiteSpace:'pre-wrap'}}>
 {`{
@@ -294,7 +294,7 @@ function SlotStylingOverride() {
           {/* RIGHT: per-slot override editor */}
           <div style={{display:'flex', flexDirection:'column', background:'#1f2329'}}>
             <div style={{padding:'8px 12px', borderBottom:'1px solid #0a0c10', background:'#252a31', color:'#d8d8d8', display:'flex', alignItems:'center', gap:8}}>
-              <span style={{fontSize:10.5, textTransform:'uppercase', letterSpacing:'0.06em', color:'#9aa3ad'}}>Slot override · Esri Renderer JSON</span>
+              <span style={{fontSize:10.5, textTransform:'uppercase', letterSpacing:'0.06em', color:'#9aa3ad'}}>Slot override · GeoServices renderer JSON</span>
               <Badge kind="warn">override</Badge>
               <span className="muted mono" style={{fontSize:10, color:'#6e7682'}}>forked from canonical v3 · 5d ago · jamie</span>
               <div style={{flex:1}}/>
