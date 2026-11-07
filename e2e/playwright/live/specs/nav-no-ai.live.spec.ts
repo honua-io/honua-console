@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 const ungatedSections = [
   { path: '/operate/data', heading: 'Data & Layers' },
   { path: '/operate/connections', heading: 'Connections' },
-  { path: '/operate/import/esri', heading: 'Import from Esri' },
+  { path: '/operate/import/esri', heading: 'Import source content' },
   { path: '/operate/publishing', heading: 'Publishing Workspace' },
   { path: '/operate/versions', heading: /Versions|Branch.version|version manager/i },
   { path: '/operate/sensors', heading: /SensorThings|Sensor/i },

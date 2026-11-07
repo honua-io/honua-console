@@ -19,24 +19,24 @@ It replaces an earlier "MVP wedge" framing. A narrow feature wedge is the wrong 
 
 ## Strategic Frame: Consolidation, Not A Wedge
 
-Every GIS org has the same job: deliver maps, apps, analysis, ETL, GP, forms, dashboards, and publishing — and operate it reliably. GIS is a horizontal capability inside the org, not a point need. ArcGIS won by being the broad platform.
+Every GIS org has the same job: deliver maps, apps, analysis, ETL, GP, forms, dashboards, and publishing — and operate it reliably. GIS is a horizontal capability inside the org, not a point need. source GIS platform won by being the broad platform.
 
-Consequence: a narrow tool that does only one or two of those is not a beachhead — it is a **second system running alongside ArcGIS**, which *adds* operational surface. That directly contradicts the "easy to operate" thesis. Therefore:
+Consequence: a narrow tool that does only one or two of those is not a beachhead — it is a **second system running alongside source GIS platform**, which *adds* operational surface. That directly contradicts the "easy to operate" thesis. Therefore:
 
 - **Breadth is mandatory.** First release must cover the whole authoring surface to be credible as a replacement rather than an addition.
 - **We consolidate the server, operations, and authoring layer**, not land-and-expand. The differentiator — one artifact, easy to operate — only delivers value when Honua absorbs the breadth itself, rather than being one more system to run.
 
 ### What We Replace vs. What We Keep
 
-We do **not** offer a path completely off the Esri ecosystem, and that is deliberate — it collapses switching cost.
+We do **not** offer a path completely off the source platform ecosystem, and that is deliberate — it collapses switching cost.
 
-- **Replace:** the ArcGIS Server / Portal / Enterprise *operational* sprawl and the "million toolboxes" authoring complexity. The felt promise is *a glimpse of what life looks like without a million toolboxes* — express intent, do not hunt through tool catalogs.
-- **Keep / interoperate:** Honua speaks **Esri REST** as a northbound interface, so existing Esri clients — including ArcGIS Pro — keep working against Honua with no forced client migration.
-- **The distinction that matters:** *server-side breadth* must be ours (otherwise the org runs two servers — the "second system" failure), while the *client-side protocol* stays GeoServices REST (so users keep the tools they already know). Esri REST interop is not a second system; it is one broad server speaking the incumbent's protocol.
+- **Replace:** the source GIS platform Server / Portal / Enterprise *operational* sprawl and the "million toolboxes" authoring complexity. The felt promise is *a glimpse of what life looks like without a million toolboxes* — express intent, do not hunt through tool catalogs.
+- **Keep / interoperate:** Honua speaks **GeoServices REST** as a northbound interface, so existing source platform clients — including desktop GIS client — keep working against Honua with no forced client migration.
+- **The distinction that matters:** *server-side breadth* must be ours (otherwise the org runs two servers — the "second system" failure), while the *client-side protocol* stays GeoServices REST (so users keep the tools they already know). GeoServices REST interop is not a second system; it is one broad server speaking the incumbent's protocol.
 
 ## Backend Readiness (honua-server, verified 2026-05-24)
 
-This plan builds on a mature backend, not greenfield. `honua-server` is an OGC-CITE-certified (952/952) multi-protocol feature server that already speaks the GeoServices REST surface (incl. GPServer), OGC WMS/WFS/WCS/WMTS, STAC, OGC API, OData, and MVT, and already does FileGDB import and live Esri REST migration. Most heavy substrate is built; the open work is a tight wrapper layer plus Console UI.
+This plan builds on a mature backend, not greenfield. `honua-server` is an OGC-CITE-certified (952/952) multi-protocol feature server that already speaks the GeoServices REST surface (incl. GPServer), OGC WMS/WFS/WCS/WMTS, STAC, OGC API, OData, and MVT, and already does FileGDB import and live GeoServices REST migration. Most heavy substrate is built; the open work is a tight wrapper layer plus Console UI.
 
 - **Built (CLOSED):** metadata v2 + RBAC (`#1162`), Studio package lifecycle (`#1180`), geoprocessing/ETL execution substrate (`#360/#361/#681/#721/#724`), GitOps engine (`#351/#515/#992`, `#1163/#1164`), Operate observability + jobs (`#1168/#1170`), realtime + geofence (`#1169/#393/#339`), native mTLS (`#1171`).
 - **True open critical path (Studio-facing wrappers over built capability):** validation/preview (`#1181`), query/analysis content + artifacts (`#1182`), publication registry (`#1183`), form package (`#1184`), GP/ETL package + node registry (`#1185`), capability manifest (`#1186`), release-operation lifecycle API (`#1165`). These wrap existing engines — not new engines.
@@ -50,7 +50,7 @@ Implication: the operate floor and breadth substrate are largely *done server-si
 Because breadth is mandatory, the first-release line is drawn on **how deep each capability goes**, not on which capabilities exist.
 
 - Target depth: *sufficient to be the system of record for a new project or dataset*, end to end on Honua alone.
-- Do **not** target ArcGIS Pro's accreted tool-count depth. We do not out-depth twenty years on day one.
+- Do **not** target desktop GIS client's accreted tool-count depth. We do not out-depth twenty years on day one.
 - Be **sufficient across the whole surface**, **deep on one or two visible spikes** (maps + spatial analysis), and **thin-but-present** on the rest — leaning on AI + the capability registry rather than hand-built editors.
 
 | Authoring family | First-release depth | Deferred depth (pull trigger) |
@@ -65,7 +65,7 @@ Because breadth is mandatory, the first-release line is drawn on **how deep each
 
 ## The Breadth Mechanism: AI Over A Shared Package Model + Registry
 
-A small team can credibly cover ArcGIS breadth only because authoring runs through **one** generate → validate → preview → publish pipeline over a shared package model and a **capability registry**, instead of eight bespoke editors.
+A small team can credibly cover source GIS platform breadth only because authoring runs through **one** generate → validate → preview → publish pipeline over a shared package model and a **capability registry**, instead of eight bespoke editors.
 
 - This is the disruption mechanism *and* the answer to development cost: build one pipeline and one registry, not N editors.
 - The capability registry is therefore load-bearing, not a "later, for breadth" item. For first release it need only cover the spike + sufficient ops above — not Pro's full catalog.
@@ -75,7 +75,7 @@ A small team can credibly cover ArcGIS breadth only because authoring runs throu
 
 ## The Operate Floor: GitOps As Invisible Plumbing
 
-The one place we cannot go shallow. Absorbing the ArcGIS Server/operations sprawl (vs. adding to it) requires an operate layer a non-operator can actually run. The core of that floor is **GitOps used as plumbing the operator never sees**.
+The one place we cannot go shallow. Absorbing the source GIS platform Server/operations sprawl (vs. adding to it) requires an operate layer a non-operator can actually run. The core of that floor is **GitOps used as plumbing the operator never sees**.
 
 - **One-time bootstrap only:** the operator points Honua at a git repo. After that, every environment/metadata/service/layer/style/publish change is safe, reversible, and audited — with **zero Git exposure**. No branches, no PRs, no YAML in the operator's path.
 - GitOps relocates operational complexity from *every operator on every change* into a reviewed, repeatable, reversible **process**. The process is the operator.
@@ -87,12 +87,12 @@ Non-negotiable operate-floor scope for first release:
 | Floor capability | Owning work | Status |
 | --- | --- | --- |
 | Authoritative data, RBAC | `honua-server#1162` | server built |
-| Connect / import existing data (incl. live Esri REST migration, FileGDB) | server import APIs; UI-030, UI-033 | server built; Console UI open |
+| Connect / import existing data (incl. live GeoServices REST migration, FileGDB) | server import APIs; UI-030, UI-033 | server built; Console UI open |
 | Publishing reliability (publication, slot, catalog registration, rollback) | `honua-server#1183`; UI-034, UI-035 | server wrapper + Console UI open |
 | GitOps change-safety plumbing, single instance | engine `honua-server#351/#515/#992`, `#1163/#1164`; lifecycle API `#1165`; `honua-console#22` / UI-044 | engine built; `#1165` + Console UI open |
 | Minimal Operate: jobs + events for what was published/changed | `honua-server#1168`, `#1170`; UI-040, UI-041, UI-043 | server built; Console UI open |
 | One deployable artifact + preview/release pipeline | `honua-devops#55`, `#56` | devops |
-| Esri REST northbound interop (sufficient, not exhaustive parity) | GeoServices REST surface (CITE-certified); Esri catalog endpoint (UI-036) | server built (certified) |
+| GeoServices REST northbound interop (sufficient, not exhaustive parity) | GeoServices REST surface (CITE-certified); GeoServices service catalog endpoint (UI-036) | server built (certified) |
 | Per-action audit evidence | `honua-server#504`, `#507` | **partial — enterprise gap** |
 
 ## Capability-Gated Exotic Depth
@@ -126,11 +126,11 @@ Dominant dev-AI costs are **rework** (regenerating fan-out when a shared contrac
 
 Ship when a real org can run a real *new* project end to end on Honua alone, from one deployable artifact and one origin:
 
-- Connect or import existing data (including migrating an ArcGIS remote service) without leaving the console.
+- Connect or import existing data (including migrating a source GIS platform remote service) without leaving the console.
 - Author across the whole surface — maps and query at spike depth, analysis/dashboard/report/form/app/workflow at least sufficient — as inspectable, governed packages with validation and provenance shown before publish.
 - Publish and share/embed through the unified runtime, with content/version/publication/job/event records linked by stable IDs (immutable audit/SIEM is enterprise-tier — see Backend Readiness).
 - Make a production change safely: propose → preflight → approve → apply → roll back, **without ever touching Git**, after a one-time repo bootstrap.
-- Existing Esri REST clients (including ArcGIS Pro) can consume and publish to Honua services through the GeoServices REST interface — no forced client migration.
+- Existing GeoServices REST clients (including desktop GIS client) can consume and publish to Honua services through the GeoServices REST interface — no forced client migration.
 - System-of-record reliability holds: server-authored RBAC/entitlement gates every route and action.
 - Gated exotic depth renders as unsupported via the capability manifest, with no dead UI.
 

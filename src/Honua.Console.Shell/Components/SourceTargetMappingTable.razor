@@ -2,10 +2,10 @@
 @using Honua.Console.Shell.Models
 
 @*
-    Shared source -> target mapping table reused across all four Esri content-import surfaces
+    Shared source -> target mapping table reused across all four source content-import surfaces
     (#100 layer mapping, #101 element->widget grid, #104 section->block mapping, #102 wizard Map step).
 
-    Every row makes the Esri thing -> Honua thing explicit, carries a per-row FidelityBadge, and names the
+    Every row makes the source item -> Honua thing explicit, carries a per-row FidelityBadge, and names the
     reason for any degrade/drop/binding in the adjacent note column (the design-handoff convention). The
     SourceTypeHeader / TargetHeader labels are surface-specific; the structure, fidelity badge, and the
     degrade/drop/binding row-state styling are shared. A "show: all / issues only" filter chip pair mirrors
@@ -131,7 +131,7 @@
 
     /// <summary>Column header for the source-name column.</summary>
     [Parameter]
-    public string SourceHeader { get; set; } = "Esri item";
+    public string SourceHeader { get; set; } = "source item";
 
     /// <summary>Column header for the source-type column.</summary>
     [Parameter]

@@ -103,7 +103,7 @@ Absorbs old Activity + Alerts into one timeline.
 (These are the earlier screens, before the Console reframe — still valid, mostly for the Operate area:)
 
 - `screens-overview.jsx` — IA map + Dashboard A/B
-- `screens-connections.jsx` — Connections list + Postgres detail + add-connection wizard. **Important**: remote services (Esri/OGC/WMS) are NOT connections — they're imports (see `screens-wizards.jsx · WizImportEsri` which is the **migration** flow).
+- `screens-connections.jsx` — Connections list + Postgres detail + add-connection wizard. **Important**: remote services (GeoServices REST/OGC/WMS) are NOT connections — they're imports (see `screens-wizards.jsx · WizImportEsri` which is the **migration** flow).
 - `screens-resources.jsx` — Data Resources list + 9 resource detail tabs (Overview / Source / Fields / Metadata / Publish / Access / Validation / Presentation / Advanced)
 - `screens-wizards.jsx` — Create resource from table / file / remote-service-migration
 - `screens-services.jsx` — Services & Layers list + Explorer (folders → services → layers tree with right-click context menus) + Service detail
@@ -112,8 +112,8 @@ Absorbs old Activity + Alerts into one timeline.
 - `screens-activity.jsx` — Older Activity + Validation centre (superseded by Event Viewer)
 - `screens-settings-states.jsx` — Settings (Auth/CORS/License/Catalog endpoints) + Resource sub-tabs + states gallery
 - `screens-fields-hifi.jsx` — Field-state vocabulary anchor screens
-- `screens-styling.jsx` + `screens-styling-more.jsx` — MapLibre canonical, OGC API Styles endpoint, per-slot Esri Renderer override, WMS SLD override, version history, resync confirm
-- `screens-catalogs.jsx` — Catalogs section (Esri / OGC Records / OData / STAC / DCAT)
+- `screens-styling.jsx` + `screens-styling-more.jsx` — MapLibre canonical, OGC API Styles endpoint, per-slot GeoServices renderer override, WMS SLD override, version history, resync confirm
+- `screens-catalogs.jsx` — Catalogs section (GeoServices REST / OGC Records / OData / STAC / DCAT)
 
 ---
 
@@ -123,7 +123,7 @@ Absorbs old Activity + Alerts into one timeline.
 2. **Field state vocabulary is the visual language**: ✏️ input / 🔍 discovered / 🧮 calculated / ⚙️ system / 🔒 admin. Use `FieldRow state="..."` for any operator-facing field.
 3. **Scope chips communicate blast radius**: `<ScopeChip scope="resource|publication|service|server" count="..."/>` on every group of editable fields.
 4. **`MapPreview`** in `mode="layer"` for one selected layer, `mode="service"` for the whole service composite with layer-toggle overlay.
-5. **Names matter**: services have "Slot" semantics (Layer slot = publication record); data lives on Data Resources; catalog entries auto-mirror Esri + OGC API publications.
+5. **Names matter**: services have "Slot" semantics (Layer slot = publication record); data lives on Data Resources; catalog entries auto-mirror GeoServices REST + OGC API publications.
 6. **Tone**: every governed operation says so loudly. Audit + version on publish. Advisory-only AI. Operator approval required for any AI action.
 
 ## How to add a new artboard

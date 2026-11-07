@@ -1,6 +1,6 @@
 import type { APIRequestContext } from '@playwright/test';
 
-// GeoServices answers a refused or missing resource the Esri way: HTTP 200 with an error envelope
+// GeoServices answers a refused or missing resource the GeoServices REST format: HTTP 200 with an error envelope
 // (499 token required, 404 not found), so the HTTP status alone never shows the refusal.
 export const GEOSERVICES_TOKEN_REQUIRED = 499;
 export const GEOSERVICES_NOT_FOUND = 404;

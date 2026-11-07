@@ -22,9 +22,9 @@ function CatalogsList() {
         <div style={{padding:'14px 18px', overflow:'auto', flex:1, display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:14}}>
           {[
             {
-              k:'esri', t:'Esri catalog',
-              d:'Esri-style catalog. Items are FeatureServer / MapServer / ImageServer publications.',
-              on:true, url:'/catalog', n:38, fed:'auto-mirror from Esri services',
+              k:'esri', t:'GeoServices service catalog',
+              d:'GeoServices REST-style catalog. Items are FeatureServer / MapServer / ImageServer publications.',
+              on:true, url:'/catalog', n:38, fed:'auto-mirror from GeoServices services',
               feeders:[ ['FeatureServer','public-works-fs · 8'], ['MapServer','public-works-ms · 8'], ['FeatureServer','fs-internal · 24'] ],
               issues: 1, primary:true,
               auto:true,
@@ -129,13 +129,13 @@ function EsriCatalogDetail() {
   // Tabs: Items / Settings / Activity. Items table is the meat.
   return (
     <div className="scr">
-      <TopBar crumbs={['Catalogs','Esri catalog']} />
+      <TopBar crumbs={['Catalogs','GeoServices service catalog']} />
       <Sidebar active="catalogs" />
       <div className="main">
         <div style={{padding:'12px 18px 0'}}>
           <div className="muted" style={{fontSize:11}}>Catalogs <span style={{color:'#bbb'}}>/</span></div>
           <div className="row">
-            <h1 style={{margin:0,font:'600 18px var(--ui)'}}>Esri catalog</h1>
+            <h1 style={{margin:0,font:'600 18px var(--ui)'}}>GeoServices service catalog</h1>
             <Badge kind="ok" lg>ON</Badge>
             <Badge kind="warn">1 issue</Badge>
             <span className="muted" style={{fontSize:11}}>/catalog · 38 items · last rebuild 14m ago</span>
@@ -148,7 +148,7 @@ function EsriCatalogDetail() {
             <span className="muted" style={{fontSize:10.5, textTransform:'uppercase', letterSpacing:'0.06em'}}>Endpoint</span>
             <code className="mono" style={{flex:1,fontSize:11,color:'#333'}}>https://honua.example.gov/catalog</code>
             <Btn ghost sm>⧉ Copy URL</Btn>
-            <Btn ghost sm>Open in ArcGIS Pro ↗</Btn>
+            <Btn ghost sm>Open in desktop GIS client ↗</Btn>
           </div>
         </div>
         <Tabs items={[
@@ -233,7 +233,7 @@ function EsriCatalogDetail() {
         </div>
 
         <div style={{padding:'6px 18px', borderTop:'1px solid #e4e4e4', background:'#fafafa', display:'flex',alignItems:'center', gap:8, fontSize:11}}>
-          <span className="muted">Auto-mirror is on. Every Esri service publication appears here unless explicitly unchecked.</span>
+          <span className="muted">Auto-mirror is on. Every GeoServices service publication appears here unless explicitly unchecked.</span>
           <div style={{flex:1}}/>
           <Btn ghost sm>Bulk edit metadata defaults</Btn>
         </div>
@@ -247,11 +247,11 @@ function CatalogItemEditor() {
   // Most fields are 🧮 derived from the service/resource. A few are ✏️ catalog-only (tags, featured, related items).
   return (
     <div className="scr">
-      <TopBar crumbs={['Catalogs','Esri catalog','Parcels (FY 2024)']} />
+      <TopBar crumbs={['Catalogs','GeoServices service catalog','Parcels (FY 2024)']} />
       <Sidebar active="catalogs" />
       <div className="main">
         <div style={{padding:'12px 18px 0'}}>
-          <div className="muted" style={{fontSize:11}}>Esri catalog <span style={{color:'#bbb'}}>/</span> item <span style={{color:'#bbb'}}>/</span></div>
+          <div className="muted" style={{fontSize:11}}>GeoServices service catalog <span style={{color:'#bbb'}}>/</span> item <span style={{color:'#bbb'}}>/</span></div>
           <div className="row">
             <h1 style={{margin:0,font:'600 18px var(--ui)'}}>Parcels (FY 2024)</h1>
             <Badge kind="info">auto-mirror</Badge>
@@ -330,7 +330,7 @@ function CatalogItemEditor() {
             </FieldGroup>
 
             <FieldGroup title="Standards mapping" sub="how this item appears in different catalog dialects" scope="server">
-              <FieldRow state="calculated" label="Esri item JSON" value="schema valid · 14 KB" derivedFrom="resource + service" />
+              <FieldRow state="calculated" label="source item JSON" value="schema valid · 14 KB" derivedFrom="resource + service" />
               <FieldRow state="calculated" label="ISO 19115 record" value="schema valid · 38 KB" derivedFrom="resource metadata" />
               <FieldRow state="calculated" label="DCAT dataset" value="missing publisher identifier" derivedFrom="resource metadata">
                 <div className="col" style={{gap:2}}>
@@ -358,7 +358,7 @@ function CatalogItemEditor() {
             <Callout kind="warn">
               <b>1 standards issue.</b> DCAT requires a publisher identifier on the resource. Currently empty. <a className="fs-override" style={{fontSize:11}}>Fix on resource →</a>
             </Callout>
-            <Ann red>auto-mirror items can't fork their identity. uncheck "register in Esri catalog" on the service to remove this entry.</Ann>
+            <Ann red>auto-mirror items can't fork their identity. uncheck "register in GeoServices service catalog" on the service to remove this entry.</Ann>
           </div>
         </div>
       </div>

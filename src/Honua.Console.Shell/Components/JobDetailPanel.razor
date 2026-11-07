@@ -34,8 +34,8 @@
     @if (Job.EffectiveIdentity.IsEsriGpServer)
     {
         <section class="operate-evidence-section" data-esri-gpserver-identity>
-            <p class="console-kicker">ArcGIS migration</p>
-            <h4>Esri GPServer identity</h4>
+            <p class="console-kicker">GeoServices migration</p>
+            <h4>GeoServices GPServer identity</h4>
             <p class="console-muted">
                 This is the GeoServices GPServer name for the same canonical Honua process and job.
                 Console is inspecting the shared runtime; it is not running a second execution engine.
@@ -43,7 +43,7 @@
             <dl class="console-definition-list">
                 <dt>GPServer service</dt>
                 <dd class="console-mono" data-gpserver-service-id>@Job.EffectiveIdentity.GpServerServiceId</dd>
-                <dt>Esri task</dt>
+                <dt>GeoServices task</dt>
                 <dd class="console-mono" data-gpserver-task-name>@Job.EffectiveIdentity.GpServerTaskName</dd>
                 @if (!string.IsNullOrWhiteSpace(Job.EffectiveIdentity.ProcessId))
                 {

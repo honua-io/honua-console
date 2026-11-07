@@ -3,7 +3,7 @@
 @using Honua.Console.Shell.Services
 @inject IEsriMigrationRunDataSource MigrationRun
 
-@* #102 · "Import from Esri" wizard (screens-import-wizard.jsx). Multi-step, REUSING the shared
+@* #102 · "Import source content" wizard (screens-import-wizard.jsx). Multi-step, REUSING the shared
    PublishWizard shell: Source connect → Select content → Map → Run → Scorecard. The Map step shows mixed
    content types + per-item fidelity (deterministic from the selected content). The Run engine and the
    Parity scorecard are driven by honua-devops (issue-122 "migration-run API owner"): Console does not own
@@ -14,10 +14,10 @@
 <section class="console-page esri-wizard" data-esri-wizard>
     <div class="console-detail-heading">
         <div>
-            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import from Esri</p>
-            <h1>Import from Esri</h1>
+            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import source content</p>
+            <h1>Import source content</h1>
             <p class="console-muted">
-                Connect an ArcGIS source, select content, review the per-item conversion fidelity, then run
+                Connect a source GIS system, select content, review the per-item conversion fidelity, then run
                 the migration and review the parity scorecard.
             </p>
         </div>
@@ -29,7 +29,7 @@
             }
             else
             {
-                <span class="console-muted">No ArcGIS source is connected.</span>
+                <span class="console-muted">No source GIS system is connected.</span>
             }
         </div>
     </div>
@@ -37,8 +37,8 @@
     <PublishWizard Steps="Steps"
                    Current="_step"
                    CurrentChanged="OnStepChanged"
-                   Kicker="Import from Esri"
-                   Title="Migrate ArcGIS content"
+                   Kicker="Import source content"
+                   Title="Migrate source content"
                    FinishLabel="Finish · open Catalog"
                    OnFinish="Finish" />
 </section>
@@ -70,7 +70,7 @@
 
     // A source counts as connected only when the migration plan actually reads back from the run
     // engine. This used to be a hardcoded `true` beside a hardcoded org card, so the wizard reported a
-    // connected ArcGIS organization on deployments with no migration binding at all.
+    // connected source organization on deployments with no migration binding at all.
     private bool SourceConnected => _plan is { HasPlan: true };
 
     private MigrationPlanView? PlanView => _plan?.Plan;
@@ -115,11 +115,11 @@
     private void Finish() => _step = 4;
 
     private RenderFragment SourceStep => @<div class="esri-wizard__step" data-wizard-step="source">
-        <h2>Connect an ArcGIS source</h2>
-        <p class="console-muted">Choose where the content comes from. Reading from a connected ArcGIS organization binds a honua-server in the selected environment.</p>
+        <h2>Connect a source GIS system</h2>
+        <p class="console-muted">Choose where the content comes from. Reading from a connected source organization binds a honua-server in the selected environment.</p>
         <div class="esri-intake__modes" role="group" aria-label="Source kind">
-            <span class="esri-intake__mode esri-intake__mode--on">ArcGIS Online</span>
-            <span class="esri-intake__mode">ArcGIS Enterprise</span>
+            <span class="esri-intake__mode esri-intake__mode--on">hosted GIS portal</span>
+            <span class="esri-intake__mode">enterprise GIS portal</span>
             <span class="esri-intake__mode">Upload export</span>
         </div>
         @if (PlanView is { } plan)
@@ -170,7 +170,7 @@
                 <SourceTargetMappingTable Rows="MapRows"
                                           Heading="Map selected content"
                                           Subhead="Each item is converted to a Console content package; items needing a data binding are flagged."
-                                          SourceHeader="Esri item"
+                                          SourceHeader="source item"
                                           TargetHeader="→ Console"
                                           BoundHeader="Blockers" />
             </div>
@@ -273,7 +273,7 @@
         <ConsoleStateView HeadingLevel="2" Kind="missing"
                           Kicker="@(state?.State ?? "Missing binding")"
                           Title="No honua-server is configured"
-                          Message="@(state?.Detail ?? "The Esri import wizard drives a migration run against a honua-server in the selected environment. This Console is not bound to one yet, so there is nothing to import into. Console never shows mocked data here.")"
+                          Message="@(state?.Detail ?? "The source content import wizard drives a migration run against a honua-server in the selected environment. This Console is not bound to one yet, so there is nothing to import into. Console never shows mocked data here.")"
                           ActionHref="/operate/environments"
                           ActionLabel="Connect honua-server →" />
         <div class="esri-missing-binding__steps console-overview-card">
@@ -281,7 +281,7 @@
             <ol>
                 <li>Connect a honua-server in <code>Operate → Environments</code></li>
                 <li>Or switch to an environment that already has one bound</li>
-                <li>Then re-open <code>Import from Esri</code></li>
+                <li>Then re-open <code>Import source content</code></li>
             </ol>
             @if (state is not null)
             {

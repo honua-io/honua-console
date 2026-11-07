@@ -21,7 +21,7 @@ function EsriIntake({ kind, file, summary }) {
           <div style={{padding:'4px 10px', background:'var(--accent)', fontWeight:600, borderRight:'1px solid var(--ink)'}}>Paste JSON</div>
           <div style={{padding:'4px 10px', background:'#fff', color:'#666', borderRight:'1px solid #ccc'}}>Upload file</div>
           <div style={{padding:'4px 10px', background:'#fff', color:'#666', borderRight:'1px solid #ccc'}}>From URL / item ID</div>
-          <div style={{padding:'4px 10px', background:'#fff', color:'#666'}}>From connected ArcGIS</div>
+          <div style={{padding:'4px 10px', background:'#fff', color:'#666'}}>From connected source</div>
         </div>
         <div style={{flex:1}}/>
         <span className="muted" style={{fontSize:10.5}}>{kind} · {file}</span>
@@ -35,19 +35,19 @@ function EsriIntake({ kind, file, summary }) {
   );
 }
 
-/* ---------- #100 · Import Esri Web Map JSON → honua.map-package.v1 ---------- */
+/* ---------- #100 · Import source Web Map JSON → honua.map-package.v1 ---------- */
 function ImportEsriWebMap() {
   return (
     <div className="scr">
-      <TopBar crumbs={['Operate','Import from Esri','Web Map']} area="operate" />
+      <TopBar crumbs={['Operate','Import source content','Web Map']} area="operate" />
       <Sidebar active="resources" />
       <div className="main">
         <PageHead
-          title="Import Esri Web Map"
-          sub={<span>Convert an ArcGIS Web Map JSON into a Honua map package (<span className="mono">honua.map-package.v1</span>). Layer-by-layer fidelity shown before you commit.</span>}
+          title="Import source Web Map"
+          sub={<span>Convert an source Web Map JSON into a Honua map package (<span className="mono">honua.map-package.v1</span>). Layer-by-layer fidelity shown before you commit.</span>}
           actions={<><Btn>Discard</Btn><Btn kind="p">Create map package →</Btn></>}
         />
-        <EsriIntake kind="Esri Web Map JSON · v2.27" file="public-works-webmap.json · 84 KB"
+        <EsriIntake kind="source Web Map JSON · v2.27" file="public-works-webmap.json · 84 KB"
           summary={['7 operational layers','1 basemap','4 bookmarks','5 popups','2 unsupported widgets']} />
 
         <div style={{display:'grid', gridTemplateColumns:'1fr 380px', flex:1, overflow:'hidden'}}>
@@ -55,7 +55,7 @@ function ImportEsriWebMap() {
           <div style={{overflow:'auto'}}>
             <div style={{padding:'8px 18px', borderBottom:'1px solid #e4e4e4', display:'flex', alignItems:'center'}}>
               <h3 style={{margin:0}}>Layer mapping</h3>
-              <span className="muted" style={{fontSize:11, marginLeft:8}}>Esri operational layer → Honua map-package layer</span>
+              <span className="muted" style={{fontSize:11, marginLeft:8}}>source operational layer → Honua map-package layer</span>
               <div style={{flex:1}}/>
               <FiltChip on x>show: all</FiltChip>
               <FiltChip>issues only</FiltChip>
@@ -63,7 +63,7 @@ function ImportEsriWebMap() {
             <table className="tbl tbl--cmpt">
               <thead><tr>
                 <th style={{width:24}}><input type="checkbox" readOnly defaultChecked /></th>
-                <th>Esri layer</th><th>Type</th><th>→ Honua layer</th><th>Bound resource</th><th>Fidelity</th><th>Note</th>
+                <th>source layer</th><th>Type</th><th>→ Honua layer</th><th>Bound resource</th><th>Fidelity</th><th>Note</th>
               </tr></thead>
               <tbody>
                 <tr><td><input type="checkbox" readOnly defaultChecked /></td><td><b>Parcels</b></td><td>FeatureLayer</td><td className="mono">parcels/fill</td><td><span style={{color:'var(--pencil)'}}>◇</span> parcels_2024</td><td><Fid k="clean" /></td><td className="muted">matched by URL</td></tr>
@@ -123,31 +123,31 @@ function ImportEsriWebMap() {
   );
 }
 
-/* ---------- #101 · Import Esri Dashboard JSON → dashboard package ---------- */
+/* ---------- #101 · Import source dashboard JSON → dashboard package ---------- */
 function ImportEsriDashboard() {
   return (
     <div className="scr">
-      <TopBar crumbs={['Operate','Import from Esri','Dashboard']} area="operate" />
+      <TopBar crumbs={['Operate','Import source content','Dashboard']} area="operate" />
       <Sidebar active="resources" />
       <div className="main">
         <PageHead
-          title="Import Esri Dashboard"
-          sub="Convert an ArcGIS Dashboard JSON into a Honua dashboard package. Element-by-element support shown before commit."
+          title="Import source dashboard"
+          sub="Convert an source dashboard JSON into a Honua dashboard package. Element-by-element support shown before commit."
           actions={<><Btn>Discard</Btn><Btn kind="p">Create dashboard package →</Btn></>}
         />
-        <EsriIntake kind="Esri Dashboard JSON" file="q3-ops-dashboard.json · 142 KB"
+        <EsriIntake kind="source dashboard JSON" file="q3-ops-dashboard.json · 142 KB"
           summary={['12 elements','3 selectors','1 header','2 unsupported widgets']} />
 
         <div style={{display:'grid', gridTemplateColumns:'1fr 380px', flex:1, overflow:'hidden'}}>
           <div style={{overflow:'auto'}}>
             <div style={{padding:'8px 18px', borderBottom:'1px solid #e4e4e4'}}>
               <h3 style={{margin:0}}>Element → widget mapping</h3>
-              <div className="muted" style={{fontSize:11}}>Esri dashboard element → Honua dashboard widget</div>
+              <div className="muted" style={{fontSize:11}}>source dashboard element → Honua dashboard widget</div>
             </div>
             <table className="tbl tbl--cmpt">
               <thead><tr>
                 <th style={{width:24}}><input type="checkbox" readOnly defaultChecked /></th>
-                <th>Esri element</th><th>Kind</th><th>→ Honua widget</th><th>Data</th><th>Fidelity</th><th>Note</th>
+                <th>source element</th><th>Kind</th><th>→ Honua widget</th><th>Data</th><th>Fidelity</th><th>Note</th>
               </tr></thead>
               <tbody>
                 <tr><td><input type="checkbox" readOnly defaultChecked /></td><td><b>Header</b></td><td>header</td><td className="mono">title bar</td><td className="muted">—</td><td><Fid k="clean" /></td><td className="muted">title + logo</td></tr>
@@ -199,15 +199,15 @@ function ImportEsriDashboard() {
 function ImportStoryMap() {
   return (
     <div className="scr">
-      <TopBar crumbs={['Operate','Import from Esri','StoryMap / Hub']} area="operate" />
+      <TopBar crumbs={['Operate','Import source content','StoryMap / Hub']} area="operate" />
       <Sidebar active="resources" />
       <div className="main">
         <PageHead
           title="Import StoryMap / Hub site"
-          sub="Convert an ArcGIS StoryMap or Hub/Open-Data site into Console content (report + linked maps). P4 · lowest priority of the four."
+          sub="Convert a source story map or Hub/Open-Data site into Console content (report + linked maps). P4 · lowest priority of the four."
           actions={<><Btn>Discard</Btn><Btn kind="p">Create content →</Btn></>}
         />
-        <EsriIntake kind="ArcGIS StoryMap" file="https://storymaps.arcgis.com/stories/a3bf…"
+        <EsriIntake kind="source story map" file="https://storymaps.arcgis.com/stories/a3bf…"
           summary={['9 sections','4 embedded maps','12 media','3 sidecar blocks','1 swipe block']} />
 
         <div style={{display:'grid', gridTemplateColumns:'1fr 380px', flex:1, overflow:'hidden'}}>

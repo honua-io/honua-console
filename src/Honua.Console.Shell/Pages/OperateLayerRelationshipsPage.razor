@@ -42,7 +42,7 @@
                                 <th>Cardinality</th>
                                 <th>Origin field</th>
                                 <th>Destination field</th>
-                                <th>Esri rel id</th>
+                                <th>Source rel id</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -74,7 +74,7 @@
                                         </td>
                                         <td><input class="console-input" @bind="row.OriginField" aria-label="Origin field" data-rel-origin placeholder="id" /></td>
                                         <td><input class="console-input" @bind="row.DestinationField" aria-label="Destination field" data-rel-destination placeholder="parcel_id" /></td>
-                                        <td><input class="console-input console-input-narrow" type="number" @bind="row.EsriRelationshipId" aria-label="Esri relationship id" data-rel-esri /></td>
+                                        <td><input class="console-input console-input-narrow" type="number" @bind="row.EsriRelationshipId" aria-label="Source relationship id" data-rel-esri /></td>
                                         <td>
                                             <button class="console-button console-button-secondary" type="button"
                                                     @onclick="() => RemoveRow(row)" data-rel-remove aria-label="Remove relationship">Remove</button>

@@ -14,7 +14,7 @@ Companion artifacts:
 
 External capability benchmark:
 
-- [ArcGIS Pro geoprocessing tool reference](https://doc.esri.com/en/arcgis-pro/latest/tool-reference/main/arcgis-pro-tool-reference.html)
+- [desktop GIS client geoprocessing tool reference](https://doc.esri.com/en/arcgis-pro/latest/tool-reference/main/arcgis-pro-tool-reference.html)
 
 ## Purpose
 
@@ -37,20 +37,20 @@ Use this file before creating child implementation work from the design handoff.
 - Route-open rows need a route-map patch before implementation work begins.
 - Superseded and reference rows stay in this matrix so future contributors know they were reviewed.
 
-## ArcGIS Pro Capability Boundary
+## desktop GIS client Capability Boundary
 
-The AI mapmaking and analysis ambition is ArcGIS Pro breadth through a natural-language and package interface, not a clone of the ArcGIS Pro desktop UI. The benchmark is whether a GIS analyst can express the same classes of mapmaking, geoprocessing, analysis, cartographic, data-management, and publishing intent and receive a governed Honua execution plan, not whether Console recreates ArcGIS Pro panes, ribbons, project files, or mouse-driven workflows.
+The AI mapmaking and analysis ambition is desktop GIS client breadth through a natural-language and package interface, not a clone of the desktop GIS client desktop UI. The benchmark is whether a GIS analyst can express the same classes of mapmaking, geoprocessing, analysis, cartographic, data-management, and publishing intent and receive a governed Honua execution plan, not whether Console recreates desktop GIS client panes, ribbons, project files, or mouse-driven workflows.
 
 The target is AI-mediated capability coverage:
 
 - Prompt or conversation to typed `query.package`, `analysis.package`, `map.package`, `dashboard.package`, `report.package`, `form.package`, `app.package`, or `workflow.package`.
-- Natural-language intent resolution against a GIS capability registry that covers built-in tools, workflow templates, server-side Honua operations, ArcGIS and GeoServices operations, custom script/model tools where supported, and remote GP/process services.
+- Natural-language intent resolution against a GIS capability registry that covers built-in tools, workflow templates, server-side Honua operations, source GIS platform and GeoServices operations, custom script/model tools where supported, and remote GP/process services.
 - Inspectable assumptions, data bindings, parameters, environments, validation, license/extension requirements, cost/runtime estimates, permissions, warnings, and provenance before execution or publish.
 - Map authoring for layers, filters, styles, popups, legend, basemap, extent, interactions, labeling/cartographic intent where supported, share/embed policy, versioning, rollback, and standards sidecars where applicable.
 - Analysis authoring for source binding, method/tool selection, parameters, output schema, queued execution, result artifacts, rerun, failure evidence, and reuse as content, layers, reports, dashboards, apps, or workflows.
-- GeoServices concepts where they matter for interoperability: service/layer publication slots, GP/process service endpoints, named replica terminology, renderer/SLD sidecars, STAC/DCAT/open-data evidence, import/export behavior, and migration from ArcGIS-style tools or models.
+- GeoServices concepts where they matter for interoperability: service/layer publication slots, GP/process service endpoints, named replica terminology, renderer/SLD sidecars, STAC/DCAT/open-data evidence, import/export behavior, and migration from enterprise GIS-style tools or models.
 
-Do not file child work that recreates ArcGIS Pro UI surfaces directly. File child work against capability registry coverage, tool/workflow planning, package generation, validation, execution adapters, provenance, and concrete ArcGIS/Esri interoperability behaviors.
+Do not file child work that recreates desktop GIS client UI surfaces directly. File child work against capability registry coverage, tool/workflow planning, package generation, validation, execution adapters, provenance, and concrete source GIS platform/source platform interoperability behaviors.
 
 ## Work Breakdown Matrix
 
@@ -66,7 +66,7 @@ Do not file child work that recreates ArcGIS Pro UI surfaces directly. File chil
 | `screens-share.jsx` `ShareHome`, `ShareLinkConfig` | UI-013 / `honua-console#35` | `/share` | Share/access policy, publication visibility, token link, embed policy, traffic summary | Shared-item table, public link panel, embed snippet panel, visibility controls | Public/private clarity, expired token, no shareable items, permission denied, traffic unavailable | contract-blocked; split share home and per-item link configuration |
 | `screens-share.jsx` `ShareOpenDataPage`, `ShareExports` | UI-013 / `honua-console#35` | `/share/public`, `/public`, `/share/public/items/:idOrSlug`, `/public/items/:idOrSlug` | Open-data eligibility, STAC, DCAT, JSON-LD/schema.org, export job contracts | Open-data page editor, item preview, export schedule table, standards evidence panel | Anonymous collection/detail, ineligible item, standards warning, export job failure, no exports | contract-blocked; split open-data page, standards evidence, and scheduled exports |
 | `screens-studio.jsx` `StudioHome`, `StudioMapAI`; Studio package shell | UI-020 / `honua-console#38` | `/studio`, `/studio/proof` | Studio package lifecycle from `honua-server#1180`, validation/preview from `honua-server#1181`, SDK projections or mock | Workflow picker, prompt panel, clarification controls, package inspector, draft list | Draft, preview, saved version, published, validation blocker, capability unavailable, permission denied | contract-blocked; add package-shell mock before implementing prompt-to-package flow |
-| ArcGIS Pro-style NL capability registry and planner | UI-020, UI-021, UI-022, UI-027 / `honua-console#38`, `#39`, `#40` plus backend child | `/studio`, package editor routes | Capability registry covering tool/workflow name, aliases, intent examples, parameter schema, environment settings, license/extension, execution target, support status, input/output types, validation, cost/runtime estimate, and provenance mapping | Intent resolver, tool picker fallback, plan inspector, parameter clarification controls, execution target badge, unsupported capability surface | Unknown intent, ambiguous tool, unsupported parameter, missing extension/license, server-only execution, custom tool unavailable, validation blocker | contract-blocked; file capability-registry backend/SDK child before claiming ArcGIS Pro breadth |
+| desktop GIS client-style NL capability registry and planner | UI-020, UI-021, UI-022, UI-027 / `honua-console#38`, `#39`, `#40` plus backend child | `/studio`, package editor routes | Capability registry covering tool/workflow name, aliases, intent examples, parameter schema, environment settings, license/extension, execution target, support status, input/output types, validation, cost/runtime estimate, and provenance mapping | Intent resolver, tool picker fallback, plan inspector, parameter clarification controls, execution target badge, unsupported capability surface | Unknown intent, ambiguous tool, unsupported parameter, missing extension/license, server-only execution, custom tool unavailable, validation blocker | contract-blocked; file capability-registry backend/SDK child before claiming desktop GIS client breadth |
 | `screens-studio-rest.jsx` `StudioQueryBuilder` | UI-021 / `honua-console#39` | `/studio/query` | Saved query package, source binding discovery, field/CRS validation, permission, cost estimate, preview execution, result persistence | Binding picker, predicate builder, generated SQL/filter readout, parameter editor, map/table preview | Ambiguous source/field/CRS, empty result, expensive query blocker, permission blocker, preview failure | contract-blocked; file separate query-builder child under `#39` |
 | `screens-studio-rest.jsx` `StudioAnalysisEditor` | UI-022 / `honua-console#39` | `/studio/analysis` | Analysis package API, job runner, artifacts from `honua-server#681`, `#721`, `#724`, `#1170` or mock | Analysis plan card, pipeline DAG, runtime estimate, result artifact panel | Queued, running, failed, partial artifact, rerun disabled, logs unavailable | contract-blocked; file separate analysis-builder child under `#39` |
 | `screens-studio.jsx` `StudioMapAI`, `StudioMapEditor`, `StudioMapPublish`; `screens-styling*.jsx` | UI-023 / `honua-console#39` | `/studio/map`, `/maps/:mapId` edit/reopen link | Map package lifecycle, style endpoint, sidecar generation, publication registry from `honua-server#1183` or mock | Layer list, paint inspector, style editor, popup editor, publish review, rollback summary | Save, reopen, publish, share, embed, rollback, style cannot-round-trip warning, dependency blocker | contract-blocked; file separate map-builder child under `#39` |
@@ -121,7 +121,7 @@ These are reflected in `docs/console-route-map.md`; the per-editor Studio specs 
 Per [Console Patterns Charter §11](../migration/CONSOLE_PATTERNS_CHARTER.md), each surface below binds to the real honua-server contract and ships a Testcontainers integration test as Definition of Done — not a checked-in mock. Status reflects honua-server readiness (verified 2026-05-24):
 
 - Capability manifest and policy projection — `honua-server#1186` (open).
-- ArcGIS Pro-style GIS capability registry for NL mapmaking/analysis/GP-ETL — to file; the execution substrate (`#360/#681/#721/#724`) is built, so the registry exposes built capability rather than new engines.
+- desktop GIS client-style GIS capability registry for NL mapmaking/analysis/GP-ETL — to file; the execution substrate (`#360/#681/#721/#724`) is built, so the registry exposes built capability rather than new engines.
 - Content item list/detail, share policy, map package, embed authorization — `honua-server#1162` (closed): **wireable now**.
 - Studio package lifecycle (`#1180`, closed) plus validation/preview (`#1181`, open).
 - Query/analysis/map/dashboard/report/form/app/workflow package projections — `#1182`/`#1183`/`#1184`/`#1185` (open).

@@ -1,4 +1,4 @@
-// Issue #122 · #102 — "Import from Esri" wizard + parity scorecard (Operate)
+// Issue #122 · #102 — "Import source content" wizard + parity scorecard (Operate)
 // screens-import-wizard.jsx
 // Multi-step: source connect → select content → map → run → scorecard.
 // Covers: empty · loading · run progress (resumable/retry) · partial · error · missing-binding.
@@ -7,13 +7,13 @@ function ImportEsriWizard() {
   // Step 3 of 5 (Map) — the meaty step. Shows mixed content types + per-item fidelity.
   return (
     <div className="scr scr--noside">
-      <TopBar crumbs={['Operate','Import from Esri']} area="operate" />
+      <TopBar crumbs={['Operate','Import source content']} area="operate" />
       <div className="wiz">
         <Stepper steps={['Source','Select content','Map','Run','Scorecard']} on={2} />
 
         {/* source context */}
         <div style={{padding:'10px 18px', background:'#fffdf3', borderBottom:'1px solid #e4e4e4', display:'flex', alignItems:'center', gap:10, fontSize:11.5}}>
-          <span className="tag">ArcGIS Online</span>
+          <span className="tag">hosted GIS portal</span>
           <b>org.maps.arcgis.com / state-gis</b>
           <span className="muted">· 18 items selected · 3 content types</span>
           <div style={{flex:1}}/>
@@ -36,7 +36,7 @@ function ImportEsriWizard() {
             <table className="tbl tbl--cmpt">
               <thead><tr>
                 <th style={{width:24}}><input type="checkbox" readOnly defaultChecked /></th>
-                <th>Esri item</th><th>Type</th><th>→ Console</th><th>Fidelity</th><th>Blockers</th>
+                <th>source item</th><th>Type</th><th>→ Console</th><th>Fidelity</th><th>Blockers</th>
               </tr></thead>
               <tbody>
                 <tr><td><input type="checkbox" readOnly defaultChecked /></td><td><b>Public Works Web Map</b></td><td>Web Map</td><td className="mono">map package</td><td><Fid k="clean" /></td><td className="muted">—</td></tr>
@@ -84,7 +84,7 @@ function ImportRunProgress() {
   // Step 4 (Run) — progress, resumable, retry.
   return (
     <div className="scr scr--noside">
-      <TopBar crumbs={['Operate','Import from Esri','Run']} area="operate" />
+      <TopBar crumbs={['Operate','Import source content','Run']} area="operate" />
       <div className="wiz">
         <Stepper steps={['Source','Select content','Map','Run','Scorecard']} on={3} />
 
@@ -150,7 +150,7 @@ function ParityScorecard() {
   // Step 5 (Scorecard) — per-item pass/degraded/failed + drill-down + export.
   return (
     <div className="scr scr--noside">
-      <TopBar crumbs={['Operate','Import from Esri','Parity scorecard']} area="operate" />
+      <TopBar crumbs={['Operate','Import source content','Parity scorecard']} area="operate" />
       <div className="wiz">
         <Stepper steps={['Source','Select content','Map','Run','Scorecard']} on={4} />
 
@@ -266,20 +266,20 @@ function ImportMissingBinding() {
   // Charter §11 — missing-binding / no-honua-server state. Never mocked data.
   return (
     <div className="scr scr--noside">
-      <TopBar crumbs={['Operate','Import from Esri']} area="operate" />
+      <TopBar crumbs={['Operate','Import source content']} area="operate" />
       <div style={{flex:1, display:'grid', placeItems:'center', padding:24, background:'#fafafa'}}>
         <div style={{maxWidth:520, textAlign:'center'}}>
           <div style={{width:48, height:48, border:'1.5px solid var(--warn)', borderRadius:'50%', display:'grid', placeItems:'center', fontSize:22, color:'var(--warn)', background:'#fff7e6', margin:'0 auto 14px'}}>!</div>
           <h2 style={{font:'600 16px var(--ui)', margin:'0 0 6px'}}>No honua-server is configured</h2>
           <div className="muted" style={{fontSize:12, lineHeight:1.6, marginBottom:16}}>
-            The Esri import wizard drives a migration run against a honua-server in the selected environment. This Console isn't bound to one yet, so there's nothing to import into. We never show mocked data here.
+            The source content import wizard drives a migration run against a honua-server in the selected environment. This Console isn't bound to one yet, so there's nothing to import into. We never show mocked data here.
           </div>
           <div className="card" style={{textAlign:'left', marginBottom:14}}>
             <h3>To continue</h3>
             <ol style={{margin:'4px 0 0 16px', padding:0, fontSize:11.5, lineHeight:1.7}}>
               <li>Connect a honua-server in <span className="mono">Operate → Environments</span></li>
               <li>Or switch to an environment that already has one bound</li>
-              <li>Then re-open <span className="mono">Import from Esri</span></li>
+              <li>Then re-open <span className="mono">Import source content</span></li>
             </ol>
           </div>
           <div className="row" style={{justifyContent:'center', gap:8}}>

@@ -107,7 +107,7 @@ public sealed class OperateGeoprocessingPageTests
             },
             selectedJobRunId: "gp-buffer-1");
 
-        Assert.Contains("Esri GPServer identity", html);
+        Assert.Contains("GeoServices GPServer identity", html);
         Assert.Contains("Buffer", html);
         Assert.Contains("geometry.buffer", html);
         Assert.Contains("result-gp-buffer-1", html);

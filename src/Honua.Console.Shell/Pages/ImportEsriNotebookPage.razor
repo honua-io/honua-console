@@ -5,7 +5,7 @@
 @using Honua.Console.Shell.Validation
 @implements IDisposable
 
-@* #159 · Import ArcGIS Notebook (hosted arcpy) → notebook package (honua.notebook-package.v1).
+@* #159 · Import source notebook (hosted arcpy) → notebook package (honua.notebook-package.v1).
    Notebook .ipynb intake → cell / parameter / schedule inventory → source → target mapping with per-row
    fidelity badges, target notebook-package preview, "Create notebook package →" CTA. The .ipynb parse is
    deterministic Console-side work (Console Patterns Charter §11).
@@ -20,10 +20,10 @@
 <section class="console-page esri-import" data-esri-import="notebook">
     <div class="console-detail-heading">
         <div>
-            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import from Esri <span class="console-crumb-sep">/</span> Notebook</p>
-            <h1>Import ArcGIS Notebook</h1>
+            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import source content <span class="console-crumb-sep">/</span> Notebook</p>
+            <h1>Import source notebook</h1>
             <p class="console-muted">
-                Convert an ArcGIS Notebook (hosted arcpy) <code>.ipynb</code> definition into a Honua notebook
+                Convert a source notebook (hosted arcpy) <code>.ipynb</code> definition into a Honua notebook
                 package (<code>honua.notebook-package.v1</code>). Cells, parameters, and the schedule import;
                 execution stays gated to a server hosted-arcpy runtime.
             </p>
@@ -49,7 +49,7 @@
             <div class="esri-import__mapping">
                 <SourceTargetMappingTable Rows="result.Rows"
                                           Heading="Cell → notebook-package mapping"
-                                          Subhead="ArcGIS Notebook cell / parameter / schedule → Honua notebook package element"
+                                          Subhead="source notebook cell / parameter / schedule → Honua notebook package element"
                                           SourceHeader="Notebook element"
                                           SourceTypeHeader="Kind"
                                           TargetHeader="→ Honua element"
@@ -90,14 +90,14 @@
         <ConsoleStateView HeadingLevel="2" Kind="missing"
                           Kicker="Execution gated"
                           Title="Running this notebook needs a server hosted-arcpy runtime"
-                          Message="Console imports and represents the ArcGIS Notebook definition (cells, parameters, schedule). Executing hosted arcpy requires a server-side notebook / arcpy runtime, which is out of Console scope and tracked as a dependency. The package and its schedule import as a draft; runs become available once a hosted-arcpy runtime is bound." />
+                          Message="Console imports and represents the source notebook definition (cells, parameters, schedule). Executing hosted arcpy requires a server-side notebook / arcpy runtime, which is out of Console scope and tracked as a dependency. The package and its schedule import as a draft; runs become available once a hosted-arcpy runtime is bound." />
     }
     else
     {
         <ConsoleStateView HeadingLevel="2" Kind="empty"
-                          Kicker="Import from Esri"
-                          Title="Paste or upload an ArcGIS Notebook (.ipynb)"
-                          Message="Choose an intake mode above to convert an ArcGIS Notebook definition into a honua.notebook-package.v1 preview. Execution stays gated to a server hosted-arcpy runtime." />
+                          Kicker="Import source content"
+                          Title="Paste or upload a source notebook (.ipynb)"
+                          Message="Choose an intake mode above to convert a source notebook definition into a honua.notebook-package.v1 preview. Execution stays gated to a server hosted-arcpy runtime." />
     }
 </section>
 

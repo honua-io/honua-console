@@ -702,10 +702,10 @@ public sealed record HonuaAdminFieldDomain
     // A two-element min and max, with min at most max, and null for a coded-value domain.
     public IReadOnlyList<double>? Range { get; init; }
 
-    // An Esri merge-policy token, and null leaves the server default.
+    // A GeoServices merge-policy token, and null leaves the server default.
     public string? MergePolicy { get; init; }
 
-    // An Esri split-policy token, and null leaves the server default.
+    // A GeoServices split-policy token, and null leaves the server default.
     public string? SplitPolicy { get; init; }
 }
 

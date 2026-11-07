@@ -25,7 +25,7 @@ public static class ConsoleAuthorityRequestOptions
     public static readonly HttpRequestOptionsKey<string> Resolved = new("Honua.Console.Authority.Resolved");
 }
 
-// MapLibre is the canonical store. Esri drawingInfo is a server-side projection.
+// MapLibre is the canonical store. GeoServices drawingInfo is a server-side projection.
 public enum HonuaOgcStyleEncoding
 {
     MapLibre,

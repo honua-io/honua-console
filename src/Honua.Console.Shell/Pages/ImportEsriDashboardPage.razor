@@ -5,9 +5,9 @@
 @using Honua.Console.Shell.Validation
 @implements IDisposable
 
-@* #101 · Import Esri Dashboard JSON → dashboard package (screens-import-esri.jsx ImportEsriDashboard).
+@* #101 · Import source dashboard JSON → dashboard package (screens-import-esri.jsx ImportEsriDashboard).
    Dashboard JSON intake → element inventory → element → widget mapping grid with supported/unsupported
-   callouts, target layout preview, "Create dashboard package →" CTA. The Esri-JSON parse is deterministic
+   callouts, target layout preview, "Create dashboard package →" CTA. The GeoServices JSON parse is deterministic
    Console-side work. *@
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have an unsaved Dashboard import. Leave this page and discard it?" />
@@ -15,10 +15,10 @@
 <section class="console-page esri-import" data-esri-import="dashboard">
     <div class="console-detail-heading">
         <div>
-            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import from Esri <span class="console-crumb-sep">/</span> Dashboard</p>
-            <h1>Import Esri Dashboard</h1>
+            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import source content <span class="console-crumb-sep">/</span> Dashboard</p>
+            <h1>Import source dashboard</h1>
             <p class="console-muted">
-                Convert an ArcGIS Dashboard JSON into a Honua dashboard package. Element-by-element support is
+                Convert an source dashboard JSON into a Honua dashboard package. Element-by-element support is
                 shown before commit.
             </p>
         </div>
@@ -43,8 +43,8 @@
             <div class="esri-import__mapping">
                 <SourceTargetMappingTable Rows="result.Rows"
                                           Heading="Element → widget mapping"
-                                          Subhead="Esri dashboard element → Honua dashboard widget"
-                                          SourceHeader="Esri element"
+                                          Subhead="source dashboard element → Honua dashboard widget"
+                                          SourceHeader="source element"
                                           SourceTypeHeader="Kind"
                                           TargetHeader="→ Honua widget"
                                           BoundHeader="Data"
@@ -83,9 +83,9 @@
     else
     {
         <ConsoleStateView HeadingLevel="2" Kind="empty"
-                          Kicker="Import from Esri"
+                          Kicker="Import source content"
                           Title="Paste or upload a Dashboard JSON"
-                          Message="Choose an intake mode above to convert an ArcGIS Dashboard into a dashboard-package preview." />
+                          Message="Choose an intake mode above to convert an source dashboard into a dashboard-package preview." />
     }
 </section>
 

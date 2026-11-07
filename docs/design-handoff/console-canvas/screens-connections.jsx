@@ -254,7 +254,7 @@ function EsriConnectionDetail() {
       <div className="main">
         <PageHead
           title="esri-online"
-          sub={<span><Badge kind="ok">Connected</Badge> <span className="muted" style={{ marginLeft: 8 }}>ArcGIS Online · org.maps.arcgis.com · 24 services · 96 layers · synced 1h ago</span></span>}
+          sub={<span><Badge kind="ok">Connected</Badge> <span className="muted" style={{ marginLeft: 8 }}>hosted GIS portal · org.maps.arcgis.com · 24 services · 96 layers · synced 1h ago</span></span>}
           actions={<><Btn>Test</Btn><Btn>Sync now</Btn><Btn kind="p">+ Resource from selection</Btn></>}
         />
         <Tabs items={[

@@ -56,7 +56,7 @@ public sealed class Wave6ValidatorTests
     [Fact]
     public void PastedJsonArray_ErrorsOnJson_NotAnObject()
     {
-        // Valid JSON, but not the object shape every Esri export uses.
+        // Valid JSON, but not the object shape every source export uses.
         var error = Assert.Single(Evaluate(PasteIntake("[1, 2, 3]")), e => e.FieldKey == EsriImportFieldKeys.Json);
         Assert.Equal("esri.import.json.invalid", error.Code);
         Assert.Contains("JSON object", error.Message, StringComparison.Ordinal);

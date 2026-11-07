@@ -10,7 +10,7 @@
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Import</p>
         <h1>Import from a service</h1>
-        <p>Discover the importable layers of a remote Esri REST or OGC service — or point at an ArcGIS catalog root to browse every service. Pick the services and layers you want, then import them into Honua.</p>
+        <p>Discover the importable layers of a remote GeoServices REST or OGC service — or point at a GeoServices REST catalog root to browse every service. Pick the services and layers you want, then import them into Honua.</p>
     </div>
 
     <article class="console-panel">
@@ -19,14 +19,14 @@
                 <span>Service or catalog URL</span>
                 <input class="console-input" @bind="_serviceUrl" @bind:event="oninput" @bind:after="ClearResult"
                        placeholder="https://example.com/arcgis/rest/services" />
-                <small class="console-muted">Must be an absolute https URL. A single service (FeatureServer/MapServer/WFS/OGC) or an ArcGIS catalog root (…/rest/services) or folder.</small>
+                <small class="console-muted">Must be an absolute https URL. A single service (FeatureServer/MapServer/WFS/OGC) or a GeoServices REST catalog root (…/rest/services) or folder.</small>
             </label>
 
             <label>
                 <span>Authentication</span>
                 <select class="console-input" aria-label="Authentication mode" @bind="_authMode" @bind:after="ClearResult" data-auth-mode>
                     <option value="anonymous">Anonymous (public)</option>
-                    <option value="arcgis-token">ArcGIS token (username &amp; password)</option>
+                    <option value="arcgis-token">GeoServices token (username &amp; password)</option>
                     <option value="token">Token / API key</option>
                     <option value="basic">HTTP Basic</option>
                     <option value="oauth">OAuth (client credentials)</option>
@@ -52,7 +52,7 @@
                         <span>Token URL (optional)</span>
                         <input class="console-input" aria-label="Token URL" @bind="_tokenUrl" @bind:event="oninput" @bind:after="ClearResult"
                                placeholder="https://host/portal/sharing/rest/generateToken" />
-                        <small class="console-muted">Leave blank to derive the ArcGIS Server token endpoint from the service host.</small>
+                        <small class="console-muted">Leave blank to derive the GeoServices REST server token endpoint from the service host.</small>
                     </label>
                     <label>
                         <span>Referer (optional)</span>
@@ -358,7 +358,7 @@
             case "arcgis-token":
                 if (string.IsNullOrWhiteSpace(_username) || string.IsNullOrWhiteSpace(_password))
                 {
-                    error = "Enter a username and password for ArcGIS token authentication.";
+                    error = "Enter a username and password for GeoServices token authentication.";
                     return false;
                 }
 
@@ -596,7 +596,7 @@
 
         if (importable.Count == 0)
         {
-            _importError = "The selected layers can't be imported from here yet — this action supports ArcGIS FeatureServer/MapServer layers.";
+            _importError = "The selected layers can't be imported from here yet — this action supports GeoServices FeatureServer/MapServer layers.";
             return;
         }
 
@@ -654,7 +654,7 @@
 
             if (skipped > 0)
             {
-                _importError = $"{skipped} non-ArcGIS layer(s) were skipped — import those from their own source page.";
+                _importError = $"{skipped} non-GeoServices layer(s) were skipped — import those from their own source page.";
             }
 
             // Toast a single summary so the operator sees how the batch landed without scanning every row.

@@ -32,7 +32,7 @@ Use the [Design Artifact Work Breakdown Matrix](DESIGN_ARTIFACT_WORK_BREAKDOWN.m
 - Shared package contracts: Console, MCP, QGIS, generated apps, and embeds use the same server/SDK contract family.
 - Every route has loading, empty, warning, blocked, partial success, error, permission denied, and filtered-empty handling.
 - AI is advisory or authoring assistance only; governed operations require explicit user action and evidence.
-- AI mapmaking and analysis target ArcGIS Pro-style capability breadth through natural-language planning, package generation, validation, and governed execution. Console must not clone ArcGIS Pro desktop UI surfaces; it should expose equivalent GIS intent through Honua packages, capability registry coverage, execution adapters, and interoperability behaviors.
+- AI mapmaking and analysis target desktop GIS client-style capability breadth through natural-language planning, package generation, validation, and governed execution. Console must not clone desktop GIS client desktop UI surfaces; it should expose equivalent GIS intent through Honua packages, capability registry coverage, execution adapters, and interoperability behaviors.
 
 ## Implementation Milestones
 
@@ -317,7 +317,7 @@ Backend dependencies:
 
 - Studio package lifecycle API proposed in [Backend Capability Backlog](CONSOLE_BACKEND_CAPABILITY_BACKLOG.md).
 - SDK package projections.
-- GIS capability registry for ArcGIS Pro-style mapmaking, analysis, GP/ETL, and data-management intent.
+- GIS capability registry for desktop GIS client-style mapmaking, analysis, GP/ETL, and data-management intent.
 
 Acceptance:
 
@@ -388,7 +388,7 @@ Design refs:
 Build:
 
 - Map package editor with layers, filters, style, popup, legend, basemap, extent, interactions.
-- MapLibre canonical style editing with generated SLD/Esri/QGIS sidecars where applicable.
+- MapLibre canonical style editing with generated SLD/source platform/QGIS sidecars where applicable.
 - Publish review with dependency, visibility, route/share/embed, rollback, and provenance.
 
 Backend dependencies:
@@ -608,8 +608,8 @@ Design refs:
 Build:
 
 - MapLibre canonical style editor host.
-- OGC API Styles endpoint view with generated SLD/Esri Renderer/QGIS QML sidecars.
-- Per-slot style overrides for Esri Renderer and WMS SLD with cannot-round-trip warnings.
+- OGC API Styles endpoint view with generated SLD/GeoServices renderer/QGIS QML sidecars.
+- Per-slot style overrides for GeoServices renderer and WMS SLD with cannot-round-trip warnings.
 - Style version history, diff, resync-confirm dialog, popup/template editor.
 
 Backend dependencies:
@@ -726,7 +726,7 @@ Routes:
 Build:
 
 - Auth providers, API keys, CORS, license, about/server info surfaces.
-- Catalog endpoint toggles for Esri catalog, OGC API Records, OData, STAC, DCAT.
+- Catalog endpoint toggles for GeoServices service catalog, OGC API Records, OData, STAC, DCAT.
 - Standards mapping and catalog item presentation editor.
 
 Backend dependencies:
@@ -912,7 +912,7 @@ Backend dependencies:
 Acceptance:
 
 - Conflict resolution writes audit evidence and committed change set.
-- Named replica terminology aligns with Esri sync concepts without forking the model.
+- Named replica terminology aligns with source platform sync concepts without forking the model.
 
 ### UI-047: AI DevOps Advisory Home And Brief Detail
 

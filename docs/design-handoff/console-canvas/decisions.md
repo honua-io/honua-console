@@ -32,7 +32,7 @@ Workspace   = a cohort of envs that share canonical content & definitions
 | **Service** | runtime endpoint (FeatureServer, MapServer, ImageServer, OGC API Features, OGC API Records, WMS, WMTS, OData). |
 | **Layer slot** | the publication record inside a service; binds one Data Resource. **Many layers can reuse the same resource.** A layer can override presentation but never semantics. |
 
-**Migration vs sync**: importing from a remote Esri/OGC/WMS service is a one-time
+**Migration vs sync**: importing from a remote GeoServices REST/OGC/WMS service is a one-time
 **migration** that copies data into Honua-managed storage. We don't proxy. We
 don't poll. We don't store the remote credentials. To pick up later changes,
 operators run **Migrate again**.
@@ -42,7 +42,7 @@ operators run **Migrate again**.
 ## Folder model
 
 Folders are a Honua primitive (not from any doc — added in design because
-operators expect Esri-style folder grouping in REST URLs). Folders are
+operators expect GeoServices REST-style folder grouping in REST URLs). Folders are
 organisational only, no security implications. Routes are derived:
 `/folder/service/kind`. Routes are never editable; renaming a folder/service
 shifts the route.
@@ -57,13 +57,13 @@ checkboxes.
 
 | Catalog | Auto-default? | Source |
 |---|---|---|
-| Esri catalog | **default-on** | every Esri service publication |
+| GeoServices service catalog | **default-on** | every GeoServices service publication |
 | OGC API Records | **default-on** | every OGC API Features publication |
 | OData catalog | **opt-in per entity set** | OData services |
 | STAC | opt-in per resource | resource-led publish |
 | DCAT | opt-in per resource | resource-led publish |
 
-Esri + OGC catalogs auto-mirror service publications (checkbox pre-checked,
+GeoServices REST + OGC catalogs auto-mirror service publications (checkbox pre-checked,
 operator can uncheck). OData / STAC / DCAT require explicit opt-in.
 
 **Portal was folded in.** Originally STAC + DCAT lived in a separate "Portal"
@@ -80,7 +80,7 @@ Honua Admin with the same shape as the others.
 |---|---|---|
 | MapLibre GL | ✅ canonical | authored in Maputnik |
 | SLD / SE | generated build artefact | auto-translated from canonical |
-| Esri Renderer JSON | generated build artefact | auto-translated from canonical |
+| GeoServices renderer JSON | generated build artefact | auto-translated from canonical |
 | QGIS QML | generated build artefact (sidecar) | auto-translated from canonical |
 | 3D Tiles | n/a (vector resources) | n/a |
 
@@ -89,7 +89,7 @@ encodings via content negotiation. Services link to the resource style URL;
 they don't fork it.
 
 **Slot overrides** when a target needs something the canonical can't express
-(Esri arcade `valueExpression`, dotDensity, SLD per-class ColorMap). Override
+(source platform arcade `valueExpression`, dotDensity, SLD per-class ColorMap). Override
 state on each binding slot: `tracking canonical` / `override active` / `canonical
 changed · needs review` / `resync available` / `needs rebuild`. Overrides are
 named drafts; resync archives them (never destroys).
@@ -225,7 +225,7 @@ Use instead: Source, Style, Access, Slot label, Catalog entry.
 **Never say "Portal" as a separate product.** STAC + DCAT publishing lives in
 Honua Admin.
 
-**Service catalog terminology**: it's **"Esri catalog"** (not Esri item, not
+**Service catalog terminology**: it's **"GeoServices service catalog"** (not source item, not
 GSR, not GeoServices REST catalog).
 
 **Migration** (one-time copy), not **sync** / **proxy** / **mirror**, when

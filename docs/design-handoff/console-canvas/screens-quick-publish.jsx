@@ -253,7 +253,7 @@ function WizQuickPublishNewService() {
               <label className="row" style={{gap:8, padding:'6px 8px', border:'1.2px solid var(--ink)', borderRadius:5, background:'#fffae0', cursor:'pointer'}}>
                 <input type="checkbox" readOnly defaultChecked />
                 <div style={{flex:1}}>
-                  <div style={{fontSize:11.5, fontWeight:600}}>Register in Esri catalog</div>
+                  <div style={{fontSize:11.5, fontWeight:600}}>Register in GeoServices service catalog</div>
                   <div className="muted" style={{fontSize:10.5}}>recommended for FeatureServer · keeps title, description, thumbnail in sync · server-wide endpoint is <Badge kind="ok">ON</Badge></div>
                 </div>
                 <Badge kind="info">default on</Badge>
@@ -271,7 +271,7 @@ function WizQuickPublishNewService() {
               <div className="col" style={{gap:4, fontSize:11}}>
                 <div className="row"><span className="muted" style={{flex:1}}>Service</span><span className="mono">parcels-fs (new)</span></div>
                 <div className="row"><span className="muted" style={{flex:1}}>Folder</span><span className="mono">public</span></div>
-                <div className="row"><span className="muted" style={{flex:1}}>Esri catalog entry</span><Badge kind="info">opt-in · checked</Badge></div>
+                <div className="row"><span className="muted" style={{flex:1}}>GeoServices service catalog entry</span><Badge kind="info">opt-in · checked</Badge></div>
               </div>
               <Callout kind="info" style={{marginTop:6}}>
                 Service is born empty. parcels_2024 will become its first <b>layer 0</b> on the next step.
@@ -584,7 +584,7 @@ function WizQuickPublishLayerNew() {
               <ol style={{margin:'0 0 0 16px', padding:0, fontSize:11.5, lineHeight:1.7}}>
                 <li>Data Resource <span className="mono">◇ parcels_2024</span> <span className="tag">new</span></li>
                 <li>Layer slot <span className="mono">public-works-fs / layer 8</span> <span className="tag">new</span></li>
-                <li>Auto Esri catalog entry <span className="tag">auto</span></li>
+                <li>Auto GeoServices service catalog entry <span className="tag">auto</span></li>
               </ol>
             </div>
 
@@ -681,14 +681,14 @@ function WizQuickPublishReview() {
               <div className="card" style={{padding:'10px 12px', borderLeft:'3px solid var(--pencil)'}}>
                 <div className="row" style={{marginBottom:6}}>
                   <span style={{fontSize:14, color:'var(--pencil)'}}>▤</span>
-                  <b>Esri catalog entry</b>
+                  <b>GeoServices service catalog entry</b>
                   <span className="tag" style={{marginLeft:4}}>opt-in · default on</span>
                   <div style={{flex:1}}/>
-                  <a style={{fontSize:11, color:'var(--pencil)', textDecoration:'underline dotted', cursor:'pointer'}}>Open in Esri catalog ↗</a>
+                  <a style={{fontSize:11, color:'var(--pencil)', textDecoration:'underline dotted', cursor:'pointer'}}>Open in GeoServices service catalog ↗</a>
                 </div>
                 <label className="row" style={{gap:6, padding:'4px 8px', background:'#fafafa', borderRadius:4, marginBottom:6, fontSize:11}}>
                   <input type="checkbox" readOnly defaultChecked />
-                  <span style={{flex:1}}>Register this service in the Esri catalog</span>
+                  <span style={{flex:1}}>Register this service in the GeoServices service catalog</span>
                   <span className="muted" style={{fontSize:10}}>uncheck to skip · service still works</span>
                 </label>
                 <table className="tbl tbl--cmpt" style={{fontSize:10.5}}>

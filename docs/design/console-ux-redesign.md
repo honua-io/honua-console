@@ -33,7 +33,7 @@ Audience: console product/design, frontend architecture, founder review.
 >    **Resource → its protocol publications** tree (GeoServer "Store" == Honua
 >    "Resource"), with a prominent **Layer Preview**. This *is* the cure for the
 >    "resources separate from layers" split, and it's a migration on-ramp for
->    Esri/GeoServer users.
+>    source platform/GeoServer users.
 > 3. **Hide the plumbing in AI mode** (§5.5) — the AI surface reads as an
 >    **outcome + one approval** ("I'll publish Maui Parcels as FeatureServer + STAC
 >    and style it green — [Approve] [Edit] [Reject]"), not a plan/spec/tool-call/
@@ -48,7 +48,7 @@ Decision inputs this proposal honors:
   `schemaFields`), **Service** (publishes resources; carries `protocols`), and
   **Publication** (binds `resourceId` + `serviceId`). You publish a *resource* and
   select which services/protocols expose it; each binding is a Publication, and the
-  Publications are the "layers" Esri/OGC clients consume. This is the inverse of
+  Publications are the "layers" GeoServices REST/OGC clients consume. This is the inverse of
   BlueSpatial's service-first model — and the correct one. See §3.0.
 - **console#193** (founder, 2026-06-12) — the console's job is **information**
   (status, timelines, plans/diffs, audit) + **approval** (human-in-the-loop for
@@ -56,7 +56,7 @@ Decision inputs this proposal honors:
   witnesses and authorizes.* This proposal is therefore **flow-first and
   approval-first**, not forms-first; the manual wizard is the fallback driver of
   the same flow, not the primary surface.
-- **Dual-mode style authoring stays** — MapLibre/Maputnik (canonical) **and** Esri
+- **Dual-mode style authoring stays** — MapLibre/Maputnik (canonical) **and** source platform
   `drawingInfo`, per `Pages/StudioStyleEditorPage.razor` and ADR-0002. The redesign
   reuses the existing dual-mode editor verbatim; it does not collapse to one encoding.
 - **Route/IA is governed** by `docs/console-route-map.md` and the Console Patterns
@@ -104,7 +104,7 @@ and the user has to know which one to start from:
    ├─ File      → /operate/resources/import    (OperateImportFilePage.razor)
    └─ Migration → /operate/import/service      (OperateImportServicePage.razor)
 
-/operate/import/service          OperateImportServicePage.razor — remote Esri/OGC import (its own intake)
+/operate/import/service          OperateImportServicePage.razor — remote GeoServices REST/OGC import (its own intake)
 /operate/import/esri/*           ImportEsriWizardPage / WebMap / Dashboard / StoryMap — *content* import (separate)
 /operate/publishing/quick        OperatePublishLayerPage.razor — table → service layer (its own connection+table form)
 /operate/layers/:id/style        OperateLayerStylePage.razor / StudioStyleEditorPage.razor — styling, *after* the fact
@@ -139,12 +139,12 @@ data→publish AI mode reads as an outcome + one approval, plan-on-demand (§4.1
 ### 1.4 What is actually good and reusable (don't rebuild)
 
 - **`Components/EsriImportIntake.razor`** — a generalized "intake bar" with four
-  modes (*Paste JSON / Upload file / From URL or item ID / From connected ArcGIS*),
+  modes (*Paste JSON / Upload file / From URL or item ID / From connected source GIS platform*),
   inline validation, dirty-state + unsaved-changes guard. This is 80% of a unified
   "Add data" intake control already.
 - **`Components/StudioAiConversation.razor`** — the AI conversation + clarification
   + live-preview + evidence surface. This *is* the approval surface from console#193.
-- **`Pages/StudioStyleEditorPage.razor`** — dual-mode (MapLibre/Esri) styling, server
+- **`Pages/StudioStyleEditorPage.razor`** — dual-mode (MapLibre/source platform) styling, server
   converts between encodings. Keep as-is; the new flow just *embeds/links* it.
 - **`OperateResourcesPage.razor`'s blast-radius model** (services/layers/maps/share
   links affected) — excellent "information + approval" content; it becomes the
@@ -170,7 +170,7 @@ several of its interaction patterns are exactly what honua-console is missing.
 | **B5** | **Built-in onboarding that teaches the model.** An intro tour narrates Folder→Service→Layer, auto-triggered on an empty catalog. | `manage-metadata-component.js:117–133, 313–316` | The **empty state** of the unified view explains "Add data → it becomes a layer → publish/share" in one breath and is the launch point of the flow. |
 | **B6** | **Test-then-pick for data sources.** The connection editor authenticates first (`Connect`), then populates the database dropdown from what the server *actually* exposes. | `manage-connection-component.html:40–76` | Keep the connect-then-pick pattern for the "connect a source" intake mode; surface the live table list inline (we already do this in `OperatePublishLayerPage`). |
 | **B7** | **Progress over a hub for every long ingest**, with a shared progress bar + a "`"<name>" was generated successfully.`" toast — never an opaque spinner. | `add-layer-from-file-component.js:94–162`; `import-service-modal-component.js:72–118` | Every ingest/publish step in the flow shows determinate progress + a named completion, then advances the wizard rather than dead-ending. |
-| **B8** | **The published REST URL is the contract between authoring and preview.** Preview is one click to `/MapPreview/Map.html?layer=<rest-url>` — the *same* URL an Esri/OGC client consumes ("what I preview is what I publish"). | `manage-metadata-component.html:111`; `PreviewPlugin/MapPreview/map.js` | Preview a layer via its **actual served endpoint** (FeatureServer slot), reusing the existing MapPreview target the Esri-import pages already use. |
+| **B8** | **The published REST URL is the contract between authoring and preview.** Preview is one click to `/MapPreview/Map.html?layer=<rest-url>` — the *same* URL a GeoServices REST/OGC client consumes ("what I preview is what I publish"). | `manage-metadata-component.html:111`; `PreviewPlugin/MapPreview/map.js` | Preview a layer via its **actual served endpoint** (FeatureServer slot), reusing the existing MapPreview target the source platform-import pages already use. |
 
 **Deliberate divergence from BlueSpatial:** B2's tree must *not* force the user to
 pre-build Folder→Service→Connection as prerequisites. We keep B1's single-act
@@ -191,7 +191,7 @@ confirmed in metadata-v2. There are **three semantic artifact kinds**
 |---|---|---|
 | **Resource** | The canonical data + schema. Owns `schemaFields`, geometry, SRS, storage bindings. *The thing you actually have.* | `MetadataV2Resource` (`MetadataV2Graph.cs:135`); `schemaFields` at `:189` |
 | **Service** | A publisher of resources. Carries **`protocols`** — the single source of truth for which protocol surfaces it exposes. | `MetadataV2Service` (`:560`); `Protocols` at `:619`; `MetadataV2ServiceType` (`MetadataV2Enums.cs:255`) |
-| **Publication** | A **binding of `resourceId` + `serviceId`** — at most one per `(resourceId, serviceId)` pair. *This binding is the "layer" an Esri/OGC client consumes.* | `MetadataV2Publication` (`:743`); `resourceId`/`serviceId` at `:758`/`:765` |
+| **Publication** | A **binding of `resourceId` + `serviceId`** — at most one per `(resourceId, serviceId)` pair. *This binding is the "layer" a GeoServices REST/OGC client consumes.* | `MetadataV2Publication` (`:743`); `resourceId`/`serviceId` at `:758`/`:765` |
 
 The graph spells the direction out: *"Resource-first publication links from
 `resourceId` to `serviceId`"* (`MetadataV2Graph.cs:89`) and *"Canonical resources.
@@ -260,7 +260,7 @@ Key principles:
    resource-first model, §3.0).
 2. **One intake, five sources** (step ①, generalizing `EsriImportIntake`):
    *Upload file*, *Connect/choose a table on an existing connection*, *Remote
-   Esri/OGC service*, ***Use an existing resource*** (the "I already have data,
+   GeoServices REST/OGC service*, ***Use an existing resource*** (the "I already have data,
    publish it" case), and *Describe it (AI)*. Picking "existing resource"
    skips ② and lands directly on ③ — the explicit answer to the founder's
    "use an existing resource to create a layer" gap.
@@ -272,7 +272,7 @@ Key principles:
 4. **End on the artifact, not a toast** (B4): the flow terminates on the
    **resource's node in the treeview** (§5.3), its protocol publications and Preview
    right there.
-5. **Style is the existing dual-mode editor** (step ④), embedded — MapLibre or Esri
+5. **Style is the existing dual-mode editor** (step ④), embedded — MapLibre or source platform
    drawingInfo, server-converted. Not re-specified here.
 6. **Go-live is an approval, not a form** (step ⑤, console#193): the review card
    shows the blast radius (`OperateResourcesPage` model) + the visibility and the
@@ -379,7 +379,7 @@ it's also the natural Edit affordance for an AI plan card (§4.1).
 GeoServer's webadmin sidebar IA is the model the founder pointed at: a familiar
 left-rail of *Data → Stores → Layers* with a Layer Preview, narrow and stable. We
 adopt that shape (a single **Data & Layers** spine fronting a tree) — a deliberate
-familiarity win for migrating Esri/GeoServer users.
+familiarity win for migrating source platform/GeoServer users.
 
 ```
 BEFORE (Layout/ConsoleLayout.razor:82–95)        AFTER
@@ -469,7 +469,7 @@ Why this is the cure, not cosmetic:
 - **Context-sensitive actions** (B3) live on the selected node: a resource offers
   *Publish / Preview / Style / Share*; a single publication offers *Preview / Open
   route / Unpublish*.
-- **Migration advantage:** this is the IA Esri (Portal/Server "service → layers") and
+- **Migration advantage:** this is the IA source platform (Portal/Server "service → layers") and
   GeoServer ("store → layers") users already have in muscle memory. The tree lowers
   the switching cost — an explicit moat note for the redesign.
 
@@ -507,7 +507,7 @@ fronts this — the service slot is auto-provisioned, editable under *change*.
 ┌ ③ Publish "parcels" — choose how to expose this resource ───────────────────┐
 │  Resource: parcels   (12,403 polygon features · 14 fields · EPSG:2926)      │  ← the thing you have (§3.0)
 │  Pick the services/protocols that should serve it. Each is a Publication.    │
-│ ┌─ GeoServices (Esri) ───────────────┬─ OGC ──────────────────────────────┐ │
+│ ┌─ GeoServices REST ───────────────┬─ OGC ──────────────────────────────┐ │
 │ │ [✓] FeatureServer   editable feat.  │ [ ] OGC API Features               │ │  ← protocol toggles
 │ │ [✓] MapServer       rendered tiles  │ [ ] WMS    rendered                │ │     = Publications
 │ │ [ ] ImageServer     (raster only)   │ [ ] WFS    feature download        │ │     (ServiceProtocols /
@@ -632,7 +632,7 @@ manual step. Wire Approve to the devops console-bridge proposal/operation surfac
 (console#193); the plan/diff is the *Details* body.
 
 **Phase 4 — preview + polish.** Per-protocol preview via each served endpoint (B8,
-reuse the MapPreview target the Esri-import pages use); empty-state onboarding that
+reuse the MapPreview target the source platform-import pages use); empty-state onboarding that
 teaches resource→publish→expose (B5); determinate ingest progress everywhere (B7).
 
 ### 6.3 Risks / constraints

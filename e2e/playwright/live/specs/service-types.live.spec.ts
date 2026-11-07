@@ -50,7 +50,7 @@ test.describe('Service types · connection publish (live)', () => {
 
 // --- Path 2: external SERVICE import -> served layer. ---
 test.describe('Service types · external service import (live)', () => {
-  // Importing an external ArcGIS FeatureServer to a managed PostGIS table runs to completion and is covered by
+  // Importing an external GeoServices FeatureServer to a managed PostGIS table runs to completion and is covered by
   // service-import.live.spec.ts (auto-publish OFF). Driving the same import with AUTO-PUBLISH ON — which would
   // create a served, catalogued layer — does NOT reliably complete on this testbed: the publish step after the
   // table import did not reach "Completed" within 180s across retries (~9 min). This is a real gap (auto-publish

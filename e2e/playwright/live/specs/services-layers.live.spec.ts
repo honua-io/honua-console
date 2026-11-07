@@ -170,7 +170,7 @@ test.describe('Operate · Publish layer workflow (live)', () => {
       expect(await res.text(), `${path} missing ${marker}`).toContain(marker);
     }
 
-    await catalog('/rest/services?f=json', '"services"'); // GeoServices/Esri service catalog
+    await catalog('/rest/services?f=json', '"services"'); // GeoServices/GeoServices service catalog
     await catalog('/stac', '"links"'); // STAC catalog
     await catalog('/ogc/records/collections?f=json', '"collections"'); // OGC API Records (CSW-equivalent)
     await catalog('/ogc/features/collections?f=json', '"collections"'); // OGC API Features collection catalog
