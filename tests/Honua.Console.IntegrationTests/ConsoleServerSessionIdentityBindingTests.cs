@@ -701,6 +701,30 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         public string RequireOperatorKey() => CurrentOperatorKey;
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task HumanManagementIdentityCheck_NeverReplacesOrClearsServingBearer(bool identityMatches)
+    {
+        await using var harness = await Harness.CreateAsync();
+        var signIn = await harness.SignInAsync();
+        Assert.Equal(ConsoleServerSignInStatus.Redirect, signIn.Status);
+        var serving = await harness.Sessions.GetSessionAsync("env");
+        var manager = (await harness.Profiles.GetProfileAsync("env"))! with
+        {
+            ServerBaseUri = new Uri("https://manager.example/")
+        };
+        var partition = harness.Partitions.GetOrCreate("operator-a", manager);
+        harness.Handler.SessionJson = identityMatches ? Session() : InvalidSession("subject");
+
+        var accepted = await harness.Binding.EnsureHumanSessionAsync(
+            partition, manager, "operator-a", "oidc", default);
+
+        Assert.Equal(identityMatches, accepted);
+        Assert.Equal(serving, await harness.Sessions.GetSessionAsync("env"));
+        Assert.Contains("session", harness.Handler.Requests);
+    }
+
     private sealed class Harness : IAsyncDisposable
     {
         private readonly OperatorContext _context = new();

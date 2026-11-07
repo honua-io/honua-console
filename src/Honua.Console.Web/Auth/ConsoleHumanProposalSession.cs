@@ -75,6 +75,9 @@ internal sealed class ConsoleHumanProposalSession(
             using var session = await sessions.EnterPrivateSessionAsync(bound, cancellationToken).ConfigureAwait(false);
             var partition = session is null ? null : await session.VerifyAsync(bound, ConsoleServerSessionUse.HumanDecision, cancellationToken).ConfigureAwait(false);
             if (partition is null) return Denied<ProposalDetailWire>("Sign in to this server and reopen the proposal before approving.");
+            var currentBeforeSend = await BindAsync(profile, authority, cancellationToken).ConfigureAwait(false);
+            if (currentBeforeSend is null || ConsoleServerProfileBinding.Capture(currentBeforeSend) != decision.EnvironmentReference)
+                return Denied<ProposalDetailWire>("The environment changed. Reopen the proposal before approving.");
             var review = partition.ProposalReviews.Take(decision.ProposalId, decision.ProposalVersion, decision.PlanHash);
             if (review is null || review.EnvironmentReference != decision.EnvironmentReference)
                 return Denied<ProposalDetailWire>("This review expired or was already submitted. Reload the proposal to check its status.");

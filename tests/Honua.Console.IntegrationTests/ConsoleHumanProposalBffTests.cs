@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -127,6 +128,21 @@ public sealed class ConsoleHumanProposalBffTests
         Assert.True(host.SawPrivateCookie);
     }
 
+    [Fact]
+    public async Task BrowserDecision_EnvironmentChangesDuringIdentityCheck_RefusesBeforeSubmission()
+    {
+        await using var host = await Host.StartAsync();
+        var review = (await host.OpenReviewAsync()).Value!;
+        var decision = new ConsoleProposalDecision("proposal", review.Proposal.Version,
+            review.Proposal.PlanHash!, review.EnvironmentReference);
+        host.SwitchDuringIdentityCheck = true;
+
+        var result = await host.DecideAsync(decision);
+
+        Assert.False(result.IsAllowed);
+        Assert.Equal(0, host.ApprovalCalls);
+    }
+
     private sealed class Host : IAsyncDisposable
     {
         private WebApplication _browser = null!;
@@ -137,6 +153,9 @@ public sealed class ConsoleHumanProposalBffTests
         public bool Authenticated { get; set; } = true;
         public string ProposalStatus { get; set; } = "AwaitingApproval";
         public bool LoseDecisionResponse { get; set; }
+        public bool SwitchDuringIdentityCheck { get; set; }
+        private InMemoryConsoleEnvironmentProfileStore _profiles = null!;
+        private const string IdentityIssuer = "https://identity.example/";
         public int ReviewCalls { get; private set; }
         public int ApprovalCalls { get; private set; }
         public bool SawPrivateCookie { get; private set; }
@@ -146,6 +165,22 @@ public sealed class ConsoleHumanProposalBffTests
         {
             var host = new Host();
             host._upstream = Builder().Build();
+            host._upstream.MapGet("/api/v1/admin/auth/session", async (HttpContext context) =>
+            {
+                host.Observe(context);
+                if (host.SwitchDuringIdentityCheck)
+                {
+                    host.SwitchDuringIdentityCheck = false;
+                    var other = host.Profile with { Id = "other-environment" };
+                    await host._profiles.UpsertProfileAsync(other);
+                    await host._profiles.ActivateProfileAsync(other.Id);
+                }
+                return Results.Json(new ConsoleServerAuthenticatedSessionWire
+                {
+                    IsAuthenticated = true, ProviderKey = "oidc", ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+                    Claims = [new() { Type = "iss", Value = IdentityIssuer }, new() { Type = "sub", Value = "human" }]
+                }, ConsoleServerSessionIdentityJsonContext.Default.ConsoleServerAuthenticatedSessionWire);
+            });
             host._upstream.MapGet("/api/v1/admin/proposals/proposal/approval-review", (HttpContext context) =>
             {
                 host.ReviewCalls++;
@@ -177,14 +212,20 @@ public sealed class ConsoleHumanProposalBffTests
             await host._upstream.StartAsync();
             host.Profile = new ConsoleEnvironmentProfile { Id = "environment", ServerBaseUri = Address(host._upstream) };
             host.Sessions = new ConsoleServerSessionClientStore(TimeProvider.System);
-            host.Sessions.GetOrCreate("human", host.Profile).Cookies.SetCookies(host.Profile.ServerBaseUri,
+            var partition = host.Sessions.GetOrCreate("human", host.Profile);
+            partition.AuthenticatedProviderKey = "oidc";
+            partition.Cookies.SetCookies(host.Profile.ServerBaseUri,
                 "honua_admin_session=private-server-session; Path=/; HttpOnly");
             var profiles = new InMemoryConsoleEnvironmentProfileStore([host.Profile], activeProfileId: host.Profile.Id);
+            host._profiles = profiles;
+            var identity = new ConsoleServerSessionIdentityBinding(
+                Options.Create(new ConsoleEdgeAuthOptions { ServerSessionIssuer = IdentityIssuer }),
+                new InMemoryConsoleAccountSessionStore(), host.Sessions, TimeProvider.System);
             var builder = Builder();
             builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-Token");
             builder.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
             builder.Services.AddSingleton(new ConsoleHumanProposalSession(
-                new PartitionedConsoleOperatorBearerExchange(new HumanOperator(), host.Sessions), profiles, TimeProvider.System));
+                new PartitionedConsoleOperatorBearerExchange(new HumanOperator(), host.Sessions, identity), profiles, TimeProvider.System));
             host._browser = builder.Build();
             host._browser.Use(async (context, next) =>
             {
