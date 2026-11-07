@@ -247,7 +247,7 @@ public sealed class ApprovalInboxPageRenderTests
     }
 
     [Fact]
-    public void ForbiddenApprove_DisablesActions_AndSurfacesTheApproveGate()
+    public void ForbiddenApproval_RequiresFreshReview_AndRejectionKeepsItsPermissionCheck()
     {
         var proposals = new FakeConsoleProposalsClient(
             proposals: [FakeProposalFactory.Summary("op-3", ConsoleProposalKind.Deploy, summary: "Upgrade to v21")],
@@ -265,10 +265,20 @@ public sealed class ApprovalInboxPageRenderTests
         page.WaitForAssertion(
             () =>
             {
-                Assert.NotNull(page.Find("[data-proposal-rbac-denied]"));
+                Assert.NotNull(page.Find("[data-proposal-human-review-required]"));
+                Assert.Contains("approve", page.Find("[data-proposal-action-message]").TextContent,
+                    StringComparison.OrdinalIgnoreCase);
                 Assert.True(page.Find("[data-proposal-approve]").HasAttribute("disabled"));
             },
             TimeSpan.FromSeconds(5));
+        page.Find("[data-proposal-reason]").Change("The requested change is not appropriate.");
+        Assert.False(page.Find("[data-proposal-reject]").HasAttribute("disabled"));
+        page.Find("[data-proposal-reject]").Click();
+        page.WaitForAssertion(() =>
+        {
+            Assert.NotNull(page.Find("[data-proposal-rbac-denied]"));
+            Assert.True(page.Find("[data-proposal-reject]").HasAttribute("disabled"));
+        }, TimeSpan.FromSeconds(5));
     }
 
     [Fact]

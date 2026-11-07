@@ -115,7 +115,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         return OperateSectionResult<ConsoleProposalDetail>.Denied(
             profile is null ? OperateSectionStatus.Unavailable : OperateSectionStatus.Forbidden,
-            profile is null ? NoProfileMessage : "Sign in to the server and open the exact proposal review before approving.");
+            profile is null ? NoProfileMessage : "Sign in to the server and open the exact proposal review to approve.");
     }
 
     public async Task<OperateSectionResult<ConsoleProposalDetail>> ApproveReviewedAsync(
