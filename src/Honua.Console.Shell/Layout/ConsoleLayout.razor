@@ -51,15 +51,21 @@
     private CancellationTokenSource? _capabilityRefreshCancellation;
     private bool _disposed;
     private AuthenticationStateProvider? _authentication;
+    private int _authenticationRevision;
     private IReadOnlyList<ConsolePublicationNode> _publicationPath = [];
 
-    private void PublicationPathChanged(IReadOnlyList<ConsolePublicationNode> path)
+    private async Task PublicationPathChanged(IReadOnlyList<ConsolePublicationNode> path)
     {
-        if (!_disposed) _publicationPath = path;
+        if (_disposed || _authentication is null) return;
+        var revision = _authenticationRevision;
+        var authentication = await _authentication.GetAuthenticationStateAsync();
+        if (_disposed || revision != _authenticationRevision) return;
+        _publicationPath = authentication.User.Identity?.IsAuthenticated == true ? path : [];
     }
 
     private void AuthenticationChanged(Task<AuthenticationState> state)
     {
+        _authenticationRevision++;
         _publicationPath = [];
         if (!_disposed) _ = InvokeAsync(StateHasChanged);
     }

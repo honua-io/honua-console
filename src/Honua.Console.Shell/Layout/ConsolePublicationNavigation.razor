@@ -84,7 +84,8 @@
     {
         if (_disposed || !SelectionChanged.HasDelegate) return;
         var contextPath = ConsoleNavigation.ContextForPath(CurrentPath.Trim('/')).Path;
-        var ancestors = _tree.PathTo(contextPath);
+        IReadOnlyList<ConsolePublicationNode> ancestors = !_loading && _servicesRead is { IsAllowed: true, Value: not null }
+            ? _tree.PathTo(contextPath) : [];
         if (_reportedPath is not null && _reportedPath.SequenceEqual(ancestors)) return;
         _reportedPath = ancestors;
         await SelectionChanged.InvokeAsync(ancestors);

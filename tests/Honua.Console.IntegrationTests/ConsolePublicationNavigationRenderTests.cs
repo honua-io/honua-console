@@ -3,6 +3,7 @@ using Honua.Console.Contracts;
 using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
@@ -200,33 +201,58 @@ public sealed class ConsolePublicationNavigationRenderTests
     }
 
     [Fact]
-    public void PublicationBreadcrumbDropsFolderWhenAuthenticationIsRevoked()
+    public async Task PublicationBreadcrumbDropsFolderWhenAuthenticationIsRevoked()
+    {
+        var source = new NavigationSource
+        {
+            ServiceSummaries = [new() { ServiceName = "parcels", FolderId = "public", FolderName = "Public", LayerCount = 1 }]
+        };
+        using var context = new BunitContext();
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("synthetic-operator");
+        ConfigurePublicationLayout(context, source);
+        var authentication = context.Services.GetRequiredService<AuthenticationStateProvider>();
+        context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/operate/services/parcels/settings");
+        var layout = context.Render<ConsoleLayout>();
+        layout.WaitForAssertion(() => Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        authorization.SetNotAuthorized();
+        Assert.False((await authentication.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated is true);
+        layout.WaitForAssertion(() => Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        Assert.Empty(layout.FindAll("[role='tree']"));
+    }
+
+    [Fact]
+    public void PublicationBreadcrumbDropsFolderWhenAFilteredReadIsForbidden()
     {
         var source = new NavigationSource
         {
             ServiceSummaries = [new() { ServiceName = "parcels", FolderId = "public", FolderName = "Public", LayerCount = 1 }]
         };
         using var context = PublicationLayoutContext(source);
-        var authorization = context.AddAuthorization();
-        authorization.SetAuthorized("synthetic-operator");
         context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
             .NavigateTo("/operate/services/parcels/settings");
         var layout = context.Render<ConsoleLayout>();
         layout.WaitForAssertion(() => Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
-        authorization.SetNotAuthorized();
+        source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Forbidden, "Catalog access denied.");
+        layout.Find("[data-tree-filter]").Input("parcels");
         layout.WaitForAssertion(() => Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
-        Assert.Empty(layout.FindAll("[role='tree']"));
     }
 
     private static BunitContext PublicationLayoutContext(NavigationSource source)
     {
         var context = Context();
+        ConfigurePublicationLayout(context, source);
+        return context;
+    }
+
+    private static void ConfigurePublicationLayout(BunitContext context, NavigationSource source)
+    {
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.AddConsoleNotifications();
         context.Services.AddSingleton<IConsoleProductMode>(new ConfiguredConsoleProductMode(ConsoleProductMode.Full));
         context.Services.AddSingleton<IConsoleCapabilityManifest>(ConsoleCapabilityManifest.FromConfigurationList(null));
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
-        return context;
     }
 
     [Fact]
