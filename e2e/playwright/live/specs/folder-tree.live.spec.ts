@@ -36,6 +36,12 @@ test('browse an imported folder and its layers with an isolated anonymous contro
       'href', `/operate/services/${encodeURIComponent(service.name)}/settings`);
     await expect(breadcrumb.locator('ol > li:last-child summary')).toHaveText(layerLabel!);
     await expect(tree.locator('[aria-selected="true"]')).toHaveAttribute('data-tree-parent', `service:${encodeURIComponent(service.name)}`);
+    await page.reload();
+    await expect(page.locator('[data-layer-loaded="true" i]')).toBeVisible();
+    await expect(breadcrumb.locator('ol > li:nth-last-child(3)')).toHaveText(folder.name);
+    await expect(breadcrumb.locator('ol > li:nth-last-child(2) > a')).toHaveAttribute(
+      'href', `/operate/services/${encodeURIComponent(service.name)}/settings`);
+    await expect(breadcrumb.locator('ol > li:last-child summary')).toHaveText(layerLabel!);
   }
 
   const anonymous = await browser.newContext({ storageState: { cookies: [], origins: [] } });

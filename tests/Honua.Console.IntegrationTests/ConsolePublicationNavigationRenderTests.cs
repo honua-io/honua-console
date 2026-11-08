@@ -186,6 +186,82 @@ public sealed class ConsolePublicationNavigationRenderTests
         Assert.DoesNotContain("Bridges", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
     }
 
+    [Theory]
+    [InlineData("cold")]
+    [InlineData("after-render")]
+    [InlineData("later-page")]
+    public void ColdLayerNavigationResolvesAuthorizedAncestryWithoutExpandingTheSidebar(string entry)
+    {
+        var service = new HonuaAdminServiceSummary
+        {
+            ServiceName = "z-parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1
+        };
+        var source = new NavigationSource
+        {
+            ServiceSummaries = entry == "later-page"
+                ? Enumerable.Range(0, 100).Select(index => new HonuaAdminServiceSummary { ServiceName = $"empty-{index:D3}" }).Append(service).ToArray()
+                : [service]
+        };
+        using var context = PublicationLayoutContext(source);
+        var navigation = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        if (entry != "after-render") navigation.NavigateTo("/operate/layers/connection-one-layer-7/style");
+        var layout = context.Render<ConsoleLayout>();
+        if (entry == "after-render")
+        {
+            layout.WaitForAssertion(() => Assert.Single(layout.FindAll("[role='tree']")));
+            navigation.NavigateTo("/operate/layers/connection-one-layer-7");
+        }
+        layout.WaitForAssertion(() => Assert.Equal("Bridges", layout.Find("nav[aria-label='Breadcrumb'] summary").TextContent));
+        var ancestors = layout.FindAll("nav[aria-label='Breadcrumb'] ol > li").Select(item => item.TextContent.Trim()).ToArray();
+        Assert.Contains("Public", ancestors);
+        Assert.Contains("Parcels", ancestors);
+        Assert.Equal(1, source.ChildReads);
+        Assert.All(source.RequestedServices, name => Assert.Equal("z-parcels", name));
+    }
+
+    [Fact]
+    public void ColdLayerNavigationDoesNotExposeAncestryWhenLayersAreForbidden()
+    {
+        var source = new NavigationSource
+        {
+            ServiceSummaries = [new() { ServiceName = "parcels", FolderId = "public", FolderName = "Public", LayerCount = 1 }],
+            LayerResult = OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>.Denied(OperateSectionStatus.Forbidden, "Layers denied.")
+        };
+        using var context = PublicationLayoutContext(source);
+        context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/operate/layers/connection-one-layer-7");
+        var layout = context.Render<ConsoleLayout>();
+        layout.WaitForAssertion(() => Assert.Equal(1, source.ChildReads));
+        Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
+        Assert.DoesNotContain("Parcels", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
+    }
+
+    [Fact]
+    public async Task ColdLayerNavigationRejectsDelayedAncestryAfterAuthenticationChanges()
+    {
+        var source = new NavigationSource
+        {
+            ServiceSummaries = [new() { ServiceName = "parcels", FolderId = "public", FolderName = "Public", LayerCount = 1 }],
+            PendingLayers = new(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        using var context = new BunitContext();
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("synthetic-operator");
+        ConfigurePublicationLayout(context, source);
+        context.Services.RemoveAll<IAuthorizationService>();
+        context.Services.RemoveAll<IAuthorizationPolicyProvider>();
+        context.Services.AddAuthorizationCore();
+        context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/operate/layers/connection-one-layer-7");
+        var layout = context.Render<ConsoleLayout>();
+        layout.WaitForAssertion(() => Assert.Equal(1, source.ChildReads));
+        authorization.SetNotAuthorized();
+        source.PendingLayers.SetResult(source.LayerResult);
+        await layout.InvokeAsync(() => Task.CompletedTask);
+        layout.WaitForAssertion(() => Assert.Empty(layout.FindAll("[role='tree']")));
+        Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
+    }
+
     [Fact]
     public void PublicationBreadcrumbDropsFolderWhenTheCatalogBecomesForbidden()
     {

@@ -26,6 +26,8 @@
 @code {
     [Parameter] public EventCallback<IReadOnlyList<ConsolePublicationNode>> SelectionChanged { get; set; }
     private IReadOnlyList<ConsolePublicationNode>? _reportedPath;
+    private IReadOnlyList<ConsolePublicationNode> _resolvedPath = [];
+    private PathAttempt? _pathAttempt;
     private const int ConcurrentServiceExpansions = 4;
     private readonly SemaphoreSlim _serviceExpansionSlots = new(ConcurrentServiceExpansions);
     private readonly ConsolePublicationTree _tree = new();
@@ -84,8 +86,13 @@
     {
         if (_disposed || !SelectionChanged.HasDelegate) return;
         var contextPath = ConsoleNavigation.ContextForPath(CurrentPath.Trim('/'), ConsoleNavigation.Groups).Path;
-        IReadOnlyList<ConsolePublicationNode> ancestors = !_loading && _servicesRead is { IsAllowed: true, Value: not null }
-            ? _tree.PathTo(contextPath) : [];
+        IReadOnlyList<ConsolePublicationNode> ancestors = [];
+        if (!_loading && _servicesRead is { IsAllowed: true, Value: not null })
+        {
+            ancestors = _tree.PathTo(contextPath);
+            if (ancestors.Count == 0 && _pathAttempt == new PathAttempt(contextPath, _catalogGeneration, _authorityRevision))
+                ancestors = _resolvedPath;
+        }
         if (_reportedPath is not null && _reportedPath.SequenceEqual(ancestors)) return;
         _reportedPath = ancestors;
         await SelectionChanged.InvokeAsync(ancestors);
@@ -128,6 +135,7 @@
         if (outcome == CatalogOutcome.Applied) _tree.RevealPath(CurrentPath);
         _loading = false;
         await InvokeAsync(StateHasChanged);
+        await ResolveSelectedLayerAsync();
     }
 
     private CatalogAttempt BeginCatalog(HonuaAdminCatalogQuery query, CatalogApply apply)
@@ -275,11 +283,7 @@
         node.ChildrenLoaded = result.IsAllowed;
         node.ReadStatus = result.IsAllowed ? null : result.Status;
         node.ReadMessage = string.IsNullOrEmpty(result.Message) ? null : result.Message;
-        node.Children = (result.Value ?? []).Select(layer => new ConsolePublicationNode
-        {
-            Key = node.Key + ":layer:" + layer.ResourceId, Label = layer.Name, Kind = ConsolePublicationNodeKind.Layer,
-            GeometryType = layer.GeometryType, Href = $"/operate/layers/{Uri.EscapeDataString(layer.ResourceId)}"
-        }).ToList();
+        node.Children = ConsolePublicationTree.LayerNodes(node, result.Value ?? []);
     }
 
     private int _filterRevision;
@@ -328,7 +332,28 @@
         if (_disposed) return;
         _tree.RevealPath(CurrentPath);
         await InvokeAsync(StateHasChanged);
+        await ResolveSelectedLayerAsync();
     }
+
+    private async Task ResolveSelectedLayerAsync()
+    {
+        var context = ConsoleNavigation.ContextForPath(CurrentPath.Trim('/'), ConsoleNavigation.Groups);
+        var attempt = new PathAttempt(context.Path, _catalogGeneration, _authorityRevision);
+        if (_disposed || _loading || context.Kind != ConsoleNavigationContextKind.Layer
+            || _servicesRead is not { IsAllowed: true, Value: not null }
+            || _tree.PathTo(context.Path).Count > 0 || _pathAttempt == attempt) return;
+        _pathAttempt = attempt;
+        _resolvedPath = [];
+        var result = await ConsoleReadBudget.RunAsync(
+            token => new ConsolePublicationPathReader(Source).ReadAsync(context.Path, token), ConsoleReadBudget.Default,
+            "Layer ancestry could not be read.", _authorityLifetime.Token);
+        if (_disposed || _pathAttempt != attempt || attempt.AuthorityRevision != _authorityRevision
+            || attempt.CatalogGeneration != _catalogGeneration) return;
+        _resolvedPath = result.IsAllowed ? result.Value ?? [] : [];
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private readonly record struct PathAttempt(string Path, int CatalogGeneration, int AuthorityRevision);
 
     private void LocationChanged(object? sender, LocationChangedEventArgs args)
     {

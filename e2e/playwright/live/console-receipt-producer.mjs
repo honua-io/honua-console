@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readAdminItems } from './admin-items.mjs';
 
 const CHECKPOINT_SCHEMA = 'honua.zero-to-map.checkpoint/v1';
 const STUDIO_HANDOFF_SCHEMA = 'honua.studio.real-model-ai-arc-handoff/v1';
@@ -284,9 +285,9 @@ function createClient(baseUrl, credential, transport, credentialKind = 'bearer')
 async function assertResources(client, resources) {
   const connection = await client.json('/api/v1/admin/connections/');
   requireJsonIdentity(connection, resources.connectionId, 'connection inventory');
-  const service = await client.json('/api/v1/admin/services/');
+  const service = await readAdminItems(path => client.json(path), '/api/v1/admin/services/');
   requireJsonIdentity(service, resources.serviceId, 'service inventory');
-  const layers = await client.json(
+  const layers = await readAdminItems(path => client.json(path),
     `/api/v1/admin/connections/${encodeURIComponent(resources.connectionId)}/layers/?serviceName=${encodeURIComponent(resources.serviceId)}`,
   );
   for (const layerId of Object.values(resources.layerIds)) {
