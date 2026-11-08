@@ -539,29 +539,29 @@ public sealed class OperateTransitionDataSourceTests
         // protocol. Only the GeoServices REST server types live under /rest/services/{service}/...; the OGC,
         // OData, and STAC protocols have their own roots (previously every non-FeatureServer/MapServer slot
         // wrongly fell back to /rest/services/{service}/{protocol}).
-        var dataSource = CreateServerDataSource(new RecordingJsonFixtureHandler(new Dictionary<string, string>()));
+        var publications = new OperatePublicationProjection(new Uri("https://server.example"));
         const string svc = "e2e_src_fs";
 
         // GeoServices REST.
-        Assert.Equal("https://server.example/rest/services/e2e_src_fs/FeatureServer", dataSource.BuildProtocolUrl(svc, "FeatureServer"));
-        Assert.Equal("https://server.example/rest/services/e2e_src_fs/MapServer", dataSource.BuildProtocolUrl(svc, "MapServer"));
-        Assert.Equal("https://server.example/rest/services/e2e_src_fs/ImageServer", dataSource.BuildProtocolUrl(svc, "ImageServer"));
+        Assert.Equal("https://server.example/rest/services/e2e_src_fs/FeatureServer", publications.ProtocolUrl(svc, "FeatureServer"));
+        Assert.Equal("https://server.example/rest/services/e2e_src_fs/MapServer", publications.ProtocolUrl(svc, "MapServer"));
+        Assert.Equal("https://server.example/rest/services/e2e_src_fs/ImageServer", publications.ProtocolUrl(svc, "ImageServer"));
 
         // OGC classic, per-service.
-        Assert.Equal("https://server.example/ogc/services/e2e_src_fs/wms", dataSource.BuildProtocolUrl(svc, "Wms"));
-        Assert.Equal("https://server.example/ogc/services/e2e_src_fs/wmts", dataSource.BuildProtocolUrl(svc, "Wmts"));
+        Assert.Equal("https://server.example/ogc/services/e2e_src_fs/wms", publications.ProtocolUrl(svc, "Wms"));
+        Assert.Equal("https://server.example/ogc/services/e2e_src_fs/wmts", publications.ProtocolUrl(svc, "Wmts"));
 
         // WFS is a single server endpoint; OGC API + OData + STAC have their own roots.
-        Assert.Equal("https://server.example/wfs", dataSource.BuildProtocolUrl(svc, "Wfs20"));
-        Assert.Equal("https://server.example/ogc/features", dataSource.BuildProtocolUrl(svc, "OgcFeatures"));
-        Assert.Equal("https://server.example/ogc/tiles", dataSource.BuildProtocolUrl(svc, "OgcApiTiles"));
-        Assert.Equal("https://server.example/odata", dataSource.BuildProtocolUrl(svc, "OData"));
-        Assert.Equal("https://server.example/stac", dataSource.BuildProtocolUrl(svc, "Stac"));
+        Assert.Equal("https://server.example/wfs", publications.ProtocolUrl(svc, "Wfs20"));
+        Assert.Equal("https://server.example/ogc/features", publications.ProtocolUrl(svc, "OgcFeatures"));
+        Assert.Equal("https://server.example/ogc/tiles", publications.ProtocolUrl(svc, "OgcApiTiles"));
+        Assert.Equal("https://server.example/odata", publications.ProtocolUrl(svc, "OData"));
+        Assert.Equal("https://server.example/stac", publications.ProtocolUrl(svc, "Stac"));
 
         // None of the other protocols may live under /rest/services.
         foreach (var protocol in new[] { "Wms", "Wmts", "Wfs20", "OData", "OgcFeatures", "OgcApiTiles", "OgcApiMaps", "Stac" })
         {
-            var url = dataSource.BuildProtocolUrl(svc, protocol);
+            var url = publications.ProtocolUrl(svc, protocol);
             Assert.NotNull(url);
             Assert.DoesNotContain("/rest/services/", url, StringComparison.Ordinal);
         }
@@ -576,9 +576,9 @@ public sealed class OperateTransitionDataSourceTests
     {
         // Terrain and elevation are served per dataset (/terrain/{datasetId}/..., /elevation/{datasetId}/...)
         // and gRPC per RPC method, so no single URL addresses the service; an unknown protocol gets none either.
-        var dataSource = CreateServerDataSource(new RecordingJsonFixtureHandler(new Dictionary<string, string>()));
+        var publications = new OperatePublicationProjection(new Uri("https://server.example"));
 
-        Assert.Null(dataSource.BuildProtocolUrl("e2e_src_fs", protocol));
+        Assert.Null(publications.ProtocolUrl("e2e_src_fs", protocol));
     }
 
     [Fact]
