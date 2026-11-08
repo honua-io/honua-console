@@ -5,6 +5,7 @@
 @import url("css/publication-tree.css");
 @import url("css/home.css");
 @import url("css/catalog-admin.css");
+@import url("css/service-endpoints.css");
 
 * {
     box-sizing: border-box;
@@ -53,7 +54,7 @@ body {
 }
 
 a {
-    color: inherit;
+    color: var(--c-link);
 }
 
 .console-main {
@@ -78,7 +79,7 @@ a {
     font-size: 0.78rem;
     font-weight: 800;
     letter-spacing: 0;
-    text-transform: uppercase;
+    text-transform: none;
 }
 
 h1,
@@ -135,7 +136,8 @@ p {
 .console-panel {
     background: var(--honua-surface);
     border: 1px solid var(--honua-border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-panel);
     padding: 20px;
 }
 
@@ -250,30 +252,35 @@ p {
 }
 
 .console-state-neutral {
+    --console-state-edge: var(--c-neutral);
     border-color: #cbd5df;
     background: #f3f6f8;
     color: #41505c;
 }
 
 .console-state-success {
+    --console-state-edge: var(--c-ok);
     border-color: #99d6b8;
     background: #edf9f2;
     color: #17603a;
 }
 
 .console-state-info {
+    --console-state-edge: var(--c-info);
     border-color: #a7c7ea;
     background: #edf5ff;
     color: #175487;
 }
 
 .console-state-warning {
+    --console-state-edge: var(--c-warn);
     border-color: #ead08f;
     background: #fff8e6;
     color: #7a5300;
 }
 
 .console-state-danger {
+    --console-state-edge: var(--c-danger);
     border-color: #efb1ac;
     background: #fff0ef;
     color: #9e2b25;
@@ -828,8 +835,7 @@ p {
 
 /* Share panel + control variants */
 .console-panel-warning {
-    border-color: #d9a23a;
-    background: #fff7e6;
+    --console-state-edge: var(--c-warn);
 }
 
 .console-panel-emphasis {
@@ -1040,32 +1046,34 @@ p {
     word-break: break-all;
 }
 
-.console-table-wrap {
-    overflow-x: auto;
-    border: 1px solid var(--honua-border);
-    background: var(--honua-surface);
-}
-
-.console-content-table {
+.console-content-table,
+.console-table {
     width: 100%;
     border-collapse: collapse;
 }
 
 .console-content-table th,
-.console-content-table td {
-    padding: 14px;
-    border-bottom: 1px solid var(--honua-border);
+.console-content-table td,
+.console-table th,
+.console-table td {
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--c-rule);
     text-align: left;
     vertical-align: top;
 }
 
-.console-content-table th {
-    font-weight: 800;
+.console-content-table th,
+.console-table th {
+    font-weight: var(--weight-semibold);
 }
 
-.console-content-table thead th {
-    color: var(--honua-muted);
-    font-size: 0.82rem;
+.console-content-table thead th,
+.console-table thead th {
+    color: var(--c-text-2);
+    background: transparent;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    text-transform: none;
 }
 
 .console-content-table tbody th a {
@@ -1117,8 +1125,17 @@ p {
 .console-state {
     padding: 28px;
     border: 1px solid var(--honua-border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
+}
+
+.console-state,
+.console-panel:is(.console-state-neutral, .console-state-success, .console-state-info, .console-state-warning, .console-state-danger),
+.console-panel-warning,
+.console-panel-success {
+    border-color: var(--honua-border);
+    border-inline-start: 3px solid var(--console-state-edge, var(--c-neutral));
     background: var(--honua-surface);
+    color: var(--honua-text);
 }
 
 .console-state :is(h1, h2) {
@@ -1457,28 +1474,10 @@ p {
 }
 
 .console-table {
-    width: 100%;
     min-width: 760px;
-    border-collapse: collapse;
 }
 
-.console-table th,
-.console-table td {
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--honua-border);
-    text-align: left;
-    vertical-align: top;
-}
-
-.console-table th {
-    background: var(--honua-surface-strong);
-    color: var(--honua-accent-strong);
-    font-size: 0.78rem;
-    letter-spacing: 0;
-    text-transform: uppercase;
-}
-
-.console-table tr:last-child td {
+.console-table tr:last-child :is(th, td) {
     border-bottom: 0;
 }
 
@@ -5607,8 +5606,7 @@ p {
 }
 
 .console-panel-success {
-    border-color: #8fcfa6;
-    background: #ecf7f0;
+    --console-state-edge: var(--c-ok);
 }
 
 

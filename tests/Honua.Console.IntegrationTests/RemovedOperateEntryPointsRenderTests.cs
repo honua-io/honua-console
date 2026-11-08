@@ -12,7 +12,9 @@ public sealed class RemovedOperateEntryPointsRenderTests
         new(1, "Parcels", "Polygon", "conn-1-layer-1", "parcels");
 
     private static readonly OperateServiceDetail Cadastre =
-        new("cadastre", "Cadastre", "FeatureServer", "Running", "honua-server", [Parcels], [], []);
+        new("cadastre", "Cadastre", "FeatureServer", "Running", "honua-server", [Parcels],
+            [new("maxFeatures", "1000", "Runtime", RequiresRestart: false)],
+            [new("FeatureServer", "https://server.example.test/rest/services/a-long-service-identifier-that-must-fit-on-a-phone/FeatureServer", "Enabled")]);
 
     [Fact]
     public void LayerPage_LinksOnlyToSurfacesTheServerSupports()
@@ -37,6 +39,8 @@ public sealed class RemovedOperateEntryPointsRenderTests
 
         page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-service-detail]")));
         Assert.Empty(page.FindAll("[data-publication-overrides-link], [data-service-discovery-link], [data-save-settings-caps]"));
+        Assert.Contains(Cadastre.PublicationSlots[0].Url!, page.Markup, StringComparison.Ordinal);
+        CatalogAdminPreview.Capture("service", page.Markup);
     }
 
     private static BunitContext CreateContext()

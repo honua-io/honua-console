@@ -134,6 +134,7 @@ public sealed class ConsoleNavigationRenderTests
         Assert.Empty(navigation.FindAll("[data-navigation-menu='Studio'] a[href='/maps/new']"));
         Assert.Equal("/operate/catalogs", navigation.Find("[data-navigation-menu='Protocols'] a").GetAttribute("href"));
         Assert.Empty(navigation.FindAll("a[href='/operate/license'], a[href='/operate/server-info']"));
+        CatalogAdminPreview.Capture("navigation", navigation.Find(".console-topbar").OuterHtml);
     }
 
     [Fact]

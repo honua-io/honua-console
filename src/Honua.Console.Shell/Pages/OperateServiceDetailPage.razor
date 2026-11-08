@@ -56,14 +56,16 @@
             <article class="console-panel">
                 <p class="console-kicker">Protocols</p>
                 <h2>Service endpoints</h2>
-                <dl class="console-definition-list">
+                <dl class="console-definition-list console-protocols">
                     @foreach (var slot in _service.PublicationSlots)
                     {
-                        <dt>@slot.Name</dt>
-                        <dd>
-                            <strong>@slot.Status</strong>
-                            <small>@(slot.Url ?? "No single service URL")</small>
-                        </dd>
+                        <div class="console-protocol-pill">
+                            <dt title="@slot.Name">@slot.Name</dt>
+                            <dd>
+                                <strong>@slot.Status</strong>
+                                <small title="@slot.Url">@(slot.Url ?? "No single service URL")</small>
+                            </dd>
+                        </div>
                     }
                 </dl>
             </article>

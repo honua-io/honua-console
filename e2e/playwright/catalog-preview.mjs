@@ -4,10 +4,11 @@ import http from "node:http";
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "@playwright/test";
+import { checkKeyboardControls, inspectSharedPresentation, inspectCatalogCounts } from "./console-presentation.mjs";
 
 const previews = path.resolve("artifacts/catalog-preview");
 const assets = path.resolve("artifacts/honua-console-web/wwwroot");
-const pages = new Map(await Promise.all(["list", "overview", "settings", "templates", "template-editor", "template-dirty", "template-confirmation", "listing", "listing-dirty", "categories", "categories-dirty"].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
+const pages = new Map(await Promise.all(["list", "overview", "settings", "templates", "template-editor", "template-dirty", "template-confirmation", "listing", "listing-dirty", "categories", "categories-dirty", "navigation", "home", "service", "state-info", "state-warning", "state-danger", "state-unsupported"].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, "http://localhost");
@@ -55,7 +56,9 @@ async function inspectPresentation(page, { name, width }) {
   assert.equal((await stylesheet).status(), 200);
   assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), "light");
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} overflows at ${width}`);
+  if (name === "navigation" || name === "home" || name === "service" || name.startsWith("state-")) return inspectSharedPresentation(page, { name, width }, previews);
   await checkKeyboardControls(page);
+  if (name === "overview") await inspectCatalogCounts(page);
   if (name === "settings") {
     const snippet = page.getByLabel("Embed snippet", { exact: true });
     await snippet.focus();
@@ -97,28 +100,4 @@ async function inspectPresentation(page, { name, width }) {
   await page.locator(".catalog-admin-table").evaluateAll(regions => regions.forEach(region => { region.scrollLeft = 0; }));
   await page.screenshot({ path: path.join(previews, `${name}-${width}-light.png`), fullPage: true });
   console.log(`${name}: ${width}px light, served styles, visible keyboard focus, control sizes, overflow and axe pass`);
-}
-
-async function checkKeyboardControls(page) {
-  const controls = page.locator(".catalog-admin :is(input, select, button, textarea):not(:disabled), .catalog-admin-tabs a, .catalog-templates tbody a");
-  const total = await controls.count();
-  assert.ok(total > 0);
-  await controls.evaluateAll(elements => elements.forEach((element, index) => { element.dataset.previewControlIndex = String(index); }));
-  const visited = new Set();
-  for (let attempts = 0; attempts < total * 3 + 5 && visited.size < total; attempts++) {
-    await page.keyboard.press("Tab");
-    const focused = await page.evaluate(() => {
-      const element = document.activeElement;
-      if (!(element instanceof HTMLElement) || element.dataset.previewControlIndex === undefined) return null;
-      const style = getComputedStyle(element);
-      return { index: element.dataset.previewControlIndex, height: element.getBoundingClientRect().height,
-        focusVisible: element.matches(":focus-visible"),
-        ring: (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0 && style.outlineColor !== "rgba(0, 0, 0, 0)") || style.boxShadow !== "none" };
-    });
-    if (!focused) continue;
-    assert.ok(focused.height >= 44, `Control ${focused.index} is undersized`);
-    assert.ok(focused.focusVisible && focused.ring, `Control ${focused.index} has no visible keyboard focus`);
-    visited.add(focused.index);
-  }
-  assert.equal(visited.size, total, "Every enabled form and pager control must be keyboard reachable");
 }

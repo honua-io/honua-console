@@ -27,6 +27,7 @@ public sealed class ConsoleConnectedHomeTests
             Assert.Equal("/setup/local", home.Find("[data-start-local]").GetAttribute("href"));
             Assert.Equal("/environments/new", home.Find("[data-connect-existing]").GetAttribute("href"));
         });
+        CatalogAdminPreview.Capture("home", home.Markup);
     }
 
     [Fact]
