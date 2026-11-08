@@ -42,7 +42,7 @@ for (const name of ['Services', 'Layers']) test(`Data > ${name} opens its list`,
   await expect(page.getByRole('heading', {level:1, name, exact:true})).toBeVisible();
   await expect(page.locator('[data-resource-tree]')).toHaveCount(0);
   await expect(page.getByText('Connect environment', {exact:true}).or(
-    page.getByText('missing binding', {exact:false}).first())).toBeVisible();
+    page.getByText('missing binding', {exact:false}).first()).first()).toBeVisible();
 });
 
 for (const menu of menus) test(`${menu.name} advertises working current destinations`, async ({page}) => {

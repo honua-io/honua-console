@@ -6,12 +6,7 @@
 @inject IOperateTransitionDataSource OperateData
 @inject IServiceProvider ServiceProvider
 
-@*
-    The GeoServer-style "Data & Layers" spine (redesign §5.2 NEW /operate/data, §5.3). Merges the old
-    Resources / Layers / Services flat lists into one resource→publications treeview with a Layer Preview.
-    The tree is built from the Operate workspace projections (resources + services-with-layers grouped by
-    canonical resource); missing-binding states render as first-class capability states, never fabricated.
-*@
+
 <section class="console-page operate-data-page" data-operate-data>
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Data &amp; Layers</p>

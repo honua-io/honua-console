@@ -407,7 +407,7 @@ NEW   /operate/data/new                     The data → publish flow  (?driver=
 KEEP  /operate/data/:id                     Resource node detail = the resource + its publications (merges /operate/resources/:id + /operate/layers/:id)
 REDIRECT /operate/resources  → /operate/data
 REDIRECT /operate/layers     → /operate/data           (a "layer" is now a Publication node under its resource)
-REDIRECT /operate/services   → /operate/data?view=services
+KEEP     /operate/services   → dedicated Services list
 REDIRECT /operate/resources/new, /operate/resources/import, /operate/publishing/quick, /operate/import/service
          → /operate/data/new?source=<file|table|remoteService>   (the five entry points fold into one)
 KEEP  /operate/connections*                 (data-source management; now reached under Data & Layers)

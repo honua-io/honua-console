@@ -26,7 +26,7 @@ All destination reads retain server authorization; a visible link is not a grant
 | Home | `/` | `ConsoleHomePage`; connected work queue or first-run setup |
 | Data & Layers | `/operate/data` | `OperateDataPage`; server binding / per-section result |
 | Connections | `/operate/connections` | `OperateConnectionsPage`; existing operator read |
-| Services | `/operate/services` → `/operate/data?view=services` | `OperateDataRedirects`; preserve existing alias |
+| Services | `/operate/services` | `OperateServicesPage`; dedicated list, not a redirect |
 | Layers | `/operate/layers` | `OperateLayersPage`; dedicated list, not a redirect |
 | Studio | `/studio` | `StudioPage`; `Studio:EmbedJsStudio` |
 | Processes | `/studio/processes` | `ProcessesWorkspacePage`; same embed setting |
@@ -65,7 +65,7 @@ Page names in the tables are under `src/Honua.Console.Shell/Pages/` unless noted
 | `/studio`, `/studio/proof`, `/studio/drafts`, `/studio/apps/{ItemId}/preview` | Keep `StudioPage` aliases | Preserve source/item/revision query and Studio lifecycle; no blanket `/studio/*` redirect |
 | `/studio/processes`, `/studio/styles*`, `/studio/automations*`, `/studio/workflows/{DraftId}`, `/studio/form`, `/studio/report` | Keep current owners | Processes and live authoring remain distinct; no builder resurrection |
 | Retired builder paths | Keep `RetiredStudioBuilderPage` | Guidance to Studio/Processes; no live replacement editor |
-| `/operate/resources`, `/operate/resources/new`, `/operate/services`, `/operate/alerts` | Keep exact `OperateDataRedirects` behavior | Replace-history navigation to data, add-data, services-view, or observability `#alerts`; this implementation constructs the target and does not forward arbitrary original query/hash |
+| `/operate/resources`, `/operate/resources/new`, `/operate/alerts` | Keep exact `OperateDataRedirects` behavior | Replace-history navigation to data, add-data, or observability `#alerts`; this implementation constructs the target and does not forward arbitrary original query/hash |
 | `/operate/resources/{ResourceId}`, import and import/task | Keep dedicated pages | Never swallowed by the resources-list alias; file/task identity retained |
 | `/operate/layers/{ResourceId}` and metadata/filter/style/relationships children | Keep dedicated pages | Canonical resource or unambiguous admin integer; ambiguous IDs show choices, unknown IDs show missing state |
 | `/operate/services/{ServiceName}/settings` | Keep settings page | Service name remains opaque route input; no fabricated connection parent or slug from display name |
@@ -127,7 +127,8 @@ matrix. Shell route uniqueness and direct-load tests remain mandatory.
 | [OperateCopilotPage](../../src/Honua.Console.Shell/Pages/OperateCopilotPage.razor) | `/operate/copilot` |
 | [OperateDataFlowPage](../../src/Honua.Console.Shell/Pages/OperateDataFlowPage.razor) | `/operate/data/new` |
 | [OperateDataPage](../../src/Honua.Console.Shell/Pages/OperateDataPage.razor) | `/operate/data` |
-| [OperateDataRedirects](../../src/Honua.Console.Shell/Pages/OperateDataRedirects.razor) | `/operate/resources`, `/operate/services`, `/operate/resources/new`, `/operate/alerts` |
+| [OperateDataRedirects](../../src/Honua.Console.Shell/Pages/OperateDataRedirects.razor) | `/operate/resources`, `/operate/resources/new`, `/operate/alerts` |
+| [OperateServicesPage](../../src/Honua.Console.Shell/Pages/OperateServicesPage.razor) | `/operate/services` |
 | [OperateDeployPage](../../src/Honua.Console.Shell/Pages/OperateDeployPage.razor) | `/operate/deploy` |
 | [OperateEventsPage](../../src/Honua.Console.Shell/Pages/OperateEventsPage.razor) | `/operate/events` |
 | [OperateGeoprocessingPage](../../src/Honua.Console.Shell/Pages/OperateGeoprocessingPage.razor) | `/operate/geoprocessing`, `/operate/geoprocessing/{SelectedJobRunId}` |
