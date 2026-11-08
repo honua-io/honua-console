@@ -6622,14 +6622,14 @@ p {
     margin-top: 6px;
 }
 
-[data-studio-publication] [data-publication-source-access] {
-    max-width: 70ch;
-}
-
 @media (max-width: 720px) {
     .publish-field-grid {
         grid-template-columns: minmax(0, 1fr);
     }
+}
+
+[data-studio-publication] [data-publication-source-access] {
+    max-width: 70ch;
 }
 
 .publish-field {

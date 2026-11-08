@@ -220,8 +220,8 @@ export function mountStudioPublicationControls({ app, host, status }) {
         const option = document.createElement('option'); option.value = value; option.textContent = label; audience.append(option);
     }
     const sourceAccess = document.createElement('p');
+    sourceAccess.id = `studio-publication-source-access-${crypto.randomUUID()}`;
     sourceAccess.dataset.publicationSourceAccess = '';
-    sourceAccess.setAttribute('role', 'status');
     sourceAccess.textContent = 'Publishing a public map does not change access to its source services. Anonymous viewers cannot see layers that require sign-in. Review service access before publishing.';
     const warning = document.createElement('textarea');
     warning.maxLength = 2000; warning.setAttribute('aria-label', 'Validation warning acknowledgement');
@@ -297,6 +297,8 @@ export function mountStudioPublicationControls({ app, host, status }) {
             } else form.hidden = !hasReview;
         } catch (error) { section.hidden = false; notice.textContent = error.message; }
         sourceAccess.hidden = form.hidden || audience.value !== 'public';
+        if (sourceAccess.hidden) audience.removeAttribute('aria-describedby');
+        else audience.setAttribute('aria-describedby', sourceAccess.id);
         for (const control of section.querySelectorAll('button, input, select, textarea')) control.disabled = busy;
     }
     async function run(action) {

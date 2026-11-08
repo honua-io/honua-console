@@ -437,6 +437,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
       const route = `/customer-${nonce()}`;
       await publication.getByRole('textbox', { name: 'Publication route' }).fill(route);
       await publication.getByRole('combobox', { name: 'Publication audience' }).selectOption('public');
+      await expect(publication.locator('[data-publication-source-access]')).toBeVisible();
       await expect(publication.locator('[data-publication-source-access]')).toContainText(
         'Anonymous viewers cannot see layers that require sign-in.');
       await publication.getByRole('button', { name: 'Publish reviewed version' }).click();

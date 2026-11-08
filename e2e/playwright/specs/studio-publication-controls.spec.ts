@@ -61,22 +61,26 @@ test('public audience explains source access before submitting the unchanged pub
     await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
     const audience = page.getByLabel('Publication audience', { exact: true });
     const sourceAccess = page.locator('[data-publication-source-access]');
+    const panel = page.getByRole('region', { name: 'Map publication', exact: true });
     await expect(sourceAccess).toBeHidden();
+    await expect(audience).not.toHaveAccessibleDescription(/Publishing a public map/);
     await audience.selectOption('public');
     await expect(sourceAccess).toBeVisible();
     await expect(sourceAccess).toContainText('Publishing a public map does not change access to its source services.');
     await expect(sourceAccess).toContainText('Anonymous viewers cannot see layers that require sign-in.');
     await expect(sourceAccess).toContainText('Review service access before publishing.');
+    await expect(audience).toHaveAccessibleDescription(/Publishing a public map does not change access/);
     for (const width of [375, 1280]) {
         await page.setViewportSize({ width, height: 720 });
         await expect(sourceAccess).toBeInViewport();
-        expect(await sourceAccess.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
-        await page.getByRole('region', { name: 'Map publication', exact: true }).screenshot({
+        expect(await panel.evaluate(element => element.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+        await panel.screenshot({
             path: test.info().outputPath(`public-audience-${width}.png`),
         });
     }
     await audience.selectOption('team');
     await expect(sourceAccess).toBeHidden();
+    await expect(audience).not.toHaveAccessibleDescription(/Publishing a public map/);
     await audience.selectOption('public');
     await expect(sourceAccess).toBeVisible();
     expect(await page.evaluate(() => (window as any).publicationFixture.calls)).toEqual([]);
@@ -96,6 +100,8 @@ test('a saved public audience shows the source-access notice as soon as review o
     await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
     await expect(page.getByLabel('Publication audience', { exact: true })).toHaveValue('public');
     await expect(page.locator('[data-publication-source-access]')).toBeVisible();
+    await expect(page.getByLabel('Publication audience', { exact: true }))
+        .toHaveAccessibleDescription(/Publishing a public map does not change access/);
     expect(await page.evaluate(() => (window as any).publicationFixture.calls)).toEqual([]);
 });
 
