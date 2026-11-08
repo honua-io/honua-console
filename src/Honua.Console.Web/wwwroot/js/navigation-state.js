@@ -7,6 +7,7 @@
     let focused;
     let startupFocus;
     let hydrated = false;
+    let initialHeadingFocused = false;
     const startupUrl = location.href;
     const keyFor = element => element?.matches(toggleSelector) ? 'toggle'
         : element?.closest(menuSelector)?.dataset.navigationMenu;
@@ -54,17 +55,22 @@
             controls = next;
         }
     }
-    const isStartupHeading = element => element.matches('h1') && location.href === startupUrl;
+    const isStartupHeading = element => !initialHeadingFocused && element.matches('h1') && location.href === startupUrl;
     const shouldRetainPrerenderFocus = element => !hydrated && isStartupHeading(element)
         && focused && !focused.isConnected && keyFor(focused);
     document.addEventListener('focusin', event => {
-        if (isStartupHeading(event.target) && startupFocus?.isConnected) {
-            const target = startupFocus;
-            startupFocus = undefined;
-            target.focus({preventScroll: true});
-            return;
-        }
         if (shouldRetainPrerenderFocus(event.target)) return;
+        if (event.target.matches('h1')) {
+            const target = startupFocus?.isConnected ? startupFocus : focused;
+            const retainFocus = isStartupHeading(event.target) && target?.isConnected
+                && (target === startupFocus || hydrated && keyFor(target));
+            initialHeadingFocused = true;
+            startupFocus = undefined;
+            if (retainFocus) {
+                target.focus({preventScroll: true});
+                return;
+            }
+        }
         if (event.target !== startupFocus) startupFocus = undefined;
         focused = event.target;
     }, true);

@@ -36,12 +36,21 @@ test('a closed replacement retains a later menu item through its opening toggle'
   await expect(second).toBeFocused();
 });
 
-for(const input of ['pointer','focus']) test(`later ${input} input cancels pending startup focus restoration`,async({page})=>{
+for(const input of ['pointer','focus']) test(`later ${input} input replaces pending prerender focus restoration`,async({page})=>{
   await openNavigationFixture(page);
   await replaceNavigation(page);
   const second=page.getByRole('link',{name:'Second'});
   if(input==='pointer') await second.dispatchEvent('pointerdown');
   else await second.focus();
+  await focusHeadingOnce(page);
+  await expect(input==='focus' ? second : page.locator('h1')).toBeFocused();
+});
+
+test('heading focus is retained after the startup handoff is consumed',async({page})=>{
+  await openNavigationFixture(page);
+  await replaceNavigation(page);
+  await focusHeadingOnce(page);
+  await expect(page.getByRole('link',{name:'First'})).toBeFocused();
   await focusHeadingOnce(page);
   await expect(page.locator('h1')).toBeFocused();
 });

@@ -109,3 +109,32 @@ for (const width of [390, 1440]) test(`navigation preserves keyboard input durin
     startBlazor();
   }
 });
+
+test('hydrated navigation retains user focus when initial heading focus arrives late', async ({page}) => {
+  await page.addInitScript(() => {
+    const focus = HTMLElement.prototype.focus;
+    let pending = true;
+    HTMLElement.prototype.focus = function(options?: FocusOptions) {
+      if (pending && this.matches('h1')) {
+        pending = false;
+        Object.assign(window, {releaseInitialHeadingFocus: () => focus.call(this, options)});
+        return;
+      }
+      focus.call(this, options);
+    };
+  });
+  await page.goto('/operate');
+  await page.waitForFunction(() => 'releaseInitialHeadingFocus' in window);
+  const menu = page.locator('[data-navigation-menu="Data"]');
+  await menu.locator(':scope > summary').press('Enter');
+  const datasets = menu.getByRole('link', {name:'Datasets', exact:true});
+  await expect(datasets).toBeFocused();
+  await page.evaluate(() => (window as unknown as {releaseInitialHeadingFocus: () => void}).releaseInitialHeadingFocus());
+  await expect(datasets).toBeFocused();
+  await menu.getByRole('link', {name:'Services', exact:true}).click();
+  await expect(page).toHaveURL(/\/operate\/services$/);
+  await expect(page.getByRole('heading', {level:1, name:'Services', exact:true})).toBeFocused();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/operate$/);
+  await expect(page.getByRole('heading', {level:1, name:'Operate', exact:true})).toBeFocused();
+});
