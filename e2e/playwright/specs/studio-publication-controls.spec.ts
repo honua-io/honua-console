@@ -72,6 +72,7 @@ test('public audience explains source access before submitting the unchanged pub
     await expect(audience).toHaveAccessibleDescription(/Publishing a public map does not change access/);
     for (const width of [375, 1280]) {
         await page.setViewportSize({ width, height: 720 });
+        await sourceAccess.scrollIntoViewIfNeeded();
         await expect(sourceAccess).toBeInViewport();
         expect(await panel.evaluate(element => element.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
         await panel.screenshot({
