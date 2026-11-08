@@ -44,3 +44,15 @@ dl.console-protocols {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+.console-protocol-pill strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.console-service-controls input[type="checkbox"] {
+    width: var(--space-6);
+    height: var(--space-6);
+    accent-color: var(--c-accent);
+}

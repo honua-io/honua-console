@@ -18,7 +18,14 @@ public sealed class ConsoleStatePresentationTests
             .Add(component => component.Title, "Review the selected environment")
             .Add(component => component.Message, "The selected environment needs attention.")
             .Add(component => component.ActionHref, "/environments")
-            .Add(component => component.ActionLabel, "Review environment"));
+            .Add(component => component.ActionLabel, "Review environment")
+            .Add(component => component.ChildContent, builder =>
+            {
+                builder.OpenElement(0, "a");
+                builder.AddAttribute(1, "href", "/support");
+                builder.AddContent(2, "Read connection guidance");
+                builder.CloseElement();
+            }));
 
         Assert.Equal("Review the selected environment", state.Find("h1").TextContent);
         Assert.Contains("The selected environment needs attention.", state.Find("p").TextContent);

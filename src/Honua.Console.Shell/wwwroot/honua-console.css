@@ -54,7 +54,7 @@ body {
 }
 
 a {
-    color: var(--c-link);
+    color: inherit;
 }
 
 .console-main {
@@ -1134,12 +1134,19 @@ p {
 
 .console-state,
 .console-panel:is(.console-state-neutral, .console-state-success, .console-state-info, .console-state-warning, .console-state-danger),
-.console-panel-warning,
-.console-panel-success {
+.console-panel-warning {
     border-color: var(--honua-border);
     border-inline-start: 3px solid var(--console-state-edge);
     background: var(--honua-surface);
     color: var(--honua-text);
+}
+
+:where(
+    .console-state,
+    .console-panel:is(.console-state-neutral, .console-state-success, .console-state-info, .console-state-warning, .console-state-danger),
+    .console-panel-warning
+) a:not(.console-button, .console-button-link, .console-area-link, .console-start-option) {
+    color: var(--c-link);
 }
 
 .console-state :is(h1, h2) {
@@ -5610,7 +5617,8 @@ p {
 }
 
 .console-panel-success {
-    --console-state-edge: var(--c-ok);
+    border-color: #8fcfa6;
+    background: #ecf7f0;
 }
 
 

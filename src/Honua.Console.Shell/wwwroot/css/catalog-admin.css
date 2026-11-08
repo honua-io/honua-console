@@ -12,7 +12,7 @@
 .catalog-admin-paging { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .75rem; margin-block: 1rem; font-variant-numeric: tabular-nums; }
 .catalog-admin-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 1rem; }
 .catalog-admin-counts dd { margin: .25rem 0 0; font-size: var(--text-md); font-variant-numeric: tabular-nums; }
-.catalog-admin-counts > div:first-child dd { font-size: var(--text-2xl); font-weight: var(--weight-semibold); }
+.catalog-admin-counts > [data-catalog-count="listed"] dd { font-size: var(--text-2xl); font-weight: var(--weight-semibold); }
 .catalog-admin a { text-underline-offset: .2em; }
 .catalog-admin :focus-visible { outline: 3px solid var(--honua-accent); outline-offset: 3px; }
 @media (max-width: 480px) { .catalog-admin-filters label { width: 100%; } }

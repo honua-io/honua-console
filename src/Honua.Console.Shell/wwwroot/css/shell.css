@@ -17,7 +17,6 @@
     align-items: center;
     gap: .5rem;
     text-decoration: none;
-    color: inherit;
     white-space: nowrap;
 }
 
@@ -46,7 +45,6 @@
     font-size: var(--text-sm);
     white-space: nowrap;
     text-decoration: none;
-    color: inherit;
 }
 
 .console-topnav > a:hover,

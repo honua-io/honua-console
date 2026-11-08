@@ -4,11 +4,11 @@ import http from "node:http";
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "@playwright/test";
-import { checkKeyboardControls, inspectSharedPresentation, inspectCatalogCounts } from "./console-presentation.mjs";
+import { checkKeyboardControls, inspectSharedPresentation, inspectCatalogCounts, catalogKeyboardTargets } from "./console-presentation.mjs";
 
 const previews = path.resolve("artifacts/catalog-preview");
 const assets = path.resolve("artifacts/honua-console-web/wwwroot");
-const sharedPreviews = ["navigation", "home", "service", "state-info", "state-warning", "state-danger", "state-unsupported"];
+const sharedPreviews = ["navigation", "home", "service", "state-info", "state-warning", "state-danger", "state-unsupported", "service-success", "service-danger", "share-warning"];
 const pages = new Map(await Promise.all(["list", "overview", "settings", "templates", "template-editor", "template-dirty", "template-confirmation", "listing", "listing-dirty", "categories", "categories-dirty", ...sharedPreviews].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
 
 const server = http.createServer(async (request, response) => {
@@ -16,7 +16,7 @@ const server = http.createServer(async (request, response) => {
   const markup = pages.get(url.pathname.slice(1));
   if (markup) {
     response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; script-src 'none'; frame-src 'none'; base-uri 'none'" });
-    response.end(`<!doctype html><html lang="en"><head><title>Catalog presentation fixture</title><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/_content/Honua.Console.Shell/honua-console.css"></head><body><main>${markup}</main></body></html>`);
+    response.end(`<!doctype html><html lang="en"><head><title>Catalog presentation fixture</title><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/_content/Honua.Console.Shell/honua-console.css"></head><body>${url.pathname === "/navigation" ? markup : `<main class="console-main">${markup}</main>`}</body></html>`);
     return;
   }
   const file = path.resolve(assets, `.${url.pathname}`);
@@ -38,7 +38,7 @@ try {
   browser = await chromium.launch();
   const context = await browser.newContext();
   const page = await context.newPage();
-  const samples = [...pages.keys()].flatMap(name => [390, 1440].map(width => ({ name, width })));
+  const samples = [...pages.keys()].flatMap(name => (name.startsWith("service") ? [390, 600, 1440] : [390, 1440]).map(width => ({ name, width })));
   const failures = [];
   for (const sample of samples) failures.push(await capturePresentationCase(page, sample));
   assert.deepEqual(failures.filter(Boolean), []);
@@ -60,14 +60,14 @@ async function capturePresentationCase(page, sample) {
 
 async function inspectPresentation(page, { name, width }) {
   await page.setViewportSize({ width, height: 844 });
-  await page.emulateMedia({ colorScheme: "light" });
+  await page.emulateMedia({ colorScheme: "light", forcedColors: "none" });
   const stylesheet = page.waitForResponse(response => response.url().endsWith("/css/catalog-admin.css"));
   await page.goto(`http://127.0.0.1:${server.address().port}/${name}`);
   assert.equal((await stylesheet).status(), 200);
   assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), "light");
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} overflows at ${width}`);
   if (sharedPreviews.includes(name)) return inspectSharedPresentation(page, { name, width }, previews);
-  await checkKeyboardControls(page);
+  await checkKeyboardControls(page, catalogKeyboardTargets);
   await inspectCatalogCounts(page, name);
   if (name === "settings") {
     const snippet = page.getByLabel("Embed snippet", { exact: true });

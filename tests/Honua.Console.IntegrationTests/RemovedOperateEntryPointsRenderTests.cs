@@ -14,7 +14,7 @@ public sealed class RemovedOperateEntryPointsRenderTests
     private static readonly OperateServiceDetail Cadastre =
         new("cadastre", "Cadastre", "FeatureServer", "Running", "honua-server", [Parcels],
             [new("maxFeatures", "1000", "Runtime", RequiresRestart: false)],
-            [new("FeatureServer", "https://server.example.test/rest/services/a-long-service-identifier-that-must-fit-on-a-phone/FeatureServer", "Enabled")]);
+            [new("FeatureServer", "https://server.example.test/rest/services/a-long-service-identifier-that-must-fit-on-a-phone/FeatureServer", "Exposed by honua-server")]);
 
     [Fact]
     public void LayerPage_LinksOnlyToSurfacesTheServerSupports()
@@ -43,6 +43,48 @@ public sealed class RemovedOperateEntryPointsRenderTests
         Assert.Empty(page.FindAll("fieldset[style], article[role='status']"));
         Assert.Contains("console-state-neutral", page.Find("[data-service-config] > [role='status']").ClassList);
         CatalogAdminPreview.Capture("service", page.Markup);
+    }
+
+    [Theory]
+    [InlineData("Updated", "success")]
+    [InlineData("Rejected", "danger")]
+    public void ServiceResult_PreservesItsOutcomeAndAnnouncement(string state, string appearance)
+    {
+        using var ctx = CreateContext();
+        ctx.Services.AddSingleton<IServiceConfigurationOperation>(new ResultServiceConfiguration(new()
+        {
+            Succeeded = state == "Updated",
+            State = state,
+            Detail = "Protocol configuration result."
+        }));
+        var page = ctx.Render<OperateServiceDetailPage>(parameters => parameters.Add(component => component.ServiceName, Cadastre.Name));
+        page.WaitForAssertion(() => Assert.False(page.Find("[data-save-protocols]").HasAttribute("disabled")));
+        page.Find("[data-save-protocols]").Click();
+        page.WaitForAssertion(() => Assert.Contains(state, page.Find("[data-config-result]").TextContent));
+        Assert.Contains($"console-state-{appearance}", page.Find("[data-config-result]").ClassList);
+        Assert.Equal("DIV", page.Find("[data-config-result]").TagName);
+        CatalogAdminPreview.Capture($"service-{appearance}", page.Markup);
+    }
+
+    private sealed class ResultServiceConfiguration(ServiceConfigurationResult result) : IServiceConfigurationOperation
+    {
+        private readonly UnsupportedServiceConfigurationOperation _unsupported = new();
+        public Task<ServiceSettingsView> GetSettingsAsync(string serviceName, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ServiceSettingsView
+            {
+                Bound = true,
+                ServiceName = serviceName,
+                AvailableProtocols = ["FeatureServer"],
+                EnabledProtocols = ["FeatureServer"]
+            });
+        public Task<ServiceConfigurationResult> UpdateProtocolsAsync(ServiceProtocolsCommand command, CancellationToken cancellationToken = default) =>
+            Task.FromResult(result);
+        public Task<ServiceConfigurationResult> SetLayerEnabledAsync(ServiceLayerEnableCommand command, CancellationToken cancellationToken = default) =>
+            _unsupported.SetLayerEnabledAsync(command, cancellationToken);
+        public Task<ServiceConfigurationResult> UpdateAccessPolicyAsync(ServiceAccessPolicyCommand command, CancellationToken cancellationToken = default) =>
+            _unsupported.UpdateAccessPolicyAsync(command, cancellationToken);
+        public Task<ServiceConfigurationResult> UpdateMapServerSettingsAsync(ServiceMapServerSettingsCommand command, CancellationToken cancellationToken = default) =>
+            _unsupported.UpdateMapServerSettingsAsync(command, cancellationToken);
     }
 
     private static BunitContext CreateContext()
