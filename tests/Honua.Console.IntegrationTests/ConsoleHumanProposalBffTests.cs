@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 using Honua.Console.Web.Auth;
@@ -19,6 +20,64 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class ConsoleHumanProposalBffTests
 {
+    [Theory]
+    [InlineData("tenant-one", "tenant-two")]
+    [InlineData("tenant-one", null)]
+    [InlineData("", "tenant-one")]
+    public async Task BrowserReview_DifferentTenant_RefusesApproval(string selectedTenant, string? reviewTenant)
+    {
+        await using var host = await Host.StartAsync(selectedTenant);
+        host.ReviewTenantId = reviewTenant;
+
+        var result = await host.OpenReviewAsync();
+
+        Assert.False(result.IsAllowed);
+        Assert.Equal(0, host.ApprovalCalls);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("tenant-one")]
+    public async Task BrowserReview_MatchingTenant_AllowsDecision(string tenant)
+    {
+        await using var host = await Host.StartAsync(tenant);
+        var review = (await host.OpenReviewAsync()).Value!;
+
+        var result = await host.DecideAsync(new ConsoleProposalDecision("proposal", review.Proposal.Version,
+            review.Proposal.PlanHash!, review.EnvironmentReference));
+
+        Assert.True(result.IsAllowed);
+        Assert.Equal(1, host.ApprovalCalls);
+    }
+
+    [Fact]
+    public async Task BrowserReview_MissingTenant_RefusesApproval()
+    {
+        await using var host = await Host.StartAsync();
+        host.OmitReviewTenant = true;
+
+        var result = await host.OpenReviewAsync();
+
+        Assert.False(result.IsAllowed);
+        Assert.Equal(0, host.ApprovalCalls);
+    }
+
+    [Fact]
+    public async Task BrowserReview_TenantMismatchAfterValidReview_DiscardsPreviousApproval()
+    {
+        await using var host = await Host.StartAsync("tenant-one");
+        var review = (await host.OpenReviewAsync()).Value!;
+        host.ReviewTenantId = "tenant-two";
+
+        var refreshed = await host.OpenReviewAsync();
+        var result = await host.DecideAsync(new ConsoleProposalDecision("proposal", review.Proposal.Version,
+            review.Proposal.PlanHash!, review.EnvironmentReference));
+
+        Assert.False(refreshed.IsAllowed);
+        Assert.False(result.IsAllowed);
+        Assert.Equal(0, host.ApprovalCalls);
+    }
+
     [Fact]
     public async Task BrowserReviewAndDecision_KeepUpstreamCredentialsPrivateAndConsumeOnce()
     {
@@ -155,6 +214,8 @@ public sealed class ConsoleHumanProposalBffTests
         public string ProposalStatus { get; set; } = "AwaitingApproval";
         public bool LoseDecisionResponse { get; set; }
         public bool SwitchDuringIdentityCheck { get; set; }
+        public string? ReviewTenantId { get; set; }
+        public bool OmitReviewTenant { get; set; }
         private InMemoryConsoleEnvironmentProfileStore _profiles = null!;
         private const string IdentityIssuer = "https://identity.example/";
         public int ReviewCalls { get; private set; }
@@ -162,11 +223,11 @@ public sealed class ConsoleHumanProposalBffTests
         public bool SawPrivateCookie { get; private set; }
         public bool SawForwardableCredential { get; private set; }
 
-        public static async Task<Host> StartAsync()
+        public static async Task<Host> StartAsync(string tenant = "")
         {
             var host = new Host();
             await host.StartUpstreamAsync();
-            host.InitializePrivateSession();
+            host.InitializePrivateSession(tenant);
             await host.StartBrowserAsync();
             return host;
         }
@@ -204,10 +265,13 @@ public sealed class ConsoleHumanProposalBffTests
             Observe(context);
             context.Response.Headers.CacheControl = "no-store";
             if (ProposalStatus != "AwaitingApproval") return Results.Conflict();
-            return Results.Json(new ConsolePrivateProposalReviewResponse(
+            var result = new ConsolePrivateProposalReviewResponse(
                 new ProposalDetailWire { ProposalId = "proposal", Status = "AwaitingApproval", Version = 7, PlanHash = "plan" },
-                new ConsoleProposalHumanReviewWire("proposal", 7, "plan", "private-capability", DateTimeOffset.UtcNow.AddMinutes(5))),
-                ConsoleHumanProposalJsonContext.Default.ConsolePrivateProposalReviewResponse);
+                new ConsoleProposalHumanReviewWire("proposal", 7, "plan", "private-capability", DateTimeOffset.UtcNow.AddMinutes(5)));
+            var json = JsonNode.Parse(JsonSerializer.Serialize(result,
+                ConsoleHumanProposalJsonContext.Default.ConsolePrivateProposalReviewResponse))!;
+            if (!OmitReviewTenant) json["review"]!["tenantId"] = ReviewTenantId;
+            return Results.Text(json.ToJsonString(), "application/json");
         }
 
         private IResult ReadProposal(HttpContext context)
@@ -229,9 +293,10 @@ public sealed class ConsoleHumanProposalBffTests
                 ConsoleHumanProposalJsonContext.Default.ProposalDetailWire);
         }
 
-        private void InitializePrivateSession()
+        private void InitializePrivateSession(string tenant)
         {
-            Profile = new ConsoleEnvironmentProfile { Id = "environment", ServerBaseUri = Address(_upstream) };
+            Profile = new ConsoleEnvironmentProfile { Id = "environment", ServerBaseUri = Address(_upstream), TenantId = tenant };
+            ReviewTenantId = string.IsNullOrEmpty(tenant) ? null : tenant;
             Sessions = new ConsoleServerSessionClientStore(TimeProvider.System);
             var partition = Sessions.GetOrCreate("human", Profile);
             partition.AuthenticatedProviderKey = "oidc";
