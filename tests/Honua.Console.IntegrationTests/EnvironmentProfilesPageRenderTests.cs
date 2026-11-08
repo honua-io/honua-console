@@ -40,17 +40,22 @@ public sealed class EnvironmentProfilesPageRenderTests
     {
         var profile = Profile("test", "Test environment") with
         {
-            Account = new ConsoleAccountBinding { AccountId = "operator", TenantId = "isolated-a" }
+            TenantId = "profile-isolated",
+            Account = new ConsoleAccountBinding { AccountId = "operator", TenantId = "account-isolated" }
         };
         var store = new InMemoryConsoleEnvironmentProfileStore([profile]);
         using var ctx = NewBrowserContext(store);
 
         var page = ctx.Render<EnvironmentProfilesPage>();
 
+        page.WaitForAssertion(() => Assert.Equal("Test environment", page.Find("h2").TextContent));
         Assert.Empty(page.FindAll("[data-tenancy-preview]"));
         Assert.DoesNotContain("<dt>Tenant</dt>", page.Markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("isolated-a", page.Markup, StringComparison.Ordinal);
-        Assert.Equal("isolated-a", (await store.GetProfileAsync("test"))?.Account.TenantId);
+        Assert.DoesNotContain("profile-isolated", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("account-isolated", page.Markup, StringComparison.Ordinal);
+        var saved = await store.GetProfileAsync("test");
+        Assert.Equal("profile-isolated", saved?.TenantId);
+        Assert.Equal("account-isolated", saved?.Account.TenantId);
     }
 
     [Fact]

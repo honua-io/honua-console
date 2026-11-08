@@ -328,7 +328,7 @@
             },
             setBusy: busy => { _busy = busy; StateHasChanged(); },
             failureMessage: "Couldn't release the new version",
-            onSuccess: "Publication republished.");
+            onSuccess: "New version released.");
     }
 
     private Task RollbackAsync(string targetVersionId)
@@ -347,6 +347,6 @@
             },
             setBusy: busy => { _busy = busy; StateHasChanged(); },
             failureMessage: "Couldn't restore the previous version",
-            onSuccess: "Publication rolled back.");
+            onSuccess: "Previous version restored.");
     }
 }

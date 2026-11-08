@@ -28,7 +28,7 @@
                     @onclick="ToggleAuditAsync">Roles audit</button>
             <button class="console-button" type="button" data-rbac-custom-role
                     disabled="@(_overview is null || !_overview.CanManageRoles)"
-                    title="@(_overview is null ? "Available once the RBAC overview loads." : (_overview.CanManageRoles ? "Author a custom role." : "You lack the manage-roles permission for this environment."))"
+                    title="@(_overview is null ? "Available once the RBAC overview loads." : (_overview.CanManageRoles ? "Author a custom role." : "You lack the manage-roles permission for this scope."))"
                     @onclick="ToggleCreate">+ Custom role</button>
         </div>
     </div>
@@ -142,7 +142,6 @@
 
         <div class="console-toolbar console-toolbar-spread" data-rbac-toolbar>
             <div class="console-chip-row">
-                <span class="console-status console-state-info" data-rbac-scope-filter>scope: environment</span>
                 <span class="console-status console-state-neutral">built-in only</span>
                 <span class="console-status console-state-neutral">custom</span>
             </div>

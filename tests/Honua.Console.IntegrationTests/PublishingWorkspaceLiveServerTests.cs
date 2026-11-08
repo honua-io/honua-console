@@ -67,7 +67,7 @@ public sealed class PublishingWorkspaceLiveServerTests
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         var page = ctx.Render<OperatePublishingPage>();
         page.WaitForAssertion(
-            () => Assert.Contains("Publication Matrix", page.Markup, StringComparison.Ordinal),
+            () => Assert.Contains("Publishing formats", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(10));
         Assert.Contains(slug, page.Markup, StringComparison.Ordinal);
     }

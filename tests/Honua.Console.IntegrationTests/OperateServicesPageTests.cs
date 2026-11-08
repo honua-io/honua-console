@@ -36,6 +36,26 @@ public sealed class OperateServicesPageTests
         Assert.Empty(page.FindAll("table, .console-state-empty"));
     }
 
+    [Theory]
+    [InlineData("Connections", 0)]
+    [InlineData("Layers", 0)]
+    [InlineData("Layers", 1)]
+    public void ServicesPage_IncompleteLayerRead_DoesNotClaimATotal(string surface, int visibleLayers)
+    {
+        using var context = new BunitContext();
+        var layers = Enumerable.Range(0, visibleLayers)
+            .Select(index => new OperateServiceLayerProjection(index, "Roads", "LineString", "roads", "Roads")).ToArray();
+        OperateServiceDetail service = new("roads", "Roads", "WFS", "Ready", "", layers, [], []);
+        var states = new[] { new OperateCapabilityState(surface, "Forbidden", "admin", "Layer enumeration is incomplete.") };
+        context.Services.AddSingleton<IOperateTransitionDataSource>(new ServicesDataSource(() =>
+            Task.FromResult(new OperateServicesView([service], states))));
+
+        var page = context.Render<OperateServicesPage>();
+
+        Assert.Equal("Unknown", page.FindAll("tbody td")[2].TextContent);
+        Assert.Single(page.FindAll("[data-connection-notice]"));
+    }
+
     [Fact]
     public void ServicesPage_WhileLoading_DoesNotClaimTheListIsEmpty()
     {
@@ -86,7 +106,7 @@ public sealed class OperateServicesPageTests
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
+        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string datasetId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>

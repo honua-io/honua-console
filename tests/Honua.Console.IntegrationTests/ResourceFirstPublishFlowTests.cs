@@ -293,7 +293,7 @@ public sealed class ResourceFirstPublishFlowTests
         var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "existingresource"));
 
         // Choose the existing resource, then continue — the flow must skip ② Resource and land on ③ Publish.
-        cut.Find("select[aria-label=\"Existing resource\"]").Change("rsc_parcels");
+        cut.Find("select[aria-label=\"Existing dataset\"]").Change("rsc_parcels");
         cut.Find("[data-step-body=\"AddData\"] button.console-button").Click();
 
         Assert.Contains("data-step-body=\"Publish\"", cut.Markup, StringComparison.Ordinal);
@@ -307,7 +307,7 @@ public sealed class ResourceFirstPublishFlowTests
         RegisterExistingResource(ctx);
 
         var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "existingresource"));
-        cut.Find("select[aria-label=\"Existing resource\"]").Change("rsc_parcels");
+        cut.Find("select[aria-label=\"Existing dataset\"]").Change("rsc_parcels");
         cut.Find("[data-step-body=\"AddData\"] button.console-button").Click();
 
         Assert.Equal("parcels", cut.Find("[data-service-slot]").TextContent);
@@ -324,7 +324,7 @@ public sealed class ResourceFirstPublishFlowTests
         RegisterExistingResource(ctx);
         ctx.Services.AddSingleton<IServiceConfigurationOperation>(new UnsupportedServiceConfigurationOperation());
         var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "existingresource"));
-        cut.Find("select[aria-label=\"Existing resource\"]").Change("rsc_parcels");
+        cut.Find("select[aria-label=\"Existing dataset\"]").Change("rsc_parcels");
         cut.Find("[data-step-body=\"AddData\"] button.console-button").Click();
         cut.Find("[data-step-body=\"Publish\"] button.console-button").Click();
         cut.Find("[data-step-body=\"Style\"] button.console-button").Click();

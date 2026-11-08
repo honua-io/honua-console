@@ -88,9 +88,9 @@
 
     private IHonuaDiscoveryMetadataClient? Client => Services.GetService<IHonuaDiscoveryMetadataClient>()
         ?? Services.GetService<IHonuaAdminOperateClient>() as IHonuaDiscoveryMetadataClient;
-    private string Heading => Address.Kind == DiscoveryMetadataTargetKind.Resource ? "Resource metadata" : "Service metadata";
+    private string Heading => Address.Kind == DiscoveryMetadataTargetKind.Resource ? "Dataset metadata" : "Service metadata";
     private string ScopeMessage => Address.Kind == DiscoveryMetadataTargetKind.Resource
-        ? "This edits shared resource metadata used by the publications below. Existing publication overrides remain in effect."
+        ? "This edits shared dataset metadata used by the layers below. Existing layer overrides remain in effect."
         : "This edits the service discovery metadata for its published endpoints.";
 
     protected override Task OnParametersSetAsync() => _loadedAddress == Address ? Task.CompletedTask : ReloadAsync();

@@ -54,7 +54,7 @@ test('Console boots against AWS as a governed operator and renders the live reso
   await test.step('fails closed before the operator signs in', async () => {
     const response = await page.goto('/operate/data', { waitUntil: 'domcontentloaded' });
     expect(response?.status()).toBe(200);
-    // Data & Layers renders per-capability cards (OperateCapabilityStateList.razor), not the
+    // Datasets renders per-capability cards (OperateCapabilityStateList.razor), not the
     // top-level .console-state-error surface used by Catalog below.
     const missingPermission = page.locator('.console-panel', { hasText: '401' });
     await expect(missingPermission.first()).toBeVisible();
@@ -66,7 +66,7 @@ test('Console boots against AWS as a governed operator and renders the live reso
 
   const response = await page.goto('/operate/data', { waitUntil: 'domcontentloaded' });
   expect(response?.status()).toBe(200);
-  await expect(page.getByRole('heading', { name: 'Data & Layers', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Datasets', exact: true })).toBeVisible();
   await expect(page.locator('[data-operate-data]')).toBeVisible();
 
   const resources = page.locator('[data-resource-node]');

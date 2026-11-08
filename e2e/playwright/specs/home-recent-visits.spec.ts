@@ -9,9 +9,9 @@ async function openRecentFixture(page: Page) {
   const recent = readFileSync(new URL('../../../src/Honua.Console.Shell/Components/ConsoleHomeRecentVisits.razor', import.meta.url), 'utf8');
   await page.route('**/recent-fixture', route => route.fulfill({contentType: 'text/html', body: `
     <html lang="en"><head><title>Recent visits fixture</title></head><body>
-    <span hidden data-console-location="/operate/data" data-console-recent-label="Data &amp; Layers"
+    <span hidden data-console-location="/operate/data" data-console-recent-label="Datasets"
       data-console-recent-scope="${firstScope}" data-console-recent-until="${Date.now() + 60000}"></span>
-    <main id="console-main"><h1>Data &amp; Layers</h1>${recent}</main></body></html>`}));
+    <main id="console-main"><h1>Datasets</h1>${recent}</main></body></html>`}));
   await page.goto('/recent-fixture');
   await page.evaluate(async () => {
     const {mountRecentVisits} = await import('/js/operator-recent-visits.mjs');

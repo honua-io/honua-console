@@ -32,7 +32,7 @@
                         <tr>
                             <td><a href="@($"/operate/services/{Uri.EscapeDataString(service.Name)}/settings")">@service.DisplayName</a></td>
                             <td>@service.ServiceType</td>
-                            <td>@service.Layers.Count</td>
+                            <td>@if (_states.Count > 0) { <span>Unknown</span> } else { @service.Layers.Count }</td>
                             <td>@service.RuntimeStatus</td>
                         </tr>
                     }

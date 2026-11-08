@@ -47,8 +47,8 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
             TimeSpan.FromSeconds(5));
         Assert.Contains("Honua:Server:BaseUrl", page.Markup, StringComparison.Ordinal);
         // No publication projection is fabricated when unbound.
-        Assert.DoesNotContain("Publication Matrix", page.Markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("Publication Review", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Publishing formats", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Publishing review", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -13,7 +13,7 @@
     <div class="console-detail-heading">
         <div>
             <p class="console-kicker">Settings <span class="console-crumb-sep">/</span> Access <span class="console-crumb-sep">/</span> Users</p>
-            <h1>Users</h1>
+            <h1>Users @if (_membership is { } headerView) { <text>· @headerView.DisplayWorkspace</text> }</h1>
             <p class="console-muted rbac-lede">Manage users and invitations by role and permitted scope. Access is enforced by the environment.</p>
         </div>
         <div class="console-detail-actions">

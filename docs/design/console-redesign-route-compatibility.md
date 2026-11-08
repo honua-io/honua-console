@@ -24,7 +24,7 @@ All destination reads retain server authorization; a visible link is not a grant
 | Entry | Current destination retained in phases 0 and 1 | Availability / source owner |
 |---|---|---|
 | Home | `/` | `ConsoleHomePage`; connected work queue or first-run setup |
-| Data & Layers | `/operate/data` | `OperateDataPage`; server binding / per-section result |
+| Datasets | `/operate/data` | `OperateDataPage`; server binding / per-section result |
 | Connections | `/operate/connections` | `OperateConnectionsPage`; existing operator read |
 | Services | `/operate/services` | `OperateServicesPage`; dedicated list, not a redirect |
 | Layers | `/operate/layers` | `OperateLayersPage`; dedicated list, not a redirect |

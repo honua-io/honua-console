@@ -1,4 +1,4 @@
-# Console UX Redesign — Resource-First Publication, GeoServer-style Treeview, Unified Data → Publish Flow (AI + Manual)
+# Console UX Redesign — Dataset-First Publishing, GeoServer-style Treeview, Unified Data → Publish Flow (AI + Manual)
 
 Status: design proposal (draft). Filed 2026-06-17. Revised 2026-06-17 to add the
 three founder-specified pillars (see box below).
@@ -13,9 +13,9 @@ Audience: console product/design, frontend architecture, founder review.
 > (`IConsoleFileImportOperation`, `IServiceLayerPublishOperation`,
 > `IOperateTransitionDataSource`, `IStudioMapStyleCatalogDataSource`). The
 > protocol→publication mapping is the single authority `Models/PublishProtocolCatalog.cs`.
-> The old entry points (resources/layers/services/import/publish) redirect into the
-> unified flow (`Pages/OperateDataRedirects.razor`); the Operate nav adopts the
-> Data & Layers spine (§5.1). **Phase 3 (the AI outcome-approval driver) is not
+> Resource, import, and quick-publish aliases lead into the data flow
+> (`Pages/OperateDataRedirects.razor`). Services and Layers have dedicated lists at
+> `/operate/services` and `/operate/layers`; Datasets opens `/operate/data`. **Phase 3 (the AI outcome-approval driver) is not
 > built**: `/operate/data/new` has no AI driver or driver toggle; AI help comes from
 > the shared workspace conversation.
 
@@ -164,7 +164,7 @@ several of its interaction patterns are exactly what honua-console is missing.
 | # | BlueSpatial pattern | Where (BlueSpatial) | What we borrow |
 |---|---|---|---|
 | **B1** | **"Add data" and "add layer" are literally one dialog.** `+ Add Layer` opens a switchboard whose first control is just *how* you're sourcing data: `layerTypes = [{Name:"Add layer from file"},{Name:"Add layer from database"}]`. There is no orphan "dataset" you import and then later have to find and turn into a layer. | `create-layer-modal-component.js:13`; `add-layer-from-file-component.*`; `add-layer-from-database-component.*` | Collapse our five entry points into **one "Add data" switchboard** (file / table / remote service / from existing resource / AI). The act of adding data *is* the act of creating the layer. |
-| **B2** | **One unified catalog tree is the spine** — Folder ▸ Service ▸ Layer in a single tree with type-specific icons and live **Running/Stopped** status badges; selection drives a context detail panel. | `manage-metadata-component.html`; status at `:26` | Replace the parallel Resources/Services/Layers lists with **one "Data & Layers" tree/list** keyed on the resource, with the service exposure and status shown inline. Kills the "Canonical resource" back-link column. |
+| **B2** | **One unified catalog tree is the spine** — Folder ▸ Service ▸ Layer in a single tree with type-specific icons and live **Running/Stopped** status badges; selection drives a context detail panel. | `manage-metadata-component.html`; status at `:26` | Replace the parallel Resources/Services/Layers lists with **one "Datasets" tree/list** keyed on the resource, with the service exposure and status shown inline. Kills the "Canonical resource" back-link column. |
 | **B3** | **Context-sensitive next action.** The action buttons change with the selected node: a Service offers *Add Layer / Run-Stop / Build Tiles*; a Layer offers *View / View 3D / Style / Delete*. The legal next step is always where you are. | `manage-metadata-component.html:60–119` | In the unified view, the selected resource/layer surfaces its own next steps (Preview / Style / Publish / Share) inline — no hunting across Operate sub-pages. |
 | **B4** | **Auto-select the thing you just created and drop into its editor.** After upload/generate, the new node is pushed into the tree and auto-selected, landing you on its tabs. Zero "now go find it." | `add-layer-from-file-component.js:142–162`; `manage-metadata-component.js:364–370` | The unified flow ends on the **new layer's detail with Style/Publish right there** — never a dead-end success toast that drops you back to a list. |
 | **B5** | **Built-in onboarding that teaches the model.** An intro tour narrates Folder→Service→Layer, auto-triggered on an empty catalog. | `manage-metadata-component.js:117–133, 313–316` | The **empty state** of the unified view explains "Add data → it becomes a layer → publish/share" in one breath and is the launch point of the flow. |
@@ -378,12 +378,12 @@ it's also the natural Edit affordance for an AI plan card (§4.1).
 
 GeoServer's webadmin sidebar IA is the model the founder pointed at: a familiar
 left-rail of *Data → Stores → Layers* with a Layer Preview, narrow and stable. We
-adopt that shape (a single **Data & Layers** spine fronting a tree) — a deliberate
+adopt that shape (a single **Datasets** spine fronting a tree) — a deliberate
 familiarity win for migrating source platform/GeoServer users.
 
 ```
 BEFORE (Layout/ConsoleLayout.razor:82–95)        AFTER
-  Connections                                       Data & Layers      ← resource-first TREE (resources→publications)
+  Connections                                       Datasets      ← resource-first TREE (resources→publications)
   Resources        ─┐                                 ├─ + Add data    ← launches the flow (route below)
   Services          ├─ four parallel nouns            ├─ Layer Preview ← GeoServer-style "see the output fast" (B8)
   Layers           ─┘                                 └─ Connections   ← sources stay a sub-section (B6)
@@ -393,9 +393,9 @@ BEFORE (Layout/ConsoleLayout.razor:82–95)        AFTER
 ```
 
 `Connections` stays (a data *source* is legitimately its own concept, B6 ≙
-GeoServer's "Stores → connection params") but moves *under* Data & Layers as a
+GeoServer's "Stores → connection params") but moves *under* Datasets as a
 sub-section. `Resources`, `Services`, and `Layers` collapse into the single
-**Data & Layers** tree (§5.3). **Layer Preview** is promoted to a first-class
+**Datasets** tree (§5.3). **Layer Preview** is promoted to a first-class
 sidebar entry — GeoServer's "immediate visibility" onboarding lever, so a user sees
 a rendered result fast rather than only catalog rows.
 
@@ -406,11 +406,11 @@ NEW   /operate/data                         Resource→publications treeview (th
 NEW   /operate/data/new                     The data → publish flow  (?driver=ai|manual, ?step=add|resource|publish|style|golive)
 KEEP  /operate/data/:id                     Resource node detail = the resource + its publications (merges /operate/resources/:id + /operate/layers/:id)
 REDIRECT /operate/resources  → /operate/data
-REDIRECT /operate/layers     → /operate/data           (a "layer" is now a Publication node under its resource)
+KEEP  /operate/layers                      (dedicated layer list)
 KEEP     /operate/services   → dedicated Services list
 REDIRECT /operate/resources/new, /operate/resources/import, /operate/publishing/quick, /operate/import/service
          → /operate/data/new?source=<file|table|remoteService>   (the five entry points fold into one)
-KEEP  /operate/connections*                 (data-source management; now reached under Data & Layers)
+KEEP  /operate/connections*                 (data-source management; now reached under Datasets)
 KEEP  /studio/styles/:id                    (dual-mode style editor — embedded by step ④, unchanged)
 ```
 
@@ -428,8 +428,8 @@ Each resource node expands to its **protocol publications, rendered as toggles**
 the same toggles the publish step (§3.0/§5.4b) writes:
 
 ```
-┌ Operate / Data & Layers ─────────────────────────────────────┬─ Layer Preview ──────────────┐
-│  Data & Layers                          [ + Add data ▾ ]      │  parcels · FeatureServer      │  ← GeoServer "see
+┌ Operate / Datasets ─────────────────────────────────────┬─ Layer Preview ──────────────┐
+│  Datasets                          [ + Add data ▾ ]      │  parcels · FeatureServer      │  ← GeoServer "see
 │  Resources, and the services/protocols each is published on.  │ ┌──────────────────────────┐ │     output fast"
 │  ⌕ filter…     [ All ][ Published ][ Draft ][ Needs review ]  │ │   ▢▢▢ rendered map tile   │ │     (B5/B8)
 │ ┌───────────────────────────────────────────────────────────┐│ │   (the served endpoint)   │ │
@@ -585,7 +585,7 @@ outcome and one button.
 | **Reuse** | `Pages/StudioStyleEditorPage.razor` (+ `StyleReferencePicker`) | Step ④, embedded. Dual-mode preserved. |
 | **Reuse** | `Components/OperateCapabilityStateList`, missing-binding surfaces | Flow keeps neutral/missing-binding states; never fabricates. |
 | **Generalize** | `Components/EsriImportIntake.razor` → `AddDataIntake.razor` | Add modes: *table*, *existing resource*, *AI prompt* (it already has paste/upload/URL/connected). |
-| **Merge** | `OperateResourcesPage` + `OperateLayersPage` + `OperateServicesPage` → `OperateDataPage` (`/operate/data`) | The **resource→publications treeview** (§5.3), not a flat list: each resource node expands to its protocol publications. Old routes redirect. |
+| **Data navigation** | `OperateDataPage` at `/operate/data`, `OperateLayersPage` at `/operate/layers`, and `OperateServicesPage` at `/operate/services` | Datasets opens the dataset tree and preview. Services and Layers open dedicated lists. The legacy `/operate/resources` entry redirects to Datasets. |
 | **Merge** | `OperateResourceDetailPage` + `OperateLayerDetailPage` → `/operate/data/:id` | One node = resource + its publications; inline Preview/Style/Share/Publish (B3/B4). |
 | **Re-sequence** | `OperateImportFilePage`, `OperatePublishLayerPage`, `OperateImportServicePage` | Their bodies become **steps** of the flow (`/operate/data/new`), not standalone pages. The publish-layer page body becomes the **resource-first protocol-toggle step ③** (§5.4b). Old routes redirect into `?source=`. |
 | **Add** | `Components/Operate/DataToPublishFlow.razor` (host) + `DataToPublishFlowState` (model) | The flow object (§3.1) + step rail + driver toggle. Wraps the reused step bodies. |
@@ -618,7 +618,7 @@ layer" journeys **and** makes the resource-first publish concrete.* Manual drive
 **Phase 2 — the GeoServer-style treeview (`/operate/data`, §5.3).** Build
 `ResourcePublicationsTree.razor` + `LayerPreviewPane`: resource nodes expanding to
 protocol-publication toggles, the served-endpoint Layer Preview, context-sensitive
-node actions. Redirect `/operate/resources`, `/operate/layers`, `/operate/services`;
+node actions. Redirect `/operate/resources`; keep dedicated Services and Layers lists;
 apply the IA nav change (§5.1). **This is what actually cures the
 "resources separate from layers" split** — promote it ahead of the AI driver, since
 it is the structural fix. Reuse `PublishProtocolPicker` for the tree's

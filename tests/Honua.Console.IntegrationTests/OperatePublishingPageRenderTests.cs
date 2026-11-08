@@ -101,12 +101,10 @@ public sealed class OperatePublishingPageRenderTests
         Assert.Contains("/operate/jobs/job-parcels-001", page.Markup, StringComparison.Ordinal);
         Assert.Contains("/catalog/cat-parcels", page.Markup, StringComparison.Ordinal);
 
-        // Review is the layered creation stack from the design handoff: Data Resource binds to a
-        // service slot which mirrors to a catalog entry.
-        Assert.Contains("publish-review-stack", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("Service", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("binds to", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("Service", page.Markup, StringComparison.Ordinal);
+        var review = page.Find("[data-publishing-review]");
+        Assert.Equal("Service", review.QuerySelector("article .console-kicker")!.TextContent);
+        Assert.Equal("Route", review.QuerySelector(".publish-review-layer .console-kicker")!.TextContent);
+        Assert.Contains("binds to", review.TextContent, StringComparison.Ordinal);
         Assert.Contains("mirrors to", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Catalog registration", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Public sharing exposes all attributes.", page.Markup, StringComparison.Ordinal);

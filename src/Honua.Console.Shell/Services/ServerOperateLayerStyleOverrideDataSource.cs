@@ -7,7 +7,7 @@ namespace Honua.Console.Shell.Services;
 // popupInfo and drawingInfo are stored on the layer, not on each service exposure, so every exposure shares one slot.
 public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerStyleOverrideDataSource
 {
-    internal const string Surface = "Resource presentation overrides";
+    internal const string Surface = "Layer presentation overrides";
     internal const string PopupContract = "GET/PUT /api/v1/admin/metadata/layers/{id}/popup-info";
     internal const string DrawingContract = "GET/PUT /api/v1/admin/metadata/layers/{id}/drawing-info";
 

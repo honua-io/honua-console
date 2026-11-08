@@ -39,6 +39,8 @@ public sealed class OperateAccessPageRenderTests
             () => Assert.Contains("data-rbac-matrix", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
 
+        Assert.Empty(page.FindAll("[data-rbac-scope-filter]"));
+
         // Five-level scope hierarchy strip.
         Assert.Contains("data-rbac-scope-strip", page.Markup, StringComparison.Ordinal);
         foreach (var level in new[] { "workspace", "environment", "content", "publication", "resource-field" })
@@ -61,7 +63,7 @@ public sealed class OperateAccessPageRenderTests
         // Counts strip.
         Assert.Contains("8 built-in roles", page.Markup, StringComparison.Ordinal);
         Assert.Contains("2 custom", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("14 members affected", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("14 users affected", page.Markup, StringComparison.Ordinal);
 
         // Role authoring + audit are now bound to the server contract (#1162): '+ Custom role' is enabled
         // when the caller may manage roles (SampleOverview sets CanManageRoles true), and 'Roles audit' is

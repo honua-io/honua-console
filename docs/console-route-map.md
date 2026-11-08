@@ -63,7 +63,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/connections/:id       Detail
 /operate/connections/:id/diagnostics
 /operate/ai                    Omni-prompt AI console — one free-text prompt routes Studio (GIS authoring) vs DevOps (ops → deploy approval queue #197); AI infers intent, human approves (honua-console#203). Alias: /studio/ai
-/operate/data                  Data & Layers — dataset and layer tree with preview; Services and Layers also have dedicated lists
+/operate/data                  Datasets — dataset and layer tree with preview; Services and Layers also have dedicated lists
 /operate/data/new              Add data → publish flow host (?source=file|table|remoteservice|existingresource; console-ux-redesign §5.2/§5.4)
 /operate/resources             REDIRECT → /operate/data (resources fold into the treeview)
 /operate/resources/new         REDIRECT → /operate/data/new (the five entry points fold into one flow)
@@ -193,7 +193,7 @@ will not see Operate while B is active. Confirmed default (§13, Q4).
 
 ### 2.2 Secondary navigation (within Operate)
 
-Data & Layers, Connections, Publishing, Identity, License, Observability,
+Datasets, Connections, Publishing, Identity, License, Observability,
 Operations, Control Center, Catalogs, Settings, Deploy, Server Info,
 Analytics, Legacy.
 
@@ -1178,7 +1178,7 @@ until `honua-console#10` retires Portal.
 
 ## Unified workspace navigation (UX-001–007)
 
-The primary rail follows Home (`/`), Data & Layers (`/operate/data`), realtime Maps & apps (`/studio`), Processes (`/studio/processes`), Approvals (`/inbox`) and Activity (`/operate/observability`). Realtime entries retain their embed capability gate. More tools preserves the existing area and operational destinations; URLs and deep links are unchanged. The view bar switches Console/Studio/Processes alongside one host-owned conversation.
+The primary rail follows Home (`/`), Datasets (`/operate/data`), realtime Maps & apps (`/studio`), Processes (`/studio/processes`), Approvals (`/inbox`) and Activity (`/operate/observability`). Realtime entries retain their embed capability gate. More tools preserves the existing area and operational destinations; URLs and deep links are unchanged. The view bar switches Console/Studio/Processes alongside one host-owned conversation.
 
 `/setup/local` is the local-evaluation handoff guide. It explains external local-agent Docker inspection/install and copies an authored request; it cannot start Docker from the browser. `/environments/new` connects an existing deployment. `/operate/data/new` uses contextual source controls with the shared conversation, and its connected-table action opens the canonical shared-draft form at `/operate/publishing/quick`. See [the interaction model](design/unified-workspace-ux-implementation.md).
 

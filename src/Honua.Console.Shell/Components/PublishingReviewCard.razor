@@ -1,12 +1,6 @@
 @namespace Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 
-@*
-    Publication review, rendered as the layered creation stack from the design-handoff
-    WizQuickPublishReview (docs/design-handoff/console-canvas/screens-quick-publish.jsx):
-    Data Resource → binds to → service slot (generated endpoints) → mirrors to → catalog
-    entry. Every field is projected from the server-bound review; nothing is fabricated.
-*@
 <div class="publish-review-stack" data-publishing-review data-publication-id="@Review.ResourceId">
     <article class="console-panel">
         <div class="console-panel-heading">
@@ -29,7 +23,7 @@
     <article class="console-panel publish-review-layer">
         <div class="console-panel-heading">
             <div>
-                <p class="console-kicker">Service</p>
+                <p class="console-kicker">Route</p>
                 <h2>@Review.Slot</h2>
             </div>
             <span class="console-status">@Review.RollbackClass</span>
@@ -62,7 +56,7 @@
             </ul>
         }
 
-        <nav class="console-tab-row" aria-label="Layer evidence links">
+        <nav class="console-tab-row" aria-label="Evidence links">
             @if (!string.IsNullOrWhiteSpace(Review.Links.JobHref))
             {
                 <a href="@Review.Links.JobHref">Job</a>

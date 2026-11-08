@@ -1,4 +1,5 @@
 using Bunit;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Components.Operate;
 using Honua.Console.Shell.Models;
@@ -41,7 +42,7 @@ public sealed class ConsoleVocabularyRenderTests
     [Theory]
     [InlineData(PublishModeBar.PublishMode.Quick)]
     [InlineData(PublishModeBar.PublishMode.AuthorFirst)]
-    public void PublishMode_UsesDatasetAndLayerWords(PublishModeBar.PublishMode mode)
+    public void PublishMode_UsesDatasetWordsWithoutSlotOrProjection(PublishModeBar.PublishMode mode)
     {
         using var context = new BunitContext();
         var bar = context.Render<PublishModeBar>(parameters => parameters.Add(p => p.Mode, mode));
@@ -105,12 +106,32 @@ public sealed class ConsoleVocabularyRenderTests
     }
 
     [Fact]
-    public void Navigation_SeparatesDatasetsConnectionsAndEnvironments()
+    public void Navigation_UsesDatasetsConnectionsUsersAndRoles()
     {
         var entries = ConsoleNavigation.Groups.SelectMany(group => group.Destinations).ToArray();
         Assert.Equal("Datasets", Assert.Single(entries, entry => entry.Path == "/operate/data").Label);
         Assert.Equal("Connections", Assert.Single(entries, entry => entry.Path == "/operate/connections").Label);
         Assert.Equal("Users", Assert.Single(entries, entry => entry.Path == "/operate/access/members").Label);
         Assert.Equal("Roles", Assert.Single(entries, entry => entry.Path == "/operate/access").Label);
+    }
+
+    [Fact]
+    public void ContentReview_FromLiveMapper_LabelsRouteAndEvidenceAccurately()
+    {
+        using var context = new BunitContext();
+        var detail = new HonuaContentPublicationDetail
+        {
+            Route = new HonuaContentPublicationRouteState
+            {
+                PublicationId = "map-roads", RouteSlug = "roads", Kind = HonuaContentPublicationKinds.Map,
+                ActiveRevision = 2, Lifecycle = HonuaContentPublicationLifecycles.Active
+            }
+        };
+        var card = context.Render<PublishingReviewCard>(parameters =>
+            parameters.Add(p => p.Review, PublishingWorkspaceMapper.ToReview(detail)));
+
+        Assert.Equal("Route", card.Find(".publish-review-layer .console-kicker").TextContent);
+        Assert.Equal("roads · active (rev 2)", card.Find(".publish-review-layer h2").TextContent);
+        Assert.Single(card.FindAll("nav[aria-label='Evidence links']"));
     }
 }

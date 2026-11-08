@@ -8,8 +8,8 @@
 <section class="console-page operate-layer-style" data-layer-style="@ResourceId">
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Layers</p>
-        <h1>Resource presentation</h1>
-        <p>Override the style and popup template for this layer in each service. Base styles come from the connected environment. The Studio style editor authors shared styles; these overrides control how each service presents the layer.</p>
+        <h1>Layer presentation</h1>
+        <p>Edit this layer's drawing and popup settings. Every service exposing the layer uses these shared settings. Author shared catalog Styles in Studio.</p>
         <p><a href="@("/operate/layers/" + ResourceId)">Back to layer</a></p>
     </div>
 
@@ -47,7 +47,7 @@
         @if (_loading)
         {
             <ConsoleStateView HeadingLevel="2" Kind="loading"
-                              Kicker="Resource presentation"
+                              Kicker="Layer presentation"
                               Title="Loading layer overrides"
                               Message="Reading layer style and popup overrides from honua-server." />
         }
