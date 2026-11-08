@@ -24,6 +24,8 @@
 </CascadingValue>
 
 @code {
+    [Parameter] public EventCallback<IReadOnlyList<ConsolePublicationNode>> SelectionChanged { get; set; }
+    private IReadOnlyList<ConsolePublicationNode>? _reportedPath;
     private const int ConcurrentServiceExpansions = 4;
     private readonly SemaphoreSlim _serviceExpansionSlots = new(ConcurrentServiceExpansions);
     private readonly ConsolePublicationTree _tree = new();
@@ -49,7 +51,7 @@
         get
         {
             var path = CurrentPath;
-            return ConsolePublicationTree.Descendants(_tree.Root).Prepend(_tree.Root).Count(node => node.Href == path) == 1 ? path : "";
+            return _tree.PathTo(path).Count > 0 ? path : "";
         }
     }
     private ConsolePublicationTreeContext TreeContext => new()
@@ -76,6 +78,16 @@
         if (Services.GetService<AuthenticationStateProvider>() is { } authentication)
             authentication.AuthenticationStateChanged += AuthenticationChanged;
         _ = CheckAuthorityAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_disposed || !SelectionChanged.HasDelegate) return;
+        var contextPath = ConsoleNavigation.ContextForPath(CurrentPath.Trim('/')).Path;
+        var ancestors = _tree.PathTo(contextPath);
+        if (_reportedPath is not null && _reportedPath.SequenceEqual(ancestors)) return;
+        _reportedPath = ancestors;
+        await SelectionChanged.InvokeAsync(ancestors);
     }
 
     private async Task CheckAuthorityAsync()

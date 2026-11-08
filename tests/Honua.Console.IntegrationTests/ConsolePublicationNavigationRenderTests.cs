@@ -199,6 +199,25 @@ public sealed class ConsolePublicationNavigationRenderTests
         layout.WaitForAssertion(() => Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
     }
 
+    [Fact]
+    public void PublicationBreadcrumbDropsFolderWhenAuthenticationIsRevoked()
+    {
+        var source = new NavigationSource
+        {
+            ServiceSummaries = [new() { ServiceName = "parcels", FolderId = "public", FolderName = "Public", LayerCount = 1 }]
+        };
+        using var context = PublicationLayoutContext(source);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("synthetic-operator");
+        context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/operate/services/parcels/settings");
+        var layout = context.Render<ConsoleLayout>();
+        layout.WaitForAssertion(() => Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        authorization.SetNotAuthorized();
+        layout.WaitForAssertion(() => Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        Assert.Empty(layout.FindAll("[role='tree']"));
+    }
+
     private static BunitContext PublicationLayoutContext(NavigationSource source)
     {
         var context = Context();

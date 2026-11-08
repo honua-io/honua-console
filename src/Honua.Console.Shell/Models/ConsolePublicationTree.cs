@@ -189,6 +189,23 @@ public sealed class ConsolePublicationTree
             foreach (var descendant in VisibleNodes(child)) yield return descendant;
     }
 
+    public IReadOnlyList<ConsolePublicationNode> PathTo(string path)
+    {
+        var matches = Descendants(Root).Prepend(Root).Where(node => node.Href == path).Take(2).ToArray();
+        if (matches.Length != 1) return [];
+        var ancestors = new List<ConsolePublicationNode>();
+        AppendPath(Root, matches[0], ancestors);
+        return ancestors;
+    }
+
+    private static bool AppendPath(ConsolePublicationNode node, ConsolePublicationNode target, List<ConsolePublicationNode> ancestors)
+    {
+        ancestors.Add(node);
+        if (node == target || node.Children.Any(child => AppendPath(child, target, ancestors))) return true;
+        ancestors.RemoveAt(ancestors.Count - 1);
+        return false;
+    }
+
     public void RevealPath(string path)
     {
         var target = Descendants(Root).FirstOrDefault(node => node.Href == path);

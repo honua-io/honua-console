@@ -8,9 +8,17 @@
         {
             <li><a href="@area.Path">@area.Name</a></li>
         }
+        @if (Folder is { } folder)
+        {
+            <li><span>@folder.Label</span></li>
+        }
+        @if (ParentService is { Href: not null } service)
+        {
+            <li><a href="@service.Href">@service.Label</a></li>
+        }
         <li aria-current="page">
             <details class="console-navigation-menu" data-navigation-menu="Context">
-                <summary>@Context.Label</summary>
+                <summary>@(SelectedNode?.Label ?? Context.Label)</summary>
                 <div class="console-navigation-items" role="group" aria-label="Current context">
                     @foreach (var entry in ContextActions)
                     {
@@ -28,9 +36,17 @@
 
 @code {
     [Parameter] public IReadOnlyList<ConsoleNavigationGroup> Groups { get; set; } = [];
+    [Parameter] public IReadOnlyList<ConsolePublicationNode> PublicationPath { get; set; } = [];
     private bool StudioEnabled => Groups.Any(group => group.Name == "Studio");
     private string RelativePath => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
     private ConsoleNavigationContext Context => ConsoleNavigation.ContextForPath(RelativePath);
+    private bool HasPublicationPath => (Context.Kind is ConsoleNavigationContextKind.Service or ConsoleNavigationContextKind.Layer)
+        && PublicationPath.LastOrDefault()?.Href == Context.Path;
+    private ConsolePublicationNode? SelectedNode => HasPublicationPath ? PublicationPath[^1] : null;
+    private ConsolePublicationNode? Folder => HasPublicationPath
+        ? PublicationPath.FirstOrDefault(node => node.Kind == ConsolePublicationNodeKind.Folder) : null;
+    private ConsolePublicationNode? ParentService => SelectedNode?.Kind == ConsolePublicationNodeKind.Layer
+        ? PublicationPath.FirstOrDefault(node => node.Kind == ConsolePublicationNodeKind.Service) : null;
     private ConsoleWorkflowArea? ParentArea => ConsoleRouteMap.FindAreaForPath(RelativePath) is { } area
         && area.Path.Trim('/') != RelativePath && area.Name != Context.Label ? area : null;
 

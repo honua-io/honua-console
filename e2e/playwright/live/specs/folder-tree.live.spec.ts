@@ -25,9 +25,16 @@ test('browse an imported folder and its layers with an isolated anonymous contro
     const layerKey = `service:${encodeURIComponent(service.name)}:layer:${folder.connectionId.toLowerCase()}-layer-${service.layerId}`;
     const layerRow = tree.locator(`[data-publication-key="${layerKey}"]`);
     await expect(layerRow).toHaveCount(1);
+    const layerLabel = await layerRow.getAttribute('data-tree-label');
+    expect(layerLabel).toBeTruthy();
     await layerRow.locator('[data-tree-link]').click();
     await expect(page.locator('[data-layer-loaded="true" i]')).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(folder.name);
+    const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' });
+    await expect(breadcrumb.locator('ol > li:first-child > a')).toHaveAttribute('href', '/');
+    await expect(breadcrumb.locator('ol > li:nth-last-child(3)')).toHaveText(folder.name);
+    await expect(breadcrumb.locator('ol > li:nth-last-child(2) > a')).toHaveAttribute(
+      'href', `/operate/services/${encodeURIComponent(service.name)}/settings`);
+    await expect(breadcrumb.locator('ol > li:last-child summary')).toHaveText(layerLabel!);
     await expect(tree.locator('[aria-selected="true"]')).toHaveAttribute('data-tree-parent', `service:${encodeURIComponent(service.name)}`);
   }
 

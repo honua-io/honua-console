@@ -17,9 +17,9 @@
     <a class="console-skip-link" href="#console-main">Skip to content</a>
     <ConsoleTopNavigation Groups="navigationGroups" />
     <div class="console-service-workspace">
-        <AuthorizeView><Authorized><ConsolePublicationNavigation /></Authorized></AuthorizeView>
+        <AuthorizeView><Authorized><ConsolePublicationNavigation SelectionChanged="PublicationPathChanged" /></Authorized></AuthorizeView>
     <div class="console-workspace">
-        <ConsoleBreadcrumbs Groups="navigationGroups" />
+        <ConsoleBreadcrumbs Groups="navigationGroups" PublicationPath="_publicationPath" />
         <div class="console-workspace-panes">
     <main id="console-main" class="console-main" tabindex="-1">
         @if (!ConsolePresentation.IsFocusedRoute(Navigation.ToBaseRelativePath(Navigation.Uri)))
@@ -50,10 +50,25 @@
     private const int CapabilityRefreshTimeoutSeconds = 5;
     private CancellationTokenSource? _capabilityRefreshCancellation;
     private bool _disposed;
+    private AuthenticationStateProvider? _authentication;
+    private IReadOnlyList<ConsolePublicationNode> _publicationPath = [];
+
+    private void PublicationPathChanged(IReadOnlyList<ConsolePublicationNode> path)
+    {
+        if (!_disposed) _publicationPath = path;
+    }
+
+    private void AuthenticationChanged(Task<AuthenticationState> state)
+    {
+        _publicationPath = [];
+        if (!_disposed) _ = InvokeAsync(StateHasChanged);
+    }
 
     protected override Task OnInitializedAsync()
     {
         Capabilities.Changed += OnCapabilitiesChanged;
+        _authentication = WorkspaceServices.GetService<AuthenticationStateProvider>();
+        if (_authentication is not null) _authentication.AuthenticationStateChanged += AuthenticationChanged;
         // Start fail-closed: navigation renders immediately while live capability truth is loaded.
         // A slow or unreachable server must not hold the prerendered shell behind HttpClient's long
         // default timeout.
@@ -98,6 +113,7 @@
     public void Dispose()
     {
         Capabilities.Changed -= OnCapabilitiesChanged;
+        if (_authentication is not null) _authentication.AuthenticationStateChanged -= AuthenticationChanged;
         _disposed = true;
         _capabilityRefreshCancellation?.Cancel();
         _capabilityRefreshCancellation?.Dispose();
