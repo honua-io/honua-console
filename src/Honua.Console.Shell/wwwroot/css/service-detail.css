@@ -56,3 +56,7 @@ dl.console-protocols {
     height: var(--space-6);
     accent-color: var(--c-accent);
 }
+
+.console-service-controls .console-field input {
+    min-height: 44px;
+}
