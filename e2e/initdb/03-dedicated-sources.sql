@@ -1,5 +1,6 @@
 -- Dedicated source tables for live specs that seed their own layer. honua-server backs a source table
 -- with one layer only, so each such spec needs a table no other spec publishes.
+--   e2e_folder_src   -> folder-management.live.spec.ts
 --   e2e_golive_src   -> data-flow-go-live.live.spec.ts
 --   e2e_settings_src -> service-settings.live.spec.ts
 --   e2e_types_src    -> service-types.live.spec.ts
