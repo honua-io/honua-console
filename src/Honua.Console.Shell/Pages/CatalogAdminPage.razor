@@ -85,6 +85,7 @@
             <nav class="catalog-admin-tabs" aria-label="Catalog sections">
                 <a href="@($"/catalogs/{Uri.EscapeDataString(CatalogId)}")" aria-current="@(Section is null ? "page" : null)">Overview</a>
                 <a href="@($"/catalogs/{Uri.EscapeDataString(CatalogId)}/settings")" aria-current="@(Section == "settings" ? "page" : null)">Settings and scope</a>
+                <a href="@($"/catalogs/{Uri.EscapeDataString(CatalogId)}/categories")" aria-current="@(Section == "categories" ? "page" : null)">Categories and featured</a>
                 <a href="@($"/catalogs/{Uri.EscapeDataString(CatalogId)}/templates")" aria-current="@(Section is "templates" or "template" ? "page" : null)">Templates</a>
             </nav>
             @if (Section == "settings")
@@ -93,6 +94,13 @@
                 { <CatalogSettingsView Settings="settings" /> }
                 else
                 { <ConsoleStateView HeadingLevel="2" Kind="unsupported" Title="Catalog settings are unavailable" Message="The server has not reported settings for this catalog." /> }
+            }
+            else if (Section == "categories")
+            {
+                @if (read.Arrangement is { } arrangement && arrangement.CatalogId == CatalogId)
+                { <CatalogCategoriesView @key="arrangement" Arrangement="arrangement" /> }
+                else
+                { <ConsoleStateView HeadingLevel="2" Kind="unsupported" Title="Categories and featured are unavailable" Message="The server has not reported categories and featured items for this catalog." /> }
             }
             else if (Section == "templates")
             {
@@ -111,7 +119,7 @@
             else if (Section == "listing")
             {
                 @if (read.Listing is { } listing && listing.CatalogId == CatalogId && listing.ItemId == ItemId)
-                { <CatalogListingView Listing="listing" /> }
+                { <CatalogListingView @key="listing" Listing="listing" /> }
                 else
                 { <ConsoleStateView HeadingLevel="2" Kind="unsupported" Title="Item listing is unavailable" Message="The server has not reported this item listing." /> }
             }

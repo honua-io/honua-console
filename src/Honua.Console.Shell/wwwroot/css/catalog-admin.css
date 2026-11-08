@@ -34,3 +34,11 @@
 .catalog-template-editor button[data-template-insert] { white-space: nowrap; }
 
 .catalog-templates tbody a { display: inline-flex; align-items: center; min-height: 44px; }
+
+.catalog-local-fields { display: grid; gap: .75rem; max-width: 70ch; }
+.catalog-listing-editor label { display: flex; flex-direction: column; gap: .4rem; min-width: 0; }
+.catalog-listing-editor input { width: 100%; box-sizing: border-box; }
+.catalog-listing-editor fieldset { margin-block: 1rem; display: grid; gap: .75rem; min-width: 0; }
+
+.catalog-order-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; min-width: 8rem; font-variant-numeric: tabular-nums; }
+.catalog-categories h2:focus, .catalog-order-controls [tabindex="-1"]:focus { outline: 3px solid var(--honua-accent); outline-offset: 3px; }

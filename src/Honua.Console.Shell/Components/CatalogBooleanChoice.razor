@@ -1,0 +1,19 @@
+<label for="@InputId">@Label
+    <select id="@InputId" value="@CatalogAdminLabels.YesNo(Value)" @onchange="ChangedAsync">
+        <option value="Not reported">Not reported</option><option value="Yes">Yes</option><option value="No">No</option>
+    </select>
+</label>
+
+@code {
+    [Parameter, EditorRequired] public string InputId { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter] public bool? Value { get; set; }
+    [Parameter] public EventCallback<bool?> ValueChanged { get; set; }
+
+    private Task ChangedAsync(ChangeEventArgs args) => ValueChanged.InvokeAsync(args.Value?.ToString() switch
+    {
+        "Yes" => true,
+        "No" => false,
+        _ => (bool?)null
+    });
+}

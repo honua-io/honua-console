@@ -29,12 +29,6 @@
         <dt>Licence</dt><dd>@Reported(Listing.Licence) · @Reported(Listing.LicenceSource)</dd>
         <dt>Update frequency</dt><dd>@Reported(Listing.UpdateFrequency)</dd>
     </dl>
-    @if (string.IsNullOrWhiteSpace(Listing.Description)) { <p>Description is not reported.</p> }
-    else
-    {
-        <label for="listing-description">Description source (Markdown)</label>
-        <textarea id="listing-description" rows="5" readonly>@Listing.Description</textarea>
-    }
     <h3>Thumbnail</h3>
     <dl class="catalog-settings-fields"><dt>Source</dt><dd>@Reported(Listing.ThumbnailSource)</dd><dt>Alt text</dt><dd>@Reported(Listing.ThumbnailAlt)</dd></dl>
     <p>Thumbnail uploads are unavailable until the server provides the upload contract.</p>
@@ -52,6 +46,7 @@
     <h3>Listing checks</h3>
     @if (Listing.Checks.Count == 0) { <p>Listing checks are not reported.</p> }
     else { <ul>@foreach (var check in Listing.Checks) { <li>@check.Label: @check.State</li> }</ul> }
+    <CatalogListingEditor @key="Listing" Listing="Listing" />
 </section>
 
 @code {

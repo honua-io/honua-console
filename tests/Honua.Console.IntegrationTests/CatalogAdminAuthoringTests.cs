@@ -151,7 +151,7 @@ public sealed class CatalogAdminAuthoringTests
         };
         using var context = CatalogAuthoringFixture.Context(read);
         var page = context.Render<CatalogListingPage>(parameters => parameters.Add(p => p.CatalogId, "open").Add(p => p.ItemId, "emergency"));
-        Assert.Contains("<img src=x onerror=alert(1)>", page.Find("#listing-description").TextContent);
+        Assert.Contains("<img src=x onerror=alert(1)>", page.Find("#listing-description").GetAttribute("value"));
         Assert.Empty(page.FindAll("img, script, [onerror]"));
         Assert.Contains("Listing checks are not reported", page.Markup);
         Assert.Contains("Related apps and maps are not reported", page.Markup);

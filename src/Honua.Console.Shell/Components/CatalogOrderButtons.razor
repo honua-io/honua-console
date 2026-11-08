@@ -1,0 +1,30 @@
+<div class="catalog-order-controls">
+    <span tabindex="-1" @ref="_position" aria-label="@($"{Title}, position {Position}")">@Position</span>
+    <button type="button" class="console-button console-button-secondary" data-move-up disabled="@(Position <= 1)"
+            aria-label="@($"Move {Title} at position {Position} up")" @onclick="() => MoveAsync(Position - 2)">Up</button>
+    <button type="button" class="console-button console-button-secondary" data-move-down disabled="@(Position >= Count)"
+            aria-label="@($"Move {Title} at position {Position} down")" @onclick="() => MoveAsync(Position)">Down</button>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public int Position { get; set; }
+    [Parameter] public int Count { get; set; }
+    [Parameter] public EventCallback<CatalogOrderMove> Moved { get; set; }
+    private ElementReference _position;
+    private bool _focusPosition;
+
+    private async Task MoveAsync(int destination)
+    {
+        if (destination < 0 || destination >= Count) return;
+        _focusPosition = true;
+        await Moved.InvokeAsync(new(Position - 1, destination));
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusPosition) return;
+        _focusPosition = false;
+        await _position.FocusAsync();
+    }
+}
