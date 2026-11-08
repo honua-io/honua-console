@@ -352,8 +352,10 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
 
     private static string MapErrorMessage(HttpStatusCode code, HttpMethod method, string relativePath) => code switch
     {
-        HttpStatusCode.Forbidden =>
+        HttpStatusCode.Forbidden when method == HttpMethod.Post =>
             "The server denied this request. Rejection requires its own current 'approve' permission and bearer scope.",
+        HttpStatusCode.Forbidden =>
+            "The server denied this read. Check the current proposal read grant and scope.",
         HttpStatusCode.Conflict =>
             "The proposal is not in a state that allows this action (it may already be approved, rejected, or terminal).",
         HttpStatusCode.BadRequest =>
