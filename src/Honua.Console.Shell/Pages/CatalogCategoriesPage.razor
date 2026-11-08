@@ -1,0 +1,8 @@
+@page "/catalogs/{CatalogId}/categories"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<CatalogAdminPage CatalogId="@CatalogId" Section="categories" />
+
+@code {
+    [Parameter] public string CatalogId { get; set; } = string.Empty;
+}

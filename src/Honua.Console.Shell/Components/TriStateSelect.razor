@@ -1,7 +1,7 @@
 <label class="console-field">
     <span>@Label</span>
     <select class="console-input" aria-label="@Label" value="@Encode(Value)" @onchange="OnChangedAsync" @attributes="AdditionalAttributes">
-        <option value="">(unchanged)</option>
+        <option value="">@NullLabel</option>
         <option value="true">Yes</option>
         <option value="false">No</option>
     </select>
@@ -9,6 +9,8 @@
 
 @code {
     [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    [Parameter] public string NullLabel { get; set; } = "(unchanged)";
 
     [Parameter] public bool? Value { get; set; }
 

@@ -1,0 +1,76 @@
+<section class="catalog-listing-editor" aria-labelledby="listing-edit-heading">
+    <h3 id="listing-edit-heading">Local listing edits</h3>
+    <p id="listing-local-hint">Try presentation changes here. Nothing is saved or proposed. Reported access, visibility and listing checks above stay unchanged.</p>
+    <UnsavedChangesGuard IsDirty="IsDirty" />
+    <div class="catalog-local-fields">
+        <TriStateSelect NullLabel="Not reported" id="listing-can-appear" Label="Can appear in catalogs" @bind-Value="_fields.CanAppear" />
+        <label for="listing-title">Title<input class="console-input" id="listing-title" @ref="_titleInput" @bind="_fields.Title" @bind:event="oninput" /></label>
+        <label for="listing-summary">Summary<input class="console-input" id="listing-summary" maxlength="160" @bind="_fields.Summary" @bind:event="oninput" aria-describedby="listing-summary-hint" /></label>
+        <p id="listing-summary-hint"><span data-summary-count>@_fields.Summary.Length</span> / 160 characters · shown on cards and in search results</p>
+        <label for="listing-description">Description source (Markdown)</label>
+        <textarea id="listing-description" rows="6" @bind="_fields.Description" @bind:event="oninput"></textarea>
+        <p>Markdown stays as source text. No HTML, links or images are rendered here.</p>
+        <label for="listing-tags">Tags (comma separated)<input class="console-input" id="listing-tags" @bind="_fields.Tags" @bind:event="oninput" /></label>
+        <label for="listing-frequency">Update frequency<input class="console-input" id="listing-frequency" @bind="_fields.UpdateFrequency" @bind:event="oninput" /></label>
+        <label for="listing-alt">Thumbnail alt text<input class="console-input" id="listing-alt" @bind="_fields.ThumbnailAlt" @bind:event="oninput" /></label>
+        <label for="listing-owner">Owner<input class="console-input" id="listing-owner" @bind="_fields.Owner" @bind:event="oninput" /></label>
+        <label for="listing-contact">Public contact<input class="console-input" id="listing-contact" @bind="_fields.Contact" @bind:event="oninput" /></label>
+        <label for="listing-review">Review state<input class="console-input" id="listing-review" @bind="_fields.ReviewState" @bind:event="oninput" /></label>
+        <label for="listing-deprecation">Deprecation date<input class="console-input" id="listing-deprecation" @bind="_fields.DeprecationDate" @bind:event="oninput" /></label>
+        <label for="listing-replacement">Replacement item<input class="console-input" id="listing-replacement" @bind="_fields.Replacement" @bind:event="oninput" /></label>
+    </div>
+    <h4>Local appearance per catalog</h4>
+    <p>These fields do not change scope or grant access. Not reported preserves an unknown choice.</p>
+    @foreach (var index in Enumerable.Range(0, _memberships.Count))
+    {
+        var membership = _memberships[index];
+        <fieldset>
+            <legend>@membership.Title</legend>
+            <label for="@($"membership-category-{index}")">Category in @membership.Title
+                <input class="console-input" id="@($"membership-category-{index}")" value="@membership.Category" @oninput="args => CategoryChanged(index, args)" />
+            </label>
+            <TriStateSelect NullLabel="Not reported" id="@($"membership-featured-{index}")" Label="@($"Featured in {membership.Title}")" Value="membership.Featured"
+                                  ValueChanged="value => ChangeMembership(index, membership with { Featured = value })" />
+            <TriStateSelect NullLabel="Not reported" id="@($"membership-hidden-{index}")" Label="@($"Hidden in {membership.Title}")" Value="membership.HiddenHere"
+                                  ValueChanged="value => ChangeMembership(index, membership with { HiddenHere = value })" />
+        </fieldset>
+    }
+    <div class="console-action-row">
+        <p role="status" class="catalog-listing-status">@(IsDirty ? "Unsaved local changes · nothing saved or proposed" : "Local fields unchanged")</p>
+        <button type="button" class="console-button console-button-secondary" data-listing-discard disabled="@(!IsDirty)" @onclick="DiscardAsync">Discard local edits</button>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public CatalogListingDocument Listing { get; set; } = default!;
+    private CatalogListingFields _original = new();
+    private CatalogListingFields _fields = new();
+    private List<CatalogListingMembership> _memberships = [];
+    private ElementReference _titleInput;
+    private bool IsDirty => _fields != _original || !_memberships.SequenceEqual(Listing.Memberships);
+
+    protected override void OnInitialized() => Reset();
+
+    private void Reset()
+    {
+        _original = CatalogListingFields.FromDocument(Listing);
+        _fields = _original with { };
+        _memberships = Listing.Memberships.ToList();
+    }
+
+    private void CategoryChanged(int index, ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString() ?? string.Empty;
+        var original = Listing.Memberships[index].Category;
+        var category = value.Length == 0 && string.IsNullOrEmpty(original) ? original : value;
+        ChangeMembership(index, _memberships[index] with { Category = category });
+    }
+
+    private void ChangeMembership(int index, CatalogListingMembership membership) => _memberships[index] = membership;
+
+    private async Task DiscardAsync()
+    {
+        Reset();
+        await _titleInput.FocusAsync();
+    }
+}
