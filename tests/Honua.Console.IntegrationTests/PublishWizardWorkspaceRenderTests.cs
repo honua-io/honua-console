@@ -1,4 +1,8 @@
 using Bunit;
+using System.Net;
+using Honua.Console.Shell.Pages;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
@@ -281,6 +285,77 @@ public sealed class PublishWizardWorkspaceRenderTests
         public Task<bool> IsCurrentAsync(string binding, CancellationToken cancellationToken = default) => Task.FromResult(Current && binding == "reviewed-environment");
     }
 
+    [Fact]
+    public void ServicePickerAndSelectedServiceNeverCallAnUnresolvedFolderRoot()
+    {
+        using var ctx = NewContext(StubOperateData.WithFixtures().WithFolder("unresolved", null));
+        var cut = ctx.Render<PublishWizardWorkspace>();
+        Assert.Equal("Folder unavailable", Assert.Single(cut.FindAll("[data-publish-tree] h4")).TextContent);
+        cut.FindAll("[data-publish-tree-row]")[0].Click();
+        Assert.Contains("Folder unavailable", cut.Find(".publish-wizard-rail").TextContent);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PublishReadbackRemainsVisibleAndDoesNotRepublish(bool quickPage)
+    {
+        var publish = new RecordingPublishOperation(new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail });
+        using var ctx = NewContext(StubOperateData.WithFixtures(), publish);
+        ctx.Services.AddSingleton<IConsoleAuthorityBindingValidator>(new PublishingAuthority());
+        using var http = new HttpClient(new ReadbackHandler());
+        using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid/")));
+        ctx.Services.AddSingleton<IConsolePublicationNavigationSource>(new ServerConsolePublicationNavigationSource(client));
+        ctx.Services.AddSingleton(new ConsoleFolderChanges());
+        if (quickPage)
+        {
+            var cut = ctx.Render<OperatePublishLayerPage>();
+            cut.Find("[data-workspace-field='connectionId']").Change("conn-a");
+            cut.Find("[data-workspace-field='table']").Change("hydro.streams");
+            cut.Find("[data-workspace-field='serviceName']").Input("hydrology-fs");
+            await cut.Find("[data-workspace-publish]").ClickAsync(new MouseEventArgs());
+            await AssertReadbackAsync(cut, publish);
+        }
+        else
+        {
+            var cut = ctx.Render<PublishWizardWorkspace>();
+            await SelectServiceAndAdvanceAsync(cut);
+            cut.Find("[data-connection-picker]").Change("conn-a");
+            cut.Find("[data-table-picker]").Change("hydro.streams");
+            await ContinueAsync(cut);
+            await FinishAsync(cut);
+            await AssertReadbackAsync(cut, publish);
+        }
+    }
+
+    private static async Task AssertReadbackAsync<TComponent>(IRenderedComponent<TComponent> cut, RecordingPublishOperation publish)
+        where TComponent : IComponent
+    {
+        Assert.Single(publish.Commands);
+        await cut.Find("[data-publish-verify]").ClickAsync(new MouseEventArgs());
+        var readback = cut.Find("[data-publish-readback]");
+        Assert.Contains("hydrology-fs", readback.TextContent);
+        Assert.Contains("streams", readback.TextContent);
+        Assert.Contains("3 layers", readback.TextContent);
+        Assert.Equal("/operate/services/hydrology-fs/settings", cut.Find("[data-publish-readback] a").GetAttribute("href"));
+        Assert.Single(publish.Commands);
+        await cut.Find("[data-workspace-publish], .publish-wizard-finish").ClickAsync(new MouseEventArgs());
+        Assert.Equal(2, publish.Commands.Count);
+        Assert.Empty(cut.FindAll("[data-publish-readback]"));
+        Assert.Single(cut.FindAll("[data-publish-verify]"));
+    }
+
+    private sealed class ReadbackHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""
+                    {"success":true,"data":{"items":[{"serviceName":"hydrology-fs","layerCount":3}],"page":1,"pageSize":100,"total":1,"layerTotal":3}}
+                    """, System.Text.Encoding.UTF8, "application/json")
+            });
+    }
+
     private static async Task SelectServiceAndAdvanceAsync(IRenderedComponent<PublishWizardWorkspace> cut)
     {
         cut.FindAll("[data-publish-tree-row]")[0].Click();
@@ -303,6 +378,10 @@ public sealed class PublishWizardWorkspaceRenderTests
     {
         private readonly OperateTransitionWorkspace _workspace;
         public Action? OnServicesRead { get; set; }
+        public StubOperateData WithFolder(string? id, string? name) => new(_workspace with
+        {
+            Services = _workspace.Services.Select(service => service with { FolderId = id, FolderName = name }).ToArray()
+        });
         public StubOperateData WithServiceUrl(string url) => new(_workspace with
         {
             Services = _workspace.Services.Select(service => service with

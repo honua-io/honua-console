@@ -448,11 +448,16 @@ public sealed class ConsolePublicationNavigationRenderTests
     [InlineData("changed-before", false)]
     [InlineData("changed-after", false)]
     [InlineData("success", true)]
+    [InlineData("not-found", true)]
     public void UnverifiedPublishCanOnlyUnlockAfterAnAllowedReadOfTheOriginalAuthority(string outcome, bool expectedVerified)
     {
         using var context = Context();
         var authority = new VerificationAuthority { Current = outcome != "changed-before" };
-        var source = new NavigationSource();
+        var source = new NavigationSource { ServiceSummaries = outcome == "not-found" ? [] : null };
+        var changes = new ConsoleFolderChanges();
+        var reloads = 0;
+        changes.Changed += () => reloads++;
+        context.Services.AddSingleton(changes);
         if (outcome == "denied") source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Forbidden, "Catalog denied");
         if (outcome == "changed-after") source.OnServiceRead = () => authority.Current = false;
         context.Services.AddSingleton<IConsoleAuthorityBindingValidator>(authority);
@@ -460,9 +465,19 @@ public sealed class ConsolePublicationNavigationRenderTests
         var verified = false;
         var panel = context.Render<PublishOutcomeVerification>(parameters => parameters
             .Add(component => component.AuthorityBinding, "original")
+            .Add(component => component.ServiceName, "service-000")
+            .Add(component => component.LayerName, "Parcels")
             .Add(component => component.OnVerified, () => verified = true));
         panel.Find("[data-publish-verify]").Click();
         Assert.Equal(expectedVerified, verified);
+        Assert.Equal(expectedVerified ? 1 : 0, reloads);
+        if (expectedVerified)
+        {
+            var readback = panel.Find("[data-publish-readback]").TextContent;
+            if (outcome == "not-found") Assert.Contains("not found on the first page", readback);
+            else Assert.Contains("10 layers", readback);
+            Assert.NotEmpty(panel.Find("[data-publish-readback] a").GetAttribute("href")!);
+        }
         Assert.Equal(outcome == "changed-before" ? 0 : 1, source.ServiceReads);
     }
 

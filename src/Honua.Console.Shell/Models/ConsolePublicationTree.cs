@@ -146,12 +146,12 @@ public sealed class ConsolePublicationTree
 
     private ConsolePublicationNode GetOrAddServiceParent(Honua.Sdk.Admin.Models.ServiceSummary service, Dictionary<string, ConsolePublicationNode> folders)
     {
-        if (string.IsNullOrWhiteSpace(service.FolderId)) return Root;
+        if (service.FolderId is null) return Root;
         if (folders.TryGetValue(service.FolderId, out var parent)) return parent;
         parent = new()
         {
             Key = "folder:" + Uri.EscapeDataString(service.FolderId),
-            Label = string.IsNullOrWhiteSpace(service.FolderName) ? "Folder unavailable" : service.FolderName,
+            Label = ConsoleFolderCatalog.LocationLabel(service.FolderId, service.FolderName),
             Kind = ConsolePublicationNodeKind.Folder,
             ChildrenLoaded = true
         };

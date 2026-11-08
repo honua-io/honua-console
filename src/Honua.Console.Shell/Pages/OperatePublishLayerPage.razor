@@ -155,9 +155,9 @@
     }
 </section>
 
-@if (_requiresCatalogRead)
+@if (_unverifiedCommand is { } pendingPublish)
 {
-    <PublishOutcomeVerification AuthorityBinding="@_unverifiedAuthority" OnVerified="@(() => { _requiresCatalogRead = false; _result = null; })" />
+    <PublishOutcomeVerification @key="_publishAttempt" AuthorityBinding="@pendingPublish.AuthorityBinding" ServiceName="@pendingPublish.ServiceName" LayerName="@pendingPublish.LayerName" OnVerified="@(() => { _requiresCatalogRead = false; _result = null; })" />
 }
 
 @code {
@@ -178,7 +178,8 @@
     private bool _interactive;
     private bool _busy;
     private bool _requiresCatalogRead;
-    private string? _unverifiedAuthority;
+    private ServiceLayerPublishCommand? _unverifiedCommand;
+    private int _publishAttempt;
     private string? _clientError;
     private ServiceLayerPublishResult? _result;
 
@@ -275,13 +276,15 @@
             Enabled = true
         };
 
+        _unverifiedCommand = null;
+        _publishAttempt++;
         _result = null;
         await Notifications.RunGuardedAsync(
             async () =>
             {
                 _result = await PublishOperation.PublishAsync(command);
                 _requiresCatalogRead = _result.State == ConsoleWriteOutcome.UnverifiedState;
-                _unverifiedAuthority = command.AuthorityBinding;
+                _unverifiedCommand = _requiresCatalogRead ? command : null;
             },
             setBusy: busy => { _busy = busy; StateHasChanged(); },
             failureMessage: "Couldn't publish layer");

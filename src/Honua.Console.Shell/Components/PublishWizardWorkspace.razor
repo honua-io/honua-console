@@ -62,9 +62,9 @@ else
                    OnFinish="OnFinish" />
 }
 
-@if (_requiresCatalogRead)
+@if (_unverifiedCommand is { } pendingPublish)
 {
-    <PublishOutcomeVerification AuthorityBinding="@_unverifiedAuthority" OnVerified="@(() => { _requiresCatalogRead = false; _publishResult = null; })" />
+    <PublishOutcomeVerification @key="_publishAttempt" AuthorityBinding="@pendingPublish.AuthorityBinding" ServiceName="@pendingPublish.ServiceName" LayerName="@pendingPublish.LayerName" OnVerified="@(() => { _requiresCatalogRead = false; _publishResult = null; })" />
 }
 
 @code {
@@ -94,7 +94,8 @@ else
     private bool _published;
     private bool _publishing;
     private bool _requiresCatalogRead;
-    private string? _unverifiedAuthority;
+    private ServiceLayerPublishCommand? _unverifiedCommand;
+    private int _publishAttempt;
     private ServiceLayerPublishResult? _publishResult;
     private string? _publishedServiceUrl;
 
@@ -223,10 +224,12 @@ else
             Enabled = true
         };
 
+        _unverifiedCommand = null;
+        _publishAttempt++;
         _publishResult = await PublishOperation.PublishAsync(command);
         _published = _publishResult.Succeeded;
         _requiresCatalogRead = _publishResult.State == Honua.Console.Contracts.ConsoleWriteOutcome.UnverifiedState;
-        _unverifiedAuthority = command.AuthorityBinding;
+        _unverifiedCommand = _requiresCatalogRead ? command : null;
 
         if (_publishResult.Succeeded)
         {
@@ -327,7 +330,7 @@ else
                         <dl class="console-definition-list">
                             <dt>Service</dt><dd>@svc.DisplayName</dd>
                             <dt>Identity</dt><dd>@svc.Name</dd>
-                            <dt>Folder</dt><dd>@(svc.FolderName ?? "Root")</dd>
+                            <dt>Folder</dt><dd>@ConsoleFolderCatalog.LocationLabel(svc.FolderId, svc.FolderName)</dd>
                             <dt>Kind</dt><dd>@Unknown(svc.ServiceType)</dd>
                             <dt>Runtime status</dt><dd>@Unknown(svc.RuntimeStatus)</dd>
                             <dt>Metadata owner</dt><dd>@Unknown(svc.MetadataOwnership)</dd>
@@ -365,7 +368,7 @@ else
             {
                 @foreach (var group in _services.GroupBy(service => service.FolderId).OrderBy(group => group.First().FolderName ?? "", StringComparer.OrdinalIgnoreCase))
                 {
-                    <h4>@(group.First().FolderName ?? "Root")</h4>
+                    <h4>@ConsoleFolderCatalog.LocationLabel(group.Key, group.First().FolderName)</h4>
                 @foreach (var service in group)
                 {
                     var selected = string.Equals(service.Name, _selectedServiceName, StringComparison.Ordinal);

@@ -57,7 +57,7 @@ public sealed class ServerConsoleFolderClient(HttpClient http, IConsoleAuthority
             using var transport = BoundTransport(catalog.AuthorityBinding);
             await mutate(new HonuaAdminClient(transport), new() { IfMatch = catalog.ETag });
             if (!await authority.IsCurrentAsync(catalog.AuthorityBinding, cancellationToken))
-                return new() { State = "Outcome unverified", Detail = AuthorityChanged + " Read the original environment to confirm the outcome; do not repeat the request." };
+                return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = AuthorityChanged + " Read the original environment to confirm the outcome; do not repeat the request." };
             return new() { Succeeded = true, State = "Saved", Detail = "The server saved the Folder change. Refresh to read the current catalog." };
         }
         catch (HonuaAdminApiException exception)
@@ -68,7 +68,7 @@ public sealed class ServerConsoleFolderClient(HttpClient http, IConsoleAuthority
         }
         catch (Exception exception) when (exception is HttpRequestException or HonuaAdminOperationException or OperationCanceledException or JsonException)
         {
-            return new() { State = "Outcome unverified", Detail = "The response was not confirmed. Read the original environment to check the outcome before making another change." };
+            return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail };
         }
     }
 

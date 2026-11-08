@@ -1,38 +1,80 @@
 @using Honua.Console.Contracts
+@using Honua.Sdk.Admin.Models
 @inject IServiceProvider Services
 
 <article class="console-panel console-state-warning" role="status" data-publish-verification>
-    <p>@ConsoleWriteOutcome.UnverifiedDetail</p>
-    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="VerifyAsync" data-publish-verify>Read original catalog</button>
-    @if (_reason is not null) { <p>@_reason</p> }
+    @if (_verified)
+    {
+        <div data-publish-readback>
+            <p class="console-kicker">Original catalog readback</p>
+            <p>The publish response remains unconfirmed. Inspect the requested Layer in Service settings before trying again.</p>
+            <p>Requested Layer <strong>@_readLayerName</strong> in Service <strong>@_readServiceName</strong>.</p>
+            @if (_service is { } service)
+            {
+                <p>Service found with @service.LayerCount layers.</p>
+            }
+            else
+            {
+                <p>Service not found on the first page; open Services to inspect the original catalog.</p>
+            }
+            <a href="@($"/operate/services/{Uri.EscapeDataString(_readServiceName)}/settings")">Open Service settings</a>
+            <a href="/operate/services">Open Services</a>
+        </div>
+    }
+    else
+    {
+        <p>@ConsoleWriteOutcome.UnverifiedDetail</p>
+        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="VerifyAsync" data-publish-verify>Read original catalog</button>
+        @if (_reason is not null) { <p>@_reason</p> }
+    }
 </article>
 
 @code {
     [Parameter] public string? AuthorityBinding { get; set; }
+    [Parameter, EditorRequired] public string ServiceName { get; set; } = "";
+    [Parameter, EditorRequired] public string LayerName { get; set; } = "";
     [Parameter] public EventCallback OnVerified { get; set; }
     private bool _busy;
+    private bool _verified;
     private string? _reason;
+    private string _readServiceName = "";
+    private string _readLayerName = "";
+    private ServiceSummary? _service;
     private async Task VerifyAsync()
     {
-        if (_busy) return;
+        if (_busy || _verified) return;
         _busy = true;
         try
         {
             var authority = Services.GetService<IConsoleAuthorityBindingValidator>();
+            var changes = Services.GetService<ConsoleFolderChanges>();
+            var serviceName = ServiceName;
+            var layerName = LayerName;
             if (AuthorityBinding is not { } binding || authority is null || !await authority.IsCurrentAsync(binding))
             {
                 _reason = "Return to the original user and environment before reading its catalog.";
                 return;
             }
-            var source = Services.GetService<IConsolePublicationNavigationSource>() ?? new UnsupportedConsolePublicationNavigationSource();
-            var read = await ConsoleReadBudget.RunAsync(
-                token => source.ReadServicesAsync(HonuaAdminCatalogQuery.First, token),
-                ConsoleReadBudget.Default, "The original catalog could not be read.");
-            if (!read.IsAllowed || !await authority.IsCurrentAsync(binding))
+            if (string.IsNullOrWhiteSpace(serviceName) || string.IsNullOrWhiteSpace(layerName))
             {
-                _reason = read.Message ?? "The environment changed while reading. Return to the original target.";
+                _reason = "The original publishing target is unavailable. Inspect Services before trying again.";
                 return;
             }
+            var source = Services.GetService<IConsolePublicationNavigationSource>() ?? new UnsupportedConsolePublicationNavigationSource();
+            var read = await ConsoleReadBudget.RunAsync(
+                token => source.ReadServicesAsync(HonuaAdminCatalogQuery.First with { NameQuery = serviceName }, token),
+                ConsoleReadBudget.Default, "The original catalog could not be read.");
+            if (!read.IsAllowed || !await authority.IsCurrentAsync(binding) ||
+                AuthorityBinding != binding || ServiceName != serviceName || LayerName != layerName)
+            {
+                _reason = read.Message ?? "The publishing target changed while reading. Return to the original target.";
+                return;
+            }
+            _readServiceName = serviceName;
+            _readLayerName = layerName;
+            _service = read.Value?.Items.FirstOrDefault(service => string.Equals(service.ServiceName, serviceName, StringComparison.OrdinalIgnoreCase));
+            _verified = true;
+            changes?.Notify();
             await OnVerified.InvokeAsync();
         }
         finally { _busy = false; }
