@@ -174,7 +174,7 @@ public sealed class ConsoleHumanProposalBffTests
         private async Task StartUpstreamAsync()
         {
             _upstream = Builder().Build();
-            _upstream.MapGet("/api/v1/admin/auth/session", ReadIdentityAsync);
+            _upstream.MapGet("/api/v1/admin/auth/session", (Func<HttpContext, Task<IResult>>)ReadIdentityAsync);
             _upstream.MapGet("/api/v1/admin/proposals/proposal/approval-review", OpenPrivateReview);
             _upstream.MapGet("/api/v1/admin/proposals/proposal", ReadProposal);
             _upstream.MapPost("/api/v1/admin/proposals/proposal/approve", DecideProposal);
