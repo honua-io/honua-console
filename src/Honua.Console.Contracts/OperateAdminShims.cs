@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Honua.Sdk.Admin.Models;
 
 namespace Honua.Console.Contracts;
 
@@ -876,9 +877,8 @@ public sealed record HonuaAdminGeoservicesImportProgress
 {
     public string? JobId { get; init; }
 
-    // Server import status ordinal: 0 Queued, 1 Discovering, 2 RetrievingFeatures, 3 CreatingTable, 4 InsertingFeatures, 5 Publishing, 6 Completed, 7 Failed, 8 Cancelled.
     [JsonPropertyName("status")]
-    public int? StatusCode { get; init; }
+    public GeoservicesImportStatus? Status { get; init; }
 
     public int FeaturesProcessed { get; init; }
 

@@ -1,5 +1,6 @@
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
+using Honua.Sdk.Admin.Models;
 
 namespace Honua.Console.Shell.Services;
 
@@ -104,7 +105,7 @@ public sealed class HonuaServerConsoleServiceImportOperation : IConsoleServiceIm
         var result = await _client.GetGeoservicesImportJobAsync(jobId, cancellationToken).ConfigureAwait(false);
         if (result.Data is { } p)
         {
-            var (label, terminal, succeeded) = MapStatus(p.StatusCode);
+            var (label, terminal, succeeded) = MapStatus(p.Status);
             return new ConsoleServiceImportJob
             {
                 JobId = jobId,
@@ -157,17 +158,20 @@ public sealed class HonuaServerConsoleServiceImportOperation : IConsoleServiceIm
         };
     }
 
-    private static (string Label, bool Terminal, bool Succeeded) MapStatus(int? code) => code switch
+    private static (string Label, bool Terminal, bool Succeeded) MapStatus(GeoservicesImportStatus? status) => status switch
     {
-        0 => ("Queued", false, false),
-        1 => ("Discovering", false, false),
-        2 => ("Retrieving features", false, false),
-        3 => ("Creating table", false, false),
-        4 => ("Inserting features", false, false),
-        5 => ("Publishing", false, false),
-        6 => ("Completed", true, true),
-        7 => ("Failed", true, false),
-        8 => ("Cancelled", true, false),
+        GeoservicesImportStatus.Queued => ("Queued", false, false),
+        GeoservicesImportStatus.Discovering => ("Discovering", false, false),
+        GeoservicesImportStatus.RetrievingFeatures => ("Retrieving features", false, false),
+        GeoservicesImportStatus.CreatingTable => ("Creating table", false, false),
+        GeoservicesImportStatus.InsertingFeatures => ("Inserting features", false, false),
+        GeoservicesImportStatus.Publishing => ("Publishing", false, false),
+        GeoservicesImportStatus.CopyingAttachments => ("Copying attachments", false, false),
+        GeoservicesImportStatus.Validating => ("Validating", false, false),
+        GeoservicesImportStatus.Completed => ("Completed", true, true),
+        GeoservicesImportStatus.NeedsReview => ("Needs review", true, false),
+        GeoservicesImportStatus.Failed => ("Failed", true, false),
+        GeoservicesImportStatus.Cancelled => ("Cancelled", true, false),
         _ => ("Working", false, false),
     };
 

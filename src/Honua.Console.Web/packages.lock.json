@@ -46,8 +46,17 @@
       },
       "Honua.Sdk.Abstractions": {
         "type": "Transitive",
-        "resolved": "1.13.1",
-        "contentHash": "swm/Toe/eDE29puAmTLh3Z52w9KvspcuhNJiPg8BNEmmodhHr8OMWDbcufT78aweXxaImrxXDQ5q1wgaS3KShw=="
+        "resolved": "2.0.0",
+        "contentHash": "GSKGWZQwalPNjRDoUhQqCQK6NTJs4Fc4eTGkhSY0h05xut5bq6fahX+PVkZ81lF+C1emLfkZXGtP5j765M+hQQ=="
+      },
+      "Honua.Sdk.Admin": {
+        "type": "Transitive",
+        "resolved": "2.0.0",
+        "contentHash": "Q41eXAQm5xsxomg98Pry4j8GnQeBvTmjllkPzI8QlvDsLqzRTKLGL7SpUifUbMP7No9AhPkLc+oKM5mIYsfz7w==",
+        "dependencies": {
+          "Honua.Sdk.Abstractions": "2.0.0",
+          "Microsoft.Extensions.Http.Resilience": "10.5.0"
+        }
       },
       "Honua.Sdk.Studio": {
         "type": "Transitive",
@@ -186,7 +195,10 @@
         }
       },
       "honua.console.contracts": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Honua.Sdk.Admin": "[2.0.0, )"
+        }
       },
       "honua.console.shell": {
         "type": "Project",
