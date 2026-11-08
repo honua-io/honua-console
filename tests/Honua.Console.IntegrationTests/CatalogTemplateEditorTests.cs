@@ -139,12 +139,13 @@ public sealed class CatalogTemplateEditorTests
     {
         using var context = CatalogAuthoringFixture.Context(CatalogAuthoringFixture.Read());
         var page = context.Render<CatalogTemplatesPage>(parameters => parameters.Add(p => p.CatalogId, "open").Add(p => p.TemplateId, "service & map"));
+        var sourceBeforeEditing = (AngleSharp.Dom.IElement)page.Find("#template-source").Clone();
         page.Find("#template-source").Input("Local changes");
         page.Find("button[data-template-discard]").Click();
         var previousFocusCalls = context.JSInterop.Invocations.Count(call => call.Identifier == "Blazor._internal.domWrapper.focus");
         page.Find($"button[{choice}]").Click();
         var focusCall = Assert.Single(context.JSInterop.Invocations.Where(call => call.Identifier == "Blazor._internal.domWrapper.focus").Skip(previousFocusCalls));
-        focusCall.Arguments[0].ShouldBeElementReferenceTo(page.Find("#template-source"));
+        focusCall.Arguments[0].ShouldBeElementReferenceTo(sourceBeforeEditing);
         Assert.Empty(page.FindAll("button[data-template-confirm]"));
     }
 
