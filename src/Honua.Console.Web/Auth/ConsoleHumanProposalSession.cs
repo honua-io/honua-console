@@ -44,7 +44,7 @@ internal sealed class ConsoleHumanProposalSession(
         var bound = await BindAsync(target.Profile, target.Authority, cancellationToken).ConfigureAwait(false);
         if (bound is null) return Denied<ConsoleHumanProposalReview>("The original proposal environment is unavailable.");
         using var session = await sessions.EnterPrivateSessionAsync(bound, target.Authority, cancellationToken).ConfigureAwait(false);
-        var partition = session is null ? null : await session.VerifyAsync(bound, ConsoleServerSessionUse.HumanDecision, cancellationToken).ConfigureAwait(false);
+        var partition = session is null ? null : await session.VerifyAsync(bound, cancellationToken).ConfigureAwait(false);
         if (partition is null) return Denied<ConsoleHumanProposalReview>("Sign in to this server to review and approve the proposal.");
         partition.ProposalReviews.Discard(target.ProposalId);
         var request = new BoundReviewRequest(target, bound);
@@ -99,7 +99,7 @@ internal sealed class ConsoleHumanProposalSession(
                 || decision.EnvironmentReference != ConsoleServerProfileBinding.Capture(bound))
                 return Denied<ProposalDetailWire>("The environment changed. Reopen the proposal before approving.");
             using var session = await sessions.EnterPrivateSessionAsync(bound, authority, cancellationToken).ConfigureAwait(false);
-            var partition = session is null ? null : await session.VerifyAsync(bound, ConsoleServerSessionUse.HumanDecision, cancellationToken).ConfigureAwait(false);
+            var partition = session is null ? null : await session.VerifyAsync(bound, cancellationToken).ConfigureAwait(false);
             if (partition is null) return Denied<ProposalDetailWire>("Sign in to this server and reopen the proposal before approving.");
             var currentBeforeSend = await BindAsync(profile, authority, cancellationToken).ConfigureAwait(false);
             if (currentBeforeSend is null || ConsoleServerProfileBinding.Capture(currentBeforeSend) != decision.EnvironmentReference)

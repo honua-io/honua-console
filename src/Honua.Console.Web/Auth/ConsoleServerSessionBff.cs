@@ -149,7 +149,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(profile.Id);
 
         var now = _timeProvider.GetUtcNow();
-        var origin = NormalizeOrigin(profile.ServerBaseUri);
+        _ = NormalizeOrigin(profile.ServerBaseUri);
         var key = new ConsoleServerSessionPartitionKey(operatorKey, profile.Id, profile.ServerBaseUri.AbsoluteUri);
         List<ConsoleServerSessionPartition>? discarded = null;
 
@@ -696,9 +696,8 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 OperatorKey = operatorKey, ProviderKey = pending.ProviderKey,
                 Authority = pending.Authority,
             };
-            var identityMatches = _identityBinding is null || (pending.Authority == ConsoleServerAuthority.Management
-                ? await _identityBinding.EnsureHumanSessionAsync(identityRequest, cancellationToken).ConfigureAwait(false)
-                : await _identityBinding.EnsureAsync(identityRequest, cancellationToken).ConfigureAwait(false));
+            var identityMatches = _identityBinding is null
+                || await _identityBinding.EnsureAsync(identityRequest, cancellationToken).ConfigureAwait(false);
             if (!identityMatches)
             {
                 return Denied("The server session does not match the authenticated Console operator.", pending.ReturnTo);

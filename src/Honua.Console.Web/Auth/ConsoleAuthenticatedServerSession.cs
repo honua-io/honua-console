@@ -11,15 +11,13 @@ internal sealed class ConsoleAuthenticatedServerSession(
     private IDisposable? _authentication = authentication;
 
     internal async Task<ConsoleServerSessionPartition?> VerifyAsync(
-        ConsoleEnvironmentProfile profile, ConsoleServerSessionUse use, CancellationToken cancellationToken)
+        ConsoleEnvironmentProfile profile, CancellationToken cancellationToken)
     {
         if (!MatchesScope(profile))
             return null;
         if (identityBinding is null) return identity.Partition;
         var request = identity with { Profile = profile, ProviderKey = identity.Partition.AuthenticatedProviderKey };
-        var valid = use == ConsoleServerSessionUse.HumanDecision
-            ? await identityBinding.EnsureHumanSessionAsync(request, cancellationToken).ConfigureAwait(false)
-            : await identityBinding.EnsureAsync(request, cancellationToken).ConfigureAwait(false);
+        var valid = await identityBinding.EnsureAsync(request, cancellationToken).ConfigureAwait(false);
         return valid ? identity.Partition : null;
     }
 
@@ -30,7 +28,7 @@ internal sealed class ConsoleAuthenticatedServerSession(
         {
             if (!MatchesScope(profile) || identity.Authority != ConsoleServerAuthority.Serving) return ConsoleOperatorBearerExchangeResult.Unavailable(
                 "The authenticated environment scope changed.");
-            var verified = await VerifyAsync(profile, ConsoleServerSessionUse.OperatorBearer, cancellationToken).ConfigureAwait(false);
+            var verified = await VerifyAsync(profile, cancellationToken).ConfigureAwait(false);
             if (verified is null)
                 return ConsoleOperatorBearerExchangeResult.Denied(
                     "The server session does not match the authenticated Console operator or environment. Sign in again.");

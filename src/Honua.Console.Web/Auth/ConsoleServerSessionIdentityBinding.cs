@@ -15,17 +15,8 @@ internal sealed class ConsoleServerSessionIdentityBinding(
     ConsoleServerSessionClientStore serverSessions,
     TimeProvider timeProvider)
 {
-    public Task<bool> EnsureAsync(
-        ConsoleServerSessionIdentityRequest request,
-        CancellationToken cancellationToken) => EnsureCoreAsync(
-            request, ConsoleServerSessionUse.OperatorBearer, cancellationToken);
-
-    public Task<bool> EnsureHumanSessionAsync(
-        ConsoleServerSessionIdentityRequest request, CancellationToken cancellationToken) => EnsureCoreAsync(
-            request, ConsoleServerSessionUse.HumanDecision, cancellationToken);
-
-    private async Task<bool> EnsureCoreAsync(
-        ConsoleServerSessionIdentityRequest request, ConsoleServerSessionUse use, CancellationToken cancellationToken)
+    public async Task<bool> EnsureAsync(
+        ConsoleServerSessionIdentityRequest request, CancellationToken cancellationToken)
     {
         var partition = request.Partition;
         var profile = request.Profile;
@@ -105,12 +96,6 @@ internal sealed record ConsoleServerSessionIdentityRequest
     public required string OperatorKey { get; init; }
     public required string? ProviderKey { get; init; }
     public ConsoleServerAuthority Authority { get; init; }
-}
-
-internal enum ConsoleServerSessionUse
-{
-    OperatorBearer,
-    HumanDecision
 }
 
 // Temporary private wire shapes: the published SDK has no admin auth/session projection.

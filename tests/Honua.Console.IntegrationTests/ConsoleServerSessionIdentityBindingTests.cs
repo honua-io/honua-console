@@ -726,7 +726,7 @@ public sealed partial class ConsoleServerSessionIdentityBindingTests
         Assert.Equal(HttpStatusCode.NoContent, managerSignIn.StatusCode);
         harness.Handler.SessionJson = identityMatches ? Session() : InvalidSession("subject");
 
-        var accepted = await harness.Binding.EnsureHumanSessionAsync(new ConsoleServerSessionIdentityRequest
+        var accepted = await harness.Binding.EnsureAsync(new ConsoleServerSessionIdentityRequest
         {
             Partition = partition, Profile = manager, OperatorKey = "operator-a", ProviderKey = "oidc",
             Authority = ConsoleServerAuthority.Management,

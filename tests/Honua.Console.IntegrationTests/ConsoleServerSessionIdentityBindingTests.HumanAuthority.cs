@@ -14,7 +14,7 @@ public sealed partial class ConsoleServerSessionIdentityBindingTests
         var partition = harness.Partitions.GetOrCreate("operator-a", profile);
         harness.Handler.SessionJson = InvalidSession("subject");
 
-        var accepted = await harness.Binding.EnsureHumanSessionAsync(new ConsoleServerSessionIdentityRequest
+        var accepted = await harness.Binding.EnsureAsync(new ConsoleServerSessionIdentityRequest
         {
             Partition = partition, Profile = profile, OperatorKey = "operator-a", ProviderKey = "oidc"
         }, default);

@@ -12,6 +12,7 @@ public sealed class DualConsoleProposalsClient(
 
     private async Task<bool?> HasSeparateManager(CancellationToken cancellationToken)
     {
+        if (endpoint is null) return false;
         var profile = await profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         if (profile is null) return null;
         return ConsoleManagementBinding.Resolve(endpoint, profile.ServerBaseUri).Status switch
