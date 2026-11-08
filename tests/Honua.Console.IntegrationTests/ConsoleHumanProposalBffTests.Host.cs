@@ -236,9 +236,9 @@ public sealed partial class ConsoleHumanProposalBffTests
                 });
             }
             finally { accessor.HttpContext = previous; }
-            var header = Assert.Single(context.Response.Headers.SetCookie);
-            BrowserProofCookies.Add(header!);
-            var cookie = header![..header.IndexOf(';')];
+            var header = Assert.IsType<string>(Assert.Single(context.Response.Headers.SetCookie));
+            BrowserProofCookies.Add(header);
+            var cookie = header[..header.IndexOf(';')];
             Client.DefaultRequestHeaders.Remove("Cookie");
             Client.DefaultRequestHeaders.Add("Cookie", string.Join("; ", BrowserProofCookies
                 .Select(value => value[..value.IndexOf(';')]).Where(value => !value.StartsWith(cookie[..cookie.IndexOf('=')], StringComparison.Ordinal))

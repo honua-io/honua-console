@@ -43,12 +43,12 @@ public sealed partial class ConsoleServerSessionBffTests
             var proof = request.Request.Headers.Cookie.ToString();
             request.Response.Headers.Clear();
             await coordinator.CompleteSignInAsync("code", State(begin.RedirectUri), null);
-            Assert.Empty(request.Response.Headers.SetCookie);
+            Assert.Equal(0, request.Response.Headers.SetCookie.Count);
             Assert.Equal(proof, request.Request.Headers.Cookie.ToString());
         }
         else
         {
-            Assert.Empty(request.Response.Headers.SetCookie);
+            Assert.Equal(0, request.Response.Headers.SetCookie.Count);
             Assert.False(channel.HasSession(profile, partitions));
         }
         accessor.HttpContext = null;
