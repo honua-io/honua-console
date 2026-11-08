@@ -254,8 +254,27 @@ version history/restore, mutation policy and proposals await the canonical
 contracts. The component reference lists only the draft search/cards attributes;
 it loads no package and establishes no release or live qualification.
 
-Item listing is read-only: catalog membership and audience visibility remain
+Reported item listing stays read-only: catalog membership and audience visibility remain
 separate from endpoint access, with reported metadata inheritance, thumbnail
 provenance, governance, related items and listing checks. Visitor card preview
 and thumbnail upload remain unavailable until their server contracts exist.
 Administration fields are never presented as a visitor-filtered public preview.
+
+
+The experimental `/catalogs/{id}/categories` route shares the Catalogs flag,
+authenticated shell and catalog identity checks. It displays reported category
+rules/counts and featured kind/health/expiry/actor separately from local order
+and home-page choices. Up/Down controls retain focus on an enabled button in the moved row and
+announce the new position;
+duplicate or missing identities render unavailable instead of an ambiguous order.
+The first four local featured positions are home positions, never proof that a
+visitor can read those items.
+
+Item listing adds labelled local title, summary, Markdown source, tags, update
+frequency, alt text, governance and per-catalog appearance fields. Licence and
+inheritance remain reported; overrides need metadata contracts. Nullable choices
+preserve Not reported. Local edits and ordering use the shared unsaved navigation
+guard and a Discard local edits action. Neither surface saves, proposes or changes
+access, scope, health, listing checks or audience visibility. Real mutation,
+thumbnail upload and visitor card preview remain contract-gated. Production never
+falls back to fixtures when these routes are enabled.

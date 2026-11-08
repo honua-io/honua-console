@@ -1,0 +1,109 @@
+<section class="catalog-categories" aria-labelledby="catalog-categories-heading">
+    <h2 id="catalog-categories-heading" tabindex="-1" @ref="_heading">Categories and featured</h2>
+    <p>Try order and home-page choices locally. Nothing is saved or proposed. Adding, removing and changing rules need the catalog mutation and approval contracts.</p>
+    @if (!ValidIds(Arrangement.Categories.Select(row => row.Id)) || !ValidIds(Arrangement.Featured.Select(row => row.Id)))
+    {
+        <ConsoleStateView HeadingLevel="3" Kind="unsupported" Title="Ordering is unavailable" Message="The reported rows need unique, nonempty identities. Refresh to try again." />
+    }
+    else
+    {
+        <UnsavedChangesGuard IsDirty="IsDirty" />
+        <h3>Categories</h3>
+        <p>Categories belong to this catalog. Rules and item counts below are reported administration values.</p>
+        @if (_categories.Count == 0) { <p>No categories reported.</p> }
+        else
+        {
+            <div class="catalog-admin-table catalog-category-order" role="region" aria-label="Categories in order" tabindex="0">
+                <table>
+                    <thead><tr><th scope="col">Order</th><th scope="col">Category</th><th scope="col">Fills from</th><th scope="col">Items</th><th scope="col">On home page</th></tr></thead>
+                    <tbody>
+                        @foreach (var category in _categories)
+                        {
+                            <tr @key="category.Id">
+                                <td><CatalogOrderButtons Title="@category.Title" Position="@(_categories.IndexOf(category) + 1)" Count="_categories.Count" Moved="MoveCategory" /></td>
+                                <th scope="row">@category.Title</th><td>@CatalogAdminLabels.Reported(category.Rule)</td><td>@(category.ItemCount?.ToString() ?? "Not reported")</td>
+                                <td><TriStateSelect NullLabel="Not reported" id="@($"category-home-{_categories.IndexOf(category)}")" Label="@($"Show {category.Title} on home page")" Value="category.ShowOnHome"
+                                    ValueChanged="value => ChangeCategory(category with { ShowOnHome = value })" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <h3>Featured items</h3>
+        <p>The first four local positions are home positions; the rest are in All featured. The server must still check each visitor's access and listing eligibility before showing an item.</p>
+        @if (_featured.Count == 0) { <p>No featured items reported.</p> }
+        else
+        {
+            <div class="catalog-admin-table catalog-featured-order" role="region" aria-label="Featured items in order" tabindex="0">
+                <table>
+                    <thead><tr><th scope="col">Order</th><th scope="col">Item</th><th scope="col">Kind</th><th scope="col">Health</th><th scope="col">Featured until</th><th scope="col">Added by</th><th scope="col">Local position</th></tr></thead>
+                    <tbody>
+                        @foreach (var item in _featured)
+                        {
+                            var position = _featured.IndexOf(item) + 1;
+                            <tr @key="item.Id">
+                                <td><CatalogOrderButtons Title="@item.Title" Position="position" Count="_featured.Count" Moved="MoveFeatured" /></td>
+                                <th scope="row">@item.Title</th><td>@CatalogAdminLabels.Reported(item.Kind)</td><td>@CatalogAdminLabels.Reported(item.Health)</td>
+                                <td>@CatalogAdminLabels.Reported(item.FeaturedUntil)</td><td>@CatalogAdminLabels.Reported(item.AddedBy)</td>
+                                <td>@if (position <= HomePositions) { <span data-home-position>Home position @position</span> } else { <span>All featured</span> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <div class="console-action-row">
+            <p role="status" class="catalog-arrangement-status">@_moveAnnouncement @(IsDirty ? "Unsaved local changes · nothing saved or proposed" : "Order and choices unchanged")</p>
+            <button type="button" class="console-button console-button-secondary" data-arrangement-discard disabled="@(!IsDirty)" @onclick="DiscardAsync">Discard local edits</button>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public CatalogArrangementDocument Arrangement { get; set; } = default!;
+    private const int HomePositions = 4;
+    private List<CatalogCategoryRow> _categories = [];
+    private List<CatalogFeaturedRow> _featured = [];
+    private ElementReference _heading;
+    private string? _moveAnnouncement;
+    private int _moveSequence;
+    private bool IsDirty => !_categories.SequenceEqual(Arrangement.Categories) || !_featured.SequenceEqual(Arrangement.Featured);
+
+    protected override void OnInitialized() => Reset();
+    private void Reset()
+    {
+        _categories = Arrangement.Categories.ToList();
+        _featured = Arrangement.Featured.ToList();
+        _moveAnnouncement = null;
+    }
+
+    private void MoveCategory(CatalogOrderMove move) => _moveAnnouncement = MoveAndDescribe(_categories, move, row => row.Title);
+    private void MoveFeatured(CatalogOrderMove move) => _moveAnnouncement = MoveAndDescribe(_featured, move, row => row.Title);
+    private void ChangeCategory(CatalogCategoryRow category)
+    {
+        _categories[_categories.FindIndex(row => row.Id == category.Id)] = category;
+        _moveAnnouncement = null;
+    }
+
+    private string? MoveAndDescribe<T>(List<T> rows, CatalogOrderMove move, Func<T, string> title)
+    {
+        if (move.From < 0 || move.From >= rows.Count || move.To < 0 || move.To >= rows.Count) return null;
+        var row = rows[move.From];
+        rows.RemoveAt(move.From);
+        rows.Insert(move.To, row);
+        return $"Move {++_moveSequence}: {title(row)} moved to position {move.To + 1} of {rows.Count}.";
+    }
+
+    private static bool ValidIds(IEnumerable<string> identities)
+    {
+        var ids = identities.ToArray();
+        return ids.All(id => !string.IsNullOrWhiteSpace(id)) && ids.Distinct(StringComparer.Ordinal).Count() == ids.Length;
+    }
+
+    private async Task DiscardAsync()
+    {
+        Reset();
+        await _heading.FocusAsync();
+    }
+}

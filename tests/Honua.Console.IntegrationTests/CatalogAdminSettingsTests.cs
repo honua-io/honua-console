@@ -93,7 +93,8 @@ public sealed class CatalogAdminSettingsTests
         var tabs = settings.FindAll("nav[aria-label='Catalog sections'] a");
         Assert.Equal("/catalogs/parks%20%26%20roads", tabs[0].GetAttribute("href"));
         Assert.Equal("/catalogs/parks%20%26%20roads/settings", tabs[1].GetAttribute("href"));
-        Assert.Equal("/catalogs/parks%20%26%20roads/templates", tabs[2].GetAttribute("href"));
+        Assert.Equal("/catalogs/parks%20%26%20roads/categories", tabs[2].GetAttribute("href"));
+        Assert.Equal("/catalogs/parks%20%26%20roads/templates", tabs[3].GetAttribute("href"));
         Assert.Null(tabs[0].GetAttribute("aria-current"));
         Assert.Equal("page", tabs[1].GetAttribute("aria-current"));
         var overview = context.Render<CatalogAdminPage>(parameters => parameters.Add(p => p.CatalogId, catalogId));
