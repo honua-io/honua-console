@@ -28,7 +28,7 @@ public sealed class FolderPublishingTests
             LayerName = "Parcels",
             ServiceName = "logical service",
             PublicName = "Public-service",
-            Namespace = "tenant",
+            Namespace = choice == "omit" ? null : "tenant",
             FolderId = choice == "omit" ? default : new(choice == "root" ? null : "folder-id"),
             AuthorityBinding = choice == "omit" ? null : "human-environment"
         });
@@ -36,7 +36,8 @@ public sealed class FolderPublishingTests
         using var body = JsonDocument.Parse(handler.Body!);
         Assert.Equal("logical service", body.RootElement.GetProperty("serviceName").GetString());
         Assert.Equal("Public-service", body.RootElement.GetProperty("publicName").GetString());
-        Assert.Equal("tenant", body.RootElement.GetProperty("namespace").GetString());
+        if (choice == "omit") Assert.False(body.RootElement.TryGetProperty("namespace", out _));
+        else Assert.Equal("tenant", body.RootElement.GetProperty("namespace").GetString());
         if (choice == "omit") Assert.False(body.RootElement.TryGetProperty("folderId", out _));
         else Assert.Equal(choice == "root" ? null : "folder-id", body.RootElement.GetProperty("folderId").GetString());
         Assert.Equal(choice == "omit" ? null : "human-environment", handler.Binding);

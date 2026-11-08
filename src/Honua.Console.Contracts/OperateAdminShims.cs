@@ -236,7 +236,8 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         return SendEnvelopeAsync<HonuaAdminPublishedLayerSummary>(
             () =>
             {
-                var message = JsonRequest(HttpMethod.Post, $"/api/v1/admin/connections/{Uri.EscapeDataString(connectionId)}/layers/", request);
+                var message = Request(HttpMethod.Post, $"/api/v1/admin/connections/{Uri.EscapeDataString(connectionId)}/layers/",
+                    JsonContent.Create(request, PublishingJsonContext.Default.PublishLayerRequest));
                 if (authorityBinding is not null) message.Options.Set(ConsoleAuthorityRequestOptions.Expected, authorityBinding);
                 return message;
             },
