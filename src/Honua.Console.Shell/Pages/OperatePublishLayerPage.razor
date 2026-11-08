@@ -7,6 +7,8 @@
 @inject IServiceLayerPublishOperation PublishOperation
 @inject NavigationManager Nav
 @inject IConsoleNotificationService Notifications
+@inject IServiceProvider Services
+@using Honua.Console.Contracts
 
 <section class="console-page" data-workspace-publish-form>
     <div class="console-page-heading">
@@ -109,7 +111,7 @@
             {
                 <article class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
                     <p class="console-kicker">@r.State</p>
-                    <h2>@(r.Succeeded ? "Layer published" : "Layer not published")</h2>
+                    <h2>@(r.Succeeded ? "Layer published" : r.State == ConsoleWriteOutcome.UnverifiedState ? "Publication outcome unverified" : "Layer not published")</h2>
                     <p>@r.Detail</p>
                     @if (r.Succeeded)
                     {
@@ -144,7 +146,7 @@
             </section>
             <div class="console-action-row">
                 <button class="console-button console-button-secondary" type="button" disabled="@_busy" data-workspace-save>Save draft</button>
-                <button class="console-button" type="button" disabled="@_busy" data-workspace-publish @onclick="PublishAsync">
+                <button class="console-button" type="button" disabled="@(_busy || _requiresCatalogRead)" data-workspace-publish @onclick="PublishAsync">
                     @(_busy ? "Publishing…" : "Publish layer")
                 </button>
                 <a href="/operate/services">View services</a>
@@ -152,6 +154,11 @@
         </article>
     }
 </section>
+
+@if (_requiresCatalogRead)
+{
+    <PublishOutcomeVerification AuthorityBinding="@_unverifiedAuthority" OnVerified="@(() => { _requiresCatalogRead = false; _result = null; })" />
+}
 
 @code {
     private IReadOnlyList<OperateConnectionSummary> _connections = Array.Empty<OperateConnectionSummary>();
@@ -170,6 +177,8 @@
     private bool _loadingTables;
     private bool _interactive;
     private bool _busy;
+    private bool _requiresCatalogRead;
+    private string? _unverifiedAuthority;
     private string? _clientError;
     private ServiceLayerPublishResult? _result;
 
@@ -235,11 +244,19 @@
         _result = null;
     }
 
-    private Task PublishAsync()
+    private async Task PublishAsync()
     {
+        if (_requiresCatalogRead) return;
         _clientError = Validate();
-        if (_clientError is not null) return Task.CompletedTask;
+        if (_clientError is not null) return;
 
+        var authority = Services.GetService<IConsoleAuthorityBindingValidator>();
+        var binding = authority is null ? null : await authority.CaptureAsync();
+        if (_folderId.IsSpecified && (_folderAuthority is null || binding != _folderAuthority))
+        {
+            _clientError = "Your user or environment changed. Refresh Folders and review the original publishing target.";
+            return;
+        }
         var table = _selectedTable!;
         var command = new ServiceLayerPublishCommand
         {
@@ -250,7 +267,7 @@
             ServiceName = _serviceName.Trim(),
             FolderId = _folderId,
             PublicName = string.IsNullOrWhiteSpace(_publicName) ? null : _publicName.Trim(),
-            AuthorityBinding = _folderId.IsSpecified ? _folderAuthority : null,
+            AuthorityBinding = binding,
             GeometryColumn = table.GeometryColumn,
             GeometryType = RequiresGeometryChoice(table) ? _geometryTypeOverride : table.GeometryType,
             Srid = table.Srid,
@@ -259,8 +276,13 @@
         };
 
         _result = null;
-        return Notifications.RunGuardedAsync(
-            async () => { _result = await PublishOperation.PublishAsync(command); },
+        await Notifications.RunGuardedAsync(
+            async () =>
+            {
+                _result = await PublishOperation.PublishAsync(command);
+                _requiresCatalogRead = _result.State == ConsoleWriteOutcome.UnverifiedState;
+                _unverifiedAuthority = command.AuthorityBinding;
+            },
             setBusy: busy => { _busy = busy; StateHasChanged(); },
             failureMessage: "Couldn't publish layer");
     }

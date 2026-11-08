@@ -4,6 +4,7 @@ using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Honua.Sdk.Admin.Models;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -403,6 +404,44 @@ public sealed class ConsolePublicationNavigationRenderTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FolderReadAndMutationSignalRefreshTheExistingNavigation(bool denied)
+    {
+        using var context = Context();
+        var source = new NavigationSource();
+        var folders = new FolderClient { Denied = denied };
+        var changes = new ConsoleFolderChanges();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        context.Services.AddSingleton<IConsoleFolderClient>(folders);
+        context.Services.AddSingleton(changes);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        if (denied) tree.WaitForAssertion(() => Assert.Contains("Folder read refused", tree.Markup));
+        else tree.WaitForAssertion(() => Assert.Contains("Empty survey", tree.Markup));
+        Assert.Equal(1, folders.Reads);
+        await tree.InvokeAsync(changes.Notify);
+        tree.WaitForAssertion(() => Assert.Equal(2, folders.Reads));
+        Assert.Equal(2, source.ServiceReads);
+    }
+
+    private sealed class FolderClient : IConsoleFolderClient
+    {
+        public bool Denied { get; init; }
+        public int Reads { get; private set; }
+        public Task<OperateSectionResult<ConsoleFolderCatalog>> ReadAsync(CancellationToken cancellationToken = default)
+        {
+            Reads++;
+            return Task.FromResult(Denied
+                ? OperateSectionResult<ConsoleFolderCatalog>.Denied(OperateSectionStatus.Forbidden, "Folder read refused")
+                : OperateSectionResult<ConsoleFolderCatalog>.Allowed(new([new Folder { Metadata = new() { Id = "empty", Name = "Empty survey" } }], "etag", "authority")));
+        }
+        public Task<ConsoleFolderMutationResult> CreateAsync(ConsoleFolderCatalog catalog, CreateFolderRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ConsoleFolderMutationResult> UpdateAsync(ConsoleFolderCatalog catalog, string folderId, UpdateFolderRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ConsoleFolderMutationResult> DeleteAsync(ConsoleFolderCatalog catalog, string folderId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ConsoleFolderMutationResult> MoveAsync(ConsoleFolderCatalog catalog, string serviceName, MoveServiceRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
     private static BunitContext Context()
     {
         var context = new BunitContext();
@@ -412,7 +451,7 @@ public sealed class ConsolePublicationNavigationRenderTests
 
     private sealed class NavigationSource : IConsolePublicationNavigationSource
     {
-        public IReadOnlyList<HonuaAdminServiceSummary>? ServiceSummaries { get; init; }
+        public IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary>? ServiceSummaries { get; init; }
         public OperateSectionResult<HonuaAdminServicePage>? FailNext { get; set; }
         public int HoldCount { get; set; }
         public int ServiceReads { get; private set; }
@@ -447,7 +486,7 @@ public sealed class ConsolePublicationNavigationRenderTests
             }
 
             var services = ServiceSummaries?.ToArray() ?? Enumerable.Range(0, 500)
-                .Select(index => new HonuaAdminServiceSummary { ServiceName = $"service-{index:D3}", LayerCount = 10 })
+                .Select(index => new Honua.Sdk.Admin.Models.ServiceSummary { ServiceName = $"service-{index:D3}", LayerCount = 10 })
                 .ToArray();
             if (!string.IsNullOrWhiteSpace(query.NameQuery))
             {

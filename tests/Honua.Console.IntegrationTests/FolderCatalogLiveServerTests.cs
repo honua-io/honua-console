@@ -24,7 +24,7 @@ public sealed class FolderCatalogLiveServerTests(ServiceLayerPublishFixture fixt
         context.Services.AddSingleton<IConsoleFolderClient>(client);
         var panel = context.Render<FolderManagement>();
         panel.WaitForAssertion(() => Assert.Contains("Root", panel.Markup));
-        Assert.Equal(read.Value.Folders.Count + 1, panel.FindAll("[data-folder-select] option").Count);
+        Assert.Equal(read.Value.ActiveFolders.Count() + 1, panel.FindAll("[data-folder-select] option").Count);
 
         using var anonymousHttp = fixture.CreateHttpClient();
         using var anonymous = new ServerConsoleFolderClient(anonymousHttp, new FixtureAuthority());

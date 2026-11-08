@@ -1,4 +1,5 @@
 using Bunit;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
@@ -242,6 +243,40 @@ public sealed class PublishWizardWorkspaceRenderTests
         }
     }
 
+    [Theory]
+    [InlineData("unchanged")]
+    [InlineData("after-publish")]
+    [InlineData("after-read")]
+    public async Task PublishWithOmittedFolderPinsItsAuthorityAndNeverShowsAnotherEnvironmentsUrl(string changeAt)
+    {
+        var authority = new PublishingAuthority();
+        var data = StubOperateData.WithFixtures().WithServiceUrl("https://selected-environment.example/FeatureServer");
+        var publish = new RecordingPublishOperation();
+        if (changeAt == "after-publish") publish.OnPublish = () => authority.Current = false;
+        using var ctx = NewContext(data, publish);
+        ctx.Services.AddSingleton<IConsoleAuthorityBindingValidator>(authority);
+        var cut = ctx.Render<PublishWizardWorkspace>();
+        await SelectServiceAndAdvanceAsync(cut);
+        cut.Find("[data-connection-picker]").Change("conn-a");
+        cut.Find("[data-table-picker]").Change("hydro.streams");
+        await ContinueAsync(cut);
+        if (changeAt == "after-read") data.OnServicesRead = () => authority.Current = false;
+        await FinishAsync(cut);
+        var command = Assert.Single(publish.Commands);
+        Assert.False(command.FolderId.IsSpecified);
+        Assert.Equal("reviewed-environment", command.AuthorityBinding);
+        var preview = cut.Find("[data-url-preview]").TextContent;
+        if (changeAt == "unchanged") Assert.Contains("https://selected-environment.example/FeatureServer", preview);
+        else Assert.DoesNotContain("https://selected-environment.example", preview);
+    }
+
+    private sealed class PublishingAuthority : IConsoleAuthorityBindingValidator
+    {
+        public bool Current { get; set; } = true;
+        public Task<string?> CaptureAsync(CancellationToken cancellationToken = default) => Task.FromResult<string?>("reviewed-environment");
+        public Task<bool> IsCurrentAsync(string binding, CancellationToken cancellationToken = default) => Task.FromResult(Current && binding == "reviewed-environment");
+    }
+
     private static async Task SelectServiceAndAdvanceAsync(IRenderedComponent<PublishWizardWorkspace> cut)
     {
         cut.FindAll("[data-publish-tree-row]")[0].Click();
@@ -263,6 +298,19 @@ public sealed class PublishWizardWorkspaceRenderTests
     private sealed class StubOperateData : IOperateTransitionDataSource
     {
         private readonly OperateTransitionWorkspace _workspace;
+        public Action? OnServicesRead { get; set; }
+        public StubOperateData WithServiceUrl(string url) => new(_workspace with
+        {
+            Services = _workspace.Services.Select(service => service with
+            {
+                PublicationSlots = [new("FeatureServer", url, "Exposed")]
+            }).ToArray()
+        });
+        public Task<OperateServicesView> GetServicesViewAsync(CancellationToken cancellationToken = default)
+        {
+            OnServicesRead?.Invoke();
+            return Task.FromResult(new OperateServicesView(_workspace.Services, _workspace.CapabilityStates));
+        }
 
         private StubOperateData(OperateTransitionWorkspace workspace) => _workspace = workspace;
 
@@ -319,6 +367,7 @@ public sealed class PublishWizardWorkspaceRenderTests
     private sealed class RecordingPublishOperation(ServiceLayerPublishResult? result = null) : IServiceLayerPublishOperation
     {
         public List<ServiceLayerPublishCommand> Commands { get; } = [];
+        public Action? OnPublish { get; set; }
 
         public string? LastListedConnectionId { get; private set; }
 
@@ -327,6 +376,7 @@ public sealed class PublishWizardWorkspaceRenderTests
             CancellationToken cancellationToken = default)
         {
             Commands.Add(command);
+            OnPublish?.Invoke();
             return Task.FromResult(result ?? new ServiceLayerPublishResult
             {
                 Succeeded = true,

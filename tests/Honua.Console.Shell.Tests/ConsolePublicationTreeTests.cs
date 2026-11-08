@@ -16,15 +16,36 @@ public sealed class ConsolePublicationTreeTests
         Assert.Equal(1, tree.ServiceCount);
         var folder = Assert.Single(tree.Root.Children, node => node.Kind == ConsolePublicationNodeKind.Folder);
         Assert.Equal("folder:empty-folder", folder.Key);
-        Assert.Equal("Transport data", folder.Label);
+        Assert.Equal("Transport data (Transport)", folder.Label);
         Assert.Empty(folder.Children);
-        Assert.Equal(0, folder.ChildCount);
+        Assert.Null(folder.ChildCount);
         Assert.Contains(tree.Root.Children, node => node.ServiceName == "roads");
         tree.SetFilter("transport");
         Assert.Equal(folder, Assert.Single(tree.VisibleChildren(tree.Root)));
         tree.Append(Page([new() { ServiceName = "moved", FolderId = "empty-folder", FolderName = "Transport" }]));
         Assert.Equal("moved", Assert.Single(folder.Children).ServiceName);
-        Assert.Equal("Transport data", folder.Label);
+        Assert.Equal("Transport data (Transport)", folder.Label);
+    }
+
+    [Fact]
+    public void FolderIdResolvesThroughTheCatalogWhenTheServiceProjectionHasNoFolderName()
+    {
+        var tree = new ConsolePublicationTree();
+        tree.Load(Page([new() { ServiceName = "logical", FolderId = "folder" }]), "Environment",
+            [new() { Metadata = new() { Id = "folder", Name = "Survey" } }]);
+        var folder = Assert.Single(tree.Root.Children);
+        Assert.Equal(ConsolePublicationNodeKind.Folder, folder.Kind);
+        Assert.Equal("logical", Assert.Single(folder.Children).ServiceName);
+    }
+
+    [Fact]
+    public void CatalogFoldersNeverClaimZeroWhenTheirServicesMayBeHiddenOrOnAnotherPage()
+    {
+        var tree = new ConsolePublicationTree();
+        tree.Load(new() { Total = 100, Items = [] }, "Environment",
+            [new() { Metadata = new() { Id = "folder", Name = "Survey" } }]);
+        Assert.True(tree.HasUnloadedServices);
+        Assert.Null(Assert.Single(tree.Root.Children).ChildCount);
     }
 
     [Fact]
@@ -83,7 +104,7 @@ public sealed class ConsolePublicationTreeTests
     {
         using var stream = typeof(ConsolePublicationTreeTests).Assembly.GetManifestResourceStream(
             "Honua.Console.Shell.Tests.Fixtures.service-navigation-folders.json")!;
-        var summaries = JsonSerializer.Deserialize<HonuaAdminServiceSummary[]>(stream, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        var summaries = JsonSerializer.Deserialize<Honua.Sdk.Admin.Models.ServiceSummary[]>(stream, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
         var tree = new ConsolePublicationTree();
         tree.Load(Page(summaries), "Synthetic environment");
         var folders = tree.Root.Children.Where(node => node.Kind == ConsolePublicationNodeKind.Folder).ToArray();
@@ -147,7 +168,7 @@ public sealed class ConsolePublicationTreeTests
     private static ConsolePublicationTree CreateLargeTree(int layerCount)
     {
         var tree = new ConsolePublicationTree();
-        tree.Load(Page(Enumerable.Range(0, 500).Select(index => new HonuaAdminServiceSummary
+        tree.Load(Page(Enumerable.Range(0, 500).Select(index => new Honua.Sdk.Admin.Models.ServiceSummary
         {
             ServiceName = $"service-{index:D3}",
             LayerCount = layerCount
@@ -155,7 +176,7 @@ public sealed class ConsolePublicationTreeTests
         return tree;
     }
 
-    private static HonuaAdminServicePage Page(IReadOnlyList<HonuaAdminServiceSummary> services) => new()
+    private static HonuaAdminServicePage Page(IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> services) => new()
     {
         Items = services.ToArray(),
         Page = 1,

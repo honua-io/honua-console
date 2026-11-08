@@ -6,7 +6,6 @@ public sealed record ServiceLayerPublishCommand
 {
     public OptionalString FolderId { get; init; }
     public string? PublicName { get; init; }
-    public string? Namespace { get; init; }
     public string? AuthorityBinding { get; init; }
     public required string ConnectionId { get; init; }
 

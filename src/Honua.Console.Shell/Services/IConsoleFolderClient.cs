@@ -3,7 +3,14 @@ using Honua.Sdk.Admin.Models;
 
 namespace Honua.Console.Shell.Services;
 
-public sealed record ConsoleFolderCatalog(IReadOnlyList<Folder> Folders, string? ETag, string AuthorityBinding);
+public sealed record ConsoleFolderCatalog(IReadOnlyList<Folder> Folders, string? ETag, string AuthorityBinding)
+{
+    public IEnumerable<Folder> ActiveFolders => Active(Folders);
+    public static IEnumerable<Folder> Active(IEnumerable<Folder>? folders) =>
+        (folders ?? []).Where(folder => !folder.Deleted && !string.IsNullOrWhiteSpace(folder.Metadata.Id));
+    public static string Label(Folder folder) => string.IsNullOrWhiteSpace(folder.Metadata.Title)
+        ? folder.Metadata.Name : $"{folder.Metadata.Title} ({folder.Metadata.Name})";
+}
 
 public sealed record ConsoleFolderMutationResult : ConsoleOperationResult<ConsoleFolderMutationResult>;
 

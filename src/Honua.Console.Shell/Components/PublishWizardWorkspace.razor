@@ -62,6 +62,11 @@ else
                    OnFinish="OnFinish" />
 }
 
+@if (_requiresCatalogRead)
+{
+    <PublishOutcomeVerification AuthorityBinding="@_unverifiedAuthority" OnVerified="@(() => { _requiresCatalogRead = false; _publishResult = null; })" />
+}
+
 @code {
     private PublishModeBar.PublishMode _mode = PublishModeBar.PublishMode.Quick;
 
@@ -88,6 +93,8 @@ else
 
     private bool _published;
     private bool _publishing;
+    private bool _requiresCatalogRead;
+    private string? _unverifiedAuthority;
     private ServiceLayerPublishResult? _publishResult;
     private string? _publishedServiceUrl;
 
@@ -190,6 +197,15 @@ else
             return;
         }
 
+        if (_requiresCatalogRead) return;
+        var authority = Services.GetService<Honua.Console.Contracts.IConsoleAuthorityBindingValidator>();
+        var binding = authority is null ? null : await authority.CaptureAsync();
+        var folderSelection = _createNewService ? _folderId : default;
+        if (folderSelection.IsSpecified && (_folderAuthority is null || binding != _folderAuthority))
+        {
+            _publishResult = new() { State = "Target changed", Detail = "Your user or environment changed. Refresh Folders and review the original publishing target." };
+            return;
+        }
         var command = new ServiceLayerPublishCommand
         {
             ConnectionId = _connectionId,
@@ -197,9 +213,9 @@ else
             Table = table.Table,
             LayerName = string.IsNullOrWhiteSpace(_layerName) ? table.Table : _layerName.Trim(),
             ServiceName = EffectiveServiceName,
-            FolderId = _createNewService ? _folderId : default,
+            FolderId = folderSelection,
             PublicName = _createNewService && !string.IsNullOrWhiteSpace(_publicName) ? _publicName.Trim() : null,
-            AuthorityBinding = _createNewService && _folderId.IsSpecified ? _folderAuthority : null,
+            AuthorityBinding = binding,
             GeometryColumn = table.GeometryColumn,
             GeometryType = table.GeometryType,
             Srid = table.Srid,
@@ -209,17 +225,20 @@ else
 
         _publishResult = await PublishOperation.PublishAsync(command);
         _published = _publishResult.Succeeded;
+        _requiresCatalogRead = _publishResult.State == Honua.Console.Contracts.ConsoleWriteOutcome.UnverifiedState;
+        _unverifiedAuthority = command.AuthorityBinding;
 
         if (_publishResult.Succeeded)
         {
             _publishedServiceUrl = null;
             Services.GetService<ConsoleFolderChanges>()?.Notify();
-            var currentServices = await ConsoleReadBudget.RunAsync(async token =>
+            var currentServices = binding is not null && authority is not null && await authority.IsCurrentAsync(binding)
+                ? await ConsoleReadBudget.RunAsync(async token =>
                 OperateSectionResult<OperateServicesView>.Allowed(await OperateData.GetServicesViewAsync(token)),
-                ConsoleReadBudget.Default, "Service endpoints could not be refreshed.");
-            var authority = Services.GetService<Honua.Console.Contracts.IConsoleAuthorityBindingValidator>();
-            if (!_folderId.IsSpecified || authority is not null && _folderAuthority is { } binding && await authority.IsCurrentAsync(binding))
-                _publishedServiceUrl = currentServices.Value?.Services
+                ConsoleReadBudget.Default, "Service endpoints could not be refreshed.")
+                : null;
+            if (binding is not null && authority is not null && await authority.IsCurrentAsync(binding))
+                _publishedServiceUrl = currentServices?.Value?.Services
                     .SingleOrDefault(service => service.Name == _publishResult.ServiceName)?.PublicationSlots
                     .FirstOrDefault(slot => slot.Name == "FeatureServer")?.Url;
             Notifications.Success(
@@ -252,7 +271,7 @@ else
             QuickLayerBody,
             IsValid: SelectedTable is not null,
             ContinueLabel: "Continue · Review →"),
-        new PublishWizardStep("Review", QuickReviewBody, IsValid: !_publishing && SelectedTable is not null),
+        new PublishWizardStep("Review", QuickReviewBody, IsValid: !_publishing && !_requiresCatalogRead && SelectedTable is not null),
     ];
 
     private RenderFragment QuickServiceBody => __builder =>

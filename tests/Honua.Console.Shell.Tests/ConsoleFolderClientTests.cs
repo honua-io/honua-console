@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using Honua.Sdk.Admin.Exceptions;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Services;
 using Honua.Sdk.Admin.Models;
@@ -56,6 +58,7 @@ public sealed class ConsoleFolderClientTests
         using var client = new ServerConsoleFolderClient(http, new Authority { Current = false });
         var result = await MutateAsync(client, new([], "\"reviewed\"", "old-human-environment"), operation);
         Assert.False(result.Succeeded);
+        Assert.Equal("Target changed", result.State);
         Assert.Contains("changed", result.Detail);
         Assert.Empty(handler.Calls);
     }
@@ -94,6 +97,69 @@ public sealed class ConsoleFolderClientTests
         Assert.Single(handler.Calls);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData(409)]
+    public async Task ChangedAuthorityAfterSendDoesNotClaimASafeRetry(int? status)
+    {
+        var authority = new Authority();
+        using var handler = new FolderHandler { Failure = status, OnSend = () => authority.Current = false };
+        using var http = new HttpClient(handler) { BaseAddress = new("https://fixture.invalid/") };
+        using var client = new ServerConsoleFolderClient(http, authority);
+        var result = await client.DeleteAsync(new([], "\"reviewed\"", "human-environment"), "folder");
+        Assert.False(result.Succeeded);
+        Assert.Equal("Outcome unverified", result.State);
+        Assert.Contains("original environment", result.Detail);
+        Assert.Single(handler.Calls);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task UnconfirmedWriteFailuresNeverClaimNothingWasSaved(int failure)
+    {
+        Exception exception = failure switch
+        {
+            0 => new HttpRequestException("response lost"),
+            1 => new OperationCanceledException(),
+            2 => new JsonException("response unreadable"),
+            _ => new HonuaAdminOperationException("response absent")
+        };
+        using var handler = new FolderHandler { Exception = exception };
+        using var http = new HttpClient(handler) { BaseAddress = new("https://fixture.invalid/") };
+        using var client = new ServerConsoleFolderClient(http, new Authority());
+        var result = await client.DeleteAsync(new([], "\"reviewed\"", "human-environment"), "folder");
+        Assert.Equal("Outcome unverified", result.State);
+        Assert.Single(handler.Calls);
+    }
+
+    [Fact]
+    public async Task UnreachableFolderReadShowsAnUnavailableState()
+    {
+        using var handler = new FolderHandler { Exception = new HttpRequestException("unreachable") };
+        using var http = new HttpClient(handler) { BaseAddress = new("https://fixture.invalid/") };
+        using var client = new ServerConsoleFolderClient(http, new Authority());
+        var read = await client.ReadAsync();
+        Assert.Equal(OperateSectionStatus.Unavailable, read.Status);
+        Assert.Null(read.Value);
+    }
+
+    [Fact]
+    public async Task FolderValidationKeepsTheTitleAndFieldReason()
+    {
+        using var handler = new FolderHandler { Failure = 400, ErrorBody = """
+            {"title":"Invalid Folder","status":400,"errors":[{"code":"segment","path":"name","message":"A Folder path must be one segment."}]}
+            """ };
+        using var http = new HttpClient(handler) { BaseAddress = new("https://fixture.invalid/") };
+        using var client = new ServerConsoleFolderClient(http, new Authority());
+        var result = await client.CreateAsync(new([], "\"reviewed\"", "human-environment"), new() { Name = "bad/path" });
+        Assert.Contains("Invalid Folder", result.Detail);
+        Assert.Contains("one segment", result.Detail);
+        Assert.Single(handler.Calls);
+    }
+
     private static Task<ConsoleFolderMutationResult> MutateAsync(ServerConsoleFolderClient client, ConsoleFolderCatalog catalog, string operation) => operation switch
     {
         "create" => client.CreateAsync(catalog, new() { Name = "Transport" }),
@@ -117,6 +183,8 @@ public sealed class ConsoleFolderClientTests
         public List<Call> Calls { get; } = [];
         public int? Failure { get; init; }
         public Action? OnSend { get; init; }
+        public Exception? Exception { get; init; }
+        public string? ErrorBody { get; init; }
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Calls.Add(new(request.Method.Method, request.RequestUri!.AbsolutePath,
@@ -124,9 +192,10 @@ public sealed class ConsoleFolderClientTests
                 request.Headers.TryGetValues("If-Match", out var match) ? match.Single() : null,
                 request.Options.TryGetValue(ConsoleAuthorityRequestOptions.Expected, out var binding) ? binding : null));
             OnSend?.Invoke();
+            if (Exception is not null) throw Exception;
             if (Failure is { } failure) return new((HttpStatusCode)failure)
             {
-                Content = JsonContent.Create(new { type = "urn:honua:conflict", status = failure, detail = "The Folder still contains a Service. Move it before deleting." })
+                Content = ErrorBody is { } body ? new StringContent(body, System.Text.Encoding.UTF8, "application/problem+json") : JsonContent.Create(new { type = "urn:honua:conflict", status = failure, detail = "The Folder still contains a Service. Move it before deleting." })
             };
             var folder = new Folder { Metadata = new() { Id = "folder id", Name = "Transport" } };
             var response = new HttpResponseMessage(request.Method == HttpMethod.Get || request.Method == HttpMethod.Post || request.Method == HttpMethod.Patch ? HttpStatusCode.OK : HttpStatusCode.NoContent);

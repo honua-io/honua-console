@@ -1,0 +1,40 @@
+@using Honua.Console.Contracts
+@inject IServiceProvider Services
+@inject IOperateTransitionDataSource OperateData
+
+<article class="console-panel console-state-warning" role="status" data-publish-verification>
+    <p>@ConsoleWriteOutcome.UnverifiedDetail</p>
+    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="VerifyAsync" data-publish-verify>Read original catalog</button>
+    @if (_reason is not null) { <p>@_reason</p> }
+</article>
+
+@code {
+    [Parameter] public string? AuthorityBinding { get; set; }
+    [Parameter] public EventCallback OnVerified { get; set; }
+    private bool _busy;
+    private string? _reason;
+    private async Task VerifyAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            var authority = Services.GetService<IConsoleAuthorityBindingValidator>();
+            if (AuthorityBinding is not { } binding || authority is null || !await authority.IsCurrentAsync(binding))
+            {
+                _reason = "Return to the original user and environment before reading its catalog.";
+                return;
+            }
+            var read = await ConsoleReadBudget.RunAsync(async token =>
+                OperateSectionResult<OperateServicesView>.Allowed(await OperateData.GetServicesViewAsync(token)),
+                ConsoleReadBudget.Default, "The original catalog could not be read.");
+            if (!read.IsAllowed || !await authority.IsCurrentAsync(binding))
+            {
+                _reason = read.Message ?? "The environment changed while reading. Return to the original target.";
+                return;
+            }
+            await OnVerified.InvokeAsync();
+        }
+        finally { _busy = false; }
+    }
+}

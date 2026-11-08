@@ -115,8 +115,10 @@ public sealed class FolderManagementTests
         using var context = new BunitContext();
         context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
         OptionalString selected = default;
+        var bindings = new List<string?>();
         var picker = context.Render<FolderPublishSelection>(parameters => parameters
-            .Add(component => component.ValueChanged, value => selected = value));
+            .Add(component => component.ValueChanged, value => selected = value)
+            .Add(component => component.AuthorityBindingChanged, binding => bindings.Add(binding)));
         Assert.False(selected.IsSpecified);
         picker.Find("[data-publish-folder]").Change("root:");
         Assert.True(selected.IsSpecified);
@@ -125,10 +127,45 @@ public sealed class FolderManagementTests
         Assert.Equal("transport", selected.Value);
         picker.Find("[data-publish-folder]").Change("preserve:");
         Assert.False(selected.IsSpecified);
+        Assert.Equal(new string?[] { "authority", "authority", null }, bindings);
+    }
+
+    [Fact]
+    public void PublishingPickerDoesNotOfferRetiredFoldersOrBlankLabels()
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient
+        {
+            Folders = [new() { Metadata = new() { Id = "active", Name = "Survey", Title = " " } },
+                new() { Metadata = new() { Id = "retired", Name = "Retired" }, Deleted = true }]
+        });
+        var picker = context.Render<FolderPublishSelection>();
+        Assert.Empty(picker.FindAll("option[value=\"folder:retired\"]"));
+        Assert.Equal("Survey", picker.Find("option[value=\"folder:active\"]").TextContent);
+    }
+
+    [Fact]
+    public async Task NavigatingDuringAMoveRetainsTheOriginalServicesOutcomeAsANotification()
+    {
+        using var context = new BunitContext();
+        var pending = new TaskCompletionSource<ConsoleFolderMutationResult>();
+        var client = new FolderClient { Pending = pending };
+        var notifications = new ConsoleNotificationService();
+        context.Services.AddSingleton<IConsoleFolderClient>(client);
+        context.Services.AddSingleton<IConsoleNotificationService>(notifications);
+        var panel = context.Render<FolderManagement>(parameters => parameters.Add(component => component.ServiceName, "original-service"));
+        var move = panel.Find("[data-service-move]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        await panel.RenderAsync(parameters => parameters.Add(component => component.ServiceName, "other-service"));
+        pending.SetResult(new() { State = "Outcome unverified", Detail = "Read the original catalog." });
+        await move;
+        panel.WaitForAssertion(() => Assert.Contains(notifications.Notifications,
+            item => item.Message.Contains("original-service") && item.Message.Contains("Outcome unverified")));
     }
 
     private sealed class FolderClient : IConsoleFolderClient
     {
+        public IReadOnlyList<Folder> Folders { get; init; } = [new() { Metadata = new() { Id = "transport", Name = "Transport", Title = "Transport data" } }];
+        public TaskCompletionSource<ConsoleFolderMutationResult>? Pending { get; init; }
         public string ETag { get; set; } = "\"catalog-1\"";
         public OperateSectionStatus? Denial { get; init; }
         public int Mutations { get; private set; }
@@ -141,7 +178,7 @@ public sealed class FolderManagementTests
 
         public Task<OperateSectionResult<ConsoleFolderCatalog>> ReadAsync(CancellationToken cancellationToken = default) => Task.FromResult(
             Denial is { } denied ? OperateSectionResult<ConsoleFolderCatalog>.Denied(denied, "Folder read refused")
-                : OperateSectionResult<ConsoleFolderCatalog>.Allowed(new([new Folder { Metadata = new() { Id = "transport", Name = "Transport", Title = "Transport data" } }], ETag, "authority")));
+                : OperateSectionResult<ConsoleFolderCatalog>.Allowed(new(Folders, ETag, "authority")));
         public Task<ConsoleFolderMutationResult> CreateAsync(ConsoleFolderCatalog catalog, CreateFolderRequest request, CancellationToken cancellationToken = default) => Record(catalog);
         public Task<ConsoleFolderMutationResult> UpdateAsync(ConsoleFolderCatalog catalog, string folderId, UpdateFolderRequest request, CancellationToken cancellationToken = default)
         {
@@ -163,7 +200,7 @@ public sealed class FolderManagementTests
         {
             Mutations++;
             MutatedCatalog = catalog;
-            return Task.FromResult(Result);
+            return Pending?.Task ?? Task.FromResult(Result);
         }
     }
 }

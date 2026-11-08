@@ -2,7 +2,7 @@
 @implements IDisposable
 @inject IServiceProvider Services
 
-<section class="console-section" id="folders" data-folder-management>
+<section class="console-section" id="folders" data-folder-management data-folder-completions="@_completedMutations">
     <div class="console-page-heading">
         <h2>@(ServiceName is null ? "Folders" : "Service Folder")</h2>
         <p>Folders organize public paths. Access remains managed per Service. Existing public paths remain aliases after a move or path rename.</p>
@@ -26,14 +26,14 @@
             <legend>@(ServiceName is null ? "Manage Folders" : "Choose destination")</legend>
             @if (ServiceName is null)
             {
-                <p>Root contains Services without a Folder. Empty Folders are listed below.</p>
+                <p>Root contains Services without a Folder. Folders are listed below; their Services may require separate access.</p>
                 <label class="console-field">
                     <span>Folder</span>
                     <select class="console-input" aria-label="Folder" @bind="_folderId" @bind:after="SelectFolder" data-folder-select>
                         <option value="">New Folder</option>
-                        @foreach (var folder in catalog.Folders.Where(folder => !folder.Deleted))
+                        @foreach (var folder in catalog.ActiveFolders)
                         {
-                            <option value="@folder.Metadata.Id">@FolderLabel(folder)</option>
+                            <option value="@folder.Metadata.Id">@ConsoleFolderCatalog.Label(folder)</option>
                         }
                     </select>
                 </label>
@@ -74,9 +74,9 @@
                     <span>Destination Folder</span>
                     <select class="console-input" aria-label="Destination Folder" @bind="_folderId" data-service-folder>
                         <option value="">Root</option>
-                        @foreach (var folder in catalog.Folders.Where(folder => !folder.Deleted))
+                        @foreach (var folder in catalog.ActiveFolders)
                         {
-                            <option value="@folder.Metadata.Id">@FolderLabel(folder)</option>
+                            <option value="@folder.Metadata.Id">@ConsoleFolderCatalog.Label(folder)</option>
                         }
                     </select>
                 </label>
@@ -90,7 +90,7 @@
     }
     @if (_result is { } result)
     {
-        <HonuaState Kind="@(result.Succeeded ? "success" : "denied")" Title="@result.State" Message="@result.Detail" HeadingLevel="3" />
+        <div data-folder-result data-state="@result.State"><HonuaState Kind="@(result.Succeeded ? "success" : "denied")" Title="@result.State" Message="@result.Detail" HeadingLevel="3" /></div>
         @if (!result.Succeeded)
         {
             <p role="status">Review the current catalog and refresh before making another change. Approval-required operations must use the separate human approval channel. <a href="/inbox">Open approvals</a></p>
@@ -114,8 +114,10 @@
     private bool _loading = true;
     private bool _busy;
     private bool _requiresRefresh;
+    private string? _unverifiedAuthority;
     private bool _initialized;
     private int _generation;
+    private int _completedMutations;
     private IConsoleFolderClient Client => Services.GetService<IConsoleFolderClient>() ?? new UnsupportedConsoleFolderClient();
     private Folder? SelectedFolder => _catalog?.Folders.SingleOrDefault(folder => folder.Metadata.Id == _folderId);
     private bool CanWrite => !_busy && !_loading && !_requiresRefresh && !string.IsNullOrWhiteSpace(_catalog?.ETag);
@@ -131,9 +133,6 @@
         _result = null;
         await RefreshAsync();
     }
-
-    private static string FolderLabel(Folder folder) => string.IsNullOrWhiteSpace(folder.Metadata.Title)
-        ? folder.Metadata.Name : $"{folder.Metadata.Title} ({folder.Metadata.Name})";
 
     private void SelectFolder()
     {
@@ -151,7 +150,8 @@
         if (_lifetime.IsCancellationRequested || generation != _generation) return;
         _read = read;
         _catalog = read.IsAllowed ? read.Value : null;
-        _requiresRefresh = false;
+        _requiresRefresh = _unverifiedAuthority is not null && _catalog?.AuthorityBinding != _unverifiedAuthority;
+        if (!_requiresRefresh) _unverifiedAuthority = null;
         _confirmDelete = false;
         _loading = false;
     }
@@ -184,13 +184,22 @@
     {
         if (!CanWrite || _catalog is not { } catalog) return;
         var generation = _generation;
+        var originalService = ServiceName;
         _busy = true;
         _requiresRefresh = true;
         try
         {
             var result = await execute(catalog);
-            if (_lifetime.IsCancellationRequested || generation != _generation) return;
+            if (_lifetime.IsCancellationRequested || generation != _generation)
+            {
+                Services.GetService<IConsoleNotificationService>()?.Warning(
+                    $"{originalService ?? "Folder catalog"}: {result.State}. {result.Detail}");
+                return;
+            }
+            _completedMutations++;
             _result = result;
+            if (result.State == Honua.Console.Contracts.ConsoleWriteOutcome.UnverifiedState)
+                _unverifiedAuthority = catalog.AuthorityBinding;
             if (!result.Succeeded) return;
             Services.GetService<ConsoleFolderChanges>()?.Notify();
             await OnSaved.InvokeAsync();

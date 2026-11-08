@@ -7,13 +7,13 @@
         <select class="console-input" aria-label="Publishing Folder" value="@Selection" @onchange="ChangedAsync" disabled="@_loading" data-publish-folder>
             <option value="preserve:">Preserve existing membership (new Services use Root)</option>
             <option value="root:" disabled="@(_read?.IsAllowed != true)">Root</option>
-            @if (Value.IsSpecified && Value.Value is not null && _read?.Value?.Folders.Any(folder => folder.Metadata.Id == Value.Value) != true)
+            @if (Value.IsSpecified && Value.Value is not null && _read?.Value?.ActiveFolders.Any(folder => folder.Metadata.Id == Value.Value) != true)
             {
                 <option value="@Selection" disabled>Selected Folder unavailable; refresh and review</option>
             }
-            @foreach (var folder in _read?.Value?.Folders ?? [])
+            @foreach (var folder in _read?.Value?.ActiveFolders ?? [])
             {
-                <option value="@("folder:" + folder.Metadata.Id)">@(folder.Metadata.Title ?? folder.Metadata.Name) (@folder.Metadata.Name)</option>
+                <option value="@("folder:" + folder.Metadata.Id)">@ConsoleFolderCatalog.Label(folder)</option>
             }
         </select>
     </label>
@@ -43,13 +43,13 @@
     private async Task ChangedAsync(ChangeEventArgs args)
     {
         var selection = args.Value?.ToString();
-        if (selection != "preserve:" && selection != "root:" && _read?.Value?.Folders.Any(item => "folder:" + item.Metadata.Id == selection) != true) return;
+        if (selection != "preserve:" && selection != "root:" && _read?.Value?.ActiveFolders.Any(item => "folder:" + item.Metadata.Id == selection) != true) return;
         if (selection == "root:" && _read?.IsAllowed != true) return;
         var value = selection switch
         {
             "preserve:" => default(OptionalString),
             "root:" when _read?.IsAllowed == true => new OptionalString(null),
-            { } folder when _read?.Value?.Folders.Any(item => "folder:" + item.Metadata.Id == folder) == true => new OptionalString(folder[7..]),
+            { } folder when _read?.Value?.ActiveFolders.Any(item => "folder:" + item.Metadata.Id == folder) == true => new OptionalString(folder[7..]),
             _ => Value
         };
         await AuthorityBindingChanged.InvokeAsync(value.IsSpecified ? _read?.Value?.AuthorityBinding : null);

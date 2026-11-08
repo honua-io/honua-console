@@ -14,12 +14,12 @@ public sealed class FolderPublishingTests
     [InlineData("omit")]
     [InlineData("root")]
     [InlineData("folder")]
-    public async Task PublishForwardsTypedFolderPresenceNamespaceAndPublicName(string choice)
+    public async Task PublishForwardsTypedFolderPresenceAndPublicName(string choice)
     {
         using var handler = new PublishHandler();
         using var http = new HttpClient(handler);
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid/prefix/")));
-        var operation = new HonuaServerServiceLayerPublishOperation(client);
+        var operation = new HonuaServerServiceLayerPublishOperation(client, new Authority());
         var result = await operation.PublishAsync(new()
         {
             ConnectionId = "connection",
@@ -28,7 +28,6 @@ public sealed class FolderPublishingTests
             LayerName = "Parcels",
             ServiceName = "logical service",
             PublicName = "Public-service",
-            Namespace = choice == "omit" ? null : "tenant",
             FolderId = choice == "omit" ? default : new(choice == "root" ? null : "folder-id"),
             AuthorityBinding = choice == "omit" ? null : "human-environment"
         });
@@ -36,8 +35,7 @@ public sealed class FolderPublishingTests
         using var body = JsonDocument.Parse(handler.Body!);
         Assert.Equal("logical service", body.RootElement.GetProperty("serviceName").GetString());
         Assert.Equal("Public-service", body.RootElement.GetProperty("publicName").GetString());
-        if (choice == "omit") Assert.False(body.RootElement.TryGetProperty("namespace", out _));
-        else Assert.Equal("tenant", body.RootElement.GetProperty("namespace").GetString());
+        Assert.False(body.RootElement.TryGetProperty("namespace", out _));
         if (choice == "omit") Assert.False(body.RootElement.TryGetProperty("folderId", out _));
         else Assert.Equal(choice == "root" ? null : "folder-id", body.RootElement.GetProperty("folderId").GetString());
         Assert.Equal(choice == "omit" ? null : "human-environment", handler.Binding);
@@ -74,13 +72,36 @@ public sealed class FolderPublishingTests
         Assert.Equal("/rest/services/legacy%2Flogical/FeatureServer", HonuaServedRoutes.PathFor("legacy/logical", "FeatureServer"));
     }
 
+    [Fact]
+    public async Task HostOnlyPostSendMarkerPreventsAFalsePublishFailure()
+    {
+        using var handler = new PublishHandler { Unverified = true };
+        using var http = new HttpClient(handler);
+        using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid/")));
+        var result = await new HonuaServerServiceLayerPublishOperation(client, new Authority()).PublishAsync(new()
+        {
+            ConnectionId = "connection", Schema = "public", Table = "parcels", LayerName = "Parcels", ServiceName = "logical",
+            AuthorityBinding = "human-environment"
+        });
+        Assert.False(result.Succeeded);
+        Assert.Equal(ConsoleWriteOutcome.UnverifiedState, result.State);
+        Assert.Contains("original environment", result.Detail);
+    }
+
+    private sealed class Authority : IConsoleAuthorityBindingValidator
+    {
+        public Task<bool> IsCurrentAsync(string binding, CancellationToken cancellationToken = default) => Task.FromResult(binding == "human-environment");
+    }
+
     private sealed class PublishHandler : HttpMessageHandler
     {
+        public bool Unverified { get; init; }
         public string? Body { get; private set; }
         public string? Binding { get; private set; }
         public string? Path { get; private set; }
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            if (Unverified) request.Options.Set(ConsoleWriteOutcome.Unverified, true);
             Path = request.RequestUri!.AbsolutePath;
             Body = await request.Content!.ReadAsStringAsync(cancellationToken);
             Binding = request.Options.TryGetValue(ConsoleAuthorityRequestOptions.Expected, out var binding) ? binding : null;

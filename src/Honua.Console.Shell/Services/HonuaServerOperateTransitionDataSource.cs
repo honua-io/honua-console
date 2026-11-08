@@ -177,7 +177,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         return (connections, states);
     }
 
-    private async Task<(HonuaAdminServiceSummary[] Summaries, List<OperateCapabilityState> States)>
+    private async Task<(Honua.Sdk.Admin.Models.ServiceSummary[] Summaries, List<OperateCapabilityState> States)>
         LoadServiceSummariesAsync(CancellationToken cancellationToken)
     {
         var states = new List<OperateCapabilityState>();
@@ -230,7 +230,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
 
     private async Task<(LayerRow[] Rows, List<OperateCapabilityState> States)> LoadLayerRowsAsync(
         IReadOnlyList<OperateConnectionSummary> connections,
-        IReadOnlyList<HonuaAdminServiceSummary> services,
+        IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> services,
         CancellationToken cancellationToken)
     {
         var states = new List<OperateCapabilityState>();
@@ -302,7 +302,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         return (rows.ToArray(), states);
     }
 
-    private static IReadOnlyList<string?> CreateLayerServiceScopes(IReadOnlyList<HonuaAdminServiceSummary> services)
+    private static IReadOnlyList<string?> CreateLayerServiceScopes(IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> services)
     {
         var serviceScopes = new List<string?> { null };
         var serviceNames = services
@@ -325,7 +325,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
 
     private async Task<(IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse> Settings, List<OperateCapabilityState> States)>
         LoadServiceSettingsAsync(
-            IReadOnlyList<HonuaAdminServiceSummary> services,
+            IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> services,
             CancellationToken cancellationToken)
     {
         var states = new List<OperateCapabilityState>();
@@ -399,7 +399,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             .ToArray();
 
     private IReadOnlyList<OperateServiceDetail> MapServices(
-        IReadOnlyList<HonuaAdminServiceSummary> summaries,
+        IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> summaries,
         IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse> serviceSettings,
         IReadOnlyList<LayerRow> layerRows)
     {
@@ -413,8 +413,8 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             .ToArray();
     }
 
-    private static IReadOnlyList<HonuaAdminServiceSummary> CombineServiceSummaries(
-        IReadOnlyList<HonuaAdminServiceSummary> summaries,
+    private static IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> CombineServiceSummaries(
+        IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> summaries,
         IReadOnlyList<LayerRow> layerRows)
     {
         var knownServiceNames = summaries
@@ -426,7 +426,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         var derivedServices = layerRows
             .GroupBy(row => Coalesce(row.Source.ServiceName, "default"), StringComparer.OrdinalIgnoreCase)
             .Where(group => !knownServiceNames.Contains(group.Key))
-            .Select(group => new HonuaAdminServiceSummary
+            .Select(group => new Honua.Sdk.Admin.Models.ServiceSummary
             {
                 ServiceName = group.Key,
                 LayerCount = group.Count(),
@@ -440,7 +440,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
     }
 
     private OperateServiceDetail MapService(
-        HonuaAdminServiceSummary service,
+        Honua.Sdk.Admin.Models.ServiceSummary service,
         IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse> serviceSettings,
         IReadOnlyList<LayerRow> layerRows)
     {
@@ -460,7 +460,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             .OrderBy(layer => layer.LayerId)
             .ToArray();
 
-        return new OperateServiceDetail(
+        var detail = new OperateServiceDetail(
             serviceName,
             Coalesce(service.Title, service.PublicName, service.Description, serviceName),
             protocols.Length == 0 ? "Geo service" : string.Join(", ", protocols),
@@ -468,16 +468,18 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             "Canonical metadata is owned by honua-server Metadata v2 resources. Service settings control runtime protocols, access policy, and exposure.",
             layers,
             MapRuntimeSettings(service, settings, protocols),
-            MapPublicationSlots(service.PublicName ?? serviceName, protocols, service.FolderId is null ? null : service.FolderName))
+            [])
         {
             FolderId = service.FolderId,
             FolderName = service.FolderName,
-            PublicName = service.PublicName
+            PublicName = service.PublicName,
+            FolderMutationIssues = service.FolderMutationIssues
         };
+        return detail with { PublicationSlots = MapPublicationSlots(detail.PublicServiceName, protocols, detail.FolderName) };
     }
 
     private IReadOnlyList<OperateRuntimeSetting> MapRuntimeSettings(
-        HonuaAdminServiceSummary service,
+        Honua.Sdk.Admin.Models.ServiceSummary service,
         HonuaAdminServiceSettingsResponse? settings,
         IReadOnlyList<string> protocols)
     {
@@ -522,7 +524,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
     }
 
     private IReadOnlyList<OperatePublicationSlot> MapPublicationSlots(
-        string serviceName,
+        string? serviceName,
         IReadOnlyList<string> protocols, string? folderName = null)
     {
         if (protocols.Count == 0)
@@ -706,7 +708,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             ["Overview", "Source", "Fields", "Validation"]);
     }
 
-    internal string? BuildProtocolUrl(string serviceName, string protocol, string? folderName = null) =>
+    internal string? BuildProtocolUrl(string? serviceName, string protocol, string? folderName = null) =>
         HonuaServedRoutes.PathFor(serviceName, protocol, folderName) is { } path ? _client.BaseUri.ToString().TrimEnd('/') + path : null;
 
     private static string FormatTarget(HonuaAdminConnectionSummary connection)

@@ -62,6 +62,8 @@ public sealed class ServerConsoleFolderClient(HttpClient http, IConsoleAuthority
         }
         catch (HonuaAdminApiException exception)
         {
+            if (!await authority.IsCurrentAsync(catalog.AuthorityBinding, CancellationToken.None))
+                return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail };
             return new() { State = MutationState(exception.StatusCode), Detail = Reason(exception) };
         }
         catch (Exception exception) when (exception is HttpRequestException or HonuaAdminOperationException or OperationCanceledException or JsonException)
@@ -72,7 +74,10 @@ public sealed class ServerConsoleFolderClient(HttpClient http, IConsoleAuthority
 
     private HttpClient BoundTransport(string binding) => new(new BoundSdkHandler(http, binding)) { BaseAddress = http.BaseAddress };
 
-    private static string Reason(HonuaAdminApiException exception) => exception.ProblemDetails?.Detail ?? exception.Message;
+    private static string Reason(HonuaAdminApiException exception) => string.Join(Environment.NewLine,
+        new[] { exception.ProblemDetails?.Detail ?? exception.ProblemDetails?.Title ?? exception.Message }
+            .Concat(exception.FailureReceipt?.FieldErrors.Select(error => error.Message) ?? [])
+            .Where(message => !string.IsNullOrWhiteSpace(message)).Distinct());
 
     private static OperateSectionStatus ReadStatus(HttpStatusCode status) => status switch
     {
@@ -103,7 +108,13 @@ public sealed class ServerConsoleFolderClient(HttpClient http, IConsoleAuthority
             using var forwarded = new HttpRequestMessage(request.Method, request.RequestUri) { Content = request.Content };
             foreach (var header in request.Headers) forwarded.Headers.TryAddWithoutValidation(header.Key, header.Value);
             forwarded.Options.Set(ConsoleAuthorityRequestOptions.Expected, binding);
-            return await target.SendAsync(forwarded, cancellationToken);
+            var response = await target.SendAsync(forwarded, cancellationToken);
+            if (ConsoleWriteOutcome.IsUnverified(forwarded))
+            {
+                response.Dispose();
+                throw new HttpRequestException(ConsoleWriteOutcome.UnverifiedDetail);
+            }
+            return response;
         }
     }
 }

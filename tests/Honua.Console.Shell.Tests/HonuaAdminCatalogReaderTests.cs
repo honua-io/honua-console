@@ -176,8 +176,8 @@ public sealed class HonuaAdminCatalogReaderTests
     {
         var services = new[]
         {
-            new HonuaAdminServiceSummary { ServiceName = "roads", LayerCount = firstCount },
-            new HonuaAdminServiceSummary { ServiceName = "parcels", LayerCount = secondCount }
+            new Honua.Sdk.Admin.Models.ServiceSummary { ServiceName = "roads", LayerCount = firstCount },
+            new Honua.Sdk.Admin.Models.ServiceSummary { ServiceName = "parcels", LayerCount = secondCount }
         };
         var body = JsonSerializer.Serialize(new { success = true, data = services });
         using var client = Client(_ => body);
@@ -214,7 +214,7 @@ public sealed class HonuaAdminCatalogReaderTests
         var options = new JsonSerializerOptions(defaults) { NumberHandling = JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString };
         var page = new HonuaAdminServicePage
         {
-            Items = [new HonuaAdminServiceSummary { ServiceName = "roads", LayerCount = 2 }],
+            Items = [new Honua.Sdk.Admin.Models.ServiceSummary { ServiceName = "roads", LayerCount = 2 }],
             Page = 1,
             PageSize = 100,
             Total = 1,
@@ -250,7 +250,7 @@ public sealed class HonuaAdminCatalogReaderTests
         return "[" + string.Join(',', names) + "]";
     }
 
-    private static async Task<HonuaAdminEndpointResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadAllServices(
+    private static async Task<HonuaAdminEndpointResult<IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary>>> ReadAllServices(
         HonuaAdminOperateHttpClient client) =>
         await HonuaAdminCatalogReader.ReadAllAsync(
             client.ListServicesAsync,

@@ -16,7 +16,7 @@ public sealed record PublicationTreeNode(
     string ProtocolId,
     string ProtocolLabel,
     bool IsLive,
-    string Route);
+    string? Route);
 
 public static class ResourcePublicationsTreeBuilder
 {
@@ -28,7 +28,7 @@ public static class ResourcePublicationsTreeBuilder
         ArgumentNullException.ThrowIfNull(services);
 
         // Map each canonical resource id → the (serviceType, serviceName) pairs that publish it.
-        var publicationsByResource = new Dictionary<string, List<(string ServiceType, string ServiceName, string? FolderName)>>(StringComparer.Ordinal);
+        var publicationsByResource = new Dictionary<string, List<(string ServiceType, string? ServiceName, string? FolderName)>>(StringComparer.Ordinal);
         foreach (var service in services)
         {
             foreach (var layer in service.Layers)
@@ -44,7 +44,7 @@ public static class ResourcePublicationsTreeBuilder
                     publicationsByResource[layer.CanonicalResourceId] = list;
                 }
 
-                list.Add((service.ServiceType, service.PublicName ?? service.Name, service.FolderId is null ? null : service.FolderName));
+                list.Add((service.ServiceType, service.PublicServiceName, service.FolderName));
             }
         }
 
@@ -67,7 +67,7 @@ public static class ResourcePublicationsTreeBuilder
     }
 
     private static IReadOnlyList<PublicationTreeNode> BuildPublicationNodes(
-        List<(string ServiceType, string ServiceName, string? FolderName)>? publications)
+        List<(string ServiceType, string? ServiceName, string? FolderName)>? publications)
     {
         if (publications is null || publications.Count == 0)
         {
@@ -93,7 +93,7 @@ public static class ResourcePublicationsTreeBuilder
                     descriptor.Id,
                     descriptor.Label,
                     IsLive: true,
-                    Route: HonuaServedRoutes.CatalogPathFor(PublishProtocolCatalog.ServiceNameFor(serviceName), descriptor.Id, folderName)));
+                    Route: HonuaServedRoutes.PathFor(serviceName is null ? null : PublishProtocolCatalog.ServiceNameFor(serviceName), descriptor.Id, folderName)));
             }
         }
 

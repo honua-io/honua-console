@@ -23,9 +23,10 @@ public sealed class ConsolePublicationNode
     public OperateSectionStatus? ReadStatus { get; set; }
     public int VisibleOffset { get; set; }
     public int VisibleLimit { get; set; } = ConsolePublicationTree.PageSize;
+    public bool ChildrenComplete { get; set; } = true;
     public int? ChildCount => Kind switch
     {
-        ConsolePublicationNodeKind.Folder => Children.Count,
+        ConsolePublicationNodeKind.Folder when ChildrenComplete && Children.Count > 0 => Children.Count,
         ConsolePublicationNodeKind.Service => ReportedCount,
         _ => null
     };
@@ -74,13 +75,12 @@ public sealed class ConsolePublicationTree
             ReportedCount = page.Total
         };
         var folders = new Dictionary<string, ConsolePublicationNode>(StringComparer.Ordinal);
-        foreach (var folder in catalogFolders ?? [])
+        foreach (var folder in ConsoleFolderCatalog.Active(catalogFolders))
         {
-            if (folder.Deleted || string.IsNullOrWhiteSpace(folder.Metadata.Id)) continue;
             var node = new ConsolePublicationNode
             {
                 Key = "folder:" + Uri.EscapeDataString(folder.Metadata.Id),
-                Label = string.IsNullOrWhiteSpace(folder.Metadata.Title) ? folder.Metadata.Name : folder.Metadata.Title,
+                Label = ConsoleFolderCatalog.Label(folder),
                 Kind = ConsolePublicationNodeKind.Folder,
                 ChildrenLoaded = true
             };
@@ -92,6 +92,8 @@ public sealed class ConsolePublicationTree
             var parent = GetOrAddServiceParent(service, folders);
             parent.Children.Add(ServiceNode(service));
         }
+        foreach (var folder in Root.Children.Where(node => node.Kind == ConsolePublicationNodeKind.Folder))
+            folder.ChildrenComplete = !HasUnloadedServices;
         Root.Children = Ordered(Root.Children);
     }
 
@@ -113,6 +115,8 @@ public sealed class ConsolePublicationTree
             InsertSorted(GetOrAddServiceParent(service, folders), ServiceNode(service));
         }
 
+        foreach (var folder in Root.Children.Where(node => node.Kind == ConsolePublicationNodeKind.Folder))
+            folder.ChildrenComplete = !HasUnloadedServices;
         Root.Children = Ordered(Root.Children);
     }
 
@@ -140,14 +144,14 @@ public sealed class ConsolePublicationTree
     private static List<ConsolePublicationNode> Ordered(List<ConsolePublicationNode> children) =>
         children.OrderBy(node => node.Kind).ThenBy(node => node.Label, StringComparer.OrdinalIgnoreCase).ToList();
 
-    private ConsolePublicationNode GetOrAddServiceParent(HonuaAdminServiceSummary service, Dictionary<string, ConsolePublicationNode> folders)
+    private ConsolePublicationNode GetOrAddServiceParent(Honua.Sdk.Admin.Models.ServiceSummary service, Dictionary<string, ConsolePublicationNode> folders)
     {
-        if (string.IsNullOrWhiteSpace(service.FolderId) || string.IsNullOrWhiteSpace(service.FolderName)) return Root;
+        if (string.IsNullOrWhiteSpace(service.FolderId)) return Root;
         if (folders.TryGetValue(service.FolderId, out var parent)) return parent;
         parent = new()
         {
             Key = "folder:" + Uri.EscapeDataString(service.FolderId),
-            Label = service.FolderName,
+            Label = string.IsNullOrWhiteSpace(service.FolderName) ? "Folder unavailable" : service.FolderName,
             Kind = ConsolePublicationNodeKind.Folder,
             ChildrenLoaded = true
         };
@@ -229,10 +233,10 @@ public sealed class ConsolePublicationTree
     public static IEnumerable<ConsolePublicationNode> Descendants(ConsolePublicationNode parent) =>
         parent.Children.SelectMany(child => Descendants(child).Prepend(child));
 
-    private static string DisplayName(HonuaAdminServiceSummary service) =>
+    private static string DisplayName(Honua.Sdk.Admin.Models.ServiceSummary service) =>
         new[] { service.Title, service.PublicName, service.ServiceName }.First(value => !string.IsNullOrWhiteSpace(value))!;
 
-    private static ConsolePublicationNode ServiceNode(HonuaAdminServiceSummary service) => new()
+    private static ConsolePublicationNode ServiceNode(Honua.Sdk.Admin.Models.ServiceSummary service) => new()
     {
         Key = "service:" + Uri.EscapeDataString(service.ServiceName!),
         Label = DisplayName(service),

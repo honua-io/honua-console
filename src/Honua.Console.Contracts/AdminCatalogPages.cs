@@ -38,7 +38,7 @@ public readonly record struct HonuaAdminLayerListRequest(string? ServiceName, Ho
 [JsonConverter(typeof(HonuaAdminCatalogPageConverter))]
 public sealed record HonuaAdminServicePage
 {
-    public HonuaAdminServiceSummary[] Items { get; init; } = [];
+    public Honua.Sdk.Admin.Models.ServiceSummary[] Items { get; init; } = [];
 
     public int Page { get; init; }
 
@@ -122,7 +122,7 @@ public sealed class HonuaAdminCatalogPageConverter : JsonConverterFactory
     }
 
     private static HonuaAdminServicePage ReadServicePage(JsonElement body, JsonSerializerOptions options) =>
-        Read<HonuaAdminServicePage, HonuaAdminServiceSummary>(
+        Read<HonuaAdminServicePage, Honua.Sdk.Admin.Models.ServiceSummary>(
             body,
             options,
             CompleteServices,
@@ -163,7 +163,7 @@ public sealed class HonuaAdminCatalogPageConverter : JsonConverterFactory
         return page(items, body);
     }
 
-    private static HonuaAdminServicePage CompleteServices(HonuaAdminServiceSummary[] items) => new()
+    private static HonuaAdminServicePage CompleteServices(Honua.Sdk.Admin.Models.ServiceSummary[] items) => new()
     {
         Items = items,
         Page = 1,
@@ -172,7 +172,7 @@ public sealed class HonuaAdminCatalogPageConverter : JsonConverterFactory
         LayerTotal = LayerTotal(items)
     };
 
-    private static int LayerTotal(HonuaAdminServiceSummary[] items)
+    private static int LayerTotal(Honua.Sdk.Admin.Models.ServiceSummary[] items)
     {
         var total = items.Sum(static service => (long)service.LayerCount);
         if (total is < int.MinValue or > int.MaxValue)
@@ -184,7 +184,7 @@ public sealed class HonuaAdminCatalogPageConverter : JsonConverterFactory
     }
 
     private static HonuaAdminServicePage ServicePage(
-        HonuaAdminServiceSummary[] items,
+        Honua.Sdk.Admin.Models.ServiceSummary[] items,
         JsonElement body,
         JsonSerializerOptions options) => new()
         {
