@@ -1,4 +1,5 @@
 using System.Net;
+using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 using Honua.Console.Web.Auth;
 using Microsoft.AspNetCore.Builder;
@@ -37,8 +38,8 @@ public sealed partial class ConsoleServerSessionBffTests
         foreach (var link in links)
         {
             var query = QueryHelpers.ParseQuery(new Uri(host.Client.BaseAddress!, link).Query);
-            Assert.Equal("Management", query["authority"]);
-            Assert.Equal(returnTo, query["returnTo"]);
+            Assert.Equal("Management", query["authority"].ToString());
+            Assert.Equal(returnTo, query["returnTo"].ToString());
         }
         using var selected = await host.Client.GetAsync(links[0]);
         Assert.Equal(HttpStatusCode.Redirect, selected.StatusCode);

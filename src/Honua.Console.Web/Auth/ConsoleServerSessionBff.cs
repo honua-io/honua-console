@@ -45,16 +45,14 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
 
     public ConsoleServerSessionPartition(
         ConsoleServerSessionPartitionKey key,
-        CookieContainer cookies,
-        HttpClient client,
-        DateTimeOffset createdAt,
+        ConsoleServerSessionTransport transport,
         TimeProvider timeProvider)
     {
         Key = key;
-        Cookies = cookies;
-        Client = client;
+        Cookies = transport.Cookies;
+        Client = transport.Client;
         ProposalReviews = new(timeProvider);
-        Touch(createdAt);
+        Touch(timeProvider.GetUtcNow());
     }
 
     public ConsoleServerSessionPartitionKey Key { get; }
@@ -96,6 +94,8 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
         public void Dispose() => gate.Release();
     }
 }
+
+internal sealed record ConsoleServerSessionTransport(CookieContainer Cookies, HttpClient Client);
 
 // A process restart discards these sessions, requiring a fresh server sign-in.
 internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
@@ -188,7 +188,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
                 BaseAddress = profile.ServerBaseUri,
                 Timeout = TimeSpan.FromSeconds(30)
             };
-            var partition = new ConsoleServerSessionPartition(key, cookies, client, now, _timeProvider);
+            var partition = new ConsoleServerSessionPartition(key, new ConsoleServerSessionTransport(cookies, client), _timeProvider);
             _partitions.Add(key, partition);
             created = true;
             DisposeAll(discarded);

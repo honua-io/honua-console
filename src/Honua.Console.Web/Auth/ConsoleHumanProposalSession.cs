@@ -108,24 +108,30 @@ internal sealed class ConsoleHumanProposalSession(
             if (review is null || review.EnvironmentReference != decision.EnvironmentReference)
                 return Denied<ProposalDetailWire>("This review expired or was already submitted. Reload the proposal to check its status.");
 
-            using var request = new HttpRequestMessage(HttpMethod.Post,
-                ConsoleServerHttp.BuildUri(bound.ServerBaseUri, ProposalAdminRoutes.Approve(decision.ProposalId)));
-            request.Headers.Add(CapabilityHeader, review.Capability);
-            using var response = await partition.Client.SendAsync(request, cancellationToken).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode) return Refused<ProposalDetailWire>(response.StatusCode);
-            var result = await response.Content.ReadFromJsonAsync(
-                ConsoleHumanProposalJsonContext.Default.ProposalDetailWire, cancellationToken).ConfigureAwait(false);
-            var current = await BindAsync(profile, authority, cancellationToken).ConfigureAwait(false);
-            if (result?.ProposalId != decision.ProposalId
-                || current is null || ConsoleServerProfileBinding.Capture(current) != ConsoleServerProfileBinding.Capture(bound))
-                return Unavailable<ProposalDetailWire>("The decision may have completed. Reload the original proposal to check its status.");
-            return OperateSectionResult<ProposalDetailWire>.Allowed(result);
+            return await SendBoundApprovalAsync(partition, new BoundApprovalRequest(approvalRequest, bound, review), cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception exception) when (IsUnavailable(exception))
         {
             return Unavailable<ProposalDetailWire>("The decision response is unavailable. Reload the proposal to check its status before deciding again.");
         }
+    }
+
+    private async Task<OperateSectionResult<ProposalDetailWire>> SendBoundApprovalAsync(
+        ConsoleServerSessionPartition partition, BoundApprovalRequest approval, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post,
+            ConsoleServerHttp.BuildUri(approval.Profile.ServerBaseUri, ProposalAdminRoutes.Approve(approval.Target.Decision.ProposalId)));
+        request.Headers.Add(CapabilityHeader, approval.Review.Capability);
+        using var response = await partition.Client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode) return Refused<ProposalDetailWire>(response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync(
+            ConsoleHumanProposalJsonContext.Default.ProposalDetailWire, cancellationToken).ConfigureAwait(false);
+        var current = await BindAsync(approval.Target.Profile, approval.Target.Authority, cancellationToken).ConfigureAwait(false);
+        if (result?.ProposalId != approval.Target.Decision.ProposalId || current is null
+            || ConsoleServerProfileBinding.Capture(current) != ConsoleServerProfileBinding.Capture(approval.Profile))
+            return Unavailable<ProposalDetailWire>("The decision may have completed. Reload the original proposal to check its status.");
+        return OperateSectionResult<ProposalDetailWire>.Allowed(result);
     }
 
     public async Task<OperateSectionResult<ProposalDetailWire>> ReadStatusAsync(
@@ -175,6 +181,9 @@ internal sealed class ConsoleHumanProposalSession(
     {
         public OperateSectionResult<ConsoleHumanProposalReview>? Failure { get; init; }
     }
+
+    private sealed record BoundApprovalRequest(
+        ConsoleHumanProposalApprovalRequest Target, ConsoleEnvironmentProfile Profile, ConsolePrivateProposalReview Review);
 
     private async Task<ConsoleEnvironmentProfile?> BindAsync(
         ConsoleEnvironmentProfile expected, ConsoleServerAuthority authority, CancellationToken cancellationToken)
