@@ -291,7 +291,7 @@
 
     protected override Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && !_disposed && _updates is not null)
+        if (_loaded && !_disposed && _realtimeStartupTask is null && _updates is not null)
         {
             _realtimeStartupTask = StartRealtimeAsync(_updates);
         }

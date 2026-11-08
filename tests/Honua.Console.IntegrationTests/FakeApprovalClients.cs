@@ -192,12 +192,14 @@ public sealed class RecoveringApprovalInboxClient(int failuresBeforeSuccess, App
 
 public sealed class ScriptedApprovalInboxClient : IConsoleApprovalInboxClient
 {
+    public Func<CancellationToken, Task<OperateSectionResult<ApprovalInboxSnapshot>>>? ReadOperation { get; set; }
+
     public OperateSectionResult<ApprovalInboxSnapshot> Result { get; set; } =
         OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
 
     public Task<OperateSectionResult<ApprovalInboxSnapshot>> GetInboxAsync(
         string? status = null, string? kind = null, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Result);
+        ReadOperation?.Invoke(cancellationToken) ?? Task.FromResult(Result);
 }
 
 public static class FakeProposalFactory

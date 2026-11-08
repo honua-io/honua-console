@@ -12,6 +12,24 @@ namespace Honua.Console.IntegrationTests;
 public sealed class ApprovalInboxPageRenderTests
 {
     [Fact]
+    public async Task RealtimeStartup_PendingRestRead_WaitsForTheLoadedInbox()
+    {
+        var response = new TaskCompletionSource<OperateSectionResult<ApprovalInboxSnapshot>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var inbox = new ScriptedApprovalInboxClient { ReadOperation = _ => response.Task };
+        var realtime = new FakeConsoleProposalRealtimeClient();
+        await using var ctx = NewContextWithInbox(inbox, realtime);
+        var page = ctx.Render<ApprovalInboxPage>(p => p.Add(x => x.LoadBudget, TimeSpan.FromSeconds(30)));
+
+        Assert.Equal(0, realtime.StartCount);
+        response.SetResult(OperateSectionResult<ApprovalInboxSnapshot>.Allowed(
+            FakeProposalFactory.Snapshot(FakeProposalFactory.Summary("rest-proposal", ConsoleProposalKind.Deploy))));
+
+        page.WaitForAssertion(() => Assert.Equal(1, realtime.StartCount));
+        Assert.Contains("rest-proposal", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Prerender_StalledRealtime_CompletesWithTheRestQueue()
     {
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
