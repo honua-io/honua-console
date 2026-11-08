@@ -45,6 +45,8 @@ internal sealed class AdminEndpointTransport(HttpClient httpClient, string? apiK
 
         using (response)
         {
+            if (ConsoleWriteOutcome.IsUnverified(request))
+                return HonuaAdminEndpointResult<T>.FromIssue(new(ConsoleWriteOutcome.UnverifiedState, call.Contract, ConsoleWriteOutcome.UnverifiedDetail));
             var read = response.IsSuccessStatusCode ? call.Responses.ReadBody : call.Responses.ReadFailure;
             return await read(call.Contract, response, cancellationToken).ConfigureAwait(false);
         }

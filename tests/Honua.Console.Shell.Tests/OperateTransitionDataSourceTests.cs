@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Honua.Console.Shell.Tests;
 
-public sealed class OperateTransitionDataSourceTests
+public sealed partial class OperateTransitionDataSourceTests
 {
     [Fact]
     public void RuntimeShellRegistrationDoesNotUseSeededInMemoryOperateData()

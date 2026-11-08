@@ -1147,7 +1147,7 @@ public sealed class ConsoleOperateObservabilityClientTests
                 Success = true,
                 Data = new HonuaAdminServicePage
                 {
-                    Items = [new HonuaAdminServiceSummary { ServiceName = serviceName }],
+                    Items = [new Honua.Sdk.Admin.Models.ServiceSummary { ServiceName = serviceName! }],
                     Page = 1,
                     PageSize = HonuaAdminCatalogQuery.MaxPageSize,
                     Total = 1
@@ -1281,7 +1281,7 @@ public sealed class ConsoleOperateObservabilityClientTests
             Success = true,
             Data = new HonuaAdminServicePage
             {
-                Items = names.Select(name => new HonuaAdminServiceSummary { ServiceName = name }).ToArray(),
+                Items = names.Select(name => new Honua.Sdk.Admin.Models.ServiceSummary { ServiceName = name }).ToArray(),
                 Page = 1,
                 PageSize = HonuaAdminCatalogQuery.MaxPageSize,
                 Total = names.Length

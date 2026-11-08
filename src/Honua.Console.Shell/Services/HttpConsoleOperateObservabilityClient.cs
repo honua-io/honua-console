@@ -1131,7 +1131,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadServiceCatalogAsync(
+    private async Task<OperateSectionResult<IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary>>> ReadServiceCatalogAsync(
         CancellationToken cancellationToken)
     {
         var result = await HonuaAdminCatalogReader.ReadAllAsync(
@@ -1140,8 +1140,8 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             page => page.Total,
             cancellationToken).ConfigureAwait(false);
         return result.Issue is { } issue
-            ? OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Denied(CatalogStatus(issue), issue.Detail)
-            : OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Allowed(result.Data ?? []);
+            ? OperateSectionResult<IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary>>.Denied(CatalogStatus(issue), issue.Detail)
+            : OperateSectionResult<IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary>>.Allowed(result.Data ?? []);
     }
 
     private async Task<HonuaAdminEndpointResult<HonuaAdminServicePage>> ReadServicePageAsync(

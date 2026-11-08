@@ -22,6 +22,7 @@ export const SOURCE_DB = {
   table: process.env.HONUA_CONSOLE_E2E_SOURCE_TABLE ?? 'public.e2e_layer_src',
   // e2e/initdb/03-dedicated-sources.sql: 3-feature tables for specs that seed their own layer,
   // because a source table backs only one layer.
+  folderTable: process.env.HONUA_CONSOLE_E2E_FOLDER_TABLE ?? 'public.e2e_folder_src',
   goLiveTable: process.env.HONUA_CONSOLE_E2E_GO_LIVE_TABLE ?? 'public.e2e_golive_src',
   settingsTable: process.env.HONUA_CONSOLE_E2E_SETTINGS_TABLE ?? 'public.e2e_settings_src',
   typesTable: process.env.HONUA_CONSOLE_E2E_TYPES_TABLE ?? 'public.e2e_types_src',

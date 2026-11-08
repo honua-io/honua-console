@@ -18,6 +18,10 @@ else if (ReadState.ServicesRead is { IsAllowed: false } result)
 }
 else
 {
+    @if (ReadState.FoldersRead is { IsAllowed: false } folderRead)
+    {
+        <OperateSectionStatusPanel Heading="Folders" Status="folderRead.Status" Message="@folderRead.Message" />
+    }
     <ConsolePublicationTreeContents />
 }
 

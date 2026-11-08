@@ -176,8 +176,8 @@ public sealed class HonuaAdminCatalogReaderTests
     {
         var services = new[]
         {
-            new HonuaAdminServiceSummary { ServiceName = "roads", LayerCount = firstCount },
-            new HonuaAdminServiceSummary { ServiceName = "parcels", LayerCount = secondCount }
+            new Honua.Sdk.Admin.Models.ServiceSummary { ServiceName = "roads", LayerCount = firstCount },
+            new Honua.Sdk.Admin.Models.ServiceSummary { ServiceName = "parcels", LayerCount = secondCount }
         };
         var body = JsonSerializer.Serialize(new { success = true, data = services });
         using var client = Client(_ => body);
@@ -209,12 +209,12 @@ public sealed class HonuaAdminCatalogReaderTests
     [Theory]
     [InlineData(JsonSerializerDefaults.General)]
     [InlineData(JsonSerializerDefaults.Web)]
-    public void PageSerializationUsesTheCallersNamingAndNumberPolicies(JsonSerializerDefaults defaults)
+    public void PageSerializationKeepsSdkWireNamesAndTheCallersPagePolicies(JsonSerializerDefaults defaults)
     {
         var options = new JsonSerializerOptions(defaults) { NumberHandling = JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString };
         var page = new HonuaAdminServicePage
         {
-            Items = [new HonuaAdminServiceSummary { ServiceName = "roads", LayerCount = 2 }],
+            Items = [new Honua.Sdk.Admin.Models.ServiceSummary { ServiceName = "roads", LayerCount = 2 }],
             Page = 1,
             PageSize = 100,
             Total = 1,
@@ -224,10 +224,12 @@ public sealed class HonuaAdminCatalogReaderTests
         var json = JsonSerializer.Serialize(page, options);
         using var document = JsonDocument.Parse(json);
         var itemsName = defaults == JsonSerializerDefaults.Web ? "items" : "Items";
-        var serviceName = defaults == JsonSerializerDefaults.Web ? "serviceName" : "ServiceName";
+        const string serviceName = "serviceName";
         var totalName = defaults == JsonSerializerDefaults.Web ? "total" : "Total";
         Assert.Equal("roads", document.RootElement.GetProperty(itemsName)[0].GetProperty(serviceName).GetString());
         Assert.Equal("1", document.RootElement.GetProperty(totalName).GetString());
+        Assert.Equal("2", document.RootElement.GetProperty(itemsName)[0].GetProperty("layerCount").GetString());
+        Assert.False(document.RootElement.GetProperty(itemsName)[0].TryGetProperty("ServiceName", out _));
         var roundTrip = JsonSerializer.Deserialize<HonuaAdminServicePage>(json, options);
         Assert.NotNull(roundTrip);
         Assert.Equal(2, Assert.Single(roundTrip.Items).LayerCount);
@@ -250,7 +252,7 @@ public sealed class HonuaAdminCatalogReaderTests
         return "[" + string.Join(',', names) + "]";
     }
 
-    private static async Task<HonuaAdminEndpointResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadAllServices(
+    private static async Task<HonuaAdminEndpointResult<IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary>>> ReadAllServices(
         HonuaAdminOperateHttpClient client) =>
         await HonuaAdminCatalogReader.ReadAllAsync(
             client.ListServicesAsync,

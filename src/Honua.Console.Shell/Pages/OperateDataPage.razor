@@ -115,6 +115,7 @@
 
     private void SetPreviewFromResource(ResourceTreeNode node, PublicationTreeNode publication)
     {
+        if (publication.Route is null) return;
         _preview = new LayerPreviewPane.PreviewSelection(
             node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, publication.Route);
         _previewProtocols = ProtocolsFor(node);
@@ -122,7 +123,8 @@
 
     private static IReadOnlyList<LayerPreviewPane.PreviewSelection> ProtocolsFor(ResourceTreeNode node) =>
         node.Publications
+            .Where(publication => publication.Route is not null)
             .Select(publication => new LayerPreviewPane.PreviewSelection(
-                node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, publication.Route))
+                node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, publication.Route!))
             .ToArray();
 }

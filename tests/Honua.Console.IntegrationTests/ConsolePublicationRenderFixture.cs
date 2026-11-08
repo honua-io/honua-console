@@ -76,10 +76,11 @@ internal static class ConsolePublicationRenderFixture
 internal sealed class PublicationNavigationSource : IConsolePublicationNavigationSource
 {
     public bool RefuseLayerReads { get; init; }
-    public IReadOnlyList<HonuaAdminServiceSummary>? ServiceSummaries { get; init; }
+    public IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary>? ServiceSummaries { get; init; }
     public OperateSectionResult<HonuaAdminServicePage>? FailNext { get; set; }
     public int HoldCount { get; set; }
     public int ServiceReads { get; private set; }
+    public Action? OnServiceRead { get; set; }
     private readonly Queue<TaskCompletionSource<OperateSectionResult<HonuaAdminServicePage>?>> _holds = new();
     public HonuaAdminCatalogQuery LastQuery { get; private set; }
     public TaskCompletionSource<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>>? PendingLayers { get; set; }
@@ -95,6 +96,7 @@ internal sealed class PublicationNavigationSource : IConsolePublicationNavigatio
         HonuaAdminCatalogQuery query, CancellationToken cancellationToken)
     {
         ServiceReads++;
+        OnServiceRead?.Invoke();
         LastQuery = query;
         if (HoldCount > 0)
         {
@@ -112,7 +114,7 @@ internal sealed class PublicationNavigationSource : IConsolePublicationNavigatio
         }
 
         var services = ServiceSummaries?.ToArray() ?? Enumerable.Range(0, 500)
-            .Select(index => new HonuaAdminServiceSummary { ServiceName = $"service-{index:D3}", LayerCount = 10 })
+            .Select(index => new Honua.Sdk.Admin.Models.ServiceSummary { ServiceName = $"service-{index:D3}", LayerCount = 10 })
             .ToArray();
         if (!string.IsNullOrWhiteSpace(query.NameQuery))
         {

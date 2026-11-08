@@ -1,4 +1,5 @@
 using Honua.Console.Contracts;
+using Honua.Sdk.Admin.Models;
 using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
@@ -24,23 +25,23 @@ public sealed class ConsolePublicationPathReader(IConsolePublicationNavigationSo
     private static OperateSectionResult<IReadOnlyList<ConsolePublicationNode>> Empty() =>
         OperateSectionResult<IReadOnlyList<ConsolePublicationNode>>.Allowed([]);
 
-    private async Task<OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadServicesAsync(string serviceName, CancellationToken token)
+    private async Task<OperateSectionResult<IReadOnlyList<ServiceSummary>>> ReadServicesAsync(string serviceName, CancellationToken token)
     {
-        var services = new List<HonuaAdminServiceSummary>();
+        var services = new List<ServiceSummary>();
         var query = HonuaAdminCatalogQuery.First with { NameQuery = serviceName };
         while (true)
         {
             token.ThrowIfCancellationRequested();
             var read = await source.ReadServicesAsync(query, token);
             if (!read.IsAllowed || read.PartialResult || read.Value is null)
-                return OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Denied(read.Status, read.Message);
+                return OperateSectionResult<IReadOnlyList<ServiceSummary>>.Denied(read.Status, read.Message);
             var page = read.Value;
             services.AddRange(page.Items);
             if (services.Count >= page.Total)
-                return OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Allowed(services
+                return OperateSectionResult<IReadOnlyList<ServiceSummary>>.Allowed(services
                     .Where(service => string.Equals(service.ServiceName, serviceName, StringComparison.OrdinalIgnoreCase)).ToArray());
             if (page.Items.Length == 0 || page.Page != query.Page)
-                return OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Denied(
+                return OperateSectionResult<IReadOnlyList<ServiceSummary>>.Denied(
                     OperateSectionStatus.Unavailable, "The service catalog did not return a complete page.");
             query = query.Next();
         }

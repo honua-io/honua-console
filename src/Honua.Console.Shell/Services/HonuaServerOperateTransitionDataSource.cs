@@ -183,7 +183,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         return (connections, states);
     }
 
-    private async Task<(HonuaAdminServiceSummary[] Summaries, List<OperateCapabilityState> States)>
+    private async Task<(Honua.Sdk.Admin.Models.ServiceSummary[] Summaries, List<OperateCapabilityState> States)>
         LoadServiceSummariesAsync(CancellationToken cancellationToken)
     {
         var states = new List<OperateCapabilityState>();
@@ -236,7 +236,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
 
     private async Task<(LayerRow[] Rows, List<OperateCapabilityState> States)> LoadLayerRowsAsync(
         IReadOnlyList<OperateConnectionSummary> connections,
-        IReadOnlyList<HonuaAdminServiceSummary> services,
+        IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> services,
         CancellationToken cancellationToken)
     {
         var states = new List<OperateCapabilityState>();
@@ -308,7 +308,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         return (rows.ToArray(), states);
     }
 
-    private static IReadOnlyList<string?> CreateLayerServiceScopes(IReadOnlyList<HonuaAdminServiceSummary> services)
+    private static IReadOnlyList<string?> CreateLayerServiceScopes(IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> services)
     {
         var serviceScopes = new List<string?> { null };
         var serviceNames = services
@@ -331,7 +331,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
 
     private async Task<(IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse> Settings, List<OperateCapabilityState> States)>
         LoadServiceSettingsAsync(
-            IReadOnlyList<HonuaAdminServiceSummary> services,
+            IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> services,
             CancellationToken cancellationToken)
     {
         var states = new List<OperateCapabilityState>();

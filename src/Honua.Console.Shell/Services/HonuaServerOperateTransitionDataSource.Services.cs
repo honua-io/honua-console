@@ -10,7 +10,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource
         IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse> serviceSettings,
         IReadOnlyList<LayerRow> layerRows, OperatePublicationProjection publications)
     {
-        public IReadOnlyList<OperateServiceDetail> Map(IReadOnlyList<HonuaAdminServiceSummary> summaries)
+        public IReadOnlyList<OperateServiceDetail> Map(IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> summaries)
         {
             // Registry responses may omit services that still own published layers.
             return CombineServiceSummaries(summaries)
@@ -18,8 +18,8 @@ public sealed partial class HonuaServerOperateTransitionDataSource
                 .ToArray();
         }
 
-        private IReadOnlyList<HonuaAdminServiceSummary> CombineServiceSummaries(
-            IReadOnlyList<HonuaAdminServiceSummary> summaries)
+        private IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> CombineServiceSummaries(
+            IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> summaries)
         {
             var knownServiceNames = summaries
                 .Select(summary => summary.ServiceName?.Trim())
@@ -30,7 +30,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource
             var derivedServices = layerRows
                 .GroupBy(row => Coalesce(row.Source.ServiceName, "default"), StringComparer.OrdinalIgnoreCase)
                 .Where(group => !knownServiceNames.Contains(group.Key))
-                .Select(group => new HonuaAdminServiceSummary
+                .Select(group => new Honua.Sdk.Admin.Models.ServiceSummary
                 {
                     ServiceName = group.Key,
                     LayerCount = group.Count(),
@@ -43,7 +43,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource
                 .ToArray();
         }
 
-        private OperateServiceDetail MapService(HonuaAdminServiceSummary service)
+        private OperateServiceDetail MapService(Honua.Sdk.Admin.Models.ServiceSummary service)
         {
             var serviceName = service.ServiceName!;
             serviceSettings.TryGetValue(serviceName, out var settings);
@@ -61,19 +61,26 @@ public sealed partial class HonuaServerOperateTransitionDataSource
                 .OrderBy(layer => layer.LayerId)
                 .ToArray();
 
-            return new OperateServiceDetail(
+            var detail = new OperateServiceDetail(
                 serviceName,
-                Coalesce(service.Description, serviceName),
+                Coalesce(service.Title, service.PublicName, service.Description, serviceName),
                 protocols.Length == 0 ? "Geo service" : string.Join(", ", protocols),
                 service.LayerCount > 0 ? "Configured" : "No layers",
                 "Canonical metadata is owned by honua-server Metadata v2 resources. Service settings control runtime protocols, access policy, and exposure.",
                 layers,
                 MapRuntimeSettings(service, settings, protocols),
-                publications.ForService(serviceName, protocols));
+                [])
+            {
+                FolderId = service.FolderId,
+                FolderName = service.FolderName,
+                PublicName = service.PublicName,
+                FolderMutationIssues = service.FolderMutationIssues
+            };
+            return detail with { PublicationSlots = publications.ForService(detail.PublicServiceName, protocols, detail.FolderName) };
         }
 
         private IReadOnlyList<OperateRuntimeSetting> MapRuntimeSettings(
-            HonuaAdminServiceSummary service,
+            Honua.Sdk.Admin.Models.ServiceSummary service,
             HonuaAdminServiceSettingsResponse? settings,
             IReadOnlyList<string> protocols)
         {

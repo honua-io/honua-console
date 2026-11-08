@@ -45,11 +45,11 @@
                             @foreach (var publication in node.Publications)
                             {
                                 <li class="resource-tree__publication" data-publication="@publication.ProtocolId">
-                                    <button type="button" class="resource-tree__publication-row"
+                                    <button type="button" class="resource-tree__publication-row" disabled="@(publication.Route is null)"
                                             @onclick="() => SelectPublication(node, publication)">
                                         <span class="resource-tree__publication-check">✓</span>
                                         <span class="resource-tree__publication-label">@publication.ProtocolLabel</span>
-                                        <span class="resource-tree__publication-route console-mono">@publication.Route</span>
+                                        <span class="resource-tree__publication-route console-mono">@(publication.Route ?? "No single service URL")</span>
                                     </button>
                                 </li>
                             }
@@ -117,6 +117,7 @@
 
     private async Task SelectPublication(ResourceTreeNode node, PublicationTreeNode publication)
     {
+        if (publication.Route is null) return;
         if (OnPublicationSelected.HasDelegate)
         {
             await OnPublicationSelected.InvokeAsync(new LayerPreviewPane.PreviewSelection(

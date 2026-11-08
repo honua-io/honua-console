@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.DependencyInjection;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Security;
@@ -15,6 +16,28 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class FocusedOperatorCredentialTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task BoundWriteMarksOnlyARealAuthorityChangeAfterSending(bool changeAfterSend)
+    {
+        using var fixture = new Fixture();
+        await fixture.BindAsync("alice", "tenant-a");
+        var authority = fixture.Services.GetRequiredService<IConsoleAuthorityBindingValidator>();
+        var binding = await authority.CaptureAsync();
+        Assert.NotNull(binding);
+        if (changeAfterSend) fixture.Wire.OnSend = () => fixture.Operator.CurrentOperatorKey = "bob";
+        using var client = fixture.Services.GetRequiredService<IHttpClientFactory>().CreateClient(ConsoleServerBoundClients.ServerBoundClientName);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://server.honua.test/api/v1/admin/folders");
+        request.Options.Set(ConsoleAuthorityRequestOptions.Expected, binding);
+        request.Headers.Add("Honua.Console.Authority.OutcomeUnverified", "true");
+        using var response = await client.SendAsync(request);
+        Assert.Equal(changeAfterSend, ConsoleWriteOutcome.IsUnverified(request));
+        Assert.Equal(changeAfterSend ? HttpStatusCode.Conflict : HttpStatusCode.OK, response.StatusCode);
+        Assert.Single(fixture.Wire.Requests);
+        Assert.Equal("Bearer alice-bearer", fixture.Wire.Requests[0]);
+    }
+
     [Fact]
     public async Task SeparateManager_RoutesOnlyManagementRequestsAndPreservesOperatorBoundary()
     {
@@ -330,12 +353,14 @@ public sealed class FocusedOperatorCredentialTests
     {
         public List<string> Requests { get; } = [];
         public List<string> Targets { get; } = [];
+        public Action? OnSend { get; set; }
         public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Assert.False(request.Headers.Contains("X-API-Key"));
             Requests.Add(request.Headers.Authorization?.ToString() ?? "anonymous");
             Targets.Add(request.RequestUri!.AbsoluteUri);
+            OnSend?.Invoke();
             return Task.FromResult(new HttpResponseMessage(Status)
             {
                 Content = new StringContent(Status == HttpStatusCode.OK

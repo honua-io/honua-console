@@ -1,5 +1,6 @@
 import { test, expect } from '../admin-api';
 import { SOURCE_DB, sourceConnectionBody } from '../source-db';
+import { readAdminItems } from '../admin-items.mjs';
 
 // Live content coverage for the publishing WIZARD at /operate/publishing.
 //
@@ -21,10 +22,9 @@ test.describe('Operate · Publishing wizard (live)', () => {
   test('the service tree lists services the admin API reports', async ({ page, admin }) => {
     test.setTimeout(120_000);
 
-    const services = await admin.getJson('/rest/services?f=json');
-    const serviceNames: string[] = (services.services ?? [])
-      .map((s: any) => String(s.name ?? '').split('/').pop())
-      .filter(Boolean);
+    const services: { serviceName: string }[] = await readAdminItems(
+      path => admin.getJson(path), '/api/v1/admin/services');
+    const serviceNames = services.map(service => service.serviceName);
 
     await page.goto('/operate/publishing');
 
