@@ -144,22 +144,30 @@ public sealed class FolderManagementTests
         Assert.Equal("Survey", picker.Find("option[value=\"folder:active\"]").TextContent);
     }
 
-    [Fact]
-    public async Task NavigatingDuringAMoveRetainsTheOriginalServicesOutcomeAsANotification()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NavigatingDuringAMoveRetainsTheOriginalServicesOutcomeAsANotification(bool saved)
     {
         using var context = new BunitContext();
         var pending = new TaskCompletionSource<ConsoleFolderMutationResult>();
         var client = new FolderClient { Pending = pending };
         var notifications = new ConsoleNotificationService();
+        var changes = new ConsoleFolderChanges();
+        var reloads = 0;
+        changes.Changed += () => reloads++;
+        context.Services.AddSingleton(changes);
         context.Services.AddSingleton<IConsoleFolderClient>(client);
         context.Services.AddSingleton<IConsoleNotificationService>(notifications);
         var panel = context.Render<FolderManagement>(parameters => parameters.Add(component => component.ServiceName, "original-service"));
         var move = panel.Find("[data-service-move]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
         panel.Render(parameters => parameters.Add(component => component.ServiceName, "other-service"));
-        pending.SetResult(new() { State = "Outcome unverified", Detail = "Read the original catalog." });
+        var state = saved ? "Saved" : "Outcome unverified";
+        pending.SetResult(new() { Succeeded = saved, State = state, Detail = "Read the original catalog." });
         await move;
         panel.WaitForAssertion(() => Assert.Contains(notifications.Notifications,
-            item => item.Message.Contains("original-service") && item.Message.Contains("Outcome unverified")));
+            item => item.Message.Contains("original-service") && item.Message.Contains(state)));
+        Assert.Equal(saved ? 1 : 0, reloads);
     }
 
     private sealed class FolderClient : IConsoleFolderClient

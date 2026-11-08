@@ -185,14 +185,17 @@
         if (!CanWrite || _catalog is not { } catalog) return;
         var generation = _generation;
         var originalService = ServiceName;
+        var notifications = Services.GetService<IConsoleNotificationService>();
+        var folderChanges = Services.GetService<ConsoleFolderChanges>();
         _busy = true;
         _requiresRefresh = true;
         try
         {
             var result = await execute(catalog);
+            if (result.Succeeded) folderChanges?.Notify();
             if (_lifetime.IsCancellationRequested || generation != _generation)
             {
-                Services.GetService<IConsoleNotificationService>()?.Warning(
+                notifications?.Warning(
                     $"{originalService ?? "Folder catalog"}: {result.State}. {result.Detail}");
                 return;
             }
@@ -201,7 +204,6 @@
             if (result.State == Honua.Console.Contracts.ConsoleWriteOutcome.UnverifiedState)
                 _unverifiedAuthority = catalog.AuthorityBinding;
             if (!result.Succeeded) return;
-            Services.GetService<ConsoleFolderChanges>()?.Notify();
             await OnSaved.InvokeAsync();
             if (ServiceName is null) _folderId = _name = _title = "";
             await RefreshAsync();
