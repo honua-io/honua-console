@@ -1,3 +1,5 @@
+using Honua.Console.Contracts;
+
 namespace Honua.Console.Shell.Models;
 
 public static class StudioWorkflowContractValues
@@ -22,6 +24,8 @@ public static class StudioWorkflowContractValues
 
 public sealed class StudioWorkflowPackageDraft
 {
+    internal (int MaxAttempts, int BackoffSeconds, string FailureMode)? AppliedRetryDefaults { get; set; }
+
     public string DraftId { get; set; } = string.Empty;
     public string ContentItemId { get; set; } = string.Empty;
     public string CurrentVersionId { get; set; } = string.Empty;
@@ -88,6 +92,11 @@ public sealed class StudioWorkflowNode
     public int Row { get; set; }
     public List<string> InputPorts { get; set; } = [];
     public List<string> OutputPorts { get; set; } = [];
+    public StepRetryPolicy? RetryPolicy { get; set; }
+    public WorkflowStepFailurePolicy? FailurePolicy { get; set; }
+    public int? TimeoutSeconds { get; set; }
+    public WorkflowStepCondition? Condition { get; set; }
+    public WorkflowForEachSpec? ForEach { get; set; }
     public Dictionary<string, string> Configuration { get; set; } = new(StringComparer.Ordinal);
 }
 

@@ -5,22 +5,11 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-// Binds the Studio GP/ETL workflow editor to honua-server through the IWorkflowPackageApiClient shim: the
-// node palette, package drafts, immutable versions, dry-runs and publications/runs come from live server
-// data, never seeded fixtures. When the server cannot be reached, rejects the request or lacks the
-// contract, the call carries a StudioWorkflowBindingState so the editor renders the shared blocked
-// surface (charter sections 5 and 11) instead of fabricated success.
-//
-// The server models a workflow package as a mutable draft graph plus immutable versions; dry-run and
-// publish operate on versions, not the mutable draft. This adapter snapshots the editor draft into the
-// server graph (server-owned: nodes, edges, schedule, worker, validation, versions, publications) and
-// round-trips editor-only authoring fields (invocation parameters, retry policy, publication intent,
-// authored output schemas, node layout) through the server's opaque editor metadata so nothing is
-// fabricated and nothing is silently dropped.
 public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageClient
 {
     internal const string Surface = "Studio workflow.package";
     internal const string EditorStateKey = "console.editorState";
+    internal const string AuthoringStateKey = "console.authoringState";
     internal const string NodeLabelKey = "console.label";
     internal const string NodeColumnKey = "console.column";
     internal const string NodeRowKey = "console.row";
@@ -98,7 +87,7 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
                 Title = package.Name,
                 PackageType = StudioWorkflowContractValues.PackageType,
                 VersionNumber = package.LatestVersion ?? 0,
-                PublicationMode = ReadEditorState(package.Graph).PublicationIntent.Mode,
+                PublicationMode = ReadAuthoringState(package.Graph).PublicationIntent.Mode,
                 UpdatedAt = package.UpdatedAt
             })
             .ToArray();
@@ -146,6 +135,14 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(draft);
+
+        var policyIssue = UnsupportedFailureMode(draft);
+        if (policyIssue is not null)
+        {
+            draft.CurrentVersionId = string.Empty;
+            draft.ValidationIssues = [policyIssue];
+            return new StudioWorkflowSaveResult { ValidationIssues = [policyIssue] };
+        }
 
         var (package, persistIssue) = await PersistPackageAsync(draft, cancellationToken).ConfigureAwait(false);
         if (package is null)
@@ -374,6 +371,7 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         StudioWorkflowPackageDraft draft,
         CancellationToken cancellationToken)
     {
+        ApplyEditedRetryDefaults(draft);
         var request = ToSaveRequest(draft);
         var result = string.IsNullOrWhiteSpace(draft.ContentItemId)
             ? await _api.CreatePackageAsync(request, cancellationToken).ConfigureAwait(false)
@@ -397,6 +395,13 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         StudioWorkflowPackageDraft draft,
         CancellationToken cancellationToken)
     {
+        if (UnsupportedFailureMode(draft) is { } policyIssue)
+        {
+            draft.ValidationIssues = [policyIssue];
+            draft.CurrentVersionId = string.Empty;
+            return (null, new WorkflowEndpointIssue("Validation", "workflow execution", policyIssue.Message, 400));
+        }
+
         if (!string.IsNullOrWhiteSpace(draft.ContentItemId) &&
             TryParseVersion(draft.CurrentVersionId, out var existing))
         {
@@ -485,14 +490,22 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         IReadOnlyList<StudioWorkflowNodeDefinition> definitions)
     {
         var definitionsByType = definitions.ToDictionary(definition => definition.Type, StringComparer.Ordinal);
-        var editorState = ReadEditorState(package.Graph);
+        var editorState = ReadAuthoringState(package.Graph);
 
         var nodes = (package.Graph?.Nodes ?? [])
             .Select((node, index) => ToNode(node, index, definitionsByType))
             .ToList();
         var edges = (package.Graph?.Edges ?? []).Select(ToEdge).ToList();
 
-        return new StudioWorkflowPackageDraft
+        if (editorState.RetryPolicy is { } legacyRetry && (package.Graph?.Nodes ?? []).All(node => node.RetryPolicy is null))
+        {
+            foreach (var node in nodes)
+            {
+                node.RetryPolicy = ExecutableRetry(legacyRetry);
+            }
+        }
+
+        var draft = new StudioWorkflowPackageDraft
         {
             DraftId = package.PackageId,
             ContentItemId = package.PackageId,
@@ -515,13 +528,15 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
             Parameters = editorState.Parameters,
             Schedule = ToSchedule(package.Graph?.Schedule, editorState.ScheduleMode),
             WorkerProfile = ResolveWorkerProfile(package.Graph?.WorkerProfile, editorState.WorkerProfile),
-            RetryPolicy = editorState.RetryPolicy,
+            RetryPolicy = DefaultRetryPolicy(package.Graph, editorState.RetryPolicy),
             PublicationIntent = editorState.PublicationIntent,
             OutputSchemas = editorState.OutputSchemas,
             CreatedAt = package.CreatedAt,
             UpdatedAt = package.UpdatedAt,
             LastSavedAt = package.LatestVersion.HasValue ? package.UpdatedAt : null
         };
+        draft.AppliedRetryDefaults = RetryDefaults(draft.RetryPolicy);
+        return draft;
     }
 
     private static StudioWorkflowNode ToNode(
@@ -549,6 +564,11 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
             Row = ReadInt(metadata, NodeRowKey) ?? 1,
             InputPorts = definition?.InputPorts.ToList() ?? [],
             OutputPorts = definition?.OutputPorts.ToList() ?? [],
+            RetryPolicy = node.RetryPolicy ?? new StepRetryPolicy { MaxAttempts = 1, InitialDelaySeconds = 0 },
+            FailurePolicy = node.FailurePolicy,
+            TimeoutSeconds = node.TimeoutSeconds,
+            Condition = node.Condition,
+            ForEach = node.ForEach,
             Configuration = new Dictionary<string, string>(parameters, StringComparer.Ordinal)
         };
     }
@@ -571,6 +591,54 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         };
     }
 
+    private static StudioWorkflowValidationIssue? UnsupportedFailureMode(StudioWorkflowPackageDraft draft)
+    {
+        var mode = draft.RetryPolicy.FailureMode;
+        var message = mode switch
+        {
+            "route-failure-edges" => null,
+            "fail-fast" when !draft.Edges.Any(edge => edge.Kind == StudioWorkflowContractValues.EdgeKindFailure) => null,
+            "fail-fast" => "Fail-fast cannot be combined with Failure edges; remove them or select route-failure-edges.",
+            _ => $"Failure mode '{mode}' cannot be executed by this server. Select fail-fast or route-failure-edges."
+        };
+        return message is null ? null : new StudioWorkflowValidationIssue { Severity = "error", Scope = "retryPolicy.failureMode", Message = message };
+    }
+
+    private static (int MaxAttempts, int BackoffSeconds, string FailureMode) RetryDefaults(StudioWorkflowRetryPolicy retry)
+        => (retry.MaxAttempts, retry.BackoffSeconds, retry.FailureMode);
+
+    private static void ApplyEditedRetryDefaults(StudioWorkflowPackageDraft draft)
+    {
+        var current = RetryDefaults(draft.RetryPolicy);
+        if (draft.AppliedRetryDefaults == current)
+        {
+            return;
+        }
+
+        foreach (var node in draft.Nodes)
+        {
+            node.RetryPolicy = ExecutableRetry(draft.RetryPolicy);
+            node.FailurePolicy = WorkflowStepFailurePolicy.Fail;
+        }
+        draft.AppliedRetryDefaults = current;
+    }
+
+    private static StepRetryPolicy ExecutableRetry(StudioWorkflowRetryPolicy retry) => new()
+    {
+        MaxAttempts = Math.Max(1, retry.MaxAttempts),
+        InitialDelaySeconds = retry.BackoffSeconds,
+        BackoffMultiplier = 1,
+        MaxDelaySeconds = Math.Max(1, retry.BackoffSeconds)
+    };
+
+    private static StudioWorkflowRetryPolicy DefaultRetryPolicy(WorkflowGraph? graph, StudioWorkflowRetryPolicy? legacy)
+    {
+        var first = graph?.Nodes?.FirstOrDefault();
+        return first?.RetryPolicy is { } retry
+            ? new StudioWorkflowRetryPolicy { MaxAttempts = retry.MaxAttempts, BackoffSeconds = retry.InitialDelaySeconds }
+            : legacy ?? new StudioWorkflowRetryPolicy { MaxAttempts = 1, BackoffSeconds = 0 };
+    }
+
     private SaveWorkflowPackageRequest ToSaveRequest(StudioWorkflowPackageDraft draft)
     {
         var nodes = draft.Nodes
@@ -579,6 +647,11 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
                 NodeId = node.Id,
                 NodeTypeId = node.Type,
                 Parameters = new Dictionary<string, string>(node.Configuration, StringComparer.Ordinal),
+                RetryPolicy = node.RetryPolicy ?? ExecutableRetry(draft.RetryPolicy),
+                FailurePolicy = node.FailurePolicy ?? WorkflowStepFailurePolicy.Fail,
+                TimeoutSeconds = node.TimeoutSeconds,
+                Condition = node.Condition,
+                ForEach = node.ForEach,
                 Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     [NodeLabelKey] = node.Label,
@@ -596,14 +669,14 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
                 Kind = string.Equals(edge.Kind, StudioWorkflowContractValues.EdgeKindFailure, StringComparison.Ordinal)
                     ? WorkflowEdgeKind.Failure
                     : WorkflowEdgeKind.Data,
-                SourcePort = edge.FromPort,
-                TargetPort = edge.ToPort
+                SourcePort = edge.Kind == StudioWorkflowContractValues.EdgeKindFailure ? null : edge.FromPort,
+                TargetPort = edge.Kind == StudioWorkflowContractValues.EdgeKindFailure ? null : edge.ToPort
             })
             .ToList();
 
         var editorMetadata = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [EditorStateKey] = SerializeEditorState(draft)
+            [AuthoringStateKey] = SerializeAuthoringState(draft)
         };
 
         return new SaveWorkflowPackageRequest
@@ -854,12 +927,11 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         return editor;
     }
 
-    private string SerializeEditorState(StudioWorkflowPackageDraft draft)
+    private string SerializeAuthoringState(StudioWorkflowPackageDraft draft)
     {
-        var state = new WorkflowEditorState
+        var state = new WorkflowAuthoringState
         {
             Parameters = draft.Parameters,
-            RetryPolicy = draft.RetryPolicy,
             PublicationIntent = draft.PublicationIntent,
             OutputSchemas = draft.OutputSchemas,
             ScheduleMode = draft.Schedule.Mode,
@@ -869,24 +941,25 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         return JsonSerializer.Serialize(state, EditorStateOptions);
     }
 
-    private WorkflowEditorState ReadEditorState(WorkflowGraph? graph)
+    private WorkflowAuthoringState ReadAuthoringState(WorkflowGraph? graph)
     {
         // The graph itself can be null when the server emits an explicit JSON null for it, and EditorMetadata
         // is null when the server emits an explicit null for that key (an omitted key keeps the initializer).
         if (graph?.EditorMetadata is null ||
-            !graph.EditorMetadata.TryGetValue(EditorStateKey, out var raw) ||
+            !(graph.EditorMetadata.TryGetValue(AuthoringStateKey, out var raw)
+                || graph.EditorMetadata.TryGetValue(EditorStateKey, out raw)) ||
             string.IsNullOrWhiteSpace(raw))
         {
-            return new WorkflowEditorState();
+            return new WorkflowAuthoringState();
         }
 
         try
         {
-            return JsonSerializer.Deserialize<WorkflowEditorState>(raw, EditorStateOptions) ?? new WorkflowEditorState();
+            return JsonSerializer.Deserialize<WorkflowAuthoringState>(raw, EditorStateOptions) ?? new WorkflowAuthoringState();
         }
         catch (JsonException)
         {
-            return new WorkflowEditorState();
+            return new WorkflowAuthoringState();
         }
     }
 
@@ -925,10 +998,11 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
 
     // Editor-only authoring fields the server graph does not model first-class. Persisted into the server's
     // opaque graph editor metadata so they round-trip without fabricating server-owned data.
-    private sealed class WorkflowEditorState
+    private sealed class WorkflowAuthoringState
     {
         public List<StudioWorkflowParameter> Parameters { get; set; } = [];
-        public StudioWorkflowRetryPolicy RetryPolicy { get; set; } = new();
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public StudioWorkflowRetryPolicy? RetryPolicy { get; set; }
         public StudioWorkflowPublicationIntent PublicationIntent { get; set; } = new();
         public List<StudioWorkflowOutputSchema> OutputSchemas { get; set; } = [];
         public string ScheduleMode { get; set; } = "manual";

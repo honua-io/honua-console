@@ -4,7 +4,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-public sealed class ServerStudioWorkflowPackageClientTests
+public sealed partial class ServerStudioWorkflowPackageClientTests
 {
     [Fact]
     public async Task OpenEditor_MapsNodeRegistryCategories_FromPorts()
