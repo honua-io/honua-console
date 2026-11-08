@@ -3,9 +3,8 @@ using System.Net.Http.Json;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Services;
 
-namespace Honua.Console.IntegrationTests;
+namespace Honua.Console.Shell.Tests;
 
-// A transport blip or transient 5xx keeps the import job active so polling continues; authorization and unsupported outcomes are terminal.
 public sealed class ServiceImportOperationTests
 {
     private static readonly Uri BaseAddress = new("https://server.example/");
@@ -36,6 +35,35 @@ public sealed class ServiceImportOperationTests
         Assert.NotNull(requestJson);
         using var document = System.Text.Json.JsonDocument.Parse(requestJson);
         Assert.Equal(overwriteExisting, document.RootElement.GetProperty("overwriteExisting").GetBoolean());
+    }
+
+    [Theory]
+    [InlineData(0, "Queued", false, false)]
+    [InlineData(1, "Discovering", false, false)]
+    [InlineData(2, "Retrieving features", false, false)]
+    [InlineData(3, "Creating table", false, false)]
+    [InlineData(4, "Inserting features", false, false)]
+    [InlineData(5, "Publishing", false, false)]
+    [InlineData(6, "Copying attachments", false, false)]
+    [InlineData(7, "Validating", false, false)]
+    [InlineData(8, "Completed", true, true)]
+    [InlineData(9, "Needs review", true, false)]
+    [InlineData(10, "Failed", true, false)]
+    [InlineData(11, "Cancelled", true, false)]
+    public async Task GetImportJob_ServerStatus_MapsLifecycle(
+        int status, string label, bool terminal, bool succeeded)
+    {
+        var operation = CreateOperation(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new { jobId = "job-1", status }),
+        });
+
+        var job = await operation.GetImportJobAsync("job-1");
+
+        Assert.Equal(label, job.Status);
+        Assert.Equal(terminal, job.Terminal);
+        Assert.Equal(succeeded, job.Succeeded);
+        Assert.False(job.TransientFailure);
     }
 
     [Fact]
@@ -78,8 +106,7 @@ public sealed class ServiceImportOperationTests
     {
         var operation = CreateOperation(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
-            // status 7 = Failed: a server-declared terminal outcome carried in the success body.
-            Content = JsonContent.Create(new { jobId = "job-1", status = 7, errorMessage = "import failed" }),
+            Content = JsonContent.Create(new { jobId = "job-1", status = 10, errorMessage = "import failed" }),
         });
 
         var job = await operation.GetImportJobAsync("job-1");
