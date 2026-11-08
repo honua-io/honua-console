@@ -1,4 +1,5 @@
 using Bunit;
+using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
@@ -16,6 +17,7 @@ public sealed class ConsolePresentationTests
         using var context = new BunitContext();
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.AddConsoleNotifications();
+        context.Services.AddSingleton(new CatalogAdminOptions());
         context.Services.AddSingleton<IConsoleProductMode>(
             new ConfiguredConsoleProductMode(ConsoleProductModeParser.Parse(mode)));
         context.Services.AddSingleton<IConsoleCapabilityManifest>(ConsoleCapabilityManifest.FromConfigurationList(null));

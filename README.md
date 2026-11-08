@@ -314,3 +314,10 @@ than selecting another tab or silently refreshing the target.
 See [the interaction model](docs/design/unified-workspace-ux-implementation.md) and
 [ADR 0002](docs/adr/0002-realtime-studio-agent-workspace.md). Component/browser-layout checks do not
 establish a complete installed native/model/publication journey or evaluator usability testing.
+
+The experimental Catalogs list/overview can be exposed with
+`Honua__Console__Catalogs__Enabled=true` (default false). `/catalogs` and
+`/catalogs/{id}` are read-only preparation surfaces: missing server bindings and
+unsupported canonical catalog contracts are explicit states. A flag never
+activates synthetic fixture data. Tests supply fixtures through an explicit
+presentation source; live binding awaits the server-owned SDK projection.

@@ -261,6 +261,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     {
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.AddConsoleNotifications();
+        context.Services.AddSingleton(new CatalogAdminOptions());
         context.Services.AddSingleton<IConsoleProductMode>(new ConfiguredConsoleProductMode(ConsoleProductMode.Full));
         context.Services.AddSingleton<IConsoleCapabilityManifest>(ConsoleCapabilityManifest.FromConfigurationList(null));
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);

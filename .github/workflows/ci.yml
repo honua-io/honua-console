@@ -88,6 +88,22 @@ jobs:
       - name: Verify vendored honua-server ops parity map
         run: ./scripts/sync-ops-parity-map.sh --check
 
+      - name: Check out the server import status contract
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: honua-io/honua-server
+          ref: trunk
+          path: .ci-server-import-contract
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: src/Honua.Core/Features/Migration/Abstractions/GeoservicesImportProgress.cs
+
+      - name: Verify import status wire values against the server
+        run: >-
+          node scripts/check-import-status-contract.mjs
+          .ci-server-import-contract/src/Honua.Core/Features/Migration/Abstractions/GeoservicesImportProgress.cs
+          tests/Honua.Console.Shell.Tests/Fixtures/geoservices-import-status.json
+
       - name: Set up .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
@@ -142,6 +158,8 @@ jobs:
         # skip cleanly here (HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS is not set in CI); the nightly
         # console-nightly.yml lane runs those for real. Coverage is collected for visibility only.
         run: dotnet test tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj --no-restore --nologo --verbosity minimal --collect:"XPlat Code Coverage" --results-directory artifacts/test-results/integration
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
 
       - name: Fetch digest-verified Cesium assets
         # The Web project target also makes a direct local dotnet build/run/publish complete. Fetch
@@ -165,6 +183,23 @@ jobs:
 
       - name: Verify published Studio assets
         run: node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/_studio
+
+      - name: Install catalog presentation browser checks
+        run: |
+          npm ci --prefix e2e/playwright
+          cd e2e/playwright
+          npx playwright install --with-deps chromium
+
+      - name: Verify rendered catalog presentation
+        run: node e2e/playwright/catalog-preview.mjs
+
+      - name: Upload catalog presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: catalog-presentation
+          path: artifacts/catalog-preview/
+          if-no-files-found: error
 
       - name: Stamp artifact metadata
         run: npm run build:metadata

@@ -83,7 +83,7 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (_disposed || !SelectionChanged.HasDelegate) return;
-        var contextPath = ConsoleNavigation.ContextForPath(CurrentPath.Trim('/')).Path;
+        var contextPath = ConsoleNavigation.ContextForPath(CurrentPath.Trim('/'), ConsoleNavigation.Groups).Path;
         IReadOnlyList<ConsolePublicationNode> ancestors = !_loading && _servicesRead is { IsAllowed: true, Value: not null }
             ? _tree.PathTo(contextPath) : [];
         if (_reportedPath is not null && _reportedPath.SequenceEqual(ancestors)) return;
