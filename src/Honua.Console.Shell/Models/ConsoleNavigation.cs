@@ -79,7 +79,7 @@ public static class ConsoleNavigation
         return groups;
     }
 
-    public static ConsoleNavigationContext ContextForPath(string relativePath)
+    public static ConsoleNavigationContext ContextForPath(string relativePath, IReadOnlyList<ConsoleNavigationGroup>? groups = null)
     {
         var path = "/" + relativePath.Split('?', '#')[0].Trim('/');
         var segments = path.Trim('/').Split('/');
@@ -89,7 +89,7 @@ public static class ConsoleNavigation
             return new($"/operate/layers/{segments[2]}", Uri.UnescapeDataString(segments[2]), ConsoleNavigationContextKind.Layer);
         if (path == "/") return new(path, "Welcome", ConsoleNavigationContextKind.Page);
         if (path == "/approvals") return new(path, "Approvals", ConsoleNavigationContextKind.Page);
-        var destinations = Groups.SelectMany(group => group.Destinations);
+        var destinations = (groups ?? Groups).SelectMany(group => group.Destinations);
         var exact = destinations.FirstOrDefault(entry => entry.Path.Equals(path, StringComparison.OrdinalIgnoreCase));
         var label = exact?.Label ?? Uri.UnescapeDataString(segments[^1]);
         return new(path, label, ConsoleNavigationContextKind.Page);

@@ -6,11 +6,16 @@ public sealed record CatalogAdminVisibility(int Listed, int AudienceRestricted, 
 
 public sealed record CatalogAdminAttention(string Title, string Reason);
 
+public sealed record CatalogAdminKindVisibility(string Kind, CatalogAdminVisibility Visibility);
+
 public sealed record CatalogAdminOverview(
     string CatalogId,
     string Title,
     CatalogAdminVisibility Visibility,
-    IReadOnlyList<CatalogAdminAttention> Attention);
+    IReadOnlyList<CatalogAdminAttention> Attention)
+{
+    public IReadOnlyList<CatalogAdminKindVisibility> KindVisibility { get; init; } = [];
+}
 
 public sealed record CatalogAdminRead(
     IReadOnlyList<CatalogAdminRow> Catalogs,

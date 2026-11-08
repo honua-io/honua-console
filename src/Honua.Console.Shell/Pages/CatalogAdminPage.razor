@@ -47,7 +47,7 @@
                     </select>
                 </label>
                 <label for="catalog-sort">Sort by
-                    <select id="catalog-sort" value="@_descending" @onchange="SortChanged">
+                    <select id="catalog-sort" value="@(_descending ? "true" : "false")" @onchange="SortChanged">
                         <option value="false">Title A–Z</option><option value="true">Title Z–A</option>
                     </select>
                 </label>
@@ -76,11 +76,8 @@
                         </tbody>
                     </table>
                 </div>
-                <nav class="catalog-admin-paging" aria-label="Catalog pages">
-                    <button type="button" disabled="@(_offset == 0)" @onclick="Previous">Previous</button>
-                    <span>@(_offset + 1)–@Math.Min(_offset + PageSize, FilteredCatalogs.Count) of @FilteredCatalogs.Count</span>
-                    <button type="button" disabled="@(_offset + PageSize >= FilteredCatalogs.Count)" @onclick="Next">Next</button>
-                </nav>
+                <CatalogAdminPager Label="Catalog pages" Offset="_offset" Total="FilteredCatalogs.Count"
+                                   PageSize="PageSize" OffsetChanged="value => _offset = value" />
             }
         }
         else if (read.Overview is { } overview && overview.CatalogId == CatalogId)
@@ -94,11 +91,48 @@
                 <div><dt>Opted out</dt><dd>@overview.Visibility.OptedOut</dd></div>
                 <div><dt>Matched</dt><dd>@overview.Visibility.Matched</dd></div>
             </dl>
+            <h2>Counts by kind</h2>
+            @if (overview.KindVisibility.Count == 0) { <p>Kind breakdown is not reported.</p> }
+            else
+            {
+                <div class="catalog-admin-table catalog-kind-counts" role="region" aria-label="Visibility by kind" tabindex="0">
+                    <table>
+                        <thead><tr><th scope="col">Kind</th><th scope="col">Listed</th><th scope="col">Audience-restricted</th><th scope="col">Hidden here</th><th scope="col">Opted out</th><th scope="col">Matched</th></tr></thead>
+                        <tbody>
+                            @foreach (var row in overview.KindVisibility)
+                            {
+                                <tr><th scope="row">@KindLabel(row.Kind)</th><td>@row.Visibility.Listed</td><td>@row.Visibility.AudienceRestricted</td><td>@row.Visibility.HiddenHere</td><td>@row.Visibility.OptedOut</td><td>@row.Visibility.Matched</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
             <h2>Needs attention</h2>
             @if (overview.Attention.Count == 0) { <p>No attention items reported.</p> }
             else
             {
-                <ul>@foreach (var item in overview.Attention) { <li @key="item">@item.Title · @item.Reason</li> }</ul>
+                <div class="catalog-admin-filters">
+                    <label for="attention-query">Search attention items<input id="attention-query" type="search" value="@_attentionQuery" @oninput="AttentionSearchChanged" /></label>
+                    <label for="attention-issue">Issue
+                        <select id="attention-issue" value="@_attentionReason" @onchange="AttentionReasonChanged">
+                            <option value="">All issues</option>
+                            @foreach (var reason in overview.Attention.Select(item => item.Reason).Distinct().Order(StringComparer.OrdinalIgnoreCase))
+                            { <option value="@reason">@reason</option> }
+                        </select>
+                    </label>
+                    <label for="attention-sort">Sort attention items
+                        <select id="attention-sort" value="@_attentionSort" @onchange="AttentionSortChanged">
+                            <option value="title">Item title</option><option value="issue">Issue</option>
+                        </select>
+                    </label>
+                </div>
+                @if (FilteredAttention.Count == 0) { <p role="status">No matching attention items.</p> }
+                else
+                {
+                    <ul class="catalog-attention-list">@foreach (var item in FilteredAttention.Skip(_attentionOffset).Take(PageSize)) { <li>@item.Title · @item.Reason</li> }</ul>
+                    <CatalogAdminPager Label="Attention pages" Offset="_attentionOffset" Total="FilteredAttention.Count"
+                                       PageSize="PageSize" OffsetChanged="value => _attentionOffset = value" />
+                }
             }
             <h2>Health, usage and feeds</h2>
             <p>Not reported. These observations need a supported server projection.</p>
@@ -121,6 +155,10 @@
     private bool _descending;
     private int _offset;
     private bool _loading;
+    private string _attentionQuery = string.Empty;
+    private string _attentionReason = string.Empty;
+    private string _attentionSort = "title";
+    private int _attentionOffset;
 
     private IReadOnlyList<CatalogAdminRow> FilteredCatalogs => (_read?.Catalogs ?? [])
         .Where(row => row.Title.Contains(_query, StringComparison.OrdinalIgnoreCase) && (_audience.Length == 0 || row.Audience == _audience))
@@ -128,12 +166,22 @@
         .ThenByDescending(row => _descending ? row.Title : null, StringComparer.OrdinalIgnoreCase)
         .ThenBy(row => row.Id, StringComparer.Ordinal).ToArray();
 
+    private IReadOnlyList<CatalogAdminAttention> FilteredAttention => (_read?.Overview?.Attention ?? [])
+        .Where(item => item.Title.Contains(_attentionQuery, StringComparison.OrdinalIgnoreCase)
+            && (_attentionReason.Length == 0 || item.Reason == _attentionReason))
+        .OrderBy(item => _attentionSort == "issue" ? item.Reason : item.Title, StringComparer.OrdinalIgnoreCase)
+        .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
+        .ThenBy(item => item.Reason, StringComparer.OrdinalIgnoreCase).ToArray();
+
     protected override async Task OnParametersSetAsync()
     {
         _load?.Cancel();
         _load?.Dispose();
         _read = null;
         _offset = 0;
+        _attentionOffset = 0;
+        _attentionQuery = _attentionReason = string.Empty;
+        _attentionSort = "title";
         _loading = Options.Enabled;
         if (!Options.Enabled) return;
         var load = _load = new CancellationTokenSource();
@@ -157,8 +205,10 @@
     private void SearchChanged(ChangeEventArgs args) { _query = args.Value?.ToString() ?? string.Empty; _offset = 0; }
     private void AudienceChanged(ChangeEventArgs args) { _audience = args.Value?.ToString() ?? string.Empty; _offset = 0; }
     private void SortChanged(ChangeEventArgs args) { _descending = bool.TryParse(args.Value?.ToString(), out var descending) && descending; _offset = 0; }
-    private void Previous() => _offset = Math.Max(0, _offset - PageSize);
-    private void Next() => _offset = Math.Min(_offset + PageSize, Math.Max(0, FilteredCatalogs.Count - 1));
+    private void AttentionSearchChanged(ChangeEventArgs args) { _attentionQuery = args.Value?.ToString() ?? string.Empty; _attentionOffset = 0; }
+    private void AttentionReasonChanged(ChangeEventArgs args) { _attentionReason = args.Value?.ToString() ?? string.Empty; _attentionOffset = 0; }
+    private void AttentionSortChanged(ChangeEventArgs args) { _attentionSort = args.Value?.ToString() ?? "title"; _attentionOffset = 0; }
+    private static string KindLabel(string kind) => kind switch { "dataset" => "Dataset", "layer" => "Layer", "service" => "Service", "map" => "Map", "app" => "App", _ => "Not reported" };
     private static string AudienceLabel(string audience) => audience switch { "public" => "Public", "signed-in" => "Signed-in users", "roles" => "Roles", _ => "Not reported" };
     private static string? ProposalHref(string? href) => href?.StartsWith("/inbox?proposalId=", StringComparison.Ordinal) == true && !href.Contains('#') && !href.Contains('\\') ? href : null;
 

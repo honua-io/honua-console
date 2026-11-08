@@ -10,6 +10,26 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class ConsoleNavigationRenderTests
 {
+    [Theory]
+    [InlineData(true, "/catalog", "Content")]
+    [InlineData(true, "/catalogs", "Catalogs")]
+    [InlineData(true, "/operate/catalogs", "Discovery endpoints")]
+    [InlineData(false, "/catalog", "Catalog")]
+    [InlineData(false, "/operate/catalogs", "Discovery catalogs")]
+    public void ContextAndRecentLabelsUseTheActiveNavigation(bool enabled, string path, string label)
+    {
+        using var context = CreateContext();
+        context.Services.AddSingleton<IConsoleCapabilityManifest>(new ConsoleCapabilityManifest([ConsoleCapabilityKeys.PersistentCatalog]));
+        context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Honua:Console:Catalogs:Enabled"] = enabled ? "true" : "false"
+        }).Build());
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo(path);
+        var shell = context.Render<ConsoleLayout>();
+        shell.WaitForAssertion(() => Assert.Equal(label, shell.Find(".console-contextbar summary").TextContent));
+        shell.WaitForAssertion(() => Assert.Equal(label, shell.Find("[data-console-recent-label]").GetAttribute("data-console-recent-label")));
+    }
+
     [Fact]
     public void CatalogPreviewGroupsAdministrationAndNamesTheContentLibrary()
     {
