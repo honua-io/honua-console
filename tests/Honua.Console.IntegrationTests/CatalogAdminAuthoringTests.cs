@@ -13,9 +13,7 @@ public sealed class CatalogAdminAuthoringTests
     [Fact]
     public void Templates_ReportsMissingProjectionInsteadOfShowingOverview()
     {
-        using var context = new BunitContext();
-        context.Services.AddSingleton(new CatalogAdminOptions { Enabled = true });
-        context.Services.AddSingleton<ICatalogAdminSource>(new EmptyAuthoringSource());
+        using var context = CatalogAuthoringFixture.Context(CatalogAuthoringFixture.Read() with { Templates = null });
         var page = context.Render<CatalogAdminPage>(parameters => parameters
             .Add(p => p.CatalogId, "open").Add(p => p.Section, "templates"));
         Assert.Contains("Templates are unavailable", page.Markup);
@@ -29,7 +27,8 @@ public sealed class CatalogAdminAuthoringTests
         var page = context.Render<CatalogTemplatesPage>(parameters => parameters.Add(p => p.CatalogId, "open"));
         Assert.Equal("Templates", page.Find("[aria-current='page']").TextContent);
         Assert.Equal(2, page.FindAll(".catalog-templates tbody tr").Count);
-        Assert.Contains("Draft", page.Find(".catalog-templates").TextContent);
+        Assert.Equal(new[] { "Service page", "service", "v4", "v3", "Draft" },
+            page.FindAll(".catalog-templates tbody tr")[0].Children.Select(cell => cell.TextContent.Trim()));
         Assert.Contains("v3", page.Find(".catalog-templates").TextContent);
         Assert.Contains("Not reported", page.Find(".catalog-templates").TextContent);
         Assert.Equal("/catalogs/open/templates/service%20%26%20map", page.Find(".catalog-templates tbody a").GetAttribute("href"));
@@ -116,6 +115,7 @@ public sealed class CatalogAdminAuthoringTests
         using var context = CatalogAuthoringFixture.Context(source);
         context.Render<CatalogListingPage>(parameters => parameters.Add(p => p.CatalogId, "open").Add(p => p.ItemId, "emergency"));
         var request = Assert.Single(source.Requests);
+        Assert.Equal("open", request.CatalogId);
         Assert.Equal("emergency", request.ItemId);
         Assert.Equal("listing", request.Section);
         Assert.Null(request.TemplateId);
@@ -127,11 +127,15 @@ public sealed class CatalogAdminAuthoringTests
         using var context = CatalogAuthoringFixture.Context(CatalogAuthoringFixture.Read());
         var page = context.Render<CatalogListingPage>(parameters => parameters.Add(p => p.CatalogId, "open").Add(p => p.ItemId, "emergency"));
         Assert.Contains("Endpoint access does not change", page.Markup);
-        Assert.True(page.Find("#listing-can-appear").HasAttribute("disabled"));
-        Assert.Contains("Folder Public Safety", page.Find(".catalog-memberships").TextContent);
+        Assert.Equal("Can appear in catalogs: Yes", page.Find(".catalog-can-appear").TextContent.Trim());
+        Assert.Equal(new[] { "Open catalog", "Public", "Folder Public Safety", "Listed", "Public safety", "Yes", "No" },
+            page.FindAll(".catalog-memberships tbody tr")[0].Children.Select(cell => cell.TextContent.Trim()));
         Assert.Contains("Audience-restricted", page.Find(".catalog-memberships").TextContent);
         Assert.Contains("from folder Public Safety", page.Markup);
         Assert.Contains("extent and style", page.Markup);
+        Assert.Contains("Shelters and flood zones", page.Markup);
+        Assert.Contains("Emergency GIS", page.Markup);
+        Assert.Contains("gis@example.test", page.Markup);
         Assert.Contains("Evacuation map", page.Markup);
         Assert.Contains("Visitor preview is unavailable", page.Markup);
         Assert.Empty(page.FindAll("iframe, script, img, button[type='submit']"));
@@ -150,12 +154,7 @@ public sealed class CatalogAdminAuthoringTests
         Assert.Contains("<img src=x onerror=alert(1)>", page.Find("#listing-description").TextContent);
         Assert.Empty(page.FindAll("img, script, [onerror]"));
         Assert.Contains("Listing checks are not reported", page.Markup);
-        Assert.DoesNotContain("Operational", page.Markup);
+        Assert.Contains("Related apps and maps are not reported", page.Markup);
     }
 
-    private sealed class EmptyAuthoringSource : ICatalogAdminSource
-    {
-        public Task<CatalogAdminRead> ReadAsync(CatalogAdminRequest request, CancellationToken cancellationToken)
-            => Task.FromResult(new CatalogAdminRead([], new("open", "Open", new(0, 0, 0, 0, 0), []), "fixture", null));
-    }
 }

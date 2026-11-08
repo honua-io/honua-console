@@ -4,7 +4,7 @@
     <h2 id="catalog-listing-heading">Catalog listing: @Listing.Title</h2>
     <p>Listing settings are read-only until the server provides the catalog mutation and approval contracts. Endpoint access does not change when an item is removed from catalogs.</p>
     <h3>Appears in catalogs</h3>
-    <label for="listing-can-appear"><input id="listing-can-appear" type="checkbox" checked="@(Listing.CanAppear == true)" disabled /> Can appear in catalogs: @Reported(Listing.CanAppear?.ToString())</label>
+    <p class="catalog-can-appear">Can appear in catalogs: @YesNo(Listing.CanAppear)</p>
     <p>Every catalog checks each item's access for its visitor. The rows below report administration state, not a visitor preview.</p>
     @if (Listing.Memberships.Count == 0) { <p>Catalog membership is not reported.</p> }
     else
@@ -15,8 +15,8 @@
                 <tbody>
                     @foreach (var membership in Listing.Memberships)
                     {
-                        <tr><th scope="row">@membership.Title</th><td>@CatalogAdminLabels.Audience(membership.Audience ?? "")</td><td>@membership.Reason</td>
-                            <td>@Visibility(membership.Visibility)</td><td>@Reported(membership.Category)</td><td>@Reported(membership.Featured?.ToString())</td><td>@Reported(membership.HiddenHere?.ToString())</td></tr>
+                        <tr><th scope="row">@membership.Title</th><td>@CatalogAdminLabels.Audience(membership.Audience)</td><td>@membership.Reason</td>
+                            <td>@Visibility(membership.Visibility)</td><td>@Reported(membership.Category)</td><td>@YesNo(membership.Featured)</td><td>@YesNo(membership.HiddenHere)</td></tr>
                     }
                 </tbody>
             </table>
@@ -29,8 +29,12 @@
         <dt>Licence</dt><dd>@Reported(Listing.Licence) · @Reported(Listing.LicenceSource)</dd>
         <dt>Update frequency</dt><dd>@Reported(Listing.UpdateFrequency)</dd>
     </dl>
-    <label for="listing-description">Description source (Markdown)</label>
-    <textarea id="listing-description" rows="5" readonly>@Listing.Description</textarea>
+    @if (string.IsNullOrWhiteSpace(Listing.Description)) { <p>Description is not reported.</p> }
+    else
+    {
+        <label for="listing-description">Description source (Markdown)</label>
+        <textarea id="listing-description" rows="5" readonly>@Listing.Description</textarea>
+    }
     <h3>Thumbnail</h3>
     <dl class="catalog-settings-fields"><dt>Source</dt><dd>@Reported(Listing.ThumbnailSource)</dd><dt>Alt text</dt><dd>@Reported(Listing.ThumbnailAlt)</dd></dl>
     <p>Thumbnail uploads are unavailable until the server provides the upload contract.</p>
@@ -52,8 +56,4 @@
 
 @code {
     [Parameter, EditorRequired] public CatalogListingDocument Listing { get; set; } = default!;
-    private static string Visibility(string? value) => value switch
-    {
-        "listed" => "Listed", "restricted" => "Audience-restricted", "hidden" => "Hidden here", "opted-out" => "Opted out", _ => "Not reported"
-    };
 }

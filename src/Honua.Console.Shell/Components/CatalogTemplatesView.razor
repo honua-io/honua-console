@@ -22,8 +22,13 @@
                     <tbody>
                         @foreach (var row in Matches)
                         {
-                            <tr @key="row.Id">
-                                <th scope="row"><a href="@($"/catalogs/{Uri.EscapeDataString(Templates.CatalogId)}/templates/{Uri.EscapeDataString(row.Id)}")">@row.Title</a></th>
+                            <tr>
+                                <th scope="row">
+                                    @if (CatalogAdminLinks.TemplateHref(Templates.CatalogId, row.Id) is { } href)
+                                    { <a href="@href">@row.Title</a> }
+                                    else
+                                    { <span>@row.Title · Template destination is unavailable</span> }
+                                </th>
                                 <td>@row.PageKind</td><td>@Reported(row.DraftVersion)</td><td>@Reported(row.ReleasedVersion)</td><td>@TemplateState(row.State)</td>
                             </tr>
                         }

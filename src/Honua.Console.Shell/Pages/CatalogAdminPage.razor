@@ -120,10 +120,10 @@
             <h2>Admin visibility counts</h2>
             <p class="console-muted">These counts include administration states. Public search only counts items its visitor may read.</p>
             <dl class="catalog-admin-counts">
-                <div><dt>Listed</dt><dd>@overview.Visibility.Listed</dd></div>
-                <div><dt>Audience-restricted</dt><dd>@overview.Visibility.AudienceRestricted</dd></div>
-                <div><dt>Hidden here</dt><dd>@overview.Visibility.HiddenHere</dd></div>
-                <div><dt>Opted out</dt><dd>@overview.Visibility.OptedOut</dd></div>
+                <div><dt>@CatalogAdminLabels.Visibility("listed")</dt><dd>@overview.Visibility.Listed</dd></div>
+                <div><dt>@CatalogAdminLabels.Visibility("restricted")</dt><dd>@overview.Visibility.AudienceRestricted</dd></div>
+                <div><dt>@CatalogAdminLabels.Visibility("hidden")</dt><dd>@overview.Visibility.HiddenHere</dd></div>
+                <div><dt>@CatalogAdminLabels.Visibility("opted-out")</dt><dd>@overview.Visibility.OptedOut</dd></div>
                 <div><dt>Matched</dt><dd>@overview.Visibility.Matched</dd></div>
             </dl>
             <h2>Counts by kind</h2>

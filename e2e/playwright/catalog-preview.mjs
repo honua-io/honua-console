@@ -7,7 +7,7 @@ import { chromium } from "@playwright/test";
 
 const previews = path.resolve("artifacts/catalog-preview");
 const assets = path.resolve("artifacts/honua-console-web/wwwroot");
-const pages = new Map(await Promise.all(["list", "overview", "settings", "templates", "template-editor", "listing"].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
+const pages = new Map(await Promise.all(["list", "overview", "settings", "templates", "template-editor", "template-dirty", "template-confirmation", "listing"].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, "http://localhost");
@@ -65,14 +65,20 @@ async function inspectPresentation(page, { name, width }) {
     assert.ok(expected.includes('catalog="open"'));
     assert.equal(await page.locator(".catalog-settings script").count(), 0);
   }
-  if (name === "template-editor") {
+  if (name.startsWith("template-")) {
     assert.equal(await page.locator(".catalog-template-editor :is(script, iframe, img, [srcdoc], [onerror])").count(), 0);
-    assert.ok((await page.getByLabel("Template source", { exact: true }).inputValue()).includes("</textarea><script>"));
+    if (name === "template-editor") assert.ok((await page.getByLabel("Template source", { exact: true }).inputValue()).includes("</textarea><script>"));
+    if (name !== "template-editor") assert.ok(await page.getByRole("button", { name: "Discard local edits", exact: true }).isEnabled());
+    if (name === "template-confirmation") {
+      assert.ok(await page.getByRole("button", { name: "Keep editing", exact: true }).isVisible());
+      assert.ok(await page.getByRole("button", { name: "Discard edits", exact: true }).isVisible());
+    }
     assert.ok(await page.getByRole("heading", { name: "Preview", exact: true }).isVisible());
     assert.equal(await page.locator("button[data-template-insert]").count(), 6);
   }
   if (name === "listing") {
-    assert.ok(await page.getByLabel(/Can appear in catalogs/).isDisabled());
+    assert.equal(await page.locator(".catalog-can-appear").textContent(), "Can appear in catalogs: Yes");
+    assert.equal(await page.locator(".catalog-listing input, .catalog-listing button").count(), 0);
     assert.ok(await page.getByRole("heading", { name: "Public card preview", exact: true }).isVisible());
   }
   const accessibility = await new AxeBuilder({ page }).include(".catalog-admin").analyze();
@@ -82,7 +88,7 @@ async function inspectPresentation(page, { name, width }) {
 }
 
 async function checkKeyboardControls(page) {
-  const controls = page.locator(".catalog-admin :is(input, select, button, textarea):not(:disabled), .catalog-admin-tabs a");
+  const controls = page.locator(".catalog-admin :is(input, select, button, textarea):not(:disabled), .catalog-admin-tabs a, .catalog-templates tbody a");
   const total = await controls.count();
   assert.ok(total > 0);
   await controls.evaluateAll(elements => elements.forEach((element, index) => { element.dataset.previewControlIndex = String(index); }));

@@ -1,13 +1,13 @@
 <section class="catalog-template-editor" aria-labelledby="template-editor-heading">
     <h2 id="template-editor-heading">Template: @Template.Title</h2>
-    <p>@CatalogAdminLabels.TemplateState(Template.State) · Version @(Template.Version ?? "not reported")</p>
+    <p>@CatalogAdminLabels.TemplateState(Template.State) · Version @CatalogAdminLabels.Reported(Template.Version)</p>
     <p>Saving and releasing are unavailable until the server provides sanitization, version and approval contracts. Edits below stay in this page and are lost when discarded.</p>
     <UnsavedChangesGuard IsDirty="IsDirty" />
     <div class="catalog-template-layout">
         <section aria-labelledby="template-source-heading">
             <h3 id="template-source-heading">HTML</h3>
             <label for="template-source">Template source</label>
-            <textarea id="template-source" @ref="_sourceInput" rows="18" spellcheck="false" @bind="_source" @bind:event="oninput" aria-describedby="template-safety">@_source</textarea>
+            <textarea id="template-source" @ref="_sourceInput" rows="18" spellcheck="false" @bind="_source" @bind:event="oninput" @bind:after="SourceChanged" aria-describedby="template-safety"></textarea>
             <p id="template-safety">Source is displayed as text. It is never executed here. The server must sanitize HTML and escape variables before a sandboxed preview or release.</p>
         </section>
         <section aria-labelledby="template-preview-heading">
@@ -33,29 +33,30 @@
     </div>
     <div class="console-action-row">
         <p role="status" class="catalog-template-status">@(IsDirty ? "Unsaved local changes · nothing saved or released" : "Source unchanged")</p>
-        <button type="button" class="console-button console-button-secondary" data-template-discard disabled="@(!IsDirty)" @onclick="() => _confirmDiscard = true">Discard local edits</button>
+        <button type="button" class="console-button console-button-secondary" data-template-discard disabled="@(!IsDirty)" @onclick="RequestDiscard">Discard local edits</button>
     </div>
     @if (_confirmDiscard && IsDirty)
     {
         <div role="group" aria-label="Discard local edits">
             <p>Discard all local edits and return to the reported source?</p>
             <button type="button" class="console-button" data-template-confirm @onclick="ConfirmDiscardAsync">Discard edits</button>
-            <button type="button" class="console-button console-button-secondary" data-template-keep @onclick="KeepEditingAsync">Keep editing</button>
+            <button type="button" class="console-button console-button-secondary" data-template-keep @ref="_keepEditingInput" @onclick="KeepEditingAsync">Keep editing</button>
         </div>
     }
 </section>
 
 @code {
     [Parameter, EditorRequired] public CatalogTemplateDocument Template { get; set; } = default!;
-    private CatalogTemplateDocument? _loaded;
     private string _source = string.Empty;
     private bool _confirmDiscard;
+    private bool _focusDiscardChoice;
     private ElementReference _sourceInput;
+    private ElementReference _keepEditingInput;
     private bool IsDirty => _source != Template.Source;
-    private sealed record ComponentReference(string Tag, string Attributes, string IdentityAttribute);
+    private sealed record ComponentReference(string Tag, string Attributes, string? IdentityAttribute);
     private static readonly ComponentReference[] Components =
     [
-        new("honua-catalog-search", "catalog, kind, category, limit, label", ""),
+        new("honua-catalog-search", "catalog, kind, category, limit, label", null),
         new("honua-service-card", "catalog, service", "service"),
         new("honua-layer-card", "catalog, layer", "layer"),
         new("honua-dataset-card", "catalog, dataset", "dataset"),
@@ -63,18 +64,27 @@
         new("honua-app-card", "catalog, app", "app")
     ];
 
-    protected override void OnParametersSet()
+    protected override void OnInitialized() => _source = Template.Source;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (ReferenceEquals(_loaded, Template)) return;
-        _loaded = Template;
-        Discard();
+        if (!_focusDiscardChoice) return;
+        _focusDiscardChoice = false;
+        await _keepEditingInput.FocusAsync();
     }
 
     private void Insert(ComponentReference component)
     {
-        var catalog = System.Net.WebUtility.HtmlEncode(Template.CatalogId);
-        var identity = component.IdentityAttribute.Length == 0 ? string.Empty : $" {component.IdentityAttribute}=\"{{{{ item.id }}}}\"";
-        _source += $"\n<{component.Tag} catalog=\"{catalog}\"{identity}></{component.Tag}>";
+        _source += "\n" + CatalogComponentMarkup.Element(component.Tag, Template.CatalogId, component.IdentityAttribute);
+        SourceChanged();
+    }
+
+    private void SourceChanged() => _confirmDiscard = false;
+
+    private void RequestDiscard()
+    {
+        _confirmDiscard = true;
+        _focusDiscardChoice = true;
     }
 
     private async Task ConfirmDiscardAsync()
