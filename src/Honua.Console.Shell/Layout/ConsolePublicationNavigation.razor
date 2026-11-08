@@ -49,6 +49,7 @@
     private CatalogAttempt? _failed;
     private bool _disposed;
     private IConsoleCapabilityManifest? _capabilities;
+    private AuthenticationStateProvider? _authentication;
     private IConsolePublicationNavigationSource Source => Services.GetService<IConsolePublicationNavigationSource>()
         ?? new UnsupportedConsolePublicationNavigationSource();
     private string CurrentPath => "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
@@ -84,8 +85,8 @@
         if (_folderChanges is not null) _folderChanges.Changed += FoldersChanged;
         _capabilities = Services.GetService<IConsoleCapabilityManifest>();
         if (_capabilities is not null) _capabilities.Changed += CapabilitiesChanged;
-        if (Services.GetService<AuthenticationStateProvider>() is { } authentication)
-            authentication.AuthenticationStateChanged += AuthenticationChanged;
+        _authentication = Services.GetService<AuthenticationStateProvider>();
+        if (_authentication is not null) _authentication.AuthenticationStateChanged += AuthenticationChanged;
         _ = CheckAuthorityAsync();
     }
 
@@ -398,8 +399,7 @@
         Navigation.LocationChanged -= LocationChanged;
         if (_folderChanges is not null) _folderChanges.Changed -= FoldersChanged;
         if (_capabilities is not null) _capabilities.Changed -= CapabilitiesChanged;
-        if (Services.GetService<AuthenticationStateProvider>() is { } authentication)
-            authentication.AuthenticationStateChanged -= AuthenticationChanged;
+        if (_authentication is not null) _authentication.AuthenticationStateChanged -= AuthenticationChanged;
         _authorityLifetime.Cancel();
         _authorityLifetime.Dispose();
     }
