@@ -15,9 +15,11 @@ test('browse an imported folder and its layers with an isolated anonymous contro
   await expect(tree).toBeVisible();
   const folderRow = tree.locator(`[data-publication-key="folder:${encodeURIComponent(folder.id)}"]`);
   await expect(folderRow).toHaveAccessibleName(`${folder.name} 2 services`);
-  await folderRow.getByRole('button', { name: `Expand ${folder.name}`, exact: true }).click();
-
   for (const service of folder.services) {
+    if (await folderRow.getAttribute('aria-expanded') !== 'true') {
+      await folderRow.getByRole('button', { name: `Expand ${folder.name}`, exact: true }).click();
+    }
+    await expect(folderRow).toHaveAttribute('aria-expanded', 'true');
     const row = tree.locator(`[data-publication-key="service:${encodeURIComponent(service.name)}"]`);
     await expect(row).toHaveAttribute('data-tree-parent', `folder:${encodeURIComponent(folder.id)}`);
     await expect(row).toContainText(service.name);
