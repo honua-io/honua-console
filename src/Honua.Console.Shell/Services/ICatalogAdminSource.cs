@@ -4,12 +4,12 @@ namespace Honua.Console.Shell.Services;
 
 public interface ICatalogAdminSource
 {
-    Task<CatalogAdminRead> ReadAsync(string? catalogId, CancellationToken cancellationToken);
+    Task<CatalogAdminRead> ReadAsync(CatalogAdminRequest request, CancellationToken cancellationToken);
 }
 
 internal sealed class UnsupportedCatalogAdminSource(bool serverConfigured) : ICatalogAdminSource
 {
-    public Task<CatalogAdminRead> ReadAsync(string? catalogId, CancellationToken cancellationToken)
+    public Task<CatalogAdminRead> ReadAsync(CatalogAdminRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(new CatalogAdminRead([], null,

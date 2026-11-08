@@ -238,3 +238,24 @@ projection; no save/proposal operation is wired until the canonical contract is
 available. A copyable embed snippet is offered only when that projection supplies
 a released HTTPS component bundle and SHA-384 integrity. The snippet is escaped
 text, never executed by Console. No fixtures are registered by the production host.
+
+
+The same experimental Catalogs flag also gates `/catalogs/{id}/templates`,
+`/catalogs/{id}/templates/{templateId}`, and `/catalogs/{id}/items/{itemId}`.
+All three routes require the authenticated shell. Template and item identities
+are passed to the presentation source and checked again before their fields
+are rendered. Missing projections remain unavailable; production does not
+register fixtures or a speculative catalog transport.
+
+The template editor displays HTML as escaped text. Local edits and component
+insertion use the shared unsaved-changes guard and explicit discard confirmation;
+they never save or release a version. Server-sanitized, sandboxed previews,
+version history/restore, mutation policy and proposals await the canonical
+contracts. The component reference lists only the draft search/cards attributes;
+it loads no package and establishes no release or live qualification.
+
+Item listing is read-only: catalog membership and audience visibility remain
+separate from endpoint access, with reported metadata inheritance, thumbnail
+provenance, governance, related items and listing checks. Visitor card preview
+and thumbnail upload remain unavailable until their server contracts exist.
+Administration fields are never presented as a visitor-filtered public preview.

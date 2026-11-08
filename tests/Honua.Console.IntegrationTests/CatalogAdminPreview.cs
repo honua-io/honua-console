@@ -1,3 +1,5 @@
+using AngleSharp.Html.Parser;
+
 namespace Honua.Console.IntegrationTests;
 
 internal static class CatalogAdminPreview
@@ -7,6 +9,12 @@ internal static class CatalogAdminPreview
         var directory = Environment.GetEnvironmentVariable("HONUA_CATALOG_PREVIEW_DIR");
         if (string.IsNullOrWhiteSpace(directory)) return;
         Directory.CreateDirectory(directory);
-        File.WriteAllText(Path.Combine(directory, $"{name}.html"), markup);
+        var document = new HtmlParser().ParseDocument(markup);
+        foreach (var textarea in document.QuerySelectorAll("textarea[value]"))
+        {
+            textarea.TextContent = textarea.GetAttribute("value") ?? string.Empty;
+            textarea.RemoveAttribute("value");
+        }
+        File.WriteAllText(Path.Combine(directory, $"{name}.html"), document.Body!.InnerHtml);
     }
 }
