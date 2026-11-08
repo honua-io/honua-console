@@ -76,3 +76,21 @@ test('decide refuses an unknown action before network access', async context => 
 
     assert.equal(fetch.mock.callCount(), 0);
 });
+
+for (const failurePhase of ['bootstrap', 'decision']) {
+    test(`decide ${failurePhase} 403 returns a human sign-in refusal without retrying`, async context => {
+        let calls = 0;
+        context.mock.method(globalThis, 'fetch', async () => {
+            calls++;
+            return failurePhase === 'bootstrap' || calls === 2
+                ? response({}, 403)
+                : response({ profileId: command.profileId, csrfToken: 'csrf' });
+        });
+
+        const result = await decide(command);
+
+        assert.equal(result.status, 2);
+        assert.match(result.message, /sign in.*approval server/i);
+        assert.equal(calls, failurePhase === 'bootstrap' ? 1 : 2);
+    });
+}

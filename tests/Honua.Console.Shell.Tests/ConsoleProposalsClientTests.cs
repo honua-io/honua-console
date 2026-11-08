@@ -79,6 +79,36 @@ public sealed class ConsoleProposalsClientTests
         Assert.Null(result.Value.HumanApprovalSignInPath);
     }
 
+    [Fact]
+    public async Task Get_ManagementBrowserProofRequired_OffersTheMatchingSignIn()
+    {
+        var human = new FixedHumanReview
+        {
+            Refusal = OperateSectionResult<ConsoleHumanProposalReview>.Denied(
+                OperateSectionStatus.Forbidden, "Sign in to the approval server again, then refresh this review.")
+        };
+        var client = CreateClient(new RecordingHandler(_ => Json("""{"proposalId":"prop-1","status":"AwaitingApproval"}""")),
+            humanSession: human, authority: ConsoleServerAuthority.Management);
+
+        var result = await client.GetAsync("prop-1");
+
+        Assert.True(result.IsAllowed);
+        Assert.Contains("authority=Management", result.Value!.HumanApprovalSignInPath, StringComparison.Ordinal);
+        Assert.Contains("Sign in to the approval server", result.Value.HumanApprovalMessage, StringComparison.Ordinal);
+        using var context = new BunitContext();
+        context.Services.AddSingleton<IConsoleProposalsClient>(client);
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "prop-1"));
+        panel.WaitForAssertion(() =>
+        {
+            var link = Assert.Single(panel.FindAll("a"));
+            Assert.Contains("authority=Management", link.GetAttribute("href"), StringComparison.Ordinal);
+            Assert.Contains("Sign in to approval server", link.TextContent, StringComparison.Ordinal);
+            Assert.True(panel.Find("[data-proposal-approve]").HasAttribute("disabled"));
+        });
+    }
+
     [Theory]
     [InlineData("Completed", "completed", true)]
     [InlineData("Cancelled", "cancelled", true)]

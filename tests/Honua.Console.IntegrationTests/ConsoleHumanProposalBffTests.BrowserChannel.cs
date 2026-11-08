@@ -88,7 +88,8 @@ public sealed partial class ConsoleHumanProposalBffTests
         var decision = await host.DecideAsync(new("proposal", review.Proposal.Version,
             review.Proposal.PlanHash!, review.EnvironmentReference));
 
-        Assert.False(decision.IsAllowed);
+        Assert.Equal(OperateSectionStatus.Forbidden, decision.Status);
+        Assert.Contains("Sign in", decision.Message, StringComparison.Ordinal);
         Assert.Equal(0, host.ApprovalCalls);
     }
 
