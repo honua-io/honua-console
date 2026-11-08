@@ -47,9 +47,11 @@ internal static class ConsoleHumanProposalBff
     {
         var context = endpoint.Context;
         context.Response.Headers.CacheControl = "no-store";
-        if (!IsBrowserSession(context)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+        if (!ConsoleApprovalBrowserChannel.HasUnmixedIdentity(context)) return Results.StatusCode(StatusCodes.Status403Forbidden);
         var profile = await endpoint.Profiles.GetActiveProfileAsync(context.RequestAborted).ConfigureAwait(false);
         if (profile is null) return Results.StatusCode(StatusCodes.Status409Conflict);
+        if (!endpoint.BrowserChannel.HasSession(profile, endpoint.ServerSessions))
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
         var csrf = endpoint.Antiforgery.GetAndStoreTokens(context);
         return Results.Json(new ConsoleHumanProposalBrowserSession(profile.Id, csrf.RequestToken),
             ConsoleHumanProposalBffJsonContext.Default.ConsoleHumanProposalBrowserSession);
@@ -60,20 +62,19 @@ internal static class ConsoleHumanProposalBff
     {
         var context = endpoint.Context;
         context.Response.Headers.CacheControl = "no-store";
-        if (!IsBrowserSession(context) || !Enum.IsDefined(request.Authority)) return null;
+        if (!ConsoleApprovalBrowserChannel.HasUnmixedIdentity(context) || !Enum.IsDefined(request.Authority)) return null;
         try { await endpoint.Antiforgery.ValidateRequestAsync(context).ConfigureAwait(false); }
         catch (AntiforgeryValidationException) { return null; }
         var profile = await endpoint.Profiles.GetActiveProfileAsync(context.RequestAborted).ConfigureAwait(false);
         return profile?.Id == request.ProfileId ? profile : null;
     }
 
-    private static bool IsBrowserSession(HttpContext context) => context.User.Identity?.IsAuthenticated == true
-        && !context.Request.Headers.ContainsKey("Authorization") && !context.Request.Headers.ContainsKey("X-API-Key");
 }
 
 internal sealed record ConsoleHumanProposalEndpointContext(
     HttpContext Context, IAntiforgery Antiforgery,
-    IConsoleEnvironmentProfileStore Profiles, ConsoleHumanProposalSession Sessions);
+    IConsoleEnvironmentProfileStore Profiles, ConsoleHumanProposalSession Sessions,
+    ConsoleApprovalBrowserChannel BrowserChannel, ConsoleServerSessionClientStore ServerSessions);
 
 internal sealed record ConsoleHumanProposalRequest(
     string ProfileId, ConsoleServerAuthority Authority, ConsoleProposalDecision? Decision);

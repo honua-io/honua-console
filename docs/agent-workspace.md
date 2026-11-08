@@ -86,6 +86,14 @@ proposals use the configured management authority, with a separate private cooki
 partition; this does not replace the serving account or its bearer.
 
 The browser uses same-origin antiforgery-protected review, status and decision requests.
+Approval also requires a host-only, Secure, HttpOnly, SameSite=Strict browser proof
+issued after a successful Server OIDC code/PKCE callback. It expires after ten
+minutes, is bound to the Console operator, full environment and authority, host
+audience and private-session generation, and is never renewed by a read. Sign in
+to the Server again when it expires. Sign-out or session replacement invalidates
+it. An edge identity, API key, agent token or fetch headers alone cannot establish
+the approval channel. Existing Console sessions need a fresh Server sign-in after
+this rollout.
 The upstream cookie and short-lived review capability remain in the Console host,
 bound to the operator, environment and complete server origin. A version, plan,
 identity or environment change prevents submission. The capability is consumed

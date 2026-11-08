@@ -65,6 +65,8 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
 
     public ConsoleProposalReviewCache ProposalReviews { get; }
 
+    public string? ApprovalSessionReference { get; set; }
+
     // Other sign-in attempts that observed this partition. The creator does not count, and only the store lock mutates it.
     public int Observers { get; private set; }
 
@@ -86,6 +88,7 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
     public void Dispose()
     {
         ProposalReviews.Clear();
+        ApprovalSessionReference = null;
         Client.Dispose();
     }
 
@@ -470,6 +473,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
     private readonly TimeProvider _timeProvider;
     private readonly ConsoleServerSessionIdentityBinding? _identityBinding;
     private readonly IConsoleManagerEndpoint? _management;
+    private readonly ConsoleApprovalBrowserChannel? _approvalChannel;
 
     public ConsoleServerSessionBffCoordinator(
         IConsoleOperatorContext operatorContext,
@@ -478,8 +482,10 @@ internal sealed class ConsoleServerSessionBffCoordinator
         ConsoleServerSessionClientStore serverSessions,
         TimeProvider timeProvider,
         ConsoleServerSessionIdentityBinding? identityBinding = null,
-        IConsoleManagerEndpoint? management = null)
+        IConsoleManagerEndpoint? management = null,
+        ConsoleApprovalBrowserChannel? approvalChannel = null)
     {
+        _approvalChannel = approvalChannel;
         _management = management;
         _identityBinding = identityBinding;
         _operatorContext = operatorContext ?? throw new ArgumentNullException(nameof(operatorContext));
@@ -668,6 +674,8 @@ internal sealed class ConsoleServerSessionBffCoordinator
         {
             var partition = _serverSessions.GetOrCreate(operatorKey, profile);
             using var authentication = await partition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
+            partition.ApprovalSessionReference = null;
+            partition.ProposalReviews.Clear();
             var snapshots = _sessions as IConsoleAccountSessionSnapshotStore;
             var snapshot = snapshots is null ? null
                 : await snapshots.CaptureSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
@@ -705,8 +713,13 @@ internal sealed class ConsoleServerSessionBffCoordinator
 
             partition.AuthenticatedProviderKey = pending.ProviderKey;
             partition.ProposalReviews.Clear();
+            var browserTarget = new ConsoleApprovalBrowserTarget
+            {
+                SelectedProfile = selected!, AuthorityProfile = profile,
+                Authority = pending.Authority, Partition = partition
+            };
             if (pending.Authority == ConsoleServerAuthority.Management)
-                return new ConsoleServerSignInResult { Status = ConsoleServerSignInStatus.Redirect, RedirectUri = pending.ReturnTo };
+                return CompleteBrowserCallback(browserTarget, pending.ReturnTo);
             var exchange = await new HttpConsoleOperatorBearerExchange(partition.Client)
                 .ExchangeAsync(profile, cancellationToken).ConfigureAwait(false);
             if (exchange.Status != ConsoleOperatorBearerExchangeStatus.Issued
@@ -732,11 +745,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 await _sessions.SaveSessionAsync(updatedSession, cancellationToken).ConfigureAwait(false);
             }
 
-            return new ConsoleServerSignInResult
-            {
-                Status = ConsoleServerSignInStatus.Redirect,
-                RedirectUri = pending.ReturnTo
-            };
+            return CompleteBrowserCallback(browserTarget, pending.ReturnTo);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -746,6 +755,12 @@ internal sealed class ConsoleServerSessionBffCoordinator
         {
             return Unavailable("The server sign-in callback could not be completed.", pending.ReturnTo);
         }
+    }
+
+    private ConsoleServerSignInResult CompleteBrowserCallback(ConsoleApprovalBrowserTarget target, string returnTo)
+    {
+        _approvalChannel?.CompleteCallback(target);
+        return new ConsoleServerSignInResult { Status = ConsoleServerSignInStatus.Redirect, RedirectUri = returnTo };
     }
 
     private static ConsoleAccountSession CreateBoundAccountSession(
@@ -915,6 +930,9 @@ internal static class ConsoleServerSessionBffExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.Services.TryAddSingleton(TimeProvider.System);
+        builder.Services.AddDataProtection();
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.TryAddSingleton<ConsoleApprovalBrowserChannel>();
         builder.Services.TryAddSingleton<ConsoleServerSessionClientStore>();
         builder.Services.TryAddSingleton<ConsoleServerSessionIdentityBinding>();
         builder.Services.TryAddSingleton<ConsoleServerSessionBffCoordinator>();

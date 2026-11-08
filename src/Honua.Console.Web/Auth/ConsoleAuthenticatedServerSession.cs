@@ -10,6 +10,19 @@ internal sealed class ConsoleAuthenticatedServerSession(
 {
     private IDisposable? _authentication = authentication;
 
+    internal async Task<ConsoleServerSessionPartition?> VerifyBrowserAsync(
+        ConsoleApprovalBrowserVerification request, CancellationToken cancellationToken)
+    {
+        var target = new ConsoleApprovalBrowserTarget
+        {
+            SelectedProfile = request.Target.Profile, AuthorityProfile = request.BoundProfile,
+            Authority = request.Target.Authority, Partition = identity.Partition
+        };
+        if (request.Channel?.Authorizes(target) != true) return null;
+        var partition = await VerifyAsync(request.BoundProfile, cancellationToken).ConfigureAwait(false);
+        return partition is not null && request.Channel.Authorizes(target) ? partition : null;
+    }
+
     internal async Task<ConsoleServerSessionPartition?> VerifyAsync(
         ConsoleEnvironmentProfile profile, CancellationToken cancellationToken)
     {
@@ -47,3 +60,6 @@ internal sealed class ConsoleAuthenticatedServerSession(
 
     public void Dispose() => Interlocked.Exchange(ref _authentication, null)?.Dispose();
 }
+
+internal sealed record ConsoleApprovalBrowserVerification(
+    ConsoleHumanProposalTarget Target, ConsoleEnvironmentProfile BoundProfile, ConsoleApprovalBrowserChannel? Channel);

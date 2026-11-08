@@ -29,6 +29,8 @@ public sealed partial class ConsoleHumanProposalBffTests
         public ConsoleServerSessionClientStore Sessions { get; private set; } = null!;
         public bool Authenticated { get; set; } = true;
         public string AuthenticationScheme { get; set; } = "browser-cookie";
+        public string OperatorKey { get; set; } = "human";
+        public List<string> BrowserProofCookies { get; } = [];
         public string ProposalStatus { get; set; } = "AwaitingApproval";
         public bool LoseDecisionResponse { get; set; }
         public bool SwitchDuringIdentityCheck { get; set; }
@@ -80,6 +82,7 @@ public sealed partial class ConsoleHumanProposalBffTests
             var partition = Sessions.GetOrCreate("human", Profile with { ServerBaseUri = managerBaseUri });
             partition.AuthenticatedProviderKey = "oidc";
             partition.Cookies.SetCookies(managerBaseUri, "honua_admin_session=private-server-session; Path=/; HttpOnly");
+            IssueBrowserProof(ConsoleServerAuthority.Management);
         }
 
         private async Task<IResult> ReadIdentityAsync(HttpContext context)
@@ -175,24 +178,61 @@ public sealed partial class ConsoleHumanProposalBffTests
                 new InMemoryConsoleAccountSessionStore(), Sessions, Clock);
             var builder = Builder();
             builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-Token");
+            builder.Services.AddDataProtection();
+            builder.Services.AddHttpContextAccessor();
+            builder.Services.AddSingleton(Clock);
+            builder.Services.AddSingleton(Sessions);
+            builder.Services.AddSingleton<ConsoleApprovalBrowserChannel>();
             builder.Services.AddSingleton<IConsoleEnvironmentProfileStore>(_profiles);
-            builder.Services.AddSingleton(new ConsoleHumanProposalSession(
-                new PartitionedConsoleOperatorBearerExchange(new HumanOperator(), Sessions, identity), _profiles, Clock, _management));
+            builder.Services.AddSingleton(services => new ConsoleHumanProposalSession(
+                new PartitionedConsoleOperatorBearerExchange(new HumanOperator(), Sessions, identity), _profiles, Clock, _management,
+                services.GetRequiredService<ConsoleApprovalBrowserChannel>()));
             _browser = builder.Build();
             _browser.Use(async (context, next) =>
             {
+                context.Request.Scheme = "https";
                 context.User = Authenticated
-                    ? new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "human")], AuthenticationScheme))
+                    ? new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, OperatorKey)], AuthenticationScheme))
                     : new ClaimsPrincipal();
                 await next();
             });
             _browser.MapConsoleHumanProposalBff();
             await _browser.StartAsync();
             Client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = Address(_browser) };
+            IssueBrowserProof(ConsoleServerAuthority.Serving);
             using var bootstrap = await Client.GetAsync("/api/console/proposals/session");
             var session = await bootstrap.Content.ReadFromJsonAsync(
                 ConsoleHumanProposalBffJsonContext.Default.ConsoleHumanProposalBrowserSession);
             Client.DefaultRequestHeaders.Add("X-CSRF-Token", session!.CsrfToken);
+        }
+
+        public void IssueBrowserProof(ConsoleServerAuthority authority)
+        {
+            var profile = authority == ConsoleServerAuthority.Serving ? Profile
+                : Profile with { ServerBaseUri = _management.Target! };
+            Assert.True(Sessions.TryGet("human", profile, out var partition));
+            var context = new DefaultHttpContext();
+            context.Request.Scheme = "https";
+            context.Request.Host = new HostString(Client.BaseAddress!.Authority);
+            context.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "human")], "browser-cookie"));
+            var accessor = _browser.Services.GetRequiredService<IHttpContextAccessor>();
+            var previous = accessor.HttpContext;
+            accessor.HttpContext = context;
+            try
+            {
+                _browser.Services.GetRequiredService<ConsoleApprovalBrowserChannel>().CompleteCallback(new()
+                {
+                    SelectedProfile = Profile, AuthorityProfile = profile, Authority = authority, Partition = partition!
+                });
+            }
+            finally { accessor.HttpContext = previous; }
+            var header = Assert.Single(context.Response.Headers.SetCookie);
+            BrowserProofCookies.Add(header!);
+            var cookie = header![..header.IndexOf(';')];
+            Client.DefaultRequestHeaders.Remove("Cookie");
+            Client.DefaultRequestHeaders.Add("Cookie", string.Join("; ", BrowserProofCookies
+                .Select(value => value[..value.IndexOf(';')]).Where(value => !value.StartsWith(cookie[..cookie.IndexOf('=')], StringComparison.Ordinal))
+                .Append(cookie)));
         }
 
         public async Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync(ConsoleServerAuthority authority = ConsoleServerAuthority.Serving)
@@ -230,6 +270,16 @@ public sealed partial class ConsoleHumanProposalBffTests
         public DateTimeOffset? TakeCachedExpiry() => Sessions.TryGet("human", Profile, out var partition)
             ? partition!.ProposalReviews.Take("proposal", 7, "plan")?.ExpiresAt : null;
 
+        public void AdvanceClock(TimeSpan duration) => ((FixtureClock)Clock).Advance(duration);
+
+        public void ReplacePrivateSession()
+        {
+            Sessions.Remove("human", Profile);
+            var partition = Sessions.GetOrCreate("human", Profile);
+            partition.AuthenticatedProviderKey = "oidc";
+            partition.Cookies.SetCookies(Profile.ServerBaseUri, "honua_admin_session=private-server-session; Path=/; HttpOnly");
+        }
+
         private void Observe(HttpContext context)
         {
             SawPrivateCookie |= context.Request.Cookies["honua_admin_session"] == "private-server-session";
@@ -259,8 +309,9 @@ public sealed partial class ConsoleHumanProposalBffTests
 
     private sealed class FixtureClock : TimeProvider
     {
-        private readonly DateTimeOffset _now = DateTimeOffset.UtcNow;
+        private DateTimeOffset _now = DateTimeOffset.UtcNow;
         public override DateTimeOffset GetUtcNow() => _now;
+        public void Advance(TimeSpan duration) => _now += duration;
     }
 
     private sealed class ManagementEndpoint : IConsoleManagerEndpoint
