@@ -27,6 +27,7 @@ public sealed record CatalogAdminRead(
     public CatalogTemplateList? Templates { get; init; }
     public CatalogTemplateDocument? Template { get; init; }
     public CatalogListingDocument? Listing { get; init; }
+    public CatalogArrangementDocument? Arrangement { get; init; }
 }
 
 public sealed record CatalogAdminOptions

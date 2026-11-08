@@ -7,7 +7,7 @@ import { chromium } from "@playwright/test";
 
 const previews = path.resolve("artifacts/catalog-preview");
 const assets = path.resolve("artifacts/honua-console-web/wwwroot");
-const pages = new Map(await Promise.all(["list", "overview", "settings", "templates", "template-editor", "template-dirty", "template-confirmation", "listing"].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
+const pages = new Map(await Promise.all(["list", "overview", "settings", "templates", "template-editor", "template-dirty", "template-confirmation", "listing", "listing-dirty", "categories", "categories-dirty"].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, "http://localhost");
@@ -78,11 +78,23 @@ async function inspectPresentation(page, { name, width }) {
   }
   if (name === "listing") {
     assert.equal(await page.locator(".catalog-can-appear").textContent(), "Can appear in catalogs: Yes");
-    assert.equal(await page.locator(".catalog-listing input, .catalog-listing button").count(), 0);
+    assert.ok(await page.getByLabel("Title", { exact: true }).isVisible());
+    assert.ok(await page.getByRole("button", { name: "Discard local edits", exact: true }).isDisabled());
     assert.ok(await page.getByRole("heading", { name: "Public card preview", exact: true }).isVisible());
+  }
+  if (name === "listing-dirty") {
+    assert.ok(await page.getByRole("button", { name: "Discard local edits", exact: true }).isEnabled());
+    assert.ok((await page.getByLabel("Description source (Markdown)", { exact: true }).inputValue()).includes("</textarea><script>"));
+    assert.equal(await page.locator(".catalog-listing script, .catalog-listing img, .catalog-listing iframe").count(), 0);
+  }
+  if (name.startsWith("categories")) {
+    assert.equal(await page.locator("[data-home-position]").count(), 4);
+    assert.ok(await page.getByRole("button", { name: /Move Safety at position/ }).first().isVisible());
+    assert.equal(await page.getByRole("button", { name: "Discard local edits", exact: true }).isEnabled(), name === "categories-dirty");
   }
   const accessibility = await new AxeBuilder({ page }).include(".catalog-admin").analyze();
   assert.deepEqual(accessibility.violations, []);
+  await page.locator(".catalog-admin-table").evaluateAll(regions => regions.forEach(region => { region.scrollLeft = 0; }));
   await page.screenshot({ path: path.join(previews, `${name}-${width}-light.png`), fullPage: true });
   console.log(`${name}: ${width}px light, served styles, visible keyboard focus, control sizes, overflow and axe pass`);
 }

@@ -41,7 +41,8 @@ public sealed class CatalogAuthoringBoundaryTests
         { Listing = CatalogAuthoringFixture.Listing() with { CanAppear = canAppear } });
         var page = context.Render<CatalogListingPage>(parameters => parameters.Add(p => p.CatalogId, "open").Add(p => p.ItemId, "emergency"));
         Assert.Equal($"Can appear in catalogs: {label}", page.Find(".catalog-can-appear").TextContent.Trim());
-        Assert.Empty(page.FindAll("#listing-can-appear"));
+        Assert.Equal(canAppear?.ToString().ToLowerInvariant() ?? string.Empty, page.Find("#listing-can-appear").GetAttribute("value"));
+        Assert.False(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
     }
 
     [Theory]
@@ -88,7 +89,9 @@ public sealed class CatalogAuthoringBoundaryTests
         { Listing = CatalogAuthoringFixture.Listing() with { Description = description } });
         var page = context.Render<CatalogListingPage>(parameters => parameters.Add(p => p.CatalogId, "open").Add(p => p.ItemId, "emergency"));
         Assert.Contains("Description is not reported", page.Markup);
-        Assert.Empty(page.FindAll("#listing-description"));
+        Assert.Empty(page.FindAll("#reported-listing-description"));
+        Assert.Equal(description ?? string.Empty, page.Find("#listing-description").GetAttribute("value") ?? string.Empty);
+        Assert.False(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
     }
 
     [Fact]
