@@ -1,10 +1,14 @@
 using Honua.Console.Contracts;
+using Bunit;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
+using Honua.Console.Shell.Components;
+using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.Shell.Tests;
 
@@ -22,6 +26,18 @@ public sealed class ConsoleProposalsClientTests
         Assert.True(result.Value!.RequiresReproposal);
         Assert.Equal("Create a fresh proposal before human approval.", result.Value.HumanApprovalMessage);
         Assert.Null(result.Value.HumanReviewEnvironment);
+        Assert.Null(result.Value.HumanApprovalSignInPath);
+        using var context = new BunitContext();
+        context.Services.AddSingleton<IConsoleProposalsClient>(client);
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "prop-1"));
+        panel.WaitForAssertion(() =>
+        {
+            Assert.True(panel.Find("[data-proposal-approve]").HasAttribute("disabled"));
+            Assert.Contains("Create a fresh proposal", panel.Find("[data-proposal-human-review-required]").TextContent,
+                StringComparison.Ordinal);
+        });
     }
 
     [Theory]

@@ -278,7 +278,10 @@ public sealed class ApprovalInboxPageRenderTests
         {
             Assert.NotNull(page.Find("[data-proposal-rbac-denied]"));
             Assert.True(page.Find("[data-proposal-reject]").HasAttribute("disabled"));
+            Assert.False(page.Find("[data-proposal-refresh-review]").HasAttribute("disabled"));
         }, TimeSpan.FromSeconds(5));
+        page.Find("[data-proposal-refresh-review]").Click();
+        page.WaitForAssertion(() => Assert.False(page.Find("[data-proposal-approve]").HasAttribute("disabled")));
     }
 
     [Fact]

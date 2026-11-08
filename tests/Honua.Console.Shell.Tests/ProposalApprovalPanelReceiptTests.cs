@@ -11,6 +11,63 @@ namespace Honua.Console.Shell.Tests;
 public sealed class ProposalApprovalPanelReceiptTests
 {
     [Fact]
+    public void AmbiguousDecision_ReadsStatusWithoutAutomaticallyOpeningAnotherReview()
+    {
+        using var context = new BunitContext();
+        var proposals = new ProposalClient
+        {
+            DecisionResponse = _ => Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(
+                OperateSectionStatus.Unavailable, "The decision response was lost."))
+        };
+        context.Services.AddSingleton<IConsoleProposalsClient>(proposals);
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "proposal-1"));
+        var originalReviews = proposals.ReviewReads;
+
+        panel.Find("[data-proposal-approve]").Click();
+
+        panel.WaitForAssertion(() =>
+        {
+            Assert.Equal(1, proposals.StatusReads);
+            Assert.Equal(originalReviews, proposals.ReviewReads);
+            Assert.True(panel.Find("[data-proposal-approve]").HasAttribute("disabled"));
+        });
+        panel.Find("[data-proposal-refresh-review]").Click();
+        panel.WaitForAssertion(() =>
+        {
+            Assert.Equal(originalReviews + 1, proposals.ReviewReads);
+            Assert.False(panel.Find("[data-proposal-approve]").HasAttribute("disabled"));
+            Assert.Equal(1, proposals.DecisionCalls);
+        });
+    }
+
+    [Fact]
+    public void RejectionForbidden_DoesNotDisableTheSeparateHumanApproval()
+    {
+        using var context = new BunitContext();
+        var proposals = new ProposalClient
+        {
+            Rejection = OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Forbidden, "Reject scope denied.")
+        };
+        context.Services.AddSingleton<IConsoleProposalsClient>(proposals);
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "proposal-1"));
+        panel.Find("[data-proposal-reason]").Change("Do not perform this change.");
+
+        panel.Find("[data-proposal-reject]").Click();
+
+        panel.WaitForAssertion(() =>
+        {
+            Assert.True(panel.Find("[data-proposal-reject]").HasAttribute("disabled"));
+            Assert.False(panel.Find("[data-proposal-approve]").HasAttribute("disabled"));
+        });
+        panel.Find("[data-proposal-approve]").Click();
+        panel.WaitForAssertion(() => Assert.Equal(1, proposals.DecisionCalls));
+    }
+
+    [Fact]
     public void DeepLinkedResolvedProposalRemainsInspectableOutsidePendingQueue()
     {
         using var context = new BunitContext();
@@ -216,6 +273,10 @@ public sealed class ProposalApprovalPanelReceiptTests
         : IConsoleProposalsClient
     {
         public ConsoleProposalDecision? Decision { get; private set; }
+        public int ReviewReads { get; private set; }
+        public int StatusReads { get; private set; }
+        public int DecisionCalls { get; private set; }
+        public OperateSectionResult<ConsoleProposalDetail>? Rejection { get; init; }
         public Func<string, Task<OperateSectionResult<ConsoleProposalDetail>>>? ReadResponse { get; set; }
         public TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>? PendingDecision { get; set; }
         public Func<ConsoleProposalDecision, Task<OperateSectionResult<ConsoleProposalDetail>>>? DecisionResponse { get; set; }
@@ -229,8 +290,21 @@ public sealed class ProposalApprovalPanelReceiptTests
 
         public Task<OperateSectionResult<ConsoleProposalDetail>> GetAsync(
             string proposalId,
-            CancellationToken cancellationToken = default) => ReadResponse?.Invoke(proposalId)
-                ?? Task.FromResult(Allowed(initialStatus, proposalId));
+            CancellationToken cancellationToken = default)
+        {
+            ReviewReads++;
+            return ReadResponse?.Invoke(proposalId) ?? Task.FromResult(Allowed(initialStatus, proposalId));
+        }
+
+        public Task<OperateSectionResult<ConsoleProposalDetail>> GetStatusAsync(
+            string proposalId, CancellationToken cancellationToken = default)
+        {
+            StatusReads++;
+            return Task.FromResult(Allowed(initialStatus, proposalId) with
+            {
+                Value = Allowed(initialStatus, proposalId).Value! with { HumanReviewEnvironment = null, HumanReviewExpiresAt = null }
+            });
+        }
 
         public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
             string proposalId,
@@ -239,6 +313,7 @@ public sealed class ProposalApprovalPanelReceiptTests
         public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveReviewedAsync(
             ConsoleProposalDecision decision, CancellationToken cancellationToken = default)
         {
+            DecisionCalls++;
             Decision = decision;
             return DecisionResponse?.Invoke(decision) ?? PendingDecision?.Task
                 ?? Task.FromResult(Allowed(ConsoleProposalStatus.Submitted, decision.ProposalId));
@@ -248,7 +323,7 @@ public sealed class ProposalApprovalPanelReceiptTests
             string proposalId,
             string reason,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Unsupported, "not used"));
+            Task.FromResult(Rejection ?? OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Unsupported, "not used"));
 
         public static OperateSectionResult<ConsoleProposalDetail> Allowed(
             ConsoleProposalStatus status, string proposalId = "proposal-1") =>
