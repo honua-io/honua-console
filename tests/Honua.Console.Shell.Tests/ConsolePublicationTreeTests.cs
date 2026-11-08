@@ -108,12 +108,15 @@ public sealed class ConsolePublicationTreeTests
         var tree = new ConsolePublicationTree();
         tree.Load(Page(summaries), "Synthetic environment");
         var folders = tree.Root.Children.Where(node => node.Kind == ConsolePublicationNodeKind.Folder).ToArray();
-        Assert.Equal(["Internal", "Public"], folders.Select(node => node.Label));
-        Assert.Equal("Parcels", Assert.Single(folders[0].Children).Label);
-        Assert.Equal("/operate/services/internal-parcels/settings", folders[0].Children[0].Href);
-        Assert.Equal("/operate/services/public-parcels/settings", folders[1].Children[0].Href);
+        Assert.Equal(["Folder unavailable", "Internal", "Public"], folders.Select(node => node.Label));
+        var internalFolder = folders.Single(folder => folder.Label == "Internal");
+        var publicFolder = folders.Single(folder => folder.Label == "Public");
+        Assert.Equal("Parcels", Assert.Single(internalFolder.Children).Label);
+        Assert.Equal("/operate/services/internal-parcels/settings", internalFolder.Children[0].Href);
+        Assert.Equal("/operate/services/public-parcels/settings", publicFolder.Children[0].Href);
         Assert.Contains(tree.Root.Children, node => node.Label == "roads/legacy" && node.Href == "/operate/services/roads%2Flegacy/settings");
-        Assert.Contains(tree.Root.Children, node => node.Label == "unresolved-folder" && node.Kind == ConsolePublicationNodeKind.Service);
+        Assert.Equal("unresolved-folder", Assert.Single(folders.Single(folder => folder.Label == "Folder unavailable").Children).Label);
+        Assert.DoesNotContain(tree.Root.Children, node => node.Label == "unresolved-folder" && node.Kind == ConsolePublicationNodeKind.Service);
         Assert.All(folders, folder => Assert.Null(folder.Href));
     }
 

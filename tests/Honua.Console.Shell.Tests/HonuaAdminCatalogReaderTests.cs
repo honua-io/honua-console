@@ -209,7 +209,7 @@ public sealed class HonuaAdminCatalogReaderTests
     [Theory]
     [InlineData(JsonSerializerDefaults.General)]
     [InlineData(JsonSerializerDefaults.Web)]
-    public void PageSerializationUsesTheCallersNamingAndNumberPolicies(JsonSerializerDefaults defaults)
+    public void PageSerializationKeepsSdkWireNamesAndTheCallersPagePolicies(JsonSerializerDefaults defaults)
     {
         var options = new JsonSerializerOptions(defaults) { NumberHandling = JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString };
         var page = new HonuaAdminServicePage
@@ -224,10 +224,12 @@ public sealed class HonuaAdminCatalogReaderTests
         var json = JsonSerializer.Serialize(page, options);
         using var document = JsonDocument.Parse(json);
         var itemsName = defaults == JsonSerializerDefaults.Web ? "items" : "Items";
-        var serviceName = defaults == JsonSerializerDefaults.Web ? "serviceName" : "ServiceName";
+        const string serviceName = "serviceName";
         var totalName = defaults == JsonSerializerDefaults.Web ? "total" : "Total";
         Assert.Equal("roads", document.RootElement.GetProperty(itemsName)[0].GetProperty(serviceName).GetString());
         Assert.Equal("1", document.RootElement.GetProperty(totalName).GetString());
+        Assert.Equal("2", document.RootElement.GetProperty(itemsName)[0].GetProperty("layerCount").GetString());
+        Assert.False(document.RootElement.GetProperty(itemsName)[0].TryGetProperty("ServiceName", out _));
         var roundTrip = JsonSerializer.Deserialize<HonuaAdminServicePage>(json, options);
         Assert.NotNull(roundTrip);
         Assert.Equal(2, Assert.Single(roundTrip.Items).LayerCount);

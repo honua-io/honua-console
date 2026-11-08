@@ -98,12 +98,13 @@ public sealed class ConsoleFolderClientTests
     }
 
     [Theory]
-    [InlineData(null)]
-    [InlineData(409)]
-    public async Task ChangedAuthorityAfterSendDoesNotClaimASafeRetry(int? status)
+    [InlineData(null, false)]
+    [InlineData(409, false)]
+    [InlineData(409, true)]
+    public async Task ChangedAuthorityAfterSendDoesNotClaimASafeRetry(int? status, bool markedAfterSend)
     {
         var authority = new Authority();
-        using var handler = new FolderHandler { Failure = status, OnSend = () => authority.Current = false };
+        using var handler = new FolderHandler { Failure = status, Unverified = markedAfterSend, OnSend = () => authority.Current = markedAfterSend };
         using var http = new HttpClient(handler) { BaseAddress = new("https://fixture.invalid/") };
         using var client = new ServerConsoleFolderClient(http, authority);
         var result = await client.DeleteAsync(new([], "\"reviewed\"", "human-environment"), "folder");
@@ -182,6 +183,7 @@ public sealed class ConsoleFolderClientTests
     {
         public List<Call> Calls { get; } = [];
         public int? Failure { get; init; }
+        public bool Unverified { get; init; }
         public Action? OnSend { get; init; }
         public Exception? Exception { get; init; }
         public string? ErrorBody { get; init; }
@@ -192,6 +194,7 @@ public sealed class ConsoleFolderClientTests
                 request.Headers.TryGetValues("If-Match", out var match) ? match.Single() : null,
                 request.Options.TryGetValue(ConsoleAuthorityRequestOptions.Expected, out var binding) ? binding : null));
             OnSend?.Invoke();
+            if (Unverified) request.Options.Set(ConsoleWriteOutcome.Unverified, true);
             if (Exception is not null) throw Exception;
             if (Failure is { } failure) return new((HttpStatusCode)failure)
             {
