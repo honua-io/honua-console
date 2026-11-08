@@ -50,10 +50,10 @@ public static class ConsoleNavigation
         IConsoleProductMode mode, IConsoleCapabilityManifest capabilities, IEnumerable<ConsoleNavigationGroup> groups)
     {
         return groups.Select(group => group with
-            {
-                Destinations = group.Destinations
+        {
+            Destinations = group.Destinations
                 .Where(entry => IsVisible(entry, mode, capabilities)).ToArray()
-            })
+        })
             .Where(group => group.Destinations.Count > 0).ToArray();
     }
 
