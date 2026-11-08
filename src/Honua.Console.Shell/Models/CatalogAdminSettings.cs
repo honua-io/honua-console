@@ -25,15 +25,15 @@ public sealed record CatalogAdminSettings(string CatalogId, string Title, string
         get
         {
             if (Embed is not { } embed || CatalogAdminLinks.SafeHref(embed.BundleHref) is not { } href
-                || !Regex.IsMatch(embed.Integrity, @"^sha384-[A-Za-z0-9+/]{64}$")) return null;
+                || embed.Integrity is not { } integrity || !Regex.IsMatch(integrity, @"\Asha384-[A-Za-z0-9+/]{64}\z")) return null;
             var encoder = HtmlEncoder.Default;
-            return $"<script type=\"module\" src=\"{encoder.Encode(href)}\" integrity=\"{embed.Integrity}\" crossorigin=\"anonymous\"></script>\n"
+            return $"<script type=\"module\" src=\"{encoder.Encode(href)}\" integrity=\"{integrity}\" crossorigin=\"anonymous\"></script>\n"
                 + $"<honua-catalog-search catalog=\"{encoder.Encode(CatalogId)}\"></honua-catalog-search>";
         }
     }
 }
 
-public sealed record CatalogAdminEmbed(string BundleHref, string Integrity);
+public sealed record CatalogAdminEmbed(string BundleHref, string? Integrity);
 
 public static class CatalogAdminLinks
 {
@@ -41,4 +41,15 @@ public static class CatalogAdminLinks
         Uri.TryCreate(href, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps
         && uri.UserInfo.Length == 0 && uri.Query.Length == 0 && uri.Fragment.Length == 0
         ? uri.AbsoluteUri : null;
+}
+
+public static class CatalogAdminLabels
+{
+    public static string Audience(string audience) => audience switch
+    {
+        "public" => "Public",
+        "signed-in" => "Signed-in users",
+        "roles" => "Roles",
+        _ => "Not reported"
+    };
 }

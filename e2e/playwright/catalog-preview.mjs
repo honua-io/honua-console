@@ -56,6 +56,15 @@ async function inspectPresentation(page, { name, width }) {
   assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), "light");
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} overflows at ${width}`);
   await checkKeyboardControls(page);
+  if (name === "settings") {
+    const snippet = page.getByLabel("Embed snippet", { exact: true });
+    await snippet.focus();
+    const expected = await snippet.inputValue();
+    await page.keyboard.press("Control+a");
+    assert.equal(await snippet.evaluate(element => element.value.slice(element.selectionStart, element.selectionEnd)), expected);
+    assert.ok(expected.includes('catalog="open"'));
+    assert.equal(await page.locator(".catalog-settings script").count(), 0);
+  }
   const accessibility = await new AxeBuilder({ page }).include(".catalog-admin").analyze();
   assert.deepEqual(accessibility.violations, []);
   await page.screenshot({ path: path.join(previews, `${name}-${width}-light.png`), fullPage: true });

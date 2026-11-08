@@ -66,7 +66,7 @@
                             {
                                 <tr @key="catalog.Id">
                                     <td><a href="@($"/catalogs/{Uri.EscapeDataString(catalog.Id)}")">@catalog.Title</a></td>
-                                    <td>@AudienceLabel(catalog.Audience)</td><td>@catalog.ScopeLabel</td>
+                                    <td>@CatalogAdminLabels.Audience(catalog.Audience)</td><td>@catalog.ScopeLabel</td>
                                     <td>
                                         @if (ProposalHref(catalog.ProposalHref) is { } proposal) { <a href="@proposal">Review proposal for @catalog.Title</a> }
                                         else { <span>Not reported</span> }
@@ -224,7 +224,6 @@
     private void AttentionReasonChanged(ChangeEventArgs args) { _attentionReason = args.Value?.ToString() ?? string.Empty; _attentionOffset = 0; }
     private void AttentionSortChanged(ChangeEventArgs args) { _attentionSort = args.Value?.ToString() ?? "title"; _attentionOffset = 0; }
     private static string KindLabel(string kind) => kind switch { "dataset" => "Dataset", "layer" => "Layer", "service" => "Service", "map" => "Map", "app" => "App", _ => "Not reported" };
-    private static string AudienceLabel(string audience) => audience switch { "public" => "Public", "signed-in" => "Signed-in users", "roles" => "Roles", _ => "Not reported" };
     private static string? ProposalHref(string? href) => href?.StartsWith("/inbox?proposalId=", StringComparison.Ordinal) == true && !href.Contains('#') && !href.Contains('\\') ? href : null;
 
     public void Dispose()
