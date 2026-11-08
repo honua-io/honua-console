@@ -21,6 +21,36 @@ namespace Honua.Console.IntegrationTests;
 public sealed class ConsoleHumanProposalBffTests
 {
     [Theory]
+    [InlineData("profile-tenant", "account-tenant", "account-tenant")]
+    [InlineData("profile-tenant", " ", "profile-tenant")]
+    [InlineData(" ", " ", null)]
+    public async Task BrowserReview_EffectiveAccountTenant_AllowsDecision(
+        string profileTenant, string accountTenant, string? reviewTenant)
+    {
+        await using var host = await Host.StartAsync(profileTenant, accountTenant);
+        host.ReviewTenantId = reviewTenant;
+        var review = (await host.OpenReviewAsync()).Value!;
+
+        var result = await host.DecideAsync(new ConsoleProposalDecision("proposal", review.Proposal.Version,
+            review.Proposal.PlanHash!, review.EnvironmentReference));
+
+        Assert.True(result.IsAllowed);
+        Assert.Equal(1, host.ApprovalCalls);
+    }
+
+    [Fact]
+    public async Task BrowserReview_ProfileTenantDiffersFromEffectiveAccountTenant_RefusesApproval()
+    {
+        await using var host = await Host.StartAsync("profile-tenant", "account-tenant");
+        host.ReviewTenantId = "profile-tenant";
+
+        var result = await host.OpenReviewAsync();
+
+        Assert.False(result.IsAllowed);
+        Assert.Equal(0, host.ApprovalCalls);
+    }
+
+    [Theory]
     [InlineData("tenant-one", "tenant-two")]
     [InlineData("tenant-one", null)]
     [InlineData("", "tenant-one")]
@@ -223,11 +253,11 @@ public sealed class ConsoleHumanProposalBffTests
         public bool SawPrivateCookie { get; private set; }
         public bool SawForwardableCredential { get; private set; }
 
-        public static async Task<Host> StartAsync(string tenant = "")
+        public static async Task<Host> StartAsync(string tenant = "", string accountTenant = "")
         {
             var host = new Host();
             await host.StartUpstreamAsync();
-            host.InitializePrivateSession(tenant);
+            host.InitializePrivateSession(tenant, accountTenant);
             await host.StartBrowserAsync();
             return host;
         }
@@ -294,9 +324,13 @@ public sealed class ConsoleHumanProposalBffTests
                 ConsoleHumanProposalJsonContext.Default.ProposalDetailWire);
         }
 
-        private void InitializePrivateSession(string tenant)
+        private void InitializePrivateSession(string tenant, string accountTenant)
         {
-            Profile = new ConsoleEnvironmentProfile { Id = "environment", ServerBaseUri = Address(_upstream), TenantId = tenant };
+            Profile = new ConsoleEnvironmentProfile
+            {
+                Id = "environment", ServerBaseUri = Address(_upstream), TenantId = tenant,
+                Account = new ConsoleAccountBinding { TenantId = accountTenant }
+            };
             ReviewTenantId = string.IsNullOrEmpty(tenant) ? null : tenant;
             Sessions = new ConsoleServerSessionClientStore(TimeProvider.System);
             var partition = Sessions.GetOrCreate("human", Profile);
