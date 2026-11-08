@@ -6628,6 +6628,10 @@ p {
     }
 }
 
+[data-studio-publication] [data-publication-source-access] {
+    max-width: 70ch;
+}
+
 .publish-field {
     display: grid;
     gap: 3px;
