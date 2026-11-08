@@ -214,3 +214,20 @@ ADR-0001's "shared .NET-owned contracts" unifier means Console binds to **real h
 - Cross-surface smoke wiring (owned by `#9`).
 - `honua-portal` retirement mechanics (owned by `#10`; see [`PORTAL_FREEZE_POLICY.md`](./PORTAL_FREEZE_POLICY.md)).
 - Optional MAUI Blazor Hybrid native host shell (owned by [`honua-console#26`](https://github.com/honua-io/honua-console/issues/26); reuses `Honua.Console.Components`).
+
+### Experimental Catalogs administration
+
+The opt-in `/catalogs` list and `/catalogs/{id}` overview use the existing shell,
+shared state component and typed presentation source. The host's
+`Honua:Console:Catalogs:Enabled` flag defaults false. Its ordinary source always
+returns missing/unsupported until a canonical server/.NET SDK binding is added.
+Test fixtures are registered explicitly in tests, never as a production fallback.
+These UI-only view records are not wire DTOs and add no contract shim or HTTP
+transport. Live binding must use the canonical published SDK projection.
+
+Overview visibility counts are administration counts, separately labelled from
+visitor search totals. Health, usage and feeds stay not reported until supplied
+by their supported projections. No local mutation policy, proposal diff, live
+indicator or server state is synthesized by this slice. Discovery endpoint and
+Open Data access navigation groups under Catalogs only when its flag is on;
+existing public readers and item controls remain routed.

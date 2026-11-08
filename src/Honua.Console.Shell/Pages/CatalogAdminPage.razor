@@ -1,0 +1,172 @@
+@page "/catalogs"
+@page "/catalogs/{CatalogId}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@implements IDisposable
+@inject CatalogAdminOptions Options
+@inject ICatalogAdminSource Catalogs
+
+<section class="console-page catalog-admin">
+    <header class="console-detail-heading">
+        <div>
+            @if (CatalogId is not null) { <a href="/catalogs">Catalogs</a> }
+            <h1>@(_read?.Overview is { } heading && heading.CatalogId == CatalogId ? heading.Title : "Catalogs")</h1>
+            <p class="console-muted">Present services, layers, datasets, maps and apps to the audiences that may read them.</p>
+        </div>
+    </header>
+    @if (!Options.Enabled)
+    {
+        <ConsoleStateView HeadingLevel="2" Kind="missing" Title="Catalogs are not enabled"
+                          Message="The catalog preview is disabled for this Console." />
+    }
+    else if (_loading)
+    {
+        <ConsoleStateView HeadingLevel="2" Kind="loading" Title="Loading catalogs" Message="Reading catalog administration." />
+    }
+    else if (_read is { State: "missing" or "unsupported" or "unavailable" or "forbidden" } unavailable)
+    {
+        <ConsoleStateView HeadingLevel="2" Kind="@(unavailable.State == "missing" ? "missing" : "denied")"
+                          Title="@(unavailable.State == "unsupported" ? "Catalog contract is not supported" : "Catalogs are unavailable")"
+                          Message="@unavailable.Message" />
+    }
+    else if (_read is { } read)
+    {
+        <div class="console-toolbar console-toolbar-spread">
+            <p role="status">@(read.State == "fixture" ? "Fixture preview · synthetic data" : "Live sync is unavailable")</p>
+            <a href="/operate/catalogs">Discovery endpoints</a>
+        </div>
+        @if (CatalogId is null)
+        {
+            <div class="catalog-admin-filters">
+                <label for="catalog-query">Search catalogs
+                    <input id="catalog-query" type="search" value="@_query" @oninput="SearchChanged" />
+                </label>
+                <label for="catalog-audience">Audience
+                    <select id="catalog-audience" value="@_audience" @onchange="AudienceChanged">
+                        <option value="">All audiences</option><option value="public">Public</option>
+                        <option value="signed-in">Signed-in users</option><option value="roles">Roles</option>
+                    </select>
+                </label>
+                <label for="catalog-sort">Sort by
+                    <select id="catalog-sort" value="@_descending" @onchange="SortChanged">
+                        <option value="false">Title A–Z</option><option value="true">Title Z–A</option>
+                    </select>
+                </label>
+            </div>
+            @if (FilteredCatalogs.Count == 0)
+            {
+                <ConsoleStateView HeadingLevel="2" Kind="empty" Title="No matching catalogs" Message="Change the search or audience filter." />
+            }
+            else
+            {
+                <div class="catalog-admin-table" role="region" aria-label="Catalog list" tabindex="0">
+                    <table>
+                        <thead><tr><th scope="col">Catalog</th><th scope="col">Audience</th><th scope="col">Scope</th><th scope="col">Proposal</th></tr></thead>
+                        <tbody>
+                            @foreach (var catalog in FilteredCatalogs.Skip(_offset).Take(PageSize))
+                            {
+                                <tr @key="catalog.Id">
+                                    <td><a href="@($"/catalogs/{Uri.EscapeDataString(catalog.Id)}")">@catalog.Title</a></td>
+                                    <td>@AudienceLabel(catalog.Audience)</td><td>@catalog.ScopeLabel</td>
+                                    <td>
+                                        @if (ProposalHref(catalog.ProposalHref) is { } proposal) { <a href="@proposal">Review proposal for @catalog.Title</a> }
+                                        else { <span>Not reported</span> }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <nav class="catalog-admin-paging" aria-label="Catalog pages">
+                    <button type="button" disabled="@(_offset == 0)" @onclick="Previous">Previous</button>
+                    <span>@(_offset + 1)–@Math.Min(_offset + PageSize, FilteredCatalogs.Count) of @FilteredCatalogs.Count</span>
+                    <button type="button" disabled="@(_offset + PageSize >= FilteredCatalogs.Count)" @onclick="Next">Next</button>
+                </nav>
+            }
+        }
+        else if (read.Overview is { } overview && overview.CatalogId == CatalogId)
+        {
+            <h2>Admin visibility counts</h2>
+            <p class="console-muted">These counts include administration states. Public search only counts items its visitor may read.</p>
+            <dl class="catalog-admin-counts">
+                <div><dt>Listed</dt><dd>@overview.Visibility.Listed</dd></div>
+                <div><dt>Audience-restricted</dt><dd>@overview.Visibility.AudienceRestricted</dd></div>
+                <div><dt>Hidden here</dt><dd>@overview.Visibility.HiddenHere</dd></div>
+                <div><dt>Opted out</dt><dd>@overview.Visibility.OptedOut</dd></div>
+                <div><dt>Matched</dt><dd>@overview.Visibility.Matched</dd></div>
+            </dl>
+            <h2>Needs attention</h2>
+            @if (overview.Attention.Count == 0) { <p>No attention items reported.</p> }
+            else
+            {
+                <ul>@foreach (var item in overview.Attention) { <li @key="item">@item.Title · @item.Reason</li> }</ul>
+            }
+            <h2>Health, usage and feeds</h2>
+            <p>Not reported. These observations need a supported server projection.</p>
+        }
+        else
+        {
+            <ConsoleStateView HeadingLevel="2" Kind="denied" Title="Catalog is unavailable" Message="This catalog could not be read." />
+        }
+    }
+</section>
+
+@code {
+    [Parameter] public string? CatalogId { get; set; }
+
+    private const int PageSize = 12;
+    private CatalogAdminRead? _read;
+    private CancellationTokenSource? _load;
+    private string _query = string.Empty;
+    private string _audience = string.Empty;
+    private bool _descending;
+    private int _offset;
+    private bool _loading;
+
+    private IReadOnlyList<CatalogAdminRow> FilteredCatalogs => (_read?.Catalogs ?? [])
+        .Where(row => row.Title.Contains(_query, StringComparison.OrdinalIgnoreCase) && (_audience.Length == 0 || row.Audience == _audience))
+        .OrderBy(row => _descending ? null : row.Title, StringComparer.OrdinalIgnoreCase)
+        .ThenByDescending(row => _descending ? row.Title : null, StringComparer.OrdinalIgnoreCase)
+        .ThenBy(row => row.Id, StringComparer.Ordinal).ToArray();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _load?.Cancel();
+        _load?.Dispose();
+        _read = null;
+        _offset = 0;
+        _loading = Options.Enabled;
+        if (!Options.Enabled) return;
+        var load = _load = new CancellationTokenSource();
+        try
+        {
+            var read = await Catalogs.ReadAsync(CatalogId, load.Token);
+            if (ReferenceEquals(_load, load) && !load.IsCancellationRequested) _read = read;
+        }
+        catch (OperationCanceledException) when (load.IsCancellationRequested) { }
+        catch
+        {
+            if (ReferenceEquals(_load, load) && !load.IsCancellationRequested)
+                _read = new([], null, "unavailable", "Catalogs could not be read. Refresh to try again.");
+        }
+        finally
+        {
+            if (ReferenceEquals(_load, load)) _loading = false;
+        }
+    }
+
+    private void SearchChanged(ChangeEventArgs args) { _query = args.Value?.ToString() ?? string.Empty; _offset = 0; }
+    private void AudienceChanged(ChangeEventArgs args) { _audience = args.Value?.ToString() ?? string.Empty; _offset = 0; }
+    private void SortChanged(ChangeEventArgs args) { _descending = bool.TryParse(args.Value?.ToString(), out var descending) && descending; _offset = 0; }
+    private void Previous() => _offset = Math.Max(0, _offset - PageSize);
+    private void Next() => _offset = Math.Min(_offset + PageSize, Math.Max(0, FilteredCatalogs.Count - 1));
+    private static string AudienceLabel(string audience) => audience switch { "public" => "Public", "signed-in" => "Signed-in users", "roles" => "Roles", _ => "Not reported" };
+    private static string? ProposalHref(string? href) => href?.StartsWith("/inbox?proposalId=", StringComparison.Ordinal) == true && !href.Contains('#') && !href.Contains('\\') ? href : null;
+
+    public void Dispose()
+    {
+        _load?.Cancel();
+        _load?.Dispose();
+        _load = null;
+        _read = null;
+    }
+}

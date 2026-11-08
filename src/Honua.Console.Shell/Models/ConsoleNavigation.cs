@@ -48,13 +48,35 @@ public static class ConsoleNavigation
         IConsoleProductMode mode, IConsoleCapabilityManifest capabilities, IConfiguration? configuration)
     {
         var studioEnabled = bool.TryParse(configuration?["Studio:EmbedJsStudio"], out var enabled) && enabled;
-        return Groups.Where(group => group.Name != "Studio" || studioEnabled)
+        var catalogsEnabled = bool.TryParse(configuration?["Honua:Console:Catalogs:Enabled"] ?? configuration?["HONUA_CONSOLE_CATALOGS_ENABLED"], out var catalogs) && catalogs;
+        var groups = catalogsEnabled ? CatalogAdministrationGroups() : Groups;
+        return groups.Where(group => group.Name != "Studio" || studioEnabled)
             .Select(group => group with
             {
                 Destinations = group.Destinations
                 .Where(entry => IsVisible(entry, mode, capabilities)).ToArray()
             })
             .Where(group => group.Destinations.Count > 0).ToArray();
+    }
+
+    private static IReadOnlyList<ConsoleNavigationGroup> CatalogAdministrationGroups()
+    {
+        var groups = new List<ConsoleNavigationGroup>();
+        foreach (var group in Groups)
+        {
+            if (group.Name == "Protocols") continue;
+            if (group.Name == "Operate")
+                groups.Add(new("Catalogs", [new("/catalogs", "Catalogs"),
+                    new("/operate/catalogs", "Discovery endpoints") { FullModeOnly = true },
+                    new("/share/manage", "Open Data access") { FullModeOnly = true, RequiredArea = "share" }]));
+            groups.Add(group with
+            {
+                Destinations = group.Destinations.Select(entry => entry.Path == "/catalog"
+                    ? entry with { Label = group.Name == "Studio" ? "Map from Content" : "Content" }
+                    : entry).ToArray()
+            });
+        }
+        return groups;
     }
 
     public static ConsoleNavigationContext ContextForPath(string relativePath)
