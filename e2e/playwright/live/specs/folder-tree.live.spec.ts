@@ -28,7 +28,8 @@ test('browse an imported folder and its layers with an isolated anonymous contro
     const layerLabel = await layerRow.getAttribute('data-tree-label');
     expect(layerLabel).toBeTruthy();
     await layerRow.locator('[data-tree-link]').click();
-    await expect(page.locator('[data-layer-loaded="true" i]')).toBeVisible();
+    await expect(page.locator(`[data-layer-resource-id="${folder.connectionId.toLowerCase()}-layer-${service.layerId}"][data-layer-loaded]`)).toBeVisible();
+    await expect(page.getByRole('heading', { name: layerLabel!, exact: true, level: 1 })).toBeVisible();
     const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' });
     await expect(breadcrumb.locator('ol > li:first-child > a')).toHaveAttribute('href', '/');
     await expect(breadcrumb.locator('ol > li:nth-last-child(3)')).toHaveText(folder.name);
@@ -37,7 +38,8 @@ test('browse an imported folder and its layers with an isolated anonymous contro
     await expect(breadcrumb.locator('ol > li:last-child summary')).toHaveText(layerLabel!);
     await expect(tree.locator('[aria-selected="true"]')).toHaveAttribute('data-tree-parent', `service:${encodeURIComponent(service.name)}`);
     await page.reload();
-    await expect(page.locator('[data-layer-loaded="true" i]')).toBeVisible();
+    await expect(page.locator(`[data-layer-resource-id="${folder.connectionId.toLowerCase()}-layer-${service.layerId}"][data-layer-loaded]`)).toBeVisible();
+    await expect(page.getByRole('heading', { name: layerLabel!, exact: true, level: 1 })).toBeVisible();
     await expect(breadcrumb.locator('ol > li:nth-last-child(3)')).toHaveText(folder.name);
     await expect(breadcrumb.locator('ol > li:nth-last-child(2) > a')).toHaveAttribute(
       'href', `/operate/services/${encodeURIComponent(service.name)}/settings`);
