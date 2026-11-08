@@ -199,8 +199,11 @@ public sealed class ConsolePublicationTree
     public static List<ConsolePublicationNode> LayerNodes(ConsolePublicationNode service, IReadOnlyList<ConsolePublicationLayer> layers) =>
         layers.Select(layer => new ConsolePublicationNode
         {
-            Key = service.Key + ":layer:" + layer.ResourceId, Label = layer.Name, Kind = ConsolePublicationNodeKind.Layer,
-            GeometryType = layer.GeometryType, Href = $"/operate/layers/{Uri.EscapeDataString(layer.ResourceId)}"
+            Key = service.Key + ":layer:" + layer.ResourceId,
+            Label = layer.Name,
+            Kind = ConsolePublicationNodeKind.Layer,
+            GeometryType = layer.GeometryType,
+            Href = $"/operate/layers/{Uri.EscapeDataString(layer.ResourceId)}"
         }).ToList();
 
     private static IEnumerable<ConsolePublicationNode>? FindPath(ConsolePublicationNode node, ConsolePublicationNode target)

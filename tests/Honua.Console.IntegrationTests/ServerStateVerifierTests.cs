@@ -32,7 +32,9 @@ public sealed class ServerStateVerifierTests
                 data = new
                 {
                     items = new[] { new { layerId = page, layerName = $"Layer {page}", serviceName = "parks west", table = "parcels", enabled = true } },
-                    page, pageSize = 1, total = 2
+                    page,
+                    pageSize = 1,
+                    total = 2
                 }
             });
         });

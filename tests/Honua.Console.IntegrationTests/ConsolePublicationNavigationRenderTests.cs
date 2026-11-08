@@ -194,7 +194,11 @@ public sealed class ConsolePublicationNavigationRenderTests
     {
         var service = new HonuaAdminServiceSummary
         {
-            ServiceName = "z-parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1
+            ServiceName = "z-parcels",
+            FolderId = "public",
+            FolderName = "Public",
+            Title = "Parcels",
+            LayerCount = 1
         };
         var source = new NavigationSource
         {
@@ -225,8 +229,8 @@ public sealed class ConsolePublicationNavigationRenderTests
         var source = new NavigationSource
         {
             ServiceSummaries = Enumerable.Range(0, 500).Select(index => new HonuaAdminServiceSummary
-                { ServiceName = $"service-{index:D3}", LayerCount = 10 }).Append(new()
-                { ServiceName = "z-parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 }).ToArray()
+            { ServiceName = $"service-{index:D3}", LayerCount = 10 }).Append(new()
+            { ServiceName = "z-parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 }).ToArray()
         };
         using var context = PublicationLayoutContext(source);
         context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/layers/connection-one-layer-7");
@@ -244,8 +248,8 @@ public sealed class ConsolePublicationNavigationRenderTests
         var source = new NavigationSource
         {
             ServiceSummaries = Enumerable.Range(0, 100).Select(index => new HonuaAdminServiceSummary
-                { ServiceName = $"empty-{index:D3}" }).Append(new()
-                { ServiceName = "z-parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 }).ToArray()
+            { ServiceName = $"empty-{index:D3}" }).Append(new()
+            { ServiceName = "z-parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 }).ToArray()
         };
         using var context = PublicationLayoutContext(source);
         context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/layers/connection-one-layer-7");
