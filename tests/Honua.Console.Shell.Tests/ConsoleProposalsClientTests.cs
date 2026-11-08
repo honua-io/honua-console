@@ -15,6 +15,24 @@ namespace Honua.Console.Shell.Tests;
 public sealed class ConsoleProposalsClientTests
 {
     [Fact]
+    public async Task GetStatus_PrivateManagementSession_ReadsWithoutOpeningAReview()
+    {
+        var handler = new RecordingHandler(_ => throw new InvalidOperationException("No bearer request may be sent."));
+        var human = new FixedHumanReview();
+        var client = CreateClient(handler, humanSession: human, authority: ConsoleServerAuthority.Management);
+
+        var result = await client.GetStatusAsync("prop-1");
+
+        Assert.True(result.IsAllowed);
+        Assert.Equal(0, human.ReviewCalls);
+        Assert.Equal(1, human.StatusCalls);
+        Assert.Equal(ConsoleServerAuthority.Management, human.Authority);
+        Assert.Null(result.Value!.HumanReviewEnvironment);
+        Assert.Null(result.Value.HumanReviewExpiresAt);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
     public async Task Get_LegacyServerRemediation_PreservesFreshProposalGuidance()
     {
         const string body = """{"proposalId":"prop-1","status":"AwaitingApproval","requiresReproposal":true,"approvalRemediation":"Create a fresh proposal before human approval."}""";
@@ -415,6 +433,7 @@ public sealed class ConsoleProposalsClientTests
             ConsoleHumanProposalReviewRequest request, CancellationToken cancellationToken = default)
         {
             StatusCalls++;
+            Authority = request.Authority;
             return Task.FromResult(OperateSectionResult<ProposalDetailWire>.Allowed(Proposal(request.ProposalId)));
         }
         private static ProposalDetailWire Proposal(string proposalId) => new()
