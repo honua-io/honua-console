@@ -60,6 +60,80 @@ public sealed class OperateEnvironmentEndpointTests
         Assert.Contains(states, state => state.State == "Unavailable" && state.Contract == "Active Environment");
     }
 
+    [Theory]
+    [InlineData("services")]
+    [InlineData("layers")]
+    [InlineData("workspace")]
+    public async Task EmptyProfileStorePreservesTheStartupBinding(string surface)
+    {
+        using var fixture = new EnvironmentFixture(new InMemoryConsoleEnvironmentProfileStore([]));
+        var (services, states) = await ReadAsync(fixture.Source, surface);
+        AssertStartupBinding(services, states);
+    }
+
+    [Theory]
+    [InlineData("services")]
+    [InlineData("layers")]
+    [InlineData("workspace")]
+    public async Task NoProfileStorePreservesTheStartupBinding(string surface)
+    {
+        using var fixture = new EnvironmentFixture();
+        var source = new HonuaServerOperateTransitionDataSource(fixture.Client);
+        var (services, states) = await ReadAsync(source, surface);
+        AssertStartupBinding(services, states);
+    }
+
+    [Theory]
+    [InlineData("services")]
+    [InlineData("layers")]
+    [InlineData("workspace")]
+    public async Task ProfileChangesWithoutAnEventDiscardTheRead(string surface)
+    {
+        var profiles = new QuietProfileStore();
+        using var fixture = new EnvironmentFixture(profiles);
+        fixture.Handler.BeforeServiceResponse = () =>
+        {
+            profiles.Active = profiles.Active with { ServerBaseUri = new Uri("https://other.example/") };
+            return Task.CompletedTask;
+        };
+        var (services, states) = await ReadAsync(fixture.Source, surface);
+        Assert.Empty(services);
+        Assert.Contains(states, state => state.Contract == "Active Environment");
+    }
+
+    private static void AssertStartupBinding(
+        IReadOnlyList<OperateServiceDetail> services, IReadOnlyList<OperateCapabilityState> states)
+    {
+        var service = Assert.Single(services);
+        Assert.Equal("https://startup.example/startup-mount/rest/services/Places%20North/FeatureServer",
+            service.PublicationSlots.Single(slot => slot.Name == "FeatureServer").Url);
+        Assert.DoesNotContain(states, state => state.Contract == "Active Environment");
+    }
+
+    private sealed class QuietProfileStore : IConsoleEnvironmentProfileStore
+    {
+        public ConsoleEnvironmentProfile Active { get; set; } = new()
+        {
+            Id = "active",
+            ServerBaseUri = new Uri("https://active.example/active-mount/")
+        };
+
+        public Task<ConsoleEnvironmentProfile?> GetActiveProfileAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<ConsoleEnvironmentProfile?>(Active);
+        public Task<IReadOnlyList<ConsoleEnvironmentProfile>> ListProfilesAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ConsoleEnvironmentProfile>>([Active]);
+        public Task<ConsoleEnvironmentProfile?> GetProfileAsync(string profileId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<ConsoleEnvironmentProfile?>(Active.Id == profileId ? Active : null);
+        public Task UpsertProfileAsync(ConsoleEnvironmentProfile profile, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+        public Task ActivateProfileAsync(string profileId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+        public Task<ConsoleEnvironmentState?> GetStateAsync(string profileId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+        public Task SaveStateAsync(ConsoleEnvironmentState state, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
     private static async Task<(IReadOnlyList<OperateServiceDetail>, IReadOnlyList<OperateCapabilityState>)> ReadAsync(
         HonuaServerOperateTransitionDataSource source, string surface)
     {
@@ -76,23 +150,25 @@ public sealed class OperateEnvironmentEndpointTests
     {
         private readonly HttpClient _http;
         private readonly ServiceProvider _provider;
-        public InMemoryConsoleEnvironmentProfileStore Profiles { get; } = new([
-            new() { Id = "startup", ServerBaseUri = new Uri("https://startup.example/startup-mount/") },
-            new() { Id = "active", ServerBaseUri = new Uri("https://active.example/active-mount/") },
-            new() { Id = "other", ServerBaseUri = new Uri("https://other.example/third-mount/") }
-        ]);
+        public IConsoleEnvironmentProfileStore Profiles { get; }
+        public HonuaAdminOperateHttpClient Client { get; }
         public EndpointHandler Handler { get; } = new();
         public HonuaServerOperateTransitionDataSource Source { get; }
 
-        public EnvironmentFixture()
+        public EnvironmentFixture(IConsoleEnvironmentProfileStore? profiles = null)
         {
+            Profiles = profiles ?? new InMemoryConsoleEnvironmentProfileStore([
+                new() { Id = "startup", ServerBaseUri = new Uri("https://startup.example/startup-mount/") },
+                new() { Id = "active", ServerBaseUri = new Uri("https://active.example/active-mount/") },
+                new() { Id = "other", ServerBaseUri = new Uri("https://other.example/third-mount/") }
+            ]);
             var startup = new Uri("https://startup.example/startup-mount/");
             _http = new HttpClient(new HonuaServerBindingHandler(Profiles, new InMemoryConsoleAccountSessionStore(), startup)
             { InnerHandler = Handler })
             { BaseAddress = startup };
-            var client = new HonuaAdminOperateHttpClient(_http, new HonuaAdminOperateClientOptions(startup, null));
+            Client = new HonuaAdminOperateHttpClient(_http, new HonuaAdminOperateClientOptions(startup, null));
             _provider = new ServiceCollection().AddSingleton<IConsoleEnvironmentProfileStore>(Profiles)
-                .AddSingleton<IHonuaAdminOperateClient>(client).AddSingleton<HonuaServerOperateTransitionDataSource>()
+                .AddSingleton<IHonuaAdminOperateClient>(Client).AddSingleton<HonuaServerOperateTransitionDataSource>()
                 .BuildServiceProvider();
             Source = _provider.GetRequiredService<HonuaServerOperateTransitionDataSource>();
         }

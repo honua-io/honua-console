@@ -43,7 +43,7 @@ internal sealed class ConsoleEnvironmentRead : IDisposable
     {
         if (_profiles is null) return true;
         var current = await _profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-        return !_changed && current is not null && current == _profile;
+        return !_changed && current == _profile;
     }
 
     private void ProfileChanged() => _changed = true;
