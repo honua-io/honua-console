@@ -30,6 +30,11 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         PropertyNameCaseInsensitive = true
     };
 
+    private static readonly JsonSerializerOptions PublishingJsonOptions = new(JsonOptions)
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
     private static readonly AdminBodyFormat ReadEnvelope = new(
         JsonOptions,
         AdminBodyRead.Streamed,
@@ -237,7 +242,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             () =>
             {
                 var message = Request(HttpMethod.Post, $"/api/v1/admin/connections/{Uri.EscapeDataString(connectionId)}/layers/",
-                    JsonContent.Create(request, PublishingJsonContext.Default.PublishLayerRequest));
+                    JsonContent.Create(request, options: PublishingJsonOptions));
                 if (authorityBinding is not null) message.Options.Set(ConsoleAuthorityRequestOptions.Expected, authorityBinding);
                 return message;
             },
