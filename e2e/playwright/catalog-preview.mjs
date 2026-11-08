@@ -7,7 +7,7 @@ import { chromium } from "@playwright/test";
 
 const previews = path.resolve("artifacts/catalog-preview");
 const assets = path.resolve("artifacts/honua-console-web/wwwroot");
-const pages = new Map(await Promise.all(["list", "overview"].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
+const pages = new Map(await Promise.all(["list", "overview", "settings"].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, "http://localhost");
@@ -56,6 +56,15 @@ async function inspectPresentation(page, { name, width }) {
   assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), "light");
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} overflows at ${width}`);
   await checkKeyboardControls(page);
+  if (name === "settings") {
+    const snippet = page.getByLabel("Embed snippet", { exact: true });
+    await snippet.focus();
+    const expected = await snippet.inputValue();
+    await page.keyboard.press("Control+a");
+    assert.equal(await snippet.evaluate(element => element.value.slice(element.selectionStart, element.selectionEnd)), expected);
+    assert.ok(expected.includes('catalog="open"'));
+    assert.equal(await page.locator(".catalog-settings script").count(), 0);
+  }
   const accessibility = await new AxeBuilder({ page }).include(".catalog-admin").analyze();
   assert.deepEqual(accessibility.violations, []);
   await page.screenshot({ path: path.join(previews, `${name}-${width}-light.png`), fullPage: true });
@@ -63,7 +72,7 @@ async function inspectPresentation(page, { name, width }) {
 }
 
 async function checkKeyboardControls(page) {
-  const controls = page.locator(".catalog-admin :is(input, select, button):not(:disabled)");
+  const controls = page.locator(".catalog-admin :is(input, select, button, textarea):not(:disabled), .catalog-admin-tabs a");
   const total = await controls.count();
   assert.ok(total > 0);
   await controls.evaluateAll(elements => elements.forEach((element, index) => { element.dataset.previewControlIndex = String(index); }));

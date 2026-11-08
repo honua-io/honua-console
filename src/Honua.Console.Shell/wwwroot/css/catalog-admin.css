@@ -13,3 +13,14 @@
 .catalog-admin a { text-underline-offset: .2em; }
 .catalog-admin :focus-visible { outline: 3px solid var(--honua-accent); outline-offset: 3px; }
 @media (max-width: 480px) { .catalog-admin-filters label { width: 100%; } }
+
+.catalog-admin-tabs { display: flex; flex-wrap: wrap; gap: 1rem; margin-block: 1rem; }
+.catalog-admin-tabs a { min-height: 44px; display: inline-flex; align-items: center; }
+.catalog-admin-tabs [aria-current="page"] { font-weight: 700; text-decoration-thickness: 2px; }
+.catalog-settings { max-width: 70ch; }
+.catalog-settings h3 { margin-block: 1.75rem .75rem; }
+.catalog-settings-fields { display: grid; grid-template-columns: minmax(7rem, 1fr) minmax(0, 2fr); gap: .75rem 1rem; }
+.catalog-settings-fields dt { font-weight: 600; }
+.catalog-settings-fields dd { margin: 0; overflow-wrap: anywhere; }
+.catalog-embed-snippet { display: block; width: 100%; box-sizing: border-box; font: inherit; resize: vertical; }
+@media (max-width: 480px) { .catalog-settings-fields { grid-template-columns: 1fr; gap: .25rem; } .catalog-settings-fields dd { margin-bottom: .75rem; } }

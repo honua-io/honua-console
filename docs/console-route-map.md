@@ -1240,3 +1240,10 @@ no server renders missing binding. Enabling the flag never seeds catalogs. Tests
 explicitly register synthetic presentation views and label them Fixture preview.
 Live sources must consume the shared SDK contract and capability before they
 are enabled; a browser catalog client is not Console's .NET contract authority.
+
+The experimental `/catalogs/{id}/settings` route shares the same flag, source and
+authentication boundary as the overview. It displays a read-only configuration
+projection; no save/proposal operation is wired until the canonical contract is
+available. A copyable embed snippet is offered only when that projection supplies
+a released HTTPS component bundle and SHA-384 integrity. The snippet is escaped
+text, never executed by Console. No fixtures are registered by the production host.

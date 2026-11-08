@@ -21,7 +21,10 @@ public sealed record CatalogAdminRead(
     IReadOnlyList<CatalogAdminRow> Catalogs,
     CatalogAdminOverview? Overview,
     string State,
-    string? Message);
+    string? Message)
+{
+    public CatalogAdminSettings? Settings { get; init; }
+}
 
 public sealed record CatalogAdminOptions
 {
