@@ -1,5 +1,6 @@
 @inject IConsoleCapabilityManifest Capabilities
 @inject IServiceProvider Services
+@inject CatalogAdminOptions CatalogOptions
 @implements IDisposable
 
 <nav aria-label="Work areas" class="console-home-links">
@@ -34,5 +35,6 @@
         new ConfiguredConsoleProductMode(ConsoleProductMode.Full);
 
     private IReadOnlyList<ConsoleNavigationGroup> VisibleGroups => ConsoleNavigation.VisibleGroups(
-        ProductMode, Capabilities, Services.GetService<Microsoft.Extensions.Configuration.IConfiguration>());
+        ProductMode, Capabilities, ConsoleNavigation.EnabledGroups(
+            CatalogOptions, Services.GetService<Microsoft.Extensions.Configuration.IConfiguration>()));
 }

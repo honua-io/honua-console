@@ -1,5 +1,6 @@
 @implements IDisposable
 @inject NavigationManager Navigation
+@inject CatalogAdminOptions CatalogOptions
 
 <nav class="console-contextbar" aria-label="Breadcrumb">
     <ol>
@@ -30,9 +31,12 @@
     [Parameter] public IReadOnlyList<ConsoleNavigationGroup> Groups { get; set; } = [];
     private bool StudioEnabled => Groups.Any(group => group.Name == "Studio");
     private string RelativePath => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
-    private ConsoleNavigationContext Context => ConsoleNavigation.ContextForPath(RelativePath);
+    private ConsoleNavigationContext Context => ConsoleNavigation.ContextForPath(RelativePath, Definitions);
+    private IReadOnlyList<ConsoleNavigationGroup> Definitions => ConsoleNavigation.Definitions(CatalogOptions);
     private ConsoleWorkflowArea? ParentArea => ConsoleRouteMap.FindAreaForPath(RelativePath) is { } area
-        && area.Path.Trim('/') != RelativePath && area.Name != Context.Label ? area : null;
+        && area.Path.Trim('/') != RelativePath && area.Name != Context.Label
+            ? area.Id == "catalog" ? area with { Name = ConsoleNavigation.ContextForPath(area.Path, Definitions).Label } : area
+            : null;
 
     private IEnumerable<ConsoleNavigationDestination> ContextActions => Context.Kind switch
     {
