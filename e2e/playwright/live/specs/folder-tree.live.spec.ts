@@ -4,8 +4,10 @@ import { seedImportedFolder } from '../imported-folder';
 test('browse an imported folder and its layers with an isolated anonymous control', async ({ page, admin, browser }) => {
   test.setTimeout(480_000);
   const folder = await seedImportedFolder(admin);
-  const listing = await admin.getJson('/api/v1/admin/services');
-  const services = listing.data.filter((service: any) => service.folderId === folder.id);
+  const listing = await admin.getJson(`/api/v1/admin/services?folderId=${encodeURIComponent(folder.id)}`);
+  const services = listing.data.items;
+  expect(listing.data.total).toBe(2);
+  expect(services.every((service: any) => service.folderId === folder.id)).toBe(true);
   expect(services.map((service: any) => service.serviceName).sort()).toEqual(folder.services.map(service => service.name).sort());
 
   await page.goto('/operate/publishing');
@@ -20,7 +22,8 @@ test('browse an imported folder and its layers with an isolated anonymous contro
     await expect(row).toHaveAttribute('data-tree-parent', `folder:${encodeURIComponent(folder.id)}`);
     await expect(row).toContainText(service.name);
     await row.locator('[data-tree-expand]').click();
-    const layerRow = tree.locator(`[data-tree-parent="service:${encodeURIComponent(service.name)}"]`);
+    const layerKey = `service:${encodeURIComponent(service.name)}:layer:${folder.connectionId.toLowerCase()}-layer-${service.layerId}`;
+    const layerRow = tree.locator(`[data-publication-key="${layerKey}"]`);
     await expect(layerRow).toHaveCount(1);
     await layerRow.locator('[data-tree-link]').click();
     await expect(page.locator('[data-layer-loaded="true" i]')).toBeVisible();
@@ -30,13 +33,15 @@ test('browse an imported folder and its layers with an isolated anonymous contro
 
   const anonymous = await browser.newContext({ storageState: { cookies: [], origins: [] } });
   try {
-    const anonymousPage = await anonymous.newPage();
-    await anonymousPage.goto(page.url());
-    await expect(anonymousPage.locator('[data-publication-navigation]')).toContainText(/sign in|forbidden|missing|not configured/i);
-    await expect(anonymousPage.locator(`[data-tree-label="${folder.name}"]`)).toHaveCount(0);
-    for (const service of folder.services) {
-      await expect(anonymousPage.locator(`[data-tree-label="${service.name}"]`)).toHaveCount(0);
-    }
+    const blocked = await anonymous.request.get(page.url(), { maxRedirects: 0 });
+    expect(blocked.status()).toBe(302);
+    const redirect = new URL(blocked.headers().location, page.url());
+    expect(redirect.pathname).toBe('/auth/login');
+    expect(redirect.searchParams.get('returnTo')).toBe(new URL(page.url()).pathname);
+    const body = await blocked.text();
+    expect(body).not.toContain('data-publication-tree');
+    expect(body).not.toContain(folder.name);
+    for (const service of folder.services) expect(body).not.toContain(service.name);
     const denied = await anonymous.request.get(`${admin.serverUrl}/api/v1/admin/folders`);
     expect([401, 403]).toContain(denied.status());
   } finally {

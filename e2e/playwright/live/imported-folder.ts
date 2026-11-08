@@ -8,6 +8,7 @@ const SOURCE_SERVICE = 'https://sampleserver6.arcgisonline.com/arcgis/rest/servi
 
 export interface ImportedFolder {
   id: string;
+  connectionId: string;
   name: string;
   services: Array<{ name: string; layerId: number }>;
 }
@@ -27,7 +28,7 @@ export async function seedImportedFolder(admin: AdminApi): Promise<ImportedFolde
   expect(id).toEqual(expect.any(String));
   expect(id.length).toBeGreaterThan(0);
 
-  const connection = await admin.getOrCreateKeptConnection(sourceConnectionBody(`e2e-folder-${suffix}`));
+  const connection = await admin.createConnection(sourceConnectionBody(`e2e-folder-${suffix}`));
   const services = [];
   for (const index of [1, 2]) {
     const service = await importFolderService(admin, { folderId: id, name: `e2e_tree_${suffix}_${index}` });
@@ -35,7 +36,7 @@ export async function seedImportedFolder(admin: AdminApi): Promise<ImportedFolde
     expect(layers.map(layer => layer.layerId)).toContain(service.layerId);
     services.push(service);
   }
-  return { id, name, services };
+  return { id, connectionId: connection.connectionId, name, services };
 }
 
 async function importFolderService(admin: AdminApi, target: { folderId: string; name: string }) {
@@ -50,10 +51,11 @@ async function importFolderService(admin: AdminApi, target: { folderId: string; 
   expect(accepted.plan.folderId).toBe(target.folderId);
   expect(accepted.plan.serviceName).toBe(target.name);
   const statusPath = `${IMPORT_PATH}/jobs/${encodeURIComponent(accepted.jobId)}`;
-  await expect.poll(async () => (await admin.getJson(statusPath)).status,
+  await expect.poll(async () => (await admin.getJson(statusPath)).status >= IMPORT_COMPLETED,
     { timeout: 180_000, intervals: [1000, 2000, 5000], message: `import ${target.name} completes` },
-  ).toBe(IMPORT_COMPLETED);
+  ).toBe(true);
   const progress = await admin.getJson(statusPath);
+  expect(progress.status, progress.errorMessage ?? 'import completed successfully').toBe(IMPORT_COMPLETED);
   expect(progress.failedFeatures).toBe(0);
   expect(progress.featuresProcessed).toBeGreaterThan(0);
   expect(progress.serviceName).toBe(target.name);
