@@ -24,6 +24,7 @@
 </CascadingValue>
 
 @code {
+    [CascadingParameter] public ConsolePublicationLayerContext? LayerContext { get; set; }
     [Parameter] public EventCallback<IReadOnlyList<ConsolePublicationNode>> SelectionChanged { get; set; }
     private IReadOnlyList<ConsolePublicationNode>? _reportedPath;
     private IReadOnlyList<ConsolePublicationNode> _resolvedPath = [];
@@ -74,6 +75,7 @@
 
     protected override void OnInitialized()
     {
+        if (LayerContext is not null) LayerContext.Changed += LayerSelectionChanged;
         Navigation.LocationChanged += LocationChanged;
         _capabilities = Services.GetService<IConsoleCapabilityManifest>();
         if (_capabilities is not null) _capabilities.Changed += CapabilitiesChanged;
@@ -90,7 +92,7 @@
         if (!_loading && _servicesRead is { IsAllowed: true, Value: not null })
         {
             ancestors = _tree.PathTo(contextPath);
-            if (ancestors.Count == 0 && _pathAttempt == new PathAttempt(contextPath, _authorityRevision))
+            if (ancestors.Count == 0 && _pathAttempt == new PathAttempt(contextPath, _authorityRevision, LayerContext?.Revision ?? 0))
                 ancestors = _resolvedPath;
         }
         if (_reportedPath is not null && _reportedPath.SequenceEqual(ancestors)) return;
@@ -340,21 +342,32 @@
     private async Task ResolveSelectedLayerAsync()
     {
         var context = ConsoleNavigation.ContextForPath(CurrentPath.Trim('/'), ConsoleNavigation.Groups);
-        var attempt = new PathAttempt(context.Path, _authorityRevision);
-        if (_disposed || _loading || context.Kind != ConsoleNavigationContextKind.Layer
+        var attempt = new PathAttempt(context.Path, _authorityRevision, LayerContext?.Revision ?? 0);
+        if (_disposed || _loading || LayerContext?.Selection is not { } selection || context.Kind != ConsoleNavigationContextKind.Layer
             || _servicesRead is not { IsAllowed: true, Value: not null }
             || _tree.PathTo(context.Path).Count > 0 || _pathAttempt == attempt) return;
         _pathAttempt = attempt;
         _resolvedPath = [];
         var result = await ConsoleReadBudget.RunAsync(
-            token => new ConsolePublicationPathReader(Source).ReadAsync(context.Path, token), ConsoleReadBudget.Default,
+            token => new ConsolePublicationPathReader(Source).ReadAsync(selection, token), ConsoleReadBudget.Default,
             "Layer ancestry could not be read.", _authorityLifetime.Token);
         if (_disposed || _pathAttempt != attempt || attempt.AuthorityRevision != _authorityRevision) return;
         _resolvedPath = result.IsAllowed ? result.Value ?? [] : [];
         await InvokeAsync(StateHasChanged);
     }
 
-    private readonly record struct PathAttempt(string Path, int AuthorityRevision);
+    private void LayerSelectionChanged()
+    {
+        _pathAttempt = null;
+        _resolvedPath = [];
+        if (!_disposed) _ = InvokeAsync(async () =>
+        {
+            await ResolveSelectedLayerAsync();
+            StateHasChanged();
+        });
+    }
+
+    private readonly record struct PathAttempt(string Path, int AuthorityRevision, int LayerRevision);
 
     private void LocationChanged(object? sender, LocationChangedEventArgs args)
     {
@@ -367,6 +380,7 @@
     public void Dispose()
     {
         _disposed = true;
+        if (LayerContext is not null) LayerContext.Changed -= LayerSelectionChanged;
         Navigation.LocationChanged -= LocationChanged;
         if (_capabilities is not null) _capabilities.Changed -= CapabilitiesChanged;
         if (Services.GetService<AuthenticationStateProvider>() is { } authentication)

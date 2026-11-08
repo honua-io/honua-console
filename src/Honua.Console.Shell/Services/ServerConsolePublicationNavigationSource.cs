@@ -25,15 +25,6 @@ public sealed class ServerConsolePublicationNavigationSource(IHonuaAdminOperateC
         return OperateSectionResult<IReadOnlyList<string>>.Allowed(result.Data.Select(OperateResourceIdentity.ForConnection).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
     }
 
-    public async Task<OperateSectionResult<IReadOnlyList<HonuaAdminPublishedLayerSummary>>> ReadConnectionLayersAsync(
-        string connectionKey, CancellationToken cancellationToken)
-    {
-        var read = await ReadConnectionLayerSummariesAsync(connectionKey, null, cancellationToken);
-        if (read.Issue is { } issue) return Denied<IReadOnlyList<HonuaAdminPublishedLayerSummary>>(issue);
-        return read.Data is null ? Unreadable<IReadOnlyList<HonuaAdminPublishedLayerSummary>>()
-            : OperateSectionResult<IReadOnlyList<HonuaAdminPublishedLayerSummary>>.Allowed(read.Data);
-    }
-
     public async Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>> ReadLayersAsync(
         string serviceName, IReadOnlyList<string> connectionKeys, CancellationToken cancellationToken)
     {

@@ -6,21 +6,10 @@ namespace Honua.Console.Shell.Services;
 public sealed class ConsolePublicationPathReader(IConsolePublicationNavigationSource source)
 {
     public async Task<OperateSectionResult<IReadOnlyList<ConsolePublicationNode>>> ReadAsync(
-        string path, CancellationToken cancellationToken)
+        ConsolePublicationLayerSelection selection, CancellationToken cancellationToken)
     {
-        var connections = await source.ReadConnectionsAsync(cancellationToken);
-        if (!connections.IsAllowed || connections.PartialResult || connections.Value is null)
-            return Denied(connections.Status, connections.Message);
-        var resourceId = Uri.UnescapeDataString(path["/operate/layers/".Length..]);
-        var owners = connections.Value.Where(connection => resourceId.StartsWith(
-            OperateResourceIdentity.NormalizeToken(connection) + "-layer-", StringComparison.Ordinal)).ToArray();
-        if (owners.Length != 1) return Empty();
-        var layers = await source.ReadConnectionLayersAsync(owners[0], cancellationToken);
-        if (!layers.IsAllowed || layers.PartialResult || layers.Value is null) return Denied(layers.Status, layers.Message);
-        var matches = layers.Value.Where(layer => OperateResourceIdentity.ForPublishedLayer(owners[0], layer.LayerId) == resourceId).ToArray();
-        if (matches.Length != 1 || string.IsNullOrWhiteSpace(matches[0].ServiceName)) return Empty();
-        var layer = matches[0];
-        var services = await ReadServicesAsync(layer.ServiceName!, cancellationToken);
+        if (string.IsNullOrWhiteSpace(selection.ServiceName)) return Empty();
+        var services = await ReadServicesAsync(selection.ServiceName, cancellationToken);
         if (!services.IsAllowed || services.Value is null) return Denied(services.Status, services.Message);
         if (services.Value.Count != 1) return Empty();
 
@@ -28,8 +17,8 @@ public sealed class ConsolePublicationPathReader(IConsolePublicationNavigationSo
         tree.Load(new HonuaAdminServicePage { Items = services.Value.ToArray(), Total = 1 }, "Services");
         var service = ConsolePublicationTree.Descendants(tree.Root).Single(node => node.Kind == ConsolePublicationNodeKind.Service);
         service.Children = ConsolePublicationTree.LayerNodes(service,
-            [new(resourceId, string.IsNullOrWhiteSpace(layer.LayerName) ? $"Layer {layer.LayerId}" : layer.LayerName, layer.GeometryType ?? "Unknown")]);
-        return OperateSectionResult<IReadOnlyList<ConsolePublicationNode>>.Allowed(tree.PathTo(path));
+            [new(selection.ResourceId, selection.LayerName, "Unknown")]);
+        return OperateSectionResult<IReadOnlyList<ConsolePublicationNode>>.Allowed(tree.PathTo($"/operate/layers/{Uri.EscapeDataString(selection.ResourceId)}"));
     }
 
     private static OperateSectionResult<IReadOnlyList<ConsolePublicationNode>> Empty() =>
