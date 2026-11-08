@@ -6,9 +6,9 @@ namespace Honua.Console.Shell.Models;
 // Checked against the honua-server endpoint registry.
 public static class HonuaServedRoutes
 {
-    public static string? PathFor(string serviceName, string protocol)
+    public static string? PathFor(string serviceName, string protocol, string? folderName = null)
     {
-        var service = Uri.EscapeDataString(serviceName);
+        var service = (string.IsNullOrEmpty(folderName) ? "" : Uri.EscapeDataString(folderName) + "/") + Uri.EscapeDataString(serviceName);
 
         return protocol switch
         {
@@ -30,7 +30,7 @@ public static class HonuaServedRoutes
         };
     }
 
-    public static string CatalogPathFor(string serviceName, string protocol) =>
-        PathFor(serviceName, protocol)
+    public static string CatalogPathFor(string serviceName, string protocol, string? folderName = null) =>
+        PathFor(serviceName, protocol, folderName)
         ?? throw new InvalidOperationException($"Catalog protocol '{protocol}' has no served route.");
 }

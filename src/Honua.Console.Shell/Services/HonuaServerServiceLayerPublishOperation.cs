@@ -1,3 +1,4 @@
+using Honua.Sdk.Admin.Models;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 
@@ -18,8 +19,14 @@ public sealed class HonuaServerServiceLayerPublishOperation : IServiceLayerPubli
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        var request = new HonuaAdminPublishLayerRequest
+        if (command.FolderId.IsSpecified && string.IsNullOrWhiteSpace(command.AuthorityBinding))
+            return new() { State = "Target unverified", Detail = "Refresh Folders and review the publishing target before choosing a Folder or Root." };
+
+        var request = new PublishLayerRequest
         {
+            FolderId = command.FolderId,
+            PublicName = command.PublicName,
+            Namespace = command.Namespace,
             Schema = command.Schema,
             Table = command.Table,
             LayerName = command.LayerName,
@@ -33,9 +40,9 @@ public sealed class HonuaServerServiceLayerPublishOperation : IServiceLayerPubli
             Enabled = command.Enabled
         };
 
-        var result = await _client
-            .PublishLayerAsync(command.ConnectionId, request, cancellationToken)
-            .ConfigureAwait(false);
+        var result = command.AuthorityBinding is { } binding
+            ? await _client.PublishLayerBoundAsync(command.ConnectionId, request, binding, cancellationToken).ConfigureAwait(false)
+            : await _client.PublishLayerAsync(command.ConnectionId, request, cancellationToken).ConfigureAwait(false);
 
         if (result.Data is { } layer)
         {

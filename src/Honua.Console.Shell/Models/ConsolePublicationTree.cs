@@ -1,5 +1,6 @@
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Services;
+using Honua.Sdk.Admin.Models;
 
 namespace Honua.Console.Shell.Models;
 
@@ -55,7 +56,7 @@ public sealed class ConsolePublicationTree
     public bool HasHiddenLoadedChildren(ConsolePublicationNode parent) =>
         MatchingChildren(parent).Count > parent.VisibleOffset + parent.VisibleLimit;
 
-    public void Load(HonuaAdminServicePage page, string environmentLabel)
+    public void Load(HonuaAdminServicePage page, string environmentLabel, IReadOnlyList<Folder>? catalogFolders = null)
     {
         var services = page.Items ?? [];
         Filter = string.Empty;
@@ -73,6 +74,19 @@ public sealed class ConsolePublicationTree
             ReportedCount = page.Total
         };
         var folders = new Dictionary<string, ConsolePublicationNode>(StringComparer.Ordinal);
+        foreach (var folder in catalogFolders ?? [])
+        {
+            if (folder.Deleted || string.IsNullOrWhiteSpace(folder.Metadata.Id)) continue;
+            var node = new ConsolePublicationNode
+            {
+                Key = "folder:" + Uri.EscapeDataString(folder.Metadata.Id),
+                Label = string.IsNullOrWhiteSpace(folder.Metadata.Title) ? folder.Metadata.Name : folder.Metadata.Title,
+                Kind = ConsolePublicationNodeKind.Folder,
+                ChildrenLoaded = true
+            };
+            if (!folders.TryAdd(folder.Metadata.Id, node)) continue;
+            Root.Children.Add(node);
+        }
         foreach (var service in services.OrderBy(DisplayName, StringComparer.OrdinalIgnoreCase))
         {
             var parent = GetOrAddServiceParent(service, folders);

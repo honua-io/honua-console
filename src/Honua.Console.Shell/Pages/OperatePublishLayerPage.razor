@@ -1,6 +1,8 @@
 @page "/operate/publishing/quick"
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
+@using Honua.Console.Shell.Components.Operate
+@using Honua.Sdk.Admin.Models
 @inject IOperateTransitionDataSource OperateData
 @inject IServiceLayerPublishOperation PublishOperation
 @inject NavigationManager Nav
@@ -10,7 +12,7 @@
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Publishing</p>
         <h1>Publish a layer</h1>
-        <p>Publish an existing table from a data connection as a queryable service layer. Pick the connection and table, name the service (use <code>folder/service</code> to nest under a folder), and publish — the layer becomes live on honua-server and queryable through its FeatureServer endpoint.</p>
+        <p>Publish an existing table from a data connection as a queryable Service Layer. Choose its Service identity and Folder separately; public paths use the Folder and public Service name.</p>
     </div>
 
     <ConsoleConnectionNotice Heading="Could not read data connections" States="_connectionStates" OnRetry="LoadConnectionsAsync" />
@@ -66,13 +68,20 @@
                 <label>
                     <span>Service name</span>
                     <input class="console-input" data-workspace-field="serviceName" @bind="_serviceName" @bind:event="oninput" @bind:after="ClearResult" placeholder="parcels-fs" />
-                    <small class="console-muted">Use <code>folder/service</code> to nest under a folder.</small>
+                    <small class="console-muted">The logical Service identity stays the same when its Folder changes.</small>
                 </label>
                 <label>
                     <span>Layer name</span>
                     <input class="console-input" data-workspace-field="layerName" @bind="_layerName" @bind:event="oninput" @bind:after="ClearResult" placeholder="Parcels" />
                 </label>
             </div>
+
+            <FolderPublishSelection @bind-Value="_folderId" AuthorityBindingChanged="binding => _folderAuthority = binding" />
+            <label class="console-field">
+                <span>Public Service name (optional)</span>
+                <input class="console-input" @bind="_publicName" data-service-public-name />
+                <small>Immutable after assignment. Leave blank to use the Service identity.</small>
+            </label>
 
             @if (_selectedTable is { } t)
             {
@@ -109,6 +118,8 @@
                             <dd data-published-layer-id>@r.LayerId</dd>
                             <dt>Service</dt>
                             <dd data-published-service>@r.ServiceName</dd>
+                            <dt>Endpoints</dt>
+                            <dd><a href="@($"/operate/services/{Uri.EscapeDataString(r.ServiceName ?? _serviceName)}/settings")">Read current Service endpoints</a></dd>
                             <dt>Geometry / SRID</dt>
                             <dd>@r.GeometryType / @r.Srid</dd>
                         </dl>
@@ -152,6 +163,9 @@
     private string _geometryTypeOverride = string.Empty;
     private string _serviceName = string.Empty;
     private string _layerName = string.Empty;
+    private OptionalString _folderId;
+    private string _publicName = "";
+    private string? _folderAuthority;
 
     private bool _loadingTables;
     private bool _interactive;
@@ -234,6 +248,9 @@
             Table = table.Table,
             LayerName = _layerName.Trim(),
             ServiceName = _serviceName.Trim(),
+            FolderId = _folderId,
+            PublicName = string.IsNullOrWhiteSpace(_publicName) ? null : _publicName.Trim(),
+            AuthorityBinding = _folderId.IsSpecified ? _folderAuthority : null,
             GeometryColumn = table.GeometryColumn,
             GeometryType = RequiresGeometryChoice(table) ? _geometryTypeOverride : table.GeometryType,
             Srid = table.Srid,

@@ -462,13 +462,18 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
 
         return new OperateServiceDetail(
             serviceName,
-            Coalesce(service.Description, serviceName),
+            Coalesce(service.Title, service.PublicName, service.Description, serviceName),
             protocols.Length == 0 ? "Geo service" : string.Join(", ", protocols),
             service.LayerCount > 0 ? "Configured" : "No layers",
             "Canonical metadata is owned by honua-server Metadata v2 resources. Service settings control runtime protocols, access policy, and exposure.",
             layers,
             MapRuntimeSettings(service, settings, protocols),
-            MapPublicationSlots(serviceName, protocols));
+            MapPublicationSlots(service.PublicName ?? serviceName, protocols, service.FolderId is null ? null : service.FolderName))
+        {
+            FolderId = service.FolderId,
+            FolderName = service.FolderName,
+            PublicName = service.PublicName
+        };
     }
 
     private IReadOnlyList<OperateRuntimeSetting> MapRuntimeSettings(
@@ -518,7 +523,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
 
     private IReadOnlyList<OperatePublicationSlot> MapPublicationSlots(
         string serviceName,
-        IReadOnlyList<string> protocols)
+        IReadOnlyList<string> protocols, string? folderName = null)
     {
         if (protocols.Count == 0)
         {
@@ -528,7 +533,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         return protocols
             .Select(protocol => new OperatePublicationSlot(
                 protocol,
-                BuildProtocolUrl(serviceName, protocol),
+                BuildProtocolUrl(serviceName, protocol, folderName),
                 "Exposed by honua-server"))
             .ToArray();
     }
@@ -701,8 +706,8 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             ["Overview", "Source", "Fields", "Validation"]);
     }
 
-    internal string? BuildProtocolUrl(string serviceName, string protocol) =>
-        HonuaServedRoutes.PathFor(serviceName, protocol) is { } path ? _client.BaseUri.ToString().TrimEnd('/') + path : null;
+    internal string? BuildProtocolUrl(string serviceName, string protocol, string? folderName = null) =>
+        HonuaServedRoutes.PathFor(serviceName, protocol, folderName) is { } path ? _client.BaseUri.ToString().TrimEnd('/') + path : null;
 
     private static string FormatTarget(HonuaAdminConnectionSummary connection)
     {

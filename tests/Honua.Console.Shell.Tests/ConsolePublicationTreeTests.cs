@@ -7,6 +7,27 @@ namespace Honua.Console.Shell.Tests;
 public sealed class ConsolePublicationTreeTests
 {
     [Fact]
+    public void EmptyFoldersAndRootServicesShareTheExistingPagedTree()
+    {
+        var tree = new ConsolePublicationTree();
+        tree.Load(Page([new() { ServiceName = "roads" }]), "Environment",
+            [new() { Metadata = new() { Id = "empty-folder", Name = "Transport", Title = "Transport data" } }]);
+
+        Assert.Equal(1, tree.ServiceCount);
+        var folder = Assert.Single(tree.Root.Children, node => node.Kind == ConsolePublicationNodeKind.Folder);
+        Assert.Equal("folder:empty-folder", folder.Key);
+        Assert.Equal("Transport data", folder.Label);
+        Assert.Empty(folder.Children);
+        Assert.Equal(0, folder.ChildCount);
+        Assert.Contains(tree.Root.Children, node => node.ServiceName == "roads");
+        tree.SetFilter("transport");
+        Assert.Equal(folder, Assert.Single(tree.VisibleChildren(tree.Root)));
+        tree.Append(Page([new() { ServiceName = "moved", FolderId = "empty-folder", FolderName = "Transport" }]));
+        Assert.Equal("moved", Assert.Single(folder.Children).ServiceName);
+        Assert.Equal("Transport data", folder.Label);
+    }
+
+    [Fact]
     public void FiveHundredFlatServicesUseBoundedPagesAndFilterTheEntireSummaryRead()
     {
         var tree = CreateLargeTree(200);

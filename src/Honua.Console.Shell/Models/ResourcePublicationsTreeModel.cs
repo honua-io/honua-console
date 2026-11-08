@@ -28,7 +28,7 @@ public static class ResourcePublicationsTreeBuilder
         ArgumentNullException.ThrowIfNull(services);
 
         // Map each canonical resource id → the (serviceType, serviceName) pairs that publish it.
-        var publicationsByResource = new Dictionary<string, List<(string ServiceType, string ServiceSlot)>>(StringComparer.Ordinal);
+        var publicationsByResource = new Dictionary<string, List<(string ServiceType, string ServiceName, string? FolderName)>>(StringComparer.Ordinal);
         foreach (var service in services)
         {
             foreach (var layer in service.Layers)
@@ -44,7 +44,7 @@ public static class ResourcePublicationsTreeBuilder
                     publicationsByResource[layer.CanonicalResourceId] = list;
                 }
 
-                list.Add((service.ServiceType, service.Name));
+                list.Add((service.ServiceType, service.PublicName ?? service.Name, service.FolderId is null ? null : service.FolderName));
             }
         }
 
@@ -67,7 +67,7 @@ public static class ResourcePublicationsTreeBuilder
     }
 
     private static IReadOnlyList<PublicationTreeNode> BuildPublicationNodes(
-        List<(string ServiceType, string ServiceSlot)>? publications)
+        List<(string ServiceType, string ServiceName, string? FolderName)>? publications)
     {
         if (publications is null || publications.Count == 0)
         {
@@ -76,7 +76,7 @@ public static class ResourcePublicationsTreeBuilder
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var nodes = new List<PublicationTreeNode>();
-        foreach (var (serviceType, serviceSlot) in publications)
+        foreach (var (serviceType, serviceName, folderName) in publications)
         {
             // A service's ServiceType can arrive as a metadata-v2 string (esri-feature-service), a joined
             // list of protocol names (FeatureServer, MapServer), or a display name (Feature service) depending
@@ -93,7 +93,7 @@ public static class ResourcePublicationsTreeBuilder
                     descriptor.Id,
                     descriptor.Label,
                     IsLive: true,
-                    Route: HonuaServedRoutes.CatalogPathFor(PublishProtocolCatalog.ServiceNameFor(serviceSlot), descriptor.Id)));
+                    Route: HonuaServedRoutes.CatalogPathFor(PublishProtocolCatalog.ServiceNameFor(serviceName), descriptor.Id, folderName)));
             }
         }
 

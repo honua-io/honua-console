@@ -1,0 +1,11 @@
+.console-folder-fields {
+    border: 0;
+    padding: 0;
+    margin: 1rem 0;
+    min-width: 0;
+}
+
+.console-folder-fields legend {
+    font-weight: 600;
+    margin-bottom: 1rem;
+}

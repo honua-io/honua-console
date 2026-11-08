@@ -134,6 +134,9 @@ public sealed record OperateServiceDetail(
     IReadOnlyList<OperateRuntimeSetting> RuntimeSettings,
     IReadOnlyList<OperatePublicationSlot> PublicationSlots)
 {
+    public string? FolderId { get; init; }
+    public string? FolderName { get; init; }
+    public string? PublicName { get; init; }
     // ServiceType lists the enabled protocols, comma separated.
     public bool Serves(string protocol) =>
         ServiceType.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
