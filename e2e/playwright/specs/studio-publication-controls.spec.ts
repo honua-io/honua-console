@@ -105,6 +105,20 @@ test('a saved public audience shows the source-access notice as soon as review o
     expect(await page.evaluate(() => (window as any).publicationFixture.calls)).toEqual([]);
 });
 
+test('saved version review does not require secure-context UUID APIs', async ({ page }) => {
+    await page.addInitScript(() => {
+        Object.defineProperty(crypto, 'randomUUID', { value: undefined, configurable: true });
+    });
+    await mount(page);
+    await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
+    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    const audience = page.getByLabel('Publication audience', { exact: true });
+    await audience.selectOption('public');
+    await expect(page.locator('[data-publication-source-access]')).toBeVisible();
+    await expect(audience).toHaveAccessibleDescription(/Publishing a public map does not change access/);
+    expect(await page.evaluate(() => (window as any).publicationFixture.calls)).toEqual([]);
+});
+
 test('reload retains unknown submission and explicitly retries the original identity and audience', async ({ page }) => {
     await mount(page, true, true);
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();

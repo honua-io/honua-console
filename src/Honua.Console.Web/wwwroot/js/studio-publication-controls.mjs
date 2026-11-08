@@ -202,6 +202,8 @@ export class StudioPublicationSession {
     }
 }
 
+let sourceAccessSequence = 0;
+
 export function mountStudioPublicationControls({ app, host, status }) {
     const session = new StudioPublicationSession(app);
     const section = document.createElement('section');
@@ -220,7 +222,7 @@ export function mountStudioPublicationControls({ app, host, status }) {
         const option = document.createElement('option'); option.value = value; option.textContent = label; audience.append(option);
     }
     const sourceAccess = document.createElement('p');
-    sourceAccess.id = `studio-publication-source-access-${crypto.randomUUID()}`;
+    sourceAccess.id = `studio-publication-source-access-${++sourceAccessSequence}`;
     sourceAccess.dataset.publicationSourceAccess = '';
     sourceAccess.textContent = 'Publishing a public map does not change access to its source services. Anonymous viewers cannot see layers that require sign-in. Review service access before publishing.';
     const warning = document.createElement('textarea');
