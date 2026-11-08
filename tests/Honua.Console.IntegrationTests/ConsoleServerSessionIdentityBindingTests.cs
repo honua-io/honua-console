@@ -285,7 +285,10 @@ public sealed partial class ConsoleServerSessionIdentityBindingTests
         oldHandler.PauseSession = true;
         var validation = harness.Binding.EnsureAsync(new ConsoleServerSessionIdentityRequest
         {
-            Partition = oldPartition, Profile = Profile("env"), OperatorKey = "operator-a", ProviderKey = "oidc",
+            Partition = oldPartition,
+            Profile = Profile("env"),
+            OperatorKey = "operator-a",
+            ProviderKey = "oidc",
         }, CancellationToken.None);
         await oldHandler.SessionEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         harness.Partitions.Remove("operator-a", Profile("env"));
@@ -311,7 +314,10 @@ public sealed partial class ConsoleServerSessionIdentityBindingTests
         harness.Sessions.PauseNextClear = true;
         var validation = harness.Binding.EnsureAsync(new ConsoleServerSessionIdentityRequest
         {
-            Partition = partition, Profile = Profile("env"), OperatorKey = "operator-a", ProviderKey = "oidc",
+            Partition = partition,
+            Profile = Profile("env"),
+            OperatorKey = "operator-a",
+            ProviderKey = "oidc",
         }, CancellationToken.None);
         await harness.Sessions.ClearEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(ConsoleServerSignInStatus.Redirect, (await harness.SignInAsync()).Status);
@@ -728,7 +734,10 @@ public sealed partial class ConsoleServerSessionIdentityBindingTests
 
         var accepted = await harness.Binding.EnsureAsync(new ConsoleServerSessionIdentityRequest
         {
-            Partition = partition, Profile = manager, OperatorKey = "operator-a", ProviderKey = "oidc",
+            Partition = partition,
+            Profile = manager,
+            OperatorKey = "operator-a",
+            ProviderKey = "oidc",
             Authority = ConsoleServerAuthority.Management,
         }, default);
 

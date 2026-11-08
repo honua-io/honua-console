@@ -16,7 +16,10 @@ public sealed partial class ConsoleServerSessionIdentityBindingTests
 
         var accepted = await harness.Binding.EnsureAsync(new ConsoleServerSessionIdentityRequest
         {
-            Partition = partition, Profile = profile, OperatorKey = "operator-a", ProviderKey = "oidc"
+            Partition = partition,
+            Profile = profile,
+            OperatorKey = "operator-a",
+            ProviderKey = "oidc"
         }, default);
 
         Assert.False(accepted);

@@ -26,7 +26,9 @@ public sealed partial class ConsoleServerSessionBffTests
         const string returnTo = "/inbox?proposalId=manager%3Aproposal";
         var login = QueryHelpers.AddQueryString("/auth/server/login", new Dictionary<string, string?>
         {
-            ["profileId"] = profile.Id, ["authority"] = "Management", ["returnTo"] = returnTo
+            ["profileId"] = profile.Id,
+            ["authority"] = "Management",
+            ["returnTo"] = returnTo
         });
 
         using var choices = await host.Client.GetAsync(login);

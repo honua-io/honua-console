@@ -15,8 +15,10 @@ internal sealed class ConsoleAuthenticatedServerSession(
     {
         var target = new ConsoleApprovalBrowserTarget
         {
-            SelectedProfile = request.Target.Profile, AuthorityProfile = request.BoundProfile,
-            Authority = request.Target.Authority, Partition = identity.Partition
+            SelectedProfile = request.Target.Profile,
+            AuthorityProfile = request.BoundProfile,
+            Authority = request.Target.Authority,
+            Partition = identity.Partition
         };
         if (request.Channel?.Authorizes(target) != true) return null;
         var partition = await VerifyAsync(request.BoundProfile, cancellationToken).ConfigureAwait(false);

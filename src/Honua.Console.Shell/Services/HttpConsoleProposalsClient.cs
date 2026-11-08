@@ -107,11 +107,17 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         var result = await SendDetailAsync(HttpMethod.Get, ProposalAdminRoutes.Detail(proposalId.Trim()), content: null, cancellationToken)
             .ConfigureAwait(false);
         return result.Value is { IsAwaitingApproval: true } detail
-            ? result with { Value = detail with { HumanApprovalMessage = detail.HumanApprovalMessage
+            ? result with
+            {
+                Value = detail with
+                {
+                    HumanApprovalMessage = detail.HumanApprovalMessage
                 ?? review?.Message ?? "Sign in to this server, then refresh this review to approve.",
-                HumanApprovalSignInPath = !detail.RequiresReproposal && profile is not null
+                    HumanApprovalSignInPath = !detail.RequiresReproposal && profile is not null
                     && (review is null || review.Status == OperateSectionStatus.Forbidden)
-                    ? BuildSignInPath(profile, proposalId.Trim()) : null } }
+                    ? BuildSignInPath(profile, proposalId.Trim()) : null
+                }
+            }
             : result;
     }
 

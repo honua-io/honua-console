@@ -14,8 +14,10 @@ internal sealed class BrowserHumanProposalSession(IJSRuntime javascript) : ICons
         CancellationToken cancellationToken = default) => SendAsync<ConsoleHumanProposalReview>(
             new BrowserHumanProposalCommand
             {
-                Action = "review", ProfileId = request.Profile.Id,
-                Authority = request.Authority, ProposalId = request.ProposalId,
+                Action = "review",
+                ProfileId = request.Profile.Id,
+                Authority = request.Authority,
+                ProposalId = request.ProposalId,
             }, cancellationToken);
 
     public Task<OperateSectionResult<ProposalDetailWire>> ApproveAsync(
@@ -23,16 +25,21 @@ internal sealed class BrowserHumanProposalSession(IJSRuntime javascript) : ICons
         CancellationToken cancellationToken = default) => SendAsync<ProposalDetailWire>(
             new BrowserHumanProposalCommand
             {
-                Action = "approve", ProfileId = request.Profile.Id, Authority = request.Authority,
-                ProposalId = request.Decision.ProposalId, Decision = request.Decision,
+                Action = "approve",
+                ProfileId = request.Profile.Id,
+                Authority = request.Authority,
+                ProposalId = request.Decision.ProposalId,
+                Decision = request.Decision,
             }, cancellationToken);
 
     public Task<OperateSectionResult<ProposalDetailWire>> ReadStatusAsync(
         ConsoleHumanProposalTarget request,
         CancellationToken cancellationToken = default) => SendAsync<ProposalDetailWire>(new BrowserHumanProposalCommand
         {
-            Action = "status", ProfileId = request.Profile.Id,
-            Authority = request.Authority, ProposalId = request.ProposalId
+            Action = "status",
+            ProfileId = request.Profile.Id,
+            Authority = request.Authority,
+            ProposalId = request.ProposalId
         }, cancellationToken);
 
     private async Task<OperateSectionResult<T>> SendAsync<T>(

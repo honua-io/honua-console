@@ -74,8 +74,10 @@ public sealed partial class ConsoleServerSessionBffTests
         var channel = new ConsoleApprovalBrowserChannel(new EphemeralDataProtectionProvider(), accessor, clock);
         var target = new ConsoleApprovalBrowserTarget
         {
-            SelectedProfile = profile, AuthorityProfile = profile,
-            Authority = ConsoleServerAuthority.Serving, Partition = partition
+            SelectedProfile = profile,
+            AuthorityProfile = profile,
+            Authority = ConsoleServerAuthority.Serving,
+            Partition = partition
         };
         channel.CompleteCallback(target);
         ReplayCallbackCookie(context);

@@ -37,8 +37,12 @@ internal sealed class ConsoleApprovalBrowserChannel(
             ConsoleApprovalBrowserJsonContext.Default.ConsoleApprovalBrowserGrant));
         context.Response.Cookies.Append(CookieName(grant.ProfileBinding, grant.Authority), value, new CookieOptions
         {
-            HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict,
-            Path = "/", Expires = grant.ExpiresAt, IsEssential = true
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Strict,
+            Path = "/",
+            Expires = grant.ExpiresAt,
+            IsEssential = true
         });
     }
 

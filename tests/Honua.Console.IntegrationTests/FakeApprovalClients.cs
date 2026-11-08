@@ -263,10 +263,10 @@ public static class FakeProposalFactory
         CreatedAt: DateTimeOffset.UtcNow,
         UpdatedAt: DateTimeOffset.UtcNow,
         ResolvedAt: null)
-    {
-        Version = 7,
-        PlanHash = "sealed-plan",
-        HumanReviewEnvironment = "environment",
-        HumanReviewExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5)
-    };
+        {
+            Version = 7,
+            PlanHash = "sealed-plan",
+            HumanReviewEnvironment = "environment",
+            HumanReviewExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5)
+        };
 }

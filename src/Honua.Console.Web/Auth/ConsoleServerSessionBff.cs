@@ -700,8 +700,10 @@ internal sealed class ConsoleServerSessionBffCoordinator
 
             var identityRequest = new ConsoleServerSessionIdentityRequest
             {
-                Partition = partition, Profile = profile,
-                OperatorKey = operatorKey, ProviderKey = pending.ProviderKey,
+                Partition = partition,
+                Profile = profile,
+                OperatorKey = operatorKey,
+                ProviderKey = pending.ProviderKey,
                 Authority = pending.Authority,
             };
             var identityMatches = _identityBinding is null
@@ -715,8 +717,10 @@ internal sealed class ConsoleServerSessionBffCoordinator
             partition.ProposalReviews.Clear();
             var browserTarget = new ConsoleApprovalBrowserTarget
             {
-                SelectedProfile = selected!, AuthorityProfile = profile,
-                Authority = pending.Authority, Partition = partition
+                SelectedProfile = selected!,
+                AuthorityProfile = profile,
+                Authority = pending.Authority,
+                Partition = partition
             };
             if (pending.Authority == ConsoleServerAuthority.Management)
                 return CompleteBrowserCallback(browserTarget, pending.ReturnTo);
@@ -907,8 +911,11 @@ internal sealed class PartitionedConsoleOperatorBearerExchange : IConsoleOperato
         var authentication = await partition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
         var request = new ConsoleServerSessionIdentityRequest
         {
-            Partition = partition, Profile = profile, OperatorKey = operatorKey,
-            ProviderKey = partition.AuthenticatedProviderKey, Authority = authority
+            Partition = partition,
+            Profile = profile,
+            OperatorKey = operatorKey,
+            ProviderKey = partition.AuthenticatedProviderKey,
+            Authority = authority
         };
         return new ConsoleAuthenticatedServerSession(request, _identityBinding, authentication);
     }

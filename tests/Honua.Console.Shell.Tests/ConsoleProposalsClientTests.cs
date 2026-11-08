@@ -438,7 +438,10 @@ public sealed class ConsoleProposalsClientTests
         }
         private static ProposalDetailWire Proposal(string proposalId) => new()
         {
-            ProposalId = proposalId, Version = 7, PlanHash = "plan", Status = "AwaitingApproval"
+            ProposalId = proposalId,
+            Version = 7,
+            PlanHash = "plan",
+            Status = "AwaitingApproval"
         };
     }
 

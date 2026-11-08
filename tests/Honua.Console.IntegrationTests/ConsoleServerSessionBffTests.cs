@@ -381,7 +381,9 @@ public sealed partial class ConsoleServerSessionBffTests
         var accounts = new InMemoryConsoleAccountSessionStore();
         await accounts.SaveSessionAsync(new ConsoleAccountSession
         {
-            ProfileId = profile.Id, ServerBaseUri = profile.ServerBaseUri, AccessToken = "serving-cached-bearer"
+            ProfileId = profile.Id,
+            ServerBaseUri = profile.ServerBaseUri,
+            AccessToken = "serving-cached-bearer"
         });
         var handlers = new List<SimulatedServerAuthHandler>();
         await using var serverSessions = new ConsoleServerSessionClientStore(TimeProvider.System, (key, cookies) =>

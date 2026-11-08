@@ -97,7 +97,9 @@ public sealed partial class ConsoleHumanProposalBffTests
             }
             return Results.Json(new ConsoleServerAuthenticatedSessionWire
             {
-                IsAuthenticated = true, ProviderKey = "oidc", ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+                IsAuthenticated = true,
+                ProviderKey = "oidc",
+                ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
                 Claims = [new() { Type = "iss", Value = IdentityIssuer }, new() { Type = "sub", Value = "human" }]
             }, ConsoleServerSessionIdentityJsonContext.Default.ConsoleServerAuthenticatedSessionWire);
         }
@@ -141,7 +143,10 @@ public sealed partial class ConsoleHumanProposalBffTests
             Observe(context);
             return Results.Json(new ProposalDetailWire
             {
-                ProposalId = "proposal", Status = ProposalStatus, Version = 7, PlanHash = "plan"
+                ProposalId = "proposal",
+                Status = ProposalStatus,
+                Version = 7,
+                PlanHash = "plan"
             }, ConsoleHumanProposalJsonContext.Default.ProposalDetailWire);
         }
 
@@ -159,7 +164,9 @@ public sealed partial class ConsoleHumanProposalBffTests
         {
             Profile = new ConsoleEnvironmentProfile
             {
-                Id = "environment", ServerBaseUri = new Uri(Address(_upstream), _pathBase + "/"), TenantId = tenant,
+                Id = "environment",
+                ServerBaseUri = new Uri(Address(_upstream), _pathBase + "/"),
+                TenantId = tenant,
                 Account = new ConsoleAccountBinding { TenantId = accountTenant }
             };
             ReviewTenantId = string.IsNullOrEmpty(tenant) ? null : tenant;
@@ -222,7 +229,10 @@ public sealed partial class ConsoleHumanProposalBffTests
             {
                 _browser.Services.GetRequiredService<ConsoleApprovalBrowserChannel>().CompleteCallback(new()
                 {
-                    SelectedProfile = Profile, AuthorityProfile = profile, Authority = authority, Partition = partition!
+                    SelectedProfile = Profile,
+                    AuthorityProfile = profile,
+                    Authority = authority,
+                    Partition = partition!
                 });
             }
             finally { accessor.HttpContext = previous; }
