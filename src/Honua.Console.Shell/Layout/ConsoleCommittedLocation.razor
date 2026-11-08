@@ -4,10 +4,11 @@
 @implements IDisposable
 @inject NavigationManager Navigation
 @inject IServiceProvider Services
+@inject CatalogAdminOptions CatalogOptions
 
 <span hidden data-console-location="@_path" data-console-authority-revision="@_authorityRevision"
       data-console-recent-scope="@_recentScope" data-console-recent-until="@_recentUntil"
-      data-console-recent-label="@ConsoleNavigation.ContextForPath(_path, ConsoleNavigation.Definitions(Services.GetService<Microsoft.Extensions.Configuration.IConfiguration>())).Label"></span>
+      data-console-recent-label="@ConsoleNavigation.ContextForPath(_path, ConsoleNavigation.Definitions(CatalogOptions)).Label"></span>
 
 @code {
     private string _path = "/";

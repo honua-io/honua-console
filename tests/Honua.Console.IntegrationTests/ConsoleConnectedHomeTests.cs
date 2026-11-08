@@ -120,6 +120,7 @@ public sealed class ConsoleConnectedHomeTests
     private static BunitContext CreateContext(OperateSectionResult<ApprovalInboxSnapshot>? result = null)
     {
         var context = new BunitContext();
+        context.Services.AddSingleton(new CatalogAdminOptions());
         context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(
             new Dictionary<string, string?> { ["Studio:EmbedJsStudio"] = "true" }).Build());
         context.Services.AddSingleton(ConsoleCapabilityTestManifest.All);

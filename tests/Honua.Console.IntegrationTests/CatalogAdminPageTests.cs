@@ -20,6 +20,7 @@ public sealed class CatalogAdminPageTests
         Assert.Contains("Catalogs are not enabled", page.Markup);
         Assert.DoesNotContain("Open data", page.Markup);
         Assert.Equal(0, source.Reads);
+        Assert.Single(page.FindAll(".console-state-disabled"));
     }
 
     [Fact]
@@ -63,6 +64,8 @@ public sealed class CatalogAdminPageTests
         });
         var page = context.Render<CatalogAdminPage>();
         page.WaitForAssertion(() => Assert.Contains("Catalog contract is not supported", page.Markup));
+        Assert.Single(page.FindAll(".console-state-unsupported"));
+        Assert.Empty(page.FindAll(".console-state-denied"));
         Assert.DoesNotContain("Open data", page.Markup);
     }
 

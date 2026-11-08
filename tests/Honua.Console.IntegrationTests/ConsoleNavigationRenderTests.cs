@@ -1,4 +1,6 @@
 using Bunit;
+using Honua.Console.Shell.Components;
+using Honua.Console.Shell.DependencyInjection;
 using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
@@ -11,6 +13,62 @@ namespace Honua.Console.IntegrationTests;
 public sealed class ConsoleNavigationRenderTests
 {
     [Theory]
+    [InlineData(true, "Content")]
+    [InlineData(false, "Catalog")]
+    public async Task ProgrammaticCatalogOptionsControlNavigationAndRecentLabels(bool enabled, string label)
+    {
+        await using var context = CreateContext(shellOptions: new HonuaConsoleShellOptions { CatalogAdminEnabled = enabled });
+        context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Honua:Console:Catalogs:Enabled"] = enabled ? "false" : "true"
+        }).Build());
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/catalog");
+        var shell = context.Render<ConsoleLayout>();
+        shell.WaitForAssertion(() => Assert.Equal(label, shell.Find(".console-contextbar summary").TextContent));
+        Assert.Equal(label, shell.Find("[data-console-recent-label]").GetAttribute("data-console-recent-label"));
+        Assert.Equal(enabled ? 1 : 0, shell.FindAll("[data-navigation-menu='Catalogs']").Count);
+        var workAreas = context.Render<ConsoleHomeWorkAreas>();
+        Assert.Equal(enabled ? 1 : 0, workAreas.FindAll("a[href='/catalogs']").Count);
+    }
+
+    [Theory]
+    [InlineData(true, "Content")]
+    [InlineData(false, "Catalog")]
+    public async Task NestedContentBreadcrumbUsesCatalogOptionsWithoutReadAccess(bool enabled, string label)
+    {
+        await using var context = CreateContext(shellOptions: new HonuaConsoleShellOptions { CatalogAdminEnabled = enabled });
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/catalog/item-1");
+        var shell = context.Render<ConsoleLayout>();
+        Assert.Equal(label, shell.Find(".console-contextbar ol > li > a[href='/catalog']").TextContent);
+        Assert.Equal("item-1", shell.Find(".console-contextbar summary").TextContent);
+        Assert.Empty(shell.FindAll(".console-topnav a[href='/catalog']"));
+    }
+
+    [Theory]
+    [InlineData(ConsoleProductMode.Full, true)]
+    [InlineData(ConsoleProductMode.Witness, false)]
+    public async Task RegroupedDiscoveryRetainsItsModeGate(ConsoleProductMode mode, bool visible)
+    {
+        await using var context = CreateContext(mode, new HonuaConsoleShellOptions { CatalogAdminEnabled = true });
+        var shell = context.Render<ConsoleLayout>();
+        Assert.Equal(visible ? 1 : 0, shell.FindAll(".console-topnav a[href='/operate/catalogs']").Count);
+        Assert.Empty(shell.FindAll(".console-topnav a[href='/share/manage']"));
+    }
+
+    [Fact]
+    public async Task CatalogAccessEntryFollowsCapabilityRevocation()
+    {
+        await using var context = CreateContext(shellOptions: new HonuaConsoleShellOptions { CatalogAdminEnabled = true });
+        var manifest = new MutableCatalogManifest();
+        manifest.AdvertiseCatalog();
+        context.Services.AddSingleton<IConsoleCapabilityManifest>(manifest);
+        var shell = context.Render<ConsoleLayout>();
+        Assert.Single(shell.FindAll("[data-navigation-menu='Catalogs'] a[href='/share/manage']"));
+        manifest.RevokeCatalog();
+        shell.WaitForAssertion(() => Assert.Empty(shell.FindAll(".console-topnav a[href='/share/manage']")));
+    }
+
+    [Theory]
     [InlineData(true, "/catalog", "Content")]
     [InlineData(true, "/catalogs", "Catalogs")]
     [InlineData(true, "/operate/catalogs", "Discovery endpoints")]
@@ -20,10 +78,7 @@ public sealed class ConsoleNavigationRenderTests
     {
         using var context = CreateContext();
         context.Services.AddSingleton<IConsoleCapabilityManifest>(new ConsoleCapabilityManifest([]));
-        context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Honua:Console:Catalogs:Enabled"] = enabled ? "true" : "false"
-        }).Build());
+        context.Services.AddSingleton(new CatalogAdminOptions { Enabled = enabled });
         context.Services.GetRequiredService<NavigationManager>().NavigateTo(path);
         var shell = context.Render<ConsoleLayout>();
         shell.WaitForAssertion(() => Assert.Equal(label, shell.Find(".console-contextbar summary").TextContent));
@@ -39,10 +94,7 @@ public sealed class ConsoleNavigationRenderTests
         var manifest = new MutableCatalogManifest();
         manifest.AdvertiseCatalog();
         context.Services.AddSingleton<IConsoleCapabilityManifest>(manifest);
-        context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Honua:Console:Catalogs:Enabled"] = enabled ? "true" : "false"
-        }).Build());
+        context.Services.AddSingleton(new CatalogAdminOptions { Enabled = enabled });
         context.Services.GetRequiredService<NavigationManager>().NavigateTo("/catalog");
         var shell = context.Render<ConsoleLayout>();
         manifest.RevokeCatalog();
@@ -54,16 +106,14 @@ public sealed class ConsoleNavigationRenderTests
     [Fact]
     public void CatalogPreviewGroupsAdministrationAndNamesTheContentLibrary()
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Studio:EmbedJsStudio"] = "true",
-            ["Honua:Console:Catalogs:Enabled"] = "true"
-        }).Build();
         var groups = ConsoleNavigation.VisibleGroups(new ConfiguredConsoleProductMode(ConsoleProductMode.Full),
-            new ConsoleCapabilityManifest([ConsoleCapabilityKeys.PersistentCatalog]), configuration);
+            new ConsoleCapabilityManifest([ConsoleCapabilityKeys.PersistentCatalog]),
+            ConsoleNavigation.Definitions(new CatalogAdminOptions { Enabled = true }));
         Assert.Equal(["Data", "Studio", "Catalogs", "Operate", "Access", "Settings"], groups.Select(group => group.Name));
         Assert.Equal("Content", groups.SelectMany(group => group.Destinations).First(entry => entry.Path == "/catalog").Label);
         Assert.Contains(groups.Single(group => group.Name == "Catalogs").Destinations, entry => entry.Path == "/operate/catalogs");
+        var original = ConsoleNavigation.Groups.SelectMany(group => group.Destinations).Single(entry => entry.Path == "/operate/catalogs");
+        Assert.Contains(original with { Label = "Discovery endpoints" }, groups.Single(group => group.Name == "Catalogs").Destinations);
     }
 
     [Fact]
@@ -257,7 +307,7 @@ public sealed class ConsoleNavigationRenderTests
             Response.Task.WaitAsync(cancellationToken);
     }
 
-    private static BunitContext CreateContext(ConsoleProductMode mode = ConsoleProductMode.Full)
+    private static BunitContext CreateContext(ConsoleProductMode mode = ConsoleProductMode.Full, HonuaConsoleShellOptions? shellOptions = null)
     {
         var context = new BunitContext();
         context.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -265,6 +315,8 @@ public sealed class ConsoleNavigationRenderTests
         context.AddAuthorization().SetAuthorized("synthetic-operator");
         context.Services.AddSingleton<IConsoleProductMode>(new ConfiguredConsoleProductMode(mode));
         context.Services.AddSingleton<IConsoleCapabilityManifest>(ConsoleCapabilityManifest.FromConfigurationList(null));
+        if (shellOptions is null) context.Services.AddSingleton(new CatalogAdminOptions());
+        else context.Services.AddHonuaConsoleShell(shellOptions);
         return context;
     }
 }

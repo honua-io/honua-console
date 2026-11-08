@@ -15,7 +15,7 @@
     </header>
     @if (!Options.Enabled)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="missing" Title="Catalogs are not enabled"
+        <ConsoleStateView HeadingLevel="2" Kind="disabled" Title="Catalogs are not enabled"
                           Message="The catalog preview is disabled for this Console." />
     }
     else if (_loading)
@@ -24,7 +24,7 @@
     }
     else if (_read is { State: "missing" or "unsupported" or "unavailable" or "forbidden" } unavailable)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="@(unavailable.State == "missing" ? "missing" : "denied")"
+        <ConsoleStateView HeadingLevel="2" Kind="@(unavailable.State is "missing" or "unsupported" ? unavailable.State : "denied")"
                           Title="@(unavailable.State == "unsupported" ? "Catalog contract is not supported" : "Catalogs are unavailable")"
                           Message="@unavailable.Message" />
     }

@@ -18,6 +18,7 @@ public sealed class LiveManifestBindingTests
     {
         using var ctx = new BunitContext();
         ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new CatalogAdminOptions());
         var profiles = new InMemoryConsoleEnvironmentProfileStore([
             new ConsoleEnvironmentProfile { Id = "one", ServerBaseUri = new Uri("https://one.example") },
             new ConsoleEnvironmentProfile { Id = "two", ServerBaseUri = new Uri("https://two.example") },
