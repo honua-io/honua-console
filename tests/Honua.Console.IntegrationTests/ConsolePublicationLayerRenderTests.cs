@@ -6,6 +6,7 @@ using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -15,6 +16,39 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class ConsolePublicationLayerRenderTests
 {
+    [Fact]
+    public void RouterNavigationPublishesLayerAncestryBeforeTheLayoutReceivesLocationChanged()
+    {
+        var source = new PublicationNavigationSource
+        {
+            RefuseLayerReads = true,
+            ServiceSummaries = [new()
+            { ServiceName = "parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 2 }]
+        };
+        using var context = PublicationLayoutContext(source);
+        var first = new OperateServiceLayerProjection(7, "Bridges", "LineString", "first-layer", "bridges");
+        var second = new OperateServiceLayerProjection(8, "Roads", "LineString", "second-layer", "roads");
+        context.Services.AddSingleton<IOperateTransitionDataSource>(new FixedServicesDataSource(
+            new OperateServiceDetail("parcels", "Parcels", "FeatureServer", "Running", "server", [first, second], [], [])));
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/operate/layers/first-layer");
+        var router = context.Render<Router>(parameters => parameters
+            .Add(component => component.AppAssembly, typeof(Honua.Console.Shell.Pages.OperateLayerDetailPage).Assembly)
+            .Add(component => component.Found, route => builder =>
+            {
+                builder.OpenComponent<RouteView>(0);
+                builder.AddComponentParameter(1, nameof(RouteView.RouteData), route);
+                builder.AddComponentParameter(2, nameof(RouteView.DefaultLayout), typeof(ConsoleLayout));
+                builder.CloseComponent();
+            }));
+        router.WaitForAssertion(() => Assert.Contains("Public", router.Find("nav[aria-label='Breadcrumb']").TextContent));
+        navigation.NavigateTo("/operate/layers/second-layer");
+        router.WaitForAssertion(() => Assert.Equal("Roads", router.Find("h1").TextContent));
+        router.WaitForAssertion(() => Assert.Contains("Public", router.Find("nav[aria-label='Breadcrumb']").TextContent));
+        Assert.Contains("Parcels", router.Find("nav[aria-label='Breadcrumb']").TextContent);
+        Assert.Equal(0, source.ChildReads);
+    }
+
     [Fact]
     public void ColdReloadUsesTheLoadedLayerExposureWhenTheDefaultServiceHasNoLayers()
     {

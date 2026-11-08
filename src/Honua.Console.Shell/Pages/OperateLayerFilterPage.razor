@@ -102,8 +102,9 @@
     {
         var attempt = PublicationContext?.BeginRead(ResourceId);
         var view = await OperateData.GetLayersViewAsync();
-        if (attempt is { } read) PublicationContext!.CompleteRead(read, view.FindExposures(ResourceId));
-        _layer = view.FindLayer(ResourceId);
+        var exposures = view.FindExposures(ResourceId);
+        if (attempt is { } read) PublicationContext!.CompleteRead(read, exposures);
+        _layer = exposures.FirstOrDefault()?.Layer;
 
         if (_layer is not null)
         {

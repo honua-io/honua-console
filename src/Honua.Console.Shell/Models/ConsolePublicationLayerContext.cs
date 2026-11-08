@@ -12,7 +12,11 @@ public sealed class ConsolePublicationLayerContext
 
     public readonly record struct ReadAttempt(int Revision, string ResourceId);
 
-    public ReadAttempt BeginRead(string resourceId) => new(++_readRevision, resourceId);
+    public ReadAttempt BeginRead(string resourceId)
+    {
+        SetPath($"/operate/layers/{Uri.EscapeDataString(resourceId)}");
+        return new(++_readRevision, resourceId);
+    }
 
     public void SetPath(string path)
     {
@@ -31,9 +35,7 @@ public sealed class ConsolePublicationLayerContext
 
     public void CompleteRead(ReadAttempt attempt, IReadOnlyList<OperateLayerExposure> exposures)
     {
-        var exposure = exposures.FirstOrDefault(candidate =>
-            string.Equals(candidate.Layer.CanonicalResourceId, attempt.ResourceId, StringComparison.OrdinalIgnoreCase)
-            || candidate.Layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture) == attempt.ResourceId);
+        var exposure = exposures.FirstOrDefault();
         Complete(attempt, exposure is null ? null : new(
             exposure.Layer.CanonicalResourceId, exposure.Service.Name, exposure.Layer.Name));
     }
