@@ -13,8 +13,9 @@ Audience: console product/design, frontend architecture, founder review.
 > (`IConsoleFileImportOperation`, `IServiceLayerPublishOperation`,
 > `IOperateTransitionDataSource`, `IStudioMapStyleCatalogDataSource`). The
 > protocol→publication mapping is the single authority `Models/PublishProtocolCatalog.cs`.
-> Resource, import, and quick-publish aliases lead into the data flow
-> (`Pages/OperateDataRedirects.razor`). Services and Layers have dedicated lists at
+> `/operate/resources` and `/operate/resources/new` redirect to Datasets and
+> Add data (`Pages/OperateDataRedirects.razor`). File import, quick publish, and
+> service import keep dedicated pages. Services and Layers have dedicated lists at
 > `/operate/services` and `/operate/layers`; Datasets opens `/operate/data`. **Phase 3 (the AI outcome-approval driver) is not
 > built**: `/operate/data/new` has no AI driver or driver toggle; AI help comes from
 > the shared workspace conversation.
@@ -376,42 +377,39 @@ it's also the natural Edit affordance for an AI plan card (§4.1).
 
 ### 5.1 Proposed IA change (Operate secondary nav)
 
-GeoServer's webadmin sidebar IA is the model the founder pointed at: a familiar
-left-rail of *Data → Stores → Layers* with a Layer Preview, narrow and stable. We
-adopt that shape (a single **Datasets** spine fronting a tree) — a deliberate
-familiarity win for migrating source platform/GeoServer users.
+The Data menu keeps the core data destinations accessible:
 
 ```
-BEFORE (Layout/ConsoleLayout.razor:82–95)        AFTER
-  Connections                                       Datasets      ← resource-first TREE (resources→publications)
-  Resources        ─┐                                 ├─ + Add data    ← launches the flow (route below)
-  Services          ├─ four parallel nouns            ├─ Layer Preview ← GeoServer-style "see the output fast" (B8)
-  Layers           ─┘                                 └─ Connections   ← sources stay a sub-section (B6)
-  Versions                                          Publishing
-  Catalogs                                          Versions
-  Settings / Access / Temporal / Observability / Metrics  (unchanged)   Catalogs
+Data
+  Datasets       /operate/data             dataset tree and Layer Preview
+  Services       /operate/services         service list
+  Layers         /operate/layers           layer list
+  Connections    /operate/connections      database and file sources
+  Add data       /operate/data/new          data flow
 ```
 
-`Connections` stays (a data *source* is legitimately its own concept, B6 ≙
-GeoServer's "Stores → connection params") but moves *under* Datasets as a
-sub-section. `Resources`, `Services`, and `Layers` collapse into the single
-**Datasets** tree (§5.3). **Layer Preview** is promoted to a first-class
-sidebar entry — GeoServer's "immediate visibility" onboarding lever, so a user sees
-a rendered result fast rather than only catalog rows.
+Connections remains a separate Data menu destination. Datasets opens the tree and
+Layer Preview; it does not replace the dedicated Services or Layers lists.
 
 ### 5.2 Route map delta (additive; governed by `docs/console-route-map.md`)
 
 ```
-NEW   /operate/data                         Resource→publications treeview (the GeoServer-style spine, §5.3)
-NEW   /operate/data/new                     The data → publish flow  (?driver=ai|manual, ?step=add|resource|publish|style|golive)
-KEEP  /operate/data/:id                     Resource node detail = the resource + its publications (merges /operate/resources/:id + /operate/layers/:id)
-REDIRECT /operate/resources  → /operate/data
-KEEP  /operate/layers                      (dedicated layer list)
-KEEP     /operate/services   → dedicated Services list
-REDIRECT /operate/resources/new, /operate/resources/import, /operate/publishing/quick, /operate/import/service
-         → /operate/data/new?source=<file|table|remoteService>   (the five entry points fold into one)
-KEEP  /operate/connections*                 (data-source management; now reached under Datasets)
-KEEP  /studio/styles/:id                    (dual-mode style editor — embedded by step ④, unchanged)
+KEEP /operate/data                         Datasets tree and Layer Preview
+KEEP /operate/data/new                     Add data flow
+KEEP /operate/resources/{ResourceId}       Dataset detail at its existing path
+KEEP /operate/layers                      Layer list
+KEEP /operate/layers/{ResourceId}          Layer detail
+KEEP /operate/services                    Service list
+KEEP /operate/services/{ServiceName}/settings  Service settings
+REDIRECT /operate/resources                → /operate/data
+REDIRECT /operate/resources/new            → /operate/data/new
+KEEP /operate/resources/import            Dedicated file import
+KEEP /operate/publishing/quick             Dedicated quick publish
+KEEP /operate/import/service               Dedicated service import
+KEEP /operate/connections                  Connection list
+KEEP /operate/connections/new              Add connection
+KEEP /operate/connections/{ConnectionId}   Connection detail
+KEEP /studio/styles/{StyleId}              Style editor
 ```
 
 `/operate/import/esri/*` (content import: web maps/dashboards/storymaps) stays
@@ -587,7 +585,7 @@ outcome and one button.
 | **Generalize** | `Components/EsriImportIntake.razor` → `AddDataIntake.razor` | Add modes: *table*, *existing resource*, *AI prompt* (it already has paste/upload/URL/connected). |
 | **Data navigation** | `OperateDataPage` at `/operate/data`, `OperateLayersPage` at `/operate/layers`, and `OperateServicesPage` at `/operate/services` | Datasets opens the dataset tree and preview. Services and Layers open dedicated lists. The legacy `/operate/resources` entry redirects to Datasets. |
 | **Merge** | `OperateResourceDetailPage` + `OperateLayerDetailPage` → `/operate/data/:id` | One node = resource + its publications; inline Preview/Style/Share/Publish (B3/B4). |
-| **Re-sequence** | `OperateImportFilePage`, `OperatePublishLayerPage`, `OperateImportServicePage` | Their bodies become **steps** of the flow (`/operate/data/new`), not standalone pages. The publish-layer page body becomes the **resource-first protocol-toggle step ③** (§5.4b). Old routes redirect into `?source=`. |
+| **Intake routes** | `OperateImportFilePage`, `OperatePublishLayerPage`, `OperateImportServicePage` | File import, quick publish, and service import retain dedicated pages and their current routes. Add data remains at `/operate/data/new`. |
 | **Add** | `Components/Operate/DataToPublishFlow.razor` (host) + `DataToPublishFlowState` (model) | The flow object (§3.1) + step rail + driver toggle. Wraps the reused step bodies. |
 | **Add** | `Components/Operate/AddDataIntake.razor` | Step ① (sketched in `src/Honua.Console.Shell/Components/AddDataIntake.razor`). |
 | **Add** | `Components/Operate/PublishProtocolPicker.razor` | Step ③ — the protocol/service toggle grid (§5.4b); also reused by the treeview's `[ + expose ▾ ]`. Each toggle ↔ a metadata-v2 Publication. |
@@ -611,7 +609,7 @@ This keeps the change Console-side and governed by the Patterns Charter.
 (generalize `EsriImportIntake`) + **`PublishProtocolPicker.razor`** (the step-③
 protocol/service toggle grid, §5.4b — the heart of the resource-first model). Wire the
 existing import/publish/style step bodies into the rail, end on the resource node (B4).
-Redirect the five old entry points into `?source=`. *This one slice delivers the
+Keep dedicated file import, quick publish, and service import routes; redirect only the legacy resource entry aliases. *This one slice delivers the
 founder's "add a service and import data" and "use an existing resource to create a
 layer" journeys **and** makes the resource-first publish concrete.* Manual driver only.
 
