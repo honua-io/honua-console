@@ -122,7 +122,7 @@ public sealed class CatalogAdminAuthoringTests
     }
 
     [Fact]
-    public void Listing_IsReadOnlyAndKeepsMembershipAccessSeparateFromEndpointAccess()
+    public void Listing_KeepsReportedMembershipAccessSeparateFromEndpointAccess()
     {
         using var context = CatalogAuthoringFixture.Context(CatalogAuthoringFixture.Read());
         var page = context.Render<CatalogListingPage>(parameters => parameters.Add(p => p.CatalogId, "open").Add(p => p.ItemId, "emergency"));

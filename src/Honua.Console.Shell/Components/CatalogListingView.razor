@@ -2,7 +2,7 @@
 
 <section class="catalog-listing" aria-labelledby="catalog-listing-heading">
     <h2 id="catalog-listing-heading">Catalog listing: @Listing.Title</h2>
-    <p>Listing settings are read-only until the server provides the catalog mutation and approval contracts. Endpoint access does not change when an item is removed from catalogs.</p>
+    <p>Reported listing settings stay read-only until the server provides the catalog mutation and approval contracts. Endpoint access does not change when an item is removed from catalogs.</p>
     <h3>Appears in catalogs</h3>
     <p class="catalog-can-appear">Can appear in catalogs: @YesNo(Listing.CanAppear)</p>
     <p>Every catalog checks each item's access for its visitor. The rows below report administration state, not a visitor preview.</p>
@@ -24,11 +24,17 @@
     }
     <h3>Description</h3>
     <dl class="catalog-settings-fields">
-        <dt>Kind</dt><dd>@Reported(Listing.Kind)</dd><dt>Title</dt><dd>@Listing.Title</dd>
+        <dt>Kind</dt><dd>@Reported(Listing.Kind)</dd><dt>Title</dt><dd data-reported-title>@Listing.Title</dd>
         <dt>Summary</dt><dd>@Reported(Listing.Summary)</dd><dt>Tags</dt><dd>@Join(Listing.Tags)</dd>
         <dt>Licence</dt><dd>@Reported(Listing.Licence) · @Reported(Listing.LicenceSource)</dd>
         <dt>Update frequency</dt><dd>@Reported(Listing.UpdateFrequency)</dd>
     </dl>
+    @if (string.IsNullOrWhiteSpace(Listing.Description)) { <p>Description is not reported.</p> }
+    else
+    {
+        <label for="reported-listing-description">Reported description source (Markdown)</label>
+        <textarea id="reported-listing-description" rows="5" readonly>@Listing.Description</textarea>
+    }
     <h3>Thumbnail</h3>
     <dl class="catalog-settings-fields"><dt>Source</dt><dd>@Reported(Listing.ThumbnailSource)</dd><dt>Alt text</dt><dd>@Reported(Listing.ThumbnailAlt)</dd></dl>
     <p>Thumbnail uploads are unavailable until the server provides the upload contract.</p>

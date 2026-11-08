@@ -22,7 +22,7 @@
                             <tr @key="category.Id">
                                 <td><CatalogOrderButtons Title="@category.Title" Position="@(_categories.IndexOf(category) + 1)" Count="_categories.Count" Moved="MoveCategory" /></td>
                                 <th scope="row">@category.Title</th><td>@CatalogAdminLabels.Reported(category.Rule)</td><td>@(category.ItemCount?.ToString() ?? "Not reported")</td>
-                                <td><CatalogBooleanChoice InputId="@($"category-home-{category.Id}")" Label="@($"Show {category.Title} on home page")" Value="category.ShowOnHome"
+                                <td><TriStateSelect NullLabel="Not reported" id="@($"category-home-{_categories.IndexOf(category)}")" Label="@($"Show {category.Title} on home page")" Value="category.ShowOnHome"
                                     ValueChanged="value => ChangeCategory(category with { ShowOnHome = value })" /></td>
                             </tr>
                         }
@@ -54,7 +54,7 @@
             </div>
         }
         <div class="console-action-row">
-            <p role="status" class="catalog-arrangement-status">@(IsDirty ? "Unsaved local changes · nothing saved or proposed" : "Order and choices unchanged")</p>
+            <p role="status" class="catalog-arrangement-status">@_moveAnnouncement @(IsDirty ? "Unsaved local changes · nothing saved or proposed" : "Order and choices unchanged")</p>
             <button type="button" class="console-button console-button-secondary" data-arrangement-discard disabled="@(!IsDirty)" @onclick="DiscardAsync">Discard local edits</button>
         </div>
     }
@@ -66,20 +66,32 @@
     private List<CatalogCategoryRow> _categories = [];
     private List<CatalogFeaturedRow> _featured = [];
     private ElementReference _heading;
+    private string? _moveAnnouncement;
     private bool IsDirty => !_categories.SequenceEqual(Arrangement.Categories) || !_featured.SequenceEqual(Arrangement.Featured);
 
     protected override void OnInitialized() => Reset();
-    private void Reset() { _categories = Arrangement.Categories.ToList(); _featured = Arrangement.Featured.ToList(); }
-    private void MoveCategory(CatalogOrderMove move) => Move(_categories, move);
-    private void MoveFeatured(CatalogOrderMove move) => Move(_featured, move);
-    private void ChangeCategory(CatalogCategoryRow category) => _categories[_categories.FindIndex(row => row.Id == category.Id)] = category;
-
-    private static void Move<T>(List<T> rows, CatalogOrderMove move)
+    private void Reset()
     {
-        if (move.From < 0 || move.From >= rows.Count || move.To < 0 || move.To >= rows.Count) return;
+        _categories = Arrangement.Categories.ToList();
+        _featured = Arrangement.Featured.ToList();
+        _moveAnnouncement = null;
+    }
+
+    private void MoveCategory(CatalogOrderMove move) => _moveAnnouncement = MoveAndDescribe(_categories, move, row => row.Title);
+    private void MoveFeatured(CatalogOrderMove move) => _moveAnnouncement = MoveAndDescribe(_featured, move, row => row.Title);
+    private void ChangeCategory(CatalogCategoryRow category)
+    {
+        _categories[_categories.FindIndex(row => row.Id == category.Id)] = category;
+        _moveAnnouncement = null;
+    }
+
+    private static string? MoveAndDescribe<T>(List<T> rows, CatalogOrderMove move, Func<T, string> title)
+    {
+        if (move.From < 0 || move.From >= rows.Count || move.To < 0 || move.To >= rows.Count) return null;
         var row = rows[move.From];
         rows.RemoveAt(move.From);
         rows.Insert(move.To, row);
+        return $"{title(row)} moved to position {move.To + 1} of {rows.Count}.";
     }
 
     private static bool ValidIds(IEnumerable<string> identities)

@@ -18,7 +18,7 @@ public sealed class CatalogCategoriesTests
     }
 
     [Fact]
-    public void Route_ForwardsIdentityAndUsesTheSharedFlag()
+    public void Route_ForwardsIdentityAndMarksFixturePreview()
     {
         var source = new CatalogAuthoringFixture(Read());
         using var context = CatalogAuthoringFixture.Context(source);
@@ -71,7 +71,7 @@ public sealed class CatalogCategoriesTests
         Assert.True(page.Find(".catalog-category-order tbody tr:last-child button[data-move-down]").HasAttribute("disabled"));
         page.Find(".catalog-category-order tbody tr:first-child button[data-move-down]").Click();
         Assert.Equal("Roads", page.Find(".catalog-category-order tbody tr:first-child th").TextContent);
-        page.Find("#category-home-roads").Change("No");
+        page.Find("#category-home-0").Change("false");
         page.Find(".catalog-featured-order tbody tr:first-child button[data-move-down]").Click();
         Assert.Equal("Item 2", page.Find(".catalog-featured-order tbody tr:first-child th").TextContent);
         Assert.Equal("Safety", read.Arrangement!.Categories[0].Title);

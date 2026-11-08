@@ -264,7 +264,8 @@ Administration fields are never presented as a visitor-filtered public preview.
 The experimental `/catalogs/{id}/categories` route shares the Catalogs flag,
 authenticated shell and catalog identity checks. It displays reported category
 rules/counts and featured kind/health/expiry/actor separately from local order
-and home-page choices. Up/Down controls retain focus on the moved position;
+and home-page choices. Up/Down controls retain focus on an enabled button in the moved row and
+announce the new position;
 duplicate or missing identities render unavailable instead of an ambiguous order.
 The first four local featured positions are home positions, never proof that a
 visitor can read those items.

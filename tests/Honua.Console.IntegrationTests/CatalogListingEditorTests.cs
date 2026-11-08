@@ -19,7 +19,7 @@ public sealed class CatalogListingEditorTests
         page.Find("#listing-description").Input("</textarea><script>alert(1)</script>");
         Assert.Contains("Unsaved local changes", page.Find(".catalog-listing-status").TextContent);
         Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
-        Assert.Equal("Emergency management", read.Listing!.Title);
+        Assert.Equal("Emergency management", page.Find("[data-reported-title]").TextContent);
         Assert.Equal("Local summary".Length.ToString(), page.Find("[data-summary-count]").TextContent);
         Assert.Empty(page.FindAll(".catalog-listing script, .catalog-listing iframe, button[type=submit]"));
         CatalogAdminPreview.Capture("listing-dirty", page.Markup);
@@ -69,20 +69,71 @@ public sealed class CatalogListingEditorTests
         var read = CatalogAuthoringFixture.Read() with { Listing = CatalogAuthoringFixture.Listing() with { CanAppear = null } };
         using var context = CatalogAuthoringFixture.Context(read);
         var page = context.Render<CatalogListingPage>(p => p.Add(x => x.CatalogId, "open").Add(x => x.ItemId, "emergency"));
-        Assert.Equal("Not reported", page.Find("#listing-can-appear").GetAttribute("value"));
+        Assert.Equal("", page.Find("#listing-can-appear").GetAttribute("value"));
         Assert.Equal("160", page.Find("#listing-summary").GetAttribute("maxlength"));
-        page.Find("#listing-can-appear").Change("No");
+        page.Find("#listing-can-appear").Change("false");
         page.Find("#membership-category-1").Input("Local category");
-        page.Find("#membership-featured-1").Change("Yes");
-        page.Find("#membership-hidden-1").Change("Yes");
+        page.Find("#membership-featured-1").Change("true");
+        page.Find("#membership-hidden-1").Change("true");
         Assert.Contains("Audience-restricted", page.Find(".catalog-memberships").TextContent);
-        Assert.Null(read.Listing!.CanAppear);
-        Assert.Null(read.Listing.Memberships[1].Featured);
+        Assert.Equal("Can appear in catalogs: Not reported", page.Find(".catalog-can-appear").TextContent.Trim());
+        Assert.Equal(new[] { "Not reported", "Not reported", "Not reported" }, page.FindAll(".catalog-memberships tbody tr")[1].Children.Skip(4).Select(cell => cell.TextContent.Trim()));
         Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
         page.Find("[data-listing-discard]").Click();
-        Assert.Equal("Not reported", page.Find("#listing-can-appear").GetAttribute("value"));
-        Assert.Equal("Not reported", page.Find("#membership-featured-1").GetAttribute("value"));
+        Assert.Equal("", page.Find("#listing-can-appear").GetAttribute("value"));
+        Assert.Equal("", page.Find("#membership-featured-1").GetAttribute("value"));
         Assert.False(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+    }
+
+    [Theory]
+    [InlineData("listing-can-appear")]
+    [InlineData("membership-featured-1")]
+    [InlineData("membership-hidden-1")]
+    public void EachNullableChoice_WorksIndependentlyAndCanReturnToUnreported(string id)
+    {
+        using var context = CatalogAuthoringFixture.Context(CatalogAuthoringFixture.Read() with
+        { Listing = CatalogAuthoringFixture.Listing() with { CanAppear = null } });
+        var page = context.Render<CatalogListingPage>(p => p.Add(x => x.CatalogId, "open").Add(x => x.ItemId, "emergency"));
+        foreach (var choice in new[] { "true", "false" })
+        {
+            page.Find($"#{id}").Change(choice);
+            page.Find("#listing-title").Input("Emergency management");
+            Assert.Equal(choice, page.Find($"#{id}").GetAttribute("value"));
+            Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+            page.Find("[data-listing-discard]").Click();
+            Assert.Equal("", page.Find($"#{id}").GetAttribute("value"));
+            Assert.False(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+        }
+        page.Find($"#{id}").Change("true");
+        page.Find($"#{id}").Change("");
+        Assert.False(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+    }
+
+    [Fact]
+    public void ClearingAnUnreportedCategory_RemovesDirtyState()
+    {
+        using var context = CatalogAuthoringFixture.Context(CatalogAuthoringFixture.Read());
+        var page = context.Render<CatalogListingPage>(p => p.Add(x => x.CatalogId, "open").Add(x => x.ItemId, "emergency"));
+        page.Find("#membership-category-1").Input("Local category");
+        page.Find("#listing-title").Input("Emergency management");
+        Assert.Equal("Local category", page.Find("#membership-category-1").GetAttribute("value"));
+        Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+        page.Find("#membership-category-1").Input("");
+        Assert.False(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+    }
+
+    [Fact]
+    public void Discard_ReturnsFocusToTitleAndDescriptionHasAStableLabel()
+    {
+        using var context = CatalogAuthoringFixture.Context(CatalogAuthoringFixture.Read());
+        var page = context.Render<CatalogListingPage>(p => p.Add(x => x.CatalogId, "open").Add(x => x.ItemId, "emergency"));
+        var title = (AngleSharp.Dom.IElement)page.Find("#listing-title").Clone();
+        page.Find("#listing-description").Input("</textarea><script>alert(1)</script>");
+        Assert.Equal("Description source (Markdown)", page.Find("label[for=listing-description]").TextContent.Trim());
+        var calls = context.JSInterop.Invocations.Count(call => call.Identifier == "Blazor._internal.domWrapper.focus");
+        page.Find("[data-listing-discard]").Click();
+        var focus = Assert.Single(context.JSInterop.Invocations.Where(call => call.Identifier == "Blazor._internal.domWrapper.focus").Skip(calls));
+        focus.Arguments[0].ShouldBeElementReferenceTo(title);
     }
 
 }

@@ -94,6 +94,7 @@ async function inspectPresentation(page, { name, width }) {
   }
   const accessibility = await new AxeBuilder({ page }).include(".catalog-admin").analyze();
   assert.deepEqual(accessibility.violations, []);
+  await page.locator(".catalog-admin-table").evaluateAll(regions => regions.forEach(region => { region.scrollLeft = 0; }));
   await page.screenshot({ path: path.join(previews, `${name}-${width}-light.png`), fullPage: true });
   console.log(`${name}: ${width}px light, served styles, visible keyboard focus, control sizes, overflow and axe pass`);
 }
