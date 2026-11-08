@@ -88,6 +88,22 @@ jobs:
       - name: Verify vendored honua-server ops parity map
         run: ./scripts/sync-ops-parity-map.sh --check
 
+      - name: Check out the server import status contract
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: honua-io/honua-server
+          ref: trunk
+          path: .ci-server-import-contract
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: src/Honua.Core/Features/Migration/Abstractions/GeoservicesImportProgress.cs
+
+      - name: Verify import status wire values against the server
+        run: >-
+          node scripts/check-import-status-contract.mjs
+          .ci-server-import-contract/src/Honua.Core/Features/Migration/Abstractions/GeoservicesImportProgress.cs
+          tests/Honua.Console.Shell.Tests/Fixtures/geoservices-import-status.json
+
       - name: Set up .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
