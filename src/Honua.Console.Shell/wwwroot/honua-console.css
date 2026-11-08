@@ -4,6 +4,7 @@
 @import url("css/shell.css");
 @import url("css/publication-tree.css");
 @import url("css/home.css");
+@import url("css/catalog-admin.css");
 
 * {
     box-sizing: border-box;
@@ -6626,6 +6627,10 @@ p {
     .publish-field-grid {
         grid-template-columns: minmax(0, 1fr);
     }
+}
+
+[data-studio-publication] [data-publication-source-access] {
+    max-width: 70ch;
 }
 
 .publish-field {

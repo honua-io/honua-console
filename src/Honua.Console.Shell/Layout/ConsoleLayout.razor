@@ -4,6 +4,7 @@
 @inject Honua.Console.Shell.Services.IConsoleCapabilityManifest Capabilities
 @inject Honua.Console.Shell.Services.IConsoleProductMode ProductMode
 @inject IServiceProvider WorkspaceServices
+@inject CatalogAdminOptions CatalogOptions
 
 @* Every Console route needs a descriptive document title (WCAG 2.4.2). The shell owns it rather than
    each of the ~100 pages repeating one, and names the area the operator is in so tabs and screen
@@ -45,7 +46,8 @@
 
 @code {
     private IReadOnlyList<ConsoleNavigationGroup> VisibleNavigation => ConsoleNavigation.VisibleGroups(
-        ProductMode, Capabilities, WorkspaceServices.GetService<Microsoft.Extensions.Configuration.IConfiguration>());
+        ProductMode, Capabilities, ConsoleNavigation.EnabledGroups(
+            CatalogOptions, WorkspaceServices.GetService<Microsoft.Extensions.Configuration.IConfiguration>()));
 
     private const int CapabilityRefreshTimeoutSeconds = 5;
     private CancellationTokenSource? _capabilityRefreshCancellation;

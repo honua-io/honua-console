@@ -1,0 +1,13 @@
+<nav class="catalog-admin-paging" aria-label="@Label">
+    <button type="button" disabled="@(Offset == 0)" @onclick="() => OffsetChanged.InvokeAsync(Math.Max(0, Offset - PageSize))">Previous</button>
+    <span>@(Offset + 1)–@Math.Min(Offset + PageSize, Total) of @Total</span>
+    <button type="button" disabled="@(Offset + PageSize >= Total)" @onclick="() => OffsetChanged.InvokeAsync(Offset + PageSize)">Next</button>
+</nav>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter] public int Offset { get; set; }
+    [Parameter] public int Total { get; set; }
+    [Parameter] public int PageSize { get; set; } = 12;
+    [Parameter] public EventCallback<int> OffsetChanged { get; set; }
+}

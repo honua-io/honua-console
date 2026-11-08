@@ -44,20 +44,48 @@ public static class ConsoleNavigation
         new("Settings", [new("/operate/settings", "Server settings") { FullModeOnly = true }])
     ];
 
+    private static IReadOnlyList<ConsoleNavigationGroup> CatalogAdminGroups { get; } = CreateCatalogAdministrationGroups();
+
     public static IReadOnlyList<ConsoleNavigationGroup> VisibleGroups(
-        IConsoleProductMode mode, IConsoleCapabilityManifest capabilities, IConfiguration? configuration)
+        IConsoleProductMode mode, IConsoleCapabilityManifest capabilities, IEnumerable<ConsoleNavigationGroup> groups)
     {
-        var studioEnabled = bool.TryParse(configuration?["Studio:EmbedJsStudio"], out var enabled) && enabled;
-        return Groups.Where(group => group.Name != "Studio" || studioEnabled)
-            .Select(group => group with
-            {
-                Destinations = group.Destinations
+        return groups.Select(group => group with
+        {
+            Destinations = group.Destinations
                 .Where(entry => IsVisible(entry, mode, capabilities)).ToArray()
-            })
+        })
             .Where(group => group.Destinations.Count > 0).ToArray();
     }
 
-    public static ConsoleNavigationContext ContextForPath(string relativePath)
+    public static IReadOnlyList<ConsoleNavigationGroup> Definitions(CatalogAdminOptions options) =>
+        options.Enabled ? CatalogAdminGroups : Groups;
+
+    public static IEnumerable<ConsoleNavigationGroup> EnabledGroups(CatalogAdminOptions options, IConfiguration? configuration)
+    {
+        var studioEnabled = bool.TryParse(configuration?["Studio:EmbedJsStudio"], out var enabled) && enabled;
+        return Definitions(options).Where(group => group.Name != "Studio" || studioEnabled);
+    }
+
+    private static IReadOnlyList<ConsoleNavigationGroup> CreateCatalogAdministrationGroups()
+    {
+        var discovery = Groups.SelectMany(group => group.Destinations).Single(entry => entry.Path == "/operate/catalogs");
+        var groups = new List<ConsoleNavigationGroup>();
+        foreach (var group in Groups)
+        {
+            if (group.Name == "Operate")
+                groups.Add(new("Catalogs", [new("/catalogs", "Catalogs"),
+                    discovery with { Label = "Discovery endpoints" },
+                    new("/share/manage", "Open Data access") { FullModeOnly = true, RequiredArea = "share" }]));
+            var destinations = group.Destinations.Where(entry => entry.Path != discovery.Path)
+                .Select(entry => entry.Path == "/catalog"
+                    ? entry with { Label = group.Name == "Studio" ? "Map from Content" : "Content" }
+                    : entry).ToArray();
+            if (destinations.Length > 0) groups.Add(group with { Destinations = destinations });
+        }
+        return groups;
+    }
+
+    public static ConsoleNavigationContext ContextForPath(string relativePath, IReadOnlyList<ConsoleNavigationGroup> groups)
     {
         var path = "/" + relativePath.Split('?', '#')[0].Trim('/');
         var segments = path.Trim('/').Split('/');
@@ -67,7 +95,7 @@ public static class ConsoleNavigation
             return new($"/operate/layers/{segments[2]}", Uri.UnescapeDataString(segments[2]), ConsoleNavigationContextKind.Layer);
         if (path == "/") return new(path, "Welcome", ConsoleNavigationContextKind.Page);
         if (path == "/approvals") return new(path, "Approvals", ConsoleNavigationContextKind.Page);
-        var destinations = Groups.SelectMany(group => group.Destinations);
+        var destinations = groups.SelectMany(group => group.Destinations);
         var exact = destinations.FirstOrDefault(entry => entry.Path.Equals(path, StringComparison.OrdinalIgnoreCase));
         var label = exact?.Label ?? Uri.UnescapeDataString(segments[^1]);
         return new(path, label, ConsoleNavigationContextKind.Page);
