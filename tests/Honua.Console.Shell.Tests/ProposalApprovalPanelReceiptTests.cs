@@ -140,12 +140,85 @@ public sealed class ProposalApprovalPanelReceiptTests
             panel.Find("[data-proposal-id]").GetAttribute("data-proposal-id")));
     }
 
+    [Fact]
+    public async Task PreviousDecisionCompleted_DoesNotReleaseCurrentDecisionBusyState()
+    {
+        using var context = new BunitContext();
+        var oldDecision = new TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>();
+        var currentDecision = new TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>();
+        var proposals = new ProposalClient
+        {
+            DecisionResponse = decision => decision.ProposalId == "proposal-1" ? oldDecision.Task : currentDecision.Task
+        };
+        context.Services.AddSingleton<IConsoleProposalsClient>(proposals);
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "proposal-1"));
+        var oldClick = panel.Find("[data-proposal-approve]").ClickAsync(new());
+        panel.Render(parameters => parameters.Add(component => component.ProposalId, "proposal-2"));
+        var currentClick = panel.Find("[data-proposal-approve]").ClickAsync(new());
+        Assert.Equal("proposal-2", proposals.Decision!.ProposalId);
+
+        oldDecision.SetResult(ProposalClient.Allowed(ConsoleProposalStatus.Submitted));
+        await oldClick;
+
+        Assert.True(panel.Find("[data-proposal-approve]").HasAttribute("disabled"));
+        Assert.Equal("proposal-2", panel.Find("[data-proposal-id]").GetAttribute("data-proposal-id"));
+        currentDecision.SetResult(ProposalClient.Allowed(ConsoleProposalStatus.Submitted, "proposal-2"));
+        await currentClick;
+        Assert.Equal("Submitted", panel.Find("[data-proposal-status]").GetAttribute("data-proposal-status"));
+    }
+
+    [Fact]
+    public async Task ReloadedReview_IgnoresEarlierDecisionResult()
+    {
+        using var context = new BunitContext();
+        var pending = new TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>();
+        var proposals = new ProposalClient { PendingDecision = pending };
+        var actioned = new List<string>();
+        context.Services.AddSingleton<IConsoleProposalsClient>(proposals);
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "proposal-1")
+            .Add(component => component.OnActioned, detail => actioned.Add(detail.ProposalId)));
+        var click = panel.Find("[data-proposal-approve]").ClickAsync(new());
+        panel.Render(parameters => parameters.Add(component => component.ReloadToken, 1));
+
+        pending.SetResult(ProposalClient.Allowed(ConsoleProposalStatus.Submitted));
+        await click;
+
+        Assert.Equal("AwaitingApproval", panel.Find("[data-proposal-status]").GetAttribute("data-proposal-status"));
+        Assert.Empty(actioned);
+        Assert.False(panel.Find("[data-proposal-approve]").HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void ReviewForAnotherProposal_CannotEnableApprovalOrNotifyParent()
+    {
+        using var context = new BunitContext();
+        var loaded = new List<string>();
+        var proposals = new ProposalClient
+        {
+            ReadResponse = _ => Task.FromResult(ProposalClient.Allowed(ConsoleProposalStatus.AwaitingApproval, "wrong-proposal"))
+        };
+        context.Services.AddSingleton<IConsoleProposalsClient>(proposals);
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "proposal-1")
+            .Add(component => component.OnDetailLoaded, detail => loaded.Add(detail.ProposalId)));
+
+        Assert.Empty(panel.FindAll("[data-proposal-approve]"));
+        Assert.Empty(loaded);
+    }
+
     private sealed class ProposalClient(ConsoleProposalStatus initialStatus = ConsoleProposalStatus.AwaitingApproval)
         : IConsoleProposalsClient
     {
         public ConsoleProposalDecision? Decision { get; private set; }
         public Func<string, Task<OperateSectionResult<ConsoleProposalDetail>>>? ReadResponse { get; set; }
         public TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>? PendingDecision { get; set; }
+        public Func<ConsoleProposalDecision, Task<OperateSectionResult<ConsoleProposalDetail>>>? DecisionResponse { get; set; }
 
         public Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(
             string? status = null,
@@ -167,7 +240,8 @@ public sealed class ProposalApprovalPanelReceiptTests
             ConsoleProposalDecision decision, CancellationToken cancellationToken = default)
         {
             Decision = decision;
-            return PendingDecision?.Task ?? Task.FromResult(Allowed(ConsoleProposalStatus.Submitted));
+            return DecisionResponse?.Invoke(decision) ?? PendingDecision?.Task
+                ?? Task.FromResult(Allowed(ConsoleProposalStatus.Submitted, decision.ProposalId));
         }
 
         public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(
