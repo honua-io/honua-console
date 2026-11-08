@@ -37,6 +37,7 @@ public sealed class CatalogAdminOverviewTests
         var page = context.Render<CatalogAdminPage>(parameters => parameters.Add(p => p.CatalogId, "open"));
         Assert.Equal(12, page.FindAll(".catalog-attention-list li").Count);
         Assert.StartsWith("Item 01", page.Find(".catalog-attention-list li").TextContent);
+        CatalogAdminPreview.Capture("overview", page.Markup);
         page.FindAll("nav[aria-label='Attention pages'] button")[1].Click();
         page.FindAll("nav[aria-label='Attention pages'] button")[1].Click();
         Assert.Single(page.FindAll(".catalog-attention-list li"));

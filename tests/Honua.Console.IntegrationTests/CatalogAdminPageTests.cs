@@ -33,6 +33,7 @@ public sealed class CatalogAdminPageTests
         Assert.Contains("Signed-in users", page.Markup);
         Assert.Contains("Fixture preview", page.Markup);
         Assert.DoesNotContain(">Live<", page.Markup);
+        CatalogAdminPreview.Capture("list", page.Markup);
         page.Find("#catalog-audience").Change("signed-in");
         Assert.DoesNotContain("Open data", page.Find("tbody").TextContent);
         Assert.Contains("Staff", page.Find("tbody").TextContent);
