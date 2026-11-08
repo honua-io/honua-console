@@ -16,22 +16,19 @@ internal sealed class ConsoleServerSessionIdentityBinding(
     TimeProvider timeProvider)
 {
     public Task<bool> EnsureAsync(
-        ConsoleServerSessionPartition partition,
-        ConsoleEnvironmentProfile profile,
-        string operatorKey,
-        string? providerKey,
+        ConsoleServerSessionIdentityRequest request,
         CancellationToken cancellationToken) => EnsureCoreAsync(
-            partition, profile, operatorKey, providerKey, ConsoleServerSessionUse.OperatorBearer, cancellationToken);
+            request, ConsoleServerSessionUse.OperatorBearer, cancellationToken);
 
     public Task<bool> EnsureHumanSessionAsync(
-        ConsoleServerSessionPartition partition, ConsoleEnvironmentProfile profile,
-        string operatorKey, string? providerKey, CancellationToken cancellationToken) => EnsureCoreAsync(
-            partition, profile, operatorKey, providerKey, ConsoleServerSessionUse.HumanDecision, cancellationToken);
+        ConsoleServerSessionIdentityRequest request, CancellationToken cancellationToken) => EnsureCoreAsync(
+            request, ConsoleServerSessionUse.HumanDecision, cancellationToken);
 
     private async Task<bool> EnsureCoreAsync(
-        ConsoleServerSessionPartition partition, ConsoleEnvironmentProfile profile, string operatorKey,
-        string? providerKey, ConsoleServerSessionUse use, CancellationToken cancellationToken)
+        ConsoleServerSessionIdentityRequest request, ConsoleServerSessionUse use, CancellationToken cancellationToken)
     {
+        var partition = request.Partition;
+        var profile = request.Profile;
         var issuer = options.Value.ServerSessionIssuer;
         if (string.IsNullOrEmpty(issuer))
         {
@@ -47,7 +44,7 @@ internal sealed class ConsoleServerSessionIdentityBinding(
         try
         {
             if (ConsoleEdgeAuthOptions.IsValidServerSessionIssuer(options.Value)
-                && !string.IsNullOrWhiteSpace(providerKey))
+                && !string.IsNullOrWhiteSpace(request.ProviderKey))
             {
                 using var response = await partition.Client.GetAsync(
                     ConsoleServerHttp.BuildUri(profile.ServerBaseUri, "api/v1/admin/auth/session"),
@@ -59,9 +56,9 @@ internal sealed class ConsoleServerSessionIdentityBinding(
                         cancellationToken).ConfigureAwait(false);
                     matches = session?.IsAuthenticated == true
                         && session.ExpiresAt > timeProvider.GetUtcNow()
-                        && string.Equals(session.ProviderKey, providerKey, StringComparison.Ordinal)
+                        && string.Equals(session.ProviderKey, request.ProviderKey, StringComparison.Ordinal)
                         && HasUniqueClaim(session.Claims, issuer, "iss")
-                        && HasUniqueClaim(session.Claims, operatorKey, "sub", ClaimTypes.NameIdentifier);
+                        && HasUniqueClaim(session.Claims, request.OperatorKey, "sub", ClaimTypes.NameIdentifier);
                 }
             }
         }
@@ -99,6 +96,14 @@ internal sealed class ConsoleServerSessionIdentityBinding(
             && values.All(value => !string.IsNullOrWhiteSpace(value)
                 && string.Equals(value, expected, StringComparison.Ordinal));
     }
+}
+
+internal sealed record ConsoleServerSessionIdentityRequest
+{
+    public required ConsoleServerSessionPartition Partition { get; init; }
+    public required ConsoleEnvironmentProfile Profile { get; init; }
+    public required string OperatorKey { get; init; }
+    public required string? ProviderKey { get; init; }
 }
 
 internal enum ConsoleServerSessionUse

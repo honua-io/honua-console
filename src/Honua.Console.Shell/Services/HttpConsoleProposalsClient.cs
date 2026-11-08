@@ -91,7 +91,8 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         if (_humanSession is not null && profile is not null)
         {
-            var review = await _humanSession.OpenReviewAsync(profile, _authority, proposalId.Trim(), cancellationToken)
+            var review = await _humanSession.OpenReviewAsync(
+                new ConsoleHumanProposalReviewRequest(profile, _authority, proposalId.Trim()), cancellationToken)
                 .ConfigureAwait(false);
             if (review.IsAllowed && review.Value is { } opened)
                 return OperateSectionResult<ConsoleProposalDetail>.Allowed(MapDetail(opened.Proposal) with
@@ -128,7 +129,8 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         if (_humanSession is null || profile is null)
             return OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Forbidden,
                 "Sign in to the server and reopen this review to approve.");
-        var result = await _humanSession.ApproveAsync(profile, _authority, decision, cancellationToken).ConfigureAwait(false);
+        var result = await _humanSession.ApproveAsync(
+            new ConsoleHumanProposalApprovalRequest(profile, _authority, decision), cancellationToken).ConfigureAwait(false);
         return result.IsAllowed && result.Value is { } proposal
             ? OperateSectionResult<ConsoleProposalDetail>.Allowed(MapDetail(proposal))
             : OperateSectionResult<ConsoleProposalDetail>.Denied(result.Status, result.Message, result.Detail);

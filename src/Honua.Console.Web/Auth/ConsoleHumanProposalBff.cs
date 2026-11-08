@@ -10,57 +10,61 @@ internal static class ConsoleHumanProposalBff
 {
     public static void MapConsoleHumanProposalBff(this WebApplication app)
     {
-        app.MapGet("/api/console/proposals/session", (HttpContext context,
-            IAntiforgery antiforgery, IConsoleEnvironmentProfileStore profiles, CancellationToken token) =>
-            OpenBrowserSessionAsync(context, antiforgery, profiles, token));
-        app.MapPost("/api/console/proposals/{id}/review", async (HttpContext context, string id,
-            ConsoleHumanProposalRequest request, IAntiforgery antiforgery,
-            IConsoleEnvironmentProfileStore profiles, ConsoleHumanProposalSession sessions, CancellationToken token) =>
+        app.MapGet("/api/console/proposals/session", ([AsParameters] ConsoleHumanProposalEndpointContext endpoint) =>
+            OpenBrowserSessionAsync(endpoint));
+        app.MapPost("/api/console/proposals/{id}/review", async (
+            [AsParameters] ConsoleHumanProposalEndpointContext endpoint, string id, ConsoleHumanProposalRequest request) =>
         {
-            var profile = await AuthorizeAsync(context, request, antiforgery, profiles, token).ConfigureAwait(false);
+            var profile = await AuthorizeAsync(endpoint, request).ConfigureAwait(false);
             if (profile is null) return Results.StatusCode(StatusCodes.Status403Forbidden);
-            var result = await sessions.OpenReviewAsync(profile, request.Authority, id, token).ConfigureAwait(false);
+            var result = await endpoint.Sessions.OpenReviewAsync(
+                new ConsoleHumanProposalReviewRequest(profile, request.Authority, id), endpoint.Context.RequestAborted).ConfigureAwait(false);
             return Results.Json(result, ConsoleHumanProposalBffJsonContext.Default.OperateSectionResultConsoleHumanProposalReview);
         });
-        app.MapPost("/api/console/proposals/{id}/approve", async (HttpContext context, string id,
-            ConsoleHumanProposalRequest request, IAntiforgery antiforgery,
-            IConsoleEnvironmentProfileStore profiles, ConsoleHumanProposalSession sessions, CancellationToken token) =>
+        app.MapPost("/api/console/proposals/{id}/approve", async (
+            [AsParameters] ConsoleHumanProposalEndpointContext endpoint, string id, ConsoleHumanProposalRequest request) =>
         {
-            var profile = await AuthorizeAsync(context, request, antiforgery, profiles, token).ConfigureAwait(false);
+            var profile = await AuthorizeAsync(endpoint, request).ConfigureAwait(false);
             if (profile is null || request.Decision is not { } decision || decision.ProposalId != id)
                 return Results.StatusCode(StatusCodes.Status403Forbidden);
-            var result = await sessions.ApproveAsync(profile, request.Authority, decision, token).ConfigureAwait(false);
+            var result = await endpoint.Sessions.ApproveAsync(
+                new ConsoleHumanProposalApprovalRequest(profile, request.Authority, decision), endpoint.Context.RequestAborted).ConfigureAwait(false);
             return Results.Json(result, ConsoleHumanProposalBffJsonContext.Default.OperateSectionResultProposalDetailWire);
         });
     }
 
     private static async Task<IResult> OpenBrowserSessionAsync(
-        HttpContext context, IAntiforgery antiforgery, IConsoleEnvironmentProfileStore profiles, CancellationToken token)
+        ConsoleHumanProposalEndpointContext endpoint)
     {
+        var context = endpoint.Context;
         context.Response.Headers.CacheControl = "no-store";
         if (!IsBrowserSession(context)) return Results.StatusCode(StatusCodes.Status403Forbidden);
-        var profile = await profiles.GetActiveProfileAsync(token).ConfigureAwait(false);
+        var profile = await endpoint.Profiles.GetActiveProfileAsync(context.RequestAborted).ConfigureAwait(false);
         if (profile is null) return Results.StatusCode(StatusCodes.Status409Conflict);
-        var csrf = antiforgery.GetAndStoreTokens(context);
+        var csrf = endpoint.Antiforgery.GetAndStoreTokens(context);
         return Results.Json(new ConsoleHumanProposalBrowserSession(profile.Id, csrf.RequestToken),
             ConsoleHumanProposalBffJsonContext.Default.ConsoleHumanProposalBrowserSession);
     }
 
     private static async Task<ConsoleEnvironmentProfile?> AuthorizeAsync(
-        HttpContext context, ConsoleHumanProposalRequest request, IAntiforgery antiforgery,
-        IConsoleEnvironmentProfileStore profiles, CancellationToken token)
+        ConsoleHumanProposalEndpointContext endpoint, ConsoleHumanProposalRequest request)
     {
+        var context = endpoint.Context;
         context.Response.Headers.CacheControl = "no-store";
         if (!IsBrowserSession(context) || !Enum.IsDefined(request.Authority)) return null;
-        try { await antiforgery.ValidateRequestAsync(context).ConfigureAwait(false); }
+        try { await endpoint.Antiforgery.ValidateRequestAsync(context).ConfigureAwait(false); }
         catch (AntiforgeryValidationException) { return null; }
-        var profile = await profiles.GetActiveProfileAsync(token).ConfigureAwait(false);
+        var profile = await endpoint.Profiles.GetActiveProfileAsync(context.RequestAborted).ConfigureAwait(false);
         return profile?.Id == request.ProfileId ? profile : null;
     }
 
     private static bool IsBrowserSession(HttpContext context) => context.User.Identity?.IsAuthenticated == true
         && !context.Request.Headers.ContainsKey("Authorization") && !context.Request.Headers.ContainsKey("X-API-Key");
 }
+
+internal sealed record ConsoleHumanProposalEndpointContext(
+    HttpContext Context, IAntiforgery Antiforgery,
+    IConsoleEnvironmentProfileStore Profiles, ConsoleHumanProposalSession Sessions);
 
 internal sealed record ConsoleHumanProposalRequest(
     string ProfileId, ConsoleServerAuthority Authority, ConsoleProposalDecision? Decision);

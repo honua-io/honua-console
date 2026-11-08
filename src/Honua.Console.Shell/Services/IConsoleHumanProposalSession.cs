@@ -17,13 +17,19 @@ public sealed record ConsoleHumanProposalReview(
     public string? ApprovalMessage { get; init; }
 }
 
+public sealed record ConsoleHumanProposalReviewRequest(
+    ConsoleEnvironmentProfile Profile, ConsoleServerAuthority Authority, string ProposalId);
+
+public sealed record ConsoleHumanProposalApprovalRequest(
+    ConsoleEnvironmentProfile Profile, ConsoleServerAuthority Authority, ConsoleProposalDecision Decision);
+
 public interface IConsoleHumanProposalSession
 {
     Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync(
-        ConsoleEnvironmentProfile profile, ConsoleServerAuthority authority, string proposalId,
+        ConsoleHumanProposalReviewRequest request,
         CancellationToken cancellationToken = default);
 
     Task<OperateSectionResult<ProposalDetailWire>> ApproveAsync(
-        ConsoleEnvironmentProfile profile, ConsoleServerAuthority authority, ConsoleProposalDecision decision,
+        ConsoleHumanProposalApprovalRequest request,
         CancellationToken cancellationToken = default);
 }

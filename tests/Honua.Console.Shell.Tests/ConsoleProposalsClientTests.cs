@@ -333,16 +333,16 @@ public sealed class ConsoleProposalsClientTests
     {
         public ConsoleServerAuthority Authority { get; private set; }
         public Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync(
-            ConsoleEnvironmentProfile profile, ConsoleServerAuthority authority, string proposalId,
+            ConsoleHumanProposalReviewRequest request,
             CancellationToken cancellationToken = default)
         {
-            Authority = authority;
+            Authority = request.Authority;
             return Task.FromResult(OperateSectionResult<ConsoleHumanProposalReview>.Allowed(new(
-                new ProposalDetailWire { ProposalId = proposalId, Version = 7, PlanHash = "plan", Status = "AwaitingApproval" },
+                new ProposalDetailWire { ProposalId = request.ProposalId, Version = 7, PlanHash = "plan", Status = "AwaitingApproval" },
                 "private-environment", DateTimeOffset.UtcNow.AddMinutes(5))));
         }
         public Task<OperateSectionResult<ProposalDetailWire>> ApproveAsync(
-            ConsoleEnvironmentProfile profile, ConsoleServerAuthority authority, ConsoleProposalDecision decision,
+            ConsoleHumanProposalApprovalRequest request,
             CancellationToken cancellationToken = default) => Task.FromResult(
                 OperateSectionResult<ProposalDetailWire>.Denied(OperateSectionStatus.Forbidden, "Not used."));
     }

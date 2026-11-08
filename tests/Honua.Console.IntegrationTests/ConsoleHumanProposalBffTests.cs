@@ -165,84 +165,106 @@ public sealed class ConsoleHumanProposalBffTests
         public static async Task<Host> StartAsync()
         {
             var host = new Host();
-            host._upstream = Builder().Build();
-            host._upstream.MapGet("/api/v1/admin/auth/session", async (HttpContext context) =>
+            await host.StartUpstreamAsync();
+            host.InitializePrivateSession();
+            await host.StartBrowserAsync();
+            return host;
+        }
+
+        private async Task StartUpstreamAsync()
+        {
+            _upstream = Builder().Build();
+            _upstream.MapGet("/api/v1/admin/auth/session", ReadIdentityAsync);
+            _upstream.MapGet("/api/v1/admin/proposals/proposal/approval-review", OpenPrivateReview);
+            _upstream.MapGet("/api/v1/admin/proposals/proposal", ReadProposal);
+            _upstream.MapPost("/api/v1/admin/proposals/proposal/approve", DecideProposal);
+            await _upstream.StartAsync();
+        }
+
+        private async Task<IResult> ReadIdentityAsync(HttpContext context)
+        {
+            Observe(context);
+            if (SwitchDuringIdentityCheck)
             {
-                host.Observe(context);
-                if (host.SwitchDuringIdentityCheck)
-                {
-                    host.SwitchDuringIdentityCheck = false;
-                    var other = host.Profile with { Id = "other-environment" };
-                    await host._profiles.UpsertProfileAsync(other);
-                    await host._profiles.ActivateProfileAsync(other.Id);
-                }
-                return Results.Json(new ConsoleServerAuthenticatedSessionWire
-                {
-                    IsAuthenticated = true, ProviderKey = "oidc", ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
-                    Claims = [new() { Type = "iss", Value = IdentityIssuer }, new() { Type = "sub", Value = "human" }]
-                }, ConsoleServerSessionIdentityJsonContext.Default.ConsoleServerAuthenticatedSessionWire);
-            });
-            host._upstream.MapGet("/api/v1/admin/proposals/proposal/approval-review", (HttpContext context) =>
+                SwitchDuringIdentityCheck = false;
+                var other = Profile with { Id = "other-environment" };
+                await _profiles.UpsertProfileAsync(other);
+                await _profiles.ActivateProfileAsync(other.Id);
+            }
+            return Results.Json(new ConsoleServerAuthenticatedSessionWire
             {
-                host.ReviewCalls++;
-                host.Observe(context);
-                context.Response.Headers.CacheControl = "no-store";
-                if (host.ProposalStatus != "AwaitingApproval") return Results.Conflict();
-                return Results.Json(new ConsolePrivateProposalReviewResponse(
-                    new ProposalDetailWire { ProposalId = "proposal", Status = "AwaitingApproval", Version = 7, PlanHash = "plan" },
-                    new ConsoleProposalHumanReviewWire("proposal", 7, "plan", "private-capability", DateTimeOffset.UtcNow.AddMinutes(5))),
-                    ConsoleHumanProposalJsonContext.Default.ConsolePrivateProposalReviewResponse);
-            });
-            host._upstream.MapGet("/api/v1/admin/proposals/proposal", (HttpContext context) =>
+                IsAuthenticated = true, ProviderKey = "oidc", ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+                Claims = [new() { Type = "iss", Value = IdentityIssuer }, new() { Type = "sub", Value = "human" }]
+            }, ConsoleServerSessionIdentityJsonContext.Default.ConsoleServerAuthenticatedSessionWire);
+        }
+
+        private IResult OpenPrivateReview(HttpContext context)
+        {
+            ReviewCalls++;
+            Observe(context);
+            context.Response.Headers.CacheControl = "no-store";
+            if (ProposalStatus != "AwaitingApproval") return Results.Conflict();
+            return Results.Json(new ConsolePrivateProposalReviewResponse(
+                new ProposalDetailWire { ProposalId = "proposal", Status = "AwaitingApproval", Version = 7, PlanHash = "plan" },
+                new ConsoleProposalHumanReviewWire("proposal", 7, "plan", "private-capability", DateTimeOffset.UtcNow.AddMinutes(5))),
+                ConsoleHumanProposalJsonContext.Default.ConsolePrivateProposalReviewResponse);
+        }
+
+        private IResult ReadProposal(HttpContext context)
+        {
+            Observe(context);
+            return Results.Json(new ProposalDetailWire
             {
-                host.Observe(context);
-                return Results.Json(new ProposalDetailWire
-                {
-                    ProposalId = "proposal", Status = host.ProposalStatus, Version = 7, PlanHash = "plan"
-                }, ConsoleHumanProposalJsonContext.Default.ProposalDetailWire);
-            });
-            host._upstream.MapPost("/api/v1/admin/proposals/proposal/approve", (HttpContext context) =>
-            {
-                host.ApprovalCalls++;
-                host.Observe(context);
-                Assert.Equal("private-capability", context.Request.Headers["X-Honua-Approval-Capability"].ToString());
-                if (host.LoseDecisionResponse) { context.Abort(); return Results.Empty; }
-                return Results.Json(new ProposalDetailWire { ProposalId = "proposal", Status = "Executing", Version = 8, PlanHash = "plan" },
-                    ConsoleHumanProposalJsonContext.Default.ProposalDetailWire);
-            });
-            await host._upstream.StartAsync();
-            host.Profile = new ConsoleEnvironmentProfile { Id = "environment", ServerBaseUri = Address(host._upstream) };
-            host.Sessions = new ConsoleServerSessionClientStore(TimeProvider.System);
-            var partition = host.Sessions.GetOrCreate("human", host.Profile);
+                ProposalId = "proposal", Status = ProposalStatus, Version = 7, PlanHash = "plan"
+            }, ConsoleHumanProposalJsonContext.Default.ProposalDetailWire);
+        }
+
+        private IResult DecideProposal(HttpContext context)
+        {
+            ApprovalCalls++;
+            Observe(context);
+            Assert.Equal("private-capability", context.Request.Headers["X-Honua-Approval-Capability"].ToString());
+            if (LoseDecisionResponse) { context.Abort(); return Results.Empty; }
+            return Results.Json(new ProposalDetailWire { ProposalId = "proposal", Status = "Executing", Version = 8, PlanHash = "plan" },
+                ConsoleHumanProposalJsonContext.Default.ProposalDetailWire);
+        }
+
+        private void InitializePrivateSession()
+        {
+            Profile = new ConsoleEnvironmentProfile { Id = "environment", ServerBaseUri = Address(_upstream) };
+            Sessions = new ConsoleServerSessionClientStore(TimeProvider.System);
+            var partition = Sessions.GetOrCreate("human", Profile);
             partition.AuthenticatedProviderKey = "oidc";
-            partition.Cookies.SetCookies(host.Profile.ServerBaseUri,
+            partition.Cookies.SetCookies(Profile.ServerBaseUri,
                 "honua_admin_session=private-server-session; Path=/; HttpOnly");
-            var profiles = new InMemoryConsoleEnvironmentProfileStore([host.Profile], activeProfileId: host.Profile.Id);
-            host._profiles = profiles;
+            _profiles = new InMemoryConsoleEnvironmentProfileStore([Profile], activeProfileId: Profile.Id);
+        }
+
+        private async Task StartBrowserAsync()
+        {
             var identity = new ConsoleServerSessionIdentityBinding(
                 Options.Create(new ConsoleEdgeAuthOptions { ServerSessionIssuer = IdentityIssuer }),
-                new InMemoryConsoleAccountSessionStore(), host.Sessions, TimeProvider.System);
+                new InMemoryConsoleAccountSessionStore(), Sessions, TimeProvider.System);
             var builder = Builder();
             builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-Token");
-            builder.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
+            builder.Services.AddSingleton<IConsoleEnvironmentProfileStore>(_profiles);
             builder.Services.AddSingleton(new ConsoleHumanProposalSession(
-                new PartitionedConsoleOperatorBearerExchange(new HumanOperator(), host.Sessions, identity), profiles, TimeProvider.System));
-            host._browser = builder.Build();
-            host._browser.Use(async (context, next) =>
+                new PartitionedConsoleOperatorBearerExchange(new HumanOperator(), Sessions, identity), _profiles, TimeProvider.System));
+            _browser = builder.Build();
+            _browser.Use(async (context, next) =>
             {
-                context.User = host.Authenticated
+                context.User = Authenticated
                     ? new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "human")], "browser-cookie"))
                     : new ClaimsPrincipal();
                 await next();
             });
-            host._browser.MapConsoleHumanProposalBff();
-            await host._browser.StartAsync();
-            host.Client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = Address(host._browser) };
-            using var bootstrap = await host.Client.GetAsync("/api/console/proposals/session");
+            _browser.MapConsoleHumanProposalBff();
+            await _browser.StartAsync();
+            Client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = Address(_browser) };
+            using var bootstrap = await Client.GetAsync("/api/console/proposals/session");
             var session = await bootstrap.Content.ReadFromJsonAsync(
                 ConsoleHumanProposalBffJsonContext.Default.ConsoleHumanProposalBrowserSession);
-            host.Client.DefaultRequestHeaders.Add("X-CSRF-Token", session!.CsrfToken);
-            return host;
+            Client.DefaultRequestHeaders.Add("X-CSRF-Token", session!.CsrfToken);
         }
 
         public async Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync()

@@ -18,11 +18,14 @@ internal sealed class ConsoleAuthenticatedServerSession(
         if (!MatchesScope(profile))
             return null;
         if (identityBinding is null) return partition;
+        var request = new ConsoleServerSessionIdentityRequest
+        {
+            Partition = partition, Profile = profile,
+            OperatorKey = operatorKey, ProviderKey = partition.AuthenticatedProviderKey,
+        };
         var valid = use == ConsoleServerSessionUse.HumanDecision
-            ? await identityBinding.EnsureHumanSessionAsync(partition, profile, operatorKey,
-                partition.AuthenticatedProviderKey, cancellationToken).ConfigureAwait(false)
-            : await identityBinding.EnsureAsync(partition, profile, operatorKey,
-                partition.AuthenticatedProviderKey, cancellationToken).ConfigureAwait(false);
+            ? await identityBinding.EnsureHumanSessionAsync(request, cancellationToken).ConfigureAwait(false)
+            : await identityBinding.EnsureAsync(request, cancellationToken).ConfigureAwait(false);
         return valid ? partition : null;
     }
 

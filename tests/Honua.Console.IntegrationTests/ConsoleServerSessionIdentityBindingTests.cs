@@ -283,7 +283,10 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         var oldPartition = harness.Partitions.GetOrCreate("operator-a", Profile("env"));
         oldHandler.SessionJson = InvalidSession("subject");
         oldHandler.PauseSession = true;
-        var validation = harness.Binding.EnsureAsync(oldPartition, Profile("env"), "operator-a", "oidc", CancellationToken.None);
+        var validation = harness.Binding.EnsureAsync(new ConsoleServerSessionIdentityRequest
+        {
+            Partition = oldPartition, Profile = Profile("env"), OperatorKey = "operator-a", ProviderKey = "oidc",
+        }, CancellationToken.None);
         await oldHandler.SessionEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         harness.Partitions.Remove("operator-a", Profile("env"));
         Assert.Equal(ConsoleServerSignInStatus.Redirect, (await harness.SignInAsync()).Status);
@@ -306,7 +309,10 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         var partition = harness.Partitions.GetOrCreate("operator-a", Profile("env"));
         harness.Handler.SessionJson = InvalidSession("subject");
         harness.Sessions.PauseNextClear = true;
-        var validation = harness.Binding.EnsureAsync(partition, Profile("env"), "operator-a", "oidc", CancellationToken.None);
+        var validation = harness.Binding.EnsureAsync(new ConsoleServerSessionIdentityRequest
+        {
+            Partition = partition, Profile = Profile("env"), OperatorKey = "operator-a", ProviderKey = "oidc",
+        }, CancellationToken.None);
         await harness.Sessions.ClearEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(ConsoleServerSignInStatus.Redirect, (await harness.SignInAsync()).Status);
         var replacement = harness.Partitions.GetOrCreate("operator-a", Profile("env"));
@@ -720,8 +726,10 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         Assert.Equal(HttpStatusCode.NoContent, managerSignIn.StatusCode);
         harness.Handler.SessionJson = identityMatches ? Session() : InvalidSession("subject");
 
-        var accepted = await harness.Binding.EnsureHumanSessionAsync(
-            partition, manager, "operator-a", "oidc", default);
+        var accepted = await harness.Binding.EnsureHumanSessionAsync(new ConsoleServerSessionIdentityRequest
+        {
+            Partition = partition, Profile = manager, OperatorKey = "operator-a", ProviderKey = "oidc",
+        }, default);
 
         Assert.Equal(identityMatches, accepted);
         Assert.Equal(serving, await harness.Sessions.GetSessionAsync("env"));

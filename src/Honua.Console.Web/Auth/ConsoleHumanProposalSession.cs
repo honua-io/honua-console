@@ -17,9 +17,10 @@ internal sealed class ConsoleHumanProposalSession(
     private const string CapabilityHeader = "X-Honua-Approval-Capability";
 
     public async Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync(
-        ConsoleEnvironmentProfile profile, ConsoleServerAuthority authority, string proposalId,
+        ConsoleHumanProposalReviewRequest reviewRequest,
         CancellationToken cancellationToken = default)
     {
+        var (profile, authority, proposalId) = reviewRequest;
         try
         {
             var bound = await BindAsync(profile, authority, cancellationToken).ConfigureAwait(false);
@@ -32,7 +33,7 @@ internal sealed class ConsoleHumanProposalSession(
                 ConsoleServerHttp.BuildUri(bound.ServerBaseUri, ProposalAdminRoutes.Detail(proposalId) + "/approval-review"));
             using var response = await partition.Client.SendAsync(request, cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
-                return await ReadWithoutApprovalAsync(partition, profile, authority, proposalId, cancellationToken).ConfigureAwait(false);
+                return await ReadWithoutApprovalAsync(partition, reviewRequest, cancellationToken).ConfigureAwait(false);
             var result = await response.Content.ReadFromJsonAsync(
                 ConsoleHumanProposalJsonContext.Default.ConsolePrivateProposalReviewResponse, cancellationToken).ConfigureAwait(false);
             var current = await BindAsync(profile, authority, cancellationToken).ConfigureAwait(false);
@@ -63,9 +64,10 @@ internal sealed class ConsoleHumanProposalSession(
     }
 
     public async Task<OperateSectionResult<ProposalDetailWire>> ApproveAsync(
-        ConsoleEnvironmentProfile profile, ConsoleServerAuthority authority, ConsoleProposalDecision decision,
+        ConsoleHumanProposalApprovalRequest approvalRequest,
         CancellationToken cancellationToken = default)
     {
+        var (profile, authority, decision) = approvalRequest;
         try
         {
             var bound = await BindAsync(profile, authority, cancellationToken).ConfigureAwait(false);
@@ -103,9 +105,10 @@ internal sealed class ConsoleHumanProposalSession(
     }
 
     private async Task<OperateSectionResult<ConsoleHumanProposalReview>> ReadWithoutApprovalAsync(
-        ConsoleServerSessionPartition partition, ConsoleEnvironmentProfile profile, ConsoleServerAuthority authority,
-        string proposalId, CancellationToken cancellationToken)
+        ConsoleServerSessionPartition partition, ConsoleHumanProposalReviewRequest reviewRequest,
+        CancellationToken cancellationToken)
     {
+        var (profile, authority, proposalId) = reviewRequest;
         partition.ProposalReviews.Discard(proposalId);
         using var response = await partition.Client.GetAsync(ConsoleServerHttp.BuildUri(
             new Uri(partition.Key.ServerOrigin), ProposalAdminRoutes.Detail(proposalId)), cancellationToken).ConfigureAwait(false);

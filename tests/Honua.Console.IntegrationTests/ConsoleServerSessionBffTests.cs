@@ -394,7 +394,8 @@ public sealed class ConsoleServerSessionBffTests
         var coordinator = new ConsoleServerSessionBffCoordinator(context, profiles, accounts, serverSessions,
             TimeProvider.System, management: management);
 
-        var begin = await coordinator.BeginAuthoritySignInAsync(profile.Id, ConsoleServerAuthority.Management, null, "/inbox");
+        var begin = await coordinator.BeginAuthoritySignInAsync(
+            new ConsoleServerSignInTarget(profile.Id, ConsoleServerAuthority.Management, null), "/inbox");
         var complete = await coordinator.CompleteSignInAsync("code", State(begin.RedirectUri), null);
 
         Assert.Equal(ConsoleServerSignInStatus.Redirect, complete.Status);
@@ -420,7 +421,8 @@ public sealed class ConsoleServerSessionBffTests
         var management = new MutableManagementEndpoint();
         var coordinator = new ConsoleServerSessionBffCoordinator(context, profiles, accounts, serverSessions,
             TimeProvider.System, management: management);
-        var begin = await coordinator.BeginAuthoritySignInAsync(profile.Id, ConsoleServerAuthority.Management, null, "/inbox");
+        var begin = await coordinator.BeginAuthoritySignInAsync(
+            new ConsoleServerSignInTarget(profile.Id, ConsoleServerAuthority.Management, null), "/inbox");
         if (change == "manager") management.Target = new Uri("https://other-manager.example/");
         else await profiles.UpsertProfileAsync(profile with { TenantId = "changed-tenant" });
 
