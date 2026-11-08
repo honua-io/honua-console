@@ -38,23 +38,25 @@ try {
   browser = await chromium.launch();
   const context = await browser.newContext();
   const page = await context.newPage();
+  const samples = [...pages.keys()].flatMap(name => [390, 1440].map(width => ({ name, width })));
   const failures = [];
-  for (const name of pages.keys()) {
-    for (const width of [390, 1440]) {
-      try {
-        await inspectPresentation(page, { name, width });
-      } catch (error) {
-        failures.push(`${name}/${width}: ${error.message}`);
-        await page.screenshot({ path: path.join(previews, `${name}-${width}-failed.png`), fullPage: true });
-      }
-    }
-  }
-  assert.deepEqual(failures, []);
+  for (const sample of samples) failures.push(await capturePresentationCase(page, sample));
+  assert.deepEqual(failures.filter(Boolean), []);
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));
 }
 console.log("Dark presentation is unsupported by the current Console shell; no dark evidence was produced.");
+
+async function capturePresentationCase(page, sample) {
+  try {
+    await inspectPresentation(page, sample);
+    return null;
+  } catch (error) {
+    await page.screenshot({ path: path.join(previews, `${sample.name}-${sample.width}-failed.png`), fullPage: true });
+    return `${sample.name}/${sample.width}: ${error.message}`;
+  }
+}
 
 async function inspectPresentation(page, { name, width }) {
   await page.setViewportSize({ width, height: 844 });
@@ -66,7 +68,7 @@ async function inspectPresentation(page, { name, width }) {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} overflows at ${width}`);
   if (sharedPreviews.includes(name)) return inspectSharedPresentation(page, { name, width }, previews);
   await checkKeyboardControls(page);
-  if (name === "overview") await inspectCatalogCounts(page);
+  await inspectCatalogCounts(page, name);
   if (name === "settings") {
     const snippet = page.getByLabel("Embed snippet", { exact: true });
     await snippet.focus();

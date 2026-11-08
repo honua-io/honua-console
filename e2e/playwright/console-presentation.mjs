@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 
-export async function inspectCatalogCounts(page) {
+export async function inspectCatalogCounts(page, name) {
+  if (name !== "overview") return;
   const sizes = await page.locator(".catalog-admin-counts dd").evaluateAll(elements =>
     elements.map(element => parseFloat(getComputedStyle(element).fontSize)));
   assert.equal(sizes.length, 5);
@@ -29,6 +30,7 @@ export async function inspectSharedPresentation(page, { name, width }, previews)
   if (name.startsWith("state-")) await inspectStateSurface(page, { name, width }, previews);
   const accessibility = await new AxeBuilder({ page }).include(name === "navigation" ? ".console-topbar" : "main").analyze();
   assert.deepEqual(accessibility.violations, []);
+  await page.locator(".console-table-wrap").evaluateAll(regions => regions.forEach(region => { region.scrollLeft = 0; }));
   await page.screenshot({ path: path.join(previews, `${name}-${width}-light.png`), fullPage: true });
   console.log(`${name}: ${width}px light, published panels/tables/notices/protocols, keyboard, overflow and axe pass`);
 }
