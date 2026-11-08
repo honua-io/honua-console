@@ -408,6 +408,7 @@ public sealed partial class ConsoleServerSessionBffTests
 
     [Theory]
     [InlineData("manager")]
+    [InlineData("manager-path-case")]
     [InlineData("profile")]
     public async Task ManagementSignIn_ChangedBinding_RefusesCallbackBeforeTokenExchange(string change)
     {
@@ -419,11 +420,13 @@ public sealed partial class ConsoleServerSessionBffTests
         await using var serverSessions = new ConsoleServerSessionClientStore(TimeProvider.System, (key, cookies) =>
             handler = new SimulatedServerAuthHandler(key, cookies));
         var management = new MutableManagementEndpoint();
+        if (change == "manager-path-case") management.Target = new Uri("https://manager.example/Management/");
         var coordinator = new ConsoleServerSessionBffCoordinator(context, profiles, accounts, serverSessions,
             TimeProvider.System, management: management);
         var begin = await coordinator.BeginAuthoritySignInAsync(
             new ConsoleServerSignInTarget(profile.Id, ConsoleServerAuthority.Management, null), "/inbox");
         if (change == "manager") management.Target = new Uri("https://other-manager.example/");
+        else if (change == "manager-path-case") management.Target = new Uri("https://manager.example/management/");
         else await profiles.UpsertProfileAsync(profile with { TenantId = "changed-tenant" });
 
         var result = await coordinator.CompleteSignInAsync("code", State(begin.RedirectUri), null);
