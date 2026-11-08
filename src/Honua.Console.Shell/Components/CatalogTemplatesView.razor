@@ -1,0 +1,49 @@
+@using static Honua.Console.Shell.Models.CatalogAdminLabels
+
+<section class="catalog-templates" aria-labelledby="catalog-templates-heading">
+    <h2 id="catalog-templates-heading">Templates</h2>
+    <p>Catalog pages use HTML and Honua components. Visitors see the Released version; drafts do not change the public catalog.</p>
+    <p>Saving, restoring and releasing templates are unavailable until the server provides the version and approval contracts.</p>
+    @if (Templates.Templates.Count == 0)
+    {
+        <p role="status">No templates reported for this catalog.</p>
+    }
+    else
+    {
+        <div class="catalog-admin-filters">
+            <label for="template-query">Search templates<input id="template-query" type="search" @bind="_query" @bind:event="oninput" /></label>
+        </div>
+        @if (Matches.Count == 0) { <p role="status">No matching templates. Change the search.</p> }
+        else
+        {
+            <div class="catalog-admin-table" role="region" aria-label="Catalog templates" tabindex="0">
+                <table>
+                    <thead><tr><th scope="col">Template</th><th scope="col">Page kind</th><th scope="col">Draft</th><th scope="col">Released</th><th scope="col">State</th></tr></thead>
+                    <tbody>
+                        @foreach (var row in Matches)
+                        {
+                            <tr>
+                                <th scope="row">
+                                    @if (CatalogAdminLinks.TemplateHref(Templates.CatalogId, row.Id) is { } href)
+                                    { <a href="@href">@row.Title</a> }
+                                    else
+                                    { <span>@row.Title · Template destination is unavailable</span> }
+                                </th>
+                                <td>@row.PageKind</td><td>@Reported(row.DraftVersion)</td><td>@Reported(row.ReleasedVersion)</td><td>@TemplateState(row.State)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+    <h3>Template safety</h3>
+    <p>The server must sanitize saved HTML and escape template variables. Template-authored scripts, inline event handlers, script URLs and third-party frames are forbidden. Components read as the visitor and own the structured data supplied by the server crosswalk.</p>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public CatalogTemplateList Templates { get; set; } = default!;
+    private string _query = string.Empty;
+    private IReadOnlyList<CatalogTemplateRow> Matches => Templates.Templates
+        .Where(row => row.Title.Contains(_query, StringComparison.OrdinalIgnoreCase)).ToArray();
+}

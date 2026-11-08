@@ -4,17 +4,17 @@
 <section class="console-page">
     @if (_resource is null)
     {
-        <MissingItemView Kind="resource" AreaLabel="Operate / Resources" />
+        <MissingItemView Kind="dataset" AreaLabel="Operate / Datasets" />
     }
     else
     {
         <div class="console-page-heading">
-            <p class="console-kicker">Operate / Resources</p>
+            <p class="console-kicker">Operate / Datasets</p>
             <h1>@_resource.Name</h1>
             <p>@_resource.DraftChange</p>
         </div>
 
-        <nav class="console-tab-row" aria-label="Resource edit tabs">
+        <nav class="console-tab-row" aria-label="Dataset edit tabs">
             @foreach (var tab in _resource.EditTabs)
             {
                 <a href="@($"/operate/resources/{_resource.ResourceId}#{tab.ToLowerInvariant()}")">@tab</a>
@@ -30,7 +30,7 @@
                     </div>
                     <span class="console-status console-status-warning">Review required</span>
                 </div>
-                <ConsoleTableRegion Class="console-table-wrap" Label="Resource validation issues">
+                <ConsoleTableRegion Class="console-table-wrap" Label="Dataset validation issues">
                     <table class="console-table">
                         <thead>
                             <tr>

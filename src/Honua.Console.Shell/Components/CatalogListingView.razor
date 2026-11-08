@@ -1,0 +1,59 @@
+@using static Honua.Console.Shell.Models.CatalogAdminLabels
+
+<section class="catalog-listing" aria-labelledby="catalog-listing-heading">
+    <h2 id="catalog-listing-heading">Catalog listing: @Listing.Title</h2>
+    <p>Listing settings are read-only until the server provides the catalog mutation and approval contracts. Endpoint access does not change when an item is removed from catalogs.</p>
+    <h3>Appears in catalogs</h3>
+    <p class="catalog-can-appear">Can appear in catalogs: @YesNo(Listing.CanAppear)</p>
+    <p>Every catalog checks each item's access for its visitor. The rows below report administration state, not a visitor preview.</p>
+    @if (Listing.Memberships.Count == 0) { <p>Catalog membership is not reported.</p> }
+    else
+    {
+        <div class="catalog-admin-table catalog-memberships" role="region" aria-label="Item catalog membership" tabindex="0">
+            <table>
+                <thead><tr><th scope="col">Catalog</th><th scope="col">Audience</th><th scope="col">Why it is here</th><th scope="col">Visibility</th><th scope="col">Category</th><th scope="col">Featured</th><th scope="col">Hidden here</th></tr></thead>
+                <tbody>
+                    @foreach (var membership in Listing.Memberships)
+                    {
+                        <tr><th scope="row">@membership.Title</th><td>@CatalogAdminLabels.Audience(membership.Audience)</td><td>@membership.Reason</td>
+                            <td>@Visibility(membership.Visibility)</td><td>@Reported(membership.Category)</td><td>@YesNo(membership.Featured)</td><td>@YesNo(membership.HiddenHere)</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    <h3>Description</h3>
+    <dl class="catalog-settings-fields">
+        <dt>Kind</dt><dd>@Reported(Listing.Kind)</dd><dt>Title</dt><dd>@Listing.Title</dd>
+        <dt>Summary</dt><dd>@Reported(Listing.Summary)</dd><dt>Tags</dt><dd>@Join(Listing.Tags)</dd>
+        <dt>Licence</dt><dd>@Reported(Listing.Licence) · @Reported(Listing.LicenceSource)</dd>
+        <dt>Update frequency</dt><dd>@Reported(Listing.UpdateFrequency)</dd>
+    </dl>
+    @if (string.IsNullOrWhiteSpace(Listing.Description)) { <p>Description is not reported.</p> }
+    else
+    {
+        <label for="listing-description">Description source (Markdown)</label>
+        <textarea id="listing-description" rows="5" readonly>@Listing.Description</textarea>
+    }
+    <h3>Thumbnail</h3>
+    <dl class="catalog-settings-fields"><dt>Source</dt><dd>@Reported(Listing.ThumbnailSource)</dd><dt>Alt text</dt><dd>@Reported(Listing.ThumbnailAlt)</dd></dl>
+    <p>Thumbnail uploads are unavailable until the server provides the upload contract.</p>
+    <h3>Governance</h3>
+    <dl class="catalog-settings-fields">
+        <dt>Owner</dt><dd>@Reported(Listing.Owner)</dd><dt>Public contact</dt><dd>@Reported(Listing.Contact)</dd>
+        <dt>Review state</dt><dd>@Reported(Listing.ReviewState)</dd><dt>Deprecation date</dt><dd>@Reported(Listing.DeprecationDate)</dd>
+        <dt>Replacement</dt><dd>@Reported(Listing.Replacement)</dd>
+    </dl>
+    <h3>Related items</h3>
+    @if (Listing.RelatedTitles.Count == 0) { <p>Related apps and maps are not reported.</p> }
+    else { <ul>@foreach (var title in Listing.RelatedTitles) { <li>@title</li> }</ul> }
+    <h3>Public card preview</h3>
+    <p>Visitor preview is unavailable until the server provides a visitor-filtered card projection. Administration fields are not a public preview.</p>
+    <h3>Listing checks</h3>
+    @if (Listing.Checks.Count == 0) { <p>Listing checks are not reported.</p> }
+    else { <ul>@foreach (var check in Listing.Checks) { <li>@check.Label: @check.State</li> }</ul> }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public CatalogListingDocument Listing { get; set; } = default!;
+}

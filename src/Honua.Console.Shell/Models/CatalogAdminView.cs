@@ -24,6 +24,9 @@ public sealed record CatalogAdminRead(
     string? Message)
 {
     public CatalogAdminSettings? Settings { get; init; }
+    public CatalogTemplateList? Templates { get; init; }
+    public CatalogTemplateDocument? Template { get; init; }
+    public CatalogListingDocument? Listing { get; init; }
 }
 
 public sealed record CatalogAdminOptions

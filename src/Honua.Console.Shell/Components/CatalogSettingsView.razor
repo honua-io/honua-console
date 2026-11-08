@@ -1,3 +1,5 @@
+@using static Honua.Console.Shell.Models.CatalogAdminLabels
+
 <section class="catalog-settings" aria-labelledby="catalog-settings-heading">
     <h2 id="catalog-settings-heading">Settings and scope</h2>
     <p>Settings are read-only. Saving changes is not supported until this server provides the catalog approval contract.</p>
@@ -48,6 +50,4 @@
 @code {
     [Parameter, EditorRequired] public CatalogAdminSettings Settings { get; set; } = default!;
     private string ListingLabel => Settings.DefaultListing switch { "automatic" => "List automatically", "after-review" => "List after review", "manual" => "Only by hand", _ => "Not reported" };
-    private static string Reported(string? value) => string.IsNullOrWhiteSpace(value) ? "Not reported" : value;
-    private static string Join(IReadOnlyList<string> values) => values.Count == 0 ? "Not reported" : string.Join(", ", values);
 }

@@ -207,14 +207,14 @@ public sealed class CatalogAdminPageTests
 
     private sealed class CallbackCatalogAdminSource(Func<string?, CancellationToken, Task<CatalogAdminRead>> read) : ICatalogAdminSource
     {
-        public Task<CatalogAdminRead> ReadAsync(string? catalogId, CancellationToken cancellationToken) => read(catalogId, cancellationToken);
+        public Task<CatalogAdminRead> ReadAsync(CatalogAdminRequest request, CancellationToken cancellationToken) => read(request.CatalogId, cancellationToken);
     }
 
     private sealed class FixtureCatalogAdminSource : ICatalogAdminSource
     {
         public int Reads { get; private set; }
 
-        public Task<CatalogAdminRead> ReadAsync(string? catalogId, CancellationToken cancellationToken)
+        public Task<CatalogAdminRead> ReadAsync(CatalogAdminRequest request, CancellationToken cancellationToken)
         {
             Reads++;
             IReadOnlyList<CatalogAdminRow> rows =
@@ -222,7 +222,7 @@ public sealed class CatalogAdminPageTests
                 new("open-data", "Open data", "public", "Folder: Public", null),
                 new("staff", "Staff", "signed-in", "All kinds", null)
             ];
-            var overview = catalogId is null ? null : new CatalogAdminOverview(
+            var overview = request.CatalogId is null ? null : new CatalogAdminOverview(
                 "open-data", "Open data", new(6, 2, 1, 1, 10),
                 [new("Flood zones", "Missing description")]);
             return Task.FromResult(new CatalogAdminRead(rows, overview, "fixture", null));

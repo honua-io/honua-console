@@ -3,7 +3,7 @@
 
 <div class="resource-tree" data-resource-tree>
     <div class="resource-tree__toolbar">
-        <input class="console-input" type="search" placeholder="filter…" aria-label="Filter resources"
+        <input class="console-input" type="search" placeholder="filter…" aria-label="Filter datasets"
                @bind="_filter" @bind:event="oninput" />
     </div>
 
@@ -12,17 +12,17 @@
         <p class="console-muted" data-tree-empty>
             @if (Nodes.Count > 0)
             {
-                <span>No resources match this filter.</span> <button type="button" class="console-button console-button-secondary" @onclick="() => _filter = string.Empty">Clear filter</button>
+                <span>No datasets match this filter.</span> <button type="button" class="console-button console-button-secondary" @onclick="() => _filter = string.Empty">Clear filter</button>
             }
             else
             {
-                <span>No resources yet.</span> <a href="/operate/data/new">Add data</a><span> — it becomes a resource you can publish.</span>
+                <span>No datasets yet.</span> <a href="/operate/data/new">Add data</a><span> — it becomes a dataset you can publish as a layer.</span>
             }
         </p>
     }
     else
     {
-        <ul class="resource-tree__list" aria-label="Resources">
+        <ul class="resource-tree__list" aria-label="Datasets">
             @foreach (var node in FilteredNodes)
             {
                 <li class="resource-tree__node @(node.HasPublications ? "resource-tree__node--running" : "resource-tree__node--draft")"
@@ -41,7 +41,7 @@
 
                     @if (_expanded.Contains(node.ResourceId))
                     {
-                        <ul class="resource-tree__publications" aria-label="Publications">
+                        <ul class="resource-tree__publications" aria-label="Layers">
                             @foreach (var publication in node.Publications)
                             {
                                 <li class="resource-tree__publication" data-publication="@publication.ProtocolId">

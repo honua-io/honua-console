@@ -155,7 +155,7 @@ public sealed class DiscoveryMetadataEditorTests
     }
 
     [Fact]
-    public void LayerPage_UsesGlobalAdminLayerIdAndShowsSharedResource()
+    public void LayerPage_UsesGlobalAdminLayerIdAndShowsSharedDataset()
     {
         using var context = new BunitContext();
         context.AddConsoleNotifications();
@@ -167,7 +167,7 @@ public sealed class DiscoveryMetadataEditorTests
             new OperateServiceLayerProjection(42, "Roads", "Line", "connection-layer-42", "Roads")));
         var page = context.Render<OperateLayerDetailPage>(parameters => parameters.Add(layer => layer.ResourceId, "connection-layer-42"));
         page.WaitForAssertion(() => Assert.Equal(DiscoveryMetadataAddress.ForLayer(42), client.LastAddress));
-        Assert.Contains("shared resource metadata", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("shared dataset metadata", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Console layer reference", page.Markup, StringComparison.Ordinal);
         Assert.Contains("canonical-roads", page.Find("[data-discovery-resource]").TextContent, StringComparison.Ordinal);
         Assert.Contains("transport / 7", page.Find("[data-discovery-impact]").TextContent, StringComparison.Ordinal);

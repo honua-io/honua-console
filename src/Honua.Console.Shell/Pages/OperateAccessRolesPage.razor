@@ -16,7 +16,7 @@
         <div>
             <p class="console-kicker">Settings <span class="console-crumb-sep">/</span> Access · RBAC</p>
             <h1>Access · roles &amp; permissions</h1>
-            <p class="console-muted rbac-lede">Hierarchical RBAC. Workspace roles inherit down; per-content and per-publication overrides allowed. Roles and grants are authored on honua-server's Console metadata/RBAC API and are never resolved client-side.</p>
+            <p class="console-muted rbac-lede">Roles define permissions for users and automation. The environment enforces grants and object policies.</p>
         </div>
         <div class="console-detail-actions">
             @* Bound to honua-server's Console Access (RBAC) authoring + audit contract (honua-server#1162):
@@ -28,7 +28,7 @@
                     @onclick="ToggleAuditAsync">Roles audit</button>
             <button class="console-button" type="button" data-rbac-custom-role
                     disabled="@(_overview is null || !_overview.CanManageRoles)"
-                    title="@(_overview is null ? "Available once the RBAC overview loads." : (_overview.CanManageRoles ? "Author a custom role." : "You lack the manage-roles permission for this workspace."))"
+                    title="@(_overview is null ? "Available once the RBAC overview loads." : (_overview.CanManageRoles ? "Author a custom role." : "You lack the manage-roles permission for this scope."))"
                     @onclick="ToggleCreate">+ Custom role</button>
         </div>
     </div>
@@ -108,7 +108,7 @@
         <ConsoleStateView HeadingLevel="2" Kind="loading"
                           Kicker="Access (RBAC)"
                           Title="Loading roles &amp; permissions"
-                          Message="Reading the Console metadata/RBAC projection from honua-server." />
+                          Message="Reading roles and permissions from the environment." />
     }
     else if (_bindingState is not null)
     {
@@ -142,12 +142,11 @@
 
         <div class="console-toolbar console-toolbar-spread" data-rbac-toolbar>
             <div class="console-chip-row">
-                <span class="console-status console-state-info" data-rbac-scope-filter>scope: workspace</span>
                 <span class="console-status console-state-neutral">built-in only</span>
                 <span class="console-status console-state-neutral">custom</span>
             </div>
             <span class="console-muted" data-rbac-counts>
-                @overview.BuiltInRoleCount built-in roles · @overview.CustomRoleCount custom · @overview.MembersAffected members affected
+                @overview.BuiltInRoleCount built-in roles · @overview.CustomRoleCount custom · @overview.MembersAffected users affected
             </span>
         </div>
 
@@ -209,7 +208,7 @@
         <ConsoleStateView HeadingLevel="2" Kind="empty"
                           Kicker="Access (RBAC)"
                           Title="No roles to show"
-                          Message="The Console metadata/RBAC API returned no roles for this workspace." />
+                          Message="The Console metadata/RBAC API returned no roles for this environment." />
     }
 <ConsoleConfirmDialog @ref="_confirm" />
 </section>
