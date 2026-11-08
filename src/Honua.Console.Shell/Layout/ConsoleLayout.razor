@@ -13,14 +13,15 @@
 
 @{ var navigationGroups = VisibleNavigation; }
 
+<CascadingValue Value="_layerContext" IsFixed="true">
 <ConsoleCommittedLocation />
 <div class="console-shell" data-console-mode="@ModeName">
     <a class="console-skip-link" href="#console-main">Skip to content</a>
     <ConsoleTopNavigation Groups="navigationGroups" />
     <div class="console-service-workspace">
-        <AuthorizeView><Authorized><ConsolePublicationNavigation /></Authorized></AuthorizeView>
+        <AuthorizeView><Authorized><ConsolePublicationNavigation SelectionChanged="PublicationPathChanged" /></Authorized></AuthorizeView>
     <div class="console-workspace">
-        <ConsoleBreadcrumbs Groups="navigationGroups" />
+        <ConsoleBreadcrumbs Groups="navigationGroups" PublicationPath="_publicationPath" />
         <div class="console-workspace-panes">
     <main id="console-main" class="console-main" tabindex="-1">
         @if (!ConsolePresentation.IsFocusedRoute(Navigation.ToBaseRelativePath(Navigation.Uri)))
@@ -44,7 +45,28 @@
     <ConsoleNotificationHost />
 </div>
 
+</CascadingValue>
+
 @code {
+    private readonly ConsolePublicationLayerContext _layerContext = new();
+    private IConsoleEnvironmentProfileStore? _profiles;
+
+    private void UpdatePublicationPath() =>
+        _layerContext.SetPath(ConsoleNavigation.ContextForPath(Navigation.ToBaseRelativePath(Navigation.Uri), ConsoleNavigation.Groups).Path);
+
+    private void PublicationLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args)
+    {
+        UpdatePublicationPath();
+        if (!_disposed) _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void PublicationAuthorityChanged()
+    {
+        _layerContext.Invalidate();
+        _publicationPath = [];
+        if (!_disposed) _ = InvokeAsync(StateHasChanged);
+    }
+
     private IReadOnlyList<ConsoleNavigationGroup> VisibleNavigation => ConsoleNavigation.VisibleGroups(
         ProductMode, Capabilities, ConsoleNavigation.EnabledGroups(
             CatalogOptions, WorkspaceServices.GetService<Microsoft.Extensions.Configuration.IConfiguration>()));
@@ -52,10 +74,34 @@
     private const int CapabilityRefreshTimeoutSeconds = 5;
     private CancellationTokenSource? _capabilityRefreshCancellation;
     private bool _disposed;
+    private AuthenticationStateProvider? _authentication;
+    private int _authenticationRevision;
+    private IReadOnlyList<ConsolePublicationNode> _publicationPath = [];
+
+    private async Task PublicationPathChanged(IReadOnlyList<ConsolePublicationNode> path)
+    {
+        if (_disposed || _authentication is null) return;
+        var revision = _authenticationRevision;
+        var authentication = await _authentication.GetAuthenticationStateAsync();
+        if (_disposed || revision != _authenticationRevision) return;
+        _publicationPath = authentication.User.Identity?.IsAuthenticated == true ? path : [];
+    }
+
+    private void AuthenticationChanged(Task<AuthenticationState> state)
+    {
+        _authenticationRevision++;
+        PublicationAuthorityChanged();
+    }
 
     protected override Task OnInitializedAsync()
     {
+        UpdatePublicationPath();
+        Navigation.LocationChanged += PublicationLocationChanged;
+        _profiles = WorkspaceServices.GetService<IConsoleEnvironmentProfileStore>();
+        if (_profiles is not null) _profiles.ActiveProfileChanged += PublicationAuthorityChanged;
         Capabilities.Changed += OnCapabilitiesChanged;
+        _authentication = WorkspaceServices.GetService<AuthenticationStateProvider>();
+        if (_authentication is not null) _authentication.AuthenticationStateChanged += AuthenticationChanged;
         // Start fail-closed: navigation renders immediately while live capability truth is loaded.
         // A slow or unreachable server must not hold the prerendered shell behind HttpClient's long
         // default timeout.
@@ -99,7 +145,10 @@
 
     public void Dispose()
     {
+        Navigation.LocationChanged -= PublicationLocationChanged;
+        if (_profiles is not null) _profiles.ActiveProfileChanged -= PublicationAuthorityChanged;
         Capabilities.Changed -= OnCapabilitiesChanged;
+        if (_authentication is not null) _authentication.AuthenticationStateChanged -= AuthenticationChanged;
         _disposed = true;
         _capabilityRefreshCancellation?.Cancel();
         _capabilityRefreshCancellation?.Dispose();

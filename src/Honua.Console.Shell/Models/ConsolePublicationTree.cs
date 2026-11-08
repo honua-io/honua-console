@@ -207,6 +207,34 @@ public sealed class ConsolePublicationTree
             foreach (var descendant in VisibleNodes(child)) yield return descendant;
     }
 
+    public IReadOnlyList<ConsolePublicationNode> PathTo(string path)
+    {
+        var matches = Descendants(Root).Prepend(Root).Where(node => node.Href == path).Take(2).ToArray();
+        if (matches.Length != 1) return [];
+        return FindPath(Root, matches[0])?.ToArray() ?? [];
+    }
+
+    public static List<ConsolePublicationNode> LayerNodes(ConsolePublicationNode service, IReadOnlyList<ConsolePublicationLayer> layers) =>
+        layers.Select(layer => new ConsolePublicationNode
+        {
+            Key = service.Key + ":layer:" + layer.ResourceId,
+            Label = layer.Name,
+            Kind = ConsolePublicationNodeKind.Layer,
+            GeometryType = layer.GeometryType,
+            Href = $"/operate/layers/{Uri.EscapeDataString(layer.ResourceId)}"
+        }).ToList();
+
+    private static IEnumerable<ConsolePublicationNode>? FindPath(ConsolePublicationNode node, ConsolePublicationNode target)
+    {
+        if (node == target) return [node];
+        foreach (var child in node.Children)
+        {
+            var path = FindPath(child, target);
+            if (path is not null) return path.Prepend(node);
+        }
+        return null;
+    }
+
     public void RevealPath(string path)
     {
         var target = Descendants(Root).FirstOrDefault(node => node.Href == path);

@@ -181,8 +181,7 @@ test.describe('Operate · Publish layer workflow (live)', () => {
     const connName = `e2e-preview-conn-${stamp}`;
     const conn = await admin.createConnection(sourceConnectionBody(connName));
     admin.trackConnectionName(connName);
-    const layers =
-      (await admin.getJson(`/api/v1/admin/connections/${conn.connectionId}/layers/?serviceName=${SERVICE_NAME}`)).data ?? [];
+    const layers = await admin.listLayers(conn.connectionId, SERVICE_NAME);
     const layer = layers.find((l: any) => l.layerName === LAYER_NAME) ?? layers[0];
     expect(layer, 'the published layer should be listed').toBeTruthy();
 

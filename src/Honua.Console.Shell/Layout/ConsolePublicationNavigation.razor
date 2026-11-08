@@ -25,6 +25,11 @@
 </CascadingValue>
 
 @code {
+    [CascadingParameter] public ConsolePublicationLayerContext? LayerContext { get; set; }
+    [Parameter] public EventCallback<IReadOnlyList<ConsolePublicationNode>> SelectionChanged { get; set; }
+    private IReadOnlyList<ConsolePublicationNode>? _reportedPath;
+    private IReadOnlyList<ConsolePublicationNode> _resolvedPath = [];
+    private PathAttempt? _pathAttempt;
     private const int ConcurrentServiceExpansions = 4;
     private readonly SemaphoreSlim _serviceExpansionSlots = new(ConcurrentServiceExpansions);
     private readonly ConsolePublicationTree _tree = new();
@@ -52,7 +57,7 @@
         get
         {
             var path = CurrentPath;
-            return ConsolePublicationTree.Descendants(_tree.Root).Prepend(_tree.Root).Count(node => node.Href == path) == 1 ? path : "";
+            return _tree.PathTo(path).Count > 0 ? path : "";
         }
     }
     private ConsolePublicationTreeContext TreeContext => new()
@@ -73,6 +78,7 @@
 
     protected override void OnInitialized()
     {
+        if (LayerContext is not null) LayerContext.Changed += LayerSelectionChanged;
         Navigation.LocationChanged += LocationChanged;
         _folderChanges = Services.GetService<ConsoleFolderChanges>();
         if (_folderChanges is not null) _folderChanges.Changed += FoldersChanged;
@@ -81,6 +87,22 @@
         if (Services.GetService<AuthenticationStateProvider>() is { } authentication)
             authentication.AuthenticationStateChanged += AuthenticationChanged;
         _ = CheckAuthorityAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_disposed || !SelectionChanged.HasDelegate) return;
+        var contextPath = ConsoleNavigation.ContextForPath(CurrentPath.Trim('/'), ConsoleNavigation.Groups).Path;
+        IReadOnlyList<ConsolePublicationNode> ancestors = [];
+        if (!_loading && _servicesRead is { IsAllowed: true, Value: not null })
+        {
+            ancestors = _tree.PathTo(contextPath);
+            if (ancestors.Count == 0 && _pathAttempt == new PathAttempt(contextPath, _authorityRevision, LayerContext?.Revision ?? 0))
+                ancestors = _resolvedPath;
+        }
+        if (_reportedPath is not null && _reportedPath.SequenceEqual(ancestors)) return;
+        _reportedPath = ancestors;
+        await SelectionChanged.InvokeAsync(ancestors);
     }
 
     private async Task CheckAuthorityAsync()
@@ -120,6 +142,7 @@
         if (outcome == CatalogOutcome.Applied) _tree.RevealPath(CurrentPath);
         _loading = false;
         await InvokeAsync(StateHasChanged);
+        await ResolveSelectedLayerAsync();
     }
 
     private CatalogAttempt BeginCatalog(HonuaAdminCatalogQuery query, CatalogApply apply)
@@ -211,6 +234,8 @@
         _authorityLifetime.Dispose();
         _authorityLifetime = new();
         _connectionsRead = null;
+        _pathAttempt = null;
+        _resolvedPath = [];
         _tree.Load(new HonuaAdminServicePage(), _environmentLabel);
         _tree.SetFilter("");
         _servicesRead = null;
@@ -275,11 +300,7 @@
         node.ChildrenLoaded = result.IsAllowed;
         node.ReadStatus = result.IsAllowed ? null : result.Status;
         node.ReadMessage = string.IsNullOrEmpty(result.Message) ? null : result.Message;
-        node.Children = (result.Value ?? []).Select(layer => new ConsolePublicationNode
-        {
-            Key = node.Key + ":layer:" + layer.ResourceId, Label = layer.Name, Kind = ConsolePublicationNodeKind.Layer,
-            GeometryType = layer.GeometryType, Href = $"/operate/layers/{Uri.EscapeDataString(layer.ResourceId)}"
-        }).ToList();
+        node.Children = ConsolePublicationTree.LayerNodes(node, result.Value ?? []);
     }
 
     private int _filterRevision;
@@ -328,7 +349,38 @@
         if (_disposed) return;
         _tree.RevealPath(CurrentPath);
         await InvokeAsync(StateHasChanged);
+        await ResolveSelectedLayerAsync();
     }
+
+    private async Task ResolveSelectedLayerAsync()
+    {
+        var context = ConsoleNavigation.ContextForPath(CurrentPath.Trim('/'), ConsoleNavigation.Groups);
+        var attempt = new PathAttempt(context.Path, _authorityRevision, LayerContext?.Revision ?? 0);
+        if (_disposed || _loading || LayerContext?.Selection is not { } selection || context.Kind != ConsoleNavigationContextKind.Layer
+            || _servicesRead is not { IsAllowed: true, Value: not null }
+            || _tree.PathTo(context.Path).Count > 0 || _pathAttempt == attempt) return;
+        _pathAttempt = attempt;
+        _resolvedPath = [];
+        var result = await ConsoleReadBudget.RunAsync(
+            token => new ConsolePublicationPathReader(Source).ReadAsync(selection, token), ConsoleReadBudget.Default,
+            "Layer ancestry could not be read.", _authorityLifetime.Token);
+        if (_disposed || _pathAttempt != attempt || attempt.AuthorityRevision != _authorityRevision) return;
+        _resolvedPath = result.IsAllowed ? result.Value ?? [] : [];
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void LayerSelectionChanged()
+    {
+        _pathAttempt = null;
+        _resolvedPath = [];
+        if (!_disposed) _ = InvokeAsync(async () =>
+        {
+            await ResolveSelectedLayerAsync();
+            StateHasChanged();
+        });
+    }
+
+    private readonly record struct PathAttempt(string Path, int AuthorityRevision, int LayerRevision);
 
     private void LocationChanged(object? sender, LocationChangedEventArgs args)
     {
@@ -342,6 +394,7 @@
     public void Dispose()
     {
         _disposed = true;
+        if (LayerContext is not null) LayerContext.Changed -= LayerSelectionChanged;
         Navigation.LocationChanged -= LocationChanged;
         if (_folderChanges is not null) _folderChanges.Changed -= FoldersChanged;
         if (_capabilities is not null) _capabilities.Changed -= CapabilitiesChanged;

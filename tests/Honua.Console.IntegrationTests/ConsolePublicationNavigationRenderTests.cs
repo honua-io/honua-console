@@ -4,8 +4,14 @@ using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Components.Operate;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Honua.Sdk.Admin.Models;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
+using static Honua.Console.IntegrationTests.ConsolePublicationRenderFixture;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -15,7 +21,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     public void RootPagesFiveHundredServicesWithoutLoadingChildrenAndExposesSiblingTotals()
     {
         using var context = Context();
-        var source = new NavigationSource();
+        var source = new PublicationNavigationSource();
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
         var tree = context.Render<ConsolePublicationNavigation>();
         tree.WaitForAssertion(() => Assert.Equal(26, tree.FindAll("[role='treeitem']").Count));
@@ -37,7 +43,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     public void ExpandLoadsOnlyThatServicesLayersAndDoesNotReloadACompletedBranch()
     {
         using var context = Context();
-        var source = new NavigationSource();
+        var source = new PublicationNavigationSource();
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
         var tree = context.Render<ConsolePublicationNavigation>();
         tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
@@ -64,7 +70,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     public async Task OrdinaryNavigationRetainsLoadedBranchesWithinTheSameAuthority()
     {
         using var context = Context();
-        var source = new NavigationSource();
+        var source = new PublicationNavigationSource();
         var capabilities = new CapabilitySignals();
         context.Services.AddSingleton<IConsoleCapabilityManifest>(capabilities);
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
@@ -90,7 +96,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     public void RefreshClearsTheTreeSnapshotAndItsConnectionCache()
     {
         using var context = Context();
-        var source = new NavigationSource();
+        var source = new PublicationNavigationSource();
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
         var tree = context.Render<ConsolePublicationNavigation>();
         tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
@@ -108,7 +114,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     public void ForbiddenChildrenShowPermissionStateAndRetryWithoutClaimingEmpty()
     {
         using var context = Context();
-        var source = new NavigationSource
+        var source = new PublicationNavigationSource
         {
             LayerResult = OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>
             .Denied(OperateSectionStatus.Forbidden, "Service layers require permission.")
@@ -131,7 +137,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     public void ReportedFoldersExpandWithoutClaimingSelectionOrInventingFolderLinks()
     {
         using var context = Context();
-        var source = new NavigationSource
+        var source = new PublicationNavigationSource
         {
             ServiceSummaries = [new() { ServiceName = "internal/parcels", FolderId = "public", FolderName = "Public", Title = "Parcels" }]
         };
@@ -150,6 +156,227 @@ public sealed class ConsolePublicationNavigationRenderTests
     }
 
     [Fact]
+    public void PublicationBreadcrumbFollowsTheAuthorizedFolderServiceAndLayer()
+    {
+        var source = new PublicationNavigationSource
+        {
+            ServiceSummaries =
+            [
+                new() { ServiceName = "internal/parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 },
+                new() { ServiceName = "root-parcels", Title = "Root parcels" }
+            ]
+        };
+        using var context = PublicationLayoutContext(source);
+        var navigation = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        navigation.NavigateTo("/operate/services/internal%2Fparcels/settings");
+        var layout = RenderLayerLayout(context);
+        layout.WaitForAssertion(() => Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        Assert.Equal("Parcels", layout.Find("nav[aria-label='Breadcrumb'] summary").TextContent);
+        layout.Find("[data-publication-key='service:internal%2Fparcels'] [data-tree-expand]").Click();
+        layout.WaitForState(() => layout.FindAll("a[href='/operate/layers/connection-one-layer-7']").Count == 1);
+        navigation.NavigateTo("/operate/layers/connection-one-layer-7");
+        layout.WaitForAssertion(() => Assert.Equal("Bridges", layout.Find("nav[aria-label='Breadcrumb'] summary").TextContent));
+        var ancestors = layout.FindAll("nav[aria-label='Breadcrumb'] ol > li")
+            .Select(item => item.QuerySelector("summary")?.TextContent ?? item.TextContent.Trim()).ToArray();
+        Assert.Equal(["Public", "Parcels", "Bridges"], ancestors.TakeLast(3));
+        Assert.Equal("Home", ancestors[0]);
+        Assert.Equal("/operate/services/internal%2Fparcels/settings",
+            layout.Find("nav[aria-label='Breadcrumb'] a[href*='/services/']").GetAttribute("href"));
+        navigation.NavigateTo("/operate/services/root-parcels/settings");
+        layout.WaitForAssertion(() => Assert.Equal("Root parcels", layout.Find("nav[aria-label='Breadcrumb'] summary").TextContent));
+        Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
+        navigation.NavigateTo("/operate/data");
+        layout.WaitForAssertion(() => Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        Assert.DoesNotContain("Bridges", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
+    }
+
+    [Theory]
+    [InlineData("cold")]
+    [InlineData("after-render")]
+    [InlineData("later-page")]
+    public void ColdLayerNavigationResolvesAuthorizedAncestryWithoutExpandingTheSidebar(string entry)
+    {
+        var service = new ServiceSummary
+        {
+            ServiceName = "z-parcels",
+            FolderId = "public",
+            FolderName = "Public",
+            Title = "Parcels",
+            LayerCount = 1
+        };
+        var source = new PublicationNavigationSource
+        {
+            ServiceSummaries = entry == "later-page"
+                ? Enumerable.Range(0, 100).Select(index => new ServiceSummary { ServiceName = $"empty-{index:D3}" }).Append(service).ToArray()
+                : [service]
+        };
+        using var context = PublicationLayoutContext(source);
+        var navigation = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        if (entry != "after-render") navigation.NavigateTo("/operate/layers/connection-one-layer-7/style");
+        var layout = RenderLayerLayout(context);
+        if (entry == "after-render")
+        {
+            layout.WaitForAssertion(() => Assert.Single(layout.FindAll("[role='tree']")));
+            navigation.NavigateTo("/operate/layers/connection-one-layer-7");
+        }
+        layout.WaitForAssertion(() => Assert.Equal("Bridges", layout.Find("nav[aria-label='Breadcrumb'] summary").TextContent));
+        var ancestors = layout.FindAll("nav[aria-label='Breadcrumb'] ol > li").Select(item => item.TextContent.Trim()).ToArray();
+        Assert.Contains("Public", ancestors);
+        Assert.Contains("Parcels", ancestors);
+        Assert.Equal(1, source.LayerPageReads);
+        Assert.Empty(source.RequestedServices);
+    }
+
+    [Fact]
+    public void ColdLayerNavigationBoundsReadsAcrossFiveHundredNonEmptyServices()
+    {
+        var source = new PublicationNavigationSource
+        {
+            ServiceSummaries = Enumerable.Range(0, 500).Select(index => new ServiceSummary
+            { ServiceName = $"service-{index:D3}", LayerCount = 10 }).Append(new()
+            { ServiceName = "z-parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 }).ToArray()
+        };
+        using var context = PublicationLayoutContext(source);
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/layers/connection-one-layer-7");
+        var layout = RenderLayerLayout(context);
+        layout.WaitForAssertion(() => Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        Assert.True(source.ChildReads <= 1, $"Cold navigation read {source.ChildReads} services.");
+        Assert.True(source.ServiceReads <= 2, $"Cold navigation read {source.ServiceReads} catalog pages.");
+    }
+
+    [Theory]
+    [InlineData("filter")]
+    [InlineData("show-more")]
+    public void ColdLayerAncestrySurvivesSidebarCatalogChanges(string action)
+    {
+        var source = new PublicationNavigationSource
+        {
+            ServiceSummaries = Enumerable.Range(0, 100).Select(index => new ServiceSummary
+            { ServiceName = $"empty-{index:D3}" }).Append(new()
+            { ServiceName = "z-parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 }).ToArray()
+        };
+        using var context = PublicationLayoutContext(source);
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/layers/connection-one-layer-7");
+        var layout = RenderLayerLayout(context);
+        layout.WaitForAssertion(() => Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        var reads = source.ChildReads;
+        var serviceReads = source.ServiceReads;
+        if (action == "filter") layout.Find("[data-tree-filter]").Input("no-match");
+        else for (var click = 0; click < 4; click++) layout.Find("[data-tree-more='environment']").Click();
+        layout.WaitForAssertion(() => Assert.Equal(serviceReads + 1, source.ServiceReads));
+        layout.WaitForAssertion(() => Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        Assert.Equal(reads, source.ChildReads);
+        Assert.Contains("Parcels", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
+    }
+
+    [Fact]
+    public void ColdLayerNavigationDoesNotExposeAncestryWhenLayersAreForbidden()
+    {
+        var source = new PublicationNavigationSource
+        {
+            ServiceSummaries = [new() { ServiceName = "parcels", FolderId = "public", FolderName = "Public", LayerCount = 1 }],
+            LayerResult = OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>.Denied(OperateSectionStatus.Forbidden, "Layers denied.")
+        };
+        using var context = PublicationLayoutContext(source);
+        context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/operate/layers/connection-one-layer-7");
+        var layout = RenderLayerLayout(context);
+        layout.WaitForAssertion(() => Assert.Equal(1, source.LayerPageReads));
+        Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
+        Assert.DoesNotContain("Parcels", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
+    }
+
+    [Fact]
+    public async Task ColdLayerNavigationRejectsDelayedAncestryAfterAuthenticationChanges()
+    {
+        var source = new PublicationNavigationSource
+        {
+            ServiceSummaries = [new() { ServiceName = "parcels", FolderId = "public", FolderName = "Public", LayerCount = 1 }],
+            PendingLayers = new(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        using var context = new BunitContext();
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("synthetic-operator");
+        ConfigurePublicationLayout(context, source);
+        context.Services.RemoveAll<IAuthorizationService>();
+        context.Services.RemoveAll<IAuthorizationPolicyProvider>();
+        context.Services.AddAuthorizationCore();
+        context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/operate/layers/connection-one-layer-7");
+        var layout = RenderLayerLayout(context);
+        layout.WaitForAssertion(() => Assert.Equal(1, source.LayerPageReads));
+        authorization.SetNotAuthorized();
+        source.PendingLayers.SetResult(source.LayerResult);
+        await layout.InvokeAsync(() => Task.CompletedTask);
+        layout.WaitForAssertion(() => Assert.Empty(layout.FindAll("[role='tree']")));
+        Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
+    }
+
+    [Fact]
+    public void PublicationBreadcrumbDropsFolderWhenTheCatalogBecomesForbidden()
+    {
+        var source = new PublicationNavigationSource
+        {
+            ServiceSummaries = [new() { ServiceName = "parcels", FolderId = "public", FolderName = "Public", LayerCount = 1 }]
+        };
+        using var context = PublicationLayoutContext(source);
+        context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/operate/services/parcels/settings");
+        var layout = RenderLayerLayout(context);
+        layout.WaitForAssertion(() => Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Forbidden, "Catalog access denied.");
+        layout.FindAll("button").Single(button => button.TextContent == "Refresh services").Click();
+        layout.WaitForAssertion(() => Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+    }
+
+    [Fact]
+    public async Task PublicationBreadcrumbDropsFolderWhenAuthenticationIsRevoked()
+    {
+        var source = new PublicationNavigationSource
+        {
+            ServiceSummaries = [new() { ServiceName = "parcels", FolderId = "public", FolderName = "Public", LayerCount = 1 }]
+        };
+        using var context = new BunitContext();
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("synthetic-operator");
+        ConfigurePublicationLayout(context, source);
+        context.Services.RemoveAll<IAuthorizationService>();
+        context.Services.RemoveAll<IAuthorizationPolicyProvider>();
+        context.Services.AddAuthorizationCore();
+        var authentication = context.Services.GetRequiredService<AuthenticationStateProvider>();
+        context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/operate/services/parcels/settings");
+        var layout = RenderLayerLayout(context);
+        layout.WaitForAssertion(() => Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        var publication = layout.FindComponent<CascadingValue<ConsolePublicationTreeContext>>().Instance.Value;
+        var previousPath = publication.Tree.PathTo("/operate/services/parcels/settings");
+        var publish = layout.FindComponent<ConsolePublicationNavigation>().Instance.SelectionChanged;
+        authorization.SetNotAuthorized();
+        Assert.False((await authentication.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated is true);
+        layout.WaitForAssertion(() => Assert.Empty(layout.FindAll("[role='tree']")));
+        layout.WaitForAssertion(() => Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        await layout.InvokeAsync(() => publish.InvokeAsync(previousPath));
+        Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
+    }
+
+    [Fact]
+    public void PublicationBreadcrumbDropsFolderWhenAFilteredReadIsForbidden()
+    {
+        var source = new PublicationNavigationSource
+        {
+            ServiceSummaries = [new() { ServiceName = "parcels", FolderId = "public", FolderName = "Public", LayerCount = 1 }]
+        };
+        using var context = PublicationLayoutContext(source);
+        context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/operate/services/parcels/settings");
+        var layout = RenderLayerLayout(context);
+        layout.WaitForAssertion(() => Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Forbidden, "Catalog access denied.");
+        layout.Find("[data-tree-filter]").Input("parcels");
+        layout.WaitForAssertion(() => Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+    }
+
+    [Fact]
     public void MissingBindingDoesNotSeedATreeOrEnableAnInertFilter()
     {
         using var context = Context();
@@ -164,7 +391,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     public void ShowMoreLoadsTheNextServicePageWhenTheFirstPageIsVisible()
     {
         using var context = Context();
-        var source = new NavigationSource();
+        var source = new PublicationNavigationSource();
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
         var tree = context.Render<ConsolePublicationNavigation>();
         tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
@@ -181,7 +408,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     public void FailedSearchShowsTheFailureAndRetryRestoresTheCatalog()
     {
         using var context = Context();
-        var source = new NavigationSource();
+        var source = new PublicationNavigationSource();
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
         var tree = context.Render<ConsolePublicationNavigation>();
         tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
@@ -207,7 +434,7 @@ public sealed class ConsolePublicationNavigationRenderTests
             DisplayName = "Field",
             ServerBaseUri = new Uri("https://field.example.test")
         });
-        var source = new NavigationSource();
+        var source = new PublicationNavigationSource();
         context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
         var tree = context.Render<ConsolePublicationNavigation>();
@@ -225,7 +452,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     public async Task NewerSearchWinsWhenTheOlderSearchCompletesLast()
     {
         using var context = Context();
-        var source = new NavigationSource();
+        var source = new PublicationNavigationSource();
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
         var tree = context.Render<ConsolePublicationNavigation>();
         tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
@@ -245,7 +472,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     public async Task ShowMoreDoesNotPageASearchThatHasNotSettled()
     {
         using var context = Context();
-        var source = new NavigationSource();
+        var source = new PublicationNavigationSource();
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
         var tree = context.Render<ConsolePublicationNavigation>();
         tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
@@ -265,7 +492,7 @@ public sealed class ConsolePublicationNavigationRenderTests
         using var context = new BunitContext();
         var authorization = context.AddAuthorization();
         authorization.SetAuthorized("first-synthetic-operator");
-        var source = new NavigationSource();
+        var source = new PublicationNavigationSource();
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
         var tree = context.Render<ConsolePublicationNavigation>();
         tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
@@ -309,7 +536,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     public void NavigatingToAFilteredHighIndexServicePreservesItsSelectedRow()
     {
         using var context = Context();
-        var source = new NavigationSource();
+        var source = new PublicationNavigationSource();
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
         var tree = context.Render<ConsolePublicationNavigation>();
         tree.WaitForState(() => tree.FindAll("[role='treeitem']").Count == 26);
@@ -363,15 +590,7 @@ public sealed class ConsolePublicationNavigationRenderTests
         Assert.Equal(2, source.ConnectionReads);
     }
 
-    private static ConsoleEnvironmentProfile ChangedProfile(ConsoleEnvironmentProfile profile, string field) => field switch
-    {
-        "profile" => profile with { Id = "second" },
-        "server" => profile with { ServerBaseUri = new Uri("https://second.example.test") },
-        "account" => profile with { Account = profile.Account with { AccountId = "second-synthetic-account" } },
-        _ => throw new ArgumentOutOfRangeException(nameof(field))
-    };
-
-    private static NavigationSource DelayedSource() => new()
+    private static PublicationNavigationSource DelayedSource() => new()
     {
         PendingLayers = new(TaskCreationOptions.RunContinuationsAsynchronously)
     };
@@ -411,7 +630,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     public async Task FolderReadAndMutationSignalRefreshTheExistingNavigation(bool denied)
     {
         using var context = Context();
-        var source = new NavigationSource();
+        var source = new PublicationNavigationSource();
         var folders = new FolderClient { Denied = denied };
         var changes = new ConsoleFolderChanges();
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
@@ -453,7 +672,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     {
         using var context = Context();
         var authority = new VerificationAuthority { Current = outcome != "changed-before" };
-        var source = new NavigationSource { ServiceSummaries = outcome == "not-found" ? [] : null };
+        var source = new PublicationNavigationSource { ServiceSummaries = outcome == "not-found" ? [] : null };
         var changes = new ConsoleFolderChanges();
         var reloads = 0;
         changes.Changed += () => reloads++;
@@ -494,82 +713,4 @@ public sealed class ConsolePublicationNavigationRenderTests
         return context;
     }
 
-    private sealed class NavigationSource : IConsolePublicationNavigationSource
-    {
-        public IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary>? ServiceSummaries { get; init; }
-        public OperateSectionResult<HonuaAdminServicePage>? FailNext { get; set; }
-        public int HoldCount { get; set; }
-        public int ServiceReads { get; private set; }
-        public Action? OnServiceRead { get; set; }
-        private readonly Queue<TaskCompletionSource<OperateSectionResult<HonuaAdminServicePage>?>> _holds = new();
-        public HonuaAdminCatalogQuery LastQuery { get; private set; }
-        public TaskCompletionSource<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>>? PendingLayers { get; set; }
-        public IReadOnlyList<string> ConnectionKeys { get; set; } = ["connection-one"];
-        public List<IReadOnlyList<string>> RequestedConnectionSets { get; } = [];
-        public int ChildReads { get; private set; }
-        public int ConnectionReads { get; private set; }
-        public List<string> RequestedServices { get; } = [];
-        public OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>> LayerResult { get; set; } =
-            OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>.Allowed([new("connection-one-layer-7", "Bridges", "LineString")]);
-        public async Task<OperateSectionResult<HonuaAdminServicePage>> ReadServicesAsync(
-            HonuaAdminCatalogQuery query, CancellationToken cancellationToken)
-        {
-            ServiceReads++;
-            OnServiceRead?.Invoke();
-            LastQuery = query;
-            if (HoldCount > 0)
-            {
-                HoldCount--;
-                var gate = new TaskCompletionSource<OperateSectionResult<HonuaAdminServicePage>?>(
-                    TaskCreationOptions.RunContinuationsAsynchronously);
-                _holds.Enqueue(gate);
-                var held = await gate.Task;
-                if (held is { } heldResult) return heldResult;
-            }
-            if (FailNext is { } failed)
-            {
-                FailNext = null;
-                return failed;
-            }
-
-            var services = ServiceSummaries?.ToArray() ?? Enumerable.Range(0, 500)
-                .Select(index => new Honua.Sdk.Admin.Models.ServiceSummary { ServiceName = $"service-{index:D3}", LayerCount = 10 })
-                .ToArray();
-            if (!string.IsNullOrWhiteSpace(query.NameQuery))
-            {
-                services = services.Where(service =>
-                    service.ServiceName?.Contains(query.NameQuery, StringComparison.OrdinalIgnoreCase) == true
-                    || service.Title?.Contains(query.NameQuery, StringComparison.OrdinalIgnoreCase) == true
-                    || service.PublicName?.Contains(query.NameQuery, StringComparison.OrdinalIgnoreCase) == true).ToArray();
-            }
-
-            var pageSize = query.PageSize <= 0 ? HonuaAdminCatalogQuery.MaxPageSize : query.PageSize;
-            var start = Math.Max(0, query.Page - 1) * pageSize;
-            var pageItems = services.Skip(start).Take(pageSize).ToArray();
-            return OperateSectionResult<HonuaAdminServicePage>.Allowed(new HonuaAdminServicePage
-            {
-                Items = pageItems,
-                Page = query.Page,
-                PageSize = pageSize,
-                Total = services.Length,
-                LayerTotal = services.Sum(service => service.LayerCount)
-            });
-        }
-
-        public void ReleaseNext(OperateSectionResult<HonuaAdminServicePage>? result = null) =>
-            _holds.Dequeue().SetResult(result);
-        public Task<OperateSectionResult<IReadOnlyList<string>>> ReadConnectionsAsync(CancellationToken cancellationToken)
-        {
-            ConnectionReads++;
-            return Task.FromResult(OperateSectionResult<IReadOnlyList<string>>.Allowed(ConnectionKeys));
-        }
-        public Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>> ReadLayersAsync(
-            string serviceName, IReadOnlyList<string> connectionKeys, CancellationToken cancellationToken)
-        {
-            ChildReads++;
-            RequestedServices.Add(serviceName);
-            RequestedConnectionSets.Add(connectionKeys.ToArray());
-            return PendingLayers?.Task ?? Task.FromResult(LayerResult);
-        }
-    }
 }
