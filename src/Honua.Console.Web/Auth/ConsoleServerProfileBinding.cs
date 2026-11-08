@@ -9,7 +9,7 @@ internal static class ConsoleServerProfileBinding
 {
     public static string Capture(ConsoleEnvironmentProfile profile) => Convert.ToHexString(SHA256.HashData(
         JsonSerializer.SerializeToUtf8Bytes(new ConsoleServerProfileBindingValue(
-            profile.Id, profile.ServerBaseUri.AbsoluteUri, profile.TenantId, profile.Account.AccountId, profile.UpdatedAt),
+            profile.Id, profile.ServerBaseUri.AbsoluteUri, profile.EffectiveTenantId(), profile.Account.AccountId, profile.UpdatedAt),
             ConsoleServerProfileBindingJsonContext.Default.ConsoleServerProfileBindingValue)));
 }
 

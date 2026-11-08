@@ -41,7 +41,7 @@ internal sealed class ConsoleHumanProposalSession(
             if (result is not { Proposal: { } proposal, Review: { } review }
                 || proposal.ProposalId != proposalId || review.ProposalId != proposalId
                 || proposal.Status != "AwaitingApproval" || proposal.Version != review.ProposalVersion
-                || review.TenantId != (string.IsNullOrEmpty(bound.TenantId) ? null : bound.TenantId)
+                || review.TenantId != (bound.IsTenantScoped() ? bound.EffectiveTenantId() : null)
                 || string.IsNullOrEmpty(proposal.PlanHash) || proposal.PlanHash != review.PlanHash
                 || string.IsNullOrEmpty(review.Capability) || review.Capability.Length > 16384
                 || review.ExpiresAt <= clock.GetUtcNow()
