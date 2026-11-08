@@ -35,7 +35,7 @@ internal sealed class ConsoleServerSessionIdentityBinding(
             return true;
         }
 
-        var snapshots = use == ConsoleServerSessionUse.OperatorBearer
+        var snapshots = request.Authority == ConsoleServerAuthority.Serving
             ? sessions as IConsoleAccountSessionSnapshotStore
                 ?? throw new InvalidOperationException("Hosted server identity binding requires conditional session storage.")
             : null;
@@ -104,6 +104,7 @@ internal sealed record ConsoleServerSessionIdentityRequest
     public required ConsoleEnvironmentProfile Profile { get; init; }
     public required string OperatorKey { get; init; }
     public required string? ProviderKey { get; init; }
+    public ConsoleServerAuthority Authority { get; init; }
 }
 
 internal enum ConsoleServerSessionUse

@@ -729,6 +729,7 @@ public sealed partial class ConsoleServerSessionIdentityBindingTests
         var accepted = await harness.Binding.EnsureHumanSessionAsync(new ConsoleServerSessionIdentityRequest
         {
             Partition = partition, Profile = manager, OperatorKey = "operator-a", ProviderKey = "oidc",
+            Authority = ConsoleServerAuthority.Management,
         }, default);
 
         Assert.Equal(identityMatches, accepted);

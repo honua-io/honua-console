@@ -12,12 +12,14 @@ public sealed class DualConsoleProposalsClient(
 
     private async Task<bool?> HasSeparateManager(CancellationToken cancellationToken)
     {
-        if (endpoint is null) return false;
         var profile = await profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         if (profile is null) return null;
-        var target = endpoint.Resolve(profile.ServerBaseUri);
-        if (target is null) return null;
-        return new Uri(target.AbsoluteUri.TrimEnd('/') + "/") != new Uri(profile.ServerBaseUri.AbsoluteUri.TrimEnd('/') + "/");
+        return ConsoleManagementBinding.Resolve(endpoint, profile.ServerBaseUri).Status switch
+        {
+            ConsoleManagementBindingStatus.Separate => true,
+            ConsoleManagementBindingStatus.ServingOnly => false,
+            _ => null
+        };
     }
 
     public async Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(

@@ -4,9 +4,7 @@ using Honua.Console.Shell.Services;
 namespace Honua.Console.Web.Auth;
 
 internal sealed class ConsoleAuthenticatedServerSession(
-    ConsoleServerSessionPartition partition,
-    ConsoleEnvironmentProfile boundProfile,
-    string operatorKey,
+    ConsoleServerSessionIdentityRequest identity,
     ConsoleServerSessionIdentityBinding? identityBinding,
     IDisposable authentication) : IConsoleOperatorBearerExchangeLease
 {
@@ -17,16 +15,12 @@ internal sealed class ConsoleAuthenticatedServerSession(
     {
         if (!MatchesScope(profile))
             return null;
-        if (identityBinding is null) return partition;
-        var request = new ConsoleServerSessionIdentityRequest
-        {
-            Partition = partition, Profile = profile,
-            OperatorKey = operatorKey, ProviderKey = partition.AuthenticatedProviderKey,
-        };
+        if (identityBinding is null) return identity.Partition;
+        var request = identity with { Profile = profile, ProviderKey = identity.Partition.AuthenticatedProviderKey };
         var valid = use == ConsoleServerSessionUse.HumanDecision
             ? await identityBinding.EnsureHumanSessionAsync(request, cancellationToken).ConfigureAwait(false)
             : await identityBinding.EnsureAsync(request, cancellationToken).ConfigureAwait(false);
-        return valid ? partition : null;
+        return valid ? identity.Partition : null;
     }
 
     public async Task<ConsoleOperatorBearerExchangeResult> ExchangeAsync(
@@ -34,7 +28,7 @@ internal sealed class ConsoleAuthenticatedServerSession(
     {
         try
         {
-            if (!MatchesScope(profile)) return ConsoleOperatorBearerExchangeResult.Unavailable(
+            if (!MatchesScope(profile) || identity.Authority != ConsoleServerAuthority.Serving) return ConsoleOperatorBearerExchangeResult.Unavailable(
                 "The authenticated environment scope changed.");
             var verified = await VerifyAsync(profile, ConsoleServerSessionUse.OperatorBearer, cancellationToken).ConfigureAwait(false);
             if (verified is null)
@@ -51,7 +45,7 @@ internal sealed class ConsoleAuthenticatedServerSession(
     }
 
     private bool MatchesScope(ConsoleEnvironmentProfile profile) => _authentication is not null
-        && profile.Id == boundProfile.Id && profile.ServerBaseUri == boundProfile.ServerBaseUri;
+        && profile.Id == identity.Profile.Id && profile.ServerBaseUri == identity.Profile.ServerBaseUri;
 
     public void Dispose() => Interlocked.Exchange(ref _authentication, null)?.Dispose();
 }

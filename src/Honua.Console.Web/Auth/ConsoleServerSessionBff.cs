@@ -14,7 +14,10 @@ namespace Honua.Console.Web.Auth;
 internal sealed record ConsoleServerSessionPartitionKey(
     string OperatorKey,
     string ProfileId,
-    string ServerOrigin);
+    string ServerBaseUri)
+{
+    public string ServerOrigin => ConsoleServerSessionClientStore.NormalizeOrigin(new Uri(ServerBaseUri)).AbsoluteUri;
+}
 
 internal sealed record ConsoleServerSignInTarget(
     string ProfileId, ConsoleServerAuthority Authority, string? ProviderKey);
@@ -94,7 +97,7 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
     }
 }
 
-// Cookie sessions are partitioned by operator, profile, and origin, and a process restart discards them so the server must authenticate again.
+// A process restart discards these sessions, requiring a fresh server sign-in.
 internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
 {
     private const int MaximumPartitions = 2_048;
@@ -147,7 +150,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
 
         var now = _timeProvider.GetUtcNow();
         var origin = NormalizeOrigin(profile.ServerBaseUri);
-        var key = new ConsoleServerSessionPartitionKey(operatorKey, profile.Id, origin.AbsoluteUri);
+        var key = new ConsoleServerSessionPartitionKey(operatorKey, profile.Id, profile.ServerBaseUri.AbsoluteUri);
         List<ConsoleServerSessionPartition>? discarded = null;
 
         lock (_gate)
@@ -182,7 +185,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
             var cookies = new CookieContainer();
             var client = new HttpClient(_handlerFactory(key, cookies), disposeHandler: true)
             {
-                BaseAddress = origin,
+                BaseAddress = profile.ServerBaseUri,
                 Timeout = TimeSpan.FromSeconds(30)
             };
             var partition = new ConsoleServerSessionPartition(key, cookies, client, now, _timeProvider);
@@ -200,7 +203,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         var key = new ConsoleServerSessionPartitionKey(
             operatorKey,
             profile.Id,
-            NormalizeOrigin(profile.ServerBaseUri).AbsoluteUri);
+            profile.ServerBaseUri.AbsoluteUri);
         ConsoleServerSessionPartition? removed = null;
         lock (_gate)
         {
@@ -284,7 +287,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         var key = new ConsoleServerSessionPartitionKey(
             operatorKey,
             profile.Id,
-            NormalizeOrigin(profile.ServerBaseUri).AbsoluteUri);
+            profile.ServerBaseUri.AbsoluteUri);
         lock (_gate)
         {
             if (!_partitions.TryGetValue(key, out partition))
@@ -632,15 +635,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
     }
 
     private ConsoleEnvironmentProfile? ResolveAuthorityProfile(ConsoleEnvironmentProfile selected, ConsoleServerAuthority authority)
-    {
-        var target = authority switch
-        {
-            ConsoleServerAuthority.Serving => selected.ServerBaseUri,
-            ConsoleServerAuthority.Management => _management?.Resolve(selected.ServerBaseUri),
-            _ => null
-        };
-        return target is null ? null : selected with { ServerBaseUri = target };
-    }
+        => ConsoleManagementBinding.Resolve(_management, selected.ServerBaseUri).ForAuthority(selected, authority);
 
     public async Task<ConsoleServerSignInResult> CompleteSignInAsync(
         string? code,
@@ -664,7 +659,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
         var selected = await _profiles.GetProfileAsync(pending.ProfileId, cancellationToken).ConfigureAwait(false);
         var profile = selected is null ? null : ResolveAuthorityProfile(selected, pending.Authority);
         if (profile is null || !SameServer(profile.ServerBaseUri, pending.ServerBaseUri)
-            || (pending.ProfileBinding is not null && pending.ProfileBinding != ConsoleServerProfileBinding.Capture(selected!)))
+            || pending.ProfileBinding != ConsoleServerProfileBinding.Capture(selected!))
         {
             return Denied("The environment profile changed while server sign-in was in progress.", pending.ReturnTo);
         }
@@ -699,6 +694,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
             {
                 Partition = partition, Profile = profile,
                 OperatorKey = operatorKey, ProviderKey = pending.ProviderKey,
+                Authority = pending.Authority,
             };
             var identityMatches = _identityBinding is null || (pending.Authority == ConsoleServerAuthority.Management
                 ? await _identityBinding.EnsureHumanSessionAsync(identityRequest, cancellationToken).ConfigureAwait(false)
@@ -895,12 +891,21 @@ internal sealed class PartitionedConsoleOperatorBearerExchange : IConsoleOperato
     }
 
     internal async Task<ConsoleAuthenticatedServerSession?> EnterPrivateSessionAsync(
-        ConsoleEnvironmentProfile profile, CancellationToken cancellationToken)
+        ConsoleEnvironmentProfile profile, CancellationToken cancellationToken) =>
+        await EnterPrivateSessionAsync(profile, ConsoleServerAuthority.Serving, cancellationToken).ConfigureAwait(false);
+
+    internal async Task<ConsoleAuthenticatedServerSession?> EnterPrivateSessionAsync(
+        ConsoleEnvironmentProfile profile, ConsoleServerAuthority authority, CancellationToken cancellationToken)
     {
         var operatorKey = _operatorContext.RequireOperatorKey();
         if (!_serverSessions.TryGet(operatorKey, profile, out var partition) || partition is null) return null;
         var authentication = await partition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
-        return new ConsoleAuthenticatedServerSession(partition, profile, operatorKey, _identityBinding, authentication);
+        var request = new ConsoleServerSessionIdentityRequest
+        {
+            Partition = partition, Profile = profile, OperatorKey = operatorKey,
+            ProviderKey = partition.AuthenticatedProviderKey, Authority = authority
+        };
+        return new ConsoleAuthenticatedServerSession(request, _identityBinding, authentication);
     }
 
     private sealed class UnavailableLease(ConsoleOperatorBearerExchangeResult result) : IConsoleOperatorBearerExchangeLease
