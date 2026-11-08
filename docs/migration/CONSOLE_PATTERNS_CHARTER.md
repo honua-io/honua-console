@@ -231,3 +231,10 @@ by their supported projections. No local mutation policy, proposal diff, live
 indicator or server state is synthesized by this slice. Discovery endpoint and
 Open Data access navigation groups under Catalogs only when its flag is on;
 existing public readers and item controls remain routed.
+
+The experimental `/catalogs/{id}/settings` route shares the same flag, source and
+authentication boundary as the overview. It displays a read-only configuration
+projection; no save/proposal operation is wired until the canonical contract is
+available. A copyable embed snippet is offered only when that projection supplies
+a released HTTPS component bundle and SHA-384 integrity. The snippet is escaped
+text, never executed by Console. No fixtures are registered by the production host.

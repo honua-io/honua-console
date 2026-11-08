@@ -1,0 +1,8 @@
+@page "/catalogs/{CatalogId}/settings"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<CatalogAdminPage CatalogId="@CatalogId" Section="settings" />
+
+@code {
+    [Parameter] public string CatalogId { get; set; } = string.Empty;
+}
