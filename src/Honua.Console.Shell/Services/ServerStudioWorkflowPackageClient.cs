@@ -1,10 +1,12 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
+// The mutable graph is saved separately from immutable versions; execution always uses a validated version.
 public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageClient
 {
     internal const string Surface = "Studio workflow.package";
@@ -136,12 +138,11 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
     {
         ArgumentNullException.ThrowIfNull(draft);
 
-        var policyIssue = UnsupportedFailureMode(draft);
+        var policyIssue = ValidateFailureMode(draft);
         if (policyIssue is not null)
         {
-            draft.CurrentVersionId = string.Empty;
             draft.ValidationIssues = [policyIssue];
-            return new StudioWorkflowSaveResult { ValidationIssues = [policyIssue] };
+            return new StudioWorkflowSaveResult { ContentItemId = draft.ContentItemId, ValidationIssues = [policyIssue] };
         }
 
         var (package, persistIssue) = await PersistPackageAsync(draft, cancellationToken).ConfigureAwait(false);
@@ -205,10 +206,15 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
     {
         ArgumentNullException.ThrowIfNull(draft);
 
-        var (handle, issue) = await EnsureVersionAsync(draft, cancellationToken).ConfigureAwait(false);
-        if (handle is null)
+        var resolution = await EnsureVersionAsync(draft, cancellationToken).ConfigureAwait(false);
+        if (resolution.Handle is not { } handle)
         {
-            return new StudioWorkflowDryRunResult { Status = "blocked", BindingState = ToBindingState(issue) };
+            return new StudioWorkflowDryRunResult
+            {
+                Status = "blocked", BindingState = resolution.BindingState,
+                ValidationIssues = resolution.ValidationIssues,
+                Logs = resolution.ValidationIssues.Select(issue => issue.Message).ToArray()
+            };
         }
 
         var dryRun = await _api.DryRunVersionAsync(handle.PackageId, handle.Version, cancellationToken)
@@ -227,10 +233,14 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
     {
         ArgumentNullException.ThrowIfNull(draft);
 
-        var (handle, ensureIssue) = await EnsureVersionAsync(draft, cancellationToken).ConfigureAwait(false);
-        if (handle is null)
+        var resolution = await EnsureVersionAsync(draft, cancellationToken).ConfigureAwait(false);
+        if (resolution.Handle is not { } handle)
         {
-            return new StudioWorkflowPublishResult { Status = "blocked", BindingState = ToBindingState(ensureIssue) };
+            return new StudioWorkflowPublishResult
+            {
+                Status = "blocked", BindingState = resolution.BindingState,
+                ValidationIssues = resolution.ValidationIssues
+            };
         }
 
         var target = MapPublicationTarget(draft.PublicationIntent);
@@ -371,7 +381,6 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
         StudioWorkflowPackageDraft draft,
         CancellationToken cancellationToken)
     {
-        ApplyEditedRetryDefaults(draft);
         var request = ToSaveRequest(draft);
         var result = string.IsNullOrWhiteSpace(draft.ContentItemId)
             ? await _api.CreatePackageAsync(request, cancellationToken).ConfigureAwait(false)
@@ -391,38 +400,25 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
     // Reuses the saved immutable version when the draft already points at one; otherwise persists the draft
     // and creates a fresh version. Dry-run/publish operate on versions, so the editor saves dirty edits
     // first (page guard) and this reuses that snapshot - no redundant version churn per click.
-    private async Task<(VersionHandle? Handle, WorkflowEndpointIssue? Issue)> EnsureVersionAsync(
+    private async Task<VersionResolution> EnsureVersionAsync(
         StudioWorkflowPackageDraft draft,
         CancellationToken cancellationToken)
     {
-        if (UnsupportedFailureMode(draft) is { } policyIssue)
-        {
-            draft.ValidationIssues = [policyIssue];
-            draft.CurrentVersionId = string.Empty;
-            return (null, new WorkflowEndpointIssue("Validation", "workflow execution", policyIssue.Message, 400));
-        }
-
         if (!string.IsNullOrWhiteSpace(draft.ContentItemId) &&
             TryParseVersion(draft.CurrentVersionId, out var existing))
         {
-            return (new VersionHandle(draft.ContentItemId, existing), null);
+            var issue = ValidateFailureMode(draft);
+            return issue is null
+                ? new VersionResolution(new VersionHandle(draft.ContentItemId, existing), null, [])
+                : new VersionResolution(null, null, [issue]);
         }
 
-        var (package, persistIssue) = await PersistPackageAsync(draft, cancellationToken).ConfigureAwait(false);
-        if (package is null)
-        {
-            return (null, persistIssue);
-        }
-
-        var version = await _api.CreateVersionAsync(package.PackageId, cancellationToken).ConfigureAwait(false);
-        if (!version.IsSuccess || version.Data is null)
-        {
-            return (null, version.Issue);
-        }
-
-        ApplyVersionToDraft(draft, version.Data);
-        draft.ValidationIssues = MapValidation(version.Data.Validation);
-        return (new VersionHandle(package.PackageId, version.Data.Version), null);
+        var saved = await SaveVersionAsync(draft, string.Empty, cancellationToken).ConfigureAwait(false);
+        var handle = saved.BindingState is null && !saved.ValidationIssues.Any(issue => issue.Severity == "error")
+            && TryParseVersion(saved.VersionId, out var version)
+            ? new VersionHandle(saved.ContentItemId, version)
+            : null;
+        return new VersionResolution(handle, saved.BindingState, saved.ValidationIssues);
     }
 
     private static void ApplyVersionToDraft(StudioWorkflowPackageDraft draft, WorkflowPackageVersion version)
@@ -490,18 +486,18 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
         IReadOnlyList<StudioWorkflowNodeDefinition> definitions)
     {
         var definitionsByType = definitions.ToDictionary(definition => definition.Type, StringComparer.Ordinal);
-        var editorState = ReadAuthoringState(package.Graph);
+        var authoringState = ReadAuthoringState(package.Graph);
 
         var nodes = (package.Graph?.Nodes ?? [])
             .Select((node, index) => ToNode(node, index, definitionsByType))
             .ToList();
         var edges = (package.Graph?.Edges ?? []).Select(ToEdge).ToList();
 
-        if (editorState.RetryPolicy is { } legacyRetry && (package.Graph?.Nodes ?? []).All(node => node.RetryPolicy is null))
+        if (authoringState.RetryPolicy is { } legacyRetry && (package.Graph?.Nodes ?? []).All(node => node.RetryPolicy is null))
         {
             foreach (var node in nodes)
             {
-                node.RetryPolicy = ExecutableRetry(legacyRetry);
+                node.RetryPolicy = legacyRetry.ToExecutionPolicy();
             }
         }
 
@@ -525,17 +521,17 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
             Summary = package.Description ?? string.Empty,
             Nodes = nodes,
             Edges = edges,
-            Parameters = editorState.Parameters,
-            Schedule = ToSchedule(package.Graph?.Schedule, editorState.ScheduleMode),
-            WorkerProfile = ResolveWorkerProfile(package.Graph?.WorkerProfile, editorState.WorkerProfile),
-            RetryPolicy = DefaultRetryPolicy(package.Graph, editorState.RetryPolicy),
-            PublicationIntent = editorState.PublicationIntent,
-            OutputSchemas = editorState.OutputSchemas,
+            Parameters = authoringState.Parameters,
+            Schedule = ToSchedule(package.Graph?.Schedule, authoringState.ScheduleMode),
+            WorkerProfile = ResolveWorkerProfile(package.Graph?.WorkerProfile, authoringState.WorkerProfile),
+            RetryPolicy = GlobalRetryFromGraph(package.Graph, authoringState.RetryPolicy),
+            PublicationIntent = authoringState.PublicationIntent,
+            OutputSchemas = authoringState.OutputSchemas,
             CreatedAt = package.CreatedAt,
             UpdatedAt = package.UpdatedAt,
             LastSavedAt = package.LatestVersion.HasValue ? package.UpdatedAt : null
         };
-        draft.AppliedRetryDefaults = RetryDefaults(draft.RetryPolicy);
+        draft.RetryPolicy.FailureMode = authoringState.FailureMode ?? authoringState.RetryPolicy?.FailureMode ?? "route-failure-edges";
         return draft;
     }
 
@@ -564,7 +560,7 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
             Row = ReadInt(metadata, NodeRowKey) ?? 1,
             InputPorts = definition?.InputPorts.ToList() ?? [],
             OutputPorts = definition?.OutputPorts.ToList() ?? [],
-            RetryPolicy = node.RetryPolicy ?? new StepRetryPolicy { MaxAttempts = 1, InitialDelaySeconds = 0 },
+            RetryPolicy = node.RetryPolicy,
             FailurePolicy = node.FailurePolicy,
             TimeoutSeconds = node.TimeoutSeconds,
             Condition = node.Condition,
@@ -593,7 +589,7 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
 
     private SaveWorkflowPackageRequest ToSaveRequest(StudioWorkflowPackageDraft draft)
     {
-        var nodes = draft.Nodes.Select(node => ToExecutableNode(node, draft.RetryPolicy)).ToList();
+        var nodes = draft.Nodes.Select(ToExecutableNode).ToList();
         var edges = draft.Edges.Select(ToExecutableEdge).ToList();
 
         var editorMetadata = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -854,6 +850,7 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
         var state = new WorkflowAuthoringState
         {
             Parameters = draft.Parameters,
+            FailureMode = draft.RetryPolicy.FailureMode,
             PublicationIntent = draft.PublicationIntent,
             OutputSchemas = draft.OutputSchemas,
             ScheduleMode = draft.Schedule.Mode,
@@ -918,12 +915,19 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
 
     private sealed record VersionHandle(string PackageId, int Version);
 
+    private sealed record VersionResolution(
+        VersionHandle? Handle,
+        StudioWorkflowBindingState? BindingState,
+        IReadOnlyList<StudioWorkflowValidationIssue> ValidationIssues);
+
     // Editor-only authoring fields the server graph does not model first-class. Persisted into the server's
     // opaque graph editor metadata so they round-trip without fabricating server-owned data.
     private sealed class WorkflowAuthoringState
     {
         public List<StudioWorkflowParameter> Parameters { get; set; } = [];
-        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public string? FailureMode { get; set; }
+        // Older drafts carry retry settings here; saves migrate them into executable node fields.
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public StudioWorkflowRetryPolicy? RetryPolicy { get; set; }
         public StudioWorkflowPublicationIntent PublicationIntent { get; set; } = new();
         public List<StudioWorkflowOutputSchema> OutputSchemas { get; set; } = [];

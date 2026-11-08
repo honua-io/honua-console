@@ -61,6 +61,7 @@ public sealed partial class ServerStudioWorkflowPackageClientTests
         var draft = await NewDraftWithSinkAsync(client);
         draft.Parameters.Add(new StudioWorkflowParameter { Name = "county", Type = "string", Required = true });
         draft.RetryPolicy.MaxAttempts = 7;
+        draft.ApplyRetryToAllNodes();
         draft.PublicationIntent.Mode = StudioWorkflowContractValues.PublicationModeScheduledJob;
         draft.PublicationIntent.RouteSlug = "nightly-normalizer";
 

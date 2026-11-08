@@ -24,7 +24,14 @@ public static class StudioWorkflowContractValues
 
 public sealed class StudioWorkflowPackageDraft
 {
-    internal (int MaxAttempts, int BackoffSeconds, string FailureMode)? AppliedRetryDefaults { get; set; }
+    public void ApplyRetryToAllNodes()
+    {
+        var policy = RetryPolicy.ToExecutionPolicy();
+        foreach (var node in Nodes)
+        {
+            node.RetryPolicy = policy;
+        }
+    }
 
     public string DraftId { get; set; } = string.Empty;
     public string ContentItemId { get; set; } = string.Empty;
@@ -138,6 +145,14 @@ public sealed class StudioWorkflowWorkerProfile
 
 public sealed class StudioWorkflowRetryPolicy
 {
+    public StepRetryPolicy ToExecutionPolicy() => new()
+    {
+        MaxAttempts = MaxAttempts,
+        InitialDelaySeconds = BackoffSeconds,
+        BackoffMultiplier = 1,
+        MaxDelaySeconds = Math.Max(1, BackoffSeconds)
+    };
+
     public int MaxAttempts { get; set; } = 3;
     public int BackoffSeconds { get; set; } = 60;
     public string FailureMode { get; set; } = "route-failure-edges";
@@ -197,6 +212,8 @@ public sealed class StudioWorkflowSaveResult
 
 public sealed class StudioWorkflowDryRunResult
 {
+    public IReadOnlyList<StudioWorkflowValidationIssue> ValidationIssues { get; set; } = [];
+
     public string JobId { get; set; } = string.Empty;
     public string JobKind { get; set; } = StudioWorkflowContractValues.DryRunJobKind;
     public string Status { get; set; } = "queued";
