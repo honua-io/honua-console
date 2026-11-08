@@ -147,7 +147,7 @@ jobs:
         working-directory: e2e/playwright
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: ../../artifacts/live-journey/playwright-results.json
-        run: npx --no-install playwright test --config playwright.live.config.ts --reporter=list,json > ../../artifacts/live-journey/playwright.log
+        run: npx --no-install playwright test --config playwright.live.config.ts --project=chromium --reporter=list,json > ../../artifacts/live-journey/playwright.log
       - name: Retain server diagnostics
         if: always()
         run: |

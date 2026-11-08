@@ -24,3 +24,7 @@ INSERT INTO public.e2e_settings_src SELECT * FROM public.e2e_golive_src ON CONFL
 CREATE TABLE IF NOT EXISTS public.e2e_types_src (LIKE public.e2e_golive_src INCLUDING ALL);
 
 INSERT INTO public.e2e_types_src SELECT * FROM public.e2e_golive_src ON CONFLICT (id) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS public.e2e_folder_src (LIKE public.e2e_golive_src INCLUDING ALL);
+
+INSERT INTO public.e2e_folder_src SELECT * FROM public.e2e_golive_src ON CONFLICT (id) DO NOTHING;

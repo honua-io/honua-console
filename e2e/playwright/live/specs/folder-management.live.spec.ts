@@ -42,7 +42,7 @@ test('manage Folder membership through the human UI and preserve saved public pa
   await page.locator('.publish-wizard-next').click();
   await page.locator('[data-connection-picker]').selectOption(connection.connectionId);
   await expect(page.locator('[data-table-picker]')).toBeEnabled({ timeout: 60_000 });
-  await page.locator('[data-table-picker]').selectOption(SOURCE_DB.table);
+  await page.locator('[data-table-picker]').selectOption(SOURCE_DB.folderTable);
   await page.locator('[data-layer-name]').fill('Folder parcels');
   await page.locator('.publish-wizard-next').click();
   await page.locator('.publish-wizard-finish').click();

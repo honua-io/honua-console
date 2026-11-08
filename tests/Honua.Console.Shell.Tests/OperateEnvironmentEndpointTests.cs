@@ -30,6 +30,27 @@ public sealed class OperateEnvironmentEndpointTests
     }
 
     [Theory]
+    [InlineData("services")]
+    [InlineData("layers")]
+    [InlineData("workspace")]
+    public async Task FolderPublicPathsUseTheActiveEnvironmentAndKeepLogicalIdentity(string surface)
+    {
+        using var fixture = new EnvironmentFixture();
+        fixture.Handler.ServiceJson = """{"success":true,"data":{"items":[{"serviceName":"logical-id","title":"Display title","publicName":"Public parcels","folderId":"survey","folderName":"Survey North","folderMutationIssues":["Review publication path."],"layerCount":0,"enabledProtocols":["FeatureServer","Wms"]}],"page":1,"pageSize":100,"total":1}}""";
+        await fixture.Profiles.ActivateProfileAsync("active");
+        var (services, _) = await ReadAsync(fixture.Source, surface);
+        var service = Assert.Single(services);
+        Assert.Equal("logical-id", service.Name);
+        Assert.Equal("Display title", service.DisplayName);
+        Assert.Equal("survey", service.FolderId);
+        Assert.Equal("Review publication path.", Assert.Single(service.FolderMutationIssues));
+        Assert.Equal("https://active.example/active-mount/rest/services/Survey%20North/Public%20parcels/FeatureServer",
+            service.PublicationSlots.Single(slot => slot.Name == "FeatureServer").Url);
+        Assert.Equal("https://active.example/active-mount/ogc/services/Survey%20North/Public%20parcels/wms",
+            service.PublicationSlots.Single(slot => slot.Name == "Wms").Url);
+    }
+
+    [Theory]
     [InlineData("services", "switch")]
     [InlineData("layers", "switch")]
     [InlineData("workspace", "switch")]
@@ -184,6 +205,7 @@ public sealed class OperateEnvironmentEndpointTests
     {
         public List<Uri> Requests { get; } = [];
         public Func<Task>? BeforeServiceResponse { get; set; }
+        public string? ServiceJson { get; set; }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -193,7 +215,7 @@ public sealed class OperateEnvironmentEndpointTests
             if (path.EndsWith("/services/", StringComparison.Ordinal))
             {
                 if (BeforeServiceResponse is { } before) await before();
-                json = """{"success":true,"data":{"items":[{"serviceName":"Places North","layerCount":0,"enabledProtocols":["FeatureServer","Wms","OgcFeatures"]}],"page":1,"pageSize":100,"total":1}}""";
+                json = ServiceJson ?? """{"success":true,"data":{"items":[{"serviceName":"Places North","layerCount":0,"enabledProtocols":["FeatureServer","Wms","OgcFeatures"]}],"page":1,"pageSize":100,"total":1}}""";
             }
             else if (path.EndsWith("/connections/", StringComparison.Ordinal)) json = """{"success":true,"data":[]}""";
             else if (path.EndsWith("/settings", StringComparison.Ordinal)) json = """{"success":true,"data":{"serviceName":"Places North"}}""";
