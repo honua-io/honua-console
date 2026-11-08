@@ -6,6 +6,25 @@ namespace Honua.Console.IntegrationTests;
 public sealed partial class ConsoleHumanProposalBffTests
 {
     [Fact]
+    public async Task BrowserStatus_PendingProposal_DiscardsOldCapabilityWithoutOpeningAReview()
+    {
+        await using var host = await Host.StartAsync();
+        var review = (await host.OpenReviewAsync()).Value!;
+
+        var result = await host.ReadStatusAsync();
+        var oldDecision = await host.DecideAsync(new("proposal", review.Proposal.Version,
+            review.Proposal.PlanHash!, review.EnvironmentReference));
+
+        Assert.True(result.IsAllowed);
+        Assert.Equal("AwaitingApproval", result.Value!.Status);
+        Assert.Equal(1, host.ReviewCalls);
+        Assert.Equal(1, host.ReadCalls);
+        Assert.Null(host.TakeCachedExpiry());
+        Assert.False(oldDecision.IsAllowed);
+        Assert.Equal(0, host.ApprovalCalls);
+    }
+
+    [Fact]
     public async Task BrowserReview_ServerClockOneSecondAhead_AllowsReviewWithBoundedLocalExpiry()
     {
         await using var host = await Host.StartAsync();

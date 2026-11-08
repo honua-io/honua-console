@@ -11,7 +11,7 @@ function response(body, status = 200) {
     return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-for (const action of ['review', 'approve']) {
+for (const action of ['review', 'status', 'approve']) {
     test(`decide ${action} uses the current cookie session and one CSRF-protected request`, async context => {
         const calls = [];
         context.mock.method(globalThis, 'fetch', async (url, options) => {
@@ -20,7 +20,7 @@ for (const action of ['review', 'approve']) {
                 ? response({ profileId: command.profileId, csrfToken: 'csrf' })
                 : response({ status: 'Allowed' });
         });
-        const request = { ...command, action, decision: action === 'review' ? null : command.decision };
+        const request = { ...command, action, decision: action === 'approve' ? command.decision : null };
 
         assert.deepEqual(await decide(request), { status: 'Allowed' });
 

@@ -199,6 +199,16 @@ public sealed partial class ConsoleHumanProposalBffTests
                 ConsoleHumanProposalBffJsonContext.Default.OperateSectionResultProposalDetailWire))!;
         }
 
+        public async Task<OperateSectionResult<ProposalDetailWire>> ReadStatusAsync()
+        {
+            using var response = await Client.PostAsJsonAsync("/api/console/proposals/proposal/status",
+                new ConsoleHumanProposalRequest(Profile.Id, ConsoleServerAuthority.Serving, null),
+                ConsoleHumanProposalBffJsonContext.Default.ConsoleHumanProposalRequest);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync(
+                ConsoleHumanProposalBffJsonContext.Default.OperateSectionResultProposalDetailWire))!;
+        }
+
         public DateTimeOffset? TakeCachedExpiry() => Sessions.TryGet("human", Profile, out var partition)
             ? partition!.ProposalReviews.Take("proposal", 7, "plan")?.ExpiresAt : null;
 

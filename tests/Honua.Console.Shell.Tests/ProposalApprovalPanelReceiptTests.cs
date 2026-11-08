@@ -33,6 +33,12 @@ public sealed class ProposalApprovalPanelReceiptTests
             Assert.Equal(originalReviews, proposals.ReviewReads);
             Assert.True(panel.Find("[data-proposal-approve]").HasAttribute("disabled"));
         });
+        panel.Render(parameters => parameters.Add(component => component.ReloadToken, 1));
+        panel.WaitForAssertion(() =>
+        {
+            Assert.Equal(2, proposals.StatusReads);
+            Assert.Equal(originalReviews, proposals.ReviewReads);
+        });
         panel.Find("[data-proposal-refresh-review]").Click();
         panel.WaitForAssertion(() =>
         {
