@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Services;
+using Honua.Sdk.Admin.Models;
 
 namespace Honua.Console.Shell.Tests;
 
@@ -37,21 +39,48 @@ public sealed class ServiceImportOperationTests
         Assert.Equal(overwriteExisting, document.RootElement.GetProperty("overwriteExisting").GetBoolean());
     }
 
+    private static readonly ImportStatusCase[] StatusContract = JsonSerializer.Deserialize<ImportStatusCase[]>(
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "geoservices-import-status.json")),
+        JsonSerializerOptions.Web)!;
+
+    public static IEnumerable<object[]> ServerStatuses()
+    {
+        foreach (var status in StatusContract)
+        {
+            yield return [JsonSerializer.Serialize(status.Code), status.Label, status.Outcome];
+            yield return [JsonSerializer.Serialize(status.Name), status.Label, status.Outcome];
+        }
+    }
+
+    [Fact]
+    public void ImportStatusContract_MatchesEveryPublishedSdkWireValue()
+    {
+        Assert.Equal(StatusContract.Select(status => (status.Code, status.Name)),
+            Enum.GetValues<GeoservicesImportStatus>().Select(status => ((int)status, status.ToString())));
+    }
+
     [Theory]
-    [InlineData(0, "Queued", false, false)]
-    [InlineData(1, "Discovering", false, false)]
-    [InlineData(2, "Retrieving features", false, false)]
-    [InlineData(3, "Creating table", false, false)]
-    [InlineData(4, "Inserting features", false, false)]
-    [InlineData(5, "Publishing", false, false)]
-    [InlineData(6, "Copying attachments", false, false)]
-    [InlineData(7, "Validating", false, false)]
-    [InlineData(8, "Completed", true, true)]
-    [InlineData(9, "Needs review", true, false)]
-    [InlineData(10, "Failed", true, false)]
-    [InlineData(11, "Cancelled", true, false)]
-    public async Task GetImportJob_ServerStatus_MapsLifecycle(
-        int status, string label, bool terminal, bool succeeded)
+    [MemberData(nameof(ServerStatuses))]
+    public async Task GetImportJob_ServerStatus_MapsLifecycle(string statusJson, string label, string outcome)
+    {
+        var operation = CreateOperation(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new { jobId = "job-1", status = JsonSerializer.Deserialize<JsonElement>(statusJson) }),
+        });
+
+        var job = await operation.GetImportJobAsync("job-1");
+
+        Assert.Equal(label, job.Status);
+        Assert.Equal(outcome != "running", job.Terminal);
+        Assert.Equal(outcome == "succeeded", job.Succeeded);
+        Assert.False(job.TransientFailure);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(-1)]
+    [InlineData(99)]
+    public async Task GetImportJob_UnrecognizedStatus_KeepsPolling(int? status)
     {
         var operation = CreateOperation(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -60,11 +89,12 @@ public sealed class ServiceImportOperationTests
 
         var job = await operation.GetImportJobAsync("job-1");
 
-        Assert.Equal(label, job.Status);
-        Assert.Equal(terminal, job.Terminal);
-        Assert.Equal(succeeded, job.Succeeded);
-        Assert.False(job.TransientFailure);
+        Assert.Equal("Working", job.Status);
+        Assert.False(job.Terminal);
+        Assert.False(job.Succeeded);
     }
+
+    private sealed record ImportStatusCase(int Code, string Name, string Label, string Outcome);
 
     [Fact]
     public async Task GetImportJob_TransientServerError_IsNotTerminal_AndFlagsTransient()
