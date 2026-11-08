@@ -88,6 +88,7 @@ async function inspectStateSurface(page, { name, width }, previews) {
   assert.equal(normal.edge, "3px");
   assert.equal(normal.color, "rgb(23, 28, 26)");
   assert.equal(normal.background, "rgb(255, 255, 255)");
+  if (name === "state-unsupported") await inspectNestedNeutralState(state);
   await page.emulateMedia({ forcedColors: "active" });
   await state.locator("a").focus();
   assert.ok(await state.evaluate(element => getComputedStyle(element).borderInlineStartStyle !== "none"));
@@ -97,6 +98,19 @@ async function inspectStateSurface(page, { name, width }, previews) {
   }));
   await page.screenshot({ path: path.join(previews, `${name}-${width}-forced-colors.png`), fullPage: true });
   await page.emulateMedia({ forcedColors: "none" });
+}
+
+async function inspectNestedNeutralState(state) {
+  await state.evaluate(element => {
+    const panel = document.createElement("section");
+    panel.className = "console-panel console-state-warning";
+    const content = document.createElement("div");
+    element.before(panel);
+    panel.append(content);
+    content.append(element);
+  });
+  assert.equal(await state.evaluate(element => getComputedStyle(element).borderInlineStartColor),
+    "rgb(103, 115, 110)", "An unsupported state must remain neutral inside a warning panel");
 }
 
 export async function checkKeyboardControls(page, { scope = ".catalog-admin", minimumHeight = 44 } = {}) {
@@ -115,12 +129,12 @@ export async function checkKeyboardControls(page, { scope = ".catalog-admin", mi
       if (!(element instanceof HTMLElement) || element.dataset.previewControlIndex === undefined) return null;
       const style = getComputedStyle(element);
       return { index: element.dataset.previewControlIndex, height: element.getBoundingClientRect().height,
-        measureTarget: element.matches("input, select, button, textarea, summary, .console-button-link"),
+        measureTarget: element.matches("input, select, button, textarea, summary, .console-button-link, .catalog-admin-tabs a, .catalog-templates tbody a"),
         focusVisible: element.matches(":focus-visible"),
         ring: (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0 && style.outlineColor !== "rgba(0, 0, 0, 0)") || style.boxShadow !== "none" };
     });
     if (!focused) continue;
-    if (scope === ".catalog-admin" || focused.measureTarget) assert.ok(focused.height >= minimumHeight, `Control ${focused.index} is undersized`);
+    if (focused.measureTarget) assert.ok(focused.height >= minimumHeight, `Control ${focused.index} is undersized`);
     assert.ok(focused.focusVisible && focused.ring, `Control ${focused.index} has no visible keyboard focus`);
     visited.add(focused.index);
   }

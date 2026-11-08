@@ -40,6 +40,8 @@ public sealed class RemovedOperateEntryPointsRenderTests
         page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-service-detail]")));
         Assert.Empty(page.FindAll("[data-publication-overrides-link], [data-service-discovery-link], [data-save-settings-caps]"));
         Assert.Contains(Cadastre.PublicationSlots[0].Url!, page.Markup, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll("fieldset[style], article[role='status']"));
+        Assert.Contains("console-state-neutral", page.Find("[data-service-config] > [role='status']").ClassList);
         CatalogAdminPreview.Capture("service", page.Markup);
     }
 

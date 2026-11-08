@@ -5,7 +5,7 @@
 @import url("css/publication-tree.css");
 @import url("css/home.css");
 @import url("css/catalog-admin.css");
-@import url("css/service-endpoints.css");
+@import url("css/service-detail.css");
 
 * {
     box-sizing: border-box;
@@ -131,6 +131,10 @@ p {
 
 .console-section {
     margin-top: 28px;
+}
+
+:where(.console-panel, .console-state) {
+    --console-state-edge: var(--c-neutral);
 }
 
 .console-panel {
@@ -1133,7 +1137,7 @@ p {
 .console-panel-warning,
 .console-panel-success {
     border-color: var(--honua-border);
-    border-inline-start: 3px solid var(--console-state-edge, var(--c-neutral));
+    border-inline-start: 3px solid var(--console-state-edge);
     background: var(--honua-surface);
     color: var(--honua-text);
 }

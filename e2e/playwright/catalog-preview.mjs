@@ -8,7 +8,8 @@ import { checkKeyboardControls, inspectSharedPresentation, inspectCatalogCounts 
 
 const previews = path.resolve("artifacts/catalog-preview");
 const assets = path.resolve("artifacts/honua-console-web/wwwroot");
-const pages = new Map(await Promise.all(["list", "overview", "settings", "templates", "template-editor", "template-dirty", "template-confirmation", "listing", "listing-dirty", "categories", "categories-dirty", "navigation", "home", "service", "state-info", "state-warning", "state-danger", "state-unsupported"].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
+const sharedPreviews = ["navigation", "home", "service", "state-info", "state-warning", "state-danger", "state-unsupported"];
+const pages = new Map(await Promise.all(["list", "overview", "settings", "templates", "template-editor", "template-dirty", "template-confirmation", "listing", "listing-dirty", "categories", "categories-dirty", ...sharedPreviews].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, "http://localhost");
@@ -37,11 +38,18 @@ try {
   browser = await chromium.launch();
   const context = await browser.newContext();
   const page = await context.newPage();
+  const failures = [];
   for (const name of pages.keys()) {
     for (const width of [390, 1440]) {
-      await inspectPresentation(page, { name, width });
+      try {
+        await inspectPresentation(page, { name, width });
+      } catch (error) {
+        failures.push(`${name}/${width}: ${error.message}`);
+        await page.screenshot({ path: path.join(previews, `${name}-${width}-failed.png`), fullPage: true });
+      }
     }
   }
+  assert.deepEqual(failures, []);
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));
@@ -56,7 +64,7 @@ async function inspectPresentation(page, { name, width }) {
   assert.equal((await stylesheet).status(), 200);
   assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), "light");
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} overflows at ${width}`);
-  if (name === "navigation" || name === "home" || name === "service" || name.startsWith("state-")) return inspectSharedPresentation(page, { name, width }, previews);
+  if (sharedPreviews.includes(name)) return inspectSharedPresentation(page, { name, width }, previews);
   await checkKeyboardControls(page);
   if (name === "overview") await inspectCatalogCounts(page);
   if (name === "settings") {
