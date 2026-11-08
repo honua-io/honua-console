@@ -123,8 +123,11 @@ public sealed class ConsoleVocabularyRenderTests
         {
             Route = new HonuaContentPublicationRouteState
             {
-                PublicationId = "map-roads", RouteSlug = "roads", Kind = HonuaContentPublicationKinds.Map,
-                ActiveRevision = 2, Lifecycle = HonuaContentPublicationLifecycles.Active
+                PublicationId = "map-roads",
+                RouteSlug = "roads",
+                Kind = HonuaContentPublicationKinds.Map,
+                ActiveRevision = 2,
+                Lifecycle = HonuaContentPublicationLifecycles.Active
             }
         };
         var card = context.Render<PublishingReviewCard>(parameters =>
