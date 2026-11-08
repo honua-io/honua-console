@@ -14,10 +14,7 @@ namespace Honua.Console.Web.Auth;
 internal sealed record ConsoleServerSessionPartitionKey(
     string OperatorKey,
     string ProfileId,
-    string ServerBaseUri)
-{
-    public string ServerOrigin => ConsoleServerSessionClientStore.NormalizeOrigin(new Uri(ServerBaseUri)).AbsoluteUri;
-}
+    string ServerBaseUri);
 
 internal sealed record ConsoleServerSignInTarget(
     string ProfileId, ConsoleServerAuthority Authority, string? ProviderKey);

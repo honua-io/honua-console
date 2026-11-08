@@ -547,7 +547,7 @@ public sealed partial class ConsoleServerSessionBffTests
         CookieContainer cookies,
         bool rejectToken = false) : HttpMessageHandler
     {
-        private readonly Uri _origin = new(key.ServerOrigin);
+        private readonly Uri _origin = ConsoleServerSessionClientStore.NormalizeOrigin(new Uri(key.ServerBaseUri));
         public int TokenCalls { get; private set; }
         public int BearerCalls { get; private set; }
 

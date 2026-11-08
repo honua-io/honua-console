@@ -8,7 +8,8 @@ using Microsoft.AspNetCore.DataProtection;
 namespace Honua.Console.Web.Auth;
 
 internal sealed class ConsoleApprovalBrowserChannel(
-    IDataProtectionProvider protection, IHttpContextAccessor requests, TimeProvider clock)
+    IDataProtectionProvider protection, IHttpContextAccessor requests, TimeProvider clock,
+    ILogger<ConsoleApprovalBrowserChannel> logger)
 {
     private const string CookiePrefix = "__Host-HonuaApproval.";
     private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(10);
@@ -21,7 +22,11 @@ internal sealed class ConsoleApprovalBrowserChannel(
         target.Partition.ProposalReviews.Clear();
         var context = requests.HttpContext;
         if (context is null || !context.Request.IsHttps || !HasUnmixedIdentity(context)
-            || ConsoleOperatorContext.ResolveKey(context.User) != target.Partition.Key.OperatorKey) return;
+            || ConsoleOperatorContext.ResolveKey(context.User) != target.Partition.Key.OperatorKey)
+        {
+            logger.LogWarning("The completed sign-in could not establish the approval browser channel. Use HTTPS and a matching interactive Console identity without bearer or key credentials.");
+            return;
+        }
         var grant = new ConsoleApprovalBrowserGrant
         {
             OperatorKey = target.Partition.Key.OperatorKey,

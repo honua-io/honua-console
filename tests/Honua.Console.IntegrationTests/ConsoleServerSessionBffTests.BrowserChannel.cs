@@ -4,6 +4,7 @@ using Honua.Console.Shell.Services;
 using Honua.Console.Web.Auth;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -25,7 +26,8 @@ public sealed partial class ConsoleServerSessionBffTests
             (key, cookies) => new SimulatedServerAuthHandler(key, cookies, scenario == "rejected-token"));
         var request = BrowserCallbackContext("operator");
         var accessor = new HttpContextAccessor { HttpContext = request };
-        var channel = new ConsoleApprovalBrowserChannel(new EphemeralDataProtectionProvider(), accessor, TimeProvider.System);
+        var channel = new ConsoleApprovalBrowserChannel(new EphemeralDataProtectionProvider(), accessor, TimeProvider.System,
+            NullLogger<ConsoleApprovalBrowserChannel>.Instance);
         var coordinator = new ConsoleServerSessionBffCoordinator(operatorContext, profiles, accounts, partitions,
             TimeProvider.System, approvalChannel: channel);
         var begin = await coordinator.BeginSignInAsync(profile.Id, null, "/inbox");
@@ -71,7 +73,8 @@ public sealed partial class ConsoleServerSessionBffTests
         var partition = partitions.GetOrCreate("operator", profile);
         var context = BrowserCallbackContext("operator");
         var accessor = new HttpContextAccessor { HttpContext = context };
-        var channel = new ConsoleApprovalBrowserChannel(new EphemeralDataProtectionProvider(), accessor, clock);
+        var channel = new ConsoleApprovalBrowserChannel(new EphemeralDataProtectionProvider(), accessor, clock,
+            NullLogger<ConsoleApprovalBrowserChannel>.Instance);
         var target = new ConsoleApprovalBrowserTarget
         {
             SelectedProfile = profile,
