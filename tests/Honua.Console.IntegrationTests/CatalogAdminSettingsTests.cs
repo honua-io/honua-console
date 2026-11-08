@@ -135,7 +135,7 @@ public sealed class CatalogAdminSettingsTests
         public Task<CatalogAdminRead> ReadAsync(string? catalogId, CancellationToken cancellationToken)
         {
             Reads++;
-            return Task.FromResult(new CatalogAdminRead([], new(overviewId ?? settings.CatalogId, settings.Title, new(1, 0, 0, 0, 1), []), "fixture", null)
+            return Task.FromResult(new CatalogAdminRead([], new(overviewId ?? settings.CatalogId, "Overview title", new(1, 0, 0, 0, 1), []), "fixture", null)
             { Settings = settings });
         }
     }
