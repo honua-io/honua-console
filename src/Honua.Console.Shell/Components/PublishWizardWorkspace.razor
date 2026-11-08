@@ -38,9 +38,9 @@
 @if (_mode == PublishModeBar.PublishMode.AuthorFirst)
 {
     <ConsoleStateView Kind="unsupported"
-                      Kicker="Author resource first"
+                      Kicker="Author dataset first"
                       Title="This flow is not wired yet"
-                      Message="Authoring a resource before choosing its slot needs server contracts the console does not have yet: per-target compatibility, slot assignment, field aliasing and exposure, and a layer projection preview. Publish through Quick publish, which is bound end-to-end."
+                      Message="Authoring a dataset before choosing its service needs server capabilities that are not available here: compatibility checks, layer assignment, field aliases and exposure, and a metadata preview. Use Quick publish to publish a table through the connected environment."
                       ActionLabel="Back to quick publish"
                       ActionHref="/operate/publishing" />
 }
@@ -55,7 +55,7 @@ else
                    CurrentChanged="OnQuickCurrentChanged"
                    Kicker="Quick publish"
                    Title="Publish a layer in three steps"
-                   FinishLabel="Publish + open resource →"
+                   FinishLabel="Publish + open dataset →"
                    OnFinish="OnFinish" />
 }
 
@@ -295,7 +295,7 @@ else
                         <h3>What gets created</h3>
                         <dl class="console-definition-list">
                             <dt>Service</dt><dd>@(string.IsNullOrWhiteSpace(_newServiceName) ? "—" : $"{_newServiceName} (new)")</dd>
-                            <dt>Layer slot</dt><dd>assigned by the server on publish</dd>
+                            <dt>Layer ID</dt><dd>assigned by the server on publish</dd>
                         </dl>
                     </article>
                 }
@@ -344,7 +344,7 @@ else
                 <div class="publish-context-bar">
                     <span>◈ @(string.IsNullOrWhiteSpace(EffectiveServiceName) ? "—" : EffectiveServiceName)</span>
                     <span class="publish-context-spacer"></span>
-                    <span class="console-muted">the server assigns the layer slot on publish</span>
+                    <span class="console-muted">the server assigns the layer ID on publish</span>
                 </div>
 
                 <h3 class="publish-wizard-question">What does this layer expose?</h3>
@@ -441,7 +441,7 @@ else
                         <dl class="console-definition-list">
                             <dt>Service</dt><dd>@(_createNewService ? $"{EffectiveServiceName} (created on publish)" : Unknown(EffectiveServiceName))</dd>
                             <dt>Layer name</dt><dd>@(string.IsNullOrWhiteSpace(_layerName) ? Unknown(SelectedTable?.Table) : _layerName)</dd>
-                            <dt>Layer slot</dt><dd>assigned by the server on publish</dd>
+                            <dt>Layer ID</dt><dd>assigned by the server on publish</dd>
                             <dt>URL</dt><dd>@PublishedUrl</dd>
                         </dl>
                     </article>

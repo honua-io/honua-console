@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 // explicit missing-binding state rather than crashing (Console Patterns Charter section 11).
 // The shared ConsoleStateView renders `.console-state .console-kicker` for these surfaces.
 
-test('share without a persistent catalog points to Data & Layers, not a crash', async ({ page }) => {
+test('share without a persistent catalog points to Datasets, not a crash', async ({ page }) => {
   await page.goto('/share', { waitUntil: 'domcontentloaded' });
 
   const state = page.locator('#console-main .console-state').first();
@@ -12,7 +12,7 @@ test('share without a persistent catalog points to Data & Layers, not a crash', 
   await expect(state.locator('.console-kicker')).toBeVisible();
 
   await expect(page.getByRole('heading', { name: 'Catalog and sharing are not available yet' })).toBeVisible();
-  await expect(state.getByRole('link', { name: 'Open Data & Layers' })).toHaveAttribute('href', '/operate/data');
+  await expect(state.getByRole('link', { name: 'Open Datasets' })).toHaveAttribute('href', '/operate/data');
 });
 
 test('retired Studio builder route cannot restore the legacy product', async ({ page }) => {
@@ -54,7 +54,7 @@ test('publishing author-first mode declares itself unwired', async ({ page }) =>
   await page.goto('/operate/publishing', { waitUntil: 'domcontentloaded' });
 
   await page
-    .locator('button.publish-mode-option', { hasText: 'Author resource first' })
+    .locator('button.publish-mode-option', { hasText: 'Author dataset first' })
     .click();
 
   await expect(page.getByText('This flow is not wired yet')).toBeVisible();

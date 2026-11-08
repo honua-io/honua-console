@@ -1,23 +1,15 @@
 @namespace Honua.Console.Shell.Components
 
-@*
-    Conceptual publish-flow map, mirroring the design-handoff PublishFlowMap
-    (docs/design-handoff/console-canvas/screens-publish-flow.jsx). It shows how one
-    canonical Data Resource is exposed through service slots (live endpoints) and
-    catalog records (metadata), with the seven-step publish action between them. This
-    is a static explainer for the workspace IA — it carries no server data and never
-    fabricates publication state.
-*@
 <section class="console-section">
     <div class="console-page-heading">
         <p class="console-kicker">Publish flow</p>
         <h2>How publishing works</h2>
-        <p>One canonical Data Resource is exposed through service slots (live endpoints) and catalog records (metadata). GeoServices services mirror to the GeoServices service catalog and OGC API Features mirrors to OGC Records as opt-in registrations, default on.</p>
+        <p>One canonical Dataset is exposed through Layers in Services and catalog records (metadata). GeoServices services mirror to the GeoServices service catalog and OGC API Features mirrors to OGC Records as opt-in registrations, default on.</p>
     </div>
 
     <div class="publish-flow-map">
         <article class="publish-flow-node publish-flow-node-resource">
-            <h3>Data Resource</h3>
+            <h3>Dataset</h3>
             <p class="publish-flow-kind">Canonical · edited once</p>
             <ul class="publish-flow-steps">
                 <li>Source binding</li>
@@ -35,9 +27,9 @@
             <ol class="publish-flow-steps">
                 <li>Pick target folder / service</li>
                 <li>See compatibility</li>
-                <li>Configure the layer slot</li>
+                <li>Configure the Layer</li>
                 <li>Choose field exposure &amp; aliases</li>
-                <li>Preview metadata projection</li>
+                <li>Preview metadata</li>
                 <li>Confirm access impact</li>
                 <li>Validate &amp; publish (or save draft)</li>
             </ol>
@@ -46,11 +38,11 @@
         <div class="publish-flow-arrow" aria-hidden="true">→</div>
 
         <article class="publish-flow-node">
-            <h3>Publications</h3>
-            <p class="publish-flow-kind">Service slots · live endpoints</p>
+            <h3>Layers</h3>
+            <p class="publish-flow-kind">Services · live endpoints</p>
             <div class="publish-slot-row">
                 <span class="publish-slot-dot publish-slot-dot-live" aria-hidden="true"></span>
-                <span>FeatureServer slot</span>
+                <span>FeatureServer endpoint</span>
                 <span class="console-status console-state-info">GeoServices service catalog</span>
             </div>
             <div class="publish-slot-row">
@@ -72,8 +64,8 @@
 
     <div class="console-panel-grid" style="margin-top:16px;">
         <article class="console-panel">
-            <h3>Two kinds of publication</h3>
-            <p class="console-muted"><strong>Service slot</strong> — a runtime endpoint that serves data (FeatureServer, OGC API, WMTS). <strong>Catalog record</strong> — metadata about a resource with distribution links to its service slots.</p>
+            <h3>Data access and discovery</h3>
+            <p class="console-muted"><strong>Service</strong> — a runtime endpoint that serves data (FeatureServer, OGC API, WMTS). <strong>Catalog record</strong> — metadata about a Dataset with distribution links to its Services.</p>
         </article>
         <article class="console-panel">
             <h3>Catalog registration</h3>
@@ -81,7 +73,7 @@
         </article>
         <article class="console-panel">
             <h3>Where edits go</h3>
-            <p class="console-muted"><strong>Resource</strong> — meaning, fields, metadata, access defaults. <strong>Slot</strong> — layer id, name, aliases, exposure, cache TTL. <strong>Catalog entry</strong> — follows the service automatically while opted in.</p>
+            <p class="console-muted"><strong>Dataset</strong> — meaning, fields, metadata, access defaults. <strong>Layer</strong> — layer id, name, aliases, exposure, cache TTL. <strong>Catalog entry</strong> — follows the service automatically while opted in.</p>
         </article>
     </div>
 </section>

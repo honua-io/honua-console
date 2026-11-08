@@ -9,15 +9,15 @@
 <section class="console-page">
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Publishing</p>
-        <h1>Publishing Workspace</h1>
-        <p>Publish services, layers, catalog entries, and Studio artifacts. The matrix shows which output and catalog formats each resource supports, and each review records slot, generated endpoints, catalog registration, policy, warnings, rollback class, and provenance.</p>
+        <h1>Publishing</h1>
+        <p>Publish datasets as layers, review service endpoints, and manage released Studio content. Check supported formats, catalog registration, access, recovery, and provenance before applying a change.</p>
     </div>
 
     <PublishWizardWorkspace />
 
     @if (_workspace is null)
     {
-        <p class="console-muted">Loading publishing workspace...</p>
+        <p class="console-muted">Reading publishing options…</p>
     }
     else
     {
@@ -30,14 +30,14 @@
             <section class="console-section" data-publication-lookup>
                 <div class="console-page-heading">
                     <p class="console-kicker">Review</p>
-                    <h2>Look up a publication</h2>
-                    <p>Enter a publication id to review its route state and run a republish or rollback against the live registry.</p>
+                    <h2>Look up released content</h2>
+                    <p>Enter a release ID to review its route, release a new version, or restore a previous version.</p>
                 </div>
 
                 <div class="console-form-row">
                     <input class="console-input"
-                           placeholder="publication id"
-                           aria-label="Publication id"
+                           placeholder="release ID"
+                           aria-label="Release ID"
                            @bind="_lookupId"
                            @bind:event="oninput"
                            @bind:after="OnLookupEdit"
@@ -82,7 +82,7 @@
                             @if (_lookup.Versions.Count > 1)
                             {
                                 <p class="console-kicker">Version history</p>
-                                <ConsoleTableRegion Class="console-table-wrap" Label="Publication version history">
+                                <ConsoleTableRegion Class="console-table-wrap" Label="Released versions">
                                     <table class="console-table">
                                         <thead>
                                             <tr>
@@ -132,7 +132,7 @@
         {
             @if (_states.Count == 0)
             {
-                <EmptyState Area="operate" Subject="publications" />
+                <EmptyState Area="operate" Subject="released content" />
             }
         }
         else
@@ -140,15 +140,15 @@
             <section class="console-section">
                 <div class="console-page-heading">
                     <p class="console-kicker">Matrix</p>
-                    <h2>Publication Matrix</h2>
-                    <p>Each resource crossed with the output and catalog formats it can publish to. Unsupported or blocked targets render their blocker here, before any publish is attempted.</p>
+                    <h2>Publishing formats</h2>
+                    <p>Supported output and catalog formats for each object. Review any unsupported or blocked format before publishing.</p>
                 </div>
 
-                <ConsoleTableRegion Class="console-table-wrap" Label="Publication support matrix">
+                <ConsoleTableRegion Class="console-table-wrap" Label="Supported publishing formats">
                     <table class="console-table">
                         <thead>
                             <tr>
-                                <th>Resource</th>
+                                <th>Object</th>
                                 <th>Kind</th>
                                 <th>Target</th>
                                 <th>Support</th>
@@ -161,7 +161,7 @@
                                 {
                                     <tr>
                                         <td>@row.ResourceName <small>@row.ResourceId</small></td>
-                                        <td>@row.ResourceKind</td>
+                                        <td>@ConsoleVocabulary.PublishingKindName(row.ResourceKind)</td>
                                         <td>@target.Format</td>
                                         <td>
                                             <span class="console-status @SupportStateClass(target.Support)">@target.Support</span>
@@ -181,7 +181,7 @@
             <section class="console-section">
                 <div class="console-page-heading">
                     <p class="console-kicker">Review</p>
-                    <h2>Publication Review</h2>
+                    <h2>Publishing review</h2>
                 </div>
 
                 <div class="console-panel-grid">
@@ -287,7 +287,7 @@
             ? _lookup.Review.ResourceId
             : _lookup.Review.ResourceName;
         _confirm.Open(
-            title: "Republish this publication?",
+            title: "Release a new version?",
             onConfirm: RepublishAsync,
             body: $"This creates a new live version of \"{resourceName}\" in the registry. Consumers will see the new version.",
             confirmLabel: "Republish");
@@ -327,8 +327,8 @@
                 _republishTitle = string.Empty;
             },
             setBusy: busy => { _busy = busy; StateHasChanged(); },
-            failureMessage: "Couldn't republish the publication",
-            onSuccess: "Publication republished.");
+            failureMessage: "Couldn't release the new version",
+            onSuccess: "New version released.");
     }
 
     private Task RollbackAsync(string targetVersionId)
@@ -346,7 +346,7 @@
                 _lookup = await PublishingData.RollbackAsync(resourceId, command);
             },
             setBusy: busy => { _busy = busy; StateHasChanged(); },
-            failureMessage: "Couldn't roll back the publication",
-            onSuccess: "Publication rolled back.");
+            failureMessage: "Couldn't restore the previous version",
+            onSuccess: "Previous version restored.");
     }
 }

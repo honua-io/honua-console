@@ -54,6 +54,10 @@ dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http:
 - A contract or schema version bump updates `release/component-versions.json` in the same PR;
   the honua-release nightly resolver reads it at the selected commit.
 
+## Vocabulary review
+
+Review new labels, accessibility names, help text, and errors against the [canonical Honua vocabulary](https://github.com/honua-io/honua-server/blob/115011ce760443e93ec70e4bd5123d7b9fa08414/docs/concepts/domain/README.md) and its [shared retired-terms policy](https://github.com/honua-io/honua-server/blob/115011ce760443e93ec70e4bd5123d7b9fa08414/scripts/ci/retired-terms.v1.json). Block retired object names in new UI. Review contextual exceptions using that same policy; preserve protocol wire names and actual agent collaboration workspace identifiers. Model and SDK contract renames follow the coordinated server migration.
+
 ## Read before you act
 - Workspace composition and credential boundaries: `docs/agent-workspace.md`.
 - Browser testing against a live server: `docs/testing/AGENT_BROWSER_TESTING.md`.

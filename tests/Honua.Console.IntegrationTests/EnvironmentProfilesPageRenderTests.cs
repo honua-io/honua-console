@@ -36,26 +36,26 @@ public sealed class EnvironmentProfilesPageRenderTests
     }
 
     [Fact]
-    public void AccountBoundTenant_ShowsTenancyPreviewNotice_EvenWithoutProfileTenant()
+    public async Task AccountBoundTenant_HidesIsolationMetadataWithoutChangingProfile()
     {
-        // An edge/IdP operator tenant is stored only on the account binding; the profile is still
-        // tenant-scoped and must carry the Preview/trial notice.
-        var tenantBound = Profile("trial", "Trial tenant") with
+        var profile = Profile("test", "Test environment") with
         {
-            Account = new ConsoleAccountBinding { AccountId = "operator", TenantId = "trial-a" }
+            TenantId = "profile-isolated",
+            Account = new ConsoleAccountBinding { AccountId = "operator", TenantId = "account-isolated" }
         };
-        var store = new InMemoryConsoleEnvironmentProfileStore(
-            [tenantBound],
-            states: null,
-            activeProfileId: "trial");
+        var store = new InMemoryConsoleEnvironmentProfileStore([profile]);
         using var ctx = NewBrowserContext(store);
 
         var page = ctx.Render<EnvironmentProfilesPage>();
 
-        page.WaitForAssertion(
-            () => Assert.NotEmpty(page.FindAll("[data-tenancy-preview]")),
-            TimeSpan.FromSeconds(5));
-        Assert.Contains("Preview / trial only", page.Markup, StringComparison.Ordinal);
+        page.WaitForAssertion(() => Assert.Equal("Test environment", page.Find("h2").TextContent));
+        Assert.Empty(page.FindAll("[data-tenancy-preview]"));
+        Assert.DoesNotContain("<dt>Tenant</dt>", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("profile-isolated", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("account-isolated", page.Markup, StringComparison.Ordinal);
+        var saved = await store.GetProfileAsync("test");
+        Assert.Equal("profile-isolated", saved?.TenantId);
+        Assert.Equal("account-isolated", saved?.Account.TenantId);
     }
 
     [Fact]

@@ -1,0 +1,78 @@
+@page "/operate/services"
+@inject IOperateTransitionDataSource OperateData
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate / Services</p>
+        <h1>Services</h1>
+        <p>Browse services and open their protocol and access settings.</p>
+    </div>
+
+    @if (_loading)
+    {
+        <p role="status">Reading services…</p>
+    }
+    <ConsoleConnectionNotice Heading="Could not read services" States="_states" Error="@_loadError" OnRetry="LoadAsync" Busy="_loading" />
+
+    @if (_services.Count > 0)
+    {
+        <ConsoleTableRegion Class="console-table-wrap" Label="Services">
+            <table class="console-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Protocols</th>
+                        <th>Layers</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var service in _services)
+                    {
+                        <tr>
+                            <td><a href="@($"/operate/services/{Uri.EscapeDataString(service.Name)}/settings")">@service.DisplayName</a></td>
+                            <td>@service.ServiceType</td>
+                            <td>@if (_states.Count > 0) { <span>Unknown</span> } else { @service.Layers.Count }</td>
+                            <td>@service.RuntimeStatus</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </ConsoleTableRegion>
+    }
+    else if (!_loading && _states.Count == 0 && _loadError is null)
+    {
+        <EmptyState Area="operate" Subject="services" />
+    }
+</section>
+
+@code {
+    private IReadOnlyList<OperateServiceDetail> _services = [];
+    private IReadOnlyList<OperateCapabilityState> _states = [];
+    private string? _loadError;
+    private bool _loading = true;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _loadError = null;
+        _services = [];
+        _states = [];
+        try
+        {
+            var view = await OperateData.GetServicesViewAsync();
+            _services = view.Services;
+            _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Services", "Layers", "Connections");
+        }
+        catch (Exception)
+        {
+            _loadError = "The services request did not complete. Check the environment and try again.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

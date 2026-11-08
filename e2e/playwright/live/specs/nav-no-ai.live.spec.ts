@@ -2,10 +2,10 @@ import { test, expect } from '@playwright/test';
 
 
 const ungatedSections = [
-  { path: '/operate/data', heading: 'Data & Layers' },
+  { path: '/operate/data', heading: 'Datasets' },
   { path: '/operate/connections', heading: 'Connections' },
   { path: '/operate/import/esri', heading: 'Import source content' },
-  { path: '/operate/publishing', heading: 'Publishing Workspace' },
+  { path: '/operate/publishing', heading: 'Publishing' },
   { path: '/operate/versions', heading: /Versions|Branch.version|version manager/i },
   { path: '/operate/sensors', heading: /SensorThings|Sensor/i },
   { path: '/operate/scenes', heading: /3D Scenes|Scenes/i },
@@ -100,6 +100,6 @@ test.describe('Operate nav · no AI provider required (live)', () => {
       await expect(nav.getByText(label), `menu must show "${label}"`).toBeVisible();
     }
 
-    await expect(page.getByRole('heading', { name: 'Data & Layers' }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Datasets' }).first()).toBeVisible();
   });
 });

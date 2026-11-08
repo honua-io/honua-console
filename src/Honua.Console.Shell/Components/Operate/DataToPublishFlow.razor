@@ -12,7 +12,7 @@
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Add data</p>
         <h1>Add data &amp; publish</h1>
-        <p>One journey: add data → it becomes a resource → publish it as the services/protocols you choose → style → live.</p>
+        <p>One journey: add data → it becomes a dataset → publish it as the services/protocols you choose → style → live.</p>
     </div>
 
     <div class="data-publish-flow__header">
@@ -35,7 +35,7 @@
             <p class="console-kicker">Connect to your data</p>
             <h2>Check the data connection</h2>
             <p>@binding</p>
-            <a class="console-button-link" href="/environments">Review connection</a>
+            <a class="console-button-link" href="/environments">Review environment</a>
         </article>
     }
 
@@ -58,7 +58,7 @@
                 {
                     <div data-remote-service-import>
                         <OperateImportServicePage />
-                        <p class="console-muted">Imported services land as resources — <a href="/operate/data">open the resource tree</a> to publish them as the protocols you want.</p>
+                        <p class="console-muted">Imported services create datasets — <a href="/operate/data">open the dataset tree</a> to publish them as the protocols you want.</p>
                     </div>
                 }
                 <div class="console-action-row">
@@ -76,13 +76,13 @@
         case FlowStep.Publish:
             <article class="console-panel" data-step-body="Publish">
                 <p class="console-kicker">③ Publish "@_flow.Resource.Name"</p>
-                <h2>Choose how to expose this resource</h2>
+                <h2>Choose how to expose this dataset</h2>
                 <PublishProtocolPicker Enabled="_flow.EnabledProtocols"
                                        EnabledChanged="OnProtocolsChanged"
                                        ServiceSlot="@_flow.ServiceSlot" />
                 <p class="console-muted" data-service-fixed>
                     honua-server serves a source table through one layer in one service, so this flow configures the
-                    service the resource is already in. To serve the data from a new service,
+                    service the dataset is already in. To serve the data from a new service,
                     <a href="/operate/publishing/quick">publish a table</a> into it.
                 </p>
                 <div class="console-action-row">
@@ -95,7 +95,7 @@
         case FlowStep.Style:
             <article class="console-panel" data-step-body="Style">
                 <p class="console-kicker">④ Style</p>
-                <h2>Style this resource</h2>
+                <h2>Style this dataset</h2>
                 <p class="console-muted">Go live does not apply the style you pick here: honua-server has no operation that binds a catalog style to a layer. Pick a shared style to open it in the style editor, or skip this step.</p>
                 <div class="studio-field-grid">
                     <label class="studio-form-label">
@@ -210,7 +210,7 @@
         var resourceId = _flow.Source.Reference!;
         if (_layers.FindExposures(resourceId).FirstOrDefault() is not { } current)
         {
-            _missingBinding = "honua-server reports no published layer for this resource, so it cannot go live from here.";
+            _missingBinding = "honua-server reports no published layer for this dataset, so it cannot go live from here.";
             return;
         }
 
@@ -261,7 +261,7 @@
     private static string StepLabel(FlowStep step) => step switch
     {
         FlowStep.AddData => "Add data",
-        FlowStep.Resource => "Resource",
+        FlowStep.Resource => "Dataset",
         FlowStep.Publish => "Publish",
         FlowStep.Style => "Style",
         FlowStep.GoLive => "Go live",
