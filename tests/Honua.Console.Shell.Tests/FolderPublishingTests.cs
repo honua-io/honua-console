@@ -72,13 +72,16 @@ public sealed class FolderPublishingTests
         Assert.Equal("/rest/services/legacy%2Flogical/FeatureServer", HonuaServedRoutes.PathFor("legacy/logical", "FeatureServer"));
     }
 
-    [Fact]
-    public async Task HostOnlyPostSendMarkerPreventsAFalsePublishFailure()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PostSendAuthoritySignalsPreventAFalsePublishFailure(bool marked)
     {
-        using var handler = new PublishHandler { Unverified = true };
+        var authority = new Authority();
+        using var handler = new PublishHandler { Unverified = marked, OnSend = () => authority.Current = marked };
         using var http = new HttpClient(handler);
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid/")));
-        var result = await new HonuaServerServiceLayerPublishOperation(client, new Authority()).PublishAsync(new()
+        var result = await new HonuaServerServiceLayerPublishOperation(client, authority).PublishAsync(new()
         {
             ConnectionId = "connection",
             Schema = "public",
@@ -92,14 +95,37 @@ public sealed class FolderPublishingTests
         Assert.Contains("original environment", result.Detail);
     }
 
+    [Fact]
+    public async Task PublishTransportLossRemainsUnverified()
+    {
+        using var handler = new PublishHandler { LoseResponse = true };
+        using var http = new HttpClient(handler);
+        using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid/")));
+        var result = await new HonuaServerServiceLayerPublishOperation(client, new Authority()).PublishAsync(new()
+        {
+            ConnectionId = "connection",
+            Schema = "public",
+            Table = "parcels",
+            LayerName = "Parcels",
+            ServiceName = "logical",
+            AuthorityBinding = "human-environment"
+        });
+        Assert.False(result.Succeeded);
+        Assert.Equal(ConsoleWriteOutcome.UnverifiedState, result.State);
+        Assert.NotNull(handler.Body);
+    }
+
     private sealed class Authority : IConsoleAuthorityBindingValidator
     {
-        public Task<bool> IsCurrentAsync(string binding, CancellationToken cancellationToken = default) => Task.FromResult(binding == "human-environment");
+        public bool Current { get; set; } = true;
+        public Task<bool> IsCurrentAsync(string binding, CancellationToken cancellationToken = default) => Task.FromResult(Current && binding == "human-environment");
     }
 
     private sealed class PublishHandler : HttpMessageHandler
     {
         public bool Unverified { get; init; }
+        public bool LoseResponse { get; init; }
+        public Action? OnSend { get; init; }
         public string? Body { get; private set; }
         public string? Binding { get; private set; }
         public string? Path { get; private set; }
@@ -108,6 +134,8 @@ public sealed class FolderPublishingTests
             if (Unverified) request.Options.Set(ConsoleWriteOutcome.Unverified, true);
             Path = request.RequestUri!.AbsolutePath;
             Body = await request.Content!.ReadAsStringAsync(cancellationToken);
+            OnSend?.Invoke();
+            if (LoseResponse) throw new HttpRequestException("The publication response was lost.");
             Binding = request.Options.TryGetValue(ConsoleAuthorityRequestOptions.Expected, out var binding) ? binding : null;
             return new(HttpStatusCode.OK) { Content = JsonContent.Create(new { success = true, data = new { layerId = 7, layerName = "Parcels", serviceName = "logical service", enabled = true } }) };
         }

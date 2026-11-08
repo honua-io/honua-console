@@ -61,6 +61,9 @@ public sealed class HonuaServerServiceLayerPublishOperation : IServiceLayerPubli
             return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail };
 
 
+        if (command.AuthorityBinding is not null && result.Issue is { State: "Unavailable", StatusCode: null } transportIssue)
+            return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail + " " + transportIssue.Detail };
+
         if (result.Data is { } layer)
         {
             return new ServiceLayerPublishResult
