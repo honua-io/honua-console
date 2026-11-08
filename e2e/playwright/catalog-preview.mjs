@@ -7,13 +7,13 @@ import { chromium } from "@playwright/test";
 
 const previews = path.resolve("artifacts/catalog-preview");
 const assets = path.resolve("artifacts/honua-console-web/wwwroot");
-const pages = new Map(await Promise.all(["list", "overview", "settings"].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
+const pages = new Map(await Promise.all(["list", "overview", "settings", "templates", "template-editor", "listing"].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, "http://localhost");
   const markup = pages.get(url.pathname.slice(1));
   if (markup) {
-    response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; script-src 'none'; frame-src 'none'; base-uri 'none'" });
     response.end(`<!doctype html><html lang="en"><head><title>Catalog presentation fixture</title><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/_content/Honua.Console.Shell/honua-console.css"></head><body><main>${markup}</main></body></html>`);
     return;
   }
@@ -64,6 +64,16 @@ async function inspectPresentation(page, { name, width }) {
     assert.equal(await snippet.evaluate(element => element.value.slice(element.selectionStart, element.selectionEnd)), expected);
     assert.ok(expected.includes('catalog="open"'));
     assert.equal(await page.locator(".catalog-settings script").count(), 0);
+  }
+  if (name === "template-editor") {
+    assert.equal(await page.locator(".catalog-template-editor :is(script, iframe, img, [srcdoc], [onerror])").count(), 0);
+    assert.ok((await page.getByLabel("Template source", { exact: true }).inputValue()).includes("</textarea><script>"));
+    assert.ok(await page.getByRole("heading", { name: "Preview", exact: true }).isVisible());
+    assert.equal(await page.locator("button[data-template-insert]").count(), 6);
+  }
+  if (name === "listing") {
+    assert.ok(await page.getByLabel(/Can appear in catalogs/).isDisabled());
+    assert.ok(await page.getByRole("heading", { name: "Public card preview", exact: true }).isVisible());
   }
   const accessibility = await new AxeBuilder({ page }).include(".catalog-admin").analyze();
   assert.deepEqual(accessibility.violations, []);

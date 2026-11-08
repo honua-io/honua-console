@@ -85,6 +85,7 @@
             <nav class="catalog-admin-tabs" aria-label="Catalog sections">
                 <a href="@($"/catalogs/{Uri.EscapeDataString(CatalogId)}")" aria-current="@(Section is null ? "page" : null)">Overview</a>
                 <a href="@($"/catalogs/{Uri.EscapeDataString(CatalogId)}/settings")" aria-current="@(Section == "settings" ? "page" : null)">Settings and scope</a>
+                <a href="@($"/catalogs/{Uri.EscapeDataString(CatalogId)}/templates")" aria-current="@(Section is "templates" or "template" ? "page" : null)">Templates</a>
             </nav>
             @if (Section == "settings")
             {
@@ -92,6 +93,27 @@
                 { <CatalogSettingsView Settings="settings" /> }
                 else
                 { <ConsoleStateView HeadingLevel="2" Kind="unsupported" Title="Catalog settings are unavailable" Message="The server has not reported settings for this catalog." /> }
+            }
+            else if (Section == "templates")
+            {
+                @if (read.Templates is { } templates && templates.CatalogId == CatalogId)
+                { <CatalogTemplatesView @key="templates" Templates="templates" /> }
+                else
+                { <ConsoleStateView HeadingLevel="2" Kind="unsupported" Title="Templates are unavailable" Message="The server has not reported templates for this catalog." /> }
+            }
+            else if (Section == "template")
+            {
+                @if (read.Template is { } template && template.CatalogId == CatalogId && template.TemplateId == TemplateId)
+                { <CatalogTemplateEditorView @key="template" Template="template" /> }
+                else
+                { <ConsoleStateView HeadingLevel="2" Kind="unsupported" Title="Template is unavailable" Message="The server has not reported this template." /> }
+            }
+            else if (Section == "listing")
+            {
+                @if (read.Listing is { } listing && listing.CatalogId == CatalogId && listing.ItemId == ItemId)
+                { <CatalogListingView Listing="listing" /> }
+                else
+                { <ConsoleStateView HeadingLevel="2" Kind="unsupported" Title="Item listing is unavailable" Message="The server has not reported this item listing." /> }
             }
             else
             {
@@ -161,6 +183,8 @@
 @code {
     [Parameter] public string? CatalogId { get; set; }
     [Parameter] public string? Section { get; set; }
+    [Parameter] public string? TemplateId { get; set; }
+    [Parameter] public string? ItemId { get; set; }
 
     private const int PageSize = 12;
     private CatalogAdminRead? _read;
@@ -202,7 +226,8 @@
         var load = _load = new CancellationTokenSource();
         try
         {
-            var read = await Catalogs.ReadAsync(CatalogId, load.Token);
+            var request = new CatalogAdminRequest(CatalogId) { Section = Section, TemplateId = TemplateId, ItemId = ItemId };
+            var read = await Catalogs.ReadAsync(request, load.Token);
             if (ReferenceEquals(_load, load) && !load.IsCancellationRequested) _read = read;
         }
         catch (OperationCanceledException) when (load.IsCancellationRequested) { }

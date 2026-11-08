@@ -132,7 +132,7 @@ public sealed class CatalogAdminSettingsTests
     private sealed class SettingsSource(CatalogAdminSettings settings, string? overviewId) : ICatalogAdminSource
     {
         public int Reads { get; private set; }
-        public Task<CatalogAdminRead> ReadAsync(string? catalogId, CancellationToken cancellationToken)
+        public Task<CatalogAdminRead> ReadAsync(CatalogAdminRequest request, CancellationToken cancellationToken)
         {
             Reads++;
             return Task.FromResult(new CatalogAdminRead([], new(overviewId ?? settings.CatalogId, "Overview title", new(1, 0, 0, 0, 1), []), "fixture", null)

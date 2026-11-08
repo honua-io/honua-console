@@ -45,6 +45,13 @@ public static class CatalogAdminLinks
 
 public static class CatalogAdminLabels
 {
+    public static string Reported(string? value) => string.IsNullOrWhiteSpace(value) ? "Not reported" : value;
+    public static string Join(IReadOnlyList<string> values) => values.Count == 0 ? "Not reported" : string.Join(", ", values);
+    public static string TemplateState(string? state) => state switch
+    {
+        "draft" => "Draft", "released" => "Released", "in-review" => "In review", _ => "Not reported"
+    };
+
     public static string Audience(string audience) => audience switch
     {
         "public" => "Public",

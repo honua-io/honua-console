@@ -24,3 +24,12 @@
 .catalog-settings-fields dd { margin: 0; overflow-wrap: anywhere; }
 .catalog-embed-snippet { display: block; width: 100%; box-sizing: border-box; font: inherit; resize: vertical; }
 @media (max-width: 480px) { .catalog-settings-fields { grid-template-columns: 1fr; gap: .25rem; } .catalog-settings-fields dd { margin-bottom: .75rem; } }
+
+.catalog-admin h3 { margin-block: 1.75rem .75rem; }
+.catalog-template-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 2rem; }
+.catalog-template-layout > section { min-width: 0; }
+.catalog-template-editor textarea, .catalog-listing textarea { width: 100%; box-sizing: border-box; padding: .75rem; font: inherit; color: inherit; background: var(--honua-surface); border: 1px solid var(--honua-border); resize: vertical; }
+.catalog-template-editor textarea { font-family: ui-monospace, monospace; tab-size: 2; }
+.catalog-template-editor p, .catalog-listing p { max-width: 70ch; }
+.catalog-template-status { font-variant-numeric: tabular-nums; }
+@media (max-width: 800px) { .catalog-template-layout { grid-template-columns: minmax(0, 1fr); gap: 0; } }
