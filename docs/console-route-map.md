@@ -1226,3 +1226,19 @@ re-read the original turn and the human-authorized Studio item/draft, select its
 current generation, and open the existing `/studio` editor. Unsaved work or a
 changed target/authority prevents delayed navigation. No new builder route,
 automatic approval, prompt replay or execution authority is introduced.
+
+## Experimental catalog administration
+
+`Honua:Console:Catalogs:Enabled` (default false) exposes the new `/catalogs` list
+and `/catalogs/{id}` overview. The feature retains the authenticated shell and
+server authorization boundaries. With the flag on, navigation names `/catalog`
+Content, adds Catalogs between Studio and Operate, and groups existing Discovery
+endpoints (`/operate/catalogs`) and Open Data access (`/share/manage`) there.
+Existing detail and anonymous public/embed routes remain available.
+
+This first slice contains view projections and an unsupported live source. A
+configured server without the canonical catalog SDK contract renders unsupported;
+no server renders missing binding. Enabling the flag never seeds catalogs. Tests
+explicitly register synthetic presentation views and label them Fixture preview.
+Live sources must consume the shared SDK contract and capability before they
+are enabled; a browser catalog client is not Console's .NET contract authority.

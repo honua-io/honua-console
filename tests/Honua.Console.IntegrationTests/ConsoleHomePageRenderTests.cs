@@ -12,6 +12,7 @@ public sealed class ConsoleHomePageRenderTests
     private static BunitContext NewContext(FakeConsoleProposalsClient proposals)
     {
         var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new CatalogAdminOptions());
         ctx.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(
             new Dictionary<string, string?> { ["Studio:EmbedJsStudio"] = "true" }).Build());
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
@@ -78,6 +79,7 @@ public sealed class ConsoleHomePageRenderTests
         // inbox — an Unavailable read renders an explicit error naming the source, a Retry, and the
         // persistent last-refreshed marker (never loaded), distinct from an empty-success band.
         var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new CatalogAdminOptions());
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([]));
         ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(new ScriptedApprovalInboxClient
