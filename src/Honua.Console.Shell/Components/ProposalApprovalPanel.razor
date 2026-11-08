@@ -357,27 +357,27 @@ else
             }
             else
             {
-                if (result.Status == OperateSectionStatus.Forbidden)
-                {
-                    onForbidden();
-                }
-
-                _actionMessage = string.IsNullOrWhiteSpace(result.Message)
-                    ? OperateSectionPresentation.FallbackMessage(result.Status)
-                    : result.Message;
-                _actionMessageClass = "console-state-danger";
-                _actionDetail = result.Detail;
-
-                // Reload so a conflict (already-resolved) reflects the server's current state.
-                if (result.Status == OperateSectionStatus.Unavailable || result.Status == OperateSectionStatus.Missing)
-                {
-                    await LoadAsync();
-                }
+                await DisplayDecisionRefusalAsync(result, onForbidden);
             }
         }
         finally
         {
             if (IsCurrentReview(generation, proposalId)) _busy = false;
+        }
+    }
+
+    private async Task DisplayDecisionRefusalAsync(
+        OperateSectionResult<ConsoleProposalDetail> result, Action onForbidden)
+    {
+        if (result.Status == OperateSectionStatus.Forbidden) onForbidden();
+        _actionMessage = string.IsNullOrWhiteSpace(result.Message)
+            ? OperateSectionPresentation.FallbackMessage(result.Status)
+            : result.Message;
+        _actionMessageClass = "console-state-danger";
+        _actionDetail = result.Detail;
+        if (result.Status is OperateSectionStatus.Unavailable or OperateSectionStatus.Missing)
+        {
+            await LoadAsync();
         }
     }
 }
