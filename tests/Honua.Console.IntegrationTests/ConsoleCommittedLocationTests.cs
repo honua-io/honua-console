@@ -22,7 +22,7 @@ public sealed class ConsoleCommittedLocationTests
     [Fact]
     public async Task CapabilityRefreshAndQueryNavigationKeepTheAuthorityRevision()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         var capabilities = new CapabilitySignals();
         context.Services.AddSingleton<IConsoleCapabilityManifest>(capabilities);
         context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([Profile]));
@@ -37,7 +37,7 @@ public sealed class ConsoleCommittedLocationTests
     [Fact]
     public async Task ProfileActivationOnTheSameUrlChangesTheRevisionExactlyOnce()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         var profiles = new InMemoryConsoleEnvironmentProfileStore([Profile, Profile with { Id = "two" }], activeProfileId: "one");
         context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
         var marker = context.Render<ConsoleCommittedLocation>();
@@ -52,7 +52,7 @@ public sealed class ConsoleCommittedLocationTests
     [Fact]
     public async Task ActiveServerAndAccountUpdatesEachInvalidateTheRevision()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         var profiles = new InMemoryConsoleEnvironmentProfileStore([Profile]);
         context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
         var marker = context.Render<ConsoleCommittedLocation>();
@@ -71,7 +71,7 @@ public sealed class ConsoleCommittedLocationTests
     [Fact]
     public async Task AuthenticationSignalRechecksTheProfileWithoutACapabilityRefresh()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         var profiles = new ProfileReads { Current = Profile };
         var authentication = new AuthenticationSignals();
         context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
@@ -87,7 +87,7 @@ public sealed class ConsoleCommittedLocationTests
     [Fact]
     public async Task DelayedProfileReadCannotOverwriteANewerAuthority()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         var profiles = new ProfileReads { Current = Profile };
         context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
         var marker = context.Render<ConsoleCommittedLocation>();
@@ -105,7 +105,7 @@ public sealed class ConsoleCommittedLocationTests
     [Fact]
     public void DisposalDetachesProfileAndAuthenticationSignals()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         var profiles = new ProfileReads { Current = Profile };
         var authentication = new AuthenticationSignals();
         context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
@@ -121,7 +121,7 @@ public sealed class ConsoleCommittedLocationTests
     [Fact]
     public async Task HostScopeIsPublishedWithoutAConversationAndFollowsAuthenticationIndependently()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         var bindings = new BindingReads { Current = new string('a', 64) };
         var authentication = new AuthenticationSignals();
         context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([Profile]));
@@ -140,7 +140,7 @@ public sealed class ConsoleCommittedLocationTests
     [Fact]
     public async Task FailedRecentScopeReadDoesNotMasqueradeAsADrawerAuthorityChange()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         var bindings = new BindingReads { Current = new string('a', 64) };
         var profiles = new ProfileReads { Current = Profile };
         context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
@@ -155,7 +155,7 @@ public sealed class ConsoleCommittedLocationTests
     [Fact]
     public async Task DelayedScopeReadCannotRestoreAPreviousOperatorsHistory()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         var bindings = new BindingReads { Current = new string('a', 64) };
         var profiles = new ProfileReads { Current = Profile };
         context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
@@ -185,6 +185,13 @@ public sealed class ConsoleCommittedLocationTests
 
     private static string? Revision(IRenderedComponent<ConsoleCommittedLocation> marker) =>
         marker.Find("span").GetAttribute("data-console-authority-revision");
+
+    private static BunitContext CreateContext()
+    {
+        var context = new BunitContext();
+        context.Services.AddSingleton(new CatalogAdminOptions());
+        return context;
+    }
 
     private sealed class CapabilitySignals : IConsoleCapabilityManifest
     {

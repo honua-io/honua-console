@@ -1,14 +1,133 @@
 using Bunit;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Honua.Console.IntegrationTests;
 
 public sealed class ApprovalInboxPageRenderTests
 {
+    [Fact]
+    public async Task RealtimeStartup_PendingRestRead_WaitsForTheLoadedInbox()
+    {
+        var response = new TaskCompletionSource<OperateSectionResult<ApprovalInboxSnapshot>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var inbox = new ScriptedApprovalInboxClient { ReadOperation = _ => response.Task };
+        var realtime = new FakeConsoleProposalRealtimeClient();
+        await using var ctx = NewContextWithInbox(inbox, realtime);
+        var page = ctx.Render<ApprovalInboxPage>(p => p.Add(x => x.LoadBudget, TimeSpan.FromSeconds(30)));
+
+        Assert.Equal(0, realtime.StartCount);
+        response.SetResult(OperateSectionResult<ApprovalInboxSnapshot>.Allowed(
+            FakeProposalFactory.Snapshot(FakeProposalFactory.Summary("rest-proposal", ConsoleProposalKind.Deploy))));
+
+        page.WaitForAssertion(() => Assert.Equal(1, realtime.StartCount));
+        Assert.Contains("rest-proposal", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Prerender_StalledRealtime_CompletesWithTheRestQueue()
+    {
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var realtime = new FakeConsoleProposalRealtimeClient { StartOperation = _ => release.Task };
+        await using var ctx = NewContext(new FakeConsoleProposalsClient(
+            proposals: [FakeProposalFactory.Summary("rest-proposal", ConsoleProposalKind.Deploy)]), realtime);
+        await using var renderer = new HtmlRenderer(ctx.Services, ctx.Services.GetRequiredService<ILoggerFactory>());
+
+        try
+        {
+            var rendering = renderer.Dispatcher.InvokeAsync(() => renderer.RenderComponentAsync<ApprovalInboxPage>(
+                ParameterView.FromDictionary(new Dictionary<string, object?>
+                {
+                    [nameof(ApprovalInboxPage.LoadBudget)] = TimeSpan.FromMilliseconds(50),
+                })));
+            var output = await rendering.WaitAsync(TimeSpan.FromSeconds(2));
+            var html = await renderer.Dispatcher.InvokeAsync(output.ToHtmlString);
+
+            Assert.Contains("rest-proposal", html, StringComparison.Ordinal);
+            Assert.Contains("data-live-state=\"paused\"", html, StringComparison.Ordinal);
+        }
+        finally
+        {
+            release.TrySetResult();
+        }
+    }
+
+    [Fact]
+    public async Task RealtimeStartup_ExceedsReadBudget_CancelsAndKeepsRestApprovalUsable()
+    {
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var startupToken = CancellationToken.None;
+        var realtime = new FakeConsoleProposalRealtimeClient
+        {
+            StartOperation = async token =>
+            {
+                startupToken = token;
+                try { await release.Task.WaitAsync(token); }
+                finally { stopped.TrySetResult(); }
+            },
+        };
+        var proposals = new FakeConsoleProposalsClient(
+            proposals: [FakeProposalFactory.Summary("rest-proposal", ConsoleProposalKind.Deploy)],
+            details: [FakeProposalFactory.Detail("rest-proposal", ConsoleProposalKind.Deploy)]);
+        await using var ctx = NewContext(proposals, realtime);
+
+        try
+        {
+            var page = ctx.Render<ApprovalInboxPage>(p => p.Add(x => x.LoadBudget, TimeSpan.FromMilliseconds(50)));
+            await stopped.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.True(startupToken.IsCancellationRequested);
+            page.WaitForAssertion(() => Assert.Equal("paused", page.Find("[data-live-state]").GetAttribute("data-live-state")));
+            page.Find("[data-proposal-id=\"rest-proposal\"]").Click();
+            page.WaitForAssertion(() => page.Find("[data-proposal-approve]"));
+            page.Find("[data-proposal-approve]").Click();
+            page.WaitForAssertion(() => Assert.Equal("rest-proposal", Assert.Single(proposals.Approved)));
+            Assert.Equal(0, realtime.StopCount);
+        }
+        finally
+        {
+            release.TrySetResult();
+        }
+    }
+
+    [Fact]
+    public async Task Dispose_PendingRealtimeStartup_CancelsAndCompletes()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var realtime = new FakeConsoleProposalRealtimeClient
+        {
+            StartOperation = async token =>
+            {
+                entered.TrySetResult();
+                try { await release.Task.WaitAsync(token); }
+                finally { stopped.TrySetResult(); }
+            },
+        };
+        var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []), realtime);
+
+        try
+        {
+            ctx.Render<ApprovalInboxPage>();
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await ctx.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+            await stopped.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(0, realtime.StopCount);
+        }
+        finally
+        {
+            release.TrySetResult();
+            await ctx.DisposeAsync();
+        }
+    }
+
     private static BunitContext NewContext(
         FakeConsoleProposalsClient proposals,
         FakeConsoleProposalRealtimeClient? realtime = null,

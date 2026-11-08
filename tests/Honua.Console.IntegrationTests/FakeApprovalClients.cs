@@ -127,6 +127,8 @@ public sealed class FakeConsoleProposalRealtimeClient : IConsoleProposalRealtime
 
     public bool ConnectOnStart { get; set; } = true;
 
+    public Func<CancellationToken, Task>? StartOperation { get; set; }
+
     public ConsoleRealtimeConnectionState ConnectionState => _state;
 
     public bool IsConnected => _state == ConsoleRealtimeConnectionState.Connected;
@@ -137,13 +139,16 @@ public sealed class FakeConsoleProposalRealtimeClient : IConsoleProposalRealtime
 
     public int StopCount { get; private set; }
 
-    public Task StartAsync(CancellationToken cancellationToken = default)
+    public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         StartCount++;
+        if (StartOperation is { } start)
+        {
+            await start(cancellationToken);
+        }
         SetConnectionState(ConnectOnStart
             ? ConsoleRealtimeConnectionState.Connected
             : ConsoleRealtimeConnectionState.FallbackEngaged);
-        return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken = default)
@@ -204,12 +209,14 @@ public sealed class RecoveringApprovalInboxClient(int failuresBeforeSuccess, App
 
 public sealed class ScriptedApprovalInboxClient : IConsoleApprovalInboxClient
 {
+    public Func<CancellationToken, Task<OperateSectionResult<ApprovalInboxSnapshot>>>? ReadOperation { get; set; }
+
     public OperateSectionResult<ApprovalInboxSnapshot> Result { get; set; } =
         OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
 
     public Task<OperateSectionResult<ApprovalInboxSnapshot>> GetInboxAsync(
         string? status = null, string? kind = null, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Result);
+        ReadOperation?.Invoke(cancellationToken) ?? Task.FromResult(Result);
 }
 
 public static class FakeProposalFactory

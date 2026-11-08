@@ -1244,3 +1244,26 @@ plan or proposal version invalidates the review. An uncertain decision response
 requires a status read before another explicit review. Status reads never mint
 review capabilities, and background refresh cannot reopen a review after an
 uncertain decision; the user selects **Refresh review** to do so.
+
+## Experimental catalog administration
+
+`Honua:Console:Catalogs:Enabled` (default false) exposes the new `/catalogs` list
+and `/catalogs/{id}` overview. The feature retains the authenticated shell and
+server authorization boundaries. With the flag on, navigation names `/catalog`
+Content, adds Catalogs between Studio and Operate, and groups existing Discovery
+endpoints (`/operate/catalogs`) and Open Data access (`/share/manage`) there.
+Existing detail and anonymous public/embed routes remain available.
+
+This first slice contains view projections and an unsupported live source. A
+configured server without the canonical catalog SDK contract renders unsupported;
+no server renders missing binding. Enabling the flag never seeds catalogs. Tests
+explicitly register synthetic presentation views and label them Fixture preview.
+Live sources must consume the shared SDK contract and capability before they
+are enabled; a browser catalog client is not Console's .NET contract authority.
+
+The experimental `/catalogs/{id}/settings` route shares the same flag, source and
+authentication boundary as the overview. It displays a read-only configuration
+projection; no save/proposal operation is wired until the canonical contract is
+available. A copyable embed snippet is offered only when that projection supplies
+a released HTTPS component bundle and SHA-384 integrity. The snippet is escaped
+text, never executed by Console. No fixtures are registered by the production host.

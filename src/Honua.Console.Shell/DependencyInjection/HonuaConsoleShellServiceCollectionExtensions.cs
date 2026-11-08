@@ -16,6 +16,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(options);
 
         var server = HonuaServerBinding.From(options);
+        services.TryAddSingleton(new Models.CatalogAdminOptions { Enabled = options.CatalogAdminEnabled });
+        services.TryAddScoped<ICatalogAdminSource>(_ => new UnsupportedCatalogAdminSource(server.BaseUri is not null));
         AddShellCore(services, options);
         AddContentPublicationClient(services, server);
         StudioRegistrations.AddStudio(services, server, options);
