@@ -716,27 +716,14 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 .ExchangeAsync(profile, cancellationToken).ConfigureAwait(false);
             if (exchange.Status != ConsoleOperatorBearerExchangeStatus.Issued
                 || string.IsNullOrWhiteSpace(exchange.AccessToken)
-                || exchange.ExpiresAt is not { } expiresAt)
+                || exchange.ExpiresAt is null)
             {
                 return exchange.Status == ConsoleOperatorBearerExchangeStatus.Denied
                     ? Denied(exchange.Message, pending.ReturnTo)
                     : Unavailable(exchange.Message, pending.ReturnTo);
             }
 
-            var updatedSession = (existing ?? new ConsoleAccountSession
-            {
-                ProfileId = profile.Id,
-                AccountId = operatorKey,
-                DisplayName = profile.Account.DisplayName,
-                TenantId = string.IsNullOrWhiteSpace(profile.Account.TenantId)
-                    ? profile.TenantId
-                    : profile.Account.TenantId
-            }) with
-            {
-                AccessToken = exchange.AccessToken,
-                ServerBaseUri = profile.ServerBaseUri,
-                AccessTokenExpiresAt = expiresAt
-            };
+            var updatedSession = CreateBoundAccountSession(identityRequest, existing, exchange);
             if (snapshots is not null && snapshot is not null)
             {
                 if (!await snapshots.TrySaveSessionAsync(snapshot, updatedSession, cancellationToken).ConfigureAwait(false))
@@ -764,6 +751,27 @@ internal sealed class ConsoleServerSessionBffCoordinator
         {
             return Unavailable("The server sign-in callback could not be completed.", pending.ReturnTo);
         }
+    }
+
+    private static ConsoleAccountSession CreateBoundAccountSession(
+        ConsoleServerSessionIdentityRequest identity, ConsoleAccountSession? existing,
+        ConsoleOperatorBearerExchangeResult exchange)
+    {
+        var profile = identity.Profile;
+        return (existing ?? new ConsoleAccountSession
+        {
+            ProfileId = profile.Id,
+            AccountId = identity.OperatorKey,
+            DisplayName = profile.Account.DisplayName,
+            TenantId = string.IsNullOrWhiteSpace(profile.Account.TenantId)
+                ? profile.TenantId
+                : profile.Account.TenantId,
+        }) with
+        {
+            AccessToken = exchange.AccessToken,
+            ServerBaseUri = profile.ServerBaseUri,
+            AccessTokenExpiresAt = exchange.ExpiresAt,
+        };
     }
 
     public async Task SignOutAsync(CancellationToken cancellationToken = default)
