@@ -144,6 +144,48 @@ public sealed class FolderManagementTests
         Assert.Equal("Survey", picker.Find("option[value=\"folder:active\"]").TextContent);
     }
 
+    [Fact]
+    public void PublishingPickerCanRefreshAfterASuccessfulReadAndReviewANewAuthority()
+    {
+        using var context = new BunitContext();
+        var client = new FolderClient();
+        context.Services.AddSingleton<IConsoleFolderClient>(client);
+        var bindings = new List<string?>();
+        var picker = context.Render<FolderPublishSelection>(parameters => parameters
+            .Add(component => component.AuthorityBindingChanged, binding => bindings.Add(binding)));
+        picker.Find("[data-publish-folder]").Change("folder:transport");
+        Assert.Equal("authority", Assert.Single(bindings));
+
+        client.AuthorityBinding = "new-authority";
+        client.Folders = [new() { Metadata = new() { Id = "survey", Name = "Survey" } }];
+        picker.Find("[data-publish-folder-refresh]").Click();
+
+        Assert.Equal(2, client.Reads);
+        Assert.Empty(picker.FindAll("option[value='folder:transport']"));
+        picker.Find("[data-publish-folder]").Change("folder:survey");
+        Assert.Equal(new[] { "authority", "new-authority" }, bindings);
+    }
+
+    [Fact]
+    public async Task PublishingPickerDisablesRefreshAndSelectionDuringARead()
+    {
+        using var context = new BunitContext();
+        var client = new FolderClient();
+        context.Services.AddSingleton<IConsoleFolderClient>(client);
+        var picker = context.Render<FolderPublishSelection>();
+        client.PendingRead = new();
+        var refresh = picker.Find("[data-publish-folder-refresh]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        picker.WaitForAssertion(() =>
+        {
+            Assert.True(picker.Find("[data-publish-folder-refresh]").HasAttribute("disabled"));
+            Assert.True(picker.Find("[data-publish-folder]").HasAttribute("disabled"));
+        });
+        client.PendingRead.SetResult(OperateSectionResult<ConsoleFolderCatalog>.Allowed(new(client.Folders, client.ETag, client.AuthorityBinding)));
+        await refresh;
+        Assert.False(picker.Find("[data-publish-folder-refresh]").HasAttribute("disabled"));
+        Assert.False(picker.Find("[data-publish-folder]").HasAttribute("disabled"));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -172,10 +214,13 @@ public sealed class FolderManagementTests
 
     private sealed class FolderClient : IConsoleFolderClient
     {
-        public IReadOnlyList<Folder> Folders { get; init; } = [new() { Metadata = new() { Id = "transport", Name = "Transport", Title = "Transport data" } }];
+        public IReadOnlyList<Folder> Folders { get; set; } = [new() { Metadata = new() { Id = "transport", Name = "Transport", Title = "Transport data" } }];
         public TaskCompletionSource<ConsoleFolderMutationResult>? Pending { get; init; }
         public string ETag { get; set; } = "\"catalog-1\"";
         public OperateSectionStatus? Denial { get; init; }
+        public string AuthorityBinding { get; set; } = "authority";
+        public int Reads { get; private set; }
+        public TaskCompletionSource<OperateSectionResult<ConsoleFolderCatalog>>? PendingRead { get; set; }
         public int Mutations { get; private set; }
         public UpdateFolderRequest? Updated { get; private set; }
         public string? Deleted { get; private set; }
@@ -184,9 +229,13 @@ public sealed class FolderManagementTests
         public ConsoleFolderCatalog? MutatedCatalog { get; private set; }
         public ConsoleFolderMutationResult Result { get; set; } = new() { Succeeded = true, State = "Saved" };
 
-        public Task<OperateSectionResult<ConsoleFolderCatalog>> ReadAsync(CancellationToken cancellationToken = default) => Task.FromResult(
-            Denial is { } denied ? OperateSectionResult<ConsoleFolderCatalog>.Denied(denied, "Folder read refused")
-                : OperateSectionResult<ConsoleFolderCatalog>.Allowed(new(Folders, ETag, "authority")));
+        public Task<OperateSectionResult<ConsoleFolderCatalog>> ReadAsync(CancellationToken cancellationToken = default)
+        {
+            Reads++;
+            return PendingRead?.Task ?? Task.FromResult(
+                Denial is { } denied ? OperateSectionResult<ConsoleFolderCatalog>.Denied(denied, "Folder read refused")
+                    : OperateSectionResult<ConsoleFolderCatalog>.Allowed(new(Folders, ETag, AuthorityBinding)));
+        }
         public Task<ConsoleFolderMutationResult> CreateAsync(ConsoleFolderCatalog catalog, CreateFolderRequest request, CancellationToken cancellationToken = default) => Record(catalog);
         public Task<ConsoleFolderMutationResult> UpdateAsync(ConsoleFolderCatalog catalog, string folderId, UpdateFolderRequest request, CancellationToken cancellationToken = default)
         {

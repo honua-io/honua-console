@@ -20,8 +20,8 @@
     @if (_read is { IsAllowed: false } read)
     {
         <OperateSectionStatusPanel Heading="Publishing Folders" Status="read.Status" Message="@read.Message" />
-        <button class="console-button console-button-secondary" type="button" @onclick="ReadAsync">Refresh Folders</button>
     }
+    <button class="console-button console-button-secondary" type="button" @onclick="ReadAsync" disabled="@_loading" data-publish-folder-refresh>Refresh Folders</button>
     <p class="console-muted">Choose Root or a Folder for a new Service. Keep an existing Service's membership unchanged; move it from its settings page.</p>
 </div>
 

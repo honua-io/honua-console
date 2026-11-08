@@ -278,10 +278,79 @@ public sealed class PublishWizardWorkspaceRenderTests
         }
     }
 
+    [Theory]
+    [InlineData(false, "root:", false)]
+    [InlineData(false, "folder:transport", false)]
+    [InlineData(true, "root:", false)]
+    [InlineData(true, "folder:transport", false)]
+    [InlineData(false, "root:", true)]
+    [InlineData(false, "folder:transport", true)]
+    [InlineData(true, "root:", true)]
+    [InlineData(true, "folder:transport", true)]
+    public async Task PublishingHostsRequireTheReviewedFolderAuthority(bool quickPage, string selection, bool changed)
+    {
+        var authority = new PublishingAuthority();
+        var publish = new RecordingPublishOperation();
+        using var ctx = NewContext(StubOperateData.WithFixtures(), publish);
+        ctx.Services.AddSingleton<IConsoleAuthorityBindingValidator>(authority);
+        ctx.Services.AddSingleton<IConsoleFolderClient>(new PublishingFolders());
+        if (quickPage)
+        {
+            var cut = ctx.Render<OperatePublishLayerPage>();
+            cut.Find("[data-workspace-field='connectionId']").Change("conn-a");
+            cut.Find("[data-workspace-field='table']").Change("hydro.streams");
+            cut.Find("[data-workspace-field='serviceName']").Input("new-service");
+            cut.Find("[data-publish-folder]").Change(selection);
+            authority.Binding = changed ? "other-environment" : "reviewed-environment";
+            await cut.Find("[data-workspace-publish]").ClickAsync(new MouseEventArgs());
+            if (changed) Assert.Contains("Refresh Folders", cut.Find("[role='alert']").TextContent);
+        }
+        else
+        {
+            var cut = ctx.Render<PublishWizardWorkspace>();
+            cut.FindAll("button.publish-segment-option")[1].Click();
+            cut.Find("[data-new-service-name]").Input("new-service");
+            cut.Find("[data-publish-folder]").Change(selection);
+            await ContinueAsync(cut);
+            cut.Find("[data-connection-picker]").Change("conn-a");
+            cut.Find("[data-table-picker]").Change("hydro.streams");
+            await ContinueAsync(cut);
+            authority.Binding = changed ? "other-environment" : "reviewed-environment";
+            await FinishAsync(cut);
+            if (changed) Assert.Contains("Your user or environment changed", cut.Markup);
+        }
+        Assert.Equal(1, authority.Captures);
+        if (changed) Assert.Empty(publish.Commands);
+        else
+        {
+            var command = Assert.Single(publish.Commands);
+            Assert.Equal("reviewed-environment", command.AuthorityBinding);
+            Assert.True(command.FolderId.IsSpecified);
+            Assert.Equal(selection == "root:" ? null : "transport", command.FolderId.Value);
+        }
+    }
+
+    private sealed class PublishingFolders : IConsoleFolderClient
+    {
+        public Task<OperateSectionResult<ConsoleFolderCatalog>> ReadAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<ConsoleFolderCatalog>.Allowed(new(
+                [new() { Metadata = new() { Id = "transport", Name = "Transport" } }], "\"catalog\"", "reviewed-environment")));
+        public Task<ConsoleFolderMutationResult> CreateAsync(ConsoleFolderCatalog catalog, Honua.Sdk.Admin.Models.CreateFolderRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ConsoleFolderMutationResult> UpdateAsync(ConsoleFolderCatalog catalog, string folderId, Honua.Sdk.Admin.Models.UpdateFolderRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ConsoleFolderMutationResult> DeleteAsync(ConsoleFolderCatalog catalog, string folderId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ConsoleFolderMutationResult> MoveAsync(ConsoleFolderCatalog catalog, string serviceName, Honua.Sdk.Admin.Models.MoveServiceRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
     private sealed class PublishingAuthority : IConsoleAuthorityBindingValidator
     {
         public bool Current { get; set; } = true;
-        public Task<string?> CaptureAsync(CancellationToken cancellationToken = default) => Task.FromResult<string?>("reviewed-environment");
+        public string? Binding { get; set; } = "reviewed-environment";
+        public int Captures { get; private set; }
+        public Task<string?> CaptureAsync(CancellationToken cancellationToken = default)
+        {
+            Captures++;
+            return Task.FromResult(Binding);
+        }
         public Task<bool> IsCurrentAsync(string binding, CancellationToken cancellationToken = default) => Task.FromResult(Current && binding == "reviewed-environment");
     }
 

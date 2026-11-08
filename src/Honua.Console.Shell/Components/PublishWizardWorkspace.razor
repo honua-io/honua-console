@@ -199,14 +199,15 @@ else
         }
 
         if (_requiresCatalogRead) return;
-        var authority = Services.GetService<Honua.Console.Contracts.IConsoleAuthorityBindingValidator>();
-        var binding = authority is null ? null : await authority.CaptureAsync();
         var folderSelection = _createNewService ? _folderId : default;
-        if (folderSelection.IsSpecified && (_folderAuthority is null || binding != _folderAuthority))
+        var target = await ConsolePublishAuthority.CaptureAsync(Services, folderSelection, _folderAuthority);
+        if (target.Error is { } error)
         {
-            _publishResult = new() { State = "Target changed", Detail = "Your user or environment changed. Refresh Folders and review the original publishing target." };
+            _publishResult = new() { State = "Target changed", Detail = error };
             return;
         }
+        var authority = target.Validator;
+        var binding = target.Binding;
         var command = new ServiceLayerPublishCommand
         {
             ConnectionId = _connectionId,

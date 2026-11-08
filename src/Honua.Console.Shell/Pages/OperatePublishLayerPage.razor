@@ -251,11 +251,10 @@
         _clientError = Validate();
         if (_clientError is not null) return;
 
-        var authority = Services.GetService<IConsoleAuthorityBindingValidator>();
-        var binding = authority is null ? null : await authority.CaptureAsync();
-        if (_folderId.IsSpecified && (_folderAuthority is null || binding != _folderAuthority))
+        var target = await ConsolePublishAuthority.CaptureAsync(Services, _folderId, _folderAuthority);
+        if (target.Error is { } error)
         {
-            _clientError = "Your user or environment changed. Refresh Folders and review the original publishing target.";
+            _clientError = error;
             return;
         }
         var table = _selectedTable!;
@@ -268,7 +267,7 @@
             ServiceName = _serviceName.Trim(),
             FolderId = _folderId,
             PublicName = string.IsNullOrWhiteSpace(_publicName) ? null : _publicName.Trim(),
-            AuthorityBinding = binding,
+            AuthorityBinding = target.Binding,
             GeometryColumn = table.GeometryColumn,
             GeometryType = RequiresGeometryChoice(table) ? _geometryTypeOverride : table.GeometryType,
             Srid = table.Srid,
