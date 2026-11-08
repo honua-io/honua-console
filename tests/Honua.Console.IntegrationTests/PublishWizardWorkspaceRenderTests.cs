@@ -265,9 +265,13 @@ public sealed class PublishWizardWorkspaceRenderTests
         var command = Assert.Single(publish.Commands);
         Assert.False(command.FolderId.IsSpecified);
         Assert.Equal("reviewed-environment", command.AuthorityBinding);
-        var preview = cut.Find("[data-url-preview]").TextContent;
-        if (changeAt == "unchanged") Assert.Contains("https://selected-environment.example/FeatureServer", preview);
-        else Assert.DoesNotContain("https://selected-environment.example", preview);
+        if (changeAt == "unchanged")
+            Assert.Contains("https://selected-environment.example/FeatureServer", cut.Find("[data-url-preview]").TextContent);
+        else
+        {
+            Assert.Empty(cut.FindAll("[data-url-preview]"));
+            Assert.Contains("Open Service settings to read current endpoints", cut.Markup);
+        }
     }
 
     private sealed class PublishingAuthority : IConsoleAuthorityBindingValidator
