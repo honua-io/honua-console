@@ -1,6 +1,7 @@
 using Bunit;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Layout;
+using Honua.Console.Shell.Components.Operate;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -442,6 +443,35 @@ public sealed class ConsolePublicationNavigationRenderTests
         public Task<ConsoleFolderMutationResult> MoveAsync(ConsoleFolderCatalog catalog, string serviceName, MoveServiceRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
+    [Theory]
+    [InlineData("denied", false)]
+    [InlineData("changed-before", false)]
+    [InlineData("changed-after", false)]
+    [InlineData("success", true)]
+    public void UnverifiedPublishCanOnlyUnlockAfterAnAllowedReadOfTheOriginalAuthority(string outcome, bool expectedVerified)
+    {
+        using var context = Context();
+        var authority = new VerificationAuthority { Current = outcome != "changed-before" };
+        var source = new NavigationSource();
+        if (outcome == "denied") source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Forbidden, "Catalog denied");
+        if (outcome == "changed-after") source.OnServiceRead = () => authority.Current = false;
+        context.Services.AddSingleton<IConsoleAuthorityBindingValidator>(authority);
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var verified = false;
+        var panel = context.Render<PublishOutcomeVerification>(parameters => parameters
+            .Add(component => component.AuthorityBinding, "original")
+            .Add(component => component.OnVerified, () => verified = true));
+        panel.Find("[data-publish-verify]").Click();
+        Assert.Equal(expectedVerified, verified);
+        Assert.Equal(outcome == "changed-before" ? 0 : 1, source.ServiceReads);
+    }
+
+    private sealed class VerificationAuthority : IConsoleAuthorityBindingValidator
+    {
+        public bool Current { get; set; } = true;
+        public Task<bool> IsCurrentAsync(string binding, CancellationToken cancellationToken = default) => Task.FromResult(Current && binding == "original");
+    }
+
     private static BunitContext Context()
     {
         var context = new BunitContext();
@@ -455,6 +485,7 @@ public sealed class ConsolePublicationNavigationRenderTests
         public OperateSectionResult<HonuaAdminServicePage>? FailNext { get; set; }
         public int HoldCount { get; set; }
         public int ServiceReads { get; private set; }
+        public Action? OnServiceRead { get; set; }
         private readonly Queue<TaskCompletionSource<OperateSectionResult<HonuaAdminServicePage>?>> _holds = new();
         public HonuaAdminCatalogQuery LastQuery { get; private set; }
         public TaskCompletionSource<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>>? PendingLayers { get; set; }
@@ -469,6 +500,7 @@ public sealed class ConsolePublicationNavigationRenderTests
             HonuaAdminCatalogQuery query, CancellationToken cancellationToken)
         {
             ServiceReads++;
+            OnServiceRead?.Invoke();
             LastQuery = query;
             if (HoldCount > 0)
             {

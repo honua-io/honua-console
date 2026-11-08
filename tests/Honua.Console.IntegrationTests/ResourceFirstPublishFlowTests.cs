@@ -173,7 +173,9 @@ public sealed class ResourceFirstPublishFlowTests
     {
         var service = Service("logical-id", "FeatureServer", Layer(1, "rsc_parcels")) with
         {
-            FolderId = "folder", FolderName = folderName, PublicName = "Public parcels"
+            FolderId = "folder",
+            FolderName = folderName,
+            PublicName = "Public parcels"
         };
         var tree = ResourcePublicationsTreeBuilder.Build([EditPreview("rsc_parcels", "Parcels")], [service]);
         Assert.Equal(expectedRoute, Assert.Single(Assert.Single(tree).Publications).Route);

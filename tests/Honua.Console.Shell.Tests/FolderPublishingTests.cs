@@ -80,7 +80,11 @@ public sealed class FolderPublishingTests
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid/")));
         var result = await new HonuaServerServiceLayerPublishOperation(client, new Authority()).PublishAsync(new()
         {
-            ConnectionId = "connection", Schema = "public", Table = "parcels", LayerName = "Parcels", ServiceName = "logical",
+            ConnectionId = "connection",
+            Schema = "public",
+            Table = "parcels",
+            LayerName = "Parcels",
+            ServiceName = "logical",
             AuthorityBinding = "human-environment"
         });
         Assert.False(result.Succeeded);

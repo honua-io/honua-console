@@ -1,6 +1,5 @@
 @using Honua.Console.Contracts
 @inject IServiceProvider Services
-@inject IOperateTransitionDataSource OperateData
 
 <article class="console-panel console-state-warning" role="status" data-publish-verification>
     <p>@ConsoleWriteOutcome.UnverifiedDetail</p>
@@ -25,8 +24,9 @@
                 _reason = "Return to the original user and environment before reading its catalog.";
                 return;
             }
-            var read = await ConsoleReadBudget.RunAsync(async token =>
-                OperateSectionResult<OperateServicesView>.Allowed(await OperateData.GetServicesViewAsync(token)),
+            var source = Services.GetService<IConsolePublicationNavigationSource>() ?? new UnsupportedConsolePublicationNavigationSource();
+            var read = await ConsoleReadBudget.RunAsync(
+                token => source.ReadServicesAsync(HonuaAdminCatalogQuery.First, token),
                 ConsoleReadBudget.Default, "The original catalog could not be read.");
             if (!read.IsAllowed || !await authority.IsCurrentAsync(binding))
             {

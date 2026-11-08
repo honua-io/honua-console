@@ -15,9 +15,17 @@ public sealed partial class OperateTransitionDataSourceTests
             ["/api/v1/admin/connections/"] = "{\"success\":true,\"data\":[]}",
             ["/api/v1/admin/services/?page=1&pageSize=100"] = JsonSerializer.Serialize(new
             {
-                success = true, data = new { items = new[] { new { serviceName = "logical-id", folderId = "folder", folderName,
+                success = true,
+                data = new
+                {
+                    items = new[] { new { serviceName = "logical-id", folderId = "folder", folderName,
                     publicName = "Public parcels", folderMutationIssues = new[] { "Publication path needs reconciliation." },
-                    enabledProtocols = new[] { "FeatureServer" } } }, page = 1, pageSize = 100, total = 1, layerTotal = 0 }
+                    enabledProtocols = new[] { "FeatureServer" } } },
+                    page = 1,
+                    pageSize = 100,
+                    total = 1,
+                    layerTotal = 0
+                }
             })
         });
         var source = CreateServerDataSource(handler);
