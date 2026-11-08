@@ -193,17 +193,18 @@ public sealed class ConsolePublicationTree
     {
         var matches = Descendants(Root).Prepend(Root).Where(node => node.Href == path).Take(2).ToArray();
         if (matches.Length != 1) return [];
-        var ancestors = new List<ConsolePublicationNode>();
-        AppendPath(Root, matches[0], ancestors);
-        return ancestors;
+        return FindPath(Root, matches[0])?.ToArray() ?? [];
     }
 
-    private static bool AppendPath(ConsolePublicationNode node, ConsolePublicationNode target, List<ConsolePublicationNode> ancestors)
+    private static IEnumerable<ConsolePublicationNode>? FindPath(ConsolePublicationNode node, ConsolePublicationNode target)
     {
-        ancestors.Add(node);
-        if (node == target || node.Children.Any(child => AppendPath(child, target, ancestors))) return true;
-        ancestors.RemoveAt(ancestors.Count - 1);
-        return false;
+        if (node == target) return [node];
+        foreach (var child in node.Children)
+        {
+            var path = FindPath(child, target);
+            if (path is not null) return path.Prepend(node);
+        }
+        return null;
     }
 
     public void RevealPath(string path)
