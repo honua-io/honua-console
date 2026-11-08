@@ -85,6 +85,8 @@
 </section>
 
 @code {
+    [CascadingParameter] public ConsolePublicationLayerContext? PublicationContext { get; set; }
+
     [Parameter]
     public string ResourceId { get; set; } = string.Empty;
 
@@ -98,8 +100,11 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        var attempt = PublicationContext?.BeginRead(ResourceId);
         var view = await OperateData.GetLayersViewAsync();
-        _layer = view.FindLayer(ResourceId);
+        var exposures = view.FindExposures(ResourceId);
+        if (attempt is { } read) PublicationContext!.CompleteRead(read, exposures);
+        _layer = exposures.FirstOrDefault()?.Layer;
 
         if (_layer is not null)
         {

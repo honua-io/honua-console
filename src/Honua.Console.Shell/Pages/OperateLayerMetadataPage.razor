@@ -68,6 +68,8 @@
 </section>
 
 @code {
+    [CascadingParameter] public ConsolePublicationLayerContext? PublicationContext { get; set; }
+
     [Parameter]
     public string ResourceId { get; set; } = string.Empty;
 
@@ -82,8 +84,10 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        var attempt = PublicationContext?.BeginRead(ResourceId);
         var view = await OperateData.GetLayersViewAsync();
         _exposures = view.FindExposures(ResourceId);
+        if (attempt is { } read) PublicationContext!.CompleteRead(read, _exposures);
         _editableExposures = _exposures
             .Where(exposure => exposure.Service.Serves(PublishProtocolCatalog.Protocols.FeatureServer))
             .ToArray();

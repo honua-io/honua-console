@@ -115,6 +115,8 @@
 </section>
 
 @code {
+    [CascadingParameter] public ConsolePublicationLayerContext? PublicationContext { get; set; }
+
     [Parameter]
     public string ResourceId { get; set; } = string.Empty;
 
@@ -131,10 +133,12 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        var attempt = PublicationContext?.BeginRead(ResourceId);
         _loading = true;
         _saveResult = null;
         _catalog = await StyleCatalog.GetStyleCatalogAsync();
         _overrides = await OverrideData.GetOverridesAsync(ResourceId);
+        if (attempt is { } read) PublicationContext!.CompleteStyleRead(read, _overrides);
         _popupEdits.Clear();
         _drawingEdits.Clear();
         foreach (var slot in _overrides.Slots)

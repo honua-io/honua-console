@@ -32,11 +32,7 @@ public sealed class ServerConsolePublicationNavigationSource(IHonuaAdminOperateC
             return OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>.Denied(OperateSectionStatus.Unsupported,
                 "The server returned no connections for browsing this service's layers.");
         var reads = await BoundedFanOut.RunAsync(connectionKeys,
-            (connectionKey, token) => HonuaAdminCatalogReader.ReadAllAsync(
-                (page, readToken) => client.ListConnectionLayersAsync(connectionKey, new HonuaAdminLayerListRequest(serviceName, page), readToken),
-                page => page.Items,
-                page => page.Total,
-                token),
+            (connectionKey, token) => ReadConnectionLayerSummariesAsync(connectionKey, serviceName, token),
             maxConcurrency: ConcurrentConnectionReads, cancellationToken: cancellationToken);
         var layers = new List<ConsolePublicationLayer>();
         for (var index = 0; index < reads.Length; index++)
@@ -50,6 +46,12 @@ public sealed class ServerConsolePublicationNavigationSource(IHonuaAdminOperateC
             partialResult: failure is not null,
             message: failure is null ? "" : "Some connections could not be read. These layers are partial results.");
     }
+
+    private Task<HonuaAdminEndpointResult<IReadOnlyList<HonuaAdminPublishedLayerSummary>>> ReadConnectionLayerSummariesAsync(
+        string connectionKey, string? serviceName, CancellationToken cancellationToken) =>
+        HonuaAdminCatalogReader.ReadAllAsync(
+            (page, token) => client.ListConnectionLayersAsync(connectionKey, new(serviceName, page), token),
+            page => page.Items, page => page.Total, cancellationToken);
 
     private static IEnumerable<ConsolePublicationLayer> ProjectServiceLayers(
         string connectionKey, IReadOnlyList<HonuaAdminPublishedLayerSummary> layers, string serviceName) => layers
