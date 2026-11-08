@@ -152,7 +152,11 @@ public sealed class ConsolePublicationNavigationRenderTests
     {
         var source = new NavigationSource
         {
-            ServiceSummaries = [new() { ServiceName = "internal/parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 }]
+            ServiceSummaries =
+            [
+                new() { ServiceName = "internal/parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 },
+                new() { ServiceName = "root-parcels", Title = "Root parcels" }
+            ]
         };
         using var context = PublicationLayoutContext(source);
         var navigation = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
@@ -170,6 +174,9 @@ public sealed class ConsolePublicationNavigationRenderTests
         Assert.Equal("Home", ancestors[0]);
         Assert.Equal("/operate/services/internal%2Fparcels/settings",
             layout.Find("nav[aria-label='Breadcrumb'] a[href*='/services/']").GetAttribute("href"));
+        navigation.NavigateTo("/operate/services/root-parcels/settings");
+        layout.WaitForAssertion(() => Assert.Equal("Root parcels", layout.Find("nav[aria-label='Breadcrumb'] summary").TextContent));
+        Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
         navigation.NavigateTo("/operate/data");
         layout.WaitForAssertion(() => Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
         Assert.DoesNotContain("Bridges", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
