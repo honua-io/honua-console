@@ -1,3 +1,7 @@
+---
+type: guide
+---
+
 # Manage Folders
 
 Open **Operate → Services → Folders**, or **Manage Folders** in the Service navigation.
