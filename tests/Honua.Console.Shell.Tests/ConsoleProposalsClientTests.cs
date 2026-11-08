@@ -10,6 +10,41 @@ namespace Honua.Console.Shell.Tests;
 
 public sealed class ConsoleProposalsClientTests
 {
+    [Fact]
+    public async Task Get_LegacyServerRemediation_PreservesFreshProposalGuidance()
+    {
+        const string body = """{"proposalId":"prop-1","status":"AwaitingApproval","requiresReproposal":true,"approvalRemediation":"Create a fresh proposal before human approval."}""";
+        var client = CreateClient(new RecordingHandler(_ => Json(body)));
+
+        var result = await client.GetAsync("prop-1");
+
+        Assert.True(result.IsAllowed);
+        Assert.True(result.Value!.RequiresReproposal);
+        Assert.Equal("Create a fresh proposal before human approval.", result.Value.HumanApprovalMessage);
+        Assert.Null(result.Value.HumanReviewEnvironment);
+    }
+
+    [Theory]
+    [InlineData(OperateSectionStatus.Unsupported, "This server does not support private human proposal review.")]
+    [InlineData(OperateSectionStatus.Unavailable, "The selected environment did not match the review.")]
+    [InlineData(OperateSectionStatus.Unavailable, "The server returned an incomplete approval review.")]
+    public async Task Get_PrivateReviewRefused_PreservesTheReasonOnReadFallback(OperateSectionStatus status, string message)
+    {
+        var human = new FixedHumanReview
+        {
+            Refusal = OperateSectionResult<ConsoleHumanProposalReview>.Denied(status, message)
+        };
+        var client = CreateClient(new RecordingHandler(_ => Json("""{"proposalId":"prop-1","status":"AwaitingApproval"}""")),
+            humanSession: human);
+
+        var result = await client.GetAsync("prop-1");
+
+        Assert.True(result.IsAllowed);
+        Assert.Equal(message, result.Value!.HumanApprovalMessage);
+        Assert.Null(result.Value.HumanReviewEnvironment);
+        Assert.Null(result.Value.HumanApprovalSignInPath);
+    }
+
     [Theory]
     [InlineData("Completed", "completed", true)]
     [InlineData("Cancelled", "cancelled", true)]
@@ -331,12 +366,14 @@ public sealed class ConsoleProposalsClientTests
 
     private sealed class FixedHumanReview : IConsoleHumanProposalSession
     {
+        public OperateSectionResult<ConsoleHumanProposalReview>? Refusal { get; init; }
         public ConsoleServerAuthority Authority { get; private set; }
         public Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync(
             ConsoleHumanProposalReviewRequest request,
             CancellationToken cancellationToken = default)
         {
             Authority = request.Authority;
+            if (Refusal is { } refused) return Task.FromResult(refused);
             return Task.FromResult(OperateSectionResult<ConsoleHumanProposalReview>.Allowed(new(
                 new ProposalDetailWire { ProposalId = request.ProposalId, Version = 7, PlanHash = "plan", Status = "AwaitingApproval" },
                 "private-environment", DateTimeOffset.UtcNow.AddMinutes(5))));
