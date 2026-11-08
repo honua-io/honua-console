@@ -229,13 +229,15 @@ else
     private bool DecisionUnavailable => !RendererInfo.IsInteractive || _busy || _approveForbidden;
     private bool HumanReviewReady => _detail is { RequiresReproposal: false, HumanReviewExpiresAt: { } expiresAt } detail
         && expiresAt > DateTimeOffset.UtcNow && !string.IsNullOrEmpty(detail.HumanReviewEnvironment)
-        && !string.IsNullOrEmpty(detail.PlanHash);
+        && !string.IsNullOrEmpty(detail.PlanHash)
+        && string.Equals(detail.ProposalId, ProposalId, StringComparison.Ordinal);
     private string? _actionMessage;
     private string? _actionDetail;
     private string _actionMessageClass = string.Empty;
 
     private string? _loadedProposalId;
     private int _loadedReloadToken = -1;
+    private long _reviewGeneration;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -257,13 +259,32 @@ else
 
     private async Task LoadAsync()
     {
-        var result = await Proposals.GetAsync(ProposalId);
+        var proposalId = ProposalId;
+        var generation = ++_reviewGeneration;
+        _detail = null;
+        _busy = false;
+        _status = OperateSectionStatus.Unavailable;
+        _message = "Loading proposal review.";
+        _detailMessage = null;
+        var result = await Proposals.GetAsync(proposalId);
+        if (!IsCurrentReview(generation, proposalId)) return;
+        result = EnsureProposalMatch(result, proposalId);
         Apply(result);
         if (result.IsAllowed && result.Value is { } detail)
         {
             await OnDetailLoaded.InvokeAsync(detail);
         }
     }
+
+    private bool IsCurrentReview(long generation, string proposalId) =>
+        generation == _reviewGeneration && string.Equals(ProposalId, proposalId, StringComparison.Ordinal);
+
+    private static OperateSectionResult<ConsoleProposalDetail> EnsureProposalMatch(
+        OperateSectionResult<ConsoleProposalDetail> result, string proposalId) =>
+        result.IsAllowed && result.Value?.ProposalId != proposalId
+            ? OperateSectionResult<ConsoleProposalDetail>.Denied(
+                OperateSectionStatus.Conflict, "The response does not match the selected proposal. Refresh the review.")
+            : result;
 
     private void Apply(OperateSectionResult<ConsoleProposalDetail> result)
     {
@@ -317,12 +338,16 @@ else
             return;
         }
 
+        var proposalId = ProposalId;
+        var generation = _reviewGeneration;
         _busy = true;
         _actionMessage = null;
         _actionDetail = null;
         try
         {
             var result = await action();
+            if (!IsCurrentReview(generation, proposalId)) return;
+            result = EnsureProposalMatch(result, proposalId);
             if (result.IsAllowed && result.Value is not null)
             {
                 Apply(result);
@@ -352,7 +377,7 @@ else
         }
         finally
         {
-            _busy = false;
+            if (IsCurrentReview(generation, proposalId)) _busy = false;
         }
     }
 }
