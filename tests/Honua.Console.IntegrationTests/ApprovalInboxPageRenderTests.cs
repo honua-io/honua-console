@@ -23,7 +23,7 @@ public sealed class ApprovalInboxPageRenderTests
         try
         {
             var rendering = renderer.Dispatcher.InvokeAsync(() => renderer.RenderComponentAsync<ApprovalInboxPage>(
-                ParameterView.FromDictionary(new Dictionary<string, object>
+                ParameterView.FromDictionary(new Dictionary<string, object?>
                 {
                     [nameof(ApprovalInboxPage.LoadBudget)] = TimeSpan.FromMilliseconds(50),
                 })));
