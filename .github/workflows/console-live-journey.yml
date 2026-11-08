@@ -141,7 +141,7 @@ jobs:
         working-directory: e2e/playwright
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: ../../artifacts/live-journey/playwright-results.json
-        run: npx --no-install playwright test --config playwright.live.config.ts services-layers.live.spec.ts data-flow-go-live.live.spec.ts service-settings.live.spec.ts service-types.live.spec.ts --grep 'publish a PostGIS table and verify via catalog, metadata, and a live query|goes live through Apply & publish|Service settings \(live\)|a published PostGIS layer is listed in the catalog and answers a live query' --reporter=list,json > ../../artifacts/live-journey/playwright.log
+        run: npx --no-install playwright test --config playwright.live.config.ts services-layers.live.spec.ts data-flow-go-live.live.spec.ts service-settings.live.spec.ts service-types.live.spec.ts folder-tree.live.spec.ts --grep 'publish a PostGIS table and verify via catalog, metadata, and a live query|goes live through Apply & publish|Service settings \(live\)|a published PostGIS layer is listed in the catalog and answers a live query|browse an imported folder and its layers' --reporter=list,json > ../../artifacts/live-journey/playwright.log
       - name: Exercise the complete authenticated Console live suite
         if: ${{ inputs.suite == 'full' }}
         working-directory: e2e/playwright
