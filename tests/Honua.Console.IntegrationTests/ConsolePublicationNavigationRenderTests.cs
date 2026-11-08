@@ -148,6 +148,62 @@ public sealed class ConsolePublicationNavigationRenderTests
     }
 
     [Fact]
+    public void PublicationBreadcrumbFollowsTheAuthorizedFolderServiceAndLayer()
+    {
+        var source = new NavigationSource
+        {
+            ServiceSummaries = [new() { ServiceName = "internal/parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 }]
+        };
+        using var context = PublicationLayoutContext(source);
+        var navigation = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        navigation.NavigateTo("/operate/services/internal%2Fparcels/settings");
+        var layout = context.Render<ConsoleLayout>();
+        layout.WaitForAssertion(() => Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        Assert.Equal("Parcels", layout.Find("nav[aria-label='Breadcrumb'] summary").TextContent);
+        layout.Find("[data-publication-key='service:internal%2Fparcels'] [data-tree-expand]").Click();
+        layout.WaitForState(() => layout.FindAll("a[href='/operate/layers/connection-one-layer-7']").Count == 1);
+        navigation.NavigateTo("/operate/layers/connection-one-layer-7");
+        layout.WaitForAssertion(() => Assert.Equal("Bridges", layout.Find("nav[aria-label='Breadcrumb'] summary").TextContent));
+        var ancestors = layout.FindAll("nav[aria-label='Breadcrumb'] ol > li")
+            .Select(item => item.QuerySelector("summary")?.TextContent ?? item.TextContent.Trim()).ToArray();
+        Assert.Equal(["Public", "Parcels", "Bridges"], ancestors.TakeLast(3));
+        Assert.Equal("Home", ancestors[0]);
+        Assert.Equal("/operate/services/internal%2Fparcels/settings",
+            layout.Find("nav[aria-label='Breadcrumb'] a[href*='/services/']").GetAttribute("href"));
+        navigation.NavigateTo("/operate/data");
+        layout.WaitForAssertion(() => Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        Assert.DoesNotContain("Bridges", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
+    }
+
+    [Fact]
+    public void PublicationBreadcrumbDropsFolderWhenTheCatalogBecomesForbidden()
+    {
+        var source = new NavigationSource
+        {
+            ServiceSummaries = [new() { ServiceName = "parcels", FolderId = "public", FolderName = "Public", LayerCount = 1 }]
+        };
+        using var context = PublicationLayoutContext(source);
+        context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/operate/services/parcels/settings");
+        var layout = context.Render<ConsoleLayout>();
+        layout.WaitForAssertion(() => Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Forbidden, "Catalog access denied.");
+        layout.FindAll("button").Single(button => button.TextContent == "Refresh services").Click();
+        layout.WaitForAssertion(() => Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+    }
+
+    private static BunitContext PublicationLayoutContext(NavigationSource source)
+    {
+        var context = Context();
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        context.AddConsoleNotifications();
+        context.Services.AddSingleton<IConsoleProductMode>(new ConfiguredConsoleProductMode(ConsoleProductMode.Full));
+        context.Services.AddSingleton<IConsoleCapabilityManifest>(ConsoleCapabilityManifest.FromConfigurationList(null));
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        return context;
+    }
+
+    [Fact]
     public void MissingBindingDoesNotSeedATreeOrEnableAnInertFilter()
     {
         using var context = Context();
