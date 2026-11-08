@@ -82,6 +82,8 @@ public sealed class CatalogListingEditorTests
         page.Find("[data-listing-discard]").Click();
         Assert.Equal("", page.Find("#listing-can-appear").GetAttribute("value"));
         Assert.Equal("", page.Find("#membership-featured-1").GetAttribute("value"));
+        Assert.Equal("", page.Find("#membership-category-1").GetAttribute("value") ?? string.Empty);
+        Assert.Equal("", page.Find("#membership-hidden-1").GetAttribute("value"));
         Assert.False(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
     }
 
@@ -134,6 +136,23 @@ public sealed class CatalogListingEditorTests
         page.Find("[data-listing-discard]").Click();
         var focus = Assert.Single(context.JSInterop.Invocations.Where(call => call.Identifier == "Blazor._internal.domWrapper.focus").Skip(calls));
         focus.Arguments[0].ShouldBeElementReferenceTo(title);
+    }
+
+    [Fact]
+    public void PresentReportedDescription_StaysReadOnlyAndInertDuringLocalEdits()
+    {
+        const string reported = "</textarea><script>alert(1)</script><img src=x onerror=alert(2)>";
+        using var context = CatalogAuthoringFixture.Context(CatalogAuthoringFixture.Read() with
+        { Listing = CatalogAuthoringFixture.Listing() with { Description = reported } });
+        var page = context.Render<CatalogListingPage>(p => p.Add(x => x.CatalogId, "open").Add(x => x.ItemId, "emergency"));
+        Assert.Equal(reported, page.Find("#reported-listing-description").TextContent);
+        Assert.True(page.Find("#reported-listing-description").HasAttribute("readonly"));
+        Assert.Equal(reported, page.Find("#listing-description").GetAttribute("value"));
+        page.Find("#listing-description").Input("Local draft description");
+        Assert.Equal(reported, page.Find("#reported-listing-description").TextContent);
+        Assert.True(page.Find("#reported-listing-description").HasAttribute("readonly"));
+        Assert.Equal("Local draft description", page.Find("#listing-description").GetAttribute("value"));
+        Assert.Empty(page.FindAll("script, img, iframe, [onerror]"));
     }
 
 }

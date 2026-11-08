@@ -67,6 +67,7 @@
     private List<CatalogFeaturedRow> _featured = [];
     private ElementReference _heading;
     private string? _moveAnnouncement;
+    private int _moveSequence;
     private bool IsDirty => !_categories.SequenceEqual(Arrangement.Categories) || !_featured.SequenceEqual(Arrangement.Featured);
 
     protected override void OnInitialized() => Reset();
@@ -85,13 +86,13 @@
         _moveAnnouncement = null;
     }
 
-    private static string? MoveAndDescribe<T>(List<T> rows, CatalogOrderMove move, Func<T, string> title)
+    private string? MoveAndDescribe<T>(List<T> rows, CatalogOrderMove move, Func<T, string> title)
     {
         if (move.From < 0 || move.From >= rows.Count || move.To < 0 || move.To >= rows.Count) return null;
         var row = rows[move.From];
         rows.RemoveAt(move.From);
         rows.Insert(move.To, row);
-        return $"{title(row)} moved to position {move.To + 1} of {rows.Count}.";
+        return $"Move {++_moveSequence}: {title(row)} moved to position {move.To + 1} of {rows.Count}.";
     }
 
     private static bool ValidIds(IEnumerable<string> identities)

@@ -87,4 +87,20 @@ public sealed class CatalogArrangementInteractionTests
         Assert.Equal("Show Public safety on home page", page.Find("#category-home-0").GetAttribute("aria-label"));
         Assert.DoesNotContain(" ", page.Find("#category-home-0").Id);
     }
+    [Fact]
+    public void ConsecutiveEqualTitleMoves_AlwaysChangeTheLiveAnnouncement()
+    {
+        var arrangement = new CatalogArrangementDocument("open", [], [new("one", "Map"), new("two", "Map"), new("three", "Map")]);
+        using var context = CatalogAuthoringFixture.Context(CatalogCategoriesTests.Read() with { Arrangement = arrangement });
+        var page = context.Render<CatalogCategoriesPage>(p => p.Add(x => x.CatalogId, "open"));
+        page.Find(".catalog-featured-order tbody tr:first-child [data-move-down]").Click();
+        var first = page.Find(".catalog-arrangement-status").TextContent;
+        Assert.Contains("Map moved to position 2 of 3", first);
+        page.Find(".catalog-featured-order tbody tr:last-child [data-move-up]").Click();
+        var second = page.Find(".catalog-arrangement-status").TextContent;
+        Assert.Contains("Map moved to position 2 of 3", second);
+        Assert.NotEqual(first, second);
+        Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+    }
+
 }
