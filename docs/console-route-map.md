@@ -63,7 +63,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/connections/:id       Detail
 /operate/connections/:id/diagnostics
 /operate/ai                    Omni-prompt AI console — one free-text prompt routes Studio (GIS authoring) vs DevOps (ops → deploy approval queue #197); AI infers intent, human approves (honua-console#203). Alias: /studio/ai
-/operate/data                  Data & Layers — resource→publications treeview + Layer Preview (the resource-first spine; merges Resources/Layers/Services lists; console-ux-redesign §5.3)
+/operate/data                  Data & Layers — dataset and layer tree with preview; Services and Layers also have dedicated lists
 /operate/data/new              Add data → publish flow host (?source=file|table|remoteservice|existingresource; console-ux-redesign §5.2/§5.4)
 /operate/resources             REDIRECT → /operate/data (resources fold into the treeview)
 /operate/resources/new         REDIRECT → /operate/data/new (the five entry points fold into one flow)
@@ -90,7 +90,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/copilot               Copilot Findings + graduated autonomy (#193/#289): lists honua-server's DETERMINISTIC findings and proposes fixes through the governed gateway. When the connected server exposes `/api/v1/admin/observability/autonomy/*`, the same route adds server-confirmed per-rule ProposeOnly/AutoApply controls, route-time guardrails, a confirm-first global kill switch, graduation counters, finding state pills, and an action/policy audit projected through the shared Operate timeline/status/correlation primitives. Human mutations require the active operator bearer and never optimistically update or fall back to a shared admin key. A 404/501 capability probe hides the autonomy controls and preserves the original propose-only flow. Audit evidence absent from the server event projection is labelled unreported rather than reconstructed client-side. NO model/LLM anything (ADR-0028). Empty state = all conditions healthy; else missing-binding/forbidden/unsupported/unavailable
 /operate/operations            Operations console
 /operate/control-center        Control center
-/operate/services              REDIRECT → /operate/data?view=services (services fold into the treeview)
+/operate/services              Services list — dedicated page (OperateServicesPage) owns this route
 /operate/services/:name/settings
 /operate/layers                Layers list — dedicated page (OperateLayersPage) owns this route
 /operate/layers/:id            Layer configuration (default + ?tab=configure); :id is the canonical resource id or the admin layer id publishing returns
@@ -197,12 +197,10 @@ Data & Layers, Connections, Publishing, Identity, License, Observability,
 Operations, Control Center, Catalogs, Settings, Deploy, Server Info,
 Analytics, Legacy.
 
-Resource-first IA change (`console-ux-redesign.md` §5.1): the former
-**Resources / Services / Layers** trio collapses into one **Data & Layers**
-entry (`/operate/data`) — the resource→publications treeview with a Layer
-Preview. Connections move *under* Data & Layers as the data-source
-sub-section (it stays a legitimate concept, GeoServer "Stores"). The old
-Resources/Services/Layers nav routes redirect into `/operate/data`.
+**Data** offers the dataset and layer tree at `/operate/data`, dedicated
+Services and Layers lists at `/operate/services` and `/operate/layers`,
+and Connections at `/operate/connections`. The old `/operate/resources`
+list route redirects into `/operate/data`.
 
 Catalogs (`/operate/catalogs`) is the discovery-endpoints surface
 (`honua-console#125`): which catalog dialects the server publishes
@@ -847,7 +845,7 @@ surface as in-page capability states rather than seeded rows.
 | `/operate/jobs/:jobRunId` | — | missing job | forbidden | operate |
 | `/operate/operations` | — | empty-operate | forbidden | operate |
 | `/operate/control-center` | — | empty-operate | forbidden | operate |
-| `/operate/services` | — | REDIRECT → `/operate/data?view=services` | forbidden | operate |
+| `/operate/services` | — | empty-operate or environment notice (dedicated OperateServicesPage) | forbidden | operate |
 | `/operate/services/:name/settings` | — | missing-item | forbidden | operate |
 | `/operate/layers` | — | empty-operate (dedicated OperateLayersPage) | forbidden | operate |
 | `/operate/layers/:id` | — | missing-item | forbidden | operate |

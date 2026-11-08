@@ -351,14 +351,8 @@ public sealed class ResourceFirstPublishFlowTests
 
     // ----------------------------------------------------------------- redirects
 
-    // The pure list aliases that have NO standalone page body fold into the unified treeview / flow:
-    // OperateDataRedirects owns these routes and rewrites them on init (redesign §5.2). The old entry
-    // points that DO have a dedicated flow page keep their own @page ownership instead (see the
-    // separate route-ownership test below) — routing them through OperateDataRedirects would steal the
-    // route from the owning component (commit "Restore @page directives on orphaned Operate pages").
     [Theory]
     [InlineData("operate/resources", "/operate/data")]
-    [InlineData("operate/services", "/operate/data?view=services")]
     [InlineData("operate/resources/new", "/operate/data/new")]
     [InlineData("operate/alerts", "/operate/observability#alerts")]
     public void Redirects_FoldOldListAliasesIntoTheUnifiedFlow(string from, string expectedTarget)
@@ -372,15 +366,12 @@ public sealed class ResourceFirstPublishFlowTests
         Assert.EndsWith(expectedTarget, nav.Uri, StringComparison.Ordinal);
     }
 
-    // The old entry points that own a dedicated flow page (import-file, quick-publish, import-service,
-    // and the layers list) resolve directly to that page — they are NOT redirected through
-    // OperateDataRedirects, so the fold neither dead-ends nor is stolen back by the redirects host.
-    // Pin each route to its single owning routable component (same enumeration the live router builds).
     [Theory]
     [InlineData("/operate/resources/import", "OperateImportFilePage")]
     [InlineData("/operate/publishing/quick", "OperatePublishLayerPage")]
     [InlineData("/operate/import/service", "OperateImportServicePage")]
     [InlineData("/operate/layers", "OperateLayersPage")]
+    [InlineData("/operate/services", "OperateServicesPage")]
     public void OldEntryPoints_WithADedicatedPage_AreOwnedByThatPage(string route, string expectedOwner)
     {
         var owners =

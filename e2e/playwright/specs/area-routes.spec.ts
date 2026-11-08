@@ -33,6 +33,18 @@ const menus = [
   {name:'Settings', paths:['/operate/settings']},
 ];
 
+for (const name of ['Services', 'Layers']) test(`Data > ${name} opens its list`, async ({page}) => {
+  await page.goto('/operate');
+  const menu = page.locator('[data-navigation-menu="Data"]');
+  await menu.locator(':scope > summary').press('Enter');
+  await menu.getByRole('link', {name, exact:true}).click();
+  await expect(page).toHaveURL(new RegExp(`/operate/${name.toLowerCase()}$`));
+  await expect(page.getByRole('heading', {level:1, name, exact:true})).toBeVisible();
+  await expect(page.locator('[data-resource-tree]')).toHaveCount(0);
+  await expect(page.getByText('Connect environment', {exact:true}).or(
+    page.getByText('missing binding', {exact:false}).first())).toBeVisible();
+});
+
 for (const menu of menus) test(`${menu.name} advertises working current destinations`, async ({page}) => {
   await page.goto('/operate');
   const disclosure=page.locator(`[data-navigation-menu="${menu.name}"]`);
