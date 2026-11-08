@@ -38,7 +38,9 @@ public sealed partial class ServerStudioWorkflowPackageClientTests
         var draft = await NewDraftWithSinkAsync(client);
         draft.Edges.Add(new StudioWorkflowEdge
         {
-            FromNodeId = draft.Nodes[0].Id, ToNodeId = draft.Nodes[1].Id, Kind = StudioWorkflowContractValues.EdgeKindFailure
+            FromNodeId = draft.Nodes[0].Id,
+            ToNodeId = draft.Nodes[1].Id,
+            Kind = StudioWorkflowContractValues.EdgeKindFailure
         });
         await client.SaveVersionAsync(draft, "failure edge");
         var edge = Assert.Single(Assert.Single(api.Packages).Graph.Edges);
@@ -56,7 +58,8 @@ public sealed partial class ServerStudioWorkflowPackageClientTests
         var client = new ServerStudioWorkflowPackageClient(api);
         api.Packages.Add(new WorkflowPackage
         {
-            PackageId = "imported", Name = "Imported",
+            PackageId = "imported",
+            Name = "Imported",
             Graph = JsonSerializer.Deserialize<WorkflowGraph>("""
                 {"nodes":[{"nodeId":"source","nodeTypeId":"process:test.echo",
                 "retryPolicy":{"maxAttempts":3,"initialDelaySeconds":2,"backoffMultiplier":2,"maxDelaySeconds":30}},
@@ -102,12 +105,14 @@ public sealed partial class ServerStudioWorkflowPackageClientTests
         var api = new FakeWorkflowApi();
         api.Packages.Add(new WorkflowPackage
         {
-            PackageId = "legacy", Name = "Legacy", Graph = new WorkflowGraph
+            PackageId = "legacy",
+            Name = "Legacy",
+            Graph = new WorkflowGraph
             {
                 Nodes = [new WorkflowNode { NodeId = "work", NodeTypeId = "process:test.echo" }],
                 EditorMetadata = new Dictionary<string, string>
                 {
-                    [ServerStudioWorkflowPackageClient.EditorStateKey] = """{"retryPolicy":{"maxAttempts":7,"backoffSeconds":8,"failureMode":"route-failure-edges"}}"""
+                    [ServerStudioWorkflowPackageClient.EditorStateKey] = """{"retryPolicy":{"maxAttempts":7,"backoffSeconds":8,"failureMode":"route-failure-edges"},"parameters":[{"name":"county","type":"string","required":true}],"publicationIntent":{"mode":"scheduled-job","routeSlug":"nightly"}}"""
                 }
             }
         });
@@ -118,6 +123,11 @@ public sealed partial class ServerStudioWorkflowPackageClientTests
         Assert.Equal(8, api.Packages[0].Graph.Nodes[0].RetryPolicy!.InitialDelaySeconds);
         Assert.False(api.Packages[0].Graph.EditorMetadata.ContainsKey(ServerStudioWorkflowPackageClient.EditorStateKey));
         Assert.True(api.Packages[0].Graph.EditorMetadata.ContainsKey(ServerStudioWorkflowPackageClient.AuthoringStateKey));
+        var reloaded = (await client.GetDraftAsync("legacy"))!;
+        Assert.Equal("county", Assert.Single(reloaded.Parameters).Name);
+        Assert.True(reloaded.Parameters[0].Required);
+        Assert.Equal("scheduled-job", reloaded.PublicationIntent.Mode);
+        Assert.Equal("nightly", reloaded.PublicationIntent.RouteSlug);
     }
 
     [Theory]
@@ -165,7 +175,9 @@ public sealed partial class ServerStudioWorkflowPackageClientTests
         var api = new FakeWorkflowApi();
         api.Packages.Add(new WorkflowPackage
         {
-            PackageId = "mixed", Name = "Mixed", Graph = new WorkflowGraph
+            PackageId = "mixed",
+            Name = "Mixed",
+            Graph = new WorkflowGraph
             {
                 Nodes = [new WorkflowNode { NodeId = "source", NodeTypeId = "process:test.echo", RetryPolicy = new StepRetryPolicy { MaxAttempts = 3, InitialDelaySeconds = 2 } },
                     new WorkflowNode { NodeId = "sink", NodeTypeId = "process:test.echo" }]
@@ -200,6 +212,32 @@ public sealed partial class ServerStudioWorkflowPackageClientTests
         Assert.Null(result.BindingState);
         Assert.Contains(result.ValidationIssues, issue => issue.Scope == "graph");
         Assert.NotEmpty(result.Logs);
+    }
+
+    [Fact]
+    public async Task DryRun_CreatedVersionCarriesFailures_RepeatedCallsUseSameServerValidation()
+    {
+        var api = new FakeWorkflowApi
+        {
+            VersionValidation = new WorkflowPackageValidationResult
+            {
+                IsValid = false,
+                Failures = [new WorkflowPackageValidationFailure { Code = "INVALID_TIMEOUT", FieldPath = "graph.nodes[work].timeoutSeconds", Message = "Timeout must be positive." }]
+            }
+        };
+        var client = new ServerStudioWorkflowPackageClient(api);
+        var draft = await NewDraftWithSinkAsync(client);
+        var first = await client.DryRunAsync(draft);
+        var second = await client.DryRunAsync(draft);
+        Assert.Equal(2, api.DryRunCalls);
+        Assert.Equal("blocked", first.Status);
+        Assert.Equal(first.Status, second.Status);
+        Assert.Null(first.BindingState);
+        Assert.Null(second.BindingState);
+        Assert.Contains(first.Logs, log => log.Contains("Timeout must be positive.", StringComparison.Ordinal));
+        Assert.Equal(first.Logs, second.Logs);
+        Assert.Equal("graph.nodes[work].timeoutSeconds", Assert.Single(first.ValidationIssues).Scope);
+        Assert.Equal(first.ValidationIssues[0].Message, Assert.Single(second.ValidationIssues).Message);
     }
 
 }

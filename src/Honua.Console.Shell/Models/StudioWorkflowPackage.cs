@@ -14,6 +14,9 @@ public static class StudioWorkflowContractValues
     public const string NodeCategoryTransform = "transform";
     public const string NodeCategorySink = "sink";
 
+    public const string FailureModeRouteEdges = "route-failure-edges";
+    public const string FailureModeFailFast = "fail-fast";
+
     public const string EdgeKindSuccess = "success";
     public const string EdgeKindFailure = "failure";
 
@@ -145,17 +148,19 @@ public sealed class StudioWorkflowWorkerProfile
 
 public sealed class StudioWorkflowRetryPolicy
 {
+    private const double FixedBackoffMultiplier = 1;
+
     public StepRetryPolicy ToExecutionPolicy() => new()
     {
         MaxAttempts = MaxAttempts,
         InitialDelaySeconds = BackoffSeconds,
-        BackoffMultiplier = 1,
+        BackoffMultiplier = FixedBackoffMultiplier,
         MaxDelaySeconds = Math.Max(1, BackoffSeconds)
     };
 
     public int MaxAttempts { get; set; } = 3;
     public int BackoffSeconds { get; set; } = 60;
-    public string FailureMode { get; set; } = "route-failure-edges";
+    public string FailureMode { get; set; } = StudioWorkflowContractValues.FailureModeRouteEdges;
 }
 
 public sealed class StudioWorkflowPublicationIntent

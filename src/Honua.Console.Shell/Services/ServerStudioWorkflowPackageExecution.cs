@@ -11,9 +11,9 @@ public sealed partial class ServerStudioWorkflowPackageClient
         var mode = draft.RetryPolicy.FailureMode;
         var message = mode switch
         {
-            "route-failure-edges" => null,
-            "fail-fast" when !draft.Edges.Any(edge => edge.Kind == StudioWorkflowContractValues.EdgeKindFailure) => null,
-            "fail-fast" => "Fail-fast cannot be combined with Failure edges; remove them or select route-failure-edges.",
+            StudioWorkflowContractValues.FailureModeRouteEdges => null,
+            StudioWorkflowContractValues.FailureModeFailFast when !draft.Edges.Any(edge => edge.Kind == StudioWorkflowContractValues.EdgeKindFailure) => null,
+            StudioWorkflowContractValues.FailureModeFailFast => "Fail-fast cannot be combined with Failure edges; remove them or select route-failure-edges.",
             _ => $"Failure mode '{mode}' cannot be executed by this server. Select fail-fast or route-failure-edges."
         };
         return message is null ? null : new StudioWorkflowValidationIssue { Severity = "error", Scope = "retryPolicy.failureMode", Message = message };

@@ -211,7 +211,8 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
         {
             return new StudioWorkflowDryRunResult
             {
-                Status = "blocked", BindingState = resolution.BindingState,
+                Status = "blocked",
+                BindingState = resolution.BindingState,
                 ValidationIssues = resolution.ValidationIssues,
                 Logs = resolution.ValidationIssues.Select(issue => issue.Message).ToArray()
             };
@@ -238,7 +239,8 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
         {
             return new StudioWorkflowPublishResult
             {
-                Status = "blocked", BindingState = resolution.BindingState,
+                Status = "blocked",
+                BindingState = resolution.BindingState,
                 ValidationIssues = resolution.ValidationIssues
             };
         }
@@ -408,14 +410,17 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
             TryParseVersion(draft.CurrentVersionId, out var existing))
         {
             var issue = ValidateFailureMode(draft);
+            if (issue is not null)
+            {
+                draft.ValidationIssues = [issue];
+            }
             return issue is null
                 ? new VersionResolution(new VersionHandle(draft.ContentItemId, existing), null, [])
                 : new VersionResolution(null, null, [issue]);
         }
 
         var saved = await SaveVersionAsync(draft, string.Empty, cancellationToken).ConfigureAwait(false);
-        var handle = saved.BindingState is null && !saved.ValidationIssues.Any(issue => issue.Severity == "error")
-            && TryParseVersion(saved.VersionId, out var version)
+        var handle = saved.BindingState is null && TryParseVersion(saved.VersionId, out var version)
             ? new VersionHandle(saved.ContentItemId, version)
             : null;
         return new VersionResolution(handle, saved.BindingState, saved.ValidationIssues);
@@ -531,7 +536,7 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
             UpdatedAt = package.UpdatedAt,
             LastSavedAt = package.LatestVersion.HasValue ? package.UpdatedAt : null
         };
-        draft.RetryPolicy.FailureMode = authoringState.FailureMode ?? authoringState.RetryPolicy?.FailureMode ?? "route-failure-edges";
+        draft.RetryPolicy.FailureMode = authoringState.FailureMode ?? authoringState.RetryPolicy?.FailureMode ?? StudioWorkflowContractValues.FailureModeRouteEdges;
         return draft;
     }
 
@@ -641,6 +646,7 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
             JobId = string.Empty,
             JobKind = StudioWorkflowContractValues.DryRunJobKind,
             Status = dryRun.Validation?.IsValid == true ? "succeeded" : "blocked",
+            ValidationIssues = MapValidation(dryRun.Validation),
             SampleRows = 0,
             Logs = logs,
             Artifacts = (dryRun.Artifacts ?? []).Select(artifact => $"{artifact.Kind}: {artifact.Label}").ToArray(),
