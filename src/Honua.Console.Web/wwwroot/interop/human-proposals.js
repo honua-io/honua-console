@@ -1,5 +1,5 @@
 export async function decide({ action, profileId, authority, proposalId, decision }) {
-    if (action !== 'review' && action !== 'approve') throw new Error('Unknown human decision.');
+    if (action !== 'review' && action !== 'status' && action !== 'approve') throw new Error('Unknown human decision.');
     const bootstrap = await fetch('/api/console/proposals/session', {
         credentials: 'same-origin', cache: 'no-store', redirect: 'error'
     });

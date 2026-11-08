@@ -8,7 +8,7 @@ public sealed class DualConsoleProposalsClient(
     IConsoleEnvironmentProfileStore profiles,
     IConsoleManagerEndpoint? endpoint) : IConsoleProposalsClient
 {
-    private const string ManagerPrefix = "manager:";
+    private const string ManagerPrefix = ConsoleProposalIdentity.ManagementPrefix;
 
     private async Task<bool?> HasSeparateManager(CancellationToken cancellationToken)
     {
@@ -70,8 +70,8 @@ public sealed class DualConsoleProposalsClient(
     public Task<OperateSectionResult<ConsoleProposalDetail>> GetAsync(string proposalId, CancellationToken cancellationToken = default) =>
         Route(proposalId, (client, id) => client.GetAsync(id, cancellationToken), cancellationToken);
 
-    public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(string proposalId, CancellationToken cancellationToken = default) =>
-        Route(proposalId, (client, id) => client.ApproveAsync(id, cancellationToken), cancellationToken);
+    public Task<OperateSectionResult<ConsoleProposalDetail>> GetStatusAsync(string proposalId, CancellationToken cancellationToken = default) =>
+        Route(proposalId, (client, id) => client.GetStatusAsync(id, cancellationToken), cancellationToken);
 
     public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveReviewedAsync(
         ConsoleProposalDecision decision, CancellationToken cancellationToken = default) =>

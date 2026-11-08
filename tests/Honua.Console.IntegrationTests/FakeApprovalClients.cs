@@ -49,8 +49,7 @@ public sealed class FakeConsoleProposalsClient : IConsoleProposalsClient
             : OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Missing, "Proposal not found."));
     }
 
-    public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
-        string proposalId, CancellationToken cancellationToken = default)
+    private Task<OperateSectionResult<ConsoleProposalDetail>> ApplyApprovalAsync(string proposalId)
     {
         if (ApproveForbidden)
         {
@@ -66,6 +65,13 @@ public sealed class FakeConsoleProposalsClient : IConsoleProposalsClient
         return Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Allowed(detail));
     }
 
+    public async Task<OperateSectionResult<ConsoleProposalDetail>> GetStatusAsync(
+        string proposalId, CancellationToken cancellationToken = default)
+    {
+        var result = await GetAsync(proposalId, cancellationToken);
+        return result.Value is { } detail ? result with { Value = detail.AsStatusOnly() } : result;
+    }
+
     public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveReviewedAsync(
         ConsoleProposalDecision decision, CancellationToken cancellationToken = default)
     {
@@ -74,7 +80,7 @@ public sealed class FakeConsoleProposalsClient : IConsoleProposalsClient
             || detail.HumanReviewEnvironment != decision.EnvironmentReference)
             return Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(
                 OperateSectionStatus.Forbidden, "The displayed review changed."));
-        return ApproveAsync(decision.ProposalId, cancellationToken);
+        return ApplyApprovalAsync(decision.ProposalId);
     }
 
     public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(

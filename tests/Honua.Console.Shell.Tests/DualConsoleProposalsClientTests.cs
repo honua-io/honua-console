@@ -74,11 +74,9 @@ public sealed class DualConsoleProposalsClientTests
                     [new ConsoleProposalSummary(id, default, default, null, null, "", default, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow)]));
         public Task<OperateSectionResult<ConsoleProposalDetail>> GetAsync(string proposalId, CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Missing, "Not found"));
-        public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(string proposalId, CancellationToken cancellationToken = default)
-        {
-            Approved = proposalId;
-            return GetAsync(proposalId, cancellationToken);
-        }
+        public Task<OperateSectionResult<ConsoleProposalDetail>> GetStatusAsync(
+            string proposalId, CancellationToken cancellationToken = default) => GetAsync(proposalId, cancellationToken);
+
         public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveReviewedAsync(
             ConsoleProposalDecision decision, CancellationToken cancellationToken = default)
         {

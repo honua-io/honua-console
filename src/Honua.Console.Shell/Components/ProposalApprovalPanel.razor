@@ -142,8 +142,8 @@ else
                     <button type="button"
                             class="console-button"
                             disabled="@(DecisionUnavailable || !HumanReviewReady || detail.BlockingReasons.Count > 0)"
-                            title="@(_approveForbidden
-                                ? "You lack the approve permission for this server."
+                            title="@(!HumanReviewReady
+                                ? "Open a current human review before approving."
                                 : detail.BlockingReasons.Count > 0
                                     ? "Resolve blocking findings before approving."
                                     : "Approve and submit this proposal for execution.")"
@@ -153,9 +153,9 @@ else
                     </button>
                     <button type="button"
                             class="console-button console-button-secondary"
-                            disabled="@(DecisionUnavailable || string.IsNullOrWhiteSpace(_reason))"
-                            title="@(_approveForbidden
-                                ? "You lack the approve permission for this server."
+                            disabled="@(DecisionUnavailable || _rejectForbidden || string.IsNullOrWhiteSpace(_reason))"
+                            title="@(_rejectForbidden
+                                ? "You lack the rejection permission or scope for this server."
                                 : string.IsNullOrWhiteSpace(_reason)
                                     ? "Enter a reason to reject."
                                     : "Reject this proposal with the reason above.")"
@@ -175,15 +175,15 @@ else
                         <a class="console-button console-button-secondary" href="@signInPath">Sign in to approval server</a>
                     }
                     <button type="button" class="console-button console-button-secondary"
-                            disabled="@DecisionUnavailable" @onclick="LoadAsync">Refresh review</button>
+                            data-proposal-refresh-review disabled="@DecisionUnavailable" @onclick="RefreshReviewAsync">Refresh review</button>
                 }
 
-                @if (_approveForbidden)
+                @if (_rejectForbidden)
                 {
                     <p class="console-status console-state-warning proposal-approval-rbac" role="note"
                        data-proposal-rbac-denied>
-                        Decisions require the <span class="console-mono">approve</span> grant on the connected server.
-                        Approval also requires a live human session. The requester may approve.
+                        Rejection requires the <span class="console-mono">approve</span> grant and current bearer scope.
+                        Human approval uses its separate reviewed session. The requester may approve.
                     </p>
                 }
             </div>
@@ -225,8 +225,9 @@ else
     private string? _detailMessage;
     private string? _reason;
     private bool _busy;
-    private bool _approveForbidden;
-    private bool DecisionUnavailable => !RendererInfo.IsInteractive || _busy || _approveForbidden;
+    private bool _rejectForbidden;
+    private bool _reviewMustBeReopened;
+    private bool DecisionUnavailable => !RendererInfo.IsInteractive || _busy;
     private bool HumanReviewReady => _detail is { RequiresReproposal: false, HumanReviewExpiresAt: { } expiresAt } detail
         && expiresAt > DateTimeOffset.UtcNow && !string.IsNullOrEmpty(detail.HumanReviewEnvironment)
         && !string.IsNullOrEmpty(detail.PlanHash)
@@ -246,7 +247,8 @@ else
             _loadedProposalId = ProposalId;
             _loadedReloadToken = ReloadToken;
             _reason = null;
-            _approveForbidden = false;
+            _rejectForbidden = false;
+            _reviewMustBeReopened = false;
             _actionMessage = null;
             await LoadAsync();
         }
@@ -257,7 +259,16 @@ else
         }
     }
 
-    private async Task LoadAsync()
+    private Task LoadAsync() => LoadProposalAsync(_reviewMustBeReopened ? Proposals.GetStatusAsync : Proposals.GetAsync);
+
+    private async Task RefreshReviewAsync()
+    {
+        if (_busy) return;
+        _reviewMustBeReopened = false;
+        await LoadAsync();
+    }
+
+    private async Task LoadProposalAsync(Func<string, CancellationToken, Task<OperateSectionResult<ConsoleProposalDetail>>> read)
     {
         var proposalId = ProposalId;
         var generation = ++_reviewGeneration;
@@ -266,7 +277,7 @@ else
         _status = OperateSectionStatus.Unavailable;
         _message = "Loading proposal review.";
         _detailMessage = null;
-        var result = await Proposals.GetAsync(proposalId);
+        var result = await read(proposalId, CancellationToken.None);
         if (!IsCurrentReview(generation, proposalId)) return;
         result = EnsureProposalMatch(result, proposalId);
         Apply(result);
@@ -296,7 +307,7 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && RendererInfo.IsInteractive)
+        if (firstRender && RendererInfo.IsInteractive && !HumanReviewReady)
         {
             await LoadAsync();
             StateHasChanged();
@@ -315,6 +326,7 @@ else
 
     private Task RejectAsync()
     {
+        if (_rejectForbidden) return Task.CompletedTask;
         if (string.IsNullOrWhiteSpace(_reason))
         {
             _actionMessage = "A rejection reason is required.";
@@ -325,7 +337,7 @@ else
         return RunActionAsync(
             () => Proposals.RejectAsync(ProposalId, _reason!),
             successMessage: "Rejected — recorded with your reason.",
-            onForbidden: () => _approveForbidden = true);
+            onForbidden: () => _rejectForbidden = true);
     }
 
     private async Task RunActionAsync(
@@ -333,7 +345,7 @@ else
         string successMessage,
         Action onForbidden)
     {
-        if (_busy || _approveForbidden)
+        if (_busy)
         {
             return;
         }
@@ -377,6 +389,7 @@ else
         _actionDetail = result.Detail;
         if (result.Status is OperateSectionStatus.Unavailable or OperateSectionStatus.Missing)
         {
+            _reviewMustBeReopened = true;
             await LoadAsync();
         }
     }

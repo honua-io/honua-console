@@ -197,7 +197,7 @@ public sealed class ConsoleProposalsClientTests
         var handler = new RecordingHandler(_ => throw new InvalidOperationException("No request may be forwarded."));
         var client = CreateClient(handler, adminApiKey: "shared-admin-key", sessions: BearerSessions());
 
-        var result = await client.ApproveAsync("prop-1");
+        var result = await client.ApproveReviewedAsync(new("prop-1", 1, "plan", "environment"));
 
         Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
         Assert.Contains("review", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -216,7 +216,7 @@ public sealed class ConsoleProposalsClientTests
         });
         var client = CreateClient(handler, adminApiKey: "shared-admin-key", sessions: sessions);
 
-        var result = await client.ApproveAsync("prop-1");
+        var result = await client.ApproveReviewedAsync(new("prop-1", 1, "plan", "environment"));
 
         Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
         Assert.Contains("sign in", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -231,25 +231,29 @@ public sealed class ConsoleProposalsClientTests
             credentialMode: ConsoleServerCredentialMode.HeadlessService,
             accountAuthMode: ConsoleAccountAuthMode.ServiceApiKey);
 
-        var result = await client.ApproveAsync("prop-1");
-        var reviewed = await client.ApproveReviewedAsync(new("prop-1", 1, "plan", "environment"));
+        var result = await client.ApproveReviewedAsync(new("prop-1", 1, "plan", "environment"));
 
         Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
-        Assert.Equal(OperateSectionStatus.Forbidden, reviewed.Status);
         Assert.Empty(handler.Requests);
     }
 
     [Fact]
     public async Task ApproveForbiddenMapsToForbiddenResult_NotFabricatedSuccess()
     {
-        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden));
-        var client = CreateClient(handler, sessions: BearerSessions());
+        var handler = new RecordingHandler(_ => throw new InvalidOperationException("No bearer request is allowed."));
+        var human = new FixedHumanReview
+        {
+            DecisionResult = OperateSectionResult<ProposalDetailWire>.Denied(OperateSectionStatus.Forbidden, "The human session lacks approve permission.")
+        };
+        var client = CreateClient(handler, sessions: BearerSessions(), humanSession: human);
 
-        var result = await client.ApproveAsync("prop-1");
+        var result = await client.ApproveReviewedAsync(new("prop-1", 1, "plan", "environment"));
 
         Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
         Assert.Null(result.Value);
         Assert.Contains("approve", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, human.DecisionCalls);
+        Assert.Empty(handler.Requests);
     }
 
     [Fact]
@@ -355,7 +359,7 @@ public sealed class ConsoleProposalsClientTests
 
         var list = await client.ListAsync();
         var detail = await client.GetAsync("prop-1");
-        var approve = await client.ApproveAsync("prop-1");
+        var approve = await client.ApproveReviewedAsync(new("prop-1", 1, "plan", "environment"));
 
         Assert.Equal(OperateSectionStatus.Unavailable, list.Status);
         Assert.Equal(OperateSectionStatus.Unavailable, detail.Status);
@@ -384,20 +388,39 @@ public sealed class ConsoleProposalsClientTests
     {
         public OperateSectionResult<ConsoleHumanProposalReview>? Refusal { get; init; }
         public ConsoleServerAuthority Authority { get; private set; }
+        public int ReviewCalls { get; private set; }
+        public int StatusCalls { get; private set; }
+        public int DecisionCalls { get; private set; }
+        public OperateSectionResult<ProposalDetailWire> DecisionResult { get; init; } =
+            OperateSectionResult<ProposalDetailWire>.Denied(OperateSectionStatus.Forbidden, "Not used.");
         public Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync(
             ConsoleHumanProposalReviewRequest request,
             CancellationToken cancellationToken = default)
         {
             Authority = request.Authority;
+            ReviewCalls++;
             if (Refusal is { } refused) return Task.FromResult(refused);
             return Task.FromResult(OperateSectionResult<ConsoleHumanProposalReview>.Allowed(new(
-                new ProposalDetailWire { ProposalId = request.ProposalId, Version = 7, PlanHash = "plan", Status = "AwaitingApproval" },
+                Proposal(request.ProposalId),
                 "private-environment", DateTimeOffset.UtcNow.AddMinutes(5))));
         }
         public Task<OperateSectionResult<ProposalDetailWire>> ApproveAsync(
             ConsoleHumanProposalApprovalRequest request,
-            CancellationToken cancellationToken = default) => Task.FromResult(
-                OperateSectionResult<ProposalDetailWire>.Denied(OperateSectionStatus.Forbidden, "Not used."));
+            CancellationToken cancellationToken = default)
+        {
+            DecisionCalls++;
+            return Task.FromResult(DecisionResult);
+        }
+        public Task<OperateSectionResult<ProposalDetailWire>> ReadStatusAsync(
+            ConsoleHumanProposalReviewRequest request, CancellationToken cancellationToken = default)
+        {
+            StatusCalls++;
+            return Task.FromResult(OperateSectionResult<ProposalDetailWire>.Allowed(Proposal(request.ProposalId)));
+        }
+        private static ProposalDetailWire Proposal(string proposalId) => new()
+        {
+            ProposalId = proposalId, Version = 7, PlanHash = "plan", Status = "AwaitingApproval"
+        };
     }
 
     private static HttpConsoleProposalsClient CreateClient(

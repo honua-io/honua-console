@@ -29,6 +29,10 @@ public interface IConsoleHumanProposalSession
         ConsoleHumanProposalReviewRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<OperateSectionResult<ProposalDetailWire>> ReadStatusAsync(
+        ConsoleHumanProposalReviewRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<OperateSectionResult<ProposalDetailWire>> ApproveAsync(
         ConsoleHumanProposalApprovalRequest request,
         CancellationToken cancellationToken = default);

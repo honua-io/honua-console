@@ -27,6 +27,14 @@ internal sealed class BrowserHumanProposalSession(IJSRuntime javascript) : ICons
                 ProposalId = request.Decision.ProposalId, Decision = request.Decision,
             }, cancellationToken);
 
+    public Task<OperateSectionResult<ProposalDetailWire>> ReadStatusAsync(
+        ConsoleHumanProposalReviewRequest request,
+        CancellationToken cancellationToken = default) => SendAsync<ProposalDetailWire>(new BrowserHumanProposalCommand
+        {
+            Action = "status", ProfileId = request.Profile.Id,
+            Authority = request.Authority, ProposalId = request.ProposalId
+        }, cancellationToken);
+
     private async Task<OperateSectionResult<T>> SendAsync<T>(
         BrowserHumanProposalCommand command, CancellationToken cancellationToken)
     {
@@ -38,7 +46,7 @@ internal sealed class BrowserHumanProposalSession(IJSRuntime javascript) : ICons
                 "decide", cancellationToken, command).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-        catch (Exception exception) when (exception is JSException or InvalidOperationException or OperationCanceledException)
+        catch (Exception exception) when (exception is JSException or JSDisconnectedException or InvalidOperationException or OperationCanceledException)
         {
             return OperateSectionResult<T>.Denied(OperateSectionStatus.Unavailable,
                 "Connect the approval controls, then reload the proposal to check its status.");

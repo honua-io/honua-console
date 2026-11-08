@@ -306,15 +306,10 @@ public sealed class ProposalApprovalPanelReceiptTests
             string proposalId, CancellationToken cancellationToken = default)
         {
             StatusReads++;
-            return Task.FromResult(Allowed(initialStatus, proposalId) with
-            {
-                Value = Allowed(initialStatus, proposalId).Value! with { HumanReviewEnvironment = null, HumanReviewExpiresAt = null }
-            });
+            var result = Allowed(initialStatus, proposalId);
+            return Task.FromResult(result with { Value = result.Value!.AsStatusOnly() });
         }
 
-        public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
-            string proposalId,
-            CancellationToken cancellationToken = default) => Task.FromResult(Allowed(ConsoleProposalStatus.Submitted));
 
         public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveReviewedAsync(
             ConsoleProposalDecision decision, CancellationToken cancellationToken = default)

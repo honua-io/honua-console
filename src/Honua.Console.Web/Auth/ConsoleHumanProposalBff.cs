@@ -31,6 +31,15 @@ internal static class ConsoleHumanProposalBff
                 new ConsoleHumanProposalApprovalRequest(profile, request.Authority, decision), endpoint.Context.RequestAborted).ConfigureAwait(false);
             return Results.Json(result, ConsoleHumanProposalBffJsonContext.Default.OperateSectionResultProposalDetailWire);
         });
+        app.MapPost("/api/console/proposals/{id}/status", async (
+            [AsParameters] ConsoleHumanProposalEndpointContext endpoint, string id, ConsoleHumanProposalRequest request) =>
+        {
+            var profile = await AuthorizeAsync(endpoint, request).ConfigureAwait(false);
+            if (profile is null) return Results.StatusCode(StatusCodes.Status403Forbidden);
+            var result = await endpoint.Sessions.ReadStatusAsync(
+                new ConsoleHumanProposalReviewRequest(profile, request.Authority, id), endpoint.Context.RequestAborted).ConfigureAwait(false);
+            return Results.Json(result, ConsoleHumanProposalBffJsonContext.Default.OperateSectionResultProposalDetailWire);
+        });
     }
 
     private static async Task<IResult> OpenBrowserSessionAsync(

@@ -137,6 +137,14 @@ public sealed record ConsoleProposalDetail(
     public string? HumanApprovalSignInPath { get; init; }
     public bool RequiresReproposal { get; init; }
 
+    public ConsoleProposalDetail AsStatusOnly() => this with
+    {
+        HumanReviewEnvironment = null,
+        HumanReviewExpiresAt = null,
+        HumanApprovalSignInPath = null,
+        HumanApprovalMessage = RequiresReproposal ? HumanApprovalMessage : "Refresh the review explicitly before approving."
+    };
+
     public bool IsAwaitingApproval => Status == ConsoleProposalStatus.AwaitingApproval;
 
     public bool IsTerminal => Status

@@ -1066,7 +1066,7 @@
             // A proposal link is only meaningful for a created proposal; never surface one
             // for a Blocked / NotSupported (or otherwise unrecognized) outcome.
             ProposalId: proposed && !string.IsNullOrWhiteSpace(response.ProposalId)
-                ? (separateManager ? "manager:" + response.ProposalId : response.ProposalId)
+                ? (separateManager ? ConsoleProposalIdentity.ManagementPrefix + response.ProposalId : response.ProposalId)
                 : null,
             OutcomeStatus: status ?? string.Empty,
             Message: BuildOutcomeMessage(response));

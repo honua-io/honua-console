@@ -128,6 +128,29 @@ internal sealed class ConsoleHumanProposalSession(
         }
     }
 
+    public async Task<OperateSectionResult<ProposalDetailWire>> ReadStatusAsync(
+        ConsoleHumanProposalReviewRequest target, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var bound = await BindAsync(target.Profile, target.Authority, cancellationToken).ConfigureAwait(false);
+            if (bound is null) return Denied<ProposalDetailWire>("The original proposal environment is unavailable.");
+            using var session = await sessions.EnterPrivateSessionAsync(bound, target.Authority, cancellationToken).ConfigureAwait(false);
+            var partition = session is null ? null : await session.VerifyAsync(bound, cancellationToken).ConfigureAwait(false);
+            if (partition is null) return Denied<ProposalDetailWire>("Sign in to this server to read the original proposal status.");
+            partition.ProposalReviews.Discard(target.ProposalId);
+            var result = await ReadWithoutApprovalAsync(partition, new BoundReviewRequest(target, bound), cancellationToken).ConfigureAwait(false);
+            return result.IsAllowed && result.Value is { } value
+                ? OperateSectionResult<ProposalDetailWire>.Allowed(value.Proposal)
+                : OperateSectionResult<ProposalDetailWire>.Denied(result.Status, result.Message, result.Detail);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception exception) when (IsUnavailable(exception))
+        {
+            return Unavailable<ProposalDetailWire>("The original proposal status is unavailable. Recheck it before deciding again.");
+        }
+    }
+
     private async Task<OperateSectionResult<ConsoleHumanProposalReview>> ReadWithoutApprovalAsync(
         ConsoleServerSessionPartition partition, BoundReviewRequest request,
         CancellationToken cancellationToken)

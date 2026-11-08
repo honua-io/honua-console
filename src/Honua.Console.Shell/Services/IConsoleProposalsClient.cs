@@ -15,15 +15,13 @@ public interface IConsoleProposalsClient
         string proposalId,
         CancellationToken cancellationToken = default);
 
-    Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
+    Task<OperateSectionResult<ConsoleProposalDetail>> GetStatusAsync(
         string proposalId,
         CancellationToken cancellationToken = default);
 
     Task<OperateSectionResult<ConsoleProposalDetail>> ApproveReviewedAsync(
         ConsoleProposalDecision decision,
-        CancellationToken cancellationToken = default) => Task.FromResult(
-            OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Forbidden,
-                "Sign in to the server and open the proposal review before approving."));
+        CancellationToken cancellationToken = default);
 
     Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(
         string proposalId,

@@ -816,8 +816,11 @@ public sealed class OperateCopilotPageTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Missing, "n/a"));
 
-        public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
-            string proposalId,
+        public Task<OperateSectionResult<ConsoleProposalDetail>> GetStatusAsync(
+            string proposalId, CancellationToken cancellationToken = default) => GetAsync(proposalId, cancellationToken);
+
+        public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveReviewedAsync(
+            ConsoleProposalDecision decision,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Forbidden, "n/a"));
 

@@ -88,7 +88,8 @@ public sealed class ApprovalInboxPageRenderTests
         page.WaitForAssertion(() => page.Find("[data-proposal-id=\"external-1\"]"), TimeSpan.FromSeconds(5));
         page.Find("[data-proposal-id=\"external-1\"]").Click();
         page.WaitForAssertion(() => page.Find("[data-proposal-approve]"), TimeSpan.FromSeconds(5));
-        await proposals.ApproveAsync("external-1");
+        var review = (await proposals.GetAsync("external-1")).Value!;
+        await proposals.ApproveReviewedAsync(new("external-1", review.Version, review.PlanHash!, review.HumanReviewEnvironment!));
         proposals.RemoveFromQueue("external-1");
         realtime.Raise(new ConsoleProposalEvent(ConsoleProposalEventKind.Resolved, "external-1",
             ConsoleProposalKind.Deploy, ConsoleProposalStatus.Submitted, null, ConsoleProposalRisk.Medium, DateTimeOffset.UtcNow));
@@ -494,8 +495,11 @@ public sealed class ApprovalInboxPageRenderTests
             string proposalId, CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Missing, "n/a"));
 
-        public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
-            string proposalId, CancellationToken cancellationToken = default) =>
+        public Task<OperateSectionResult<ConsoleProposalDetail>> GetStatusAsync(
+            string proposalId, CancellationToken cancellationToken = default) => GetAsync(proposalId, cancellationToken);
+
+        public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveReviewedAsync(
+            ConsoleProposalDecision decision, CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Missing, "n/a"));
 
         public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(
