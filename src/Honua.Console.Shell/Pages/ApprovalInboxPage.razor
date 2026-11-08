@@ -242,16 +242,14 @@
     private string? _serverName;
     private bool _managerOnlyUpdates;
 
-    // The concrete realtime client also implements the shared capability seam (console#293), which
-    // raises a state-changed event on (re)connect. Subscribing to it lets the freshness pill flip
-    // Live<->paused without a page reload (console#309), independent of any proposal event.
-    private IConsoleRealtimeCapabilityClient? _realtimeState;
+    private ConsoleProposalSubscription? _updates;
+    private Task? _realtimeStartupTask;
 
     private ApprovalTicketType? _filter;
     private string? _selectedProposalId;
     private int _detailReloadToken;
     private string? _terminalProposalId;
-    private readonly CancellationTokenSource _detailPollingCancellation = new();
+    private readonly CancellationTokenSource _lifetimeCancellation = new();
     private Task? _detailPollingTask;
     private bool _disposed;
 
@@ -276,15 +274,8 @@
             _selectedProposalId = ProposalId.Trim();
         }
 
-        Realtime.ProposalChanged += OnProposalEvent;
-
-        // Flip the freshness pill on (re)connect without a reload (console#309): the concrete
-        // realtime client exposes the shared capability seam's state-changed event.
-        if (Realtime is IConsoleRealtimeCapabilityClient capability)
-        {
-            _realtimeState = capability;
-            _realtimeState.ConnectionStateChanged += OnConnectionStateChanged;
-        }
+        _updates = new ConsoleProposalSubscription(Realtime,
+            new ConsoleProposalObservers(OnProposalEvent, OnConnectionStateChanged));
 
         // Best-effort: name the failing source honestly in the error card (console#308). A profile
         // store may not be registered in a bare render harness; degrade to the generic server name.
@@ -292,11 +283,33 @@
         await ResolveServerNameAsync();
 
         await RefreshAsync();
-        // Best-effort: open the live subscription. A failure leaves the inbox on manual refresh.
-        await Realtime.StartAsync();
         if (!_disposed)
         {
-            _detailPollingTask = PollSelectedDetailAsync(_detailPollingCancellation.Token);
+            _detailPollingTask = PollSelectedDetailAsync(_lifetimeCancellation.Token);
+        }
+    }
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_loaded && !_disposed && _realtimeStartupTask is null && _updates is not null)
+        {
+            _realtimeStartupTask = StartRealtimeAsync(_updates);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task StartRealtimeAsync(ConsoleProposalSubscription updates)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
+        deadline.CancelAfter(LoadBudget);
+        try
+        {
+            await updates.StartAsync(deadline.Token).WaitAsync(deadline.Token);
+        }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+        {
+            // Manual refresh remains available when realtime startup exceeds its budget.
         }
     }
 
@@ -450,21 +463,15 @@
 
     public async ValueTask DisposeAsync()
     {
-        // The realtime client is an app-lifetime singleton shared across circuits; only detach
-        // this page's handler. The connection is torn down by the DI container on shutdown, not
-        // when one operator navigates away.
-        Realtime.ProposalChanged -= OnProposalEvent;
-        if (_realtimeState is not null)
+        if (_disposed)
         {
-            _realtimeState.ConnectionStateChanged -= OnConnectionStateChanged;
+            return;
         }
 
         _disposed = true;
-        _detailPollingCancellation.Cancel();
-        if (_detailPollingTask is not null)
-        {
-            await _detailPollingTask;
-        }
-        _detailPollingCancellation.Dispose();
+        _updates?.Dispose();
+        _lifetimeCancellation.Cancel();
+        await Task.WhenAll(_detailPollingTask ?? Task.CompletedTask, _realtimeStartupTask ?? Task.CompletedTask);
+        _lifetimeCancellation.Dispose();
     }
 }
