@@ -30,8 +30,9 @@ public sealed class CatalogAdminSettingsTests
     [Fact]
     public void Settings_DoesNotExposeUnrelatedCatalogConfiguration()
     {
-        using var context = Context(Settings() with { CatalogId = "staff", Title = "Private title" });
+        using var context = Context(Settings() with { CatalogId = "staff", Title = "Private title" }, "open");
         var page = context.Render<CatalogSettingsPage>(parameters => parameters.Add(p => p.CatalogId, "open"));
+        Assert.Contains("Catalog settings are unavailable", page.Markup);
         Assert.DoesNotContain("Private title", page.Markup);
         Assert.Empty(page.FindAll("textarea, script"));
     }
@@ -120,21 +121,21 @@ public sealed class CatalogAdminSettingsTests
         Embed = new("https://catalog.example/components/v1.js", Integrity)
     };
 
-    private static BunitContext Context(CatalogAdminSettings settings)
+    private static BunitContext Context(CatalogAdminSettings settings, string? overviewId = null)
     {
         var context = new BunitContext();
         context.Services.AddSingleton(new CatalogAdminOptions { Enabled = true });
-        context.Services.AddSingleton<ICatalogAdminSource>(new SettingsSource(settings));
+        context.Services.AddSingleton<ICatalogAdminSource>(new SettingsSource(settings, overviewId));
         return context;
     }
 
-    private sealed class SettingsSource(CatalogAdminSettings settings) : ICatalogAdminSource
+    private sealed class SettingsSource(CatalogAdminSettings settings, string? overviewId) : ICatalogAdminSource
     {
         public int Reads { get; private set; }
         public Task<CatalogAdminRead> ReadAsync(string? catalogId, CancellationToken cancellationToken)
         {
             Reads++;
-            return Task.FromResult(new CatalogAdminRead([], new(settings.CatalogId, settings.Title, new(1, 0, 0, 0, 1), []), "fixture", null)
+            return Task.FromResult(new CatalogAdminRead([], new(overviewId ?? settings.CatalogId, settings.Title, new(1, 0, 0, 0, 1), []), "fixture", null)
             { Settings = settings });
         }
     }
