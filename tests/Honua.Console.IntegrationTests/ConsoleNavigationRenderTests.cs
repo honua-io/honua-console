@@ -11,6 +11,21 @@ namespace Honua.Console.IntegrationTests;
 public sealed class ConsoleNavigationRenderTests
 {
     [Fact]
+    public void CatalogPreviewGroupsAdministrationAndNamesTheContentLibrary()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Studio:EmbedJsStudio"] = "true",
+            ["Honua:Console:Catalogs:Enabled"] = "true"
+        }).Build();
+        var groups = ConsoleNavigation.VisibleGroups(new ConfiguredConsoleProductMode(ConsoleProductMode.Full),
+            new ConsoleCapabilityManifest([ConsoleCapabilityKeys.PersistentCatalog]), configuration);
+        Assert.Equal(["Data", "Studio", "Catalogs", "Operate", "Access", "Settings"], groups.Select(group => group.Name));
+        Assert.Equal("Content", groups.SelectMany(group => group.Destinations).First(entry => entry.Path == "/catalog").Label);
+        Assert.Contains(groups.Single(group => group.Name == "Catalogs").Destinations, entry => entry.Path == "/operate/catalogs");
+    }
+
+    [Fact]
     public void NavigationUsesExistingDestinationsAndKeepsProcessesDiscoverable()
     {
         using var context = CreateContext();
