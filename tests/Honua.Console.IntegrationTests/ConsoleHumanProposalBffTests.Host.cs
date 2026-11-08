@@ -39,6 +39,7 @@ public sealed partial class ConsoleHumanProposalBffTests
         public HttpStatusCode ReviewStatusCode { get; set; } = HttpStatusCode.OK;
         public int ReadCalls { get; private set; }
         private string _pathBase = string.Empty;
+        private readonly ManagementEndpoint _management = new();
         private InMemoryConsoleEnvironmentProfileStore _profiles = null!;
         private const string IdentityIssuer = "https://identity.example/";
         public int ReviewCalls { get; private set; }
@@ -58,11 +59,25 @@ public sealed partial class ConsoleHumanProposalBffTests
         private async Task StartUpstreamAsync()
         {
             _upstream = Builder().Build();
-            _upstream.MapGet(_pathBase + "/api/v1/admin/auth/session", (Func<HttpContext, Task<IResult>>)ReadIdentityAsync);
-            _upstream.MapGet(_pathBase + "/api/v1/admin/proposals/proposal/approval-review", OpenPrivateReview);
-            _upstream.MapGet(_pathBase + "/api/v1/admin/proposals/proposal", ReadProposal);
-            _upstream.MapPost(_pathBase + "/api/v1/admin/proposals/proposal/approve", DecideProposal);
+            MapUpstreamRoutes(_pathBase);
+            MapUpstreamRoutes(_pathBase + "/management");
             await _upstream.StartAsync();
+        }
+
+        private void MapUpstreamRoutes(string pathBase)
+        {
+            _upstream.MapGet(pathBase + "/api/v1/admin/auth/session", (Func<HttpContext, Task<IResult>>)ReadIdentityAsync);
+            _upstream.MapGet(pathBase + "/api/v1/admin/proposals/proposal/approval-review", OpenPrivateReview);
+            _upstream.MapGet(pathBase + "/api/v1/admin/proposals/proposal", ReadProposal);
+            _upstream.MapPost(pathBase + "/api/v1/admin/proposals/proposal/approve", DecideProposal);
+        }
+
+        public void ConfigureManagement()
+        {
+            _management.Target = new Uri(Profile.ServerBaseUri, "management/");
+            var partition = Sessions.GetOrCreate("human", Profile with { ServerBaseUri = _management.Target });
+            partition.AuthenticatedProviderKey = "oidc";
+            partition.Cookies.SetCookies(_management.Target, "honua_admin_session=private-server-session; Path=/; HttpOnly");
         }
 
         private async Task<IResult> ReadIdentityAsync(HttpContext context)
@@ -160,7 +175,7 @@ public sealed partial class ConsoleHumanProposalBffTests
             builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-Token");
             builder.Services.AddSingleton<IConsoleEnvironmentProfileStore>(_profiles);
             builder.Services.AddSingleton(new ConsoleHumanProposalSession(
-                new PartitionedConsoleOperatorBearerExchange(new HumanOperator(), Sessions, identity), _profiles, Clock));
+                new PartitionedConsoleOperatorBearerExchange(new HumanOperator(), Sessions, identity), _profiles, Clock, _management));
             _browser = builder.Build();
             _browser.Use(async (context, next) =>
             {
@@ -178,10 +193,10 @@ public sealed partial class ConsoleHumanProposalBffTests
             Client.DefaultRequestHeaders.Add("X-CSRF-Token", session!.CsrfToken);
         }
 
-        public async Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync()
+        public async Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync(ConsoleServerAuthority authority = ConsoleServerAuthority.Serving)
         {
             using var response = await Client.PostAsJsonAsync("/api/console/proposals/proposal/review",
-                new ConsoleHumanProposalRequest(Profile.Id, ConsoleServerAuthority.Serving, null),
+                new ConsoleHumanProposalRequest(Profile.Id, authority, null),
                 ConsoleHumanProposalBffJsonContext.Default.ConsoleHumanProposalRequest);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.True(response.Headers.CacheControl?.NoStore);
@@ -189,10 +204,11 @@ public sealed partial class ConsoleHumanProposalBffTests
                 ConsoleHumanProposalBffJsonContext.Default.OperateSectionResultConsoleHumanProposalReview))!;
         }
 
-        public async Task<OperateSectionResult<ProposalDetailWire>> DecideAsync(ConsoleProposalDecision decision)
+        public async Task<OperateSectionResult<ProposalDetailWire>> DecideAsync(
+            ConsoleProposalDecision decision, ConsoleServerAuthority authority = ConsoleServerAuthority.Serving)
         {
             using var response = await Client.PostAsJsonAsync("/api/console/proposals/proposal/approve",
-                new ConsoleHumanProposalRequest(Profile.Id, ConsoleServerAuthority.Serving, decision),
+                new ConsoleHumanProposalRequest(Profile.Id, authority, decision),
                 ConsoleHumanProposalBffJsonContext.Default.ConsoleHumanProposalRequest);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             return (await response.Content.ReadFromJsonAsync(
@@ -243,6 +259,12 @@ public sealed partial class ConsoleHumanProposalBffTests
     {
         private readonly DateTimeOffset _now = DateTimeOffset.UtcNow;
         public override DateTimeOffset GetUtcNow() => _now;
+    }
+
+    private sealed class ManagementEndpoint : IConsoleManagerEndpoint
+    {
+        public Uri? Target { get; set; }
+        public Uri? Resolve(Uri servingBaseUri) => Target ?? servingBaseUri;
     }
 
     private sealed class HumanOperator : IConsoleOperatorContext

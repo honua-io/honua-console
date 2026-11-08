@@ -6,6 +6,38 @@ namespace Honua.Console.IntegrationTests;
 public sealed partial class ConsoleHumanProposalBffTests
 {
     [Fact]
+    public async Task BrowserReview_ManagementNotSeparate_RefusesBeforeUsingTheServingSession()
+    {
+        await using var host = await Host.StartAsync();
+
+        var result = await host.OpenReviewAsync(ConsoleServerAuthority.Management);
+
+        Assert.False(result.IsAllowed);
+        Assert.Equal(0, host.ReviewCalls);
+        Assert.Equal(0, host.ApprovalCalls);
+    }
+
+    [Fact]
+    public async Task BrowserReview_SameOriginManagementPath_KeepsBothAuthoritiesAndCapabilitiesSeparate()
+    {
+        await using var host = await Host.StartAsync();
+        host.ConfigureManagement();
+        var serving = (await host.OpenReviewAsync()).Value!;
+        var manager = (await host.OpenReviewAsync(ConsoleServerAuthority.Management)).Value!;
+
+        var managementDecision = await host.DecideAsync(new("proposal", manager.Proposal.Version,
+            manager.Proposal.PlanHash!, manager.EnvironmentReference), ConsoleServerAuthority.Management);
+        var servingDecision = await host.DecideAsync(new("proposal", serving.Proposal.Version,
+            serving.Proposal.PlanHash!, serving.EnvironmentReference));
+
+        Assert.NotEqual(serving.EnvironmentReference, manager.EnvironmentReference);
+        Assert.True(managementDecision.IsAllowed);
+        Assert.True(servingDecision.IsAllowed);
+        Assert.Equal(2, host.ApprovalCalls);
+        Assert.False(host.SawForwardableCredential);
+    }
+
+    [Fact]
     public async Task BrowserStatus_PendingProposal_DiscardsOldCapabilityWithoutOpeningAReview()
     {
         await using var host = await Host.StartAsync();
