@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Honua.Console.Contracts;
 
 public sealed record ProposalSummaryWire
@@ -59,4 +61,8 @@ public sealed record RejectProposalWire
 public sealed record ConsolePrivateProposalReviewResponse(ProposalDetailWire? Proposal, ConsoleProposalHumanReviewWire? Review);
 
 public sealed record ConsoleProposalHumanReviewWire(
-    string ProposalId, long ProposalVersion, string PlanHash, string Capability, DateTimeOffset ExpiresAt);
+    string ProposalId, long ProposalVersion, string PlanHash, string Capability, DateTimeOffset ExpiresAt)
+{
+    [JsonRequired]
+    public string? TenantId { get; init; }
+}

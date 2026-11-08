@@ -29,6 +29,7 @@ internal sealed class ConsoleHumanProposalSession(
             var partition = session is null ? null : await session.VerifyAsync(bound, ConsoleServerSessionUse.HumanDecision, cancellationToken).ConfigureAwait(false);
             if (partition is null) return Denied<ConsoleHumanProposalReview>("Sign in to this server to review and approve the proposal.");
 
+            partition.ProposalReviews.Discard(proposalId);
             using var request = new HttpRequestMessage(HttpMethod.Get,
                 ConsoleServerHttp.BuildUri(bound.ServerBaseUri, ProposalAdminRoutes.Detail(proposalId) + "/approval-review"));
             using var response = await partition.Client.SendAsync(request, cancellationToken).ConfigureAwait(false);
@@ -40,6 +41,7 @@ internal sealed class ConsoleHumanProposalSession(
             if (result is not { Proposal: { } proposal, Review: { } review }
                 || proposal.ProposalId != proposalId || review.ProposalId != proposalId
                 || proposal.Status != "AwaitingApproval" || proposal.Version != review.ProposalVersion
+                || review.TenantId != (string.IsNullOrEmpty(bound.TenantId) ? null : bound.TenantId)
                 || string.IsNullOrEmpty(proposal.PlanHash) || proposal.PlanHash != review.PlanHash
                 || string.IsNullOrEmpty(review.Capability) || review.Capability.Length > 16384
                 || review.ExpiresAt <= clock.GetUtcNow()

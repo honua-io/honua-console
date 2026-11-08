@@ -270,7 +270,8 @@ public sealed class ConsoleHumanProposalBffTests
                 new ConsoleProposalHumanReviewWire("proposal", 7, "plan", "private-capability", DateTimeOffset.UtcNow.AddMinutes(5)));
             var json = JsonNode.Parse(JsonSerializer.Serialize(result,
                 ConsoleHumanProposalJsonContext.Default.ConsolePrivateProposalReviewResponse))!;
-            if (!OmitReviewTenant) json["review"]!["tenantId"] = ReviewTenantId;
+            if (OmitReviewTenant) json["review"]!.AsObject().Remove("tenantId");
+            else json["review"]!["tenantId"] = ReviewTenantId;
             return Results.Text(json.ToJsonString(), "application/json");
         }
 
