@@ -220,6 +220,48 @@ public sealed class ConsolePublicationNavigationRenderTests
     }
 
     [Fact]
+    public void ColdLayerNavigationBoundsReadsAcrossFiveHundredNonEmptyServices()
+    {
+        var source = new NavigationSource
+        {
+            ServiceSummaries = Enumerable.Range(0, 500).Select(index => new HonuaAdminServiceSummary
+                { ServiceName = $"service-{index:D3}", LayerCount = 10 }).Append(new()
+                { ServiceName = "z-parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 }).ToArray()
+        };
+        using var context = PublicationLayoutContext(source);
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/layers/connection-one-layer-7");
+        var layout = context.Render<ConsoleLayout>();
+        layout.WaitForAssertion(() => Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        Assert.True(source.ChildReads <= 1, $"Cold navigation read {source.ChildReads} services.");
+        Assert.True(source.ServiceReads <= 2, $"Cold navigation read {source.ServiceReads} catalog pages.");
+    }
+
+    [Theory]
+    [InlineData("filter")]
+    [InlineData("show-more")]
+    public void ColdLayerAncestrySurvivesSidebarCatalogChanges(string action)
+    {
+        var source = new NavigationSource
+        {
+            ServiceSummaries = Enumerable.Range(0, 100).Select(index => new HonuaAdminServiceSummary
+                { ServiceName = $"empty-{index:D3}" }).Append(new()
+                { ServiceName = "z-parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 }).ToArray()
+        };
+        using var context = PublicationLayoutContext(source);
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/layers/connection-one-layer-7");
+        var layout = context.Render<ConsoleLayout>();
+        layout.WaitForAssertion(() => Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        var reads = source.ChildReads;
+        var serviceReads = source.ServiceReads;
+        if (action == "filter") layout.Find("[data-tree-filter]").Input("no-match");
+        else for (var click = 0; click < 4; click++) layout.Find("[data-tree-more='environment']").Click();
+        layout.WaitForAssertion(() => Assert.Equal(serviceReads + 1, source.ServiceReads));
+        layout.WaitForAssertion(() => Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        Assert.Equal(reads, source.ChildReads);
+        Assert.Contains("Parcels", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
+    }
+
+    [Fact]
     public void ColdLayerNavigationDoesNotExposeAncestryWhenLayersAreForbidden()
     {
         var source = new NavigationSource
@@ -672,6 +714,18 @@ public sealed class ConsolePublicationNavigationRenderTests
         {
             ConnectionReads++;
             return Task.FromResult(OperateSectionResult<IReadOnlyList<string>>.Allowed(ConnectionKeys));
+        }
+        public async Task<OperateSectionResult<IReadOnlyList<HonuaAdminPublishedLayerSummary>>> ReadConnectionLayersAsync(
+            string connectionKey, CancellationToken cancellationToken)
+        {
+            var serviceName = ServiceSummaries?.LastOrDefault(service => service.LayerCount > 0)?.ServiceName ?? "service-000";
+            var read = await ReadLayersAsync(serviceName!, [connectionKey], cancellationToken);
+            return read.IsAllowed
+                ? OperateSectionResult<IReadOnlyList<HonuaAdminPublishedLayerSummary>>.Allowed(
+                    read.Value!.Select(layer => new HonuaAdminPublishedLayerSummary
+                    { LayerId = 7, LayerName = layer.Name, GeometryType = layer.GeometryType, ServiceName = serviceName }).ToArray(),
+                    partialResult: read.PartialResult)
+                : OperateSectionResult<IReadOnlyList<HonuaAdminPublishedLayerSummary>>.Denied(read.Status, read.Message);
         }
         public Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>> ReadLayersAsync(
             string serviceName, IReadOnlyList<string> connectionKeys, CancellationToken cancellationToken)

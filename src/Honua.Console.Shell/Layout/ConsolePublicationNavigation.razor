@@ -90,7 +90,7 @@
         if (!_loading && _servicesRead is { IsAllowed: true, Value: not null })
         {
             ancestors = _tree.PathTo(contextPath);
-            if (ancestors.Count == 0 && _pathAttempt == new PathAttempt(contextPath, _catalogGeneration, _authorityRevision))
+            if (ancestors.Count == 0 && _pathAttempt == new PathAttempt(contextPath, _authorityRevision))
                 ancestors = _resolvedPath;
         }
         if (_reportedPath is not null && _reportedPath.SequenceEqual(ancestors)) return;
@@ -220,6 +220,8 @@
         _authorityLifetime.Dispose();
         _authorityLifetime = new();
         _connectionsRead = null;
+        _pathAttempt = null;
+        _resolvedPath = [];
         _tree.Load(new HonuaAdminServicePage(), _environmentLabel);
         _tree.SetFilter("");
         _servicesRead = null;
@@ -338,7 +340,7 @@
     private async Task ResolveSelectedLayerAsync()
     {
         var context = ConsoleNavigation.ContextForPath(CurrentPath.Trim('/'), ConsoleNavigation.Groups);
-        var attempt = new PathAttempt(context.Path, _catalogGeneration, _authorityRevision);
+        var attempt = new PathAttempt(context.Path, _authorityRevision);
         if (_disposed || _loading || context.Kind != ConsoleNavigationContextKind.Layer
             || _servicesRead is not { IsAllowed: true, Value: not null }
             || _tree.PathTo(context.Path).Count > 0 || _pathAttempt == attempt) return;
@@ -347,13 +349,12 @@
         var result = await ConsoleReadBudget.RunAsync(
             token => new ConsolePublicationPathReader(Source).ReadAsync(context.Path, token), ConsoleReadBudget.Default,
             "Layer ancestry could not be read.", _authorityLifetime.Token);
-        if (_disposed || _pathAttempt != attempt || attempt.AuthorityRevision != _authorityRevision
-            || attempt.CatalogGeneration != _catalogGeneration) return;
+        if (_disposed || _pathAttempt != attempt || attempt.AuthorityRevision != _authorityRevision) return;
         _resolvedPath = result.IsAllowed ? result.Value ?? [] : [];
         await InvokeAsync(StateHasChanged);
     }
 
-    private readonly record struct PathAttempt(string Path, int CatalogGeneration, int AuthorityRevision);
+    private readonly record struct PathAttempt(string Path, int AuthorityRevision);
 
     private void LocationChanged(object? sender, LocationChangedEventArgs args)
     {

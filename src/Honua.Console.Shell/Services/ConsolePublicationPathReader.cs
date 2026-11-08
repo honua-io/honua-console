@@ -8,35 +8,37 @@ public sealed class ConsolePublicationPathReader(IConsolePublicationNavigationSo
     public async Task<OperateSectionResult<IReadOnlyList<ConsolePublicationNode>>> ReadAsync(
         string path, CancellationToken cancellationToken)
     {
-        var services = await ReadServicesAsync(cancellationToken);
-        if (!services.IsAllowed || services.Value is null) return Denied(services.Status, services.Message);
         var connections = await source.ReadConnectionsAsync(cancellationToken);
-        if (!connections.IsAllowed || connections.Value is null) return Denied(connections.Status, connections.Message);
+        if (!connections.IsAllowed || connections.PartialResult || connections.Value is null)
+            return Denied(connections.Status, connections.Message);
         var resourceId = Uri.UnescapeDataString(path["/operate/layers/".Length..]);
         var owners = connections.Value.Where(connection => resourceId.StartsWith(
             OperateResourceIdentity.NormalizeToken(connection) + "-layer-", StringComparison.Ordinal)).ToArray();
-        if (owners.Length != 1) return OperateSectionResult<IReadOnlyList<ConsolePublicationNode>>.Allowed([]);
+        if (owners.Length != 1) return Empty();
+        var layers = await source.ReadConnectionLayersAsync(owners[0], cancellationToken);
+        if (!layers.IsAllowed || layers.PartialResult || layers.Value is null) return Denied(layers.Status, layers.Message);
+        var matches = layers.Value.Where(layer => OperateResourceIdentity.ForPublishedLayer(owners[0], layer.LayerId) == resourceId).ToArray();
+        if (matches.Length != 1 || string.IsNullOrWhiteSpace(matches[0].ServiceName)) return Empty();
+        var layer = matches[0];
+        var services = await ReadServicesAsync(layer.ServiceName!, cancellationToken);
+        if (!services.IsAllowed || services.Value is null) return Denied(services.Status, services.Message);
+        if (services.Value.Count != 1) return Empty();
 
         var tree = new ConsolePublicationTree();
-        tree.Load(new HonuaAdminServicePage { Items = services.Value.ToArray(), Total = services.Value.Count }, "Services");
-        var nodes = ConsolePublicationTree.Descendants(tree.Root)
-            .Where(node => node.Kind == ConsolePublicationNodeKind.Service && node.ReportedCount > 0).ToArray();
-        var reads = await BoundedFanOut.RunAsync(nodes,
-            (node, token) => source.ReadLayersAsync(node.ServiceName!, owners, token),
-            maxConcurrency: 4, cancellationToken: cancellationToken);
-        for (var index = 0; index < nodes.Length; index++)
-        {
-            var read = reads[index];
-            if (!read.IsAllowed || read.PartialResult || read.Value is null) return Denied(read.Status, read.Message);
-            nodes[index].Children = ConsolePublicationTree.LayerNodes(nodes[index], read.Value);
-        }
+        tree.Load(new HonuaAdminServicePage { Items = services.Value.ToArray(), Total = 1 }, "Services");
+        var service = ConsolePublicationTree.Descendants(tree.Root).Single(node => node.Kind == ConsolePublicationNodeKind.Service);
+        service.Children = ConsolePublicationTree.LayerNodes(service,
+            [new(resourceId, string.IsNullOrWhiteSpace(layer.LayerName) ? $"Layer {layer.LayerId}" : layer.LayerName, layer.GeometryType ?? "Unknown")]);
         return OperateSectionResult<IReadOnlyList<ConsolePublicationNode>>.Allowed(tree.PathTo(path));
     }
 
-    private async Task<OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadServicesAsync(CancellationToken token)
+    private static OperateSectionResult<IReadOnlyList<ConsolePublicationNode>> Empty() =>
+        OperateSectionResult<IReadOnlyList<ConsolePublicationNode>>.Allowed([]);
+
+    private async Task<OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>> ReadServicesAsync(string serviceName, CancellationToken token)
     {
         var services = new List<HonuaAdminServiceSummary>();
-        var query = HonuaAdminCatalogQuery.First;
+        var query = HonuaAdminCatalogQuery.First with { NameQuery = serviceName };
         while (true)
         {
             token.ThrowIfCancellationRequested();
@@ -46,7 +48,8 @@ public sealed class ConsolePublicationPathReader(IConsolePublicationNavigationSo
             var page = read.Value;
             services.AddRange(page.Items);
             if (services.Count >= page.Total)
-                return OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Allowed(services);
+                return OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Allowed(services
+                    .Where(service => string.Equals(service.ServiceName, serviceName, StringComparison.OrdinalIgnoreCase)).ToArray());
             if (page.Items.Length == 0 || page.Page != query.Page)
                 return OperateSectionResult<IReadOnlyList<HonuaAdminServiceSummary>>.Denied(
                     OperateSectionStatus.Unavailable, "The service catalog did not return a complete page.");
