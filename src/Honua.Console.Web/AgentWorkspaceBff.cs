@@ -278,8 +278,14 @@ internal static partial class AgentWorkspaceBff
                 : await cookiePartition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
             if (cookiePartition is not null
                 && !await context.RequestServices.GetRequiredService<ConsoleServerSessionIdentityBinding>().EnsureAsync(
-                    cookiePartition, profile, cookiePartition.Key.OperatorKey, cookiePartition.AuthenticatedProviderKey,
-                    cancellationToken).ConfigureAwait(false))
+                    new ConsoleServerSessionIdentityRequest
+                    {
+                        Partition = cookiePartition,
+                        Profile = profile,
+                        OperatorKey = cookiePartition.Key.OperatorKey,
+                        ProviderKey = cookiePartition.AuthenticatedProviderKey,
+                        Authority = ConsoleServerAuthority.Serving,
+                    }, cancellationToken).ConfigureAwait(false))
                 return Results.StatusCode(403);
             var transport = cookiePartition?.Client ?? clients.CreateClient("honua-agent-workspace");
             // ResponseHeadersRead does not extend HttpClient.Timeout to body reads.
