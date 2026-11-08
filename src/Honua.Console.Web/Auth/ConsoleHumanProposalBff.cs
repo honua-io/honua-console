@@ -18,7 +18,7 @@ internal static class ConsoleHumanProposalBff
             var profile = await AuthorizeAsync(endpoint, request).ConfigureAwait(false);
             if (profile is null) return Results.StatusCode(StatusCodes.Status403Forbidden);
             var result = await endpoint.Sessions.OpenReviewAsync(
-                new ConsoleHumanProposalReviewRequest(profile, request.Authority, id), endpoint.Context.RequestAborted).ConfigureAwait(false);
+                new ConsoleHumanProposalTarget(profile, request.Authority, id), endpoint.Context.RequestAborted).ConfigureAwait(false);
             return Results.Json(result, ConsoleHumanProposalBffJsonContext.Default.OperateSectionResultConsoleHumanProposalReview);
         });
         app.MapPost("/api/console/proposals/{id}/approve", async (
@@ -37,7 +37,7 @@ internal static class ConsoleHumanProposalBff
             var profile = await AuthorizeAsync(endpoint, request).ConfigureAwait(false);
             if (profile is null) return Results.StatusCode(StatusCodes.Status403Forbidden);
             var result = await endpoint.Sessions.ReadStatusAsync(
-                new ConsoleHumanProposalReviewRequest(profile, request.Authority, id), endpoint.Context.RequestAborted).ConfigureAwait(false);
+                new ConsoleHumanProposalTarget(profile, request.Authority, id), endpoint.Context.RequestAborted).ConfigureAwait(false);
             return Results.Json(result, ConsoleHumanProposalBffJsonContext.Default.OperateSectionResultProposalDetailWire);
         });
     }

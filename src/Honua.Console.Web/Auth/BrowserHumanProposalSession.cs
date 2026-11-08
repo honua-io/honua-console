@@ -10,7 +10,7 @@ internal sealed class BrowserHumanProposalSession(IJSRuntime javascript) : ICons
     private IJSObjectReference? _module;
 
     public Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync(
-        ConsoleHumanProposalReviewRequest request,
+        ConsoleHumanProposalTarget request,
         CancellationToken cancellationToken = default) => SendAsync<ConsoleHumanProposalReview>(
             new BrowserHumanProposalCommand
             {
@@ -28,7 +28,7 @@ internal sealed class BrowserHumanProposalSession(IJSRuntime javascript) : ICons
             }, cancellationToken);
 
     public Task<OperateSectionResult<ProposalDetailWire>> ReadStatusAsync(
-        ConsoleHumanProposalReviewRequest request,
+        ConsoleHumanProposalTarget request,
         CancellationToken cancellationToken = default) => SendAsync<ProposalDetailWire>(new BrowserHumanProposalCommand
         {
             Action = "status", ProfileId = request.Profile.Id,

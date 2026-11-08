@@ -17,7 +17,7 @@ public sealed record ConsoleHumanProposalReview(
     public string? ApprovalMessage { get; init; }
 }
 
-public sealed record ConsoleHumanProposalReviewRequest(
+public sealed record ConsoleHumanProposalTarget(
     ConsoleEnvironmentProfile Profile, ConsoleServerAuthority Authority, string ProposalId);
 
 public sealed record ConsoleHumanProposalApprovalRequest(
@@ -26,11 +26,11 @@ public sealed record ConsoleHumanProposalApprovalRequest(
 public interface IConsoleHumanProposalSession
 {
     Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync(
-        ConsoleHumanProposalReviewRequest request,
+        ConsoleHumanProposalTarget request,
         CancellationToken cancellationToken = default);
 
     Task<OperateSectionResult<ProposalDetailWire>> ReadStatusAsync(
-        ConsoleHumanProposalReviewRequest request,
+        ConsoleHumanProposalTarget request,
         CancellationToken cancellationToken = default);
 
     Task<OperateSectionResult<ProposalDetailWire>> ApproveAsync(

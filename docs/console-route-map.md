@@ -1237,8 +1237,10 @@ refresh guidance, while separately authorized rejection remains available.
 its existing profile and return path. Management resolves only the configured
 manager endpoint and does not replace the serving account.
 
-The host's `/api/console/proposals/session` and proposal review/approve BFF routes
-require the authenticated browser session; mutation routes require antiforgery.
+The host's `/api/console/proposals/session` and proposal review/status/approve BFF routes
+require the authenticated browser session; POST routes require antiforgery.
 They expose no upstream cookie or review capability. A changed profile, origin,
 plan or proposal version invalidates the review. An uncertain decision response
-requires a status read before another explicit review.
+requires a status read before another explicit review. Status reads never mint
+review capabilities, and background refresh cannot reopen a review after an
+uncertain decision; the user selects **Refresh review** to do so.

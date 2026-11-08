@@ -93,7 +93,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         if (_humanSession is not null && profile is not null)
         {
             review = await _humanSession.OpenReviewAsync(
-                new ConsoleHumanProposalReviewRequest(profile, _authority, proposalId.Trim()), cancellationToken)
+                new ConsoleHumanProposalTarget(profile, _authority, proposalId.Trim()), cancellationToken)
                 .ConfigureAwait(false);
             if (review.IsAllowed && review.Value is { } opened)
                 return OperateSectionResult<ConsoleProposalDetail>.Allowed(MapDetail(opened.Proposal) with
@@ -123,7 +123,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         if (_humanSession is not null && profile is not null)
         {
             var status = await _humanSession.ReadStatusAsync(
-                new ConsoleHumanProposalReviewRequest(profile, _authority, proposalId.Trim()), cancellationToken).ConfigureAwait(false);
+                new ConsoleHumanProposalTarget(profile, _authority, proposalId.Trim()), cancellationToken).ConfigureAwait(false);
             if (status.IsAllowed && status.Value is { } proposal)
                 return OperateSectionResult<ConsoleProposalDetail>.Allowed(MapDetail(proposal).AsStatusOnly());
         }

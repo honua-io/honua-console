@@ -58,6 +58,7 @@ public sealed record RejectProposalWire
     public string? Reason { get; init; }
 }
 
+// The published SDK has no private human-review projection.
 public sealed record ConsolePrivateProposalReviewResponse(ProposalDetailWire? Proposal, ConsoleProposalHumanReviewWire? Review);
 
 public sealed record ConsoleProposalHumanReviewWire(

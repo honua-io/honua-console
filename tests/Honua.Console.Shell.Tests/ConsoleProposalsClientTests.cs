@@ -412,7 +412,7 @@ public sealed class ConsoleProposalsClientTests
         public OperateSectionResult<ProposalDetailWire> DecisionResult { get; init; } =
             OperateSectionResult<ProposalDetailWire>.Denied(OperateSectionStatus.Forbidden, "Not used.");
         public Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync(
-            ConsoleHumanProposalReviewRequest request,
+            ConsoleHumanProposalTarget request,
             CancellationToken cancellationToken = default)
         {
             Authority = request.Authority;
@@ -430,7 +430,7 @@ public sealed class ConsoleProposalsClientTests
             return Task.FromResult(DecisionResult);
         }
         public Task<OperateSectionResult<ProposalDetailWire>> ReadStatusAsync(
-            ConsoleHumanProposalReviewRequest request, CancellationToken cancellationToken = default)
+            ConsoleHumanProposalTarget request, CancellationToken cancellationToken = default)
         {
             StatusCalls++;
             Authority = request.Authority;

@@ -20,7 +20,7 @@ internal sealed class ConsoleHumanProposalSession(
     private static readonly TimeSpan MaximumClockSkew = TimeSpan.FromSeconds(30);
 
     public async Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync(
-        ConsoleHumanProposalReviewRequest reviewRequest,
+        ConsoleHumanProposalTarget reviewRequest,
         CancellationToken cancellationToken = default)
     {
         try
@@ -39,7 +39,7 @@ internal sealed class ConsoleHumanProposalSession(
     }
 
     private async Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenBoundReviewAsync(
-        ConsoleHumanProposalReviewRequest target, CancellationToken cancellationToken)
+        ConsoleHumanProposalTarget target, CancellationToken cancellationToken)
     {
         var bound = await BindAsync(target.Profile, target.Authority, cancellationToken).ConfigureAwait(false);
         if (bound is null) return Denied<ConsoleHumanProposalReview>("The original proposal environment is unavailable.");
@@ -135,7 +135,7 @@ internal sealed class ConsoleHumanProposalSession(
     }
 
     public async Task<OperateSectionResult<ProposalDetailWire>> ReadStatusAsync(
-        ConsoleHumanProposalReviewRequest target, CancellationToken cancellationToken = default)
+        ConsoleHumanProposalTarget target, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -177,7 +177,7 @@ internal sealed class ConsoleHumanProposalSession(
         });
     }
 
-    private sealed record BoundReviewRequest(ConsoleHumanProposalReviewRequest Target, ConsoleEnvironmentProfile Profile)
+    private sealed record BoundReviewRequest(ConsoleHumanProposalTarget Target, ConsoleEnvironmentProfile Profile)
     {
         public OperateSectionResult<ConsoleHumanProposalReview>? Failure { get; init; }
     }

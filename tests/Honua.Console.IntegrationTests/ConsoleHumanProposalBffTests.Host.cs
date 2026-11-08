@@ -74,10 +74,11 @@ public sealed partial class ConsoleHumanProposalBffTests
 
         public void ConfigureManagement()
         {
-            _management.Target = new Uri(Profile.ServerBaseUri, "management/");
-            var partition = Sessions.GetOrCreate("human", Profile with { ServerBaseUri = _management.Target });
+            var managerBaseUri = new Uri(Profile.ServerBaseUri, "management/");
+            _management.Target = managerBaseUri;
+            var partition = Sessions.GetOrCreate("human", Profile with { ServerBaseUri = managerBaseUri });
             partition.AuthenticatedProviderKey = "oidc";
-            partition.Cookies.SetCookies(_management.Target, "honua_admin_session=private-server-session; Path=/; HttpOnly");
+            partition.Cookies.SetCookies(managerBaseUri, "honua_admin_session=private-server-session; Path=/; HttpOnly");
         }
 
         private async Task<IResult> ReadIdentityAsync(HttpContext context)

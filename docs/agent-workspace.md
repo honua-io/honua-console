@@ -85,13 +85,14 @@ cannot approve. Sign in to the original proposal server when prompted. Managemen
 proposals use the configured management authority, with a separate private cookie
 partition; this does not replace the serving account or its bearer.
 
-The browser uses same-origin antiforgery-protected review and decision requests.
+The browser uses same-origin antiforgery-protected review, status and decision requests.
 The upstream cookie and short-lived review capability remain in the Console host,
 bound to the operator, environment and complete server origin. A version, plan,
 identity or environment change prevents submission. The capability is consumed
 before sending once. After a lost response, read the original proposal status
 before explicitly opening another review; Console never automatically retries the
-decision. Read and rejection grants still apply separately.
+decision. Background refresh keeps reading status until the user selects
+**Refresh review**. Rejection and human approval keep their separate grants.
 
 Deploy Server's human approval contract before this Console version. An older
 Console's bearer/key approval requests then fail closed; this Console also refuses

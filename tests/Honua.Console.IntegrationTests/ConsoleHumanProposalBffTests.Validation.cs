@@ -1,5 +1,6 @@
 using System.Net;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
