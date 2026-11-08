@@ -3,8 +3,11 @@ using Honua.Console.Contracts;
 using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -211,15 +214,23 @@ public sealed class ConsolePublicationNavigationRenderTests
         var authorization = context.AddAuthorization();
         authorization.SetAuthorized("synthetic-operator");
         ConfigurePublicationLayout(context, source);
+        context.Services.RemoveAll<IAuthorizationService>();
+        context.Services.RemoveAll<IAuthorizationPolicyProvider>();
+        context.Services.AddAuthorizationCore();
         var authentication = context.Services.GetRequiredService<AuthenticationStateProvider>();
         context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
             .NavigateTo("/operate/services/parcels/settings");
         var layout = context.Render<ConsoleLayout>();
         layout.WaitForAssertion(() => Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        var publication = layout.FindComponent<CascadingValue<ConsolePublicationTreeContext>>().Instance.Value;
+        var previousPath = publication.Tree.PathTo("/operate/services/parcels/settings");
+        var publish = layout.FindComponent<ConsolePublicationNavigation>().Instance.SelectionChanged;
         authorization.SetNotAuthorized();
         Assert.False((await authentication.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated is true);
+        layout.WaitForAssertion(() => Assert.Empty(layout.FindAll("[role='tree']")));
         layout.WaitForAssertion(() => Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
-        Assert.Empty(layout.FindAll("[role='tree']"));
+        await layout.InvokeAsync(() => publish.InvokeAsync(previousPath));
+        Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
     }
 
     [Fact]
