@@ -1,0 +1,34 @@
+<div class="catalog-order-controls">
+    <span>@Position</span>
+    <button type="button" class="console-button console-button-secondary" data-move-up @ref="_upButton" disabled="@(Position <= 1)"
+            aria-label="@($"Move {Title} at position {Position} up")" @onclick="() => MoveAsync(Position - 2)">Up</button>
+    <button type="button" class="console-button console-button-secondary" data-move-down @ref="_downButton" disabled="@(Position >= Count)"
+            aria-label="@($"Move {Title} at position {Position} down")" @onclick="() => MoveAsync(Position)">Down</button>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public int Position { get; set; }
+    [Parameter] public int Count { get; set; }
+    [Parameter] public EventCallback<CatalogOrderMove> Moved { get; set; }
+    private ElementReference _upButton;
+    private ElementReference _downButton;
+    private MoveDirection _focusDirection;
+    private enum MoveDirection { None, Up, Down }
+
+    private async Task MoveAsync(int destination)
+    {
+        if (destination < 0 || destination >= Count) return;
+        var index = Position - 1;
+        _focusDirection = destination < index ? MoveDirection.Up : MoveDirection.Down;
+        await Moved.InvokeAsync(new(index, destination));
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusDirection == MoveDirection.None) return;
+        var focusUp = _focusDirection == MoveDirection.Up && Position > 1 || _focusDirection == MoveDirection.Down && Position >= Count;
+        _focusDirection = MoveDirection.None;
+        await (focusUp ? _upButton : _downButton).FocusAsync();
+    }
+}

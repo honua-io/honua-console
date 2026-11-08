@@ -5,7 +5,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionDataSource
+public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTransitionDataSource
 {
 
     private static readonly IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse> EmptyServiceSettings =
@@ -13,14 +13,17 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             new Dictionary<string, HonuaAdminServiceSettingsResponse>(StringComparer.OrdinalIgnoreCase));
 
     private readonly IHonuaAdminOperateClient _client;
+    private readonly IConsoleEnvironmentProfileStore? _profiles;
 
-    public HonuaServerOperateTransitionDataSource(IHonuaAdminOperateClient client)
+    public HonuaServerOperateTransitionDataSource(IHonuaAdminOperateClient client, IConsoleEnvironmentProfileStore? profiles = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
+        _profiles = profiles;
     }
 
     public async Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
     {
+        using var environment = await ConsoleEnvironmentRead.BeginAsync(_profiles, _client.BaseUri, cancellationToken).ConfigureAwait(false);
         // The landing page is the only surface that needs the whole workspace; fan out the
         // independent top-level reads, then the dependent layer/settings reads, in parallel.
         var connectionsTask = LoadConnectionsAsync(cancellationToken);
@@ -45,8 +48,9 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         MergeStates(states, serviceSettingsStates);
         MergeStates(states, settingsChangeStates);
 
+        if (!await environment.IsCurrentAsync(cancellationToken).ConfigureAwait(false)) return new([], [], [], [], [ConsoleEnvironmentRead.Unavailable]);
         var resources = BuildResourceEdits(layerRows);
-        var services = MapServices(summaries, serviceSettings, layerRows);
+        var services = new ServiceProjection(serviceSettings, layerRows, new OperatePublicationProjection(environment.ServerBaseUri)).Map(summaries);
 
         return new OperateTransitionWorkspace(
             connections,
@@ -100,6 +104,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         bool includeRuntimeSettings,
         CancellationToken cancellationToken)
     {
+        using var environment = await ConsoleEnvironmentRead.BeginAsync(_profiles, _client.BaseUri, cancellationToken).ConfigureAwait(false);
         var connectionsTask = LoadConnectionsAsync(cancellationToken);
         var summariesTask = LoadServiceSummariesAsync(cancellationToken);
         await Task.WhenAll(connectionsTask, summariesTask).ConfigureAwait(false);
@@ -132,7 +137,8 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             serviceSettings = settings;
         }
 
-        var services = MapServices(summaries, serviceSettings, layerRows);
+        if (!await environment.IsCurrentAsync(cancellationToken).ConfigureAwait(false)) return new([], [ConsoleEnvironmentRead.Unavailable]);
+        var services = new ServiceProjection(serviceSettings, layerRows, new OperatePublicationProjection(environment.ServerBaseUri)).Map(summaries);
 
         return new OperateServicesView(services, states);
     }
@@ -398,141 +404,6 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-    private IReadOnlyList<OperateServiceDetail> MapServices(
-        IReadOnlyList<HonuaAdminServiceSummary> summaries,
-        IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse> serviceSettings,
-        IReadOnlyList<LayerRow> layerRows)
-    {
-        // Services and layers render through the service summary list, but each published-layer row
-        // carries its own service name. When the admin services endpoint reports no rows (or omits a
-        // service that still owns published layers), derive the missing service entries from the layer
-        // rows so the layers do not disappear from the services and layers surfaces. These are projected
-        // from live published-layer data, not fabricated rows for an unsupported contract.
-        return CombineServiceSummaries(summaries, layerRows)
-            .Select(service => MapService(service, serviceSettings, layerRows))
-            .ToArray();
-    }
-
-    private static IReadOnlyList<HonuaAdminServiceSummary> CombineServiceSummaries(
-        IReadOnlyList<HonuaAdminServiceSummary> summaries,
-        IReadOnlyList<LayerRow> layerRows)
-    {
-        var knownServiceNames = summaries
-            .Select(summary => summary.ServiceName?.Trim())
-            .Where(serviceName => !string.IsNullOrWhiteSpace(serviceName))
-            .Select(serviceName => serviceName!)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var derivedServices = layerRows
-            .GroupBy(row => Coalesce(row.Source.ServiceName, "default"), StringComparer.OrdinalIgnoreCase)
-            .Where(group => !knownServiceNames.Contains(group.Key))
-            .Select(group => new HonuaAdminServiceSummary
-            {
-                ServiceName = group.Key,
-                LayerCount = group.Count(),
-                EnabledProtocols = []
-            });
-
-        return summaries
-            .Concat(derivedServices)
-            .OrderBy(summary => summary.ServiceName, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-    }
-
-    private OperateServiceDetail MapService(
-        HonuaAdminServiceSummary service,
-        IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse> serviceSettings,
-        IReadOnlyList<LayerRow> layerRows)
-    {
-        var serviceName = service.ServiceName!;
-        serviceSettings.TryGetValue(serviceName, out var settings);
-        var protocols = ((settings?.EnabledProtocols ?? []).Count > 0 ? settings!.EnabledProtocols : service.EnabledProtocols ?? [])
-            .Where(protocol => !string.IsNullOrWhiteSpace(protocol))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        var layers = layerRows
-            .Where(row => string.Equals(
-                Coalesce(row.Source.ServiceName, "default"),
-                serviceName,
-                StringComparison.OrdinalIgnoreCase))
-            .Select(row => row.Projection)
-            .OrderBy(layer => layer.LayerId)
-            .ToArray();
-
-        return new OperateServiceDetail(
-            serviceName,
-            Coalesce(service.Description, serviceName),
-            protocols.Length == 0 ? "Geo service" : string.Join(", ", protocols),
-            service.LayerCount > 0 ? "Configured" : "No layers",
-            "Canonical metadata is owned by honua-server Metadata v2 resources. Service settings control runtime protocols, access policy, and exposure.",
-            layers,
-            MapRuntimeSettings(service, settings, protocols),
-            MapPublicationSlots(serviceName, protocols));
-    }
-
-    private IReadOnlyList<OperateRuntimeSetting> MapRuntimeSettings(
-        HonuaAdminServiceSummary service,
-        HonuaAdminServiceSettingsResponse? settings,
-        IReadOnlyList<string> protocols)
-    {
-        var runtimeSettings = new List<OperateRuntimeSetting>
-        {
-            new(
-                "enabledProtocols",
-                protocols.Count == 0 ? "None reported" : string.Join(", ", protocols),
-                "Service runtime protocol exposure",
-                RequiresRestart: false),
-            new(
-                "layerCount",
-                service.LayerCount.ToString(CultureInfo.InvariantCulture),
-                "Published service layer projection",
-                RequiresRestart: false)
-        };
-
-        if (settings?.AccessPolicy is { } accessPolicy)
-        {
-            runtimeSettings.Add(new OperateRuntimeSetting(
-                "accessPolicy",
-                FormatAccessPolicy(accessPolicy),
-                "Service access policy",
-                RequiresRestart: false));
-        }
-
-        if (settings?.MapServer is { } mapServer)
-        {
-            runtimeSettings.Add(new OperateRuntimeSetting(
-                "mapServer.defaultFormat",
-                Coalesce(mapServer.DefaultFormat, "Not reported"),
-                "MapServer runtime defaults",
-                RequiresRestart: false));
-            runtimeSettings.Add(new OperateRuntimeSetting(
-                "mapServer.maxImageSize",
-                $"{mapServer.MaxImageWidth?.ToString(CultureInfo.InvariantCulture) ?? "?"} x {mapServer.MaxImageHeight?.ToString(CultureInfo.InvariantCulture) ?? "?"}",
-                "MapServer runtime defaults",
-                RequiresRestart: false));
-        }
-
-        return runtimeSettings;
-    }
-
-    private IReadOnlyList<OperatePublicationSlot> MapPublicationSlots(
-        string serviceName,
-        IReadOnlyList<string> protocols)
-    {
-        if (protocols.Count == 0)
-        {
-            return [];
-        }
-
-        return protocols
-            .Select(protocol => new OperatePublicationSlot(
-                protocol,
-                BuildProtocolUrl(serviceName, protocol),
-                "Exposed by honua-server"))
-            .ToArray();
-    }
-
     private IEnumerable<OperateSettingsChange> MapSettings(
         HonuaAdminEndpointResult<HonuaAdminVersionResponse> versionResult,
         HonuaAdminEndpointResult<HonuaAdminCapabilitiesResponse> capabilitiesResult,
@@ -700,9 +571,6 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             ],
             ["Overview", "Source", "Fields", "Validation"]);
     }
-
-    internal string? BuildProtocolUrl(string serviceName, string protocol) =>
-        HonuaServedRoutes.PathFor(serviceName, protocol) is { } path ? _client.BaseUri.ToString().TrimEnd('/') + path : null;
 
     private static string FormatTarget(HonuaAdminConnectionSummary connection)
     {
