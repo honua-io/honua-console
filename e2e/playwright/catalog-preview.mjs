@@ -37,30 +37,50 @@ try {
   const page = await browser.newPage();
   for (const name of pages.keys()) {
     for (const width of [390, 1440]) {
-      for (const theme of ["light", "dark"]) {
-        await inspectPresentation(page, { name, width, theme });
-      }
+      await inspectPresentation(page, { name, width });
     }
   }
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));
 }
+console.log("Dark presentation is unsupported by the current Console shell; no dark evidence was produced.");
 
-async function inspectPresentation(page, { name, width, theme }) {
+async function inspectPresentation(page, { name, width }) {
   await page.setViewportSize({ width, height: 844 });
-  await page.emulateMedia({ colorScheme: theme });
+  await page.emulateMedia({ colorScheme: "light" });
   const stylesheet = page.waitForResponse(response => response.url().endsWith("/css/catalog-admin.css"));
   await page.goto(`http://127.0.0.1:${server.address().port}/${name}`);
   assert.equal((await stylesheet).status(), 200);
-  await page.locator("html").evaluate((element, theme) => element.setAttribute("data-theme", theme), theme);
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), "light");
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} overflows at ${width}`);
-  const control = page.locator(".catalog-admin input").first();
-  await control.focus();
-  assert.ok(await control.evaluate(element => element === document.activeElement));
-  assert.ok(await control.evaluate(element => element.getBoundingClientRect().height >= 44));
+  await checkKeyboardControls(page);
   const accessibility = await new AxeBuilder({ page }).include(".catalog-admin").analyze();
   assert.deepEqual(accessibility.violations, []);
-  await page.screenshot({ path: path.join(previews, `${name}-${width}-${theme}.png`), fullPage: true });
-  console.log(`${name}: ${width}px ${theme}, served styles, focus, overflow and axe pass`);
+  await page.screenshot({ path: path.join(previews, `${name}-${width}-light.png`), fullPage: true });
+  console.log(`${name}: ${width}px light, served styles, visible keyboard focus, control sizes, overflow and axe pass`);
+}
+
+async function checkKeyboardControls(page) {
+  const controls = page.locator(".catalog-admin :is(input, select, button):not(:disabled)");
+  const total = await controls.count();
+  assert.ok(total > 0);
+  await controls.evaluateAll(elements => elements.forEach((element, index) => { element.dataset.previewControlIndex = String(index); }));
+  const visited = new Set();
+  for (let attempts = 0; attempts < total * 3 + 5 && visited.size < total; attempts++) {
+    await page.keyboard.press("Tab");
+    const focused = await page.evaluate(() => {
+      const element = document.activeElement;
+      if (!(element instanceof HTMLElement) || element.dataset.previewControlIndex === undefined) return null;
+      const style = getComputedStyle(element);
+      return { index: element.dataset.previewControlIndex, height: element.getBoundingClientRect().height,
+        focusVisible: element.matches(":focus-visible"),
+        ring: (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0 && style.outlineColor !== "rgba(0, 0, 0, 0)") || style.boxShadow !== "none" };
+    });
+    if (!focused) continue;
+    assert.ok(focused.height >= 44, `Control ${focused.index} is undersized`);
+    assert.ok(focused.focusVisible && focused.ring, `Control ${focused.index} has no visible keyboard focus`);
+    visited.add(focused.index);
+  }
+  assert.equal(visited.size, total, "Every enabled form and pager control must be keyboard reachable");
 }

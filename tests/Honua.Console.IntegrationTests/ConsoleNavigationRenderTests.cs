@@ -19,7 +19,7 @@ public sealed class ConsoleNavigationRenderTests
     public void ContextAndRecentLabelsUseTheActiveNavigation(bool enabled, string path, string label)
     {
         using var context = CreateContext();
-        context.Services.AddSingleton<IConsoleCapabilityManifest>(new ConsoleCapabilityManifest([ConsoleCapabilityKeys.PersistentCatalog]));
+        context.Services.AddSingleton<IConsoleCapabilityManifest>(new ConsoleCapabilityManifest([]));
         context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["Honua:Console:Catalogs:Enabled"] = enabled ? "true" : "false"
@@ -28,6 +28,27 @@ public sealed class ConsoleNavigationRenderTests
         var shell = context.Render<ConsoleLayout>();
         shell.WaitForAssertion(() => Assert.Equal(label, shell.Find(".console-contextbar summary").TextContent));
         shell.WaitForAssertion(() => Assert.Equal(label, shell.Find("[data-console-recent-label]").GetAttribute("data-console-recent-label")));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CatalogLabelsSurviveCapabilityRevocation(bool enabled)
+    {
+        using var context = CreateContext();
+        var manifest = new MutableCatalogManifest();
+        manifest.AdvertiseCatalog();
+        context.Services.AddSingleton<IConsoleCapabilityManifest>(manifest);
+        context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Honua:Console:Catalogs:Enabled"] = enabled ? "true" : "false"
+        }).Build());
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/catalog");
+        var shell = context.Render<ConsoleLayout>();
+        manifest.RevokeCatalog();
+        shell.WaitForAssertion(() => Assert.Empty(shell.FindAll(".console-topnav a[href='/catalog']")));
+        Assert.Equal(enabled ? "Content" : "Catalog", shell.Find(".console-contextbar summary").TextContent);
+        Assert.Equal(enabled ? "Content" : "Catalog", shell.Find("[data-console-recent-label]").GetAttribute("data-console-recent-label"));
     }
 
     [Fact]

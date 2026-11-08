@@ -54,6 +54,37 @@ public sealed class CatalogAdminOverviewTests
         Assert.Empty(page.FindAll(".catalog-attention-list li"));
     }
 
+    [Fact]
+    public void Attention_IssueOrderingDiffersFromTitleOrdering()
+    {
+        using var context = Context(Overview([new("Alpha", "Zebra"), new("Beta", "Aardvark"), new("Gamma", "Middle")]));
+        var page = context.Render<CatalogAdminPage>(parameters => parameters.Add(p => p.CatalogId, "open"));
+        page.Find("#attention-sort").Change("issue");
+        Assert.Equal(["Beta · Aardvark", "Gamma · Middle", "Alpha · Zebra"],
+            page.FindAll(".catalog-attention-list li").Select(element => element.TextContent));
+        page.Find("#attention-sort").Change("title");
+        Assert.Equal(["Alpha · Zebra", "Beta · Aardvark", "Gamma · Middle"],
+            page.FindAll(".catalog-attention-list li").Select(element => element.TextContent));
+    }
+
+    [Fact]
+    public void Attention_EachFilterResetsItsOwnLaterPage()
+    {
+        var attention = Enumerable.Range(1, 36).Select(index => new CatalogAdminAttention(
+            $"Item {index:00}", index <= 18 ? "Missing description" : "Missing owner")).ToArray();
+        using var context = Context(Overview(attention));
+        var page = context.Render<CatalogAdminPage>(parameters => parameters.Add(p => p.CatalogId, "open"));
+        page.FindAll("nav[aria-label='Attention pages'] button")[1].Click();
+        page.Find("#attention-issue").Change("Missing description");
+        Assert.StartsWith("Item 01", page.Find(".catalog-attention-list li").TextContent);
+        Assert.True(page.Find("nav[aria-label='Attention pages'] button").HasAttribute("disabled"));
+        page.FindAll("nav[aria-label='Attention pages'] button")[1].Click();
+        page.Find("#attention-query").Input("Item 0");
+        Assert.Equal(9, page.FindAll(".catalog-attention-list li").Count);
+        Assert.StartsWith("Item 01", page.Find(".catalog-attention-list li").TextContent);
+        Assert.True(page.Find("nav[aria-label='Attention pages'] button").HasAttribute("disabled"));
+    }
+
     private static CatalogAdminOverview Overview(IReadOnlyList<CatalogAdminAttention> attention) =>
         new("open", "Open", new(6, 2, 1, 1, 10), attention)
         {

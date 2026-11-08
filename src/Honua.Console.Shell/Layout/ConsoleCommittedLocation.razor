@@ -7,10 +7,9 @@
 
 <span hidden data-console-location="@_path" data-console-authority-revision="@_authorityRevision"
       data-console-recent-scope="@_recentScope" data-console-recent-until="@_recentUntil"
-      data-console-recent-label="@ConsoleNavigation.ContextForPath(_path, Groups.Count == 0 ? null : Groups).Label"></span>
+      data-console-recent-label="@ConsoleNavigation.ContextForPath(_path, ConsoleNavigation.Definitions(Services.GetService<Microsoft.Extensions.Configuration.IConfiguration>())).Label"></span>
 
 @code {
-    [Parameter] public IReadOnlyList<ConsoleNavigationGroup> Groups { get; set; } = [];
     private string _path = "/";
     private static readonly TimeSpan RecentScopeLifetime = TimeSpan.FromMinutes(5);
     private string _requestedPath = "/";

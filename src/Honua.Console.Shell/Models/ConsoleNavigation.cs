@@ -48,8 +48,7 @@ public static class ConsoleNavigation
         IConsoleProductMode mode, IConsoleCapabilityManifest capabilities, IConfiguration? configuration)
     {
         var studioEnabled = bool.TryParse(configuration?["Studio:EmbedJsStudio"], out var enabled) && enabled;
-        var catalogsEnabled = bool.TryParse(configuration?["Honua:Console:Catalogs:Enabled"] ?? configuration?["HONUA_CONSOLE_CATALOGS_ENABLED"], out var catalogs) && catalogs;
-        var groups = catalogsEnabled ? CatalogAdministrationGroups() : Groups;
+        var groups = Definitions(configuration);
         return groups.Where(group => group.Name != "Studio" || studioEnabled)
             .Select(group => group with
             {
@@ -57,6 +56,12 @@ public static class ConsoleNavigation
                 .Where(entry => IsVisible(entry, mode, capabilities)).ToArray()
             })
             .Where(group => group.Destinations.Count > 0).ToArray();
+    }
+
+    public static IReadOnlyList<ConsoleNavigationGroup> Definitions(IConfiguration? configuration)
+    {
+        var enabled = bool.TryParse(configuration?["Honua:Console:Catalogs:Enabled"] ?? configuration?["HONUA_CONSOLE_CATALOGS_ENABLED"], out var catalogs) && catalogs;
+        return enabled ? CatalogAdministrationGroups() : Groups;
     }
 
     private static IReadOnlyList<ConsoleNavigationGroup> CatalogAdministrationGroups()
