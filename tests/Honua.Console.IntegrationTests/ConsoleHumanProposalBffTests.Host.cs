@@ -28,6 +28,7 @@ public sealed partial class ConsoleHumanProposalBffTests
         public ConsoleEnvironmentProfile Profile { get; private set; } = null!;
         public ConsoleServerSessionClientStore Sessions { get; private set; } = null!;
         public bool Authenticated { get; set; } = true;
+        public string AuthenticationScheme { get; set; } = "browser-cookie";
         public string ProposalStatus { get; set; } = "AwaitingApproval";
         public bool LoseDecisionResponse { get; set; }
         public bool SwitchDuringIdentityCheck { get; set; }
@@ -181,7 +182,7 @@ public sealed partial class ConsoleHumanProposalBffTests
             _browser.Use(async (context, next) =>
             {
                 context.User = Authenticated
-                    ? new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "human")], "browser-cookie"))
+                    ? new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "human")], AuthenticationScheme))
                     : new ClaimsPrincipal();
                 await next();
             });
