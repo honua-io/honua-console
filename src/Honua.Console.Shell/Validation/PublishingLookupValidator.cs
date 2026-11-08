@@ -22,14 +22,14 @@ public sealed class PublishingLookupValidator : IFieldValidator<PublishingLookup
 
         if (string.IsNullOrWhiteSpace(state.LookupId))
         {
-            errors.Add(Blocker(PublishingLookupFieldKeys.LookupId, "publishing.lookupId.required", "Enter a publication id to review."));
+            errors.Add(Blocker(PublishingLookupFieldKeys.LookupId, "publishing.lookupId.required", "Enter a release ID to review."));
         }
         else if (!IdentifierRule.IsValid(state.LookupId))
         {
             errors.Add(Error(
                 PublishingLookupFieldKeys.LookupId,
                 "publishing.lookupId.format",
-                "Publication id may only contain letters, numbers, '-', '_', '.', and ':' with no spaces."));
+                "Release ID may only contain letters, numbers, '-', '_', '.', and ':' with no spaces."));
         }
 
         // RepublishTitle is intentionally optional/free-form: no rule.

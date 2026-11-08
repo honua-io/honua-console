@@ -23,7 +23,7 @@ public sealed class OperateLayerStylePageRenderTests
             });
 
         page.WaitForAssertion(
-            () => Assert.Contains("Per-slot overrides are not bound", page.Markup, StringComparison.Ordinal),
+            () => Assert.Contains("Layer overrides are not available", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         // The real /ogc/styles list still renders even though the override portion is unbound.
         Assert.Contains("Streets", page.Markup, StringComparison.Ordinal);
@@ -42,7 +42,7 @@ public sealed class OperateLayerStylePageRenderTests
             parameters.Add(p => p.ResourceId, "res-1"));
 
         page.WaitForAssertion(
-            () => Assert.Contains("Per-slot overrides are not bound", page.Markup, StringComparison.Ordinal),
+            () => Assert.Contains("Layer overrides are not available", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
     }
 
@@ -66,7 +66,7 @@ public sealed class OperateLayerStylePageRenderTests
             () => Assert.Contains("data-style-slot=\"slot-1\"", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.Contains("Parcels FeatureServer", page.Markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("Per-slot overrides are not bound", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Layer overrides are not available", page.Markup, StringComparison.Ordinal);
     }
 
     private static IRenderedComponent<OperateLayerStylePage> Render(
@@ -81,7 +81,7 @@ public sealed class OperateLayerStylePageRenderTests
     }
 
     private static readonly OperateLayerStyleBindingState OverrideMissing = new(
-        "Resource presentation overrides", OperateLayerStyleBindingState.MissingBinding,
+        "Layer presentation overrides", OperateLayerStyleBindingState.MissingBinding,
         "honua-server resource-presentation slot overrides (pending)",
         "Per-slot style/popup overrides bind to a server-owned contract that has not shipped.");
 

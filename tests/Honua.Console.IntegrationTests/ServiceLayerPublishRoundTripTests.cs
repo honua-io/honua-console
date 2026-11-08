@@ -125,11 +125,13 @@ public sealed class ServiceLayerPublishRoundTripTests
                 protocol => protocol.Contains("FeatureServer", StringComparison.OrdinalIgnoreCase));
         }
 
-        // 5. Console re-render: the Operate layers page renders the published layer from the live
-        //    server-bound data source, and is NOT the missing-binding surface.
         var operateData = new HonuaServerOperateTransitionDataSource(_fixture.CreateOperateClient());
         using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(operateData);
+        var servicesPage = ctx.Render<OperateServicesPage>();
+        servicesPage.WaitForAssertion(() =>
+            Assert.Single(servicesPage.FindAll($"a[href='/operate/services/{Uri.EscapeDataString(serviceName)}/settings']")),
+            TimeSpan.FromSeconds(15));
         var page = ctx.Render<OperateLayersPage>();
         page.WaitForAssertion(
             () => Assert.Contains("Parcels", page.Markup, StringComparison.Ordinal),

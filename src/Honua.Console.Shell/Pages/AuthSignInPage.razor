@@ -5,21 +5,17 @@
 
 <section class="console-page">
     <div class="console-page-heading">
-        <p class="console-kicker">Workspace session</p>
+        <p class="console-kicker">Environment session</p>
         <h1>Sign In</h1>
         <p>Continue with the active environment profile before opening authenticated Console routes.</p>
     </div>
 
     @if (_profile is null)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="empty" Kicker="Get started" Title="Connect to a server first" Message="Sign-in needs an active environment. Point this Console at your Honua Server and bind an account, then continue here." ActionHref="/environments/new" ActionLabel="Connect to a server" />
+        <ConsoleStateView HeadingLevel="2" Kind="empty" Kicker="Get started" Title="Add an environment first" Message="Sign-in needs an active environment. Point this Console at your Honua Server and bind an account, then continue here." ActionHref="/environments/new" ActionLabel="Add environment" />
     }
     else
     {
-        @if (_profile.IsTenantScoped())
-        {
-            <TenancyPreviewNotice />
-        }
 
         @if (!string.IsNullOrWhiteSpace(_serverAuthMessage))
         {
@@ -41,8 +37,6 @@
             <dl class="console-definition-list">
                 <dt>Server</dt>
                 <dd>@_profile.ServerBaseUri</dd>
-                <dt>Tenant</dt>
-                <dd>@(string.IsNullOrWhiteSpace(_profile.TenantId) ? "—" : _profile.TenantId)</dd>
                 <dt>Account</dt>
                 <dd>@AccountLabel(_profile)</dd>
                 <dt>Return to</dt>

@@ -315,7 +315,7 @@ public sealed class OperateTransitionDataSourceTests
         Assert.Contains("Connection Not Found", connectionHtml, StringComparison.Ordinal);
         Assert.Contains("Server Capability States", connectionHtml, StringComparison.Ordinal);
         Assert.Contains("GET /api/v1/admin/connections", connectionHtml, StringComparison.Ordinal);
-        Assert.Contains("Resource Not Found", html, StringComparison.Ordinal);
+        Assert.Contains("Dataset Not Found", html, StringComparison.Ordinal);
         Assert.Contains("Server Capability States", html, StringComparison.Ordinal);
         Assert.Contains("GET /api/v1/admin/metadata/resources", html, StringComparison.Ordinal);
         Assert.Contains("Service Not Found", serviceHtml, StringComparison.Ordinal);

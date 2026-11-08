@@ -6,7 +6,7 @@
     <div class="console-page-heading">
         <p class="console-kicker">Operator workflow</p>
         <h1>Operate</h1>
-        <p>Connections, data resources, services, layers, and control-plane settings live under Operate while Studio, Catalog, and Share keep their builder and end-user workflows separate.</p>
+        <p>Connections, datasets, services, layers, and control-plane settings live under Operate while Studio, Catalog, and Share keep their builder and end-user workflows separate.</p>
     </div>
 
     @* Ops-summary strip (console#292, founder decision 2026-07-07): the hub's "is my server
@@ -37,8 +37,8 @@
             <a class="console-panel console-area-link" href="/operate/resources">
                 <div class="console-panel-heading">
                     <div>
-                        <p class="console-kicker">Resources</p>
-                        <h2>Data Resource Edits</h2>
+                        <p class="console-kicker">Datasets</p>
+                        <h2>Dataset edits</h2>
                     </div>
                     <span class="console-profile-count">@_workspace.ResourceEdits.Count</span>
                 </div>
@@ -53,7 +53,7 @@
                     </div>
                     <span class="console-profile-count">@_workspace.Services.Count</span>
                 </div>
-                <p class="console-muted">Operate runtime settings and publication slots while resource metadata remains canonical.</p>
+                <p class="console-muted">Manage services and layers while dataset metadata stays shared.</p>
             </a>
 
             <a class="console-panel console-area-link" href="/operate/publishing">
@@ -63,7 +63,7 @@
                         <h2>Publishing Workspace</h2>
                     </div>
                 </div>
-                <p class="console-muted">Quick and author-first publish flows, the publication matrix, and review of slot, endpoints, catalog registration, policy, rollback class, and provenance.</p>
+                <p class="console-muted">Publish datasets as layers and review services, endpoints, catalog registration, access, recovery, and provenance.</p>
             </a>
 
             <a class="console-panel console-area-link" href="/operate/settings">

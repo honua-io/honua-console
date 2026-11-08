@@ -8,7 +8,7 @@ public sealed class ConsoleConnectionNoticeRenderTests
 {
     [Theory]
     [InlineData(401, "Sign in to read this environment", "/auth/login")]
-    [InlineData(403, "Access to these resources was denied", "/environments")]
+    [InlineData(403, "Access to these objects was denied", "/environments")]
     public void CanonicalMissingPermissionRetainsActualHttpMeaning(int status, string heading, string href)
     {
         using var context = new BunitContext();
@@ -21,9 +21,9 @@ public sealed class ConsoleConnectionNoticeRenderTests
     [Theory]
     [InlineData("Missing binding", "Connect an environment to continue", "Connect environment", "/environments")]
     [InlineData("Unauthorized", "Sign in to read this environment", "Sign in", "/auth/login")]
-    [InlineData("Forbidden", "Access to these resources was denied", "Choose environment", "/environments")]
-    [InlineData("Unsupported", "This feature is unavailable on this deployment", "Review connection", "/environments")]
-    [InlineData("Unavailable", "Could not read this environment", "Review connection", "/environments")]
+    [InlineData("Forbidden", "Access to these objects was denied", "Choose environment", "/environments")]
+    [InlineData("Unsupported", "This feature is unavailable on this deployment", "Review environment", "/environments")]
+    [InlineData("Unavailable", "Could not read this environment", "Review environment", "/environments")]
     public void CapabilityFailure_HasRelevantPrimaryStatusAndAction(string state, string heading, string action, string href)
     {
         using var context = new BunitContext();

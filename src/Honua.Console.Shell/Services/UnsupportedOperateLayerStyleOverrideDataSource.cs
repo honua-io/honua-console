@@ -4,7 +4,7 @@ namespace Honua.Console.Shell.Services;
 
 public sealed class UnsupportedOperateLayerStyleOverrideDataSource : IOperateLayerStyleOverrideDataSource
 {
-    internal const string Surface = "Resource presentation overrides";
+    internal const string Surface = "Layer presentation overrides";
 
     // Per-layer popup-info + drawing-info ride the shipped admin authoring endpoints.
     internal const string Contract = "GET/PUT /api/v1/admin/metadata/layers/{id}/popup-info|drawing-info";

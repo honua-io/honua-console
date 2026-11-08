@@ -149,7 +149,7 @@ public sealed class ConsoleEndToEndSmokeTests
             operateContext.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
             var operatePage = operateContext.Render<OperatePublishingPage>();
             operatePage.WaitForAssertion(
-                () => Assert.Contains("Publication Matrix", operatePage.Markup, StringComparison.Ordinal),
+                () => Assert.Contains("Publishing formats", operatePage.Markup, StringComparison.Ordinal),
                 TimeSpan.FromSeconds(10));
             Assert.Contains(publicationSlug, operatePage.Markup, StringComparison.Ordinal);
         }
