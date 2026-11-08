@@ -1,0 +1,14 @@
+[
+  {"code": 0, "name": "Queued", "label": "Queued", "outcome": "running"},
+  {"code": 1, "name": "Discovering", "label": "Discovering", "outcome": "running"},
+  {"code": 2, "name": "RetrievingFeatures", "label": "Retrieving features", "outcome": "running"},
+  {"code": 3, "name": "CreatingTable", "label": "Creating table", "outcome": "running"},
+  {"code": 4, "name": "InsertingFeatures", "label": "Inserting features", "outcome": "running"},
+  {"code": 5, "name": "Publishing", "label": "Publishing", "outcome": "running"},
+  {"code": 6, "name": "CopyingAttachments", "label": "Copying attachments", "outcome": "running"},
+  {"code": 7, "name": "Validating", "label": "Validating", "outcome": "running"},
+  {"code": 8, "name": "Completed", "label": "Completed", "outcome": "succeeded"},
+  {"code": 9, "name": "NeedsReview", "label": "Needs review", "outcome": "failed"},
+  {"code": 10, "name": "Failed", "label": "Failed", "outcome": "failed"},
+  {"code": 11, "name": "Cancelled", "label": "Cancelled", "outcome": "failed"}
+]

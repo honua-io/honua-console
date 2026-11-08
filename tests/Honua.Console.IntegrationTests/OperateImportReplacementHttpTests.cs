@@ -5,6 +5,7 @@ using Bunit;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
+using Honua.Sdk.Admin.Models;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
@@ -221,7 +222,12 @@ public sealed class OperateImportReplacementHttpTests
             {
                 return new HttpResponseMessage(HttpStatusCode.OK)
                 {
-                    Content = JsonContent.Create(new { jobId = "job-1", status = jobFailure is null ? 6 : 7, errorMessage = jobFailure }),
+                    Content = JsonContent.Create(new
+                    {
+                        jobId = "job-1",
+                        status = (int)(jobFailure is null ? GeoservicesImportStatus.Completed : GeoservicesImportStatus.Failed),
+                        errorMessage = jobFailure,
+                    }),
                 };
             }
 

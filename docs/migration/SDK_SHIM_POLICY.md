@@ -24,7 +24,7 @@ Temporary shims for SDK contracts are permitted in Console during the migration,
 3. Every shim has an inline `// SHIM(honua-sdk-dotnet#166): <reason>` (or another exact SDK issue such as `honua-sdk-dotnet#231` / `honua-sdk-js#225`, as appropriate) comment identifying the external ticket the shim is waiting on.
 4. Every shim has a corresponding entry in this document's "Active Shims" section below, with an owner, language, and a removal target ticket.
 5. No shim is imported from outside its boundary project/module. Razor and .NET feature code imports from `Honua.Console.Contracts`; JS interop bundles import from `wwwroot/interop/sdk-shims.ts`. This keeps the cleanup localized.
-6. No shim redefines a contract that already exists in a **consumable published** `honua-sdk-dotnet` or `honua-sdk-js` package. Such contracts must be consumed directly. A contract that exists only in unmerged or prerelease SDK source — with no restorable stable package and no Console feed wired to it — is treated as pending, and a bounded shim is allowed until the package ships (see the Operate admin shim note under "Active Shims").
+6. No shim redefines a contract that already exists in a **consumable published** `honua-sdk-dotnet` or `honua-sdk-js` package. Such contracts must be consumed directly. A contract that exists only in unmerged or prerelease SDK source — with no restorable stable package and no Console feed wired to it — is treated as pending, and a bounded shim is allowed until the package ships. An existing projection that deliberately preserves a different compatibility shape from a consumed SDK contract may remain only with an Active Shims row naming that difference, the tests that pin it, and a `honua-console#7` removal target.
 7. [`honua-console#7`](https://github.com/honua-io/honua-console/issues/7) is gated on this document containing zero entries in "Active Shims". When `#7` is accepted, both boundary files are deleted along with this section.
 
 ## What A Shim Looks Like
@@ -113,28 +113,24 @@ The current active shims are bounded to catalog/viewer/share route parity, Studi
 | Discovery metadata authoring (`DiscoveryMetadataContracts.cs`: narrow resource/service title, description, keywords and publication impact; reuses the Operate HTTP transport) | .NET | metadata authoring | honua-sdk-dotnet#166 projecting the discovery routes | Operate | honua-console#7 |
 | Service navigation folder metadata (`HonuaAdminServiceSummary.FolderId`, `FolderName`, `PublicName`, `Title`; nullable fields on the existing summary, no second client) | .NET | service navigation | honua-server#6951 additive service projection and a consumable Admin SDK projection | Operate | honua-console#7 |
 | Proposal review and decision contracts (`ProposalContracts.cs`: proposal summary/detail, version and sealed plan hash, legacy re-proposal guidance, private human review envelope) | .NET | human approval | honua-sdk-dotnet#166 projecting the proposal read and private review contracts | Console | honua-console#7 |
-| Operate admin HTTP shim (`HonuaAdminOperateHttpClient` and admin response records) | .NET | honua-console#60 | honua-sdk-dotnet publishing a consumable stable `Honua.Sdk.Admin` package (only prerelease `0.1.15-alpha.1` is restorable today) / honua-server#1162 Metadata v2 admin gaps | Operate | honua-console#7 |
+| Operate admin HTTP shim (`HonuaAdminOperateHttpClient` and admin response records) | .NET | honua-console#60 | migration to the consumed stable `Honua.Sdk.Admin` 2.0.0 client and projections, retaining the nullable progress-response compatibility described below | Operate | honua-console#7 |
 | Studio GP/ETL workflow package HTTP shim (`IWorkflowPackageApiClient`/`HttpWorkflowPackageApiClient`, the `Workflow*` wire records, enums, and `WorkflowApiResponse<T>`) in `src/Honua.Console.Contracts/StudioWorkflowShims.cs` | .NET | honua-console#62 | honua-sdk-dotnet#169 projecting the workflow package DTOs (honua-server#1185 merged on server trunk; no consumable SDK projection yet) | Studio | honua-console#7 swaps to the SDK workflow client when projected |
 | Studio form package HTTP shim (`IHonuaFormPackageClient`/`HonuaFormPackageHttpClient`, the `HonuaForm*` wire records mirroring `honua.form-package.v1`, and `HonuaFormPackageClientOptions`; reuses the `HonuaAdminEndpointResult<T>`/`HonuaAdminEndpointIssue` envelope) in `src/Honua.Console.Contracts/FormPackageShims.cs` | .NET | honua-console#57 | honua-sdk-dotnet#166 projecting the form package DTOs (honua-server#1184 merged on server trunk; no consumable SDK projection yet) | Studio | honua-console#7 swaps to the SDK form client when projected |
 | Operate observability admin contracts (`OperateObservabilityContracts.cs`: server overview/status, events, logs, audit, alert lifecycle, alert rules, geofence zones, durable jobs, investigations) | .NET | honua-console#24 | honua-sdk-dotnet#231 plus honua-server#1168/#1169/#1170 | Console | honua-console#7 replaces with the SDK Operate projection |
 
-The Operate admin shim is the one entry whose matching SDK contract
-(`Honua.Sdk.Admin.HonuaAdminClient`, with `ListConnectionsAsync`,
-`ListServicesAsync`, `GetServiceSettingsAsync`, `ListLayersAsync`,
-`GetVersionAsync`, `GetCapabilitiesAsync`, `GetLicenseStatusAsync`, and
-`ListOidcProvidersAsync`) already exists in `honua-sdk-dotnet` source. It is
-still shimmed because that source is not a consumable package: the only
-restorable `Honua.Sdk.Admin` build is the prerelease `0.1.15-alpha.1` (the SDK
-ships a stable `Honua.Sdk.Abstractions 1.0.0` but no stable Admin counterpart),
-and `honua-console` wires no SDK NuGet feed at all. Adding a `PackageReference`
-would resolve only from the non-hermetic global cache on a developer machine,
-pin Console to a prerelease, and break clean/CI restores and the single
-deployable artifact; a sibling-repo `ProjectReference` is likewise disallowed.
-Per clause 6 the contract is therefore treated as pending. Removal under
-`honua-console#7` depends on `honua-sdk-dotnet` cutting and publishing a
-consumable stable `Honua.Sdk.Admin` package, then wiring a Console feed to it.
+Console consumes stable `Honua.Sdk.Admin` 2.0.0 from nuget.org. The import
+progress projection uses its `GeoservicesImportStatus` enum for both numeric
+and named wire values; it maintains no local status enum.
 
-On rule 6 ("no shim redefines a contract that already exists in `honua-sdk-dotnet`"): "exists" means **consumable in a restorable package**. The `honua-sdk-dotnet#166` `Honua.Sdk.Abstractions.Environments` contracts are merged on the SDK trunk but are **not** in the latest published `Honua.Sdk.Abstractions` package, and `honua-console` has no SDK package reference yet. Until that package ships #166, the trust/environment shapes are mirrored exactly behind this boundary (matching the SDK shape so the `#7` swap is a `global using` alias), not consumed directly. This is the same "do not block porting on #166" stance this policy takes for the catalog/share shims.
+`HonuaAdminGeoservicesImportProgress` remains a bounded nullable projection.
+The SDK's `GeoservicesImportProgress` requires members such as `JobId` and
+`Status`, while the existing Operate transport accepts null and empty progress
+bodies. `HonuaAdminOperateHttpClientPipelineTests` pins that compatibility.
+Replacing the projection directly would change those responses into contract
+errors. Removal under `honua-console#7` must migrate the Operate client and
+progress record together, with an explicit decision and tests for null and
+empty bodies. Stable package availability no longer blocks that migration.
+New shims still require the admission checks above.
 
 The catalog shim preserves the Portal URL contract at the route edge:
 `/catalog` accepts `visibility`, not `sharing`. `CatalogListRequest`
