@@ -102,7 +102,7 @@ jobs:
         run: >-
           node scripts/check-import-status-contract.mjs
           .ci-server-import-contract/src/Honua.Core/Features/Migration/Abstractions/GeoservicesImportProgress.cs
-          contracts/honua-server/geoservices-import-status.json
+          tests/Honua.Console.Shell.Tests/Fixtures/geoservices-import-status.json
 
       - name: Set up .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0

@@ -11,6 +11,10 @@ public sealed class ServiceImportOperationTests
 {
     private static readonly Uri BaseAddress = new("https://server.example/");
 
+    private static readonly ImportStatusCase[] StatusContract = JsonSerializer.Deserialize<ImportStatusCase[]>(
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "geoservices-import-status.json")),
+        JsonSerializerOptions.Web)!;
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -35,21 +39,8 @@ public sealed class ServiceImportOperationTests
         });
 
         Assert.NotNull(requestJson);
-        using var document = System.Text.Json.JsonDocument.Parse(requestJson);
+        using var document = JsonDocument.Parse(requestJson);
         Assert.Equal(overwriteExisting, document.RootElement.GetProperty("overwriteExisting").GetBoolean());
-    }
-
-    private static readonly ImportStatusCase[] StatusContract = JsonSerializer.Deserialize<ImportStatusCase[]>(
-        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "geoservices-import-status.json")),
-        JsonSerializerOptions.Web)!;
-
-    public static IEnumerable<object[]> ServerStatuses()
-    {
-        foreach (var status in StatusContract)
-        {
-            yield return [JsonSerializer.Serialize(status.Code), status.Label, status.Outcome];
-            yield return [JsonSerializer.Serialize(status.Name), status.Label, status.Outcome];
-        }
     }
 
     [Fact]
@@ -94,7 +85,21 @@ public sealed class ServiceImportOperationTests
         Assert.False(job.Succeeded);
     }
 
-    private sealed record ImportStatusCase(int Code, string Name, string Label, string Outcome);
+    [Fact]
+    public async Task GetImportJob_UnrecognizedNamedStatus_IsUnsupportedAndTerminal()
+    {
+        var operation = CreateOperation(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new { jobId = "job-1", status = "Paused" }),
+        });
+
+        var job = await operation.GetImportJobAsync("job-1");
+
+        Assert.Equal("Unsupported", job.Status);
+        Assert.True(job.Terminal);
+        Assert.False(job.Succeeded);
+        Assert.False(job.TransientFailure);
+    }
 
     [Fact]
     public async Task GetImportJob_TransientServerError_IsNotTerminal_AndFlagsTransient()
@@ -136,7 +141,7 @@ public sealed class ServiceImportOperationTests
     {
         var operation = CreateOperation(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = JsonContent.Create(new { jobId = "job-1", status = 10, errorMessage = "import failed" }),
+            Content = JsonContent.Create(new { jobId = "job-1", status = (int)GeoservicesImportStatus.Failed, errorMessage = "import failed" }),
         });
 
         var job = await operation.GetImportJobAsync("job-1");
@@ -145,6 +150,17 @@ public sealed class ServiceImportOperationTests
         Assert.False(job.TransientFailure);
         Assert.False(job.Succeeded);
     }
+
+    public static IEnumerable<object[]> ServerStatuses()
+    {
+        foreach (var status in StatusContract)
+        {
+            yield return [JsonSerializer.Serialize(status.Code), status.Label, status.Outcome];
+            yield return [JsonSerializer.Serialize(status.Name), status.Label, status.Outcome];
+        }
+    }
+
+    private sealed record ImportStatusCase(int Code, string Name, string Label, string Outcome);
 
     private static HonuaServerConsoleServiceImportOperation CreateOperation(
         Func<HttpRequestMessage, HttpResponseMessage> responder)
