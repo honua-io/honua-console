@@ -6,7 +6,7 @@ using Honua.Console.Web.Auth;
 
 namespace Honua.Console.IntegrationTests;
 
-public sealed class ConsoleServerSessionBffTests
+public sealed partial class ConsoleServerSessionBffTests
 {
     private static readonly Uri ServerOrigin = new("https://server.example/");
 

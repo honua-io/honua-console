@@ -21,7 +21,7 @@ using Microsoft.Extensions.Primitives;
 
 namespace Honua.Console.IntegrationTests;
 
-public sealed class ConsoleServerSessionIdentityBindingTests
+public sealed partial class ConsoleServerSessionIdentityBindingTests
 {
     private const string Issuer = "https://cognito-idp.us-west-2.amazonaws.com/pool";
     private static readonly Uri Server = new("https://server.example/");
