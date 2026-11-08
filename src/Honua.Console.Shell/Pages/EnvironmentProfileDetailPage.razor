@@ -16,7 +16,7 @@ else
     <section class="console-page">
         <div class="console-detail-heading">
             <div class="console-page-heading">
-                <p class="console-kicker">@_profile.EnvironmentKind · connection diagnostics</p>
+                <p class="console-kicker">@_profile.EnvironmentKind · environment diagnostics</p>
                 <h1>@_profile.DisplayName</h1>
                 <p>@_profile.ServerBaseUri</p>
             </div>
@@ -25,15 +25,10 @@ else
             </div>
         </div>
 
-        @if (_profile.IsTenantScoped())
-        {
-            <TenancyPreviewNotice />
-        }
-
         @if (_state?.TrustBlocked == true)
         {
             <article class="console-panel console-status-danger" role="alert">
-                <h2>Connection blocked</h2>
+                <h2>Environment access blocked</h2>
                 <p class="console-muted">@(_state.Trust?.SanitizedMessage ?? "The certificate changed and must be acknowledged or revalidated.")</p>
             </article>
         }
@@ -72,8 +67,6 @@ else
         <div class="console-section console-panel">
             <h2>Session</h2>
             <dl class="console-definition-list">
-                <dt>Tenant</dt>
-                <dd>@(string.IsNullOrWhiteSpace(_profile.TenantId) ? "—" : _profile.TenantId)</dd>
                 <dt>Account model</dt>
                 <dd>@_profile.Account.AuthMode</dd>
                 <dt>Certificate reference</dt>

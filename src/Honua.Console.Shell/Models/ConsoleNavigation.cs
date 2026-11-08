@@ -22,7 +22,7 @@ public sealed record ConsoleNavigationContext(string Path, string Label, Console
 
 public static class ConsoleNavigation
 {
-    public static ConsoleNavigationDestination Data { get; } = new("/operate/data", "Data & Layers");
+    public static ConsoleNavigationDestination Data { get; } = new("/operate/data", "Datasets");
     public static ConsoleNavigationDestination AddData { get; } = new("/operate/data/new", "Add data");
     public static ConsoleNavigationDestination Health { get; } = new("/operate/health", "Health");
     public static ConsoleNavigationDestination Studio { get; } = new("/studio", "Maps");
@@ -39,8 +39,8 @@ public static class ConsoleNavigation
             new("/operate/copilot", "Findings") { FullModeOnly = true }, new("/operate/geoprocessing", "Geoprocessing"),
             new("/operate/observability", "Observability"), new("/operate/metrics", "Metrics"),
             new("/operate/deploy", "Deploy"), new("/operate/releases", "Releases")]),
-        new("Access", [new("/operate/access/members", "Members") { FullModeOnly = true },
-            new("/operate/access", "Roles and permissions") { FullModeOnly = true }]),
+        new("Access", [new("/operate/access/members", "Users") { FullModeOnly = true },
+            new("/operate/access", "Roles") { FullModeOnly = true }]),
         new("Settings", [new("/operate/settings", "Server settings") { FullModeOnly = true }])
     ];
 

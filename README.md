@@ -1,5 +1,7 @@
 # Honua Console
 
+See the [Honua vocabulary](https://github.com/honua-io/honua-server/blob/trunk/docs/concepts/domain/README.md) for Dataset, Layer, Service, Folder, Environment, User, Role, and API key definitions. A Connection selects a database or file; an Environment selects the Honua server that Console manages. See the [Console transition guide](docs/migration/VOCABULARY.md) and [release notes](docs/migration/VOCABULARY_RELEASE_NOTES.md) for this presentation change.
+
 [![CI](https://github.com/honua-io/honua-console/actions/workflows/ci.yml/badge.svg)](https://github.com/honua-io/honua-console/actions/workflows/ci.yml)
 [![Console E2E](https://github.com/honua-io/honua-console/actions/workflows/console-e2e.yml/badge.svg)](https://github.com/honua-io/honua-console/actions/workflows/console-e2e.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/honua-io/honua-console/badge)](https://scorecard.dev/viewer/?uri=github.com/honua-io/honua-console)

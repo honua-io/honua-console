@@ -26,7 +26,7 @@
                 {
                     <small class="console-muted">Supported: @string.Join(", ", SupportedExtensions)</small>
                 }
-                <p class="console-muted">The file is ingested into a canonical resource; the next step publishes it — pick which services/protocols expose it. Choose the file below.</p>
+                <p class="console-muted">The file is ingested into a dataset; the next step publishes it — pick which services/protocols expose it. Choose the file below.</p>
             </div>
             break;
 
@@ -80,10 +80,10 @@
         case AddDataMode.ExistingResource:
             <div class="add-data-intake__input">
                 <label class="studio-form-label">
-                    <span>Existing resource</span>
-                    <select class="console-input" aria-label="Existing resource"
+                    <span>Existing dataset</span>
+                    <select class="console-input" aria-label="Existing dataset"
                             @bind="_resourceId" @bind:after="RaiseExisting">
-                        <option value="">Choose a resource you already have…</option>
+                        <option value="">Choose a dataset you already have…</option>
                         @foreach (var resource in ExistingResources)
                         {
                             <option value="@resource.Id">@resource.Label</option>
@@ -91,8 +91,8 @@
                     </select>
                 </label>
                 <p class="console-muted">
-                    Skips ingest — the flow jumps straight to the resource-first publish step (pick the
-                    services/protocols that expose this resource).
+                    Skips ingest — the flow jumps straight to the dataset-first publish step (pick the
+                    services/protocols that expose this dataset).
                 </p>
             </div>
             break;
@@ -118,14 +118,14 @@
         new(AddDataMode.File, "Upload file"),
         new(AddDataMode.Table, "Connect a table"),
         new(AddDataMode.RemoteService, "Remote service"),
-        new(AddDataMode.ExistingResource, "Existing resource"),
+        new(AddDataMode.ExistingResource, "Existing dataset"),
     ];
 
     /// <summary>Connections available for the "Connect a table" mode (host-supplied; empty by default).</summary>
     [Parameter]
     public IReadOnlyList<IntakeOption> Connections { get; set; } = Array.Empty<IntakeOption>();
 
-    /// <summary>Existing resources available for the "Existing resource" mode (host-supplied; empty by default).</summary>
+    /// <summary>Existing datasets available for the "Existing dataset" mode (host-supplied; empty by default).</summary>
     [Parameter]
     public IReadOnlyList<IntakeOption> ExistingResources { get; set; } = Array.Empty<IntakeOption>();
 

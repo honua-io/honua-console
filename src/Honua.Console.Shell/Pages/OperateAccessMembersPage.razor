@@ -12,9 +12,9 @@
 <section class="console-page rbac-members" data-rbac-members>
     <div class="console-detail-heading">
         <div>
-            <p class="console-kicker">Settings <span class="console-crumb-sep">/</span> Access <span class="console-crumb-sep">/</span> Members</p>
-            <h1>Members @if (_membership is { } headerView) { <text>· @headerView.DisplayWorkspace</text> }</h1>
-            <p class="console-muted rbac-lede">Grouped by role · invite by email, scope by workspace / env / content. Membership and invitations are authored on honua-server and are never resolved client-side.</p>
+            <p class="console-kicker">Settings <span class="console-crumb-sep">/</span> Access <span class="console-crumb-sep">/</span> Users</p>
+            <h1>Users</h1>
+            <p class="console-muted rbac-lede">Manage users and invitations by role and permitted scope. Access is enforced by the environment.</p>
         </div>
         <div class="console-detail-actions">
             @* Membership/invitations are a read-only projection of honua-server's RBAC contract
@@ -22,7 +22,7 @@
                write/export controls are honestly disabled rather than shipping clickable no-ops
                (Charter §11). Re-enable when a server-side export/invite contract lands. *@
             <button class="console-button console-button-secondary" type="button" disabled
-                    title="Roster export is managed on honua-server; not available from this read-only projection.">Export CSV</button>
+                    title="Roster export is managed on honua-server; not available from this read-only view.">Export CSV</button>
             <button class="console-button"
                     type="button"
                     data-rbac-invite-open
@@ -35,8 +35,8 @@
     {
         <ConsoleStateView HeadingLevel="2" Kind="loading"
                           Kicker="Access (RBAC)"
-                          Title="Loading members"
-                          Message="Reading the Console metadata/RBAC membership projection from honua-server." />
+                          Title="Loading users"
+                          Message="Reading users and roles from the environment." />
     }
     else if (_bindingState is not null)
     {
@@ -60,11 +60,11 @@
                     </span>
                 </div>
 
-                <ConsoleTableRegion Class="console-table-wrap" Label="Members">
+                <ConsoleTableRegion Class="console-table-wrap" Label="Users">
                     <table class="console-table rbac-members-table" data-rbac-members-table>
                         <thead>
                             <tr>
-                                <th scope="col">Member</th>
+                                <th scope="col">User</th>
                                 <th scope="col">Role</th>
                                 <th scope="col">Scope</th>
                                 <th scope="col">Last active</th>
@@ -128,7 +128,7 @@
                                             <td><span class="console-inline-code">@(invitation.Scope ?? "—")</span></td>
                                             <td class="console-muted">@(invitation.Status ?? "pending")</td>
                                             <td><button class="console-button" type="button" disabled
-                                                    title="Invitation re-send is managed on honua-server; not available from this read-only projection.">Resend</button></td>
+                                                    title="Invitation re-send is managed on honua-server; not available from this read-only view.">Resend</button></td>
                                         </tr>
                                     }
                                 </tbody>
@@ -244,9 +244,9 @@
                            preview with client-side validation, but the write actions are honestly disabled
                            rather than shipping clickable no-ops (Charter §11). *@
                         <button class="console-button console-button-secondary" type="button" disabled
-                                title="Saving invite templates is managed on honua-server; not available from this read-only projection.">Save as template</button>
+                                title="Saving invite templates is managed on honua-server; not available from this read-only view.">Save as template</button>
                         <button class="console-button" type="button" data-rbac-invite-send disabled
-                                title="Sending invitations is managed on honua-server; not available from this read-only projection.">Send invite</button>
+                                title="Sending invitations is managed on honua-server; not available from this read-only view.">Send invite</button>
                     </footer>
                 </aside>
             }
@@ -256,8 +256,8 @@
     {
         <ConsoleStateView HeadingLevel="2" Kind="empty"
                           Kicker="Access (RBAC)"
-                          Title="No members to show"
-                          Message="The Console metadata/RBAC API returned no members for this workspace." />
+                          Title="No users to show"
+                          Message="The environment returned no users for this scope." />
     }
 </section>
 

@@ -9,8 +9,8 @@
 <section class="console-page">
     <div class="console-page-heading">
         <p class="console-kicker">Environments</p>
-        <h1>Connect to a Honua Server</h1>
-        <p>Name your connection and enter your server's HTTPS address. You will sign in before accessing its data.</p>
+        <h1>Add environment</h1>
+        <p>Name your environment and enter its server's HTTPS address. You will sign in before accessing its data.</p>
     </div>
 
     <article class="console-panel">
@@ -36,14 +36,9 @@
         </div>
 
         <details class="console-connection-details">
-            <summary>Account and tenant settings</summary>
-            <p class="console-muted">Use these settings if your administrator supplied an account or tenant identifier. Sign-in still determines your access.</p>
-            <TenancyPreviewNotice />
+            <summary>Account settings</summary>
+            <p class="console-muted">Choose your sign-in method and account. Sign-in determines your access.</p>
             <div class="studio-field-grid">
-                <label>
-                    <span>Tenant ID (Preview/trial only)</span>
-                    <input class="console-input" @bind="_tenantId" @bind:after="OnEdit" placeholder="trial-a" />
-                </label>
                 <label>
                     <span>Access method</span>
                     <select class="console-input" @bind="_authMode" @bind:after="OnEdit">
@@ -82,7 +77,6 @@
     private string _displayName = string.Empty;
     private string _serverBaseUri = "https://";
     private string _environmentKind = "production";
-    private string _tenantId = string.Empty;
     private string _accountId = string.Empty;
     private string _authMode = nameof(ConsoleAccountAuthMode.AccountRbac);
     private bool _busy;
@@ -127,13 +121,11 @@
             DisplayName = _displayName.Trim(),
             ServerBaseUri = serverUri,
             EnvironmentKind = _environmentKind,
-            TenantId = _tenantId.Trim(),
             Account = new ConsoleAccountBinding
             {
                 AuthMode = authMode,
                 AccountId = _accountId.Trim(),
-                DisplayName = _displayName.Trim(),
-                TenantId = _tenantId.Trim()
+                DisplayName = _displayName.Trim()
             }
         };
 

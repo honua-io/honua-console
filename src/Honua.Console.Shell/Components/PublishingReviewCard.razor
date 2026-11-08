@@ -11,13 +11,13 @@
     <article class="console-panel">
         <div class="console-panel-heading">
             <div>
-                <p class="console-kicker">Data Resource · @Review.ResourceKind</p>
+                <p class="console-kicker">@ConsoleVocabulary.PublishingKindName(Review.ResourceKind)</p>
                 <h2>@Review.ResourceName</h2>
             </div>
             <span class="console-status console-state-success">canonical home</span>
         </div>
         <dl class="console-definition-list">
-            <dt>Resource id</dt>
+            <dt>ID</dt>
             <dd><small>@Review.ResourceId</small></dd>
             <dt>Provenance</dt>
             <dd>@Review.Provenance</dd>
@@ -29,7 +29,7 @@
     <article class="console-panel publish-review-layer">
         <div class="console-panel-heading">
             <div>
-                <p class="console-kicker">Service slot</p>
+                <p class="console-kicker">Service</p>
                 <h2>@Review.Slot</h2>
             </div>
             <span class="console-status">@Review.RollbackClass</span>
@@ -62,7 +62,7 @@
             </ul>
         }
 
-        <nav class="console-tab-row" aria-label="Publication evidence links">
+        <nav class="console-tab-row" aria-label="Layer evidence links">
             @if (!string.IsNullOrWhiteSpace(Review.Links.JobHref))
             {
                 <a href="@Review.Links.JobHref">Job</a>

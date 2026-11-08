@@ -31,10 +31,10 @@ for (const width of [1440, 390]) test(`recent visits work without starting a con
   let workspaceRequests = 0;
   page.on('request', request => {if (request.url().includes('/api/agent-workspace/')) workspaceRequests++;});
   await page.setViewportSize({width, height: 900}); await openRecentFixture(page); await visitHome(page);
-  await expect(page.locator('[data-recent-items] a')).toHaveText('Data & Layers');
+  await expect(page.locator('[data-recent-items] a')).toHaveText('Datasets');
   await expect(page.locator('[data-recent-items] a')).toHaveAttribute('href', '/operate/data');
   await page.locator('[data-home-recent]').evaluate(host => host.replaceWith(host.cloneNode(true)));
-  await expect(page.locator('[data-recent-items] a')).toHaveText('Data & Layers');
+  await expect(page.locator('[data-recent-items] a')).toHaveText('Datasets');
   await expect(page.locator('[data-agent-workspace]')).toHaveCount(0);
   expect(workspaceRequests).toBe(0);
 });
@@ -48,7 +48,7 @@ test('operator and environment scope changes isolate recent visits and restore o
     await expect(page.locator('[data-recent-status]')).toBeVisible();
   }
   await page.locator('[data-console-location]').evaluate((marker, scope) => marker.setAttribute('data-console-recent-scope', scope), firstScope);
-  await expect(page.locator('[data-recent-items] a')).toHaveText('Data & Layers');
+  await expect(page.locator('[data-recent-items] a')).toHaveText('Datasets');
 });
 
 test('pending scope validation hides history and an expiry without a validated scope cannot reveal it', async ({page}) => {

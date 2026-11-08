@@ -36,26 +36,21 @@ public sealed class EnvironmentProfilesPageRenderTests
     }
 
     [Fact]
-    public void AccountBoundTenant_ShowsTenancyPreviewNotice_EvenWithoutProfileTenant()
+    public async Task AccountBoundTenant_HidesIsolationMetadataWithoutChangingProfile()
     {
-        // An edge/IdP operator tenant is stored only on the account binding; the profile is still
-        // tenant-scoped and must carry the Preview/trial notice.
-        var tenantBound = Profile("trial", "Trial tenant") with
+        var profile = Profile("test", "Test environment") with
         {
-            Account = new ConsoleAccountBinding { AccountId = "operator", TenantId = "trial-a" }
+            Account = new ConsoleAccountBinding { AccountId = "operator", TenantId = "isolated-a" }
         };
-        var store = new InMemoryConsoleEnvironmentProfileStore(
-            [tenantBound],
-            states: null,
-            activeProfileId: "trial");
+        var store = new InMemoryConsoleEnvironmentProfileStore([profile]);
         using var ctx = NewBrowserContext(store);
 
         var page = ctx.Render<EnvironmentProfilesPage>();
 
-        page.WaitForAssertion(
-            () => Assert.NotEmpty(page.FindAll("[data-tenancy-preview]")),
-            TimeSpan.FromSeconds(5));
-        Assert.Contains("Preview / trial only", page.Markup, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll("[data-tenancy-preview]"));
+        Assert.DoesNotContain("<dt>Tenant</dt>", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("isolated-a", page.Markup, StringComparison.Ordinal);
+        Assert.Equal("isolated-a", (await store.GetProfileAsync("test"))?.Account.TenantId);
     }
 
     [Fact]

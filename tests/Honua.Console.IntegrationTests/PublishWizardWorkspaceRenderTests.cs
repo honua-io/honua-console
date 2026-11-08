@@ -192,7 +192,7 @@ public sealed class PublishWizardWorkspaceRenderTests
         var cut = ctx.Render<PublishWizardWorkspace>();
 
         cut.FindAll(".publish-mode-option")
-            .Single(b => b.TextContent.Contains("Author resource first", StringComparison.Ordinal))
+            .Single(b => b.TextContent.Contains("Author dataset first", StringComparison.Ordinal))
             .Click();
 
         Assert.Contains("This flow is not wired yet", cut.Markup, StringComparison.Ordinal);

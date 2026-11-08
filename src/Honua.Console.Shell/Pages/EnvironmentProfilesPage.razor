@@ -4,21 +4,21 @@
 
 <section class="console-page">
     <div class="console-page-heading">
-        <p class="console-kicker">Workspace settings</p>
+        <p class="console-kicker">Console settings</p>
         <h1>Environments</h1>
-        <p>Choose the Honua Server you want to work with. Each environment keeps its own connection and saved workspace.</p>
+        <p>Choose the Honua server to manage. Each environment keeps its own sign-in and saved session.</p>
     </div>
 
     <div class="console-toolbar">
-        <a class="console-button" href="/environments/new">Connect to a server</a>
+        <a class="console-button" href="/environments/new">Add environment</a>
     </div>
 
     @if (_profiles.Count == 0)
     {
         <article class="console-panel">
-            <h2>Connect to your first server</h2>
+            <h2>Add your first environment</h2>
             <p class="console-muted">Add your server address, then sign in to access your data and maps.</p>
-            <a class="console-button" href="/environments/new">Connect to a server</a>
+            <a class="console-button" href="/environments/new">Add environment</a>
         </article>
     }
     else
@@ -47,11 +47,6 @@
                         </div>
                     </div>
 
-                    @if (profile.IsTenantScoped())
-                    {
-                        <TenancyPreviewNotice />
-                    }
-
                     <dl class="console-definition-list">
                         <dt>Server</dt>
                         <dd>@profile.ServerBaseUri</dd>
@@ -60,13 +55,8 @@
                     </dl>
 
                     <details class="console-connection-details">
-                        <summary>Connection details</summary>
+                        <summary>Environment details</summary>
                         <dl class="console-definition-list">
-                            @if (!string.IsNullOrWhiteSpace(profile.TenantId))
-                            {
-                                <dt>Tenant</dt>
-                                <dd>@profile.TenantId</dd>
-                            }
                             <dt>Access method</dt>
                             <dd>@(profile.Account.AuthMode == ConsoleAccountAuthMode.AccountRbac ? "Account sign-in" : profile.Account.AuthMode.ToString())</dd>
                             @if (profile.ClientCertificate.Enabled)
@@ -81,7 +71,7 @@
                     @if (state?.TrustBlocked == true)
                     {
                         <div class="console-panel console-status-danger" role="alert">
-                            <strong>Connection blocked</strong>
+                            <strong>Environment access blocked</strong>
                             <p class="console-muted">@(state.Trust?.SanitizedMessage ?? "The certificate changed and must be acknowledged or revalidated.")</p>
                         </div>
                     }

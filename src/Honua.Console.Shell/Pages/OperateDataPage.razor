@@ -9,9 +9,9 @@
 
 <section class="console-page operate-data-page" data-operate-data>
     <div class="console-page-heading">
-        <p class="console-kicker">Operate / Data &amp; Layers</p>
-        <h1>Data &amp; Layers</h1>
-        <p>Resources, and the services/protocols each is published on. Expand a resource to see its publications; pick one to preview its served endpoint.</p>
+        <p class="console-kicker">Operate / Datasets</p>
+        <h1>Datasets</h1>
+        <p>Datasets and the services that expose them. Expand a dataset to see its layers, then select a layer to preview its endpoint.</p>
         <div class="console-action-row">
             <a class="console-button" href="/operate/data/new">+ Add data</a>
         </div>
@@ -19,9 +19,9 @@
 
     @if (!_loaded)
     {
-        <p role="status">Reading resources…</p>
+        <p role="status">Reading datasets…</p>
     }
-    <ConsoleConnectionNotice Heading="Could not read all resources" States="_states" Error="@_loadError" OnRetry="LoadAsync" Busy="@(!_loaded)" />
+    <ConsoleConnectionNotice Heading="Could not read all datasets" States="_states" Error="@_loadError" OnRetry="LoadAsync" Busy="@(!_loaded)" />
     @if (_loaded && (_states.Count == 0 && _loadError is null || _nodes.Count > 0))
     {
 
@@ -91,7 +91,7 @@
         }
         catch (Exception)
         {
-            _loadError = "The resource request did not complete. Check the connection and try again.";
+            _loadError = "The dataset request did not complete. Check the environment and try again.";
         }
         finally { _loaded = true; }
     }
