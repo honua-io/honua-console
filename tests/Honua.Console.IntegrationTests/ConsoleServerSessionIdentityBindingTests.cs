@@ -715,6 +715,9 @@ public sealed class ConsoleServerSessionIdentityBindingTests
             ServerBaseUri = new Uri("https://manager.example/")
         };
         var partition = harness.Partitions.GetOrCreate("operator-a", manager);
+        using var managerSignIn = await partition.Client.PostAsync(
+            new Uri(manager.ServerBaseUri, "api/v1/admin/auth/providers/oidc/token"), null);
+        Assert.Equal(HttpStatusCode.NoContent, managerSignIn.StatusCode);
         harness.Handler.SessionJson = identityMatches ? Session() : InvalidSession("subject");
 
         var accepted = await harness.Binding.EnsureHumanSessionAsync(
@@ -925,9 +928,10 @@ public sealed class ConsoleServerSessionIdentityBindingTests
                 return Json("""{"authorizeUrl":"https://idp.example/authorize?state=state"}""");
             }
             Requests.Add(operation);
+            var serverOrigin = new Uri(request.RequestUri.GetLeftPart(UriPartial.Authority));
             if (operation == "token")
             {
-                cookies.SetCookies(Server, "honua_admin_session=server-session; Path=/; HttpOnly");
+                cookies.SetCookies(serverOrigin, "honua_admin_session=server-session; Path=/; HttpOnly");
                 if (PauseToken)
                 {
                     TokenEntered.TrySetResult();
@@ -935,7 +939,7 @@ public sealed class ConsoleServerSessionIdentityBindingTests
                 }
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
             }
-            Assert.Contains("honua_admin_session=server-session", cookies.GetCookieHeader(Server));
+            Assert.Contains("honua_admin_session=server-session", cookies.GetCookieHeader(serverOrigin));
             if (operation == "logout")
             {
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
