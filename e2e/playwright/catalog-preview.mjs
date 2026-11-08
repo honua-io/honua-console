@@ -34,7 +34,8 @@ await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
 let browser;
 try {
   browser = await chromium.launch();
-  const page = await browser.newPage();
+  const context = await browser.newContext();
+  const page = await context.newPage();
   for (const name of pages.keys()) {
     for (const width of [390, 1440]) {
       await inspectPresentation(page, { name, width });

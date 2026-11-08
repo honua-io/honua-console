@@ -1,10 +1,12 @@
 .catalog-admin { min-width: 0; }
+.catalog-admin h2 { margin-block: 1.75rem .75rem; }
 .catalog-admin-filters { display: flex; flex-wrap: wrap; gap: 1rem; margin-block: 1.5rem; }
 .catalog-admin-filters label { display: flex; flex-direction: column; gap: .4rem; min-width: 0; }
 .catalog-admin input, .catalog-admin select, .catalog-admin button { font: inherit; color: inherit; min-height: 44px; max-width: 100%; }
 .catalog-admin-table { overflow-x: auto; }
 .catalog-admin table { width: 100%; border-collapse: collapse; text-align: start; }
 .catalog-admin th, .catalog-admin td { padding: .85rem; border-bottom: 1px solid var(--honua-border); overflow-wrap: anywhere; }
+.catalog-admin th { white-space: nowrap; overflow-wrap: normal; }
 .catalog-admin-paging { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .75rem; margin-block: 1rem; font-variant-numeric: tabular-nums; }
 .catalog-admin-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 1rem; }
 .catalog-admin-counts dd { margin: .25rem 0 0; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
