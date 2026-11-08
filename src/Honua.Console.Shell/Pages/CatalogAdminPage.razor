@@ -82,6 +82,19 @@
         }
         else if (read.Overview is { } overview && overview.CatalogId == CatalogId)
         {
+            <nav class="catalog-admin-tabs" aria-label="Catalog sections">
+                <a href="@($"/catalogs/{Uri.EscapeDataString(CatalogId)}")" aria-current="@(Section is null ? "page" : null)">Overview</a>
+                <a href="@($"/catalogs/{Uri.EscapeDataString(CatalogId)}/settings")" aria-current="@(Section == "settings" ? "page" : null)">Settings and scope</a>
+            </nav>
+            @if (Section == "settings")
+            {
+                @if (read.Settings is { } settings && settings.CatalogId == CatalogId)
+                { <CatalogSettingsView Settings="settings" /> }
+                else
+                { <ConsoleStateView HeadingLevel="2" Kind="unsupported" Title="Catalog settings are unavailable" Message="The server has not reported settings for this catalog." /> }
+            }
+            else
+            {
             <h2>Admin visibility counts</h2>
             <p class="console-muted">These counts include administration states. Public search only counts items its visitor may read.</p>
             <dl class="catalog-admin-counts">
@@ -136,6 +149,7 @@
             }
             <h2>Health, usage and feeds</h2>
             <p>Not reported. The connected server has not reported these observations.</p>
+            }
         }
         else
         {
@@ -146,6 +160,7 @@
 
 @code {
     [Parameter] public string? CatalogId { get; set; }
+    [Parameter] public string? Section { get; set; }
 
     private const int PageSize = 12;
     private CatalogAdminRead? _read;

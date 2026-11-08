@@ -7,7 +7,7 @@ import { chromium } from "@playwright/test";
 
 const previews = path.resolve("artifacts/catalog-preview");
 const assets = path.resolve("artifacts/honua-console-web/wwwroot");
-const pages = new Map(await Promise.all(["list", "overview"].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
+const pages = new Map(await Promise.all(["list", "overview", "settings"].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, "http://localhost");
@@ -63,7 +63,7 @@ async function inspectPresentation(page, { name, width }) {
 }
 
 async function checkKeyboardControls(page) {
-  const controls = page.locator(".catalog-admin :is(input, select, button):not(:disabled)");
+  const controls = page.locator(".catalog-admin :is(input, select, button, textarea):not(:disabled), .catalog-admin-tabs a");
   const total = await controls.count();
   assert.ok(total > 0);
   await controls.evaluateAll(elements => elements.forEach((element, index) => { element.dataset.previewControlIndex = String(index); }));

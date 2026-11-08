@@ -1,0 +1,57 @@
+<section class="catalog-settings" aria-labelledby="catalog-settings-heading">
+    <h2 id="catalog-settings-heading">Settings and scope</h2>
+    <p role="status">Settings are read-only. Saving changes is not supported until this server provides the catalog approval contract.</p>
+    <p>@(Settings.Audience == "public" ? "Public catalog configuration changes become a proposal for one person to approve." : "Changes follow the server's mutation policy. Agents and API keys can propose; only a person can approve.")</p>
+    <h3>General</h3>
+    <dl class="catalog-settings-fields">
+        <dt>Title</dt><dd>@Settings.Title</dd>
+        <dt>Catalog id</dt><dd>@Settings.CatalogId</dd>
+        <dt>Description</dt><dd>@Reported(Settings.Description)</dd>
+        <dt>Audience</dt><dd>@AudienceLabel</dd>
+        <dt>Roles</dt><dd>@Join(Settings.RoleIds)</dd>
+    </dl>
+    <h3>Scope rule</h3>
+    <p>Scope never widens an item's access. Public catalogs show only items anonymous visitors may read.</p>
+    <dl class="catalog-settings-fields">
+        <dt>Folders</dt><dd>@Join(Settings.FolderIds)</dd>
+        <dt>Tags</dt><dd>@Join(Settings.Tags)</dd>
+        <dt>Kinds</dt><dd>@Join(Settings.Kinds)</dd>
+        <dt>New matching items</dt><dd>@ListingLabel</dd>
+    </dl>
+    <h3>Branding and host mapping</h3>
+    <dl class="catalog-settings-fields">
+        <dt>Light accent</dt><dd>@Reported(Settings.LightAccent)</dd>
+        <dt>Dark accent</dt><dd>@Reported(Settings.DarkAccent)</dd>
+        <dt>Host name</dt><dd>@Reported(Settings.HostName)</dd>
+    </dl>
+    <p>Host mapping uses the existing TLS configuration. Brand colors must pass the server's contrast validation before saving.</p>
+    <h3>Home page sections</h3>
+    @if (Settings.Sections.Count == 0) { <p>Not reported.</p> }
+    else { <ol>@foreach (var section in Settings.Sections) { <li>@section</li> }</ol> }
+    <h3>Feeds</h3>
+    <dl class="catalog-settings-fields">
+        <dt>Formats</dt><dd>@Join(Settings.FeedFormats)</dd>
+        <dt>Search engine indexing</dt><dd>@(Settings.Indexing switch { true => "Enabled", false => "Disabled", _ => "Not reported" })</dd>
+    </dl>
+    <h3>Embed in your website</h3>
+    <p>Public catalogs need no API key. Restricted content requires the visitor to sign in to this server.</p>
+    <dl class="catalog-settings-fields"><dt>Allowed sites</dt><dd>@Join(Settings.AllowedEmbedOrigins)</dd></dl>
+    @if (Settings.EmbedSnippet is { } snippet)
+    {
+        <label for="catalog-embed-snippet">Embed snippet</label>
+        <textarea id="catalog-embed-snippet" class="catalog-embed-snippet" rows="6" readonly spellcheck="false">@snippet</textarea>
+        <p>Select and copy this snippet. It loads the released external component bundle.</p>
+    }
+    else
+    {
+        <p>No released component bundle was reported. An embed snippet is unavailable.</p>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public CatalogAdminSettings Settings { get; set; } = default!;
+    private string AudienceLabel => Settings.Audience switch { "public" => "Public", "signed-in" => "Signed-in users", "roles" => "Roles", _ => "Not reported" };
+    private string ListingLabel => Settings.DefaultListing switch { "automatic" => "List automatically", "after-review" => "List after review", "manual" => "Only by hand", _ => "Not reported" };
+    private static string Reported(string? value) => string.IsNullOrWhiteSpace(value) ? "Not reported" : value;
+    private static string Join(IReadOnlyList<string> values) => values.Count == 0 ? "Not reported" : string.Join(", ", values);
+}
