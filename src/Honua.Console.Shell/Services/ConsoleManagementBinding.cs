@@ -16,7 +16,7 @@ public sealed record ConsoleManagementBinding(ConsoleManagementBindingStatus Sta
         if (endpoint is null) return new(ConsoleManagementBindingStatus.ServingOnly, null);
         var target = endpoint.Resolve(servingBaseUri);
         if (target is null) return new(ConsoleManagementBindingStatus.Unavailable, null);
-        return new Uri(target.AbsoluteUri.TrimEnd('/') + "/") == new Uri(servingBaseUri.AbsoluteUri.TrimEnd('/') + "/")
+        return ConsoleServerHttp.IsSameBaseUri(target, servingBaseUri)
             ? new(ConsoleManagementBindingStatus.ServingOnly, null)
             : new(ConsoleManagementBindingStatus.Separate, target);
     }

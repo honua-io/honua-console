@@ -84,6 +84,8 @@ internal static class ConsoleServerHttp
     }
 
     // A trailing slash is added when the base URI lacks one, because URI resolution would otherwise drop the last base-path segment.
+    public static bool IsSameBaseUri(Uri left, Uri right) => BuildUri(left, string.Empty) == BuildUri(right, string.Empty);
+
     public static Uri BuildUri(Uri baseUri, string relativePath)
     {
         var normalizedBase = baseUri.AbsoluteUri.EndsWith('/')

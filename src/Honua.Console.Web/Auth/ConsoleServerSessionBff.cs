@@ -658,7 +658,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
 
         var selected = await _profiles.GetProfileAsync(pending.ProfileId, cancellationToken).ConfigureAwait(false);
         var profile = selected is null ? null : ResolveAuthorityProfile(selected, pending.Authority);
-        if (profile is null || !SameServer(profile.ServerBaseUri, pending.ServerBaseUri)
+        if (profile is null || !ConsoleServerHttp.IsSameBaseUri(profile.ServerBaseUri, pending.ServerBaseUri)
             || pending.ProfileBinding != ConsoleServerProfileBinding.Capture(selected!))
         {
             return Denied("The environment profile changed while server sign-in was in progress.", pending.ReturnTo);
@@ -823,15 +823,6 @@ internal sealed class ConsoleServerSessionBffCoordinator
         state = string.Empty;
         return false;
     }
-
-    private static bool SameServer(Uri left, Uri right) => string.Equals(
-        NormalizeBase(left),
-        NormalizeBase(right),
-        StringComparison.OrdinalIgnoreCase);
-
-    private static string NormalizeBase(Uri value) => value.AbsoluteUri.EndsWith('/')
-        ? value.AbsoluteUri
-        : value.AbsoluteUri + "/";
 
     private static ConsoleServerSignInResult Denied(string message, string? returnTo = null) => new()
     {
