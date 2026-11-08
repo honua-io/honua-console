@@ -26,6 +26,7 @@ export interface AdminConnection {
 
 export interface AdminApi {
   readonly serverUrl: string;
+  readonly request: APIRequestContext;
   listConnections(): Promise<AdminConnection[]>;
   findConnectionByName(name: string): Promise<AdminConnection | undefined>;
   createConnection(body: Record<string, unknown>): Promise<AdminConnection>;
@@ -58,6 +59,7 @@ export const test = base.extend<{ admin: AdminApi }>({
 
     const api: AdminApi = {
       serverUrl: SERVER_URL,
+      request: ctx,
       async listConnections() {
         const res = await ctx.get('/api/v1/admin/connections/');
         expect(res.ok(), `list connections failed: ${res.status()}`).toBeTruthy();
