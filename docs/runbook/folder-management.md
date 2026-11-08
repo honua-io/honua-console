@@ -25,7 +25,12 @@ Folder edits use the catalog ETag and the human/environment authority captured
 by the read. A changed catalog, expired sign-in or changed authority requires a
 refresh and another deliberate action. Edits remain visible after a refusal;
 refresh never resubmits them. An unconfirmed response requires checking the
-original environment before another write. Server-required approvals remain in
+original environment before another write. After an unconfirmed publish, select
+**Read original catalog** while signed in to that environment. The retained
+readback names the requested Service and Layer and shows the matching Service's
+layer count, or explains that the Service was not found on the first page.
+Inspect the requested Layer in **Open Service settings** before trying again;
+reading never resubmits the publish. Server-required approvals remain in
 the separate human approval channel, available from **Open approvals**.
 
 A connected agent workspace cannot retain Folder or public-name publishing
