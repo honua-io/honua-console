@@ -219,6 +219,10 @@ export function mountStudioPublicationControls({ app, host, status }) {
     for (const [value, label] of [['personal', 'Only me'], ['team', 'My team'], ['organization', 'My organization'], ['public', 'Public']]) {
         const option = document.createElement('option'); option.value = value; option.textContent = label; audience.append(option);
     }
+    const sourceAccess = document.createElement('p');
+    sourceAccess.dataset.publicationSourceAccess = '';
+    sourceAccess.setAttribute('role', 'status');
+    sourceAccess.textContent = 'Publishing a public map does not change access to its source services. Anonymous viewers cannot see layers that require sign-in. Review service access before publishing.';
     const warning = document.createElement('textarea');
     warning.maxLength = 2000; warning.setAttribute('aria-label', 'Validation warning acknowledgement');
     const warningField = document.createElement('label'); warningField.append('Acknowledge the validation warnings ', warning);
@@ -240,7 +244,7 @@ export function mountStudioPublicationControls({ app, host, status }) {
     publish.className = 'console-button';
     const fields = document.createElement('div'); fields.className = 'publish-field-grid'; fields.append(routeField, audienceField);
     const actions = document.createElement('div'); actions.className = 'console-action-row'; actions.append(publish, cancel);
-    form.append(summary, fields, diagnostics, warningField, actions);
+    form.append(summary, fields, sourceAccess, diagnostics, warningField, actions);
     section.append(notice, form, refresh, retry, acknowledge, inbox, audienceActions);
     const canvas = host.querySelector('[data-studio-mount]');
     if (canvas) canvas.before(section); else host.append(section);
@@ -292,6 +296,7 @@ export function mountStudioPublicationControls({ app, host, status }) {
                 }
             } else form.hidden = !hasReview;
         } catch (error) { section.hidden = false; notice.textContent = error.message; }
+        sourceAccess.hidden = form.hidden || audience.value !== 'public';
         for (const control of section.querySelectorAll('button, input, select, textarea')) control.disabled = busy;
     }
     async function run(action) {
@@ -309,6 +314,7 @@ export function mountStudioPublicationControls({ app, host, status }) {
         void run(() => session.submit({ intent: { route: route.value.trim(), visibility: audience.value },
             ...(warning.value.trim() ? { warningAcknowledgement: warning.value.trim() } : {}) }));
     });
+    audience.addEventListener('change', update);
     retry.addEventListener('click', () => void run(() => session.retry()));
     refresh.addEventListener('click', () => void run(() => session.refresh()));
     acknowledge.addEventListener('click', () => void run(() => { session.acknowledge(); hasReview = false; }));

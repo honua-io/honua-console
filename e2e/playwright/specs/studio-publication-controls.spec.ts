@@ -36,7 +36,7 @@ async function mount(page: Page, clear = true, fail = false) {
                 requestId: 'request', itemId: 'item', versionId: 'version' };
         };
         const controls = mountStudioVersionControls({ app, host, status });
-        (window as any).publicationFixture = { app, calls, reads, controls };
+        (window as any).publicationFixture = { app, calls, reads, controls, version };
     }, { clear, fail });
 }
 
@@ -53,6 +53,50 @@ test('reviewing a saved version does not publish; explicit submission shows pend
     await expect(panel).not.toContainText('was published');
     await expect(page.getByRole('link', { name: 'Review approvals' })).toHaveAttribute('href', '/inbox?proposalId=proposal');
     expect(await page.evaluate(() => (window as any).publicationFixture.calls.length)).toBe(1);
+});
+
+test('public audience explains source access before submitting the unchanged publication intent', async ({ page }) => {
+    await mount(page);
+    await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
+    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    const audience = page.getByLabel('Publication audience', { exact: true });
+    const sourceAccess = page.locator('[data-publication-source-access]');
+    await expect(sourceAccess).toBeHidden();
+    await audience.selectOption('public');
+    await expect(sourceAccess).toBeVisible();
+    await expect(sourceAccess).toContainText('Publishing a public map does not change access to its source services.');
+    await expect(sourceAccess).toContainText('Anonymous viewers cannot see layers that require sign-in.');
+    await expect(sourceAccess).toContainText('Review service access before publishing.');
+    for (const width of [375, 1280]) {
+        await page.setViewportSize({ width, height: 720 });
+        await expect(sourceAccess).toBeInViewport();
+        expect(await sourceAccess.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+        await page.getByRole('region', { name: 'Map publication', exact: true }).screenshot({
+            path: test.info().outputPath(`public-audience-${width}.png`),
+        });
+    }
+    await audience.selectOption('team');
+    await expect(sourceAccess).toBeHidden();
+    await audience.selectOption('public');
+    await expect(sourceAccess).toBeVisible();
+    expect(await page.evaluate(() => (window as any).publicationFixture.calls)).toEqual([]);
+    await page.getByRole('button', { name: 'Publish reviewed version', exact: true }).click();
+    const calls = await page.evaluate(() => (window as any).publicationFixture.calls);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].input).toEqual({ intent: { route: '/maps/parcels', visibility: 'public' } });
+    await expect(sourceAccess).toBeHidden();
+});
+
+test('a saved public audience shows the source-access notice as soon as review opens', async ({ page }) => {
+    await mount(page);
+    await page.evaluate(() => {
+        (window as any).publicationFixture.version.envelope.publicationIntent.visibility = 'public';
+    });
+    await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
+    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await expect(page.getByLabel('Publication audience', { exact: true })).toHaveValue('public');
+    await expect(page.locator('[data-publication-source-access]')).toBeVisible();
+    expect(await page.evaluate(() => (window as any).publicationFixture.calls)).toEqual([]);
 });
 
 test('reload retains unknown submission and explicitly retries the original identity and audience', async ({ page }) => {
