@@ -23,7 +23,7 @@ public sealed record ProposalDetailWire
     public long Version { get; init; }
     public string? PlanHash { get; init; }
     public bool RequiresReproposal { get; init; }
-    public string? ReproposalReason { get; init; }
+    public string? ApprovalRemediation { get; init; }
 
     public string? ProposalId { get; init; }
     public string? Kind { get; init; }

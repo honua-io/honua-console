@@ -89,9 +89,10 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(proposalId);
         var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        OperateSectionResult<ConsoleHumanProposalReview>? review = null;
         if (_humanSession is not null && profile is not null)
         {
-            var review = await _humanSession.OpenReviewAsync(
+            review = await _humanSession.OpenReviewAsync(
                 new ConsoleHumanProposalReviewRequest(profile, _authority, proposalId.Trim()), cancellationToken)
                 .ConfigureAwait(false);
             if (review.IsAllowed && review.Value is { } opened)
@@ -107,8 +108,9 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
             .ConfigureAwait(false);
         return result.Value is { IsAwaitingApproval: true } detail
             ? result with { Value = detail with { HumanApprovalMessage = detail.HumanApprovalMessage
-                ?? "Sign in to this server, then refresh this review to approve.",
-                HumanApprovalSignInPath = profile is null ? null : BuildSignInPath(profile, proposalId.Trim()) } }
+                ?? review?.Message ?? "Sign in to this server, then refresh this review to approve.",
+                HumanApprovalSignInPath = profile is not null && (review is null || review.Status == OperateSectionStatus.Forbidden)
+                    ? BuildSignInPath(profile, proposalId.Trim()) : null } }
             : result;
     }
 
@@ -331,7 +333,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         Version = wire.Version,
         PlanHash = wire.PlanHash,
         RequiresReproposal = wire.RequiresReproposal,
-        HumanApprovalMessage = wire.ReproposalReason,
+        HumanApprovalMessage = wire.ApprovalRemediation,
         FindingId = wire.FindingId,
         AutonomyRule = wire.AutonomyRule,
         ActionDiscriminator = wire.ActionDiscriminator,

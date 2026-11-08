@@ -15,54 +15,76 @@ internal sealed class ConsoleHumanProposalSession(
     IConsoleManagerEndpoint? management = null) : IConsoleHumanProposalSession
 {
     private const string CapabilityHeader = "X-Honua-Approval-Capability";
+    private const int MaximumCapabilityLength = 16384;
+    private static readonly TimeSpan ReviewLifetime = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan MaximumClockSkew = TimeSpan.FromSeconds(30);
 
     public async Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync(
         ConsoleHumanProposalReviewRequest reviewRequest,
         CancellationToken cancellationToken = default)
     {
-        var (profile, authority, proposalId) = reviewRequest;
         try
         {
-            var bound = await BindAsync(profile, authority, cancellationToken).ConfigureAwait(false);
-            if (bound is null) return Denied<ConsoleHumanProposalReview>("The original proposal environment is unavailable.");
-            using var session = await sessions.EnterPrivateSessionAsync(bound, cancellationToken).ConfigureAwait(false);
-            var partition = session is null ? null : await session.VerifyAsync(bound, ConsoleServerSessionUse.HumanDecision, cancellationToken).ConfigureAwait(false);
-            if (partition is null) return Denied<ConsoleHumanProposalReview>("Sign in to this server to review and approve the proposal.");
-
-            partition.ProposalReviews.Discard(proposalId);
-            using var request = new HttpRequestMessage(HttpMethod.Get,
-                ConsoleServerHttp.BuildUri(bound.ServerBaseUri, ProposalAdminRoutes.Detail(proposalId) + "/approval-review"));
-            using var response = await partition.Client.SendAsync(request, cancellationToken).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-                return await ReadWithoutApprovalAsync(partition, reviewRequest, cancellationToken).ConfigureAwait(false);
-            var result = await response.Content.ReadFromJsonAsync(
-                ConsoleHumanProposalJsonContext.Default.ConsolePrivateProposalReviewResponse, cancellationToken).ConfigureAwait(false);
-            var current = await BindAsync(profile, authority, cancellationToken).ConfigureAwait(false);
-            if (result is not { Proposal: { } proposal, Review: { } review }
-                || proposal.ProposalId != proposalId || review.ProposalId != proposalId
-                || proposal.Status != "AwaitingApproval" || proposal.Version != review.ProposalVersion
-                || review.TenantId != (bound.IsTenantScoped() ? bound.EffectiveTenantId() : null)
-                || string.IsNullOrEmpty(proposal.PlanHash) || proposal.PlanHash != review.PlanHash
-                || string.IsNullOrEmpty(review.Capability) || review.Capability.Length > 16384
-                || review.ExpiresAt <= clock.GetUtcNow()
-                || review.ExpiresAt > clock.GetUtcNow().AddMinutes(5)
-                || response.Headers.CacheControl?.NoStore != true
-                || current is null || ConsoleServerProfileBinding.Capture(current) != ConsoleServerProfileBinding.Capture(bound))
-                return Unavailable<ConsoleHumanProposalReview>("The server review changed or could not be verified. Reopen the proposal.");
-
-            var environment = ConsoleServerProfileBinding.Capture(bound);
-            partition.ProposalReviews.Remember(new ConsolePrivateProposalReview(
-                proposalId, proposal.Version, proposal.PlanHash, review.Capability, review.ExpiresAt)
-            {
-                EnvironmentReference = environment
-            });
-            return OperateSectionResult<ConsoleHumanProposalReview>.Allowed(new(proposal, environment, review.ExpiresAt));
+            return await OpenBoundReviewAsync(reviewRequest, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (JsonException)
+        {
+            return Unavailable<ConsoleHumanProposalReview>("The server returned an incomplete or invalid approval review. Check the server's approval contract before reopening it.");
+        }
         catch (Exception exception) when (IsUnavailable(exception))
         {
             return Unavailable<ConsoleHumanProposalReview>("The private server session is unavailable. Sign in again and reopen the review.");
         }
+    }
+
+    private async Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenBoundReviewAsync(
+        ConsoleHumanProposalReviewRequest target, CancellationToken cancellationToken)
+    {
+        var bound = await BindAsync(target.Profile, target.Authority, cancellationToken).ConfigureAwait(false);
+        if (bound is null) return Denied<ConsoleHumanProposalReview>("The original proposal environment is unavailable.");
+        using var session = await sessions.EnterPrivateSessionAsync(bound, cancellationToken).ConfigureAwait(false);
+        var partition = session is null ? null : await session.VerifyAsync(bound, ConsoleServerSessionUse.HumanDecision, cancellationToken).ConfigureAwait(false);
+        if (partition is null) return Denied<ConsoleHumanProposalReview>("Sign in to this server to review and approve the proposal.");
+        partition.ProposalReviews.Discard(target.ProposalId);
+        var request = new BoundReviewRequest(target, bound);
+        using var response = await partition.Client.GetAsync(ConsoleServerHttp.BuildUri(
+            bound.ServerBaseUri, ProposalAdminRoutes.Review(target.ProposalId)), cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            var refusal = Refused<ConsoleHumanProposalReview>(response.StatusCode);
+            return refusal.Status == OperateSectionStatus.Unsupported ? refusal
+                : await ReadWithoutApprovalAsync(partition, request with { Failure = refusal }, cancellationToken).ConfigureAwait(false);
+        }
+        var result = await response.Content.ReadFromJsonAsync(
+            ConsoleHumanProposalJsonContext.Default.ConsolePrivateProposalReviewResponse, cancellationToken).ConfigureAwait(false);
+        var current = await BindAsync(target.Profile, target.Authority, cancellationToken).ConfigureAwait(false);
+        var verified = CreateVerifiedReview(result, request);
+        if (verified is null || response.Headers.CacheControl?.NoStore != true || current is null
+            || ConsoleServerProfileBinding.Capture(current) != verified.EnvironmentReference)
+            return Unavailable<ConsoleHumanProposalReview>("The server review changed or could not be verified. Reopen the proposal.");
+        partition.ProposalReviews.Remember(verified);
+        return OperateSectionResult<ConsoleHumanProposalReview>.Allowed(new(
+            result!.Proposal!, verified.EnvironmentReference, verified.ExpiresAt));
+    }
+
+    private ConsolePrivateProposalReview? CreateVerifiedReview(
+        ConsolePrivateProposalReviewResponse? response, BoundReviewRequest request)
+    {
+        var now = clock.GetUtcNow();
+        if (response is not { Proposal: { } proposal, Review: { } review }
+            || proposal.ProposalId != request.Target.ProposalId || review.ProposalId != request.Target.ProposalId
+            || proposal.Status != "AwaitingApproval" || proposal.Version != review.ProposalVersion
+            || review.TenantId != (request.Profile.IsTenantScoped() ? request.Profile.EffectiveTenantId() : null)
+            || string.IsNullOrEmpty(proposal.PlanHash) || proposal.PlanHash != review.PlanHash
+            || string.IsNullOrEmpty(review.Capability) || review.Capability.Length > MaximumCapabilityLength
+            || review.ExpiresAt <= now || review.ExpiresAt > now + ReviewLifetime + MaximumClockSkew)
+            return null;
+        var expiresAt = review.ExpiresAt < now + ReviewLifetime ? review.ExpiresAt : now + ReviewLifetime;
+        return new ConsolePrivateProposalReview(proposal.ProposalId!, proposal.Version, proposal.PlanHash, review.Capability, expiresAt)
+        {
+            EnvironmentReference = ConsoleServerProfileBinding.Capture(request.Profile)
+        };
     }
 
     public async Task<OperateSectionResult<ProposalDetailWire>> ApproveAsync(
@@ -107,24 +129,28 @@ internal sealed class ConsoleHumanProposalSession(
     }
 
     private async Task<OperateSectionResult<ConsoleHumanProposalReview>> ReadWithoutApprovalAsync(
-        ConsoleServerSessionPartition partition, ConsoleHumanProposalReviewRequest reviewRequest,
+        ConsoleServerSessionPartition partition, BoundReviewRequest request,
         CancellationToken cancellationToken)
     {
-        var (profile, authority, proposalId) = reviewRequest;
-        partition.ProposalReviews.Discard(proposalId);
         using var response = await partition.Client.GetAsync(ConsoleServerHttp.BuildUri(
-            new Uri(partition.Key.ServerOrigin), ProposalAdminRoutes.Detail(proposalId)), cancellationToken).ConfigureAwait(false);
+            request.Profile.ServerBaseUri, ProposalAdminRoutes.Detail(request.Target.ProposalId)), cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode) return Refused<ConsoleHumanProposalReview>(response.StatusCode);
         var proposal = await response.Content.ReadFromJsonAsync(
             ConsoleHumanProposalJsonContext.Default.ProposalDetailWire, cancellationToken).ConfigureAwait(false);
-        var current = await BindAsync(profile, authority, cancellationToken).ConfigureAwait(false);
-        if (proposal?.ProposalId != proposalId || current is null
-            || ConsoleServerSessionClientStore.NormalizeOrigin(current.ServerBaseUri) != new Uri(partition.Key.ServerOrigin))
+        var current = await BindAsync(request.Target.Profile, request.Target.Authority, cancellationToken).ConfigureAwait(false);
+        if (proposal?.ProposalId != request.Target.ProposalId || current is null
+            || ConsoleServerProfileBinding.Capture(current) != ConsoleServerProfileBinding.Capture(request.Profile))
             return Unavailable<ConsoleHumanProposalReview>("The proposal environment changed. Reopen the original review.");
         return OperateSectionResult<ConsoleHumanProposalReview>.Allowed(new(proposal, string.Empty, DateTimeOffset.MinValue)
         {
-            ApprovalMessage = proposal.ReproposalReason ?? "Sign in with approval permission and refresh this review to approve."
+            ApprovalMessage = proposal.ApprovalRemediation ?? request.Failure?.Message
+                ?? "Refresh this review explicitly before approving."
         });
+    }
+
+    private sealed record BoundReviewRequest(ConsoleHumanProposalReviewRequest Target, ConsoleEnvironmentProfile Profile)
+    {
+        public OperateSectionResult<ConsoleHumanProposalReview>? Failure { get; init; }
     }
 
     private async Task<ConsoleEnvironmentProfile?> BindAsync(

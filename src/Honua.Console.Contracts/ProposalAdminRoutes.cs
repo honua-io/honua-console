@@ -8,6 +8,9 @@ public static class ProposalAdminRoutes
     [OpsParityRoute("GET")]
     public const string DetailTemplate = List + "/{id}";
 
+    [OpsParityRoute("GET")]
+    public const string ReviewTemplate = DetailTemplate + "/approval-review";
+
     [OpsParityRoute("POST")]
     public const string ApproveTemplate = DetailTemplate + "/approve";
 
@@ -19,6 +22,9 @@ public static class ProposalAdminRoutes
 
     public static string Approve(string proposalId) =>
         ApproveTemplate.Replace("{id}", Uri.EscapeDataString(proposalId), StringComparison.Ordinal);
+
+    public static string Review(string proposalId) =>
+        ReviewTemplate.Replace("{id}", Uri.EscapeDataString(proposalId), StringComparison.Ordinal);
 
     public static string Reject(string proposalId) =>
         RejectTemplate.Replace("{id}", Uri.EscapeDataString(proposalId), StringComparison.Ordinal);
