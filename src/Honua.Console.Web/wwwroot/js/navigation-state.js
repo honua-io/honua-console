@@ -74,7 +74,7 @@
     }, true);
     document.addEventListener('focusout', event => {
         const menu = event.target.closest(menuSelector);
-        if (menu) queueMicrotask(() => {
+        if (menu && !menu.contains(event.relatedTarget)) queueMicrotask(() => {
             if (menu.isConnected && !menu.contains(document.activeElement)) menu.open = false;
         });
     });
