@@ -155,7 +155,7 @@ public sealed class FolderManagementTests
         context.Services.AddSingleton<IConsoleNotificationService>(notifications);
         var panel = context.Render<FolderManagement>(parameters => parameters.Add(component => component.ServiceName, "original-service"));
         var move = panel.Find("[data-service-move]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-        await panel.RenderAsync(parameters => parameters.Add(component => component.ServiceName, "other-service"));
+        panel.Render(parameters => parameters.Add(component => component.ServiceName, "other-service"));
         pending.SetResult(new() { State = "Outcome unverified", Detail = "Read the original catalog." });
         await move;
         panel.WaitForAssertion(() => Assert.Contains(notifications.Notifications,

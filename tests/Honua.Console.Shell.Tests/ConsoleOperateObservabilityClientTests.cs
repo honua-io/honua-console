@@ -1147,7 +1147,7 @@ public sealed class ConsoleOperateObservabilityClientTests
                 Success = true,
                 Data = new HonuaAdminServicePage
                 {
-                    Items = [new Honua.Sdk.Admin.Models.ServiceSummary { ServiceName = serviceName }],
+                    Items = [new Honua.Sdk.Admin.Models.ServiceSummary { ServiceName = serviceName! }],
                     Page = 1,
                     PageSize = HonuaAdminCatalogQuery.MaxPageSize,
                     Total = 1
