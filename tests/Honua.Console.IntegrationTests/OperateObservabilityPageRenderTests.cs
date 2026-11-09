@@ -9,6 +9,93 @@ namespace Honua.Console.IntegrationTests;
 // Nesting the detail inside the populated-list branch swallows a deep link, including a job loaded by its own detail read.
 public sealed class OperateObservabilityPageRenderTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EventTimeline_PreservesDeduplicationAndSelectedEventEvidence(bool v4Enabled)
+    {
+        var first = BuildEvent("evt-first", "First event", "corr-first");
+        var selected = BuildEvent("evt-selected", "Selected event", "corr-selected");
+        using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
+        context.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        context.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubOperateClient
+        {
+            Events = OperateSectionResult<IReadOnlyList<OperateEventRow>>.Allowed([first, selected, selected]),
+        });
+
+        var page = context.Render<OperateObservabilityPage>(parameters =>
+            parameters.Add(p => p.SelectedEventId, selected.EventId));
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.Equal(2, page.FindAll("[data-timeline-row]").Count);
+            Assert.Equal(selected.DetailHref, page.Find(".operate-selected-row a").GetAttribute("href"));
+            Assert.Equal(selected.Message, page.Find("#event-detail-heading").TextContent);
+            Assert.Contains(selected.CorrelationId, page.Find("[aria-labelledby='event-detail-heading']").TextContent);
+        });
+        if (v4Enabled) CatalogAdminPreview.Capture("activity-selected", page.Markup);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EventFilters_SendTheSelectedTypeAndCorrelationToTheServer(bool v4Enabled)
+    {
+        var client = new StubOperateClient
+        {
+            Events = OperateSectionResult<IReadOnlyList<OperateEventRow>>.Allowed(
+                [BuildEvent("evt-first", "First event", "corr-first")]),
+        };
+        using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
+        context.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        context.Services.AddSingleton<IConsoleOperateObservabilityClient>(client);
+        var page = context.Render<OperateObservabilityPage>();
+        var filters = page.Find("form[aria-label='Operate evidence filters']");
+
+        filters.QuerySelectorAll("select")[v4Enabled ? 1 : 2].Change("release");
+        filters.QuerySelector("input")!.Input("corr-selected");
+        filters.Submit();
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.Equal("release", client.LastEventQuery?.EventType);
+            Assert.Equal("corr-selected", client.LastEventQuery?.CorrelationId);
+        });
+    }
+
+    [Theory]
+    [InlineData(false, "Operate Observability")]
+    [InlineData(true, "Activity")]
+    public void RolloutFlag_SelectsPresentationWithoutDroppingOperationalSections(bool enabled, string heading)
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        context.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        context.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubOperateClient());
+
+        var page = context.Render<OperateObservabilityPage>();
+
+        Assert.Equal(heading, page.Find("h1").TextContent);
+        foreach (var id in new[] { "fleet", "events", "logs", "alerts", "rules", "jobs", "investigations" })
+        {
+            Assert.Single(page.FindAll($"section#{id}"));
+        }
+
+        var sections = page.FindAll("section[id]").Select(section => section.Id).ToArray();
+        Assert.True(enabled
+            ? Array.IndexOf(sections, "events") < Array.IndexOf(sections, "fleet")
+            : Array.IndexOf(sections, "fleet") < Array.IndexOf(sections, "events"));
+        Assert.Equal(enabled, page.FindAll(".activity-sync-notice").Count == 1);
+        Assert.Equal(enabled, page.FindAll(".console-activity-v4").Count == 1);
+        if (enabled) CatalogAdminPreview.Capture("activity-empty", page.Markup);
+    }
+
+    private static OperateEventRow BuildEvent(string id, string message, string correlation) =>
+        new(id, "2026-11-09T17:30:00Z", "info", "release", "publication", message,
+            "production", "server-1", correlation, "trace-1", "request-1", null, null, [], [], [], null);
+
     [Fact]
     public void UnadvertisedInvestigationSectionPreservesThePageHeading()
     {
@@ -155,6 +242,11 @@ public sealed class OperateObservabilityPageRenderTests
 
     private sealed class StubOperateClient : IConsoleOperateObservabilityClient
     {
+        public OperateSectionResult<IReadOnlyList<OperateEventRow>> Events { get; init; } =
+            OperateSectionResult<IReadOnlyList<OperateEventRow>>.Allowed([]);
+
+        public OperateEventQuery? LastEventQuery { get; private set; }
+
         public OperateSectionResult<IReadOnlyList<OperateJobRun>> Jobs { get; init; } =
             OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed([]);
 
@@ -164,8 +256,11 @@ public sealed class OperateObservabilityPageRenderTests
         public Task<OperateSectionResult<OperateFleetOverview>> GetOverviewAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<OperateFleetOverview>.Allowed(OperateFleetOverview.Empty));
 
-        public Task<OperateSectionResult<IReadOnlyList<OperateEventRow>>> QueryEventsAsync(OperateEventQuery query, CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<IReadOnlyList<OperateEventRow>>.Allowed([]));
+        public Task<OperateSectionResult<IReadOnlyList<OperateEventRow>>> QueryEventsAsync(OperateEventQuery query, CancellationToken cancellationToken = default)
+        {
+            LastEventQuery = query;
+            return Task.FromResult(Events);
+        }
 
         public Task<OperateSectionResult<OperateLogsView>> GetLogsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<OperateLogsView>.Allowed(OperateLogsView.Empty));

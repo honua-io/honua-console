@@ -4,187 +4,223 @@
 @page "/operate/jobs/{SelectedJobRunId}"
 @inject IConsoleOperateObservabilityClient OperateClient
 @inject IConsoleCapabilityManifest Capabilities
+@inject IServiceProvider Services
 
-<section class="console-page console-operate-page">
+@if (V4Enabled)
+{
+    <HeadContent>
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/operate-activity-v4.css" />
+    </HeadContent>
+}
+
+<section class="console-page console-operate-page @(V4Enabled ? "console-activity-v4" : null)">
+    @{
+        RenderFragment FleetSections = @<text>
+            <nav class="operate-section-nav" aria-label="Operate observability sections">
+                <a href="#fleet">Fleet</a>
+                <a href="#events">Events</a>
+                <a href="#logs">Logs</a>
+                <a href="#alerts">Alerts</a>
+                <a href="#rules">Rules</a>
+                <a href="#jobs">Jobs</a>
+                @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.SiemInvestigations))
+                {
+                    <a href="#investigations">Investigations</a>
+                }
+            </nav>
+
+            <section class="operate-summary-grid" aria-label="Operate summary">
+                <article class="console-panel operate-summary-tile">
+                    <span class="console-kicker">Environments</span>
+                    <strong>@Overview.Environments.Count</strong>
+                    <span class="console-muted">connected profiles</span>
+                </article>
+                <article class="console-panel operate-summary-tile">
+                    <span class="console-kicker">Neutral telemetry</span>
+                    <strong>@Overview.TelemetryFacts.Count(item => item.IsNeutralTelemetry)</strong>
+                    <span class="console-muted">unknown, unsupported, disabled, or not configured</span>
+                </article>
+                <article class="console-panel operate-summary-tile">
+                    <span class="console-kicker">Events</span>
+                    <strong>@EventRows.Count</strong>
+                    <span class="console-muted">logs, audit, jobs, alerts, releases, sync, data</span>
+                </article>
+                <article class="console-panel operate-summary-tile">
+                    <span class="console-kicker">Logs</span>
+                    <strong>@LogRows.Count</strong>
+                    <span class="console-muted">structured recent server entries</span>
+                </article>
+            </section>
+
+            <section id="fleet" class="operate-section" aria-labelledby="fleet-heading">
+                <div class="operate-section-heading">
+                    <div>
+                        <p class="console-kicker">Environment and fleet overview</p>
+                        <h2 id="fleet-heading">Telemetry State And Compatibility</h2>
+                    </div>
+                    <a class="console-button-link" href="@OperateObservabilityRoutes.Observability">Open observability route</a>
+                </div>
+
+                @if (!_loaded || _overview is null)
+                {
+                    <OperateSectionStatusPanel Heading="Fleet" Loading="true" />
+                }
+                else if (!_overview.IsAllowed)
+                {
+                    <OperateSectionStatusPanel Heading="Fleet" Status="_overview.Status" Message="@_overview.Message" />
+                }
+                else
+                {
+                    <div class="console-panel-grid">
+                        @foreach (var environment in Overview.Environments)
+                        {
+                            <article class="console-panel operate-environment-card">
+                                <div class="console-panel-heading">
+                                    <div>
+                                        <h3>@environment.Name</h3>
+                                        <p class="console-muted">@environment.ServerName</p>
+                                    </div>
+                                    <span class="console-status @environment.Health.CssClass">@environment.Health.Label</span>
+                                </div>
+
+                                <dl class="console-definition-list">
+                                    <dt>Version</dt>
+                                    <dd>@environment.Version</dd>
+                                    <dt>Build</dt>
+                                    <dd>@environment.BuildSha</dd>
+                                    <dt>Last seen</dt>
+                                    <dd>@environment.LastSeen</dd>
+                                    <dt>Owner</dt>
+                                    <dd>@environment.OwnerTeam</dd>
+                                </dl>
+
+                                <p class="console-muted">@environment.DriftSummary</p>
+                            </article>
+                        }
+                    </div>
+
+                    <div id="telemetry" class="console-panel operate-table-panel">
+                        <div class="console-panel-heading">
+                            <div>
+                                <h3>Telemetry Status</h3>
+                                <p class="console-muted">Missing or unconfigured signals stay neutral and do not mark the environment failed.</p>
+                            </div>
+                        </div>
+
+                        <ConsoleTableRegion Class="operate-table-scroll" Label="Telemetry status">
+                            <table class="operate-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Environment</th>
+                                        <th scope="col">Signal</th>
+                                        <th scope="col">State</th>
+                                        <th scope="col">Freshness</th>
+                                        <th scope="col">Evidence</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var fact in Overview.TelemetryFacts)
+                                    {
+                                        <tr>
+                                            <td>@fact.EnvironmentId</td>
+                                            <td>@fact.Signal</td>
+                                            <td><span class="console-status @fact.State.CssClass">@fact.State.Label</span></td>
+                                            <td>@fact.Freshness</td>
+                                            <td><a href="@fact.EvidenceHref">Open event</a></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </ConsoleTableRegion>
+                    </div>
+
+                    <div class="console-panel operate-table-panel">
+                        <div class="console-panel-heading">
+                            <div>
+                                <h3>Drift And Compatibility</h3>
+                                <p class="console-muted">Compatibility blockers are separate from unsupported or not configured telemetry.</p>
+                            </div>
+                        </div>
+
+                        <ConsoleTableRegion Class="operate-table-scroll" Label="Drift and compatibility">
+                            <table class="operate-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Capability</th>
+                                        <th scope="col">Current</th>
+                                        <th scope="col">Required</th>
+                                        <th scope="col">State</th>
+                                        <th scope="col">Evidence</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in Overview.CompatibilityRows)
+                                    {
+                                        <tr>
+                                            <td>@row.Capability</td>
+                                            <td>@row.Current</td>
+                                            <td>@row.Required</td>
+                                            <td><span class="console-status @row.State.CssClass">@row.State.Label</span></td>
+                                            <td>@row.Evidence</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </ConsoleTableRegion>
+                    </div>
+                }
+            </section>
+        </text>;
+    }
+
     <div class="console-page-heading operate-heading">
-        <p class="console-kicker">Operator workflow</p>
-        <h1>Operate Observability</h1>
-        <p>
-            One evidence surface for environment health, telemetry status, events, alerts, realtime rules, jobs, and investigations,
-            bound to the connected honua-server admin observability APIs.
-        </p>
-    </div>
-
-    <nav class="operate-section-nav" aria-label="Operate observability sections">
-        <a href="#fleet">Fleet</a>
-        <a href="#events">Events</a>
-        <a href="#logs">Logs</a>
-        <a href="#alerts">Alerts</a>
-        <a href="#rules">Rules</a>
-        <a href="#jobs">Jobs</a>
-        @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.SiemInvestigations))
+        @if (V4Enabled)
         {
-            <a href="#investigations">Investigations</a>
-        }
-    </nav>
-
-    <section class="operate-summary-grid" aria-label="Operate summary">
-        <article class="console-panel operate-summary-tile">
-            <span class="console-kicker">Environments</span>
-            <strong>@Overview.Environments.Count</strong>
-            <span class="console-muted">connected profiles</span>
-        </article>
-        <article class="console-panel operate-summary-tile">
-            <span class="console-kicker">Neutral telemetry</span>
-            <strong>@Overview.TelemetryFacts.Count(item => item.IsNeutralTelemetry)</strong>
-            <span class="console-muted">unknown, unsupported, disabled, or not configured</span>
-        </article>
-        <article class="console-panel operate-summary-tile">
-            <span class="console-kicker">Events</span>
-            <strong>@EventRows.Count</strong>
-            <span class="console-muted">logs, audit, jobs, alerts, releases, sync, data</span>
-        </article>
-        <article class="console-panel operate-summary-tile">
-            <span class="console-kicker">Logs</span>
-            <strong>@LogRows.Count</strong>
-            <span class="console-muted">structured recent server entries</span>
-        </article>
-    </section>
-
-    <section id="fleet" class="operate-section" aria-labelledby="fleet-heading">
-        <div class="operate-section-heading">
-            <div>
-                <p class="console-kicker">Environment and fleet overview</p>
-                <h2 id="fleet-heading">Telemetry State And Compatibility</h2>
-            </div>
-            <a class="console-button-link" href="@OperateObservabilityRoutes.Observability">Open observability route</a>
-        </div>
-
-        @if (!_loaded || _overview is null)
-        {
-            <OperateSectionStatusPanel Heading="Fleet" Loading="true" />
-        }
-        else if (!_overview.IsAllowed)
-        {
-            <OperateSectionStatusPanel Heading="Fleet" Status="_overview.Status" Message="@_overview.Message" />
+            <h1>Activity</h1>
+            <p>Changes, alerts, and operational evidence from the connected Honua server.</p>
         }
         else
         {
-            <div class="console-panel-grid">
-                @foreach (var environment in Overview.Environments)
-                {
-                    <article class="console-panel operate-environment-card">
-                        <div class="console-panel-heading">
-                            <div>
-                                <h3>@environment.Name</h3>
-                                <p class="console-muted">@environment.ServerName</p>
-                            </div>
-                            <span class="console-status @environment.Health.CssClass">@environment.Health.Label</span>
-                        </div>
-
-                        <dl class="console-definition-list">
-                            <dt>Version</dt>
-                            <dd>@environment.Version</dd>
-                            <dt>Build</dt>
-                            <dd>@environment.BuildSha</dd>
-                            <dt>Last seen</dt>
-                            <dd>@environment.LastSeen</dd>
-                            <dt>Owner</dt>
-                            <dd>@environment.OwnerTeam</dd>
-                        </dl>
-
-                        <p class="console-muted">@environment.DriftSummary</p>
-                    </article>
-                }
-            </div>
-
-            <div id="telemetry" class="console-panel operate-table-panel">
-                <div class="console-panel-heading">
-                    <div>
-                        <h3>Telemetry Status</h3>
-                        <p class="console-muted">Missing or unconfigured signals stay neutral and do not mark the environment failed.</p>
-                    </div>
-                </div>
-
-                <ConsoleTableRegion Class="operate-table-scroll" Label="Telemetry status">
-                    <table class="operate-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Environment</th>
-                                <th scope="col">Signal</th>
-                                <th scope="col">State</th>
-                                <th scope="col">Freshness</th>
-                                <th scope="col">Evidence</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var fact in Overview.TelemetryFacts)
-                            {
-                                <tr>
-                                    <td>@fact.EnvironmentId</td>
-                                    <td>@fact.Signal</td>
-                                    <td><span class="console-status @fact.State.CssClass">@fact.State.Label</span></td>
-                                    <td>@fact.Freshness</td>
-                                    <td><a href="@fact.EvidenceHref">Open event</a></td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </ConsoleTableRegion>
-            </div>
-
-            <div class="console-panel operate-table-panel">
-                <div class="console-panel-heading">
-                    <div>
-                        <h3>Drift And Compatibility</h3>
-                        <p class="console-muted">Compatibility blockers are separate from unsupported or not configured telemetry.</p>
-                    </div>
-                </div>
-
-                <ConsoleTableRegion Class="operate-table-scroll" Label="Drift and compatibility">
-                    <table class="operate-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Capability</th>
-                                <th scope="col">Current</th>
-                                <th scope="col">Required</th>
-                                <th scope="col">State</th>
-                                <th scope="col">Evidence</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var row in Overview.CompatibilityRows)
-                            {
-                                <tr>
-                                    <td>@row.Capability</td>
-                                    <td>@row.Current</td>
-                                    <td>@row.Required</td>
-                                    <td><span class="console-status @row.State.CssClass">@row.State.Label</span></td>
-                                    <td>@row.Evidence</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </ConsoleTableRegion>
-            </div>
+            <p class="console-kicker">Operator workflow</p>
+            <h1>Operate Observability</h1>
+            <p>
+                One evidence surface for environment health, telemetry status, events, alerts, realtime rules, jobs, and investigations,
+                bound to the connected honua-server admin observability APIs.
+            </p>
         }
-    </section>
+    </div>
+
+    @if (!V4Enabled)
+    {
+        @FleetSections
+    }
 
     <section id="events" class="operate-section" aria-labelledby="events-heading">
         <div class="operate-section-heading">
             <div>
-                <p class="console-kicker">Unified event viewer</p>
-                <h2 id="events-heading">Evidence Timeline</h2>
+                @if (!V4Enabled)
+                {
+                    <p class="console-kicker">Unified event viewer</p>
+                }
+                <h2 id="events-heading">@(V4Enabled ? "Event history" : "Evidence Timeline")</h2>
             </div>
         </div>
 
+        @if (V4Enabled)
+        {
+            <p class="activity-sync-notice">This is a server snapshot. Apply filters to refresh the event history.</p>
+        }
+
         <form class="console-panel operate-filter-bar" aria-label="Operate evidence filters" @onsubmit="ApplyEventFilters" @onsubmit:preventDefault="true">
-            <label>
-                <span>Time range</span>
-                <select>
-                    <option>Last 24 hours</option>
-                </select>
-            </label>
+            @if (!V4Enabled)
+            {
+                <label>
+                    <span>Time range</span>
+                    <select>
+                        <option>Last 24 hours</option>
+                    </select>
+                </label>
+            }
             <label>
                 <span>Environment</span>
                 <select @bind="_pendingEnvironmentFilter">
@@ -264,6 +300,21 @@
             }
         </div>
     </section>
+
+    @if (V4Enabled)
+    {
+        <div class="activity-context">
+            <section aria-labelledby="activity-actors-heading">
+                <h2 id="activity-actors-heading">Who made a change</h2>
+                <p>The event response does not include actor identity. Open an event to inspect its correlation, trace, and request evidence.</p>
+            </section>
+            <section aria-labelledby="activity-sync-heading">
+                <h2 id="activity-sync-heading">Live sync</h2>
+                <p>This history does not subscribe to live updates. Apply filters to request the latest matching events from the server.</p>
+            </section>
+        </div>
+        @FleetSections
+    }
 
     <section id="logs" class="operate-section" aria-labelledby="logs-heading">
         <div class="operate-section-heading">
@@ -790,6 +841,8 @@
     /// </summary>
     [SupplyParameterFromQuery(Name = "correlationId")]
     public string? CorrelationId { get; set; }
+
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     private bool _loaded;
     private OperateSectionResult<OperateFleetOverview>? _overview;
