@@ -11,6 +11,24 @@ Replace `<digest>` with the selected immutable server image digest. For local
 source-build diagnostics, an explicit local image tag is also accepted; record
 its source revision and image ID separately from release evidence.
 
+### Chiseled server diagnostics
+
+For an image that includes `/app/honua-healthcheck`, append
+`-f e2e/docker-compose.native-probe.yml` to the Compose file list. This replaces
+the legacy Bash readiness command with the compiled probe:
+
+```sh
+docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml \
+  -f e2e/docker-compose.native-probe.yml up -d --wait --wait-timeout 300
+cd e2e/playwright
+npx --no-install playwright test --config playwright.live.config.ts
+```
+
+Use the same Compose files for teardown. The older published images need the
+existing Bash probe; select this overlay only for images containing the native
+probe. The overlay also applies after `e2e/playwright/live-llm/docker-compose.yml`
+when diagnosing that stack with a chiseled server.
+
 ### Prerequisites
 
 - Docker (with Compose v2 — `docker compose` as a sub-command)
