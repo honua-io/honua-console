@@ -278,3 +278,12 @@ guard and a Discard local edits action. Neither surface saves, proposes or chang
 access, scope, health, listing checks or audience visibility. Real mutation,
 thumbnail upload and visitor card preview remain contract-gated. Production never
 falls back to fixtures when these routes are enabled.
+
+### Experimental metadata views
+
+The authenticated /metadata/datasets/{datasetId}, its /import child and
+/metadata/fields use the existing default-off Catalogs option. Missing,
+unsupported, loading and denied reads retain the shared state surfaces. Local
+preview edits do not call the existing discovery mutation or any speculative
+metadata endpoint. Test fixtures are opt-in; the production binding cannot fall
+back to them. The route map records the Service-context and contract boundaries.
