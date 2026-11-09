@@ -196,7 +196,7 @@ export async function checkKeyboardControls(page, { controls, sizedControls, min
 
 export async function runV4PagePresentation({ previews, pageNames, title, stylesheet, heading, scope, controls, inspect }) {
   const pages = new Map(await Promise.all(pageNames.map(async name =>
-    [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
+    [name, `<div class="console-shell" data-console-v4="true">${await fs.readFile(path.join(previews, `${name}.html`), "utf8")}</div>`])));
   const server = await startPresentationFixtureServer({
     pages, title,
     stylesheets: ["/_content/Honua.Console.Shell/honua-console.css"],

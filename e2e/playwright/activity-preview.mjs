@@ -12,5 +12,17 @@ await runV4PagePresentation({
   controls: "#events :is(a[href], input, select, button, summary, [tabindex='0']):not(:disabled):visible",
   inspect: async (page, name) => {
     assert.equal(await page.locator("[data-timeline-row]").count(), name === "activity-selected" ? 2 : 0);
+    if (name === "activity-selected") {
+      const timeline = page.locator(".operate-table-panel .operate-timeline");
+      assert.equal(await timeline.evaluate(element => getComputedStyle(element).borderTopWidth), "0px");
+      assert.equal(await page.locator(".operate-event-table th").first().evaluate(element => {
+        const probe = document.createElement("span");
+        probe.style.color = "var(--c-text-3)";
+        element.append(probe);
+        const matches = getComputedStyle(element).color === getComputedStyle(probe).color;
+        probe.remove();
+        return matches;
+      }), true, "Activity keeps its quiet table headers");
+    }
   },
 });
