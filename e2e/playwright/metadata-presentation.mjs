@@ -17,8 +17,8 @@ export async function inspectMetadataPresentation(page, sample, previews) {
     assert.ok(await page.getByRole("heading", { name: "Try a local field draft" }).isVisible());
     assert.equal(await page.getByLabel("Name", { exact: true }).count(), 1);
   } else if (sample.name.startsWith("metadata-import")) {
-    const lead = root.locator(".metadata-import-counts > [data-metadata-count="mapped"] dd");
-    const rest = await root.locator(".metadata-import-counts > div:not([data-metadata-count="mapped"]) dd").evaluateAll(elements =>
+    const lead = root.locator('.metadata-import-counts > [data-metadata-count="mapped"] dd');
+    const rest = await root.locator('.metadata-import-counts > div:not([data-metadata-count="mapped"]) dd').evaluateAll(elements =>
       elements.map(element => parseFloat(getComputedStyle(element).fontSize)));
     assert.ok(await lead.evaluate(element => parseFloat(getComputedStyle(element).fontSize)) > Math.max(...rest));
     assert.ok(await page.getByText("No file has been uploaded.", { exact: false }).isVisible());
