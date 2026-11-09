@@ -62,6 +62,69 @@ public sealed class StudioAutomationVersionsPageTests
         await ctx.DisposeComponentsAsync();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ChangingDraftDiscardsCompletedAndPendingPreviews(bool completeBeforeNavigation)
+    {
+        using var ctx = new BunitContext();
+        var registry = new ConsoleAgentContextRegistry();
+        var client = new DelayedVersionClient();
+        ctx.Services.AddSingleton(registry);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        ctx.Services.AddSingleton<ICollectAutomationClient>(client);
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        var page = ctx.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, InMemoryCollectAutomationClient.SeedDraftId));
+        var click = page.FindAll("button").First(b => b.TextContent.Contains("View body", StringComparison.Ordinal))
+            .ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        await client.PreviewStarted.Task;
+        if (completeBeforeNavigation)
+        {
+            client.CompletePreview();
+            await click;
+            page.WaitForAssertion(() => Assert.NotEmpty(registry.Current.Filters["versionId"]));
+        }
+        page.Render(p => p.Add(v => v.DraftId, "another-draft"));
+        if (!completeBeforeNavigation)
+        {
+            client.CompletePreview();
+            await click;
+        }
+        page.WaitForAssertion(() =>
+        {
+            Assert.Equal("another-draft", registry.Current.Filters["draftId"]);
+            Assert.Empty(registry.Current.Filters["versionId"]);
+            Assert.Empty(page.FindAll(".automation-version-preview"));
+        });
+        await ctx.DisposeComponentsAsync();
+    }
+
+    [Fact]
+    public async Task DelayedConfirmationPublishesRestoreUntilCompletion()
+    {
+        using var ctx = new BunitContext();
+        var registry = new ConsoleAgentContextRegistry();
+        var client = new DelayedVersionClient();
+        var draft = (await client.OpenEditorAsync(InMemoryCollectAutomationClient.SeedDraftId)).Draft!;
+        await client.SaveVersionAsync(draft, "Second version");
+        ctx.Services.AddSingleton(registry);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        ctx.Services.AddSingleton<ICollectAutomationClient>(client);
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        var confirmation = ctx.JSInterop.Setup<bool>("confirm", _ => true);
+        var page = ctx.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, InMemoryCollectAutomationClient.SeedDraftId));
+        var click = page.FindAll("button").First(b => b.TextContent.Trim() == "Restore")
+            .ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+        await page.InvokeAsync(() => confirmation.SetResult(true));
+        await client.RestoreStarted.Task;
+        page.WaitForAssertion(() => Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount));
+        client.CompleteRestore();
+        await click;
+        page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+        await ctx.DisposeComponentsAsync();
+    }
+
     private sealed class DelayedVersionClient : ICollectAutomationClient
     {
         private readonly InMemoryCollectAutomationClient _inner = InMemoryCollectAutomationClient.CreateSeeded();

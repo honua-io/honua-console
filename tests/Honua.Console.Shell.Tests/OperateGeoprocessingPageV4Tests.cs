@@ -40,6 +40,32 @@ public sealed partial class OperateGeoprocessingPageTests
         Assert.Empty(registry.Current.Entities);
     }
 
+    [Fact]
+    public async Task ConfirmDialogPublishesPendingCancellationUntilCompletion()
+    {
+        using var context = new BunitContext();
+        var registry = new ConsoleAgentContextRegistry();
+        var cancellation = new TaskCompletionSource<OperateSectionResult<OperateJobControlOutcome>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new StubGeoprocessingClient
+        {
+            Detail = OperateSectionResult<OperateJobRun>.Allowed(Job("gp-run", "Running", "Executing", 40, "analyst.live")),
+            Diagnostics = OperateSectionResult<OperateJobDiagnosticsView>.Allowed(Projection("gp-run", cancel: true)),
+            PendingCancel = cancellation.Task
+        };
+        context.Services.AddSingleton(registry);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        context.Services.AddSingleton<IConsoleOperateObservabilityClient>(client);
+        var page = context.Render<OperateGeoprocessingPage>(p => p.Add(v => v.SelectedJobRunId, "gp-run"));
+        page.FindAll("button").First(b => b.TextContent.Contains("Cancel job", StringComparison.Ordinal)).Click();
+        var click = page.Find("[data-console-confirm-accept]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        page.WaitForAssertion(() => Assert.Single(client.CancelCalls));
+        Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
+        cancellation.SetResult(OperateSectionResult<OperateJobControlOutcome>.Denied(OperateSectionStatus.Unavailable, "Cancellation unavailable"));
+        await click;
+        page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+        await context.DisposeComponentsAsync();
+    }
+
     [Theory]
     [InlineData(PresentationMode.Legacy)]
     [InlineData(PresentationMode.V4)]

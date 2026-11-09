@@ -389,6 +389,7 @@
         _actionBusy = true;
         _actionMessage = null;
         _actionDetail = null;
+        StateHasChanged();
         try
         {
             var result = await action(jobRunId, CancellationToken.None);

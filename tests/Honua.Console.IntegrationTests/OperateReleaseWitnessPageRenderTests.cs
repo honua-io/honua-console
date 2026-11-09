@@ -109,6 +109,48 @@ public sealed class OperateReleaseWitnessPageRenderTests
         AssertPresentation(page, enabled ? "Publication evidence" : "Candidate publication evidence", enabled ? 1 : 0);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NavigationClearsPriorWitnessAndIgnoresOutOfOrderResponses(bool checkPendingIdentity)
+    {
+        using var context = CreateContext(new ConsoleV4Options { Enabled = true });
+        var registry = new ConsoleAgentContextRegistry();
+        var client = new QueuedWitnessClient();
+        context.Services.AddSingleton(registry);
+        context.Services.AddSingleton<IConsoleReleaseWitnessClient>(client);
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo(CompleteQuery);
+        var page = context.Render<OperateReleaseWitnessPage>();
+        await page.InvokeAsync(() => client.Responses[0].SetResult(OperateSectionResult<ConsoleReleaseWitnessEvidence>.Allowed(Evidence)));
+        page.WaitForAssertion(() => Assert.Equal(2, registry.Current.Entities.Count));
+        navigation.NavigateTo(CompleteQuery.Replace("one", "two", StringComparison.Ordinal));
+        page.WaitForAssertion(() => Assert.Equal(2, client.Responses.Count));
+        if (checkPendingIdentity) Assert.Empty(registry.Current.Entities);
+        navigation.NavigateTo(CompleteQuery.Replace("one", "three", StringComparison.Ordinal));
+        page.WaitForAssertion(() => Assert.Equal(3, client.Responses.Count));
+        var current = Evidence with { ItemId = "item-three", ProposalId = "proposal-three" };
+        await page.InvokeAsync(() => client.Responses[2].SetResult(OperateSectionResult<ConsoleReleaseWitnessEvidence>.Allowed(current)));
+        page.WaitForAssertion(() => Assert.Equal("item-three", registry.Current.Entities[0].Id));
+        var renderCount = page.RenderCount;
+        await page.InvokeAsync(() => client.Responses[1].SetResult(OperateSectionResult<ConsoleReleaseWitnessEvidence>.Allowed(Evidence)));
+        page.WaitForState(() => page.RenderCount > renderCount);
+        Assert.Equal("item-three", registry.Current.Entities[0].Id);
+        Assert.Equal("item-three", page.Find("[data-release-witness]").GetAttribute("data-item-id"));
+        await context.DisposeComponentsAsync();
+    }
+
+    private sealed class QueuedWitnessClient : IConsoleReleaseWitnessClient
+    {
+        public List<TaskCompletionSource<OperateSectionResult<ConsoleReleaseWitnessEvidence>>> Responses { get; } = [];
+        public Task<OperateSectionResult<ConsoleReleaseWitnessEvidence>> ObserveAsync(ConsoleReleaseWitnessRequest request, CancellationToken cancellationToken = default)
+        {
+            var response = new TaskCompletionSource<OperateSectionResult<ConsoleReleaseWitnessEvidence>>(TaskCreationOptions.RunContinuationsAsynchronously);
+            Responses.Add(response);
+            return response.Task;
+        }
+    }
+
     private static BunitContext CreateContext(ConsoleV4Options options)
     {
         var context = new BunitContext();
