@@ -354,7 +354,13 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     expect(versions.versions).toHaveLength(1);
     const version = await read(page, session, `/api/studio/v1/studio/content-items/${authored.itemId}/versions/${versions.versions[0].versionId}`);
     expect(version.ownerId).toBe(first.ownerId);
-    expect(version.envelope.body).toEqual(labelled.envelope.body);
+    const savedDraft = await readDraft(original.draftId);
+    expect(version.envelope.body).toEqual(savedDraft.envelope.body);
+    const { view: previousView, ...labelledContent } = labelled.envelope.body;
+    const { view: savedView, ...savedContent } = version.envelope.body;
+    expect(savedContent).toEqual(labelledContent);
+    const camera = await page.locator('honua-studio-canvas').evaluate((canvas: any) => canvas.mapView.camera());
+    expect(savedView).toEqual({ ...camera, pitch: camera.pitch ?? 0 });
     await test.step('independent server rendering matches the saved authored colours', async () => {
       const witness = await request.newContext({ baseURL: serverUrl,
         extraHTTPHeaders: { 'X-API-Key': process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key' } });
