@@ -169,6 +169,18 @@ pins an attested honua-studio release archive by tag and SHA-256, and
 Studio, change the lock and run the fetch; the steps are in
 [Studio release pin](docs/agent-workspace.md#studio-release-pin).
 
+For build hosts with unreliable release-download access, run
+`scripts/remote-console-dotnet.sh build src/Honua.Console.Web/Honua.Console.Web.csproj`
+(or pass `test`, `publish`, or other dotnet arguments). This prepares the pinned Studio
+archive locally and passes its cache directory to `remote-run`, which transfers it to
+the build host. The build still checks the release digest and asset provenance.
+`HONUA_STUDIO_RELEASE_CACHE` overrides the default cache under
+`${XDG_CACHE_HOME:-$HOME/.cache}/honua-console/studio`.
+
+The v4 presentation rollout uses one default-off switch: `Honua:Console:V4:Enabled`
+(or `HONUA_CONSOLE_V4_ENABLED=true`). Pages and shared components can consume the
+registered `ConsoleV4Options.Enabled`; capability and catalog access gates still apply.
+
 The parity smoke ([docs/smoke/parity.md](docs/smoke/parity.md)) drives the
 cross-surface publish → catalog → Studio → share/embed chain against in-process
 adapters and a contract-version registry; the real-server gate is the
