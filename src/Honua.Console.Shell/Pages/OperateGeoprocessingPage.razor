@@ -3,17 +3,31 @@
 @using Honua.Console.Shell.Components
 @implements IDisposable
 @inject IConsoleOperateObservabilityClient OperateClient
+@inject IServiceProvider Services
 
-<section class="console-page console-operate-page">
+<section class="console-page console-operate-page @(V4Enabled ? "console-jobs-v4" : null)">
+    @if (V4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/operate-jobs-v4.css" />
+    }
     <div class="console-page-heading operate-heading">
-        <p class="console-kicker">Operator workflow</p>
-        <h1>Geoprocessing Jobs</h1>
-        <p>
-            Live durable geoprocessing jobs from the connected honua-server: state, current phase,
-            progress, who requested each run, and per-job logs/artifacts. Bound to the admin jobs
-            contract filtered to the <span class="console-mono">Geoprocessing</span> kind; the surface
-            polls the server (no realtime stream is exposed) and stops once the open job is terminal.
-        </p>
+        @if (V4Enabled)
+        {
+            <h1>Geoprocessing jobs</h1>
+            <p>Follow job progress, review evidence, and manage runs on the connected Honua server.</p>
+            <p class="console-jobs-refresh">Jobs refresh every four seconds. An open job stops refreshing when it reaches a terminal state.</p>
+        }
+        else
+        {
+            <p class="console-kicker">Operator workflow</p>
+            <h1>Geoprocessing Jobs</h1>
+            <p>
+                Live durable geoprocessing jobs from the connected honua-server: state, current phase,
+                progress, who requested each run, and per-job logs/artifacts. Bound to the admin jobs
+                contract filtered to the <span class="console-mono">Geoprocessing</span> kind; the surface
+                polls the server (no realtime stream is exposed) and stops once the open job is terminal.
+            </p>
+        }
     </div>
 
     @if (!HasSelectedJobRoute)
@@ -21,8 +35,11 @@
         <section class="operate-section" aria-labelledby="gp-jobs-heading">
             <div class="operate-section-heading">
                 <div>
-                    <p class="console-kicker">Geoprocessing</p>
-                    <h2 id="gp-jobs-heading">Job board</h2>
+                    @if (!V4Enabled)
+                    {
+                        <p class="console-kicker">Geoprocessing</p>
+                    }
+                    <h2 id="gp-jobs-heading">@(V4Enabled ? "Jobs" : "Job board")</h2>
                 </div>
                 <div class="operate-action-row" role="group" aria-label="Filter by state">
                     @foreach (var option in StateFilters)
@@ -216,6 +233,8 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     // Poll cadence for the live list/detail. No realtime stream is exposed by the
     // server (admin job reads are no-store poll-only), so the surface re-reads on a
     // short interval and stops once the open job is terminal.

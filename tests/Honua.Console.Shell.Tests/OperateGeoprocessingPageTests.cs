@@ -13,6 +13,39 @@ namespace Honua.Console.Shell.Tests;
 
 public sealed class OperateGeoprocessingPageTests
 {
+    [Theory]
+    [InlineData(false, "Geoprocessing Jobs")]
+    [InlineData(true, "Geoprocessing jobs")]
+    public void ListModePreservesStateFilteringAcrossRollout(bool v4Enabled, string heading)
+    {
+        using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
+        ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubGeoprocessingClient
+        {
+            Jobs = OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed(
+            [
+                Job("gp-running", "Running", "Executing", 40, "analyst.live"),
+                Job("gp-done", "Succeeded", "Done", 100, "analyst.live"),
+            ])
+        });
+
+        var page = ctx.Render<OperateGeoprocessingPage>();
+
+        Assert.Equal(heading, page.Find("h1").TextContent);
+        Assert.Equal(v4Enabled, page.FindAll("section > link[rel='stylesheet'][href$='operate-jobs-v4.css']").Count == 1);
+        Assert.Equal(v4Enabled, page.FindAll(".console-jobs-v4").Count == 1);
+        Assert.Equal(2, page.FindAll("tbody tr").Count);
+        if (v4Enabled)
+        {
+            CapturePreview("jobs-list", page.Markup);
+        }
+        page.FindAll("button").Single(button => button.TextContent.Trim().StartsWith("Running", StringComparison.Ordinal)).Click();
+        Assert.Contains("gp-running", Assert.Single(page.FindAll("tbody tr")).TextContent);
+        Assert.DoesNotContain("gp-done", page.Markup);
+        page.FindAll("button").Single(button => button.TextContent.Trim() == "All").Click();
+        Assert.Equal(2, page.FindAll("tbody tr").Count);
+    }
+
     [Fact]
     public async Task ListModeRendersGeoprocessingJobs()
     {
@@ -159,11 +192,14 @@ public sealed class OperateGeoprocessingPageTests
         Assert.Contains("was not found", html);
     }
 
-    [Fact]
-    public void DetailModeOffersRetryOnlyForFailedOrCancelled()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DetailModeOffersRetryOnlyForFailedOrCancelled(bool v4Enabled)
     {
         // Succeeded is terminal but not retryable: no Retry, no Cancel.
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         var client = new StubGeoprocessingClient
         {
             Detail = OperateSectionResult<OperateJobRun>.Allowed(
@@ -179,10 +215,13 @@ public sealed class OperateGeoprocessingPageTests
         Assert.DoesNotContain(buttons, b => b.TextContent.Contains("Cancel job", StringComparison.Ordinal));
     }
 
-    [Fact]
-    public void DetailModeRetryOnFailedJobCallsRetryEndpointAndSurfacesResult()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DetailModeRetryOnFailedJobCallsRetryEndpointAndSurfacesResult(bool v4Enabled)
     {
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         var client = new StubGeoprocessingClient
         {
             Detail = OperateSectionResult<OperateJobRun>.Allowed(
@@ -377,10 +416,13 @@ public sealed class OperateGeoprocessingPageTests
         Assert.DoesNotContain("super-secret-token", html);
     }
 
-    [Fact]
-    public void DetailTimelineAppendsTheNextEventPageWithoutDroppingTheCursor()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DetailTimelineAppendsTheNextEventPageWithoutDroppingTheCursor(bool v4Enabled)
     {
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         var client = new StubGeoprocessingClient
         {
             Detail = OperateSectionResult<OperateJobRun>.Allowed(
@@ -402,6 +444,10 @@ public sealed class OperateGeoprocessingPageTests
         Assert.Equal([null, "cursor-2"], client.DiagnosticCursors);
         Assert.Contains("tail event", page.Markup);
         Assert.Contains("older event", page.Markup);
+        if (v4Enabled)
+        {
+            CapturePreview("jobs-timeline", page.Markup);
+        }
     }
 
     [Fact]
@@ -597,6 +643,18 @@ public sealed class OperateGeoprocessingPageTests
             var output = await renderer.RenderComponentAsync<OperateGeoprocessingPage>(parameters);
             return output.ToHtmlString();
         });
+    }
+
+    private static void CapturePreview(string name, string markup)
+    {
+        var directory = Environment.GetEnvironmentVariable("HONUA_CATALOG_PREVIEW_DIR");
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(directory, $"{name}.html"), new HtmlParser().ParseDocument(markup).Body!.InnerHtml);
     }
 
     private static void AssertAccessibleProgress(string markup, params (string Label, int Value)[] expected)
