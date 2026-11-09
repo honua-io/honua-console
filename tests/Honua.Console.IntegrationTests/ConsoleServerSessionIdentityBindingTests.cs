@@ -418,8 +418,28 @@ public sealed partial class ConsoleServerSessionIdentityBindingTests
         using var response = await host.Client.PostAsync("/api/agent-workspace/ga/plans/plan/apply", new StringContent("{}"));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(new[] { "apply" }, harness.Handler.Requests);
+        Assert.Equal(new[] { "session", "apply" }, harness.Handler.Requests);
         Assert.True(harness.Handler.ApplyUsedCookieOnly);
+    }
+
+    [Theory]
+    [InlineData("expired")]
+    [InlineData("provider")]
+    public async Task GaApply_UnconfiguredBinding_InvalidServerSessionRefusesBeforeDispatch(string failure)
+    {
+        await using var harness = await Harness.CreateAsync(bindIdentity: false);
+        await harness.SignInAsync();
+        await using var host = await ApplyHost.StartAsync(harness);
+        harness.Handler.Requests.Clear();
+        harness.Handler.SessionJson = InvalidSession(failure);
+
+        using var response = await host.Client.PostAsync("/api/agent-workspace/ga/plans/plan/apply", new StringContent("{}"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal("not-dispatched", response.Headers.GetValues("X-Honua-Dispatch-Status").Single());
+        Assert.Equal(new[] { "session" }, harness.Handler.Requests);
+        Assert.Null(await harness.Sessions.GetSessionAsync("env"));
+        Assert.False(harness.Partitions.TryGet("operator-a", Profile("env"), out _));
     }
 
     [Fact]
@@ -568,7 +588,7 @@ public sealed partial class ConsoleServerSessionIdentityBindingTests
         Assert.Equal(ConsoleServerSignInStatus.Redirect, second.Status);
         Assert.NotNull(await harness.Sessions.GetSessionAsync("env"));
         Assert.NotNull(await harness.Sessions.GetSessionAsync("other-env"));
-        Assert.DoesNotContain("session", harness.Handler.Requests);
+        Assert.Contains("session", harness.Handler.Requests);
     }
 
     [Theory]
