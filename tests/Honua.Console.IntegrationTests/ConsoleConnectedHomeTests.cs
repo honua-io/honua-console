@@ -49,7 +49,7 @@ public sealed class ConsoleConnectedHomeTests
             Assert.Equal("/environments", home.Find(".console-home-administration a[href='/environments']").GetAttribute("href"));
             Assert.Contains("supplementary proposal source", home.Find("[data-home-inbox-partial]").TextContent);
             Assert.Contains("in returned sources", home.Find("[data-home-total-count]").TextContent);
-            Assert.Equal(enabled ? 1 : 0, home.FindAll(".console-metric-tile").Count);
+            Assert.Equal(enabled ? 1 : 0, home.FindAll("[data-home-awaiting-count] .console-metric-tile").Count);
             Assert.Equal(enabled ? 1 : 0, home.FindAll(".console-page-heading-copy").Count);
             if (enabled)
             {
