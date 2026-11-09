@@ -1,0 +1,18 @@
+<section class="console-panel @Class" aria-labelledby="@HeadingId">
+    <div class="console-panel-heading">
+        <h2 id="@HeadingId">@Title</h2>
+        @if (Actions is not null)
+        {
+            <div class="console-panel-actions">@Actions</div>
+        }
+    </div>
+    @ChildContent
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string HeadingId { get; set; } = string.Empty;
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+}
