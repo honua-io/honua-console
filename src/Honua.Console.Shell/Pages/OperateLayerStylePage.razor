@@ -4,18 +4,61 @@
 @inject IOperateLayerStyleOverrideDataSource OverrideData
 @inject IStudioMapStyleCatalogDataSource StyleCatalog
 @inject IConsoleNotificationService Notifications
+@inject IServiceProvider Services
+
+<ConsoleAgentContext Context="@AgentContext" />
 
 <section class="console-page operate-layer-style" data-layer-style="@ResourceId">
-    <div class="console-page-heading">
-        <p class="console-kicker">Operate / Layers</p>
-        <h1>Layer presentation</h1>
-        <p>Edit this layer's drawing and popup settings. Every service exposing the layer uses these shared settings. Author shared catalog Styles in Studio.</p>
-        <p><a href="@("/operate/layers/" + ResourceId)">Back to layer</a></p>
-    </div>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Layer presentation">
+            <ChildContent><p>Edit this layer's drawing and popup settings. Every service exposing the layer uses these shared settings. Author shared catalog Styles in Studio.</p></ChildContent>
+            <Actions><a class="console-button-link console-button-secondary" href="@ConsoleAgentRoutes.ForEntity(LayerEntity)">Back to layer</a></Actions>
+        </ConsolePageHeading>
+        <ConsolePanel Title="Base styles" HeadingId="layer-base-styles">@CatalogContent</ConsolePanel>
+        <ConsolePanel Title="Layer overrides" HeadingId="layer-overrides">@OverrideContent</ConsolePanel>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Layers</p>
+            <h1>Layer presentation</h1>
+            <p>Edit this layer's drawing and popup settings. Every service exposing the layer uses these shared settings. Author shared catalog Styles in Studio.</p>
+            <p><a href="@("/operate/layers/" + ResourceId)">Back to layer</a></p>
+        </div>
 
-    <article class="console-panel" data-layer-style-catalog>
-        <p class="console-kicker">Available base styles</p>
-        <h2>Server style list</h2>
+        <article class="console-panel">
+            <p class="console-kicker">Available base styles</p>
+            <h2>Server style list</h2>
+            @CatalogContent
+        </article>
+        <section class="console-section" aria-label="Layer style overrides">
+            <div class="console-page-heading">
+                <p class="console-kicker">Layer presentation</p>
+                <h2>Layer style overrides</h2>
+            </div>
+            @OverrideContent
+        </section>
+    }
+</section>
+
+@code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private ConsoleAgentEntity LayerEntity => new() { Kind = ConsoleAgentEntityKind.Layer, Id = ResourceId, ResourceId = ResourceId };
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = $"/operate/layers/{Uri.EscapeDataString(ResourceId)}/style",
+        Entities = string.IsNullOrWhiteSpace(ResourceId) ? [] : [LayerEntity],
+        Unsaved = new()
+        {
+            ChangedFieldCount = _overrides.Slots.Sum(slot =>
+                (PopupValue(slot.SlotId) != (slot.PopupInfoJson ?? string.Empty) ? 1 : 0) +
+                (DrawingValue(slot.SlotId) != (slot.DrawingInfoJson ?? string.Empty) ? 1 : 0)),
+            PendingOperationCount = (_loading ? 1 : 0) + (_saving ? 1 : 0)
+        }
+    };
+
+    private RenderFragment CatalogContent => @<div data-layer-style-catalog>
         @if (_catalog.Issue is { } catalogState)
         {
             <div class="console-panel console-state-warning" role="status" data-style-catalog-state>
@@ -36,14 +79,9 @@
                 }
             </ul>
         }
-    </article>
+    </div>;
 
-    <section class="console-section" aria-label="Layer style overrides">
-        <div class="console-page-heading">
-            <p class="console-kicker">Layer presentation</p>
-            <h2>Layer style overrides</h2>
-        </div>
-
+    private RenderFragment OverrideContent => @<div class="@(V4Enabled ? "console-service-controls" : null)">
         @if (_loading)
         {
             <ConsoleStateView HeadingLevel="2" Kind="loading"
@@ -66,7 +104,7 @@
         {
             @foreach (var slot in _overrides.Slots)
             {
-                <article class="console-panel" data-style-slot="@slot.SlotId">
+                <article class="@(V4Enabled ? "console-section" : "console-panel")" data-style-slot="@slot.SlotId">
                     <div class="console-panel-heading">
                         <div>
                             <p class="console-kicker">@slot.ServiceName</p>
@@ -111,10 +149,8 @@
                 </div>
             }
         }
-    </section>
-</section>
+    </div>;
 
-@code {
     [CascadingParameter] public ConsolePublicationLayerContext? PublicationContext { get; set; }
 
     [Parameter]
@@ -174,6 +210,15 @@
                     PopupInfoJson: PopupValue(slot.SlotId),
                     DrawingInfoJson: DrawingValue(slot.SlotId));
                 _saveResult = await OverrideData.SaveOverrideAsync(edit);
+                if (_saveResult.Succeeded)
+                {
+                    _overrides = _overrides with
+                    {
+                        Slots = _overrides.Slots.Select(current => current.SlotId == slot.SlotId
+                            ? current with { PopupInfoJson = edit.PopupInfoJson, DrawingInfoJson = edit.DrawingInfoJson }
+                            : current).ToArray()
+                    };
+                }
             },
             setBusy: busy => { _saving = busy; StateHasChanged(); },
             failureMessage: "Couldn't save style override");
