@@ -72,7 +72,7 @@
 @code {
     [Parameter] public TimeSpan LoadBudget { get; set; } = ConsoleReadBudget.Default;
     private readonly CancellationTokenSource _lifetime = new();
-    private AuthenticationStateProvider? _authentication;
+    private ConsoleEnvironmentSubscription? _environmentSubscription;
     private OperateSectionResult<ConsoleEnvironmentProfile?> _environment =
         OperateSectionResult<ConsoleEnvironmentProfile?>.Allowed(null);
     private ConsoleEnvironmentProfile? _profile;
@@ -108,9 +108,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        Profiles.ActiveProfileChanged += OnProfileChanged;
-        _authentication = Services.GetService<AuthenticationStateProvider>();
-        if (_authentication is not null) _authentication.AuthenticationStateChanged += OnAuthenticationChanged;
+        _environmentSubscription = new ConsoleEnvironmentSubscription(Profiles,
+            Services.GetService<AuthenticationStateProvider>(), OnProfileChanged);
         await RefreshEnvironmentAsync();
     }
 
@@ -143,19 +142,10 @@
         _ = InvokeAsync(() => RefreshEnvironmentAsync(generation));
     }
 
-    private void OnAuthenticationChanged(Task<AuthenticationState> state)
-    {
-        if (_disposed) return;
-        Profiles.ActiveProfileChanged -= OnProfileChanged;
-        Profiles.ActiveProfileChanged += OnProfileChanged;
-        OnProfileChanged();
-    }
-
     public void Dispose()
     {
         _disposed = true;
-        Profiles.ActiveProfileChanged -= OnProfileChanged;
-        if (_authentication is not null) _authentication.AuthenticationStateChanged -= OnAuthenticationChanged;
+        _environmentSubscription?.Dispose();
         _lifetime.Cancel();
         _lifetime.Dispose();
     }

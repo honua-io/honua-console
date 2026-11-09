@@ -17,29 +17,14 @@
 
 @code {
     [Parameter] public string FolderId { get; set; } = string.Empty;
-    private IConsoleEnvironmentProfileStore? _profiles;
-    private AuthenticationStateProvider? _authentication;
+    private ConsoleEnvironmentSubscription? _environmentSubscription;
     private int _generation;
     private bool _disposed;
 
-    protected override void OnInitialized()
-    {
-        _profiles = Services.GetService<IConsoleEnvironmentProfileStore>();
-        _authentication = Services.GetService<AuthenticationStateProvider>();
-        if (_profiles is not null) _profiles.ActiveProfileChanged += Refresh;
-        if (_authentication is not null) _authentication.AuthenticationStateChanged += OnAuthenticationChanged;
-    }
-
-    private void OnAuthenticationChanged(Task<AuthenticationState> state)
-    {
-        if (_disposed) return;
-        if (_profiles is not null)
-        {
-            _profiles.ActiveProfileChanged -= Refresh;
-            _profiles.ActiveProfileChanged += Refresh;
-        }
-        Refresh();
-    }
+    protected override void OnInitialized() =>
+        _environmentSubscription = new ConsoleEnvironmentSubscription(
+            Services.GetService<IConsoleEnvironmentProfileStore>(),
+            Services.GetService<AuthenticationStateProvider>(), Refresh);
 
     private void Refresh()
     {
@@ -50,7 +35,6 @@
     public void Dispose()
     {
         _disposed = true;
-        if (_profiles is not null) _profiles.ActiveProfileChanged -= Refresh;
-        if (_authentication is not null) _authentication.AuthenticationStateChanged -= OnAuthenticationChanged;
+        _environmentSubscription?.Dispose();
     }
 }
