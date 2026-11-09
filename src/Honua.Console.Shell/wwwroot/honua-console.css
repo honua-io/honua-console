@@ -7,6 +7,7 @@
 @import url("css/catalog-admin.css");
 @import url("css/metadata-preview.css");
 @import url("css/service-detail.css");
+@import url("css/v4-shell.css");
 
 * {
     box-sizing: border-box;
