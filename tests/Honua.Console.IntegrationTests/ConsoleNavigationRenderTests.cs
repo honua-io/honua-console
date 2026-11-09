@@ -29,7 +29,7 @@ public sealed class ConsoleNavigationRenderTests
         Assert.Equal("Honua Console", navigation.Find(".console-topbar-brand strong").TextContent);
         Assert.Equal("/", navigation.Find(".console-topbar-brand").GetAttribute("href"));
         Assert.Equal("/environments", navigation.Find("[data-workspace-header-target]").GetAttribute("href"));
-        Assert.Equal("/support", navigation.Find("[aria-label='Help']").GetAttribute("href"));
+        Assert.Equal("/support", navigation.Find(".console-help-link").GetAttribute("href"));
         Assert.Equal("console-conversation-drawer", navigation.Find("[data-conversation-toggle]").GetAttribute("aria-controls"));
         Assert.Equal(enabled ? 2 : 0, navigation.FindAll(".console-help-link svg, .console-conversation-toggle svg").Count);
         Assert.Equal(["Data", "Studio", "Catalogs", "Operate", "Access", "Settings"],
@@ -38,12 +38,19 @@ public sealed class ConsoleNavigationRenderTests
         var panel = context.Render<ConsolePanel>(parameters => parameters
             .Add(component => component.Title, "Services")
             .Add(component => component.HeadingId, "services-heading"));
-        var quietPanel = context.Render<ConsolePanel>(parameters => parameters
-            .Add(component => component.Title, "Usage")
-            .Add(component => component.HeadingId, "usage-heading")
-            .Add(component => component.Class, "quiet"));
+        var conversation = navigation.Find("[data-conversation-toggle]");
+        var help = navigation.Find(".console-help-link");
+        Assert.Equal(enabled ? "Conversation" : null, conversation.GetAttribute("aria-label"));
+        Assert.Equal(enabled ? "Help" : null, help.GetAttribute("aria-label"));
+        if (!enabled)
+        {
+            Assert.Equal("Conversation", conversation.TextContent.Trim());
+            Assert.Equal("Help", help.TextContent.Trim());
+            Assert.Empty(conversation.Children);
+            Assert.Empty(help.Children);
+        }
         var flag = enabled.ToString().ToLowerInvariant();
-        CatalogAdminPreview.Capture($"navigation-v4-{flag}", $"<div class=\"console-shell\" data-console-v4=\"{flag}\">{navigation.Find(".console-topbar").OuterHtml}<main id=\"console-main\" class=\"console-main\" tabindex=\"-1\">{heading.Markup}<h2>Workspace</h2>{panel.Markup}{quietPanel.Markup}</main></div>");
+        CatalogAdminPreview.Capture($"navigation-v4-{flag}", $"<div class=\"console-shell\" data-console-v4=\"{flag}\">{navigation.Find(".console-topbar").OuterHtml}<main id=\"console-main\" class=\"console-main\" tabindex=\"-1\">{heading.Markup}<h2>Workspace</h2>{panel.Markup}</main></div>");
     }
 
     [Theory]

@@ -47,6 +47,7 @@
     flex: 0 0 34px;
     width: 34px;
     height: 34px;
+    min-height: 34px;
     padding: 0;
     border: 1px solid transparent;
     border-radius: var(--radius-md);

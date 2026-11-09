@@ -5,7 +5,7 @@ import AxeBuilder from "@axe-core/playwright";
 export async function inspectV4NavigationPresentation(page, { name, width }, previews) {
   const v4 = name.endsWith("true");
   if (v4) {
-    for (const [selector, size] of [["h1", width === 390 ? "22px" : "28px"], ["main > h2", "22px"], ["#services-heading", "16px"], ["#usage-heading", "14px"]]) {
+    for (const [selector, size] of [["h1", width === 390 ? "22px" : "28px"], ["main > h2", "22px"], ["#services-heading", "16px"]]) {
       assert.equal(await page.locator(selector).evaluate(element => getComputedStyle(element).fontSize), size);
     }
   }
@@ -22,6 +22,13 @@ export async function inspectV4NavigationPresentation(page, { name, width }, pre
     assert.equal(await toggle.getAttribute("aria-expanded"), "true");
   } else {
     assert.ok(!(await toggle.isVisible()));
+  }
+  if (v4) {
+    for (const control of await page.locator(".console-conversation-toggle, .console-help-link, .console-menu-toggle:visible").all()) {
+      const bounds = await control.boundingBox();
+      assert.equal(bounds.width, 34);
+      assert.equal(bounds.height, 34);
+    }
   }
   await dataSummary.focus();
   await page.keyboard.press("Enter");

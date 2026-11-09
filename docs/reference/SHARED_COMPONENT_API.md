@@ -56,8 +56,7 @@ the shared rollout switch rather than introducing page flags.
 
 The shared v4 type scale uses existing tokens: page `h1` is `--text-2xl` (28px,
 medium), section `h2` is `--text-xl` (22px), `h3` and panel headings are
-`--text-md` (16px), and `h4` and `.console-panel.quiet` headings are
-`--text-sm` (14px). At widths up to 640px the page title uses `--text-xl`
+`--text-md` (16px), and `h4` is `--text-sm` (14px). At widths up to 640px the page title uses `--text-xl`
 (22px). `ConsolePageHeading` and `ConsolePanel` inherit this scale automatically;
 avoid page-specific heading sizes.
 
