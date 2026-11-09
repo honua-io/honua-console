@@ -34,6 +34,9 @@ try {
         assert.equal((await inventory.locator(".console-metric-value").textContent()).trim(), "500");
         assert.equal((await inventory.locator("[data-home-layer-count]").textContent()).trim(), "5,000");
         assert.equal((await inventory.locator("[data-home-folder-count]").textContent()).trim(), "1");
+        const tile = inventory.locator(".console-metric-tile");
+        assert.equal(await tile.evaluate(element => getComputedStyle(element).borderTopWidth), "0px");
+        assert.equal(await tile.evaluate(element => getComputedStyle(element).boxShadow), "none");
         const leadSize = await inventory.locator(".console-metric-value").evaluate(element => parseFloat(getComputedStyle(element).fontSize));
         const secondary = await inventory.locator(".console-home-inventory-details dd").evaluateAll(elements => elements.map(element => parseFloat(getComputedStyle(element).fontSize)));
         assert.ok(secondary.every(size => size < leadSize), "Services must be the single large inventory count");
