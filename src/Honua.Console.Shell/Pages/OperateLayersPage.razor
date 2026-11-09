@@ -28,22 +28,10 @@
     private ConsoleAgentPageContext AgentContext => new()
     {
         Route = "/operate/layers",
-        Entities = _layers.Select(row => LayerEntity(row.Layer)).Distinct().ToArray()
+        Entities = _layers.Select(row => ConsoleAgentEntity.ForLayer(row.Layer)).Distinct().ToArray()
     };
 
-    private static ConsoleAgentEntity LayerEntity(OperateServiceLayerProjection layer) => new()
-    {
-        Kind = ConsoleAgentEntityKind.Layer,
-        Id = layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        ResourceId = layer.CanonicalResourceId
-    };
 
-    private static ConsoleAgentEntity ServiceEntity(OperateServiceDetail service) => new()
-    {
-        Kind = ConsoleAgentEntityKind.Service,
-        Id = service.Name,
-        ServiceName = service.Name
-    };
 
     private RenderFragment LayerList => @<text>
     <OperateCapabilityStateList States="@_states" />
@@ -69,19 +57,19 @@
                     @foreach (var row in _layers)
                     {
                         <tr data-layer-id="@row.Layer.LayerId" data-service-id="@row.Service.Name">
-                            <td><a href="@(V4Enabled ? ConsoleAgentRoutes.ForEntity(LayerEntity(row.Layer)) : $"/operate/layers/{row.Layer.CanonicalResourceId}")">@row.Layer.LayerId</a></td>
+                            <td><a href="@(V4Enabled ? ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForLayer(row.Layer)) : $"/operate/layers/{row.Layer.CanonicalResourceId}")">@row.Layer.LayerId</a></td>
                             <td>
                                 @if (V4Enabled)
                                 {
                                     <ConsoleNameIdentifier Name="@row.Layer.Name" Identifier="@row.Layer.CanonicalResourceId"
-                                                           Href="@ConsoleAgentRoutes.ForEntity(LayerEntity(row.Layer))" />
+                                                           Href="@ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForLayer(row.Layer))" />
                                 }
                                 else
                                 {
                                     @row.Layer.Name
                                 }
                             </td>
-                            <td><a href="@(V4Enabled ? ConsoleAgentRoutes.ForEntity(ServiceEntity(row.Service)) : $"/operate/services/{row.Service.Name}/settings")">@row.Service.DisplayName</a></td>
+                            <td><a href="@(V4Enabled ? ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForService(row.Service.Name)) : $"/operate/services/{row.Service.Name}/settings")">@row.Service.DisplayName</a></td>
                             <td>@row.Layer.Geometry</td>
                             <td>
                                 <a href="@($"/operate/resources/{row.Layer.CanonicalResourceId}")">@row.Layer.CanonicalResourceName</a>

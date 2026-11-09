@@ -11,6 +11,20 @@ public sealed record ConsoleAgentEntity
     public required string Id { get; init; }
     public string? ServiceName { get; init; }
     public string? ResourceId { get; init; }
+
+    public static ConsoleAgentEntity ForLayer(OperateServiceLayerProjection layer) => new()
+    {
+        Kind = ConsoleAgentEntityKind.Layer,
+        Id = layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        ResourceId = layer.CanonicalResourceId
+    };
+
+    public static ConsoleAgentEntity ForService(string name) => new()
+    {
+        Kind = ConsoleAgentEntityKind.Service,
+        Id = name,
+        ServiceName = name
+    };
 }
 
 public sealed record ConsoleAgentUnsavedSummary

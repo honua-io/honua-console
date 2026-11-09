@@ -13,9 +13,11 @@ public sealed class OperateLayerFieldAliasHiddenTests
     private const int LayerId = 7;
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Save_SetsAliasAndHidden_IssuesUpdateAndReReadsFields(bool enabled)
+    [InlineData(false, ResourceId)]
+    [InlineData(true, ResourceId)]
+    [InlineData(true, "7")]
+    [InlineData(true, "CONN-1-LAYER-7")]
+    public void Save_SetsAliasAndHidden_IssuesUpdateAndReReadsFields(bool enabled, string layerReference)
     {
         var fields = new RecordingLayerFieldsOperation(new ConsoleLayerFields
         {
@@ -37,7 +39,7 @@ public sealed class OperateLayerFieldAliasHiddenTests
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(LayerData(ResourceId, LayerId));
         ctx.Services.AddSingleton<IConsoleLayerFieldsOperation>(fields);
 
-        var page = ctx.Render<OperateLayerDetailPage>(p => p.Add(c => c.ResourceId, ResourceId));
+        var page = ctx.Render<OperateLayerDetailPage>(p => p.Add(c => c.ResourceId, layerReference));
 
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll("[data-field-row]")),
@@ -63,7 +65,7 @@ public sealed class OperateLayerFieldAliasHiddenTests
         page.Find("[data-field-hidden]").Change(true);
         if (enabled)
         {
-            Assert.True(registry.Current.Unsaved.ChangedFieldCount >= 2);
+            Assert.Equal(2, registry.Current.Unsaved.ChangedFieldCount);
             Assert.DoesNotContain("Status code", System.Text.Json.JsonSerializer.Serialize(registry.Current.Unsaved), StringComparison.Ordinal);
         }
         page.Find("[data-field-save]").Click();
