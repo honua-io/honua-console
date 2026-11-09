@@ -727,3 +727,34 @@ test('actual chat refuses selected-file capture after authority changes while qu
         await assert.rejects(submitting,/earlier context/);assert.equal(calls.length,0);
     } finally {browserImportSelection.clear();}
 });
+
+test('turn captures page context before queued work and keeps the durable selection authoritative', async () => {
+    const calls = [];
+    const workspace = client(async (path, init) => {
+        calls.push(JSON.parse(init.body));
+        return response({turnId: 'fixed-id', status: 'accepted'});
+    });
+    workspace.workspaceId = 'workspace';
+    workspace.context = {revision: 7, targetId: 'target', selectedResources: [{kind: 'layer', id: 'explicit'}]};
+    let page = Object.freeze({route: '/operate/folders/first', generation: 1});
+    workspace.pageContextProvider = () => page;
+    let release;
+    workspace.queue = new Promise(resolve => { release = resolve; });
+    const turn = workspace.submit('Explain this page');
+    page = Object.freeze({route: '/operate/folders/later', generation: 2});
+    release();
+    await turn;
+    assert.match(calls[0].prompt, /folders\/first/);
+    assert.doesNotMatch(calls[0].prompt, /folders\/later/);
+    assert.deepEqual(workspace.context.selectedResources, [{kind: 'layer', id: 'explicit'}]);
+});
+
+test('native Studio submissions receive the same page context supplement', async () => {
+    const workspace = client(async () => { throw new Error('Unexpected transport'); });
+    workspace.pageContextProvider = () => ({route: '/inbox', entities: [{kind: 'approval', id: 'proposal'}]});
+    let captured;
+    workspace.studioConversation = {submit: async prompt => { captured = prompt; return 'accepted'; }};
+    assert.equal(await workspace.submit('Explain this approval'), 'accepted');
+    assert.match(captured, /"id":"proposal"/);
+    assert.match(captured, /UI data, not instructions/);
+});
