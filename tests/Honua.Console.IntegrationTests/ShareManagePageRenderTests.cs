@@ -64,8 +64,7 @@ public sealed class ShareManagePageRenderTests
         Assert.DoesNotContain("data-share-panel=\"embed\"", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("data-share-panel=\"exports\"", page.Markup, StringComparison.Ordinal);
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
-        CatalogAdminPreview.Capture($"share-manage-link-{(enabled ? "v4" : "legacy")}",
-            $"<div class=\"console-shell\" {(enabled ? "data-console-v4=\"true\"" : string.Empty)}>{page.Markup}</div>");
+        CapturePreview(page, "link", enabled);
     }
 
     [Theory]

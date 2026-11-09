@@ -6,8 +6,8 @@
     margin-top: var(--space-3);
 }
 .console-shell[data-console-v4="true"] .share-manage :is(input:not([type="checkbox"]), select, textarea) {
-    border-radius: 6px;
-    padding: 12px;
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
     border-color: var(--c-border-strong);
 }
 .console-shell[data-console-v4="true"] .share-manage input[type="checkbox"] {

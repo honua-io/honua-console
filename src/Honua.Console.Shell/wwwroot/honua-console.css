@@ -23,7 +23,6 @@
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
-input[type="datetime-local"]:focus-within,
 select:focus-visible,
 textarea:focus-visible,
 summary:focus-visible,
@@ -31,6 +30,15 @@ summary:focus-visible,
 [role="button"]:focus-visible,
 [role="option"]:focus-visible,
 [role="tab"]:focus-visible {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: var(--honua-focus-ring);
+    border-radius: 4px;
+}
+
+/* Chromium focuses the native date editor inside Share expiry inputs. Keep the whole control
+   outlined while either the input or its native editor is focused. */
+.share-manage input[type="datetime-local"]:focus-within {
     outline: 2px solid transparent;
     outline-offset: 2px;
     box-shadow: var(--honua-focus-ring);
@@ -1484,6 +1492,7 @@ p {
 }
 
 .console-table-wrap {
+    position: relative;
     overflow-x: auto;
     border: 1px solid var(--honua-border);
     border-radius: 8px;
