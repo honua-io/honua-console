@@ -226,3 +226,33 @@ test('a pending create retains its receipt when the selected draft changes befor
     assert.equal(f.calls.length, 1);
     assert.deepEqual(f.attached, []);
 });
+
+
+test('confirmed create rejection can be acknowledged after reload and corrected with a new command', async () => {
+    const f = fixture();
+    f.app.createWorkspaceDraft = async () => {
+        throw Object.assign(new Error('Package validation failed'), { status: 400, createDraftRejected: true });
+    };
+    await assert.rejects(f.session.submit('map'), /validation/);
+    const restored = new StudioDraftCreateSession(f.app, f.options);
+    assert.equal(restored.read().status, 'rejected');
+    restored.acknowledge();
+    f.app.createWorkspaceDraft = async (key, commandId) => {
+        f.calls.push({ key, commandId });
+        return { draftId: 'corrected-draft' };
+    };
+    const corrected = new StudioDraftCreateSession(f.app, { ...f.options, uuid: () => 'corrected-command' });
+    await corrected.submit('corrected-map');
+    assert.deepEqual(f.calls, [{ key: 'corrected-map', commandId: 'corrected-command' }]);
+});
+
+test('unclassified HTTP failures retain the original command because creation may precede a failed attach', async () => {
+    for (const status of [400, 403, 409, 500]) {
+        const f = fixture();
+        f.app.createWorkspaceDraft = async () => { throw Object.assign(new Error('Request failed'), { status }); };
+        await assert.rejects(f.session.submit('map'), /failed/);
+        assert.equal(f.session.read().status, 'submitting');
+        assert.throws(() => f.session.acknowledge(), /confirmed outcome/);
+        await assert.rejects(f.session.submit('changed-map'), /original/);
+    }
+});

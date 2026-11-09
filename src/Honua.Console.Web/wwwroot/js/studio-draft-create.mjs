@@ -73,7 +73,7 @@ export class StudioDraftCreateSession {
         if (record && record.status !== 'submitting') return record;
         record ??= { packageKey, commandId: this.uuid(), status: 'submitting' };
         this.save(record, context);
-        const result = await this.app.createWorkspaceDraft(record.packageKey, record.commandId);
+        const result = await this.create(record, context);
         // Immediate creation attaches inside Studio; only authority must stay stable in that case.
         if (this.context() !== context) throw new Error('The workspace changed.');
         if (result?.status === 'awaiting-approval' && validId(result.operationInstanceId) && validId(result.proposalId)) {
@@ -82,6 +82,14 @@ export class StudioDraftCreateSession {
         else throw new Error('The create action returned no durable receipt. Retry the original action.');
         this.save(record, context);
         return record;
+    }
+    async create(record, context) {
+        try { return await this.app.createWorkspaceDraft(record.packageKey, record.commandId); }
+        catch (error) {
+            // HTTP status alone also describes failures while attaching an already-created draft.
+            if (error?.createDraftRejected === true) this.save({ ...record, status: 'rejected' }, context);
+            throw error;
+        }
     }
     acknowledgeUnreadable() {
         this.context();
