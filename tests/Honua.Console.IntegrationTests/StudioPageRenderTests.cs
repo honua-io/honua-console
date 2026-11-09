@@ -16,7 +16,7 @@ public sealed class StudioPageRenderTests
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
     [InlineData(ConsolePresentationMode.V4)]
-    public void AgentContextPublishesOnlySafeRouteAndClearsOnDisposal(ConsolePresentationMode mode)
+    public async Task AgentContextPublishesOnlySafeRouteAndClearsOnDisposal(ConsolePresentationMode mode)
     {
         using var context = new BunitContext();
         var registry = new ConsoleAgentContextRegistry();
@@ -32,7 +32,7 @@ public sealed class StudioPageRenderTests
         Assert.Empty(registry.Current.Selection);
         Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
         var generation = registry.Current.Generation;
-        page.Dispose();
+        await context.DisposeComponentsAsync();
         if (mode == ConsolePresentationMode.V4) Assert.True(registry.Current.Generation > generation);
         else Assert.Equal(generation, registry.Current.Generation);
     }

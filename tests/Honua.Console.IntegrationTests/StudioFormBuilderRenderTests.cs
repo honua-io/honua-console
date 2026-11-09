@@ -140,7 +140,7 @@ public sealed class StudioFormBuilderRenderTests
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
     [InlineData(ConsolePresentationMode.V4)]
-    public void FormBuilder_EditAfterValidation_ReGatesPublishAndValidate(ConsolePresentationMode presentation)
+    public async Task FormBuilder_EditAfterValidation_ReGatesPublishAndValidate(ConsolePresentationMode presentation)
     {
         var data = new FakeFormDataSource
         {
@@ -174,7 +174,7 @@ public sealed class StudioFormBuilderRenderTests
         Assert.Contains("out of date", page.Markup, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(presentation == ConsolePresentationMode.V4 ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
         Assert.Empty(registry.Current.Filters);
-        page.Dispose();
+        await ctx.DisposeComponentsAsync();
         Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
     }
 

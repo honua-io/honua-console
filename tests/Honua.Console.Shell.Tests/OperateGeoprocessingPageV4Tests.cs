@@ -37,7 +37,7 @@ public sealed partial class OperateGeoprocessingPageTests
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
     [InlineData(ConsolePresentationMode.V4)]
-    public void AgentContextTracksTheVisibleStateFilterAndClearsOnDisposal(ConsolePresentationMode mode)
+    public async Task AgentContextTracksTheVisibleStateFilterAndClearsOnDisposal(ConsolePresentationMode mode)
     {
         using var context = new BunitContext();
         var registry = new ConsoleAgentContextRegistry();
@@ -57,7 +57,7 @@ public sealed partial class OperateGeoprocessingPageTests
         }
         Assert.Equal("Running", registry.Current.Filters["state"]);
         Assert.Empty(registry.Current.Selection);
-        page.Dispose();
+        await context.DisposeComponentsAsync();
         Assert.Empty(registry.Current.Filters);
     }
 

@@ -13,7 +13,7 @@ public sealed class StudioWorkflowEditorPageTests
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy, 0)]
     [InlineData(ConsolePresentationMode.V4, 1)]
-    public void Publish_AfterValidationFailedSave_DoesNotShipStalePriorVersion(ConsolePresentationMode presentation, int expectedV4Headings)
+    public async Task Publish_AfterValidationFailedSave_DoesNotShipStalePriorVersion(ConsolePresentationMode presentation, int expectedV4Headings)
     {
         var client = new RecordingWorkflowPackageClient();
         var registry = new ConsoleAgentContextRegistry();
@@ -70,7 +70,7 @@ public sealed class StudioWorkflowEditorPageTests
             page.Markup,
             StringComparison.Ordinal);
         Assert.Equal(presentation == ConsolePresentationMode.V4 ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
-        page.Dispose();
+        await ctx.DisposeComponentsAsync();
         Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
     }
 

@@ -132,7 +132,7 @@ public sealed class StudioReportBuilderRenderTests
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
     [InlineData(ConsolePresentationMode.V4)]
-    public void ReportBuilder_AddPanel_RendersOutlineEntryAndEmbeddedItemInThePage(ConsolePresentationMode presentation)
+    public async Task ReportBuilder_AddPanel_RendersOutlineEntryAndEmbeddedItemInThePage(ConsolePresentationMode presentation)
     {
         var data = new FakeReportDataSource();
         using var ctx = new Bunit.BunitContext();
@@ -167,7 +167,7 @@ public sealed class StudioReportBuilderRenderTests
             },
             TimeSpan.FromSeconds(5));
         Assert.Equal(presentation == ConsolePresentationMode.V4 ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
-        page.Dispose();
+        await ctx.DisposeComponentsAsync();
         Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
     }
 

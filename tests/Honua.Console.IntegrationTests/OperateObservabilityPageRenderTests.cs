@@ -12,7 +12,7 @@ public sealed class OperateObservabilityPageRenderTests
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
     [InlineData(ConsolePresentationMode.V4)]
-    public void AgentContextTracksAppliedFiltersAndRouteJobWithoutDraftValues(ConsolePresentationMode mode)
+    public async Task AgentContextTracksAppliedFiltersAndRouteJobWithoutDraftValues(ConsolePresentationMode mode)
     {
         using var context = new BunitContext();
         var registry = new ConsoleAgentContextRegistry();
@@ -43,7 +43,7 @@ public sealed class OperateObservabilityPageRenderTests
         Assert.Equal("release", registry.Current.Filters["eventType"]);
         page.Render(parameters => parameters.Add(p => p.SelectedJobRunId, "job-next"));
         page.WaitForAssertion(() => Assert.Equal("job-next", Assert.Single(registry.Current.Selection).Id));
-        page.Dispose();
+        await context.DisposeComponentsAsync();
         Assert.Empty(registry.Current.Selection);
         Assert.Empty(registry.Current.Filters);
     }
