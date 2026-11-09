@@ -208,6 +208,19 @@ jobs:
             artifacts/catalog-preview/processes-*
           if-no-files-found: error
 
+      - name: Verify rendered Activity presentation
+        run: node e2e/playwright/activity-preview.mjs
+        env:
+          HONUA_ACTIVITY_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload Activity presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: activity-presentation
+          path: artifacts/catalog-preview/activity-*
+          if-no-files-found: error
+
       - name: Upload catalog presentation evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
