@@ -772,6 +772,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     private static BunitContext Context()
     {
         var context = new BunitContext();
+        context.Services.AddSingleton<ConsoleAgentContextRegistry>();
         context.AddAuthorization().SetAuthorized("synthetic-operator");
         return context;
     }

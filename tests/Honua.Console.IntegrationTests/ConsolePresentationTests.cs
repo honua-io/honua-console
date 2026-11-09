@@ -19,6 +19,7 @@ public sealed class ConsolePresentationTests
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.AddConsoleNotifications();
         context.Services.AddSingleton(new CatalogAdminOptions());
+        context.Services.AddSingleton<ConsoleAgentContextRegistry>();
         context.Services.AddSingleton<IConsoleProductMode>(new ConfiguredConsoleProductMode(ConsoleProductMode.Full));
         context.Services.AddSingleton<IConsoleCapabilityManifest>(ConsoleCapabilityManifest.FromConfigurationList(null));
         context.AddAuthorization().SetNotAuthorized();
@@ -43,6 +44,7 @@ public sealed class ConsolePresentationTests
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.AddConsoleNotifications();
         context.Services.AddSingleton(new CatalogAdminOptions());
+        context.Services.AddSingleton<ConsoleAgentContextRegistry>();
         context.Services.AddSingleton<IConsoleProductMode>(
             new ConfiguredConsoleProductMode(ConsoleProductModeParser.Parse(mode)));
         context.Services.AddSingleton<IConsoleCapabilityManifest>(ConsoleCapabilityManifest.FromConfigurationList(null));

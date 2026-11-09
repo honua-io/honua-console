@@ -1,3 +1,4 @@
+import {attachConsolePageContext, promptWithConsolePageContext} from './console-agent-context.mjs';
 import {hasOperatorShell} from './console-shell-context.mjs';
 import {mountWorkspacePreferences} from './operator-preferences.mjs';
 import {mountRecentVisits} from './operator-recent-visits.mjs';
@@ -371,6 +372,7 @@ export class AgentWorkspace {
     }
     async captureAndSubmit(prompt, options = {}) {
         if (!prompt.trim()) throw new Error('Enter a message.');
+        const pageContext = this.pageContextProvider?.();
         const browserFile = browserImportSelection.forTurn(this);
         this.assertPublishEditsCurrent(true);
         const styleFocus = this.sharedStyleProvider?.();
@@ -429,7 +431,7 @@ export class AgentWorkspace {
             const reply=options.questionReply ? await this.questionReplies.prepare(options.questionReply) : null;
             requireSameAuthority();
             if (options.questionReply) this.questionReplies.requireContext(options.questionReply);
-            capturedPrompt = promptWithStudioDesignFocus(prompt, designFocus, this.context.task);
+            capturedPrompt = promptWithConsolePageContext(promptWithStudioDesignFocus(prompt, designFocus, this.context.task), pageContext);
             const payload={
                 turnId: this.uuid(), viewId: this.viewId, contextRevision: this.context.revision, prompt:capturedPrompt,
                 ...(binding.deployTargetId ? {deployTargetId:binding.deployTargetId} : {}),
@@ -644,6 +646,7 @@ export function mountWorkspace() {
     workspace.selectionProvider ||= () => selectedResource(location.pathname);
     // One session instance lives above route components; embedded Studio receives this same object.
     Object.defineProperty(window, 'honuaAgentWorkspace', { value: workspace, configurable: true });
+    attachConsolePageContext(workspace);
     const report = error => { status.textContent = error.message; };
     const review = new GaSpecReview(workspace);
     const renderReview = () => {
