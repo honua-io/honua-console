@@ -23,7 +23,7 @@ public sealed class ConsoleFolderContentsTests
         var page = context.Render<OperateFolderPage>(parameters => parameters.Add(component => component.FolderId, "transport"));
         Assert.Equal("/operate/services#folders", page.Find("a").GetAttribute("href"));
         Assert.Empty(source.Reads);
-        CatalogAdminPreview.Capture("folder-legacy", $"<div class=\"console-shell\" data-console-v4=\"false\">{page.Markup}</div>");
+        CatalogAdminPreview.Capture("folder-legacy", $"<div class=\"console-shell\">{page.Markup}</div>");
     }
 
     [Fact]

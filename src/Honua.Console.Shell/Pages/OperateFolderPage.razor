@@ -19,7 +19,6 @@
     [Parameter] public string FolderId { get; set; } = string.Empty;
     private ConsoleEnvironmentSubscription? _environmentSubscription;
     private int _generation;
-    private bool _disposed;
 
     protected override void OnInitialized() =>
         _environmentSubscription = new ConsoleEnvironmentSubscription(
@@ -28,13 +27,11 @@
 
     private void Refresh()
     {
-        if (_disposed) return;
         _ = InvokeAsync(() => { _generation++; StateHasChanged(); });
     }
 
     public void Dispose()
     {
-        _disposed = true;
         _environmentSubscription?.Dispose();
     }
 }

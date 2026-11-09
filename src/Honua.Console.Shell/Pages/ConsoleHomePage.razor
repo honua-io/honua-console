@@ -137,7 +137,6 @@
 
     private void OnProfileChanged()
     {
-        if (_disposed) return;
         var generation = Interlocked.Increment(ref _generation);
         _ = InvokeAsync(() => RefreshEnvironmentAsync(generation));
     }

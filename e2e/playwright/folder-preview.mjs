@@ -10,7 +10,7 @@ for (const variant of ["v4", "legacy"]) {
     prepareMarkup: markup => markup,
     scope: "main", controls: "main :is(a[href], button, [tabindex='0']):not(:disabled):visible",
     inspect: async page => {
-      assert.equal(await page.locator(".console-shell").getAttribute("data-console-v4"), variant === "v4" ? "true" : "false");
+      assert.equal(await page.locator(".console-shell").getAttribute("data-console-v4"), variant === "v4" ? "true" : null);
       if (variant === "legacy") {
         assert.equal(await page.locator(".console-folder-services").count(), 0);
         assert.equal(await page.getByRole("link", { name: "Manage Folders in Services" }).getAttribute("href"), "/operate/services#folders");
