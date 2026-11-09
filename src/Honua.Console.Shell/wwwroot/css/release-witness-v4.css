@@ -1,0 +1,24 @@
+.console-release-witness-v4 {
+    gap: var(--space-6);
+}
+
+.console-release-witness-v4 .console-panel {
+    border: 1px solid var(--c-border);
+    box-shadow: var(--shadow-panel);
+}
+
+.console-release-witness-v4 .console-definition-list dd {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+    .console-release-witness-v4 .console-panel-heading {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .console-release-witness-v4 .console-definition-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

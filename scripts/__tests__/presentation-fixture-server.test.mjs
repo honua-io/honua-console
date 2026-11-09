@@ -12,6 +12,7 @@ test("presentation fixtures serve configured assets and isolate the asset root",
   await fs.mkdir(assets);
   await fs.writeFile(path.join(assets, "fixture.css"), "body { color: black; }");
   await fs.writeFile(path.join(directory, "outside.css"), "private");
+  await fs.writeFile(path.join(assets, "navigation.js"), "document.body.dataset.ready = true;");
   await fs.writeFile(path.join(assets, "private.json"), "private");
   for (const assetPrefix of ["/", "/_content/Honua.Console.Shell/"]) {
     const server = await startPresentationFixtureServer({
@@ -21,14 +22,20 @@ test("presentation fixtures serve configured assets and isolate the asset root",
       assets,
       assetPrefix,
       unwrappedPages: ["navigation"],
+      scripts: new Map([["navigation", [`${assetPrefix}navigation.js`]]]),
     });
     try {
       const origin = `http://127.0.0.1:${server.address().port}`;
       const response = await fetch(`${origin}/page`);
       assert.match(response.headers.get("content-security-policy"), /script-src 'none'/);
       assert.match(await response.text(), /<main class="console-main"><h1>Evidence<\/h1><\/main>/);
-      const navigation = await (await fetch(`${origin}/navigation`)).text();
-      assert.match(navigation, /<body><nav>Browse<\/nav><\/body>/);
+      const navigationResponse = await fetch(`${origin}/navigation`);
+      assert.match(navigationResponse.headers.get("content-security-policy"), /script-src 'self'/);
+      const navigation = await navigationResponse.text();
+      assert.ok(navigation.includes(`<body><nav>Browse</nav><script src="${assetPrefix}navigation.js" defer></script></body>`));
+      const script = await fetch(`${origin}${assetPrefix}navigation.js`);
+      assert.equal(script.status, 200);
+      assert.equal(script.headers.get("content-type"), "text/javascript");
       const stylesheet = await fetch(`${origin}${assetPrefix}fixture.css`);
       assert.equal(stylesheet.status, 200);
       assert.equal(stylesheet.headers.get("content-type"), "text/css");

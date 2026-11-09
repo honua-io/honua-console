@@ -54,6 +54,12 @@ These components preserve native heading, section, link and definition-list sema
 Their v4 presentation is scoped to the shell's `data-console-v4="true"` root; callers use
 the shared rollout switch rather than introducing page flags.
 
+The shared v4 type scale uses existing tokens: page `h1` is `--text-2xl` (28px,
+medium), section `h2` is `--text-xl` (22px), `h3` and panel headings are
+`--text-md` (16px), and `h4` is `--text-sm` (14px). At widths up to 640px the page title uses `--text-xl`
+(22px). `ConsolePageHeading` and `ConsolePanel` inherit this scale automatically;
+avoid page-specific heading sizes.
+
 | Component | Parameters | Use |
 |---|---|---|
 | `ConsolePageHeading` | required `string Title`; optional `RenderFragment ChildContent`, `Actions` | One page `h1`, descriptive content and native action controls. |
@@ -201,6 +207,27 @@ because job action APIs are not yet wired (charter §11).
 Events: none. Composes `<EvidenceList>`.
 
 ---
+
+### Shared Operate surfaces under v4
+
+`OperateTimeline` accepts required `IReadOnlyList<OperateTimelineEntry> Entries`,
+optional `string? SelectedEntryKey`, and `string EmptyMessage` ("No events to show.").
+It preserves first-delivery deduplication, severity, correlation identity and optional
+`DetailHref`. The single Console v4 flag changes column labels to Time, Action,
+Severity, What and Reference. Actor and environment are absent from the current
+entry contract; callers must not invent them to fill mockup columns. Its existing
+`ConsoleTableRegion` provides a named, keyboard-focusable horizontal scroll region.
+
+`ProposalApprovalPanel` accepts required `string ProposalId`, optional `int ReloadToken`,
+`EventCallback<ConsoleProposalDetail> OnActioned` and `OnDetailLoaded`. Reuse its
+server-owned evidence, blockers, risk, permission failures and approve/reject state
+machine. V4 supplies quiet panel styling without changing these contracts.
+`OperateDeploymentApprovalPanel` remains the existing deployment-specific controller;
+use its `OperationId`, `PollInterval`, `OnActioned` and `OnStatusChanged` contracts.
+
+Studio and detail pages can compose `ConsolePageHeading` (`Title`, `ChildContent`
+for state/context, `Actions`) and `ConsolePanel` (`Title`, `HeadingId`, `Class`,
+`ChildContent`, `Actions`) rather than introducing page-specific heading wrappers.
 
 ## 3. Layouts
 
