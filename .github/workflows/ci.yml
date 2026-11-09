@@ -193,6 +193,21 @@ jobs:
       - name: Verify rendered catalog presentation
         run: node e2e/playwright/catalog-preview.mjs
 
+      - name: Verify rendered Studio entry presentation
+        run: node e2e/playwright/studio-entry-preview.mjs
+        env:
+          HONUA_STUDIO_ENTRY_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload Studio entry presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: studio-entry-presentation
+          path: |
+            artifacts/catalog-preview/studio-*
+            artifacts/catalog-preview/processes-*
+          if-no-files-found: error
+
       - name: Verify rendered publication evidence presentation
         run: node e2e/playwright/release-witness-preview.mjs
         env:
