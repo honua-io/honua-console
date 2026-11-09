@@ -215,10 +215,13 @@ export async function runV4PagePresentation({ previews, pageNames, title, styles
         await page.goto(`http://127.0.0.1:${server.address().port}/${name}`);
         assert.equal((await response).status(), 200);
         await page.evaluate(() => document.fonts.ready);
-        assert.equal(await page.getByRole("heading", { level: 1 }).textContent(), heading);
+        assert.equal(await page.getByRole("heading", { level: 1 }).textContent(), typeof heading === "function" ? heading(name) : heading);
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}/${width} overflows`);
         await inspect(page, name);
-        await checkKeyboardControls(page, { controls, sizedControls: "input, select, button, summary", minimumHeight: 24 });
+        const pageControls = typeof controls === "function" ? controls(name) : controls;
+        if (pageControls !== null) {
+          await checkKeyboardControls(page, { controls: pageControls, sizedControls: "input, select, button, textarea, summary", minimumHeight: 24 });
+        }
         const accessibility = await new AxeBuilder({ page }).include(scope).analyze();
         assert.deepEqual(accessibility.violations, []);
         await page.evaluate(() => {
