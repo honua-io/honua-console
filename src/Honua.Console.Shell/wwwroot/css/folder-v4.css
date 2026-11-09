@@ -1,0 +1,15 @@
+[data-console-v4="true"] .console-folder-services {
+    margin-bottom: var(--space-6);
+}
+
+[data-console-v4="true"] .console-folder-services > h2 {
+    margin-bottom: var(--space-3);
+}
+
+[data-console-v4="true"] .console-folder-services > p {
+    color: var(--honua-text-muted);
+}
+
+[data-console-v4="true"] .console-folder-services .console-table-wrap {
+    margin-block: var(--space-4);
+}

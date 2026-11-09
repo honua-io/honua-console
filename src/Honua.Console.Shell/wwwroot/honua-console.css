@@ -11,6 +11,7 @@
 @import url("css/v4-navigation.css");
 @import url("css/v4-operate.css");
 @import url("css/v4-data-primitives.css");
+@import url("css/folder-v4.css");
 
 * {
     box-sizing: border-box;
@@ -5627,8 +5628,7 @@ p {
 }
 
 
-/* ============================================================================
-   Shared Shell components: MapPreview, PublishWizard, StudioAiConversation.
+/* =====================================================================   Shared Shell components: MapPreview, PublishWizard, StudioAiConversation.
    Built against the existing --honua-* tokens (Charter §9: CSS-variable +
    per-component CSS reference pattern, re-expressed as Razor components).
    ============================================================================ */
@@ -6362,8 +6362,7 @@ p {
     gap: 8px;
 }
 
-/* ============================================================================
-   Publish wizard workspace (Operate / Publishing) — functional Quick-publish
+/* =====================================================================   Publish wizard workspace (Operate / Publishing) — functional Quick-publish
    and Author-first flows. See PublishWizardWorkspace.razor and the design
    handoff screens-quick-publish.jsx / screens-publish-flow.jsx.
    ============================================================================ */
