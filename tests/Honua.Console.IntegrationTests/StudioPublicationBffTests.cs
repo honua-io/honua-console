@@ -265,6 +265,22 @@ public sealed class StudioPublicationBffTests
     }
 
     [Fact]
+    public async Task DraftOperationReceiptReadUsesExactReadOnlyRoute()
+    {
+        await using var host = await Host.Start();
+        const string path = "/api/processes/operations/handles/operation";
+        using var response = await host.Client.GetAsync(path);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("/api/v1/operations/handles/operation", host.Wire.Uri!.AbsolutePath);
+        Assert.True(host.Wire.HumanOnly);
+        using var write = await host.Client.PostAsync(path, new StringContent("{}"));
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, write.StatusCode);
+        using var cancel = await host.Client.PostAsync(path + "/cancel", new StringContent("{}"));
+        Assert.Equal(HttpStatusCode.NotFound, cancel.StatusCode);
+        Assert.Equal(1, host.Wire.Calls);
+    }
+
+    [Fact]
     public async Task ApprovalStatusReadUsesCurrentOperatorAndCannotApproveOrReject()
     {
         await using var host = await Host.Start();

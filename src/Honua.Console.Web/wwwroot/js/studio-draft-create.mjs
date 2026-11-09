@@ -1,0 +1,154 @@
+import { capturedProcessFetch } from './cookie-workspace-transport.mjs';
+
+const validId = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
+const validKey = value => typeof value === 'string' && /^[A-Za-z0-9._-]{1,200}$/.test(value);
+
+export class StudioDraftCreateSession {
+    constructor(app, { storage = app.workspace?.storage, uuid = () => crypto.randomUUID(), readOperation, isCurrent = () => true } = {}) {
+        this.app = app; this.storage = storage; this.uuid = uuid; this.isCurrent = isCurrent;
+        this.readOperation = readOperation ?? (async operationId => {
+            const request = capturedProcessFetch(app.session, { current: () => app.session });
+            const response = await request(`/api/processes/operations/handles/${encodeURIComponent(operationId)}`);
+            if (!response.ok) throw new Error(`Operation status could not be read (${response.status}). The original action is retained.`);
+            return response.json();
+        });
+    }
+    dispose() { this.disposed = true; }
+    context() {
+        if (this.disposed || !this.isCurrent()) throw new Error('The workspace changed. The original New map action is retained.');
+        const binding = this.app.workspaceCookieBinding;
+        if (!binding?.principalId || !binding.environmentId || !this.app.workspace?.workspaceId)
+            throw new Error('Reconnect Studio before creating a map.');
+        return JSON.stringify([binding.principalId, binding.environmentId, binding.sourcePathBase ?? '', this.app.workspace.workspaceId]);
+    }
+    storageKey(context = this.context()) { return `honua.studio.create.${encodeURIComponent(context)}`; }
+    read() {
+        const raw = this.storage?.getItem(this.storageKey());
+        if (!raw) return null;
+        const record = JSON.parse(raw);
+        if (!record || !validKey(record.packageKey) || !validId(record.commandId)
+            || !['submitting', 'awaiting-approval', 'completed', 'rejected', 'failed', 'cancelled'].includes(record.status)
+            || (record.status === 'awaiting-approval' && !record.receipt)
+            || (record.receipt && (!validId(record.receipt.operationInstanceId) || !validId(record.receipt.proposalId))))
+            throw new Error('The original New map action is unreadable. Reconnect before continuing.');
+        return record;
+    }
+    assertCurrent(context, draftId) {
+        if (this.context() !== context || this.app.workspaceDraftIdentity?.draftId !== draftId)
+            throw new Error('The workspace changed. The original New map action is retained.');
+    }
+    save(record, context) {
+        if (this.context() !== context) throw new Error('The workspace changed.');
+        if (!this.storage) throw new Error('Persistent workspace storage is required before creating a map.');
+        this.storage.setItem(this.storageKey(context), JSON.stringify(record));
+    }
+    submit(packageKey) {
+        if (this.pending) return this.pending;
+        const task = this.runSubmit(packageKey);
+        this.pending = task;
+        task.finally(() => { if (this.pending === task) this.pending = undefined; }).catch(() => {});
+        return task;
+    }
+    async runSubmit(packageKey) {
+        if (!validKey(packageKey)) throw new Error('Use 1–200 letters, numbers, dots, dashes or underscores for the package key.');
+        const context = this.context(), previous = this.app.workspaceDraftIdentity?.draftId;
+        let record = this.read();
+        if (record && record.packageKey !== packageKey) {
+            if (record.status !== 'completed') throw new Error('Resolve the original New map action before starting another.');
+            record = null;
+        }
+        if (record && record.status !== 'submitting') return record;
+        record ??= { packageKey, commandId: this.uuid(), status: 'submitting' };
+        this.save(record, context);
+        const result = await this.app.createWorkspaceDraft(record.packageKey, record.commandId);
+        // Immediate creation attaches inside Studio; only authority must stay stable in that case.
+        if (this.context() !== context) throw new Error('The workspace changed.');
+        if (result?.status === 'awaiting-approval' && validId(result.operationInstanceId) && validId(result.proposalId)) {
+            this.assertCurrent(context, previous);
+            record = { ...record, status: 'awaiting-approval', receipt: result };
+        } else if (validId(result?.draftId)) record = { ...record, status: 'completed', draftId: result.draftId };
+        else throw new Error('The create action returned no durable receipt. Retry the original action.');
+        this.save(record, context);
+        return record;
+    }
+    async refresh() {
+        const context = this.context(), previous = this.app.workspaceDraftIdentity?.draftId;
+        const record = this.read();
+        if (!record?.receipt || record.status !== 'awaiting-approval') return record;
+        const response = await this.readOperation(record.receipt.operationInstanceId);
+        this.assertCurrent(context, previous);
+        const operation = response?.data ?? response;
+        if (operation?.operationInstanceId !== record.receipt.operationInstanceId) throw new Error('The operation receipt does not match the original action.');
+        if ([1, 'Completed', 'completed'].includes(operation.status)) {
+            const draftId = operation.resourceIds?.draftId;
+            if (!validId(draftId)) throw new Error('The completed operation has no canonical draft ID. The original action is retained.');
+            await this.app.attachWorkspaceDraft(draftId);
+            if (this.context() !== context) throw new Error('The workspace changed.');
+            const completed = { ...record, status: 'completed', draftId };
+            this.save(completed, context);
+            return completed;
+        }
+        const terminal = new Map([[6, 'rejected'], [7, 'rejected'], [8, 'cancelled'], [9, 'failed'],
+            ['Denied', 'rejected'], ['Rejected', 'rejected'], ['Cancelled', 'cancelled'], ['Failed', 'failed']]);
+        if (terminal.has(operation.status)) {
+            const finished = { ...record, status: terminal.get(operation.status) };
+            this.save(finished, context);
+            return finished;
+        }
+        return record;
+    }
+}
+
+export function mountStudioDraftCreate({ app, host }) {
+    const session = new StudioDraftCreateSession(app, { isCurrent: () => host.isConnected && app.isConnected });
+    const form = document.createElement('form');
+    const key = document.createElement('input');
+    key.required = true; key.maxLength = 200; key.pattern = '(?:[A-Za-z0-9._]|-){1,200}';
+    key.placeholder = 'Map package key'; key.setAttribute('aria-label', 'New map package key');
+    const create = document.createElement('button'); create.type = 'submit'; create.textContent = 'New map';
+    const notice = document.createElement('p'); notice.setAttribute('role', 'status');
+    const inbox = document.createElement('a'); inbox.textContent = 'Review approval in Inbox';
+    const refresh = document.createElement('button'); refresh.type = 'button'; refresh.textContent = 'Check approval and open map';
+    form.append(key, create, notice, inbox, refresh);
+    host.querySelector('[data-studio-mount]').before(form);
+    let disposed = false, busy = false;
+    const render = () => {
+        if (disposed) return;
+        inbox.hidden = refresh.hidden = true;
+        create.disabled = key.disabled = busy;
+        try {
+            const record = session.read();
+            if (!record) return;
+            if (record.status !== 'completed' || !key.value) key.value = record.packageKey;
+            key.disabled = busy || record.status !== 'completed';
+            create.disabled = busy || record.status !== 'submitting' && record.status !== 'completed';
+            create.textContent = record.status === 'submitting' ? 'Retry original New map' : 'New map';
+            notice.textContent = record.status === 'awaiting-approval'
+                ? `Waiting for separate human approval. Proposal ${record.receipt.proposalId}; operation ${record.receipt.operationInstanceId}.`
+                : record.status === 'completed' ? 'Shared server draft opened.'
+                    : record.status === 'submitting' ? 'The original New map action is retained. Retry to recover its result.'
+                        : `New map ${record.status}. The original action is retained.`;
+            if (record.receipt) {
+                inbox.hidden = false;
+                inbox.href = `/inbox?proposalId=${encodeURIComponent(record.receipt.proposalId)}`;
+                refresh.hidden = record.status !== 'awaiting-approval'; refresh.disabled = busy;
+            }
+        } catch (error) { notice.textContent = error.message; create.disabled = true; }
+    };
+    const run = async action => {
+        if (busy || disposed || !host.isConnected || !app.isConnected) return;
+        busy = true; render();
+        let failure;
+        try { await action(); }
+        catch (error) { failure = error; }
+        finally { busy = false; if (!disposed) { render(); if (failure) notice.textContent = failure.message; } }
+    };
+    form.addEventListener('submit', event => {
+        event.preventDefault();
+        const packageKey = key.value.trim();
+        if (form.reportValidity()) void run(() => session.submit(packageKey));
+    });
+    refresh.addEventListener('click', () => void run(() => session.refresh()));
+    render();
+    return { dispose() { disposed = true; session.dispose(); form.remove(); } };
+}

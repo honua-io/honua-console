@@ -1,0 +1,139 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { StudioDraftCreateSession } from '../../src/Honua.Console.Web/wwwroot/js/studio-draft-create.mjs';
+
+function fixture() {
+    const records = new Map();
+    const storage = { getItem: key => records.get(key) ?? null, setItem: (key, value) => records.set(key, value) };
+    const calls = [], attached = [];
+    const app = { workspace: { storage, workspaceId: 'workspace' },
+        workspaceCookieBinding: { principalId: 'human', environmentId: 'local', sourcePathBase: '' },
+        createWorkspaceDraft: async (key, commandId) => {
+            assert.ok([...records.values()].some(raw => JSON.parse(raw).commandId === commandId));
+            calls.push({ key, commandId });
+            return { status: 'awaiting-approval', operationInstanceId: 'operation', proposalId: 'proposal' };
+        },
+        attachWorkspaceDraft: async draftId => attached.push(draftId),
+    };
+    let operation = { operationInstanceId: 'operation', status: 4, proposalId: 'proposal' };
+    const options = { uuid: () => 'original-command', readOperation: async () => operation };
+    const session = new StudioDraftCreateSession(app, options);
+    return { app, session, calls, attached, options, records, complete: value => { operation = value; } };
+}
+
+test('retains approval across reload and blocks repeat creates until canonical completion', async () => {
+    const f = fixture();
+    await Promise.all([f.session.submit('map'), f.session.submit('map')]);
+    assert.equal(f.calls.length, 1);
+    const restored = new StudioDraftCreateSession(f.app, f.options);
+    assert.equal(restored.read().receipt.proposalId, 'proposal');
+    await restored.submit('map');
+    await assert.rejects(restored.submit('other-map'), /original/i);
+    assert.equal(f.calls.length, 1);
+    await restored.refresh();
+    assert.deepEqual(f.attached, []);
+    f.complete({ operationInstanceId: 'operation', status: 1, resourceIds: { draftId: 'canonical-draft' } });
+    await restored.refresh();
+    await restored.refresh();
+    assert.deepEqual(f.attached, ['canonical-draft']);
+    assert.equal(restored.read().status, 'completed');
+});
+
+test('response loss retries the original command without replacing its input', async () => {
+    const f = fixture();
+    let attempts = 0;
+    f.app.createWorkspaceDraft = async (key, commandId) => {
+        f.calls.push({ key, commandId });
+        if (++attempts === 1) throw new Error('response lost');
+        return { draftId: 'immediate', generation: 0, packageKey: key };
+    };
+    await assert.rejects(f.session.submit('map'), /response lost/);
+    await assert.rejects(f.session.submit('changed'), /original/i);
+    await new StudioDraftCreateSession(f.app, f.options).submit('map');
+    assert.deepEqual(f.calls, Array(2).fill({ key: 'map', commandId: 'original-command' }));
+    assert.equal(f.session.read().status, 'completed');
+});
+
+test('unverified, mismatched and rejected operations never attach a draft', async () => {
+    for (const operation of [
+        { operationInstanceId: 'other', status: 1, resourceIds: { draftId: 'draft' } },
+        { operationInstanceId: 'operation', status: 1 },
+        { operationInstanceId: 'operation', status: 7, resourceIds: { draftId: 'draft' } },
+    ]) {
+        const f = fixture();
+        await f.session.submit('map');
+        f.complete(operation);
+        await f.session.refresh().catch(() => {});
+        assert.deepEqual(f.attached, []);
+        await f.session.submit('map');
+        assert.equal(f.calls.length, 1);
+    }
+});
+
+test('authority or view changes during a status read cannot attach or overwrite the receipt', async () => {
+    const f = fixture();
+    await f.session.submit('map');
+    const session = new StudioDraftCreateSession(f.app, { ...f.options, readOperation: async () => {
+        f.app.workspaceCookieBinding.environmentId = 'another';
+        return { operationInstanceId: 'operation', status: 1, resourceIds: { draftId: 'draft' } };
+    } });
+    await assert.rejects(session.refresh(), /changed/i);
+    assert.deepEqual(f.attached, []);
+    assert.equal(session.read(), null);
+});
+
+test('storage failure prevents dispatch and corrupted receipts fail closed', async () => {
+    const f = fixture();
+    f.app.workspace.storage.setItem = () => { throw new Error('storage full'); };
+    await assert.rejects(f.session.submit('map'), /storage full/);
+    assert.equal(f.calls.length, 0);
+    f.app.workspace.storage.getItem = () => '{broken';
+    assert.throws(() => f.session.read());
+});
+
+
+test('a disposed create control cannot attach an approved map after navigation', async () => {
+    const f = fixture();
+    await f.session.submit('map');
+    let finish;
+    const session = new StudioDraftCreateSession(f.app, { ...f.options,
+        readOperation: () => new Promise(resolve => { finish = resolve; }) });
+    const refreshing = session.refresh();
+    session.dispose();
+    finish({ data: { operationInstanceId: 'operation', status: 1, resourceIds: { draftId: 'draft' } } });
+    await assert.rejects(refreshing, /changed/i);
+    assert.deepEqual(f.attached, []);
+    assert.equal(f.session.read().status, 'awaiting-approval');
+});
+
+
+test('operation status uses the current cookie lease and exact read-only proxy path', async () => {
+    const f = fixture();
+    await f.session.submit('map');
+    f.app.session = { ...f.app.workspaceCookieBinding, csrfToken: 'current-csrf' };
+    const original = globalThis.fetch;
+    try {
+        globalThis.fetch = async (path, options) => {
+            assert.equal(path, '/api/processes/operations/handles/operation');
+            assert.equal(options.credentials, 'same-origin');
+            assert.equal(options.headers.get('X-CSRF-Token'), 'current-csrf');
+            assert.equal(options.headers.get('X-Honua-Session-Partition'), 'human');
+            return Response.json({ data: { operationInstanceId: 'operation', status: 4 } });
+        };
+        await new StudioDraftCreateSession(f.app).refresh();
+    } finally { globalThis.fetch = original; }
+});
+
+
+test('a disconnected host cannot reconcile an in-flight approval', async () => {
+    const f = fixture();
+    await f.session.submit('map');
+    let connected = true, finish;
+    const session = new StudioDraftCreateSession(f.app, { ...f.options, isCurrent: () => connected,
+        readOperation: () => new Promise(resolve => { finish = resolve; }) });
+    const refreshing = session.refresh();
+    connected = false;
+    finish({ operationInstanceId: 'operation', status: 1, resourceIds: { draftId: 'draft' } });
+    await assert.rejects(refreshing, /changed/i);
+    assert.deepEqual(f.attached, []);
+});
