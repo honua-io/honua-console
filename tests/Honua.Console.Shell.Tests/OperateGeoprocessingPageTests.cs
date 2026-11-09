@@ -1,3 +1,4 @@
+using AngleSharp.Html.Parser;
 using Bunit;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
@@ -31,6 +32,7 @@ public sealed class OperateGeoprocessingPageTests
         Assert.Contains("/operate/geoprocessing/gp-run-1", html);
         Assert.Contains("Executing", html);
         Assert.Contains("analyst.live", html);
+        AssertAccessibleProgress(html, 40, 100);
     }
 
     [Fact]
@@ -76,6 +78,7 @@ public sealed class OperateGeoprocessingPageTests
         // JobDetailPanel surface markers.
         Assert.Contains("Job detail", html);
         Assert.Contains("Stages", html);
+        AssertAccessibleProgress(html, 100);
     }
 
     [Fact]
@@ -590,6 +593,19 @@ public sealed class OperateGeoprocessingPageTests
                 });
             var output = await renderer.RenderComponentAsync<OperateGeoprocessingPage>(parameters);
             return output.ToHtmlString();
+        });
+    }
+
+    private static void AssertAccessibleProgress(string markup, params int[] values)
+    {
+        var progressBars = new HtmlParser().ParseDocument(markup).QuerySelectorAll("[role='progressbar']");
+        Assert.Equal(values.Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            progressBars.Select(progress => progress.GetAttribute("aria-valuenow")));
+        Assert.All(progressBars, progress =>
+        {
+            Assert.Equal("0", progress.GetAttribute("aria-valuemin"));
+            Assert.Equal("100", progress.GetAttribute("aria-valuemax"));
+            Assert.False(string.IsNullOrWhiteSpace(progress.GetAttribute("aria-label")));
         });
     }
 
