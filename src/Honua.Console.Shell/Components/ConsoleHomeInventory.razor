@@ -1,0 +1,87 @@
+@using Honua.Console.Contracts
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IServiceProvider Services
+@implements IDisposable
+
+<ConsolePanel Title="What this server serves" HeadingId="home-inventory-heading" Class="console-home-inventory">
+    @if (_busy)
+    {
+        <p role="status">Reading services and folders…</p>
+    }
+    else
+    {
+        <div class="console-home-inventory-summary">
+            <a href="/operate/services" data-home-services>
+                <ConsoleMetricTile Label="@(_services.PartialResult ? "Services in returned sources" : "Services")"
+                                   Value="@(_services.IsAllowed ? _services.Value?.Total : null)" />
+            </a>
+            <dl class="console-home-inventory-details">
+                <div><dt>Folders</dt><dd data-home-folder-count>@FolderCount</dd></div>
+                <div><dt>@(_services.PartialResult ? "Layers in returned sources" : "Layers")</dt><dd data-home-layer-count>@LayerCount</dd></div>
+            </dl>
+        </div>
+        @if (!_services.IsAllowed)
+        {
+            <p role="status" data-home-services-state>@StateMessage(_services)</p>
+        }
+        @if (!_folders.IsAllowed)
+        {
+            <p role="status" data-home-folders-state>@StateMessage(_folders)</p>
+        }
+        @if (_services.PartialResult || _folders.PartialResult)
+        {
+            <p role="note">Some sources could not be read. Counts may be incomplete.</p>
+        }
+        @if (ConsoleReadBudget.IsErrorState(_services.Status) || ConsoleReadBudget.IsErrorState(_folders.Status))
+        {
+            <button class="console-button console-button-secondary" type="button" @onclick="RefreshAsync">Retry inventory</button>
+        }
+    }
+</ConsolePanel>
+
+@code {
+    [Parameter] public TimeSpan LoadBudget { get; set; } = ConsoleReadBudget.Default;
+    private readonly CancellationTokenSource _lifetime = new();
+    private OperateSectionResult<HonuaAdminServicePage> _services =
+        OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Missing, "Services are not available.");
+    private OperateSectionResult<ConsoleFolderCatalog> _folders =
+        OperateSectionResult<ConsoleFolderCatalog>.Denied(OperateSectionStatus.Missing, "Folders are not available.");
+    private bool _busy;
+    private bool _disposed;
+
+    private string FolderCount => _folders.IsAllowed && _folders.Value is { } catalog
+        ? catalog.ActiveFolders.Count().ToString("N0") : "Not available";
+    private string LayerCount => _services.IsAllowed && _services.Value is { } page
+        ? page.LayerTotal.ToString("N0") : "Not available";
+
+    protected override Task OnInitializedAsync() => RefreshAsync();
+
+    private async Task RefreshAsync()
+    {
+        if (_busy || _disposed) return;
+        _busy = true;
+        var navigation = Services.GetService<IConsolePublicationNavigationSource>() ?? new UnsupportedConsolePublicationNavigationSource();
+        var folders = Services.GetService<IConsoleFolderClient>() ?? new UnsupportedConsoleFolderClient();
+        var servicesRead = ConsoleReadBudget.RunAsync(
+            token => navigation.ReadServicesAsync(HonuaAdminCatalogQuery.First, token), LoadBudget,
+            "The service inventory did not respond in time.", _lifetime.Token);
+        var foldersRead = ConsoleReadBudget.RunAsync(folders.ReadAsync, LoadBudget,
+            "The folder inventory did not respond in time.", _lifetime.Token);
+        await Task.WhenAll(servicesRead, foldersRead);
+        if (_disposed) return;
+        _services = await servicesRead;
+        _folders = await foldersRead;
+        _busy = false;
+    }
+
+    private static string StateMessage<T>(OperateSectionResult<T> result) =>
+        string.IsNullOrWhiteSpace(result.Message) ? OperateSectionPresentation.FallbackMessage(result.Status) : result.Message;
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+    }
+}
