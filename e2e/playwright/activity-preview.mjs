@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import http from "node:http";
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "@playwright/test";
+import { startPresentationFixtureServer } from "./presentation-fixture-server.mjs";
 import { checkKeyboardControls } from "./console-presentation.mjs";
 
 const previews = path.resolve("artifacts/activity-preview");
@@ -11,32 +11,13 @@ const shellAssets = path.resolve("src/Honua.Console.Shell/wwwroot");
 const pages = new Map(await Promise.all(["activity-selected", "activity-empty"].map(async name =>
   [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
 
-const server = http.createServer(async (request, response) => {
-  const url = new URL(request.url, "http://localhost");
-  const markup = pages.get(url.pathname.slice(1));
-  if (markup) {
-    response.writeHead(200, {
-      "Content-Type": "text/html; charset=utf-8",
-      "Content-Security-Policy": "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; script-src 'none'; base-uri 'none'",
-    });
-    response.end(`<!doctype html><html lang="en"><head><title>Activity presentation fixture</title><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/_content/Honua.Console.Shell/honua-console.css"><link rel="stylesheet" href="/_content/Honua.Console.Shell/css/operate-activity-v4.css"></head><body><main class="console-main">${markup}</main></body></html>`);
-    return;
-  }
-  const prefix = "/_content/Honua.Console.Shell/";
-  const file = path.resolve(shellAssets, url.pathname.slice(prefix.length));
-  const contentType = { ".css": "text/css", ".woff2": "font/woff2", ".woff": "font/woff" }[path.extname(file)];
-  if (!url.pathname.startsWith(prefix) || !file.startsWith(`${shellAssets}${path.sep}`) || !contentType) {
-    response.writeHead(404).end();
-    return;
-  }
-  try {
-    const content = await fs.readFile(file);
-    response.writeHead(200, { "Content-Type": contentType });
-    response.end(content);
-  } catch { response.writeHead(404).end(); }
+const server = await startPresentationFixtureServer({
+  pages,
+  title: "Activity presentation fixture",
+  stylesheets: ["/_content/Honua.Console.Shell/honua-console.css", "/_content/Honua.Console.Shell/css/operate-activity-v4.css"],
+  assets: shellAssets,
+  assetPrefix: "/_content/Honua.Console.Shell/",
 });
-
-await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
 let browser;
 try {
   browser = await chromium.launch();
