@@ -281,6 +281,10 @@ public sealed class OperateAccessPageRenderTests
         roles.WaitForAssertion(() => Assert.NotEmpty(roles.FindAll("[data-rbac-matrix]")));
         Assert.Equal(enabled ? 1 : 0, roles.FindAll(".console-page-heading-v4").Count);
         Assert.Equal(enabled ? 1 : 0, roles.FindAll(".console-metric-tile").Count);
+        Assert.Equal(enabled ? 0 : 1, roles.FindAll("[data-rbac-toolbar]").Count);
+        Assert.Equal(enabled ? 0 : 1, roles.FindAll("[data-rbac-counts]").Count);
+        Assert.Equal(enabled ? 1 : 0, roles.FindAll("nav[aria-label='Access settings']").Count);
+        if (enabled) Assert.Equal("/operate/access", roles.Find("nav[aria-label='Access settings'] [aria-current='page']").GetAttribute("href"));
         CapturePreview(roles, "roles", enabled);
         roles.Find("[data-rbac-custom-role]").Click();
         Assert.NotNull(roles.Find("[data-rbac-create-form]"));
@@ -290,6 +294,10 @@ public sealed class OperateAccessPageRenderTests
         members.WaitForAssertion(() => Assert.NotEmpty(members.FindAll("[data-rbac-members-table]")));
         Assert.Equal(enabled ? 1 : 0, members.FindAll(".console-page-heading-v4").Count);
         Assert.Equal(enabled ? 1 : 0, members.FindAll(".console-metric-tile").Count);
+        Assert.Equal(enabled ? 0 : 1, members.FindAll("[data-rbac-members-toolbar]").Count);
+        Assert.Equal(enabled ? 0 : 1, members.FindAll("[data-rbac-member-counts]").Count);
+        Assert.Equal(enabled ? 1 : 0, members.FindAll("nav[aria-label='Access settings']").Count);
+        if (enabled) Assert.Equal("/operate/access/members", members.Find("nav[aria-label='Access settings'] [aria-current='page']").GetAttribute("href"));
         CapturePreview(members, "users", enabled);
         members.Find("[data-rbac-invite-open]").Click();
         Assert.NotNull(members.Find("[data-rbac-invite-drawer]"));
@@ -304,9 +312,13 @@ public sealed class OperateAccessPageRenderTests
         var options = new ConsoleV4Options { Enabled = enabled };
         var roles = RenderRoles(new FakeRbacDataSource { OverviewLoad = new RbacOverviewLoad(null, [MissingBinding]) }, options);
         roles.WaitForAssertion(() => Assert.Contains("API is not bound", roles.Markup, StringComparison.Ordinal));
+        Assert.Equal(enabled ? 0 : 2, roles.FindAll(".console-kicker").Count);
+        if (!enabled) Assert.Contains(roles.FindAll(".console-kicker"), kicker => kicker.TextContent == MissingBinding.State);
         CapturePreview(roles, "roles-unbound", enabled);
         var members = RenderMembers(new FakeRbacDataSource { MembershipLoad = new TeamMembershipLoad(null, [MissingBinding]) }, options);
         members.WaitForAssertion(() => Assert.Contains("API is not bound", members.Markup, StringComparison.Ordinal));
+        Assert.Equal(enabled ? 0 : 2, members.FindAll(".console-kicker").Count);
+        if (!enabled) Assert.Contains(members.FindAll(".console-kicker"), kicker => kicker.TextContent == MissingBinding.State);
         CapturePreview(members, "users-unbound", enabled);
     }
 

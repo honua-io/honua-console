@@ -117,7 +117,7 @@
     else if (_bindingState is not null)
     {
         <ConsoleStateView HeadingLevel="2" Kind="error"
-                          Kicker="@(V4Enabled ? null : _bindingState.State)"
+                          Kicker="@(V4Enabled ? string.Empty : _bindingState.State)"
                           Title="Access (RBAC) API is not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
     }

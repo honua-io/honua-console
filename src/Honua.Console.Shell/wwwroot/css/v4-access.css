@@ -27,12 +27,11 @@
     box-shadow: none;
     background: var(--honua-surface);
 }
-.console-shell[data-console-v4="true"] .rbac-scope-row {
-    flex-wrap: wrap;
-}
 .console-shell[data-console-v4="true"] .rbac-scope-cell {
     min-width: 120px;
     flex: 1 1 120px;
+    border: 0;
+    background: transparent;
 }
 .console-shell[data-console-v4="true"] .rbac-scope-label {
     font-weight: 500;
@@ -48,7 +47,7 @@
 .console-shell[data-console-v4="true"] :is(.rbac-invite-body, .rbac-members-main) {
     gap: 24px;
 }
-.console-shell[data-console-v4="true"] :is(.rbac-overview, .rbac-members) :is(input:not([type="checkbox"]):not([type="radio"]), select, button) {
+.console-shell[data-console-v4="true"] :is(.rbac-overview, .rbac-members) :is(input:not([type="checkbox"]):not([type="radio"]), select) {
     min-height: 36px;
     padding: 6px 12px;
 }
@@ -56,9 +55,13 @@
     width: 24px;
     height: 24px;
     flex: 0 0 24px;
+    accent-color: var(--honua-accent);
+    margin: 0;
 }
-.console-shell[data-console-v4="true"] .rbac-legend {
-    flex-wrap: wrap;
+@media (min-width: 1100px) {
+    .console-shell[data-console-v4="true"] .rbac-members-layout {
+        grid-template-columns: minmax(0, 1fr) 380px;
+    }
 }
 @media (max-width: 640px) {
     .console-shell[data-console-v4="true"] .rbac-scope-arrow { display: none; }
@@ -77,10 +80,6 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-}
-.console-shell[data-console-v4="true"] :is(.rbac-overview, .rbac-members) :is(input[type="checkbox"], input[type="radio"]) {
-    accent-color: var(--honua-accent);
-    margin: 0;
 }
 .console-shell[data-console-v4="true"] :is(.rbac-invite-head, .rbac-invite-foot) {
     background: transparent;
@@ -101,8 +100,4 @@
 .console-shell[data-console-v4="true"] .rbac-invite-grants {
     background: transparent;
     padding: 0;
-}
-.console-shell[data-console-v4="true"] .rbac-scope-cell {
-    border: 0;
-    background: transparent;
 }
