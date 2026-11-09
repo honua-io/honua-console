@@ -1,4 +1,5 @@
 @using Honua.Console.Shell.Models
+@inject IServiceProvider Services
 
 @* Shared operate event timeline (console#293): renders event kind, severity (shared status
    pill), timestamp, correlation id chip, and a drill-in link, with IDEMPOTENT APPEND keyed on
@@ -17,10 +18,10 @@
             <thead>
                 <tr>
                     <th scope="col">Time</th>
-                    <th scope="col">Kind</th>
+                    <th scope="col">@(V4Enabled ? "Action" : "Kind")</th>
                     <th scope="col">Severity</th>
-                    <th scope="col">Message</th>
-                    <th scope="col">Correlation</th>
+                    <th scope="col">@(V4Enabled ? "What" : "Message")</th>
+                    <th scope="col">@(V4Enabled ? "Reference" : "Correlation")</th>
                 </tr>
             </thead>
             <tbody>
@@ -53,6 +54,7 @@
 
 @code {
     private IReadOnlyList<OperateTimelineEntry> _rendered = [];
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     /// <summary>
     /// The events to render. May contain the same logical event more than once (at-least-once
