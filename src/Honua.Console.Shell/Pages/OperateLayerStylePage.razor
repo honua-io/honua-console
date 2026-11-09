@@ -12,8 +12,8 @@
     @if (V4Enabled)
     {
         <ConsolePageHeading Title="Layer presentation">
-            <ChildContent><p>Edit this layer's drawing and popup settings. Every service exposing the layer uses these shared settings. Author shared catalog Styles in Studio.</p></ChildContent>
-            <Actions><a class="console-button-link console-button-secondary" href="@ConsoleAgentRoutes.ForEntity(LayerEntity)">Back to layer</a></Actions>
+            <ChildContent><p>@Intro</p></ChildContent>
+            <Actions><a class="console-button-link console-button-secondary" href="@LayerHref">Back to layer</a></Actions>
         </ConsolePageHeading>
         <ConsolePanel Title="Base styles" HeadingId="layer-base-styles">@CatalogContent</ConsolePanel>
         <ConsolePanel Title="Layer overrides" HeadingId="layer-overrides">@OverrideContent</ConsolePanel>
@@ -23,8 +23,8 @@
         <div class="console-page-heading">
             <p class="console-kicker">Operate / Layers</p>
             <h1>Layer presentation</h1>
-            <p>Edit this layer's drawing and popup settings. Every service exposing the layer uses these shared settings. Author shared catalog Styles in Studio.</p>
-            <p><a href="@("/operate/layers/" + ResourceId)">Back to layer</a></p>
+            <p>@Intro</p>
+            <p><a href="@LayerHref">Back to layer</a></p>
         </div>
 
         <article class="console-panel">
@@ -44,11 +44,15 @@
 
 @code {
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
-    private ConsoleAgentEntity LayerEntity => new() { Kind = ConsoleAgentEntityKind.Layer, Id = ResourceId, ResourceId = ResourceId };
+    private const string Intro = "Edit this layer's drawing and popup settings. Every service exposing the layer uses these shared settings. Author shared catalog Styles in Studio.";
+    private string LayerHref => $"/operate/layers/{Uri.EscapeDataString(_overrides.CanonicalResourceId ?? ResourceId)}";
+    private ConsoleAgentEntity? LayerEntity => !_loading && _overrides.BindingState is null && _overrides.LayerId is { } id && _overrides.CanonicalResourceId is { } resource
+        ? new() { Kind = ConsoleAgentEntityKind.Layer, Id = id.ToString(System.Globalization.CultureInfo.InvariantCulture), ResourceId = resource }
+        : null;
     private ConsoleAgentPageContext AgentContext => new()
     {
-        Route = $"/operate/layers/{Uri.EscapeDataString(ResourceId)}/style",
-        Entities = string.IsNullOrWhiteSpace(ResourceId) ? [] : [LayerEntity],
+        Route = $"{LayerHref}/style",
+        Entities = LayerEntity is { } entity ? [entity] : [],
         Unsaved = new()
         {
             ChangedFieldCount = _overrides.Slots.Sum(slot =>
@@ -81,17 +85,17 @@
         }
     </div>;
 
-    private RenderFragment OverrideContent => @<div class="@(V4Enabled ? "console-service-controls" : null)">
+    private RenderFragment OverrideContent => @<text>
         @if (_loading)
         {
-            <ConsoleStateView HeadingLevel="2" Kind="loading"
+            <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 2)" Kind="loading"
                               Kicker="Layer presentation"
                               Title="Loading layer overrides"
                               Message="Reading layer style and popup overrides from honua-server." />
         }
         else if (_overrides.BindingState is { } binding)
         {
-            <ConsoleStateView HeadingLevel="2" Kind="@StateKind(binding.State)"
+            <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 2)" Kind="@StateKind(binding.State)"
                               Kicker="@binding.State"
                               Title="Layer overrides are not available"
                               Message="@(binding.Detail + " (contract: " + binding.Contract + ")")" />
@@ -136,7 +140,7 @@
 
             @if (_saveResult is { } result && result.BindingState is { } saveBinding)
             {
-                <ConsoleStateView HeadingLevel="2" Kind="@StateKind(saveBinding.State)"
+                <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 2)" Kind="@StateKind(saveBinding.State)"
                                   Kicker="@saveBinding.State"
                                   Title="Override save is not bound"
                                   Message="@(saveBinding.Detail + " (contract: " + saveBinding.Contract + ")")" />
@@ -149,7 +153,7 @@
                 </div>
             }
         }
-    </div>;
+    </text>;
 
     [CascadingParameter] public ConsolePublicationLayerContext? PublicationContext { get; set; }
 
