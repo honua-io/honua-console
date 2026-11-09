@@ -6,6 +6,7 @@ await runV4PagePresentation({
   previews: path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/catalog-preview"),
   pageNames: ["data-service-detail", "data-service-detail-unbound", "data-service-detail-protocols", "data-service-detail-access", "data-service-detail-limits", "data-service-detail-success", "data-service-detail-danger"],
   title: "Service detail presentation fixture",
+  allowScriptModules: true,
   stylesheet: "v4-data-primitives.css",
   heading: "Cadastre",
   scope: ".console-page",

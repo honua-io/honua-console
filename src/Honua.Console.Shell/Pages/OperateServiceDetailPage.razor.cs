@@ -7,6 +7,40 @@ namespace Honua.Console.Shell.Pages;
 public partial class OperateServiceDetailPage
 {
     private bool _interactiveReady;
+    private ConsoleAgentUnsavedSummary _folderUnsaved = new();
+    private ConsoleAgentUnsavedSummary _metadataUnsaved = new();
+
+    private ConsoleAgentEntity? SelectedService => _service is null ? null : new()
+    {
+        Kind = ConsoleAgentEntityKind.Service,
+        Id = _service.Name,
+        ServiceName = _service.Name
+    };
+
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = $"/operate/services/{Uri.EscapeDataString(ServiceName)}/settings",
+        Entities = SelectedService is { } entity ? [entity] : [],
+        Selection = SelectedService is { } selected ? [selected] : [],
+        Filters = new Dictionary<string, string> { ["tab"] = _selectedTab },
+        Unsaved = new()
+        {
+            ChangedFieldCount = ChangedSettingsCount + _folderUnsaved.ChangedFieldCount + _metadataUnsaved.ChangedFieldCount,
+            PendingOperationCount = (_savingProtocols ? 1 : 0) + (_savingAccess ? 1 : 0)
+                + _folderUnsaved.PendingOperationCount + _metadataUnsaved.PendingOperationCount
+        }
+    };
+
+    private int ChangedSettingsCount => !_settings.Bound ? 0 :
+        (!_selectedProtocols.SetEquals(_settings.EnabledProtocols) ? 1 : 0)
+        + (_allowAnonymous != _settings.AllowAnonymous ? 1 : 0)
+        + (_allowAnonymousWrite != _settings.AllowAnonymousWrite ? 1 : 0)
+        + (!RolesMatch(_allowedRoles, _settings.AllowedRoles) ? 1 : 0)
+        + (!RolesMatch(_allowedWriteRoles, _settings.AllowedWriteRoles) ? 1 : 0);
+
+    private static bool RolesMatch(string current, IReadOnlyList<string> saved) =>
+        new HashSet<string>(ParseRoles(current), StringComparer.OrdinalIgnoreCase).SetEquals(saved);
+
 
     protected override void OnAfterRender(bool firstRender)
     {

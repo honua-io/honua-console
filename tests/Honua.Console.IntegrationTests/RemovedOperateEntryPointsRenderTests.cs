@@ -43,13 +43,17 @@ public sealed class RemovedOperateEntryPointsRenderTests
         Assert.Empty(page.FindAll("[data-publication-overrides-link], [data-service-discovery-link], [data-save-settings-caps]"));
         Assert.Contains(Cadastre.PublicationSlots[0].Url!, page.Markup, StringComparison.Ordinal);
         Assert.Empty(page.FindAll("fieldset[style], article[role='status']"));
-        Assert.Contains("console-state-neutral", page.Find(enabled ? "#service-protocols-panel > [role='status']" : "[data-service-config] > [role='status']").ClassList);
         Assert.Equal(enabled ? 4 : 0, page.FindAll("[role='tab']").Count);
         CatalogAdminPreview.Capture(enabled ? "data-service-detail" : "service", page.Markup);
         if (enabled)
         {
             page.Find("#service-protocols-tab").Click();
+            Assert.Contains("console-state-neutral", page.Find(enabled ? "#service-protocols-panel > [role='status']" : "[data-service-config] > [role='status']").ClassList);
             CatalogAdminPreview.Capture("data-service-detail-unbound", page.Markup);
+        }
+        else
+        {
+            Assert.Contains("console-state-neutral", page.Find(enabled ? "#service-protocols-panel > [role='status']" : "[data-service-config] > [role='status']").ClassList);
         }
     }
 
@@ -81,12 +85,22 @@ public sealed class RemovedOperateEntryPointsRenderTests
     public void ServiceTabs_KeepAccessEditsWhileSwitchingPanels()
     {
         using var ctx = CreateContext(true);
-        ctx.Services.AddSingleton<IServiceConfigurationOperation>(new ResultServiceConfiguration(new()));
+        ctx.Services.AddSingleton<IServiceConfigurationOperation>(new ResultServiceConfiguration(new() { State = "Updated", Succeeded = true }));
         var page = ctx.Render<OperateServiceDetailPage>(parameters => parameters.Add(component => component.ServiceName, Cadastre.Name));
 
+        var registry = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        var selected = Assert.Single(registry.Current.Selection);
+        Assert.Equal(ConsoleAgentEntityKind.Service, selected.Kind);
+        Assert.Equal(Cadastre.Name, selected.Id);
+        Assert.Equal(Cadastre.Name, selected.ServiceName);
+        Assert.Equal(ConsoleAgentRoutes.ForEntity(selected), registry.Current.Route);
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
         page.Find("#service-access-tab").Click();
+        Assert.Equal("service-access-tab", registry.Current.Filters["tab"]);
         Assert.False(page.Find("#service-access-panel").HasAttribute("hidden"));
         page.Find("[data-allowed-roles]").Change("surveyors");
+        Assert.Equal(1, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.DoesNotContain("surveyors", System.Text.Json.JsonSerializer.Serialize(registry.Current));
         page.Find("#service-layers-tab").Click();
         Assert.True(page.Find("#service-access-panel").HasAttribute("hidden"));
         page.Find("#service-access-tab").Click();
@@ -124,6 +138,7 @@ public sealed class RemovedOperateEntryPointsRenderTests
     {
         var ctx = new BunitContext();
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FixedServicesDataSource(Cadastre));

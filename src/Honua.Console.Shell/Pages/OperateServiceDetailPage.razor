@@ -6,6 +6,8 @@
 @inject IConsoleNotificationService Notifications
 @inject IServiceProvider Services
 
+<ConsoleAgentContext Context="@AgentContext" />
+
 <section class="console-page" data-service-name="@ServiceName" data-service-loaded="@(_service is not null)">
     @if (_service is null)
     {
@@ -27,11 +29,11 @@
                 </section>
                 <section id="service-protocols-panel" role="tabpanel" aria-labelledby="service-protocols-tab" hidden="@(_selectedTab != "service-protocols-tab")" tabindex="0">
                     @Endpoints
-                    @ConfigurationState
+                    @if (_selectedTab == "service-protocols-tab") { @ConfigurationState }
                     @if (_settings.Bound) { @ProtocolEditor }
                 </section>
                 <section id="service-access-panel" role="tabpanel" aria-labelledby="service-access-tab" hidden="@(_selectedTab != "service-access-tab")" tabindex="0">
-                    @ConfigurationState
+                    @if (_selectedTab == "service-access-tab") { @ConfigurationState }
                     @if (_settings.Bound) { @AccessEditor }
                 </section>
                 <section id="service-limits-panel" role="tabpanel" aria-labelledby="service-limits-tab" hidden="@(_selectedTab != "service-limits-tab")" tabindex="0">
@@ -99,7 +101,7 @@
     </text>;
 
     private RenderFragment RuntimeContent => @<text>
-        <ConsoleTableRegion Class="console-table-wrap" Label="Service controls">
+        <ConsoleTableRegion Class="console-table-wrap" Label="@(V4Enabled ? "Runtime setting values" : "Service controls")">
             <table class="console-table">
                 <thead>
                     <tr>
@@ -161,8 +163,8 @@
         {
             <p class="console-state-warning" role="status" data-folder-reconciliation>@reason</p>
         }
-        <Honua.Console.Shell.Components.Operate.FolderManagement ServiceName="@ServiceName" CurrentFolderId="@_service!.FolderId" OnSaved="OnParametersSetAsync" />
-        <DiscoveryMetadataEditor Address="@Honua.Console.Contracts.DiscoveryMetadataAddress.ForService(ServiceName)" />
+        <Honua.Console.Shell.Components.Operate.FolderManagement ServiceName="@ServiceName" CurrentFolderId="@_service!.FolderId" OnSaved="OnParametersSetAsync" UnsavedChanged="@(summary => _folderUnsaved = summary)" />
+        <DiscoveryMetadataEditor Address="@Honua.Console.Contracts.DiscoveryMetadataAddress.ForService(ServiceName)" UnsavedChanged="@(summary => _metadataUnsaved = summary)" />
     </text>;
 
     private RenderFragment Configuration => @<text>
