@@ -98,6 +98,7 @@ public sealed class OperateReleaseWitnessPageRenderTests
         Assert.Empty(page.FindAll("[data-release-witness]"));
         await page.InvokeAsync(() => response.SetResult(OperateSectionResult<ConsoleReleaseWitnessEvidence>.Allowed(Evidence)));
         page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-release-witness]")));
+        AssertPresentation(page, enabled);
     }
 
     private static BunitContext CreateContext(bool enabled)
@@ -114,6 +115,8 @@ public sealed class OperateReleaseWitnessPageRenderTests
     {
         Assert.Equal(enabled ? "Publication evidence" : "Candidate publication evidence", Assert.Single(page.FindAll("h1")).TextContent);
         Assert.Equal(enabled, page.FindAll(".console-release-witness-v4").Count == 1);
+        Assert.Equal(enabled && page.FindAll("[data-release-witness]").Count == 0,
+            page.FindAll("h2.console-visually-hidden[data-release-witness-state-heading]").Count == 1);
         Assert.Equal(enabled, page.FindAll(".console-page-heading-v4").Count == 1);
         Assert.Equal(enabled, page.FindAll("section > link[rel='stylesheet'][href$='release-witness-v4.css']").Count == 1);
     }

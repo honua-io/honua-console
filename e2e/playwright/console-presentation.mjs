@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import path from "node:path";
+import fs from "node:fs/promises";
+import { chromium } from "@playwright/test";
+import { startPresentationFixtureServer } from "./presentation-fixture-server.mjs";
 import AxeBuilder from "@axe-core/playwright";
 
 export const catalogKeyboardTargets = {
@@ -189,4 +192,45 @@ export async function checkKeyboardControls(page, { controls, sizedControls, min
     visited.add(focused.index);
   }
   assert.equal(visited.size, total, "Every enabled form, link and pager control must be keyboard reachable");
+}
+
+export async function runV4PagePresentation({ previews, pageNames, title, stylesheet, heading, scope, controls, inspect }) {
+  const pages = new Map(await Promise.all(pageNames.map(async name =>
+    [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
+  const server = await startPresentationFixtureServer({
+    pages, title,
+    stylesheets: ["/_content/Honua.Console.Shell/honua-console.css"],
+    assets: path.resolve("src/Honua.Console.Shell/wwwroot"),
+    assetPrefix: "/_content/Honua.Console.Shell/",
+  });
+  let browser;
+  try {
+    browser = await chromium.launch();
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    for (const name of pages.keys()) {
+      for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 844 });
+        const response = page.waitForResponse(response => response.url().endsWith(`/${stylesheet}`));
+        await page.goto(`http://127.0.0.1:${server.address().port}/${name}`);
+        assert.equal((await response).status(), 200);
+        await page.evaluate(() => document.fonts.ready);
+        assert.equal(await page.getByRole("heading", { level: 1 }).textContent(), heading);
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}/${width} overflows`);
+        await inspect(page, name);
+        await checkKeyboardControls(page, { controls, sizedControls: "input, select, button, summary", minimumHeight: 24 });
+        const accessibility = await new AxeBuilder({ page }).include(scope).analyze();
+        assert.deepEqual(accessibility.violations, []);
+        await page.evaluate(() => {
+          document.querySelectorAll("[role='region']").forEach(region => { region.scrollLeft = 0; });
+          window.scrollTo(0, 0);
+        });
+        await page.screenshot({ path: path.join(previews, `${name}-${width}.png`), fullPage: true });
+        console.log(`${name}/${width}: layout, evidence, keyboard focus and axe pass`);
+      }
+    }
+  } finally {
+    await browser?.close();
+    await new Promise(resolve => server.close(resolve));
+  }
 }

@@ -12,12 +12,6 @@
     overflow-wrap: anywhere;
 }
 
-.console-release-witness-v4 .release-witness-state-heading {
-    margin: 0;
-    font-size: var(--text-lg);
-    line-height: var(--leading-tight);
-}
-
 @media (max-width: 600px) {
     .console-release-witness-v4 .console-panel-heading {
         align-items: flex-start;

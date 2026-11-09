@@ -8,9 +8,6 @@
     @if (V4Enabled)
     {
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/release-witness-v4.css" />
-    }
-    @if (V4Enabled)
-    {
         <ConsolePageHeading Title="Publication evidence">
             <p>Read-only runtime, publication, and audit evidence for one sealed candidate approval.</p>
         </ConsolePageHeading>
@@ -24,24 +21,8 @@
         </div>
     }
 
-    @if (V4Enabled && (!_loaded || _result is null || !_result.IsAllowed || _result.Value is null))
+    @if (_loaded && _result is { IsAllowed: true, Value: { } evidence })
     {
-        <h2 class="release-witness-state-heading">Candidate evidence</h2>
-    }
-    @if (!_loaded)
-    {
-        <OperateSectionStatusPanel Heading="Candidate evidence" Loading="true" />
-    }
-    else if (_result is null || !_result.IsAllowed || _result.Value is null)
-    {
-        <OperateSectionStatusPanel Heading="Candidate evidence"
-                                   Status="@(_result?.Status ?? OperateSectionStatus.Unavailable)"
-                                   Message="@(_result?.Message ?? "The release witness request was incomplete.")"
-                                   Detail="@_result?.Detail" />
-    }
-    else
-    {
-        var evidence = _result.Value;
         <article class="console-panel"
                  data-release-witness
                  data-server-source-revision="@evidence.ServerSourceRevision"
@@ -68,7 +49,25 @@
                 <dt>Public route</dt><dd><a href="@evidence.PublicUrl" data-release-public-link>@evidence.PublicUrl</a></dd>
             </dl>
         </article>
+    }    else
+    {
+        @if (V4Enabled)
+        {
+            <h2 class="console-visually-hidden" data-release-witness-state-heading>Candidate evidence</h2>
+        }
+        @if (!_loaded)
+        {
+            <OperateSectionStatusPanel Heading="Candidate evidence" Loading="true" />
+        }
+        else
+        {
+            <OperateSectionStatusPanel Heading="Candidate evidence"
+                                       Status="@(_result?.Status ?? OperateSectionStatus.Unavailable)"
+                                       Message="@(_result?.Message ?? "The release witness request was incomplete.")"
+                                       Detail="@_result?.Detail" />
+        }
     }
+
 </section>
 
 @code {
