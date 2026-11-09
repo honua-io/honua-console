@@ -1,20 +1,30 @@
 @page "/support"
 @implements IDisposable
 @inject IConsoleSupportTicketClient SupportClient
+@inject IServiceProvider Services
 @inject ConsoleSupportContextBuilder ContextBuilder
 @inject IConsoleSupportDeflectionLog DeflectionLog
 @inject NavigationManager Nav
 
-<section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Support</p>
-        <h1>Contact support</h1>
-        <p>
-            Open a support ticket without copying log dumps. The Console auto-attaches who you are, the connected
-            environment, the running Console build, your current route, and the server's recent errors so support gets
-            context, not a paste of logs. You can review and edit everything before you submit.
-        </p>
-    </div>
+<section class="console-page console-support-page">
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Support">
+            <p class="console-muted">Describe the issue. Your environment and recent errors are attached to the ticket.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Support</p>
+            <h1>Contact support</h1>
+            <p>
+                Open a support ticket without copying log dumps. The Console auto-attaches who you are, the connected
+                environment, the running Console build, your current route, and the server's recent errors so support gets
+                context, not a paste of logs. You can review and edit everything before you submit.
+            </p>
+        </div>
+    }
 
     @* L0 self-service deflection (honua-console#165): qwen assistant + KB search,
        shown BEFORE the ticket form. The panel hides itself when neither the LLM
@@ -23,7 +33,11 @@
     <SupportSelfServicePanel SeedQuery="@_symptoms" OnContextChanged="OnSelfServiceContextChanged" />
 
     <div class="console-page-body support-layout">
-        <article class="console-panel">
+        <article class="console-panel" aria-label="New support ticket">
+            @if (V4Enabled)
+            {
+                <div class="console-panel-heading"><h2>New ticket</h2></div>
+            }
             <div class="studio-field-grid">
                 <label>
                     <span>Severity</span>
@@ -88,7 +102,7 @@
         <aside class="console-panel support-context-panel" aria-label="Auto-attached context">
             <div class="console-panel-heading">
                 <h2>Auto-attached context</h2>
-                <p class="console-muted">Captured for you. Submitted with the ticket - no copy/paste required.</p>
+                <p class="console-muted">@(V4Enabled ? "Included when you submit the ticket." : "Captured for you. Submitted with the ticket - no copy/paste required.")</p>
             </div>
 
             @if (_context is null)
@@ -130,6 +144,8 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     private string _severity = "sev3";
     private string _service = "honua-server";
     private string _requestedAction = string.Empty;

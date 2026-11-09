@@ -1,16 +1,26 @@
 @page "/support/tickets/{TicketId}"
 @implements IDisposable
 @inject IConsoleSupportTicketClient SupportClient
+@inject IServiceProvider Services
 
-<section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Support</p>
-        <h1>Ticket @TicketId</h1>
-        <p>
-            This view polls honua-support for the live phase, the guided commands the diagnosis produced, and the
-            validation steps, so the support loop closes in-product without leaving the Console.
-        </p>
-    </div>
+<section class="console-page console-support-page">
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="@($"Ticket {TicketId}")">
+            <p class="console-muted">Track the diagnosis, access, and validation for this ticket.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Support</p>
+            <h1>Ticket @TicketId</h1>
+            <p>
+                This view polls honua-support for the live phase, the guided commands the diagnosis produced, and the
+                validation steps, so the support loop closes in-product without leaving the Console.
+            </p>
+        </div>
+    }
 
     @if (_ticket is null && !_loaded)
     {
@@ -110,6 +120,8 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     [Parameter]
     public string TicketId { get; set; } = string.Empty;
 
