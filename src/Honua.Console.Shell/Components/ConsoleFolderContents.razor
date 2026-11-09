@@ -22,12 +22,12 @@ else
         <h2 id="folder-services-heading">Services</h2>
         @if (_services.IsAllowed)
         {
-            <p data-folder-count>@Matches.Count Services · @Matches.Sum(service => service.LayerCount) Layers@(CountSuffix)</p>
+            <p data-folder-count>@_matches.Count @(_matches.Count == 1 ? "Service" : "Services") · @_layerCount @(_layerCount == 1 ? "Layer" : "Layers")@(CountSuffix)</p>
             @if (!Complete)
             {
                 <p role="note">The service catalog is incomplete. Only Services in the pages read so far are shown.</p>
             }
-            @if (Matches.Count == 0)
+            @if (_matches.Count == 0)
             {
                 <p>@(Complete ? "This Folder has no Services." : "No Services from this Folder in the pages read so far.")</p>
             }
@@ -37,7 +37,7 @@ else
                     <table class="console-table">
                         <thead><tr><th scope="col">Service</th><th scope="col">Title</th><th scope="col">Layers</th><th scope="col">Protocols</th></tr></thead>
                         <tbody>
-                            @foreach (var service in Matches)
+                            @foreach (var service in _matches)
                             {
                                 <tr><th scope="row"><a href="@($"/operate/services/{Uri.EscapeDataString(service.ServiceName)}/settings")">@service.ServiceName</a></th><td>@(service.Title ?? "Not set")</td><td>@service.LayerCount</td><td>@string.Join(", ", service.EnabledProtocols ?? [])</td></tr>
                             }
@@ -50,7 +50,7 @@ else
         {
             <OperateSectionStatusPanel Heading="Services" Status="@_services.Status" Message="@_services.Message" />
         }
-        @if (HasMore)
+        @if (_hasMore)
         {
             <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="ReadNextAsync">@(_busy ? "Reading…" : "Read more Services")</button>
         }
@@ -78,15 +78,14 @@ else
     private bool _loading = true;
     private bool _busy;
     private bool _disposed;
-    private int _readCount;
+    private IReadOnlyList<ServiceSummary> _matches = [];
+    private int _layerCount;
     private bool _hasMore;
     private bool _partial;
     private string Title => _folder?.Metadata.Title ?? _folder?.Metadata.Name ?? "Folder";
     private string FolderMessage => !_folders.IsAllowed ? _folders.Message : _folders.PartialResult
         ? "This Folder was not returned. The Folder catalog is incomplete." : "This Folder is not available in the selected environment.";
-    private List<ServiceSummary> Matches => _items.Where(service => service.FolderId == FolderId).ToList();
-    private bool Complete => !HasMore && !_partial;
-    private bool HasMore => _hasMore;
+    private bool Complete => !_hasMore && !_partial;
     private string CountSuffix => Complete ? string.Empty : " in pages read";
 
     protected override Task OnInitializedAsync() => RefreshAsync();
@@ -96,7 +95,8 @@ else
         if (_busy || _disposed) return;
         _loading = true;
         _items.Clear();
-        _readCount = 0;
+        _matches = [];
+        _layerCount = 0;
         _hasMore = false;
         _partial = false;
         _query = HonuaAdminCatalogQuery.First;
@@ -117,10 +117,12 @@ else
         if (_disposed) return;
         if (_services.IsAllowed && _services.Value is { } page)
         {
-            _readCount += page.Items.Length;
-            _partial |= _services.PartialResult || (page.Items.Length == 0 && _readCount < page.Total);
-            _items.AddRange(page.Items.Where(item => _items.All(existing => existing.ServiceName != item.ServiceName)));
-            _hasMore = page.Items.Length > 0 && _readCount < page.Total;
+            foreach (var item in page.Items)
+                if (_items.All(existing => existing.ServiceName != item.ServiceName)) _items.Add(item);
+            _matches = _items.Where(service => service.FolderId == FolderId).ToArray();
+            _layerCount = _matches.Sum(service => service.LayerCount);
+            _partial |= _services.PartialResult || page.Page != _query.Page || (page.Items.Length == 0 && _items.Count < page.Total);
+            _hasMore = page.Items.Length > 0 && _items.Count < page.Total;
             _query = _query.Next();
         }
         else

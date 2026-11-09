@@ -194,6 +194,30 @@ public sealed class ConsolePublicationNavigationRenderTests
         Assert.Equal(0, source.ChildReads);
     }
 
+    [Theory]
+    [InlineData("/operate/services/denied/settings")]
+    [InlineData("/operate/layers/denied")]
+    public void V4BreadcrumbRetainsOperateWhenPublicationPathIsUnavailable(string route)
+    {
+        using var context = Context();
+        context.Services.AddSingleton(new CatalogAdminOptions());
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo(route);
+        var breadcrumb = context.Render<ConsoleBreadcrumbs>();
+        Assert.Equal("Operate", breadcrumb.Find("a[href='/operate']").TextContent);
+    }
+
+    [Fact]
+    public void DisabledFolderRouteDoesNotExposeV4ContextActions()
+    {
+        using var context = Context();
+        context.Services.AddSingleton(new CatalogAdminOptions());
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/folders/public");
+        var breadcrumb = context.Render<ConsoleBreadcrumbs>();
+        Assert.DoesNotContain("Folder home", breadcrumb.Markup);
+        Assert.DoesNotContain("Manage Folders", breadcrumb.Markup);
+    }
+
     [Fact]
     public void PublicationBreadcrumbFollowsTheAuthorizedFolderServiceAndLayer()
     {

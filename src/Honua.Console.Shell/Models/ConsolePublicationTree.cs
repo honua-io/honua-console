@@ -81,7 +81,7 @@ public sealed class ConsolePublicationTree
             {
                 Key = "folder:" + Uri.EscapeDataString(folder.Metadata.Id),
                 Label = ConsoleFolderCatalog.Label(folder),
-                Href = "/operate/folders/" + Uri.EscapeDataString(folder.Metadata.Id),
+                Href = FolderHref(folder.Metadata.Id),
                 Kind = ConsolePublicationNodeKind.Folder,
                 ChildrenLoaded = true
             };
@@ -142,6 +142,8 @@ public sealed class ConsolePublicationTree
         else parent.Children.Insert(index, service);
     }
 
+    private static string FolderHref(string id) => "/operate/folders/" + Uri.EscapeDataString(id);
+
     private static List<ConsolePublicationNode> Ordered(List<ConsolePublicationNode> children) =>
         children.OrderBy(node => node.Kind).ThenBy(node => node.Label, StringComparer.OrdinalIgnoreCase).ToList();
 
@@ -153,7 +155,7 @@ public sealed class ConsolePublicationTree
         {
             Key = "folder:" + Uri.EscapeDataString(service.FolderId),
             Label = ConsoleFolderCatalog.LocationLabel(service.FolderId, service.FolderName),
-            Href = "/operate/folders/" + Uri.EscapeDataString(service.FolderId),
+            Href = FolderHref(service.FolderId),
             Kind = ConsolePublicationNodeKind.Folder,
             ChildrenLoaded = true
         };

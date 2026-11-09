@@ -1,4 +1,7 @@
 using Bunit;
+using System.Security.Claims;
+using Honua.Console.Web.Auth;
+using Microsoft.AspNetCore.Components.Authorization;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
@@ -31,7 +34,7 @@ public sealed class ConsoleFolderContentsTests
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
         context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
         var page = context.Render<ConsoleFolderContents>(parameters => parameters.Add(component => component.FolderId, "transport"));
-        Assert.Contains("1 Services · 3 Layers in pages read", page.Find("[data-folder-count]").TextContent);
+        Assert.Contains("1 Service · 3 Layers in pages read", page.Find("[data-folder-count]").TextContent);
         Assert.Contains("incomplete", page.Markup);
         Assert.DoesNotContain("other-service", page.Markup);
         Assert.Equal("Transport", page.Find("h1").TextContent);
@@ -64,7 +67,7 @@ public sealed class ConsoleFolderContentsTests
         context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
         var page = context.Render<ConsoleFolderContents>(parameters => parameters.Add(component => component.FolderId, "transport"));
         page.Find("button").Click();
-        Assert.Contains("1 Services · 3 Layers in pages read", page.Find("[data-folder-count]").TextContent);
+        Assert.Contains("1 Service · 3 Layers in pages read", page.Find("[data-folder-count]").TextContent);
         Assert.Contains("incomplete", page.Markup);
         Assert.Empty(page.FindAll("button"));
     }
@@ -119,7 +122,7 @@ public sealed class ConsoleFolderContentsTests
             .Add(component => component.LoadBudget, TimeSpan.FromMilliseconds(25)));
         page.WaitForAssertion(() => Assert.Contains("did not respond in time", page.Markup));
         page.Find("button").Click();
-        page.WaitForAssertion(() => Assert.Contains("1 Services · 3 Layers in pages read", page.Find("[data-folder-count]").TextContent));
+        page.WaitForAssertion(() => Assert.Contains("1 Service · 3 Layers in pages read", page.Find("[data-folder-count]").TextContent));
         Assert.Equal(2, source.Reads.Count);
     }
 
@@ -139,7 +142,7 @@ public sealed class ConsoleFolderContentsTests
         var page = context.Render<OperateFolderPage>(parameters => parameters.Add(component => component.FolderId, "transport"));
         page.WaitForAssertion(() => Assert.Single(source.Reads));
         await profiles.ActivateProfileAsync("second");
-        page.WaitForAssertion(() => Assert.Contains("1 Services · 3 Layers in pages read", page.Find("[data-folder-count]").TextContent));
+        page.WaitForAssertion(() => Assert.Contains("1 Service · 3 Layers in pages read", page.Find("[data-folder-count]").TextContent));
         source.HeldRead.SetResult(OperateSectionResult<HonuaAdminServicePage>.Allowed(new()
         {
             Items = [new() { ServiceName = "stale", FolderId = "transport", LayerCount = 999 }],
@@ -149,25 +152,88 @@ public sealed class ConsoleFolderContentsTests
         Assert.Equal(2, source.Reads.Count);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RepeatedOrMismatchedPagesCannotClaimCompleteCounts(bool mismatchedPage)
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(new NavigationSource { DuplicateSecondPage = !mismatchedPage, MismatchedSecondPage = mismatchedPage });
+        context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
+        var page = context.Render<ConsoleFolderContents>(parameters => parameters.Add(component => component.FolderId, "transport"));
+        page.Find("button").Click();
+        Assert.Contains("in pages read", page.Find("[data-folder-count]").TextContent);
+        Assert.Contains("incomplete", page.Markup);
+    }
+
+    [Fact]
+    public async Task AuthenticationChangeRebindsEnvironmentChangesAndDiscardsOldRead()
+    {
+        using var context = new BunitContext();
+        var source = new NavigationSource();
+        var identity = new MutableOperator();
+        var profiles = new OperatorScopedEnvironmentProfileStore(identity, () => new InMemoryConsoleEnvironmentProfileStore([
+            new() { Id = "first", DisplayName = "First" }, new() { Id = "second", DisplayName = "Second" }
+        ], activeProfileId: "first"));
+        var authentication = new AuthenticationSignals();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
+        context.Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
+        var page = context.Render<OperateFolderPage>(parameters => parameters.Add(component => component.FolderId, "transport"));
+        Assert.Single(source.Reads);
+        identity.CurrentOperatorKey = "second-operator";
+        source.HoldReadNumber = 2;
+        await page.InvokeAsync(authentication.Publish);
+        page.WaitForAssertion(() => Assert.Equal(2, source.Reads.Count));
+        await profiles.ActivateProfileAsync("second");
+        page.WaitForAssertion(() => Assert.Equal(3, source.Reads.Count));
+        source.HeldRead.SetResult(OperateSectionResult<HonuaAdminServicePage>.Allowed(new()
+        {
+            Items = [new() { ServiceName = "stale-operator", FolderId = "transport", LayerCount = 999 }],
+            Total = 1
+        }));
+        page.WaitForAssertion(() => Assert.Contains("1 Service · 3 Layers", page.Find("[data-folder-count]").TextContent));
+        Assert.DoesNotContain("stale-operator", page.Markup);
+    }
+
+    private sealed class MutableOperator : IConsoleOperatorContext
+    {
+        public string CurrentOperatorKey { get; set; } = "first-operator";
+        public bool HasOperator => true;
+        public string RequireOperatorKey() => CurrentOperatorKey;
+    }
+
+    private sealed class AuthenticationSignals : AuthenticationStateProvider
+    {
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() => Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
+        public void Publish() => NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+    }
+
     private sealed class NavigationSource : IConsolePublicationNavigationSource
     {
         public List<HonuaAdminCatalogQuery> Reads { get; } = [];
         public OperateSectionStatus? Status { get; init; }
         public int? StatusPage { get; init; }
         public bool HoldFirstRead { get; init; }
+        public int? HoldReadNumber { get; set; }
+        public bool DuplicateSecondPage { get; init; }
+        public bool MismatchedSecondPage { get; init; }
         public TaskCompletionSource<OperateSectionResult<HonuaAdminServicePage>> HeldRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int? PartialPage { get; init; }
         public int? EmptyPage { get; init; }
         public Task<OperateSectionResult<HonuaAdminServicePage>> ReadServicesAsync(HonuaAdminCatalogQuery query, CancellationToken cancellationToken)
         {
             Reads.Add(query);
-            if (HoldFirstRead && Reads.Count == 1) return HeldRead.Task;
+            if ((HoldFirstRead && Reads.Count == 1) || Reads.Count == HoldReadNumber) return HeldRead.Task;
             if (Status is { } status && (StatusPage is null || StatusPage == query.Page)) return Task.FromResult(OperateSectionResult<HonuaAdminServicePage>.Denied(status, "Access denied"));
             ServiceSummary[] items = query.Page == 1
                 ? [new() { ServiceName = "roads", FolderId = "transport", LayerCount = 3 }, new() { ServiceName = "other-service", FolderId = "other", LayerCount = 90 }]
                 : [new() { ServiceName = "bridges", FolderId = "transport", LayerCount = 4 }];
+            if (query.Page == 2 && DuplicateSecondPage) items = [new() { ServiceName = "roads", FolderId = "transport", LayerCount = 3 }];
             if (query.Page == EmptyPage) items = [];
-            return Task.FromResult(OperateSectionResult<HonuaAdminServicePage>.Allowed(new() { Items = items, Page = query.Page, PageSize = 2, Total = 3, LayerTotal = 97 }, partialResult: query.Page == PartialPage));
+            return Task.FromResult(OperateSectionResult<HonuaAdminServicePage>.Allowed(new() { Items = items, Page = query.Page == 2 && MismatchedSecondPage ? 1 : query.Page, PageSize = 2, Total = 3, LayerTotal = 97 }, partialResult: query.Page == PartialPage));
         }
 
         public Task<OperateSectionResult<IReadOnlyList<string>>> ReadConnectionsAsync(CancellationToken cancellationToken) => throw new InvalidOperationException();

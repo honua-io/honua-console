@@ -60,7 +60,7 @@
         ? PublicationPath.FirstOrDefault(node => node.Kind == ConsolePublicationNodeKind.Folder) : null;
     private ConsolePublicationNode? ParentService => SelectedNode?.Kind == ConsolePublicationNodeKind.Layer
         ? PublicationPath.FirstOrDefault(node => node.Kind == ConsolePublicationNodeKind.Service) : null;
-    private ConsoleWorkflowArea? ParentArea => !(V4Enabled && (Context.Kind is ConsoleNavigationContextKind.Folder or ConsoleNavigationContextKind.Service or ConsoleNavigationContextKind.Layer))
+    private ConsoleWorkflowArea? ParentArea => !(V4Enabled && HasPublicationPath)
         && ConsoleRouteMap.FindAreaForPath(RelativePath) is { } area
         && area.Path.Trim('/') != RelativePath && area.Name != Context.Label
             ? area.Id == "catalog" ? area with { Name = ConsoleNavigation.ContextForPath(area.Path, Definitions).Label } : area
@@ -68,7 +68,7 @@
 
     private IEnumerable<ConsoleNavigationDestination> ContextActions => Context.Kind switch
     {
-        ConsoleNavigationContextKind.Folder => [new(Context.Path, "Folder home"), new("/operate/services#folders", "Manage Folders")],
+        ConsoleNavigationContextKind.Folder when V4Enabled => [new(Context.Path, "Folder home"), new("/operate/services#folders", "Manage Folders")],
         ConsoleNavigationContextKind.Service => [new(Context.Path, "Edit service"),
             ConsoleNavigation.Data with { Label = "Layer Preview" }, ConsoleNavigation.AddData],
         ConsoleNavigationContextKind.Layer => [new(Context.Path, "Layer home"),

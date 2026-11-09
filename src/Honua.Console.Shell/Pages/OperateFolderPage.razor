@@ -30,7 +30,16 @@
         if (_authentication is not null) _authentication.AuthenticationStateChanged += OnAuthenticationChanged;
     }
 
-    private void OnAuthenticationChanged(Task<AuthenticationState> state) => Refresh();
+    private void OnAuthenticationChanged(Task<AuthenticationState> state)
+    {
+        if (_disposed) return;
+        if (_profiles is not null)
+        {
+            _profiles.ActiveProfileChanged -= Refresh;
+            _profiles.ActiveProfileChanged += Refresh;
+        }
+        Refresh();
+    }
 
     private void Refresh()
     {
