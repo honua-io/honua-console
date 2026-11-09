@@ -121,13 +121,15 @@ test('modified arrows remain unhandled and browser Back remains available',async
   await page.goto('/version.json');
   await openFixture(page);
   await page.getByRole('treeitem',{name:'Alpha 1 layer',exact:true}).focus();
-  const prevented=page.evaluate(()=>new Promise<boolean>(resolve=>{
+  await page.evaluate(()=>{
     window.addEventListener('keydown',event=>{
-      if(event.altKey && event.key==='ArrowLeft') resolve(event.defaultPrevented);
+      if(event.altKey && event.key==='ArrowLeft') {
+        document.documentElement.dataset.modifiedArrowPrevented=String(event.defaultPrevented);
+      }
     });
-  }));
+  });
   await page.keyboard.press('Alt+ArrowLeft');
-  expect(await prevented).toBe(false);
+  await expect(page.locator('html')).toHaveAttribute('data-modified-arrow-prevented','false');
   await expect(page.getByRole('treeitem',{name:'Alpha 1 layer',exact:true})).toBeFocused();
   await page.goBack();
   await expect(page).toHaveURL(/\/version.json$/);
