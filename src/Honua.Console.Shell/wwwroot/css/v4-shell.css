@@ -1,3 +1,26 @@
+.console-shell[data-console-v4="true"] h1,
+.console-shell[data-console-v4="true"] h2,
+.console-shell[data-console-v4="true"] h3,
+.console-shell[data-console-v4="true"] h4 {
+    line-height: var(--leading-tight);
+    font-weight: var(--weight-semibold);
+    letter-spacing: -.01em;
+}
+
+.console-shell[data-console-v4="true"] h1 {
+    font-size: var(--text-2xl);
+    font-weight: var(--weight-medium);
+    letter-spacing: -.02em;
+}
+
+.console-shell[data-console-v4="true"] h2 { font-size: var(--text-xl); }
+.console-shell[data-console-v4="true"] h3 { font-size: var(--text-md); }
+.console-shell[data-console-v4="true"] h4 { font-size: var(--text-sm); }
+
+.console-shell[data-console-v4="true"] .console-panel-heading > h2 {
+    font-size: var(--text-md);
+}
+
 .console-shell[data-console-v4="true"] .console-page-heading-v4 {
     display: flex;
     align-items: flex-start;
@@ -70,4 +93,8 @@
     padding: 0;
     border: 0;
     box-shadow: none;
+}
+
+@media (max-width: 640px) {
+    .console-shell[data-console-v4="true"] h1 { font-size: var(--text-xl); }
 }
