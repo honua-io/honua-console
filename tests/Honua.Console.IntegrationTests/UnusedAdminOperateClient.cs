@@ -4,6 +4,10 @@ namespace Honua.Console.IntegrationTests;
 
 internal class UnusedAdminOperateClient : IHonuaAdminOperateClient
 {
+    public virtual Task<HonuaAdminEndpointResult<HonuaAdminImportPreview>> PreviewImportFileAsync(byte[] bytes, string fileName, string authorityBinding, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    public virtual Task<HonuaAdminEndpointResult<HonuaAdminCoordinateSystemSearch>> SearchCoordinateSystemsAsync(string query, string authorityBinding, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    public virtual Task<HonuaAdminEndpointResult<HonuaAdminImportResult>> ImportFileBoundAsync(HonuaAdminFileImportRequest request, string authorityBinding, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
     public virtual Uri BaseUri => new("https://server.test");
 
     public virtual Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> GetLayerFieldsAsync(

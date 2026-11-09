@@ -466,10 +466,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
 
     private static MultipartFormDataContent ImportUploadForm(ImportUpload upload)
     {
-        var form = new MultipartFormDataContent();
-        var fileEntry = new ByteArrayContent(upload.FileContent);
-        fileEntry.Headers.TryAddWithoutValidation("Content-Type", "application/octet-stream");
-        form.Add(fileEntry, "file", upload.FileName);
+        var form = ImportFileForm(upload.FileContent, upload.FileName);
         form.Add(new StringContent(upload.TableName), "TableName");
         if (!string.IsNullOrWhiteSpace(upload.TargetSchema))
         {
@@ -952,6 +949,12 @@ public sealed record HonuaAdminExternalLayerCandidate
 
 public sealed record HonuaAdminImportResult
 {
+    public int? SourceSrid { get; init; }
+
+    public int? StoredSrid { get; init; }
+
+    public bool? Reprojected { get; init; }
+
     public bool Success { get; init; }
 
     public long FeatureCount { get; init; }

@@ -3,62 +3,105 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-public sealed class HonuaServerConsoleFileImportOperation : IConsoleFileImportOperation
+public sealed class HonuaServerConsoleFileImportOperation(
+    IHonuaAdminOperateClient client, IConsoleAuthorityBindingValidator? authority = null) : IConsoleFileImportOperation
 {
-    private readonly IHonuaAdminOperateClient _client;
-
-    public HonuaServerConsoleFileImportOperation(IHonuaAdminOperateClient client)
-    {
-        _client = client ?? throw new ArgumentNullException(nameof(client));
-    }
+    private const string ReviewFile = "Your user or environment changed. Choose the file again in the intended environment.";
 
     public async Task<IReadOnlyList<string>> GetSupportedExtensionsAsync(CancellationToken cancellationToken = default)
     {
-        var result = await _client.GetImportFormatsAsync(cancellationToken).ConfigureAwait(false);
+        var result = await client.GetImportFormatsAsync(cancellationToken).ConfigureAwait(false);
         return result.Data?.SupportedExtensions ?? [];
     }
 
-    public async Task<ConsoleFileImportResult> ImportAsync(
-        ConsoleFileImportCommand command,
-        CancellationToken cancellationToken = default)
+    public async Task<ConsoleFileImportPreview> PreviewAsync(byte[] bytes, string fileName, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(command);
-
-        var result = await _client
-            .ImportFileAsync(command.FileContent, command.FileName, command.TableName, command.TargetSchema, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (result.Data is { } data)
-        {
-            if (data.Success)
+        var binding = authority is null ? null : await authority.CaptureAsync(cancellationToken);
+        if (binding is null) return new() { State = "Sign-in required", Detail = "Sign in to the selected environment before checking the file." };
+        var result = await client.PreviewImportFileAsync(bytes, fileName, binding, cancellationToken).ConfigureAwait(false);
+        if (!await authority!.IsCurrentAsync(binding, cancellationToken)) return new() { State = "Target changed", Detail = ReviewFile };
+        if (result.Data?.CoordinateSystem is { } coordinateSystem && IsUsable(coordinateSystem))
+            return new()
             {
-                return new ConsoleFileImportResult
-                {
-                    Succeeded = true,
-                    State = "Imported",
-                    Detail = $"Imported {data.FeatureCount} feature(s) from {data.Format ?? "the file"} into the new table. Publish it from the publishing workspace to make it a live layer.",
-                    TableName = data.TableName,
-                    FeatureCount = data.FeatureCount,
-                };
-            }
-
-            // The endpoint returns HTTP 200 with success=false on a failed import; surface its reason.
-            return new ConsoleFileImportResult
-            {
-                Succeeded = false,
-                State = "Rejected",
-                Detail = data.ErrorMessage ?? "The Honua server could not import the file.",
-                TableName = data.TableName,
-                ValidationErrors = data.ValidationErrors,
+                Succeeded = true,
+                State = "Checked",
+                CoordinateSystem = coordinateSystem,
+                AuthorityBinding = binding,
+                Warnings = result.Data.Warnings
             };
-        }
-
-        var issue = result.Issue;
-        return new ConsoleFileImportResult
+        return new()
         {
-            Succeeded = false,
-            State = issue?.State ?? "Unavailable",
-            Detail = issue?.Detail ?? "The Honua server did not accept the file-import request.",
+            State = result.Issue?.State ?? "Unavailable",
+            Detail = result.Issue?.Detail ?? "This server cannot report the file’s coordinate system. Check its import capability before continuing."
         };
     }
+
+    public async Task<OperateSectionResult<HonuaAdminCoordinateSystemSearch>> SearchCoordinateSystemsAsync(
+        string query, string binding, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(query) || query.Trim().Length > 128)
+            return OperateSectionResult<HonuaAdminCoordinateSystemSearch>.Denied(OperateSectionStatus.Unavailable, "Enter an EPSG code or name using at most 128 characters.");
+        if (authority is null || !await authority.IsCurrentAsync(binding, cancellationToken))
+            return OperateSectionResult<HonuaAdminCoordinateSystemSearch>.Denied(OperateSectionStatus.Unavailable, ReviewFile);
+        var result = await client.SearchCoordinateSystemsAsync(query, binding, cancellationToken).ConfigureAwait(false);
+        if (!await authority.IsCurrentAsync(binding, cancellationToken))
+            return OperateSectionResult<HonuaAdminCoordinateSystemSearch>.Denied(OperateSectionStatus.Unavailable, ReviewFile);
+        if (result.Data is { } data && data.Items is { Count: <= 20 } items
+            && items.All(item => item is not null && item.Code > 0 && !string.IsNullOrWhiteSpace(item.Name))
+            && items.DistinctBy(item => item.Code).Count() == items.Count)
+            return OperateSectionResult<HonuaAdminCoordinateSystemSearch>.Allowed(data);
+        return OperateSectionResult<HonuaAdminCoordinateSystemSearch>.Denied(OperateSectionStatus.Unavailable,
+            result.Issue?.Detail ?? "Coordinate systems could not be read. Search again before choosing one.");
+    }
+
+    public async Task<ConsoleFileImportResult> ImportAsync(ConsoleFileImportCommand command, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (string.IsNullOrWhiteSpace(command.AuthorityBinding) || authority is null)
+            return new() { State = "Target unverified", Detail = "Check the file’s coordinate system before importing." };
+        if (!await authority.IsCurrentAsync(command.AuthorityBinding, cancellationToken))
+            return new() { State = "Target changed", Detail = ReviewFile };
+        if (command.SourceSrid is <= 0 || command.TargetSrid is <= 0)
+            return new() { State = "Invalid coordinate system", Detail = "Choose a supported coordinate system before importing." };
+
+        HonuaAdminEndpointResult<HonuaAdminImportResult> result;
+        try
+        {
+            result = await client.ImportFileBoundAsync(new(command.FileContent, command.FileName, command.TableName,
+                command.TargetSchema, command.SourceSrid, command.TargetSrid), command.AuthorityBinding, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
+        {
+            return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail };
+        }
+        if (!await authority.IsCurrentAsync(command.AuthorityBinding, CancellationToken.None))
+            return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail };
+        if (result.Data is null && result.Issue is { } issue
+            && (issue.StatusCode is null or >= 200 and < 300 || issue.State == ConsoleWriteOutcome.UnverifiedState))
+            return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail + " " + issue.Detail };
+        if (result.Data is { Success: true } imported && (imported.StoredSrid is not > 0 || imported.Reprojected is null))
+            return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail };
+        if (result.Data is { } data)
+            return new()
+            {
+                Succeeded = data.Success,
+                State = data.Success ? "Imported" : "Rejected",
+                Detail = data.Success ? $"Imported {data.FeatureCount} feature(s) into the new table. Publish it to make it a live layer."
+                    : data.ErrorMessage ?? "The Honua server could not import the file.",
+                TableName = data.TableName,
+                FeatureCount = data.FeatureCount,
+                StoredSrid = data.StoredSrid,
+                Reprojected = data.Reprojected,
+                ValidationErrors = data.ValidationErrors
+            };
+        return new() { State = result.Issue?.State ?? "Unavailable", Detail = result.Issue?.Detail ?? "The server did not accept the file-import request." };
+    }
+
+    private static bool IsUsable(HonuaAdminImportCoordinateSystem system) =>
+        system.DetectionMethod is "file-metadata" or "format-defined" or "unknown"
+        && (system.DetectedSrid is null or > 0)
+        && (system.RequiresSourceOverride ? system.EffectiveSourceSrid is null
+            : system.DetectedSrid is > 0 && system.EffectiveSourceSrid == system.DetectedSrid)
+        && (system.DetectedCrs is null || system.DetectedCrs.Code == system.DetectedSrid && !string.IsNullOrWhiteSpace(system.DetectedCrs.Name))
+        && system.StoredSrid == system.EffectiveSourceSrid && system.TargetSrid is null && !system.Reprojected;
 }

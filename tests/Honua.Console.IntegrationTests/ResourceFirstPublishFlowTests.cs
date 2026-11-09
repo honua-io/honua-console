@@ -352,14 +352,14 @@ public sealed class ResourceFirstPublishFlowTests
     }
 
     [Fact]
-    public void Flow_FileSource_LinksToTheImportTaskInsteadOfAnInlineUpload()
+    public void Flow_FileSource_LinksToTheSupportedImportInsteadOfAnInlineUpload()
     {
         using var ctx = NewContext();
         RegisterMissingBinding(ctx);
 
         var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "file"));
 
-        Assert.Single(cut.FindAll("a[href='/operate/resources/import/task']"));
+        Assert.Single(cut.FindAll("a[href='/operate/resources/import']"));
         Assert.Empty(cut.FindAll("input[type='file']"));
         Assert.Empty(cut.FindAll("[data-step-body='AddData'] button.console-button"));
     }

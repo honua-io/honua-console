@@ -29,6 +29,15 @@ public interface IHonuaAdminConnectionsClient
 
 public interface IHonuaAdminImportClient
 {
+    Task<HonuaAdminEndpointResult<HonuaAdminImportPreview>> PreviewImportFileAsync(
+        byte[] fileContent, string fileName, string authorityBinding, CancellationToken cancellationToken = default);
+
+    Task<HonuaAdminEndpointResult<HonuaAdminCoordinateSystemSearch>> SearchCoordinateSystemsAsync(
+        string query, string authorityBinding, CancellationToken cancellationToken = default);
+
+    Task<HonuaAdminEndpointResult<HonuaAdminImportResult>> ImportFileBoundAsync(
+        HonuaAdminFileImportRequest request, string authorityBinding, CancellationToken cancellationToken = default);
+
     // The body is the format list itself, not the admin response envelope.
     Task<HonuaAdminEndpointResult<HonuaAdminImportFormats>> GetImportFormatsAsync(
         CancellationToken cancellationToken = default);

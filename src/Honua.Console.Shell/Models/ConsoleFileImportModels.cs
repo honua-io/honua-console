@@ -1,3 +1,5 @@
+using Honua.Console.Contracts;
+
 namespace Honua.Console.Shell.Models;
 
 public sealed record ConsoleFileImportCommand
@@ -9,6 +11,12 @@ public sealed record ConsoleFileImportCommand
     public required string TableName { get; init; }
 
     public string? TargetSchema { get; init; }
+
+    public int? SourceSrid { get; init; }
+
+    public int? TargetSrid { get; init; }
+
+    public string? AuthorityBinding { get; init; }
 }
 
 public sealed record ConsoleFileImportResult : ConsoleOperationResult<ConsoleFileImportResult>
@@ -17,5 +25,20 @@ public sealed record ConsoleFileImportResult : ConsoleOperationResult<ConsoleFil
 
     public long FeatureCount { get; init; }
 
+    public int? StoredSrid { get; init; }
+
+    public bool? Reprojected { get; init; }
+
     public IReadOnlyList<string> ValidationErrors { get; init; } = [];
 }
+
+public sealed record ConsoleFileImportPreview : ConsoleOperationResult<ConsoleFileImportPreview>
+{
+    public HonuaAdminImportCoordinateSystem? CoordinateSystem { get; init; }
+
+    public string? AuthorityBinding { get; init; }
+
+    public IReadOnlyList<string> Warnings { get; init; } = [];
+}
+
+public sealed record ConsoleFileImportCoordinates(int? SourceSrid, int? TargetSrid);
