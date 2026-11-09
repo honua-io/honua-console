@@ -2,6 +2,8 @@
 @inject IOperateTransitionDataSource OperateData
 @inject IServiceProvider Services
 
+<ConsoleAgentContext Context="@AgentContext" />
+
 <section class="console-page">
     @if (V4Enabled)
     {
@@ -28,10 +30,27 @@
     {
         @ServiceList
     }
-    <Honua.Console.Shell.Components.Operate.FolderManagement OnSaved="LoadAsync" />
+    <Honua.Console.Shell.Components.Operate.FolderManagement OnSaved="LoadAsync" UnsavedChanged="@(summary => _folderUnsaved = summary)" SelectionChanged="@(entity => _selectedFolder = entity)" />
 </section>
 
 @code {
+    private ConsoleAgentUnsavedSummary _folderUnsaved = new();
+    private ConsoleAgentEntity? _selectedFolder;
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = "/operate/services",
+        Entities = _selectedFolder is { } entity ? [entity] : [],
+        Selection = _selectedFolder is { } selected ? [selected] : [],
+        Unsaved = _folderUnsaved
+    };
+
+    private static ConsoleAgentEntity ServiceEntity(OperateServiceDetail service) => new()
+    {
+        Kind = ConsoleAgentEntityKind.Service,
+        Id = service.Name,
+        ServiceName = service.Name
+    };
+
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     private RenderFragment ServiceList => @<text>
@@ -62,7 +81,7 @@
                                 @if (V4Enabled)
                                 {
                                     <ConsoleNameIdentifier Name="@service.DisplayName" Identifier="@service.Name"
-                                                           Href="@($"/operate/services/{Uri.EscapeDataString(service.Name)}/settings")" />
+                                                           Href="@ConsoleAgentRoutes.ForEntity(ServiceEntity(service))" />
                                 }
                                 else
                                 {
