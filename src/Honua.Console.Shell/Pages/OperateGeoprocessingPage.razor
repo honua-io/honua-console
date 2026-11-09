@@ -170,6 +170,7 @@
             else
             {
                 <JobDiagnosticsTimeline View="_diagnostics.Value"
+                    CancelAllowed="job.CanCancel"
                     Busy="_actionBusy"
                     ReadingEarlier="_diagnosticsReadingEarlier"
                     OnCancel="() => ConfirmCancelJob(job.JobRunId)"

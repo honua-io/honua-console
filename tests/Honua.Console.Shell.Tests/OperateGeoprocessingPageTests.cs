@@ -199,6 +199,30 @@ public sealed class OperateGeoprocessingPageTests
         Assert.Contains("Job requeued for retry.", page.Markup);
     }
 
+    [Theory]
+    [InlineData("Succeeded")]
+    [InlineData("Failed")]
+    [InlineData("Cancelled")]
+    public void TerminalJobDoesNotOfferCancelWhenDiagnosticsRetainsCancelLink(string state)
+    {
+        using var ctx = new BunitContext();
+        var client = new StubGeoprocessingClient
+        {
+            Detail = OperateSectionResult<OperateJobRun>.Allowed(
+                Job("gp-terminal", state, "completed", 100, "analyst.live")),
+            Diagnostics = OperateSectionResult<OperateJobDiagnosticsView>.Allowed(
+                Projection("gp-terminal", cancel: true))
+        };
+        ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(client);
+
+        var page = ctx.Render<OperateGeoprocessingPage>(p => p
+            .Add(x => x.SelectedJobRunId, "gp-terminal"));
+
+        Assert.Contains("data-job-timeline", page.Markup);
+        Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Contains("Cancel job", StringComparison.Ordinal));
+        Assert.Empty(client.CancelCalls);
+    }
+
     [Fact]
     public void DetailModeCancelOnRunningJobCallsCancelEndpoint()
     {
