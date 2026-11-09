@@ -1,0 +1,139 @@
+@using Honua.Sdk.Admin.Models
+@implements IDisposable
+@inject IServiceProvider Services
+
+<ConsolePageHeading Title="@Title">
+    @if (_folder is { } folder)
+    {
+        <p>Folder <code>@folder.Metadata.Name</code></p>
+    }
+</ConsolePageHeading>
+@if (_loading)
+{
+    <p role="status">Reading Folder…</p>
+}
+else if (_folder is null)
+{
+    <OperateSectionStatusPanel Heading="Folder" Status="@(_folders.IsAllowed ? OperateSectionStatus.Missing : _folders.Status)" Message="@FolderMessage" />
+}
+else
+{
+    <section class="console-folder-services" aria-labelledby="folder-services-heading">
+        <h2 id="folder-services-heading">Services</h2>
+        @if (_services.IsAllowed)
+        {
+            <p data-folder-count>@Matches.Count Services · @Matches.Sum(service => service.LayerCount) Layers@(CountSuffix)</p>
+            @if (!Complete)
+            {
+                <p role="note">The service catalog is incomplete. Only Services in the pages read so far are shown.</p>
+            }
+            @if (Matches.Count == 0)
+            {
+                <p>@(Complete ? "This Folder has no Services." : "No Services from this Folder in the pages read so far.")</p>
+            }
+            else
+            {
+                <ConsoleTableRegion Label="Folder Services">
+                    <table class="console-table">
+                        <thead><tr><th scope="col">Service</th><th scope="col">Title</th><th scope="col">Layers</th><th scope="col">Protocols</th></tr></thead>
+                        <tbody>
+                            @foreach (var service in Matches)
+                            {
+                                <tr><th scope="row"><a href="@($"/operate/services/{Uri.EscapeDataString(service.ServiceName)}/settings")">@service.ServiceName</a></th><td>@(service.Title ?? "Not set")</td><td>@service.LayerCount</td><td>@string.Join(", ", service.EnabledProtocols ?? [])</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </ConsoleTableRegion>
+            }
+        }
+        else
+        {
+            <OperateSectionStatusPanel Heading="Services" Status="@_services.Status" Message="@_services.Message" />
+        }
+        @if (HasMore)
+        {
+            <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="ReadNextAsync">@(_busy ? "Reading…" : "Read more Services")</button>
+        }
+    </section>
+    <ConsolePanel Title="Administration" HeadingId="folder-administration-heading">
+        <dl class="console-definition-list"><div><dt>Name</dt><dd>@_folder.Metadata.Name</dd></div><div><dt>Title</dt><dd>@(_folder.Metadata.Title ?? "Not set")</dd></div></dl>
+        <p>Access is managed per Service.</p>
+        <a href="/operate/services#folders">Edit, rename or delete a Folder</a>
+    </ConsolePanel>
+}
+@if (!_loading && (ConsoleReadBudget.IsErrorState(_folders.Status) || ConsoleReadBudget.IsErrorState(_services.Status)))
+{
+    <button type="button" class="console-button console-button-secondary" @onclick="RefreshAsync" disabled="@_busy">Retry Folder</button>
+}
+
+@code {
+    [Parameter, EditorRequired] public string FolderId { get; set; } = string.Empty;
+    [Parameter] public TimeSpan LoadBudget { get; set; } = ConsoleReadBudget.Default;
+    private readonly CancellationTokenSource _lifetime = new();
+    private readonly List<ServiceSummary> _items = [];
+    private OperateSectionResult<ConsoleFolderCatalog> _folders = OperateSectionResult<ConsoleFolderCatalog>.Denied(OperateSectionStatus.Missing, "Folders are not available.");
+    private OperateSectionResult<HonuaAdminServicePage> _services = OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Missing, "Services are not available.");
+    private HonuaAdminCatalogQuery _query = HonuaAdminCatalogQuery.First;
+    private Folder? _folder;
+    private bool _loading = true;
+    private bool _busy;
+    private bool _disposed;
+    private int _readCount;
+    private bool _hasMore;
+    private bool _partial;
+    private string Title => _folder?.Metadata.Title ?? _folder?.Metadata.Name ?? "Folder";
+    private string FolderMessage => !_folders.IsAllowed ? _folders.Message : _folders.PartialResult
+        ? "This Folder was not returned. The Folder catalog is incomplete." : "This Folder is not available in the selected environment.";
+    private List<ServiceSummary> Matches => _items.Where(service => service.FolderId == FolderId).ToList();
+    private bool Complete => !HasMore && !_partial;
+    private bool HasMore => _hasMore;
+    private string CountSuffix => Complete ? string.Empty : " in pages read";
+
+    protected override Task OnInitializedAsync() => RefreshAsync();
+
+    private async Task RefreshAsync()
+    {
+        if (_busy || _disposed) return;
+        _loading = true;
+        _items.Clear();
+        _readCount = 0;
+        _hasMore = false;
+        _partial = false;
+        _query = HonuaAdminCatalogQuery.First;
+        var client = Services.GetService<IConsoleFolderClient>() ?? new UnsupportedConsoleFolderClient();
+        _folders = await ConsoleReadBudget.RunAsync(client.ReadAsync, LoadBudget, "The Folder catalog did not respond in time.", _lifetime.Token);
+        if (_disposed) return;
+        _folder = _folders.IsAllowed ? _folders.Value?.ActiveFolders.SingleOrDefault(folder => folder.Metadata.Id == FolderId) : null;
+        if (_folder is not null) await ReadNextAsync();
+        _loading = false;
+    }
+
+    private async Task ReadNextAsync()
+    {
+        if (_busy || _disposed) return;
+        _busy = true;
+        var client = Services.GetService<IConsolePublicationNavigationSource>() ?? new UnsupportedConsolePublicationNavigationSource();
+        _services = await ConsoleReadBudget.RunAsync(token => client.ReadServicesAsync(_query, token), LoadBudget, "The service catalog did not respond in time.", _lifetime.Token);
+        if (_disposed) return;
+        if (_services.IsAllowed && _services.Value is { } page)
+        {
+            _readCount += page.Items.Length;
+            _partial |= _services.PartialResult || (page.Items.Length == 0 && _readCount < page.Total);
+            _items.AddRange(page.Items.Where(item => _items.All(existing => existing.ServiceName != item.ServiceName)));
+            _hasMore = page.Items.Length > 0 && _readCount < page.Total;
+            _query = _query.Next();
+        }
+        else
+        {
+            _hasMore = false;
+        }
+        _busy = false;
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+    }
+}

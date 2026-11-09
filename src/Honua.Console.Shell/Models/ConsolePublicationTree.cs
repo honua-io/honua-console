@@ -81,6 +81,7 @@ public sealed class ConsolePublicationTree
             {
                 Key = "folder:" + Uri.EscapeDataString(folder.Metadata.Id),
                 Label = ConsoleFolderCatalog.Label(folder),
+                Href = "/operate/folders/" + Uri.EscapeDataString(folder.Metadata.Id),
                 Kind = ConsolePublicationNodeKind.Folder,
                 ChildrenLoaded = true
             };
@@ -152,6 +153,7 @@ public sealed class ConsolePublicationTree
         {
             Key = "folder:" + Uri.EscapeDataString(service.FolderId),
             Label = ConsoleFolderCatalog.LocationLabel(service.FolderId, service.FolderName),
+            Href = "/operate/folders/" + Uri.EscapeDataString(service.FolderId),
             Kind = ConsolePublicationNodeKind.Folder,
             ChildrenLoaded = true
         };
