@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 
@@ -11,6 +12,48 @@ public sealed class HonuaServerConsoleConnectionCreateOperation : IConsoleConnec
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
     }
+
+    public async Task<ConsoleConnectionProviderAvailability> GetProviderAvailabilityAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _client.GetConnectionProviderManifestAsync(cancellationToken).ConfigureAwait(false);
+        var manifest = result.Data;
+        if (result.Issue is not null || manifest.ValueKind != JsonValueKind.Object
+            || !manifest.TryGetProperty("schemaVersion", out var schema)
+            || schema.ValueKind != JsonValueKind.String || schema.GetString() != "honua.capability_manifest.v1")
+        {
+            return ConsoleConnectionProviderAvailability.Unavailable;
+        }
+
+        if (!manifest.TryGetProperty("dataStores", out var stores))
+        {
+            return new ConsoleConnectionProviderAvailability();
+        }
+
+        if (stores.ValueKind != JsonValueKind.Object
+            || !stores.TryGetProperty("installedProviders", out var providers)
+            || providers.ValueKind != JsonValueKind.Array
+            || providers.EnumerateArray().Any(provider => provider.ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(provider.GetString())))
+        {
+            return ConsoleConnectionProviderAvailability.Unavailable;
+        }
+
+        return new ConsoleConnectionProviderAvailability
+        {
+            InstalledProviders = providers.EnumerateArray().Select(provider => provider.GetString()!).ToArray(),
+            FullImageTagSuffix = ReadString(stores, "fullImageTagSuffix"),
+            DocumentationHref = SafeDocumentationHref(ReadString(stores, "documentationHref"))
+        };
+    }
+
+    private static string? ReadString(JsonElement element, string property) =>
+        element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString() : null;
+
+    private static string? SafeDocumentationHref(string? href) =>
+        Uri.TryCreate(href, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps
+            && uri.UserInfo.Length == 0 ? uri.AbsoluteUri : null;
 
     public async Task<ConsoleConnectionCreateResult> CreateAsync(
         ConsoleConnectionCreateCommand command,
