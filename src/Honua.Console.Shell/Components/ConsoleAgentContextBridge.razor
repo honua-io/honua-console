@@ -1,0 +1,67 @@
+@implements IAsyncDisposable
+@inject IServiceProvider Services
+@inject NavigationManager Navigation
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Components.Authorization
+
+@code {
+    private ConsoleAgentContextRegistry? _registry;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<ConsoleAgentContextBridge>? _reference;
+    private bool _disposed;
+    private ConsoleEnvironmentSubscription? _environment;
+
+    protected override void OnInitialized()
+    {
+        if (Services.GetService<ConsoleV4Options>()?.Enabled != true) return;
+        _registry = Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        _registry.Navigate(CurrentRoute());
+        _registry.Changed += ContextChanged;
+        Navigation.LocationChanged += LocationChanged;
+        _environment = new ConsoleEnvironmentSubscription(Services.GetService<IConsoleEnvironmentProfileStore>(),
+            Services.GetService<AuthenticationStateProvider>(), () => _registry.Navigate(CurrentRoute()));
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _registry is null) return;
+        var runtime = Services.GetRequiredService<IJSRuntime>();
+        _module = await runtime.InvokeAsync<IJSObjectReference>("import", "./js/console-agent-context.mjs");
+        if (_disposed) { await _module.DisposeAsync(); return; }
+        _reference = DotNetObjectReference.Create(this);
+        await _module.InvokeVoidAsync("install", _reference, _registry.Current);
+    }
+
+    [JSInvokable]
+    public string ResolveEntityRoute(ConsoleAgentEntity target) => ConsoleAgentRoutes.ForEntity(target);
+
+    private string CurrentRoute() => "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
+    private void LocationChanged(object? sender, LocationChangedEventArgs args) => _registry?.Navigate(CurrentRoute());
+    private void ContextChanged() => _ = InvokeAsync(PublishAsync);
+
+    private async Task PublishAsync()
+    {
+        if (_disposed || _module is null || _registry is null) return;
+        try { await _module.InvokeVoidAsync("publish", _reference, _registry.Current); }
+        catch (JSDisconnectedException) { }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        _environment?.Dispose();
+        Navigation.LocationChanged -= LocationChanged;
+        if (_registry is not null) _registry.Changed -= ContextChanged;
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("uninstall", _reference);
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException) { }
+        }
+        _reference?.Dispose();
+    }
+}
