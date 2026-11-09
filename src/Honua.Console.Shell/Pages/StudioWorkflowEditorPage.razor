@@ -2,15 +2,26 @@
 @using Honua.Console.Shell.Validation
 @inject IStudioWorkflowPackageClient Workflows
 @inject NavigationManager Navigation
+@inject IServiceProvider Services
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved workflow changes. Leave this page and discard them?" />
 
 <section class="console-page workflow-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Studio workflow.package</p>
-        <h1>Workflow Editor</h1>
-        <p>Author a unified GP/ETL workflow package, dry-run it through job contracts, save a versioned content item, and publish to job runner or an eligible process endpoint.</p>
-    </div>
+    @if (IsConsoleV4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/studio-builders-v4.css" />
+        <ConsolePageHeading Title="Workflow editor">
+            <p>Edit a workflow, test a run, and review it before publishing.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Studio workflow.package</p>
+            <h1>Workflow Editor</h1>
+            <p>Author a unified GP/ETL workflow package, dry-run it through job contracts, save a versioned content item, and publish to job runner or an eligible process endpoint.</p>
+        </div>
+    }
 
     @if (_binding is not null)
     {
@@ -96,7 +107,7 @@
                 </div>
             </aside>
 
-            <main class="workflow-main">
+            @{ RenderFragment workflowContent = @<text>
                 <section class="console-panel workflow-package-panel" aria-label="Package metadata">
                     <div class="workflow-form-grid">
                         <label>
@@ -330,7 +341,16 @@
                         </ul>
                     </section>
                 </div>
-            </main>
+            </text>;
+            if (IsConsoleV4Enabled)
+            {
+                <section class="workflow-main" aria-label="Workflow editing">@workflowContent</section>
+            }
+            else
+            {
+                <main class="workflow-main">@workflowContent</main>
+            }
+            }
 
             <aside class="workflow-inspector" aria-label="Publish and dry-run review">
                 <section class="console-panel">
@@ -617,6 +637,8 @@
 </section>
 
 @code {
+    private bool IsConsoleV4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     private static readonly string[] ParameterTypes = ["string", "date", "number", "boolean", "geometry"];
 
     [Parameter]
