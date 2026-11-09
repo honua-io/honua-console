@@ -141,6 +141,8 @@ jobs:
         run: dotnet format Honua.Console.slnx --verify-no-changes --verbosity minimal --no-restore
 
       - name: Run .NET tests
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
         # Coverage is collected for visibility only (uploaded as an artifact below);
         # there is no coverage threshold gate.
         run: dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj --no-restore --nologo --verbosity minimal --collect:"XPlat Code Coverage" --results-directory artifacts/test-results/shell
@@ -206,6 +208,20 @@ jobs:
           path: |
             artifacts/catalog-preview/*-builder-*
             artifacts/catalog-preview/workflow-editor-*
+          if-no-files-found: error
+
+      - name: Verify rendered jobs presentation
+        run: node e2e/playwright/jobs-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload jobs presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: jobs-presentation
+          path: |
+            artifacts/catalog-preview/jobs-*
           if-no-files-found: error
 
       - name: Verify rendered Studio entry presentation
