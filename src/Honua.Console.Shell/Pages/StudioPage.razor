@@ -11,7 +11,7 @@
 
 @if (IsRetiredRoute)
 {
-    <section class="console-page @(V4Enabled ? "console-studio-v4" : null)" data-legacy-studio-retired>
+    <section class="console-page" data-legacy-studio-retired>
         @if (V4Enabled)
         {
             <ConsolePageHeading Title="This view has moved to the Studio workspace"><p>Edit maps with visual controls and your Console conversation.</p></ConsolePageHeading>
@@ -30,7 +30,7 @@ else if (EmbedEnabled && !_interactiveReady)
 {
     @if (V4Enabled)
     {
-        <section class="console-page console-studio-v4">
+        <section class="console-page">
             <ConsolePageHeading Title="Studio" />
             <p role="status">Connecting the realtime Studio workspace…</p>
         </section>
@@ -42,7 +42,7 @@ else if (EmbedEnabled && !_interactiveReady)
 }
 else if (EmbedEnabled)
 {
-    <section class="console-page @(V4Enabled ? "console-studio-v4" : null)" data-studio-embed>
+    <section class="console-page" data-studio-embed>
         @if (V4Enabled)
         {
             <ConsolePageHeading Title="Studio"><p>Edit maps with visual controls and your Console conversation.</p></ConsolePageHeading>
@@ -59,7 +59,7 @@ else if (EmbedEnabled)
 }
 else
 {
-    <section class="console-page @(V4Enabled ? "console-studio-v4" : null)" data-studio-unavailable>
+    <section class="console-page" data-studio-unavailable>
         @if (V4Enabled)
         {
             <ConsolePageHeading Title="Studio is unavailable on this deployment"><p>Connect a deployment that supports the realtime Console and Studio workspace, or ask your administrator to enable it.</p></ConsolePageHeading>
