@@ -140,14 +140,14 @@ export function mountStudioDraftCreate({ app, host }) {
     form.append(key, create, notice, inbox, refresh, acknowledge, reset);
     host.querySelector('[data-studio-mount]').before(form);
     let disposed = false, busy = false;
-    const render = () => {
+    const render = (seedKey = true) => {
         if (disposed) return;
         inbox.hidden = refresh.hidden = acknowledge.hidden = reset.hidden = true;
         create.disabled = key.disabled = busy;
         try {
             const record = session.read();
             if (!record) { notice.textContent = ''; create.textContent = 'New map'; return; }
-            if (record.status !== 'completed' || !key.value) key.value = record.packageKey;
+            if (record.status !== 'completed' || seedKey && !key.value) key.value = record.packageKey;
             key.disabled = busy || record.status !== 'completed';
             create.disabled = busy || record.status !== 'submitting' && record.status !== 'completed';
             create.textContent = record.status === 'submitting' ? 'Retry original New map' : record.status === 'completed' && key.value.trim() === record.packageKey ? 'Open map' : 'New map';
@@ -172,7 +172,7 @@ export function mountStudioDraftCreate({ app, host }) {
         catch (error) { failure = error; }
         finally { busy = false; if (!disposed) { render(); if (failure) notice.textContent = failure.message; } }
     };
-    key.addEventListener('input', render);
+    key.addEventListener('input', () => render(false));
     form.addEventListener('submit', event => {
         event.preventDefault();
         const packageKey = key.value.trim();

@@ -43,6 +43,10 @@ test('editing a completed map key labels the next action as creation', () => {
         const key = form.children.find(child => child.tagName === 'input');
         const submit = form.children.find(child => child.type === 'submit');
         assert.equal(submit.textContent, 'Open map');
+        key.value = '';
+        key.listeners.input?.();
+        assert.equal(key.value, '');
+        assert.equal(submit.textContent, 'New map');
         key.value = 'another-map';
         key.listeners.input?.();
         assert.equal(submit.textContent, 'New map');
