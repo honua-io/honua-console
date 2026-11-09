@@ -20,6 +20,12 @@ public sealed class OperateServicesPageTests
 
         var page = context.Render<OperateServicesPage>();
 
+        var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        Assert.Equal(enabled ? "/operate/services" : "/", registry.Current.Route);
+        Assert.Empty(registry.Current.Entities);
+        Assert.Empty(registry.Current.Selection);
+        var serviceTarget = new ConsoleAgentEntity { Kind = ConsoleAgentEntityKind.Service, Id = service.Name, ServiceName = service.Name };
+        Assert.Single(page.FindAll($"a[href='{ConsoleAgentRoutes.ForEntity(serviceTarget)}']"));
         Assert.Equal("Services", page.Find("h1").TextContent);
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-panel[aria-labelledby='services-list-heading']").Count);
@@ -45,6 +51,7 @@ public sealed class OperateServicesPageTests
 
         var page = context.Render<OperateServicesPage>();
 
+        Assert.Equal("DIV", page.Find("[data-connection-notice][role=alert]").TagName);
         Assert.Equal("Connect environment", page.Find("[data-connection-notice] a").TextContent);
         Assert.Empty(page.FindAll("table, .console-state-empty"));
         if (enabled) CatalogAdminPreview.Capture("data-services-unbound", page.Markup);
@@ -121,6 +128,7 @@ public sealed class OperateServicesPageTests
     {
         var context = new BunitContext();
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        context.Services.AddSingleton<ConsoleAgentContextRegistry>();
         return context;
     }
 
