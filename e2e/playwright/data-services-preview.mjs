@@ -6,18 +6,22 @@ await runV4PagePresentation({
   previews: path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/catalog-preview"),
   pageNames: ["data-services", "data-services-unbound"],
   title: "Services presentation fixture",
-  stylesheet: "v4-shell.css",
+  stylesheet: "v4-data-primitives.css",
   heading: "Services",
   scope: ".console-page",
   controls: ".console-page :is(a[href], button, input, select, summary):not(:disabled):visible",
   inspect: async (page, name) => {
     assert.equal(await page.locator(".console-panel[aria-labelledby='services-list-heading']").count(), 1);
-    assert.equal(await page.locator(".console-kicker").count(), 0);
+    assert.equal(await page.locator(".console-page > .console-page-heading .console-kicker").count(), 0);
     if (name === "data-services") {
       const link = page.getByRole("link", { name: "Public roads", exact: true });
       assert.equal(await link.getAttribute("href"), "/operate/services/roads%2Fpublic/settings");
       assert.equal(await page.locator(".console-name-identifier-id").textContent(), "roads/public");
       assert.deepEqual(await page.locator(".console-protocol-list li").allTextContents(), ["WMS", "WFS"]);
+      assert.equal(await page.locator(".console-protocol-list").evaluate(element => getComputedStyle(element).display), "flex");
+      assert.equal(await page.locator(".console-protocol-list").evaluate(element => getComputedStyle(element).listStyleType), "none");
+      assert.equal(await page.locator(".console-protocol-list li").first().evaluate(element => getComputedStyle(element).borderTopWidth), "1px");
+      assert.equal(await page.locator(".console-name-identifier-id").evaluate(element => getComputedStyle(element).color), "rgb(75, 85, 81)");
       assert.equal(await page.locator("tbody td").nth(2).textContent(), "0");
       assert.equal(await page.locator("[data-connection-notice]").count(), 0);
     } else {

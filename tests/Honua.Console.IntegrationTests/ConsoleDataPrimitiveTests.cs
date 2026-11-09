@@ -24,9 +24,10 @@ public sealed class ConsoleDataPrimitiveTests
         using var context = new BunitContext();
         var page = context.Render<ConsoleNameIdentifier>(parameters => parameters
             .Add(component => component.Name, "Public roads")
-            .AddChildContent("<a href='/roads'>Public roads</a>"));
+            .Add(component => component.Href, "/roads"));
 
         Assert.Equal("/roads", page.Find("a").GetAttribute("href"));
+        Assert.Equal("Public roads", page.Find("a").TextContent);
         Assert.Empty(page.FindAll(".console-name-identifier-id"));
     }
 

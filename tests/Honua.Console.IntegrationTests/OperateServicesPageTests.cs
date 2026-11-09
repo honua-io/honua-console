@@ -23,14 +23,16 @@ public sealed class OperateServicesPageTests
         Assert.Equal("Services", page.Find("h1").TextContent);
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-panel[aria-labelledby='services-list-heading']").Count);
-        Assert.Equal(enabled ? 0 : 1, page.FindAll(".console-kicker").Count);
+        Assert.Equal(enabled ? 0 : 1, page.FindAll(".console-page > .console-page-heading .console-kicker").Count);
         Assert.Equal("Public roads", page.Find("a[href='/operate/services/roads%2Fpublic/settings']").TextContent);
         Assert.Equal(enabled ? "roads/public" : null, page.FindAll(".console-name-identifier-id").SingleOrDefault()?.TextContent);
         Assert.Equal(enabled ? ["WMS", "WFS"] : [], page.FindAll(".console-protocol-list li").Select(item => item.TextContent));
+        Assert.Equal(enabled ? "Service inventory" : "Services", page.Find(".console-table-wrap").GetAttribute("aria-label"));
         Assert.Equal("0", page.FindAll("tbody td")[2].TextContent);
         Assert.Equal("Ready", page.FindAll("tbody td")[3].TextContent);
         Assert.Empty(page.FindAll("[data-resource-tree], [data-connection-notice]"));
         if (enabled) CatalogAdminPreview.Capture("data-services", page.Markup);
+        else Assert.Equal(["Public roads", "WMS, WFS", "0", "Ready"], page.FindAll("tbody td").Select(cell => cell.TextContent.Trim()));
     }
 
     [Theory]
