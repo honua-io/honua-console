@@ -12,22 +12,46 @@
 @if (IsRetiredRoute)
 {
     <section class="console-page @(V4Enabled ? "console-studio-v4" : null)" data-legacy-studio-retired>
-        <p class="console-kicker">Studio</p>
-        <h1>This view has moved to the Studio workspace</h1>
-        <p>Edit maps with visual controls and your Console conversation.</p>
+        @if (V4Enabled)
+        {
+            <ConsolePageHeading Title="This view has moved to the Studio workspace"><p>Edit maps with visual controls and your Console conversation.</p></ConsolePageHeading>
+        }
+        else
+        {
+            <p class="console-kicker">Studio</p>
+            <h1>This view has moved to the Studio workspace</h1>
+            <p>Edit maps with visual controls and your Console conversation.</p>
+        }
         <a class="console-button-link" href="/studio">Open Studio workspace</a>
         <a class="console-button-link console-button-secondary" href="/catalog">Browse saved content</a>
     </section>
 }
 else if (EmbedEnabled && !_interactiveReady)
 {
-    <section class="console-page @(V4Enabled ? "console-studio-v4" : null)" role="status">Connecting the realtime Studio workspace…</section>
+    @if (V4Enabled)
+    {
+        <section class="console-page console-studio-v4">
+            <ConsolePageHeading Title="Studio" />
+            <p role="status">Connecting the realtime Studio workspace…</p>
+        </section>
+    }
+    else
+    {
+        <section class="console-page" role="status">Connecting the realtime Studio workspace…</section>
+    }
 }
 else if (EmbedEnabled)
 {
     <section class="console-page @(V4Enabled ? "console-studio-v4" : null)" data-studio-embed>
-        <h1>Studio</h1>
-        <p>Edit maps with visual controls and your Console conversation.</p>
+        @if (V4Enabled)
+        {
+            <ConsolePageHeading Title="Studio"><p>Edit maps with visual controls and your Console conversation.</p></ConsolePageHeading>
+        }
+        else
+        {
+            <h1>Studio</h1>
+            <p>Edit maps with visual controls and your Console conversation.</p>
+        }
         <p><a href="/studio/processes">Open Processes</a></p>
         <p role="status" data-studio-status>Connecting the realtime Studio workspace…</p>
         <div data-studio-mount></div>
@@ -36,9 +60,16 @@ else if (EmbedEnabled)
 else
 {
     <section class="console-page @(V4Enabled ? "console-studio-v4" : null)" data-studio-unavailable>
-        <p class="console-kicker">Studio</p>
-        <h1>Studio is unavailable on this deployment</h1>
-        <p>Connect a deployment that supports the realtime Console and Studio workspace, or ask your administrator to enable it.</p>
+        @if (V4Enabled)
+        {
+            <ConsolePageHeading Title="Studio is unavailable on this deployment"><p>Connect a deployment that supports the realtime Console and Studio workspace, or ask your administrator to enable it.</p></ConsolePageHeading>
+        }
+        else
+        {
+            <p class="console-kicker">Studio</p>
+            <h1>Studio is unavailable on this deployment</h1>
+            <p>Connect a deployment that supports the realtime Console and Studio workspace, or ask your administrator to enable it.</p>
+        }
         <a class="console-button-link" href="/environments">Review connection</a>
         <a class="console-button-link console-button-secondary" href="/setup/local">Set up Honua locally</a>
     </section>

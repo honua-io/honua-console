@@ -4,8 +4,15 @@
 @if (Enabled)
 {
     <section class="console-page @(V4Enabled ? "console-studio-v4" : null)" data-processes-embed>
-        <h1>Processes</h1>
-        <p>Build a governed workflow or develop an isolated local Python or .NET process.</p>
+        @if (V4Enabled)
+        {
+            <ConsolePageHeading Title="Processes"><p>Build a governed workflow or develop an isolated local Python or .NET process.</p></ConsolePageHeading>
+        }
+        else
+        {
+            <h1>Processes</h1>
+            <p>Build a governed workflow or develop an isolated local Python or .NET process.</p>
+        }
         <p role="status" data-processes-status>Connecting the process workspace…</p>
         <div data-processes-builtin></div>
         <div data-processes-custom></div>
