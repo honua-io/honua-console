@@ -14,7 +14,7 @@ const pages = new Map(await Promise.all(["activity-selected", "activity-empty"].
 const server = await startPresentationFixtureServer({
   pages,
   title: "Activity presentation fixture",
-  stylesheets: ["/_content/Honua.Console.Shell/honua-console.css", "/_content/Honua.Console.Shell/css/operate-activity-v4.css"],
+  stylesheets: ["/_content/Honua.Console.Shell/honua-console.css"],
   assets: shellAssets,
   assetPrefix: "/_content/Honua.Console.Shell/",
 });

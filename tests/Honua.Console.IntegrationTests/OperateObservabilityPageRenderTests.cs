@@ -54,7 +54,9 @@ public sealed class OperateObservabilityPageRenderTests
         var page = context.Render<OperateObservabilityPage>();
         var filters = page.Find("form[aria-label='Operate evidence filters']");
 
-        filters.QuerySelectorAll("select")[v4Enabled ? 1 : 2].Change("release");
+        filters.QuerySelectorAll("label")
+            .Single(label => label.QuerySelector("span")?.TextContent == "Event type")
+            .QuerySelector("select")!.Change("release");
         filters.QuerySelector("input")!.Input("corr-selected");
         filters.Submit();
 
@@ -89,6 +91,7 @@ public sealed class OperateObservabilityPageRenderTests
             : Array.IndexOf(sections, "fleet") < Array.IndexOf(sections, "events"));
         Assert.Equal(enabled, page.FindAll(".activity-sync-notice").Count == 1);
         Assert.Equal(enabled, page.FindAll(".console-activity-v4").Count == 1);
+        Assert.Equal(enabled, page.FindAll("section > link[rel='stylesheet'][href$='operate-activity-v4.css']").Count == 1);
         if (enabled) CatalogAdminPreview.Capture("activity-empty", page.Markup);
     }
 
