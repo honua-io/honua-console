@@ -74,8 +74,11 @@ public sealed class ConsoleAgentContextTests
     {
         var registry = new ConsoleAgentContextRegistry();
         using var old = registry.Register(new() { Route = "/old" });
-        using var destination = registry.Register(new() { Route = "/next",
-            Entities = [Folder("next")] });
+        using var destination = registry.Register(new()
+        {
+            Route = "/next",
+            Entities = [Folder("next")]
+        });
         var generation = registry.Current.Generation;
         registry.Navigate("/next?filter=active");
         Assert.True(destination.IsActive);
@@ -145,8 +148,11 @@ public sealed class ConsoleAgentContextTests
         if (enabled)
         {
             registry.Navigate("/next");
-            cut.Render(parameters => parameters.Add(component => component.Context, new() { Route = "/next",
-            Entities = [Folder("next")] }));
+            cut.Render(parameters => parameters.Add(component => component.Context, new()
+            {
+                Route = "/next",
+                Entities = [Folder("next")]
+            }));
             Assert.Equal("next", Assert.Single(registry.Current.Entities).Id);
         }
         Assert.Empty(cut.Markup);
@@ -180,9 +186,8 @@ public sealed class ConsoleAgentContextTests
         cut.WaitForAssertion(() => Assert.NotEmpty(module.Invocations["publish"]));
         await renderer.DisposeComponentsAsync();
         Assert.Single(module.Invocations["uninstall"]);
-        var publishes = module.Invocations["publish"].Count;
-        registry.Invalidate("/next");
-        Assert.Equal(publishes, module.Invocations["publish"].Count);
+        await cut.InvokeAsync(() => navigation.NavigateTo("/other"));
+        Assert.Equal("/next", registry.Current.Route);
     }
 
     [Fact]
