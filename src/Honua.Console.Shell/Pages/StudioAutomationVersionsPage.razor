@@ -76,7 +76,7 @@
                 <li class="console-panel automation-version-item @(version.IsCurrent ? "automation-version-current" : string.Empty)">
                     <div class="console-panel-heading">
                         <div>
-                            <h2>v@version.VersionNumber</h2>
+                            <h2>v@(version.VersionNumber)</h2>
                             <p class="console-muted">@version.VersionId</p>
                         </div>
                         @if (version.IsCurrent)

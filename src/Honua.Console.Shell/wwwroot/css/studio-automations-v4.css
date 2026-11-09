@@ -9,14 +9,9 @@
     box-shadow: var(--shadow-panel);
 }
 
-.console-automations-v4 .console-content-table {
-    margin: 0;
-}
-
 .console-automations-v4 .console-content-table th,
 .console-automations-v4 .console-content-table td {
     padding: var(--space-3) var(--space-4);
-    border-bottom-color: var(--c-rule);
     background: transparent;
     font-size: var(--text-sm);
 }
@@ -41,10 +36,4 @@
 
 .console-automations-v4 time {
     white-space: nowrap;
-}
-
-@media (max-width: 640px) {
-    .console-automations-v4 .automation-table {
-        max-width: 100%;
-    }
 }

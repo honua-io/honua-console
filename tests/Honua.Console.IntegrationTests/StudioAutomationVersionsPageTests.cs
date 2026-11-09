@@ -51,6 +51,7 @@ public sealed class StudioAutomationVersionsPageTests
             TimeSpan.FromSeconds(5));
         Assert.NotEmpty(page.FindAll("li.automation-version-current"));
         Assert.Contains("Initial version.", page.Markup, StringComparison.Ordinal);
+        Assert.Equal("v1", Assert.Single(page.FindAll(".automation-version-item h2")).TextContent);
         Assert.Equal(v4Enabled, page.FindAll(".console-page-heading-v4").Count == 1);
         if (v4Enabled)
         {
