@@ -72,7 +72,7 @@
                 <p>Service identity: <code>@ServiceName</code>. Moving preserves this identity.</p>
                 <label class="console-field">
                     <span>Destination Folder</span>
-                    <select class="console-input" aria-label="Destination Folder" @bind="_folderId" @bind:after="ReportContextAsync" data-service-folder>
+                    <select class="console-input" aria-label="Destination Folder" @bind="_folderId" data-service-folder>
                         <option value="">Root</option>
                         @foreach (var folder in catalog.ActiveFolders)
                         {

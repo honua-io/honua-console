@@ -152,6 +152,10 @@ public sealed class OperateServicesPageTests
         Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
         Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
         Assert.Empty(registry.Current.Selection);
+        page.Find("[data-folder-select]").Change("transport");
+        page.Find("[data-folder-title]").Change("Unsaved before disposal");
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Selection.Count);
         page.Dispose();
         Assert.Equal(enabled ? "/operate/services" : "/", registry.Current.Route);
         Assert.Empty(registry.Current.Entities);
