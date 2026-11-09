@@ -94,16 +94,75 @@ public sealed class ConsoleFolderContentsTests
         Assert.Empty(page.FindAll("button"));
     }
 
+    [Fact]
+    public void DeniedLaterPageHidesPreviouslyReadCountsAndStopsPaging()
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(new NavigationSource { Status = OperateSectionStatus.Forbidden, StatusPage = 2 });
+        context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
+        var page = context.Render<ConsoleFolderContents>(parameters => parameters.Add(component => component.FolderId, "transport"));
+        page.Find("button").Click();
+        Assert.Contains("Access denied", page.Markup);
+        Assert.Empty(page.FindAll("[data-folder-count]"));
+        Assert.Empty(page.FindAll("button"));
+    }
+
+    [Fact]
+    public void HungServiceReadExpiresAndRetryRecovers()
+    {
+        using var context = new BunitContext();
+        var source = new NavigationSource { HoldFirstRead = true };
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
+        var page = context.Render<ConsoleFolderContents>(parameters => parameters
+            .Add(component => component.FolderId, "transport")
+            .Add(component => component.LoadBudget, TimeSpan.FromMilliseconds(25)));
+        page.WaitForAssertion(() => Assert.Contains("did not respond in time", page.Markup));
+        page.Find("button").Click();
+        page.WaitForAssertion(() => Assert.Contains("1 Services · 3 Layers in pages read", page.Find("[data-folder-count]").TextContent));
+        Assert.Equal(2, source.Reads.Count);
+    }
+
+    [Fact]
+    public async Task EnvironmentChangeDiscardsThePreviousFolderRead()
+    {
+        using var context = new BunitContext();
+        var source = new NavigationSource { HoldFirstRead = true };
+        var profiles = new InMemoryConsoleEnvironmentProfileStore([
+            new() { Id = "first", DisplayName = "First" },
+            new() { Id = "second", DisplayName = "Second" }
+        ], activeProfileId: "first");
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
+        var page = context.Render<OperateFolderPage>(parameters => parameters.Add(component => component.FolderId, "transport"));
+        page.WaitForAssertion(() => Assert.Single(source.Reads));
+        await profiles.ActivateProfileAsync("second");
+        page.WaitForAssertion(() => Assert.Contains("1 Services · 3 Layers in pages read", page.Find("[data-folder-count]").TextContent));
+        source.HeldRead.SetResult(OperateSectionResult<HonuaAdminServicePage>.Allowed(new()
+        {
+            Items = [new() { ServiceName = "stale", FolderId = "transport", LayerCount = 999 }],
+            Total = 1
+        }));
+        page.WaitForAssertion(() => Assert.DoesNotContain("stale", page.Markup));
+        Assert.Equal(2, source.Reads.Count);
+    }
+
     private sealed class NavigationSource : IConsolePublicationNavigationSource
     {
         public List<HonuaAdminCatalogQuery> Reads { get; } = [];
         public OperateSectionStatus? Status { get; init; }
+        public int? StatusPage { get; init; }
+        public bool HoldFirstRead { get; init; }
+        public TaskCompletionSource<OperateSectionResult<HonuaAdminServicePage>> HeldRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int? PartialPage { get; init; }
         public int? EmptyPage { get; init; }
         public Task<OperateSectionResult<HonuaAdminServicePage>> ReadServicesAsync(HonuaAdminCatalogQuery query, CancellationToken cancellationToken)
         {
             Reads.Add(query);
-            if (Status is { } status) return Task.FromResult(OperateSectionResult<HonuaAdminServicePage>.Denied(status, "Access denied"));
+            if (HoldFirstRead && Reads.Count == 1) return HeldRead.Task;
+            if (Status is { } status && (StatusPage is null || StatusPage == query.Page)) return Task.FromResult(OperateSectionResult<HonuaAdminServicePage>.Denied(status, "Access denied"));
             ServiceSummary[] items = query.Page == 1
                 ? [new() { ServiceName = "roads", FolderId = "transport", LayerCount = 3 }, new() { ServiceName = "other-service", FolderId = "other", LayerCount = 90 }]
                 : [new() { ServiceName = "bridges", FolderId = "transport", LayerCount = 4 }];
