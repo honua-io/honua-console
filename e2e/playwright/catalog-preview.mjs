@@ -6,26 +6,28 @@ import { chromium } from "@playwright/test";
 import { startPresentationFixtureServer } from "./presentation-fixture-server.mjs";
 import { checkKeyboardControls, inspectSharedPresentation, inspectCatalogCounts, catalogKeyboardTargets } from "./console-presentation.mjs";
 
+import { inspectV4HomePresentation } from "./v4-home-presentation.mjs";
 import { metadataPreviews, inspectMetadataPresentation } from "./metadata-presentation.mjs";
 
 const previews = path.resolve("artifacts/catalog-preview");
 const assets = path.resolve("artifacts/honua-console-web/wwwroot");
+const v4Previews = ["home-v4-true", "home-v4-false"];
 const sharedPreviews = ["navigation", "home", "service", "state-info", "state-warning", "state-danger", "state-unsupported", "service-success", "service-danger", "share-warning"];
-const pages = new Map(await Promise.all(["list", "overview", "settings", "templates", "template-editor", "template-dirty", "template-confirmation", "listing", "listing-dirty", "categories", "categories-dirty", ...metadataPreviews, ...sharedPreviews].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
+const pages = new Map(await Promise.all(["list", "overview", "settings", "templates", "template-editor", "template-dirty", "template-confirmation", "listing", "listing-dirty", "categories", "categories-dirty", ...metadataPreviews, ...sharedPreviews, ...v4Previews].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
 
 const server = await startPresentationFixtureServer({
   pages,
   title: "Catalog presentation fixture",
   stylesheets: ["/app.css", "/_content/Honua.Console.Shell/honua-console.css"],
   assets,
-  unwrappedPages: ["navigation"],
+  unwrappedPages: ["navigation", ...v4Previews],
 });
 let browser;
 try {
   browser = await chromium.launch();
   const context = await browser.newContext();
   const page = await context.newPage();
-  const samples = [...pages.keys()].flatMap(name => (name.startsWith("service") ? [390, 600, 1440] : [390, 1440]).map(width => ({ name, width })));
+  const samples = [...pages.keys()].flatMap(name => (v4Previews.includes(name) ? [390, 1280] : name.startsWith("service") ? [390, 600, 1440] : [390, 1440]).map(width => ({ name, width })));
   const failures = [];
   for (const sample of samples) failures.push(await capturePresentationCase(page, sample));
   assert.deepEqual(failures.filter(Boolean), []);
@@ -53,6 +55,7 @@ async function inspectPresentation(page, { name, width }) {
   assert.equal((await stylesheet).status(), 200);
   assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), "light");
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} overflows at ${width}`);
+  if (v4Previews.includes(name)) return inspectV4HomePresentation(page, { name, width }, previews);
   if (metadataPreviews.includes(name)) return inspectMetadataPresentation(page, { name, width }, previews);
   if (sharedPreviews.includes(name)) return inspectSharedPresentation(page, { name, width }, previews);
   await checkKeyboardControls(page, catalogKeyboardTargets);

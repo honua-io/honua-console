@@ -48,6 +48,24 @@ All `[Parameter]` types and their members are owned by
 
 ## 1. Surface and state components
 
+### Shared v4 presentation
+
+These components preserve native heading, section, link and definition-list semantics.
+Their v4 presentation is scoped to the shell's `data-console-v4="true"` root; callers use
+the shared rollout switch rather than introducing page flags.
+
+| Component | Parameters | Use |
+|---|---|---|
+| `ConsolePageHeading` | required `string Title`; optional `RenderFragment ChildContent`, `Actions` | One page `h1`, descriptive content and native action controls. |
+| `ConsolePanel` | required `string Title`, `HeadingId`; optional `string Class`, `RenderFragment ChildContent`, `Actions` | Quiet section named by its `h2`. Use a unique, stable heading ID per instance. |
+| `ConsoleMetricTile` | required `string Label`; optional `long? Value`, `string UnavailableText` (default `"Not available"`), `RenderFragment ChildContent` | One count in a definition list. A null count is unavailable; zero means an actual measured zero. |
+
+Reuse `ConsoleBreadcrumbs` for publication context, `ConsoleTableRegion` around native
+tables, and `EmptyState` or `ConsoleStateView` for empty/read states. Use native Blazor
+form controls with associated labels, and the existing `console-button` classes for actions.
+These surfaces do not grant capabilities or fetch data; the routed caller retains its
+existing permission checks and read-state handling.
+
 These are the shell-owned exception/empty/state primitives the charter
 (§5) requires feature routes to reuse instead of authoring bespoke
 403/404/empty copy.
