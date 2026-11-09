@@ -7,8 +7,10 @@ for (const variant of ["v4", "legacy"]) {
   await runV4PagePresentation({
     previews, pageNames: [`folder-${variant}`], title: "Folder presentation fixture",
     stylesheet: "css/folder-v4.css", heading: variant === "v4" ? "Transport" : "Folders",
+    wrapped: true,
     scope: "main", controls: "main :is(a[href], button, [tabindex='0']):not(:disabled):visible",
     inspect: async page => {
+      assert.equal(await page.locator(".console-shell").getAttribute("data-console-v4"), variant === "v4" ? "true" : "false");
       if (variant === "legacy") {
         assert.equal(await page.locator(".console-folder-services").count(), 0);
         assert.equal(await page.getByRole("link", { name: "Manage Folders in Services" }).getAttribute("href"), "/operate/services#folders");
