@@ -1,0 +1,16 @@
+<div class="console-page-heading console-page-heading-v4">
+    <div class="console-page-heading-copy">
+        <h1>@Title</h1>
+        @ChildContent
+    </div>
+    @if (Actions is not null)
+    {
+        <div class="console-page-heading-actions">@Actions</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+}
