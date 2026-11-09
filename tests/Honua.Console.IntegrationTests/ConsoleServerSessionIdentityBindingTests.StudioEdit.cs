@@ -22,6 +22,11 @@ public sealed partial class ConsoleServerSessionIdentityBindingTests
     [InlineData("expired")]
     [InlineData("missing-state")]
     [InlineData("agent-token")]
+    [InlineData("no-issuer-success")]
+    [InlineData("no-issuer-subject")]
+    [InlineData("no-issuer-missing-expiry")]
+    [InlineData("no-issuer-expired")]
+    [InlineData("no-issuer-provider")]
     public async Task HostedCallback_StudioEditProof_RequiresBoundValidatedHumanSession(string scenario)
     {
         var builder = WebApplication.CreateBuilder();
@@ -29,11 +34,16 @@ public sealed partial class ConsoleServerSessionIdentityBindingTests
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [ConsoleAuthConstants.AuthModeKey] = "EdgeForwarded",
-            [ConsoleAuthConstants.EdgeServerSessionIssuerKey] = Issuer
+            [ConsoleAuthConstants.EdgeServerSessionIssuerKey] = scenario.StartsWith("no-issuer-", StringComparison.Ordinal) ? "" : Issuer
         });
         builder.Services.AddSingleton<IConsoleOperatorContext>(new OperatorContext());
         builder.Services.AddSingleton(new ConsoleServerSessionClientStore(TimeProvider.System, (_, cookies) =>
-            new SimulatedServer(cookies) { SessionJson = scenario is "subject" or "missing-expiry" or "expired" ? InvalidSession(scenario) : Session() }));
+            new SimulatedServer(cookies)
+            {
+                SessionJson = scenario.StartsWith("no-issuer-", StringComparison.Ordinal)
+                    ? scenario == "no-issuer-success" ? Session() : InvalidSession(scenario[10..])
+                    : scenario is "subject" or "missing-expiry" or "expired" ? InvalidSession(scenario) : Session()
+            }));
         builder.AddConsoleAuthentication();
         builder.AddConsoleServerSessionBff();
         await using var app = builder.Build();
@@ -55,7 +65,7 @@ public sealed partial class ConsoleServerSessionIdentityBindingTests
             var state = QueryHelpers.ParseQuery(new Uri(begin.RedirectUri).Query)["state"].ToString();
             await coordinator.CompleteSignInAsync("code", scenario == "missing-state" ? null : state, null);
 
-            if (scenario == "success") AssertStudioCallbackProofs(app, context, profile);
+            if (scenario is "success" or "no-issuer-success" or "no-issuer-subject") AssertStudioCallbackProofs(app, context, profile);
             else Assert.Equal(0, context.Response.Headers.SetCookie.Count);
         }
         finally { accessor.HttpContext = null; }

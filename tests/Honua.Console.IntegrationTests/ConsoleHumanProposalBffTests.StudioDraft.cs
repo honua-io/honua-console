@@ -6,6 +6,25 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed partial class ConsoleHumanProposalBffTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StudioDraft_MissingOrExpiredProof_ReturnsServerSignInWithoutDispatch(bool expired)
+    {
+        await using var host = await Host.StartAsync();
+        if (expired) host.AdvanceClock(TimeSpan.FromMinutes(61));
+        else host.Client.DefaultRequestHeaders.Remove("Cookie");
+
+        using var response = await host.Client.PostAsJsonAsync("/api/studio/v1/studio/package-drafts", new { });
+        var refusal = await response.Content.ReadFromJsonAsync<System.Text.Json.Nodes.JsonObject>();
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal("server-sign-in-required", refusal!["code"]!.GetValue<string>());
+        Assert.Contains("/auth/server/login?profileId=", refusal["signInPath"]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.Contains("authority=Serving", refusal["signInPath"]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.Equal(0, host.DraftCalls);
+    }
+
     [Fact]
     public async Task StudioDraft_VerifiedBrowser_UsesPrivateUpstreamSessionWithoutBearer()
     {
