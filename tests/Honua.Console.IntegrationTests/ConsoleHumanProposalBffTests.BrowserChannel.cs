@@ -58,7 +58,8 @@ public sealed partial class ConsoleHumanProposalBffTests
         {
             case "tampered":
                 host.Client.DefaultRequestHeaders.Remove("Cookie");
-                host.Client.DefaultRequestHeaders.Add("Cookie", original + "tampered");
+                host.Client.DefaultRequestHeaders.Add("Cookie", string.Join("; ", original.Split("; ").Select(cookie =>
+                    cookie.StartsWith("__Host-HonuaApproval.", StringComparison.Ordinal) ? cookie + "tampered" : cookie)));
                 break;
             case "expired": host.AdvanceClock(TimeSpan.FromMinutes(11)); break;
             case "other-operator": host.OperatorKey = "other-human"; break;

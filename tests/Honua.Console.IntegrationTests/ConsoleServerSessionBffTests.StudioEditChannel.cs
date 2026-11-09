@@ -86,7 +86,7 @@ public sealed partial class ConsoleServerSessionBffTests
             Authority = scenario == "management-session" ? ConsoleServerAuthority.Management : ConsoleServerAuthority.Serving
         });
 
-        Assert.Empty(context.Response.Headers.SetCookie);
+        Assert.Equal(0, context.Response.Headers.SetCookie.Count);
         accessor.HttpContext = null;
     }
 

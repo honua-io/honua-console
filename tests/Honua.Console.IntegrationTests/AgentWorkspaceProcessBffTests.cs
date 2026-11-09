@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -300,9 +301,11 @@ public sealed class AgentWorkspaceProcessBffTests
             builder.Services.AddSingleton<IConsoleOperatorBearerProvider>(new Bearer());
             builder.Services.AddSingleton<IConsoleOperatorContext>(new Operator());
             builder.Services.AddSingleton<IHttpClientFactory>(wire);
+            AddStudioHumanSession(builder.Services, profile, sessions, wire);
             var app = builder.Build();
             app.Use(async (context, next) =>
             {
+                context.Request.Scheme = "https";
                 context.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "operator")], "test-cookie"));
                 await next();
             });
@@ -315,7 +318,49 @@ public sealed class AgentWorkspaceProcessBffTests
             client.DefaultRequestHeaders.Add("X-CSRF-Token", csrf);
             client.DefaultRequestHeaders.Add("X-Honua-Environment", profile.Id);
             client.DefaultRequestHeaders.Add("X-Honua-Session-Partition", AgentGatewayBinding.OperatorPartition("operator", profile.Id, profile.ServerBaseUri));
+            AddStudioEditProof(app, client, profile);
             return new(app, client, wire, csrf);
+        }
+
+        private static void AddStudioHumanSession(IServiceCollection services, ConsoleEnvironmentProfile profile,
+            IConsoleAccountSessionStore sessions, Wire wire)
+        {
+            var partitions = new ConsoleServerSessionClientStore(TimeProvider.System,
+                (_, cookies) => new PrivateSessionWire(cookies, wire));
+            var partition = partitions.GetOrCreate("operator", profile);
+            partition.AuthenticatedProviderKey = "oidc";
+            partition.AuthenticatedSessionExpiresAt = DateTimeOffset.UtcNow.AddHours(1);
+            partition.Cookies.SetCookies(profile.ServerBaseUri, "honua_admin_session=private-session; Path=/; HttpOnly");
+            services.AddSingleton(partitions);
+            services.AddSingleton(TimeProvider.System);
+            services.AddDataProtection();
+            services.AddHttpContextAccessor();
+            services.AddSingleton<ConsoleStudioEditBrowserChannel>();
+            services.AddSingleton(new ConsoleServerSessionIdentityBinding(
+                Options.Create(new ConsoleEdgeAuthOptions { ServerSessionIssuer = "https://identity.example/" }),
+                sessions, partitions, TimeProvider.System));
+        }
+
+        private static void AddStudioEditProof(WebApplication app, HttpClient client, ConsoleEnvironmentProfile profile)
+        {
+            Assert.True(app.Services.GetRequiredService<ConsoleServerSessionClientStore>().TryGet("operator", profile, out var partition));
+            var context = new DefaultHttpContext();
+            context.Request.Scheme = "https";
+            context.Request.Host = new HostString(client.BaseAddress!.Authority);
+            context.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "operator")], "test-cookie"));
+            var accessor = app.Services.GetRequiredService<IHttpContextAccessor>();
+            accessor.HttpContext = context;
+            try
+            {
+                app.Services.GetRequiredService<ConsoleStudioEditBrowserChannel>().CompleteCallback(new()
+                {
+                    SelectedProfile = profile, AuthorityProfile = profile,
+                    Authority = ConsoleServerAuthority.Serving, Partition = partition!
+                });
+                var proof = Assert.Single(context.Response.Headers.SetCookie)!;
+                client.DefaultRequestHeaders.Add("Cookie", proof[..proof.IndexOf(';')]);
+            }
+            finally { accessor.HttpContext = null; }
         }
         public async ValueTask DisposeAsync()
         {
@@ -323,6 +368,15 @@ public sealed class AgentWorkspaceProcessBffTests
             await app.StopAsync();
             await app.DisposeAsync();
             wire.Dispose();
+        }
+    }
+
+    private sealed class PrivateSessionWire(CookieContainer cookies, Wire wire) : DelegatingHandler(wire)
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            request.Headers.Add("Cookie", cookies.GetCookieHeader(request.RequestUri!));
+            return base.SendAsync(request, cancellationToken);
         }
     }
 
@@ -337,6 +391,18 @@ public sealed class AgentWorkspaceProcessBffTests
         public HttpClient CreateClient(string name) => new(this, disposeHandler: false);
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            if (request.RequestUri!.AbsolutePath == "/api/v1/admin/auth/session")
+            {
+                Assert.Equal("honua_admin_session=private-session", Assert.Single(request.Headers.GetValues("Cookie")));
+                return new(HttpStatusCode.OK)
+                {
+                    Content = System.Net.Http.Json.JsonContent.Create(new ConsoleServerAuthenticatedSessionWire
+                    {
+                        IsAuthenticated = true, ProviderKey = "oidc", ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+                        Claims = [new() { Type = "iss", Value = "https://identity.example/" }, new() { Type = "sub", Value = "operator" }]
+                    }, ConsoleServerSessionIdentityJsonContext.Default.ConsoleServerAuthenticatedSessionWire)
+                };
+            }
             Calls++;
             Uri = request.RequestUri;
             Body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
