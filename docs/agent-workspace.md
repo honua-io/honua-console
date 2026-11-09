@@ -66,6 +66,15 @@ Before capturing a Studio prompt, the host waits for accepted human draft writes
 
 Studio exposes an explicit New map action that creates a canonical server draft before canvas editing. The accepted draft generation binds the next prompt. Processes captures only server-issued immutable package identity, version and content hash; custom code binds only an actual authorized project identity, revision and source digest. The server captures an immutable source snapshot when the prompt is submitted; later source edits cannot change that turn. Dirty graph text prevents package projection or prompt capture. Human OGC reads allow only one collection items endpoint with JSON format and limit at most 2000. FeatureServer rendering permits only JSON or GeoJSON.
 
+Private Studio draft writes use the verified serving Server cookie session. A
+successful Server sign-in also issues a separate host-only, Secure, HttpOnly,
+SameSite=Strict edit proof bound to the operator, selected environment, serving
+authority, Console audience and upstream session cookie. It expires no later than
+the validated Server session and is never renewed by editing. A missing, replaced
+or expired proof requires Server sign-in again. This proof cannot approve a
+proposal or extend the separate ten-minute approval proof. Agent and bearer
+requests retain their existing policy; publication and rollback remain governed.
+
 The embedded Studio also exposes **Save version** and **Saved versions** above the canvas. Saving waits for accepted visual edits and creates an immutable version through the current human session. Selecting **Reopen as draft** opens a saved version of that map as a new shared draft and updates the conversation context. These actions do not publish. Pending forms or conflicts must be resolved first; navigation, a changed map or changed user authority prevents a delayed response from replacing the active view. Failed saves are not retried automatically. If the connection drops, inspect saved versions before explicitly saving again.
 
 Native browser requests carry an opaque operator/profile partition from the cookie session. The BFF checks the current host identity before sending any agent credential. A principal or environment change closes the SDK session; ordinary draft detachment retains its conversation. Delayed polling cannot replace a newer view revision, and completed turns do not clear a newly typed prompt.
