@@ -14,6 +14,7 @@ public sealed record ConsoleNavigationGroup(string Name, IReadOnlyList<ConsoleNa
 public enum ConsoleNavigationContextKind
 {
     Page,
+    Folder,
     Service,
     Layer
 }
@@ -89,6 +90,8 @@ public static class ConsoleNavigation
     {
         var path = "/" + relativePath.Split('?', '#')[0].Trim('/');
         var segments = path.Trim('/').Split('/');
+        if (segments is ["operate", "folders", var folder])
+            return new(path, Uri.UnescapeDataString(folder), ConsoleNavigationContextKind.Folder);
         if (segments is ["operate", "services", var service, "settings"])
             return new(path, Uri.UnescapeDataString(service), ConsoleNavigationContextKind.Service);
         if (segments.Length >= 3 && segments[0] == "operate" && segments[1] == "layers")
