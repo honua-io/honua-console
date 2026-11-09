@@ -1,10 +1,10 @@
 {
   "schemaVersion": "honua.console.studio-release-lock/v1",
   "repository": "honua-io/honua-studio",
-  "tag": "v0.1.1",
-  "asset": "honua-studio-console-assets-v0.1.1.tar.gz",
-  "sha256": "e0259eeded632037ad990567fee78d2948e5416dab8b95ef014eb0acbfae5c91",
-  "sourceCommit": "733b094741b350a31c28e24988352e5bbec30346",
+  "tag": "v0.1.2",
+  "asset": "honua-studio-console-assets-v0.1.2.tar.gz",
+  "sha256": "ec56fba3540454ce77dda06298205573d8244d6249fe8a893961be27d98f9258",
+  "sourceCommit": "1333c66ec6bbeeef52ea25e59e0424a4ac00a015",
   "signerWorkflow": "honua-io/honua-studio/.github/workflows/release.yml",
   "sdkRevision": "5765b427f421dca9c42832ae450fa1c5aad882c2"
 }

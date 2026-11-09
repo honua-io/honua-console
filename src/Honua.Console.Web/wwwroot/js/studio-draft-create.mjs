@@ -20,7 +20,7 @@ export class StudioDraftCreateSession {
     dispose() { this.disposed = true; }
     context() {
         if (this.disposed || !this.isCurrent()) throw new Error('The workspace changed. The original New map action is retained.');
-        if (!this.app.workspace?.workspaceId) throw new Error('Reconnect Studio before creating a map.');
+        if (!this.app.workspace) throw new Error('Reconnect Studio before creating a map.');
         return JSON.stringify([studioAuthority(this.app), this.app.workspace.workspaceId]);
     }
     // Conversation IDs change on reload; retain the action under its durable owner and environment.

@@ -56,3 +56,17 @@ test('editing a completed map key labels the next action as creation', () => {
         mounted.dispose();
     } finally { globalThis.document = original; }
 });
+
+test('creating a map does not require starting the assistant conversation', () => {
+    const original = globalThis.document;
+    globalThis.document = { createElement: element };
+    try {
+        let form;
+        const host = { isConnected: true, querySelector: () => ({ before: value => { form = value; } }) };
+        const app = { isConnected: true, workspaceCookieBinding: { principalId: 'human', environmentId: 'local' },
+            workspace: { storage: { getItem: () => null } } };
+        const mounted = mountStudioDraftCreate({ app, host });
+        assert.equal(form.children.find(child => child.type === 'submit').disabled, false);
+        mounted.dispose();
+    } finally { globalThis.document = original; }
+});
