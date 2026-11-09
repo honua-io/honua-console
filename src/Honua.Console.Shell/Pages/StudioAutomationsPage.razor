@@ -1,13 +1,24 @@
 @page "/studio/automations"
 @inject ICollectAutomationClient Automations
 @inject NavigationManager Navigation
+@inject IServiceProvider Services
 
-<section class="console-page automation-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Studio collect.automation</p>
-        <h1>Automations</h1>
-        <p>Compose, edit, and version the trigger-bound rules that drive Collect's shipped Data Events engine: sandboxed-expression conditions gating set/compute/validate/tag/notify actions with a deterministic cascade and loop guard.</p>
-    </div>
+<section class="console-page automation-page @(IsConsoleV4Enabled ? "console-automations-v4" : null)">
+    @if (IsConsoleV4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/studio-automations-v4.css" />
+        <ConsolePageHeading Title="Automations">
+            <p>Manage rules that run when form events occur.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Studio collect.automation</p>
+            <h1>Automations</h1>
+            <p>Compose, edit, and version the trigger-bound rules that drive Collect's shipped Data Events engine: sandboxed-expression conditions gating set/compute/validate/tag/notify actions with a deterministic cascade and loop guard.</p>
+        </div>
+    }
 
     <div class="automation-list-actions">
         <a class="console-button-link" href="/studio/automations/new">New automation</a>
@@ -16,6 +27,7 @@
     @if (_loading)
     {
         <ConsoleStateView Kind="loading"
+                          HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
                           Kicker="Automations"
                           Title="Loading automations"
                           Message="Reading the Collect automation projection." />
@@ -23,6 +35,7 @@
     else if (_binding is not null)
     {
         <ConsoleStateView Kind="error"
+                          HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
                           Kicker="@_binding.State"
                           Title="Automation authoring is not bound"
                           Message="@($"{_binding.Detail} (contract: {_binding.Contract})")" />
@@ -30,11 +43,37 @@
     else if (_automations.Count == 0)
     {
         <ConsoleStateView Kind="empty"
+                          HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
                           Kicker="Automations"
                           Title="No automations yet"
                           Message="Create your first automation to bind rules to a form's Data Events."
                           ActionHref="/studio/automations/new"
                           ActionLabel="New automation" />
+    }
+    else if (IsConsoleV4Enabled)
+    {
+        <ConsoleTableRegion Label="Automations" Class="console-table-wrap automation-table">
+            <table class="console-content-table">
+                <thead>
+                    <tr><th scope="col">Automation</th><th scope="col">Status</th><th scope="col">Rules</th><th scope="col">Version</th><th scope="col">Updated</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var automation in _automations)
+                    {
+                        <tr>
+                            <th scope="row">
+                                <a href="@EditorHref(automation)">@automation.Name</a>
+                                <small>@(string.IsNullOrWhiteSpace(automation.FormId) ? "No form bound" : automation.FormId)</small>
+                            </th>
+                            <td><span class="console-status @(automation.Enabled ? string.Empty : "console-status-warning")">@(automation.Enabled ? "Enabled" : "Disabled")</span></td>
+                            <td>@automation.RuleCount</td>
+                            <td>@(automation.VersionNumber > 0 ? $"v{automation.VersionNumber}" : "Draft only")</td>
+                            <td><time datetime="@automation.UpdatedAt.ToString("O")">@automation.UpdatedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm 'UTC'")</time></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </ConsoleTableRegion>
     }
     else
     {
@@ -66,6 +105,8 @@
 </section>
 
 @code {
+    private bool IsConsoleV4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     private bool _loading = true;
     private CollectAutomationBindingState? _binding;
     private IReadOnlyList<CollectAutomationSummary> _automations = [];
