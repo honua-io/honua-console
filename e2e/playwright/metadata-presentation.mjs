@@ -33,6 +33,7 @@ export async function inspectMetadataPresentation(page, sample, previews) {
   }
   const accessibility = await new AxeBuilder({ page }).include(".metadata-preview").analyze();
   assert.deepEqual(accessibility.violations, []);
+  await root.locator(".console-table-wrap").evaluateAll(regions => regions.forEach(region => { region.scrollLeft = 0; }));
   await page.screenshot({ path: path.join(previews, sample.name + "-" + sample.width + "-light.png"), fullPage: true });
   console.log(sample.name + ": " + sample.width + "px published CSS, CSP, keyboard, control sizes and axe pass");
 }
