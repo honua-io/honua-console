@@ -37,4 +37,34 @@ public sealed class ConsoleShellConfigurationTests
         using var provider = services.BuildServiceProvider();
         Assert.Equal(expectedEnabled, provider.GetRequiredService<CatalogAdminOptions>().Enabled);
     }
+
+    [Theory]
+    [InlineData("true", null, true)]
+    [InlineData("false", null, false)]
+    [InlineData(null, "true", true)]
+    [InlineData(null, "false", false)]
+    [InlineData(null, null, false)]
+    [InlineData("invalid", null, false)]
+    [InlineData(null, "invalid", false)]
+    [InlineData("true", "false", true)]
+    [InlineData("false", "true", false)]
+    [InlineData("invalid", "true", false)]
+    [InlineData("", "true", false)]
+    [InlineData(" ", "true", false)]
+    public void V4FlagBindsToSharedOptions(string? keyValue, string? environmentValue, bool expectedEnabled)
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Honua:Console:V4:Enabled"] = keyValue,
+            ["HONUA_CONSOLE_V4_ENABLED"] = environmentValue
+        }).Build();
+
+        var shellOptions = ConsoleShellConfiguration.ReadOptions(configuration);
+
+        Assert.Equal(expectedEnabled, shellOptions.V4Enabled);
+        var services = new ServiceCollection();
+        services.AddHonuaConsoleShell(shellOptions);
+        using var provider = services.BuildServiceProvider();
+        Assert.Equal(expectedEnabled, provider.GetRequiredService<ConsoleV4Options>().Enabled);
+    }
 }
