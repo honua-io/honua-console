@@ -18,6 +18,9 @@ internal static class ConsoleShellConfiguration
         LlmModel = Read(configuration, "Honua:Llm:Model", "HONUA_LLM_MODEL"),
         LlmApiKey = Read(configuration, "Honua:Llm:ApiKey", "HONUA_LLM_API_KEY"),
         AdvertisedCapabilities = Read(configuration, "Honua:Console:Capabilities", "HONUA_CONSOLE_CAPABILITIES"),
+        V4Enabled = bool.TryParse(
+            Read(configuration, "Honua:Console:V4:Enabled", "HONUA_CONSOLE_V4_ENABLED"),
+            out var v4Enabled) && v4Enabled,
         CatalogAdminEnabled = bool.TryParse(
             Read(configuration, "Honua:Console:Catalogs:Enabled", "HONUA_CONSOLE_CATALOGS_ENABLED"),
             out var catalogsEnabled) && catalogsEnabled,
