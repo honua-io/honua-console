@@ -95,7 +95,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/layers                Layers list — dedicated page (OperateLayersPage) owns this route
 /operate/layers/:id            Layer configuration (default + ?tab=configure); :id is the canonical resource id or the admin layer id publishing returns
 /operate/layers/:id/style      Layer style editor
-/operate/settings              Auth providers, API keys, CORS, license, server info, and catalog endpoints
+/operate/settings              Read-only runtime configuration and policy; v4 uses the shared Server configuration panel
 /operate/catalogs              Catalogs · discovery-endpoints surface (GeoServices service catalog/OGC/OData/STAC/DCAT endpoint cards, auto-default-on vs opt-in, feeders, per-endpoint issues; bound to the catalog discovery-endpoints registry honua-server#1279, else missing-binding). DISTINCT from the singular content catalog at /catalog.
 /operate/catalogs/:key         Catalogs · one discovery endpoint drill-down (Items/Settings/Access/Activity/Validation tabs + mirrored-items table; honua-server#1279)
 /operate/catalogs/:key/items/:itemId  Catalogs · single catalog item editor (auto-mirror item: derived identity, catalog-only presentation, service bindings, standards mapping; honua-server#1279)

@@ -193,6 +193,9 @@ jobs:
       - name: Verify rendered catalog presentation
         run: node e2e/playwright/catalog-preview.mjs
 
+      - name: Verify Settings presentation
+        run: node e2e/playwright/settings-preview.mjs
+
       - name: Verify rendered publication evidence presentation
         run: node e2e/playwright/release-witness-preview.mjs
         env:
