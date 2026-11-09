@@ -10,24 +10,6 @@
     line-height: var(--leading-tight);
 }
 
-.approval-inbox-v4 .operate-heading {
-    margin-bottom: var(--space-6);
-}
-
-.approval-inbox-v4 .operate-heading h1 {
-    margin: 0 0 var(--space-2);
-    font-size: var(--text-2xl);
-    font-weight: var(--weight-semibold);
-    line-height: var(--leading-tight);
-}
-
-.approval-inbox-v4 .operate-heading p {
-    max-width: 76ch;
-    margin: 0;
-    color: var(--c-text-2);
-    font-size: var(--text-sm);
-}
-
 .approval-inbox-v4 .approval-inbox-toolbar {
     display: flex;
     flex-wrap: wrap;

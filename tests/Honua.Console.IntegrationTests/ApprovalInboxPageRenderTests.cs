@@ -29,7 +29,8 @@ public sealed class ApprovalInboxPageRenderTests
         var page = ctx.Render<ApprovalInboxPage>();
 
         page.WaitForAssertion(() => Assert.Equal(2, page.FindAll("[data-proposal-id]").Count));
-        Assert.Equal(heading, page.Find("h1").TextContent);
+        Assert.Equal(heading, Assert.Single(page.FindAll("h1")).TextContent);
+        Assert.Equal(enabled, page.FindAll(".console-page-heading-v4").Count == 1);
         Assert.Equal(enabled, page.FindAll("section > link[rel='stylesheet'][href$='approval-inbox-v4.css']").Count == 1);
         Assert.Equal(enabled, page.FindAll(".approval-inbox-table").Count == 1);
         Assert.Equal(!enabled, page.FindAll(".approval-inbox-list").Count == 1);
@@ -39,7 +40,7 @@ public sealed class ApprovalInboxPageRenderTests
         page.WaitForAssertion(() => page.Find("[data-proposal-approve]"));
         if (enabled)
         {
-            CatalogAdminPreview.Capture("approvals-selected", page.Markup);
+            CatalogAdminPreview.Capture("approvals-selected", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
         }
         page.Find("[data-proposal-approve]").Click();
         page.WaitForAssertion(() => Assert.Equal("deploy-1", Assert.Single(proposals.Approved)));
@@ -69,7 +70,7 @@ public sealed class ApprovalInboxPageRenderTests
         Assert.Single(page.FindAll("[data-refresh-inbox]"));
         if (enabled)
         {
-            CatalogAdminPreview.Capture("approvals-forbidden", page.Markup);
+            CatalogAdminPreview.Capture("approvals-forbidden", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
         }
     }
 

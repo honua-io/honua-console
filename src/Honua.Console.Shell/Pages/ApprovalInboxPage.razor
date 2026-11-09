@@ -24,15 +24,13 @@
     @if (V4Enabled)
     {
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/approval-inbox-v4.css" />
-    }
-    <div class="console-page-heading operate-heading">
-        @if (V4Enabled)
-        {
-            <h1>Approvals</h1>
+        <ConsolePageHeading Title="Approvals">
             <p>Review proposed changes before they run. Approval permissions and checks are enforced by the connected Honua server.</p>
-        }
-        else
-        {
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading operate-heading">
             <p class="console-kicker">Human-in-the-loop</p>
             <h1>Approval inbox</h1>
             <p>
@@ -40,8 +38,8 @@
                 review the plan, diff, dry-run, and risk here and authorize the outcome. Approve or
                 reject through the server's governed, audited approval endpoints.
             </p>
-        }
-    </div>
+        </div>
+    }
 
     @* Freshness affordance (console#309): a persistent, honest currency signal. "Live" when the
        proposals realtime hub is connected; when it has degraded to manual refresh the queue says
