@@ -143,7 +143,7 @@ test('approval controls wait for hydration before dispatching a decision and ret
   await expect(approve).toBeEnabled(); await approve.click();
   const denial = page.locator('[data-proposal-action-message]');
   await expect(denial).toBeVisible();
-  await expect(denial).toHaveText('The requester cannot approve this proposal.');
+  await expect(denial).toHaveText('The server requires an authorized live human session. Sign in again and reopen this review.');
   await expect(approve).toBeDisabled();
   expect(requests.filter(request => request.method === 'POST' && request.url.endsWith('/approve'))).toHaveLength(1);
   expect(requests.find(request => request.method === 'POST' && request.url.endsWith('/approve')))
