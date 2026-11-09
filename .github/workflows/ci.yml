@@ -195,6 +195,8 @@ jobs:
       - name: Verify rendered catalog presentation
         run: node e2e/playwright/catalog-preview.mjs
 
+      - name: Verify rendered Home presentation
+        run: node e2e/playwright/home-preview.mjs
       - name: Verify rendered jobs presentation
         run: node e2e/playwright/jobs-preview.mjs
         env:
