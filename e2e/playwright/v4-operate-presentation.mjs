@@ -12,6 +12,19 @@ export async function inspectOperateSharedPresentation(page, { name, width }, pr
   assert.ok(await page.locator("[data-proposal-approve]").isDisabled());
   if (name.endsWith("true")) {
     assert.equal(await page.locator(".proposal-approval-panel").evaluate(element => getComputedStyle(element).padding), "20px");
+    const field = await page.locator("[data-proposal-reason]").evaluate(element => {
+      const style = getComputedStyle(element);
+      return { padding: style.padding, radius: style.borderRadius, height: element.getBoundingClientRect().height };
+    });
+    assert.equal(field.padding, "12px");
+    assert.equal(field.radius, "6px");
+    assert.ok(field.height >= 88);
+    const governed = await page.locator(".proposal-approval-governed").evaluate(element => {
+      const style = getComputedStyle(element);
+      return { background: style.backgroundColor, color: style.color };
+    });
+    assert.equal(governed.background, "rgba(0, 0, 0, 0)");
+    assert.equal(governed.color, "rgb(75, 85, 81)");
     for (const variant of ["is-data-import", "is-deliverable"]) {
       const shadow = await page.locator(".proposal-approval-panel").evaluate((element, className) => {
         element.classList.add(className);
