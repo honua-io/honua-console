@@ -16,16 +16,23 @@ public sealed class OperateTimelineTests : ConsoleComponentTestBase
         string timestamp = "2026-07-07 09:00 UTC") =>
         new(kind, severity, message, timestamp, correlationId, EventId: eventId, DetailHref: $"/operate/events/{eventId}");
 
-    [Theory]
-    [InlineData(false, "Kind", "Message", "Correlation")]
-    [InlineData(true, "Action", "What", "Reference")]
-    public void RolloutPreservesEventDetailsAndLinks(bool enabled, string action, string message, string reference)
+    public sealed record RolloutCase(ConsoleV4Options Options, string[] Headings);
+
+    public static TheoryData<RolloutCase> RolloutCases => new()
     {
-        Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        new(new ConsoleV4Options { Enabled = false }, ["Time", "Kind", "Severity", "Message", "Correlation"]),
+        new(new ConsoleV4Options { Enabled = true }, ["Time", "Action", "Severity", "What", "Reference"])
+    };
+
+    [Theory]
+    [MemberData(nameof(RolloutCases))]
+    public void RolloutPreservesEventDetailsAndLinks(RolloutCase rollout)
+    {
+        Services.AddSingleton(rollout.Options);
         var entry = Entry("evt-1", message: "Published <map>");
         var cut = Render<OperateTimeline>(p => p.Add(c => c.Entries, new[] { entry, entry }));
 
-        Assert.Equal(new[] { "Time", action, "Severity", message, reference },
+        Assert.Equal(rollout.Headings,
             cut.FindAll("th").Select(th => th.TextContent));
         Assert.Single(cut.FindAll("[data-timeline-row]"));
         Assert.Equal("Published <map>", cut.Find("td a").TextContent);
