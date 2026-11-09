@@ -13,7 +13,7 @@ internal sealed class ConsoleAuthenticatedServerSession(
     internal async Task<ConsoleServerSessionPartition?> VerifyBrowserAsync(
         ConsoleApprovalBrowserVerification request, CancellationToken cancellationToken)
     {
-        var target = new ConsoleApprovalBrowserTarget
+        var target = new ConsoleHumanBrowserTarget
         {
             SelectedProfile = request.Target.Profile,
             AuthorityProfile = request.BoundProfile,

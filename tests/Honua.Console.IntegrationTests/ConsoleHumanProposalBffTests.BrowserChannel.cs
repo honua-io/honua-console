@@ -30,7 +30,7 @@ public sealed partial class ConsoleHumanProposalBffTests
     public async Task BrowserSession_CallbackProof_UsesHostOnlySecureHttpOnlyStrictCookie()
     {
         await using var host = await Host.StartAsync();
-        var cookie = Assert.Single(host.BrowserProofCookies);
+        var cookie = Assert.Single(host.BrowserProofCookies, cookie => cookie.StartsWith("__Host-HonuaApproval.", StringComparison.Ordinal));
 
         Assert.StartsWith("__Host-HonuaApproval.", cookie);
         Assert.Contains("; secure", cookie, StringComparison.OrdinalIgnoreCase);

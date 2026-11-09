@@ -21,6 +21,7 @@ internal sealed class ConsoleServerSessionIdentityBinding(
         var partition = request.Partition;
         var profile = request.Profile;
         var issuer = options.Value.ServerSessionIssuer;
+        partition.AuthenticatedSessionExpiresAt = null;
         if (string.IsNullOrEmpty(issuer))
         {
             return true;
@@ -50,6 +51,7 @@ internal sealed class ConsoleServerSessionIdentityBinding(
                         && string.Equals(session.ProviderKey, request.ProviderKey, StringComparison.Ordinal)
                         && HasUniqueClaim(session.Claims, issuer, "iss")
                         && HasUniqueClaim(session.Claims, request.OperatorKey, "sub", ClaimTypes.NameIdentifier);
+                    if (matches) partition.AuthenticatedSessionExpiresAt = session!.ExpiresAt;
                 }
             }
         }

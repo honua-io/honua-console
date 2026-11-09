@@ -64,6 +64,10 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
 
     public string? ApprovalSessionReference { get; set; }
 
+    public string? StudioEditSessionReference { get; set; }
+
+    public DateTimeOffset? AuthenticatedSessionExpiresAt { get; set; }
+
     // Other sign-in attempts that observed this partition. The creator does not count, and only the store lock mutates it.
     public int Observers { get; private set; }
 
@@ -86,6 +90,8 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
     {
         ProposalReviews.Clear();
         ApprovalSessionReference = null;
+        StudioEditSessionReference = null;
+        AuthenticatedSessionExpiresAt = null;
         Client.Dispose();
     }
 
@@ -471,6 +477,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
     private readonly ConsoleServerSessionIdentityBinding? _identityBinding;
     private readonly IConsoleManagerEndpoint? _management;
     private readonly ConsoleApprovalBrowserChannel? _approvalChannel;
+    private readonly ConsoleStudioEditBrowserChannel? _studioEditChannel;
 
     public ConsoleServerSessionBffCoordinator(
         IConsoleOperatorContext operatorContext,
@@ -480,9 +487,11 @@ internal sealed class ConsoleServerSessionBffCoordinator
         TimeProvider timeProvider,
         ConsoleServerSessionIdentityBinding? identityBinding = null,
         IConsoleManagerEndpoint? management = null,
-        ConsoleApprovalBrowserChannel? approvalChannel = null)
+        ConsoleApprovalBrowserChannel? approvalChannel = null,
+        ConsoleStudioEditBrowserChannel? studioEditChannel = null)
     {
         _approvalChannel = approvalChannel;
+        _studioEditChannel = studioEditChannel;
         _management = management;
         _identityBinding = identityBinding;
         _operatorContext = operatorContext ?? throw new ArgumentNullException(nameof(operatorContext));
@@ -672,6 +681,8 @@ internal sealed class ConsoleServerSessionBffCoordinator
             var partition = _serverSessions.GetOrCreate(operatorKey, profile);
             using var authentication = await partition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
             partition.ApprovalSessionReference = null;
+            partition.StudioEditSessionReference = null;
+            partition.AuthenticatedSessionExpiresAt = null;
             partition.ProposalReviews.Clear();
             var snapshots = _sessions as IConsoleAccountSessionSnapshotStore;
             var snapshot = snapshots is null ? null
@@ -712,7 +723,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
 
             partition.AuthenticatedProviderKey = pending.ProviderKey;
             partition.ProposalReviews.Clear();
-            var browserTarget = new ConsoleApprovalBrowserTarget
+            var browserTarget = new ConsoleHumanBrowserTarget
             {
                 SelectedProfile = selected!,
                 AuthorityProfile = profile,
@@ -758,9 +769,10 @@ internal sealed class ConsoleServerSessionBffCoordinator
         }
     }
 
-    private ConsoleServerSignInResult CompleteBrowserCallback(ConsoleApprovalBrowserTarget target, string returnTo)
+    private ConsoleServerSignInResult CompleteBrowserCallback(ConsoleHumanBrowserTarget target, string returnTo)
     {
         _approvalChannel?.CompleteCallback(target);
+        _studioEditChannel?.CompleteCallback(target);
         return new ConsoleServerSignInResult { Status = ConsoleServerSignInStatus.Redirect, RedirectUri = returnTo };
     }
 
@@ -937,6 +949,7 @@ internal static class ConsoleServerSessionBffExtensions
         builder.Services.AddDataProtection();
         builder.Services.AddHttpContextAccessor();
         builder.Services.TryAddSingleton<ConsoleApprovalBrowserChannel>();
+        builder.Services.TryAddSingleton<ConsoleStudioEditBrowserChannel>();
         builder.Services.TryAddSingleton<ConsoleServerSessionClientStore>();
         builder.Services.TryAddSingleton<ConsoleServerSessionIdentityBinding>();
         builder.Services.TryAddSingleton<ConsoleServerSessionBffCoordinator>();

@@ -38,6 +38,7 @@ public sealed partial class ConsoleHumanProposalBffTests
         public string? ReviewTenantId { get; set; }
         public bool OmitReviewTenant { get; set; }
         public TimeProvider Clock { get; } = new FixtureClock();
+        public DateTimeOffset SessionExpiresAt { get; set; } = DateTimeOffset.UtcNow.AddHours(1);
         public TimeSpan ReviewClockSkew { get; set; }
         public string? ReviewMutation { get; set; }
         public HttpStatusCode ReviewStatusCode { get; set; } = HttpStatusCode.OK;
@@ -107,7 +108,7 @@ public sealed partial class ConsoleHumanProposalBffTests
             {
                 IsAuthenticated = true,
                 ProviderKey = "oidc",
-                ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+                ExpiresAt = SessionExpiresAt,
                 Claims = [new() { Type = "iss", Value = IdentityIssuer }, new() { Type = "sub", Value = "human" }]
             }, ConsoleServerSessionIdentityJsonContext.Default.ConsoleServerAuthenticatedSessionWire);
         }
@@ -181,6 +182,7 @@ public sealed partial class ConsoleHumanProposalBffTests
             Sessions = new ConsoleServerSessionClientStore(Clock);
             var partition = Sessions.GetOrCreate("human", Profile);
             partition.AuthenticatedProviderKey = "oidc";
+            partition.AuthenticatedSessionExpiresAt = SessionExpiresAt;
             partition.Cookies.SetCookies(Profile.ServerBaseUri,
                 "honua_admin_session=private-server-session; Path=/; HttpOnly");
             _profiles = new InMemoryConsoleEnvironmentProfileStore([Profile], activeProfileId: Profile.Id);
@@ -203,6 +205,7 @@ public sealed partial class ConsoleHumanProposalBffTests
             builder.Services.AddSingleton(Clock);
             builder.Services.AddSingleton(Sessions);
             builder.Services.AddSingleton<ConsoleApprovalBrowserChannel>();
+            builder.Services.AddSingleton<ConsoleStudioEditBrowserChannel>();
             builder.Services.AddSingleton<IConsoleEnvironmentProfileStore>(_profiles);
             builder.Services.AddSingleton<IConsoleAccountSessionStore>(accountSessions);
             builder.Services.AddSingleton<IConsoleOperatorContext>(new HumanOperator());
@@ -257,22 +260,31 @@ public sealed partial class ConsoleHumanProposalBffTests
             accessor.HttpContext = context;
             try
             {
-                _browser.Services.GetRequiredService<ConsoleApprovalBrowserChannel>().CompleteCallback(new()
+                var target = new ConsoleHumanBrowserTarget
                 {
                     SelectedProfile = Profile,
                     AuthorityProfile = profile,
                     Authority = authority,
                     Partition = partition!
-                });
+                };
+                _browser.Services.GetRequiredService<ConsoleApprovalBrowserChannel>().CompleteCallback(target);
+                _browser.Services.GetRequiredService<ConsoleStudioEditBrowserChannel>().CompleteCallback(target);
             }
             finally { accessor.HttpContext = previous; }
-            var header = Assert.IsType<string>(Assert.Single(context.Response.Headers.SetCookie));
-            BrowserProofCookies.Add(header);
-            var cookie = header[..header.IndexOf(';')];
+            var headers = context.Response.Headers.SetCookie.Select(header => Assert.IsType<string>(header)).ToArray();
+            BrowserProofCookies.AddRange(headers);
+            var currentNames = headers.Select(header => header[..header.IndexOf('=')]).ToHashSet(StringComparer.Ordinal);
+            var previousCookies = Client.DefaultRequestHeaders.TryGetValues("Cookie", out var values)
+                ? values.Single().Split("; ").Where(cookie => !currentNames.Contains(cookie[..cookie.IndexOf('=')])) : [];
+            var cookies = previousCookies.Concat(headers.Select(header => header[..header.IndexOf(';')])).ToArray();
             Client.DefaultRequestHeaders.Remove("Cookie");
-            Client.DefaultRequestHeaders.Add("Cookie", string.Join("; ", BrowserProofCookies
-                .Select(value => value[..value.IndexOf(';')]).Where(value => !value.StartsWith(cookie[..cookie.IndexOf('=')], StringComparison.Ordinal))
-                .Append(cookie)));
+            Client.DefaultRequestHeaders.Add("Cookie", string.Join("; ", cookies));
+        }
+
+        public void RotateUpstreamSessionCookie()
+        {
+            Assert.True(Sessions.TryGet("human", Profile, out var partition));
+            partition!.Cookies.SetCookies(Profile.ServerBaseUri, "honua_admin_session=other-server-session; Path=/; HttpOnly");
         }
 
         public async Task<OperateSectionResult<ConsoleHumanProposalReview>> OpenReviewAsync(ConsoleServerAuthority authority = ConsoleServerAuthority.Serving)

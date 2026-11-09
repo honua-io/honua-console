@@ -278,11 +278,11 @@ internal static partial class AgentWorkspaceBff
                 if (!context.RequestServices.GetRequiredService<ConsoleServerSessionClientStore>()
                     .TryGet(operatorKey, profile, out cookiePartition) || cookiePartition is null)
                     return Results.StatusCode(401);
-                if (humanStudioEdit && !AuthorizesHumanStudioDraftWrite(context, profile, cookiePartition))
-                    return Results.StatusCode(403);
             }
             using var authentication = cookiePartition is null ? null
                 : await cookiePartition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
+            if (humanStudioEdit && !AuthorizesHumanStudioDraftWrite(context, profile, cookiePartition!))
+                return Results.StatusCode(403);
             if (cookiePartition is not null
                 && !await context.RequestServices.GetRequiredService<ConsoleServerSessionIdentityBinding>().EnsureAsync(
                     new ConsoleServerSessionIdentityRequest
@@ -293,6 +293,8 @@ internal static partial class AgentWorkspaceBff
                         ProviderKey = cookiePartition.AuthenticatedProviderKey,
                         Authority = ConsoleServerAuthority.Serving,
                     }, cancellationToken).ConfigureAwait(false))
+                return Results.StatusCode(403);
+            if (humanStudioEdit && !AuthorizesHumanStudioDraftWrite(context, profile, cookiePartition!))
                 return Results.StatusCode(403);
             var transport = cookiePartition?.Client ?? clients.CreateClient("honua-agent-workspace");
             // ResponseHeadersRead does not extend HttpClient.Timeout to body reads.
@@ -394,7 +396,7 @@ internal static partial class AgentWorkspaceBff
 
     private static bool AuthorizesHumanStudioDraftWrite(
         HttpContext context, ConsoleEnvironmentProfile profile, ConsoleServerSessionPartition partition) =>
-        context.RequestServices.GetRequiredService<ConsoleApprovalBrowserChannel>().Authorizes(new ConsoleApprovalBrowserTarget
+        context.RequestServices.GetRequiredService<ConsoleStudioEditBrowserChannel>().Authorizes(new ConsoleHumanBrowserTarget
         {
             SelectedProfile = profile,
             AuthorityProfile = profile,

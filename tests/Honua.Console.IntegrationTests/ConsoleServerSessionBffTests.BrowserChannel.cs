@@ -75,7 +75,7 @@ public sealed partial class ConsoleServerSessionBffTests
         var accessor = new HttpContextAccessor { HttpContext = context };
         var channel = new ConsoleApprovalBrowserChannel(new EphemeralDataProtectionProvider(), accessor, clock,
             NullLogger<ConsoleApprovalBrowserChannel>.Instance);
-        var target = new ConsoleApprovalBrowserTarget
+        var target = new ConsoleHumanBrowserTarget
         {
             SelectedProfile = profile,
             AuthorityProfile = profile,

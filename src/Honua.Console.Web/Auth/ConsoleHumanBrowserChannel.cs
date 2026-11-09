@@ -10,24 +10,44 @@ namespace Honua.Console.Web.Auth;
 internal sealed class ConsoleApprovalBrowserChannel(
     IDataProtectionProvider protection, IHttpContextAccessor requests, TimeProvider clock,
     ILogger<ConsoleApprovalBrowserChannel> logger)
-{
-    private const string CookiePrefix = "__Host-HonuaApproval.";
-    private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(10);
-    private readonly IDataProtector _protector = protection.CreateProtector("Honua.Console.ApprovalBrowser.v1");
+    : ConsoleHumanBrowserChannel(protection, requests, clock, logger, ConsoleHumanBrowserPurpose.Approval);
 
-    public void CompleteCallback(ConsoleApprovalBrowserTarget target)
+internal sealed class ConsoleStudioEditBrowserChannel(
+    IDataProtectionProvider protection, IHttpContextAccessor requests, TimeProvider clock,
+    ILogger<ConsoleStudioEditBrowserChannel> logger)
+    : ConsoleHumanBrowserChannel(protection, requests, clock, logger, ConsoleHumanBrowserPurpose.StudioEdit);
+
+internal enum ConsoleHumanBrowserPurpose { Approval, StudioEdit }
+
+internal abstract class ConsoleHumanBrowserChannel(
+    IDataProtectionProvider protection, IHttpContextAccessor requests, TimeProvider clock,
+    ILogger logger, ConsoleHumanBrowserPurpose purpose)
+{
+    private static readonly TimeSpan ApprovalLifetime = TimeSpan.FromMinutes(10);
+    private readonly IDataProtector _protector = protection.CreateProtector(
+        purpose == ConsoleHumanBrowserPurpose.Approval ? "Honua.Console.ApprovalBrowser.v1" : "Honua.Console.StudioEditBrowser.v1");
+
+    public void CompleteCallback(ConsoleHumanBrowserTarget target)
     {
         var sessionReference = Guid.NewGuid().ToString("N");
-        target.Partition.ApprovalSessionReference = sessionReference;
-        target.Partition.ProposalReviews.Clear();
+        if (purpose == ConsoleHumanBrowserPurpose.Approval)
+        {
+            target.Partition.ApprovalSessionReference = sessionReference;
+            target.Partition.ProposalReviews.Clear();
+        }
+        else target.Partition.StudioEditSessionReference = sessionReference;
         var context = requests.HttpContext;
         if (context is null || !context.Request.IsHttps || !HasUnmixedIdentity(context)
             || ConsoleOperatorContext.ResolveKey(context.User) != target.Partition.Key.OperatorKey)
         {
-            logger.LogWarning("The completed sign-in could not establish the approval browser channel. Use HTTPS and a matching interactive Console identity without bearer or key credentials.");
+            logger.LogWarning("The completed sign-in could not establish the human browser channel. Use HTTPS and a matching interactive Console identity without bearer or key credentials.");
             return;
         }
-        var grant = new ConsoleApprovalBrowserGrant
+        var expiresAt = purpose == ConsoleHumanBrowserPurpose.Approval
+            ? clock.GetUtcNow() + ApprovalLifetime : target.Partition.AuthenticatedSessionExpiresAt;
+        if (expiresAt is null || expiresAt <= clock.GetUtcNow()
+            || purpose == ConsoleHumanBrowserPurpose.StudioEdit && target.Authority != ConsoleServerAuthority.Serving) return;
+        var grant = new ConsoleHumanBrowserGrant
         {
             OperatorKey = target.Partition.Key.OperatorKey,
             ProfileBinding = ConsoleServerProfileBinding.Capture(target.SelectedProfile),
@@ -36,10 +56,11 @@ internal sealed class ConsoleApprovalBrowserChannel(
             Authority = target.Authority,
             SessionReference = sessionReference,
             Audience = Audience(context),
-            ExpiresAt = clock.GetUtcNow() + Lifetime
+            ExpiresAt = expiresAt.Value,
+            SessionCookieBinding = purpose == ConsoleHumanBrowserPurpose.StudioEdit ? SessionCookieBinding(target.Partition, target.AuthorityProfile) : null
         };
         var value = _protector.Protect(JsonSerializer.Serialize(grant,
-            ConsoleApprovalBrowserJsonContext.Default.ConsoleApprovalBrowserGrant));
+            ConsoleHumanBrowserJsonContext.Default.ConsoleHumanBrowserGrant));
         context.Response.Cookies.Append(CookieName(grant.ProfileBinding, grant.Authority), value, new CookieOptions
         {
             HttpOnly = true,
@@ -51,11 +72,14 @@ internal sealed class ConsoleApprovalBrowserChannel(
         });
     }
 
-    public bool Authorizes(ConsoleApprovalBrowserTarget target)
+    public bool Authorizes(ConsoleHumanBrowserTarget target)
     {
         var grant = ReadGrant(ConsoleServerProfileBinding.Capture(target.SelectedProfile), target.Authority);
         return grant is not null && MatchesPartition(grant, target.Partition)
-            && grant.AuthorityBinding == ConsoleServerProfileBinding.Capture(target.AuthorityProfile);
+            && grant.AuthorityBinding == ConsoleServerProfileBinding.Capture(target.AuthorityProfile)
+            && (purpose == ConsoleHumanBrowserPurpose.Approval
+                || grant.ExpiresAt <= target.Partition.AuthenticatedSessionExpiresAt
+                    && grant.SessionCookieBinding == SessionCookieBinding(target.Partition, target.AuthorityProfile));
     }
 
     public bool HasSession(ConsoleEnvironmentProfile profile, ConsoleServerSessionClientStore sessions)
@@ -71,7 +95,7 @@ internal sealed class ConsoleApprovalBrowserChannel(
         return false;
     }
 
-    private ConsoleApprovalBrowserGrant? ReadGrant(string profileBinding, ConsoleServerAuthority authority)
+    private ConsoleHumanBrowserGrant? ReadGrant(string profileBinding, ConsoleServerAuthority authority)
     {
         var context = requests.HttpContext;
         if (context is null || !HasUnmixedIdentity(context)
@@ -80,11 +104,11 @@ internal sealed class ConsoleApprovalBrowserChannel(
         try
         {
             var grant = JsonSerializer.Deserialize(_protector.Unprotect(value),
-                ConsoleApprovalBrowserJsonContext.Default.ConsoleApprovalBrowserGrant);
+                ConsoleHumanBrowserJsonContext.Default.ConsoleHumanBrowserGrant);
             return grant is not null && grant.ProfileBinding == profileBinding && grant.Authority == authority
                 && grant.OperatorKey == ConsoleOperatorContext.ResolveKey(context.User)
                 && grant.Audience == Audience(context) && grant.ExpiresAt > clock.GetUtcNow()
-                && grant.ExpiresAt <= clock.GetUtcNow() + Lifetime ? grant : null;
+                && (purpose != ConsoleHumanBrowserPurpose.Approval || grant.ExpiresAt <= clock.GetUtcNow() + ApprovalLifetime) ? grant : null;
         }
         catch (Exception error) when (error is CryptographicException or JsonException or FormatException)
         {
@@ -92,21 +116,25 @@ internal sealed class ConsoleApprovalBrowserChannel(
         }
     }
 
-    private static bool MatchesPartition(ConsoleApprovalBrowserGrant grant, ConsoleServerSessionPartition partition) =>
-        !string.IsNullOrEmpty(grant.SessionReference) && grant.SessionReference == partition.ApprovalSessionReference
+    private bool MatchesPartition(ConsoleHumanBrowserGrant grant, ConsoleServerSessionPartition partition) =>
+        !string.IsNullOrEmpty(grant.SessionReference) && grant.SessionReference ==
+            (purpose == ConsoleHumanBrowserPurpose.Approval ? partition.ApprovalSessionReference : partition.StudioEditSessionReference)
         && grant.OperatorKey == partition.Key.OperatorKey && grant.ServerBaseUri == partition.Key.ServerBaseUri;
+
+    private static string SessionCookieBinding(ConsoleServerSessionPartition partition, ConsoleEnvironmentProfile profile) =>
+        Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(partition.Cookies.GetCookieHeader(profile.ServerBaseUri))));
 
     internal static bool HasUnmixedIdentity(HttpContext context) => context.User.Identity?.IsAuthenticated == true
         && !context.Request.Headers.ContainsKey("Authorization") && !context.Request.Headers.ContainsKey("X-API-Key");
 
-    private static string CookieName(string profileBinding, ConsoleServerAuthority authority) =>
-        CookiePrefix + profileBinding + "." + authority;
+    private string CookieName(string profileBinding, ConsoleServerAuthority authority) =>
+        (purpose == ConsoleHumanBrowserPurpose.Approval ? "__Host-HonuaApproval." : "__Host-HonuaStudioEdit.") + profileBinding + "." + authority;
 
     private static string Audience(HttpContext context) =>
         context.Request.Scheme + "://" + context.Request.Host + context.Request.PathBase;
 }
 
-internal sealed record ConsoleApprovalBrowserTarget
+internal sealed record ConsoleHumanBrowserTarget
 {
     public required ConsoleEnvironmentProfile SelectedProfile { get; init; }
     public required ConsoleEnvironmentProfile AuthorityProfile { get; init; }
@@ -114,7 +142,7 @@ internal sealed record ConsoleApprovalBrowserTarget
     public required ConsoleServerSessionPartition Partition { get; init; }
 }
 
-internal sealed record ConsoleApprovalBrowserGrant
+internal sealed record ConsoleHumanBrowserGrant
 {
     public required string OperatorKey { get; init; }
     public required string ProfileBinding { get; init; }
@@ -124,8 +152,9 @@ internal sealed record ConsoleApprovalBrowserGrant
     public required string SessionReference { get; init; }
     public required string Audience { get; init; }
     public required DateTimeOffset ExpiresAt { get; init; }
+    public string? SessionCookieBinding { get; init; }
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
-[JsonSerializable(typeof(ConsoleApprovalBrowserGrant))]
-internal sealed partial class ConsoleApprovalBrowserJsonContext : JsonSerializerContext;
+[JsonSerializable(typeof(ConsoleHumanBrowserGrant))]
+internal sealed partial class ConsoleHumanBrowserJsonContext : JsonSerializerContext;
