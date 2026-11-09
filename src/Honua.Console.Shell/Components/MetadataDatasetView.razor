@@ -1,0 +1,77 @@
+@using System.Globalization
+
+<div class="metadata-dataset">
+    <h2 tabindex="-1" @ref="_heading">@Dataset.Title</h2>
+    <p>@Dataset.Context</p>
+    <p>Values inherit from dataset → service → folder in the supplied context. Use inherited clears only a local preview override. Access does not inherit.</p>
+    @if (!ValidKeys)
+    {
+        <ConsoleStateView HeadingLevel="3" Kind="unsupported" Title="Metadata fields are unavailable" Message="Field identities must be unique and non-empty." />
+    }
+    else
+    {
+        <UnsavedChangesGuard IsDirty="IsDirty" />
+        @foreach (var group in Dataset.Fields.GroupBy(entry => entry.Group))
+        {
+            <section class="console-panel metadata-panel">
+                <h3>@group.Key</h3>
+                @foreach (var entry in group)
+                {
+                    var index = Dataset.Fields.ToList().IndexOf(entry);
+                    var id = $"metadata-field-{index.ToString(CultureInfo.InvariantCulture)}";
+                    <div class="metadata-field">
+                        <strong>@entry.Label</strong>
+                        <p data-effective="@entry.Key">@(Effective(entry) ?? "Not reported")</p>
+                        <p class="console-muted">Reported source: @(entry.Source ?? "Source not reported")</p>
+                        @if (entry.Editable)
+                        {
+                            <label for="@id">Local @entry.Label override</label>
+                            <textarea id="@id" rows="2" data-override="@entry.Key" value="@Local(entry)" @oninput="args => Edit(entry.Key, args)"></textarea>
+                            @if (entry.HasInheritance)
+                            {
+                                <p class="metadata-inherited">Inherited: @(entry.InheritedValue ?? "No inherited value") · @entry.InheritedFrom</p>
+                                <button type="button" class="console-button console-button-secondary" data-inherit="@entry.Key" @onclick="() => UseInherited(entry.Key)">Use inherited for @entry.Label</button>
+                            }
+                        }
+                        @if (entry.History.Count > 0)
+                        {
+                            <details><summary>History for @entry.Label (@entry.History.Count)</summary><MetadataHistoryView History="entry.History" /></details>
+                        }
+                    </div>
+                }
+            </section>
+        }
+        <section class="console-panel metadata-panel">
+            <h3>Example history</h3>
+            <MetadataHistoryView History="Dataset.History" />
+            <p>Metadata changes only. Health checks and usage are separate. Proposals are not applied edits.</p>
+        </section>
+        <div class="metadata-save-bar">
+            <p role="status">@(IsDirty ? "Unsaved local changes · nothing saved or proposed" : "Local fields unchanged")</p>
+            <button type="button" class="console-button console-button-secondary" data-metadata-discard disabled="@(!IsDirty)" @onclick="Discard">Discard local edits</button>
+            <p>Saving and proposals are unavailable until the shared metadata contract is connected.</p>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public MetadataDatasetPreview Dataset { get; set; } = default!;
+    private readonly Dictionary<string, string?> _overrides = new(StringComparer.Ordinal);
+    private ElementReference _heading;
+    private bool ValidKeys => MetadataPreviewKeys.AreUnique(Dataset.Fields.Select(entry => entry.Key));
+    private bool IsDirty => _overrides.Count > 0;
+    private string? Local(MetadataFieldPreview entry) => _overrides.TryGetValue(entry.Key, out var value) ? value : entry.LocalValue;
+    private string? Effective(MetadataFieldPreview entry) => !_overrides.TryGetValue(entry.Key, out var value) ? entry.EffectiveValue : value ?? entry.InheritedValue;
+    private void Edit(string key, ChangeEventArgs args) => SetOverride(key, args.Value?.ToString() ?? string.Empty);
+    private void UseInherited(string key) => SetOverride(key, null);
+    private void SetOverride(string key, string? value)
+    {
+        if (value == Dataset.Fields.Single(entry => entry.Key == key).LocalValue) _overrides.Remove(key);
+        else _overrides[key] = value;
+    }
+    private async Task Discard()
+    {
+        _overrides.Clear();
+        await _heading.FocusAsync();
+    }
+}

@@ -1287,3 +1287,26 @@ guard and a Discard local edits action. Neither surface saves, proposes or chang
 access, scope, health, listing checks or audience visibility. Real mutation,
 thumbnail upload and visitor card preview remain contract-gated. Production never
 falls back to fixtures when these routes are enabled.
+
+## Experimental metadata presentation
+
+The same default-off Honua:Console:Catalogs:Enabled option gates authenticated
+/metadata/datasets/{datasetId}, /metadata/datasets/{datasetId}/import, and
+/metadata/fields. The optional service query selects the supplied inheritance
+context and is preserved by dataset/import links. Dataset and Service identities
+must match the read projection before fields appear.
+
+These routes display draft Shell view projections only. The production source
+returns missing binding or unsupported; it never registers fixtures or derives
+inheritance, crosswalk mappings, history or import selection policy. The existing
+live discovery editor and its shared title/description/keywords contract stay in
+place. Shared canonical metadata SDK contracts must replace these projections
+before a live adapter can activate.
+
+Explicit test fixtures show effective/inherited values and example actor/client
+history separately from local overrides. Local schema drafts, retirement choices
+and import selection use the shared unsaved navigation guard. All source content
+is escaped text. No save, proposal, upload, parser, attachment store, schema
+mutation or metadata mutation is implemented here. Local choices never change the
+reported metadata, history or original attachment. The server must supply
+contextual inheritance and enforce its mutation policy and attachment authority.

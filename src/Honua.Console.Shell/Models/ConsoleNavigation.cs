@@ -73,7 +73,7 @@ public static class ConsoleNavigation
         foreach (var group in Groups)
         {
             if (group.Name == "Operate")
-                groups.Add(new("Catalogs", [new("/catalogs", "Catalogs"),
+                groups.Add(new("Catalogs", [new("/catalogs", "Catalogs"), new("/metadata/fields", "Metadata fields"),
                     discovery with { Label = "Discovery endpoints" },
                     new("/share/manage", "Open Data access") { FullModeOnly = true, RequiredArea = "share" }]));
             var destinations = group.Destinations.Where(entry => entry.Path != discovery.Path)
