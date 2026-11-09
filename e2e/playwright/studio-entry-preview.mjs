@@ -1,47 +1,34 @@
 import assert from "node:assert/strict";
-import fs from "node:fs/promises";
 import path from "node:path";
-import AxeBuilder from "@axe-core/playwright";
-import { chromium } from "@playwright/test";
-import { startPresentationFixtureServer } from "./presentation-fixture-server.mjs";
-import { checkKeyboardControls } from "./console-presentation.mjs";
+import { runV4PagePresentation } from "./console-presentation.mjs";
 
-const previews = path.resolve(process.env.HONUA_STUDIO_ENTRY_PREVIEW_DIR ?? "artifacts/studio-preview");
-const names = ["studio-unavailable", "studio-connected", "studio-retired", "processes-connected", "processes-disabled"];
-const pages = new Map(await Promise.all(names.map(async name =>
-  [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
-const server = await startPresentationFixtureServer({
-  pages,
+const headings = {
+  "studio-unavailable": "Studio is unavailable on this deployment",
+  "studio-connected": "Studio",
+  "studio-retired": "This view has moved to the Studio workspace",
+  "processes-connected": "Processes",
+  "processes-disabled": "Realtime Studio is not enabled",
+};
+const controls = ".console-shell :is(a[href], input, select, button, textarea, summary, [tabindex='0']):not(:disabled):visible";
+const noControlPages = new Set(["processes-connected", "processes-disabled"]);
+await runV4PagePresentation({
+  previews: path.resolve(process.env.HONUA_STUDIO_ENTRY_PREVIEW_DIR ?? "artifacts/studio-preview"),
+  pageNames: Object.keys(headings),
   title: "Studio entry presentation fixture",
-  stylesheets: ["/_content/Honua.Console.Shell/honua-console.css"],
-  assets: path.resolve("src/Honua.Console.Shell/wwwroot"),
-  assetPrefix: "/_content/Honua.Console.Shell/",
-});
-let browser;
-try {
-  browser = await chromium.launch();
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  for (const name of names) {
-    for (const width of [1280, 390]) {
-      await page.setViewportSize({ width, height: 844 });
-      const stylesheet = page.waitForResponse(response => response.url().endsWith("/v4-shell.css"));
-      await page.goto(`http://127.0.0.1:${server.address().port}/${name}`);
-      assert.equal((await stylesheet).status(), 200);
-      await page.evaluate(() => document.fonts.ready);
-      assert.equal(await page.getByRole("heading", { level: 1 }).count(), 1);
-      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}/${width} overflows`);
-      const controls = ".console-shell :is(a[href], input, select, button, [tabindex='0']):not(:disabled):visible";
-      if (await page.locator(controls).count()) {
-        await checkKeyboardControls(page, { controls, sizedControls: "input, select, button", minimumHeight: 24 });
-      }
-      const accessibility = await new AxeBuilder({ page }).include(".console-shell").analyze();
-      assert.deepEqual(accessibility.violations, []);
-      await page.screenshot({ path: path.join(previews, `${name}-${width}.png`), fullPage: true });
-      console.log(`${name}/${width}: shared heading, layout, keyboard focus and axe pass`);
+  stylesheet: "v4-shell.css",
+  heading: name => headings[name],
+  scope: ".console-shell",
+  controls: name => noControlPages.has(name) ? null : controls,
+  async inspect(page, name) {
+    if (noControlPages.has(name)) {
+      assert.equal(await page.locator(controls).count(), 0, `${name} has no interactive controls`);
+      return;
     }
-  }
-} finally {
-  await browser?.close();
-  await new Promise(resolve => server.close(resolve));
-}
+    const links = {
+      "studio-unavailable": ["/environments", "/setup/local"],
+      "studio-connected": ["/studio/processes"],
+      "studio-retired": ["/studio", "/studio/processes"],
+    };
+    for (const href of links[name]) assert.equal(await page.locator(`a[href="${href}"]`).count(), 1);
+  },
+});
