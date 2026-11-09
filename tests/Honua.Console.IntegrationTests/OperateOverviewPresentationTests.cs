@@ -25,9 +25,15 @@ public sealed class OperateOverviewPresentationTests
         var page = context.Render<OperatePage>();
 
         page.WaitForAssertion(() => Assert.Contains("Missing binding", page.Markup));
-        Assert.Equal("Operate", page.Find("h1").TextContent);
+        Assert.Equal("Operate", Assert.Single(page.FindAll("h1")).TextContent);
         Assert.Equal(v4Enabled, page.FindAll(".console-operate-overview-v4").Count == 1);
         Assert.Equal(v4Enabled, page.FindAll(".console-page-heading-v4").Count == 1);
+        Assert.Equal(v4Enabled ? 1 : 0, page.FindAll("section > link[href='_content/Honua.Console.Shell/css/operate-overview-v4.css']").Count);
+        if (!v4Enabled)
+        {
+            Assert.Contains("Operator workflow", page.Markup);
+            Assert.Contains("control-plane settings live under Operate", page.Markup);
+        }
         Assert.Single(page.FindAll("[data-ops-summary-strip]"));
         foreach (var route in new[] { "connections", "resources", "services", "publishing", "settings", "releases" })
             Assert.Single(page.FindAll($"a[href='/operate/{route}']"));
