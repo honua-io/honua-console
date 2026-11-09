@@ -1,10 +1,12 @@
 import { test, expect } from '@playwright/test';
 import http from 'node:http';
+import { humanSessionCookie, serveHumanSignIn } from './human-review-fixture';
 
 // An instrumented upstream proves Console transport behavior. This is deliberately not
 // evidence of honua-server authorization: its real policy matrix is a separate release criterion.
 let upstream: http.Server;
-let requests: Array<{ url: string; method: string; bearer?: string; key?: string }> = [];
+let requests: Array<{ url: string; method: string; bearer?: string; key?: string; cookie?: string }> = [];
+let consoleOrigin = '';
 const tileBytes = Buffer.from([0x1a, 0x03, 0x0a, 0x01, 0x41]);
 const edge = (actor: string, token?: string) => ({
   'X-Honua-Edge-Auth': 'operator-test-edge-secret',
@@ -14,17 +16,26 @@ const edge = (actor: string, token?: string) => ({
 
 test.beforeAll(async () => {
   upstream = http.createServer((req, res) => {
-    requests.push({ url: req.url!, method: req.method!, bearer: req.headers.authorization, key: req.headers['x-api-key'] as string | undefined });
+    requests.push({ url: req.url!, method: req.method!, bearer: req.headers.authorization, key: req.headers['x-api-key'] as string | undefined, cookie: req.headers.cookie });
     res.setHeader('Content-Type', 'application/json');
-    if (req.headers.authorization !== 'Bearer alice-valid') {
+    if (serveHumanSignIn(req, res, consoleOrigin)) return;
+    const privateProposal = req.url!.startsWith('/api/v1/admin/proposals/')
+      && req.headers.cookie?.includes(`honua_admin_session=${humanSessionCookie}`);
+    if (req.headers.authorization !== 'Bearer alice-valid' && !privateProposal) {
       res.writeHead(req.headers.authorization === 'Bearer expired' ? 401 : 403);
       // A hostile diagnostic must never be copied into proxy denial responses.
       res.end('{"detail":"secret upstream tenant and resource identifier"}');
     } else if (req.url!.startsWith('/api/v1/admin/proposals')) {
       const proposal = {proposalId: 'hydration-probe', kind: 'Deploy', status: 'AwaitingApproval',
         requestedBy: 'hydration-operator', summary: 'Hydration fixture', riskLevel: 'Low',
-        createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', blockingReasons: []};
-      if (req.method === 'POST') {
+        createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', blockingReasons: [],
+        version: 7, planHash: 'hydration-plan'};
+      if (req.url!.endsWith('/approval-review')) {
+        res.setHeader('Cache-Control', 'no-store');
+        res.end(JSON.stringify({ proposal, review: { proposalId: proposal.proposalId, proposalVersion: 7,
+          planHash: proposal.planHash, capability: 'operator-fixture-capability', tenantId: null,
+          expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString() } }));
+      } else if (req.method === 'POST') {
         res.writeHead(403); res.end(JSON.stringify({message: 'The requester cannot approve this proposal.'}));
       } else res.end(JSON.stringify(req.url!.includes('/hydration-probe') ? proposal : {proposals: [proposal]}));
     } else if (req.url!.startsWith('/tiles/')) {
@@ -40,7 +51,7 @@ test.beforeAll(async () => {
   await new Promise<void>((resolve) => upstream.listen(5198, '127.0.0.1', resolve));
 });
 test.afterAll(async () => { await new Promise<void>((resolve) => upstream.close(() => resolve())); });
-test.beforeEach(() => { requests = []; });
+test.beforeEach(({}, testInfo) => { requests = []; consoleOrigin = testInfo.project.use.baseURL!; });
 
 // Proxy URLs are pinned to the environment that rendered them; the configured-server seed profile is "local-dev".
 for (const route of ['/map-proxy/local-dev/styles/7.json', '/map-proxy/local-dev/tiles/7/0/0/0.mvt', '/map-proxy/local-dev/features/parcels/7']) {
@@ -111,7 +122,11 @@ test('configured presentation is visible without changing the identity boundary'
 });
 
 test('approval controls wait for hydration before dispatching a decision and retain server denial', async ({page}) => {
-  await page.setExtraHTTPHeaders(edge('hydration-operator', 'alice-valid'));
+  await page.setExtraHTTPHeaders(edge('hydration-operator'));
+  await page.goto('/auth/server/login?profileId=local-dev&returnTo=%2Fversion.json');
+  await page.waitForURL('**/version.json');
+  const proof = (await page.context().cookies()).find(cookie => cookie.name.startsWith('__Host-HonuaApproval.'));
+  expect(proof).toMatchObject({ secure: true, httpOnly: true, sameSite: 'Strict' });
   await page.route('**/inbox?proposalId=hydration-probe', async route => {
     const response = await route.fetch(); const html = await response.text();
     const manual = html.replace(/<script src="([^"]*_framework\/blazor\.web\.[^"]+)"/, '<script autostart="false" src="$1"');
@@ -129,4 +144,6 @@ test('approval controls wait for hydration before dispatching a decision and ret
   await expect(page.locator('[data-proposal-rbac-denied]')).toBeVisible();
   await expect(approve).toBeDisabled();
   expect(requests.filter(request => request.method === 'POST' && request.url.endsWith('/approve'))).toHaveLength(1);
+  expect(requests.find(request => request.method === 'POST' && request.url.endsWith('/approve')))
+    .toMatchObject({ cookie: `honua_admin_session=${humanSessionCookie}`, bearer: undefined, key: undefined });
 });
