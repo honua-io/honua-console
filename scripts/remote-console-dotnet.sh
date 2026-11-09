@@ -5,13 +5,15 @@ repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
 if [[ "${1:-}" == --prepared-cache ]]; then
-    if [[ $# -lt 3 || ! -d "$2" ]]; then
+    if [[ $# -lt 3 || ! -d "$2" || ! "$2" =~ ^(/home/ubuntu/ext)?/tmp/honua-console-studio\.[A-Za-z0-9]+$ ]]; then
         echo 'usage: remote-console-dotnet.sh --prepared-cache CACHE DOTNET_ARGS...' >&2
         exit 2
     fi
     export HONUA_STUDIO_RELEASE_CACHE="$2"
+    trap 'rm -rf -- "${HONUA_STUDIO_RELEASE_CACHE:?}"' EXIT
     shift 2
-    exec dotnet "$@"
+    dotnet "$@"
+    exit
 fi
 
 if [[ $# -eq 0 ]]; then

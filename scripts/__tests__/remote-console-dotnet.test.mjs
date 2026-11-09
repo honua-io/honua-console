@@ -48,6 +48,36 @@ test("remote Console builds require dotnet arguments", () => {
   assert.match(result.stderr, /usage:/);
 });
 
+for (const exitCode of [0, 19]) {
+  test(`prepared remote caches are removed when dotnet exits ${exitCode}`, () => {
+    const scratch = mkdtempSync(join(tmpdir(), "console-prepared-"));
+    const cache = mkdtempSync("/tmp/honua-console-studio.");
+    try {
+      writeFileSync(join(scratch, "dotnet"), `#!/usr/bin/env bash\nexit ${exitCode}\n`, { mode: 0o755 });
+      const result = spawnSync("bash", [script, "--prepared-cache", cache, "build"], {
+        env: { ...process.env, PATH: `${scratch}:${process.env.PATH}` },
+        encoding: "utf8",
+      });
+      assert.equal(result.status, exitCode, result.stderr);
+      assert.equal(existsSync(cache), false);
+    } finally {
+      rmSync(cache, { recursive: true, force: true });
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+}
+
+test("prepared cache cleanup refuses an unrelated directory", () => {
+  const cache = mkdtempSync(join(tmpdir(), "console-unrelated-"));
+  try {
+    const result = spawnSync("bash", [script, "--prepared-cache", cache, "build"], { encoding: "utf8" });
+    assert.equal(result.status, 2);
+    assert.equal(existsSync(cache), true);
+  } finally {
+    rmSync(cache, { recursive: true, force: true });
+  }
+});
+
 test("remote Console builds stop when Studio asset preparation fails", () => {
   const scratch = mkdtempSync(join(tmpdir(), "console-remote-failure-"));
   try {
