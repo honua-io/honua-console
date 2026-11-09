@@ -585,6 +585,14 @@ public sealed partial class ConsoleServerSessionBffTests
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
             }
 
+            if (path.EndsWith("/session", StringComparison.Ordinal))
+            {
+                Assert.Contains($"session-{key.OperatorKey}-{key.ProfileId}", cookies.GetCookieHeader(_origin), StringComparison.Ordinal);
+                return Json("""
+                    {"isAuthenticated":true,"providerKey":"oidc","expiresAt":"2099-01-01T00:00:00Z","claims":[]}
+                    """);
+            }
+
             if (path.EndsWith("/bearer", StringComparison.Ordinal))
             {
                 BearerCalls++;
