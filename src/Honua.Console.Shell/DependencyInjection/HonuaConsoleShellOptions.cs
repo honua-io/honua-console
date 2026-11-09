@@ -28,6 +28,8 @@ public sealed record HonuaConsoleShellOptions
 
     public bool RegistryIntentResolutionEnabled { get; init; }
 
+    public bool V4Enabled { get; init; }
+
     public bool CatalogAdminEnabled { get; init; }
 
     public string? ConsoleMode { get; init; }
