@@ -6,14 +6,16 @@ import { chromium } from "@playwright/test";
 import { startPresentationFixtureServer } from "./presentation-fixture-server.mjs";
 import { checkKeyboardControls, inspectSharedPresentation, inspectCatalogCounts, catalogKeyboardTargets } from "./console-presentation.mjs";
 
+import { inspectV4NavigationPresentation } from "./v4-navigation-presentation.mjs";
 import { inspectOperateSharedPresentation } from "./v4-operate-presentation.mjs";
 import { inspectV4HomePresentation } from "./v4-home-presentation.mjs";
 import { metadataPreviews, inspectMetadataPresentation } from "./metadata-presentation.mjs";
 
 const previews = path.resolve("artifacts/catalog-preview");
 const assets = path.resolve("artifacts/honua-console-web/wwwroot");
+const navigationPreviews = ["navigation-v4-true", "navigation-v4-false"];
 const operatePreviews = ["operate-shared-v4-true", "operate-shared-v4-false"];
-const v4Previews = ["home-v4-true", "home-v4-false", ...operatePreviews];
+const v4Previews = ["home-v4-true", "home-v4-false", ...navigationPreviews, ...operatePreviews];
 const sharedPreviews = ["navigation", "home", "service", "state-info", "state-warning", "state-danger", "state-unsupported", "service-success", "service-danger", "share-warning"];
 const pages = new Map(await Promise.all(["list", "overview", "settings", "templates", "template-editor", "template-dirty", "template-confirmation", "listing", "listing-dirty", "categories", "categories-dirty", ...metadataPreviews, ...sharedPreviews, ...v4Previews].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
 
@@ -23,6 +25,7 @@ const server = await startPresentationFixtureServer({
   stylesheets: ["/app.css", "/_content/Honua.Console.Shell/honua-console.css"],
   assets,
   unwrappedPages: ["navigation", ...v4Previews],
+  scripts: new Map(navigationPreviews.map(name => [name, ["/js/navigation-state.js"]])),
 });
 let browser;
 try {
@@ -57,6 +60,7 @@ async function inspectPresentation(page, { name, width }) {
   assert.equal((await stylesheet).status(), 200);
   assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), "light");
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} overflows at ${width}`);
+  if (navigationPreviews.includes(name)) return inspectV4NavigationPresentation(page, { name, width }, previews);
   if (operatePreviews.includes(name)) return inspectOperateSharedPresentation(page, { name, width }, previews);
   if (v4Previews.includes(name)) return inspectV4HomePresentation(page, { name, width }, previews);
   if (metadataPreviews.includes(name)) return inspectMetadataPresentation(page, { name, width }, previews);

@@ -54,6 +54,12 @@ These components preserve native heading, section, link and definition-list sema
 Their v4 presentation is scoped to the shell's `data-console-v4="true"` root; callers use
 the shared rollout switch rather than introducing page flags.
 
+The shared v4 type scale uses existing tokens: page `h1` is `--text-2xl` (28px,
+medium), section `h2` is `--text-xl` (22px), `h3` and panel headings are
+`--text-md` (16px), and `h4` is `--text-sm` (14px). At widths up to 640px the page title uses `--text-xl`
+(22px). `ConsolePageHeading` and `ConsolePanel` inherit this scale automatically;
+avoid page-specific heading sizes.
+
 | Component | Parameters | Use |
 |---|---|---|
 | `ConsolePageHeading` | required `string Title`; optional `RenderFragment ChildContent`, `Actions` | One page `h1`, descriptive content and native action controls. |
