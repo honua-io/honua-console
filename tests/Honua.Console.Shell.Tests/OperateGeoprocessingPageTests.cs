@@ -34,6 +34,8 @@ public sealed class OperateGeoprocessingPageTests
         Assert.Equal(heading, page.Find("h1").TextContent);
         Assert.Equal(v4Enabled, page.FindAll("section > link[rel='stylesheet'][href$='operate-jobs-v4.css']").Count == 1);
         Assert.Equal(v4Enabled, page.FindAll(".console-jobs-v4").Count == 1);
+        Assert.Single(page.FindAll("h1"));
+        Assert.Equal(v4Enabled, page.FindAll(".console-page-heading-v4").Count == 1);
         Assert.Equal(2, page.FindAll("tbody tr").Count);
         if (v4Enabled)
         {
@@ -654,7 +656,8 @@ public sealed class OperateGeoprocessingPageTests
         }
 
         Directory.CreateDirectory(directory);
-        File.WriteAllText(Path.Combine(directory, $"{name}.html"), new HtmlParser().ParseDocument(markup).Body!.InnerHtml);
+        File.WriteAllText(Path.Combine(directory, $"{name}.html"),
+            $"<div class=\"console-shell\" data-console-v4=\"true\">{new HtmlParser().ParseDocument(markup).Body!.InnerHtml}</div>");
     }
 
     private static void AssertAccessibleProgress(string markup, params (string Label, int Value)[] expected)

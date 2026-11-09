@@ -193,6 +193,20 @@ jobs:
       - name: Verify rendered catalog presentation
         run: node e2e/playwright/catalog-preview.mjs
 
+      - name: Verify rendered jobs presentation
+        run: node e2e/playwright/jobs-preview.mjs
+        env:
+          HONUA_JOBS_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload jobs presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: jobs-presentation
+          path: |
+            artifacts/catalog-preview/jobs-*
+          if-no-files-found: error
+
       - name: Verify rendered Activity presentation
         run: node e2e/playwright/activity-preview.mjs
         env:
