@@ -12,6 +12,85 @@ namespace Honua.Console.IntegrationTests;
 public sealed class ApprovalInboxPageRenderTests
 {
     [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void V4Queue_ReportsMissingIdentityRiskAndPlaceholderDates(string? missing)
+    {
+        var proposal = FakeProposalFactory.Summary("unknown", ConsoleProposalKind.Deploy,
+            risk: ConsoleProposalRisk.Unknown) with
+        {
+            RequestedBy = missing,
+            RequestedByAgent = missing,
+            CreatedAt = DateTimeOffset.UnixEpoch,
+        };
+        using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: [proposal]),
+            registerServices: context => context.Services.AddSingleton(new ConsoleV4Options { Enabled = true }));
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(() => page.Find("[data-proposal-id='unknown']"));
+        var cells = page.Find("[data-proposal-id='unknown']").Closest("tr")!.QuerySelectorAll("td");
+        Assert.Contains("Agent: Not reported", cells[1].TextContent, StringComparison.Ordinal);
+        Assert.Contains("Requester: Not reported", cells[1].TextContent, StringComparison.Ordinal);
+        Assert.Contains("unknown", cells[3].TextContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Not reported", cells[4].TextContent.Trim());
+        Assert.Null(cells[4].QuerySelector("time"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void V4Queue_ConvertsReportedDatesToUtcAndKeepsDistinctCounts(bool minimumDate)
+    {
+        var requestedAt = new DateTimeOffset(2026, 11, 9, 10, 30, 0, TimeSpan.FromHours(-10));
+        var awaiting = FakeProposalFactory.Summary("awaiting", ConsoleProposalKind.Deploy) with { CreatedAt = requestedAt };
+        var completed = FakeProposalFactory.Summary("completed", ConsoleProposalKind.Deploy,
+            ConsoleProposalStatus.Completed) with
+        { CreatedAt = minimumDate ? DateTimeOffset.MinValue : DateTimeOffset.UnixEpoch };
+        using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: [awaiting, completed]),
+            registerServices: context => context.Services.AddSingleton(new ConsoleV4Options { Enabled = true }));
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(() => Assert.Equal(2, page.FindAll("[data-proposal-id]").Count));
+        var time = page.Find("[data-proposal-id='awaiting']").Closest("tr")!.QuerySelector("time")!;
+        Assert.Equal("2026-11-09 20:30 UTC", time.TextContent);
+        Assert.Equal(requestedAt.ToString("O"), time.GetAttribute("datetime"));
+        Assert.Null(page.Find("[data-proposal-id='completed']").Closest("tr")!.QuerySelector("time"));
+        Assert.Equal("1", page.Find("[data-awaiting-count] strong").TextContent);
+        Assert.Equal("2", page.Find("[data-total-count] strong").TextContent);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void V4Queue_ShowsSourceChipsOnlyForMultipleSources(bool multipleSources)
+    {
+        var server = FakeProposalFactory.Summary("server", ConsoleProposalKind.Deploy);
+        var other = FakeProposalFactory.Summary("other", ConsoleProposalKind.Deploy) with
+        {
+            Source = multipleSources ? ConsoleProposalSource.DevOps : ConsoleProposalSource.Server,
+        };
+        var inbox = new ScriptedApprovalInboxClient
+        {
+            Result = OperateSectionResult<ApprovalInboxSnapshot>.Allowed(FakeProposalFactory.Snapshot(server, other)),
+        };
+        using var ctx = NewContextWithInbox(inbox, registerServices: context =>
+            context.Services.AddSingleton(new ConsoleV4Options { Enabled = true }));
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(() => Assert.Equal(2, page.FindAll("[data-proposal-id]").Count));
+        var chips = page.FindAll("[data-proposal-source-chip]");
+        if (multipleSources)
+        {
+            Assert.Equal(new[] { "DevOps", "Server" }, chips.Select(chip => chip.TextContent).Order().ToArray());
+        }
+        else
+        {
+            Assert.Empty(chips);
+        }
+    }
+
+    [Theory]
     [InlineData(false, "Approval inbox")]
     [InlineData(true, "Approvals")]
     public void RolloutFlag_PreservesQueueFilteringAndProposalReview(bool enabled, string heading)
@@ -209,11 +288,13 @@ public sealed class ApprovalInboxPageRenderTests
     // last-refresh logic directly through the inbox client, without routing through the aggregator.
     private static BunitContext NewContextWithInbox(
         IConsoleApprovalInboxClient inbox,
-        FakeConsoleProposalRealtimeClient? realtime = null)
+        FakeConsoleProposalRealtimeClient? realtime = null,
+        Action<BunitContext>? registerServices = null)
     {
         var ctx = new BunitContext();
         ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(inbox);
         ctx.Services.AddSingleton<IConsoleProposalRealtimeClient>(realtime ?? new FakeConsoleProposalRealtimeClient());
+        registerServices?.Invoke(ctx);
         ctx.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         return ctx;
     }

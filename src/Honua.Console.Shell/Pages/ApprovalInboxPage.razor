@@ -186,11 +186,8 @@
                                                 </button>
                                             </td>
                                             <td>
-                                                @if (!string.IsNullOrWhiteSpace(item.Proposal.RequestedByAgent))
-                                                {
-                                                    <span class="approval-inbox-requester">@item.Proposal.RequestedByAgent</span>
-                                                }
-                                                <span class="console-muted">@(string.IsNullOrWhiteSpace(item.Proposal.RequestedBy) ? "Not reported" : item.Proposal.RequestedBy)</span>
+                                                <span class="approval-inbox-requester">Agent: @(string.IsNullOrWhiteSpace(item.Proposal.RequestedByAgent) ? "Not reported" : item.Proposal.RequestedByAgent)</span>
+                                                <span class="console-muted">Requester: @(string.IsNullOrWhiteSpace(item.Proposal.RequestedBy) ? "Not reported" : item.Proposal.RequestedBy)</span>
                                                 @if (multiSource)
                                                 {
                                                     <span class="console-chip approval-inbox-source" data-proposal-source-chip="@item.Source">@ConsoleProposalPresentation.SourceLabel(item.Source)</span>
@@ -202,7 +199,16 @@
                                                 <OperateStatusPill Label="@ConsoleProposalPresentation.RiskLabel(item.Proposal.RiskLevel)"
                                                                    CssClass="@ConsoleProposalPresentation.RiskClass(item.Proposal.RiskLevel)" />
                                             </td>
-                                            <td><time datetime="@item.Proposal.CreatedAt.ToString("O")">@item.Proposal.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture)</time></td>
+                                            <td>
+                                                @if (item.Proposal.CreatedAt != DateTimeOffset.UnixEpoch && item.Proposal.CreatedAt != DateTimeOffset.MinValue)
+                                                {
+                                                    <time datetime="@item.Proposal.CreatedAt.ToString("O")">@item.Proposal.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture)</time>
+                                                }
+                                                else
+                                                {
+                                                    <span class="console-muted">Not reported</span>
+                                                }
+                                            </td>
                                         </tr>
                                     }
                                 </tbody>

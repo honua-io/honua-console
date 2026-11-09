@@ -1,4 +1,3 @@
-/* Loaded only for the shared v4 rollout. Review actions stay in ProposalApprovalPanel. */
 .approval-inbox-v4 {
     color: var(--c-text);
     font-family: var(--font-sans);
