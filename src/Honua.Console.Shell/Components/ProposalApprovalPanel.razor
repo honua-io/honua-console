@@ -1,6 +1,7 @@
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IConsoleProposalsClient Proposals
+@implements IAsyncDisposable
 
 @* Human-in-the-loop approval panel for a single operation proposal (#193, honua-server
    #1694). It renders the server-owned plan/diff/dry-run/risk/blockers/warnings — the same
@@ -153,7 +154,7 @@ else
                           placeholder="Why are you approving or rejecting this proposal?"
                           disabled="@DecisionUnavailable"
                           data-proposal-reason
-                          @bind="_reason"></textarea>
+                          @bind="_reason" @bind:event="oninput" @bind:after="ReportUnsavedAsync"></textarea>
 
                 <div class="proposal-approval-action-row">
                     <button type="button"
@@ -231,6 +232,23 @@ else
     [Parameter]
     public EventCallback<ConsoleProposalDetail> OnDetailLoaded { get; set; }
 
+    /// <summary>Reports counts only; the parent owns navigation protection and aggregation.</summary>
+    [Parameter]
+    public EventCallback<ConsoleAgentUnsavedSummary> UnsavedChanged { get; set; }
+
+    private bool _disposed;
+    private Task ReportUnsavedAsync() => _disposed ? Task.CompletedTask : UnsavedChanged.InvokeAsync(new()
+    {
+        ChangedFieldCount = _detail?.IsAwaitingApproval == true && !string.IsNullOrEmpty(_reason) ? 1 : 0,
+        PendingOperationCount = _busy ? 1 : 0
+    });
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        await UnsavedChanged.InvokeAsync(new());
+    }
+
     private ConsoleProposalDetail? _detail;
     private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
     private string _message = string.Empty;
@@ -267,7 +285,9 @@ else
     private async Task LoadAsync()
     {
         var result = await Proposals.GetAsync(ProposalId);
+        if (_disposed) return;
         Apply(result);
+        await ReportUnsavedAsync();
         if (result.IsAllowed && result.Value is { } detail)
         {
             await OnDetailLoaded.InvokeAsync(detail);
@@ -312,12 +332,16 @@ else
         _busy = true;
         _actionMessage = null;
         _actionDetail = null;
+        await ReportUnsavedAsync();
         try
         {
             var result = await action();
+            if (_disposed) return;
             if (result.IsAllowed && result.Value is not null)
             {
                 Apply(result);
+                _reason = null;
+                await ReportUnsavedAsync();
                 _actionMessage = successMessage;
                 _actionMessageClass = "console-state-success";
                 await OnActioned.InvokeAsync(result.Value);
@@ -347,6 +371,7 @@ else
         finally
         {
             _busy = false;
+            await ReportUnsavedAsync();
         }
     }
 }
