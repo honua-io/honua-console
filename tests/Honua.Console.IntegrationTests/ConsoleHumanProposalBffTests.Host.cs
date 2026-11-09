@@ -7,6 +7,7 @@ using System.Text.Json.Nodes;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 using Honua.Console.Web.Auth;
+using Honua.Console.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -47,6 +48,7 @@ public sealed partial class ConsoleHumanProposalBffTests
         private const string IdentityIssuer = "https://identity.example/";
         public int ReviewCalls { get; private set; }
         public int ApprovalCalls { get; private set; }
+        public int DraftCalls { get; private set; }
         public bool SawPrivateCookie { get; private set; }
         public bool SawForwardableCredential { get; private set; }
 
@@ -73,6 +75,12 @@ public sealed partial class ConsoleHumanProposalBffTests
             _upstream.MapGet(pathBase + "/api/v1/admin/proposals/proposal/approval-review", OpenPrivateReview);
             _upstream.MapGet(pathBase + "/api/v1/admin/proposals/proposal", ReadProposal);
             _upstream.MapPost(pathBase + "/api/v1/admin/proposals/proposal/approve", DecideProposal);
+            _upstream.MapPost(pathBase + "/api/v1/studio/package-drafts", (HttpContext context) =>
+            {
+                DraftCalls++;
+                Observe(context);
+                return Results.Json(new { draftId = "created-draft" }, statusCode: 201);
+            });
         }
 
         public void ConfigureManagement()
@@ -180,9 +188,14 @@ public sealed partial class ConsoleHumanProposalBffTests
 
         private async Task StartBrowserAsync()
         {
+            var accountSessions = new InMemoryConsoleAccountSessionStore();
+            await accountSessions.SaveSessionAsync(new ConsoleAccountSession
+            {
+                ProfileId = Profile.Id, ServerBaseUri = Profile.ServerBaseUri
+            });
             var identity = new ConsoleServerSessionIdentityBinding(
                 Options.Create(new ConsoleEdgeAuthOptions { ServerSessionIssuer = IdentityIssuer }),
-                new InMemoryConsoleAccountSessionStore(), Sessions, Clock);
+                accountSessions, Sessions, Clock);
             var builder = Builder();
             builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-Token");
             builder.Services.AddDataProtection();
@@ -191,6 +204,12 @@ public sealed partial class ConsoleHumanProposalBffTests
             builder.Services.AddSingleton(Sessions);
             builder.Services.AddSingleton<ConsoleApprovalBrowserChannel>();
             builder.Services.AddSingleton<IConsoleEnvironmentProfileStore>(_profiles);
+            builder.Services.AddSingleton<IConsoleAccountSessionStore>(accountSessions);
+            builder.Services.AddSingleton<IConsoleOperatorContext>(new HumanOperator());
+            builder.Services.AddSingleton<IConsoleOperatorBearerProvider>(new DraftBearer());
+            builder.Services.AddSingleton(identity);
+            builder.Services.AddSingleton(new ConsoleOperatorSessionBridge(_profiles, accountSessions));
+            builder.Services.AddHttpClient("honua-agent-workspace");
             builder.Services.AddSingleton(services => new ConsoleHumanProposalSession(
                 new PartitionedConsoleOperatorBearerExchange(new HumanOperator(), Sessions, identity), _profiles, Clock, _management,
                 services.GetRequiredService<ConsoleApprovalBrowserChannel>()));
@@ -204,6 +223,7 @@ public sealed partial class ConsoleHumanProposalBffTests
                 await next();
             });
             _browser.MapConsoleHumanProposalBff();
+            _browser.MapAgentWorkspaceBff();
             await _browser.StartAsync();
             Client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = Address(_browser) };
             IssueBrowserProof(ConsoleServerAuthority.Serving);
@@ -211,6 +231,16 @@ public sealed partial class ConsoleHumanProposalBffTests
             var session = await bootstrap.Content.ReadFromJsonAsync(
                 ConsoleHumanProposalBffJsonContext.Default.ConsoleHumanProposalBrowserSession);
             Client.DefaultRequestHeaders.Add("X-CSRF-Token", session!.CsrfToken);
+            Client.DefaultRequestHeaders.Add("X-Honua-Environment", Profile.Id);
+            Client.DefaultRequestHeaders.Add("X-Honua-Session-Partition",
+                AgentGatewayBinding.OperatorPartition("human", Profile.Id, Profile.ServerBaseUri));
+        }
+
+        private sealed class DraftBearer : IConsoleOperatorBearerProvider
+        {
+            public Task<ConsoleOperatorBearerResolution> ResolveAsync(
+                ConsoleEnvironmentProfile profile, CancellationToken cancellationToken = default) =>
+                Task.FromResult(new ConsoleOperatorBearerResolution { AccessToken = "operator-bearer", HasInteractiveSession = true });
         }
 
         public void IssueBrowserProof(ConsoleServerAuthority authority)
