@@ -11,6 +11,150 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class ApprovalInboxPageRenderTests
 {
+    public enum PlaceholderDate { UnixEpoch, Minimum }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void V4Queue_ReportsMissingIdentityRiskAndPlaceholderDates(string? missing)
+    {
+        var proposal = FakeProposalFactory.Summary("unknown", ConsoleProposalKind.Deploy,
+            risk: ConsoleProposalRisk.Unknown) with
+        {
+            RequestedBy = missing,
+            RequestedByAgent = missing,
+            CreatedAt = DateTimeOffset.UnixEpoch,
+        };
+        using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: [proposal]),
+            registerServices: context => context.Services.AddSingleton(new ConsoleV4Options { Enabled = true }));
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(() => page.Find("[data-proposal-id='unknown']"));
+        var cells = page.Find("[data-proposal-id='unknown']").Closest("tr")!.QuerySelectorAll("td");
+        Assert.Contains("Agent: Not reported", cells[1].TextContent, StringComparison.Ordinal);
+        Assert.Contains("Requester: Not reported", cells[1].TextContent, StringComparison.Ordinal);
+        Assert.Contains("unknown", cells[3].TextContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Not reported", cells[4].TextContent.Trim());
+        Assert.Null(cells[4].QuerySelector("time"));
+    }
+
+    [Theory]
+    [InlineData(PlaceholderDate.UnixEpoch)]
+    [InlineData(PlaceholderDate.Minimum)]
+    public void V4Queue_ConvertsReportedDatesToUtcAndKeepsDistinctCounts(PlaceholderDate placeholder)
+    {
+        var requestedAt = new DateTimeOffset(2026, 11, 9, 10, 30, 0, TimeSpan.FromHours(-10));
+        var awaiting = FakeProposalFactory.Summary("awaiting", ConsoleProposalKind.Deploy) with { CreatedAt = requestedAt };
+        var completed = FakeProposalFactory.Summary("completed", ConsoleProposalKind.Deploy,
+            ConsoleProposalStatus.Completed) with
+        { CreatedAt = placeholder == PlaceholderDate.Minimum ? DateTimeOffset.MinValue : DateTimeOffset.UnixEpoch };
+        using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: [awaiting, completed]),
+            registerServices: context => context.Services.AddSingleton(new ConsoleV4Options { Enabled = true }));
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(() => Assert.Equal(2, page.FindAll("[data-proposal-id]").Count));
+        var time = page.Find("[data-proposal-id='awaiting']").Closest("tr")!.QuerySelector("time")!;
+        Assert.Equal("2026-11-09 20:30 UTC", time.TextContent);
+        Assert.Equal(requestedAt.ToString("O"), time.GetAttribute("datetime"));
+        Assert.Null(page.Find("[data-proposal-id='completed']").Closest("tr")!.QuerySelector("time"));
+        Assert.Equal("1", page.Find("[data-awaiting-count] strong").TextContent);
+        Assert.Equal("2", page.Find("[data-total-count] strong").TextContent);
+    }
+
+    [Theory]
+    [InlineData(ConsoleProposalSource.Server)]
+    [InlineData(ConsoleProposalSource.DevOps)]
+    public void V4Queue_ShowsSourceChipsOnlyForMultipleSources(ConsoleProposalSource secondSource)
+    {
+        var server = FakeProposalFactory.Summary("server", ConsoleProposalKind.Deploy);
+        var other = FakeProposalFactory.Summary("other", ConsoleProposalKind.Deploy) with
+        {
+            Source = secondSource,
+        };
+        var inbox = new ScriptedApprovalInboxClient
+        {
+            Result = OperateSectionResult<ApprovalInboxSnapshot>.Allowed(FakeProposalFactory.Snapshot(server, other)),
+        };
+        using var ctx = NewContextWithInbox(inbox, registerServices: context =>
+            context.Services.AddSingleton(new ConsoleV4Options { Enabled = true }));
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(() => Assert.Equal(2, page.FindAll("[data-proposal-id]").Count));
+        var chips = page.FindAll("[data-proposal-source-chip]");
+        if (secondSource != ConsoleProposalSource.Server)
+        {
+            Assert.Equal(new[] { "DevOps", "Server" }, chips.Select(chip => chip.TextContent).Order().ToArray());
+        }
+        else
+        {
+            Assert.Empty(chips);
+        }
+    }
+
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy, "Approval inbox")]
+    [InlineData(ConsolePresentationMode.V4, "Approvals")]
+    public void RolloutFlag_PreservesQueueFilteringAndProposalReview(ConsolePresentationMode presentation, string heading)
+    {
+        var proposals = new FakeConsoleProposalsClient(
+            proposals:
+            [
+                FakeProposalFactory.Summary("deploy-1", ConsoleProposalKind.Deploy, summary: "Upgrade the server"),
+                FakeProposalFactory.Summary("import-1", ConsoleProposalKind.DataImport, summary: "Import parcels"),
+            ],
+            details: [FakeProposalFactory.Detail("deploy-1", ConsoleProposalKind.Deploy)]);
+        using var ctx = NewContext(proposals, registerServices: context =>
+            context.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 }));
+
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(() => Assert.Equal(2, page.FindAll("[data-proposal-id]").Count));
+        Assert.Equal(heading, Assert.Single(page.FindAll("h1")).TextContent);
+        Assert.Equal(presentation == ConsolePresentationMode.V4, page.FindAll(".console-page-heading-v4").Count == 1);
+        Assert.Equal(presentation == ConsolePresentationMode.V4, page.FindAll("section > link[rel='stylesheet'][href$='approval-inbox-v4.css']").Count == 1);
+        Assert.Equal(presentation == ConsolePresentationMode.V4, page.FindAll(".approval-inbox-table").Count == 1);
+        Assert.Equal(presentation == ConsolePresentationMode.Legacy, page.FindAll(".approval-inbox-list").Count == 1);
+        page.Find("[data-filter='ServerUpgrade']").Click();
+        Assert.Equal("deploy-1", Assert.Single(page.FindAll("[data-proposal-id]")).GetAttribute("data-proposal-id"));
+        page.Find("[data-proposal-id='deploy-1']").Click();
+        page.WaitForAssertion(() => page.Find("[data-proposal-approve]"));
+        if (presentation == ConsolePresentationMode.V4)
+        {
+            CatalogAdminPreview.Capture("approvals-selected", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
+        }
+        page.Find("[data-proposal-approve]").Click();
+        page.WaitForAssertion(() => Assert.Equal("deploy-1", Assert.Single(proposals.Approved)));
+    }
+
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void RolloutFlag_PreservesForbiddenApprovalAndFreshness(ConsolePresentationMode presentation)
+    {
+        var proposals = new FakeConsoleProposalsClient(
+            proposals: [FakeProposalFactory.Summary("restricted-1", ConsoleProposalKind.Deploy)],
+            details: [FakeProposalFactory.Detail("restricted-1", ConsoleProposalKind.Deploy)],
+            approveForbidden: true);
+        using var ctx = NewContext(proposals, registerServices: context =>
+            context.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 }));
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(() => page.Find("[data-proposal-id='restricted-1']"));
+        page.Find("[data-proposal-id='restricted-1']").Click();
+        page.WaitForAssertion(() => page.Find("[data-proposal-approve]"));
+        page.Find("[data-proposal-approve]").Click();
+
+        page.WaitForAssertion(() => Assert.Contains("requires the 'approve' permission", page.Find("section.approval-inbox-page").TextContent, StringComparison.Ordinal));
+        Assert.Empty(proposals.Approved);
+        Assert.Single(page.FindAll("[data-live-state]"));
+        Assert.Single(page.FindAll("[data-refresh-inbox]"));
+        if (presentation == ConsolePresentationMode.V4)
+        {
+            CatalogAdminPreview.Capture("approvals-forbidden", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
+        }
+    }
+
     [Fact]
     public async Task RealtimeStartup_PendingRestRead_WaitsForTheLoadedInbox()
     {
@@ -146,11 +290,13 @@ public sealed class ApprovalInboxPageRenderTests
     // last-refresh logic directly through the inbox client, without routing through the aggregator.
     private static BunitContext NewContextWithInbox(
         IConsoleApprovalInboxClient inbox,
-        FakeConsoleProposalRealtimeClient? realtime = null)
+        FakeConsoleProposalRealtimeClient? realtime = null,
+        Action<BunitContext>? registerServices = null)
     {
         var ctx = new BunitContext();
         ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(inbox);
         ctx.Services.AddSingleton<IConsoleProposalRealtimeClient>(realtime ?? new FakeConsoleProposalRealtimeClient());
+        registerServices?.Invoke(ctx);
         ctx.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         return ctx;
     }
