@@ -92,6 +92,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/control-center        Control center
 /operate/services              Services list — dedicated page (OperateServicesPage) owns this route
 /operate/services/:name/settings
+/operate/folders/:id            Folder home (Console v4 flag): Services in the selected Folder and Administration; flag off shows a link to /operate/services#folders without catalog reads
 /operate/layers                Layers list — dedicated page (OperateLayersPage) owns this route
 /operate/layers/:id            Layer configuration (default + ?tab=configure); :id is the canonical resource id or the admin layer id publishing returns
 /operate/layers/:id/style      Layer style editor
