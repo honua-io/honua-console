@@ -33,4 +33,7 @@
     <ProjectReference Include="..\..\src\Honua.Console.Web\Honua.Console.Web.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="../Shared/ReceiptProposalClient.cs" Link="Fixtures/ReceiptProposalClient.cs" />
+  </ItemGroup>
 </Project>
