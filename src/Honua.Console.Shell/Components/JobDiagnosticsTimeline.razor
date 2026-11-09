@@ -108,7 +108,7 @@
     }
 
     <div class="operate-action-row">
-        @if (View.CancelOffered)
+        @if (View.CancelOffered && CancelAllowed)
         {
             <button type="button" class="console-button" disabled="@Busy" @onclick="OnCancel">Cancel job</button>
         }
@@ -130,6 +130,9 @@
 @code {
     [Parameter, EditorRequired]
     public required OperateJobDiagnosticsView View { get; set; }
+
+    [Parameter]
+    public bool CancelAllowed { get; set; }
 
     [Parameter]
     public bool Busy { get; set; }

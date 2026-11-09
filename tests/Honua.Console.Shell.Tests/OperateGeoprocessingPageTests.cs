@@ -1,3 +1,4 @@
+using AngleSharp.Html.Parser;
 using Bunit;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
@@ -31,6 +32,7 @@ public sealed class OperateGeoprocessingPageTests
         Assert.Contains("/operate/geoprocessing/gp-run-1", html);
         Assert.Contains("Executing", html);
         Assert.Contains("analyst.live", html);
+        AssertAccessibleProgress(html, ("gp-run-1 progress", 40), ("gp-run-2 progress", 100));
     }
 
     [Fact]
@@ -67,7 +69,10 @@ public sealed class OperateGeoprocessingPageTests
             new StubGeoprocessingClient
             {
                 Detail = OperateSectionResult<OperateJobRun>.Allowed(
-                    Job("gp-run-1", "Succeeded", "Done", 100, "analyst.live"))
+                    Job("gp-run-1", "Succeeded", "Done", 100, "analyst.live") with
+                    {
+                        Stages = [new OperateJobStage("Validate", new OperateStatus("Running", "Executing"), 60, "Validation underway")]
+                    })
             },
             selectedJobRunId: "gp-run-1");
 
@@ -76,6 +81,7 @@ public sealed class OperateGeoprocessingPageTests
         // JobDetailPanel surface markers.
         Assert.Contains("Job detail", html);
         Assert.Contains("Stages", html);
+        AssertAccessibleProgress(html, ("Job progress", 100), ("Validate progress", 60));
     }
 
     [Fact]
@@ -197,6 +203,30 @@ public sealed class OperateGeoprocessingPageTests
         Assert.Equal("gp-failed", Assert.Single(client.RetryCalls));
         Assert.Empty(client.CancelCalls);
         Assert.Contains("Job requeued for retry.", page.Markup);
+    }
+
+    [Theory]
+    [InlineData("Succeeded")]
+    [InlineData("Failed")]
+    [InlineData("Cancelled")]
+    public void TerminalJobDoesNotOfferCancelWhenDiagnosticsRetainsCancelLink(string state)
+    {
+        using var ctx = new BunitContext();
+        var client = new StubGeoprocessingClient
+        {
+            Detail = OperateSectionResult<OperateJobRun>.Allowed(
+                Job("gp-terminal", state, "completed", 100, "analyst.live")),
+            Diagnostics = OperateSectionResult<OperateJobDiagnosticsView>.Allowed(
+                Projection("gp-terminal", cancel: true))
+        };
+        ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(client);
+
+        var page = ctx.Render<OperateGeoprocessingPage>(p => p
+            .Add(x => x.SelectedJobRunId, "gp-terminal"));
+
+        Assert.Contains("data-job-timeline", page.Markup);
+        Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Contains("Cancel job", StringComparison.Ordinal));
+        Assert.Empty(client.CancelCalls);
     }
 
     [Fact]
@@ -566,6 +596,20 @@ public sealed class OperateGeoprocessingPageTests
                 });
             var output = await renderer.RenderComponentAsync<OperateGeoprocessingPage>(parameters);
             return output.ToHtmlString();
+        });
+    }
+
+    private static void AssertAccessibleProgress(string markup, params (string Label, int Value)[] expected)
+    {
+        var progressBars = new HtmlParser().ParseDocument(markup).QuerySelectorAll("[role='progressbar']");
+        Assert.Equal(expected.Select(value => value.Label), progressBars.Select(progress => progress.GetAttribute("aria-label")));
+        Assert.Equal(expected.Select(value => value.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            progressBars.Select(progress => progress.GetAttribute("aria-valuenow")));
+        Assert.All(progressBars, progress =>
+        {
+            Assert.Equal("0", progress.GetAttribute("aria-valuemin"));
+            Assert.Equal("100", progress.GetAttribute("aria-valuemax"));
+            Assert.False(string.IsNullOrWhiteSpace(progress.GetAttribute("aria-label")));
         });
     }
 
