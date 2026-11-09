@@ -9,7 +9,7 @@ import { checkKeyboardControls } from "./console-presentation.mjs";
 const previews = path.resolve(process.env.HONUA_ACTIVITY_PREVIEW_DIR ?? "artifacts/activity-preview");
 const shellAssets = path.resolve("src/Honua.Console.Shell/wwwroot");
 const pages = new Map(await Promise.all(["activity-selected", "activity-empty"].map(async name =>
-  [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
+  [name, `<div class="console-shell" data-console-v4="true">${await fs.readFile(path.join(previews, `${name}.html`), "utf8")}</div>`])));
 
 const server = await startPresentationFixtureServer({
   pages,
@@ -33,6 +33,18 @@ try {
       assert.equal(await page.getByRole("heading", { level: 1 }).textContent(), "Activity");
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}/${width} overflows`);
       assert.equal(await page.locator("[data-timeline-row]").count(), name === "activity-selected" ? 2 : 0);
+      if (name === "activity-selected") {
+        const timeline = page.locator(".operate-table-panel .operate-timeline");
+        assert.equal(await timeline.evaluate(element => getComputedStyle(element).borderTopWidth), "0px");
+        assert.equal(await page.locator(".operate-event-table th").first().evaluate(element => {
+          const probe = document.createElement("span");
+          probe.style.color = "var(--c-text-3)";
+          element.append(probe);
+          const matches = getComputedStyle(element).color === getComputedStyle(probe).color;
+          probe.remove();
+          return matches;
+        }), true, "Activity keeps its quiet table headers");
+      }
       await checkKeyboardControls(page, {
         controls: "#events :is(a[href], input, select, button, [tabindex='0']):not(:disabled):visible",
         sizedControls: "input, select, button",
