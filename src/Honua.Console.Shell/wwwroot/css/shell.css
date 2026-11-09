@@ -7,7 +7,7 @@
     align-items: center;
     gap: .75rem;
     padding: .5rem 1rem;
-    border-bottom: 3px solid var(--c-accent);
+    border-bottom: var(--accent-line-h) solid var(--c-accent-line);
     background: var(--c-topbar-bg);
     color: var(--c-topbar-text);
 }
@@ -68,8 +68,8 @@
     padding: .35rem;
     border: 1px solid var(--c-border-strong);
     border-radius: var(--radius-sm);
-    background: var(--c-surface);
-    box-shadow: var(--shadow-2);
+    background: var(--c-raised);
+    box-shadow: var(--shadow-raised);
     z-index: var(--z-menu);
 }
 
@@ -98,7 +98,7 @@
 .console-menu-toggle { display: none; }
 .console-contextbar {
     padding: .35rem 1rem;
-    background: var(--c-surface-2);
+    background: var(--c-bg);
     border-bottom: 1px solid var(--c-border);
 }
 

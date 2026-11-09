@@ -1,13 +1,15 @@
 .console-home-page { min-width: 0; }
 .console-home-workload { display: grid; gap: var(--space-6); margin-bottom: var(--space-6); }
-.console-home-page .console-home-inbox { margin: 0; border-radius: var(--radius-sm); }
+.console-home-page .console-home-inbox { margin: 0; }
 .console-home-page .console-home-inbox h2 { margin: 0; }
 .console-home-page .console-home-inbox-metrics strong { font-variant-numeric: tabular-nums; }
 .console-home-page .console-panel { min-width: 0; }
-.console-home-administration, .console-home-recent { padding: 0; border-radius: var(--radius-sm); overflow: hidden; }
+.console-home-page .console-home-inbox-metrics strong, .console-home-page .ops-summary-tile strong { font-size: var(--text-md); }
+.console-home-page [data-home-awaiting-count] strong { font-size: var(--text-2xl); }
+.console-home-administration, .console-home-recent { padding: 0; overflow: hidden; }
 .console-home-administration > h2, .console-home-recent > h2 {
     margin: 0; padding: var(--space-3) var(--space-4); font-size: var(--text-lg);
-    background: var(--c-surface-2); border-bottom: 1px solid var(--c-border);
+    color: var(--c-text);
 }
 .console-home-administration > a { display: inline-block; padding: var(--space-4); }
 .console-home-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: var(--space-5); padding: var(--space-4); }

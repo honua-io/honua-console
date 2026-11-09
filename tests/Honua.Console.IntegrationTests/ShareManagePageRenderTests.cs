@@ -154,6 +154,7 @@ public sealed class ShareManagePageRenderTests
         Assert.Contains("Private upstream", page.Markup, StringComparison.Ordinal);
         Assert.Contains("item visibility is", page.Markup, StringComparison.Ordinal);
         Assert.Contains("personal", page.Markup, StringComparison.Ordinal);
+        CatalogAdminPreview.Capture("share-warning", page.Find("h1").OuterHtml + page.Find(".console-panel-warning").OuterHtml);
     }
 
     [Fact]
