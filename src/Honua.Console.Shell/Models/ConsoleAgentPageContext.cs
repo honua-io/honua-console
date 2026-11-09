@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace Honua.Console.Shell.Models;
 
 [JsonConverter(typeof(JsonStringEnumConverter<ConsoleAgentEntityKind>))]
-public enum ConsoleAgentEntityKind { Folder, Service, Layer, Job, Approval, Item }
+public enum ConsoleAgentEntityKind { Folder, Service, Layer, Job, Approval, Item, Connection }
 
 public sealed record ConsoleAgentEntity
 {

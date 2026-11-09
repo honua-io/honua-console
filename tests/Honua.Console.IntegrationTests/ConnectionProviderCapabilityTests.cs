@@ -3,6 +3,7 @@ using System.Text;
 using Bunit;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Pages;
+using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -140,6 +141,28 @@ public sealed class ConnectionProviderCapabilityTests
 
         page.WaitForAssertion(() => Assert.Single(page.FindAll("select")[0].QuerySelectorAll("option")));
         Assert.Empty(page.FindAll("[data-provider-documentation]"));
+    }
+
+    [Theory]
+    [InlineData(false, "[\"postgis\"]", 1)]
+    [InlineData(true, "[\"postgis\"]", 1)]
+    [InlineData(false, "[]", 0)]
+    [InlineData(true, "[]", 0)]
+    public void V4ProviderRestrictionsAndPrivateEditContext(bool enabled, string providers, int count)
+    {
+        using var context = Context(Manifest(providers));
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        var registry = new ConsoleAgentContextRegistry();
+        context.Services.AddSingleton(registry);
+        var page = context.Render<OperateConnectionNewPage>();
+        page.WaitForAssertion(() => Assert.Equal(count, page.FindAll("select")[0].QuerySelectorAll("option").Length));
+        Assert.Equal(enabled ? 2 : 0, page.FindAll("section.console-panel[aria-labelledby]").Count);
+        Assert.Equal(count == 0, page.Find("select").HasAttribute("disabled"));
+        Assert.Equal(enabled ? "/operate/connections/new" : "/", registry.Current.Route);
+        page.Find("input[type=password]").Input("private-test-password");
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.DoesNotContain("private-test-password", System.Text.Json.JsonSerializer.Serialize(registry.Current));
+        if (enabled) CatalogAdminPreview.Capture(count == 0 ? "data-connection-new-unsupported" : "data-connection-new", page.Markup);
     }
 
     private static string Manifest(string providers, string href = Documentation) =>
