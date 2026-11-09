@@ -47,7 +47,7 @@
     private const string Intro = "Edit this layer's drawing and popup settings. Every service exposing the layer uses these shared settings. Author shared catalog Styles in Studio.";
     private string LayerHref => $"/operate/layers/{Uri.EscapeDataString(_overrides.CanonicalResourceId ?? ResourceId)}";
     private ConsoleAgentEntity? LayerEntity => !_loading && _overrides.BindingState is null && _overrides.LayerId is { } id && _overrides.CanonicalResourceId is { } resource
-        ? new() { Kind = ConsoleAgentEntityKind.Layer, Id = id.ToString(System.Globalization.CultureInfo.InvariantCulture), ResourceId = resource }
+        ? ConsoleAgentEntity.ForLayer(id, resource)
         : null;
     private ConsoleAgentPageContext AgentContext => new()
     {

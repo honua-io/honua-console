@@ -31,8 +31,6 @@
         Entities = _layers.Select(row => ConsoleAgentEntity.ForLayer(row.Layer)).Distinct().ToArray()
     };
 
-
-
     private RenderFragment LayerList => @<text>
     <OperateCapabilityStateList States="@_states" />
 

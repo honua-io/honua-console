@@ -12,11 +12,13 @@ public sealed record ConsoleAgentEntity
     public string? ServiceName { get; init; }
     public string? ResourceId { get; init; }
 
-    public static ConsoleAgentEntity ForLayer(OperateServiceLayerProjection layer) => new()
+    public static ConsoleAgentEntity ForLayer(OperateServiceLayerProjection layer) => ForLayer(layer.LayerId, layer.CanonicalResourceId);
+
+    public static ConsoleAgentEntity ForLayer(int layerId, string canonicalResourceId) => new()
     {
         Kind = ConsoleAgentEntityKind.Layer,
-        Id = layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        ResourceId = layer.CanonicalResourceId
+        Id = layerId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        ResourceId = canonicalResourceId
     };
 
     public static ConsoleAgentEntity ForService(string name) => new()
