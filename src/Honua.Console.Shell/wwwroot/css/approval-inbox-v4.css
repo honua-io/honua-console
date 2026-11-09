@@ -1,0 +1,148 @@
+/* Loaded only for the shared v4 rollout. Review actions stay in ProposalApprovalPanel. */
+.approval-inbox-v4 {
+    color: var(--c-text);
+    font-family: var(--font-sans);
+}
+
+.approval-inbox-v4 .approval-inbox-detail > h2 {
+    margin: 0 0 var(--space-4);
+    font-size: var(--text-lg);
+    line-height: var(--leading-tight);
+}
+
+.approval-inbox-v4 .operate-heading {
+    margin-bottom: var(--space-6);
+}
+
+.approval-inbox-v4 .operate-heading h1 {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-2xl);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-tight);
+}
+
+.approval-inbox-v4 .operate-heading p {
+    max-width: 76ch;
+    margin: 0;
+    color: var(--c-text-2);
+    font-size: var(--text-sm);
+}
+
+.approval-inbox-v4 .approval-inbox-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+    font-size: var(--text-sm);
+}
+
+.approval-inbox-v4 .approval-inbox-summary {
+    gap: var(--space-6);
+    margin-bottom: var(--space-5);
+}
+
+.approval-inbox-v4 .approval-inbox-metric strong {
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+}
+
+.approval-inbox-v4 [data-awaiting-count] strong {
+    font-size: var(--text-2xl);
+}
+
+.approval-inbox-v4 .approval-inbox-metric.is-actionable strong {
+    color: var(--c-text);
+}
+
+.approval-inbox-v4 .approval-inbox-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-6);
+}
+
+.approval-inbox-v4 .approval-inbox-queue {
+    min-width: 0;
+}
+
+.approval-inbox-v4 .approval-inbox-table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-lg);
+    background: var(--c-surface);
+    box-shadow: var(--shadow-panel);
+}
+
+.approval-inbox-v4 .approval-inbox-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.approval-inbox-v4 .approval-inbox-table th {
+    padding: var(--space-3) var(--space-4);
+    color: var(--c-text-3);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    white-space: nowrap;
+}
+
+.approval-inbox-v4 .approval-inbox-table td {
+    padding: var(--space-4);
+    border-top: 1px solid var(--c-rule);
+    color: var(--c-text-2);
+    font-size: var(--text-sm);
+    vertical-align: top;
+}
+
+.approval-inbox-v4 .approval-inbox-table tr.is-selected {
+    background: var(--c-selected);
+}
+
+.approval-inbox-v4 .approval-inbox-select {
+    min-width: 200px;
+    gap: var(--space-2);
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--c-text);
+    font: inherit;
+}
+
+.approval-inbox-v4 .approval-inbox-select:hover .approval-inbox-row-summary {
+    color: var(--c-accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.approval-inbox-v4 .approval-inbox-select:focus-visible {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 4px;
+}
+
+.approval-inbox-v4 .approval-inbox-proposal-id {
+    color: var(--c-text-3);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+}
+
+.approval-inbox-v4 .approval-inbox-requester {
+    display: block;
+    margin-bottom: var(--space-2);
+    color: var(--c-text);
+}
+
+.approval-inbox-v4 time {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+    .approval-inbox-v4 .approval-inbox-summary {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+}

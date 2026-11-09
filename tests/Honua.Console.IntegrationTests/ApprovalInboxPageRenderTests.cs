@@ -11,6 +11,68 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class ApprovalInboxPageRenderTests
 {
+    [Theory]
+    [InlineData(false, "Approval inbox")]
+    [InlineData(true, "Approvals")]
+    public void RolloutFlag_PreservesQueueFilteringAndProposalReview(bool enabled, string heading)
+    {
+        var proposals = new FakeConsoleProposalsClient(
+            proposals:
+            [
+                FakeProposalFactory.Summary("deploy-1", ConsoleProposalKind.Deploy, summary: "Upgrade the server"),
+                FakeProposalFactory.Summary("import-1", ConsoleProposalKind.DataImport, summary: "Import parcels"),
+            ],
+            details: [FakeProposalFactory.Detail("deploy-1", ConsoleProposalKind.Deploy)]);
+        using var ctx = NewContext(proposals, registerServices: context =>
+            context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled }));
+
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(() => Assert.Equal(2, page.FindAll("[data-proposal-id]").Count));
+        Assert.Equal(heading, page.Find("h1").TextContent);
+        Assert.Equal(enabled, page.FindAll("section > link[rel='stylesheet'][href$='approval-inbox-v4.css']").Count == 1);
+        Assert.Equal(enabled, page.FindAll(".approval-inbox-table").Count == 1);
+        Assert.Equal(!enabled, page.FindAll(".approval-inbox-list").Count == 1);
+        page.Find("[data-filter='ServerUpgrade']").Click();
+        Assert.Equal("deploy-1", Assert.Single(page.FindAll("[data-proposal-id]")).GetAttribute("data-proposal-id"));
+        page.Find("[data-proposal-id='deploy-1']").Click();
+        page.WaitForAssertion(() => page.Find("[data-proposal-approve]"));
+        if (enabled)
+        {
+            CatalogAdminPreview.Capture("approvals-selected", page.Markup);
+        }
+        page.Find("[data-proposal-approve]").Click();
+        page.WaitForAssertion(() => Assert.Equal("deploy-1", Assert.Single(proposals.Approved)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RolloutFlag_PreservesForbiddenApprovalAndFreshness(bool enabled)
+    {
+        var proposals = new FakeConsoleProposalsClient(
+            proposals: [FakeProposalFactory.Summary("restricted-1", ConsoleProposalKind.Deploy)],
+            details: [FakeProposalFactory.Detail("restricted-1", ConsoleProposalKind.Deploy)],
+            approveForbidden: true);
+        using var ctx = NewContext(proposals, registerServices: context =>
+            context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled }));
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(() => page.Find("[data-proposal-id='restricted-1']"));
+        page.Find("[data-proposal-id='restricted-1']").Click();
+        page.WaitForAssertion(() => page.Find("[data-proposal-approve]"));
+        page.Find("[data-proposal-approve]").Click();
+
+        page.WaitForAssertion(() => Assert.Contains("requires the 'approve' permission", page.Find("section.approval-inbox-page").TextContent, StringComparison.Ordinal));
+        Assert.Empty(proposals.Approved);
+        Assert.Single(page.FindAll("[data-live-state]"));
+        Assert.Single(page.FindAll("[data-refresh-inbox]"));
+        if (enabled)
+        {
+            CatalogAdminPreview.Capture("approvals-forbidden", page.Markup);
+        }
+    }
+
     [Fact]
     public async Task RealtimeStartup_PendingRestRead_WaitsForTheLoadedInbox()
     {

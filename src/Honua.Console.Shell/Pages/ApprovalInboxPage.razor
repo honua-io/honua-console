@@ -20,15 +20,27 @@
    Server-owned data only (Console Patterns Charter section 11): a missing / unsupported /
    forbidden / unavailable read renders the shared status surface, never seeded data. *@
 
-<section class="console-page console-operate-page approval-inbox-page">
+<section class="console-page console-operate-page approval-inbox-page @(V4Enabled ? "approval-inbox-v4" : null)">
+    @if (V4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/approval-inbox-v4.css" />
+    }
     <div class="console-page-heading operate-heading">
-        <p class="console-kicker">Human-in-the-loop</p>
-        <h1>Approval inbox</h1>
-        <p>
-            The work queue for agent-proposed operations. Agents and APIs do the writing; you
-            review the plan, diff, dry-run, and risk here and authorize the outcome. Approve or
-            reject through the server's governed, audited approval endpoints.
-        </p>
+        @if (V4Enabled)
+        {
+            <h1>Approvals</h1>
+            <p>Review proposed changes before they run. Approval permissions and checks are enforced by the connected Honua server.</p>
+        }
+        else
+        {
+            <p class="console-kicker">Human-in-the-loop</p>
+            <h1>Approval inbox</h1>
+            <p>
+                The work queue for agent-proposed operations. Agents and APIs do the writing; you
+                review the plan, diff, dry-run, and risk here and authorize the outcome. Approve or
+                reject through the server's governed, audited approval endpoints.
+            </p>
+        }
     </div>
 
     @* Freshness affordance (console#309): a persistent, honest currency signal. "Live" when the
@@ -148,46 +160,104 @@
                 }
                 else
                 {
-                    <ul class="approval-inbox-list" aria-label="Pending agent-proposed operations">
-                        @foreach (var item in VisibleItems)
-                        {
-                            <li class="approval-inbox-row @(IsSelected(item) ? "is-selected" : null)">
-                                <button type="button"
-                                        class="approval-inbox-select"
-                                        aria-pressed="@(IsSelected(item) ? "true" : "false")"
-                                        data-proposal-id="@item.ProposalId"
-                                        data-proposal-source="@item.Source"
-                                        @onclick="() => Select(item)">
-                                    <span class="approval-inbox-row-head">
-                                        <span class="console-chip approval-inbox-ticket" data-ticket-type="@item.TicketType">
-                                            @ApprovalTicketPresentation.Label(item.TicketType)
-                                        </span>
-                                        @if (multiSource)
-                                        {
-                                            <span class="console-chip approval-inbox-source" data-proposal-source-chip="@item.Source">
-                                                @ConsoleProposalPresentation.SourceLabel(item.Source)
+                    @if (V4Enabled)
+                    {
+                        <ConsoleTableRegion Class="approval-inbox-table-scroll" Label="Proposals in the approval queue">
+                            <table class="approval-inbox-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Proposal</th>
+                                        <th scope="col">Requested by</th>
+                                        <th scope="col">Type</th>
+                                        <th scope="col">Status and risk</th>
+                                        <th scope="col">Requested</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in VisibleItems)
+                                    {
+                                        <tr class="@(IsSelected(item) ? "is-selected" : null)">
+                                            <td>
+                                                <button type="button" class="approval-inbox-select"
+                                                        aria-pressed="@(IsSelected(item) ? "true" : "false")"
+                                                        data-proposal-id="@item.ProposalId"
+                                                        data-proposal-source="@item.Source"
+                                                        @onclick="() => Select(item)">
+                                                    <span class="approval-inbox-row-summary">@item.Proposal.Summary</span>
+                                                    <span class="console-mono approval-inbox-proposal-id">@item.ProposalId</span>
+                                                </button>
+                                            </td>
+                                            <td>
+                                                @if (!string.IsNullOrWhiteSpace(item.Proposal.RequestedByAgent))
+                                                {
+                                                    <span class="approval-inbox-requester">@item.Proposal.RequestedByAgent</span>
+                                                }
+                                                <span class="console-muted">@(string.IsNullOrWhiteSpace(item.Proposal.RequestedBy) ? "Not reported" : item.Proposal.RequestedBy)</span>
+                                                @if (multiSource)
+                                                {
+                                                    <span class="console-chip approval-inbox-source" data-proposal-source-chip="@item.Source">@ConsoleProposalPresentation.SourceLabel(item.Source)</span>
+                                                }
+                                            </td>
+                                            <td data-ticket-type="@item.TicketType">@ApprovalTicketPresentation.Label(item.TicketType)</td>
+                                            <td>
+                                                <OperateStatusPill Status="@ConsoleProposalPresentation.ToStatus(item.Proposal.Status)" />
+                                                <OperateStatusPill Label="@ConsoleProposalPresentation.RiskLabel(item.Proposal.RiskLevel)"
+                                                                   CssClass="@ConsoleProposalPresentation.RiskClass(item.Proposal.RiskLevel)" />
+                                            </td>
+                                            <td><time datetime="@item.Proposal.CreatedAt.ToString("O")">@item.Proposal.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture)</time></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </ConsoleTableRegion>
+                    }
+                    else
+                    {
+                        <ul class="approval-inbox-list" aria-label="Pending agent-proposed operations">
+                            @foreach (var item in VisibleItems)
+                            {
+                                <li class="approval-inbox-row @(IsSelected(item) ? "is-selected" : null)">
+                                    <button type="button"
+                                            class="approval-inbox-select"
+                                            aria-pressed="@(IsSelected(item) ? "true" : "false")"
+                                            data-proposal-id="@item.ProposalId"
+                                            data-proposal-source="@item.Source"
+                                            @onclick="() => Select(item)">
+                                        <span class="approval-inbox-row-head">
+                                            <span class="console-chip approval-inbox-ticket" data-ticket-type="@item.TicketType">
+                                                @ApprovalTicketPresentation.Label(item.TicketType)
                                             </span>
-                                        }
-                                        <OperateStatusPill Status="@ConsoleProposalPresentation.ToStatus(item.Proposal.Status)" />
-                                        <OperateStatusPill Label="@ConsoleProposalPresentation.RiskLabel(item.Proposal.RiskLevel)"
-                                            CssClass="@ConsoleProposalPresentation.RiskClass(item.Proposal.RiskLevel)" />
-                                    </span>
-                                    <span class="approval-inbox-row-summary">@item.Proposal.Summary</span>
-                                    <span class="console-muted approval-inbox-row-sub">
-                                        <span class="console-mono">@item.ProposalId</span>
-                                        @if (!string.IsNullOrWhiteSpace(item.Proposal.RequestedBy))
-                                        {
-                                            <text> &middot; @item.Proposal.RequestedBy</text>
-                                        }
-                                    </span>
-                                </button>
-                            </li>
-                        }
-                    </ul>
+                                            @if (multiSource)
+                                            {
+                                                <span class="console-chip approval-inbox-source" data-proposal-source-chip="@item.Source">
+                                                    @ConsoleProposalPresentation.SourceLabel(item.Source)
+                                                </span>
+                                            }
+                                            <OperateStatusPill Status="@ConsoleProposalPresentation.ToStatus(item.Proposal.Status)" />
+                                            <OperateStatusPill Label="@ConsoleProposalPresentation.RiskLabel(item.Proposal.RiskLevel)"
+                                                CssClass="@ConsoleProposalPresentation.RiskClass(item.Proposal.RiskLevel)" />
+                                        </span>
+                                        <span class="approval-inbox-row-summary">@item.Proposal.Summary</span>
+                                        <span class="console-muted approval-inbox-row-sub">
+                                            <span class="console-mono">@item.ProposalId</span>
+                                            @if (!string.IsNullOrWhiteSpace(item.Proposal.RequestedBy))
+                                            {
+                                                <text> &middot; @item.Proposal.RequestedBy</text>
+                                            }
+                                        </span>
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    }
                 }
             </div>
 
             <div class="approval-inbox-detail" aria-live="polite">
+                @if (V4Enabled)
+                {
+                    <h2>Review proposal</h2>
+                }
                 @if (_selectedProposalId is { Length: > 0 } proposalId)
                 {
                     <button type="button" class="console-button console-button-secondary" @onclick="ClearSelection">Close review</button>
@@ -207,6 +277,8 @@
 </section>
 
 @code {
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+
     /// <summary>
     /// A proposal id to pre-select on load (console#292 correlation-id chip deep link, e.g.
     /// <c>CorrelationIdRoutes.Resolve(CorrelationIdKind.ProposalId, id)</c>). This is the last
