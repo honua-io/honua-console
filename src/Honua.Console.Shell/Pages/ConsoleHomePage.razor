@@ -94,6 +94,10 @@
     </text>;
 
     private RenderFragment Operations => @<div class="console-home-workload" @key="_displayGeneration">
+        @if (V4Enabled && _profile is not null)
+        {
+            <ConsoleHomeInventory LoadBudget="LoadBudget" />
+        }
         <ConsoleHomeWorkQueue LoadBudget="LoadBudget" ServerName="@(_profile?.DisplayName ?? "the selected server")" />
         <section aria-labelledby="home-health-heading">
             <h2 id="home-health-heading">Health and findings</h2>
