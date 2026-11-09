@@ -209,6 +209,19 @@ jobs:
             artifacts/catalog-preview/jobs-*
           if-no-files-found: error
 
+      - name: Verify rendered publication evidence presentation
+        run: node e2e/playwright/release-witness-preview.mjs
+        env:
+          HONUA_RELEASE_WITNESS_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload publication evidence presentation
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: release-witness-presentation
+          path: artifacts/catalog-preview/release-witness-*
+          if-no-files-found: error
+
       - name: Verify rendered Activity presentation
         run: node e2e/playwright/activity-preview.mjs
         env:
