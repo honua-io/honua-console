@@ -12,8 +12,10 @@ public sealed class OperateLayerFieldAliasHiddenTests
     private const string ResourceId = "conn-1-layer-7";
     private const int LayerId = 7;
 
-    [Fact]
-    public void Save_SetsAliasAndHidden_IssuesUpdateAndReReadsFields()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Save_SetsAliasAndHidden_IssuesUpdateAndReReadsFields(bool enabled)
     {
         var fields = new RecordingLayerFieldsOperation(new ConsoleLayerFields
         {
@@ -27,6 +29,8 @@ public sealed class OperateLayerFieldAliasHiddenTests
 
         using var ctx = new Bunit.BunitContext();
         ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         // The page hosts a <MapPreview/> that imports a JS module on render; the fields panel under test
         // needs no JS, so let unmatched interop calls no-op instead of failing the render.
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
@@ -39,9 +43,29 @@ public sealed class OperateLayerFieldAliasHiddenTests
             () => Assert.NotEmpty(page.FindAll("[data-field-row]")),
             TimeSpan.FromSeconds(5));
 
+        var registry = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
+        if (enabled)
+        {
+            var entity = Assert.Single(registry.Current.Selection);
+            Assert.Equal(ConsoleAgentEntityKind.Layer, entity.Kind);
+            Assert.Equal(LayerId.ToString(), entity.Id);
+            Assert.Equal(ResourceId, entity.ResourceId);
+            Assert.Equal($"/operate/layers/{ResourceId}", ConsoleAgentRoutes.ForEntity(entity));
+            Assert.Equal(ConsoleAgentRoutes.ForEntity(entity), registry.Current.Route);
+            Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+            CatalogAdminPreview.Capture("data-layer-detail", page.Markup);
+        }
+        else Assert.Empty(registry.Current.Selection);
+
         // Author a new alias + hide the field, then Save.
         page.Find("[data-field-alias]").Change("Status code");
         page.Find("[data-field-hidden]").Change(true);
+        if (enabled)
+        {
+            Assert.True(registry.Current.Unsaved.ChangedFieldCount >= 2);
+            Assert.DoesNotContain("Status code", System.Text.Json.JsonSerializer.Serialize(registry.Current.Unsaved), StringComparison.Ordinal);
+        }
         page.Find("[data-field-save]").Click();
 
         // (1) The Save issued exactly one configuration update with Alias/Hidden populated.
@@ -63,6 +87,12 @@ public sealed class OperateLayerFieldAliasHiddenTests
             TimeSpan.FromSeconds(5));
         Assert.True(page.Find("[data-field-hidden]").HasAttribute("checked"));
         Assert.Contains("Updated", page.Find("[data-field-result]").TextContent, StringComparison.Ordinal);
+        if (enabled)
+        {
+            page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount));
+            Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+            CatalogAdminPreview.Capture("data-layer-detail-alias-saved", page.Markup);
+        }
     }
 
     [Fact]
