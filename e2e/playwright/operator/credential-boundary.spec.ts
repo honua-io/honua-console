@@ -141,7 +141,9 @@ test('approval controls wait for hydration before dispatching a decision and ret
   await page.evaluate(() => (window as any).Blazor.start());
   await expect.poll(() => renderedStatus!.evaluate(node => node.isConnected)).toBe(false);
   await expect(approve).toBeEnabled(); await approve.click();
-  await expect(page.locator('[data-proposal-rbac-denied]')).toBeVisible();
+  const denial = page.locator('[data-proposal-action-message]');
+  await expect(denial).toBeVisible();
+  await expect(denial).toHaveText('The requester cannot approve this proposal.');
   await expect(approve).toBeDisabled();
   expect(requests.filter(request => request.method === 'POST' && request.url.endsWith('/approve'))).toHaveLength(1);
   expect(requests.find(request => request.method === 'POST' && request.url.endsWith('/approve')))
