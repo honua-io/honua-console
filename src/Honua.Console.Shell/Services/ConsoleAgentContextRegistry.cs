@@ -31,6 +31,17 @@ public sealed class ConsoleAgentContextRegistry
     {
         lock (_gate)
         {
+            if (_current.Route == NormalizeRoute(route)) return;
+            _current = Snapshot(new ConsoleAgentPageContext { Route = route });
+            _active = null;
+        }
+        Changed?.Invoke();
+    }
+
+    public void Invalidate(string route)
+    {
+        lock (_gate)
+        {
             _current = Snapshot(new ConsoleAgentPageContext { Route = route });
             _active = null;
         }
@@ -54,7 +65,7 @@ public sealed class ConsoleAgentContextRegistry
     }
 
     private bool SameContext(ConsoleAgentPageContext context) =>
-        _current.Route == context.Route.Split('?', '#')[0]
+        _current.Route == NormalizeRoute(context.Route)
         && _current.Entities.SequenceEqual(context.Entities)
         && _current.Selection.SequenceEqual(context.Selection)
         && _current.Unsaved == context.Unsaved
@@ -74,9 +85,7 @@ public sealed class ConsoleAgentContextRegistry
 
     private ConsoleAgentContextSnapshot Snapshot(ConsoleAgentPageContext context)
     {
-        var route = context.Route.Split('?', '#')[0];
-        if (!route.StartsWith('/') || route.StartsWith("//", StringComparison.Ordinal) || route.Contains('\\'))
-            throw new ArgumentException("Context requires a local Console route.", nameof(context));
+        var route = NormalizeRoute(context.Route);
         if (context.Unsaved.ChangedFieldCount < 0 || context.Unsaved.PendingOperationCount < 0)
             throw new ArgumentException("Unsaved counts cannot be negative.", nameof(context));
         return new ConsoleAgentContextSnapshot
@@ -88,6 +97,14 @@ public sealed class ConsoleAgentContextRegistry
             Filters = new ReadOnlyDictionary<string, string>(new Dictionary<string, string>(context.Filters)),
             Unsaved = context.Unsaved
         };
+    }
+
+    private static string NormalizeRoute(string route)
+    {
+        var normalized = route.Split('?', '#')[0];
+        if (!normalized.StartsWith('/') || normalized.StartsWith("//", StringComparison.Ordinal) || normalized.Contains('\\'))
+            throw new ArgumentException("Context requires a local Console route.", nameof(route));
+        return normalized;
     }
 
     public sealed class Registration(ConsoleAgentContextRegistry registry) : IDisposable
