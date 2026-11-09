@@ -139,18 +139,23 @@ export function mountStudioDraftCreate({ app, host }) {
     const reset = document.createElement('button'); reset.type = 'button'; reset.textContent = 'Forget unreadable local handoff';
     form.append(key, create, notice, inbox, refresh, acknowledge, reset);
     host.querySelector('[data-studio-mount]').before(form);
-    let disposed = false, busy = false;
-    const render = (seedKey = true) => {
+    let disposed = false, busy = false, renderedRecord;
+    const updateCreateLabel = () => {
+        create.textContent = renderedRecord?.status === 'submitting' ? 'Retry original New map'
+            : renderedRecord?.status === 'completed' && key.value.trim() === renderedRecord.packageKey ? 'Open map' : 'New map';
+    };
+    const render = () => {
         if (disposed) return;
         inbox.hidden = refresh.hidden = acknowledge.hidden = reset.hidden = true;
         create.disabled = key.disabled = busy;
         try {
             const record = session.read();
-            if (!record) { notice.textContent = ''; create.textContent = 'New map'; return; }
-            if (record.status !== 'completed' || seedKey && !key.value) key.value = record.packageKey;
+            renderedRecord = record;
+            if (!record) { notice.textContent = ''; updateCreateLabel(); return; }
+            if (record.status !== 'completed' || !key.value) key.value = record.packageKey;
             key.disabled = busy || record.status !== 'completed';
             create.disabled = busy || record.status !== 'submitting' && record.status !== 'completed';
-            create.textContent = record.status === 'submitting' ? 'Retry original New map' : record.status === 'completed' && key.value.trim() === record.packageKey ? 'Open map' : 'New map';
+            updateCreateLabel();
             acknowledge.hidden = !terminal(record.status); acknowledge.disabled = busy;
             notice.textContent = record.status === 'awaiting-approval'
                 ? `Waiting for separate human approval. Proposal ${record.receipt.proposalId}; operation ${record.receipt.operationInstanceId}.`
@@ -172,7 +177,7 @@ export function mountStudioDraftCreate({ app, host }) {
         catch (error) { failure = error; }
         finally { busy = false; if (!disposed) { render(); if (failure) notice.textContent = failure.message; } }
     };
-    key.addEventListener('input', () => render(false));
+    key.addEventListener('input', updateCreateLabel);
     form.addEventListener('submit', event => {
         event.preventDefault();
         const packageKey = key.value.trim();
