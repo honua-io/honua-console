@@ -32,7 +32,7 @@ public sealed class OperateGeoprocessingPageTests
         Assert.Contains("/operate/geoprocessing/gp-run-1", html);
         Assert.Contains("Executing", html);
         Assert.Contains("analyst.live", html);
-        AssertAccessibleProgress(html, 40, 100);
+        AssertAccessibleProgress(html, ("gp-run-1 progress", 40), ("gp-run-2 progress", 100));
     }
 
     [Fact]
@@ -69,7 +69,10 @@ public sealed class OperateGeoprocessingPageTests
             new StubGeoprocessingClient
             {
                 Detail = OperateSectionResult<OperateJobRun>.Allowed(
-                    Job("gp-run-1", "Succeeded", "Done", 100, "analyst.live"))
+                    Job("gp-run-1", "Succeeded", "Done", 100, "analyst.live") with
+                    {
+                        Stages = [new OperateJobStage("Validate", new OperateStatus("Running", "Executing"), 60, "Validation underway")]
+                    })
             },
             selectedJobRunId: "gp-run-1");
 
@@ -78,7 +81,7 @@ public sealed class OperateGeoprocessingPageTests
         // JobDetailPanel surface markers.
         Assert.Contains("Job detail", html);
         Assert.Contains("Stages", html);
-        AssertAccessibleProgress(html, 100);
+        AssertAccessibleProgress(html, ("Job progress", 100), ("Validate progress", 60));
     }
 
     [Fact]
@@ -596,10 +599,11 @@ public sealed class OperateGeoprocessingPageTests
         });
     }
 
-    private static void AssertAccessibleProgress(string markup, params int[] values)
+    private static void AssertAccessibleProgress(string markup, params (string Label, int Value)[] expected)
     {
         var progressBars = new HtmlParser().ParseDocument(markup).QuerySelectorAll("[role='progressbar']");
-        Assert.Equal(values.Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+        Assert.Equal(expected.Select(value => value.Label), progressBars.Select(progress => progress.GetAttribute("aria-label")));
+        Assert.Equal(expected.Select(value => value.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)),
             progressBars.Select(progress => progress.GetAttribute("aria-valuenow")));
         Assert.All(progressBars, progress =>
         {
