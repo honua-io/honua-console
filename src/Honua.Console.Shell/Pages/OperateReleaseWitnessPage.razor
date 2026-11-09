@@ -2,28 +2,27 @@
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Services
 @inject IConsoleReleaseWitnessClient WitnessClient
+@inject IServiceProvider Services
 
-<section class="console-page console-operate-page" data-release-witness-page>
-    <div class="console-page-heading operate-heading">
-        <p class="console-kicker">Operate / Release witness</p>
-        <h1>Candidate publication evidence</h1>
-        <p>Read-only runtime, publication, and audit evidence for one sealed candidate approval.</p>
-    </div>
-
-    @if (!_loaded)
+<section class="console-page console-operate-page @(V4Enabled ? "console-release-witness-v4" : null)" data-release-witness-page>
+    @if (V4Enabled)
     {
-        <OperateSectionStatusPanel Heading="Candidate evidence" Loading="true" />
-    }
-    else if (_result is null || !_result.IsAllowed || _result.Value is null)
-    {
-        <OperateSectionStatusPanel Heading="Candidate evidence"
-                                   Status="@(_result?.Status ?? OperateSectionStatus.Unavailable)"
-                                   Message="@(_result?.Message ?? "The release witness request was incomplete.")"
-                                   Detail="@_result?.Detail" />
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/release-witness-v4.css" />
+        <ConsolePageHeading Title="Publication evidence">
+            <p>Read-only runtime, publication, and audit evidence for one sealed candidate approval.</p>
+        </ConsolePageHeading>
     }
     else
     {
-        var evidence = _result.Value;
+        <div class="console-page-heading operate-heading">
+            <p class="console-kicker">Operate / Release witness</p>
+            <h1>Candidate publication evidence</h1>
+            <p>Read-only runtime, publication, and audit evidence for one sealed candidate approval.</p>
+        </div>
+    }
+
+    @if (_loaded && _result is { IsAllowed: true, Value: { } evidence })
+    {
         <article class="console-panel"
                  data-release-witness
                  data-server-source-revision="@evidence.ServerSourceRevision"
@@ -50,10 +49,30 @@
                 <dt>Public route</dt><dd><a href="@evidence.PublicUrl" data-release-public-link>@evidence.PublicUrl</a></dd>
             </dl>
         </article>
+    }    else
+    {
+        @if (V4Enabled)
+        {
+            <h2 class="console-visually-hidden" data-release-witness-state-heading>Candidate evidence</h2>
+        }
+        @if (!_loaded)
+        {
+            <OperateSectionStatusPanel Heading="Candidate evidence" Loading="true" />
+        }
+        else
+        {
+            <OperateSectionStatusPanel Heading="Candidate evidence"
+                                       Status="@(_result?.Status ?? OperateSectionStatus.Unavailable)"
+                                       Message="@(_result?.Message ?? "The release witness request was incomplete.")"
+                                       Detail="@_result?.Detail" />
+        }
     }
+
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     [SupplyParameterFromQuery(Name = "family")] private string? Family { get; set; }
     [SupplyParameterFromQuery(Name = "itemId")] private string? ItemId { get; set; }
     [SupplyParameterFromQuery(Name = "versionId")] private string? VersionId { get; set; }
