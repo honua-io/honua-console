@@ -55,7 +55,6 @@ public sealed class OperateLayerFieldRangeDomainTests
             Assert.Equal($"/operate/layers/{ResourceId}", ConsoleAgentRoutes.ForEntity(entity));
             Assert.Equal(ConsoleAgentRoutes.ForEntity(entity), registry.Current.Route);
             Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
-            CatalogAdminPreview.Capture("data-layer-detail", page.Markup);
         }
         else Assert.Empty(registry.Current.Selection);
 

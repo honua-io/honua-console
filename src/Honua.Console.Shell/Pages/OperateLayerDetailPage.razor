@@ -116,12 +116,15 @@
 </text>;
     private RenderFragment MapPreview => @<div data-layer-preview><p class="console-muted">Live map rendered by honua-server through the Console map proxy.</p>
         <LayerMapPreview Layer="_exposures[0].Layer" EnvironmentId="@_environmentId" /></div>;
-    private RenderFragment Fields => @<text>        <section class="console-section" data-fields-panel>
-            <div class="console-page-heading">
-                <p class="console-kicker">Fields &amp; domains</p>
-                <h2>Attribute fields</h2>
-                <p>Author a coded-value domain on a field (code → label). honua-server emits it in the layer's field metadata across FeatureServer, OGC API, and OData.</p>
-            </div>
+    private RenderFragment Fields => @<text>        <section class="console-section @(V4Enabled ? "console-service-controls" : null)" data-fields-panel>
+            @if (!V4Enabled)
+            {
+                <div class="console-page-heading">
+                    <p class="console-kicker">Fields &amp; domains</p>
+                    <h2>Attribute fields</h2>
+                    <p>Author a coded-value domain on a field (code → label). honua-server emits it in the layer's field metadata across FeatureServer, OGC API, and OData.</p>
+                </div>
+            }
 
             @if (!_fields.Bound)
             {
@@ -136,7 +139,7 @@
                 <ConsoleTableRegion Class="console-table-wrap" Label="Layer fields">
                     <table class="console-table">
                         <thead>
-                            <tr><th>Field</th><th>Type</th><th>Alias</th><th>Hidden</th><th>Domain</th><th></th></tr>
+                            <tr><th>Field</th><th>Type</th><th>Alias</th><th>Hidden</th><th>Domain</th><th>@(V4Enabled ? "Actions" : null)</th></tr>
                         </thead>
                         <tbody>
                             @foreach (var layerField in _fields.Fields)

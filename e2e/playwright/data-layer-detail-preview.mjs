@@ -7,7 +7,7 @@ await runV4PagePresentation({
   pageNames: ["data-layer-detail", "data-layer-detail-unbound", "data-layer-detail-alias-saved", "data-layer-detail-domain-saved"],
   title: "Layer detail presentation fixture",
   stylesheet: "v4-data-primitives.css",
-  heading: name => name.endsWith("-unbound") ? "Parcels" : "parcels",
+  heading: name => name.endsWith("-unbound") ? "Parcels" : name.endsWith("-domain-saved") ? "terrain" : "parcels",
   scope: ".console-page",
   controls: ".console-page :is(a[href], button, input, select, textarea, summary):not(:disabled):not([tabindex='-1']):visible",
   inspect: async (page, name) => {
