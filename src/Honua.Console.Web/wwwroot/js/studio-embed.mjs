@@ -8,6 +8,7 @@ import { mountStudioStyleControls } from './studio-style-controls.mjs';
 import { mountStudioLayerPicker } from './studio-layer-picker.mjs';
 import { hasPendingStudioLeaseTurn, trackStudioLeaseTurns } from './studio-lease-turns.mjs';
 import { captureStudioDesignFocus } from './studio-design-focus.mjs';
+import { mountStudioServerSignIn } from './studio-server-sign-in.mjs';
 let assets;
 let element;
 const elementsByEnvironment = new Map();
@@ -121,6 +122,7 @@ async function mount() {
         if (SIGN_IN_REQUIRED_STATUSES.has(response.status)) throw new StudioSignInRequired();
         if (!response.ok) throw new Error(`The workspace session request failed with ${response.status}.`);
         session = await response.json();
+        mountStudioServerSignIn(host, session.studioServerSignInPath);
         element = await studioElement(session);
         element.currentPath = location.pathname;
         host.querySelector('[data-studio-mount]').append(element);

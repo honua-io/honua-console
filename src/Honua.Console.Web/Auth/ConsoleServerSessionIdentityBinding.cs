@@ -22,11 +22,6 @@ internal sealed class ConsoleServerSessionIdentityBinding(
         var profile = request.Profile;
         var issuer = options.Value.ServerSessionIssuer;
         partition.AuthenticatedSessionExpiresAt = null;
-        if (string.IsNullOrEmpty(issuer))
-        {
-            return true;
-        }
-
         var snapshots = request.Authority == ConsoleServerAuthority.Serving
             ? sessions as IConsoleAccountSessionSnapshotStore
                 ?? throw new InvalidOperationException("Hosted server identity binding requires conditional session storage.")
@@ -35,7 +30,7 @@ internal sealed class ConsoleServerSessionIdentityBinding(
         var matches = false;
         try
         {
-            if (ConsoleEdgeAuthOptions.IsValidServerSessionIssuer(options.Value)
+            if ((string.IsNullOrEmpty(issuer) || ConsoleEdgeAuthOptions.IsValidServerSessionIssuer(options.Value))
                 && !string.IsNullOrWhiteSpace(request.ProviderKey))
             {
                 using var response = await partition.Client.GetAsync(
@@ -49,8 +44,9 @@ internal sealed class ConsoleServerSessionIdentityBinding(
                     matches = session?.IsAuthenticated == true
                         && session.ExpiresAt > timeProvider.GetUtcNow()
                         && string.Equals(session.ProviderKey, request.ProviderKey, StringComparison.Ordinal)
-                        && HasUniqueClaim(session.Claims, issuer, "iss")
-                        && HasUniqueClaim(session.Claims, request.OperatorKey, "sub", ClaimTypes.NameIdentifier);
+                        && (string.IsNullOrEmpty(issuer)
+                            || HasUniqueClaim(session.Claims, issuer, "iss")
+                                && HasUniqueClaim(session.Claims, request.OperatorKey, "sub", ClaimTypes.NameIdentifier));
                     if (matches) partition.AuthenticatedSessionExpiresAt = session!.ExpiresAt;
                 }
             }

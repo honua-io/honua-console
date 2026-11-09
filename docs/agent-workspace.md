@@ -74,6 +74,12 @@ the validated Server session and is never renewed by editing. A missing, replace
 or expired proof requires Server sign-in again. This proof cannot approve a
 proposal or extend the separate ten-minute approval proof. Agent and bearer
 requests retain their existing policy; publication and rollback remain governed.
+Studio keeps **Sign in to the Server** available beside the editor. A refused
+private edit names the required sign-in and never retries the write. The host
+reads the configured Server's private authenticated session to validate its
+provider and expiry, including deployments with independent Console and Server
+identities. A configured edge issuer also requires the existing issuer and
+subject match. Missing or expired upstream session metadata cannot enable editing.
 
 The embedded Studio also exposes **Save version** and **Saved versions** above the canvas. Saving waits for accepted visual edits and creates an immutable version through the current human session. Selecting **Reopen as draft** opens a saved version of that map as a new shared draft and updates the conversation context. These actions do not publish. Pending forms or conflicts must be resolved first; navigation, a changed map or changed user authority prevents a delayed response from replacing the active view. Failed saves are not retried automatically. If the connection drops, inspect saved versions before explicitly saving again.
 

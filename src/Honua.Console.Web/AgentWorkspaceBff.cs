@@ -46,6 +46,7 @@ internal static partial class AgentWorkspaceBff
                 csrfToken = tokens.RequestToken,
                 environmentId = profile.Id,
                 environmentName = profile.DisplayName,
+                studioServerSignInPath = StudioServerSignInPath(profile),
                 tenantId = profile.TenantId,
                 sourcePathBase = profile.ServerBaseUri.AbsolutePath.TrimEnd('/'),
                 principalId = AgentGatewayBinding.OperatorPartition(operators.RequireOperatorKey(), profile.Id, profile.ServerBaseUri)
@@ -277,12 +278,12 @@ internal static partial class AgentWorkspaceBff
                 var operatorKey = context.RequestServices.GetRequiredService<IConsoleOperatorContext>().RequireOperatorKey();
                 if (!context.RequestServices.GetRequiredService<ConsoleServerSessionClientStore>()
                     .TryGet(operatorKey, profile, out cookiePartition) || cookiePartition is null)
-                    return Results.StatusCode(401);
+                    return humanStudioEdit ? StudioServerSignInRequired(profile) : Results.StatusCode(401);
             }
             using var authentication = cookiePartition is null ? null
                 : await cookiePartition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
             if (humanStudioEdit && !AuthorizesHumanStudioDraftWrite(context, profile, cookiePartition!))
-                return Results.StatusCode(403);
+                return StudioServerSignInRequired(profile);
             if (cookiePartition is not null
                 && !await context.RequestServices.GetRequiredService<ConsoleServerSessionIdentityBinding>().EnsureAsync(
                     new ConsoleServerSessionIdentityRequest
@@ -293,9 +294,9 @@ internal static partial class AgentWorkspaceBff
                         ProviderKey = cookiePartition.AuthenticatedProviderKey,
                         Authority = ConsoleServerAuthority.Serving,
                     }, cancellationToken).ConfigureAwait(false))
-                return Results.StatusCode(403);
+                return humanStudioEdit ? StudioServerSignInRequired(profile) : Results.StatusCode(403);
             if (humanStudioEdit && !AuthorizesHumanStudioDraftWrite(context, profile, cookiePartition!))
-                return Results.StatusCode(403);
+                return StudioServerSignInRequired(profile);
             var transport = cookiePartition?.Client ?? clients.CreateClient("honua-agent-workspace");
             // ResponseHeadersRead does not extend HttpClient.Timeout to body reads.
             // Keep the complete identity read bounded even if the upstream stalls.
@@ -393,6 +394,18 @@ internal static partial class AgentWorkspaceBff
 
     [GeneratedRegex(@"\A(?:health|v1/studio/(?:catalog|packages|package-families|package-drafts|content-items)(?:/[A-Za-z0-9_-]{1,128}){0,4})\z", RegexOptions.CultureInvariant)]
     private static partial Regex StudioPath();
+
+    private static string StudioServerSignInPath(ConsoleEnvironmentProfile profile) =>
+        "/auth/server/login?profileId=" + Uri.EscapeDataString(profile.Id)
+        + "&authority=Serving&returnTo=%2Fstudio";
+
+    private static IResult StudioServerSignInRequired(ConsoleEnvironmentProfile profile) =>
+        Results.Json(new
+        {
+            code = "server-sign-in-required",
+            message = "Sign in to the Server again before editing this map.",
+            signInPath = StudioServerSignInPath(profile),
+        }, statusCode: 403);
 
     private static bool AuthorizesHumanStudioDraftWrite(
         HttpContext context, ConsoleEnvironmentProfile profile, ConsoleServerSessionPartition partition) =>
