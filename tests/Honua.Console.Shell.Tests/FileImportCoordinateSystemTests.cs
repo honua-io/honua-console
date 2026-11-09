@@ -52,8 +52,8 @@ public sealed class FileImportCoordinateSystemTests
         Assert.Equal(target?.ToString(), handler.Fields.GetValueOrDefault("TargetSrid"));
         Assert.Equal("projected", handler.Fields["TableName"]);
         Assert.Equal("public", handler.Fields["TargetSchema"]);
-        Assert.Equal(2193, result.StoredSrid);
-        Assert.False(result.Reprojected);
+        Assert.Equal(target ?? source ?? 2193, result.StoredSrid);
+        Assert.Equal(target is not null && target != (source ?? 2193), result.Reprojected);
     }
 
     [Fact]
@@ -201,6 +201,54 @@ public sealed class FileImportCoordinateSystemTests
         Assert.Contains("original", result.Detail);
     }
 
+    [Theory]
+    [InlineData(2193, 2193, false)]
+    [InlineData(3857, 4326, true)]
+    [InlineData(2193, 4326, false)]
+    public async Task CompletedImportWithDifferentCoordinatesCannotInviteRetry(int source, int stored, bool reprojected)
+    {
+        var payload = System.Text.Json.JsonSerializer.Serialize(new
+        { success = true, sourceSrid = source, storedSrid = stored, reprojected, tableName = "projected" });
+        using var handler = new ImportHandler { RawResponse = payload };
+        using var http = new HttpClient(handler);
+        using var client = Client(http);
+
+        var result = await new HonuaServerConsoleFileImportOperation(client, new Authority()).ImportAsync(Command(null, 4326));
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("different coordinate system", result.State, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("original", result.Detail);
+    }
+
+    [Fact]
+    public async Task NullPreviewWarningsCannotCrashTheImportPage()
+    {
+        const string payload = """{"coordinateSystem":{"detectedSrid":2193,"sourceCrsDeclared":true,"detectionMethod":"file-metadata","effectiveSourceSrid":2193,"storedSrid":2193,"reprojected":false,"requiresSourceOverride":false},"warnings":null}""";
+        using var handler = new ImportHandler { RawResponse = payload };
+        using var http = new HttpClient(handler);
+        using var client = Client(http);
+
+        var result = await new HonuaServerConsoleFileImportOperation(client, new Authority()).PreviewAsync([1], "projected.gpkg");
+
+        Assert.True(result.Succeeded);
+        Assert.NotNull(result.Warnings);
+        Assert.Empty(result.Warnings);
+    }
+
+    [Fact]
+    public async Task ExplicitTargetCannotInventAnUnknownSource()
+    {
+        using var handler = new ImportHandler();
+        using var http = new HttpClient(handler);
+        using var client = Client(http);
+
+        var result = await new HonuaServerConsoleFileImportOperation(client, new Authority())
+            .ImportAsync(Command(null, 4326) with { ExpectedSourceSrid = null });
+
+        Assert.False(result.Succeeded);
+        Assert.Null(handler.Path);
+    }
+
     private static HonuaAdminOperateHttpClient Client(HttpClient http) => new(http, new(new Uri("https://fixture.invalid/prefix/")));
 
     private static ConsoleFileImportCommand Command(int? source, int? target) => new()
@@ -211,7 +259,8 @@ public sealed class FileImportCoordinateSystemTests
         TargetSchema = "public",
         AuthorityBinding = "operator-environment",
         SourceSrid = source,
-        TargetSrid = target
+        TargetSrid = target,
+        ExpectedSourceSrid = 2193
     };
 
     private sealed class Authority : IConsoleAuthorityBindingValidator
@@ -261,7 +310,9 @@ public sealed class FileImportCoordinateSystemTests
                         requiresSourceOverride = false
                     } : null
                 });
-            return Json(new { success = true, featureCount = 2, tableName = "projected", storedSrid = 2193, reprojected = false });
+            var sourceSrid = Fields.TryGetValue("SourceSrid", out var source) ? int.Parse(source, System.Globalization.CultureInfo.InvariantCulture) : 2193;
+            var storedSrid = Fields.TryGetValue("TargetSrid", out var target) ? int.Parse(target, System.Globalization.CultureInfo.InvariantCulture) : sourceSrid;
+            return Json(new { success = true, featureCount = 2, tableName = "projected", sourceSrid, storedSrid, reprojected = sourceSrid != storedSrid });
         }
 
         private static object Crs => new { code = 2193, name = "NZGD2000 / New Zealand Transverse Mercator 2000", unit = "metre", area = "New Zealand" };

@@ -8,6 +8,7 @@ using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -54,6 +55,7 @@ public sealed class ResourceFirstPublishFlowTests
     private static BunitContext NewContext()
     {
         var ctx = new BunitContext();
+        ctx.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         return ctx;

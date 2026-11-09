@@ -1,9 +1,8 @@
 @page "/operate/resources/import/task"
-@using Microsoft.Extensions.Configuration
-@inject IServiceProvider Services
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 
 <PageTitle>Dataset import · Honua Console</PageTitle>
-@if ((Services.GetService<IConfiguration>()?.GetValue<bool>("Honua:Agent:WorkspaceApiEnabled") == true))
+@if ((ConsoleWorkspaceFeatures.IsEnabled(Configuration)))
 {
 <section class="console-page" data-dataset-import-panel>
     <h1>Import dataset</h1>

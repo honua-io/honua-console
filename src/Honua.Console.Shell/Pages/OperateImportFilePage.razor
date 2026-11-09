@@ -14,7 +14,7 @@
         <div class="studio-field-grid">
             <label>
                 <span>File</span>
-                <InputFile OnChange="OnFileSelected" accept="@_acceptAttribute" disabled="@(_busy || _unverified)" />
+                <InputFile OnChange="OnFileSelected" accept="@_acceptAttribute" disabled="@(_busy || _reconcileOutcome)" />
                 @if (_supportedExtensions.Count > 0)
                 {
                     <small class="console-muted">Supported: @string.Join(", ", _supportedExtensions)</small>
@@ -67,7 +67,6 @@
         @if (_busy)
         {
             <div class="console-panel console-state-info" role="status" data-import-progress>
-
                 @if (_phase == ImportPhase.Uploading)
                 {
                     <h2>Uploading @_uploadPercent%</h2>
@@ -85,9 +84,9 @@
         {
             <article class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
                 <p class="console-kicker">@r.State</p>
-                <h2>@(r.Succeeded ? "File imported" : "Import failed")</h2>
+                <h2>@(r.Succeeded ? "File imported" : r.State == ConsoleFileImportResult.CoordinateSystemMismatchState ? "Check the imported coordinate system" : "Import failed")</h2>
                 <p>@r.Detail</p>
-                @if (r.Succeeded)
+                @if (r.Succeeded || r.State == ConsoleFileImportResult.CoordinateSystemMismatchState)
                 {
                     <dl class="console-definition-list">
                         <dt>Table</dt>
@@ -99,7 +98,10 @@
                         <dt>Features</dt>
                         <dd>@r.FeatureCount</dd>
                     </dl>
-                    <a class="console-button" href="/operate/publishing/quick">Publish this table</a>
+                    @if (r.Succeeded)
+                    {
+                        <a class="console-button" href="/operate/publishing/quick">Publish this table</a>
+                    }
                 }
                 @if (r.ValidationErrors.Count > 0)
                 {
@@ -136,9 +138,9 @@
     private ConsoleFileImportPreview? _preview;
     private ConsoleFileImportCoordinates? _coordinates;
     private int _fileRevision;
-    private bool _unverified;
+    private bool _reconcileOutcome;
 
-    private bool CanImport => !_busy && !_unverified && _fileBytes is not null && _preview?.Succeeded == true && _coordinates is not null && _formatError is null;
+    private bool CanImport => !_busy && !_reconcileOutcome && _fileBytes is not null && _preview?.Succeeded == true && _coordinates is not null && _formatError is null;
     private string _tableName = string.Empty;
     private string _targetSchema = string.Empty;
 
@@ -157,7 +159,7 @@
 
     private async Task OnFileSelected(InputFileChangeEventArgs args)
     {
-        if (_busy) return;
+        if (_busy || _reconcileOutcome) return;
         ClearResult();
         ++_fileRevision;
         _fileBytes = null;
@@ -177,22 +179,38 @@
         {
             _tableName = SanitizeTableName(Path.GetFileNameWithoutExtension(_selectedFile.Name));
         }
-        if (_formatError is not null || _unverified) return;
+        if (_formatError is not null || _reconcileOutcome) return;
+        if (_selectedFile.Size > MaxFileBytes)
+        {
+            _clientError = "The selected file exceeds the 100 MB upload limit. Choose a smaller file.";
+            return;
+        }
         _busy = true;
         _phase = ImportPhase.Uploading;
         _uploadPercent = 0;
         try
         {
+            // This progress covers browser-to-Console transfer over the Blazor circuit, before the server request.
             _fileBytes = await ReadWithProgressAsync(_selectedFile);
-            _phase = ImportPhase.Previewing;
+        }
+        catch (Exception exception) when (exception is IOException or InvalidOperationException)
+        {
+            _fileBytes = null;
+            _clientError = $"The selected file could not be read: {exception.Message}";
+        }
+        finally { _busy = false; }
+        if (_fileBytes is null) return;
+        _busy = true;
+        _phase = ImportPhase.Previewing;
+        try
+        {
             await InvokeAsync(StateHasChanged);
             _preview = await FileImport.PreviewAsync(_fileBytes, _selectedFile.Name);
             if (!_preview.Succeeded) _clientError = _preview.Detail;
         }
-        catch (Exception exception) when (exception is IOException or InvalidOperationException or HttpRequestException)
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
         {
-            _fileBytes = null;
-            _clientError = "The file could not be checked. Choose it again and retry the preview.";
+            _clientError = "The server could not check the file. Choose it again and retry the preview.";
         }
         finally { _busy = false; }
     }
@@ -205,7 +223,7 @@
 
     private void ClearResult()
     {
-        if (_unverified) return;
+        if (_reconcileOutcome) return;
         _clientError = null;
         _result = null;
     }
@@ -230,11 +248,12 @@
                 FileName = _selectedFile.Name,
                 SourceSrid = _coordinates.SourceSrid,
                 TargetSrid = _coordinates.TargetSrid,
+                ExpectedSourceSrid = _preview.CoordinateSystem?.EffectiveSourceSrid,
                 AuthorityBinding = _preview.AuthorityBinding,
                 TableName = _tableName.Trim(),
                 TargetSchema = string.IsNullOrWhiteSpace(_targetSchema) ? null : _targetSchema.Trim(),
             });
-            _unverified = _result.State == ConsoleWriteOutcome.UnverifiedState;
+            _reconcileOutcome = _result.RequiresReconciliation;
         }
         finally
         {

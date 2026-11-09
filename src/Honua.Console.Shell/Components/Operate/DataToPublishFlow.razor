@@ -1,4 +1,3 @@
-@using Microsoft.Extensions.Configuration
 @namespace Honua.Console.Shell.Components.Operate
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
@@ -8,7 +7,7 @@
 @inject IOperateTransitionDataSource OperateData
 @inject IStudioMapStyleCatalogDataSource StyleData
 @inject NavigationManager Nav
-@inject IServiceProvider Services
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 
 <section class="console-page data-publish-flow" data-data-publish-flow>
     <div class="console-page-heading">
@@ -54,7 +53,7 @@
                 @if (_flow.Source.Mode == AddDataMode.File)
                 {
                     <p>Choose the original file to preview its coordinate system and import a dataset.</p>
-                    <a class="console-button" href="@((Services.GetService<IConfiguration>()?.GetValue<bool>("Honua:Agent:WorkspaceApiEnabled") == true) ? "/operate/resources/import/task" : "/operate/resources/import")">Choose dataset file</a>
+                    <a class="console-button" href="@((ConsoleWorkspaceFeatures.IsEnabled(Configuration)) ? "/operate/resources/import/task" : "/operate/resources/import")">Choose dataset file</a>
                 }
                 @if (_flow.Source.Mode == AddDataMode.RemoteService)
                 {

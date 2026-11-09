@@ -27,7 +27,7 @@ public sealed class HonuaServerConsoleFileImportOperation(
                 State = "Checked",
                 CoordinateSystem = coordinateSystem,
                 AuthorityBinding = binding,
-                Warnings = result.Data.Warnings
+                Warnings = result.Data.Warnings ?? []
             };
         return new()
         {
@@ -57,43 +57,45 @@ public sealed class HonuaServerConsoleFileImportOperation(
     public async Task<ConsoleFileImportResult> ImportAsync(ConsoleFileImportCommand command, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
-        if (string.IsNullOrWhiteSpace(command.AuthorityBinding) || authority is null)
+        if (string.IsNullOrWhiteSpace(command.AuthorityBinding) || authority is not { } bindingValidator)
             return new() { State = "Target unverified", Detail = "Check the file’s coordinate system before importing." };
-        if (!await authority.IsCurrentAsync(command.AuthorityBinding, cancellationToken))
+        if (!await bindingValidator.IsCurrentAsync(command.AuthorityBinding, cancellationToken))
             return new() { State = "Target changed", Detail = ReviewFile };
         if (command.SourceSrid is <= 0 || command.TargetSrid is <= 0)
             return new() { State = "Invalid coordinate system", Detail = "Choose a supported coordinate system before importing." };
 
-        HonuaAdminEndpointResult<HonuaAdminImportResult> result;
-        try
-        {
-            result = await client.ImportFileBoundAsync(new(command.FileContent, command.FileName, command.TableName,
-                command.TargetSchema, command.SourceSrid, command.TargetSrid), command.AuthorityBinding, cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
-        {
+        var expectedSource = command.SourceSrid ?? command.ExpectedSourceSrid;
+        if (expectedSource is not > 0)
+            return new() { State = "Source unverified", Detail = "Check the file and choose its source coordinate system before importing." };
+        var expectedStored = command.TargetSrid ?? expectedSource.GetValueOrDefault();
+        var result = await ConsoleBoundWrite.SendAsync(
+            () => client.ImportFileBoundAsync(new(command.FileContent, command.FileName, command.TableName,
+                command.TargetSchema, command.SourceSrid, command.TargetSrid), command.AuthorityBinding, cancellationToken),
+            () => bindingValidator.IsCurrentAsync(command.AuthorityBinding, CancellationToken.None)).ConfigureAwait(false);
+        if (result.Issue is { State: ConsoleWriteOutcome.UnverifiedState } issue)
+            return new() { State = issue.State, Detail = issue.Detail };
+        if (result.Data is { Success: true } imported && (imported.SourceSrid is not > 0 || imported.StoredSrid is not > 0 || imported.Reprojected is null))
             return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail };
-        }
-        if (!await authority.IsCurrentAsync(command.AuthorityBinding, CancellationToken.None))
-            return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail };
-        if (result.Data is null && result.Issue is { } issue
-            && (issue.StatusCode is null or >= 200 and < 300 || issue.State == ConsoleWriteOutcome.UnverifiedState))
-            return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail + " " + issue.Detail };
-        if (result.Data is { Success: true } imported && (imported.StoredSrid is not > 0 || imported.Reprojected is null))
-            return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail };
+        // The endpoint returns HTTP 200 with success=false on a failed import; surface its reason.
         if (result.Data is { } data)
+        {
+            var mismatch = data.Success && (data.SourceSrid != expectedSource || data.StoredSrid != expectedStored
+                || data.Reprojected != (expectedStored != expectedSource));
             return new()
             {
-                Succeeded = data.Success,
-                State = data.Success ? "Imported" : "Rejected",
-                Detail = data.Success ? $"Imported {data.FeatureCount} feature(s) into the new table. Publish it to make it a live layer."
+                Succeeded = data.Success && !mismatch,
+                State = mismatch ? ConsoleFileImportResult.CoordinateSystemMismatchState : data.Success ? "Imported" : "Rejected",
+                Detail = mismatch ? $"The server reported source EPSG:{data.SourceSrid}, stored EPSG:{data.StoredSrid} and reprojected={data.Reprojected}; expected source EPSG:{expectedSource} and stored EPSG:{expectedStored}. Read the original environment to check the imported table before making another change."
+                    : data.Success ? $"Imported {data.FeatureCount} feature(s) into the new table. Publish it to make it a live layer."
                     : data.ErrorMessage ?? "The Honua server could not import the file.",
                 TableName = data.TableName,
                 FeatureCount = data.FeatureCount,
+                SourceSrid = data.SourceSrid,
                 StoredSrid = data.StoredSrid,
                 Reprojected = data.Reprojected,
-                ValidationErrors = data.ValidationErrors
+                ValidationErrors = data.ValidationErrors ?? []
             };
+        }
         return new() { State = result.Issue?.State ?? "Unavailable", Detail = result.Issue?.Detail ?? "The server did not accept the file-import request." };
     }
 

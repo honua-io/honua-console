@@ -16,11 +16,19 @@ public sealed record ConsoleFileImportCommand
 
     public int? TargetSrid { get; init; }
 
+    public int? ExpectedSourceSrid { get; init; }
+
     public string? AuthorityBinding { get; init; }
 }
 
 public sealed record ConsoleFileImportResult : ConsoleOperationResult<ConsoleFileImportResult>
 {
+    public const string CoordinateSystemMismatchState = "Imported with a different coordinate system";
+
+    public bool RequiresReconciliation => State is ConsoleWriteOutcome.UnverifiedState or CoordinateSystemMismatchState;
+
+    public int? SourceSrid { get; init; }
+
     public string? TableName { get; init; }
 
     public long FeatureCount { get; init; }

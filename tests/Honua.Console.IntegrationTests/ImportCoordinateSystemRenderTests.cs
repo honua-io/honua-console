@@ -140,6 +140,66 @@ public sealed class ImportCoordinateSystemRenderTests
         Assert.True(page.Find("button.console-button").HasAttribute("disabled"));
     }
 
+    [Fact]
+    public async Task OversizeFileExplainsTheLimitWithoutAnImpossibleRetry()
+    {
+        using var context = new BunitContext();
+        Register(context);
+        var page = context.Render<OperateImportFilePage>();
+        await page.InvokeAsync(() => page.FindComponent<InputFile>().Instance.OnChange.InvokeAsync(
+            new InputFileChangeEventArgs([new UnreadableFile(101L * 1024 * 1024)])));
+
+        Assert.Contains("100 MB", page.Markup);
+        Assert.DoesNotContain("Choose it again and retry", page.Markup);
+    }
+
+    [Fact]
+    public async Task UnreadableFileKeepsItsReadFailureReason()
+    {
+        using var context = new BunitContext();
+        Register(context);
+        var page = context.Render<OperateImportFilePage>();
+        await page.InvokeAsync(() => page.FindComponent<InputFile>().Instance.OnChange.InvokeAsync(
+            new InputFileChangeEventArgs([new UnreadableFile(5)])));
+
+        Assert.Contains("could not be read", page.Markup);
+    }
+
+    [Fact]
+    public void MismatchedCoordinatesLockTheMutationAndKeepItsReason()
+    {
+        using var context = new BunitContext();
+        var import = Register(context);
+        import.Outcome = new()
+        {
+            State = ConsoleFileImportResult.CoordinateSystemMismatchState,
+            Detail = "Read the original environment to check the imported table.",
+            StoredSrid = 3857,
+            Reprojected = true
+        };
+        var page = context.Render<OperateImportFilePage>();
+        page.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("projected", "projected.gpkg"));
+        page.Find("button.console-button").Click();
+        page.WaitForAssertion(() => Assert.Contains("Check the imported coordinate system", page.Markup));
+        page.Find("input[placeholder=parcels]").Input("another_name");
+
+        Assert.Contains("Read the original environment", page.Markup);
+        Assert.Equal("EPSG:3857", page.Find("[data-import-stored-system]").TextContent);
+        Assert.True(page.Find("button.console-button").HasAttribute("disabled"));
+        Assert.True(page.Find("input[type=file]").HasAttribute("disabled"));
+        Assert.Empty(page.FindAll("a[href='/operate/publishing/quick']"));
+    }
+
+    private sealed class UnreadableFile(long size) : IBrowserFile
+    {
+        public string Name => "projected.gpkg";
+        public DateTimeOffset LastModified => DateTimeOffset.UnixEpoch;
+        public long Size => size;
+        public string ContentType => "application/octet-stream";
+        public Stream OpenReadStream(long maxAllowedSize = 512000, CancellationToken cancellationToken = default) =>
+            throw new IOException("The device could not read the selected file.");
+    }
+
     private static ImportOperation Register(BunitContext context)
     {
         context.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -166,8 +226,9 @@ public sealed class ImportCoordinateSystemRenderTests
         public OperateSectionResult<HonuaAdminCoordinateSystemSearch> Results => OperateSectionResult<HonuaAdminCoordinateSystemSearch>.Allowed(new()
         { Items = [new() { Code = 2193, Name = "New Zealand Transverse Mercator 2000" }, new() { Code = 4326, Name = "WGS 84" }] });
         public Task<IReadOnlyList<string>> GetSupportedExtensionsAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<string>>([".gpkg"]);
-        public Task<ConsoleFileImportPreview> PreviewAsync(byte[] bytes, string name, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ConsoleFileImportPreview { Succeeded = true, CoordinateSystem = System, AuthorityBinding = "operator-environment" });
+        public Task<ConsoleFileImportPreview> PreviewAsync(byte[] bytes, string name, CancellationToken cancellationToken = default)
+            => Task.FromResult(new ConsoleFileImportPreview
+            { Succeeded = true, CoordinateSystem = System, AuthorityBinding = "operator-environment" });
         public Task<OperateSectionResult<HonuaAdminCoordinateSystemSearch>> SearchCoordinateSystemsAsync(string query, string binding, CancellationToken cancellationToken = default) =>
             Search ?? Task.FromResult(Results);
         public Task<ConsoleFileImportResult> ImportAsync(ConsoleFileImportCommand command, CancellationToken cancellationToken = default)
