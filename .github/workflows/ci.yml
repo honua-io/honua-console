@@ -208,6 +208,19 @@ jobs:
           path: artifacts/catalog-preview/operate-overview-*
           if-no-files-found: error
 
+      - name: Verify rendered workflow event presentation
+        run: node e2e/playwright/events-preview.mjs
+        env:
+          HONUA_EVENTS_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload workflow event presentation
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: workflow-events-presentation
+          path: artifacts/catalog-preview/events-*
+          if-no-files-found: error
+
       - name: Verify rendered approvals presentation
         run: node e2e/playwright/approvals-preview.mjs
         env:
