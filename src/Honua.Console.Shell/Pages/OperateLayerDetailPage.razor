@@ -250,6 +250,8 @@
 </section>
 
 @code {
+    [CascadingParameter] public ConsolePublicationLayerContext? PublicationContext { get; set; }
+
     [Parameter]
     public string ResourceId { get; set; } = string.Empty;
 
@@ -293,11 +295,13 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        var attempt = PublicationContext?.BeginRead(ResourceId);
         // Pin proxy URLs to the environment this view renders, so a later switch elsewhere fails them closed.
         _environmentId = await ConsoleProxyRoutes.ResolveActiveEnvironmentIdAsync(
             ServiceProvider.GetService<IConsoleEnvironmentProfileStore>());
         var view = await OperateData.GetLayersViewAsync();
         _exposures = view.FindExposures(ResourceId);
+        if (attempt is { } read) PublicationContext!.CompleteRead(read, _exposures);
         _ambiguousResourceIds = view.MatchingCanonicalResourceIds(ResourceId);
         _serviceSummary = string.Join(", ", _exposures.Select(exposure => exposure.Service.DisplayName));
         _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Layers", "Services");

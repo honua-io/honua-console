@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 import type { AdminApi } from './admin-api';
 import { sourceConnectionBody } from './source-db';
+import { readAdminItems } from './admin-items.mjs';
 
 export interface LayerSeed {
   /** Kept (untracked) connection the layer is published from; fixed so a retry finds it again. */
@@ -45,7 +46,7 @@ async function waitForTable(admin: AdminApi, connectionId: string, qualifiedTabl
 
 // The connection's layer listing is scoped by service, so look in every service the server reports.
 async function findLayerForTable(admin: AdminApi, connectionId: string, qualifiedTable: string): Promise<SeededLayer | undefined> {
-  const services: { serviceName: string }[] = (await admin.getJson('/api/v1/admin/services')).data ?? [];
+  const services: { serviceName: string }[] = await readAdminItems(path => admin.getJson(path), '/api/v1/admin/services');
   for (const { serviceName } of services) {
     const layers = await admin.listLayers(connectionId, serviceName);
     const layer = layers.find((l) => `${l.schema}.${l.table}` === qualifiedTable);

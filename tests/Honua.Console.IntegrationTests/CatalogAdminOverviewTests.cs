@@ -101,7 +101,7 @@ public sealed class CatalogAdminOverviewTests
 
     private sealed class OverviewSource(CatalogAdminOverview overview) : ICatalogAdminSource
     {
-        public Task<CatalogAdminRead> ReadAsync(string? catalogId, CancellationToken cancellationToken) =>
+        public Task<CatalogAdminRead> ReadAsync(CatalogAdminRequest request, CancellationToken cancellationToken) =>
             Task.FromResult(new CatalogAdminRead([], overview, "fixture", null));
     }
 }

@@ -75,6 +75,6 @@ public sealed class SharedStateAccessibilityTests : ConsoleComponentTestBase
         Assert.Equal("true", navigation.Find("button.resource-tree__name").GetAttribute("aria-expanded"));
         Assert.Single(navigation.FindAll("[data-publication=FeatureServer] button"));
         Assert.Empty(navigation.FindAll("[role=tree], [role=treeitem]"));
-        Assert.Equal("Resources", navigation.Find("ul").GetAttribute("aria-label"));
+        Assert.Equal("Datasets", navigation.Find("ul").GetAttribute("aria-label"));
     }
 }

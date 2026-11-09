@@ -63,7 +63,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/connections/:id       Detail
 /operate/connections/:id/diagnostics
 /operate/ai                    Omni-prompt AI console — one free-text prompt routes Studio (GIS authoring) vs DevOps (ops → deploy approval queue #197); AI infers intent, human approves (honua-console#203). Alias: /studio/ai
-/operate/data                  Data & Layers — resource→publications treeview + Layer Preview (the resource-first spine; merges Resources/Layers/Services lists; console-ux-redesign §5.3)
+/operate/data                  Datasets — dataset and layer tree with preview; Services and Layers also have dedicated lists
 /operate/data/new              Add data → publish flow host (?source=file|table|remoteservice|existingresource; console-ux-redesign §5.2/§5.4)
 /operate/resources             REDIRECT → /operate/data (resources fold into the treeview)
 /operate/resources/new         REDIRECT → /operate/data/new (the five entry points fold into one flow)
@@ -90,7 +90,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/copilot               Copilot Findings + graduated autonomy (#193/#289): lists honua-server's DETERMINISTIC findings and proposes fixes through the governed gateway. When the connected server exposes `/api/v1/admin/observability/autonomy/*`, the same route adds server-confirmed per-rule ProposeOnly/AutoApply controls, route-time guardrails, a confirm-first global kill switch, graduation counters, finding state pills, and an action/policy audit projected through the shared Operate timeline/status/correlation primitives. Human mutations require the active operator bearer and never optimistically update or fall back to a shared admin key. A 404/501 capability probe hides the autonomy controls and preserves the original propose-only flow. Audit evidence absent from the server event projection is labelled unreported rather than reconstructed client-side. NO model/LLM anything (ADR-0028). Empty state = all conditions healthy; else missing-binding/forbidden/unsupported/unavailable
 /operate/operations            Operations console
 /operate/control-center        Control center
-/operate/services              REDIRECT → /operate/data?view=services (services fold into the treeview)
+/operate/services              Services list — dedicated page (OperateServicesPage) owns this route
 /operate/services/:name/settings
 /operate/layers                Layers list — dedicated page (OperateLayersPage) owns this route
 /operate/layers/:id            Layer configuration (default + ?tab=configure); :id is the canonical resource id or the admin layer id publishing returns
@@ -193,16 +193,14 @@ will not see Operate while B is active. Confirmed default (§13, Q4).
 
 ### 2.2 Secondary navigation (within Operate)
 
-Data & Layers, Connections, Publishing, Identity, License, Observability,
+Datasets, Connections, Publishing, Identity, License, Observability,
 Operations, Control Center, Catalogs, Settings, Deploy, Server Info,
 Analytics, Legacy.
 
-Resource-first IA change (`console-ux-redesign.md` §5.1): the former
-**Resources / Services / Layers** trio collapses into one **Data & Layers**
-entry (`/operate/data`) — the resource→publications treeview with a Layer
-Preview. Connections move *under* Data & Layers as the data-source
-sub-section (it stays a legitimate concept, GeoServer "Stores"). The old
-Resources/Services/Layers nav routes redirect into `/operate/data`.
+**Data** offers the dataset and layer tree at `/operate/data`, dedicated
+Services and Layers lists at `/operate/services` and `/operate/layers`,
+and Connections at `/operate/connections`. The old `/operate/resources`
+list route redirects into `/operate/data`.
 
 Catalogs (`/operate/catalogs`) is the discovery-endpoints surface
 (`honua-console#125`): which catalog dialects the server publishes
@@ -847,7 +845,7 @@ surface as in-page capability states rather than seeded rows.
 | `/operate/jobs/:jobRunId` | — | missing job | forbidden | operate |
 | `/operate/operations` | — | empty-operate | forbidden | operate |
 | `/operate/control-center` | — | empty-operate | forbidden | operate |
-| `/operate/services` | — | REDIRECT → `/operate/data?view=services` | forbidden | operate |
+| `/operate/services` | — | empty-operate or environment notice (dedicated OperateServicesPage) | forbidden | operate |
 | `/operate/services/:name/settings` | — | missing-item | forbidden | operate |
 | `/operate/layers` | — | empty-operate (dedicated OperateLayersPage) | forbidden | operate |
 | `/operate/layers/:id` | — | missing-item | forbidden | operate |
@@ -1180,7 +1178,7 @@ until `honua-console#10` retires Portal.
 
 ## Unified workspace navigation (UX-001–007)
 
-The primary rail follows Home (`/`), Data & Layers (`/operate/data`), realtime Maps & apps (`/studio`), Processes (`/studio/processes`), Approvals (`/inbox`) and Activity (`/operate/observability`). Realtime entries retain their embed capability gate. More tools preserves the existing area and operational destinations; URLs and deep links are unchanged. The view bar switches Console/Studio/Processes alongside one host-owned conversation.
+The primary rail follows Home (`/`), Datasets (`/operate/data`), realtime Maps & apps (`/studio`), Processes (`/studio/processes`), Approvals (`/inbox`) and Activity (`/operate/observability`). Realtime entries retain their embed capability gate. More tools preserves the existing area and operational destinations; URLs and deep links are unchanged. The view bar switches Console/Studio/Processes alongside one host-owned conversation.
 
 `/setup/local` is the local-evaluation handoff guide. It explains external local-agent Docker inspection/install and copies an authored request; it cannot start Docker from the browser. `/environments/new` connects an existing deployment. `/operate/data/new` uses contextual source controls with the shared conversation, and its connected-table action opens the canonical shared-draft form at `/operate/publishing/quick`. See [the interaction model](design/unified-workspace-ux-implementation.md).
 
@@ -1267,3 +1265,66 @@ projection; no save/proposal operation is wired until the canonical contract is
 available. A copyable embed snippet is offered only when that projection supplies
 a released HTTPS component bundle and SHA-384 integrity. The snippet is escaped
 text, never executed by Console. No fixtures are registered by the production host.
+
+
+The same experimental Catalogs flag also gates `/catalogs/{id}/templates`,
+`/catalogs/{id}/templates/{templateId}`, and `/catalogs/{id}/items/{itemId}`.
+All three routes require the authenticated shell. Template and item identities
+are passed to the presentation source and checked again before their fields
+are rendered. Missing projections remain unavailable; production does not
+register fixtures or a speculative catalog transport.
+
+The template editor displays HTML as escaped text. Local edits and component
+insertion use the shared unsaved-changes guard and explicit discard confirmation;
+they never save or release a version. Server-sanitized, sandboxed previews,
+version history/restore, mutation policy and proposals await the canonical
+contracts. The component reference lists only the draft search/cards attributes;
+it loads no package and establishes no release or live qualification.
+
+Reported item listing stays read-only: catalog membership and audience visibility remain
+separate from endpoint access, with reported metadata inheritance, thumbnail
+provenance, governance, related items and listing checks. Visitor card preview
+and thumbnail upload remain unavailable until their server contracts exist.
+Administration fields are never presented as a visitor-filtered public preview.
+
+
+The experimental `/catalogs/{id}/categories` route shares the Catalogs flag,
+authenticated shell and catalog identity checks. It displays reported category
+rules/counts and featured kind/health/expiry/actor separately from local order
+and home-page choices. Up/Down controls retain focus on an enabled button in the moved row and
+announce the new position;
+duplicate or missing identities render unavailable instead of an ambiguous order.
+The first four local featured positions are home positions, never proof that a
+visitor can read those items.
+
+Item listing adds labelled local title, summary, Markdown source, tags, update
+frequency, alt text, governance and per-catalog appearance fields. Licence and
+inheritance remain reported; overrides need metadata contracts. Nullable choices
+preserve Not reported. Local edits and ordering use the shared unsaved navigation
+guard and a Discard local edits action. Neither surface saves, proposes or changes
+access, scope, health, listing checks or audience visibility. Real mutation,
+thumbnail upload and visitor card preview remain contract-gated. Production never
+falls back to fixtures when these routes are enabled.
+
+## Experimental metadata presentation
+
+The same default-off Honua:Console:Catalogs:Enabled option gates authenticated
+/metadata/datasets/{datasetId}, /metadata/datasets/{datasetId}/import, and
+/metadata/fields. The optional service query selects the supplied inheritance
+context and is preserved by dataset/import links. Dataset and Service identities
+must match the read projection before fields appear.
+
+These routes display draft Shell view projections only. The production source
+returns missing binding or unsupported; it never registers fixtures or derives
+inheritance, crosswalk mappings, history or import selection policy. The existing
+live discovery editor and its shared title/description/keywords contract stay in
+place. Shared canonical metadata SDK contracts must replace these projections
+before a live adapter can activate.
+
+Explicit test fixtures show effective/inherited values and example actor/client
+history separately from local overrides. Local schema drafts, retirement choices
+and import selection use the shared unsaved navigation guard. All source content
+is escaped text. No save, proposal, upload, parser, attachment store, schema
+mutation or metadata mutation is implemented here. Local choices never change the
+reported metadata, history or original attachment. The server must supply
+contextual inheritance and enforce its mutation policy and attachment authority.

@@ -1,0 +1,58 @@
+@using Honua.Sdk.Admin.Models
+@inject IServiceProvider Services
+
+<div data-publish-folders>
+    <label class="console-field">
+        <span>Folder</span>
+        <select class="console-input" aria-label="Publishing Folder" value="@Selection" @onchange="ChangedAsync" disabled="@_loading" data-publish-folder>
+            <option value="preserve:">Preserve existing membership (new Services use Root)</option>
+            <option value="root:" disabled="@(_read?.IsAllowed != true)">Root</option>
+            @if (Value.IsSpecified && Value.Value is not null && _read?.Value?.ActiveFolders.Any(folder => folder.Metadata.Id == Value.Value) != true)
+            {
+                <option value="@Selection" disabled>Selected Folder unavailable; refresh and review</option>
+            }
+            @foreach (var folder in _read?.Value?.ActiveFolders ?? [])
+            {
+                <option value="@("folder:" + folder.Metadata.Id)">@ConsoleFolderCatalog.Label(folder)</option>
+            }
+        </select>
+    </label>
+    @if (_read is { IsAllowed: false } read)
+    {
+        <OperateSectionStatusPanel Heading="Publishing Folders" Status="read.Status" Message="@read.Message" />
+    }
+    <button class="console-button console-button-secondary" type="button" @onclick="ReadAsync" disabled="@_loading" data-publish-folder-refresh>Refresh Folders</button>
+    <p class="console-muted">Choose Root or a Folder for a new Service. Keep an existing Service's membership unchanged; move it from its settings page.</p>
+</div>
+
+@code {
+    [Parameter] public OptionalString Value { get; set; }
+    [Parameter] public EventCallback<OptionalString> ValueChanged { get; set; }
+    [Parameter] public EventCallback<string?> AuthorityBindingChanged { get; set; }
+    private OperateSectionResult<ConsoleFolderCatalog>? _read;
+    private bool _loading = true;
+    private string Selection => !Value.IsSpecified ? "preserve:" : Value.Value is null ? "root:" : "folder:" + Value.Value;
+    protected override Task OnInitializedAsync() => ReadAsync();
+    private async Task ReadAsync()
+    {
+        _loading = true;
+        var client = Services.GetService<IConsoleFolderClient>() ?? new UnsupportedConsoleFolderClient();
+        _read = await ConsoleReadBudget.RunAsync(client.ReadAsync, ConsoleReadBudget.Default, "Folders could not be read. Refresh before choosing a Folder.");
+        _loading = false;
+    }
+    private async Task ChangedAsync(ChangeEventArgs args)
+    {
+        var selection = args.Value?.ToString();
+        if (selection != "preserve:" && selection != "root:" && _read?.Value?.ActiveFolders.Any(item => "folder:" + item.Metadata.Id == selection) != true) return;
+        if (selection == "root:" && _read?.IsAllowed != true) return;
+        var value = selection switch
+        {
+            "preserve:" => default(OptionalString),
+            "root:" when _read?.IsAllowed == true => new OptionalString(null),
+            { } folder when _read?.Value?.ActiveFolders.Any(item => "folder:" + item.Metadata.Id == folder) == true => new OptionalString(folder[7..]),
+            _ => Value
+        };
+        await AuthorityBindingChanged.InvokeAsync(value.IsSpecified ? _read?.Value?.AuthorityBinding : null);
+        await ValueChanged.InvokeAsync(value);
+    }
+}

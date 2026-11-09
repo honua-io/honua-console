@@ -1,16 +1,20 @@
 @page "/operate/publishing/quick"
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
+@using Honua.Console.Shell.Components.Operate
+@using Honua.Sdk.Admin.Models
 @inject IOperateTransitionDataSource OperateData
 @inject IServiceLayerPublishOperation PublishOperation
 @inject NavigationManager Nav
 @inject IConsoleNotificationService Notifications
+@inject IServiceProvider Services
+@using Honua.Console.Contracts
 
 <section class="console-page" data-workspace-publish-form>
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Publishing</p>
         <h1>Publish a layer</h1>
-        <p>Publish an existing table from a data connection as a queryable service layer. Pick the connection and table, name the service (use <code>folder/service</code> to nest under a folder), and publish — the layer becomes live on honua-server and queryable through its FeatureServer slot.</p>
+        <p>Publish an existing table from a data connection as a queryable Service Layer. Choose its Service identity and Folder separately; public paths use the Folder and public Service name.</p>
     </div>
 
     <ConsoleConnectionNotice Heading="Could not read data connections" States="_connectionStates" OnRetry="LoadConnectionsAsync" />
@@ -66,13 +70,20 @@
                 <label>
                     <span>Service name</span>
                     <input class="console-input" data-workspace-field="serviceName" @bind="_serviceName" @bind:event="oninput" @bind:after="ClearResult" placeholder="parcels-fs" />
-                    <small class="console-muted">Use <code>folder/service</code> to nest under a folder.</small>
+                    <small class="console-muted">The logical Service identity stays the same when its Folder changes.</small>
                 </label>
                 <label>
                     <span>Layer name</span>
                     <input class="console-input" data-workspace-field="layerName" @bind="_layerName" @bind:event="oninput" @bind:after="ClearResult" placeholder="Parcels" />
                 </label>
             </div>
+
+            <FolderPublishSelection @bind-Value="_folderId" AuthorityBindingChanged="binding => _folderAuthority = binding" />
+            <label class="console-field">
+                <span>Public Service name (optional)</span>
+                <input class="console-input" @bind="_publicName" data-service-public-name />
+                <small>Immutable after assignment. Leave blank to use the Service identity.</small>
+            </label>
 
             @if (_selectedTable is { } t)
             {
@@ -100,7 +111,7 @@
             {
                 <article class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
                     <p class="console-kicker">@r.State</p>
-                    <h2>@(r.Succeeded ? "Layer published" : "Layer not published")</h2>
+                    <h2>@(r.Succeeded ? "Layer published" : r.State == ConsoleWriteOutcome.UnverifiedState ? "Publication outcome unverified" : "Layer not published")</h2>
                     <p>@r.Detail</p>
                     @if (r.Succeeded)
                     {
@@ -109,6 +120,8 @@
                             <dd data-published-layer-id>@r.LayerId</dd>
                             <dt>Service</dt>
                             <dd data-published-service>@r.ServiceName</dd>
+                            <dt>Endpoints</dt>
+                            <dd><a href="@($"/operate/services/{Uri.EscapeDataString(r.ServiceName ?? _serviceName)}/settings")">Read current Service endpoints</a></dd>
                             <dt>Geometry / SRID</dt>
                             <dd>@r.GeometryType / @r.Srid</dd>
                         </dl>
@@ -133,7 +146,7 @@
             </section>
             <div class="console-action-row">
                 <button class="console-button console-button-secondary" type="button" disabled="@_busy" data-workspace-save>Save draft</button>
-                <button class="console-button" type="button" disabled="@_busy" data-workspace-publish @onclick="PublishAsync">
+                <button class="console-button" type="button" disabled="@(_busy || _requiresCatalogRead)" data-workspace-publish @onclick="PublishAsync">
                     @(_busy ? "Publishing…" : "Publish layer")
                 </button>
                 <a href="/operate/services">View services</a>
@@ -141,6 +154,11 @@
         </article>
     }
 </section>
+
+@if (_unverifiedCommand is { } pendingPublish)
+{
+    <PublishOutcomeVerification @key="_publishAttempt" AuthorityBinding="@pendingPublish.AuthorityBinding" ServiceName="@pendingPublish.ServiceName" LayerName="@pendingPublish.LayerName" OnVerified="@(() => { _requiresCatalogRead = false; _result = null; })" />
+}
 
 @code {
     private IReadOnlyList<OperateConnectionSummary> _connections = Array.Empty<OperateConnectionSummary>();
@@ -152,10 +170,16 @@
     private string _geometryTypeOverride = string.Empty;
     private string _serviceName = string.Empty;
     private string _layerName = string.Empty;
+    private OptionalString _folderId;
+    private string _publicName = "";
+    private string? _folderAuthority;
 
     private bool _loadingTables;
     private bool _interactive;
     private bool _busy;
+    private bool _requiresCatalogRead;
+    private ServiceLayerPublishCommand? _unverifiedCommand;
+    private int _publishAttempt;
     private string? _clientError;
     private ServiceLayerPublishResult? _result;
 
@@ -221,11 +245,18 @@
         _result = null;
     }
 
-    private Task PublishAsync()
+    private async Task PublishAsync()
     {
+        if (_requiresCatalogRead) return;
         _clientError = Validate();
-        if (_clientError is not null) return Task.CompletedTask;
+        if (_clientError is not null) return;
 
+        var target = await ConsolePublishAuthority.CaptureAsync(Services, _folderId, _folderAuthority);
+        if (target.Error is { } error)
+        {
+            _clientError = error;
+            return;
+        }
         var table = _selectedTable!;
         var command = new ServiceLayerPublishCommand
         {
@@ -234,6 +265,9 @@
             Table = table.Table,
             LayerName = _layerName.Trim(),
             ServiceName = _serviceName.Trim(),
+            FolderId = _folderId,
+            PublicName = string.IsNullOrWhiteSpace(_publicName) ? null : _publicName.Trim(),
+            AuthorityBinding = target.Binding,
             GeometryColumn = table.GeometryColumn,
             GeometryType = RequiresGeometryChoice(table) ? _geometryTypeOverride : table.GeometryType,
             Srid = table.Srid,
@@ -241,9 +275,16 @@
             Enabled = true
         };
 
+        _unverifiedCommand = null;
+        _publishAttempt++;
         _result = null;
-        return Notifications.RunGuardedAsync(
-            async () => { _result = await PublishOperation.PublishAsync(command); },
+        await Notifications.RunGuardedAsync(
+            async () =>
+            {
+                _result = await PublishOperation.PublishAsync(command);
+                _requiresCatalogRead = _result.State == ConsoleWriteOutcome.UnverifiedState;
+                _unverifiedCommand = _requiresCatalogRead ? command : null;
+            },
             setBusy: busy => { _busy = busy; StateHasChanged(); },
             failureMessage: "Couldn't publish layer");
     }

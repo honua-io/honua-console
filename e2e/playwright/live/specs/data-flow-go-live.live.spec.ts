@@ -28,7 +28,7 @@ test('an existing layer goes live through Apply & publish and is queryable anony
   await expect.poll(anonymousQuery, { timeout: 20_000 }).toEqual({ errorCode: GEOSERVICES_TOKEN_REQUIRED });
 
   await page.goto('/operate/data/new?source=existingresource');
-  const resource = page.getByLabel('Existing resource', { exact: true });
+  const resource = page.getByLabel('Existing dataset', { exact: true });
   const continueButton = page.locator('[data-step-body="AddData"] button.console-button');
   await expect(async () => {
     await resource.selectOption({ label: seeded.layerName });

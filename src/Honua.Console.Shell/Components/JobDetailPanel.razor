@@ -75,7 +75,8 @@
         </details>
     }
 
-    <div class="operate-progress operate-progress-large" aria-label="@($"{Job.ProgressPercent} percent complete")">
+    <div class="operate-progress operate-progress-large" role="progressbar" aria-label="Job progress"
+         aria-valuemin="0" aria-valuemax="100" aria-valuenow="@Job.ProgressPercent">
         <span style="@($"width: {Job.ProgressPercent}%")"></span>
     </div>
 
@@ -88,7 +89,8 @@
                     <span class="console-status @stage.Status.CssClass">@stage.Status.Label</span>
                     <strong>@stage.Name</strong>
                     <p>@stage.Detail</p>
-                    <div class="operate-progress" aria-label="@($"{stage.ProgressPercent} percent complete")">
+                    <div class="operate-progress" role="progressbar" aria-label="@($"{stage.Name} progress")"
+                         aria-valuemin="0" aria-valuemax="100" aria-valuenow="@stage.ProgressPercent">
                         <span style="@($"width: {stage.ProgressPercent}%")"></span>
                     </div>
                 </li>

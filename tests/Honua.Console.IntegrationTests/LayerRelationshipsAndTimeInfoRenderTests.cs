@@ -88,7 +88,7 @@ public sealed class LayerRelationshipsAndTimeInfoRenderTests
         using var ctx = new BunitContext();
         var component = ctx.Render<ServiceTimeInfoSetter>();
         Assert.Contains("Unsupported", component.Markup, StringComparison.Ordinal);
-        Assert.Contains("Resource time-field", component.Markup, StringComparison.Ordinal);
+        Assert.Contains("Dataset time-field", component.Markup, StringComparison.Ordinal);
         Assert.Empty(component.FindAll("input, button, textarea"));
     }
 

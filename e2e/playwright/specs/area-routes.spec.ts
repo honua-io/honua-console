@@ -33,6 +33,18 @@ const menus = [
   {name:'Settings', paths:['/operate/settings']},
 ];
 
+for (const name of ['Services', 'Layers']) test(`Data > ${name} opens its list`, async ({page}) => {
+  await page.goto('/operate');
+  const menu = page.locator('[data-navigation-menu="Data"]');
+  await menu.locator(':scope > summary').press('Enter');
+  await menu.getByRole('link', {name, exact:true}).click();
+  await expect(page).toHaveURL(new RegExp(`/operate/${name.toLowerCase()}$`));
+  await expect(page.getByRole('heading', {level:1, name, exact:true})).toBeVisible();
+  await expect(page.locator('[data-resource-tree]')).toHaveCount(0);
+  await expect(page.getByText('Connect environment', {exact:true}).or(
+    page.getByText('missing binding', {exact:false}).first()).first()).toBeVisible();
+});
+
 for (const menu of menus) test(`${menu.name} advertises working current destinations`, async ({page}) => {
   await page.goto('/operate');
   const disclosure=page.locator(`[data-navigation-menu="${menu.name}"]`);
@@ -96,4 +108,33 @@ for (const width of [390, 1440]) test(`navigation preserves keyboard input durin
   } finally {
     startBlazor();
   }
+});
+
+test('hydrated navigation retains user focus when initial heading focus arrives late', async ({page}) => {
+  await page.addInitScript(() => {
+    const focus = HTMLElement.prototype.focus;
+    let pending = true;
+    HTMLElement.prototype.focus = function(options?: FocusOptions) {
+      if (pending && this.matches('h1')) {
+        pending = false;
+        Object.assign(window, {releaseInitialHeadingFocus: () => focus.call(this, options)});
+        return;
+      }
+      focus.call(this, options);
+    };
+  });
+  await page.goto('/operate');
+  await page.waitForFunction(() => 'releaseInitialHeadingFocus' in window);
+  const menu = page.locator('[data-navigation-menu="Data"]');
+  await menu.locator(':scope > summary').press('Enter');
+  const datasets = menu.getByRole('link', {name:'Datasets', exact:true});
+  await expect(datasets).toBeFocused();
+  await page.evaluate(() => (window as unknown as {releaseInitialHeadingFocus: () => void}).releaseInitialHeadingFocus());
+  await expect(datasets).toBeFocused();
+  await menu.getByRole('link', {name:'Services', exact:true}).click();
+  await expect(page).toHaveURL(/\/operate\/services$/);
+  await expect(page.getByRole('heading', {level:1, name:'Services', exact:true})).toBeFocused();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/operate$/);
+  await expect(page.getByRole('heading', {level:1, name:'Operate', exact:true})).toBeFocused();
 });

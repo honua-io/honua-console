@@ -1,11 +1,5 @@
 @namespace Honua.Console.Shell.Components
 
-@*
-    Publish-mode segmented toggle, mirroring the design-handoff ModeBar
-    (docs/design-handoff/console-canvas/screens-quick-publish.jsx and screens-publish-flow.jsx):
-    Quick publish (Service → Layer → Review) vs. Author resource first (advanced 7-step flow).
-    Selecting a mode swaps the stepper the workspace renders; it does not change any server binding.
-*@
 <div class="publish-mode-bar" role="group" aria-label="Publish mode">
     <span class="publish-mode-label">Mode</span>
     <div class="publish-mode-toggle">
@@ -19,17 +13,17 @@
                 class="publish-mode-option @(Mode == PublishMode.AuthorFirst ? "publish-mode-option-active" : null)"
                 aria-pressed="@(Mode == PublishMode.AuthorFirst)"
                 @onclick="() => SelectAsync(PublishMode.AuthorFirst)">
-            Author resource first (advanced)
+            Author dataset first (advanced)
         </button>
     </div>
     <span class="publish-mode-hint">
         @if (Mode == PublishMode.Quick)
         {
-            <text>One-shot. Honua creates the underlying Data Resource implicitly.</text>
+            <text>Honua creates the dataset when you publish its layer.</text>
         }
         else
         {
-            <text>Resource-first. Pick a target service, then the layer slot, fields, projection, and access.</text>
+            <text>Start with a dataset. Choose its service, layer, fields, metadata, and access.</text>
         }
     </span>
     <span class="publish-mode-hint publish-mode-hint-end">

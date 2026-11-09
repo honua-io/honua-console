@@ -1,0 +1,10 @@
+@page "/catalogs/{CatalogId}/templates"
+@page "/catalogs/{CatalogId}/templates/{TemplateId}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<CatalogAdminPage CatalogId="@CatalogId" Section="@(TemplateId is null ? "templates" : "template")" TemplateId="@TemplateId" />
+
+@code {
+    [Parameter] public string CatalogId { get; set; } = string.Empty;
+    [Parameter] public string? TemplateId { get; set; }
+}

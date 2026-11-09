@@ -12,7 +12,7 @@
     }
     else
     {
-        <fieldset disabled="@(!_interactiveReady)" aria-label="Service controls" style="border:0; padding:0; margin:0; min-width:0">
+        <fieldset disabled="@(!_interactiveReady)" aria-label="Service controls" class="console-service-controls">
         <div class="console-page-heading" data-service-detail="@_service.Name">
             <p class="console-kicker">Operate / Services</p>
             <h1>@_service.DisplayName</h1>
@@ -23,8 +23,8 @@
             <article class="console-panel">
                 <div class="console-panel-heading">
                     <div>
-                        <p class="console-kicker">Runtime Settings</p>
-                        <h2>Service Controls</h2>
+                        <p class="console-kicker">Runtime settings</p>
+                        <h2>Service controls</h2>
                     </div>
                     <span class="console-status">@_service.RuntimeStatus</span>
                 </div>
@@ -54,21 +54,28 @@
             </article>
 
             <article class="console-panel">
-                <p class="console-kicker">Publication Slots</p>
-                <h2>Serving Targets</h2>
-                <dl class="console-definition-list">
+                <p class="console-kicker">Protocols</p>
+                <h2>Service endpoints</h2>
+                <dl class="console-definition-list console-protocols">
                     @foreach (var slot in _service.PublicationSlots)
                     {
-                        <dt>@slot.Name</dt>
-                        <dd>
-                            <strong>@slot.Status</strong>
-                            <small>@(slot.Url ?? "No single service URL")</small>
-                        </dd>
+                        <div class="console-protocol-pill">
+                            <dt title="@slot.Name">@slot.Name</dt>
+                            <dd>
+                                <strong title="@slot.Status">@slot.Status</strong>
+                                <small title="@slot.Url">@(slot.Url ?? "No single service URL")</small>
+                            </dd>
+                        </div>
                     }
                 </dl>
             </article>
         </div>
 
+        @foreach (var reason in _service.FolderMutationIssues)
+        {
+            <p class="console-state-warning" role="status" data-folder-reconciliation>@reason</p>
+        }
+        <Honua.Console.Shell.Components.Operate.FolderManagement ServiceName="@ServiceName" CurrentFolderId="@_service.FolderId" OnSaved="OnParametersSetAsync" />
         <DiscoveryMetadataEditor Address="@Honua.Console.Contracts.DiscoveryMetadataAddress.ForService(ServiceName)" />
 
         <section class="console-section" data-service-config>
@@ -80,19 +87,19 @@
 
             @if (!_settings.Bound)
             {
-                <article class="console-panel console-state-warning" role="status">
+                <div class="console-panel console-state-neutral" role="status">
                     <p class="console-kicker">Missing binding</p>
                     <p>@_settings.Detail</p>
-                </article>
+                </div>
             }
             else
             {
                 @if (_configResult is { } result)
                 {
-                    <article class="console-panel @(result.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-config-result>
+                    <div class="console-panel @(result.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-config-result>
                         <p class="console-kicker">@result.State</p>
                         <p>@result.Detail</p>
-                    </article>
+                    </div>
                 }
 
                 <div class="console-panel-grid">
@@ -161,7 +168,7 @@
         <section class="console-section">
             <div class="console-page-heading">
                 <p class="console-kicker">Layers</p>
-                <h2>Exposed Resource Projections</h2>
+                <h2>Layers</h2>
             </div>
             <ConsoleTableRegion Class="console-table-wrap" Label="Service layers">
                 <table class="console-table">

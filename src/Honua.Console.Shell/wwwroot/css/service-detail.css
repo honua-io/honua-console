@@ -1,0 +1,62 @@
+.console-service-controls {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+}
+
+dl.console-protocols {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.console-protocol-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    max-width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-pill);
+    font-size: var(--text-sm);
+    white-space: nowrap;
+}
+
+.console-protocol-pill dt {
+    flex-shrink: 0;
+    max-width: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.console-protocol-pill dd {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.console-protocols .console-protocol-pill small {
+    margin: 0;
+    color: var(--c-text-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.console-protocol-pill strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.console-service-controls input[type="checkbox"] {
+    width: var(--space-6);
+    height: var(--space-6);
+    accent-color: var(--c-accent);
+}
+
+.console-service-controls .console-field input {
+    min-height: 44px;
+}

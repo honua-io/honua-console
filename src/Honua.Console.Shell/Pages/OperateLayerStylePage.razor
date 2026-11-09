@@ -8,8 +8,8 @@
 <section class="console-page operate-layer-style" data-layer-style="@ResourceId">
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Layers</p>
-        <h1>Resource presentation</h1>
-        <p>Override the style and popup template per publication slot for this layer. Each slot is one service exposure; the available base styles come from the live server style list (/ogc/styles). The Studio style editor authors the canonical styles; this Operate surface only overrides how each publication slot presents them.</p>
+        <h1>Layer presentation</h1>
+        <p>Edit this layer's drawing and popup settings. Every service exposing the layer uses these shared settings. Author shared catalog Styles in Studio.</p>
         <p><a href="@("/operate/layers/" + ResourceId)">Back to layer</a></p>
     </div>
 
@@ -38,29 +38,29 @@
         }
     </article>
 
-    <section class="console-section" aria-label="Publication slot overrides">
+    <section class="console-section" aria-label="Layer style overrides">
         <div class="console-page-heading">
-            <p class="console-kicker">Per-slot presentation</p>
-            <h2>Publication slot overrides</h2>
+            <p class="console-kicker">Layer presentation</p>
+            <h2>Layer style overrides</h2>
         </div>
 
         @if (_loading)
         {
             <ConsoleStateView HeadingLevel="2" Kind="loading"
-                              Kicker="Resource presentation"
-                              Title="Loading slot overrides"
-                              Message="Reading server-owned per-slot style/popup overrides from honua-server." />
+                              Kicker="Layer presentation"
+                              Title="Loading layer overrides"
+                              Message="Reading layer style and popup overrides from honua-server." />
         }
         else if (_overrides.BindingState is { } binding)
         {
             <ConsoleStateView HeadingLevel="2" Kind="@StateKind(binding.State)"
                               Kicker="@binding.State"
-                              Title="Per-slot overrides are not bound"
+                              Title="Layer overrides are not available"
                               Message="@(binding.Detail + " (contract: " + binding.Contract + ")")" />
         }
         else if (_overrides.Slots.Count == 0)
         {
-            <EmptyState Area="operate" Subject="publication slots" />
+            <EmptyState Area="operate" Subject="layer overrides" />
         }
         else
         {
@@ -107,7 +107,7 @@
             {
                 <div class="console-panel console-state-success" role="status" data-slot-saved>
                     <p class="console-kicker">Saved</p>
-                    <p>The slot presentation override was saved on honua-server.</p>
+                    <p>The layer presentation override was saved in the environment.</p>
                 </div>
             }
         }
@@ -115,6 +115,8 @@
 </section>
 
 @code {
+    [CascadingParameter] public ConsolePublicationLayerContext? PublicationContext { get; set; }
+
     [Parameter]
     public string ResourceId { get; set; } = string.Empty;
 
@@ -131,10 +133,12 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        var attempt = PublicationContext?.BeginRead(ResourceId);
         _loading = true;
         _saveResult = null;
         _catalog = await StyleCatalog.GetStyleCatalogAsync();
         _overrides = await OverrideData.GetOverridesAsync(ResourceId);
+        if (attempt is { } read) PublicationContext!.CompleteStyleRead(read, _overrides);
         _popupEdits.Clear();
         _drawingEdits.Clear();
         foreach (var slot in _overrides.Slots)

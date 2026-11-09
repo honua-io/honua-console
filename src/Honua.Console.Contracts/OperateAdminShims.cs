@@ -30,6 +30,11 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         PropertyNameCaseInsensitive = true
     };
 
+    private static readonly JsonSerializerOptions PublishingJsonOptions = new(JsonOptions)
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
     private static readonly AdminBodyFormat ReadEnvelope = new(
         JsonOptions,
         AdminBodyRead.Streamed,
@@ -217,14 +222,30 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
 
     public Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary>> PublishLayerAsync(
         string connectionId,
-        HonuaAdminPublishLayerRequest request,
-        CancellationToken cancellationToken = default)
+        PublishLayerRequest request,
+        CancellationToken cancellationToken = default) => PublishLayerCoreAsync(connectionId, request, null, cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary>> PublishLayerBoundAsync(
+        string connectionId, PublishLayerRequest request, string authorityBinding, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(authorityBinding);
+        return PublishLayerCoreAsync(connectionId, request, authorityBinding, cancellationToken);
+    }
+
+    private Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary>> PublishLayerCoreAsync(
+        string connectionId, PublishLayerRequest request, string? authorityBinding, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
         ArgumentNullException.ThrowIfNull(request);
 
         return SendEnvelopeAsync<HonuaAdminPublishedLayerSummary>(
-            () => JsonRequest(HttpMethod.Post, $"/api/v1/admin/connections/{Uri.EscapeDataString(connectionId)}/layers/", request),
+            () =>
+            {
+                var message = Request(HttpMethod.Post, $"/api/v1/admin/connections/{Uri.EscapeDataString(connectionId)}/layers/",
+                    JsonContent.Create(request, options: PublishingJsonOptions));
+                if (authorityBinding is not null) message.Options.Set(ConsoleAuthorityRequestOptions.Expected, authorityBinding);
+                return message;
+            },
             "POST /api/v1/admin/connections/{id}/layers",
             cancellationToken);
     }
@@ -981,31 +1002,6 @@ public sealed record HonuaAdminConnectionSummary
     public string? CreatedBy { get; init; }
 }
 
-public sealed record HonuaAdminPublishLayerRequest
-{
-    public required string Schema { get; init; }
-
-    public required string Table { get; init; }
-
-    public required string LayerName { get; init; }
-
-    public string? Description { get; init; }
-
-    public string? GeometryColumn { get; init; }
-
-    public string? GeometryType { get; init; }
-
-    public int? Srid { get; init; }
-
-    public string? PrimaryKey { get; init; }
-
-    public IReadOnlyList<string> Fields { get; init; } = [];
-
-    public string? ServiceName { get; init; }
-
-    public bool Enabled { get; init; } = true;
-}
-
 internal sealed record LayerEnabledBody(
     [property: JsonPropertyName("enabled")] bool Enabled);
 
@@ -1081,25 +1077,6 @@ public sealed record HonuaAdminLayerExtent
     public double MaxX { get; init; }
 
     public double MaxY { get; init; }
-}
-
-public sealed record HonuaAdminServiceSummary
-{
-    public string? ServiceName { get; init; }
-
-    public string? FolderId { get; init; }
-
-    public string? FolderName { get; init; }
-
-    public string? PublicName { get; init; }
-
-    public string? Title { get; init; }
-
-    public string? Description { get; init; }
-
-    public int LayerCount { get; init; }
-
-    public IReadOnlyList<string> EnabledProtocols { get; init; } = [];
 }
 
 public sealed record HonuaAdminServiceSettingsResponse

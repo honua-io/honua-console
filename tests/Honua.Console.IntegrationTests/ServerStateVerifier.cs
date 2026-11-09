@@ -40,30 +40,33 @@ public sealed class ServerStateVerifier : IDisposable
         CancellationToken cancellationToken = default)
     {
         var path = $"/api/v1/admin/connections/{Uri.EscapeDataString(connectionId)}/layers?serviceName={Uri.EscapeDataString(serviceName)}";
-        using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
-        if (document is null || !document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+        for (var pageNumber = 1; ; pageNumber++)
         {
-            return null;
+            using var document = await GetJsonAsync($"{path}&page={pageNumber}", cancellationToken).ConfigureAwait(false);
+            if (document is null) return null;
+            var data = document.RootElement.GetProperty("data");
+            var items = data.GetProperty("items");
+            var pageSize = data.GetProperty("pageSize").GetInt32();
+            var total = data.GetProperty("total").GetInt32();
+            if (data.GetProperty("page").GetInt32() != pageNumber || pageSize <= 0 || total < 0
+                || items.GetArrayLength() > pageSize || (items.GetArrayLength() == 0 && total > 0))
+                throw new InvalidDataException("The admin layer registry returned an invalid page.");
+            var matches = items.EnumerateArray().Where(layer => GetInt(layer, "layerId") == layerId).ToArray();
+            if (matches.Length > 1) throw new InvalidDataException("The admin layer registry returned duplicate layer identities.");
+            if (matches.Length == 1) return Registration(matches[0], layerId);
+            if ((long)pageNumber * pageSize >= total) return null;
         }
-
-        foreach (var layer in data.EnumerateArray())
-        {
-            if (GetInt(layer, "layerId") == layerId)
-            {
-                return new VerifiedLayerRegistration(
-                    layerId,
-                    GetString(layer, "layerName"),
-                    GetString(layer, "schema"),
-                    GetString(layer, "table"),
-                    GetString(layer, "serviceName"),
-                    GetString(layer, "geometryType"),
-                    GetInt(layer, "srid"),
-                    GetBool(layer, "enabled"));
-            }
-        }
-
-        return null;
     }
+
+    private static VerifiedLayerRegistration Registration(JsonElement layer, int layerId) => new(
+        layerId,
+        GetString(layer, "layerName"),
+        GetString(layer, "schema"),
+        GetString(layer, "table"),
+        GetString(layer, "serviceName"),
+        GetString(layer, "geometryType"),
+        GetInt(layer, "srid"),
+        GetBool(layer, "enabled"));
 
     // ---------------------------------------------------------------------------------------------
     //  FeatureServer metadata: GET /rest/services/{service}/FeatureServer/{layerId}

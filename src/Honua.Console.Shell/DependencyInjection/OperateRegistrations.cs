@@ -10,6 +10,15 @@ internal static class OperateRegistrations
     public static void AddOperate(IServiceCollection services, HonuaServerBinding server, HonuaConsoleShellOptions options)
     {
         AddAdminClient(services, server);
+        services.TryAddScoped<ConsoleFolderChanges>();
+        if (server.BaseUri is { } folderBaseUri)
+        {
+            services.TryAddSingleton<IConsoleFolderClient>(provider =>
+                provider.GetService<IConsoleAuthorityBindingValidator>() is { } authority
+                    ? new ServerConsoleFolderClient(HonuaServerClientFactory.Create(provider, folderBaseUri), authority)
+                    : new UnsupportedConsoleFolderClient());
+        }
+        else services.TryAddSingleton<IConsoleFolderClient, UnsupportedConsoleFolderClient>();
         AddAdminOperations(services, server);
         AddTemporal(services, server, options);
         services.TryAddSingleton<IEsriMigrationRunDataSource, UnsupportedEsriMigrationRunDataSource>();

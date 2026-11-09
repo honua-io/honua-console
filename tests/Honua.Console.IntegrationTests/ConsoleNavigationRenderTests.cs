@@ -134,6 +134,7 @@ public sealed class ConsoleNavigationRenderTests
         Assert.Empty(navigation.FindAll("[data-navigation-menu='Studio'] a[href='/maps/new']"));
         Assert.Equal("/operate/catalogs", navigation.Find("[data-navigation-menu='Protocols'] a").GetAttribute("href"));
         Assert.Empty(navigation.FindAll("a[href='/operate/license'], a[href='/operate/server-info']"));
+        CatalogAdminPreview.Capture("navigation", navigation.Find(".console-topbar").OuterHtml);
     }
 
     [Fact]
@@ -177,7 +178,7 @@ public sealed class ConsoleNavigationRenderTests
         Assert.Equal("/operate/data/new", breadcrumbs.Find("a[href='/operate/data/new']").GetAttribute("href"));
         Assert.Single(breadcrumbs.FindAll("a[href='/studio']"));
         manager.NavigateTo("/operate/data");
-        breadcrumbs.WaitForAssertion(() => Assert.Equal("Data & Layers", breadcrumbs.Find("summary").TextContent));
+        breadcrumbs.WaitForAssertion(() => Assert.Equal("Datasets", breadcrumbs.Find("summary").TextContent));
         Assert.Empty(breadcrumbs.FindAll("a[href*='/services/']"));
     }
 

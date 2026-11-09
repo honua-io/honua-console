@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "path": "docs/design/console-ux-redesign.md",
+      "rule": "dataset-reference",
+      "line": "KEEP /operate/resources/{ResourceId}       Dataset detail at its existing path",
+      "reason": "Documents the unchanged current Console route template from its component declaration. The parameter spelling remains until the coordinated contract and consumer rename; this is not a new Dataset API field."
+    },
+    {
+      "path": "docs/design/console-ux-redesign.md",
+      "rule": "dataset-reference",
+      "line": "KEEP /operate/layers/{ResourceId}          Layer detail",
+      "reason": "Documents the unchanged current Console route template from its component declaration. The parameter spelling remains until the coordinated contract and consumer rename; this is not a new Dataset API field."
+    }
+  ]
+}

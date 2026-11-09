@@ -1,0 +1,21 @@
+@if (History.Count == 0)
+{
+    <p>No history reported.</p>
+}
+else
+{
+    <ul class="metadata-history">
+        @foreach (var change in History)
+        {
+            <li>
+                <strong>@change.Field</strong> · @change.State
+                <p>@change.Actor · @change.Client · @(change.When ?? "Time not reported")</p>
+                <p>Before: @(change.Before ?? "Not reported") → After: @(change.After ?? "Not reported")</p>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<MetadataHistoryPreview> History { get; set; } = [];
+}
