@@ -128,7 +128,7 @@ public sealed class OperateServicesPageTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ServicesPage_PublishesFolderSelectionAndDirtyCountsOnlyWhenEnabled(bool enabled)
+    public async Task ServicesPage_PublishesFolderSelectionAndDirtyCountsOnlyWhenEnabled(bool enabled)
     {
         using var context = CreateContext(enabled);
         context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
@@ -152,7 +152,11 @@ public sealed class OperateServicesPageTests
         Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
         Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
         Assert.Empty(registry.Current.Selection);
-        page.Dispose();
+        page.Find("[data-folder-select]").Change("transport");
+        page.Find("[data-folder-title]").Change("Unsaved before disposal");
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Selection.Count);
+        await context.DisposeComponentsAsync();
         Assert.Equal(enabled ? "/operate/services" : "/", registry.Current.Route);
         Assert.Empty(registry.Current.Entities);
         Assert.Empty(registry.Current.Selection);
