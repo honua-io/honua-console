@@ -56,7 +56,7 @@
         <div class="console-home-inbox-metrics" role="status" aria-live="polite">
             @if (ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true)
             {
-                <div class="console-home-pending" data-home-awaiting-count>
+                <div class="console-home-pending console-summary" data-home-awaiting-count>
                     <ConsoleMetricTile Label="@(_inbox.PartialResult ? "Awaiting approval in returned sources" : "Awaiting approval")"
                                        Value="snapshot.AwaitingApprovalCount" />
                 </div>

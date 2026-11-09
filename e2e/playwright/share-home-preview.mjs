@@ -13,7 +13,7 @@ await runV4PagePresentation({
   controls: "main :is(a[href], [tabindex='0']):visible",
   inspect: async (page, name) => {
     const enabled = name.endsWith("-v4");
-    assert.equal(await page.locator(".console-shell").getAttribute("data-console-v4"), String(enabled));
+    assert.equal(await page.locator(".console-shell").getAttribute("data-console-v4"), enabled ? "true" : null);
     assert.equal(await page.locator(".console-page-heading-v4").count(), enabled ? 1 : 0);
     assert.equal(await page.locator("[data-share-kpi]").count(), 5);
     assert.equal(await page.locator("[data-share-row]").count(), 2);

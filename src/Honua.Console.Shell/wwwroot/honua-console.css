@@ -1483,6 +1483,7 @@ p {
 }
 
 .console-table-wrap {
+    position: relative;
     overflow-x: auto;
     border: 1px solid var(--honua-border);
     border-radius: 8px;

@@ -9,7 +9,7 @@ import { checkKeyboardControls } from "./console-presentation.mjs";
 const previews = path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/catalog-preview");
 const pages = new Map(await Promise.all(["home-inventory-v4", "home-inventory-legacy"].map(async name => {
   const markup = await fs.readFile(path.join(previews, `${name}.html`), "utf8");
-  return [name, `<div class="console-shell" data-console-v4="${name.endsWith("v4")}">${markup}</div>`];
+  return [name, `<div class="console-shell"${name.endsWith("v4") ? ' data-console-v4="true"' : ""}>${markup}</div>`];
 })));
 const server = await startPresentationFixtureServer({
   pages, title: "Home presentation fixture",

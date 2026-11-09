@@ -58,7 +58,7 @@ public sealed class ShareHomeRenderTests
             Assert.Equal(4, page.FindAll(".console-share-summary-details > div").Count);
         }
         CatalogAdminPreview.Capture($"share-home-{(enabled ? "v4" : "legacy")}",
-            $"<div class=\"console-shell\" data-console-v4=\"{enabled.ToString().ToLowerInvariant()}\">{page.Markup}</div>");
+            $"<div class=\"console-shell\" {(enabled ? "data-console-v4=\"true\"" : string.Empty)}>{page.Markup}</div>");
     }
 
     [Theory]
