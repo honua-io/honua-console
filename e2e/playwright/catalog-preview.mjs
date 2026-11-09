@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import http from "node:http";
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "@playwright/test";
+import { startPresentationFixtureServer } from "./presentation-fixture-server.mjs";
 import { checkKeyboardControls, inspectSharedPresentation, inspectCatalogCounts, catalogKeyboardTargets } from "./console-presentation.mjs";
 
 import { inspectV4HomePresentation } from "./v4-home-presentation.mjs";
@@ -15,28 +15,13 @@ const v4Previews = ["home-v4-true", "home-v4-false"];
 const sharedPreviews = ["navigation", "home", "service", "state-info", "state-warning", "state-danger", "state-unsupported", "service-success", "service-danger", "share-warning"];
 const pages = new Map(await Promise.all(["list", "overview", "settings", "templates", "template-editor", "template-dirty", "template-confirmation", "listing", "listing-dirty", "categories", "categories-dirty", ...metadataPreviews, ...sharedPreviews, ...v4Previews].map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
 
-const server = http.createServer(async (request, response) => {
-  const url = new URL(request.url, "http://localhost");
-  const markup = pages.get(url.pathname.slice(1));
-  if (markup) {
-    response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; script-src 'none'; frame-src 'none'; base-uri 'none'" });
-    response.end(`<!doctype html><html lang="en"><head><title>Catalog presentation fixture</title><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/_content/Honua.Console.Shell/honua-console.css"></head><body>${url.pathname === "/navigation" || v4Previews.includes(url.pathname.slice(1)) ? markup : `<main class="console-main">${markup}</main>`}</body></html>`);
-    return;
-  }
-  const file = path.resolve(assets, `.${url.pathname}`);
-  const contentType = { ".css": "text/css", ".woff2": "font/woff2", ".woff": "font/woff" }[path.extname(file)];
-  if (!file.startsWith(`${assets}${path.sep}`) || !contentType) {
-    response.writeHead(404).end();
-    return;
-  }
-  try {
-    const content = await fs.readFile(file);
-    response.writeHead(200, { "Content-Type": contentType });
-    response.end(content);
-  } catch { response.writeHead(404).end(); }
+const server = await startPresentationFixtureServer({
+  pages,
+  title: "Catalog presentation fixture",
+  stylesheets: ["/app.css", "/_content/Honua.Console.Shell/honua-console.css"],
+  assets,
+  unwrappedPages: ["navigation", ...v4Previews],
 });
-
-await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
 let browser;
 try {
   browser = await chromium.launch();
