@@ -11,7 +11,7 @@
 
 @if (IsRetiredRoute)
 {
-    <section class="console-page" data-legacy-studio-retired>
+    <section class="console-page @(V4Enabled ? "console-studio-v4" : null)" data-legacy-studio-retired>
         <p class="console-kicker">Studio</p>
         <h1>This view has moved to the Studio workspace</h1>
         <p>Edit maps with visual controls and your Console conversation.</p>
@@ -21,11 +21,11 @@
 }
 else if (EmbedEnabled && !_interactiveReady)
 {
-    <section class="console-page" role="status">Connecting the realtime Studio workspace…</section>
+    <section class="console-page @(V4Enabled ? "console-studio-v4" : null)" role="status">Connecting the realtime Studio workspace…</section>
 }
 else if (EmbedEnabled)
 {
-    <section class="console-page" data-studio-embed>
+    <section class="console-page @(V4Enabled ? "console-studio-v4" : null)" data-studio-embed>
         <h1>Studio</h1>
         <p>Edit maps with visual controls and your Console conversation.</p>
         <p><a href="/studio/processes">Open Processes</a></p>
@@ -35,7 +35,7 @@ else if (EmbedEnabled)
 }
 else
 {
-    <section class="console-page" data-studio-unavailable>
+    <section class="console-page @(V4Enabled ? "console-studio-v4" : null)" data-studio-unavailable>
         <p class="console-kicker">Studio</p>
         <h1>Studio is unavailable on this deployment</h1>
         <p>Connect a deployment that supports the realtime Console and Studio workspace, or ask your administrator to enable it.</p>
@@ -87,6 +87,7 @@ else
         }
     }
     [Parameter] public string? ItemId { get; set; }
+    private bool V4Enabled => WorkspaceServices.GetService<ConsoleV4Options>()?.Enabled == true;
     private bool EmbedEnabled => bool.TryParse(
         WorkspaceServices.GetService<Microsoft.Extensions.Configuration.IConfiguration>()?["Studio:EmbedJsStudio"], out var enabled) && enabled;
     private bool IsRetiredRoute

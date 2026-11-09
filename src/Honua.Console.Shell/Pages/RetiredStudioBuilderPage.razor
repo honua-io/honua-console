@@ -7,7 +7,9 @@
 @page "/studio/app"
 @page "/studio/dashboard"
 
-<section class="console-page" data-legacy-studio-retired>
+@inject IServiceProvider WorkspaceServices
+
+<section class="console-page @(V4Enabled ? "console-studio-v4" : null)" data-legacy-studio-retired>
     <p class="console-kicker">Studio</p>
     <h1>This view has moved to the Studio workspace</h1>
     <p>Edit maps with visual controls and your Console conversation. Use Processes for analysis and workflow authoring.</p>
@@ -16,6 +18,7 @@
 </section>
 
 @code {
+    private bool V4Enabled => WorkspaceServices.GetService<ConsoleV4Options>()?.Enabled == true;
     [Parameter] public string? Id { get; set; }
     [Parameter] public string? ItemId { get; set; }
 }

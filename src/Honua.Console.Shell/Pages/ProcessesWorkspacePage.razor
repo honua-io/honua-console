@@ -3,7 +3,7 @@
 
 @if (Enabled)
 {
-    <section class="console-page" data-processes-embed>
+    <section class="console-page @(V4Enabled ? "console-studio-v4" : null)" data-processes-embed>
         <h1>Processes</h1>
         <p>Build a governed workflow or develop an isolated local Python or .NET process.</p>
         <p role="status" data-processes-status>Connecting the process workspace…</p>
@@ -18,6 +18,7 @@ else
 }
 
 @code {
+    private bool V4Enabled => WorkspaceServices.GetService<ConsoleV4Options>()?.Enabled == true;
     private bool Enabled => bool.TryParse(
         WorkspaceServices.GetService<Microsoft.Extensions.Configuration.IConfiguration>()?["Studio:EmbedJsStudio"], out var enabled) && enabled;
 }
