@@ -278,14 +278,7 @@ internal static partial class AgentWorkspaceBff
                 if (!context.RequestServices.GetRequiredService<ConsoleServerSessionClientStore>()
                     .TryGet(operatorKey, profile, out cookiePartition) || cookiePartition is null)
                     return Results.StatusCode(401);
-                if (humanStudioEdit && !context.RequestServices.GetRequiredService<ConsoleApprovalBrowserChannel>()
-                    .Authorizes(new ConsoleApprovalBrowserTarget
-                    {
-                        SelectedProfile = profile,
-                        AuthorityProfile = profile,
-                        Authority = ConsoleServerAuthority.Serving,
-                        Partition = cookiePartition,
-                    }))
+                if (humanStudioEdit && !AuthorizesHumanStudioDraftWrite(context, profile, cookiePartition))
                     return Results.StatusCode(403);
             }
             using var authentication = cookiePartition is null ? null
@@ -398,6 +391,16 @@ internal static partial class AgentWorkspaceBff
 
     [GeneratedRegex(@"\A(?:health|v1/studio/(?:catalog|packages|package-families|package-drafts|content-items)(?:/[A-Za-z0-9_-]{1,128}){0,4})\z", RegexOptions.CultureInvariant)]
     private static partial Regex StudioPath();
+
+    private static bool AuthorizesHumanStudioDraftWrite(
+        HttpContext context, ConsoleEnvironmentProfile profile, ConsoleServerSessionPartition partition) =>
+        context.RequestServices.GetRequiredService<ConsoleApprovalBrowserChannel>().Authorizes(new ConsoleApprovalBrowserTarget
+        {
+            SelectedProfile = profile,
+            AuthorityProfile = profile,
+            Authority = ConsoleServerAuthority.Serving,
+            Partition = partition,
+        });
 
     private static bool IsPrivateStudioDraftWrite(string? path, string method)
     {
