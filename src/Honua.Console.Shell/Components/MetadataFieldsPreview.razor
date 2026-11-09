@@ -58,7 +58,7 @@
         <div class="metadata-save-bar">
             <p role="status">@(IsDirty ? "Unsaved local schema changes · nothing saved or proposed" : "Local schemas unchanged")</p>
             <button type="button" class="console-button console-button-secondary" data-schema-discard disabled="@(!IsDirty)" @onclick="Discard">Discard local edits</button>
-            <p>Schema proposals are unavailable until the shared mutation contract is connected.</p>
+            <p>Schema proposals are unavailable in this preview.</p>
         </div>
     }
 </div>

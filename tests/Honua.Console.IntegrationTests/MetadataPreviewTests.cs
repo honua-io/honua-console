@@ -13,7 +13,7 @@ public sealed class MetadataPreviewTests
     {
         var enabled = ConsoleNavigation.Definitions(new CatalogAdminOptions { Enabled = true });
         var disabled = ConsoleNavigation.Definitions(new CatalogAdminOptions());
-        Assert.Single(enabled.SelectMany(group => group.Destinations).Where(entry => entry.Path == "/metadata/fields"));
+        Assert.Single(enabled.SelectMany(group => group.Destinations), entry => entry.Path == "/metadata/fields");
         Assert.DoesNotContain(disabled.SelectMany(group => group.Destinations), entry => entry.Path == "/metadata/fields");
     }
 

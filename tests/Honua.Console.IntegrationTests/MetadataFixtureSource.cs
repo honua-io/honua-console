@@ -68,6 +68,9 @@ internal sealed class MetadataFixtureSource : IMetadataPreviewSource
 
     private static MetadataHistoryPreview Change() => new("Title", "Example user", "Console")
     {
-        When = "Example recorded time", Before = "Flood areas", After = "Flood hazard areas", State = "Applied"
+        When = "Example recorded time",
+        Before = "Flood areas",
+        After = "Flood hazard areas",
+        State = "Applied"
     };
 }

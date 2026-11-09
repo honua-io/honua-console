@@ -17,12 +17,16 @@ export async function inspectMetadataPresentation(page, sample, previews) {
     assert.ok(await page.getByRole("heading", { name: "Try a local field draft" }).isVisible());
     assert.equal(await page.getByLabel("Name", { exact: true }).count(), 1);
   } else if (sample.name.startsWith("metadata-import")) {
-    const lead = root.locator(".metadata-import-counts > div:first-child dd");
-    const rest = await root.locator(".metadata-import-counts > div:not(:first-child) dd").evaluateAll(elements =>
+    const lead = root.locator(".metadata-import-counts > [data-metadata-count="mapped"] dd");
+    const rest = await root.locator(".metadata-import-counts > div:not([data-metadata-count="mapped"]) dd").evaluateAll(elements =>
       elements.map(element => parseFloat(getComputedStyle(element).fontSize)));
     assert.ok(await lead.evaluate(element => parseFloat(getComputedStyle(element).fontSize)) > Math.max(...rest));
     assert.ok(await page.getByText("No file has been uploaded.", { exact: false }).isVisible());
   } else {
+    const history = await page.getByRole("heading", { name: "Example history", exact: true }).boundingBox();
+    const identification = await page.getByRole("heading", { name: "Identification", exact: true }).boundingBox();
+    if (sample.width > 1000) assert.ok(history.x > identification.x + identification.width, "Desktop history must sit beside the fields");
+    else assert.ok(history.y > identification.y, "Narrow history must stack below the fields");
     assert.ok(await page.getByRole("heading", { name: "Identification", exact: true }).isVisible());
     assert.ok(await page.getByRole("heading", { name: "Example history", exact: true }).isVisible());
     assert.equal(await page.getByLabel("Local Title override", { exact: true }).count(), 1);
