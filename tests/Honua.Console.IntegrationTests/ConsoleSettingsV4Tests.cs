@@ -34,6 +34,8 @@ public sealed class ConsoleSettingsV4Tests
         var page = context.Render<OperateSettingsPage>();
         Assert.Contains("runtime settings", page.Markup);
         Assert.Empty(page.FindAll("table"));
+        Assert.Empty(page.FindAll(".console-panel .console-panel"));
+        Assert.Empty(page.FindAll("#server-configuration-heading"));
         Assert.Empty(page.FindAll("input,select,textarea,button"));
     }
 
@@ -52,6 +54,8 @@ public sealed class ConsoleSettingsV4Tests
         Assert.Contains("No server is bound.", page.Markup);
         Assert.DoesNotContain("Unrelated Services diagnostic.", page.Markup);
         Assert.Empty(page.FindAll("table"));
+        Assert.Empty(page.FindAll(".console-panel .console-panel"));
+        Assert.Empty(page.FindAll("#server-configuration-heading"));
     }
 
     private static BunitContext Context(bool enabled, OperateSettingsView view)
