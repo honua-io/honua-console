@@ -2,11 +2,14 @@
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @using Microsoft.JSInterop
+@using Honua.Console.Shell.Components.Operate
+@using Honua.Sdk.Admin.Models
 @implements IAsyncDisposable
 @inject IServiceLayerPublishOperation PublishOperation
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleNotificationService Notifications
 @inject IJSRuntime JS
+@inject IServiceProvider Services
 
 @*
     The publish wizard for the Operate publishing workspace: Service → Layer → Review, wired
@@ -59,6 +62,11 @@ else
                    OnFinish="OnFinish" />
 }
 
+@if (_unverifiedCommand is { } pendingPublish)
+{
+    <PublishOutcomeVerification @key="_publishAttempt" AuthorityBinding="@pendingPublish.AuthorityBinding" ServiceName="@pendingPublish.ServiceName" LayerName="@pendingPublish.LayerName" OnVerified="@(() => { _requiresCatalogRead = false; _publishResult = null; })" />
+}
+
 @code {
     private PublishModeBar.PublishMode _mode = PublishModeBar.PublishMode.Quick;
 
@@ -76,13 +84,20 @@ else
     private bool _createNewService;
     private string? _selectedServiceName;
     private string _newServiceName = string.Empty;
+    private OptionalString _folderId;
+    private string _publicName = "";
+    private string? _folderAuthority;
     private string? _connectionId;
     private string? _tableKey;
     private string _layerName = string.Empty;
 
     private bool _published;
     private bool _publishing;
+    private bool _requiresCatalogRead;
+    private ServiceLayerPublishCommand? _unverifiedCommand;
+    private int _publishAttempt;
     private ServiceLayerPublishResult? _publishResult;
+    private string? _publishedServiceUrl;
 
     private ServiceLayerPublishTable? SelectedTable =>
         _tables.FirstOrDefault(t => string.Equals(t.QualifiedName, _tableKey, StringComparison.Ordinal));
@@ -183,6 +198,16 @@ else
             return;
         }
 
+        if (_requiresCatalogRead) return;
+        var folderSelection = _createNewService ? _folderId : default;
+        var target = await ConsolePublishAuthority.CaptureAsync(Services, folderSelection, _folderAuthority);
+        if (target.Error is { } error)
+        {
+            _publishResult = new() { State = "Target changed", Detail = error };
+            return;
+        }
+        var authority = target.Validator;
+        var binding = target.Binding;
         var command = new ServiceLayerPublishCommand
         {
             ConnectionId = _connectionId,
@@ -190,6 +215,9 @@ else
             Table = table.Table,
             LayerName = string.IsNullOrWhiteSpace(_layerName) ? table.Table : _layerName.Trim(),
             ServiceName = EffectiveServiceName,
+            FolderId = folderSelection,
+            PublicName = _createNewService && !string.IsNullOrWhiteSpace(_publicName) ? _publicName.Trim() : null,
+            AuthorityBinding = binding,
             GeometryColumn = table.GeometryColumn,
             GeometryType = table.GeometryType,
             Srid = table.Srid,
@@ -197,11 +225,26 @@ else
             Enabled = true
         };
 
+        _unverifiedCommand = null;
+        _publishAttempt++;
         _publishResult = await PublishOperation.PublishAsync(command);
         _published = _publishResult.Succeeded;
+        _requiresCatalogRead = _publishResult.State == Honua.Console.Contracts.ConsoleWriteOutcome.UnverifiedState;
+        _unverifiedCommand = _requiresCatalogRead ? command : null;
 
         if (_publishResult.Succeeded)
         {
+            _publishedServiceUrl = null;
+            Services.GetService<ConsoleFolderChanges>()?.Notify();
+            var currentServices = binding is not null && authority is not null && await authority.IsCurrentAsync(binding)
+                ? await ConsoleReadBudget.RunAsync(async token =>
+                OperateSectionResult<OperateServicesView>.Allowed(await OperateData.GetServicesViewAsync(token)),
+                ConsoleReadBudget.Default, "Service endpoints could not be refreshed.")
+                : null;
+            if (binding is not null && authority is not null && await authority.IsCurrentAsync(binding))
+                _publishedServiceUrl = currentServices?.Value?.Services
+                    .SingleOrDefault(service => service.Name == _publishResult.ServiceName)?.PublicationSlots
+                    .FirstOrDefault(slot => slot.Name == "FeatureServer")?.Url;
             Notifications.Success(
                 $"Published {_publishResult.LayerName ?? command.LayerName} into {_publishResult.ServiceName ?? command.ServiceName}.");
         }
@@ -232,7 +275,7 @@ else
             QuickLayerBody,
             IsValid: SelectedTable is not null,
             ContinueLabel: "Continue · Review →"),
-        new PublishWizardStep("Review", QuickReviewBody, IsValid: !_publishing && SelectedTable is not null),
+        new PublishWizardStep("Review", QuickReviewBody, IsValid: !_publishing && !_requiresCatalogRead && SelectedTable is not null),
     ];
 
     private RenderFragment QuickServiceBody => __builder =>
@@ -269,6 +312,12 @@ else
                             <span>Service name</span>
                             <input class="console-input" data-new-service-name @bind="_newServiceName" @bind:event="oninput" />
                         </label>
+                        <FolderPublishSelection @bind-Value="_folderId" AuthorityBindingChanged="binding => _folderAuthority = binding" />
+                        <label class="publish-field">
+                            <span>Public Service name (optional)</span>
+                            <input class="console-input" @bind="_publicName" data-service-public-name />
+                            <small>Immutable after assignment. Leave blank to use the Service identity.</small>
+                        </label>
                         <p class="console-muted">honua-server creates the service when the layer publishes. Its runtime settings — CRS, capabilities, cache, output formats — are managed in Operate → Services.</p>
                     </article>
                 }
@@ -280,7 +329,9 @@ else
                     <article class="console-panel">
                         <h3>You're publishing into</h3>
                         <dl class="console-definition-list">
-                            <dt>Service</dt><dd>@svc.Name</dd>
+                            <dt>Service</dt><dd>@svc.DisplayName</dd>
+                            <dt>Identity</dt><dd>@svc.Name</dd>
+                            <dt>Folder</dt><dd>@ConsoleFolderCatalog.LocationLabel(svc.FolderId, svc.FolderName)</dd>
                             <dt>Kind</dt><dd>@Unknown(svc.ServiceType)</dd>
                             <dt>Runtime status</dt><dd>@Unknown(svc.RuntimeStatus)</dd>
                             <dt>Metadata owner</dt><dd>@Unknown(svc.MetadataOwnership)</dd>
@@ -316,7 +367,10 @@ else
             }
             else
             {
-                @foreach (var service in _services)
+                @foreach (var group in _services.GroupBy(service => service.FolderId).OrderBy(group => group.First().FolderName ?? "", StringComparer.OrdinalIgnoreCase))
+                {
+                    <h4>@ConsoleFolderCatalog.LocationLabel(group.Key, group.First().FolderName)</h4>
+                @foreach (var service in group)
                 {
                     var selected = string.Equals(service.Name, _selectedServiceName, StringComparison.Ordinal);
                     <button type="button"
@@ -324,14 +378,15 @@ else
                             data-publish-tree-row="@service.Name"
                             aria-pressed="@selected"
                             @onclick="() => _selectedServiceName = service.Name">
-                        <span class="publish-tree-name">◈ @service.Name</span>
+                        <span class="publish-tree-name">@service.DisplayName</span>
                         @if (!string.Equals(service.DisplayName, service.Name, StringComparison.Ordinal)
                              && !string.IsNullOrWhiteSpace(service.DisplayName))
                         {
-                            <span class="console-muted publish-tree-display-name">@service.DisplayName</span>
+                            <span class="console-muted publish-tree-display-name">Identity: @service.Name</span>
                         }
                         <span class="console-muted">@Unknown(service.ServiceType) · @service.Layers.Count layers · @Unknown(service.RuntimeStatus)</span>
                     </button>
+                }
                 }
             }
         </div>
@@ -449,9 +504,9 @@ else
             </div>
 
             <aside class="publish-wizard-rail">
-                @if (_published && _publishResult?.ServiceName is { } published)
+                @if (_published && _publishedServiceUrl is { } publishedUrl)
                 {
-                    @UrlPreviewCard($"/rest/services/{published}/FeatureServer")
+                    @UrlPreviewCard(publishedUrl)
                 }
                 @PublishResultCallout
             </aside>
@@ -461,9 +516,7 @@ else
     // The published route only exists once the server has assigned the slot; before that this is an
     // honest placeholder rather than a guessed path.
     private string PublishedUrl =>
-        _published && _publishResult?.ServiceName is { } service
-            ? $"/rest/services/{service}/FeatureServer" + (_publishResult.LayerId is { } id ? $"/{id}" : string.Empty)
-            : "assigned on publish";
+        _published ? _publishedServiceUrl ?? "Open Service settings to read current endpoints" : "assigned on publish";
 
     private RenderFragment PublishResultCallout => __builder =>
     {

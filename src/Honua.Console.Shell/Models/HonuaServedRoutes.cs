@@ -6,19 +6,19 @@ namespace Honua.Console.Shell.Models;
 // Checked against the honua-server endpoint registry.
 public static class HonuaServedRoutes
 {
-    public static string? PathFor(string serviceName, string protocol)
+    public static string? PathFor(string? serviceName, string protocol, string? folderName = null)
     {
-        var service = Uri.EscapeDataString(serviceName);
+        var service = serviceName is null ? null : (string.IsNullOrEmpty(folderName) ? "" : Uri.EscapeDataString(folderName) + "/") + Uri.EscapeDataString(serviceName);
 
         return protocol switch
         {
-            "FeatureServer" => $"/rest/services/{service}/FeatureServer",
-            "MapServer" => $"/rest/services/{service}/MapServer",
-            "ImageServer" => $"/rest/services/{service}/ImageServer",
-            "GPServer" => $"/rest/services/{service}/GPServer",
-            "Wms" => $"/ogc/services/{service}/wms",
-            "Wmts" => $"/ogc/services/{service}/wmts",
-            "Wcs" => $"/ogc/services/{service}/wcs",
+            "FeatureServer" when service is not null => $"/rest/services/{service}/FeatureServer",
+            "MapServer" when service is not null => $"/rest/services/{service}/MapServer",
+            "ImageServer" when service is not null => $"/rest/services/{service}/ImageServer",
+            "GPServer" when service is not null => $"/rest/services/{service}/GPServer",
+            "Wms" when service is not null => $"/ogc/services/{service}/wms",
+            "Wmts" when service is not null => $"/ogc/services/{service}/wmts",
+            "Wcs" when service is not null => $"/ogc/services/{service}/wcs",
             "Wfs20" => "/wfs",
             "OgcFeatures" => "/ogc/features",
             "OgcApiTiles" => "/ogc/tiles",
@@ -30,7 +30,7 @@ public static class HonuaServedRoutes
         };
     }
 
-    public static string CatalogPathFor(string serviceName, string protocol) =>
-        PathFor(serviceName, protocol)
+    public static string CatalogPathFor(string? serviceName, string protocol, string? folderName = null) =>
+        PathFor(serviceName, protocol, folderName)
         ?? throw new InvalidOperationException($"Catalog protocol '{protocol}' has no served route.");
 }

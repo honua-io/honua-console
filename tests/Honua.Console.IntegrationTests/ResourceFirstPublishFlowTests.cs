@@ -166,6 +166,21 @@ public sealed class ResourceFirstPublishFlowTests
         Assert.Equal(expected, ids);
     }
 
+    [Theory]
+    [InlineData("Survey", "/rest/services/Survey/Public%20parcels/FeatureServer")]
+    [InlineData(null, null)]
+    public void TreeBuilder_UsesThePublicPathAndNeverInventsRootForAnUnresolvedFolder(string? folderName, string? expectedRoute)
+    {
+        var service = Service("logical-id", "FeatureServer", Layer(1, "rsc_parcels")) with
+        {
+            FolderId = "folder",
+            FolderName = folderName,
+            PublicName = "Public parcels"
+        };
+        var tree = ResourcePublicationsTreeBuilder.Build([EditPreview("rsc_parcels", "Parcels")], [service]);
+        Assert.Equal(expectedRoute, Assert.Single(Assert.Single(tree).Publications).Route);
+    }
+
     [Fact]
     public void TreeBuilder_WithJoinedProtocolServiceType_ShowsResourceRunningWithPublications()
     {

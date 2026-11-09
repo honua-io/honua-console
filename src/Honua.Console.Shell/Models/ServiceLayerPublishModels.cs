@@ -1,7 +1,12 @@
+using Honua.Sdk.Admin.Models;
+
 namespace Honua.Console.Shell.Models;
 
 public sealed record ServiceLayerPublishCommand
 {
+    public OptionalString FolderId { get; init; }
+    public string? PublicName { get; init; }
+    public string? AuthorityBinding { get; init; }
     public required string ConnectionId { get; init; }
 
     public required string Schema { get; init; }

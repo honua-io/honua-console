@@ -1,12 +1,14 @@
 using Bunit;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Layout;
+using Honua.Console.Shell.Components.Operate;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
+using Honua.Sdk.Admin.Models;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using static Honua.Console.IntegrationTests.ConsolePublicationRenderFixture;
@@ -194,7 +196,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     [InlineData("later-page")]
     public void ColdLayerNavigationResolvesAuthorizedAncestryWithoutExpandingTheSidebar(string entry)
     {
-        var service = new HonuaAdminServiceSummary
+        var service = new ServiceSummary
         {
             ServiceName = "z-parcels",
             FolderId = "public",
@@ -205,7 +207,7 @@ public sealed class ConsolePublicationNavigationRenderTests
         var source = new PublicationNavigationSource
         {
             ServiceSummaries = entry == "later-page"
-                ? Enumerable.Range(0, 100).Select(index => new HonuaAdminServiceSummary { ServiceName = $"empty-{index:D3}" }).Append(service).ToArray()
+                ? Enumerable.Range(0, 100).Select(index => new ServiceSummary { ServiceName = $"empty-{index:D3}" }).Append(service).ToArray()
                 : [service]
         };
         using var context = PublicationLayoutContext(source);
@@ -230,7 +232,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     {
         var source = new PublicationNavigationSource
         {
-            ServiceSummaries = Enumerable.Range(0, 500).Select(index => new HonuaAdminServiceSummary
+            ServiceSummaries = Enumerable.Range(0, 500).Select(index => new ServiceSummary
             { ServiceName = $"service-{index:D3}", LayerCount = 10 }).Append(new()
             { ServiceName = "z-parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 }).ToArray()
         };
@@ -249,7 +251,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     {
         var source = new PublicationNavigationSource
         {
-            ServiceSummaries = Enumerable.Range(0, 100).Select(index => new HonuaAdminServiceSummary
+            ServiceSummaries = Enumerable.Range(0, 100).Select(index => new ServiceSummary
             { ServiceName = $"empty-{index:D3}" }).Append(new()
             { ServiceName = "z-parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 }).ToArray()
         };
@@ -622,12 +624,93 @@ public sealed class ConsolePublicationNavigationRenderTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FolderReadAndMutationSignalRefreshTheExistingNavigation(bool denied)
+    {
+        using var context = Context();
+        var source = new PublicationNavigationSource();
+        var folders = new FolderClient { Denied = denied };
+        var changes = new ConsoleFolderChanges();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        context.Services.AddSingleton<IConsoleFolderClient>(folders);
+        context.Services.AddSingleton(changes);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        if (denied) tree.WaitForAssertion(() => Assert.Contains("Folder read refused", tree.Markup));
+        else tree.WaitForAssertion(() => Assert.Contains("Empty survey", tree.Markup));
+        Assert.Equal(1, folders.Reads);
+        await tree.InvokeAsync(changes.Notify);
+        tree.WaitForAssertion(() => Assert.Equal(2, folders.Reads));
+        Assert.Equal(2, source.ServiceReads);
+    }
+
+    private sealed class FolderClient : IConsoleFolderClient
+    {
+        public bool Denied { get; init; }
+        public int Reads { get; private set; }
+        public Task<OperateSectionResult<ConsoleFolderCatalog>> ReadAsync(CancellationToken cancellationToken = default)
+        {
+            Reads++;
+            return Task.FromResult(Denied
+                ? OperateSectionResult<ConsoleFolderCatalog>.Denied(OperateSectionStatus.Forbidden, "Folder read refused")
+                : OperateSectionResult<ConsoleFolderCatalog>.Allowed(new([new Folder { Metadata = new() { Id = "empty", Name = "Empty survey" } }], "etag", "authority")));
+        }
+        public Task<ConsoleFolderMutationResult> CreateAsync(ConsoleFolderCatalog catalog, CreateFolderRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ConsoleFolderMutationResult> UpdateAsync(ConsoleFolderCatalog catalog, string folderId, UpdateFolderRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ConsoleFolderMutationResult> DeleteAsync(ConsoleFolderCatalog catalog, string folderId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ConsoleFolderMutationResult> MoveAsync(ConsoleFolderCatalog catalog, string serviceName, MoveServiceRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    [Theory]
+    [InlineData("denied", false)]
+    [InlineData("changed-before", false)]
+    [InlineData("changed-after", false)]
+    [InlineData("success", true)]
+    [InlineData("not-found", true)]
+    public void UnverifiedPublishCanOnlyUnlockAfterAnAllowedReadOfTheOriginalAuthority(string outcome, bool expectedVerified)
+    {
+        using var context = Context();
+        var authority = new VerificationAuthority { Current = outcome != "changed-before" };
+        var source = new PublicationNavigationSource { ServiceSummaries = outcome == "not-found" ? [] : null };
+        var changes = new ConsoleFolderChanges();
+        var reloads = 0;
+        changes.Changed += () => reloads++;
+        context.Services.AddSingleton(changes);
+        if (outcome == "denied") source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Forbidden, "Catalog denied");
+        if (outcome == "changed-after") source.OnServiceRead = () => authority.Current = false;
+        context.Services.AddSingleton<IConsoleAuthorityBindingValidator>(authority);
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        var verified = false;
+        var panel = context.Render<PublishOutcomeVerification>(parameters => parameters
+            .Add(component => component.AuthorityBinding, "original")
+            .Add(component => component.ServiceName, "service-000")
+            .Add(component => component.LayerName, "Parcels")
+            .Add(component => component.OnVerified, () => verified = true));
+        panel.Find("[data-publish-verify]").Click();
+        Assert.Equal(expectedVerified, verified);
+        Assert.Equal(expectedVerified ? 1 : 0, reloads);
+        if (expectedVerified)
+        {
+            var readback = panel.Find("[data-publish-readback]").TextContent;
+            if (outcome == "not-found") Assert.Contains("not found on the first page", readback);
+            else Assert.Contains("10 layers", readback);
+            Assert.NotEmpty(panel.Find("[data-publish-readback] a").GetAttribute("href")!);
+        }
+        Assert.Equal(outcome == "changed-before" ? 0 : 1, source.ServiceReads);
+    }
+
+    private sealed class VerificationAuthority : IConsoleAuthorityBindingValidator
+    {
+        public bool Current { get; set; } = true;
+        public Task<bool> IsCurrentAsync(string binding, CancellationToken cancellationToken = default) => Task.FromResult(Current && binding == "original");
+    }
+
     private static BunitContext Context()
     {
         var context = new BunitContext();
         context.AddAuthorization().SetAuthorized("synthetic-operator");
         return context;
     }
-
 
 }

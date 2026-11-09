@@ -28,3 +28,13 @@ test('connected workspace refuses a generic geometry choice it cannot retain',()
  assert.throws(() => requireSupportedWorkspacePublish({querySelector: () => ({})}), /fresh browser session/i);
  assert.doesNotThrow(() => requireSupportedWorkspacePublish({querySelector: () => null}));
 });
+test('connected workspace refuses explicit Folder, Root and public Service name choices without dropping them',()=>{
+ for (const choice of ['root:', 'folder:transport']) {
+  const form={querySelector:selector=>selector==='[data-publish-folder]'?{value:choice}:null};
+  assert.throws(()=>requireSupportedWorkspacePublish(form),/publishing wizard/i);
+ }
+ const publicName={querySelector:selector=>selector==='[data-service-public-name]'?{value:'Public-name'}:null};
+ assert.throws(()=>requireSupportedWorkspacePublish(publicName),/publishing wizard/i);
+ const unchanged={querySelector:selector=>selector==='[data-publish-folder]'?{value:'preserve:'}:null};
+ assert.doesNotThrow(()=>requireSupportedWorkspacePublish(unchanged));
+});

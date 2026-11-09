@@ -134,6 +134,11 @@ public sealed record OperateServiceDetail(
     IReadOnlyList<OperateRuntimeSetting> RuntimeSettings,
     IReadOnlyList<OperatePublicationSlot> PublicationSlots)
 {
+    public string? FolderId { get; init; }
+    public string? FolderName { get; init; }
+    public string? PublicName { get; init; }
+    public IReadOnlyList<string> FolderMutationIssues { get; init; } = [];
+    public string? PublicServiceName => FolderId is not null && string.IsNullOrWhiteSpace(FolderName) ? null : PublicName ?? Name;
     // ServiceType lists the enabled protocols, comma separated.
     public bool Serves(string protocol) =>
         ServiceType.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)

@@ -60,6 +60,7 @@ public sealed class ConsoleOperatorCredentialHandler(
                 AgentGatewayBinding.OperatorPartition(operators.RequireOperatorKey(), current.Id, current.ServerBaseUri), StringComparison.Ordinal))
             {
                 response.Dispose();
+                request.Options.Set(ConsoleWriteOutcome.Unverified, true);
                 return AuthorityChanged(request);
             }
         }

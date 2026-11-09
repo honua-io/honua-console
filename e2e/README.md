@@ -57,11 +57,13 @@ connection specs fill in.
 source for the `services-layers` publish workflow and the `studio-results` specs.
 `e2e/initdb/03-dedicated-sources.sql` creates `public.e2e_golive_src`,
 `public.e2e_settings_src` and `public.e2e_types_src` (same shape) for `data-flow-go-live`,
-`service-settings` and `service-types`.
+`service-settings` and `service-types`. It also creates `public.e2e_folder_src`
+for `folder-management`.
 honua-server backs a source table with one layer only, so a spec that seeds its own layer
-needs a table no other spec publishes. Those specs seed through `live/seeded-layer.ts`, which
-keeps the seed connection and reuses the layer on a retry; `services-layers` publishes
-`e2e_layer_src` through the UI and expects a fresh testbed.
+needs a table no other spec publishes. `data-flow-go-live`, `service-settings` and
+`service-types` seed through `live/seeded-layer.ts`, which keeps the seed connection
+and reuses the layer on a retry. `services-layers` publishes `e2e_layer_src` and
+`folder-management` publishes `e2e_folder_src` through the UI; both expect a fresh testbed.
 
 ## What the live specs prove
 

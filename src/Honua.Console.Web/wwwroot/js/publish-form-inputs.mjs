@@ -2,6 +2,10 @@
 export function requireSupportedWorkspacePublish(form) {
     if (form.querySelector('[data-publish-generic-geometry]'))
         throw new Error('This connected workspace cannot retain a geometry type yet. Open a fresh browser session without a connected workspace to publish this table.');
+    const folder = form.querySelector('[data-publish-folder]')?.value;
+    const publicName = form.querySelector('[data-service-public-name]')?.value?.trim();
+    if ((folder && folder !== 'preserve:') || publicName)
+        throw new Error('Use the publishing wizard at /operate/publishing for Folder or public Service name choices. This connected workspace cannot retain them yet.');
 }
 
 export function createPublishInputBinder(workspace, {signal, shouldIgnore = () => false} = {}) {

@@ -1,3 +1,4 @@
+using Honua.Sdk.Admin.Models;
 using System.Text.Json;
 
 namespace Honua.Console.Contracts;
@@ -71,6 +72,9 @@ public interface IHonuaAdminLayerMetadataClient
 
 public interface IHonuaAdminLayerPublishingClient
 {
+    Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary>> PublishLayerBoundAsync(
+        string connectionId, PublishLayerRequest request, string authorityBinding, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Authority-bound publishing is unavailable.");
     Task<HonuaAdminEndpointResult<HonuaAdminLayerPage>> ListConnectionLayersAsync(
         string connectionId,
         HonuaAdminLayerListRequest request,
@@ -78,7 +82,7 @@ public interface IHonuaAdminLayerPublishingClient
 
     Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary>> PublishLayerAsync(
         string connectionId,
-        HonuaAdminPublishLayerRequest request,
+        PublishLayerRequest request,
         CancellationToken cancellationToken = default);
 
     Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary>> SetLayerEnabledAsync(

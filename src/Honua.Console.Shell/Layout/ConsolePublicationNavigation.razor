@@ -15,6 +15,7 @@
                 @if (Source is not UnsupportedConsolePublicationNavigationSource)
                 {
                     <button type="button" class="console-button console-button-secondary" aria-disabled="@(_loading ? "true" : "false")" @onclick="RefreshAsync">Refresh services</button>
+                    <a href="/operate/services#folders">Manage Folders</a>
                 }
                 <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation">Close</button>
             </div>
@@ -34,6 +35,8 @@
     private readonly ConsolePublicationTree _tree = new();
     private CancellationTokenSource _authorityLifetime = new();
     private OperateSectionResult<HonuaAdminServicePage>? _servicesRead;
+    private OperateSectionResult<ConsoleFolderCatalog>? _foldersRead;
+    private ConsoleFolderChanges? _folderChanges;
     private Task<OperateSectionResult<IReadOnlyList<string>>>? _connectionsRead;
     private ConsoleEnvironmentAuthority? _authority;
     private string _environmentLabel = "Services";
@@ -69,7 +72,7 @@
     };
     private ConsolePublicationNavigationReadState ReadState => new()
     {
-        Loading = _loading, ServicesRead = _servicesRead,
+        Loading = _loading, ServicesRead = _servicesRead, FoldersRead = _foldersRead,
         CanConnectEnvironment = Source is UnsupportedConsolePublicationNavigationSource,
         Retry = EventCallback.Factory.Create(this, RetryCatalogAsync)
     };
@@ -78,6 +81,8 @@
     {
         if (LayerContext is not null) LayerContext.Changed += LayerSelectionChanged;
         Navigation.LocationChanged += LocationChanged;
+        _folderChanges = Services.GetService<ConsoleFolderChanges>();
+        if (_folderChanges is not null) _folderChanges.Changed += FoldersChanged;
         _capabilities = Services.GetService<IConsoleCapabilityManifest>();
         if (_capabilities is not null) _capabilities.Changed += CapabilitiesChanged;
         _authentication = Services.GetService<AuthenticationStateProvider>();
@@ -159,6 +164,13 @@
             token => Source.ReadServicesAsync(attempt.Query, token), ConsoleReadBudget.Default,
             "Service navigation is unavailable. Retry when the server is reachable.", _authorityLifetime.Token);
         if (!IsCurrent(attempt)) return CatalogOutcome.Obsolete;
+        if (attempt.Apply != CatalogApply.Append && Services.GetService<IConsoleFolderClient>() is { } folders)
+        {
+            var folderRead = await ConsoleReadBudget.RunAsync(folders.ReadAsync, ConsoleReadBudget.Default,
+                "Folders could not be read. Refresh to include empty Folders.", _authorityLifetime.Token);
+            if (!IsCurrent(attempt)) return CatalogOutcome.Obsolete;
+            _foldersRead = folderRead;
+        }
         _inflight = null;
         _servicesRead = result;
         if (!result.IsAllowed || result.Value is null)
@@ -170,7 +182,7 @@
         _failed = null;
         _settled = attempt;
         if (attempt.Apply == CatalogApply.Append) _tree.Append(result.Value);
-        else _tree.Load(result.Value, _environmentLabel);
+        else _tree.Load(result.Value, _environmentLabel, _foldersRead?.Value?.Folders);
         return CatalogOutcome.Applied;
     }
 
@@ -228,6 +240,7 @@
         _tree.Load(new HonuaAdminServicePage(), _environmentLabel);
         _tree.SetFilter("");
         _servicesRead = null;
+        _foldersRead = null;
         _loading = true;
     }
 
@@ -376,6 +389,7 @@
         _ = InvokeAsync(ReconcileLocationAsync);
     }
     private void CapabilitiesChanged() => _ = InvokeAsync(CheckAuthorityAsync);
+    private void FoldersChanged() => _ = InvokeAsync(ReloadAuthorityAsync);
     private void AuthenticationChanged(Task<AuthenticationState> state) => _ = InvokeAsync(ReloadAuthorityAsync);
 
     public void Dispose()
@@ -383,6 +397,7 @@
         _disposed = true;
         if (LayerContext is not null) LayerContext.Changed -= LayerSelectionChanged;
         Navigation.LocationChanged -= LocationChanged;
+        if (_folderChanges is not null) _folderChanges.Changed -= FoldersChanged;
         if (_capabilities is not null) _capabilities.Changed -= CapabilitiesChanged;
         if (_authentication is not null) _authentication.AuthenticationStateChanged -= AuthenticationChanged;
         _authorityLifetime.Cancel();

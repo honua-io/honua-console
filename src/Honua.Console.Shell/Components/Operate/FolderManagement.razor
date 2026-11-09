@@ -1,0 +1,219 @@
+@using Honua.Sdk.Admin.Models
+@implements IDisposable
+@inject IServiceProvider Services
+
+<section class="console-section" id="folders" data-folder-management data-folder-completions="@_completedMutations">
+    <div class="console-page-heading">
+        <h2>@(ServiceName is null ? "Folders" : "Service Folder")</h2>
+        <p>Folders organize public paths. Access remains managed per Service. Existing public paths remain aliases after a move or path rename.</p>
+    </div>
+    @if (_loading)
+    {
+        <OperateSectionStatusPanel Heading="Folders" Loading="true" />
+    }
+    else if (_catalog is null)
+    {
+        <OperateSectionStatusPanel Heading="Folders" Status="@(_read?.Status ?? OperateSectionStatus.Missing)"
+                                   Message="@(_read?.Message ?? "Connect an environment to manage Folders.")" />
+    }
+    @if (!_loading)
+    {
+        <button class="console-button console-button-secondary" type="button" @onclick="RefreshAsync" disabled="@_busy" data-folder-refresh>Refresh Folders</button>
+    }
+    @if (_catalog is { } catalog)
+    {
+        <fieldset disabled="@(_busy || _loading)" class="console-folder-fields">
+            <legend>@(ServiceName is null ? "Manage Folders" : "Choose destination")</legend>
+            @if (ServiceName is null)
+            {
+                <p>Root contains Services without a Folder. Folders are listed below; their Services may require separate access.</p>
+                <label class="console-field">
+                    <span>Folder</span>
+                    <select class="console-input" aria-label="Folder" @bind="_folderId" @bind:after="SelectFolder" data-folder-select>
+                        <option value="">New Folder</option>
+                        @foreach (var folder in catalog.ActiveFolders)
+                        {
+                            <option value="@folder.Metadata.Id">@ConsoleFolderCatalog.Label(folder)</option>
+                        }
+                    </select>
+                </label>
+                @if (SelectedFolder is { } selected)
+                {
+                    <p data-folder-current>Saved path: @selected.Metadata.Name · Saved title: @(selected.Metadata.Title ?? "None")</p>
+                }
+                <div class="studio-field-grid">
+                    <label class="console-field">
+                        <span>Folder path name</span>
+                        <input class="console-input" @bind="_name" maxlength="128" data-folder-name />
+                        <small>One path segment. A rename preserves saved client connections.</small>
+                    </label>
+                    <label class="console-field">
+                        <span>Folder title</span>
+                        <input class="console-input" @bind="_title" maxlength="512" data-folder-title />
+                        <small>Display text only. Leave blank to clear the title.</small>
+                    </label>
+                </div>
+                <div class="console-action-row">
+                    <button class="console-button" type="button" @onclick="SaveAsync" disabled="@(!CanWrite || string.IsNullOrWhiteSpace(_name))" data-folder-save>
+                        @(_folderId.Length == 0 ? "Create Folder" : "Save Folder")
+                    </button>
+                    @if (SelectedFolder is not null)
+                    {
+                        <label class="console-inline-check">
+                            <input type="checkbox" @bind="_confirmDelete" data-folder-delete-confirm />
+                            <span>I want to delete this empty Folder</span>
+                        </label>
+                        <button class="console-button console-button-secondary" type="button" @onclick="DeleteAsync" disabled="@(!CanWrite || !_confirmDelete)" data-folder-delete>Delete empty Folder</button>
+                    }
+                </div>
+            }
+            else
+            {
+                <p>Service identity: <code>@ServiceName</code>. Moving preserves this identity.</p>
+                <label class="console-field">
+                    <span>Destination Folder</span>
+                    <select class="console-input" aria-label="Destination Folder" @bind="_folderId" data-service-folder>
+                        <option value="">Root</option>
+                        @foreach (var folder in catalog.ActiveFolders)
+                        {
+                            <option value="@folder.Metadata.Id">@ConsoleFolderCatalog.Label(folder)</option>
+                        }
+                    </select>
+                </label>
+                <button class="console-button" type="button" @onclick="MoveAsync" disabled="@(!CanWrite)" data-service-move>Move Service</button>
+            }
+        </fieldset>
+        @if (string.IsNullOrWhiteSpace(catalog.ETag))
+        {
+            <p role="status">This server did not provide a catalog ETag. Refresh Folders before editing.</p>
+        }
+    }
+    @if (_result is { } result)
+    {
+        <div data-folder-result data-state="@result.State"><HonuaState Kind="@(result.Succeeded ? "success" : "denied")" Title="@result.State" Message="@result.Detail" HeadingLevel="3" /></div>
+        @if (!result.Succeeded)
+        {
+            <p role="status">Review the current catalog and refresh before making another change. Approval-required operations must use the separate human approval channel. <a href="/inbox">Open approvals</a></p>
+        }
+    }
+</section>
+
+@code {
+    [Parameter] public string? ServiceName { get; set; }
+    [Parameter] public string? CurrentFolderId { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+    private readonly CancellationTokenSource _lifetime = new();
+    private ConsoleFolderCatalog? _catalog;
+    private OperateSectionResult<ConsoleFolderCatalog>? _read;
+    private ConsoleFolderMutationResult? _result;
+    private string? _loadedService;
+    private string _folderId = "";
+    private string _name = "";
+    private string _title = "";
+    private bool _confirmDelete;
+    private bool _loading = true;
+    private bool _busy;
+    private bool _requiresRefresh;
+    private string? _unverifiedAuthority;
+    private bool _initialized;
+    private int _generation;
+    private int _completedMutations;
+    private IConsoleFolderClient Client => Services.GetService<IConsoleFolderClient>() ?? new UnsupportedConsoleFolderClient();
+    private Folder? SelectedFolder => _catalog?.Folders.SingleOrDefault(folder => folder.Metadata.Id == _folderId);
+    private bool CanWrite => !_busy && !_loading && !_requiresRefresh && !string.IsNullOrWhiteSpace(_catalog?.ETag);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_initialized && _loadedService == ServiceName) return;
+        _initialized = true;
+        _loadedService = ServiceName;
+        _catalog = null;
+        _folderId = CurrentFolderId ?? "";
+        _name = _title = "";
+        _result = null;
+        await RefreshAsync();
+    }
+
+    private void SelectFolder()
+    {
+        _name = SelectedFolder?.Metadata.Name ?? "";
+        _title = SelectedFolder?.Metadata.Title ?? "";
+        _confirmDelete = false;
+    }
+
+    private async Task RefreshAsync()
+    {
+        var generation = ++_generation;
+        _loading = true;
+        var read = await ConsoleReadBudget.RunAsync(Client.ReadAsync, ConsoleReadBudget.Default,
+            "Folders could not be read. Check the environment and refresh.", _lifetime.Token);
+        if (_lifetime.IsCancellationRequested || generation != _generation) return;
+        _read = read;
+        _catalog = read.IsAllowed ? read.Value : null;
+        _requiresRefresh = _unverifiedAuthority is not null && _catalog?.AuthorityBinding != _unverifiedAuthority;
+        if (!_requiresRefresh) _unverifiedAuthority = null;
+        _confirmDelete = false;
+        _loading = false;
+    }
+
+    private Task SaveAsync()
+    {
+        var name = _name.Trim();
+        var title = string.IsNullOrWhiteSpace(_title) ? null : _title;
+        var folderId = _folderId;
+        return ExecuteAsync(catalog => folderId.Length == 0
+            ? Client.CreateAsync(catalog, new() { Name = name, Title = title }, _lifetime.Token)
+            : Client.UpdateAsync(catalog, folderId, new() { Name = name, Title = new(title) }, _lifetime.Token));
+    }
+
+    private Task DeleteAsync()
+    {
+        if (!_confirmDelete || SelectedFolder is null) return Task.CompletedTask;
+        var folderId = _folderId;
+        return ExecuteAsync(catalog => Client.DeleteAsync(catalog, folderId, _lifetime.Token));
+    }
+
+    private Task MoveAsync()
+    {
+        var service = ServiceName;
+        var request = new MoveServiceRequest { FolderId = _folderId.Length == 0 ? null : _folderId };
+        return service is null ? Task.CompletedTask : ExecuteAsync(catalog => Client.MoveAsync(catalog, service, request, _lifetime.Token));
+    }
+
+    private async Task ExecuteAsync(Func<ConsoleFolderCatalog, Task<ConsoleFolderMutationResult>> execute)
+    {
+        if (!CanWrite || _catalog is not { } catalog) return;
+        var generation = _generation;
+        var originalService = ServiceName;
+        var notifications = Services.GetService<IConsoleNotificationService>();
+        var folderChanges = Services.GetService<ConsoleFolderChanges>();
+        _busy = true;
+        _requiresRefresh = true;
+        try
+        {
+            var result = await execute(catalog);
+            if (result.Succeeded) folderChanges?.Notify();
+            if (_lifetime.IsCancellationRequested || generation != _generation)
+            {
+                notifications?.Warning(
+                    $"{originalService ?? "Folder catalog"}: {result.State}. {result.Detail}");
+                return;
+            }
+            _completedMutations++;
+            _result = result;
+            if (result.State == Honua.Console.Contracts.ConsoleWriteOutcome.UnverifiedState)
+                _unverifiedAuthority = catalog.AuthorityBinding;
+            if (!result.Succeeded) return;
+            await OnSaved.InvokeAsync();
+            if (ServiceName is null) _folderId = _name = _title = "";
+            await RefreshAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    public void Dispose()
+    {
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+    }
+}

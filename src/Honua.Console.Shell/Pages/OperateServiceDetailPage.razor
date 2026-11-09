@@ -71,6 +71,11 @@
             </article>
         </div>
 
+        @foreach (var reason in _service.FolderMutationIssues)
+        {
+            <p class="console-state-warning" role="status" data-folder-reconciliation>@reason</p>
+        }
+        <Honua.Console.Shell.Components.Operate.FolderManagement ServiceName="@ServiceName" CurrentFolderId="@_service.FolderId" OnSaved="OnParametersSetAsync" />
         <DiscoveryMetadataEditor Address="@Honua.Console.Contracts.DiscoveryMetadataAddress.ForService(ServiceName)" />
 
         <section class="console-section" data-service-config>

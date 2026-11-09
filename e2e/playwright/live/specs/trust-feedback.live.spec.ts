@@ -17,9 +17,9 @@ import type { Page } from '@playwright/test';
 // a loading placeholder, or a demand for hand-configured publication ids is not acceptable.
 async function expectPublicationsEmptyState(page: import('@playwright/test').Page) {
   const empty = page.locator('article.console-panel')
-    .filter({ has: page.getByRole('heading', { name: 'No publications', exact: true }) });
+    .filter({ has: page.getByRole('heading', { name: 'No released content', exact: true }) });
   await expect(empty).toBeVisible();
-  await expect(empty).toContainText('No publications are available in this Operate environment.');
+  await expect(empty).toContainText('No released content are available in this Operate environment.');
   await expect(page.getByText('Honua:Server:PublicationIds', { exact: true })).toHaveCount(0);
 }
 
@@ -29,7 +29,7 @@ async function loadRollbackFixture(page: Page, admin: AdminApi) {
   await page.goto('/operate/publishing');
   const review = page.locator('[data-publishing-review]').first();
   const empty = page.locator('article.console-panel')
-    .filter({ has: page.getByRole('heading', { name: 'No publications', exact: true }) });
+    .filter({ has: page.getByRole('heading', { name: 'No released content', exact: true }) });
   await expect(review.or(empty).first()).toBeVisible();
   if ((await review.count()) === 0) {
     await expectPublicationsEmptyState(page);
