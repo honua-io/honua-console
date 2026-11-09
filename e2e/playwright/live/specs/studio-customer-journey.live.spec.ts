@@ -430,7 +430,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     expect(reopened.itemId).toBe(authored.itemId);
     expect((await identity(page))?.packageKey).toBe(packageKey);
     expect(reopened.ownerId).toBe(first.ownerId);
-    expect(reopened.envelope.body).toEqual(labelled.envelope.body);
+    expect(reopened.envelope.body).toEqual(version.envelope.body);
     for (const layer of reopened.envelope.body.layers)
       await expect.poll(() => paintedFeatures(page, layer.id), { timeout: 45_000 }).toBeGreaterThan(0);
     await scrollForMilestone(page.locator('honua-studio-canvas'));
