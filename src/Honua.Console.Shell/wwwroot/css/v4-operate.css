@@ -1,0 +1,78 @@
+.console-shell[data-console-v4="true"] .operate-timeline {
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-lg);
+    background: var(--c-surface);
+}
+
+.console-shell[data-console-v4="true"] .operate-event-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+}
+
+.console-shell[data-console-v4="true"] .operate-event-table th,
+.console-shell[data-console-v4="true"] .operate-event-table td {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--c-border);
+    vertical-align: top;
+    text-align: left;
+}
+
+.console-shell[data-console-v4="true"] .operate-event-table th {
+    color: var(--c-text-2);
+    font-weight: var(--weight-medium);
+    white-space: nowrap;
+}
+
+.console-shell[data-console-v4="true"] .operate-event-table td:first-child {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.console-shell[data-console-v4="true"] .operate-event-table tr:last-child td {
+    border-bottom: 0;
+}
+
+.console-shell[data-console-v4="true"] .proposal-approval-panel {
+    padding: var(--space-5);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-lg);
+    background: var(--c-surface);
+    box-shadow: var(--shadow-panel);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.console-shell[data-console-v4="true"] .proposal-approval-summary {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+}
+
+.console-shell[data-console-v4="true"] .proposal-approval-facts {
+    margin-block: var(--space-5);
+}
+
+.console-shell[data-console-v4="true"] .proposal-approval-diff,
+.console-shell[data-console-v4="true"] .proposal-approval-dryrun {
+    padding: var(--space-4);
+    margin-block: var(--space-4);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+    background: var(--c-bg);
+}
+
+.console-shell[data-console-v4="true"] .proposal-approval-actions {
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--c-border);
+}
+
+.console-shell[data-console-v4="true"] .proposal-approval-reason {
+    width: 100%;
+    max-width: 100%;
+}
+
+.console-shell[data-console-v4="true"] .proposal-approval-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
