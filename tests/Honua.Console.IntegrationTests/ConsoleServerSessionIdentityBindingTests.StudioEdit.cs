@@ -38,7 +38,9 @@ public sealed partial class ConsoleServerSessionIdentityBindingTests
         builder.AddConsoleServerSessionBff();
         await using var app = builder.Build();
         var profile = Profile("env");
-        await app.Services.GetRequiredService<IConsoleEnvironmentProfileStore>().UpsertProfileAsync(profile);
+        var profiles = app.Services.GetRequiredService<IConsoleEnvironmentProfileStore>();
+        await profiles.UpsertProfileAsync(profile);
+        profile = (await profiles.GetProfileAsync(profile.Id))!;
         var context = new DefaultHttpContext();
         context.Request.Scheme = "https";
         context.Request.Host = new HostString("console.example");
@@ -79,6 +81,8 @@ public sealed partial class ConsoleServerSessionIdentityBindingTests
             Authority = ConsoleServerAuthority.Serving, Partition = partition
         };
         Assert.True(app.Services.GetRequiredService<ConsoleStudioEditBrowserChannel>().Authorizes(target));
+        Assert.False(app.Services.GetRequiredService<ConsoleStudioEditBrowserChannel>().Authorizes(
+            target with { SelectedProfile = profile with { UpdatedAt = profile.UpdatedAt.AddTicks(1) } }));
         Assert.True(app.Services.GetRequiredService<ConsoleApprovalBrowserChannel>().Authorizes(target));
     }
 }
