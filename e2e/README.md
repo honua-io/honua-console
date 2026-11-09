@@ -13,21 +13,18 @@ its source revision and image ID separately from release evidence.
 
 ### Chiseled server diagnostics
 
-For an image that includes `/app/honua-healthcheck`, append
-`-f e2e/docker-compose.native-probe.yml` to the Compose file list. This replaces
-the legacy Bash readiness command with the compiled probe:
+For an image that includes `/app/honua-healthcheck`, enable the compiled
+readiness probe in the live runner:
 
 ```sh
-docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml \
-  -f e2e/docker-compose.native-probe.yml up -d --wait --wait-timeout 300
-cd e2e/playwright
-npx --no-install playwright test --config playwright.live.config.ts
+HONUA_CONSOLE_E2E_NATIVE_PROBE=true make e2e-live
 ```
 
-Use the same Compose files for teardown. The older published images need the
-existing Bash probe; select this overlay only for images containing the native
-probe. The overlay also applies after `e2e/playwright/live-llm/docker-compose.yml`
-when diagnosing that stack with a chiseled server.
+The runner applies `e2e/docker-compose.native-probe.yml` during startup and
+teardown. The older published images need the existing Bash probe; enable this
+option only for images containing the native probe. For the live LLM stack,
+append `-f e2e/docker-compose.native-probe.yml` after
+`-f e2e/playwright/live-llm/docker-compose.yml` in its Compose commands.
 
 ### Prerequisites
 
