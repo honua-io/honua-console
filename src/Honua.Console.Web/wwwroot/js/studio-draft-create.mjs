@@ -2,7 +2,9 @@ import { capturedProcessFetch } from './cookie-workspace-transport.mjs';
 
 import { studioAuthority, studioResourceId as validId } from './studio-workspace-authority.mjs';
 
-const terminal = status => ['completed', 'rejected', 'failed', 'cancelled'].includes(status);
+const terminalStatuses = ['completed', 'rejected', 'failed', 'cancelled'];
+const terminal = status => terminalStatuses.includes(status);
+class UnreadableHandoffError extends Error {}
 const validKey = value => typeof value === 'string' && /^[A-Za-z0-9._-]{1,200}$/.test(value);
 
 export class StudioDraftCreateSession {
@@ -29,13 +31,15 @@ export class StudioDraftCreateSession {
     read() {
         const raw = this.storage?.getItem(this.storageKey());
         if (!raw) return null;
-        const record = JSON.parse(raw);
+        let record;
+        try { record = JSON.parse(raw); }
+        catch { throw new UnreadableHandoffError('The original New map action is unreadable. Check Inbox before continuing.'); }
         if (!record || !validKey(record.packageKey) || !validId(record.commandId)
-            || !['submitting', 'awaiting-approval', 'completed', 'rejected', 'failed', 'cancelled'].includes(record.status)
+            || !['submitting', 'awaiting-approval', ...terminalStatuses].includes(record.status)
             || (record.status === 'awaiting-approval' && !record.receipt)
             || (record.status === 'completed' && !validId(record.draftId))
             || (record.receipt && (!validId(record.receipt.operationInstanceId) || !validId(record.receipt.proposalId))))
-            throw new Error('The original New map action is unreadable. Reconnect before continuing.');
+            throw new UnreadableHandoffError('The original New map action is unreadable. Check Inbox before continuing.');
         return record;
     }
     assertCurrent(context, draftId) {
@@ -45,7 +49,7 @@ export class StudioDraftCreateSession {
     save(record, context) {
         if (this.context() !== context) throw new Error('The workspace changed.');
         if (!this.storage) throw new Error('Persistent workspace storage is required before creating a map.');
-        this.storage.setItem(this.storageKey(context), JSON.stringify(record));
+        this.storage.setItem(this.storageKey(), JSON.stringify(record));
     }
     submit(packageKey) {
         if (this.pending) return this.pending;
@@ -82,7 +86,10 @@ export class StudioDraftCreateSession {
     acknowledgeUnreadable() {
         this.context();
         try { this.read(); }
-        catch { this.storage.removeItem(this.storageKey()); return; }
+        catch (error) {
+            if (!(error instanceof UnreadableHandoffError)) throw error;
+            this.storage.removeItem(this.storageKey()); return;
+        }
         throw new Error('The original action is readable; resolve its outcome first.');
     }
     acknowledge() {
@@ -107,10 +114,10 @@ export class StudioDraftCreateSession {
             this.save(completed, context);
             return completed;
         }
-        const terminal = new Map([[6, 'rejected'], [7, 'rejected'], [8, 'cancelled'], [9, 'failed'],
+        const terminalStatusByOperationStatus = new Map([[6, 'rejected'], [7, 'rejected'], [8, 'cancelled'], [9, 'failed'],
             ['Denied', 'rejected'], ['Rejected', 'rejected'], ['Cancelled', 'cancelled'], ['Failed', 'failed']]);
-        if (terminal.has(operation.status)) {
-            const finished = { ...record, status: terminal.get(operation.status) };
+        if (terminalStatusByOperationStatus.has(operation.status)) {
+            const finished = { ...record, status: terminalStatusByOperationStatus.get(operation.status) };
             this.save(finished, context);
             return finished;
         }
@@ -143,7 +150,7 @@ export function mountStudioDraftCreate({ app, host }) {
             if (record.status !== 'completed' || !key.value) key.value = record.packageKey;
             key.disabled = busy || record.status !== 'completed';
             create.disabled = busy || record.status !== 'submitting' && record.status !== 'completed';
-            create.textContent = record.status === 'submitting' ? 'Retry original New map' : record.status === 'completed' ? 'Open map' : 'New map';
+            create.textContent = record.status === 'submitting' ? 'Retry original New map' : record.status === 'completed' && key.value.trim() === record.packageKey ? 'Open map' : 'New map';
             acknowledge.hidden = !terminal(record.status); acknowledge.disabled = busy;
             notice.textContent = record.status === 'awaiting-approval'
                 ? `Waiting for separate human approval. Proposal ${record.receipt.proposalId}; operation ${record.receipt.operationInstanceId}.`
@@ -155,7 +162,7 @@ export function mountStudioDraftCreate({ app, host }) {
                 inbox.href = `/inbox?proposalId=${encodeURIComponent(record.receipt.proposalId)}`;
                 refresh.hidden = record.status !== 'awaiting-approval'; refresh.disabled = busy;
             }
-        } catch (error) { notice.textContent = error.message; create.disabled = true; reset.hidden = false; reset.disabled = busy; }
+        } catch (error) { notice.textContent = error.message; create.disabled = true; reset.hidden = !(error instanceof UnreadableHandoffError); reset.disabled = busy; }
     };
     const run = async action => {
         if (busy || disposed || !host.isConnected || !app.isConnected) return;
@@ -165,6 +172,7 @@ export function mountStudioDraftCreate({ app, host }) {
         catch (error) { failure = error; }
         finally { busy = false; if (!disposed) { render(); if (failure) notice.textContent = failure.message; } }
     };
+    key.addEventListener('input', render);
     form.addEventListener('submit', event => {
         event.preventDefault();
         const packageKey = key.value.trim();

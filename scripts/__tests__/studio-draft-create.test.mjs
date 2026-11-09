@@ -207,3 +207,22 @@ test('corrupt local handoffs require explicit acknowledgement before another act
     assert.throws(() => f.session.acknowledgeUnreadable(), /readable/i);
     assert.equal(f.session.read().status, 'awaiting-approval');
 });
+
+test('a pending create retains its receipt when the selected draft changes before the response', async () => {
+    const f = fixture();
+    let finish;
+    f.app.createWorkspaceDraft = (key, commandId) => {
+        f.calls.push({ key, commandId });
+        return new Promise(resolve => { finish = resolve; });
+    };
+    const submitting = f.session.submit('map');
+    f.app.workspaceDraftIdentity = { draftId: 'another-map' };
+    finish({ status: 'awaiting-approval', operationInstanceId: 'operation', proposalId: 'proposal' });
+    await submitting;
+    const restored = new StudioDraftCreateSession(f.app, f.options);
+    assert.equal(restored.read().receipt.proposalId, 'proposal');
+    assert.equal(restored.read().status, 'awaiting-approval');
+    await restored.submit('map');
+    assert.equal(f.calls.length, 1);
+    assert.deepEqual(f.attached, []);
+});
