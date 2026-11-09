@@ -355,7 +355,7 @@ export class AgentWorkspace {
         if (task && ((task.kind || 'publish-layer') !== 'publish-layer' || this.draft && task.id !== this.draft.id)) refuse();
     }
     async submit(prompt, options = {}) {
-        if (this.studioConversation) return this.studioConversation.submit(promptWithConsolePageContext(prompt, this.pageContextProvider?.()), options);
+        if (this.studioConversation) return this.studioConversation.submit(prompt, options);
         const questionReply=this.questionReplies.current();
         if (this.submission) {
             if (this.submission.prompt !== prompt || this.submission.questionReply !== questionReply)

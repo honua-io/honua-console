@@ -20,7 +20,7 @@
         _registry.Changed += ContextChanged;
         Navigation.LocationChanged += LocationChanged;
         _environment = new ConsoleEnvironmentSubscription(Services.GetService<IConsoleEnvironmentProfileStore>(),
-            Services.GetService<AuthenticationStateProvider>(), () => _registry.Navigate(CurrentRoute()));
+            Services.GetService<AuthenticationStateProvider>(), () => _registry.Invalidate(CurrentRoute()));
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
