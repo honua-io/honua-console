@@ -358,6 +358,7 @@ public sealed class ConsoleNavigationRenderTests
     private static BunitContext CreateContext(ConsoleProductMode mode = ConsoleProductMode.Full, HonuaConsoleShellOptions? shellOptions = null)
     {
         var context = new BunitContext();
+        context.Services.AddSingleton<ConsoleAgentContextRegistry>();
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.AddConsoleNotifications();
         context.AddAuthorization().SetAuthorized("synthetic-operator");
