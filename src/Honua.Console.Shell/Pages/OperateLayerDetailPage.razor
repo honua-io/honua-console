@@ -38,7 +38,8 @@
                 <Actions>@LayerActions</Actions>
             </ConsolePageHeading>
             <ConsolePanel Title="Layer preview" HeadingId="layer-preview-heading">
-                @MapPreview
+                <div data-layer-preview><p class="console-muted">Live map rendered by honua-server through the Console map proxy.</p>
+                        <LayerMapPreview Layer="_exposures[0].Layer" EnvironmentId="@_environmentId" /></div>
             </ConsolePanel>
             @LayerOverview
             <ConsolePanel Title="Fields and domains" HeadingId="layer-fields-heading">
@@ -47,9 +48,50 @@
         }
         else
         {
-            @LegacyHeading
-            @LegacyOverview
-            @LegacyPreview
+            <div class="console-page-heading">
+                <p class="console-kicker">Operate / Layers</p>
+                <h1>@_exposures[0].Layer.Name</h1>
+                <p>Admin layer @_exposures[0].Layer.LayerId is exposed by @_serviceSummary and reads metadata from @_exposures[0].Layer.CanonicalResourceName.</p>
+                @LayerActions
+            </div>
+            <div class="console-panel-grid">
+                @foreach (var exposure in _exposures)
+                {
+                    <article class="console-panel">
+                        <p class="console-kicker">Exposure</p>
+                        <h2>@exposure.Service.DisplayName</h2>
+                        <dl class="console-definition-list">
+                            <dt>Service</dt>
+                            <dd><a href="@($"/operate/services/{exposure.Service.Name}/settings")">@exposure.Service.DisplayName</a></dd>
+                            <dt>Geometry</dt>
+                            <dd>@exposure.Layer.Geometry</dd>
+                            <dt>Runtime</dt>
+                            <dd>@exposure.Service.RuntimeStatus</dd>
+                        </dl>
+                    </article>
+                }
+
+                <article class="console-panel">
+                    <p class="console-kicker">Canonical Metadata</p>
+                    <h2>Resource Owner</h2>
+                    <dl class="console-definition-list">
+                        <dt>Resource</dt>
+                        <dd><a href="@($"/operate/resources/{_exposures[0].Layer.CanonicalResourceId}")">@_exposures[0].Layer.CanonicalResourceName</a></dd>
+                        <dt>Console layer reference</dt>
+                        <dd>@_exposures[0].Layer.CanonicalResourceId</dd>
+                        <dt>Ownership</dt>
+                        <dd>@_exposures[0].Service.MetadataOwnership</dd>
+                    </dl>
+                </article>
+            </div>
+
+            <DiscoveryMetadataEditor Address="@Honua.Console.Contracts.DiscoveryMetadataAddress.ForLayer(_exposures[0].Layer.LayerId)" />
+            <article class="console-panel" data-layer-preview>
+                <p class="console-kicker">Preview</p>
+                <h2>Rendered map</h2>
+                <p class="console-muted">Live render of this layer using honua-server's own MapLibre style and vector tiles, proxied through the console so the server credentials stay server-side.</p>
+                <LayerMapPreview Layer="_exposures[0].Layer" EnvironmentId="@_environmentId" />
+            </article>
             @Fields
         }
 
@@ -66,56 +108,6 @@
                 <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@($"/operate/layers/{CanonicalResourceId}/filter")" data-layer-filter-link>Permanent filter</a>
                 <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@($"/operate/layers/{CanonicalResourceId}/metadata")" data-layer-metadata-link>Editing policy →</a>
             </div></text>;
-    private RenderFragment LegacyHeading => @<text>        <div class="console-page-heading">
-            <p class="console-kicker">Operate / Layers</p>
-            <h1>@_exposures[0].Layer.Name</h1>
-            <p>Admin layer @_exposures[0].Layer.LayerId is exposed by @_serviceSummary and reads metadata from @_exposures[0].Layer.CanonicalResourceName.</p>
-            @LayerActions
-        </div></text>;
-    private RenderFragment LegacyOverview => @<text>        <div class="console-panel-grid">
-            @foreach (var exposure in _exposures)
-            {
-                <article class="console-panel">
-                    <p class="console-kicker">Exposure</p>
-                    <h2>@exposure.Service.DisplayName</h2>
-                    <dl class="console-definition-list">
-                        <dt>Service</dt>
-                        <dd><a href="@($"/operate/services/{exposure.Service.Name}/settings")">@exposure.Service.DisplayName</a></dd>
-                        <dt>Geometry</dt>
-                        <dd>@exposure.Layer.Geometry</dd>
-                        <dt>Runtime</dt>
-                        <dd>@exposure.Service.RuntimeStatus</dd>
-                    </dl>
-                </article>
-            }
-
-            <article class="console-panel">
-                <p class="console-kicker">Canonical Metadata</p>
-                <h2>Resource Owner</h2>
-                <dl class="console-definition-list">
-                    <dt>Resource</dt>
-                    <dd><a href="@($"/operate/resources/{_exposures[0].Layer.CanonicalResourceId}")">@_exposures[0].Layer.CanonicalResourceName</a></dd>
-                    <dt>Console layer reference</dt>
-                    <dd>@_exposures[0].Layer.CanonicalResourceId</dd>
-                    <dt>Ownership</dt>
-                    <dd>@_exposures[0].Service.MetadataOwnership</dd>
-                </dl>
-            </article>
-        </div>
-
-        <DiscoveryMetadataEditor Address="@Honua.Console.Contracts.DiscoveryMetadataAddress.ForLayer(_exposures[0].Layer.LayerId)" />
-
-</text>;
-    private RenderFragment LegacyPreview => @<text>        <article class="console-panel" data-layer-preview>
-            <p class="console-kicker">Preview</p>
-            <h2>Rendered map</h2>
-            <p class="console-muted">Live render of this layer using honua-server's own MapLibre style and vector tiles, proxied through the console so the server credentials stay server-side.</p>
-            <LayerMapPreview Layer="_exposures[0].Layer" EnvironmentId="@_environmentId" />
-        </article>
-
-</text>;
-    private RenderFragment MapPreview => @<div data-layer-preview><p class="console-muted">Live map rendered by honua-server through the Console map proxy.</p>
-        <LayerMapPreview Layer="_exposures[0].Layer" EnvironmentId="@_environmentId" /></div>;
     private RenderFragment Fields => @<text>        <section class="console-section @(V4Enabled ? "console-service-controls" : null)" data-fields-panel>
             @if (!V4Enabled)
             {
@@ -292,7 +284,7 @@
                     <dl class="console-definition-list">
                         <dt>Service</dt>
                         <dd><ConsoleNameIdentifier Name="@exposure.Service.DisplayName" Identifier="@exposure.Service.Name"
-                            Href="@ConsoleAgentRoutes.ForEntity(new ConsoleAgentEntity { Kind = ConsoleAgentEntityKind.Service, Id = exposure.Service.Name, ServiceName = exposure.Service.Name })" /></dd>
+                            Href="@ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForService(exposure.Service.Name))" /></dd>
                         <dt>Geometry</dt><dd>@exposure.Layer.Geometry</dd>
                         <dt>Runtime</dt><dd>@exposure.Service.RuntimeStatus</dd>
                     </dl>
@@ -317,20 +309,15 @@
     private object?[]? _savedDomainDraft;
     private object?[] DomainDraft => [_domainField, _domainKind, _domainName, _domainCodes, _domainRangeMin, _domainRangeMax,
         _domainMergePolicy, _domainSplitPolicy, _defaultValueText, _clearDefaultValue];
-    private ConsoleAgentEntity? SelectedLayer => _exposures.Count == 0 ? null : new()
-    {
-        Kind = ConsoleAgentEntityKind.Layer,
-        Id = _exposures[0].Layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        ResourceId = CanonicalResourceId
-    };
+    private ConsoleAgentEntity? SelectedLayer => _exposures.Count == 0 ? null : ConsoleAgentEntity.ForLayer(_exposures[0].Layer);
     private ConsoleAgentPageContext AgentContext => new()
     {
-        Route = $"/operate/layers/{Uri.EscapeDataString(ResourceId)}",
+        Route = SelectedLayer is { } layer ? ConsoleAgentRoutes.ForEntity(layer) : $"/operate/layers/{Uri.EscapeDataString(ResourceId)}",
         Entities = SelectedLayer is { } entity ? [entity] : [],
         Selection = SelectedLayer is { } selected ? [selected] : [],
         Unsaved = new()
         {
-            ChangedFieldCount = _metadataUnsaved.ChangedFieldCount +
+            ChangedFieldCount = _exposures.Count == 0 ? 0 : _metadataUnsaved.ChangedFieldCount +
                 _fields.Fields.Sum(layerField => _fieldEdits.TryGetValue(layerField.Name, out var edit)
                     ? (edit.Alias != layerField.Alias ? 1 : 0) + (edit.Hidden != layerField.Hidden ? 1 : 0) : 0) +
                 (_savedDomainDraft is null ? 0 : DomainDraft.Zip(_savedDomainDraft).Count(pair => !Equals(pair.First, pair.Second))),
