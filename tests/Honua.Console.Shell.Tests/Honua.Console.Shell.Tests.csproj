@@ -36,4 +36,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Fixtures/service-navigation-folders.json" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Shared/ReceiptProposalClient.cs" Link="Fixtures/ReceiptProposalClient.cs" />
+  </ItemGroup>
 </Project>

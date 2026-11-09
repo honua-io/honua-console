@@ -12,5 +12,23 @@ await runV4PagePresentation({
   controls: "#events :is(a[href], input, select, button, summary, [tabindex='0']):not(:disabled):visible",
   inspect: async (page, name) => {
     assert.equal(await page.locator("[data-timeline-row]").count(), name === "activity-selected" ? 2 : 0);
+    const width = page.viewportSize().width;
+    assert.equal(await page.locator("h1").evaluate(element => getComputedStyle(element).fontSize), width === 390 ? "22px" : "28px");
+    for (const heading of await page.locator("h2").all()) {
+      const expected = await heading.evaluate(element => element.parentElement.classList.contains("console-panel-heading") ? "16px" : "22px");
+      assert.equal(await heading.evaluate(element => getComputedStyle(element).fontSize), expected);
+    }
+    if (name === "activity-selected") {
+      const timeline = page.locator(".operate-table-panel .operate-timeline");
+      assert.equal(await timeline.evaluate(element => getComputedStyle(element).borderTopWidth), "0px");
+      assert.equal(await page.locator(".operate-event-table th").first().evaluate(element => {
+        const probe = document.createElement("span");
+        probe.style.color = "var(--c-text-3)";
+        element.append(probe);
+        const matches = getComputedStyle(element).color === getComputedStyle(probe).color;
+        probe.remove();
+        return matches;
+      }), true, "Activity keeps its quiet table headers");
+    }
   },
 });
