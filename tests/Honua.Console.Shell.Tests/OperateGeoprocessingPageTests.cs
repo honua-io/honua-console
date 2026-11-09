@@ -32,6 +32,9 @@ public sealed class OperateGeoprocessingPageTests
         var page = ctx.Render<OperateGeoprocessingPage>();
 
         Assert.Equal(heading, page.Find("h1").TextContent);
+        Assert.Equal(v4Enabled ? "Jobs" : "Job board", page.Find("#gp-jobs-heading").TextContent);
+        Assert.Equal(v4Enabled ? 0 : 1, page.FindAll(".console-kicker").Count(kicker => kicker.TextContent == "Operator workflow"));
+        Assert.Equal(v4Enabled ? 0 : 1, page.FindAll(".console-kicker").Count(kicker => kicker.TextContent == "Geoprocessing"));
         Assert.Equal(v4Enabled, page.FindAll("section > link[rel='stylesheet'][href$='operate-jobs-v4.css']").Count == 1);
         Assert.Equal(v4Enabled, page.FindAll(".console-jobs-v4").Count == 1);
         Assert.Single(page.FindAll("h1"));

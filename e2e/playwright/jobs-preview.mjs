@@ -3,7 +3,7 @@ import path from "node:path";
 import { runV4PagePresentation } from "./console-presentation.mjs";
 
 await runV4PagePresentation({
-  previews: path.resolve(process.env.HONUA_JOBS_PREVIEW_DIR ?? "artifacts/jobs-preview"),
+  previews: path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/jobs-preview"),
   pageNames: ["jobs-list", "jobs-timeline"],
   title: "Geoprocessing presentation fixture",
   stylesheet: "operate-jobs-v4.css",
