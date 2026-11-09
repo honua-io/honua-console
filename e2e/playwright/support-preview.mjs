@@ -24,6 +24,7 @@ await runV4PagePresentation({
         sizedControls: "input:not([type=checkbox]),select,textarea", minimumHeight: 24,
       });
       if (enabled) {
+        assert.equal(await page.locator(".support-context-row dt").first().evaluate(element => getComputedStyle(element).fontWeight), "400");
         assert.equal(await page.locator("textarea").evaluate(element => getComputedStyle(element).paddingTop), "12px");
         assert.equal(await page.locator(".studio-field-grid label > span").first().evaluate(element => getComputedStyle(element).fontWeight), "500");
       }

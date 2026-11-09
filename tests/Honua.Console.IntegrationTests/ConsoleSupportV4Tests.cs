@@ -155,10 +155,18 @@ public sealed class ConsoleSupportV4Tests
         public List<CreateSupportTicketRequest> Requests { get; } = [];
         public SupportTicketResult Result { get; set; } = SupportTicketResult.Allowed(new SupportTicketResponse
         {
-            Id = "ticket-9", CustomerId = "honua-prod", Severity = "sev2", Environment = "production",
-            Service = "honua-server", Symptoms = "elevated 500s", RequestedAction = "diagnose errors",
-            AllowedAccessMode = "read-only", Phase = "resolved", CustomerStatus = "resolved",
-            CreatedAt = DateTimeOffset.Parse("2026-06-05T12:00:00Z"), UpdatedAt = DateTimeOffset.Parse("2026-06-05T12:30:00Z")
+            Id = "ticket-9",
+            CustomerId = "honua-prod",
+            Severity = "sev2",
+            Environment = "production",
+            Service = "honua-server",
+            Symptoms = "elevated 500s",
+            RequestedAction = "diagnose errors",
+            AllowedAccessMode = "read-only",
+            Phase = "resolved",
+            CustomerStatus = "resolved",
+            CreatedAt = DateTimeOffset.Parse("2026-06-05T12:00:00Z"),
+            UpdatedAt = DateTimeOffset.Parse("2026-06-05T12:30:00Z")
         });
         public Task<SupportTicketResult> CreateTicketAsync(CreateSupportTicketRequest request, CancellationToken cancellationToken = default)
         {
