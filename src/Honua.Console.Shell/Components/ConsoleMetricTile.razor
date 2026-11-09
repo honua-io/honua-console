@@ -1,0 +1,17 @@
+<div class="console-metric-tile">
+    <dl>
+        <dt>@Label</dt>
+        <dd class="console-metric-value">@(Value?.ToString("N0") ?? UnavailableText)</dd>
+    </dl>
+    @if (ChildContent is not null)
+    {
+        <div class="console-metric-description">@ChildContent</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter] public long? Value { get; set; }
+    [Parameter] public string UnavailableText { get; set; } = "Not available";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

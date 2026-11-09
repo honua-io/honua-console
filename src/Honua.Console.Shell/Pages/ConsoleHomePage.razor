@@ -15,17 +15,33 @@
     }
     else if (_profile is { } profile)
     {
-        <div class="console-page-heading">
-            <h1>Welcome</h1>
-            <p data-home-environment><strong>@profile.DisplayName</strong> · @profile.ServerBaseUri.GetLeftPart(UriPartial.Authority)</p>
-            <p>Review pending decisions, inspect server health, or choose a service in the tree to browse its layers.</p>
-        </div>
+        @if (V4Enabled)
+        {
+            <ConsolePageHeading Title="Welcome">
+                @EnvironmentDescription(profile)
+            </ConsolePageHeading>
+        }
+        else
+        {
+            <div class="console-page-heading">
+                <h1>Welcome</h1>
+                @EnvironmentDescription(profile)
+            </div>
+        }
         @Operations
-        <section class="console-panel console-home-administration" aria-labelledby="home-admin-heading">
-            <h2 id="home-admin-heading">Administration</h2>
-            <ConsoleHomeWorkAreas />
-            <a href="/environments">Manage environments</a>
-        </section>
+        @if (V4Enabled)
+        {
+            <ConsolePanel Title="Administration" HeadingId="home-admin-heading" Class="console-home-administration">
+                @Administration
+            </ConsolePanel>
+        }
+        else
+        {
+            <section class="console-panel console-home-administration" aria-labelledby="home-admin-heading">
+                <h2 id="home-admin-heading">Administration</h2>
+                @Administration
+            </section>
+        }
         <details class="console-home-setup"><summary>Set up another deployment</summary><ConsoleHomeSetup /></details>
     }
     else
@@ -64,6 +80,18 @@
     private int _displayGeneration;
     private bool _loaded;
     private bool _disposed;
+
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private static RenderFragment EnvironmentDescription(ConsoleEnvironmentProfile profile) => @<text>
+        <p data-home-environment><strong>@profile.DisplayName</strong> · @profile.ServerBaseUri.GetLeftPart(UriPartial.Authority)</p>
+        <p>Review pending decisions, inspect server health, or choose a service in the tree to browse its layers.</p>
+    </text>;
+
+    private RenderFragment Administration => @<text>
+        <ConsoleHomeWorkAreas />
+        <a href="/environments">Manage environments</a>
+    </text>;
 
     private RenderFragment Operations => @<div class="console-home-workload" @key="_displayGeneration">
         <ConsoleHomeWorkQueue LoadBudget="LoadBudget" ServerName="@(_profile?.DisplayName ?? "the selected server")" />
