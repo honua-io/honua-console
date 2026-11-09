@@ -160,6 +160,7 @@
 
     private async Task RefreshAsync()
     {
+        if (_lifetime.IsCancellationRequested) return;
         var generation = ++_generation;
         _loading = true;
         await ReportContextAsync();
