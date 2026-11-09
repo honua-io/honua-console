@@ -9,14 +9,20 @@
     {
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/release-witness-v4.css" />
     }
-    <div class="console-page-heading operate-heading">
-        @if (!V4Enabled)
-        {
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Publication evidence">
+            <p>Read-only runtime, publication, and audit evidence for one sealed candidate approval.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading operate-heading">
             <p class="console-kicker">Operate / Release witness</p>
-        }
-        <h1>@(V4Enabled ? "Publication evidence" : "Candidate publication evidence")</h1>
-        <p>Read-only runtime, publication, and audit evidence for one sealed candidate approval.</p>
-    </div>
+            <h1>Candidate publication evidence</h1>
+            <p>Read-only runtime, publication, and audit evidence for one sealed candidate approval.</p>
+        </div>
+    }
 
     @if (V4Enabled && (!_loaded || _result is null || !_result.IsAllowed || _result.Value is null))
     {

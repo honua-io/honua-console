@@ -41,7 +41,7 @@ public sealed class OperateReleaseWitnessPageRenderTests
         Assert.Equal("operation-one", witness.GetAttribute("data-audit-operation-id"));
         Assert.Equal("true", witness.GetAttribute("data-audit-verified"));
         Assert.Equal(Evidence.PublicUrl, page.Find("[data-release-public-link]").GetAttribute("href"));
-        if (enabled) CatalogAdminPreview.Capture("release-witness-verified", page.Markup);
+        if (enabled) Capture("release-witness-verified", page.Markup);
     }
 
     [Theory]
@@ -78,7 +78,7 @@ public sealed class OperateReleaseWitnessPageRenderTests
         Assert.Empty(page.FindAll("[data-release-witness], [data-release-public-link]"));
         Assert.Contains("Evidence access is denied.", page.Markup, StringComparison.Ordinal);
         Assert.Contains("request-denied-one", page.Markup, StringComparison.Ordinal);
-        if (enabled) CatalogAdminPreview.Capture("release-witness-denied", page.Markup);
+        if (enabled) Capture("release-witness-denied", page.Markup);
     }
 
     [Theory]
@@ -107,10 +107,14 @@ public sealed class OperateReleaseWitnessPageRenderTests
         return context;
     }
 
+    private static void Capture(string name, string markup) =>
+        CatalogAdminPreview.Capture(name, $"<div class=\"console-shell\" data-console-v4=\"true\">{markup}</div>");
+
     private static void AssertPresentation(IRenderedComponent<OperateReleaseWitnessPage> page, bool enabled)
     {
         Assert.Equal(enabled ? "Publication evidence" : "Candidate publication evidence", Assert.Single(page.FindAll("h1")).TextContent);
         Assert.Equal(enabled, page.FindAll(".console-release-witness-v4").Count == 1);
+        Assert.Equal(enabled, page.FindAll(".console-page-heading-v4").Count == 1);
         Assert.Equal(enabled, page.FindAll("section > link[rel='stylesheet'][href$='release-witness-v4.css']").Count == 1);
     }
 
