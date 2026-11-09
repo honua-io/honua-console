@@ -10,12 +10,12 @@ namespace Honua.Console.IntegrationTests;
 public sealed class StudioAutomationEditorPageTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void UnboundRuntime_RendersMissingBindingState(bool v4Enabled)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void UnboundRuntime_RendersMissingBindingState(ConsolePresentationMode presentation)
     {
         using var ctx = new BunitContext();
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ICollectAutomationClient>(new UnsupportedCollectAutomationClient());
 
@@ -26,8 +26,8 @@ public sealed class StudioAutomationEditorPageTests
             () => Assert.NotEmpty(page.FindAll("section.console-state-error")),
             TimeSpan.FromSeconds(5));
         Assert.Contains("Automation authoring is not bound", page.Markup, StringComparison.Ordinal);
-        Assert.Equal(v4Enabled, page.FindAll(".console-page-heading-v4").Count == 1);
-        if (v4Enabled)
+        Assert.Equal(presentation == ConsolePresentationMode.V4, page.FindAll(".console-page-heading-v4").Count == 1);
+        if (presentation == ConsolePresentationMode.V4)
         {
             Assert.Single(page.FindAll("h1"));
             CatalogAdminPreview.Capture("automation-editor-unbound", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
@@ -35,12 +35,12 @@ public sealed class StudioAutomationEditorPageTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Editor_RendersHeaderTabsAndRulesForBoundDraft(bool v4Enabled)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void Editor_RendersHeaderTabsAndRulesForBoundDraft(ConsolePresentationMode presentation)
     {
         using var ctx = new BunitContext();
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ICollectAutomationClient>(InMemoryCollectAutomationClient.CreateSeeded());
 
@@ -57,8 +57,8 @@ public sealed class StudioAutomationEditorPageTests
 
         // The Rules tab is active by default and renders the seeded rule cards.
         Assert.NotEmpty(page.FindAll("section.automation-rules article.automation-rule-card"));
-        Assert.Equal(v4Enabled, page.FindAll(".console-page-heading-v4").Count == 1);
-        if (v4Enabled)
+        Assert.Equal(presentation == ConsolePresentationMode.V4, page.FindAll(".console-page-heading-v4").Count == 1);
+        if (presentation == ConsolePresentationMode.V4)
         {
             Assert.Single(page.FindAll("h1"));
             Assert.Equal(page.FindAll(".automation-rule-card").Count, page.FindAll(".automation-rule-card > h2").Count);
@@ -67,12 +67,12 @@ public sealed class StudioAutomationEditorPageTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void SaveButton_DisabledWhileClientValidationBlocks(bool v4Enabled)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void SaveButton_DisabledWhileClientValidationBlocks(ConsolePresentationMode presentation)
     {
         using var ctx = new BunitContext();
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ICollectAutomationClient>(InMemoryCollectAutomationClient.CreateSeeded());
 
@@ -90,13 +90,13 @@ public sealed class StudioAutomationEditorPageTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Save_OfInvalidBody_CommitsNoVersionAndSurfacesIssues(bool v4Enabled)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void Save_OfInvalidBody_CommitsNoVersionAndSurfacesIssues(ConsolePresentationMode presentation)
     {
         var client = new RecordingAutomationClient();
         using var ctx = new BunitContext();
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ICollectAutomationClient>(client);
 

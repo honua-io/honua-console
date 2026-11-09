@@ -9,13 +9,13 @@ namespace Honua.Console.IntegrationTests;
 public sealed class StudioAutomationsPageTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void UnboundRuntime_RendersMissingBindingState_NotEmpty(bool v4Enabled)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void UnboundRuntime_RendersMissingBindingState_NotEmpty(ConsolePresentationMode presentation)
     {
         using var ctx = new BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.Services.AddSingleton<ICollectAutomationClient>(new UnsupportedCollectAutomationClient());
 
         var page = ctx.Render<StudioAutomationsPage>();
@@ -25,10 +25,10 @@ public sealed class StudioAutomationsPageTests
             TimeSpan.FromSeconds(5));
         Assert.Contains("Automation authoring is not bound", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("No automations yet", page.Markup, StringComparison.Ordinal);
-        Assert.Equal(v4Enabled, page.Find("section.automation-page").ClassList.Contains("console-automations-v4"));
-        Assert.Equal(v4Enabled, page.FindAll("section > link[rel='stylesheet'][href$='studio-automations-v4.css']").Count == 1);
-        Assert.Equal(v4Enabled, page.FindAll(".console-page-heading-v4").Count == 1);
-        if (v4Enabled)
+        Assert.Equal(presentation == ConsolePresentationMode.V4, page.Find("section.automation-page").ClassList.Contains("console-automations-v4"));
+        Assert.Equal(presentation == ConsolePresentationMode.V4, page.FindAll("section > link[rel='stylesheet'][href$='studio-automations-v4.css']").Count == 1);
+        Assert.Equal(presentation == ConsolePresentationMode.V4, page.FindAll(".console-page-heading-v4").Count == 1);
+        if (presentation == ConsolePresentationMode.V4)
         {
             Assert.Single(page.FindAll("h1"));
             CatalogAdminPreview.Capture("automations-unbound", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
@@ -36,30 +36,30 @@ public sealed class StudioAutomationsPageTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void BoundRuntime_ListsSeededAutomationWithRuleCountAndVersion(bool v4Enabled)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void BoundRuntime_ListsSeededAutomationWithRuleCountAndVersion(ConsolePresentationMode presentation)
     {
         using var ctx = new BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.Services.AddSingleton<ICollectAutomationClient>(InMemoryCollectAutomationClient.CreateSeeded());
 
         var page = ctx.Render<StudioAutomationsPage>();
 
         page.WaitForAssertion(
-            () => Assert.NotEmpty(page.FindAll(v4Enabled ? "tbody th a" : "a.automation-card")),
+            () => Assert.NotEmpty(page.FindAll(presentation == ConsolePresentationMode.V4 ? "tbody th a" : "a.automation-card")),
             TimeSpan.FromSeconds(5));
         Assert.Contains("Permit intake automation", page.Markup, StringComparison.Ordinal);
         Assert.Contains("New automation", page.Markup, StringComparison.Ordinal);
 
-        var automationLink = page.FindAll(v4Enabled ? "tbody th a" : "a.automation-card")
+        var automationLink = page.FindAll(presentation == ConsolePresentationMode.V4 ? "tbody th a" : "a.automation-card")
             .Single(link => link.TextContent.Contains("Permit intake automation", StringComparison.Ordinal));
         Assert.StartsWith("/studio/automations/", automationLink.GetAttribute("href"), StringComparison.Ordinal);
-        Assert.Equal(v4Enabled, page.Find("section.automation-page").ClassList.Contains("console-automations-v4"));
+        Assert.Equal(presentation == ConsolePresentationMode.V4, page.Find("section.automation-page").ClassList.Contains("console-automations-v4"));
         Assert.Equal("/studio/automations/new", page.Find(".automation-list-actions a").GetAttribute("href"));
 
-        if (v4Enabled)
+        if (presentation == ConsolePresentationMode.V4)
         {
             var row = automationLink.Closest("tr")!;
             var cells = row.QuerySelectorAll("td");
