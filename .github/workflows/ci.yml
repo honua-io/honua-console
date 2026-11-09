@@ -206,7 +206,7 @@ jobs:
           path: |
             artifacts/catalog-preview/*-builder-*
             artifacts/catalog-preview/workflow-editor-*
-            if-no-files-found: error
+          if-no-files-found: error
 
       - name: Verify rendered publication evidence presentation
         run: node e2e/playwright/release-witness-preview.mjs
