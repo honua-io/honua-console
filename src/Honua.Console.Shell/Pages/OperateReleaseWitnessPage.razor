@@ -3,10 +3,12 @@
 @using Honua.Console.Shell.Services
 @inject IConsoleReleaseWitnessClient WitnessClient
 @inject IServiceProvider Services
+@inject NavigationManager Navigation
 
 <section class="console-page console-operate-page @(V4Enabled ? "console-release-witness-v4" : null)" data-release-witness-page>
     @if (V4Enabled)
     {
+        <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/release-witness-v4.css" />
         <ConsolePageHeading Title="Publication evidence">
             <p>Read-only runtime, publication, and audit evidence for one sealed candidate approval.</p>
@@ -71,6 +73,11 @@
 </section>
 
 @code {
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = new Uri(Navigation.Uri).AbsolutePath
+    };
+
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     [SupplyParameterFromQuery(Name = "family")] private string? Family { get; set; }

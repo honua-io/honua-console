@@ -16,7 +16,9 @@ public sealed class StudioWorkflowEditorPageTests
     public void Publish_AfterValidationFailedSave_DoesNotShipStalePriorVersion(ConsolePresentationMode presentation, int expectedV4Headings)
     {
         var client = new RecordingWorkflowPackageClient();
+        var registry = new ConsoleAgentContextRegistry();
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(registry);
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         // The page renders <UnsavedChangesGuard/>, which imports a JS module on dirty transitions; allow the
@@ -43,6 +45,7 @@ public sealed class StudioWorkflowEditorPageTests
 
         // Edit the title so the draft diverges from the last saved version (now dirty).
         TitleInput(page).Input("Parcel normalizer (edited)");
+        Assert.Equal(presentation == ConsolePresentationMode.V4 ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
 
         // Save: the server rejects the graph as invalid, so no version is created and the draft stays dirty.
         FindButton(page, "Save draft").Click();
@@ -66,6 +69,9 @@ public sealed class StudioWorkflowEditorPageTests
             "Save blocked: server validation requires attention",
             page.Markup,
             StringComparison.Ordinal);
+        Assert.Equal(presentation == ConsolePresentationMode.V4 ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        page.Dispose();
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
     }
 
     [Fact]

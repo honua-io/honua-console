@@ -2,12 +2,14 @@
 @using Honua.Console.Shell.Validation
 @inject IStudioFormPackageDataSource FormData
 @inject IServiceProvider Services
+@inject NavigationManager Navigation
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved form changes. Leave this page and discard them?" />
 
 <section class="console-page studio-form-builder">
     @if (IsConsoleV4Enabled)
     {
+        <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/studio-builders-v4.css" />
         <ConsolePageHeading Title="Form builder">
             <p>Edit form fields, review offline policy, and publish a validated form.</p>
@@ -423,6 +425,16 @@
 </section>
 
 @code {
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = new Uri(Navigation.Uri).AbsolutePath,
+        Unsaved = new()
+        {
+            ChangedFieldCount = _dirty.IsDirty ? 1 : 0,
+            PendingOperationCount = _busy ? 1 : 0
+        }
+    };
+
     private bool IsConsoleV4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     private bool _loading = true;

@@ -9,6 +9,58 @@ namespace Honua.Console.Shell.Tests;
 
 public sealed partial class OperateGeoprocessingPageTests
 {
+    [Fact]
+    public void AgentContextTracksDetailSelectionAndReturnToList()
+    {
+        using var context = new BunitContext();
+        var registry = new ConsoleAgentContextRegistry();
+        context.Services.AddSingleton(registry);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        context.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubGeoprocessingClient
+        {
+            Detail = OperateSectionResult<OperateJobRun>.Allowed(
+                Job("gp-done", "Succeeded", "Done", 100, "analyst.live"))
+        });
+        var page = context.Render<OperateGeoprocessingPage>(parameters => parameters
+            .Add(value => value.SelectedJobRunId, " gp-done "));
+
+        var selected = Assert.Single(registry.Current.Selection);
+        Assert.Equal(ConsoleAgentEntityKind.Job, selected.Kind);
+        Assert.Equal("gp-done", selected.Id);
+        Assert.Equal(selected, Assert.Single(registry.Current.Entities));
+
+        page.Render(parameters => parameters.Add(value => value.SelectedJobRunId, (string?)null));
+        Assert.Empty(registry.Current.Selection);
+        Assert.Empty(registry.Current.Entities);
+    }
+
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void AgentContextTracksTheVisibleStateFilterAndClearsOnDisposal(ConsolePresentationMode mode)
+    {
+        using var context = new BunitContext();
+        var registry = new ConsoleAgentContextRegistry();
+        context.Services.AddSingleton(registry);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = mode == ConsolePresentationMode.V4 });
+        context.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubGeoprocessingClient
+        {
+            Jobs = OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed(
+                [Job("gp-running", "Running", "Executing", 40, "analyst.live")])
+        });
+        var page = context.Render<OperateGeoprocessingPage>();
+        page.FindAll("button").Single(button => button.TextContent.Trim().StartsWith("Running", StringComparison.Ordinal)).Click();
+        if (mode == ConsolePresentationMode.Legacy)
+        {
+            Assert.Equal(0, registry.Current.Generation);
+            return;
+        }
+        Assert.Equal("Running", registry.Current.Filters["state"]);
+        Assert.Empty(registry.Current.Selection);
+        page.Dispose();
+        Assert.Empty(registry.Current.Filters);
+    }
+
     [Theory]
     [InlineData(false, "Geoprocessing Jobs")]
     [InlineData(true, "Geoprocessing jobs")]

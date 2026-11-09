@@ -20,6 +20,8 @@ public sealed class OperateReleaseWitnessPageRenderTests
     public void CompleteQueryPreservesWitnessAttributesAndPublicLink(bool enabled)
     {
         using var context = CreateContext(new ConsoleV4Options { Enabled = enabled });
+        var registry = new ConsoleAgentContextRegistry();
+        context.Services.AddSingleton(registry);
         var client = new WitnessClient(Task.FromResult(OperateSectionResult<ConsoleReleaseWitnessEvidence>.Allowed(Evidence)));
         context.Services.AddSingleton<IConsoleReleaseWitnessClient>(client);
         context.Services.GetRequiredService<NavigationManager>().NavigateTo(CompleteQuery);
@@ -42,6 +44,11 @@ public sealed class OperateReleaseWitnessPageRenderTests
         Assert.Equal("true", witness.GetAttribute("data-audit-verified"));
         Assert.Equal(Evidence.PublicUrl, page.Find("[data-release-public-link]").GetAttribute("href"));
         if (enabled) Capture("release-witness-verified", page.Markup);
+        Assert.Equal(enabled ? "/operate/release-witness" : "/", registry.Current.Route);
+        Assert.Empty(registry.Current.Filters);
+        Assert.Empty(registry.Current.Selection);
+        page.Dispose();
+        Assert.Empty(registry.Current.Entities);
     }
 
     [Theory]

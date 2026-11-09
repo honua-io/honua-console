@@ -137,8 +137,10 @@ public sealed class StudioFormBuilderRenderTests
         Assert.True(FindButton(page, "Publish").HasAttribute("disabled"));
     }
 
-    [Fact]
-    public void FormBuilder_EditAfterValidation_ReGatesPublishAndValidate()
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void FormBuilder_EditAfterValidation_ReGatesPublishAndValidate(ConsolePresentationMode presentation)
     {
         var data = new FakeFormDataSource
         {
@@ -151,6 +153,9 @@ public sealed class StudioFormBuilderRenderTests
         // The page now hosts an UnsavedChangesGuard, which arms its beforeunload JS module on edit. Tolerate
         // those interop calls (the guard fails safe without JS); these tests assert page behaviour, not the guard.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        var registry = new ConsoleAgentContextRegistry();
+        ctx.Services.AddSingleton(registry);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.Services.AddSingleton<IStudioFormPackageDataSource>(data);
 
         var page = ctx.Render<StudioFormBuilderPage>();
@@ -167,6 +172,10 @@ public sealed class StudioFormBuilderRenderTests
         Assert.True(FindButton(page, "Publish").HasAttribute("disabled"));
         Assert.True(FindButton(page, "Validate").HasAttribute("disabled"));
         Assert.Contains("out of date", page.Markup, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(presentation == ConsolePresentationMode.V4 ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Empty(registry.Current.Filters);
+        page.Dispose();
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
     }
 
     [Fact]

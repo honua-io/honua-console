@@ -129,14 +129,19 @@ public sealed class StudioReportBuilderRenderTests
         }
     }
 
-    [Fact]
-    public void ReportBuilder_AddPanel_RendersOutlineEntryAndEmbeddedItemInThePage()
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void ReportBuilder_AddPanel_RendersOutlineEntryAndEmbeddedItemInThePage(ConsolePresentationMode presentation)
     {
         var data = new FakeReportDataSource();
         using var ctx = new Bunit.BunitContext();
         // Adding a panel marks the editor dirty, which arms the <UnsavedChangesGuard/> (a JS module import);
         // run Loose JSInterop so bUnit auto-handles that import.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        var registry = new ConsoleAgentContextRegistry();
+        ctx.Services.AddSingleton(registry);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(data);
 
         var page = ctx.Render<StudioReportBuilderPage>();
@@ -161,6 +166,9 @@ public sealed class StudioReportBuilderRenderTests
                 Assert.Contains("Vega-Lite spec", page.Markup, StringComparison.Ordinal);
             },
             TimeSpan.FromSeconds(5));
+        Assert.Equal(presentation == ConsolePresentationMode.V4 ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        page.Dispose();
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
     }
 
     [Fact]

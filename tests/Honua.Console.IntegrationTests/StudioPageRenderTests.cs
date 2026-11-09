@@ -14,6 +14,30 @@ namespace Honua.Console.IntegrationTests;
 public sealed class StudioPageRenderTests
 {
     [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void AgentContextPublishesOnlySafeRouteAndClearsOnDisposal(ConsolePresentationMode mode)
+    {
+        using var context = new BunitContext();
+        var registry = new ConsoleAgentContextRegistry();
+        context.Services.AddSingleton(registry);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = mode == ConsolePresentationMode.V4 });
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/studio?prompt=private-content#secret");
+
+        var page = context.Render<StudioPage>();
+
+        Assert.Equal(mode == ConsolePresentationMode.V4 ? "/studio" : "/", registry.Current.Route);
+        Assert.Empty(registry.Current.Entities);
+        Assert.Empty(registry.Current.Filters);
+        Assert.Empty(registry.Current.Selection);
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+        var generation = registry.Current.Generation;
+        page.Dispose();
+        if (mode == ConsolePresentationMode.V4) Assert.True(registry.Current.Generation > generation);
+        else Assert.Equal(generation, registry.Current.Generation);
+    }
+
+    [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]

@@ -5,10 +5,12 @@
 @inject IConsoleOperateObservabilityClient OperateClient
 @inject IConsoleCapabilityManifest Capabilities
 @inject IServiceProvider Services
+@inject NavigationManager Navigation
 
 <section class="console-page console-operate-page @(V4Enabled ? "console-activity-v4" : null)">
     @if (V4Enabled)
     {
+        <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/operate-activity-v4.css" />
     }
     @{
@@ -830,6 +832,28 @@
     [SupplyParameterFromQuery(Name = "correlationId")]
     public string? CorrelationId { get; set; }
 
+    private ConsoleAgentPageContext AgentContext
+    {
+        get
+        {
+            IReadOnlyList<ConsoleAgentEntity> selection = string.IsNullOrWhiteSpace(SelectedJobRowId)
+                ? [] : [new() { Kind = ConsoleAgentEntityKind.Job, Id = SelectedJobRowId }];
+            return new()
+            {
+                Route = new Uri(Navigation.Uri).AbsolutePath,
+                Entities = selection,
+                Selection = selection,
+                Filters = new Dictionary<string, string>
+                {
+                    ["environmentId"] = _activeEventQuery.EnvironmentId ?? string.Empty,
+                    ["eventType"] = _activeEventQuery.EventType ?? string.Empty,
+                    ["correlationId"] = _activeEventQuery.CorrelationId ?? string.Empty
+                }
+            };
+        }
+    }
+
+    private OperateEventQuery _activeEventQuery = new();
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     private bool _loaded;
@@ -923,10 +947,8 @@
         // through a single blocking aggregate, protecting the Operate path from
         // a request waterfall.
         var overviewTask = OperateClient.GetOverviewAsync();
-        var eventsTask = OperateClient.QueryEventsAsync(new OperateEventQuery
-        {
-            CorrelationId = _pendingCorrelationFilter
-        });
+        _activeEventQuery = new() { CorrelationId = _pendingCorrelationFilter };
+        var eventsTask = OperateClient.QueryEventsAsync(_activeEventQuery);
         var logsTask = OperateClient.GetLogsAsync();
         var alertsTask = OperateClient.GetAlertsAsync();
         var rulesTask = OperateClient.GetRulesAsync();
@@ -986,12 +1008,14 @@
 
     private async Task ApplyEventFilters()
     {
-        _events = await OperateClient.QueryEventsAsync(new OperateEventQuery
+        var query = new OperateEventQuery
         {
             EnvironmentId = _pendingEnvironmentFilter,
             EventType = _pendingEventTypeFilter,
             CorrelationId = _pendingCorrelationFilter
-        });
+        };
+        _events = await OperateClient.QueryEventsAsync(query);
+        _activeEventQuery = query;
     }
 
     private void ApplyLogFilter()
