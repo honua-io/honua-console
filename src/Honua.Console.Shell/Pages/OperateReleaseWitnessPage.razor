@@ -75,7 +75,11 @@
 @code {
     private ConsoleAgentPageContext AgentContext => new()
     {
-        Route = new Uri(Navigation.Uri).AbsolutePath
+        Route = new Uri(Navigation.Uri).AbsolutePath,
+        Entities = _result is { IsAllowed: true, Value: { } evidence }
+            ? [new() { Kind = ConsoleAgentEntityKind.Item, Id = evidence.ItemId },
+               new() { Kind = ConsoleAgentEntityKind.Approval, Id = evidence.ProposalId }]
+            : []
     };
 
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;

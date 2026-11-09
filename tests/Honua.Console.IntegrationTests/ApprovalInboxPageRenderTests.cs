@@ -14,6 +14,54 @@ public sealed class ApprovalInboxPageRenderTests
     public enum PlaceholderDate { UnixEpoch, Minimum }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AgentContext_TracksSelectionFiltersAndQueryNavigation(bool enabled)
+    {
+        var registry = new ConsoleAgentContextRegistry();
+        var proposals = new FakeConsoleProposalsClient(
+            proposals: [FakeProposalFactory.Summary("first", ConsoleProposalKind.Deploy),
+                FakeProposalFactory.Summary("second", ConsoleProposalKind.Deploy)],
+            details: [FakeProposalFactory.Detail("first", ConsoleProposalKind.Deploy),
+                FakeProposalFactory.Detail("second", ConsoleProposalKind.Deploy)]);
+        using var ctx = NewContext(proposals, registerServices: context =>
+        {
+            context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+            context.Services.AddSingleton(registry);
+        });
+        var navigation = ctx.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/inbox?proposalId=first");
+        var page = ctx.Render<ApprovalInboxPage>();
+        page.WaitForAssertion(() => page.Find("[data-proposal-approve]"));
+        Assert.Equal(enabled ? "first" : null, registry.Current.Entities.SingleOrDefault()?.Id);
+        Assert.Equal(enabled ? "/inbox" : "/", registry.Current.Route);
+        page.Find("[data-filter='ServerUpgrade']").Click();
+        if (enabled) Assert.Equal("ServerUpgrade", registry.Current.Filters["ticketType"]);
+        page.Find("[data-proposal-id='second']").Click();
+        page.Render();
+        Assert.Equal(enabled ? "second" : null, registry.Current.Entities.SingleOrDefault()?.Id);
+
+        await page.InvokeAsync(() => navigation.NavigateTo("/inbox?proposalId=second"));
+        await page.InvokeAsync(() => navigation.NavigateTo("/inbox?proposalId=first"));
+        if (enabled) page.WaitForAssertion(() => Assert.Equal("first", Assert.Single(registry.Current.Entities).Id));
+        await page.InvokeAsync(() => navigation.NavigateTo("/inbox?proposalId=second"));
+        page.WaitForAssertion(() => page.Find("[data-proposal-approve]"));
+        page.Find("[data-proposal-approve]").Click();
+        page.WaitForAssertion(() => Assert.Equal("second", Assert.Single(proposals.Approved)));
+        if (enabled)
+        {
+            Assert.Equal("second", Assert.Single(registry.Current.Selection).Id);
+            Assert.Equal(ConsoleAgentEntityKind.Approval, Assert.Single(registry.Current.Entities).Kind);
+        }
+        await page.InvokeAsync(() => navigation.NavigateTo("/inbox"));
+        page.WaitForAssertion(() => Assert.Empty(page.FindAll("[data-proposal-approve]")));
+        Assert.Empty(registry.Current.Entities);
+        await ctx.DisposeComponentsAsync();
+        Assert.Empty(registry.Current.Filters);
+        Assert.Empty(registry.Current.Selection);
+    }
+
+    [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
@@ -312,11 +360,17 @@ public sealed class ApprovalInboxPageRenderTests
         var proposals = new FakeConsoleProposalsClient(
             proposals: hasServing ? [managerSummary, FakeProposalFactory.Summary("op-1", ConsoleProposalKind.Deploy)] : [managerSummary],
             details: hasServing ? [managerDetail, FakeProposalFactory.Detail("op-1", ConsoleProposalKind.Deploy)] : [managerDetail]);
-        using var ctx = NewContext(proposals);
+        var registry = new ConsoleAgentContextRegistry();
+        using var ctx = NewContext(proposals, registerServices: context =>
+        {
+            context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+            context.Services.AddSingleton(registry);
+        });
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/inbox?proposalId=" + Uri.EscapeDataString(queryId));
 
         var page = ctx.Render<ApprovalInboxPage>();
         page.WaitForAssertion(() => page.Find("[data-proposal-approve]"), TimeSpan.FromSeconds(5));
+        Assert.Equal(expectedId, Assert.Single(registry.Current.Entities).Id);
         page.Find("[data-proposal-approve]").Click();
         page.WaitForAssertion(() => Assert.Equal(expectedId, Assert.Single(proposals.Approved)), TimeSpan.FromSeconds(5));
     }

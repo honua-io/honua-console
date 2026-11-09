@@ -17,7 +17,7 @@ public sealed class OperateReleaseWitnessPageRenderTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void CompleteQueryPreservesWitnessAttributesAndPublicLink(bool enabled)
+    public async Task CompleteQueryPreservesWitnessAttributesAndPublicLink(bool enabled)
     {
         using var context = CreateContext(new ConsoleV4Options { Enabled = enabled });
         var registry = new ConsoleAgentContextRegistry();
@@ -47,7 +47,8 @@ public sealed class OperateReleaseWitnessPageRenderTests
         Assert.Equal(enabled ? "/operate/release-witness" : "/", registry.Current.Route);
         Assert.Empty(registry.Current.Filters);
         Assert.Empty(registry.Current.Selection);
-        page.Dispose();
+        Assert.Equal(enabled ? new[] { "item-one", "proposal-one" } : [], registry.Current.Entities.Select(entity => entity.Id));
+        await context.DisposeComponentsAsync();
         Assert.Empty(registry.Current.Entities);
     }
 

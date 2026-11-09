@@ -596,6 +596,7 @@ public sealed partial class OperateGeoprocessingPageTests
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton(client);
+        services.AddSingleton<NavigationManager>(new TestPageNavigationManager("operate/jobs"));
         var provider = services.BuildServiceProvider();
 
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
