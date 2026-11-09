@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
 using Honua.Console.Web.Auth;
 using Microsoft.AspNetCore.Builder;
@@ -49,7 +50,7 @@ public sealed partial class ConsoleServerSessionIdentityBindingTests
         {
             var coordinator = app.Services.GetRequiredService<ConsoleServerSessionBffCoordinator>();
             var begin = await coordinator.BeginSignInAsync(profile.Id, null, "/studio");
-            var state = QueryHelpers.ParseQuery(new Uri(begin.RedirectUri).Query)["state"];
+            var state = QueryHelpers.ParseQuery(new Uri(begin.RedirectUri).Query)["state"].ToString();
             await coordinator.CompleteSignInAsync("code", scenario == "missing-state" ? null : state, null);
 
             if (scenario == "success") AssertStudioCallbackProofs(app, context, profile);
