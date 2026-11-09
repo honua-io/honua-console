@@ -8,21 +8,20 @@
     {
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/studio-automations-v4.css" />
     }
-    <div class="console-page-heading">
-        @if (!IsConsoleV4Enabled)
-        {
-            <p class="console-kicker">Studio collect.automation</p>
-        }
-        <h1>Automations</h1>
-        @if (IsConsoleV4Enabled)
-        {
+    @if (IsConsoleV4Enabled)
+    {
+        <ConsolePageHeading Title="Automations">
             <p>Manage rules that run when form events occur.</p>
-        }
-        else
-        {
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Studio collect.automation</p>
+            <h1>Automations</h1>
             <p>Compose, edit, and version the trigger-bound rules that drive Collect's shipped Data Events engine: sandboxed-expression conditions gating set/compute/validate/tag/notify actions with a deterministic cascade and loop guard.</p>
-        }
-    </div>
+        </div>
+    }
 
     <div class="automation-list-actions">
         <a class="console-button-link" href="/studio/automations/new">New automation</a>

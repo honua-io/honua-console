@@ -9,10 +9,13 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class StudioAutomationEditorPageTests
 {
-    [Fact]
-    public void UnboundRuntime_RendersMissingBindingState()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnboundRuntime_RendersMissingBindingState(bool v4Enabled)
     {
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ICollectAutomationClient>(new UnsupportedCollectAutomationClient());
 
@@ -23,12 +26,21 @@ public sealed class StudioAutomationEditorPageTests
             () => Assert.NotEmpty(page.FindAll("section.console-state-error")),
             TimeSpan.FromSeconds(5));
         Assert.Contains("Automation authoring is not bound", page.Markup, StringComparison.Ordinal);
+        Assert.Equal(v4Enabled, page.FindAll(".console-page-heading-v4").Count == 1);
+        if (v4Enabled)
+        {
+            Assert.Single(page.FindAll("h1"));
+            CatalogAdminPreview.Capture("automation-editor-unbound", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
+        }
     }
 
-    [Fact]
-    public void Editor_RendersHeaderTabsAndRulesForBoundDraft()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Editor_RendersHeaderTabsAndRulesForBoundDraft(bool v4Enabled)
     {
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ICollectAutomationClient>(InMemoryCollectAutomationClient.CreateSeeded());
 
@@ -45,12 +57,22 @@ public sealed class StudioAutomationEditorPageTests
 
         // The Rules tab is active by default and renders the seeded rule cards.
         Assert.NotEmpty(page.FindAll("section.automation-rules article.automation-rule-card"));
+        Assert.Equal(v4Enabled, page.FindAll(".console-page-heading-v4").Count == 1);
+        if (v4Enabled)
+        {
+            Assert.Single(page.FindAll("h1"));
+            Assert.Equal(page.FindAll(".automation-rule-card").Count, page.FindAll(".automation-rule-card > h2").Count);
+            CatalogAdminPreview.Capture("automation-editor-seeded", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
+        }
     }
 
-    [Fact]
-    public void SaveButton_DisabledWhileClientValidationBlocks()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SaveButton_DisabledWhileClientValidationBlocks(bool v4Enabled)
     {
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ICollectAutomationClient>(InMemoryCollectAutomationClient.CreateSeeded());
 
@@ -67,11 +89,14 @@ public sealed class StudioAutomationEditorPageTests
         Assert.Contains("Resolve these before saving a version", page.Markup, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Save_OfInvalidBody_CommitsNoVersionAndSurfacesIssues()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Save_OfInvalidBody_CommitsNoVersionAndSurfacesIssues(bool v4Enabled)
     {
         var client = new RecordingAutomationClient();
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ICollectAutomationClient>(client);
 

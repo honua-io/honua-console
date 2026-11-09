@@ -198,6 +198,21 @@ jobs:
         env:
           HONUA_ACTIVITY_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
 
+      - name: Verify rendered Automations presentation
+        run: node e2e/playwright/automations-preview.mjs
+        env:
+          HONUA_AUTOMATIONS_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload Automations presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: automations-presentation
+          path: |
+            artifacts/catalog-preview/automations-*
+            artifacts/catalog-preview/automation-*
+          if-no-files-found: error
+
       - name: Upload Activity presentation evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9

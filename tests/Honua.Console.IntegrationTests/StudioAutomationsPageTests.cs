@@ -27,9 +27,11 @@ public sealed class StudioAutomationsPageTests
         Assert.DoesNotContain("No automations yet", page.Markup, StringComparison.Ordinal);
         Assert.Equal(v4Enabled, page.Find("section.automation-page").ClassList.Contains("console-automations-v4"));
         Assert.Equal(v4Enabled, page.FindAll("section > link[rel='stylesheet'][href$='studio-automations-v4.css']").Count == 1);
+        Assert.Equal(v4Enabled, page.FindAll(".console-page-heading-v4").Count == 1);
         if (v4Enabled)
         {
-            CatalogAdminPreview.Capture("automations-unbound", page.Markup);
+            Assert.Single(page.FindAll("h1"));
+            CatalogAdminPreview.Capture("automations-unbound", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
         }
     }
 
@@ -65,7 +67,9 @@ public sealed class StudioAutomationsPageTests
             Assert.Equal("v1", cells[2].TextContent.Trim());
             Assert.True(int.Parse(cells[1].TextContent.Trim(), System.Globalization.CultureInfo.InvariantCulture) > 0);
             Assert.NotNull(cells[3].QuerySelector("time[datetime]"));
-            CatalogAdminPreview.Capture("automations-seeded", page.Markup);
+            Assert.Single(page.FindAll("h1"));
+            Assert.Single(page.FindAll(".console-page-heading-v4"));
+            CatalogAdminPreview.Capture("automations-seeded", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
         }
         else
         {
