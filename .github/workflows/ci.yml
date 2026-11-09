@@ -208,6 +208,21 @@ jobs:
           path: artifacts/catalog-preview/events-*
           if-no-files-found: error
 
+      - name: Verify rendered builders presentation
+        run: node e2e/playwright/builders-preview.mjs
+        env:
+          HONUA_BUILDERS_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload builders presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: builders-presentation
+          path: |
+            artifacts/catalog-preview/*-builder-*
+            artifacts/catalog-preview/workflow-editor-*
+          if-no-files-found: error
+
       - name: Verify rendered Home presentation
         run: node e2e/playwright/home-preview.mjs
       - name: Verify rendered jobs presentation

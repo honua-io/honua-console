@@ -1,0 +1,9 @@
+.console-shell[data-console-v4="true"] :is(.studio-form-builder, .studio-report-builder, .workflow-page) input[type="checkbox"] {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.console-shell[data-console-v4="true"] .studio-form-field {
+    background: var(--honua-bg);
+}
