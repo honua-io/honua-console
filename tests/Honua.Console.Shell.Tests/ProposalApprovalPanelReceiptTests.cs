@@ -1,4 +1,5 @@
 using Bunit;
+using Honua.Console.TestFixtures;
 using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
@@ -17,7 +18,7 @@ public sealed class ProposalApprovalPanelReceiptTests
     {
         using var context = new BunitContext();
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
-        context.Services.AddSingleton<IConsoleProposalsClient>(new ProposalClient(ConsoleProposalStatus.Submitted));
+        context.Services.AddSingleton<IConsoleProposalsClient>(new ReceiptProposalClient(ConsoleProposalStatus.Submitted));
         context.Services.AddSingleton<IConsoleApprovalInboxClient>(new EmptyInboxClient());
         context.Services.AddSingleton<IConsoleProposalRealtimeClient>(new NoOpRealtimeClient());
 
@@ -41,7 +42,7 @@ public sealed class ProposalApprovalPanelReceiptTests
     {
         using var context = new BunitContext();
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
-        context.Services.AddSingleton<IConsoleProposalsClient>(new ProposalClient());
+        context.Services.AddSingleton<IConsoleProposalsClient>(new ReceiptProposalClient());
         context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
             .Add(component => component.ProposalId, "proposal-1"));
@@ -58,52 +59,6 @@ public sealed class ProposalApprovalPanelReceiptTests
             Assert.Equal("operation-1", operation.GetAttribute("data-correlation-id"));
             Assert.Contains("Approved", panel.Find("[data-proposal-action-message]").TextContent, StringComparison.Ordinal);
         });
-    }
-
-    private sealed class ProposalClient(ConsoleProposalStatus initialStatus = ConsoleProposalStatus.AwaitingApproval)
-        : IConsoleProposalsClient
-    {
-        public Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(
-            string? status = null,
-            string? kind = null,
-            string? requestedBy = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Allowed([]));
-
-        public Task<OperateSectionResult<ConsoleProposalDetail>> GetAsync(
-            string proposalId,
-            CancellationToken cancellationToken = default) => Task.FromResult(Allowed(initialStatus));
-
-        public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
-            string proposalId,
-            CancellationToken cancellationToken = default) => Task.FromResult(Allowed(ConsoleProposalStatus.Submitted));
-
-        public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(
-            string proposalId,
-            string reason,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Unsupported, "not used"));
-
-        private static OperateSectionResult<ConsoleProposalDetail> Allowed(ConsoleProposalStatus status) =>
-            OperateSectionResult<ConsoleProposalDetail>.Allowed(new(
-                "proposal-1",
-                ConsoleProposalKind.MetadataRelease,
-                status,
-                "agent",
-                "agent",
-                "Publish candidate map",
-                ["item-1", "version-1", "draft-1", "map-route"],
-                [],
-                ConsoleProposalRisk.Low,
-                [],
-                [],
-                "human",
-                status == ConsoleProposalStatus.AwaitingApproval ? null : "operator",
-                null,
-                status == ConsoleProposalStatus.AwaitingApproval ? null : "operation-1",
-                DateTimeOffset.UtcNow,
-                DateTimeOffset.UtcNow,
-                status == ConsoleProposalStatus.AwaitingApproval ? null : DateTimeOffset.UtcNow));
     }
 
     private sealed class EmptyInboxClient : IConsoleApprovalInboxClient

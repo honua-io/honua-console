@@ -10,7 +10,18 @@ export async function inspectOperateSharedPresentation(page, { name, width }, pr
     : ["Time", "Kind", "Severity", "Message", "Correlation"]);
   assert.ok(await page.getByRole("link", { name: "Published candidate map", exact: true }).isVisible());
   assert.ok(await page.locator("[data-proposal-approve]").isDisabled());
-  if (name.endsWith("true")) assert.equal(await page.locator(".proposal-approval-panel").evaluate(element => getComputedStyle(element).padding), "20px");
+  if (name.endsWith("true")) {
+    assert.equal(await page.locator(".proposal-approval-panel").evaluate(element => getComputedStyle(element).padding), "20px");
+    for (const variant of ["is-data-import", "is-deliverable"]) {
+      const shadow = await page.locator(".proposal-approval-panel").evaluate((element, className) => {
+        element.classList.add(className);
+        const value = getComputedStyle(element).boxShadow;
+        element.classList.remove(className);
+        return value;
+      }, variant);
+      assert.ok(shadow.includes("inset"), `${variant} retains its type accent`);
+    }
+  }
   await page.keyboard.press("Tab");
   assert.equal(await page.locator(":focus").getAttribute("aria-label"), "Operational events");
   await page.keyboard.press("Tab");

@@ -1,4 +1,4 @@
-.console-shell[data-console-v4="true"] .operate-timeline {
+.console-shell[data-console-v4="true"] .operate-table-scroll.operate-timeline {
     border: 1px solid var(--c-border);
     border-radius: var(--radius-lg);
     background: var(--c-surface);
@@ -41,6 +41,14 @@
     box-shadow: var(--shadow-panel);
     min-width: 0;
     overflow-wrap: anywhere;
+}
+
+.console-shell[data-console-v4="true"] .proposal-approval-panel.is-data-import {
+    box-shadow: inset 4px 0 0 var(--honua-accent), var(--shadow-panel);
+}
+
+.console-shell[data-console-v4="true"] .proposal-approval-panel.is-deliverable {
+    box-shadow: inset 4px 0 0 #6d28d9, var(--shadow-panel);
 }
 
 .console-shell[data-console-v4="true"] .proposal-approval-summary {

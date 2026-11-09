@@ -212,7 +212,7 @@ Severity, What and Reference. Actor and environment are absent from the current
 entry contract; callers must not invent them to fill mockup columns. Its existing
 `ConsoleTableRegion` provides a named, keyboard-focusable horizontal scroll region.
 
-`ProposalApprovalPanel` accepts required `string ProposalId`, `int ReloadToken`,
+`ProposalApprovalPanel` accepts required `string ProposalId`, optional `int ReloadToken`,
 `EventCallback<ConsoleProposalDetail> OnActioned` and `OnDetailLoaded`. Reuse its
 server-owned evidence, blockers, risk, permission failures and approve/reject state
 machine. V4 supplies quiet panel styling without changing these contracts.
