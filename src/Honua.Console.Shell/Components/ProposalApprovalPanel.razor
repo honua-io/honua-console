@@ -336,7 +336,6 @@ else
         try
         {
             var result = await action();
-            if (_disposed) return;
             if (result.IsAllowed && result.Value is not null)
             {
                 Apply(result);
