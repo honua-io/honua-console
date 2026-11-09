@@ -1,0 +1,14 @@
+@if (Protocols.Count > 0)
+{
+    <ul class="console-protocol-list" aria-label="@Label">
+        @foreach (var protocol in Protocols)
+        {
+            <li>@protocol</li>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<string> Protocols { get; set; } = [];
+    [Parameter] public string? Label { get; set; }
+}

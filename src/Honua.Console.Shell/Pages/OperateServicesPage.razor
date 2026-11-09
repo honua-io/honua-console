@@ -1,12 +1,40 @@
 @page "/operate/services"
 @inject IOperateTransitionDataSource OperateData
+@inject IServiceProvider Services
 
 <section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Operate / Services</p>
-        <h1>Services</h1>
-        <p>Browse services and open their protocol and access settings.</p>
-    </div>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Services">
+            <p>Browse services and open their protocol and access settings.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Services</p>
+            <h1>Services</h1>
+            <p>Browse services and open their protocol and access settings.</p>
+        </div>
+    }
+
+    @if (V4Enabled)
+    {
+        <ConsolePanel Title="Services" HeadingId="services-list-heading">
+            @ServiceList
+        </ConsolePanel>
+    }
+    else
+    {
+        @ServiceList
+    }
+    <Honua.Console.Shell.Components.Operate.FolderManagement OnSaved="LoadAsync" />
+</section>
+
+@code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private RenderFragment ServiceList => @<text>
 
     @if (_loading)
     {
@@ -30,8 +58,28 @@
                     @foreach (var service in _services)
                     {
                         <tr>
-                            <td><a href="@($"/operate/services/{Uri.EscapeDataString(service.Name)}/settings")">@service.DisplayName</a></td>
-                            <td>@service.ServiceType</td>
+                            <td>
+                                @if (V4Enabled)
+                                {
+                                    <ConsoleNameIdentifier Name="@service.DisplayName" Identifier="@service.Name">
+                                        <a href="@($"/operate/services/{Uri.EscapeDataString(service.Name)}/settings")">@service.DisplayName</a>
+                                    </ConsoleNameIdentifier>
+                                }
+                                else
+                                {
+                                    <a href="@($"/operate/services/{Uri.EscapeDataString(service.Name)}/settings")">@service.DisplayName</a>
+                                }
+                            </td>
+                            <td>
+                                @if (V4Enabled)
+                                {
+                                    <ConsoleProtocolList Protocols="@service.ServiceType.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)" Label="Protocols" />
+                                }
+                                else
+                                {
+                                    @service.ServiceType
+                                }
+                            </td>
                             <td>@if (_states.Count > 0) { <span>Unknown</span> } else { @service.Layers.Count }</td>
                             <td>@service.RuntimeStatus</td>
                         </tr>
@@ -44,10 +92,8 @@
     {
         <EmptyState Area="operate" Subject="services" />
     }
-    <Honua.Console.Shell.Components.Operate.FolderManagement OnSaved="LoadAsync" />
-</section>
+    </text>;
 
-@code {
     private IReadOnlyList<OperateServiceDetail> _services = [];
     private IReadOnlyList<OperateCapabilityState> _states = [];
     private string? _loadError;
