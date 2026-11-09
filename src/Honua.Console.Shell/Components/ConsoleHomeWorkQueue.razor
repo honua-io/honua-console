@@ -54,15 +54,28 @@
     {
         var snapshot = _inbox.Value ?? ApprovalInboxSnapshot.Empty;
         <div class="console-home-inbox-metrics" role="status" aria-live="polite">
-            <span class="approval-inbox-metric @(snapshot.AwaitingApprovalCount > 0 ? "is-actionable" : null)"
-                  data-home-awaiting-count>
-                <strong>@snapshot.AwaitingApprovalCount</strong>
-                <span class="console-muted">@(_inbox.PartialResult ? "awaiting approval in returned sources" : "awaiting approval")</span>
-            </span>
-            <span class="approval-inbox-metric" data-home-total-count>
-                <strong>@snapshot.TotalCount</strong>
-                <span class="console-muted">@(_inbox.PartialResult ? "in returned sources" : "in the queue")</span>
-            </span>
+            @if (ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true)
+            {
+                <div class="console-home-pending" data-home-awaiting-count>
+                    <ConsoleMetricTile Label="@(_inbox.PartialResult ? "Awaiting approval in returned sources" : "Awaiting approval")"
+                                       Value="snapshot.AwaitingApprovalCount" />
+                </div>
+                <p class="console-muted" data-home-total-count>
+                    @snapshot.TotalCount @(_inbox.PartialResult ? "in returned sources" : "in the queue")
+                </p>
+            }
+            else
+            {
+                <span class="approval-inbox-metric @(snapshot.AwaitingApprovalCount > 0 ? "is-actionable" : null)"
+                      data-home-awaiting-count>
+                    <strong>@snapshot.AwaitingApprovalCount</strong>
+                    <span class="console-muted">@(_inbox.PartialResult ? "awaiting approval in returned sources" : "awaiting approval")</span>
+                </span>
+                <span class="approval-inbox-metric" data-home-total-count>
+                    <strong>@snapshot.TotalCount</strong>
+                    <span class="console-muted">@(_inbox.PartialResult ? "in returned sources" : "in the queue")</span>
+                </span>
+            }
         </div>
         <p class="console-muted">
             @if (snapshot.AwaitingApprovalCount > 0)

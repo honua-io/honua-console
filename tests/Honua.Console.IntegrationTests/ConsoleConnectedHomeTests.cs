@@ -30,6 +30,61 @@ public sealed class ConsoleConnectedHomeTests
         CatalogAdminPreview.Capture("home", home.Markup);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RolloutSwitch_PreservesEnvironmentActionsAndPartialQueueTruth(bool enabled)
+    {
+        var result = OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty,
+            partialResult: true, message: "The supplementary proposal source could not be read.");
+        using var context = CreateContext(result);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        var home = context.Render<ConsoleHomePage>();
+
+        home.WaitForAssertion(() =>
+        {
+            Assert.Single(home.FindAll("h1"));
+            Assert.Contains("Production", home.Find("[data-home-environment]").TextContent);
+            Assert.Equal("/inbox", home.Find("[data-open-inbox]").GetAttribute("href"));
+            Assert.Equal("/environments", home.Find(".console-home-administration a[href='/environments']").GetAttribute("href"));
+            Assert.Contains("supplementary proposal source", home.Find("[data-home-inbox-partial]").TextContent);
+            Assert.Contains("in returned sources", home.Find("[data-home-total-count]").TextContent);
+            Assert.Equal(enabled ? 1 : 0, home.FindAll(".console-metric-tile").Count);
+            Assert.Equal(enabled ? 1 : 0, home.FindAll(".console-page-heading-copy").Count);
+            if (enabled)
+            {
+                Assert.Equal("0", home.Find("[data-home-awaiting-count] dd").TextContent);
+                Assert.Contains("returned sources", home.Find("[data-home-awaiting-count] dt").TextContent);
+            }
+            else
+            {
+                Assert.Equal("0", home.Find("[data-home-awaiting-count] strong").TextContent);
+            }
+        });
+        CatalogAdminPreview.Capture($"home-v4-{enabled.ToString().ToLowerInvariant()}",
+            $"<div class=\"console-shell\" data-console-v4=\"{enabled.ToString().ToLowerInvariant()}\"><main class=\"console-main\">{home.Markup}</main></div>");
+    }
+
+    [Fact]
+    public void V4CompleteQueue_UsesMeasuredPendingCountAndRetainsTotalAsContext()
+    {
+        var snapshot = FakeProposalFactory.Snapshot(
+            FakeProposalFactory.Summary("pending", ConsoleProposalKind.Deploy),
+            FakeProposalFactory.Summary("complete", ConsoleProposalKind.Deploy, ConsoleProposalStatus.Completed));
+        using var context = CreateContext(OperateSectionResult<ApprovalInboxSnapshot>.Allowed(snapshot));
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        var home = context.Render<ConsoleHomePage>();
+
+        home.WaitForAssertion(() =>
+        {
+            Assert.Equal("1", home.Find("[data-home-awaiting-count] dd").TextContent);
+            Assert.Equal("Awaiting approval", home.Find("[data-home-awaiting-count] dt").TextContent);
+            Assert.Contains("2 in the queue", home.Find("[data-home-total-count]").TextContent);
+            Assert.Empty(home.FindAll("[data-home-inbox-partial]"));
+            Assert.Equal("/inbox", home.Find("[data-open-inbox]").GetAttribute("href"));
+        });
+    }
+
     [Fact]
     public void PartialEmptyQueue_ShowsSourceWarningWithoutClaimingNoPendingWork()
     {
