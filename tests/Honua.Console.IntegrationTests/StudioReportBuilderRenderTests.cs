@@ -10,16 +10,16 @@ namespace Honua.Console.IntegrationTests;
 public sealed class StudioReportBuilderRenderTests
 {
     [Theory]
-    [InlineData(false, 0)]
-    [InlineData(true, 1)]
-    public void ReportBuilder_WhenBindingMissing_RendersNotBoundSurface(bool enabled, int expectedV4Headings)
+    [InlineData(ConsolePresentationMode.Legacy, 0)]
+    [InlineData(ConsolePresentationMode.V4, 1)]
+    public void ReportBuilder_WhenBindingMissing_RendersNotBoundSurface(ConsolePresentationMode presentation, int expectedV4Headings)
     {
         var data = new FakeReportDataSource
         {
             Load = new StudioReportPublicationLoad(null, [MissingBinding])
         };
         using var ctx = new Bunit.BunitContext();
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(data);
         NavigateWithPublicationId(ctx, "pub-1");
 
@@ -31,7 +31,7 @@ public sealed class StudioReportBuilderRenderTests
         Assert.DoesNotContain("data-report-publication", page.Markup, StringComparison.Ordinal);
 
         Assert.Equal(expectedV4Headings, page.FindAll(".console-page-heading-v4").Count);
-        if (enabled)
+        if (presentation == ConsolePresentationMode.V4)
         {
             Assert.Equal("Report builder", Assert.Single(page.FindAll("h1")).TextContent);
             CatalogAdminPreview.Capture("report-builder-unbound", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
@@ -82,13 +82,13 @@ public sealed class StudioReportBuilderRenderTests
     }
 
     [Theory]
-    [InlineData(false, 0)]
-    [InlineData(true, 1)]
-    public void ReportBuilder_NewReport_RendersAuthoringSurfaceWithPublishGate(bool enabled, int expectedV4Headings)
+    [InlineData(ConsolePresentationMode.Legacy, 0)]
+    [InlineData(ConsolePresentationMode.V4, 1)]
+    public void ReportBuilder_NewReport_RendersAuthoringSurfaceWithPublishGate(ConsolePresentationMode presentation, int expectedV4Headings)
     {
         var data = new FakeReportDataSource();
         using var ctx = new Bunit.BunitContext();
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(data);
 
         var page = ctx.Render<StudioReportBuilderPage>();
@@ -122,7 +122,7 @@ public sealed class StudioReportBuilderRenderTests
         Assert.Contains("studio-report-breakpoint", page.Markup, StringComparison.Ordinal);
 
         Assert.Equal(expectedV4Headings, page.FindAll(".console-page-heading-v4").Count);
-        if (enabled)
+        if (presentation == ConsolePresentationMode.V4)
         {
             Assert.Equal("Report builder", Assert.Single(page.FindAll("h1")).TextContent);
             CatalogAdminPreview.Capture("report-builder-new", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");

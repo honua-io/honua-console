@@ -10,16 +10,16 @@ namespace Honua.Console.IntegrationTests;
 public sealed class StudioFormBuilderRenderTests
 {
     [Theory]
-    [InlineData(false, 0)]
-    [InlineData(true, 1)]
-    public void FormBuilder_WhenBindingMissing_RendersNotBoundSurface(bool enabled, int expectedV4Headings)
+    [InlineData(ConsolePresentationMode.Legacy, 0)]
+    [InlineData(ConsolePresentationMode.V4, 1)]
+    public void FormBuilder_WhenBindingMissing_RendersNotBoundSurface(ConsolePresentationMode presentation, int expectedV4Headings)
     {
         var data = new FakeFormDataSource
         {
             Workspace = new StudioFormWorkspace([], [MissingBinding])
         };
         using var ctx = new Bunit.BunitContext();
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         // The page now hosts an UnsavedChangesGuard, which arms its beforeunload JS module on edit. Tolerate
         // those interop calls (the guard fails safe without JS); these tests assert page behaviour, not the guard.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -33,7 +33,7 @@ public sealed class StudioFormBuilderRenderTests
         Assert.DoesNotContain("data-form-builder", page.Markup, StringComparison.Ordinal);
 
         Assert.Equal(expectedV4Headings, page.FindAll(".console-page-heading-v4").Count);
-        if (enabled)
+        if (presentation == ConsolePresentationMode.V4)
         {
             Assert.Equal("Form builder", Assert.Single(page.FindAll("h1")).TextContent);
             CatalogAdminPreview.Capture("form-builder-unbound", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
@@ -41,9 +41,9 @@ public sealed class StudioFormBuilderRenderTests
     }
 
     [Theory]
-    [InlineData(false, 0)]
-    [InlineData(true, 1)]
-    public void FormBuilder_OpenReadyForm_RendersFieldsAndEnablesPublish(bool enabled, int expectedV4Headings)
+    [InlineData(ConsolePresentationMode.Legacy, 0)]
+    [InlineData(ConsolePresentationMode.V4, 1)]
+    public void FormBuilder_OpenReadyForm_RendersFieldsAndEnablesPublish(ConsolePresentationMode presentation, int expectedV4Headings)
     {
         var data = new FakeFormDataSource
         {
@@ -53,7 +53,7 @@ public sealed class StudioFormBuilderRenderTests
             EditorLoad = new StudioFormEditorLoad(ReadyEditor(), [])
         };
         using var ctx = new Bunit.BunitContext();
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         // The page now hosts an UnsavedChangesGuard, which arms its beforeunload JS module on edit. Tolerate
         // those interop calls (the guard fails safe without JS); these tests assert page behaviour, not the guard.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -71,7 +71,7 @@ public sealed class StudioFormBuilderRenderTests
         Assert.False(FindButton(page, "Publish").HasAttribute("disabled"));
 
         Assert.Equal(expectedV4Headings, page.FindAll(".console-page-heading-v4").Count);
-        if (enabled)
+        if (presentation == ConsolePresentationMode.V4)
         {
             Assert.Equal("Form builder", Assert.Single(page.FindAll("h1")).TextContent);
             CatalogAdminPreview.Capture("form-builder-ready", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
