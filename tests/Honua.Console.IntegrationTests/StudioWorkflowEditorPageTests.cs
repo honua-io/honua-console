@@ -10,11 +10,14 @@ namespace Honua.Console.IntegrationTests;
 // A failed validation keeps the editor dirty so a later publish cannot reuse a stale version and drop the current edits.
 public sealed class StudioWorkflowEditorPageTests
 {
-    [Fact]
-    public void Publish_AfterValidationFailedSave_DoesNotShipStalePriorVersion()
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy, 0)]
+    [InlineData(ConsolePresentationMode.V4, 1)]
+    public void Publish_AfterValidationFailedSave_DoesNotShipStalePriorVersion(ConsolePresentationMode presentation, int expectedV4Headings)
     {
         var client = new RecordingWorkflowPackageClient();
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         // The page renders <UnsavedChangesGuard/>, which imports a JS module on dirty transitions; allow the
         // bUnit JSInterop to no-op those calls (the guard is exercised directly in UnsavedChangesGuardTests).
@@ -28,6 +31,15 @@ public sealed class StudioWorkflowEditorPageTests
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll("section[aria-label='Package metadata'] input.console-input")),
             TimeSpan.FromSeconds(5));
+
+
+        Assert.Equal(expectedV4Headings, page.FindAll(".console-page-heading-v4").Count);
+        Assert.Equal(presentation == ConsolePresentationMode.V4 ? "SECTION" : "MAIN", page.Find(".workflow-main").TagName);
+        if (presentation == ConsolePresentationMode.V4)
+        {
+            Assert.Equal("Workflow editor", Assert.Single(page.FindAll("h1")).TextContent);
+            CatalogAdminPreview.Capture("workflow-editor-seeded", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
+        }
 
         // Edit the title so the draft diverges from the last saved version (now dirty).
         TitleInput(page).Input("Parcel normalizer (edited)");

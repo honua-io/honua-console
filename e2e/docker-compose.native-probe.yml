@@ -1,0 +1,4 @@
+services:
+  honua-server:
+    healthcheck:
+      test: ["CMD", "/app/honua-healthcheck", "--ready"]

@@ -3,19 +3,31 @@
 @using Honua.Console.Shell.Validation
 @inject ICollectAutomationClient Automations
 @inject NavigationManager Navigation
+@inject IServiceProvider Services
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved automation changes. Leave this page and discard them?" />
 
-<section class="console-page automation-page automation-editor-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Studio collect.automation</p>
-        <h1>Automation Editor</h1>
-        <p>Author trigger-bound rules and engine actions over Collect's shipped Data Events engine, then save a versioned content item alongside the form definition.</p>
-    </div>
+<section class="console-page automation-page automation-editor-page @(IsConsoleV4Enabled ? "console-automations-v4" : null)">
+    @if (IsConsoleV4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/studio-automations-v4.css" />
+        <ConsolePageHeading Title="Automation editor">
+            <p>Edit rules and save a new automation version.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Studio collect.automation</p>
+            <h1>Automation Editor</h1>
+            <p>Author trigger-bound rules and engine actions over Collect's shipped Data Events engine, then save a versioned content item alongside the form definition.</p>
+        </div>
+    }
 
     @if (_binding is not null)
     {
         <ConsoleStateView Kind="error"
+                          HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
                           Kicker="@_binding.State"
                           Title="Automation authoring is not bound"
                           Message="@($"{_binding.Detail} (contract: {_binding.Contract})")"
@@ -25,6 +37,7 @@
     else if (_loading)
     {
         <ConsoleStateView Kind="loading"
+                          HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
                           Kicker="Automation"
                           Title="Loading automation draft"
                           Message="Resolving the Collect automation projection." />
@@ -32,6 +45,7 @@
     else if (_draft is null)
     {
         <ConsoleStateView Kind="empty"
+                          HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
                           Kicker="Automation"
                           Title="Automation draft unavailable"
                           Message="The requested automation draft was not found or cannot be opened in this workspace."
@@ -116,6 +130,10 @@
                     var ri = ruleIndex;
                     var rule = _draft.Rules[ri];
                     <article class="console-panel automation-rule-card" aria-label="@($"Rule {ri + 1}")">
+                        @if (IsConsoleV4Enabled)
+                        {
+                            <h2 class="console-visually-hidden">Rule @(ri + 1)</h2>
+                        }
                         <div class="automation-rule-head">
                             <input class="console-input automation-rule-name" aria-label="Rule name" @bind="rule.Name" @bind:event="oninput" @bind:after="OnEdit" />
                             <button class="console-button console-button-secondary automation-rule-remove" type="button" disabled="@_busy" @onclick="() => RemoveRule(ri)">Remove rule</button>
@@ -236,6 +254,8 @@
 </section>
 
 @code {
+    private bool IsConsoleV4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     private const string TabRules = "rules";
     private const string TabSettings = "settings";
     private const string TabRaw = "raw";
