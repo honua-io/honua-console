@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Honua.Console.Shell.Tests;
 
-public sealed class OperateGeoprocessingPageTests
+public sealed partial class OperateGeoprocessingPageTests
 {
     [Fact]
     public async Task ListModeRendersGeoprocessingJobs()
@@ -159,11 +159,14 @@ public sealed class OperateGeoprocessingPageTests
         Assert.Contains("was not found", html);
     }
 
-    [Fact]
-    public void DetailModeOffersRetryOnlyForFailedOrCancelled()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DetailModeOffersRetryOnlyForFailedOrCancelled(bool v4Enabled)
     {
         // Succeeded is terminal but not retryable: no Retry, no Cancel.
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         var client = new StubGeoprocessingClient
         {
             Detail = OperateSectionResult<OperateJobRun>.Allowed(
@@ -179,10 +182,13 @@ public sealed class OperateGeoprocessingPageTests
         Assert.DoesNotContain(buttons, b => b.TextContent.Contains("Cancel job", StringComparison.Ordinal));
     }
 
-    [Fact]
-    public void DetailModeRetryOnFailedJobCallsRetryEndpointAndSurfacesResult()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DetailModeRetryOnFailedJobCallsRetryEndpointAndSurfacesResult(bool v4Enabled)
     {
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         var client = new StubGeoprocessingClient
         {
             Detail = OperateSectionResult<OperateJobRun>.Allowed(
@@ -377,10 +383,13 @@ public sealed class OperateGeoprocessingPageTests
         Assert.DoesNotContain("super-secret-token", html);
     }
 
-    [Fact]
-    public void DetailTimelineAppendsTheNextEventPageWithoutDroppingTheCursor()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DetailTimelineAppendsTheNextEventPageWithoutDroppingTheCursor(bool v4Enabled)
     {
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         var client = new StubGeoprocessingClient
         {
             Detail = OperateSectionResult<OperateJobRun>.Allowed(
@@ -402,6 +411,10 @@ public sealed class OperateGeoprocessingPageTests
         Assert.Equal([null, "cursor-2"], client.DiagnosticCursors);
         Assert.Contains("tail event", page.Markup);
         Assert.Contains("older event", page.Markup);
+        if (v4Enabled)
+        {
+            CapturePreview("jobs-timeline", page.Markup);
+        }
     }
 
     [Fact]
