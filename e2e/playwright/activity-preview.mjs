@@ -6,7 +6,7 @@ import { chromium } from "@playwright/test";
 import { startPresentationFixtureServer } from "./presentation-fixture-server.mjs";
 import { checkKeyboardControls } from "./console-presentation.mjs";
 
-const previews = path.resolve("artifacts/activity-preview");
+const previews = path.resolve(process.env.HONUA_ACTIVITY_PREVIEW_DIR ?? "artifacts/activity-preview");
 const shellAssets = path.resolve("src/Honua.Console.Shell/wwwroot");
 const pages = new Map(await Promise.all(["activity-selected", "activity-empty"].map(async name =>
   [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
