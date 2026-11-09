@@ -5,6 +5,9 @@ namespace Honua.Console.Contracts;
 
 public interface IHonuaAdminConnectionsClient
 {
+    Task<HonuaAdminEndpointResult<JsonElement>> GetConnectionProviderManifestAsync(
+        CancellationToken cancellationToken = default);
+
     Task<HonuaAdminEndpointResult<HonuaAdminConnectionSummary[]>> ListConnectionsAsync(
         CancellationToken cancellationToken = default);
 

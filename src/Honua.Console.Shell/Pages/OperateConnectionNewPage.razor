@@ -24,8 +24,8 @@
             </label>
             <label>
                 <span>Database type</span>
-                <select class="console-input" @bind="_provider" @bind:after="OnProviderChanged">
-                    @foreach (var provider in Providers)
+                <select class="console-input" disabled="@(!CanUseProvider)" @bind="_provider" @bind:after="OnProviderChanged">
+                    @foreach (var provider in AvailableProviders)
                     {
                         <option value="@provider.Value">@provider.Label</option>
                     }
@@ -105,6 +105,33 @@
             </label>
         </div>
 
+        @if (_providerAvailability is null)
+        {
+            <OperateSectionStatusPanel Heading="Database providers" Loading="true" />
+        }
+        else if (_providerAvailability.UnavailableReason is { } reason)
+        {
+            <OperateSectionStatusPanel Heading="Database providers" Status="_providerAvailability.FailureStatus" Message="@reason" />
+        }
+        else if (UnavailableProviders.Length > 0)
+        {
+            <div role="status" data-provider-upgrade>
+                @if (AvailableProviders.Length == 0)
+                {
+                    <p>No installed database provider is supported by this form.</p>
+                }
+                <p>@string.Join(", ", UnavailableProviders.Select(provider => provider.Label)) are not installed on this server.</p>
+                @if (!string.IsNullOrWhiteSpace(_providerAvailability.FullImageTagSuffix))
+                {
+                    <p>These providers require the full server image. Switch your server deployment to the image tag with the <code>@_providerAvailability.FullImageTagSuffix</code> suffix, then reload this page.</p>
+                }
+                @if (_providerAvailability.DocumentationHref is { } href)
+                {
+                    <a href="@href" data-provider-documentation>How to switch server images</a>
+                }
+            </div>
+        }
+
         @if (_testOutcome is { } test)
         {
             <article class="console-panel @(test.Tested && test.IsHealthy ? "console-state-success" : "console-state-warning")" role="status">
@@ -124,10 +151,10 @@
         }
 
         <div class="console-action-row">
-            <button class="console-button console-button-secondary" type="button" disabled="@(_busy || _testing)" @onclick="TestAsync">
+            <button class="console-button console-button-secondary" type="button" disabled="@(_busy || _testing || !CanUseProvider)" @onclick="TestAsync">
                 @(_testing ? "Testing…" : "Test connection")
             </button>
-            <button class="console-button" type="button" disabled="@(_busy || _testing)" @onclick="CreateAsync">
+            <button class="console-button" type="button" disabled="@(_busy || _testing || !CanUseProvider)" @onclick="CreateAsync">
                 @(_busy ? "Creating…" : "Create connection")
             </button>
             <a href="/operate/connections">Cancel</a>
@@ -172,6 +199,10 @@
     private string _secretReference = string.Empty;
     private string _sslMode = "Disable";
     private string _description = string.Empty;
+    private ConsoleConnectionProviderAvailability? _providerAvailability;
+    private ProviderOption[] AvailableProviders => Providers.Where(provider => _providerAvailability?.Allows(provider.Value) == true).ToArray();
+    private ProviderOption[] UnavailableProviders => Providers.Where(provider => _providerAvailability?.Allows(provider.Value) == false).ToArray();
+    private bool CanUseProvider => _providerAvailability?.Allows(_provider) == true;
 
     private bool UsesSecret => string.Equals(_credentialSource, "secret", StringComparison.OrdinalIgnoreCase);
 
@@ -204,6 +235,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _providerAvailability = await ConnectionCreate.GetProviderAvailabilityAsync();
+        _provider = AvailableProviders.FirstOrDefault()?.Value ?? string.Empty;
+        _port = CurrentProvider.DefaultPort;
         var view = await OperateData.GetConnectionsViewAsync();
         _existingNames = view.Connections
             .Select(connection => connection.Name)
@@ -260,6 +294,10 @@
 
     private async Task TestAsync()
     {
+        if (!CanUseProvider)
+        {
+            return;
+        }
         // Reachability doesn't need a unique (or even present) name, so ignore Name findings when gating Test.
         var errors = Revalidate();
         if (errors.Any(error => error.IsBlocking && error.FieldKey != ConnectionFieldKeys.Name))
@@ -282,6 +320,10 @@
 
     private async Task CreateAsync()
     {
+        if (!CanUseProvider)
+        {
+            return;
+        }
         var errors = Revalidate();
         if (errors.Any(error => error.IsBlocking))
         {
