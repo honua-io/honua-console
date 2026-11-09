@@ -4,7 +4,7 @@ import { StudioDraftCreateSession } from '../../src/Honua.Console.Web/wwwroot/js
 
 function fixture() {
     const records = new Map();
-    const storage = { getItem: key => records.get(key) ?? null, setItem: (key, value) => records.set(key, value) };
+    const storage = { getItem: key => records.get(key) ?? null, setItem: (key, value) => records.set(key, value), removeItem: key => records.delete(key) };
     const calls = [], attached = [];
     const app = { workspace: { storage, workspaceId: 'workspace' },
         workspaceCookieBinding: { principalId: 'human', environmentId: 'local', sourcePathBase: '' },
@@ -13,7 +13,7 @@ function fixture() {
             calls.push({ key, commandId });
             return { status: 'awaiting-approval', operationInstanceId: 'operation', proposalId: 'proposal' };
         },
-        attachWorkspaceDraft: async draftId => attached.push(draftId),
+        attachWorkspaceDraft: async (draftId, guard) => { guard?.(); attached.push(draftId); },
     };
     let operation = { operationInstanceId: 'operation', status: 4, proposalId: 'proposal' };
     const options = { uuid: () => 'original-command', readOperation: async () => operation };
@@ -136,4 +136,74 @@ test('a disconnected host cannot reconcile an in-flight approval', async () => {
     finish({ operationInstanceId: 'operation', status: 1, resourceIds: { draftId: 'draft' } });
     await assert.rejects(refreshing, /changed/i);
     assert.deepEqual(f.attached, []);
+});
+
+
+test('conversation reload preserves the original approval under the same authority', async () => {
+    const f = fixture();
+    await f.session.submit('map');
+    f.app.workspace.workspaceId = 'replacement-view';
+    const restored = new StudioDraftCreateSession(f.app, f.options);
+    assert.equal(restored.read()?.receipt.proposalId, 'proposal');
+    await restored.submit('map');
+    assert.equal(f.calls.length, 1);
+});
+
+test('queued attachment rejects navigation before it can adopt the approved draft', async () => {
+    const f = fixture();
+    await f.session.submit('map');
+    f.complete({ operationInstanceId: 'operation', status: 1, resourceIds: { draftId: 'draft' } });
+    f.app.attachWorkspaceDraft = async (draftId, guard) => {
+        await Promise.resolve();
+        f.app.workspace.workspaceId = 'replacement-view';
+        guard?.();
+        f.attached.push(draftId);
+    };
+    await assert.rejects(f.session.refresh(), /changed/i);
+    assert.deepEqual(f.attached, []);
+});
+
+test('a completed retained action opens its canonical draft again without another create', async () => {
+    const f = fixture();
+    await f.session.submit('map');
+    f.complete({ operationInstanceId: 'operation', status: 1, resourceIds: { draftId: 'draft' } });
+    await f.session.refresh();
+    f.app.workspaceDraftIdentity = { draftId: 'another-map' };
+    await f.session.submit('map');
+    assert.deepEqual(f.attached, ['draft', 'draft']);
+    assert.equal(f.calls.length, 1);
+});
+
+test('acknowledging a terminal outcome allows a fresh action and never resubmits the rejected one', async () => {
+    const f = fixture();
+    await f.session.submit('map');
+    f.complete({ operationInstanceId: 'operation', status: 7 });
+    await f.session.refresh();
+    f.session.acknowledge();
+    assert.equal(f.session.read(), null);
+    await f.session.submit('another-map');
+    assert.equal(f.calls.length, 2);
+});
+
+test('a retained pending action cannot be acknowledged while its outcome is unknown', async () => {
+    const f = fixture();
+    await f.session.submit('map');
+    assert.throws(() => f.session.acknowledge(), /outcome/i);
+    assert.equal(f.session.read().status, 'awaiting-approval');
+});
+
+
+test('corrupt local handoffs require explicit acknowledgement before another action', async () => {
+    const f = fixture();
+    await f.session.submit('map');
+    const storageKey = [...f.records.keys()][0];
+    f.records.set(storageKey, '{broken');
+    await assert.rejects(f.session.submit('map'));
+    assert.equal(f.calls.length, 1);
+    f.session.acknowledgeUnreadable();
+    assert.equal(f.session.read(), null);
+    assert.equal(f.calls.length, 1);
+    await f.session.submit('map');
+    assert.throws(() => f.session.acknowledgeUnreadable(), /readable/i);
+    assert.equal(f.session.read().status, 'awaiting-approval');
 });

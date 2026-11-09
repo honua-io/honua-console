@@ -192,10 +192,11 @@ internal static partial class AgentWorkspaceBff
         }
         using var request = new HttpRequestMessage(new HttpMethod(context.Request.Method),
             new Uri(new Uri(profile.ServerBaseUri.AbsoluteUri.TrimEnd('/') + "/"), upstreamPath));
-        // Publication/rollback retries must retain the caller's original operation identity.
+        // Draft creation and publication/rollback retries must retain the caller's original operation identity.
         // Older clients may omit it; never invent a new identity in the proxy.
-        var isStudioPointerWrite = studio && HttpMethods.IsPost(context.Request.Method) && StudioPointerWritePath().IsMatch(path);
-        if (isStudioPointerWrite && context.Request.Headers.ContainsKey("Idempotency-Key"))
+        var isStudioIdempotentWrite = studio && HttpMethods.IsPost(context.Request.Method)
+            && (path == "v1/studio/package-drafts" || StudioPointerWritePath().IsMatch(path));
+        if (isStudioIdempotentWrite && context.Request.Headers.ContainsKey("Idempotency-Key"))
         {
             var key = context.Request.Headers["Idempotency-Key"].ToString();
             if (!Regex.IsMatch(key, @"\A[A-Za-z0-9_-]{1,128}\z")) { return Results.BadRequest(); }

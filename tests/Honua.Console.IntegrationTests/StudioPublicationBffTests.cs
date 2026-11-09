@@ -16,7 +16,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Honua.Console.IntegrationTests;
 
-public sealed class StudioPublicationBffTests
+public sealed partial class StudioPublicationBffTests
 {
     private const string Publication = "/api/studio/v1/studio/content-items/item/versions/version/publish-requests";
     private const string Rollback = "/api/studio/v1/studio/content-items/item/rollback-requests";
@@ -228,26 +228,6 @@ public sealed class StudioPublicationBffTests
         Assert.True(stream.IsDisposed);
     }
 
-    [Theory]
-    [InlineData(Publication)]
-    [InlineData(Rollback)]
-    public async Task RetainsOriginalSubmissionIdentityAndPendingApprovalReceipt(string path)
-    {
-        await using var host = await Host.Start();
-        host.Wire.Status = HttpStatusCode.Accepted;
-        host.Wire.ResponseBody = """{"data":{"status":4,"operationInstanceId":"operation","proposalId":"proposal"}}""";
-        host.Client.DefaultRequestHeaders.Add("Idempotency-Key", "original-command");
-        for (var attempt = 0; attempt < 2; attempt++)
-        {
-            using var response = await host.Client.PostAsync(path, new StringContent("{}"));
-            Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
-            Assert.Equal(host.Wire.ResponseBody, await response.Content.ReadAsStringAsync());
-            Assert.Equal("original-command", host.Wire.IdempotencyKey);
-            Assert.True(host.Wire.HumanOnly);
-        }
-        Assert.Equal(2, host.Wire.Calls);
-    }
-
     [Fact]
     public async Task ReceiptPollingReachesExactReadOnlyRouteWithCurrentOperator()
     {
@@ -305,26 +285,6 @@ public sealed class StudioPublicationBffTests
         using var stale = await host.Client.GetAsync(path);
         Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
         Assert.Equal(1, host.Wire.Calls);
-    }
-
-    [Theory]
-    [InlineData(Publication)]
-    [InlineData(Rollback)]
-    public async Task DuplicateOrMalformedIdempotencyKeysNeverReachServer(string path)
-    {
-        await using var host = await Host.Start();
-        foreach (var value in new[] { "bad/key", "two,keys", new string('a', 129) })
-        {
-            host.Client.DefaultRequestHeaders.Remove("Idempotency-Key");
-            host.Client.DefaultRequestHeaders.Add("Idempotency-Key", value);
-            using var response = await host.Client.PostAsync(path, new StringContent("{}"));
-            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        }
-        host.Client.DefaultRequestHeaders.Remove("Idempotency-Key");
-        host.Client.DefaultRequestHeaders.Add("Idempotency-Key", new[] { "first", "second" });
-        using var duplicate = await host.Client.PostAsync(path, new StringContent("{}"));
-        Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
-        Assert.Equal(0, host.Wire.Calls);
     }
 
     [Fact]
