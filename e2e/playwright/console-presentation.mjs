@@ -210,30 +210,37 @@ export async function runV4PagePresentation({ previews, pageNames, title, styles
     const page = await context.newPage();
     for (const name of pages.keys()) {
       for (const width of [1280, 390]) {
-        await page.setViewportSize({ width, height: 844 });
-        const response = page.waitForResponse(response => response.url().endsWith(`/${stylesheet}`));
-        await page.goto(`http://127.0.0.1:${server.address().port}/${name}`);
-        assert.equal((await response).status(), 200);
-        await page.evaluate(() => document.fonts.ready);
-        assert.equal(await page.getByRole("heading", { level: 1 }).textContent(), typeof heading === "function" ? heading(name) : heading);
-        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}/${width} overflows`);
-        await inspect(page, name);
-        const pageControls = typeof controls === "function" ? controls(name) : controls;
-        if (pageControls !== null) {
-          await checkKeyboardControls(page, { controls: pageControls, sizedControls: "input, select, button, textarea, summary", minimumHeight: 24 });
-        }
-        const accessibility = await new AxeBuilder({ page }).include(scope).analyze();
-        assert.deepEqual(accessibility.violations, []);
-        await page.evaluate(() => {
-          document.querySelectorAll("[role='region']").forEach(region => { region.scrollLeft = 0; });
-          window.scrollTo(0, 0);
+        await inspectV4Presentation(page, {
+          previews, name, width, origin: `http://127.0.0.1:${server.address().port}`,
+          stylesheet, heading, scope, controls, inspect,
         });
-        await page.screenshot({ path: path.join(previews, `${name}-${width}.png`), fullPage: true });
-        console.log(`${name}/${width}: layout, evidence, keyboard focus and axe pass`);
       }
     }
   } finally {
     await browser?.close();
     await new Promise(resolve => server.close(resolve));
   }
+}
+
+async function inspectV4Presentation(page, { previews, name, width, origin, stylesheet, heading, scope, controls, inspect }) {
+  await page.setViewportSize({ width, height: 844 });
+  const response = page.waitForResponse(response => response.url().endsWith(`/${stylesheet}`));
+  await page.goto(`${origin}/${name}`);
+  assert.equal((await response).status(), 200);
+  await page.evaluate(() => document.fonts.ready);
+  assert.equal(await page.getByRole("heading", { level: 1 }).textContent(), typeof heading === "function" ? heading(name) : heading);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}/${width} overflows`);
+  await inspect(page, name);
+  const pageControls = typeof controls === "function" ? controls(name) : controls;
+  if (pageControls !== null) {
+    await checkKeyboardControls(page, { controls: pageControls, sizedControls: "input, select, button, textarea, summary", minimumHeight: 24 });
+  }
+  const accessibility = await new AxeBuilder({ page }).include(scope).analyze();
+  assert.deepEqual(accessibility.violations, []);
+  await page.evaluate(() => {
+    document.querySelectorAll("[role='region']").forEach(region => { region.scrollLeft = 0; });
+    window.scrollTo(0, 0);
+  });
+  await page.screenshot({ path: path.join(previews, `${name}-${width}.png`), fullPage: true });
+  console.log(`${name}/${width}: layout, evidence, keyboard focus and axe pass`);
 }
