@@ -13,6 +13,37 @@ namespace Honua.Console.IntegrationTests;
 public sealed class ConsoleNavigationRenderTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HeaderKeepsNavigationTargetsAcrossTheV4Flag(bool enabled)
+    {
+        await using var context = CreateContext(shellOptions: new HonuaConsoleShellOptions { CatalogAdminEnabled = true });
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Studio:EmbedJsStudio"] = "true" }).Build());
+        var navigation = context.Render<ConsoleLayout>();
+        Assert.Equal(enabled ? 0 : 1, navigation.FindAll(".console-topbar-brand > span").Count);
+        Assert.Equal("Honua Console", navigation.Find(".console-topbar-brand strong").TextContent);
+        Assert.Equal("/", navigation.Find(".console-topbar-brand").GetAttribute("href"));
+        Assert.Equal("/environments", navigation.Find("[data-workspace-header-target]").GetAttribute("href"));
+        Assert.Equal("/support", navigation.Find("[aria-label='Help']").GetAttribute("href"));
+        Assert.Equal("console-conversation-drawer", navigation.Find("[data-conversation-toggle]").GetAttribute("aria-controls"));
+        Assert.Equal(enabled ? 2 : 0, navigation.FindAll(".console-help-link svg, .console-conversation-toggle svg").Count);
+        Assert.Equal(["Data", "Studio", "Catalogs", "Operate", "Access", "Settings"],
+            navigation.FindAll(".console-topnav [data-navigation-menu]").Select(element => element.GetAttribute("data-navigation-menu")));
+        var heading = context.Render<ConsolePageHeading>(parameters => parameters.Add(component => component.Title, "Home"));
+        var panel = context.Render<ConsolePanel>(parameters => parameters
+            .Add(component => component.Title, "Services")
+            .Add(component => component.HeadingId, "services-heading"));
+        var quietPanel = context.Render<ConsolePanel>(parameters => parameters
+            .Add(component => component.Title, "Usage")
+            .Add(component => component.HeadingId, "usage-heading")
+            .Add(component => component.Class, "quiet"));
+        var flag = enabled.ToString().ToLowerInvariant();
+        CatalogAdminPreview.Capture($"navigation-v4-{flag}", $"<div class=\"console-shell\" data-console-v4=\"{flag}\">{navigation.Find(".console-topbar").OuterHtml}<main id=\"console-main\" class=\"console-main\" tabindex=\"-1\">{heading.Markup}<h2>Workspace</h2>{panel.Markup}{quietPanel.Markup}</main></div>");
+    }
+
+    [Theory]
     [InlineData(true, "Content")]
     [InlineData(false, "Catalog")]
     public async Task ProgrammaticCatalogOptionsControlNavigationAndRecentLabels(bool enabled, string label)
@@ -234,10 +265,13 @@ public sealed class ConsoleNavigationRenderTests
         count.WaitForAssertion(() => Assert.Equal("0", count.Find(".console-approval-count").TextContent));
     }
 
-    [Fact]
-    public void WitnessKeepsInspectionAndEnvironmentIdentityWithoutAdminMenus()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void WitnessKeepsInspectionAndEnvironmentIdentityWithoutAdminMenus(bool enabled)
     {
         using var context = CreateContext(ConsoleProductMode.Witness);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Studio:EmbedJsStudio"] = "true" }).Build());
         var navigation = context.Render<ConsoleLayout>();
@@ -249,11 +283,14 @@ public sealed class ConsoleNavigationRenderTests
         Assert.NotEmpty(navigation.FindAll("a[href='/inbox'], a[href='/operate/releases']"));
     }
 
-    [Fact]
-    public void MountedNavigationReflectsCapabilityAvailabilityAndRevocation()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MountedNavigationReflectsCapabilityAvailabilityAndRevocation(bool enabled)
     {
         using var context = CreateContext();
         var manifest = new MutableCatalogManifest();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         context.Services.AddSingleton<IConsoleCapabilityManifest>(manifest);
         var navigation = context.Render<ConsoleLayout>();
         Assert.Empty(navigation.FindAll(".console-topnav a[href='/catalog'], .console-topnav a[href='/share/public']"));
