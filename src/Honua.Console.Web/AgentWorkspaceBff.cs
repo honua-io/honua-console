@@ -87,6 +87,10 @@ internal static partial class AgentWorkspaceBff
     {
         context.Response.Headers.CacheControl = "no-store";
         var humanGaApply = ga && path?.EndsWith("/apply", StringComparison.Ordinal) == true;
+        var humanStudioEdit = studio && IsPrivateStudioDraftWrite(path, context.Request.Method);
+        var useHumanSession = humanGaApply || humanStudioEdit;
+        if (humanStudioEdit && !ConsoleApprovalBrowserChannel.HasUnmixedIdentity(context))
+            return Results.StatusCode(403);
         if (humanGaApply) context.Response.Headers["X-Honua-Dispatch-Status"] = "not-dispatched";
         if (ga)
         {
@@ -202,7 +206,7 @@ internal static partial class AgentWorkspaceBff
             if (!Regex.IsMatch(key, @"\A[A-Za-z0-9_-]{1,128}\z")) { return Results.BadRequest(); }
             request.Headers.TryAddWithoutValidation("Idempotency-Key", key);
         }
-        if (!humanGaApply)
+        if (!useHumanSession)
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credential.AccessToken);
         // Do not relay arbitrary query strings, identity headers, cookies, API keys or redirect destinations.
         byte[]? datasetRequestBody = null;
@@ -268,12 +272,21 @@ internal static partial class AgentWorkspaceBff
         try
         {
             ConsoleServerSessionPartition? cookiePartition = null;
-            if (humanGaApply)
+            if (useHumanSession)
             {
                 var operatorKey = context.RequestServices.GetRequiredService<IConsoleOperatorContext>().RequireOperatorKey();
                 if (!context.RequestServices.GetRequiredService<ConsoleServerSessionClientStore>()
                     .TryGet(operatorKey, profile, out cookiePartition) || cookiePartition is null)
                     return Results.StatusCode(401);
+                if (humanStudioEdit && !context.RequestServices.GetRequiredService<ConsoleApprovalBrowserChannel>()
+                    .Authorizes(new ConsoleApprovalBrowserTarget
+                    {
+                        SelectedProfile = profile,
+                        AuthorityProfile = profile,
+                        Authority = ConsoleServerAuthority.Serving,
+                        Partition = cookiePartition,
+                    }))
+                    return Results.StatusCode(403);
             }
             using var authentication = cookiePartition is null ? null
                 : await cookiePartition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
@@ -385,6 +398,19 @@ internal static partial class AgentWorkspaceBff
 
     [GeneratedRegex(@"\A(?:health|v1/studio/(?:catalog|packages|package-families|package-drafts|content-items)(?:/[A-Za-z0-9_-]{1,128}){0,4})\z", RegexOptions.CultureInvariant)]
     private static partial Regex StudioPath();
+
+    private static bool IsPrivateStudioDraftWrite(string? path, string method)
+    {
+        if (HttpMethods.IsPost(method) && path == "v1/studio/package-drafts") return true;
+        if (path is null) return false;
+        var draft = StudioPrivateDraftWritePath().Match(path);
+        if (!draft.Success) return false;
+        return draft.Groups["action"].Success ? HttpMethods.IsPost(method)
+            : HttpMethods.IsPut(method) || HttpMethods.IsDelete(method);
+    }
+
+    [GeneratedRegex(@"\Av1/studio/(?:package-drafts/[0-9a-fA-F-]{36}(?:/(?<action>validate|preview-plan|content-versions))?|content-items/[0-9a-fA-F-]{36}/versions/[0-9a-fA-F-]{36}/(?<action>reopen))\z", RegexOptions.CultureInvariant)]
+    private static partial Regex StudioPrivateDraftWritePath();
 
     [GeneratedRegex(@"\Av1/studio/content-items/[A-Za-z0-9_-]{1,128}/versions/[A-Za-z0-9_-]{1,128}/publish-requests/[A-Za-z0-9_-]{1,128}\z", RegexOptions.CultureInvariant)]
     private static partial Regex StudioPublicationReceiptPath();
