@@ -208,6 +208,8 @@ jobs:
           path: artifacts/catalog-preview/operate-overview-*
           if-no-files-found: error
 
+      - name: Verify rendered Home presentation
+        run: node e2e/playwright/home-preview.mjs
       - name: Verify rendered jobs presentation
         run: node e2e/playwright/jobs-preview.mjs
         env:
