@@ -12,11 +12,14 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class ConsoleNavigationRenderTests
 {
+    public enum RolloutMode { Legacy, V4 }
+
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task HeaderKeepsNavigationTargetsAcrossTheV4Flag(bool enabled)
+    [InlineData(RolloutMode.Legacy)]
+    [InlineData(RolloutMode.V4)]
+    public async Task HeaderKeepsNavigationTargetsAcrossTheV4Flag(RolloutMode mode)
     {
+        var enabled = mode == RolloutMode.V4;
         await using var context = CreateContext(shellOptions: new HonuaConsoleShellOptions { CatalogAdminEnabled = true });
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
@@ -266,10 +269,11 @@ public sealed class ConsoleNavigationRenderTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void WitnessKeepsInspectionAndEnvironmentIdentityWithoutAdminMenus(bool enabled)
+    [InlineData(RolloutMode.Legacy)]
+    [InlineData(RolloutMode.V4)]
+    public void WitnessKeepsInspectionAndEnvironmentIdentityWithoutAdminMenus(RolloutMode mode)
     {
+        var enabled = mode == RolloutMode.V4;
         using var context = CreateContext(ConsoleProductMode.Witness);
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
@@ -284,10 +288,11 @@ public sealed class ConsoleNavigationRenderTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void MountedNavigationReflectsCapabilityAvailabilityAndRevocation(bool enabled)
+    [InlineData(RolloutMode.Legacy)]
+    [InlineData(RolloutMode.V4)]
+    public void MountedNavigationReflectsCapabilityAvailabilityAndRevocation(RolloutMode mode)
     {
+        var enabled = mode == RolloutMode.V4;
         using var context = CreateContext();
         var manifest = new MutableCatalogManifest();
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
