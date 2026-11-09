@@ -1,0 +1,121 @@
+<div class="metadata-fields">
+    <p>Custom fields extend the standard metadata set. Required fields mark missing values for attention; they do not block metadata saves. Retiring preserves existing values and history.</p>
+    @if (!ValidKeys)
+    {
+        <ConsoleStateView HeadingLevel="2" Kind="unsupported" Title="Field schemas are unavailable" Message="Schema identities must be unique and non-empty." />
+    }
+    else
+    {
+        <UnsavedChangesGuard IsDirty="IsDirty" />
+        <div class="console-table-wrap" role="region" aria-label="Metadata field schemas" tabindex="0">
+            <table class="console-table">
+                <thead><tr><th scope="col">Field</th><th scope="col">Type</th><th scope="col">Required</th><th scope="col">Kinds</th><th scope="col">Inheritance</th><th scope="col">Coverage and output</th><th scope="col">State</th></tr></thead>
+                <tbody>
+                    @foreach (var schema in Schemas.Concat(_added))
+                    {
+                        <tr>
+                            <th scope="row">@schema.Name<code>@schema.Key</code></th>
+                            <td>@schema.Type@if (schema.Choices.Count > 0) { <ul>@foreach (var choice in schema.Choices) { <li>@choice</li> }</ul> }</td><td>@(schema.Required ? "Yes" : "No")</td><td>@string.Join(", ", schema.Kinds)</td>
+                            <td>@(schema.Inherits ? "Dataset → service → folder" : "Does not inherit")</td>
+                            <td>@(schema.Filled ?? "Coverage not reported")<p>@schema.Visibility · @(schema.Output ?? "Mapping not reported")</p></td>
+                            <td>
+                                @if (schema.Retired) { <span>Retired</span> }
+                                else
+                                {
+                                    <label><input type="checkbox" data-retire="@schema.Key" checked="@_retired.Contains(schema.Key)" @onchange="() => ToggleRetired(schema.Key)" />Retire @schema.Name locally</label>
+                                    @if (_retired.Contains(schema.Key)) { <span>Would retire locally</span> }
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (Schemas.Count == 0 && _added.Count == 0) { <p>No custom field schemas reported.</p> }
+        <section class="console-panel metadata-panel">
+            <h2>Try a local field draft</h2>
+            <p>Field keys stay stable once values exist. A local draft creates no schema or public output.</p>
+            <div class="metadata-local-fields">
+                <label for="metadata-schema-name">Name<input id="metadata-schema-name" @ref="_nameInput" maxlength="160" @bind="_name" @bind:event="oninput" /></label>
+                <label for="metadata-schema-key">Key<input id="metadata-schema-key" maxlength="160" @bind="_key" @bind:event="oninput" aria-describedby="metadata-key-hint" /></label>
+                <p id="metadata-key-hint">Use a namespace and key, such as county:retention. Letters, digits, underscores and hyphens are allowed.</p>
+                <label for="metadata-schema-type">Type<select id="metadata-schema-type" @bind="_type">@foreach (var type in Types) { <option>@type</option> }</select></label>
+                @if (_type == "Choice list")
+                {
+                    <label for="metadata-schema-choices">Choices, one per line<textarea id="metadata-schema-choices" rows="4" @bind="_choices" @bind:event="oninput"></textarea></label>
+                }
+                <label><input type="checkbox" id="metadata-schema-required" @bind="_required" />Required</label>
+                <fieldset class="metadata-kinds"><legend>Item kinds</legend>
+                    @foreach (var kind in Kinds)
+                    { <label><input type="checkbox" data-schema-kind="@kind" checked="@_kinds.Contains(kind)" @onchange="() => ToggleKind(kind)" />@kind</label> }
+                </fieldset>
+                <label><input type="checkbox" id="metadata-schema-inherits" @bind="_inherits" />Inherits from dataset → service → folder</label>
+                <label for="metadata-schema-visibility">Published<select id="metadata-schema-visibility" @bind="_visibility"><option>Never (internal)</option><option>Signed-in only</option><option>Public records</option></select></label>
+            </div>
+            <p id="metadata-draft-validation">@(DraftIssue ?? "Local field draft is ready to add.")</p>
+            <button type="button" class="console-button" data-schema-add disabled="@(DraftIssue is not null)" aria-describedby="metadata-draft-validation" @onclick="AddDraft">Add to local preview</button>
+        </section>
+        <div class="metadata-save-bar">
+            <p role="status">@(IsDirty ? "Unsaved local schema changes · nothing saved or proposed" : "Local schemas unchanged")</p>
+            <button type="button" class="console-button console-button-secondary" data-schema-discard disabled="@(!IsDirty)" @onclick="Discard">Discard local edits</button>
+            <p>Schema proposals are unavailable in this preview.</p>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<MetadataSchemaPreview> Schemas { get; set; } = [];
+    private static readonly string[] Types = ["Text", "Long text", "Number", "Date", "Yes / no", "Choice list", "Link", "Contact"];
+    private static readonly string[] Kinds = ["Dataset", "Layer", "Service", "Folder", "Map", "App"];
+    private readonly List<MetadataSchemaPreview> _added = [];
+    private readonly HashSet<string> _retired = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _kinds = new(StringComparer.Ordinal);
+    private string _name = string.Empty;
+    private string _key = string.Empty;
+    private string _type = "Text";
+    private string _choices = string.Empty;
+    private string _visibility = "Never (internal)";
+    private bool _required;
+    private bool _inherits;
+    private ElementReference _nameInput;
+    private bool ValidKeys => ConsoleIdentitySet.IsValid(Schemas.Select(schema => schema.Key));
+    private bool IsDirty => _added.Count > 0 || _retired.Count > 0 || _name.Length > 0 || _key.Length > 0 || _type != "Text" || _choices.Length > 0 || _visibility != "Never (internal)" || _required || _inherits || _kinds.Count > 0;
+    private string[] Choices => _choices.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+    private string? DraftIssue => string.IsNullOrWhiteSpace(_name) ? "Enter a field name."
+        : !ValidKey(_key) ? "Enter a namespace:key using letters, digits, underscores or hyphens."
+        : Schemas.Concat(_added).Any(schema => schema.Key == _key) ? "That field key already exists."
+        : _kinds.Count == 0 ? "Choose at least one item kind."
+        : _type == "Choice list" && (Choices.Length == 0 || Choices.Distinct(StringComparer.Ordinal).Count() != Choices.Length) ? "Enter distinct choices."
+        : null;
+
+    private static bool ValidKey(string key) => key.Split(':') is [var prefix, var name] && prefix.Length > 0 && name.Length > 0 &&
+        key.All(character => char.IsAsciiLetterOrDigit(character) || character is ':' or '_' or '-');
+    private void ToggleKind(string kind) { if (!_kinds.Add(kind)) _kinds.Remove(kind); }
+    private void ToggleRetired(string key) { if (!_retired.Add(key)) _retired.Remove(key); }
+    private async Task AddDraft()
+    {
+        if (DraftIssue is not null) return;
+        _added.Add(new(_key, _name, _type == "Choice list" ? $"Choice list ({Choices.Length})" : _type)
+        {
+            Required = _required, Inherits = _inherits, Visibility = _visibility, Kinds = Kinds.Where(_kinds.Contains).ToArray(),
+            Choices = _type == "Choice list" ? Choices : []
+        });
+        ResetDraft();
+        await _nameInput.FocusAsync();
+    }
+    private void ResetDraft()
+    {
+        _name = _key = _choices = string.Empty;
+        _type = "Text";
+        _visibility = "Never (internal)";
+        _required = _inherits = false;
+        _kinds.Clear();
+    }
+    private async Task Discard()
+    {
+        _added.Clear();
+        _retired.Clear();
+        ResetDraft();
+        await _nameInput.FocusAsync();
+    }
+}

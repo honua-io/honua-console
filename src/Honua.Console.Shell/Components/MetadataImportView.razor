@@ -1,0 +1,67 @@
+<div class="metadata-import">
+    <h2>@Import.FileName</h2>
+    <p>Dataset @Import.DatasetId · detected format: @Import.Format</p>
+    <p>No file has been uploaded. Try field selections using this sample mapping. Original files and unmapped content stay unchanged.</p>
+    @if (!ValidKeys)
+    {
+        <ConsoleStateView HeadingLevel="3" Kind="unsupported" Title="Import mappings are unavailable" Message="Mapping identities must be unique and non-empty." />
+    }
+    else
+    {
+        <UnsavedChangesGuard IsDirty="IsDirty" />
+        <dl class="metadata-import-counts"><div data-metadata-count="mapped"><dt>Mapped fields</dt><dd>@Import.Rows.Count</dd></div><div><dt>Changed</dt><dd>@Import.Rows.Count(row => row.Changed)</dd></div><div><dt>Inherited</dt><dd>@Import.Rows.Count(row => row.InheritedFrom is not null)</dd></div><div><dt>Unmapped</dt><dd>@Import.Unmapped.Count</dd></div></dl>
+        <h3>Mapped fields</h3>
+        <label class="metadata-filter"><input type="checkbox" data-import-changes @ref="_filter" @bind="_changesOnly" />Only show changes</label>
+        <p>Unchecked rows keep current values. Initial selections come from the supplied preview; selecting a row does not apply it.</p>
+        <div class="console-table-wrap" role="region" aria-label="Import mapped fields" tabindex="0">
+            <table class="console-table">
+                <thead><tr><th scope="col">Select</th><th scope="col">Source path</th><th scope="col">Honua field</th><th scope="col">Current</th><th scope="col">From file</th></tr></thead>
+                <tbody>
+                    @foreach (var row in Import.Rows.Where(row => !_changesOnly || row.Changed))
+                    {
+                        <tr>
+                            <td><label><input type="checkbox" data-import-row="@row.Key" checked="@Selected(row)" @onchange="() => Toggle(row)" />Select @row.Label</label></td>
+                            <td><code>@row.SourcePath</code></td><th scope="row">@row.Label</th><td>@(row.Current ?? "Not reported")<p>@row.InheritedFrom</p></td><td>@(row.Incoming ?? "No value")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (!Import.Rows.Any(row => !_changesOnly || row.Changed)) { <p>No mapped fields match this filter.</p> }
+        <section class="console-panel metadata-panel">
+            <h3>Unmapped content</h3>
+            @if (Import.Unmapped.Count == 0) { <p>No unmapped content reported.</p> }
+            else
+            {
+                <ul>@foreach (var unmapped in Import.Unmapped) { <li><code>@unmapped.SourcePath</code><p>@unmapped.Content</p><p>@unmapped.Reason</p></li> }</ul>
+            }
+            <p>No original attachment is stored in this preview.</p>
+        </section>
+        <div class="metadata-save-bar">
+            <p role="status">@Import.Rows.Count(Selected) of @Import.Rows.Count mapped fields selected · nothing imported or proposed</p>
+            <button type="button" class="console-button console-button-secondary" data-import-reset disabled="@(!IsDirty)" @onclick="Reset">Reset local selection</button>
+            <p>Import and proposals are unavailable in this preview.</p>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public MetadataImportPreview Import { get; set; } = default!;
+    private readonly Dictionary<string, bool> _selection = new(StringComparer.Ordinal);
+    private bool _changesOnly;
+    private bool IsDirty => _selection.Count > 0;
+    private ElementReference _filter;
+    private bool ValidKeys => ConsoleIdentitySet.IsValid(Import.Rows.Select(row => row.Key));
+    private bool Selected(MetadataImportRow row) => _selection.TryGetValue(row.Key, out var selected) ? selected : row.Selected;
+    private void Toggle(MetadataImportRow row)
+    {
+        var selected = !Selected(row);
+        if (selected == row.Selected) _selection.Remove(row.Key);
+        else _selection[row.Key] = selected;
+    }
+    private async Task Reset()
+    {
+        _selection.Clear();
+        await _filter.FocusAsync();
+    }
+}

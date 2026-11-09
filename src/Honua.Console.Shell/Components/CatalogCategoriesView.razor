@@ -1,7 +1,7 @@
 <section class="catalog-categories" aria-labelledby="catalog-categories-heading">
     <h2 id="catalog-categories-heading" tabindex="-1" @ref="_heading">Categories and featured</h2>
     <p>Try order and home-page choices locally. Nothing is saved or proposed. Adding, removing and changing rules need the catalog mutation and approval contracts.</p>
-    @if (!ValidIds(Arrangement.Categories.Select(row => row.Id)) || !ValidIds(Arrangement.Featured.Select(row => row.Id)))
+    @if (!ConsoleIdentitySet.IsValid(Arrangement.Categories.Select(row => row.Id)) || !ConsoleIdentitySet.IsValid(Arrangement.Featured.Select(row => row.Id)))
     {
         <ConsoleStateView HeadingLevel="3" Kind="unsupported" Title="Ordering is unavailable" Message="The reported rows need unique, nonempty identities. Refresh to try again." />
     }
@@ -93,12 +93,6 @@
         rows.RemoveAt(move.From);
         rows.Insert(move.To, row);
         return $"Move {++_moveSequence}: {title(row)} moved to position {move.To + 1} of {rows.Count}.";
-    }
-
-    private static bool ValidIds(IEnumerable<string> identities)
-    {
-        var ids = identities.ToArray();
-        return ids.All(id => !string.IsNullOrWhiteSpace(id)) && ids.Distinct(StringComparer.Ordinal).Count() == ids.Length;
     }
 
     private async Task DiscardAsync()

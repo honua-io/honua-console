@@ -1,0 +1,96 @@
+@page "/metadata/datasets/{DatasetId}"
+@page "/metadata/datasets/{DatasetId}/{Section}"
+@page "/metadata/{Section}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@implements IDisposable
+@inject CatalogAdminOptions Options
+@inject IMetadataPreviewSource Metadata
+
+<section class="console-page metadata-preview">
+    <header class="console-detail-heading">
+        <div><a href="/catalogs">Catalogs</a><h1>@Heading</h1></div>
+    </header>
+    @if (!Options.Enabled)
+    {
+        <ConsoleStateView HeadingLevel="2" Kind="disabled" Title="Metadata preview is disabled" Message="Enable the catalog preview to inspect metadata presentation." />
+    }
+    else if (_loading)
+    {
+        <ConsoleStateView HeadingLevel="2" Kind="loading" Title="Loading metadata preview" Message="Reading the selected metadata presentation." />
+    }
+    else if (_read is not { State: "fixture" })
+    {
+        <ConsoleStateView HeadingLevel="2" Kind="@UnavailableKind" Title="Metadata preview is unavailable" Message="@(_read?.Message ?? "The metadata preview contract is not supported.")" />
+    }
+    else
+    {
+        <p class="console-state console-state-info" role="status">Fixture preview · synthetic data. Local changes are not saved or proposed.</p>
+        <nav class="metadata-preview-nav" aria-label="Metadata sections">
+            <a href="/metadata/fields">Metadata fields</a>
+            @if (DatasetId is not null)
+            {
+                <a href="@(DatasetHref + ContextQuery)">Dataset metadata</a>
+                <a href="@(DatasetHref + "/import" + ContextQuery)">Import preview</a>
+            }
+        </nav>
+        @if (Section == "fields" && DatasetId is null)
+        {
+            <MetadataFieldsPreview @key="_read" Schemas="_read.Schemas" />
+        }
+        else if (Section == "import" && _read.Import is { } import && Matches(import.DatasetId, import.ServiceId))
+        {
+            <MetadataImportView @key="import" Import="import" />
+        }
+        else if (Section is null && _read.Dataset is { } dataset && Matches(dataset.DatasetId, dataset.ServiceId))
+        {
+            <MetadataDatasetView @key="dataset" Dataset="dataset" />
+        }
+        else
+        {
+            <ConsoleStateView HeadingLevel="2" Kind="unsupported" Title="Metadata projection is unavailable" Message="No matching dataset and Service context was reported for this view." />
+        }
+    }
+</section>
+
+@code {
+    [Parameter] public string? DatasetId { get; set; }
+    [Parameter] public string? Section { get; set; }
+    [SupplyParameterFromQuery(Name = "service")] public string? ServiceId { get; set; }
+    private MetadataPreviewRead? _read;
+    private CancellationTokenSource? _load;
+    private bool _loading;
+    private string Heading => Section switch { "fields" => "Metadata fields", "import" => "Import metadata", _ => "Dataset metadata" };
+    private string DatasetHref => $"/metadata/datasets/{Uri.EscapeDataString(DatasetId ?? string.Empty)}";
+    private string ContextQuery => ServiceId is null ? string.Empty : $"?service={Uri.EscapeDataString(ServiceId)}";
+    private string UnavailableKind => _read?.State switch { "missing" => "missing", "forbidden" or "unavailable" => "denied", _ => "unsupported" };
+    private bool Matches(string datasetId, string? serviceId) => datasetId == DatasetId && serviceId == ServiceId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Dispose();
+        _loading = Options.Enabled;
+        if (!Options.Enabled) return;
+        using var load = _load = new CancellationTokenSource();
+        try
+        {
+            var read = await Metadata.ReadAsync(new(DatasetId, Section ?? "dataset", ServiceId), load.Token);
+            if (ReferenceEquals(_load, load)) _read = read;
+        }
+        catch (OperationCanceledException) when (load.IsCancellationRequested) { }
+        catch
+        {
+            if (ReferenceEquals(_load, load)) _read = new("unavailable") { Message = "Metadata could not be read. Refresh to try again." };
+        }
+        finally
+        {
+            if (ReferenceEquals(_load, load)) { _loading = false; _load = null; }
+        }
+    }
+
+    public void Dispose()
+    {
+        _load?.Cancel();
+        _load = null;
+        _read = null;
+    }
+}
