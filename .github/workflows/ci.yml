@@ -195,6 +195,8 @@ jobs:
       - name: Verify rendered catalog presentation
         run: node e2e/playwright/catalog-preview.mjs
 
+      - name: Verify rendered Folder presentation
+        run: node e2e/playwright/folder-preview.mjs
       - name: Verify rendered workflow event presentation
         run: node e2e/playwright/events-preview.mjs
         env:
