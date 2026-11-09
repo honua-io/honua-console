@@ -48,6 +48,25 @@ public sealed class OperateObservabilityPageRenderTests
         Assert.Empty(registry.Current.Filters);
     }
 
+    [Fact]
+    public async Task AgentContextDoesNotSelectTheDefaultJobRow()
+    {
+        using var context = new BunitContext();
+        var registry = new ConsoleAgentContextRegistry();
+        context.Services.AddSingleton(registry);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        context.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        context.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubOperateClient
+        {
+            Jobs = OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed([BuildJob("default-job")])
+        });
+        var page = context.Render<OperateObservabilityPage>();
+        page.WaitForAssertion(() => Assert.Contains("default-job", page.Markup, StringComparison.Ordinal));
+        Assert.Empty(registry.Current.Entities);
+        Assert.Empty(registry.Current.Selection);
+        await context.DisposeComponentsAsync();
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

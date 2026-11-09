@@ -63,12 +63,16 @@ public sealed class StudioAutomationVersionsPageTests
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
     [InlineData(ConsolePresentationMode.V4)]
-    public void ViewBody_TogglesTheVersionPreview(ConsolePresentationMode presentation)
+    public async Task ViewBody_TogglesTheVersionPreview(ConsolePresentationMode presentation)
     {
+        var registry = new ConsoleAgentContextRegistry();
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(registry);
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ICollectAutomationClient>(InMemoryCollectAutomationClient.CreateSeeded());
+
+        ctx.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/studio/automations/seed/versions?secret=private");
 
         var page = ctx.Render<StudioAutomationVersionsPage>(
             parameters => parameters.Add(p => p.DraftId, InMemoryCollectAutomationClient.SeedDraftId));
@@ -83,12 +87,27 @@ public sealed class StudioAutomationVersionsPageTests
             () => Assert.NotEmpty(page.FindAll(".automation-version-preview")),
             TimeSpan.FromSeconds(5));
 
+        if (presentation == ConsolePresentationMode.V4)
+            Assert.False(string.IsNullOrWhiteSpace(registry.Current.Filters["versionId"]));
+
         // Toggling the same version again collapses the preview. Re-find the button: the prior click
         // re-rendered the tree, invalidating the earlier element's event-handler id.
         page.FindAll("button").First(b => b.TextContent.Contains("View body", StringComparison.Ordinal)).Click();
         page.WaitForAssertion(
             () => Assert.Empty(page.FindAll(".automation-version-preview")),
             TimeSpan.FromSeconds(5));
+        if (presentation == ConsolePresentationMode.V4)
+        {
+            Assert.Equal("/studio/automations/seed/versions", registry.Current.Route);
+            Assert.Empty(registry.Current.Entities);
+            Assert.Equal(InMemoryCollectAutomationClient.SeedDraftId, registry.Current.Filters["draftId"]);
+            Assert.Equal(string.Empty, registry.Current.Filters["versionId"]);
+        }
+        else Assert.Equal(0, registry.Current.Generation);
+        await ctx.DisposeComponentsAsync();
+        Assert.Empty(registry.Current.Filters);
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+
     }
 
     [Theory]

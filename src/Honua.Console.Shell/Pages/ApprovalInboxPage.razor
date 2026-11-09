@@ -288,8 +288,7 @@
         Route = new Uri(Navigation.Uri).AbsolutePath,
         Entities = SelectedEntities,
         Selection = SelectedEntities,
-        Filters = new Dictionary<string, string> { ["ticketType"] = _filter?.ToString() ?? string.Empty },
-        Unsaved = new() { PendingOperationCount = _busy ? 1 : 0 }
+        Filters = new Dictionary<string, string> { ["ticketType"] = _filter?.ToString() ?? string.Empty }
     };
 
     private IReadOnlyList<ConsoleAgentEntity> SelectedEntities => _selectedProposalId is { Length: > 0 } id
@@ -520,9 +519,22 @@
     {
         _selectedProposalId = item.ProposalId;
         _terminalProposalId = null;
+        SyncSelectionQuery();
     }
 
-    private void ClearSelection() => _selectedProposalId = null;
+    private void ClearSelection()
+    {
+        _selectedProposalId = null;
+        SyncSelectionQuery();
+    }
+
+    private void SyncSelectionQuery()
+    {
+        if (V4Enabled)
+        {
+            Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("proposalId", _selectedProposalId), replace: true);
+        }
+    }
 
     private async Task PollSelectedDetailAsync(CancellationToken cancellationToken)
     {

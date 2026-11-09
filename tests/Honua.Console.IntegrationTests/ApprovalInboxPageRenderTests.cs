@@ -41,11 +41,13 @@ public sealed class ApprovalInboxPageRenderTests
         page.Render();
         Assert.Equal(enabled ? "second" : null, registry.Current.Entities.SingleOrDefault()?.Id);
 
-        await page.InvokeAsync(() => navigation.NavigateTo("/inbox?proposalId=second"));
+        if (enabled) Assert.Contains("proposalId=second", navigation.Uri, StringComparison.Ordinal);
         await page.InvokeAsync(() => navigation.NavigateTo("/inbox?proposalId=first"));
         if (enabled) page.WaitForAssertion(() => Assert.Equal("first", Assert.Single(registry.Current.Entities).Id));
         await page.InvokeAsync(() => navigation.NavigateTo("/inbox?proposalId=second"));
         page.WaitForAssertion(() => page.Find("[data-proposal-approve]"));
+        page.Find("[data-refresh-inbox]").Click();
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
         page.Find("[data-proposal-approve]").Click();
         page.WaitForAssertion(() => Assert.Equal("second", Assert.Single(proposals.Approved)));
         if (enabled)

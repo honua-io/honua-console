@@ -836,8 +836,8 @@
     {
         get
         {
-            IReadOnlyList<ConsoleAgentEntity> selection = string.IsNullOrWhiteSpace(SelectedJobRowId)
-                ? [] : [new() { Kind = ConsoleAgentEntityKind.Job, Id = SelectedJobRowId }];
+            IReadOnlyList<ConsoleAgentEntity> selection = string.IsNullOrWhiteSpace(SelectedJobRunId)
+                ? [] : [new() { Kind = ConsoleAgentEntityKind.Job, Id = SelectedJobRunId.Trim() }];
             return new()
             {
                 Route = new Uri(Navigation.Uri).AbsolutePath,
