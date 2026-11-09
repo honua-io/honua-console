@@ -2,14 +2,26 @@
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Services
 @inject IConsoleReleaseWitnessClient WitnessClient
+@inject IServiceProvider Services
 
-<section class="console-page console-operate-page" data-release-witness-page>
+<section class="console-page console-operate-page @(V4Enabled ? "console-release-witness-v4" : null)" data-release-witness-page>
+    @if (V4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/release-witness-v4.css" />
+    }
     <div class="console-page-heading operate-heading">
-        <p class="console-kicker">Operate / Release witness</p>
-        <h1>Candidate publication evidence</h1>
+        @if (!V4Enabled)
+        {
+            <p class="console-kicker">Operate / Release witness</p>
+        }
+        <h1>@(V4Enabled ? "Publication evidence" : "Candidate publication evidence")</h1>
         <p>Read-only runtime, publication, and audit evidence for one sealed candidate approval.</p>
     </div>
 
+    @if (V4Enabled && (!_loaded || _result is null || !_result.IsAllowed || _result.Value is null))
+    {
+        <h2 class="release-witness-state-heading">Candidate evidence</h2>
+    }
     @if (!_loaded)
     {
         <OperateSectionStatusPanel Heading="Candidate evidence" Loading="true" />
@@ -54,6 +66,8 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     [SupplyParameterFromQuery(Name = "family")] private string? Family { get; set; }
     [SupplyParameterFromQuery(Name = "itemId")] private string? ItemId { get; set; }
     [SupplyParameterFromQuery(Name = "versionId")] private string? VersionId { get; set; }
