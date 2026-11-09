@@ -495,7 +495,7 @@ public sealed class ApprovalInboxPageRenderTests
             () => Assert.True(page.Find("[data-proposal-reject]").HasAttribute("disabled")),
             TimeSpan.FromSeconds(5));
 
-        page.Find("[data-proposal-reason]").Change("Out of change window");
+        page.Find("[data-proposal-reason]").Input("Out of change window");
         page.WaitForAssertion(
             () => Assert.False(page.Find("[data-proposal-reject]").HasAttribute("disabled")),
             TimeSpan.FromSeconds(5));
