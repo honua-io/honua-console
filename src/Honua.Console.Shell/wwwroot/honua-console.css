@@ -16,10 +16,9 @@
     box-sizing: border-box;
 }
 
-/* Global keyboard-focus ring. Applies to interactive elements ONLY on keyboard focus
-   (:focus-visible), so mouse clicks don't get an outline but Tab navigation always shows where
-   focus is. Uses box-shadow (not outline) so the ring follows rounded corners; an outline is kept
-   as a fallback for forced-colors / high-contrast modes. */
+/* Shared focus ring: keyboard focus uses :focus-visible. Chromium's native date editor
+   needs :focus-within on Share expiry inputs to keep the whole control outlined.
+   Box-shadow follows rounded corners; outline supports forced-colors modes. */
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
@@ -29,21 +28,15 @@ summary:focus-visible,
 [tabindex]:focus-visible,
 [role="button"]:focus-visible,
 [role="option"]:focus-visible,
-[role="tab"]:focus-visible {
-    outline: 2px solid transparent;
-    outline-offset: 2px;
-    box-shadow: var(--honua-focus-ring);
-    border-radius: 4px;
-}
-
-/* Chromium focuses the native date editor inside Share expiry inputs. Keep the whole control
-   outlined while either the input or its native editor is focused. */
+[role="tab"]:focus-visible,
 .share-manage input[type="datetime-local"]:focus-within {
     outline: 2px solid transparent;
     outline-offset: 2px;
     box-shadow: var(--honua-focus-ring);
     border-radius: 4px;
 }
+
+
 
 /* Page-title focus treatment. <FocusOnNavigate Selector="h1"> (ConsoleRoutes) adds tabindex="-1" to the
    page H1 and focuses it on every route change purely so screen readers announce the new page identity.
