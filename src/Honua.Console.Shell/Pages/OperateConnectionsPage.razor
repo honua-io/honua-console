@@ -58,7 +58,7 @@
         <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="/operate/import/service">Import from a service</a>
     </div></text>;
     private RenderFragment ConnectionTable => @<text>
-        <ConsoleTableRegion Class="console-table-wrap" Label="Connections">
+        <ConsoleTableRegion Class="console-table-wrap" Label="@(V4Enabled ? "Connection table" : "Connections")">
             <table class="console-table">
                 <thead>
                     <tr>
