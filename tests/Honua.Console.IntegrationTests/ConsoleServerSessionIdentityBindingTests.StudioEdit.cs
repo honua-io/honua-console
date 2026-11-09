@@ -77,8 +77,10 @@ public sealed partial class ConsoleServerSessionIdentityBindingTests
         context.Request.Headers.Cookie = string.Join("; ", cookies.Select(cookie => cookie.Name + "=" + cookie.Value));
         var target = new ConsoleHumanBrowserTarget
         {
-            SelectedProfile = profile, AuthorityProfile = profile,
-            Authority = ConsoleServerAuthority.Serving, Partition = partition
+            SelectedProfile = profile,
+            AuthorityProfile = profile,
+            Authority = ConsoleServerAuthority.Serving,
+            Partition = partition
         };
         Assert.True(app.Services.GetRequiredService<ConsoleStudioEditBrowserChannel>().Authorizes(target));
         Assert.False(app.Services.GetRequiredService<ConsoleStudioEditBrowserChannel>().Authorizes(

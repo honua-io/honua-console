@@ -36,8 +36,10 @@ public sealed partial class ConsoleServerSessionBffTests
             NullLogger<ConsoleStudioEditBrowserChannel>.Instance);
         var target = new ConsoleHumanBrowserTarget
         {
-            SelectedProfile = profile, AuthorityProfile = profile,
-            Authority = ConsoleServerAuthority.Serving, Partition = partition
+            SelectedProfile = profile,
+            AuthorityProfile = profile,
+            Authority = ConsoleServerAuthority.Serving,
+            Partition = partition
         };
         channel.CompleteCallback(target);
         ReplayCallbackCookie(context);
@@ -82,7 +84,9 @@ public sealed partial class ConsoleServerSessionBffTests
 
         channel.CompleteCallback(new ConsoleHumanBrowserTarget
         {
-            SelectedProfile = profile, AuthorityProfile = profile, Partition = partition,
+            SelectedProfile = profile,
+            AuthorityProfile = profile,
+            Partition = partition,
             Authority = scenario == "management-session" ? ConsoleServerAuthority.Management : ConsoleServerAuthority.Serving
         });
 
@@ -107,8 +111,10 @@ public sealed partial class ConsoleServerSessionBffTests
         var edit = new ConsoleStudioEditBrowserChannel(protection, accessor, clock, NullLogger<ConsoleStudioEditBrowserChannel>.Instance);
         var target = new ConsoleHumanBrowserTarget
         {
-            SelectedProfile = profile, AuthorityProfile = profile,
-            Authority = ConsoleServerAuthority.Serving, Partition = partition
+            SelectedProfile = profile,
+            AuthorityProfile = profile,
+            Authority = ConsoleServerAuthority.Serving,
+            Partition = partition
         };
         approval.CompleteCallback(target);
         edit.CompleteCallback(target);

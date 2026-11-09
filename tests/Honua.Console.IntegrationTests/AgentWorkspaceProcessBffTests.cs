@@ -354,8 +354,10 @@ public sealed class AgentWorkspaceProcessBffTests
             {
                 app.Services.GetRequiredService<ConsoleStudioEditBrowserChannel>().CompleteCallback(new()
                 {
-                    SelectedProfile = profile, AuthorityProfile = profile,
-                    Authority = ConsoleServerAuthority.Serving, Partition = partition!
+                    SelectedProfile = profile,
+                    AuthorityProfile = profile,
+                    Authority = ConsoleServerAuthority.Serving,
+                    Partition = partition!
                 });
                 var proof = Assert.Single(context.Response.Headers.SetCookie)!;
                 client.DefaultRequestHeaders.Add("Cookie", proof[..proof.IndexOf(';')]);
@@ -398,7 +400,9 @@ public sealed class AgentWorkspaceProcessBffTests
                 {
                     Content = System.Net.Http.Json.JsonContent.Create(new ConsoleServerAuthenticatedSessionWire
                     {
-                        IsAuthenticated = true, ProviderKey = "oidc", ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+                        IsAuthenticated = true,
+                        ProviderKey = "oidc",
+                        ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
                         Claims = [new() { Type = "iss", Value = "https://identity.example/" }, new() { Type = "sub", Value = "operator" }]
                     }, ConsoleServerSessionIdentityJsonContext.Default.ConsoleServerAuthenticatedSessionWire)
                 };

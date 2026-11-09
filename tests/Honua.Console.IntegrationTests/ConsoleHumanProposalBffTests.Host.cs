@@ -193,7 +193,8 @@ public sealed partial class ConsoleHumanProposalBffTests
             var accountSessions = new InMemoryConsoleAccountSessionStore();
             await accountSessions.SaveSessionAsync(new ConsoleAccountSession
             {
-                ProfileId = Profile.Id, ServerBaseUri = Profile.ServerBaseUri
+                ProfileId = Profile.Id,
+                ServerBaseUri = Profile.ServerBaseUri
             });
             var identity = new ConsoleServerSessionIdentityBinding(
                 Options.Create(new ConsoleEdgeAuthOptions { ServerSessionIssuer = IdentityIssuer }),
