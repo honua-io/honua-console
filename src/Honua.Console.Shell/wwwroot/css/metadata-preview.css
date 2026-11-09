@@ -26,7 +26,7 @@
 .metadata-panel :is(h2, h3) {
     margin: 0 0 16px;
 }
-.metadata-preview :is(p, li, td, th, code) {
+.metadata-preview :is(p, li, code) {
     overflow-wrap: anywhere;
 }
 .metadata-preview :is(p, ul) {
@@ -77,6 +77,9 @@
 }
 .metadata-preview .console-table {
     min-width: 760px;
+}
+.metadata-preview .console-table :is(td, th, p, code) {
+    overflow-wrap: normal;
 }
 .metadata-preview th code {
     display: block;

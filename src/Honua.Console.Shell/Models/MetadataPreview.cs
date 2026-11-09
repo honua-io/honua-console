@@ -67,13 +67,3 @@ public sealed record MetadataImportRow(string Key, string Label, string SourcePa
 }
 
 public sealed record MetadataUnmappedPreview(string SourcePath, string Content, string Reason);
-
-internal static class MetadataPreviewKeys
-{
-    public static bool AreUnique(IEnumerable<string> keys)
-    {
-        var identifiers = keys.ToArray();
-        return identifiers.All(key => !string.IsNullOrWhiteSpace(key))
-            && identifiers.Distinct(StringComparer.Ordinal).Count() == identifiers.Length;
-    }
-}

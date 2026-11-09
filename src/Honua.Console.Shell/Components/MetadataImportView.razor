@@ -51,7 +51,7 @@
     private bool _changesOnly;
     private bool IsDirty => _selection.Count > 0;
     private ElementReference _filter;
-    private bool ValidKeys => MetadataPreviewKeys.AreUnique(Import.Rows.Select(row => row.Key));
+    private bool ValidKeys => ConsoleIdentitySet.IsValid(Import.Rows.Select(row => row.Key));
     private bool Selected(MetadataImportRow row) => _selection.TryGetValue(row.Key, out var selected) ? selected : row.Selected;
     private void Toggle(MetadataImportRow row)
     {

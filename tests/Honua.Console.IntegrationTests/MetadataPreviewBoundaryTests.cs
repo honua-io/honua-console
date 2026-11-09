@@ -45,9 +45,12 @@ public sealed class MetadataPreviewBoundaryTests
     [InlineData("flood", "different-service")]
     public void WrongIdentity_DoesNotExposeDatasetOrImport(string dataset, string? service)
     {
-        using var context = MetadataFixtureSource.Context();
-        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/metadata/datasets/" + dataset + "?service=" + Uri.EscapeDataString(service ?? string.Empty));
+        var source = new MetadataFixtureSource();
+        using var context = MetadataFixtureSource.Context(source);
+        var query = service is null ? string.Empty : "?service=" + Uri.EscapeDataString(service);
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/metadata/datasets/" + dataset + query);
         var page = context.Render<MetadataPreviewPage>(p => p.Add(view => view.DatasetId, dataset));
+        Assert.Equal(service, Assert.Single(source.Requests).ServiceId);
         Assert.Contains("No matching dataset", page.Markup);
         Assert.Empty(page.FindAll("textarea, input"));
         page.Render(p => p.Add(view => view.Section, "import"));

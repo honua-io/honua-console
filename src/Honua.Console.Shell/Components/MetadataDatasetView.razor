@@ -29,8 +29,8 @@
                                 <div class="metadata-field-value">
                                     @if (entry.Editable)
                                     {
-                                        <textarea id="@id" aria-label="@($"Local {entry.Label} override")" rows="2" placeholder="@entry.InheritedValue" data-override="@entry.Key" value="@Local(entry)" @oninput="args => Edit(entry.Key, args)"></textarea>
-                                        <p class="metadata-effective">Preview value: <span data-effective="@entry.Key">@(Effective(entry) ?? "Not reported")</span></p>
+                                        <textarea id="@id" aria-label="@($"Local {entry.Label} override")" rows="2" placeholder="@(HasEmptyOverride(entry) ? null : entry.InheritedValue)" data-override="@entry.Key" value="@Local(entry)" @oninput="args => Edit(entry.Key, args)"></textarea>
+                                        <p class="metadata-effective">Preview value: <span data-effective="@entry.Key">@(Effective(entry) ?? "Not reported")</span>@if (HasEmptyOverride(entry)) { <span>Explicitly empty override</span> }</p>
                                         @if (entry.HasInheritance)
                                         {
                                             <p class="metadata-inherited">Inherited: @(entry.InheritedValue ?? "No inherited value") · @entry.InheritedFrom</p>
@@ -67,9 +67,10 @@
     [Parameter, EditorRequired] public MetadataDatasetPreview Dataset { get; set; } = default!;
     private readonly Dictionary<string, string?> _overrides = new(StringComparer.Ordinal);
     private ElementReference _heading;
-    private bool ValidKeys => MetadataPreviewKeys.AreUnique(Dataset.Fields.Select(entry => entry.Key));
+    private bool ValidKeys => ConsoleIdentitySet.IsValid(Dataset.Fields.Select(entry => entry.Key));
     private bool IsDirty => _overrides.Count > 0;
     private string? Local(MetadataFieldPreview entry) => _overrides.TryGetValue(entry.Key, out var value) ? value : entry.LocalValue;
+    private bool HasEmptyOverride(MetadataFieldPreview entry) => Local(entry) is "";
     private string? Effective(MetadataFieldPreview entry) => !_overrides.TryGetValue(entry.Key, out var value) ? entry.EffectiveValue : value ?? entry.InheritedValue;
     private void Edit(string key, ChangeEventArgs args) => SetOverride(key, args.Value?.ToString() ?? string.Empty);
     private void UseInherited(string key) => SetOverride(key, null);

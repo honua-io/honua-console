@@ -78,7 +78,7 @@
     private bool _required;
     private bool _inherits;
     private ElementReference _nameInput;
-    private bool ValidKeys => MetadataPreviewKeys.AreUnique(Schemas.Select(schema => schema.Key));
+    private bool ValidKeys => ConsoleIdentitySet.IsValid(Schemas.Select(schema => schema.Key));
     private bool IsDirty => _added.Count > 0 || _retired.Count > 0 || _name.Length > 0 || _key.Length > 0 || _type != "Text" || _choices.Length > 0 || _visibility != "Never (internal)" || _required || _inherits || _kinds.Count > 0;
     private string[] Choices => _choices.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
     private string? DraftIssue => string.IsNullOrWhiteSpace(_name) ? "Enter a field name."

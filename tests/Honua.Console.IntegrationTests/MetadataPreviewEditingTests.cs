@@ -38,6 +38,9 @@ public sealed class MetadataPreviewEditingTests
         var page = context.Render<MetadataPreviewPage>(p => p.Add(view => view.DatasetId, "flood"));
         page.Find("[data-override='lineage']").Input("");
         Assert.Equal("", page.Find("[data-effective='lineage']").TextContent);
+        Assert.Contains("Explicitly empty override", page.Markup);
+        Assert.Null(page.Find("[data-override='lineage']").GetAttribute("placeholder"));
+        CatalogAdminPreview.Capture("metadata-empty", page.Markup);
         page.Find("[data-inherit='lineage']").Click();
         Assert.Equal("Maintained by Emergency GIS.", page.Find("[data-effective='lineage']").TextContent);
         Assert.Contains("Proposed", page.FindAll("details")[1].TextContent);
@@ -45,7 +48,6 @@ public sealed class MetadataPreviewEditingTests
         page.Find("[data-metadata-discard]").Click();
         Assert.Equal("Reviewed data.", page.Find("[data-effective='lineage']").TextContent);
         Assert.Empty(page.FindAll("[data-override='extent'], [data-inherit='extent']"));
-        page.Find("details").SetAttribute("open", "");
         CatalogAdminPreview.Capture("metadata-history", page.Markup);
     }
 
@@ -62,6 +64,29 @@ public sealed class MetadataPreviewEditingTests
             Dataset = example.Dataset! with { Fields = [example.Dataset.Fields[0], example.Dataset.Fields[0]] },
             Schemas = [example.Schemas[0], example.Schemas[0]],
             Import = example.Import! with { Rows = [example.Import.Rows[0], example.Import.Rows[0]] }
+        };
+        using var context = MetadataFixtureSource.Context(source);
+        var page = context.Render<MetadataPreviewPage>(p => p.Add(view => view.DatasetId, section == "fields" ? null : "flood").Add(view => view.Section, section == "dataset" ? null : section));
+        Assert.Contains("identities must be unique", page.Markup);
+        Assert.Empty(page.FindAll("input, textarea"));
+    }
+
+    [Theory]
+    [InlineData("dataset", "")]
+    [InlineData("dataset", " ")]
+    [InlineData("fields", "")]
+    [InlineData("fields", " ")]
+    [InlineData("import", "")]
+    [InlineData("import", " ")]
+    public void BlankKeys_RenderUnavailable(string section, string key)
+    {
+        var source = new MetadataFixtureSource();
+        var example = source.Read;
+        source.Read = example with
+        {
+            Dataset = example.Dataset! with { Fields = [example.Dataset.Fields[0] with { Key = key }] },
+            Schemas = [example.Schemas[0] with { Key = key }],
+            Import = example.Import! with { Rows = [example.Import.Rows[0] with { Key = key }] }
         };
         using var context = MetadataFixtureSource.Context(source);
         var page = context.Render<MetadataPreviewPage>(p => p.Add(view => view.DatasetId, section == "fields" ? null : "flood").Add(view => view.Section, section == "dataset" ? null : section));

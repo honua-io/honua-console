@@ -40,14 +40,14 @@ internal sealed class MetadataFixtureSource : IMetadataPreviewSource
                 new("contacts", "Contacts", "Contacts") { EffectiveValue = "pointOfContact · Emergency GIS · gis@example.test", Source = "Inherited from service Emergency" },
                 new("licence", "Licence", "Licence and maintenance") { EffectiveValue = "CC BY 4.0", InheritedValue = "CC BY 4.0", HasInheritance = true, InheritedFrom = "Folder Public safety", Editable = true, Source = "Inherited from folder Public safety" },
                 new("frequency", "Update frequency", "Licence and maintenance") { EffectiveValue = "monthly", InheritedValue = "monthly", HasInheritance = true, InheritedFrom = "Folder Public safety", Editable = true, Source = "Inherited from folder Public safety" },
-                new("lineage", "Lineage", "Lineage and quality") { LocalValue = "Reviewed data.", EffectiveValue = "Reviewed data.", InheritedValue = "Maintained by Emergency GIS.", InheritedFrom = "Service Emergency", HasInheritance = true, Editable = true, Source = "Set here", History = [Change() with { Field = "Lineage", State = "Proposed", After = "Surveyed in 2026" }] },
+                new("lineage", "Lineage", "Lineage and quality") { LocalValue = "Reviewed data.", EffectiveValue = "Reviewed data.", InheritedValue = "Maintained by Emergency GIS.", InheritedFrom = "Service Emergency", HasInheritance = true, Editable = true, Source = "Set here", History = [Change() with { Field = "Lineage", State = "Proposed", Before = "Reviewed data.", After = "Surveyed in 2026" }] },
                 new("accuracy", "Positional accuracy", "Lineage and quality") { LocalValue = "± 5 m horizontal", EffectiveValue = "± 5 m horizontal", Editable = true, Source = "Set here" },
                 new("extent", "Spatial extent", "Extent and resolution") { EffectiveValue = "-123.41, 46.72 → -122.86, 47.11 (EPSG:4326)", Source = "From data; refresh not reported" },
                 new("resolution", "Spatial resolution", "Extent and resolution") { LocalValue = "1:12,000", EffectiveValue = "1:12,000", Editable = true, Source = "Set here" },
                 new("distribution", "Distribution", "Distribution") { EffectiveValue = "OGC API Features · https://example.test/ogc/collections/flood", Source = "Service capability projection" },
                 new("custom", "Retention schedule", "County fields") { EffectiveValue = "Keep while current + 6 years", Source = "Set here · custom schema county:retention" }
             ],
-            History = [Change(), Change() with { Field = "Lineage", Actor = "Example MCP client", Client = "MCP on behalf of example user", State = "Proposed" }]
+            History = [Change(), Change() with { Field = "Lineage", Actor = "Example MCP client", Client = "MCP on behalf of example user", State = "Proposed", Before = "Reviewed data.", After = "Surveyed in 2026" }]
         },
         Schemas =
         [
