@@ -96,12 +96,12 @@ jobs:
           path: .ci-server-import-contract
           persist-credentials: false
           sparse-checkout-cone-mode: false
-          sparse-checkout: src/Honua.Core/Features/Migration/Abstractions/GeoservicesImportProgress.cs
+          sparse-checkout: src/Honua.Core/Core/Features/Migration/Abstractions/GeoservicesImportProgress.cs
 
       - name: Verify import status wire values against the server
         run: >-
           node scripts/check-import-status-contract.mjs
-          .ci-server-import-contract/src/Honua.Core/Features/Migration/Abstractions/GeoservicesImportProgress.cs
+          .ci-server-import-contract/src/Honua.Core/Core/Features/Migration/Abstractions/GeoservicesImportProgress.cs
           tests/Honua.Console.Shell.Tests/Fixtures/geoservices-import-status.json
 
       - name: Set up .NET
