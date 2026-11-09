@@ -26,7 +26,7 @@ public sealed class StudioPageRenderTests
         Assert.Empty(page.FindAll("[data-authoring-contract], [data-studio-home], textarea"));
         Assert.DoesNotContain("studio-builders", page.Markup, StringComparison.Ordinal);
         Assert.Contains("/environments", page.Markup, StringComparison.Ordinal);
-        AssertPresentation(page, v4Enabled);
+        AssertPresentation(page, v4Enabled ? 1 : 0);
         if (v4Enabled) Capture("studio-unavailable", page.Markup);
     }
 
@@ -44,7 +44,7 @@ public sealed class StudioPageRenderTests
         Assert.Single(page.FindAll("[data-studio-mount]"));
         Assert.Equal(v4Enabled, page.FindAll(".console-studio-v4").Count == 1);
         Assert.Empty(page.FindAll("[data-authoring-contract], textarea"));
-        AssertPresentation(page, v4Enabled);
+        AssertPresentation(page, v4Enabled ? 1 : 0);
         if (v4Enabled) Capture("studio-connected", page.Markup);
     }
 
@@ -106,7 +106,7 @@ public sealed class StudioPageRenderTests
         Assert.Single(page.FindAll("a[href='/studio']"));
         Assert.Single(page.FindAll("a[href='/studio/processes']"));
         Assert.Empty(page.FindAll("textarea, button"));
-        AssertPresentation(page, v4Enabled);
+        AssertPresentation(page, v4Enabled ? 1 : 0);
         if (v4Enabled) Capture("studio-retired", page.Markup);
     }
 
@@ -131,7 +131,7 @@ public sealed class StudioPageRenderTests
             Assert.Single(page.FindAll("[data-processes-custom]"));
             Assert.Contains("Connecting", page.Find("[data-processes-status]").TextContent, StringComparison.Ordinal);
             Assert.Equal(v4Enabled, page.FindAll(".console-studio-v4").Count == 1);
-            AssertPresentation(page, v4Enabled);
+            AssertPresentation(page, v4Enabled ? 1 : 0);
         }
         else
         {
@@ -142,10 +142,10 @@ public sealed class StudioPageRenderTests
         if (v4Enabled) Capture(embedEnabled ? "processes-connected" : "processes-disabled", page.Markup);
     }
 
-    private static void AssertPresentation<T>(IRenderedComponent<T> page, bool enabled) where T : IComponent
+    private static void AssertPresentation<T>(IRenderedComponent<T> page, int expectedV4Headings) where T : IComponent
     {
         Assert.Single(page.FindAll("h1"));
-        Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
+        Assert.Equal(expectedV4Headings, page.FindAll(".console-page-heading-v4").Count);
     }
 
     private static void Capture(string name, string markup) =>
