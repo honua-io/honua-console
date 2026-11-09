@@ -61,10 +61,10 @@
 @code {
 
     private RenderFragment LayerActions => @<text>            <div class="console-detail-actions">
-                <a class="console-button-link" href="@($"/operate/layers/{CanonicalResourceId}/style")" data-layer-style-link>Resource presentation / style</a>
-                <a class="console-button-link" href="@($"/operate/layers/{CanonicalResourceId}/relationships")" data-layer-relationships-link>Relationships</a>
-                <a class="console-button-link" href="@($"/operate/layers/{CanonicalResourceId}/filter")" data-layer-filter-link>Permanent filter</a>
-                <a class="console-button-link" href="@($"/operate/layers/{CanonicalResourceId}/metadata")" data-layer-metadata-link>Editing policy →</a>
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@($"/operate/layers/{CanonicalResourceId}/style")" data-layer-style-link>Resource presentation / style</a>
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@($"/operate/layers/{CanonicalResourceId}/relationships")" data-layer-relationships-link>Relationships</a>
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@($"/operate/layers/{CanonicalResourceId}/filter")" data-layer-filter-link>Permanent filter</a>
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@($"/operate/layers/{CanonicalResourceId}/metadata")" data-layer-metadata-link>Editing policy →</a>
             </div></text>;
     private RenderFragment LegacyHeading => @<text>        <div class="console-page-heading">
             <p class="console-kicker">Operate / Layers</p>
