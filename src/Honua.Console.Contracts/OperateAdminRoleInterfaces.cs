@@ -6,9 +6,7 @@ namespace Honua.Console.Contracts;
 public interface IHonuaAdminConnectionsClient
 {
     Task<HonuaAdminEndpointResult<JsonElement>> GetConnectionProviderManifestAsync(
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(HonuaAdminEndpointResult<JsonElement>.FromIssue(
-            new("Unsupported", "GET /api/v1/capabilities/manifest", "Provider inventory is unavailable.")));
+        CancellationToken cancellationToken = default);
 
     Task<HonuaAdminEndpointResult<HonuaAdminConnectionSummary[]>> ListConnectionsAsync(
         CancellationToken cancellationToken = default);

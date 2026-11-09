@@ -6,6 +6,9 @@ internal class UnusedAdminOperateClient : IHonuaAdminOperateClient
 {
     public virtual Uri BaseUri => new("https://server.test");
 
+    public virtual Task<HonuaAdminEndpointResult<System.Text.Json.JsonElement>> GetConnectionProviderManifestAsync(
+        CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
     public virtual Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> GetLayerFieldsAsync(
         int layerId, CancellationToken cancellationToken = default) =>
         throw new NotImplementedException();

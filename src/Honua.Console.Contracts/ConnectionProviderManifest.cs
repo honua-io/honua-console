@@ -4,7 +4,7 @@ namespace Honua.Console.Contracts;
 
 public sealed partial class HonuaAdminOperateHttpClient
 {
-    // SHIM(honua-sdk-dotnet#166): The published manifest projection omits the installed data-store inventory.
+    // The published SDK manifest projection omits the installed data-store inventory.
     public Task<HonuaAdminEndpointResult<JsonElement>> GetConnectionProviderManifestAsync(
         CancellationToken cancellationToken = default) =>
         _transport.SendAsync(new AdminEndpointCall<JsonElement>(

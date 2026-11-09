@@ -94,10 +94,25 @@ public sealed class ConnectionProviderCapabilityTests
     [Fact]
     public void ForbiddenInventoryDoesNotAssumeDefaultImageSupport()
     {
-        using var context = Context("{}", HttpStatusCode.Forbidden);
+        using var context = Context(Manifest("[\"postgis\"]"), HttpStatusCode.Forbidden);
         var page = context.Render<OperateConnectionNewPage>();
 
         page.WaitForAssertion(() => Assert.Empty(page.FindAll("select")[0].QuerySelectorAll("option")));
+        Assert.All(page.FindAll("button"), button => Assert.True(button.HasAttribute("disabled")));
+        Assert.Contains("could not confirm", page.Markup);
+    }
+
+    [Fact]
+    public void UnboundServerShowsBindingInstructionsWithoutSignInAdvice()
+    {
+        using var context = new BunitContext();
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        context.Services.AddSingleton<IConsoleConnectionCreateOperation, UnsupportedConsoleConnectionCreateOperation>();
+        context.Services.AddSingleton<IOperateTransitionDataSource, UnsupportedOperateTransitionDataSource>();
+        var page = context.Render<OperateConnectionNewPage>();
+
+        Assert.Contains("HONUA_SERVER_BASE_URL", page.Markup);
+        Assert.DoesNotContain("Check your server sign-in", page.Markup);
         Assert.All(page.FindAll("button"), button => Assert.True(button.HasAttribute("disabled")));
     }
 

@@ -5,8 +5,7 @@ namespace Honua.Console.Shell.Services;
 public interface IConsoleConnectionCreateOperation
 {
     Task<ConsoleConnectionProviderAvailability> GetProviderAvailabilityAsync(
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(ConsoleConnectionProviderAvailability.Unavailable);
+        CancellationToken cancellationToken = default);
 
     Task<ConsoleConnectionCreateResult> CreateAsync(
         ConsoleConnectionCreateCommand command,
