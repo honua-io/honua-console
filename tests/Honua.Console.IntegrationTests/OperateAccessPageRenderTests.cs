@@ -271,17 +271,63 @@ public sealed class OperateAccessPageRenderTests
         Assert.True(page.Find("[data-rbac-invite-open]").HasAttribute("disabled"));
     }
 
-    private static IRenderedComponent<OperateAccessRolesPage> RenderRoles(FakeRbacDataSource data)
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AccessRollout_PreservesLoadedViewsAndActions(bool enabled)
+    {
+        var options = new ConsoleV4Options { Enabled = enabled };
+        var roles = RenderRoles(new FakeRbacDataSource { OverviewLoad = new RbacOverviewLoad(SampleOverview(), []) }, options);
+        roles.WaitForAssertion(() => Assert.NotEmpty(roles.FindAll("[data-rbac-matrix]")));
+        Assert.Equal(enabled ? 1 : 0, roles.FindAll(".console-page-heading-v4").Count);
+        Assert.Equal(enabled ? 1 : 0, roles.FindAll(".console-metric-tile").Count);
+        CapturePreview(roles, "roles", enabled);
+        roles.Find("[data-rbac-custom-role]").Click();
+        Assert.NotNull(roles.Find("[data-rbac-create-form]"));
+        CapturePreview(roles, "roles-create", enabled);
+
+        var members = RenderMembers(new FakeRbacDataSource { MembershipLoad = new TeamMembershipLoad(SampleMembership(), []) }, options);
+        members.WaitForAssertion(() => Assert.NotEmpty(members.FindAll("[data-rbac-members-table]")));
+        Assert.Equal(enabled ? 1 : 0, members.FindAll(".console-page-heading-v4").Count);
+        Assert.Equal(enabled ? 1 : 0, members.FindAll(".console-metric-tile").Count);
+        CapturePreview(members, "users", enabled);
+        members.Find("[data-rbac-invite-open]").Click();
+        Assert.NotNull(members.Find("[data-rbac-invite-drawer]"));
+        CapturePreview(members, "users-invite", enabled);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AccessRollout_PreservesMissingBinding(bool enabled)
+    {
+        var options = new ConsoleV4Options { Enabled = enabled };
+        var roles = RenderRoles(new FakeRbacDataSource { OverviewLoad = new RbacOverviewLoad(null, [MissingBinding]) }, options);
+        roles.WaitForAssertion(() => Assert.Contains("API is not bound", roles.Markup, StringComparison.Ordinal));
+        CapturePreview(roles, "roles-unbound", enabled);
+        var members = RenderMembers(new FakeRbacDataSource { MembershipLoad = new TeamMembershipLoad(null, [MissingBinding]) }, options);
+        members.WaitForAssertion(() => Assert.Contains("API is not bound", members.Markup, StringComparison.Ordinal));
+        CapturePreview(members, "users-unbound", enabled);
+    }
+
+    private static void CapturePreview<T>(IRenderedComponent<T> page, string name, bool enabled)
+        where T : Microsoft.AspNetCore.Components.IComponent =>
+        CatalogAdminPreview.Capture($"access-{name}-{(enabled ? "v4" : "legacy")}",
+            $"<div class=\"console-shell\" {(enabled ? "data-console-v4=\"true\"" : string.Empty)}>{page.Markup}</div>");
+
+    private static IRenderedComponent<OperateAccessRolesPage> RenderRoles(FakeRbacDataSource data, ConsoleV4Options? options = null)
     {
         var ctx = new Bunit.BunitContext();
         ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(options ?? new ConsoleV4Options());
         ctx.Services.AddSingleton<IRbacAccessDataSource>(data);
         return ctx.Render<OperateAccessRolesPage>();
     }
 
-    private static IRenderedComponent<OperateAccessMembersPage> RenderMembers(FakeRbacDataSource data)
+    private static IRenderedComponent<OperateAccessMembersPage> RenderMembers(FakeRbacDataSource data, ConsoleV4Options? options = null)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(options ?? new ConsoleV4Options());
         ctx.Services.AddSingleton<IRbacAccessDataSource>(data);
         return ctx.Render<OperateAccessMembersPage>();
     }
