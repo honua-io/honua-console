@@ -17,8 +17,20 @@ public sealed class HonuaServerConsoleConnectionCreateOperation : IConsoleConnec
         CancellationToken cancellationToken = default)
     {
         var result = await _client.GetConnectionProviderManifestAsync(cancellationToken).ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            return new ConsoleConnectionProviderAvailability
+            {
+                UnavailableReason = issue.Detail,
+                FailureStatus = issue.State == "Missing permission"
+                    ? OperateSectionStatus.Forbidden
+                    : Enum.TryParse<OperateSectionStatus>(issue.State, out var status)
+                        ? status : OperateSectionStatus.Unavailable
+            };
+        }
+
         var manifest = result.Data;
-        if (result.Issue is not null || manifest.ValueKind != JsonValueKind.Object
+        if (manifest.ValueKind != JsonValueKind.Object
             || !manifest.TryGetProperty("schemaVersion", out var schema)
             || schema.ValueKind != JsonValueKind.String || schema.GetString() != "honua.capability_manifest.v1")
         {

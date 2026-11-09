@@ -107,11 +107,11 @@
 
         @if (_providerAvailability is null)
         {
-            <p role="status">Checking installed database providers…</p>
+            <OperateSectionStatusPanel Heading="Database providers" Loading="true" />
         }
         else if (_providerAvailability.UnavailableReason is { } reason)
         {
-            <p role="status">@reason</p>
+            <OperateSectionStatusPanel Heading="Database providers" Status="_providerAvailability.FailureStatus" Message="@reason" />
         }
         else if (UnavailableProviders.Length > 0)
         {

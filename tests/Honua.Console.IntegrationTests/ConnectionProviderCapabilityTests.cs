@@ -99,7 +99,21 @@ public sealed class ConnectionProviderCapabilityTests
 
         page.WaitForAssertion(() => Assert.Empty(page.FindAll("select")[0].QuerySelectorAll("option")));
         Assert.All(page.FindAll("button"), button => Assert.True(button.HasAttribute("disabled")));
-        Assert.Contains("could not confirm", page.Markup);
+        Assert.Contains("Permission required", page.Find(".operate-status-panel").TextContent);
+        Assert.Contains("lacks admin permission", page.Find(".operate-status-panel").TextContent);
+        Assert.DoesNotContain("Check your server sign-in", page.Markup);
+    }
+
+    [Fact]
+    public void ServerFailureUsesUnavailablePanelInsteadOfPermissionAdvice()
+    {
+        using var context = Context(Manifest("[\"postgis\"]"), HttpStatusCode.ServiceUnavailable);
+        var page = context.Render<OperateConnectionNewPage>();
+
+        page.WaitForAssertion(() => Assert.Contains("Temporarily unavailable", page.Find(".operate-status-panel").TextContent));
+        Assert.Contains("HTTP 503", page.Find(".operate-status-panel").TextContent);
+        Assert.DoesNotContain("Permission required", page.Markup);
+        Assert.All(page.FindAll("button"), button => Assert.True(button.HasAttribute("disabled")));
     }
 
     [Fact]
