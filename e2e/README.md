@@ -11,6 +11,21 @@ Replace `<digest>` with the selected immutable server image digest. For local
 source-build diagnostics, an explicit local image tag is also accepted; record
 its source revision and image ID separately from release evidence.
 
+### Chiseled server diagnostics
+
+For an image that includes `/app/honua-healthcheck`, enable the compiled
+readiness probe in the live runner:
+
+```sh
+HONUA_CONSOLE_E2E_NATIVE_PROBE=true make e2e-live
+```
+
+The runner applies `e2e/docker-compose.native-probe.yml` during startup and
+teardown. The older published images need the existing Bash probe; enable this
+option only for images containing the native probe. The live LLM runner does
+not support this option; using that stack requires adding the overlay's `-f`
+argument to `composeArgs()` in `e2e/run-live-llm.mjs`.
+
 ### Prerequisites
 
 - Docker (with Compose v2 — `docker compose` as a sub-command)
@@ -84,4 +99,5 @@ and reuses the layer on a retry. `services-layers` publishes `e2e_layer_src` and
 |----------|---------|---------|
 | `HONUA_CONSOLE_E2E_SERVER_URL` | `http://127.0.0.1:8088` | honua-server base URL (for Playwright + Console) |
 | `HONUA_CONSOLE_E2E_ADMIN_KEY` | `honua-console-dev-key` | `X-API-Key` sent to admin endpoints |
+| `HONUA_CONSOLE_E2E_NATIVE_PROBE` | unset | Set to `true` to use the compiled server readiness probe |
 | `HONUA_CONSOLE_E2E_LIVE_PORT` | `5274` | Console port (Playwright webServer); must match the realm's registered callback |
