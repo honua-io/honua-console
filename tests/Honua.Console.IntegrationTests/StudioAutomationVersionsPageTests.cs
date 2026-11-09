@@ -8,6 +8,47 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class StudioAutomationVersionsPageTests
 {
+    [Fact]
+    public async Task VersionPreviewReadDoesNotPublishPendingChanges()
+    {
+        using var ctx = new BunitContext();
+        var registry = new ConsoleAgentContextRegistry();
+        var client = new DelayedVersionClient();
+        ctx.Services.AddSingleton(registry);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        ctx.Services.AddSingleton<ICollectAutomationClient>(client);
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        var page = ctx.Render<StudioAutomationVersionsPage>(
+            parameters => parameters.Add(p => p.DraftId, InMemoryCollectAutomationClient.SeedDraftId));
+        var preview = page.FindAll("button").First(b => b.TextContent.Contains("View body", StringComparison.Ordinal));
+        var click = preview.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        await client.PreviewStarted.Task;
+        page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+        client.CompletePreview();
+        await click;
+        await ctx.DisposeComponentsAsync();
+    }
+
+    private sealed class DelayedVersionClient : ICollectAutomationClient
+    {
+        private readonly InMemoryCollectAutomationClient _inner = InMemoryCollectAutomationClient.CreateSeeded();
+        private readonly TaskCompletionSource _preview = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource PreviewStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public void CompletePreview() => _preview.SetResult();
+        public Task<IReadOnlyList<CollectAutomationSummary>> ListAutomationsAsync(CancellationToken cancellationToken = default) => _inner.ListAutomationsAsync(cancellationToken);
+        public Task<CollectAutomationEditorContext> OpenEditorAsync(string? draftId, CancellationToken cancellationToken = default) => _inner.OpenEditorAsync(draftId, cancellationToken);
+        public Task<CollectAutomationSaveResult> SaveVersionAsync(CollectAutomationDraft draft, string changeNote, CancellationToken cancellationToken = default) => _inner.SaveVersionAsync(draft, changeNote, cancellationToken);
+        public Task<CollectAutomationVersionHistory> ListVersionsAsync(string contentItemId, CancellationToken cancellationToken = default) => _inner.ListVersionsAsync(contentItemId, cancellationToken);
+        public Task<CollectAutomationRestoreResult> RestoreVersionAsync(string contentItemId, string versionId, CancellationToken cancellationToken = default) => _inner.RestoreVersionAsync(contentItemId, versionId, cancellationToken);
+        public async Task<CollectAutomationDraft?> GetVersionAsync(string contentItemId, string versionId, CancellationToken cancellationToken = default)
+        {
+            PreviewStarted.SetResult();
+            await _preview.Task;
+            return await _inner.GetVersionAsync(contentItemId, versionId, cancellationToken);
+        }
+    }
+
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
     [InlineData(ConsolePresentationMode.V4)]
@@ -107,7 +148,6 @@ public sealed class StudioAutomationVersionsPageTests
         await ctx.DisposeComponentsAsync();
         Assert.Empty(registry.Current.Filters);
         Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
-
     }
 
     [Theory]

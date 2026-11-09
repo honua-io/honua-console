@@ -130,7 +130,7 @@
     {
         Route = new Uri(Navigation.Uri).AbsolutePath,
         Filters = new Dictionary<string, string> { ["draftId"] = DraftId ?? string.Empty, ["versionId"] = _previewVersionId ?? string.Empty },
-        Unsaved = new() { PendingOperationCount = _busy ? 1 : 0 },
+        Unsaved = new() { PendingOperationCount = _restoring ? 1 : 0 },
     };
 
     private bool IsConsoleV4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
@@ -140,6 +140,7 @@
 
     private bool _loading = true;
     private bool _busy;
+    private bool _restoring;
     private string? _errorMessage;
     private string? _restoreMessage;
     private string? _contentItemId;
@@ -239,6 +240,7 @@
         _busy = true;
         _errorMessage = null;
         _restoreMessage = null;
+        _restoring = true;
         try
         {
             var result = await Automations.RestoreVersionAsync(_contentItemId, version.VersionId);
@@ -260,6 +262,7 @@
         }
         finally
         {
+            _restoring = false;
             _busy = false;
         }
     }
