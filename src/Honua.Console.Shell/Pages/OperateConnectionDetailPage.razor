@@ -118,8 +118,8 @@
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private ConsoleAgentPageContext AgentContext => new()
     {
-        Route = $"/operate/connections/{Uri.EscapeDataString(_connection?.Id ?? ConnectionId)}" + (new Uri(Navigation.Uri).AbsolutePath.EndsWith("/diagnostics", StringComparison.Ordinal) ? "/diagnostics" : string.Empty),
-        Entities = _connection is { } connection ? [new() { Kind = ConsoleAgentEntityKind.Connection, Id = connection.Id }] : [],
+        Route = ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForConnection(_connection?.Id ?? ConnectionId)) + (new Uri(Navigation.Uri).AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries).Length == 4 ? "/diagnostics" : string.Empty),
+        Entities = _connection is { } connection ? [ConsoleAgentEntity.ForConnection(connection.Id)] : [],
         Unsaved = new() { PendingOperationCount = (_loading ? 1 : 0) + (_testing ? 1 : 0) }
     };
     private RenderFragment TestAction => @<button class="console-button console-button-secondary" type="button" disabled="@_testing" @onclick="TestConnectionAsync">

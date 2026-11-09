@@ -43,15 +43,14 @@
 
 @code {
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
-    private static ConsoleAgentEntity Entity(OperateConnectionSummary connection) => new() { Kind = ConsoleAgentEntityKind.Connection, Id = connection.Id };
     private ConsoleAgentPageContext AgentContext => new()
     {
         Route = "/operate/connections",
-        Entities = _connections.Select(Entity).ToArray(),
+        Entities = _connections.Select(connection => ConsoleAgentEntity.ForConnection(connection.Id)).ToArray(),
         Unsaved = new() { PendingOperationCount = _loading ? 1 : 0 }
     };
     private RenderFragment ConnectionActions => @<text>
-<div class="console-toolbar">
+<div class="@(V4Enabled ? "console-panel-actions" : "console-toolbar")">
         <a class="console-button-link" href="/operate/connections/new">Add Connection</a>
         <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="/operate/publishing/quick">Publish a layer</a>
         <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="/operate/resources/import">Import a file</a>
@@ -75,7 +74,7 @@
                     {
                         <tr>
                             <td>
-                                <a href="@ConsoleAgentRoutes.ForEntity(Entity(connection))">@connection.Name</a>
+                                <a href="@ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForConnection(connection.Id))">@connection.Name</a>
                                 <small>@connection.Principal</small>
                             </td>
                             <td>@connection.Provider</td>
@@ -89,7 +88,7 @@
                                 }
                                 else
                                 {
-                                    <a href="@(ConsoleAgentRoutes.ForEntity(Entity(connection)) + "/diagnostics")">@connection.LastDiagnostic.FailureCode</a>
+                                    <a href="@(ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForConnection(connection.Id)) + "/diagnostics")">@connection.LastDiagnostic.FailureCode</a>
                                 }
                             </td>
                         </tr>

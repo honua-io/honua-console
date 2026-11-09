@@ -47,14 +47,15 @@
     private const string Intro = "New connections capture provider, endpoint, account binding, and secret reference separately so credentials never need to be displayed in Console. The password is sent to the configured server secret store and is never echoed back.";
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private string[] DraftValues => [_name, _provider, _credentialSource, _host, _port.ToString(System.Globalization.CultureInfo.InvariantCulture), _database, _username, _password, _secretReference, _sslMode, _description];
-    private string[]? _baseline;
+    private string[] _baseline = [string.Empty, "postgis", "password", string.Empty, "5432", string.Empty, string.Empty, string.Empty, string.Empty, "Disable", string.Empty];
+    private bool _loading = true;
     private ConsoleAgentPageContext AgentContext => new()
     {
         Route = "/operate/connections/new",
         Unsaved = new()
         {
-            ChangedFieldCount = _baseline is null ? 0 : DraftValues.Zip(_baseline).Count(pair => pair.First != pair.Second),
-            PendingOperationCount = (_providerAvailability is null ? 1 : 0) + (_busy ? 1 : 0) + (_testing ? 1 : 0)
+            ChangedFieldCount = DraftValues.Zip(_baseline).Count(pair => pair.First != pair.Second),
+            PendingOperationCount = (_loading ? 1 : 0) + (_busy ? 1 : 0) + (_testing ? 1 : 0)
         }
     };
     private RenderFragment ConnectionForm => @<text>
@@ -270,15 +271,23 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _providerAvailability = await ConnectionCreate.GetProviderAvailabilityAsync();
-        _provider = AvailableProviders.FirstOrDefault()?.Value ?? string.Empty;
-        _port = CurrentProvider.DefaultPort;
-        var view = await OperateData.GetConnectionsViewAsync();
-        _existingNames = view.Connections
-            .Select(connection => connection.Name)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        _baseline = DraftValues;
+        try
+        {
+            _providerAvailability = await ConnectionCreate.GetProviderAvailabilityAsync();
+            _provider = AvailableProviders.FirstOrDefault()?.Value ?? string.Empty;
+            _port = CurrentProvider.DefaultPort;
+            _baseline[1] = _provider;
+            _baseline[4] = _port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var view = await OperateData.GetConnectionsViewAsync();
+            _existingNames = view.Connections
+                .Select(connection => connection.Name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private void OnProviderChanged()

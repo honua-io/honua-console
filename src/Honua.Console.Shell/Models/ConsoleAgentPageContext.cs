@@ -21,6 +21,12 @@ public sealed record ConsoleAgentEntity
         ResourceId = canonicalResourceId
     };
 
+    public static ConsoleAgentEntity ForConnection(string id) => new()
+    {
+        Kind = ConsoleAgentEntityKind.Connection,
+        Id = id
+    };
+
     public static ConsoleAgentEntity ForService(string name) => new()
     {
         Kind = ConsoleAgentEntityKind.Service,

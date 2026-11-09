@@ -66,6 +66,90 @@ public sealed class OperateConnectionV4RenderTests
         Assert.Equal("/operate/connections/connection%20a/diagnostics", context.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Route);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InventoryAndDetailExposePendingLoad(bool detail)
+    {
+        using var context = Context(true);
+        var source = new Source { Load = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        context.Services.AddSingleton<IOperateTransitionDataSource>(source);
+        var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        if (detail)
+        {
+            var page = context.Render<OperateConnectionDetailPage>(p => p.Add(c => c.ConnectionId, Connection.Id));
+            Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
+            source.Load.SetResult(new([Connection], [], [], [], []));
+            page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+        }
+        else
+        {
+            var page = context.Render<OperateConnectionsPage>();
+            Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
+            source.Load.SetResult(new([Connection], [], [], [], []));
+            page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+        }
+    }
+
+    [Fact]
+    public void DetailPublishesPendingTestUntilCompletion()
+    {
+        using var context = Context(true);
+        var ops = new Operations();
+        context.Services.AddSingleton<IConsoleConnectionCreateOperation>(ops);
+        var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        var page = context.Render<OperateConnectionDetailPage>(p => p.Add(c => c.ConnectionId, Connection.Id));
+        page.Find("button").Click();
+        Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
+        ops.Test.SetResult(ConsoleConnectionTestOutcome.MissingBinding("Fixture"));
+        page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+    }
+
+    [Fact]
+    public async Task NewConnectionRetainsEarlyEditAndCountsBothLoadsTestAndCreate()
+    {
+        using var context = Context(true);
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        var ops = new Operations { Providers = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var source = new Source { Load = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        context.Services.AddSingleton<IConsoleConnectionCreateOperation>(ops);
+        context.Services.AddSingleton<IOperateTransitionDataSource>(source);
+        var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        var page = context.Render<OperateConnectionNewPage>();
+        Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
+        page.Find("input[placeholder='prod-postgis']").Input("early-name");
+        Assert.Equal(1, registry.Current.Unsaved.ChangedFieldCount);
+        ops.Providers.SetResult(new() { InstalledProviders = ["postgis"] });
+        await source.Requested.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
+        source.Load.SetResult(new([], [], [], [], []));
+        page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+        Assert.Equal(1, registry.Current.Unsaved.ChangedFieldCount);
+        await page.InvokeAsync(() => page.Find("input[type=password]").Input("fixture-password"));
+        await page.InvokeAsync(() => page.Find("input[placeholder='db-prod.honua.internal']").Input("db.example"));
+        await page.InvokeAsync(() => page.Find("input[placeholder='honua_geo']").Input("spatial"));
+        await page.InvokeAsync(() => page.Find("input[placeholder='honua_reader']").Input("reader"));
+        page.FindAll("button").Single(b => b.TextContent.Trim() == "Test connection").Click();
+        Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
+        ops.Test.SetResult(ConsoleConnectionTestOutcome.MissingBinding("Fixture"));
+        page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+        page.FindAll("button").Single(b => b.TextContent.Trim() == "Create connection").Click();
+        Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
+        ops.Create.SetResult(ConsoleConnectionCreateResult.MissingBinding("Fixture"));
+        page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+    }
+
+    private sealed class Operations : IConsoleConnectionCreateOperation
+    {
+        public TaskCompletionSource<ConsoleConnectionProviderAvailability>? Providers { get; init; }
+        public TaskCompletionSource<ConsoleConnectionTestOutcome> Test { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<ConsoleConnectionCreateResult> Create { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<ConsoleConnectionProviderAvailability> GetProviderAvailabilityAsync(CancellationToken cancellationToken = default) => Providers?.Task ?? Task.FromResult(new ConsoleConnectionProviderAvailability());
+        public Task<ConsoleConnectionTestOutcome> TestAsync(ConsoleConnectionCreateCommand command, CancellationToken cancellationToken = default) => Test.Task;
+        public Task<ConsoleConnectionTestOutcome> TestExistingAsync(string connectionId, CancellationToken cancellationToken = default) => Test.Task;
+        public Task<ConsoleConnectionCreateResult> CreateAsync(ConsoleConnectionCreateCommand command, CancellationToken cancellationToken = default) => Create.Task;
+    }
+
     private static BunitContext Context(bool enabled)
     {
         var context = new BunitContext();
@@ -78,8 +162,13 @@ public sealed class OperateConnectionV4RenderTests
 
     private sealed class Source : IOperateTransitionDataSource
     {
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new OperateTransitionWorkspace([Connection], [], [], [], []));
+        public TaskCompletionSource<OperateTransitionWorkspace>? Load { get; init; }
+        public TaskCompletionSource Requested { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
+        {
+            Requested.TrySetResult();
+            return Load?.Task ?? Task.FromResult(new OperateTransitionWorkspace([Connection], [], [], [], []));
+        }
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
             Task.FromResult(connectionId == Connection.Id ? Connection : null);
         public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
