@@ -28,6 +28,5 @@
 }
 
 .console-shell[data-console-v4="true"] [data-connection-notice] summary {
-    display: block;
     min-height: 24px;
 }

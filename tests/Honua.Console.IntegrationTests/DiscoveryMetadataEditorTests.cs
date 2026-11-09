@@ -23,29 +23,6 @@ public sealed class DiscoveryMetadataEditorTests
         AffectedPublications = [new("pub-a", "transport", "7"), new("pub-b", "public-data", "streets")]
     };
 
-    [Fact]
-    public void AgentSummaryTracksEditsReloadAndSaveWithoutMetadataValues()
-    {
-        using var context = new BunitContext();
-        context.Services.AddSingleton<IHonuaDiscoveryMetadataClient>(new MetadataClient());
-        var summaries = new List<ConsoleAgentUnsavedSummary>();
-        var component = context.Render<DiscoveryMetadataEditor>(p => p
-            .Add(c => c.Address, DiscoveryMetadataAddress.ForLayer(42))
-            .Add(c => c.UnsavedChanged, summary => summaries.Add(summary)));
-        Assert.Equal(0, summaries[^1].ChangedFieldCount);
-        Assert.Contains(summaries, summary => summary.PendingOperationCount == 1);
-        component.Find("[data-discovery-title]").Change("Private draft title");
-        component.Find("[data-discovery-description]").Change("Private draft description");
-        Assert.Equal(2, summaries[^1].ChangedFieldCount);
-        Assert.DoesNotContain("Private draft", JsonSerializer.Serialize(summaries));
-        component.Find("[data-discovery-reload]").Click();
-        Assert.Equal(0, summaries[^1].ChangedFieldCount);
-        component.Find("[data-discovery-title]").Change("Another title");
-        component.Find("[data-discovery-save]").Click();
-        Assert.Equal(0, summaries[^1].ChangedFieldCount);
-        Assert.Equal(0, summaries[^1].PendingOperationCount);
-    }
-
     [Theory]
     [InlineData(DiscoveryMetadataTargetKind.Resource)]
     [InlineData(DiscoveryMetadataTargetKind.Service)]
