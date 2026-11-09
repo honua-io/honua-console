@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Bunit;
 using Honua.Console.Contracts;
+using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,8 +14,10 @@ public sealed class ShareHomeRenderTests
 {
     private static readonly Uri BaseUri = new("https://console.honua.test");
 
-    [Fact]
-    public void ShareHome_BoundToServer_RendersKpiStripAndSharedItemsTable()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ShareHome_BoundToServer_RendersKpiStripAndSharedItemsTable(bool enabled)
     {
         var handler = new StubHandler(_ => Envelope(new HonuaConsoleContentListResponse
         {
@@ -27,6 +30,7 @@ public sealed class ShareHomeRenderTests
         }));
         using var ctx = new Bunit.BunitContext();
         RegisterCatalog(ctx, handler);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
 
         var page = ctx.Render<SharePage>();
 
@@ -46,14 +50,27 @@ public sealed class ShareHomeRenderTests
         Assert.Contains("/share/manage?itemId=svc-parcels", page.Markup, StringComparison.Ordinal);
         // Visibility column is unambiguous for the public open-data items.
         Assert.Contains("data-share-visibility", page.Markup, StringComparison.Ordinal);
+        Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
+        Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-metric-value").Count);
+        if (enabled)
+        {
+            Assert.Equal("2", page.Find(".console-metric-value").TextContent.Trim());
+            Assert.Equal(4, page.FindAll(".console-share-summary-details > div").Count);
+        }
+        CatalogAdminPreview.Capture($"share-home-{(enabled ? "v4" : "legacy")}",
+            $"<div class=\"console-shell\" data-console-v4=\"{enabled.ToString().ToLowerInvariant()}\">{page.Markup}</div>");
     }
 
-    [Fact]
-    public void ShareHome_WhenServerUnavailable_RendersEmptySurfaceNotMockData()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ShareHome_WhenServerUnavailable_RendersEmptySurfaceNotMockData(bool enabled)
     {
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
         using var ctx = new Bunit.BunitContext();
         RegisterCatalog(ctx, handler);
+
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
 
         var page = ctx.Render<SharePage>();
 
@@ -68,13 +85,17 @@ public sealed class ShareHomeRenderTests
         Assert.Contains("Open Publishing", page.Markup, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void ShareHome_WhenBindingMissing_RendersMissingBindingNotEmptyState()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ShareHome_WhenBindingMissing_RendersMissingBindingNotEmptyState(bool enabled)
     {
         using var ctx = new Bunit.BunitContext();
         // No server bound: the catalog client is the missing-binding implementation, never an in-memory source.
         ctx.Services.AddSingleton<IConsoleCatalogClient>(new UnsupportedConsoleCatalogClient());
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
 
         var page = ctx.Render<SharePage>();
 

@@ -1310,3 +1310,5 @@ is escaped text. No save, proposal, upload, parser, attachment store, schema
 mutation or metadata mutation is implemented here. Local choices never change the
 reported metadata, history or original attachment. The server must supply
 contextual inheritance and enforce its mutation policy and attachment authority.
+
+Share uses the shared v4 page heading and a quiet public-sharing summary behind `ConsoleV4Options.Enabled`. The public-item query, public links, configuration links, and missing-binding and empty states keep their existing behavior.

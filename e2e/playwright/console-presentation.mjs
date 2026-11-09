@@ -194,9 +194,11 @@ export async function checkKeyboardControls(page, { controls, sizedControls, min
   assert.equal(visited.size, total, "Every enabled form, link and pager control must be keyboard reachable");
 }
 
-export async function runV4PagePresentation({ previews, pageNames, title, stylesheet, heading, scope, controls, inspect }) {
-  const pages = new Map(await Promise.all(pageNames.map(async name =>
-    [name, `<div class="console-shell" data-console-v4="true">${await fs.readFile(path.join(previews, `${name}.html`), "utf8")}</div>`])));
+export async function runV4PagePresentation({ previews, pageNames, title, stylesheet, heading, scope, controls, inspect, prepareMarkup = markup => `<div class="console-shell" data-console-v4="true">${markup}</div>` }) {
+  const pages = new Map(await Promise.all(pageNames.map(async name => {
+    const markup = await fs.readFile(path.join(previews, `${name}.html`), "utf8");
+    return [name, prepareMarkup(markup)];
+  })));
   const server = await startPresentationFixtureServer({
     pages, title,
     stylesheets: ["/_content/Honua.Console.Shell/honua-console.css"],
@@ -207,13 +209,14 @@ export async function runV4PagePresentation({ previews, pageNames, title, styles
   try {
     browser = await chromium.launch();
     const context = await browser.newContext();
-    const page = await context.newPage();
     for (const name of pages.keys()) {
       for (const width of [1280, 390]) {
+        const page = await context.newPage();
         await inspectV4Presentation(page, {
           previews, name, width, origin: `http://127.0.0.1:${server.address().port}`,
           stylesheet, heading, scope, controls, inspect,
         });
+        await page.close();
       }
     }
   } finally {
