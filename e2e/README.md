@@ -22,9 +22,9 @@ HONUA_CONSOLE_E2E_NATIVE_PROBE=true make e2e-live
 
 The runner applies `e2e/docker-compose.native-probe.yml` during startup and
 teardown. The older published images need the existing Bash probe; enable this
-option only for images containing the native probe. For the live LLM stack,
-append `-f e2e/docker-compose.native-probe.yml` after
-`-f e2e/playwright/live-llm/docker-compose.yml` in its Compose commands.
+option only for images containing the native probe. The live LLM runner does
+not support this option; using that stack requires adding the overlay to its
+`composeArgs` array in `e2e/playwright/live-llm/run-live-llm.mjs`.
 
 ### Prerequisites
 
@@ -99,4 +99,5 @@ and reuses the layer on a retry. `services-layers` publishes `e2e_layer_src` and
 |----------|---------|---------|
 | `HONUA_CONSOLE_E2E_SERVER_URL` | `http://127.0.0.1:8088` | honua-server base URL (for Playwright + Console) |
 | `HONUA_CONSOLE_E2E_ADMIN_KEY` | `honua-console-dev-key` | `X-API-Key` sent to admin endpoints |
+| `HONUA_CONSOLE_E2E_NATIVE_PROBE` | unset | Set to `true` to use the compiled server readiness probe |
 | `HONUA_CONSOLE_E2E_LIVE_PORT` | `5274` | Console port (Playwright webServer); must match the realm's registered callback |
