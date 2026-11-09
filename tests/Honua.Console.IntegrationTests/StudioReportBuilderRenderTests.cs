@@ -9,14 +9,17 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class StudioReportBuilderRenderTests
 {
-    [Fact]
-    public void ReportBuilder_WhenBindingMissing_RendersNotBoundSurface()
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(true, 1)]
+    public void ReportBuilder_WhenBindingMissing_RendersNotBoundSurface(bool enabled, int expectedV4Headings)
     {
         var data = new FakeReportDataSource
         {
             Load = new StudioReportPublicationLoad(null, [MissingBinding])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(data);
         NavigateWithPublicationId(ctx, "pub-1");
 
@@ -26,6 +29,13 @@ public sealed class StudioReportBuilderRenderTests
             () => Assert.Contains("Report publication registry is not bound", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.DoesNotContain("data-report-publication", page.Markup, StringComparison.Ordinal);
+
+        Assert.Equal(expectedV4Headings, page.FindAll(".console-page-heading-v4").Count);
+        if (enabled)
+        {
+            Assert.Equal("Report builder", Assert.Single(page.FindAll("h1")).TextContent);
+            CatalogAdminPreview.Capture("report-builder-unbound", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
+        }
     }
 
     [Fact]
@@ -71,11 +81,14 @@ public sealed class StudioReportBuilderRenderTests
         Assert.Contains("ver-1", page.Markup, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void ReportBuilder_NewReport_RendersAuthoringSurfaceWithPublishGate()
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(true, 1)]
+    public void ReportBuilder_NewReport_RendersAuthoringSurfaceWithPublishGate(bool enabled, int expectedV4Headings)
     {
         var data = new FakeReportDataSource();
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(data);
 
         var page = ctx.Render<StudioReportBuilderPage>();
@@ -107,6 +120,13 @@ public sealed class StudioReportBuilderRenderTests
         Assert.Contains("Publish…", page.Markup, StringComparison.Ordinal);
         // Preview breakpoint control is present in the header bar (responsive preview before publish).
         Assert.Contains("studio-report-breakpoint", page.Markup, StringComparison.Ordinal);
+
+        Assert.Equal(expectedV4Headings, page.FindAll(".console-page-heading-v4").Count);
+        if (enabled)
+        {
+            Assert.Equal("Report builder", Assert.Single(page.FindAll("h1")).TextContent);
+            CatalogAdminPreview.Capture("report-builder-new", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
+        }
     }
 
     [Fact]
