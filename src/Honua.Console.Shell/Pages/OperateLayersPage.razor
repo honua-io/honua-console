@@ -1,13 +1,51 @@
 @page "/operate/layers"
 @inject IOperateTransitionDataSource OperateData
+@inject IServiceProvider Services
 
 <section class="console-page">
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Layers">
+            <p>Browse layer geometry, service exposure and canonical resources.</p>
+        </ConsolePageHeading>
+        <ConsoleAgentContext Context="@AgentContext" />
+        <ConsolePanel Title="Layers" HeadingId="layers-list-heading">@LayerList</ConsolePanel>
+    }
+    else
+    {
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Layers</p>
         <h1>Layers</h1>
         <p>Layer rows show service exposure and point back to the canonical resource that owns metadata.</p>
     </div>
 
+        @LayerList
+    }
+</section>
+
+@code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = "/operate/layers",
+        Entities = _layers.Select(row => LayerEntity(row.Layer)).Distinct().ToArray()
+    };
+
+    private static ConsoleAgentEntity LayerEntity(OperateServiceLayerProjection layer) => new()
+    {
+        Kind = ConsoleAgentEntityKind.Layer,
+        Id = layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        ResourceId = layer.CanonicalResourceId
+    };
+
+    private static ConsoleAgentEntity ServiceEntity(OperateServiceDetail service) => new()
+    {
+        Kind = ConsoleAgentEntityKind.Service,
+        Id = service.Name,
+        ServiceName = service.Name
+    };
+
+    private RenderFragment LayerList => @<text>
     <OperateCapabilityStateList States="@_states" />
 
     @if (_layers.Count == 0 && _states.Count == 0)
@@ -31,9 +69,19 @@
                     @foreach (var row in _layers)
                     {
                         <tr data-layer-id="@row.Layer.LayerId" data-service-id="@row.Service.Name">
-                            <td><a href="@($"/operate/layers/{row.Layer.CanonicalResourceId}")">@row.Layer.LayerId</a></td>
-                            <td>@row.Layer.Name</td>
-                            <td><a href="@($"/operate/services/{row.Service.Name}/settings")">@row.Service.DisplayName</a></td>
+                            <td><a href="@(V4Enabled ? ConsoleAgentRoutes.ForEntity(LayerEntity(row.Layer)) : $"/operate/layers/{row.Layer.CanonicalResourceId}")">@row.Layer.LayerId</a></td>
+                            <td>
+                                @if (V4Enabled)
+                                {
+                                    <ConsoleNameIdentifier Name="@row.Layer.Name" Identifier="@row.Layer.CanonicalResourceId"
+                                                           Href="@ConsoleAgentRoutes.ForEntity(LayerEntity(row.Layer))" />
+                                }
+                                else
+                                {
+                                    @row.Layer.Name
+                                }
+                            </td>
+                            <td><a href="@(V4Enabled ? ConsoleAgentRoutes.ForEntity(ServiceEntity(row.Service)) : $"/operate/services/{row.Service.Name}/settings")">@row.Service.DisplayName</a></td>
                             <td>@row.Layer.Geometry</td>
                             <td>
                                 <a href="@($"/operate/resources/{row.Layer.CanonicalResourceId}")">@row.Layer.CanonicalResourceName</a>
@@ -45,9 +93,8 @@
             </table>
         </ConsoleTableRegion>
     }
-</section>
+</text>;
 
-@code {
     private IReadOnlyList<(OperateServiceDetail Service, OperateServiceLayerProjection Layer)> _layers =
         Array.Empty<(OperateServiceDetail, OperateServiceLayerProjection)>();
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
