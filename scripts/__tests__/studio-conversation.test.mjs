@@ -180,3 +180,27 @@ test('canonical admission refusal retains its actionable message through the shi
  assert.equal(result.errorMessage,'ledger_uninitialized: Initialize and resume AI admission.');
  assert.equal((await workspace.conversation()).messages.at(-1).content,result.errorMessage);
 });
+
+
+test('Studio page context stays out of the transcript and is captured before queued work', async()=>{
+ let sent,release;
+ const {workspace}=await readyWorkspace({chat:async prompt=>{sent=prompt;return {status:'complete',text:'Done'};}});
+ const context={route:'/inbox',entities:[{kind:'approval',id:'original'}]};
+ workspace.pageContextProvider=()=>context;
+ workspace.queue=new Promise(resolve=>{release=resolve;});
+ const turn=workspace.submit('Explain this approval');
+ context.entities[0].id='changed';
+ release();await turn;
+ assert.match(sent,/"id":"original"/);
+ assert.doesNotMatch(sent,/"id":"changed"/);
+ assert.equal((await workspace.conversation()).messages[0].content,'Explain this approval');
+});
+
+test('Studio rejects whitespace even when page context is available', async()=>{
+ let sends=0;
+ const {workspace}=await readyWorkspace({chat:async()=>{sends++;}});
+ workspace.pageContextProvider=()=>({route:'/inbox'});
+ await assert.rejects(workspace.submit('   '),/Enter a message/);
+ assert.equal(sends,0);
+ assert.deepEqual((await workspace.conversation()).messages,[]);
+});

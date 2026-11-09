@@ -29,6 +29,7 @@ internal sealed class ConsoleEnvironmentSubscription : IDisposable
         if (_disposed) return;
         if (_profiles is not null)
         {
+            // The operator-scoped store binds its current principal when a handler is added.
             _profiles.ActiveProfileChanged -= Refresh;
             _profiles.ActiveProfileChanged += Refresh;
         }

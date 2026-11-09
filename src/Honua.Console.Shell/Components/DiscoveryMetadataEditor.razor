@@ -1,7 +1,6 @@
 @using Honua.Console.Contracts
 @using Microsoft.Extensions.DependencyInjection
 @inject IServiceProvider Services
-@implements IAsyncDisposable
 
 <section class="console-section" data-discovery-metadata>
     <div class="console-page-heading">
@@ -42,15 +41,15 @@
                 <legend class="console-visually-hidden">@Heading</legend>
                 <label class="console-field">
                     <span>Title</span>
-                    <input class="console-input" maxlength="512" @bind="_title" @bind:after="ReportUnsavedAsync" data-discovery-title />
+                    <input class="console-input" maxlength="512" @bind="_title" data-discovery-title />
                 </label>
                 <label class="console-field">
                     <span>Description</span>
-                    <textarea class="console-input" rows="4" maxlength="16384" @bind="_description" @bind:after="ReportUnsavedAsync" data-discovery-description></textarea>
+                    <textarea class="console-input" rows="4" maxlength="16384" @bind="_description" data-discovery-description></textarea>
                 </label>
                 <label class="console-field">
                     <span>Keywords</span>
-                    <textarea class="console-input" rows="3" @bind="_keywords" @bind:after="ReportUnsavedAsync" data-discovery-keywords></textarea>
+                    <textarea class="console-input" rows="3" @bind="_keywords" data-discovery-keywords></textarea>
                     <small>One keyword per line. Use up to 100 keywords, each at most 256 characters.</small>
                 </label>
                 <div class="console-action-row">
@@ -76,17 +75,6 @@
 
 @code {
     [Parameter, EditorRequired] public required DiscoveryMetadataAddress Address { get; set; }
-    [Parameter] public EventCallback<ConsoleAgentUnsavedSummary> UnsavedChanged { get; set; }
-    private bool _disposed;
-    private Task ReportUnsavedAsync() => UnsavedChanged.InvokeAsync(new()
-    {
-        ChangedFieldCount = _loaded is null ? 0 :
-            (_title != (_loaded.Title ?? string.Empty) ? 1 : 0)
-            + (_description != (_loaded.Description ?? string.Empty) ? 1 : 0)
-            + (_keywords != string.Join('\n', _loaded.Keywords) ? 1 : 0),
-        PendingOperationCount = (_loading ? 1 : 0) + (_saving ? 1 : 0)
-    });
-
     private DiscoveryMetadataAddress? _loadedAddress;
     private DiscoveryMetadataResponse? _loaded;
     private HonuaAdminEndpointIssue? _issue;
@@ -116,20 +104,15 @@
         _issue = null;
         _saved = false;
         _loading = true;
-        await ReportUnsavedAsync();
         if (Client is { } client)
         {
             var result = await client.ReadDiscoveryAsync(address);
-            if (_disposed || revision != _viewRevision || Address != address) return;
+            if (revision != _viewRevision || Address != address) return;
             _loaded = result.Data;
             _issue = result.Issue;
             PopulateFields();
         }
-        if (!_disposed && revision == _viewRevision)
-        {
-            _loading = false;
-            await ReportUnsavedAsync();
-        }
+        if (revision == _viewRevision) _loading = false;
     }
 
     private async Task SaveAsync()
@@ -139,7 +122,6 @@
         var revision = _viewRevision;
         _saving = true;
         _saved = false;
-        await ReportUnsavedAsync();
         try
         {
             var result = await client.UpdateDiscoveryAsync(address, new DiscoveryMetadataUpdateRequest
@@ -147,14 +129,14 @@
                 Etag = _loaded.Etag, Title = EditedText(_title, _loaded.Title), Description = EditedText(_description, _loaded.Description),
                 Keywords = EditedKeywords(_keywords, _loaded.Keywords)
             });
-            if (_disposed || revision != _viewRevision || Address != address) return;
+            if (revision != _viewRevision || Address != address) return;
             _issue = result.Issue;
             if (result.Data is null) return;
             _loaded = result.Data;
             PopulateFields();
             _saved = true;
         }
-        finally { _saving = false; if (!_disposed) await ReportUnsavedAsync(); }
+        finally { _saving = false; }
     }
 
     private static string? EditedText(string current, string? saved) => current == (saved ?? string.Empty)
@@ -162,13 +144,6 @@
 
     private static string[] EditedKeywords(string current, IReadOnlyList<string> saved) => current == string.Join('\n', saved)
         ? saved.ToArray() : current.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-
-    public async ValueTask DisposeAsync()
-    {
-        _disposed = true;
-        _viewRevision++;
-        await UnsavedChanged.InvokeAsync(new());
-    }
 
     private void PopulateFields()
     {

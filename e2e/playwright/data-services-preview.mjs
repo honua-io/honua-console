@@ -27,6 +27,11 @@ await runV4PagePresentation({
     } else {
       assert.equal(await page.locator("table, .console-state-empty").count(), 0);
       await page.getByRole("link", { name: "Connect environment", exact: true }).waitFor();
+      const disclosure = page.locator("[data-connection-notice] summary");
+      assert.equal(await disclosure.evaluate(element => getComputedStyle(element).display), "list-item");
+      await disclosure.focus();
+      await page.keyboard.press("Enter");
+      assert.equal(await disclosure.evaluate(element => element.parentElement.open), true);
     }
     const surface = page.locator(".console-panel").first();
     assert.equal(await surface.evaluate(element => getComputedStyle(element).borderRadius), "10px");

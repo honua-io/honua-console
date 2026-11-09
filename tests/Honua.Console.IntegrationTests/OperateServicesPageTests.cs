@@ -3,6 +3,7 @@ using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Honua.Sdk.Admin.Models;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -122,6 +123,53 @@ public sealed class OperateServicesPageTests
         Assert.Equal(2, requests);
         Assert.Empty(page.FindAll("[data-connection-notice]"));
         Assert.Single(page.FindAll(".console-state-empty"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ServicesPage_PublishesFolderSelectionAndDirtyCountsOnlyWhenEnabled(bool enabled)
+    {
+        using var context = CreateContext(enabled);
+        context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
+        context.Services.AddSingleton<IOperateTransitionDataSource>(new FixedServicesDataSource());
+        var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        var page = context.Render<OperateServicesPage>();
+        page.Find("[data-folder-select]").Change("transport");
+        page.Find("[data-folder-title]").Change("Private title");
+        Assert.Equal(enabled ? "/operate/services" : "/", registry.Current.Route);
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        if (enabled)
+        {
+            var selected = Assert.Single(registry.Current.Selection);
+            Assert.Equal(ConsoleAgentEntityKind.Folder, selected.Kind);
+            Assert.Equal("transport", selected.Id);
+            Assert.Equal("/operate/folders/transport", ConsoleAgentRoutes.ForEntity(selected));
+        }
+        else Assert.Empty(registry.Current.Selection);
+        Assert.DoesNotContain("Private title", System.Text.Json.JsonSerializer.Serialize(registry.Current));
+        page.Find("[data-folder-save]").Click();
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+        Assert.Empty(registry.Current.Selection);
+        page.Dispose();
+        Assert.Equal(enabled ? "/operate/services" : "/", registry.Current.Route);
+        Assert.Empty(registry.Current.Entities);
+        Assert.Empty(registry.Current.Selection);
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+    }
+
+    private sealed class FolderClient : IConsoleFolderClient
+    {
+        public Task<OperateSectionResult<ConsoleFolderCatalog>> ReadAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<ConsoleFolderCatalog>.Allowed(new(
+                [new Folder { Metadata = new() { Id = "transport", Name = "Transport", Title = "Transport data" } }],
+                "\"catalog-1\"", "authority")));
+        public Task<ConsoleFolderMutationResult> CreateAsync(ConsoleFolderCatalog catalog, CreateFolderRequest request, CancellationToken cancellationToken = default) => Saved();
+        public Task<ConsoleFolderMutationResult> UpdateAsync(ConsoleFolderCatalog catalog, string folderId, UpdateFolderRequest request, CancellationToken cancellationToken = default) => Saved();
+        public Task<ConsoleFolderMutationResult> DeleteAsync(ConsoleFolderCatalog catalog, string folderId, CancellationToken cancellationToken = default) => Saved();
+        public Task<ConsoleFolderMutationResult> MoveAsync(ConsoleFolderCatalog catalog, string serviceName, MoveServiceRequest request, CancellationToken cancellationToken = default) => Saved();
+        private static Task<ConsoleFolderMutationResult> Saved() => Task.FromResult(new ConsoleFolderMutationResult { Succeeded = true, State = "Saved" });
     }
 
     private static BunitContext CreateContext(bool enabled)

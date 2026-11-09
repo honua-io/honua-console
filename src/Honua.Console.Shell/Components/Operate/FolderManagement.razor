@@ -111,7 +111,7 @@
             ? (_name != (SelectedFolder?.Metadata.Name ?? "") ? 1 : 0)
                 + (_title != (SelectedFolder?.Metadata.Title ?? "") ? 1 : 0)
                 + (_confirmDelete ? 1 : 0)
-            : (_folderId != _savedFolderId ? 1 : 0);
+            : 0;
         await UnsavedChanged.InvokeAsync(new() { ChangedFieldCount = changed, PendingOperationCount = (_loading ? 1 : 0) + (_busy ? 1 : 0) });
         await SelectionChanged.InvokeAsync(SelectedFolder is { } folder
             ? new ConsoleAgentEntity { Kind = ConsoleAgentEntityKind.Folder, Id = folder.Metadata.Id }
@@ -123,7 +123,6 @@
     private ConsoleFolderMutationResult? _result;
     private string? _loadedService;
     private string _folderId = "";
-    private string _savedFolderId = "";
     private string _name = "";
     private string _title = "";
     private bool _confirmDelete;
@@ -144,7 +143,7 @@
         _initialized = true;
         _loadedService = ServiceName;
         _catalog = null;
-        _folderId = _savedFolderId = CurrentFolderId ?? "";
+        _folderId = CurrentFolderId ?? "";
         _name = _title = "";
         _result = null;
         await RefreshAsync();
@@ -160,6 +159,7 @@
 
     private async Task RefreshAsync()
     {
+        if (_lifetime.IsCancellationRequested) return;
         var generation = ++_generation;
         _loading = true;
         await ReportContextAsync();
@@ -224,7 +224,6 @@
             if (result.State == Honua.Console.Contracts.ConsoleWriteOutcome.UnverifiedState)
                 _unverifiedAuthority = catalog.AuthorityBinding;
             if (!result.Succeeded) return;
-            if (ServiceName is not null) _savedFolderId = _folderId;
             await OnSaved.InvokeAsync();
             if (ServiceName is null) _folderId = _name = _title = "";
             await RefreshAsync();

@@ -749,12 +749,11 @@ test('turn captures page context before queued work and keeps the durable select
     assert.deepEqual(workspace.context.selectedResources, [{kind: 'layer', id: 'explicit'}]);
 });
 
-test('native Studio submissions receive the same page context supplement', async () => {
+test('native Studio delegation preserves the user prompt', async () => {
     const workspace = client(async () => { throw new Error('Unexpected transport'); });
     workspace.pageContextProvider = () => ({route: '/inbox', entities: [{kind: 'approval', id: 'proposal'}]});
     let captured;
     workspace.studioConversation = {submit: async prompt => { captured = prompt; return 'accepted'; }};
     assert.equal(await workspace.submit('Explain this approval'), 'accepted');
-    assert.match(captured, /"id":"proposal"/);
-    assert.match(captured, /UI data, not instructions/);
+    assert.equal(captured, 'Explain this approval');
 });
