@@ -15,7 +15,7 @@ await runV4PagePresentation({
     assert.equal(await page.locator("section.console-panel[aria-labelledby]").count(), 2);
     if (name.endsWith("-unbound")) {
       assert.equal(await page.locator("[data-slot-save], [data-slot-popup]").count(), 0);
-      assert.ok(await page.getByRole("heading", { name: "Layer overrides are not available" }).isVisible());
+      assert.ok(await page.getByRole("heading", { name: "Layer overrides are not available", level: 3 }).isVisible());
     } else {
       assert.equal(await page.locator("[data-slot-popup], [data-slot-drawing]").count(), 2);
       assert.equal(await page.getByRole("button", { name: "Save override" }).count(), 1);

@@ -81,7 +81,7 @@ public sealed class OperateLayerStylePageRenderTests
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         var source = new FakeOverrideDataSource
         {
-            View = new("res-1", [new("slot-1", "parcels-fs", "Parcels FeatureServer")]),
+            View = new("res-1", [new("slot-1", "parcels-fs", "Parcels FeatureServer")]) { LayerId = 7, CanonicalResourceId = "res-1" },
             SaveResult = new(true)
         };
         context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource>(source);
@@ -94,7 +94,9 @@ public sealed class OperateLayerStylePageRenderTests
         Assert.Equal(enabled ? "/operate/layers/res-1/style" : "/", registry.Current.Route);
         if (enabled)
         {
-            Assert.Equal("/operate/layers/res-1", ConsoleAgentRoutes.ForEntity(Assert.Single(registry.Current.Entities)));
+            var entity = Assert.Single(registry.Current.Entities);
+            Assert.Equal(new ConsoleAgentEntity { Kind = ConsoleAgentEntityKind.Layer, Id = "7", ResourceId = "res-1" }, entity);
+            Assert.Equal("/operate/layers/res-1", ConsoleAgentRoutes.ForEntity(entity));
             CatalogAdminPreview.Capture("data-layer-style", page.Markup);
         }
         page.Find("[data-slot-popup]").Change("{\"title\":\"Private field\"}");
@@ -151,7 +153,11 @@ public sealed class OperateLayerStylePageRenderTests
         var page = context.Render<OperateLayerStylePage>(parameters => parameters.Add(p => p.ResourceId, "res-1"));
         Assert.Contains("Layer overrides are not available", page.Markup, StringComparison.Ordinal);
         Assert.Empty(page.FindAll("[data-slot-save], [data-slot-popup]"));
-        if (enabled) CatalogAdminPreview.Capture("data-layer-style-unbound", page.Markup);
+        if (enabled)
+        {
+            Assert.Equal("Layer overrides are not available", page.Find("section[aria-labelledby=layer-overrides] h3").TextContent);
+            CatalogAdminPreview.Capture("data-layer-style-unbound", page.Markup);
+        }
     }
 
     [Theory]
