@@ -1,6 +1,7 @@
 using Bunit;
 using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.Shell.Tests.Components;
 
@@ -14,6 +15,30 @@ public sealed class OperateTimelineTests : ConsoleComponentTestBase
         string correlationId = "corr-1",
         string timestamp = "2026-07-07 09:00 UTC") =>
         new(kind, severity, message, timestamp, correlationId, EventId: eventId, DetailHref: $"/operate/events/{eventId}");
+
+    public sealed record RolloutCase(ConsoleV4Options Options, string[] Headings);
+
+    public static TheoryData<RolloutCase> RolloutCases => new()
+    {
+        new(new ConsoleV4Options { Enabled = false }, ["Time", "Kind", "Severity", "Message", "Correlation"]),
+        new(new ConsoleV4Options { Enabled = true }, ["Time", "Action", "Severity", "What", "Reference"])
+    };
+
+    [Theory]
+    [MemberData(nameof(RolloutCases))]
+    public void RolloutPreservesEventDetailsAndLinks(RolloutCase rollout)
+    {
+        Services.AddSingleton(rollout.Options);
+        var entry = Entry("evt-1", message: "Published <map>");
+        var cut = Render<OperateTimeline>(p => p.Add(c => c.Entries, new[] { entry, entry }));
+
+        Assert.Equal(rollout.Headings,
+            cut.FindAll("th").Select(th => th.TextContent));
+        Assert.Single(cut.FindAll("[data-timeline-row]"));
+        Assert.Equal("Published <map>", cut.Find("td a").TextContent);
+        Assert.Equal("/operate/events/evt-1", cut.Find("td a").GetAttribute("href"));
+        Assert.Contains("corr-1", cut.Find("[data-correlation-id]").TextContent, StringComparison.Ordinal);
+    }
 
     [Fact]
     public void DuplicateEventId_IsAppendedOnce()
