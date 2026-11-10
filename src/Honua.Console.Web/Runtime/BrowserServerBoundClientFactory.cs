@@ -47,10 +47,13 @@ internal sealed class BrowserApiHandler(
         request.Headers.Remove("X-API-Key");
         request.Headers.Remove("Cookie");
         request.Headers.Remove("X-CSRF-Token");
+        request.Headers.Remove("X-Honua-CSRF");
         request.Headers.Authorization = null;
         var sameOrigin = Uri.Compare(origins.Api, origins.Application, UriComponents.SchemeAndServer,
             UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0;
-        if (session.IsAuthenticated && !string.IsNullOrWhiteSpace(session.AccessToken))
+        if (!string.IsNullOrWhiteSpace(session.AccessToken)
+            && session.ExpiresAt > DateTimeOffset.UtcNow
+            && (session.IsAuthenticated || access == BrowserApiAccess.Public))
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
         }
@@ -66,7 +69,7 @@ internal sealed class BrowserApiHandler(
             {
                 throw new HttpRequestException("The API has not issued a CSRF token. Sign in again before making changes.");
             }
-            request.Headers.Add("X-CSRF-Token", session.CsrfToken);
+            request.Headers.Add("X-Honua-CSRF", session.CsrfToken);
         }
 
         request.SetBrowserRequestCredentials(sameOrigin ? BrowserRequestCredentials.SameOrigin : BrowserRequestCredentials.Omit);

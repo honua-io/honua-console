@@ -4,6 +4,15 @@
     <ProjectReference Include="..\..\src\Honua.Console.Shell\Honua.Console.Shell.csproj" />
   </ItemGroup>
 
+  <Target Name="ResolveLegacyFixtureAssetRoots" AfterTargets="ResolveProjectStaticWebAssets">
+    <ItemGroup>
+      <StaticWebAsset Update="@(StaticWebAsset)"
+                      Condition="'%(SourceId)' == '$(PackageId)' and '%(SourceType)' == 'Discovered'">
+        <ContentRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../src/Honua.Console.Web/wwwroot/'))</ContentRoot>
+      </StaticWebAsset>
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <Content Include="../../src/Honua.Console.Web/wwwroot/**/*"
              Exclude="../../src/Honua.Console.Web/wwwroot/index.html;../../src/Honua.Console.Web/wwwroot/config.json"

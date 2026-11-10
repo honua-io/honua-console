@@ -23,6 +23,11 @@ test("static host serves WASM and deep links without hiding API or asset failure
     assert.match(response.headers.get("content-type"), /text\/html/);
     assert.equal(await response.text(), '<base href="/console/">');
   }
+  const callback = await fetch(`${origin}/admin/auth/callback?code=fixture-code&state=fixture-state`, { redirect: "manual" });
+  assert.equal(callback.status, 302);
+  assert.equal(callback.headers.get("location"), "/console/admin/auth/callback?code=fixture-code&state=fixture-state");
+  assert.equal(callback.headers.get("referrer-policy"), "no-referrer");
+  assert.equal(callback.headers.get("cache-control"), "no-store");
   const wasm = await fetch(`${origin}/console/_framework/runtime.wasm`);
   assert.equal(wasm.headers.get("content-type"), "application/wasm");
   assert.deepEqual(new Uint8Array(await wasm.arrayBuffer()), new Uint8Array([0, 97, 115, 109]));

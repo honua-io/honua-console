@@ -3,13 +3,13 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startStaticBundleServer } from "./static-bundle-server.mjs";
 
-// Network fixture for the published browser transport. This deliberately starts with an
-// issued session; server sign-in, token issuance and OIDC remain separate integration gates.
+// Network fixture for the published browser sign-in contract. Real server authentication
+// and OIDC remain separate integration gates; these credentials have no external authority.
 export const fixtureCookie = "console-fixture-session=issued";
 export const fixtureBearer = "console-fixture-bearer";
 
-export function createContractApi({ allowedOrigin, crossOrigin = false }) {
-  return (request, response) => {
+export function createContractApi({ allowedOrigin, crossOrigin = false, oidc = false }) {
+  return async (request, response) => {
     response.setHeader("Cache-Control", "no-store");
     const origin = request.headers.origin;
     if (origin && origin !== allowedOrigin) {
@@ -23,18 +23,14 @@ export function createContractApi({ allowedOrigin, crossOrigin = false }) {
     if (request.method === "OPTIONS") {
       const headers = (request.headers["access-control-request-headers"] ?? "")
         .toLowerCase().split(",").map(value => value.trim()).filter(Boolean);
-      if (!origin || request.headers["access-control-request-method"] !== "GET"
-        || headers.some(header => header !== "authorization")) {
+      if (!origin || !["GET", "POST"].includes(request.headers["access-control-request-method"])
+        || headers.some(header => !["authorization", "content-type"].includes(header))) {
         response.writeHead(403).end();
         return;
       }
-      response.setHeader("Access-Control-Allow-Methods", "GET");
-      response.setHeader("Access-Control-Allow-Headers", "Authorization");
+      response.setHeader("Access-Control-Allow-Methods", "GET, POST");
+      response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
       response.writeHead(204).end();
-      return;
-    }
-    if (request.method !== "GET") {
-      response.writeHead(405).end();
       return;
     }
     const pathname = new URL(request.url, "http://localhost").pathname.replace(/\/$/, "");
@@ -43,8 +39,75 @@ export function createContractApi({ allowedOrigin, crossOrigin = false }) {
       response.end(JSON.stringify(body));
     };
     const cookiePresent = request.headers.cookie?.split("; ").includes(fixtureCookie);
+    const authorized = crossOrigin
+      ? request.headers.authorization === `Bearer ${fixtureBearer}` && !request.headers.cookie
+      : cookiePresent && !request.headers.authorization;
+    if (oidc && pathname === "/api/v1/admin/auth/config") {
+      json({ oidcEnabled: true, providers: [{ key: "entra", displayName: "Organization" }] });
+      return;
+    }
+    if (oidc && pathname === "/api/fixture-provider") {
+      response.writeHead(302, { Location: `${allowedOrigin}/admin/auth/callback?code=fixture-code&state=fixture-state` }).end();
+      return;
+    }
+    if (oidc && request.method === "POST" && pathname === "/api/v1/admin/auth/providers/entra/authorize-url") {
+      if (request.headers["x-honua-csrf"] !== "anonymous-csrf") {
+        response.writeHead(403).end();
+        return;
+      }
+      response.setHeader("Set-Cookie", "fixture-pending=issued; Path=/; HttpOnly; SameSite=Lax");
+      json({ authorizeUrl: `${allowedOrigin}/api/fixture-provider?state=fixture-state` });
+      return;
+    }
+    if (oidc && request.method === "POST" && pathname === "/api/v1/admin/auth/providers/entra/token") {
+      let body = "";
+      for await (const chunk of request) body += chunk;
+      let token;
+      try { token = JSON.parse(body); } catch { /* Invalid fixture input is denied. */ }
+      if (request.headers["x-honua-csrf"] !== "anonymous-csrf"
+        || !request.headers.cookie?.split("; ").includes("fixture-pending=issued")
+        || token?.code !== "fixture-code" || token?.state !== "fixture-state" || token?.grantType !== "authorization_code") {
+        response.writeHead(403).end();
+        return;
+      }
+      response.setHeader("Set-Cookie", [`${fixtureCookie}; Path=/; HttpOnly; SameSite=Strict`, "fixture-pending=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"]);
+      response.writeHead(204).end();
+      return;
+    }
+    if (request.method === "POST" && ["/api/v1/admin/auth/session", "/api/v1/admin/auth/password-token"].includes(pathname)) {
+      const validTransport = crossOrigin
+        ? pathname.endsWith("/password-token") && origin === allowedOrigin && !request.headers.cookie && !request.headers.authorization
+        : pathname.endsWith("/session") && request.headers["x-honua-csrf"] === "anonymous-csrf";
+      if (!validTransport) {
+        response.writeHead(403).end();
+        return;
+      }
+      let body = "";
+      for await (const chunk of request) body += chunk;
+      let password;
+      try { password = JSON.parse(body).password; } catch { /* Invalid fixture input is denied. */ }
+      if (password !== "fixture-password") {
+        response.writeHead(401).end();
+        return;
+      }
+      if (crossOrigin) {
+        json({ accessToken: fixtureBearer, tokenType: "Bearer", expiresAt: new Date(Date.now() + 300_000).toISOString(), expiresIn: 300 });
+      } else {
+        response.setHeader("Set-Cookie", `${fixtureCookie}; Path=/; HttpOnly; SameSite=Strict`);
+        response.writeHead(204).end();
+      }
+      return;
+    }
+    if (request.method !== "GET") {
+      response.writeHead(405).end();
+      return;
+    }
+    if (pathname === "/api/v1/admin/auth/csrf" && !crossOrigin) {
+      json({ requestToken: authorized ? "identified-csrf" : "anonymous-csrf" });
+      return;
+    }
     if (pathname === "/api/v1/admin/auth/session") {
-      if (!crossOrigin && !cookiePresent) {
+      if (!authorized) {
         response.writeHead(401).end();
         return;
       }
@@ -55,15 +118,10 @@ export function createContractApi({ allowedOrigin, crossOrigin = false }) {
           { type: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name", value: "Fixture Operator" },
           { type: "http://schemas.microsoft.com/ws/2008/06/identity/claims/role", value: "admin" },
         ],
-        csrfToken: "console-fixture-csrf",
-        accessToken: crossOrigin ? fixtureBearer : null,
         expiresAt: new Date(Date.now() + 300_000).toISOString(),
       });
       return;
     }
-    const authorized = crossOrigin
-      ? request.headers.authorization === `Bearer ${fixtureBearer}` && !request.headers.cookie
-      : cookiePresent && !request.headers.authorization;
     if (!authorized) {
       response.writeHead(401).end();
       return;
@@ -78,6 +136,9 @@ export function createContractApi({ allowedOrigin, crossOrigin = false }) {
         return;
       case "/api/v1/admin/services":
         json({ success: true, data: { items: [], page: 1, pageSize: 100, total: 0, layerTotal: 0 } });
+        return;
+      case "/api/v1/admin/proposals":
+        json({ proposals: [] });
         return;
       case "/api/v1/admin/license":
         json({ success: true, data: { edition: "Community", isValid: true } });
@@ -102,6 +163,11 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   });
   await startStaticBundleServer(directory, 5186, {
     configuration: { apiBaseUrl: apiOrigin, auth: { mode: "builtin" }, v4Enabled: true },
+  });
+  const oidcOrigin = "http://127.0.0.1:5188";
+  await startStaticBundleServer(directory, 5188, {
+    configuration: { apiBaseUrl: "/", auth: { mode: "oidc", authority: "https://identity.example/", clientId: "public-fixture", scopes: ["openid"] }, v4Enabled: true },
+    handleApi: createContractApi({ allowedOrigin: oidcOrigin, oidc: true }),
   });
   await new Promise((resolve, reject) => {
     const api = createServer(createContractApi({ allowedOrigin: browserOrigin, crossOrigin: true }));

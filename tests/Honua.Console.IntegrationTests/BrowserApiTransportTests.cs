@@ -52,12 +52,14 @@ public sealed class BrowserApiTransportTests
         request.Headers.Add("X-API-Key", "must-not-leave");
         request.Headers.Add("Cookie", "must-not-leave");
         request.Headers.Add("X-CSRF-Token", "caller-token");
+        request.Headers.Add("X-Honua-CSRF", "caller-token");
         request.Headers.Authorization = new("Bearer", "caller-token");
         using var response = await client.SendAsync(request);
         Assert.False(request.Headers.Contains("X-API-Key"));
         Assert.False(request.Headers.Contains("Cookie"));
         Assert.Null(request.Headers.Authorization);
-        Assert.Equal("issued-csrf", Assert.Single(request.Headers.GetValues("X-CSRF-Token")));
+        Assert.False(request.Headers.Contains("X-CSRF-Token"));
+        Assert.Equal("issued-csrf", Assert.Single(request.Headers.GetValues("X-Honua-CSRF")));
         Assert.Equal(1, recorder.Calls);
     }
 
@@ -69,7 +71,7 @@ public sealed class BrowserApiTransportTests
         session.Set(Principal());
         using var client = Client(session, recorder, new BrowserApiOrigins(Api, new Uri("https://console.example/console/")));
         await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync("layers"));
-        session.Set(Principal(), new ConsoleSessionCredentials(AccessToken: "operator-token"));
+        session.Set(Principal(), new ConsoleSessionCredentials(AccessToken: "operator-token", ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(5)));
         using var request = new HttpRequestMessage(HttpMethod.Post, "layers");
         using var response = await client.SendAsync(request);
         Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
@@ -121,15 +123,121 @@ public sealed class BrowserApiTransportTests
         Assert.Equal(!expired, state.User.Identity?.IsAuthenticated);
         Assert.Equal(!expired, session.IsAuthenticated);
         Assert.Equal("issued-csrf", session.CsrfToken);
-        Assert.Equal("issued-bearer", session.AccessToken);
+        Assert.Null(session.AccessToken);
         Assert.Equal(expiresAt, session.ExpiresAt);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PasswordSignInUsesTheOriginContractAndRefreshesIdentity(bool crossOrigin)
+    {
+        var session = new ConsoleBrowserSession();
+        var handler = new SignInHandler(crossOrigin);
+        var origins = new BrowserApiOrigins(Api, crossOrigin ? new Uri("https://console.example/") : App);
+        using var http = new HttpClient(new BrowserApiHandler(origins, session, BrowserApiAccess.Public) { InnerHandler = handler }) { BaseAddress = Api };
+        var provider = new BrowserAuthenticationStateProvider(new ConsoleApiClient(http) { UsesCookieSession = !crossOrigin },
+            session, new InMemoryConsoleAccountSessionStore());
+
+        await provider.SignInAsync("fixture-password");
+
+        Assert.True((await provider.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated);
+        Assert.Equal(crossOrigin ? "issued-bearer" : null, session.AccessToken);
+        Assert.Equal(crossOrigin ? null : "identified-csrf", session.CsrfToken);
+        Assert.Equal(crossOrigin ? new[] { "password-token", "session" } : new[] { "csrf", "session", "session", "csrf" }, handler.Paths);
+    }
+
+    [Fact]
+    public async Task RejectedPasswordClearsPriorCredentialsAndIdentity()
+    {
+        var session = new ConsoleBrowserSession();
+        session.Set(Principal(), new ConsoleSessionCredentials(AccessToken: "old-token"));
+        using var http = new HttpClient(new DeniedSignInHandler()) { BaseAddress = Api };
+        var store = new InMemoryConsoleAccountSessionStore();
+        await store.SaveSessionAsync(new Honua.Console.Shell.Models.ConsoleAccountSession { ProfileId = "configured-api" });
+        var provider = new BrowserAuthenticationStateProvider(new ConsoleApiClient(http) { UsesCookieSession = false }, session, store);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => provider.SignInAsync("rejected"));
+
+        Assert.False((await provider.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated);
+        Assert.Null(session.AccessToken);
+        Assert.Null(session.CsrfToken);
+        Assert.Null(await store.GetSessionAsync("configured-api"));
+    }
+
+    [Fact]
+    public async Task CancelledSignInClearsThePriorStoredSession()
+    {
+        var session = new ConsoleBrowserSession();
+        session.Set(Principal(), new ConsoleSessionCredentials(AccessToken: "old-token"));
+        using var http = new HttpClient(new DeniedSignInHandler()) { BaseAddress = Api };
+        var store = new InMemoryConsoleAccountSessionStore();
+        await store.SaveSessionAsync(new Honua.Console.Shell.Models.ConsoleAccountSession { ProfileId = "configured-api" });
+        var provider = new BrowserAuthenticationStateProvider(new ConsoleApiClient(http) { UsesCookieSession = false }, session, store);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => provider.SignInAsync("password", cancellation.Token));
+
+        Assert.False((await provider.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated);
+        Assert.Null(session.AccessToken);
+        Assert.Null(await store.GetSessionAsync("configured-api"));
+    }
+
+    private sealed class DeniedSignInHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized));
+    }
+
+    private sealed class SignInHandler(bool crossOrigin) : HttpMessageHandler
+    {
+        private bool _signedIn;
+        public List<string> Paths { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.Segments.Last();
+            Paths.Add(path);
+            if (request.Method == HttpMethod.Post)
+            {
+                Assert.Equal(crossOrigin ? "password-token" : "session", path);
+                using var body = await request.Content!.ReadFromJsonAsync<JsonDocument>(cancellationToken);
+                Assert.Equal("fixture-password", body!.RootElement.GetProperty("password").GetString());
+                Assert.Null(request.Headers.Authorization);
+                if (!crossOrigin)
+                {
+                    Assert.Equal("anonymous-csrf", Assert.Single(request.Headers.GetValues("X-Honua-CSRF")));
+                }
+                _signedIn = true;
+                return crossOrigin ? Json(new { accessToken = "issued-bearer", tokenType = "Bearer", expiresAt = DateTimeOffset.UtcNow.AddMinutes(5) })
+                    : new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+            if (path == "csrf")
+            {
+                Assert.False(crossOrigin);
+                return Json(new { requestToken = _signedIn ? "identified-csrf" : "anonymous-csrf" });
+            }
+            Assert.True(_signedIn);
+            Assert.Equal(crossOrigin ? "issued-bearer" : null, request.Headers.Authorization?.Parameter);
+            return Json(new { isAuthenticated = true, claims = new[] { new { type = ClaimTypes.NameIdentifier, value = "operator" } }, expiresAt = DateTimeOffset.UtcNow.AddMinutes(5) });
+        }
+
+        private static HttpResponseMessage Json(object body) => new(HttpStatusCode.OK) { Content = JsonContent.Create(body) };
     }
 
     private sealed class SessionHandler(DateTimeOffset expiresAt) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            Assert.EndsWith("api/v1/admin/auth/session", request.RequestUri!.AbsolutePath);
+            if (request.RequestUri!.AbsolutePath.EndsWith("/csrf", StringComparison.Ordinal))
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = JsonContent.Create(new { requestToken = "issued-csrf" })
+                });
+            }
+            Assert.EndsWith("api/v1/admin/auth/session", request.RequestUri.AbsolutePath);
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = JsonContent.Create(new

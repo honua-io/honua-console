@@ -14,6 +14,13 @@ export async function startStaticBundleServer(directory, port = 0, { configurati
   const server = createServer(async (request, response) => {
     response.setHeader("Cache-Control", "no-store");
     const url = new URL(request.url, "http://localhost");
+    if (url.pathname === "/admin/auth/callback" && request.method === "GET") {
+      response.writeHead(302, {
+        Location: `/console/admin/auth/callback${url.search}`,
+        "Referrer-Policy": "no-referrer",
+      }).end();
+      return;
+    }
     if (handleApi && url.pathname.startsWith("/api/")) {
       await handleApi(request, response);
       return;

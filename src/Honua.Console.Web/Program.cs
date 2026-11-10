@@ -22,7 +22,12 @@ var clients = new BrowserServerBoundClientFactory(apiBaseUri, applicationBaseUri
 builder.Services.AddSingleton(configuration);
 builder.Services.AddSingleton(session);
 builder.Services.AddSingleton<IHonuaServerBoundClientFactory>(clients);
-builder.Services.AddSingleton(new ConsoleApiClient(clients.CreatePublicClient(apiBaseUri)));
+builder.Services.AddSingleton(new ConsoleApiClient(clients.CreatePublicClient(apiBaseUri))
+{
+    UsesCookieSession = Uri.Compare(apiBaseUri, applicationBaseUri, UriComponents.SchemeAndServer,
+        UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0,
+    SupportsPasswordSignIn = configuration.Auth.Mode == "builtin"
+});
 builder.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([
     new ConsoleEnvironmentProfile
     {
@@ -37,8 +42,13 @@ builder.Services.AddHonuaConsoleShell(new HonuaConsoleShellOptions
     V4Enabled = configuration.V4Enabled
 });
 builder.Services.AddAuthorizationCore();
-builder.Services.AddSingleton<AuthenticationStateProvider>(services => new BrowserAuthenticationStateProvider(
+builder.Services.AddSingleton<BrowserAuthenticationStateProvider>(services => new BrowserAuthenticationStateProvider(
     services.GetRequiredService<ConsoleApiClient>(), session,
     services.GetRequiredService<IConsoleAccountSessionStore>()));
+
+builder.Services.AddSingleton<AuthenticationStateProvider>(services => services.GetRequiredService<BrowserAuthenticationStateProvider>());
+builder.Services.AddSingleton<IConsoleBrowserAuthentication>(services => services.GetRequiredService<BrowserAuthenticationStateProvider>());
+
+builder.Services.AddSingleton<IConsoleOidcAuthentication, BrowserOidcAuthentication>();
 
 await builder.Build().RunAsync();

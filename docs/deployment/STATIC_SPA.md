@@ -59,11 +59,27 @@ not prove sign-in, Studio, map resources or mutation workflows.
 
 The static-bundle workflow replaces Console container publication. Its Playwright gate serves
 the published files at 1280 and 390 pixels. One fixture checks unbound navigation and missing
-API responses. An issued-session fixture checks same-origin cookie and cross-origin bearer
-transport, authorized resource rendering and links beneath `/console/`. The latter supplies
-provisional bootstrap credentials; it does not exercise server sign-in or token issuance.
+API responses. A password-contract fixture submits the sign-in form and checks same-origin
+cookie issuance with identity-bound CSRF refresh, cross-origin bearer issuance without cookies,
+authorized resource rendering and links beneath `/console/`. It also checks that the bearer
+is absent from browser storage. This fixture models the API contract; it does not qualify
+the actual server implementation. The same-origin OIDC fixture checks provider selection,
+server-broker redirects, callback correlation/replay rejection, cookie bootstrap and mounted
+return paths. Separate-origin OIDC needs a registered public SPA client and remains unavailable
+in this build.
+
+For same-origin OIDC, set `auth.mode` to `oidc` and provide the public authority, client ID and
+scopes. Provider labels come from `/api/v1/admin/auth/config`; the server owns PKCE, provider
+credentials and token exchange. Keep the server's `Oidc:AdminAuthCallbackUri` and the provider's
+registered redirect at `https://<public-host>/admin/auth/callback`; the server validates that root
+path. Configure the edge to redirect this URL to `/console/admin/auth/callback`, preserving its
+query string, before serving the SPA. `/console/auth/callback` is also accepted by the SPA. Serve callbacks using
+the Console navigation fallback and a `Referrer-Policy: no-referrer` response header. Callback
+query parameters are removed from browser history before exchange. Only short-lived provider,
+state and return-path metadata is stored in session storage; no verifier or provider tokens
+reach browser storage.
 Legacy browser configurations launch the test-only host and preserve their existing assertions.
 
 Before rollout, remove the Console service from deployment compositions and validate the API's
 actual sign-in, session and resource contracts in same-origin and cross-origin browsers. The
-issued-session fixture and retained host tests do not substitute for those end-to-end journeys.
+password-contract fixture and retained host tests do not substitute for those end-to-end journeys.
