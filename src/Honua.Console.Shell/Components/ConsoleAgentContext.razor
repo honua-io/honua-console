@@ -1,0 +1,18 @@
+@implements IDisposable
+@inject IServiceProvider Services
+
+@code {
+    [Parameter, EditorRequired] public ConsoleAgentPageContext Context { get; set; } = new();
+    private ConsoleAgentContextRegistry.Registration? _registration;
+
+    protected override void OnParametersSet()
+    {
+        if (Services.GetService<ConsoleV4Options>()?.Enabled != true) return;
+        var registry = Services.GetService<ConsoleAgentContextRegistry>();
+        if (registry is null) return;
+        if (_registration?.IsActive != true) _registration = registry.Register(Context);
+        else _registration.Publish(Context);
+    }
+
+    public void Dispose() => _registration?.Dispose();
+}
