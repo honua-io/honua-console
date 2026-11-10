@@ -124,8 +124,9 @@
     {
         Route = "/operate/sync",
         Filters = SyncFilters,
-        Selection = _selectedSource is null ? [] : [SourceEntity(_selectedSource)],
-        Entities = _syncSources.Select(SourceEntity).ToArray(),
+        Selection = _selectedSource is not null && _sourceEntities.TryGetValue(_selectedSource.SourceId, out var entity) ? [entity] : [],
+        Entities = _syncSources.Where(source => _sourceEntities.ContainsKey(source.SourceId))
+            .Select(source => _sourceEntities[source.SourceId]).ToArray(),
         Unsaved = new()
         {
             ChangedFieldCount = _selectedConflictIds.Count + (_selectedConflictIds.Count > 0 && _batchAction != SyncResolutionAction.KeepServer ? 1 : 0),
@@ -178,7 +179,7 @@
                             <td>@source.SyncCapability</td>
                             <td>
                                 <button class="console-button console-button-secondary" type="button"
-                                        @onclick="() => SelectSourceAsync(source)">Open queue</button>
+                                        @onclick="() => SelectSourceManuallyAsync(source)">Open queue</button>
                             </td>
                         </tr>
                     }
@@ -391,12 +392,29 @@
     [Parameter, SupplyParameterFromQuery(Name = "replica")]
     public string? ReplicaId { get; set; }
 
-    private static ConsoleAgentEntity SourceEntity(TemporalSourceCapability source) => new()
+    private readonly Dictionary<string, ConsoleAgentEntity> _sourceEntities = new(StringComparer.OrdinalIgnoreCase);
+
+    private async Task LoadSourceEntitiesAsync()
     {
-        Kind = ConsoleAgentEntityKind.Layer,
-        Id = source.LayerId,
-        ResourceId = source.ResourceId
-    };
+        if (!V4Enabled || Services.GetService<IOperateTransitionDataSource>() is not { } data)
+        {
+            return;
+        }
+        var view = await data.GetLayersViewAsync();
+        foreach (var service in view.Services)
+        {
+            foreach (var layer in service.Layers)
+            {
+                var sourceId = $"{service.Name}/{layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+                _sourceEntities[sourceId] = new ConsoleAgentEntity
+                {
+                    Kind = ConsoleAgentEntityKind.Layer,
+                    Id = layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ResourceId = layer.CanonicalResourceId
+                };
+            }
+        }
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -404,17 +422,29 @@
         {
             return;
         }
+        var parameterGeneration = ++_parameterGeneration;
         var source = _syncSources.FirstOrDefault(item => string.Equals(item.SourceId, SourceId, StringComparison.Ordinal));
         if (source is null)
         {
+            _selectedSource = null;
+            ResetReviewState();
             return;
         }
         if (_selectedSource?.SourceId != source.SourceId)
         {
             await SelectSourceAsync(source);
         }
+        else
+        {
+            await _sourceLoadTask;
+        }
+        if (parameterGeneration != _parameterGeneration) return;
         var replica = _replicas.FirstOrDefault(item => string.Equals(item.ReplicaId, ReplicaId, StringComparison.Ordinal));
-        if (replica is not null && _selectedReplica?.ReplicaId != replica.ReplicaId)
+        if (replica is null)
+        {
+            ResetConflictReviewState();
+        }
+        else if (_selectedReplica?.ReplicaId != replica.ReplicaId)
         {
             await ReviewReplicaAsync(replica);
         }
@@ -435,6 +465,9 @@
     private readonly HashSet<string> _selectedConflictIds = new(StringComparer.Ordinal);
     private SyncResolutionAction _batchAction = SyncResolutionAction.KeepServer;
     private bool _resolveBusy;
+    private int _reviewGeneration;
+    private int _parameterGeneration;
+    private Task _sourceLoadTask = Task.CompletedTask;
     private SyncConflictResolutionResult? _lastResolution;
     private TemporalBindingState? _resolutionBinding;
 
@@ -460,25 +493,41 @@
         _syncSources = workspace.Sources
             .Where(source => source.SyncConflictReviewSupported)
             .ToArray();
+        await LoadSourceEntitiesAsync();
         _loading = false;
     }
 
-    private async Task SelectSourceAsync(TemporalSourceCapability source)
+    private Task SelectSourceManuallyAsync(TemporalSourceCapability source)
+    {
+        _parameterGeneration++;
+        return SelectSourceAsync(source);
+    }
+
+    private Task SelectSourceAsync(TemporalSourceCapability source)
     {
         _selectedSource = source;
         ResetReviewState();
+        _sourceLoadTask = LoadSourceQueueAsync(source, _reviewGeneration);
+        return _sourceLoadTask;
+    }
+
+    private async Task LoadSourceQueueAsync(TemporalSourceCapability source, int generation)
+    {
         var queue = await TemporalData.GetReplicaConflictQueueAsync(source.SourceId);
+        if (generation != _reviewGeneration) return;
         _replicaBinding = queue.BindingState;
         _replicas = queue.Replicas;
     }
 
     private async Task ReviewReplicaAsync(DisconnectedReplica replica)
     {
+        var generation = ++_reviewGeneration;
         _selectedReplica = replica;
         _selectedConflictIds.Clear();
         _lastResolution = null;
         _resolutionBinding = null;
         var review = await TemporalData.GetReplicaConflictReviewAsync(replica.ReplicaId);
+        if (generation != _reviewGeneration) return;
         _conflictReviewBinding = review.BindingState;
         _conflicts = review.Conflicts;
     }
@@ -487,12 +536,22 @@
     {
         _replicas = [];
         _replicaBinding = null;
+        ResetConflictReviewState();
+    }
+
+    private void ResetConflictReviewState()
+    {
+        _reviewGeneration++;
         _selectedReplica = null;
         _conflicts = [];
         _conflictReviewBinding = null;
         _selectedConflictIds.Clear();
         _lastResolution = null;
         _resolutionBinding = null;
+        if (V4Enabled)
+        {
+            _batchAction = SyncResolutionAction.KeepServer;
+        }
     }
 
     private void ToggleConflict(string conflictId, ChangeEventArgs e)
@@ -520,15 +579,20 @@
             return Task.CompletedTask;
         }
 
+        var generation = _reviewGeneration;
+        var replicaId = _selectedReplica.ReplicaId;
         return Notifications.RunGuardedAsync(
             async () =>
             {
-                _lastResolution = await TemporalData.ResolveConflictsAsync(
+                var resolution = await TemporalData.ResolveConflictsAsync(
                     new SyncConflictResolutionRequest(conflictIds, action));
-                _resolutionBinding = _lastResolution.BindingState;
+                if (generation != _reviewGeneration) return;
+                _lastResolution = resolution;
+                _resolutionBinding = resolution.BindingState;
                 if (_resolutionBinding is null)
                 {
-                    var review = await TemporalData.GetReplicaConflictReviewAsync(_selectedReplica.ReplicaId);
+                    var review = await TemporalData.GetReplicaConflictReviewAsync(replicaId);
+                    if (generation != _reviewGeneration) return;
                     _conflictReviewBinding = review.BindingState;
                     _conflicts = review.Conflicts;
                     _selectedConflictIds.Clear();

@@ -1,4 +1,5 @@
 using Bunit;
+using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
@@ -90,37 +91,32 @@ public sealed class OperateSyncPageRenderTests
         if (enabled) CatalogAdminPreview.Capture("sync-resolved", page.Markup);
     }
 
-    [Fact]
-    public async Task Sync_DeepLinkLoadsReplicaAndPublishesSelectionAndUnsavedSummary()
+    [Theory]
+    [InlineData("cadastre/0")]
+    [InlineData("CADASTRE/0")]
+    public async Task Sync_DeepLinkLoadsReplicaAndPublishesSelectionAndUnsavedSummary(string sourceId)
     {
         using var ctx = new BunitContext();
         ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
         ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
-        ctx.Services.AddSingleton<ITemporalCapabilityClient>(new FakeSyncClient
-        {
-            Workspace = new TemporalViewerWorkspace([SyncSource], []),
-            ReplicaQueue = new ReplicaConflictQueue([SampleReplica]),
-            ConflictReview = new ReplicaConflictReview(SampleReplica,
-            [
-                new SyncConflict("conflict-1", "replica-1", "src-parcels", "0", "f-1",
-                    SyncConflictType.Attribute, "r-base", "r-server", [],
-                    GeometryConflict: false, DateTimeOffset.UtcNow, SyncConflictStatus.Pending)
-            ])
-        });
-        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/console/operate/sync?source=src-parcels&replica=replica-1");
+        var client = DeepLinkClient();
+        client.Workspace = new TemporalViewerWorkspace([SyncSource with { SourceId = sourceId }], []);
+        ctx.Services.AddSingleton<ITemporalCapabilityClient>(client);
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new SyncLayerDataSource());
         var page = ctx.Render<OperateSyncPage>(parameters => parameters
-            .Add(x => x.SourceId, "src-parcels").Add(x => x.ReplicaId, "replica-1"));
+            .Add(x => x.SourceId, sourceId).Add(x => x.ReplicaId, "replica-1"));
         page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-sync-conflict]")));
         var registry = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>();
         Assert.Equal("/operate/sync", registry.Current.Route);
-        Assert.Equal("src-parcels", registry.Current.Filters["sourceId"]);
+        Assert.Equal(sourceId, registry.Current.Filters["sourceId"]);
         Assert.Equal("replica-1", registry.Current.Filters["replicaId"]);
         var selected = Assert.Single(registry.Current.Selection);
         Assert.Equal(ConsoleAgentEntityKind.Layer, selected.Kind);
         Assert.Equal("0", selected.Id);
-        Assert.Equal("parcels", selected.ResourceId);
+        Assert.Equal("conn-a-layer-0", selected.ResourceId);
+        Assert.Equal("/operate/layers/conn-a-layer-0", ConsoleAgentRoutes.ForEntity(selected));
         page.Find("[data-sync-conflict] input[type=checkbox]").Change(true);
         Assert.Equal(1, registry.Current.Unsaved.ChangedFieldCount);
         Assert.Equal("conflict-1", registry.Current.Filters["conflictIds"]);
@@ -129,6 +125,137 @@ public sealed class OperateSyncPageRenderTests
         await ctx.DisposeComponentsAsync();
         Assert.Empty(registry.Current.Selection);
         Assert.Empty(registry.Current.Filters);
+    }
+
+    [Theory]
+    [InlineData("cadastre/0", null, true)]
+    [InlineData("cadastre/0", "unknown-replica", true)]
+    [InlineData(null, null, false)]
+    [InlineData("unknown-source", "replica-1", false)]
+    public void Sync_ChangedDeepLinkClearsStaleReview(string? sourceId, string? replicaId, bool keepsSource)
+    {
+        using var ctx = new BunitContext();
+        ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        ctx.Services.AddSingleton<ITemporalCapabilityClient>(DeepLinkClient());
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new SyncLayerDataSource());
+        var page = ctx.Render<OperateSyncPage>(parameters => parameters
+            .Add(x => x.SourceId, "cadastre/0").Add(x => x.ReplicaId, "replica-1"));
+        page.Find("[data-sync-conflict] input[type=checkbox]").Change(true);
+        page.Find("select[aria-label='Batch action']").Change("AcceptClient");
+
+        page.Render(parameters => parameters.Add(x => x.SourceId, sourceId).Add(x => x.ReplicaId, replicaId));
+
+        Assert.Empty(page.FindAll("[data-sync-region='conflict-merge']"));
+        Assert.Equal(keepsSource ? 1 : 0, page.FindAll("[data-sync-region='replica-queue']").Count);
+        var snapshot = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current;
+        Assert.False(snapshot.Filters.ContainsKey("replicaId"));
+        Assert.False(snapshot.Filters.ContainsKey("conflictIds"));
+        Assert.Equal(0, snapshot.Unsaved.ChangedFieldCount);
+        Assert.Equal(keepsSource ? 1 : 0, snapshot.Selection.Count);
+    }
+
+    [Fact]
+    public async Task Sync_LeavingReviewWhileResolutionPendingDoesNotPublishStaleResults()
+    {
+        var completion = new TaskCompletionSource<SyncConflictResolutionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = DeepLinkClient();
+        client.PendingResolution = completion.Task;
+        using var ctx = new BunitContext();
+        ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
+        ctx.Services.AddSingleton<ITemporalCapabilityClient>(client);
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        var page = ctx.Render<OperateSyncPage>(parameters => parameters
+            .Add(x => x.SourceId, "cadastre/0").Add(x => x.ReplicaId, "replica-1"));
+        var action = page.InvokeAsync(() => page.FindAll("button").Single(button => button.TextContent.Trim() == "Client wins").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
+        page.WaitForAssertion(() => Assert.True(client.ResolutionStarted));
+        page.Render(parameters => parameters.Add(x => x.SourceId, (string?)null).Add(x => x.ReplicaId, (string?)null));
+        completion.SetResult(new SyncConflictResolutionResult("res-1", ["conflict-1"], SyncResolutionAction.AcceptClient,
+            ResultRevisionId: "rev-55", ResultChangeSetId: "cs-9", AuditEventIds: ["audit-1"], JobRunId: "job-3"));
+        await action;
+        Assert.Empty(page.FindAll("[data-sync-region=committed]"));
+        Assert.Empty(page.FindAll("[data-sync-conflict]"));
+        Assert.DoesNotContain(ctx.Services.GetRequiredService<IConsoleNotificationService>().Notifications,
+            notification => notification.Level == ConsoleNotificationLevel.Error);
+        Assert.Equal(1, client.ReviewCalls);
+        var snapshot = page.FindComponent<ConsoleAgentContext>().Instance.Context;
+        Assert.Empty(snapshot.Selection);
+        Assert.Equal(0, snapshot.Unsaved.PendingOperationCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Sync_OverlappingSourceLoadsKeepTheLatestQueue(bool manualSelection)
+    {
+        var first = new TaskCompletionSource<ReplicaConflictQueue>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var second = new TaskCompletionSource<ReplicaConflictQueue>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = DeepLinkClient();
+        client.Workspace = new TemporalViewerWorkspace([
+            SyncSource with { SourceId = "cadastre/0" }, SyncSource with { SourceId = "transport/0" }
+        ], []);
+        client.PendingQueues["cadastre/0"] = first.Task;
+        client.PendingQueues["transport/0"] = second.Task;
+        var page = Render(client, enabled: true);
+        page.Render(parameters => parameters.Add(x => x.SourceId, "cadastre/0"));
+        if (manualSelection)
+        {
+            _ = page.InvokeAsync(() => page.FindAll("button").Where(button => button.TextContent == "Open queue").Last().ClickAsync(new()));
+        }
+        else
+        {
+            page.Render(parameters => parameters.Add(x => x.SourceId, "transport/0"));
+        }
+        var renderCount = page.RenderCount;
+        first.SetResult(new ReplicaConflictQueue([SampleReplica with { ReplicaId = "stale-replica" }]));
+        page.WaitForState(() => page.RenderCount > renderCount);
+        second.SetResult(new ReplicaConflictQueue([SampleReplica with { ReplicaId = "current-replica", SourceId = "transport/0" }]));
+        page.WaitForAssertion(() => Assert.Contains("current-replica", page.Markup, StringComparison.Ordinal));
+        Assert.DoesNotContain("stale-replica", page.Markup, StringComparison.Ordinal);
+        Assert.Equal("transport/0", page.FindComponent<ConsoleAgentContext>().Instance.Context.Filters["sourceId"]);
+    }
+
+    [Fact]
+    public void Sync_UnresolvedLayerDoesNotPublishDisplayNameAsEntityIdentity()
+    {
+        var page = Render(DeepLinkClient(), enabled: true);
+        page.Render(parameters => parameters.Add(x => x.SourceId, "cadastre/0"));
+        var context = page.FindComponent<ConsoleAgentContext>();
+        var snapshot = context.Instance.Context;
+        Assert.Empty(snapshot.Entities);
+        Assert.Empty(snapshot.Selection);
+        Assert.Equal("cadastre/0", snapshot.Filters["sourceId"]);
+    }
+
+    private static FakeSyncClient DeepLinkClient() => new()
+    {
+        Workspace = new TemporalViewerWorkspace([SyncSource with { SourceId = "cadastre/0" }], []),
+        ReplicaQueue = new ReplicaConflictQueue([SampleReplica with { SourceId = "cadastre/0" }]),
+        ConflictReview = new ReplicaConflictReview(SampleReplica,
+        [
+            new SyncConflict("conflict-1", "replica-1", "cadastre/0", "0", "f-1",
+                SyncConflictType.Attribute, "r-base", "r-server", [],
+                GeometryConflict: false, DateTimeOffset.UtcNow, SyncConflictStatus.Pending)
+        ])
+    };
+
+    private sealed class SyncLayerDataSource : IOperateTransitionDataSource
+    {
+        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new OperateTransitionWorkspace([], [],
+            [
+                new("cadastre", "Cadastre", "FeatureServer", "Running", "honua-server",
+                    [new(0, "Parcels", "Polygon", "conn-a-layer-0", "parcels")], [], []),
+                new("transport", "Transport", "FeatureServer", "Running", "honua-server",
+                    [new(0, "Roads", "LineString", "conn-b-layer-0", "roads")], [], [])
+            ], [], []));
+        public Task<OperateConnectionSummary?> FindConnectionAsync(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<OperateServiceDetail?> FindServiceAsync(string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private static IRenderedComponent<OperateSyncPage> Render(ITemporalCapabilityClient client, bool enabled = false)
@@ -179,6 +306,10 @@ public sealed class OperateSyncPageRenderTests
         public ReplicaConflictReview ConflictReview { get; set; } = new(Replica: null, []);
         public ReplicaConflictReview? ReviewAfterResolution { get; set; }
         public SyncConflictResolutionResult? Resolution { get; set; }
+        public Task<SyncConflictResolutionResult>? PendingResolution { get; set; }
+        public bool ResolutionStarted { get; private set; }
+        public int ReviewCalls { get; private set; }
+        public Dictionary<string, Task<ReplicaConflictQueue>> PendingQueues { get; } = [];
 
         private bool _resolved;
 
@@ -201,13 +332,18 @@ public sealed class OperateSyncPageRenderTests
             Task.FromResult(TemporalRollbackOperation.Blocked(MissingBinding));
 
         public Task<ReplicaConflictQueue> GetReplicaConflictQueueAsync(string sourceId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(ReplicaQueue);
+            PendingQueues.TryGetValue(sourceId, out var pending) ? pending : Task.FromResult(ReplicaQueue);
 
-        public Task<ReplicaConflictReview> GetReplicaConflictReviewAsync(string replicaId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(_resolved && ReviewAfterResolution is not null ? ReviewAfterResolution : ConflictReview);
+        public Task<ReplicaConflictReview> GetReplicaConflictReviewAsync(string replicaId, CancellationToken cancellationToken = default)
+        {
+            ReviewCalls++;
+            return Task.FromResult(_resolved && ReviewAfterResolution is not null ? ReviewAfterResolution : ConflictReview);
+        }
 
         public Task<SyncConflictResolutionResult> ResolveConflictsAsync(SyncConflictResolutionRequest request, CancellationToken cancellationToken = default)
         {
+            ResolutionStarted = true;
+            if (PendingResolution is not null) return PendingResolution;
             var result = Resolution ?? SyncConflictResolutionResult.Blocked(request.ConflictIds, request.Action, MissingBinding);
             if (result.BindingState is null)
             {
