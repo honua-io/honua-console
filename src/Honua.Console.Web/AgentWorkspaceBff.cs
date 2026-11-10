@@ -198,10 +198,11 @@ internal static partial class AgentWorkspaceBff
         }
         using var request = new HttpRequestMessage(new HttpMethod(context.Request.Method),
             new Uri(new Uri(profile.ServerBaseUri.AbsoluteUri.TrimEnd('/') + "/"), upstreamPath));
-        // Publication/rollback retries must retain the caller's original operation identity.
+        // Draft creation and publication/rollback retries must retain the caller's original operation identity.
         // Older clients may omit it; never invent a new identity in the proxy.
-        var isStudioPointerWrite = studio && HttpMethods.IsPost(context.Request.Method) && StudioPointerWritePath().IsMatch(path);
-        if (isStudioPointerWrite && context.Request.Headers.ContainsKey("Idempotency-Key"))
+        var isStudioIdempotentWrite = studio && HttpMethods.IsPost(context.Request.Method)
+            && (path == "v1/studio/package-drafts" || StudioPointerWritePath().IsMatch(path));
+        if (isStudioIdempotentWrite && context.Request.Headers.ContainsKey("Idempotency-Key"))
         {
             var key = context.Request.Headers["Idempotency-Key"].ToString();
             if (!Regex.IsMatch(key, @"\A[A-Za-z0-9_-]{1,128}\z")) { return Results.BadRequest(); }
@@ -389,7 +390,7 @@ internal static partial class AgentWorkspaceBff
     [GeneratedRegex(@"\Aconsole/workflow-packages/(?<packageId>[^/]{1,256})/versions(?:/(?<version>[1-9][0-9]{0,9})(?:/(?<action>validate|dry-run|publish))?)?\z", RegexOptions.CultureInvariant)]
     private static partial Regex WorkflowPackagePath();
 
-    [GeneratedRegex(@"\A(?:admin/import/upload|admin/import/jobs/[A-Za-z0-9_-]{1,128}(?:/cancel)?|admin/connections/[A-Za-z0-9_-]{1,128}/layers/?|console/workflow-node-registry|console/workflow-packages|console/workflow-publications(?:/[A-Za-z0-9_-]{1,128}/runs)?|admin/operations/[A-Za-z0-9_-]{1,128}(?:/cancel)?|admin/proposals/[A-Za-z0-9_-]{1,128})\z", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\A(?:admin/import/upload|admin/import/jobs/[A-Za-z0-9_-]{1,128}(?:/cancel)?|admin/connections/[A-Za-z0-9_-]{1,128}/layers/?|console/workflow-node-registry|console/workflow-packages|console/workflow-publications(?:/[A-Za-z0-9_-]{1,128}/runs)?|operations/handles/[A-Za-z0-9_-]{1,128}|admin/operations/[A-Za-z0-9_-]{1,128}(?:/cancel)?|admin/proposals/[A-Za-z0-9_-]{1,128})\z", RegexOptions.CultureInvariant)]
     private static partial Regex ProcessPath();
 
     [GeneratedRegex(@"\A(?:health|v1/studio/(?:catalog|packages|package-families|package-drafts|content-items)(?:/[A-Za-z0-9_-]{1,128}){0,4})\z", RegexOptions.CultureInvariant)]

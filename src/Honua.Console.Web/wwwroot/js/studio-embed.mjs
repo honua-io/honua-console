@@ -1,3 +1,4 @@
+import { mountStudioDraftCreate } from './studio-draft-create.mjs';
 import {processTask} from './workflow-task.mjs';
 import { capturedProcessFetch, createStudioCookieSession, sameCookieAuthority, scheduleCookieSessionRenewal } from './cookie-workspace-transport.mjs';
 import { captureWorkspaceFollow, queueWorkspaceFollow } from './workspace-follow.mjs';
@@ -127,16 +128,8 @@ async function mount() {
         element.currentPath = location.pathname;
         host.querySelector('[data-studio-mount]').append(element);
         const createApp=element;
-        const create=document.createElement('form');
-        const key=document.createElement('input');key.required=true;key.maxLength=200;key.pattern='(?:[A-Za-z0-9._]|-){1,200}';
-        key.placeholder='Map package key';key.setAttribute('aria-label','New map package key');
-        const button=document.createElement('button');button.type='submit';button.textContent='New map';
-        create.append(key,button);host.querySelector('[data-studio-mount]').before(create);
-        create.addEventListener('submit',async event=>{
-            event.preventDefault();if(!create.reportValidity()) return;button.disabled=true;
-            try { await createApp.createWorkspaceDraft(key.value.trim());status.textContent='Shared server draft opened.'; }
-            catch(error) {status.textContent=error.message;} finally {button.disabled=false;}
-        });
+        createApp.workspaceDraftCreate?.dispose();
+        createApp.workspaceDraftCreate = mountStudioDraftCreate({ app:createApp, host });
         createApp.workspaceSavedMaps?.dispose();
         createApp.workspaceSavedMaps = mountStudioSavedMaps({ app:createApp, host, status });
         createApp.workspaceVersionControls?.dispose();
