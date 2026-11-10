@@ -92,6 +92,43 @@ public sealed class LayerRelationshipsAndTimeInfoRenderTests
         Assert.Empty(component.FindAll("input, button, textarea"));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Relationships_ContextCountsDraftAndPreservesItOnRerender(bool enabled)
+    {
+        using var ctx = new BunitContext();
+        ctx.AddConsoleNotifications();
+        var registry = new ConsoleAgentContextRegistry();
+        ctx.Services.AddSingleton(registry);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerToolsMountedNavigationManager());
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(LayerData());
+        ctx.Services.AddSingleton<IConsoleLayerRelationshipsOperation>(new FakeRelationships
+        {
+            Read = new() { Bound = true, LayerId = 1, Relationships = [] }
+        });
+        var page = ctx.Render<OperateLayerRelationshipsPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        page.WaitForAssertion(() => page.Find("[data-rel-add]"));
+        Assert.Equal(enabled, page.FindAll(".console-page-heading-v4").Count == 1);
+        Assert.Equal("/console/operate/layers/conn-1-layer-1", page.Find("[data-layer-detail-link]").GetAttribute("href"));
+        if (enabled)
+        {
+            Assert.Equal(ResourceId, Assert.Single(registry.Current.Selection).ResourceId);
+            Assert.Equal("1", Assert.Single(registry.Current.Entities).Id);
+        }
+        if (enabled) CatalogAdminPreview.Capture("data-layer-relationships-empty", page.Markup);
+        page.Find("[data-rel-add]").Click();
+        page.Find("[data-rel-name]").Change("private_relationship_name");
+        page.WaitForAssertion(() => Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount));
+        Assert.DoesNotContain("private_relationship_name", System.Text.Json.JsonSerializer.Serialize(registry.Current));
+        page.Render(p => p.Add(x => x.ResourceId, ResourceId));
+        Assert.Equal("private_relationship_name", page.Find("[data-rel-name]").GetAttribute("value"));
+        if (enabled) CatalogAdminPreview.Capture("data-layer-relationships-draft", page.Markup);
+        page.Find("[data-rel-remove]").Click();
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+    }
+
     private static IRenderedComponent<OperateLayerRelationshipsPage> RenderRelationships(FakeRelationships relationships)
     {
         var ctx = new Bunit.BunitContext();
