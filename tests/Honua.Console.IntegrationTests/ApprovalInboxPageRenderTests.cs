@@ -93,7 +93,15 @@ public sealed class ApprovalInboxPageRenderTests
         page.WaitForAssertion(() => Assert.Equal("", page.Find("[data-proposal-reason]").TextContent));
         Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
         page.Find("[data-proposal-reason]").Input("Second reason");
+        await page.InvokeAsync(() => firstCallback.InvokeAsync(new ConsoleAgentUnsavedSummary
+        {
+            ChangedFieldCount = 1,
+            PendingOperationCount = 1
+        }));
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.PendingOperationCount);
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
         await page.InvokeAsync(() => firstCallback.InvokeAsync(new ConsoleAgentUnsavedSummary()));
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
         Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
         page.Find(".approval-inbox-detail > button").Click();
         page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount));
@@ -622,7 +630,7 @@ public sealed class ApprovalInboxPageRenderTests
             () => Assert.True(page.Find("[data-proposal-reject]").HasAttribute("disabled")),
             TimeSpan.FromSeconds(5));
 
-        page.Find("[data-proposal-reason]").Change("Out of change window");
+        page.Find("[data-proposal-reason]").Input("Out of change window");
         page.WaitForAssertion(
             () => Assert.False(page.Find("[data-proposal-reject]").HasAttribute("disabled")),
             TimeSpan.FromSeconds(5));
