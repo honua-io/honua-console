@@ -7,7 +7,6 @@ public sealed partial class StudioPublicationBffTests
     [Theory]
     [InlineData(Publication)]
     [InlineData(Rollback)]
-    [InlineData("/api/studio/v1/studio/package-drafts")]
     public async Task RetainsOriginalSubmissionIdentityAndPendingApprovalReceipt(string path)
     {
         await using var host = await Host.Start();

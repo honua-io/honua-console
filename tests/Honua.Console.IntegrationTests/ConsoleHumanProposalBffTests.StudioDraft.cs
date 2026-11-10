@@ -26,6 +26,27 @@ public sealed partial class ConsoleHumanProposalBffTests
     }
 
     [Fact]
+    public async Task DraftRetriesRetainOriginalSubmissionIdentityAndPendingApprovalReceipt()
+    {
+        await using var host = await Host.StartAsync();
+        host.DraftStatusCode = 202;
+        host.DraftResponseBody = """{"data":{"status":4,"operationInstanceId":"operation","proposalId":"proposal"}}""";
+        host.Client.DefaultRequestHeaders.Add("Idempotency-Key", "original-command");
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            using var response = await host.Client.PostAsJsonAsync("/api/studio/v1/studio/package-drafts", new { });
+            Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+            Assert.Equal(host.DraftResponseBody, await response.Content.ReadAsStringAsync());
+        }
+
+        Assert.Equal(2, host.DraftCalls);
+        Assert.Equal(new[] { "original-command", "original-command" }, host.DraftIdempotencyKeys);
+        Assert.True(host.SawPrivateCookie);
+        Assert.False(host.SawForwardableCredential);
+    }
+
+    [Fact]
     public async Task StudioDraft_VerifiedBrowser_UsesPrivateUpstreamSessionWithoutBearer()
     {
         await using var host = await Host.StartAsync();

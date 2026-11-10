@@ -50,6 +50,9 @@ public sealed partial class ConsoleHumanProposalBffTests
         public int ReviewCalls { get; private set; }
         public int ApprovalCalls { get; private set; }
         public int DraftCalls { get; private set; }
+        public int DraftStatusCode { get; set; } = 201;
+        public string DraftResponseBody { get; set; } = """{"draftId":"created-draft"}""";
+        public List<string> DraftIdempotencyKeys { get; } = [];
         public bool SawPrivateCookie { get; private set; }
         public bool SawForwardableCredential { get; private set; }
 
@@ -80,7 +83,8 @@ public sealed partial class ConsoleHumanProposalBffTests
             {
                 DraftCalls++;
                 Observe(context);
-                return Results.Json(new { draftId = "created-draft" }, statusCode: 201);
+                DraftIdempotencyKeys.Add(context.Request.Headers["Idempotency-Key"].ToString());
+                return Results.Content(DraftResponseBody, "application/json", statusCode: DraftStatusCode);
             });
         }
 
