@@ -48,8 +48,7 @@ public static class ConsoleNavigationPaths
         // Validate the decoded path as well: encoded separators or dot segments must not escape the mount.
         var path = Uri.UnescapeDataString(route.Split('?', '#')[0]);
         if (path.Contains('\\') || path.StartsWith('/')
-            || path.Any(char.IsControl) || route.Split('?', '#')[0].Split('/')
-                .Select(Uri.UnescapeDataString).Any(segment => segment is "." or ".."))
+            || path.Any(char.IsControl) || path.Split('/').Any(segment => segment is "." or ".."))
             return false;
         if (!Uri.TryCreate(appBase, route, out var resolved) || !appBase.IsBaseOf(resolved))
             return false;

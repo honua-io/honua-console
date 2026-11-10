@@ -33,6 +33,8 @@ public sealed class ConsoleNavigationPathsTests
     [InlineData("../operate")]
     [InlineData("/operate/../../auth")]
     [InlineData("%2e%2e/operate")]
+    [InlineData("operate%2F..%2F..%2Fauth")]
+    [InlineData("operate%2F%2e%2e%2Fauth")]
     [InlineData("%2f%2fexternal.example")]
     [InlineData("operate%5c..%5c..%5cauth")]
     [InlineData("operate\n/jobs")]
