@@ -1,0 +1,39 @@
+.console-automations-v4 .automation-list-actions {
+    margin-block: var(--space-5) var(--space-6);
+}
+
+.console-automations-v4 .automation-table {
+    overflow-x: auto;
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-panel);
+}
+
+.console-automations-v4 .console-content-table th,
+.console-automations-v4 .console-content-table td {
+    padding: var(--space-3) var(--space-4);
+    background: transparent;
+    font-size: var(--text-sm);
+}
+
+.console-automations-v4 .console-content-table thead th {
+    color: var(--c-text-3);
+    font-size: var(--text-xs);
+    white-space: nowrap;
+}
+
+.console-automations-v4 .console-content-table tbody th {
+    min-width: 180px;
+}
+
+.console-automations-v4 .console-content-table small {
+    display: block;
+    margin-top: 2px;
+    overflow-wrap: anywhere;
+    color: var(--c-text-3);
+    font-weight: 400;
+}
+
+.console-automations-v4 time {
+    white-space: nowrap;
+}

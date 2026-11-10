@@ -15,17 +15,33 @@
     }
     else if (_profile is { } profile)
     {
-        <div class="console-page-heading">
-            <h1>Welcome</h1>
-            <p data-home-environment><strong>@profile.DisplayName</strong> · @profile.ServerBaseUri.GetLeftPart(UriPartial.Authority)</p>
-            <p>Review pending decisions, inspect server health, or choose a service in the tree to browse its layers.</p>
-        </div>
+        @if (V4Enabled)
+        {
+            <ConsolePageHeading Title="Welcome">
+                @EnvironmentDescription(profile)
+            </ConsolePageHeading>
+        }
+        else
+        {
+            <div class="console-page-heading">
+                <h1>Welcome</h1>
+                @EnvironmentDescription(profile)
+            </div>
+        }
         @Operations
-        <section class="console-panel console-home-administration" aria-labelledby="home-admin-heading">
-            <h2 id="home-admin-heading">Administration</h2>
-            <ConsoleHomeWorkAreas />
-            <a href="/environments">Manage environments</a>
-        </section>
+        @if (V4Enabled)
+        {
+            <ConsolePanel Title="Administration" HeadingId="home-admin-heading" Class="console-home-administration">
+                @Administration
+            </ConsolePanel>
+        }
+        else
+        {
+            <section class="console-panel console-home-administration" aria-labelledby="home-admin-heading">
+                <h2 id="home-admin-heading">Administration</h2>
+                @Administration
+            </section>
+        }
         <details class="console-home-setup"><summary>Set up another deployment</summary><ConsoleHomeSetup /></details>
     }
     else
@@ -56,7 +72,7 @@
 @code {
     [Parameter] public TimeSpan LoadBudget { get; set; } = ConsoleReadBudget.Default;
     private readonly CancellationTokenSource _lifetime = new();
-    private AuthenticationStateProvider? _authentication;
+    private ConsoleEnvironmentSubscription? _environmentSubscription;
     private OperateSectionResult<ConsoleEnvironmentProfile?> _environment =
         OperateSectionResult<ConsoleEnvironmentProfile?>.Allowed(null);
     private ConsoleEnvironmentProfile? _profile;
@@ -65,7 +81,23 @@
     private bool _loaded;
     private bool _disposed;
 
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private static RenderFragment EnvironmentDescription(ConsoleEnvironmentProfile profile) => @<text>
+        <p data-home-environment><strong>@profile.DisplayName</strong> · @profile.ServerBaseUri.GetLeftPart(UriPartial.Authority)</p>
+        <p>Review pending decisions, inspect server health, or choose a service in the tree to browse its layers.</p>
+    </text>;
+
+    private RenderFragment Administration => @<text>
+        <ConsoleHomeWorkAreas />
+        <a href="/environments">Manage environments</a>
+    </text>;
+
     private RenderFragment Operations => @<div class="console-home-workload" @key="_displayGeneration">
+        @if (V4Enabled && _profile is not null)
+        {
+            <ConsoleHomeInventory LoadBudget="LoadBudget" />
+        }
         <ConsoleHomeWorkQueue LoadBudget="LoadBudget" ServerName="@(_profile?.DisplayName ?? "the selected server")" />
         <section aria-labelledby="home-health-heading">
             <h2 id="home-health-heading">Health and findings</h2>
@@ -76,9 +108,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        Profiles.ActiveProfileChanged += OnProfileChanged;
-        _authentication = Services.GetService<AuthenticationStateProvider>();
-        if (_authentication is not null) _authentication.AuthenticationStateChanged += OnAuthenticationChanged;
+        _environmentSubscription = new ConsoleEnvironmentSubscription(Profiles,
+            Services.GetService<AuthenticationStateProvider>(), OnProfileChanged);
         await RefreshEnvironmentAsync();
     }
 
@@ -106,24 +137,14 @@
 
     private void OnProfileChanged()
     {
-        if (_disposed) return;
         var generation = Interlocked.Increment(ref _generation);
         _ = InvokeAsync(() => RefreshEnvironmentAsync(generation));
-    }
-
-    private void OnAuthenticationChanged(Task<AuthenticationState> state)
-    {
-        if (_disposed) return;
-        Profiles.ActiveProfileChanged -= OnProfileChanged;
-        Profiles.ActiveProfileChanged += OnProfileChanged;
-        OnProfileChanged();
     }
 
     public void Dispose()
     {
         _disposed = true;
-        Profiles.ActiveProfileChanged -= OnProfileChanged;
-        if (_authentication is not null) _authentication.AuthenticationStateChanged -= OnAuthenticationChanged;
+        _environmentSubscription?.Dispose();
         _lifetime.Cancel();
         _lifetime.Dispose();
     }

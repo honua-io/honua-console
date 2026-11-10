@@ -16,6 +16,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(options);
 
         var server = HonuaServerBinding.From(options);
+        services.TryAddScoped<ConsoleAgentContextRegistry>();
+        services.TryAddSingleton(new Models.ConsoleV4Options { Enabled = options.V4Enabled });
         services.TryAddSingleton(new Models.CatalogAdminOptions { Enabled = options.CatalogAdminEnabled });
         services.TryAddScoped<ICatalogAdminSource>(_ => new UnsupportedCatalogAdminSource(server.BaseUri is not null));
         services.TryAddScoped<IMetadataPreviewSource>(_ => new UnsupportedMetadataPreviewSource(server.BaseUri));

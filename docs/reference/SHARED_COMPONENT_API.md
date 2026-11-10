@@ -48,6 +48,30 @@ All `[Parameter]` types and their members are owned by
 
 ## 1. Surface and state components
 
+### Shared v4 presentation
+
+These components preserve native heading, section, link and definition-list semantics.
+Their v4 presentation is scoped to the shell's `data-console-v4="true"` root; callers use
+the shared rollout switch rather than introducing page flags.
+
+The shared v4 type scale uses existing tokens: page `h1` is `--text-2xl` (28px,
+medium), section `h2` is `--text-xl` (22px), `h3` and panel headings are
+`--text-md` (16px), and `h4` is `--text-sm` (14px). At widths up to 640px the page title uses `--text-xl`
+(22px). `ConsolePageHeading` and `ConsolePanel` inherit this scale automatically;
+avoid page-specific heading sizes.
+
+| Component | Parameters | Use |
+|---|---|---|
+| `ConsolePageHeading` | required `string Title`; optional `RenderFragment ChildContent`, `Actions` | One page `h1`, descriptive content and native action controls. |
+| `ConsolePanel` | required `string Title`, `HeadingId`; optional `string Class`, `RenderFragment ChildContent`, `Actions` | Quiet section named by its `h2`. Use a unique, stable heading ID per instance. |
+| `ConsoleMetricTile` | required `string Label`; optional `long? Value`, `string UnavailableText` (default `"Not available"`), `RenderFragment ChildContent` | One count in a definition list. A null count is unavailable; zero means an actual measured zero. |
+
+Reuse `ConsoleBreadcrumbs` for publication context, `ConsoleTableRegion` around native
+tables, and `EmptyState` or `ConsoleStateView` for empty/read states. Use native Blazor
+form controls with associated labels, and the existing `console-button` classes for actions.
+These surfaces do not grant capabilities or fetch data; the routed caller retains its
+existing permission checks and read-state handling.
+
 These are the shell-owned exception/empty/state primitives the charter
 (§5) requires feature routes to reuse instead of authoring bespoke
 403/404/empty copy.
@@ -183,6 +207,27 @@ because job action APIs are not yet wired (charter §11).
 Events: none. Composes `<EvidenceList>`.
 
 ---
+
+### Shared Operate surfaces under v4
+
+`OperateTimeline` accepts required `IReadOnlyList<OperateTimelineEntry> Entries`,
+optional `string? SelectedEntryKey`, and `string EmptyMessage` ("No events to show.").
+It preserves first-delivery deduplication, severity, correlation identity and optional
+`DetailHref`. The single Console v4 flag changes column labels to Time, Action,
+Severity, What and Reference. Actor and environment are absent from the current
+entry contract; callers must not invent them to fill mockup columns. Its existing
+`ConsoleTableRegion` provides a named, keyboard-focusable horizontal scroll region.
+
+`ProposalApprovalPanel` accepts required `string ProposalId`, optional `int ReloadToken`,
+`EventCallback<ConsoleProposalDetail> OnActioned` and `OnDetailLoaded`. Reuse its
+server-owned evidence, blockers, risk, permission failures and approve/reject state
+machine. V4 supplies quiet panel styling without changing these contracts.
+`OperateDeploymentApprovalPanel` remains the existing deployment-specific controller;
+use its `OperationId`, `PollInterval`, `OnActioned` and `OnStatusChanged` contracts.
+
+Studio and detail pages can compose `ConsolePageHeading` (`Title`, `ChildContent`
+for state/context, `Actions`) and `ConsolePanel` (`Title`, `HeadingId`, `Class`,
+`ChildContent`, `Actions`) rather than introducing page-specific heading wrappers.
 
 ## 3. Layouts
 
