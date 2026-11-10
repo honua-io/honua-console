@@ -4,7 +4,6 @@ namespace Honua.Console.Shell.Services;
 
 public static class ConsoleNavigationPaths
 {
-    /// <summary>Resolves a canonical Console route beneath the deployed application base.</summary>
     public static string ToConsoleHref(this NavigationManager navigation, string route)
     {
         ArgumentException.ThrowIfNullOrEmpty(route);
