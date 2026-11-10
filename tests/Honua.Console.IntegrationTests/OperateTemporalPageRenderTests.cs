@@ -393,7 +393,7 @@ public sealed class OperateTemporalPageRenderTests
         ClickByText(page, "Compare");
 
         page.WaitForAssertion(
-            () => Assert.Contains("Diff Summary", page.Markup, StringComparison.Ordinal),
+            () => Assert.Contains(enabled ? "Change comparison" : "Diff Summary", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.Contains("status", page.Markup, StringComparison.Ordinal);
         Assert.Equal(1, client.DiffCalls);
@@ -444,7 +444,7 @@ public sealed class OperateTemporalPageRenderTests
         InspectFirstSource(page);
 
         page.WaitForAssertion(
-            () => Assert.Contains("Governed Rollback", page.Markup, StringComparison.Ordinal),
+            () => Assert.Contains(enabled ? "Rollback review" : "Governed Rollback", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         ClickByText(page, "Plan Rollback");
         page.WaitForAssertion(
@@ -483,7 +483,7 @@ public sealed class OperateTemporalPageRenderTests
         var page = Render(client, enabled);
         InspectFirstSource(page);
         page.WaitForAssertion(
-            () => Assert.Contains("Governed Rollback", page.Markup, StringComparison.Ordinal),
+            () => Assert.Contains(enabled ? "Rollback review" : "Governed Rollback", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
 
         ClickByText(page, "Plan Rollback");
@@ -510,7 +510,7 @@ public sealed class OperateTemporalPageRenderTests
         InspectFirstSource(page);
 
         page.WaitForAssertion(
-            () => Assert.Contains("Replica Conflict Queue", page.Markup, StringComparison.Ordinal),
+            () => Assert.Contains(enabled ? "Replica conflict queue" : "Replica Conflict Queue", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.Contains("Field Crew 7", page.Markup, StringComparison.Ordinal);   // replica name
         Assert.Contains("owner-42", page.Markup, StringComparison.Ordinal);        // owner
