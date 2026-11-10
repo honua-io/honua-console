@@ -668,6 +668,82 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Equal(enabled ? "ChangeSet" : "Layer", page.Find("select[aria-label='Rollback scope']").GetAttribute("value"));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_DeepLink_SelectsSourceAndCheckpointThenClearsUnknownSource(bool enabled)
+    {
+        using var ctx = new BunitContext();
+        ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
+        var client = ClientWithConflicts();
+        client.Checkpoints = new([Checkpoint("cp-latest", "Latest"), Checkpoint("cp-old", "Previous")]);
+        ctx.Services.AddSingleton<ITemporalCapabilityClient>(client);
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        var registry = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        var page = ctx.Render<OperateTemporalPage>(parameters => parameters
+            .Add(component => component.SourceId, "src-parcels")
+            .Add(component => component.CheckpointId, "cp-old"));
+        if (enabled)
+        {
+            page.WaitForAssertion(() => Assert.Equal("cp-old", registry.Current.Filters["checkpointId"]));
+            Assert.Equal("cp-old", registry.Current.Filters["fromCheckpointId"]);
+            Assert.Single(page.FindAll("[data-temporal-detail='src-parcels']"));
+            page.Render(parameters => parameters.Add(component => component.CheckpointId, (string?)null));
+            Assert.Equal("cp-latest", registry.Current.Filters["checkpointId"]);
+            page.Render(parameters => parameters.Add(component => component.CheckpointId, "missing"));
+            Assert.False(registry.Current.Filters.ContainsKey("checkpointId"));
+            Assert.False(registry.Current.Filters.ContainsKey("fromCheckpointId"));
+            page.Render(parameters => parameters.Add(component => component.SourceId, "missing"));
+            Assert.Empty(page.FindAll("[data-temporal-detail]"));
+            Assert.Empty(registry.Current.Filters);
+        }
+        else
+        {
+            Assert.Empty(page.FindAll("[data-temporal-detail]"));
+            Assert.Empty(registry.Current.Filters);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_OverlappingSourceLoadsKeepLatestSelection(bool manualSelection)
+    {
+        var first = new TaskCompletionSource<TemporalCheckpointList>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var second = new TaskCompletionSource<TemporalCheckpointList>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new FakeTemporalClient
+        {
+            Workspace = new TemporalViewerWorkspace([RollbackSource, RollbackSource with { SourceId = "src-roads", ResourceId = "roads" }], [])
+        };
+        client.PendingCheckpoints["src-parcels"] = first.Task;
+        client.PendingCheckpoints["src-roads"] = second.Task;
+        var page = Render(client, enabled: true);
+        page.Render(parameters => parameters.Add(component => component.SourceId, "src-parcels")
+            .Add(component => component.CheckpointId, "stale"));
+        if (manualSelection)
+        {
+            _ = page.InvokeAsync(() => page.FindAll("button").Last(button => button.TextContent == "Inspect")
+                .ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
+        }
+        else
+        {
+            page.Render(parameters => parameters.Add(component => component.SourceId, "src-roads")
+                .Add(component => component.CheckpointId, "current"));
+        }
+        var renderCount = page.RenderCount;
+        first.SetResult(new([Checkpoint("stale", "Stale checkpoint")]));
+        page.WaitForState(() => page.RenderCount > renderCount);
+        second.SetResult(new([Checkpoint("current", "Current checkpoint")]));
+        page.WaitForAssertion(() => Assert.Contains("Current checkpoint", page.Markup, StringComparison.Ordinal));
+        Assert.DoesNotContain("Stale checkpoint", page.Markup, StringComparison.Ordinal);
+        var filters = page.FindComponent<Honua.Console.Shell.Components.ConsoleAgentContext>().Instance.Context.Filters;
+        Assert.Equal("src-roads", filters["sourceId"]);
+        Assert.Equal("current", filters["checkpointId"]);
+    }
+
     // ---- helpers --------------------------------------------------------------------------------------
 
     private static IRenderedComponent<OperateTemporalPage> Render(ITemporalCapabilityClient client, bool enabled)
@@ -750,6 +826,7 @@ public sealed class OperateTemporalPageRenderTests
     {
         public TemporalViewerWorkspace Workspace { get; set; } = new([], []);
         public TemporalCheckpointList Checkpoints { get; set; } = new([]);
+        public Dictionary<string, Task<TemporalCheckpointList>> PendingCheckpoints { get; } = new(StringComparer.Ordinal);
         public TemporalDiff? Diff { get; set; }
         public TemporalFeatureTimeline? Timeline { get; set; }
         public TemporalRollbackPlan? RollbackPlan { get; set; }
@@ -769,7 +846,7 @@ public sealed class OperateTemporalPageRenderTests
             Task.FromResult(Workspace);
 
         public Task<TemporalCheckpointList> GetCheckpointsAsync(string sourceId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Checkpoints);
+            PendingCheckpoints.TryGetValue(sourceId, out var pending) ? pending : Task.FromResult(Checkpoints);
 
         public Task<TemporalDiff> GetDiffAsync(string sourceId, string fromCheckpointId, string toCheckpointId, CancellationToken cancellationToken = default)
         {

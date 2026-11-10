@@ -158,6 +158,16 @@
 </ConsoleCapabilityGate>
 
 @code {
+    [Parameter, SupplyParameterFromQuery(Name = "sourceId")]
+    public string? SourceId { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "checkpointId")]
+    public string? CheckpointId { get; set; }
+
+    private int _parameterGeneration;
+    private int _sourceGeneration;
+    private Task _sourceLoadTask = Task.CompletedTask;
+
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private RenderFragment RenderSources() => __builder =>
     {
@@ -192,7 +202,7 @@
                                     <td>@(string.IsNullOrWhiteSpace(source.RetentionPolicyId) ? "—" : source.RetentionPolicyId)</td>
                                     <td>
                                         <button class="console-button console-button-secondary" type="button"
-                                                @onclick="() => SelectSourceAsync(source)">Inspect</button>
+                                                @onclick="() => InspectSourceAsync(source)">Inspect</button>
                                     </td>
                                 </tr>
                             }
@@ -307,6 +317,52 @@
         _loading = false;
     }
 
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!V4Enabled || _loading || _bindingState is not null) return;
+        var generation = ++_parameterGeneration;
+        var source = _workspace.Sources.FirstOrDefault(item =>
+            string.Equals(item.SourceId, SourceId, StringComparison.Ordinal));
+        if (source is null)
+        {
+            ++_sourceGeneration;
+            _selectedSource = null;
+            ResetDetailState();
+            return;
+        }
+        if (_selectedSource?.SourceId != source.SourceId)
+        {
+            await SelectSourceAsync(source);
+        }
+        else
+        {
+            await _sourceLoadTask;
+        }
+        if (generation != _parameterGeneration) return;
+        if (!string.IsNullOrWhiteSpace(CheckpointId))
+        {
+            var checkpoint = _checkpoints.FirstOrDefault(item =>
+                string.Equals(item.CheckpointId, CheckpointId, StringComparison.Ordinal));
+            if (checkpoint is not null) SelectCheckpoint(checkpoint);
+            else
+            {
+                _selectedCheckpointId = null;
+                _fromCheckpointId = null;
+                RevalidateDiffSelection();
+            }
+        }
+        else if (_checkpoints.FirstOrDefault() is { } latest)
+        {
+            SelectCheckpoint(latest);
+        }
+    }
+
+    private Task InspectSourceAsync(TemporalSourceCapability source)
+    {
+        ++_parameterGeneration;
+        return SelectSourceAsync(source);
+    }
+
     private void ApplyStates(IReadOnlyList<TemporalCapabilityState> states)
     {
         _bindingState = states.FirstOrDefault(state =>
@@ -316,17 +372,24 @@
             .ToArray();
     }
 
-    private async Task SelectSourceAsync(TemporalSourceCapability source)
+    private Task SelectSourceAsync(TemporalSourceCapability source)
     {
         _selectedSource = source;
         ResetDetailState();
+        var generation = ++_sourceGeneration;
+        _sourceLoadTask = LoadSourceAsync(source, generation);
+        return _sourceLoadTask;
+    }
 
+    private async Task LoadSourceAsync(TemporalSourceCapability source, int generation)
+    {
         if (!source.HistoryReadPermitted || source.Mode == TemporalMode.None)
         {
             return;
         }
 
         var checkpoints = await TemporalData.GetCheckpointsAsync(source.SourceId);
+        if (generation != _sourceGeneration) return;
         _checkpointBinding = checkpoints.BindingState;
         _checkpoints = checkpoints.Checkpoints;
         _fromCheckpointId = _checkpoints.Count > 1 ? _checkpoints[1].CheckpointId : _checkpoints.FirstOrDefault()?.CheckpointId;
@@ -337,6 +400,7 @@
         if (source.SyncConflictReviewSupported)
         {
             var queue = await TemporalData.GetReplicaConflictQueueAsync(source.SourceId);
+            if (generation != _sourceGeneration) return;
             _replicaBinding = queue.BindingState;
             _replicas = queue.Replicas;
         }
@@ -995,10 +1059,12 @@
             return;
         }
 
+        var generation = _sourceGeneration;
         _diffBusy = true;
         try
         {
             var diff = await TemporalData.GetDiffAsync(_selectedSource.SourceId, _fromCheckpointId, _toCheckpointId);
+            if (generation != _sourceGeneration) return;
             _diffBinding = diff.BindingState;
             _diff = diff.BindingState is null ? diff : null;
         }
@@ -1015,10 +1081,12 @@
             return;
         }
 
+        var generation = _sourceGeneration;
         _timelineBusy = true;
         try
         {
             var timeline = await TemporalData.GetFeatureTimelineAsync(_selectedSource.SourceId, _featureIdInput.Trim());
+            if (generation != _sourceGeneration) return;
             _timelineBinding = timeline.BindingState;
             _timeline = timeline.BindingState is null ? timeline : null;
         }
@@ -1035,11 +1103,13 @@
             return;
         }
 
+        var generation = _sourceGeneration;
         _rollbackBusy = true;
         try
         {
             _rollbackOperation = null;
             var plan = await TemporalData.CreateRollbackPlanAsync(_selectedSource.SourceId, _rollbackScope, _fromCheckpointId);
+            if (generation != _sourceGeneration) return;
             _rollbackBinding = plan.BindingState;
             _rollbackPlan = plan.BindingState is null ? plan : null;
         }
@@ -1061,13 +1131,18 @@
 
     private Task ExecuteRollbackAsync()
     {
+        if (_rollbackPlan is null) return Task.CompletedTask;
+        var generation = _sourceGeneration;
+        var planId = _rollbackPlan.RollbackPlanId;
         _rollbackOperation = null;
         _rollbackBinding = null;
         return Notifications.RunGuardedAsync(
             async () =>
             {
-                _rollbackOperation = await TemporalData.ExecuteRollbackAsync(_rollbackPlan!.RollbackPlanId);
-                _rollbackBinding = _rollbackOperation.BindingState;
+                var operation = await TemporalData.ExecuteRollbackAsync(planId);
+                if (generation != _sourceGeneration) return;
+                _rollbackOperation = operation;
+                _rollbackBinding = operation.BindingState;
             },
             setBusy: busy => { _rollbackBusy = busy; StateHasChanged(); },
             failureMessage: "Couldn't execute the rollback");
@@ -1080,10 +1155,12 @@
         _lastResolution = null;
         _resolutionBinding = null;
 
+        var generation = _sourceGeneration;
         _replicaBusy = true;
         try
         {
             var review = await TemporalData.GetReplicaConflictReviewAsync(replica.ReplicaId);
+            if (generation != _sourceGeneration || _selectedReplica?.ReplicaId != replica.ReplicaId) return;
             _conflictReviewBinding = review.BindingState;
             _conflicts = review.BindingState is null ? review.Conflicts : [];
         }
@@ -1118,17 +1195,21 @@
             return;
         }
 
+        var generation = _sourceGeneration;
+        var replicaId = _selectedReplica?.ReplicaId;
         _resolveBusy = true;
         try
         {
             var result = await TemporalData.ResolveConflictsAsync(new SyncConflictResolutionRequest(conflictIds, action));
+            if (generation != _sourceGeneration || _selectedReplica?.ReplicaId != replicaId) return;
             _resolutionBinding = result.BindingState;
             _lastResolution = result.BindingState is null ? result : null;
 
-            if (result.BindingState is null && _selectedReplica is not null)
+            if (result.BindingState is null && replicaId is not null)
             {
                 // Refresh the queue/review so resolved conflicts drop out and audit evidence stays accurate.
-                var review = await TemporalData.GetReplicaConflictReviewAsync(_selectedReplica.ReplicaId);
+                var review = await TemporalData.GetReplicaConflictReviewAsync(replicaId);
+                if (generation != _sourceGeneration || _selectedReplica?.ReplicaId != replicaId) return;
                 _conflictReviewBinding = review.BindingState;
                 _conflicts = review.BindingState is null ? review.Conflicts : [];
                 _selectedConflictIds.Clear();
