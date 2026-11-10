@@ -6,7 +6,7 @@ await runV4PagePresentation({
   previews: path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/catalog-preview"),
   pageNames: ["data-publishing-unbound", "data-publishing", "data-publishing-lookup", "data-quick-publish", "data-quick-publish-complete"],
   title: "Publishing fixture",
-  stylesheet: "v4-data-primitives.css",
+  stylesheet: "v4-shell.css",
   heading: name => name.startsWith("data-quick") ? "Publish a layer" : "Publishing",
   scope: ".console-page",
   controls: ".console-page :is(a[href], button, input, select, textarea, summary):not(:disabled):not(input[type=radio]:not(:checked)):visible",

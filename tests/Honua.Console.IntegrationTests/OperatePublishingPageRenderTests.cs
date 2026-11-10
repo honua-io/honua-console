@@ -173,6 +173,11 @@ public sealed class OperatePublishingPageRenderTests
         if (enabled)
         {
             Assert.Equal("/operate/publishing", ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Route);
+            Assert.Equal(0, ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
+            page.Find("input[aria-label='Republish title']").Input("Next release");
+            Assert.Equal(1, ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
+            page.Find("input[aria-label='Republish title']").Input("");
+            Assert.Equal(0, ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
             CatalogAdminPreview.Capture("data-publishing-lookup", page.Markup);
         }
     }

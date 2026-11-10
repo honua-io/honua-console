@@ -109,7 +109,7 @@
         Route = "/operate/publishing",
         Unsaved = new()
         {
-            ChangedFieldCount = (string.IsNullOrWhiteSpace(_lookupId) ? 0 : 1) + (string.IsNullOrWhiteSpace(_republishTitle) ? 0 : 1),
+            ChangedFieldCount = string.IsNullOrWhiteSpace(_republishTitle) ? 0 : 1,
             PendingOperationCount = (!_loaded ? 1 : 0) + (_busy ? 1 : 0)
         }
     };
