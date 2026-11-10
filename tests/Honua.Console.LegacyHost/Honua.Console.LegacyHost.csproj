@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Honua.Console.Shell\Honua.Console.Shell.csproj" />
+  </ItemGroup>
+
+  <!-- OpenTelemetry (honua-console#279 PA-234): distributed traces + metrics for the console web host.
+       AspNetCore + HttpClient instrumentation, exported over OTLP. Default-safe: with no
+       OTEL_EXPORTER_OTLP_ENDPOINT configured no exporter is wired and the SDK is a no-op. Versions
+       align with honua-server's ServiceDefaults. -->
+  <ItemGroup>
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.1" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.20.1" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Version>0.1.0</Version>
+    <!-- The release revision is embedded in the assembly at publish time. It is deliberately not
+         read from the process environment, which an older or modified image could change at runtime. -->
+    <HonuaConsoleCommitSha Condition="'$(HonuaConsoleCommitSha)' == ''">unknown</HonuaConsoleCommitSha>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>HonuaConsoleCommitSha</_Parameter1>
+      <_Parameter2>$(HonuaConsoleCommitSha)</_Parameter2>
+    </AssemblyAttribute>
+    <InternalsVisibleTo Include="Honua.Console.IntegrationTests" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <RootNamespace>Honua.Console.Web</RootNamespace>
+    <IsPublishable>false</IsPublishable>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+</Project>

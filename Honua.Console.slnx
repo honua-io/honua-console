@@ -5,6 +5,7 @@
     <Project Path="src/Honua.Console.Web/Honua.Console.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Honua.Console.LegacyHost/Honua.Console.LegacyHost.csproj" />
     <Project Path="tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj" />
     <Project Path="tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj" />
   </Folder>
