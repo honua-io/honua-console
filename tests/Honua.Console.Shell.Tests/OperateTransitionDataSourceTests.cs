@@ -535,10 +535,7 @@ public sealed partial class OperateTransitionDataSourceTests
     [Fact]
     public void ProtocolSlotUrlsUseEachProtocolsRealRoute()
     {
-        // Regression: the publication-slot URL must point to where honua-server actually serves each
-        // protocol. Only the GeoServices REST server types live under /rest/services/{service}/...; the OGC,
-        // OData, and STAC protocols have their own roots (previously every non-FeatureServer/MapServer slot
-        // wrongly fell back to /rest/services/{service}/{protocol}).
+        // Classic OGC links share public-name and Folder resolution with GeoServices.
         var publications = new OperatePublicationProjection(new Uri("https://server.example"));
         const string svc = "e2e_src_fs";
 
@@ -548,8 +545,8 @@ public sealed partial class OperateTransitionDataSourceTests
         Assert.Equal("https://server.example/rest/services/e2e_src_fs/ImageServer", publications.ProtocolUrl(svc, "ImageServer"));
 
         // OGC classic, per-service.
-        Assert.Equal("https://server.example/ogc/services/e2e_src_fs/wms", publications.ProtocolUrl(svc, "Wms"));
-        Assert.Equal("https://server.example/ogc/services/e2e_src_fs/wmts", publications.ProtocolUrl(svc, "Wmts"));
+        Assert.Equal("https://server.example/rest/services/e2e_src_fs/MapServer/WMS", publications.ProtocolUrl(svc, "Wms"));
+        Assert.Equal("https://server.example/rest/services/e2e_src_fs/MapServer/WMTS", publications.ProtocolUrl(svc, "Wmts"));
 
         // WFS is a single server endpoint; OGC API + OData + STAC have their own roots.
         Assert.Equal("https://server.example/wfs", publications.ProtocolUrl(svc, "Wfs20"));
@@ -558,8 +555,8 @@ public sealed partial class OperateTransitionDataSourceTests
         Assert.Equal("https://server.example/odata", publications.ProtocolUrl(svc, "OData"));
         Assert.Equal("https://server.example/stac", publications.ProtocolUrl(svc, "Stac"));
 
-        // None of the other protocols may live under /rest/services.
-        foreach (var protocol in new[] { "Wms", "Wmts", "Wfs20", "OData", "OgcFeatures", "OgcApiTiles", "OgcApiMaps", "Stac" })
+        // Global protocol endpoints do not use a Service path.
+        foreach (var protocol in new[] { "Wfs20", "OData", "OgcFeatures", "OgcApiTiles", "OgcApiMaps", "Stac" })
         {
             var url = publications.ProtocolUrl(svc, protocol);
             Assert.NotNull(url);
