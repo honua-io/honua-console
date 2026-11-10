@@ -15,11 +15,19 @@ internal sealed class ReceiptProposalClient(ConsoleProposalStatus initialStatus 
 
     public Task<OperateSectionResult<ConsoleProposalDetail>> GetAsync(
         string proposalId,
-        CancellationToken cancellationToken = default) => Task.FromResult(Allowed(initialStatus));
+        CancellationToken cancellationToken = default) => Task.FromResult(Allowed(initialStatus, proposalId));
 
-    public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
+    public Task<OperateSectionResult<ConsoleProposalDetail>> GetStatusAsync(
         string proposalId,
-        CancellationToken cancellationToken = default) => Task.FromResult(Allowed(ConsoleProposalStatus.Submitted));
+        CancellationToken cancellationToken = default)
+    {
+        var result = Allowed(initialStatus, proposalId);
+        return Task.FromResult(result with { Value = result.Value!.AsStatusOnly() });
+    }
+
+    public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveReviewedAsync(
+        ConsoleProposalDecision decision,
+        CancellationToken cancellationToken = default) => Task.FromResult(Allowed(ConsoleProposalStatus.Submitted, decision.ProposalId));
 
     public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(
         string proposalId,
@@ -27,9 +35,10 @@ internal sealed class ReceiptProposalClient(ConsoleProposalStatus initialStatus 
         CancellationToken cancellationToken = default) =>
         Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Unsupported, "not used"));
 
-    private static OperateSectionResult<ConsoleProposalDetail> Allowed(ConsoleProposalStatus status) =>
+    public static OperateSectionResult<ConsoleProposalDetail> Allowed(
+        ConsoleProposalStatus status, string proposalId = "proposal-1") =>
         OperateSectionResult<ConsoleProposalDetail>.Allowed(new(
-            "proposal-1",
+            proposalId,
             ConsoleProposalKind.MetadataRelease,
             status,
             "agent",
@@ -46,5 +55,11 @@ internal sealed class ReceiptProposalClient(ConsoleProposalStatus initialStatus 
             status == ConsoleProposalStatus.AwaitingApproval ? null : "operation-1",
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow,
-            status == ConsoleProposalStatus.AwaitingApproval ? null : DateTimeOffset.UtcNow));
+            status == ConsoleProposalStatus.AwaitingApproval ? null : DateTimeOffset.UtcNow)
+        {
+            Version = 7,
+            PlanHash = "sealed-plan",
+            HumanReviewEnvironment = "environment",
+            HumanReviewExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5)
+        });
 }

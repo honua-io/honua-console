@@ -334,31 +334,7 @@ public sealed class ProposalApprovalPanelReceiptTests
 
         public static OperateSectionResult<ConsoleProposalDetail> Allowed(
             ConsoleProposalStatus status, string proposalId = "proposal-1") =>
-            OperateSectionResult<ConsoleProposalDetail>.Allowed(new(
-                proposalId,
-                ConsoleProposalKind.MetadataRelease,
-                status,
-                "agent",
-                "agent",
-                "Publish candidate map",
-                ["item-1", "version-1", "draft-1", "map-route"],
-                [],
-                ConsoleProposalRisk.Low,
-                [],
-                [],
-                "human",
-                status == ConsoleProposalStatus.AwaitingApproval ? null : "operator",
-                null,
-                status == ConsoleProposalStatus.AwaitingApproval ? null : "operation-1",
-                DateTimeOffset.UtcNow,
-                DateTimeOffset.UtcNow,
-                status == ConsoleProposalStatus.AwaitingApproval ? null : DateTimeOffset.UtcNow)
-            {
-                Version = 7,
-                PlanHash = "sealed-plan",
-                HumanReviewEnvironment = "environment",
-                HumanReviewExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5)
-            });
+            Honua.Console.TestFixtures.ReceiptProposalClient.Allowed(status, proposalId);
     }
 
     private sealed class EmptyInboxClient : IConsoleApprovalInboxClient
