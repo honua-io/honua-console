@@ -11,7 +11,7 @@ await runV4PagePresentation({
   scope: ".console-page",
   controls: ".console-page :is(a[href], button, input, select, textarea):not(:disabled):visible",
   inspect: async (page, name) => {
-    if (name.endsWith("-tested")) assert.ok(await page.locator("[role=status]").isVisible());
+    if (name.endsWith("-tested")) assert.ok(await page.locator(".console-panel[role=status]").isVisible());
     if (name.endsWith("-error")) assert.ok(await page.locator("[role=alert]").isVisible());
     if (name === "data-connections") {
       assert.equal(await page.getByRole("link", { name: "Production database" }).getAttribute("href"), "/console/operate/connections/connection%20a");
