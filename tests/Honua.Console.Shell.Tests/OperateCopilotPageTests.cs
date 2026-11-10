@@ -547,6 +547,7 @@ public sealed class OperateCopilotPageTests
         services.AddSingleton(client);
         services.AddSingleton(autonomy ?? UnsupportedAutonomy());
         services.AddSingleton<IConsoleProposalsClient>(NoProposals());
+        services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         var provider = services.BuildServiceProvider();
 
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());

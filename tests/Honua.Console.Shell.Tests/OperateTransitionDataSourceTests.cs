@@ -21,6 +21,7 @@ public sealed partial class OperateTransitionDataSourceTests
 
         services.AddHonuaConsoleShell();
 
+        services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         using var provider = services.BuildServiceProvider();
         var dataSource = provider.GetRequiredService<IOperateTransitionDataSource>();
 
@@ -35,6 +36,7 @@ public sealed partial class OperateTransitionDataSourceTests
 
         services.AddHonuaConsoleShell(new HonuaConsoleShellOptions { ServerBaseUrl = "https://server.example", ServerAdminApiKey = "test-api-key" });
 
+        services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         using var provider = services.BuildServiceProvider();
         var dataSource = provider.GetRequiredService<IOperateTransitionDataSource>();
 
@@ -690,6 +692,7 @@ public sealed partial class OperateTransitionDataSourceTests
         // the real in-memory service is harmless under static HtmlRenderer (no toast host to subscribe).
         services.AddSingleton<Honua.Console.Shell.Services.IConsoleNotificationService,
             Honua.Console.Shell.Services.ConsoleNotificationService>();
+        services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         await using var serviceProvider = services.BuildServiceProvider();
         var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
         await using var renderer = new HtmlRenderer(serviceProvider, loggerFactory);

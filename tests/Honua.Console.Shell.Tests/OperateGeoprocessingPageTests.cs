@@ -596,6 +596,7 @@ public sealed partial class OperateGeoprocessingPageTests
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton(client);
+        services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         var provider = services.BuildServiceProvider();
 
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
