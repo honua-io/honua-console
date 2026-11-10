@@ -1,5 +1,5 @@
 {
   "repository": "honua-io/honua-server",
-  "commit": "70546006694f17d97db4181e48e03da69862a3b2",
+  "commit": "003c598dd5187f5fd826fcda4a8863eab6ec1418",
   "path": "tests/dotnet/Honua.Ai.Tests/ConformanceSchemas/geospatial-mcp/ops-parity-map.yaml"
 }
