@@ -7,6 +7,7 @@
 @inject IConsoleLayerFieldsOperation LayerFields
 @inject IConsoleNotificationService Notifications
 @inject IServiceProvider ServiceProvider
+@inject NavigationManager Navigation
 
 <ConsoleAgentContext Context="@AgentContext" />
 
@@ -20,7 +21,7 @@
             <ul>
                 @foreach (var canonicalResourceId in _ambiguousResourceIds)
                 {
-                    <li><a href="@($"/operate/layers/{canonicalResourceId}")">@canonicalResourceId</a></li>
+                    <li><a href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(canonicalResourceId)}")">@canonicalResourceId</a></li>
                 }
             </ul>
         </div>
@@ -62,7 +63,7 @@
                         <h2>@exposure.Service.DisplayName</h2>
                         <dl class="console-definition-list">
                             <dt>Service</dt>
-                            <dd><a href="@($"/operate/services/{exposure.Service.Name}/settings")">@exposure.Service.DisplayName</a></dd>
+                            <dd><a href="@Navigation.ToConsoleHref(ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForService(exposure.Service.Name)))">@exposure.Service.DisplayName</a></dd>
                             <dt>Geometry</dt>
                             <dd>@exposure.Layer.Geometry</dd>
                             <dt>Runtime</dt>
@@ -76,7 +77,7 @@
                     <h2>Resource Owner</h2>
                     <dl class="console-definition-list">
                         <dt>Resource</dt>
-                        <dd><a href="@($"/operate/resources/{_exposures[0].Layer.CanonicalResourceId}")">@_exposures[0].Layer.CanonicalResourceName</a></dd>
+                        <dd><a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(CanonicalResourceId)}")">@_exposures[0].Layer.CanonicalResourceName</a></dd>
                         <dt>Console layer reference</dt>
                         <dd>@_exposures[0].Layer.CanonicalResourceId</dd>
                         <dt>Ownership</dt>
@@ -103,10 +104,10 @@
 @code {
 
     private RenderFragment LayerActions => @<text>            <div class="console-detail-actions">
-                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@($"/operate/layers/{CanonicalResourceId}/style")" data-layer-style-link>Resource presentation / style</a>
-                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@($"/operate/layers/{CanonicalResourceId}/relationships")" data-layer-relationships-link>Relationships</a>
-                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@($"/operate/layers/{CanonicalResourceId}/filter")" data-layer-filter-link>Permanent filter</a>
-                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@($"/operate/layers/{CanonicalResourceId}/metadata")" data-layer-metadata-link>Editing policy →</a>
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/style")" data-layer-style-link>Resource presentation / style</a>
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/relationships")" data-layer-relationships-link>Relationships</a>
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/filter")" data-layer-filter-link>Permanent filter</a>
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/metadata")" data-layer-metadata-link>Editing policy →</a>
             </div></text>;
     private RenderFragment Fields => @<text>        <section class="console-section @(V4Enabled ? "console-service-controls" : null)" data-fields-panel>
             @if (!V4Enabled)

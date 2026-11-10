@@ -13,11 +13,13 @@ public sealed class OperateLayerFieldAliasHiddenTests
     private const int LayerId = 7;
 
     [Theory]
-    [InlineData(false, ResourceId)]
-    [InlineData(true, ResourceId)]
-    [InlineData(true, "7")]
-    [InlineData(true, "CONN-1-LAYER-7")]
-    public void Save_SetsAliasAndHidden_IssuesUpdateAndReReadsFields(bool enabled, string layerReference)
+    [InlineData(false, ResourceId, "/")]
+    [InlineData(false, ResourceId, "/console/")]
+    [InlineData(true, ResourceId, "/")]
+    [InlineData(true, ResourceId, "/console/")]
+    [InlineData(true, "7", "/console/")]
+    [InlineData(true, "CONN-1-LAYER-7", "/console/")]
+    public void Save_SetsAliasAndHidden_IssuesUpdateAndReReadsFields(bool enabled, string layerReference, string mount)
     {
         var fields = new RecordingLayerFieldsOperation(new ConsoleLayerFields
         {
@@ -30,6 +32,7 @@ public sealed class OperateLayerFieldAliasHiddenTests
         });
 
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerMountedNavigationManager(mount));
         ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
@@ -45,6 +48,7 @@ public sealed class OperateLayerFieldAliasHiddenTests
             () => Assert.NotEmpty(page.FindAll("[data-field-row]")),
             TimeSpan.FromSeconds(5));
 
+        Assert.Equal($"{mount}operate/layers/{ResourceId}/style", page.Find("[data-layer-style-link]").GetAttribute("href"));
         var registry = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>();
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
         if (enabled)
@@ -56,7 +60,7 @@ public sealed class OperateLayerFieldAliasHiddenTests
             Assert.Equal($"/operate/layers/{ResourceId}", ConsoleAgentRoutes.ForEntity(entity));
             Assert.Equal(ConsoleAgentRoutes.ForEntity(entity), registry.Current.Route);
             Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
-            CatalogAdminPreview.Capture("data-layer-detail", page.Markup);
+            if (mount == "/console/") CatalogAdminPreview.Capture("data-layer-detail", page.Markup);
         }
         else Assert.Empty(registry.Current.Selection);
 
@@ -93,7 +97,7 @@ public sealed class OperateLayerFieldAliasHiddenTests
         {
             page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount));
             Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
-            CatalogAdminPreview.Capture("data-layer-detail-alias-saved", page.Markup);
+            if (mount == "/console/") CatalogAdminPreview.Capture("data-layer-detail-alias-saved", page.Markup);
         }
     }
 

@@ -1,6 +1,7 @@
 @page "/operate/layers"
 @inject IOperateTransitionDataSource OperateData
 @inject IServiceProvider Services
+@inject NavigationManager Navigation
 
 <section class="console-page">
     @if (V4Enabled)
@@ -28,7 +29,8 @@
     private ConsoleAgentPageContext AgentContext => new()
     {
         Route = "/operate/layers",
-        Entities = _layers.Select(row => ConsoleAgentEntity.ForLayer(row.Layer)).Distinct().ToArray()
+        Entities = _layers.Select(row => ConsoleAgentEntity.ForLayer(row.Layer)).Distinct().ToArray(),
+        Unsaved = new() { PendingOperationCount = _loading ? 1 : 0 }
     };
 
 
@@ -57,22 +59,22 @@
                     @foreach (var row in _layers)
                     {
                         <tr data-layer-id="@row.Layer.LayerId" data-service-id="@row.Service.Name">
-                            <td><a href="@(V4Enabled ? ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForLayer(row.Layer)) : $"/operate/layers/{row.Layer.CanonicalResourceId}")">@row.Layer.LayerId</a></td>
+                            <td><a href="@Navigation.ToConsoleHref(ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForLayer(row.Layer)))">@row.Layer.LayerId</a></td>
                             <td>
                                 @if (V4Enabled)
                                 {
                                     <ConsoleNameIdentifier Name="@row.Layer.Name" Identifier="@row.Layer.CanonicalResourceId"
-                                                           Href="@ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForLayer(row.Layer))" />
+                                                           Href="@Navigation.ToConsoleHref(ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForLayer(row.Layer)))" />
                                 }
                                 else
                                 {
                                     @row.Layer.Name
                                 }
                             </td>
-                            <td><a href="@(V4Enabled ? ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForService(row.Service.Name)) : $"/operate/services/{row.Service.Name}/settings")">@row.Service.DisplayName</a></td>
+                            <td><a href="@Navigation.ToConsoleHref(ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForService(row.Service.Name)))">@row.Service.DisplayName</a></td>
                             <td>@row.Layer.Geometry</td>
                             <td>
-                                <a href="@($"/operate/resources/{row.Layer.CanonicalResourceId}")">@row.Layer.CanonicalResourceName</a>
+                                <a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(row.Layer.CanonicalResourceId)}")">@row.Layer.CanonicalResourceName</a>
                                 <small>@row.Layer.CanonicalResourceId</small>
                             </td>
                         </tr>
@@ -85,6 +87,7 @@
 
     private IReadOnlyList<(OperateServiceDetail Service, OperateServiceLayerProjection Layer)> _layers =
         Array.Empty<(OperateServiceDetail, OperateServiceLayerProjection)>();
+    private bool _loading = true;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
     protected override async Task OnInitializedAsync()
@@ -94,5 +97,6 @@
             .SelectMany(service => service.Layers.Select(layer => (service, layer)))
             .ToArray();
         _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Layers", "Services");
+        _loading = false;
     }
 }

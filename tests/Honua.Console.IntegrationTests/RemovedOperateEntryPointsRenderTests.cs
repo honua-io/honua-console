@@ -22,6 +22,7 @@ public sealed class RemovedOperateEntryPointsRenderTests
     public void LayerPage_LinksOnlyToSurfacesTheServerSupports(bool enabled)
     {
         using var ctx = CreateContext(enabled);
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerMountedNavigationManager("/console/"));
         ctx.Services.AddSingleton<IConsoleLayerFieldsOperation>(new UnsupportedConsoleLayerFieldsOperation());
 
         var page = ctx.Render<OperateLayerDetailPage>(p => p.Add(c => c.ResourceId, Parcels.CanonicalResourceId));

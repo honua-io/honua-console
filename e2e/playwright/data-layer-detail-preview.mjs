@@ -6,7 +6,7 @@ await runV4PagePresentation({
   previews: path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/catalog-preview"),
   pageNames: ["data-layer-detail", "data-layer-detail-unbound", "data-layer-detail-alias-saved", "data-layer-detail-domain-saved"],
   title: "Layer detail presentation fixture",
-  stylesheet: "v4-data-primitives.css",
+  stylesheet: "v4-shell.css",
   heading: name => name.endsWith("-unbound") ? "Parcels" : name.endsWith("-domain-saved") ? "terrain" : "parcels",
   scope: ".console-page",
   controls: ".console-page :is(a[href], button, input, select, textarea, summary):not(:disabled):not([tabindex='-1']):visible",
@@ -20,7 +20,7 @@ await runV4PagePresentation({
     assert.equal(panels[0].title, "Layer preview");
     assert.equal(panels[0].radius, "10px");
     assert.equal(await page.locator("[data-layer-style-link]").getAttribute("href"), name.endsWith("-unbound")
-      ? "/operate/layers/conn-1-layer-1/style" : "/operate/layers/conn-1-layer-7/style");
+      ? "/console/operate/layers/conn-1-layer-1/style" : "/console/operate/layers/conn-1-layer-7/style");
     if (name.endsWith("-unbound")) {
       assert.equal(await page.locator("[data-fields-panel] [role='status'].console-state-neutral").count(), 1);
       assert.equal(await page.locator("[data-field-save]").count(), 0);

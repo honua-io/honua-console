@@ -9,11 +9,14 @@ namespace Honua.Console.IntegrationTests;
 public sealed class OperateLayersPageTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void LayersRetainExposureAndResolveCanonicalAgentLinks(bool enabled)
+    [InlineData(false, "/")]
+    [InlineData(true, "/")]
+    [InlineData(false, "/console/")]
+    [InlineData(true, "/console/")]
+    public void LayersRetainExposureAndResolveCanonicalAgentLinks(bool enabled, string mount)
     {
         using var context = new BunitContext();
+        context.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerMountedNavigationManager(mount));
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         context.Services.AddSingleton<ConsoleAgentContextRegistry>();
         var layer = new OperateServiceLayerProjection(42, "Parcels", "Polygon", "connection-1-layer-42", "Parcels dataset");
@@ -25,8 +28,8 @@ public sealed class OperateLayersPageTests
         var row = page.Find("[data-layer-id='42'][data-service-id='cadastre']");
         Assert.Contains("Parcels", row.TextContent);
         Assert.Contains("Polygon", row.TextContent);
-        Assert.NotNull(row.QuerySelector("a[href='/operate/services/cadastre/settings']"));
-        Assert.NotNull(row.QuerySelector("a[href='/operate/resources/connection-1-layer-42']"));
+        Assert.NotNull(row.QuerySelector($"a[href='{mount}operate/services/cadastre/settings']"));
+        Assert.NotNull(row.QuerySelector($"a[href='{mount}operate/resources/connection-1-layer-42']"));
         var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
         Assert.Equal(enabled ? "/operate/layers" : "/", registry.Current.Route);
         if (enabled)
@@ -36,9 +39,20 @@ public sealed class OperateLayersPageTests
             Assert.Equal("42", entity.Id);
             Assert.Equal("connection-1-layer-42", entity.ResourceId);
             Assert.Equal("/operate/layers/connection-1-layer-42", ConsoleAgentRoutes.ForEntity(entity));
-            Assert.Equal(2, row.QuerySelectorAll("a[href='/operate/layers/connection-1-layer-42']").Length);
-            CatalogAdminPreview.Capture("data-layers", page.Markup);
+            Assert.Equal(2, row.QuerySelectorAll($"a[href='{mount}operate/layers/connection-1-layer-42']").Length);
+            if (mount == "/console/") CatalogAdminPreview.Capture("data-layers", page.Markup);
         }
         else Assert.Empty(registry.Current.Entities);
+    }
+}
+
+internal sealed class LayerMountedNavigationManager : Microsoft.AspNetCore.Components.NavigationManager
+{
+    public LayerMountedNavigationManager(string mount) => Initialize("http://localhost" + mount, "http://localhost" + mount);
+
+    protected override void NavigateToCore(string uri, bool forceLoad)
+    {
+        Uri = ToAbsoluteUri(uri).AbsoluteUri;
+        NotifyLocationChanged(false);
     }
 }
