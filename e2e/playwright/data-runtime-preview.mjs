@@ -4,7 +4,7 @@ import { runV4PagePresentation } from "./console-presentation.mjs";
 
 const previews = path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/data-runtime");
 const areas = [
-  { prefix: "scenes", heading: "Scenes", scope: "[data-scenes-page]", states: ["list", "detail", "missing"] },
+  { prefix: "scenes", heading: "Scenes", scope: "[data-scenes-page]", states: ["list", "detail", "missing", "ingest-success", "ingest-error"] },
   { prefix: "sensors", heading: "SensorThings", scope: "[data-sensorthings-page]", states: ["list", "detail", "missing"] },
   { prefix: "versions", heading: "Versions", scope: "[data-version-manager]", states: ["list", "conflicts", "alter", "missing"] },
 ];
@@ -24,6 +24,7 @@ for (const { prefix, heading, scope, states } of areas.filter(area => !requested
       for (const link of await page.locator(`${scope} a[href]`).all()) {
         assert.match(await link.getAttribute("href"), /^\/(console\/)?operate\//);
       }
+      if (name.startsWith("scenes-ingest-")) assert.ok(await page.locator(`[data-pointcloud-${name.slice(7)}][role="status"]`).isVisible());
       if (name === "scenes-detail") assert.ok(await page.locator("[data-scene-viewer]").isVisible());
       if (name === "sensors-detail") assert.ok(await page.locator("[data-timeseries-line]").isVisible());
       if (name === "versions-conflicts") assert.ok(await page.locator("[data-open-conflicts]").isVisible());

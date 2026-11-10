@@ -145,7 +145,7 @@
             @if (_ingestResult.IsOk)
             {
                 var result = _ingestResult.Value!;
-                <article class="console-panel console-state-success" role="status" data-pointcloud-ingest-success>
+                <div class="console-panel console-state-success" role="status" data-pointcloud-ingest-success>
                     <p class="console-kicker">Ingested</p>
                     <p>
                         Scene <strong>@result.SceneId</strong> created with
@@ -160,14 +160,14 @@
                             View 3D scene
                         </a>
                     </div>
-                </article>
+                </div>
             }
             else
             {
-                <article class="console-panel console-state-warning" role="status" data-pointcloud-ingest-error>
+                <div class="console-panel console-state-warning" role="status" data-pointcloud-ingest-error>
                     <p class="console-kicker">@ScenePresentation.Title(_ingestResult.Status)</p>
                     <p>@IngestMessage</p>
-                </article>
+                </div>
             }
         }
     </div>;

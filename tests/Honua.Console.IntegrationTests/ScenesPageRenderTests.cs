@@ -144,6 +144,7 @@ public sealed class ScenesPageRenderTests
         Assert.Equal(succeeds ? string.Empty : "Survey", page.Find("[data-pointcloud-display-name]").GetAttribute("value"));
         Assert.Equal(succeeds, page.Find("[data-pointcloud-ingest-button]").HasAttribute("disabled"));
         if (succeeds) Assert.Contains("Survey", page.Find("[data-scenes-table]").TextContent);
+        CatalogAdminPreview.Capture(succeeds ? "scenes-ingest-success" : "scenes-ingest-error", page.Markup);
     }
 
     [Fact]
