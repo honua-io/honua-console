@@ -1314,7 +1314,8 @@ contextual inheritance and enforce its mutation policy and attachment authority.
 
 ### Static host navigation
 
-Console route identities remain logical paths such as `/operate/jobs/{id}`. HTML links and
+Console page routes use paths such as `operate/jobs/{id}`. Shared Operate builders emit
+base-relative links; known logical routes may still use a leading `/`. HTML links and
 `NavigationManager.NavigateTo` destinations must resolve beneath the configured application base
 (`/console/` in the release bundle). Shared `OperateObservabilityRoutes` builders therefore return
 base-relative paths such as `operate/jobs/{id}`, with identifiers escaped as before.

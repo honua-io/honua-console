@@ -9,6 +9,8 @@ public sealed class ConsoleNavigationPathsTests
 
     [Theory]
     [InlineData("/operate/jobs/job%201?view=log#events", "./operate/jobs/job%201?view=log#events")]
+    [InlineData("/data/services/service%3Aone/layers/0", "./data/services/service%3Aone/layers/0")]
+    [InlineData("/data/services/service%2Fone/layers/0", "./data/services/service%2Fone/layers/0")]
     [InlineData("./operate/jobs/job-1", "./operate/jobs/job-1")]
     [InlineData("operate/jobs/job-1", "./operate/jobs/job-1")]
     [InlineData("/console/operate/jobs/job-1", "./operate/jobs/job-1")]
@@ -40,6 +42,13 @@ public sealed class ConsoleNavigationPathsTests
     {
         Assert.False(new HostedNavigationManager(BaseUri).TryGetConsoleHref(target, out var href));
         Assert.Empty(href);
+    }
+
+    [Fact]
+    public void KnownLogicalRoutesPreserveEscapedResourceIdentifiers()
+    {
+        Assert.Equal("/console/data/services/service%3Aone/layers/0",
+            new HostedNavigationManager(BaseUri).ToConsoleHref("/data/services/service%3Aone/layers/0"));
     }
 
     [Fact]
