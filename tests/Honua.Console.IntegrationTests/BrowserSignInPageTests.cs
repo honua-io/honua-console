@@ -43,6 +43,24 @@ public sealed class BrowserSignInPageTests
     }
 
     [Fact]
+    public async Task PasswordSignInRemainsAvailableAlongsideIdentityProviders()
+    {
+        await using var context = CreateContext();
+        var authentication = new PendingAuthentication();
+        context.Services.AddSingleton<IConsoleBrowserAuthentication>(authentication);
+        context.Services.AddSingleton<IConsoleOidcAuthentication>(new StubOidc());
+        var page = context.Render<AuthSignInPage>();
+        Assert.Single(page.FindAll("button[type=button]"));
+        Assert.Single(page.FindAll("button[type=submit]"));
+        page.Find("input[type=password]").Change("operator-password");
+        var submission = page.Find("form").SubmitAsync();
+        Assert.Equal("operator-password", authentication.Password);
+        authentication.Completion.SetResult();
+        await submission;
+        Assert.Equal("http://localhost/console/operate/connections", context.Services.GetRequiredService<NavigationManager>().Uri);
+    }
+
+    [Fact]
     public async Task DeniedPasswordClearsTheFieldAndAllowsRetryWithoutExposingServerDetails()
     {
         await using var context = CreateContext();

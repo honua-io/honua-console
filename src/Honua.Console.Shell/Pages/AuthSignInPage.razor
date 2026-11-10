@@ -69,7 +69,7 @@
                 {
                     <p role="status">Identity provider sign-in is not available in this Console build yet.</p>
                 }
-                else
+                @if (_browserAuth?.SupportsPasswordSignIn ?? (_oidc?.IsAvailable != true))
                 {
                     <div class="console-detail-actions">
                         <button class="console-button" type="submit" disabled="@_signingIn">@(_signingIn ? "Signing in…" : "Continue")</button>
