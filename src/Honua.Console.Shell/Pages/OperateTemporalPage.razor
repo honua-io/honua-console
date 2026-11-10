@@ -317,9 +317,18 @@
         _loading = false;
     }
 
+    private bool _queryApplied;
+    private string? _appliedSourceId;
+    private string? _appliedCheckpointId;
+
     protected override async Task OnParametersSetAsync()
     {
         if (!V4Enabled || _loading || _bindingState is not null) return;
+        if (_queryApplied && string.Equals(_appliedSourceId, SourceId, StringComparison.Ordinal)
+            && string.Equals(_appliedCheckpointId, CheckpointId, StringComparison.Ordinal)) return;
+        _queryApplied = true;
+        _appliedSourceId = SourceId;
+        _appliedCheckpointId = CheckpointId;
         var generation = ++_parameterGeneration;
         var source = _workspace.Sources.FirstOrDefault(item =>
             string.Equals(item.SourceId, SourceId, StringComparison.Ordinal));

@@ -744,6 +744,29 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Equal("current", filters["checkpointId"]);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void TemporalViewer_UnchangedQueryPreservesManualCheckpointAndRollbackScope(bool enabled, bool sourceQuery)
+    {
+        var client = ClientWithConflicts();
+        client.Checkpoints = new([Checkpoint("cp-latest", "Latest"), Checkpoint("cp-old", "Previous")]);
+        var page = Render(client, enabled);
+        var sourceId = sourceQuery ? "src-parcels" : null;
+        page.Render(parameters => parameters.Add(component => component.SourceId, sourceId));
+        InspectFirstSource(page);
+        page.Find("button[aria-label='NamedCheckpoint Previous']").Click();
+        page.Find("select[aria-label='Rollback scope']").Change("Layer");
+
+        page.Render(parameters => parameters.Add(component => component.SourceId, sourceId));
+
+        Assert.Single(page.FindAll("[data-temporal-detail='src-parcels']"));
+        Assert.Equal("true", page.Find("button[aria-label='NamedCheckpoint Previous']").GetAttribute("aria-pressed"));
+        Assert.Equal("Layer", page.Find("select[aria-label='Rollback scope']").GetAttribute("value"));
+    }
+
     // ---- helpers --------------------------------------------------------------------------------------
 
     private static IRenderedComponent<OperateTemporalPage> Render(ITemporalCapabilityClient client, bool enabled)
