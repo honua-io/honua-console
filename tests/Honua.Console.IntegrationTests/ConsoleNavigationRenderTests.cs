@@ -13,6 +13,32 @@ namespace Honua.Console.IntegrationTests;
 public sealed class ConsoleNavigationRenderTests
 {
     [Theory]
+    [InlineData("/", "/")]
+    [InlineData("/console/", "/console/")]
+    public async Task SharedNavigationStaysInsideTheApplicationBase(string applicationPath, string expectedHome)
+    {
+        await using var context = CreateContext();
+        context.Services.AddSingleton<NavigationManager>(new HostedNavigationManager(applicationPath));
+        var shell = context.Render<ConsoleLayout>();
+        Assert.Equal(expectedHome, shell.Find(".console-topbar-brand").GetAttribute("href"));
+        Assert.Equal(expectedHome + "environments", shell.Find("[data-workspace-header-target]").GetAttribute("href"));
+        Assert.Equal(expectedHome + "support", shell.Find(".console-help-link").GetAttribute("href"));
+        Assert.All(shell.FindAll(".console-topnav a, .console-contextbar a"), link =>
+            Assert.StartsWith(expectedHome, link.GetAttribute("href")));
+        var manager = context.Services.GetRequiredService<NavigationManager>();
+        Assert.Equal(expectedHome + "operate/services?sort=name#folders", manager.ToConsoleHref("/operate/services?sort=name#folders"));
+    }
+
+    private sealed class HostedNavigationManager : NavigationManager
+    {
+        public HostedNavigationManager(string applicationPath)
+        {
+            var applicationBase = "http://localhost" + applicationPath;
+            Initialize(applicationBase, applicationBase);
+        }
+    }
+
+    [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
     [InlineData(ConsolePresentationMode.V4)]
     public async Task HeaderKeepsNavigationTargetsAcrossTheV4Flag(ConsolePresentationMode mode)

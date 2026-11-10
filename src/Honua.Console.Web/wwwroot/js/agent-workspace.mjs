@@ -943,7 +943,7 @@ if (typeof document !== 'undefined') {
     new MutationObserver(mountWorkspace).observe(document.body, { childList: true, subtree: true });
 }
 
-export async function attachNativeAgent(workspace, loadAssets = () => import('/_studio/console.js')) {
+export async function attachNativeAgent(workspace, loadAssets = () => import(new URL('../_studio/console.js', import.meta.url).href)) {
     if (!workspace.session?.nativeAgentAvailable || workspace.agentSession) return;
     const generation=workspace.contextGeneration,workspaceId=workspace.workspaceId;
     const authority=JSON.stringify(['principalId','environmentId','releaseId','sourcePathBase'].map(key=>workspace.session[key]));
