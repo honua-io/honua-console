@@ -23,7 +23,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    uses: honua-io/.github/.github/workflows/reusable-trivy.yml@aebfacd3f3c6b551fa9bf703501c0a12a050faf3 # main
+    uses: honua-io/.github/.github/workflows/reusable-trivy.yml@f4bdc749161f1a037a0a9c55b6995aa5295ba2c7 # main
     with:
       scan-type: fs
 
