@@ -360,7 +360,9 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     const { view: savedView, ...savedContent } = version.envelope.body;
     expect(savedContent).toEqual(labelledContent);
     const camera = await page.locator('honua-studio-canvas').evaluate((canvas: any) => canvas.mapView.camera());
-    expect(savedView).toEqual({ ...camera, pitch: camera.pitch ?? 0 });
+    // Camera projection can round a persisted zero by a fraction of a nanodegree.
+    expect(savedView).toEqual({ ...camera, pitch: camera.pitch ?? 0,
+      center: camera.center.map((coordinate: number) => expect.closeTo(coordinate, 9)) });
     await test.step('independent server rendering matches the saved authored colours', async () => {
       const witness = await request.newContext({ baseURL: serverUrl,
         extraHTTPHeaders: { 'X-API-Key': process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key' } });
