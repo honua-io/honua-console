@@ -63,8 +63,7 @@
         Route = "/operate/publishing/quick",
         Unsaved = new()
         {
-            // The workspace owns dirty tracking for data-workspace-field inputs and clears it after canonical saves.
-            ChangedFieldCount = _result?.Succeeded == true ? 0 : new[] { _geometryTypeOverride, _publicName }.Count(value => !string.IsNullOrWhiteSpace(value)) + (_folderId.IsSpecified ? 1 : 0),
+            ChangedFieldCount = _result?.Succeeded == true ? 0 : new[] { _connectionId, _tableKey, _serviceName, _layerName, _geometryTypeOverride, _publicName }.Count(value => !string.IsNullOrWhiteSpace(value)) + (_folderId.IsSpecified ? 1 : 0),
             PendingOperationCount = (_loadingConnections ? 1 : 0) + (_loadingTables ? 1 : 0) + (_busy ? 1 : 0)
         }
     };

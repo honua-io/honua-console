@@ -59,12 +59,11 @@ public sealed class ResourceFirstPublishFlowTests
         {
             var state = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current;
             Assert.Equal("/operate/publishing/quick", state.Route);
-            // Canonical workspace fields use workspace dirty tracking, which clears after Save draft.
-            Assert.Equal(0, state.Unsaved.ChangedFieldCount);
+            Assert.Equal(4, state.Unsaved.ChangedFieldCount);
             page.Find("[data-service-public-name]").Change("public-points");
-            Assert.Equal(1, ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
+            Assert.Equal(5, ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
             page.Find("[data-service-public-name]").Change("");
-            Assert.Equal(0, ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
+            Assert.Equal(4, ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
             Assert.Empty(state.Entities);
             CatalogAdminPreview.Capture("data-quick-publish", page.Markup);
         }
