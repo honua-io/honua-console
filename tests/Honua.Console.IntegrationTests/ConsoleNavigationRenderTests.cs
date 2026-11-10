@@ -62,6 +62,8 @@ public sealed class ConsoleNavigationRenderTests
 
     private sealed class HostedNavigationManager : NavigationManager
     {
+        protected override void SetNavigationLockState(bool value) { }
+
         public HostedNavigationManager(string applicationPath)
         {
             var applicationBase = "http://localhost" + applicationPath;
