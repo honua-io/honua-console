@@ -256,3 +256,19 @@ test('unclassified HTTP failures retain the original command because creation ma
         await assert.rejects(f.session.submit('changed-map'), /original/);
     }
 });
+
+
+test('a refused retry after response loss cannot erase the original command across reload', async () => {
+    const f = fixture();
+    f.app.createWorkspaceDraft = async () => { throw new Error('response lost'); };
+    await assert.rejects(f.session.submit('map'), /response lost/);
+    f.app.createWorkspaceDraft = async () => {
+        throw Object.assign(new Error('Edit proof expired'), { status: 403, createDraftRejected: true });
+    };
+    const restored = new StudioDraftCreateSession(f.app, f.options);
+    await assert.rejects(restored.submit('map'), /proof expired/);
+    assert.equal(restored.read().status, 'submitting');
+    assert.equal(restored.read().commandId, 'original-command');
+    assert.throws(() => restored.acknowledge(), /confirmed outcome/);
+    await assert.rejects(restored.submit('another-map'), /original/);
+});

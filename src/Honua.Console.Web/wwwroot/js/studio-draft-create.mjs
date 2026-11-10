@@ -71,9 +71,10 @@ export class StudioDraftCreateSession {
             return record;
         }
         if (record && record.status !== 'submitting') return record;
+        const firstAttempt = !record;
         record ??= { packageKey, commandId: this.uuid(), status: 'submitting' };
         this.save(record, context);
-        const result = await this.create(record, context);
+        const result = await this.create(record, context, firstAttempt);
         // Immediate creation attaches inside Studio; only authority must stay stable in that case.
         if (this.context() !== context) throw new Error('The workspace changed.');
         if (result?.status === 'awaiting-approval' && validId(result.operationInstanceId) && validId(result.proposalId)) {
@@ -83,11 +84,12 @@ export class StudioDraftCreateSession {
         this.save(record, context);
         return record;
     }
-    async create(record, context) {
+    async create(record, context, firstAttempt) {
         try { return await this.app.createWorkspaceDraft(record.packageKey, record.commandId); }
         catch (error) {
             // HTTP status alone also describes failures while attaching an already-created draft.
-            if (error?.createDraftRejected === true) this.save({ ...record, status: 'rejected' }, context);
+            // A refused retry says nothing about an earlier request whose response was lost.
+            if (firstAttempt && error?.createDraftRejected === true) this.save({ ...record, status: 'rejected' }, context);
             throw error;
         }
     }
