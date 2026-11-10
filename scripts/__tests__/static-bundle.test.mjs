@@ -27,10 +27,12 @@ test("static release validates locked assets before packaging and limits release
   const publish = workflow.indexOf("dotnet publish");
   const verifyCesium = workflow.indexOf("node scripts/verify-published-cesium.mjs");
   const verifyStudio = workflow.indexOf("--verify artifacts/static-publish/wwwroot/console/_studio");
+  const browser = workflow.indexOf("playwright test --config playwright.static.config.ts");
   const pack = workflow.indexOf("python3 scripts/package-console-static.py");
   assert.ok(workflow.indexOf("gh attestation verify") < publish);
   assert.ok(publish < verifyCesium && verifyCesium < pack);
   assert.ok(publish < verifyStudio && verifyStudio < pack);
+  assert.ok(verifyCesium < browser && verifyStudio < browser && browser < pack);
   assert.match(workflow, /gh release upload "\$RELEASE_TAG" static-release\/\* <\/dev\/null/);
   assert.doesNotMatch(workflow, /--clobber/);
   for (const match of workflow.matchAll(/uses:\s+([^\s]+)/g)) {
