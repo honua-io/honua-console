@@ -6,15 +6,33 @@
 @inject IConsoleServiceImportOperation ServiceImport
 @inject Honua.Console.Shell.Services.IConsoleNotificationService Notifications
 
-<section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Operate / Import</p>
-        <h1>Import from a service</h1>
-        <p>Discover the importable layers of a remote GeoServices REST or OGC service — or point at a GeoServices REST catalog root to browse every service. Pick the services and layers you want, then import them into Honua.</p>
-    </div>
+@using Honua.Console.Shell.Components
+@inject IServiceProvider Services
 
-    <article class="console-panel">
-        <div class="studio-field-grid">
+<ConsoleAgentContext Context="@AgentContext" />
+
+<section class="console-page">
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Import from a service"><ChildContent><p>@Intro</p></ChildContent></ConsolePageHeading>
+        <ConsolePanel Title="Source and layers" HeadingId="import-service-details">@ImportForm</ConsolePanel>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Import</p>
+            <h1>Import from a service</h1>
+            <p>@Intro</p>
+        </div>
+        <article class="console-panel">@ImportForm</article>
+    }
+</section>
+
+@code {
+    private const string Intro = "Discover the importable layers of a remote GeoServices REST or OGC service — or point at a GeoServices REST catalog root to browse every service. Pick the services and layers you want, then import them into Honua.";
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private RenderFragment ImportForm => @<text>
+        <div class="studio-field-grid @(V4Enabled ? "console-service-controls" : null)">
             <label>
                 <span>Service or catalog URL</span>
                 <input class="console-input" @bind="_serviceUrl" @bind:event="oninput" @bind:after="ClearResult"
@@ -37,7 +55,7 @@
 
         @if (_authMode is "arcgis-token" or "basic")
         {
-            <div class="studio-field-grid" data-auth-fields>
+            <div class="studio-field-grid @(V4Enabled ? "console-service-controls" : null)" data-auth-fields>
                 <label>
                     <span>Username</span>
                     <input class="console-input" aria-label="Username" @bind="_username" @bind:event="oninput" @bind:after="ClearResult" />
@@ -63,7 +81,7 @@
         }
         else if (_authMode == "token")
         {
-            <div class="studio-field-grid" data-auth-fields>
+            <div class="studio-field-grid @(V4Enabled ? "console-service-controls" : null)" data-auth-fields>
                 <label>
                     <span>Token / API key</span>
                     <input class="console-input" type="password" aria-label="Token" @bind="_token" @bind:event="oninput" @bind:after="ClearResult" />
@@ -72,7 +90,7 @@
         }
         else if (_authMode == "oauth")
         {
-            <div class="studio-field-grid" data-auth-fields>
+            <div class="studio-field-grid @(V4Enabled ? "console-service-controls" : null)" data-auth-fields>
                 <label>
                     <span>Token endpoint URL</span>
                     <input class="console-input" aria-label="Token URL" @bind="_tokenUrl" @bind:event="oninput" @bind:after="ClearResult"
@@ -101,23 +119,23 @@
             <button class="console-button" type="button" disabled="@_busy" @onclick="DiscoverAsync">
                 @(_busy ? "Discovering…" : "Discover service")
             </button>
-            <a href="/operate/connections">Cancel</a>
+            <a href="operate/connections">Cancel</a>
         </div>
 
         @if (_busy)
         {
             <div class="console-panel console-state-info" role="status" data-discover-progress>
                 <p class="console-kicker">Discovering</p>
-                <h2>Scanning the remote service…</h2>
+                @if (V4Enabled) { <h3>Scanning the remote service…</h3> } else { <h2>Scanning the remote service…</h2> }
                 <progress></progress>
             </div>
         }
 
         @if (_result is { } r)
         {
-            <article class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
+            <div class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
                 <p class="console-kicker">@r.State</p>
-                <h2>@(r.Succeeded ? "Service discovered" : "Discovery failed")</h2>
+                @if (V4Enabled) { <h3>@(r.Succeeded ? "Service discovered" : "Discovery failed")</h3> } else { <h2>@(r.Succeeded ? "Service discovered" : "Discovery failed")</h2> }
                 <p>@r.Detail</p>
                 @if (r.Succeeded)
                 {
@@ -128,11 +146,11 @@
                         <dd>@r.ServiceName</dd>
                     </dl>
                 }
-            </article>
+            </div>
 
             @if (r.Succeeded && _tree.Count > 0)
             {
-                <div class="console-toolbar" data-selection-toolbar>
+                <div class="@(V4Enabled ? "console-panel-actions" : "console-toolbar")" data-selection-toolbar>
                     <button class="console-button-link" type="button" @onclick="SelectAll" data-select-all>Select all</button>
                     <button class="console-button-link" type="button" @onclick="DeselectAll" data-deselect-all>Deselect all</button>
                     <span class="console-muted" data-selection-count>@_selected.Count of @_totalLayers layers selected</span>
@@ -254,10 +272,27 @@
                 </div>
             }
         }
-    </article>
-</section>
 
-@code {
+    </text>;
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = "/operate/import/service",
+        Entities = _jobs.Where(job => !string.IsNullOrEmpty(job.JobId))
+            .Select(job => new ConsoleAgentEntity { Kind = ConsoleAgentEntityKind.Job, Id = job.JobId! }).ToArray(),
+        Filters = new Dictionary<string, string>
+        {
+            ["selectedLayerCount"] = _selected.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["replacementCount"] = _replaceTargets.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        },
+        Unsaved = new()
+        {
+            ChangedFieldCount = new[] { _serviceUrl, _username, _password, _token, _tokenUrl, _clientId, _clientSecret, _referer }
+                .Count(value => !string.IsNullOrEmpty(value)) + (_authMode == "anonymous" ? 0 : 1) +
+                (_autoPublish ? 0 : 1) + _selected.Count + _replaceTargets.Count,
+            PendingOperationCount = (_busy ? 1 : 0) + (_importing ? 1 : 0) + (_polling ? 1 : 0)
+        }
+    };
+
     private const string ImportTargetSchema = "public";
 
     private string _serviceUrl = string.Empty;

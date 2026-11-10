@@ -106,3 +106,9 @@
 .console-shell[data-console-v4="true"] .console-state {
     overflow-wrap: anywhere;
 }
+
+.console-shell[data-console-v4="true"] input:is([type="radio"], [type="checkbox"]):not([role="switch"]) {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}

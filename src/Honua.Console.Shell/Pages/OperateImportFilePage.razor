@@ -3,15 +3,33 @@
 @using Honua.Console.Shell.Models
 @inject IConsoleFileImportOperation FileImport
 
-<section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Operate / Resources</p>
-        <h1>Import a file</h1>
-        <p>Upload a geospatial file to import it into a new PostGIS table. Supported formats are read live from honua-server; the table can then be published as a service layer.</p>
-    </div>
+@using Honua.Console.Shell.Components
+@inject IServiceProvider Services
 
-    <article class="console-panel">
-        <div class="studio-field-grid">
+<ConsoleAgentContext Context="@AgentContext" />
+
+<section class="console-page">
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Import a file"><ChildContent><p>@Intro</p></ChildContent></ConsolePageHeading>
+        <ConsolePanel Title="File and coordinate system" HeadingId="import-file-details">@ImportForm</ConsolePanel>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Resources</p>
+            <h1>Import a file</h1>
+            <p>@Intro</p>
+        </div>
+        <article class="console-panel">@ImportForm</article>
+    }
+</section>
+
+@code {
+    private const string Intro = "Upload a geospatial file to import it into a new PostGIS table. Supported formats are read live from honua-server; the table can then be published as a service layer.";
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private RenderFragment ImportForm => @<text>
+        <div class="studio-field-grid @(V4Enabled ? "console-service-controls" : null)">
             <label>
                 <span>File</span>
                 <InputFile OnChange="OnFileSelected" accept="@_acceptAttribute" disabled="@(_busy || _reconcileOutcome)" />
@@ -69,12 +87,12 @@
             <div class="console-panel console-state-info" role="status" data-import-progress>
                 @if (_phase == ImportPhase.Uploading)
                 {
-                    <h2>Uploading @_uploadPercent%</h2>
+                    @if (V4Enabled) { <h3>Uploading @_uploadPercent%</h3> } else { <h2>Uploading @_uploadPercent%</h2> }
                     <progress value="@_uploadPercent" max="100" data-upload-progress>@_uploadPercent%</progress>
                 }
                 else
                 {
-                    <h2>@(_phase == ImportPhase.Previewing ? "Checking coordinate system…" : "Importing into PostgreSQL…")</h2>
+                    @if (V4Enabled) { <h3>@(_phase == ImportPhase.Previewing ? "Checking coordinate system…" : "Importing into PostgreSQL…")</h3> } else { <h2>@(_phase == ImportPhase.Previewing ? "Checking coordinate system…" : "Importing into PostgreSQL…")</h2> }
                     <progress data-upload-progress></progress>
                 }
             </div>
@@ -82,9 +100,9 @@
 
         @if (_result is { } r)
         {
-            <article class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
+            <div class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
                 <p class="console-kicker">@r.State</p>
-                <h2>@(r.Succeeded ? "File imported" : r.State == ConsoleFileImportResult.CoordinateSystemMismatchState ? "Check the imported coordinate system" : "Import failed")</h2>
+                @if (V4Enabled) { <h3>@(r.Succeeded ? "File imported" : r.State == ConsoleFileImportResult.CoordinateSystemMismatchState ? "Check the imported coordinate system" : "Import failed")</h3> } else { <h2>@(r.Succeeded ? "File imported" : r.State == ConsoleFileImportResult.CoordinateSystemMismatchState ? "Check the imported coordinate system" : "Import failed")</h2> }
                 <p>@r.Detail</p>
                 @if (r.Succeeded || r.State == ConsoleFileImportResult.CoordinateSystemMismatchState)
                 {
@@ -100,7 +118,7 @@
                     </dl>
                     @if (r.Succeeded)
                     {
-                        <a class="console-button" href="/operate/publishing/quick">Publish this table</a>
+                        <a class="console-button" href="operate/publishing/quick">Publish this table</a>
                     }
                 }
                 @if (r.ValidationErrors.Count > 0)
@@ -112,19 +130,30 @@
                         }
                     </ul>
                 }
-            </article>
+            </div>
         }
 
         <div class="console-action-row">
             <button class="console-button" type="button" disabled="@(!CanImport)" @onclick="ImportAsync">
                 @(_busy ? "Working…" : "Import file")
             </button>
-            <a href="/operate/connections">Cancel</a>
+            <a href="operate/connections">Cancel</a>
         </div>
-    </article>
-</section>
 
-@code {
+    </text>;
+    private bool _loadingFormats = true;
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = "/operate/resources/import",
+        Unsaved = new()
+        {
+            ChangedFieldCount = _result?.Succeeded == true ? 0 : (_selectedFile is null ? 0 : 1) +
+                (string.IsNullOrEmpty(_tableName) ? 0 : 1) + (string.IsNullOrEmpty(_targetSchema) ? 0 : 1) +
+                (_coordinates?.SourceSrid is null ? 0 : 1) + (_coordinates?.TargetSrid is null ? 0 : 1),
+            PendingOperationCount = (_busy ? 1 : 0) + (_loadingFormats ? 1 : 0)
+        }
+    };
+
     private enum ImportPhase { Uploading, Previewing, Importing }
 
     // Cap the browser file read at 100 MB so a runaway upload can't exhaust the circuit.
@@ -153,8 +182,12 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _supportedExtensions = await FileImport.GetSupportedExtensionsAsync();
-        _acceptAttribute = string.Join(",", _supportedExtensions);
+        try
+        {
+            _supportedExtensions = await FileImport.GetSupportedExtensionsAsync();
+            _acceptAttribute = string.Join(",", _supportedExtensions);
+        }
+        finally { _loadingFormats = false; }
     }
 
     private async Task OnFileSelected(InputFileChangeEventArgs args)
