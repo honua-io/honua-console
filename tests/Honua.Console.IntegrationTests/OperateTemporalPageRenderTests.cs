@@ -3,6 +3,7 @@ using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Components;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -602,7 +603,7 @@ public sealed class OperateTemporalPageRenderTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void TemporalViewer_AgentContext_TracksReviewSelectionAndClearsOnDisposal(bool enabled)
+    public async Task TemporalViewer_AgentContext_TracksReviewSelectionAndClearsOnDisposal(bool enabled)
     {
         using var ctx = new BunitContext();
         ctx.AddConsoleNotifications();
@@ -631,7 +632,7 @@ public sealed class OperateTemporalPageRenderTests
             Assert.Empty(registry.Current.Filters);
             Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
         }
-        page.Dispose();
+        await ctx.DisposeComponentsAsync();
         Assert.Empty(registry.Current.Filters);
         Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
     }
@@ -683,20 +684,19 @@ public sealed class OperateTemporalPageRenderTests
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         var registry = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>();
-        var page = ctx.Render<OperateTemporalPage>(parameters => parameters
-            .Add(component => component.SourceId, "src-parcels")
-            .Add(component => component.CheckpointId, "cp-old"));
+        Navigate(ctx, "src-parcels", "cp-old");
+        var page = ctx.Render<OperateTemporalPage>();
         if (enabled)
         {
             page.WaitForAssertion(() => Assert.Equal("cp-old", registry.Current.Filters["checkpointId"]));
             Assert.Equal("cp-old", registry.Current.Filters["fromCheckpointId"]);
             Assert.Single(page.FindAll("[data-temporal-detail='src-parcels']"));
-            page.Render(parameters => parameters.Add(component => component.CheckpointId, (string?)null));
+            Navigate(ctx, "src-parcels");
             Assert.Equal("cp-latest", registry.Current.Filters["checkpointId"]);
-            page.Render(parameters => parameters.Add(component => component.CheckpointId, "missing"));
+            Navigate(ctx, "src-parcels", "missing");
             Assert.False(registry.Current.Filters.ContainsKey("checkpointId"));
             Assert.False(registry.Current.Filters.ContainsKey("fromCheckpointId"));
-            page.Render(parameters => parameters.Add(component => component.SourceId, "missing"));
+            Navigate(ctx, "missing", "missing");
             Assert.Empty(page.FindAll("[data-temporal-detail]"));
             Assert.Empty(registry.Current.Filters);
         }
@@ -720,9 +720,9 @@ public sealed class OperateTemporalPageRenderTests
         };
         client.PendingCheckpoints["src-parcels"] = first.Task;
         client.PendingCheckpoints["src-roads"] = second.Task;
-        var page = Render(client, enabled: true);
-        page.Render(parameters => parameters.Add(component => component.SourceId, "src-parcels")
-            .Add(component => component.CheckpointId, "stale"));
+        using var ctx = NewContext(client, enabled: true);
+        var page = ctx.Render<OperateTemporalPage>();
+        Navigate(ctx, "src-parcels", "stale");
         if (manualSelection)
         {
             _ = page.InvokeAsync(() => page.FindAll("button").Last(button => button.TextContent == "Inspect")
@@ -730,8 +730,7 @@ public sealed class OperateTemporalPageRenderTests
         }
         else
         {
-            page.Render(parameters => parameters.Add(component => component.SourceId, "src-roads")
-                .Add(component => component.CheckpointId, "current"));
+            Navigate(ctx, "src-roads", "current");
         }
         var renderCount = page.RenderCount;
         first.SetResult(new([Checkpoint("stale", "Stale checkpoint")]));
@@ -753,14 +752,16 @@ public sealed class OperateTemporalPageRenderTests
     {
         var client = ClientWithConflicts();
         client.Checkpoints = new([Checkpoint("cp-latest", "Latest"), Checkpoint("cp-old", "Previous")]);
-        var page = Render(client, enabled);
+        using var ctx = NewContext(client, enabled);
+        var page = ctx.Render<OperateTemporalPage>();
         var sourceId = sourceQuery ? "src-parcels" : null;
-        page.Render(parameters => parameters.Add(component => component.SourceId, sourceId));
+        Navigate(ctx, sourceId);
         InspectFirstSource(page);
         page.Find("button[aria-label='NamedCheckpoint Previous']").Click();
         page.Find("select[aria-label='Rollback scope']").Change("Layer");
 
-        page.Render(parameters => parameters.Add(component => component.SourceId, sourceId));
+        Navigate(ctx, sourceId);
+        page.Render();
 
         Assert.Single(page.FindAll("[data-temporal-detail='src-parcels']"));
         Assert.Equal("true", page.Find("button[aria-label='NamedCheckpoint Previous']").GetAttribute("aria-pressed"));
@@ -771,15 +772,31 @@ public sealed class OperateTemporalPageRenderTests
 
     private static IRenderedComponent<OperateTemporalPage> Render(ITemporalCapabilityClient client, bool enabled)
     {
-        var ctx = new Bunit.BunitContext();
+        var ctx = NewContext(client, enabled);
+        var page = ctx.Render<OperateTemporalPage>();
+        Assert.Equal(enabled ? "Temporal" : "Temporal viewer", page.Find("h1").TextContent);
+        return page;
+    }
+
+    private static BunitContext NewContext(ITemporalCapabilityClient client, bool enabled)
+    {
+        var ctx = new BunitContext();
         ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton(client);
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
-        var page = ctx.Render<OperateTemporalPage>();
-        Assert.Equal(enabled ? "Temporal" : "Temporal viewer", page.Find("h1").TextContent);
-        return page;
+        return ctx;
+    }
+
+    private static void Navigate(BunitContext ctx, string? sourceId, string? checkpointId = null)
+    {
+        var navigation = ctx.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo(navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+        {
+            ["sourceId"] = sourceId,
+            ["checkpointId"] = checkpointId
+        }));
     }
 
     private static void InspectFirstSource(IRenderedComponent<OperateTemporalPage> page)

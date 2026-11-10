@@ -500,7 +500,7 @@
                                 class="operate-temporal-tick @(isRelease ? "operate-temporal-tick-release" : string.Empty) @(isSelected ? "operate-temporal-tick-selected" : string.Empty)"
                                 style="@($"left:{percent.ToString(System.Globalization.CultureInfo.InvariantCulture)}%")"
                                 title="@($"{checkpoint.Label} · {checkpoint.CreatedAt:u}")"
-                                aria-pressed="@isSelected"
+                                aria-pressed="@(isSelected ? "true" : "false")"
                                 aria-label="@($"{checkpoint.CursorType} {checkpoint.Label}")"
                                 @onclick="() => SelectCheckpoint(checkpoint)"></button>
                     }
