@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Legacy server-host accessibility regression (honua-server#4428).
+// Legacy server-host accessibility regression.
 //
 // Identical boot to playwright.config.ts — the same legacy fixture, the same backend-free
 // missing-binding mode, a separate port — but it runs ./a11y instead of ./specs. It is a separate
