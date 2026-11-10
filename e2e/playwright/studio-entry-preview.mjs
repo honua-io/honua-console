@@ -25,9 +25,9 @@ await runV4PagePresentation({
       return;
     }
     const links = {
-      "studio-unavailable": ["/environments", "/setup/local"],
-      "studio-connected": ["/studio/processes"],
-      "studio-retired": ["/studio", "/studio/processes"],
+      "studio-unavailable": ["environments", "setup/local"],
+      "studio-connected": ["studio/processes"],
+      "studio-retired": ["studio", "studio/processes"],
     };
     for (const href of links[name]) assert.equal(await page.locator(`a[href="${href}"]`).count(), 1);
   },

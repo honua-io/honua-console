@@ -66,9 +66,11 @@ public sealed class OperateOverviewPresentationTests
         }
         Assert.Single(page.FindAll("[data-ops-summary-strip]"));
         foreach (var route in new[] { "connections", "resources", "services", "publishing", "settings", "releases" })
-            Assert.Single(page.FindAll($"a[href='/operate/{route}']"));
+            Assert.Single(page.FindAll($"a[href='operate/{route}']"));
         foreach (var route in new[] { "temporal", "sync", "alerts/rules" })
-            Assert.Equal(capabilities == CapabilityAdvertisement.All ? 1 : 0, page.FindAll($"a[href='/operate/{route}']").Count);
+            Assert.Equal(capabilities == CapabilityAdvertisement.All ? 1 : 0, page.FindAll($"a[href='operate/{route}']").Count);
+        foreach (var link in page.FindAll(".console-area-link[href]"))
+            Assert.StartsWith("/console/operate/", new Uri(new Uri("https://console.test/console/"), link.GetAttribute("href")).AbsolutePath, StringComparison.Ordinal);
         Assert.Contains("Honua:Server:BaseUrl", page.Markup);
         Assert.DoesNotContain("County SFTP", page.Markup);
         if (presentation == ConsolePresentationMode.V4) CatalogAdminPreview.Capture(capabilities == CapabilityAdvertisement.All ? "operate-overview-capabilities" : "operate-overview-missing", page.Markup);

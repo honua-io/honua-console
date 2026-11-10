@@ -56,7 +56,7 @@
                           Kicker="@_binding.State"
                           Title="Automation versioning is not bound"
                           Message="@($"{_binding.Detail} (contract: {_binding.Contract})")"
-                          ActionHref="/studio/automations"
+                          ActionHref="studio/automations"
                           ActionLabel="Back to automations" />
     }
     else if (_versions.Count == 0)
@@ -151,7 +151,7 @@
     private string? _previewVersionId;
     private CollectAutomationDraft? _preview;
 
-    private string EditorHref => $"/studio/automations/{DraftId}";
+    private string EditorHref => $"studio/automations/{DraftId}";
 
     protected override async Task OnParametersSetAsync()
     {

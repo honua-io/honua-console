@@ -22,7 +22,7 @@
     }
 
     <div class="automation-list-actions">
-        <a class="console-button-link" href="/studio/automations/new">New automation</a>
+        <a class="console-button-link" href="studio/automations/new">New automation</a>
     </div>
 
     @if (_loading)
@@ -48,7 +48,7 @@
                           Kicker="Automations"
                           Title="No automations yet"
                           Message="Create your first automation to bind rules to a form's Data Events."
-                          ActionHref="/studio/automations/new"
+                          ActionHref="studio/automations/new"
                           ActionLabel="New automation" />
     }
     else if (IsConsoleV4Enabled)
@@ -135,5 +135,5 @@
     }
 
     private static string EditorHref(CollectAutomationSummary automation) =>
-        $"/studio/automations/{automation.DraftId}";
+        $"studio/automations/{automation.DraftId}";
 }

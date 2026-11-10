@@ -19,7 +19,7 @@ await runV4PagePresentation({
         assert.equal(await page.locator("tbody tr").count(), 0);
       }
       if (name.startsWith("automations-")) {
-        assert.equal(await page.getByRole("link", { name: "New automation", exact: true }).getAttribute("href"), "/studio/automations/new");
+        assert.equal(await page.getByRole("link", { name: "New automation", exact: true }).getAttribute("href"), "studio/automations/new");
       } else if (name === "automation-editor-seeded") {
         assert.ok(await page.getByRole("textbox", { name: "Automation name", exact: true }).isVisible());
         assert.ok(await page.getByRole("button", { name: "Save version", exact: true }).isVisible());

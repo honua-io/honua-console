@@ -16,15 +16,15 @@
     @{
         RenderFragment FleetSections = @<text>
             <nav class="operate-section-nav" aria-label="Operate observability sections">
-                <a href="#fleet">Fleet</a>
-                <a href="#events">Events</a>
-                <a href="#logs">Logs</a>
-                <a href="#alerts">Alerts</a>
-                <a href="#rules">Rules</a>
-                <a href="#jobs">Jobs</a>
+                <a href="@SectionHref("fleet")">Fleet</a>
+                <a href="@SectionHref("events")">Events</a>
+                <a href="@SectionHref("logs")">Logs</a>
+                <a href="@SectionHref("alerts")">Alerts</a>
+                <a href="@SectionHref("rules")">Rules</a>
+                <a href="@SectionHref("jobs")">Jobs</a>
                 @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.SiemInvestigations))
                 {
-                    <a href="#investigations">Investigations</a>
+                    <a href="@SectionHref("investigations")">Investigations</a>
                 }
             </nav>
 
@@ -814,6 +814,9 @@
 </section>
 
 @code {
+    private string SectionHref(string section) =>
+        new UriBuilder(Navigation.Uri) { Fragment = section }.Uri.AbsoluteUri;
+
     [Parameter]
     public string? SelectedEventId { get; set; }
 

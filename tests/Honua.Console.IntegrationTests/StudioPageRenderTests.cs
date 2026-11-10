@@ -51,7 +51,7 @@ public sealed class StudioPageRenderTests
         Assert.Single(page.FindAll("[data-studio-unavailable]"));
         Assert.Empty(page.FindAll("[data-authoring-contract], [data-studio-home], textarea"));
         Assert.DoesNotContain("studio-builders", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("/environments", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("href=\"environments\"", page.Markup, StringComparison.Ordinal);
         AssertPresentation(page, v4Enabled ? 1 : 0);
         if (v4Enabled) Capture("studio-unavailable", page.Markup);
     }
@@ -86,8 +86,8 @@ public sealed class StudioPageRenderTests
         context.Services.GetRequiredService<NavigationManager>().NavigateTo(path);
         var page = context.Render<StudioPage>();
         Assert.Single(page.FindAll("[data-legacy-studio-retired]"));
-        Assert.NotEmpty(page.FindAll("a[href='/studio']"));
-        Assert.Single(page.FindAll("a[href='/catalog']"));
+        Assert.NotEmpty(page.FindAll("a[href='studio']"));
+        Assert.Single(page.FindAll("a[href='catalog']"));
         AssertPresentation(page, v4Enabled ? 1 : 0);
         Assert.Empty(page.FindAll("[data-studio-embed], textarea"));
         Assert.DoesNotContain("do-not-submit", page.Markup, StringComparison.Ordinal);
@@ -130,8 +130,8 @@ public sealed class StudioPageRenderTests
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         var page = context.Render<RetiredStudioBuilderPage>();
         Assert.Single(page.FindAll("[data-legacy-studio-retired]"));
-        Assert.Single(page.FindAll("a[href='/studio']"));
-        Assert.Single(page.FindAll("a[href='/studio/processes']"));
+        Assert.Single(page.FindAll("a[href='studio']"));
+        Assert.Single(page.FindAll("a[href='studio/processes']"));
         Assert.Empty(page.FindAll("textarea, button"));
         AssertPresentation(page, v4Enabled ? 1 : 0);
         if (v4Enabled) Capture("studio-retired", page.Markup);

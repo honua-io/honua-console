@@ -59,9 +59,9 @@ public sealed class StudioAutomationsPageTests
 
         var automationLink = page.FindAll(presentation == ConsolePresentationMode.V4 ? "tbody th a" : "a.automation-card")
             .Single(link => link.TextContent.Contains("Permit intake automation", StringComparison.Ordinal));
-        Assert.StartsWith("/studio/automations/", automationLink.GetAttribute("href"), StringComparison.Ordinal);
+        Assert.StartsWith("studio/automations/", automationLink.GetAttribute("href"), StringComparison.Ordinal);
         Assert.Equal(presentation == ConsolePresentationMode.V4, page.Find("section.automation-page").ClassList.Contains("console-automations-v4"));
-        Assert.Equal("/studio/automations/new", page.Find(".automation-list-actions a").GetAttribute("href"));
+        Assert.Equal("studio/automations/new", page.Find(".automation-list-actions a").GetAttribute("href"));
 
         if (presentation == ConsolePresentationMode.V4)
         {

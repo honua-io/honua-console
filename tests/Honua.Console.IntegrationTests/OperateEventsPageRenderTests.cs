@@ -62,7 +62,7 @@ public sealed class OperateEventsPageRenderTests
 
         AssertPresentation(page, presentation);
         Assert.Single(page.FindAll("[data-events-dead-end]"));
-        Assert.Equal("/operate/observability", page.Find("[data-events-exit-jobs]").GetAttribute("href"));
+        Assert.Equal("operate/observability", page.Find("[data-events-exit-jobs]").GetAttribute("href"));
         Assert.Empty(page.FindAll(".console-event-list"));
         Assert.Contains("GET /api/v1/admin/jobs/{jobId}", page.Markup, StringComparison.Ordinal);
         if (presentation == ConsolePresentationMode.V4) Capture("events-missing", page.Markup);

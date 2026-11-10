@@ -25,6 +25,8 @@ public sealed class StudioWorkflowEditorPageTests
         // bUnit JSInterop to no-op those calls (the guard is exercised directly in UnsavedChangesGuardTests).
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(client);
+        var navigation = ctx.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        navigation.NavigateTo("http://localhost/console/studio/workflows/pkg-1?view=graph");
 
         var page = ctx.Render<StudioWorkflowEditorPage>(
             parameters => parameters.Add(p => p.DraftId, RecordingWorkflowPackageClient.PackageId));
@@ -36,6 +38,8 @@ public sealed class StudioWorkflowEditorPageTests
 
 
         Assert.Equal(expectedV4Headings, page.FindAll(".console-page-heading-v4").Count);
+        Assert.Equal("http://localhost/console/studio/workflows/pkg-1?view=graph#workflow-history",
+            page.Find("nav[aria-label='Workflow editor sections'] a:nth-child(4)").GetAttribute("href"));
         Assert.Equal(presentation == ConsolePresentationMode.V4 ? "SECTION" : "MAIN", page.Find(".workflow-main").TagName);
         if (presentation == ConsolePresentationMode.V4)
         {

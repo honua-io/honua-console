@@ -81,11 +81,11 @@
         }
 
         <nav class="console-tab-row workflow-tab-row" aria-label="Workflow editor sections">
-            <a href="#workflow-graph" class="active">Graph</a>
-            <a href="#workflow-schedule">Schedule</a>
-            <a href="#workflow-secrets">Secrets</a>
-            <a href="#workflow-history">Run history</a>
-            <a href="#workflow-package">Package · raw</a>
+            <a href="@WorkflowSectionHref("workflow-graph")" class="active">Graph</a>
+            <a href="@WorkflowSectionHref("workflow-schedule")">Schedule</a>
+            <a href="@WorkflowSectionHref("workflow-secrets")">Secrets</a>
+            <a href="@WorkflowSectionHref("workflow-history")">Run history</a>
+            <a href="@WorkflowSectionHref("workflow-package")">Package · raw</a>
         </nav>
 
         <div class="workflow-editor-shell">
@@ -638,6 +638,9 @@
 </section>
 
 @code {
+    private string WorkflowSectionHref(string section) =>
+        new UriBuilder(Navigation.Uri) { Fragment = section }.Uri.AbsoluteUri;
+
     private ConsoleAgentPageContext AgentContext => new()
     {
         Route = new Uri(Navigation.Uri).AbsolutePath,
@@ -945,7 +948,7 @@
         // resolves the persisted draft. Existing drafts stay put.
         if (!string.Equals(_activeDraftRouteId, _draft.ContentItemId, StringComparison.Ordinal))
         {
-            Navigation.NavigateTo($"/studio/workflows/{_draft.ContentItemId}", replace: true);
+            Navigation.NavigateTo($"studio/workflows/{_draft.ContentItemId}", replace: true);
         }
     }
 

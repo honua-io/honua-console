@@ -14,10 +14,10 @@ await runV4PagePresentation({
     await checkCardFocus(page);
     assert.match(await page.locator(".console-operate-overview-v4").textContent(), /Missing binding/);
     for (const route of ["connections", "resources", "services", "publishing", "settings", "releases"]) {
-      assert.equal(await page.locator(`a[href='/operate/${route}']`).count(), 1);
+      assert.equal(await page.locator(`a[href='operate/${route}']`).count(), 1);
     }
     for (const route of ["temporal", "sync", "alerts/rules"]) {
-      assert.equal(await page.locator(`a[href='/operate/${route}']`).count(), name.endsWith("capabilities") ? 1 : 0);
+      assert.equal(await page.locator(`a[href='operate/${route}']`).count(), name.endsWith("capabilities") ? 1 : 0);
     }
   },
 });
