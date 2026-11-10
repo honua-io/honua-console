@@ -7,6 +7,9 @@ public sealed class ConsolePublicationTreeContext
 {
     public required ConsolePublicationTree Tree { get; init; }
     public required string SelectedPath { get; init; }
+    public bool FolderNavigationEnabled { get; init; }
+
+    public string? Link(ConsolePublicationNode node) => node.Kind == ConsolePublicationNodeKind.Folder && !FolderNavigationEnabled ? null : node.Href;
     public EventCallback<ConsolePublicationNode> Expand { get; init; }
     public EventCallback<ConsolePublicationNode> Collapse { get; init; }
     public EventCallback<ConsolePublicationNode> Retry { get; init; }

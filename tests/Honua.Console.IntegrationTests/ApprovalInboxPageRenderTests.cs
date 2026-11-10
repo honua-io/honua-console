@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Honua.Console.IntegrationTests;
 
-public sealed class ApprovalInboxPageRenderTests
+public sealed partial class ApprovalInboxPageRenderTests
 {
     public enum PlaceholderDate { UnixEpoch, Minimum }
 

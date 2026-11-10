@@ -208,6 +208,8 @@ jobs:
           path: artifacts/catalog-preview/operate-overview-*
           if-no-files-found: error
 
+      - name: Verify rendered Folder presentation
+        run: node e2e/playwright/folder-preview.mjs
       - name: Verify rendered workflow event presentation
         run: node e2e/playwright/events-preview.mjs
         env:

@@ -232,21 +232,20 @@ else
     [Parameter]
     public EventCallback<ConsoleProposalDetail> OnDetailLoaded { get; set; }
 
-    /// <summary>Reports counts only; the parent owns navigation protection and aggregation.</summary>
     [Parameter]
     public EventCallback<ConsoleAgentUnsavedSummary> UnsavedChanged { get; set; }
 
     private bool _disposed;
-    private Task ReportUnsavedAsync() => _disposed ? Task.CompletedTask : UnsavedChanged.InvokeAsync(new()
+    private Task ReportUnsavedAsync() => UnsavedChanged.InvokeAsync(new()
     {
-        ChangedFieldCount = _detail?.IsAwaitingApproval == true && !string.IsNullOrEmpty(_reason) ? 1 : 0,
+        ChangedFieldCount = !_disposed && _detail?.IsAwaitingApproval == true && !string.IsNullOrEmpty(_reason) ? 1 : 0,
         PendingOperationCount = _busy ? 1 : 0
     });
 
     public async ValueTask DisposeAsync()
     {
         _disposed = true;
-        await UnsavedChanged.InvokeAsync(new());
+        await ReportUnsavedAsync();
     }
 
     private ConsoleProposalDetail? _detail;
