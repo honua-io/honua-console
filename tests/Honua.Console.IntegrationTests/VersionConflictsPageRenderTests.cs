@@ -108,7 +108,8 @@ public sealed class VersionConflictsPageRenderTests
     {
         public VersionConflictsView View { get; set; } = new()
         {
-            Bound = true, HasConflicts = true,
+            Bound = true,
+            HasConflicts = true,
             Conflicts = [new() { LayerId = 3, ObjectId = 42, ConflictType = "Attribute", FieldDiffs = [new() { Name = "owner", Base = "private_value", Default = "Default owner", Version = "Version owner", Changed = true }] }]
         };
         public TaskCompletionSource<ResolveConflictsResultView> Resolution { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
