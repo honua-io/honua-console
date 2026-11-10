@@ -636,6 +636,38 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_AgentContext_ClearsRollbackScopeWhenChangingSource(bool enabled)
+    {
+        using var ctx = new BunitContext();
+        ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
+        var client = ClientWithConflicts();
+        client.Workspace = new([RollbackSource, RollbackSource with
+        {
+            SourceId = "src-read-only", ResourceId = "read-only", RollbackSupported = false
+        }], []);
+        ctx.Services.AddSingleton<ITemporalCapabilityClient>(client);
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        var registry = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        var page = ctx.Render<OperateTemporalPage>();
+        InspectFirstSource(page);
+        page.Find("select[aria-label='Rollback scope']").Change("Layer");
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+
+        page.FindAll("button").Where(button => button.TextContent.Contains("Inspect", StringComparison.Ordinal)).ElementAt(1).Click();
+        Assert.Empty(page.FindAll("select[aria-label='Rollback scope']"));
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal(enabled ? "src-read-only" : null, registry.Current.Filters.GetValueOrDefault("sourceId"));
+
+        InspectFirstSource(page);
+        Assert.Equal(enabled ? "ChangeSet" : "Layer", page.Find("select[aria-label='Rollback scope']").GetAttribute("value"));
+    }
+
     // ---- helpers --------------------------------------------------------------------------------------
 
     private static IRenderedComponent<OperateTemporalPage> Render(ITemporalCapabilityClient client, bool enabled)
