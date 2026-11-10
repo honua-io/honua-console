@@ -125,7 +125,6 @@ public sealed class ProposalApprovalPanelReceiptTests
         });
     }
 
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
     [Theory]
     [InlineData(OperateSectionStatus.Allowed)]
     [InlineData(OperateSectionStatus.Forbidden)]
