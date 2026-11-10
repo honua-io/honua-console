@@ -105,6 +105,29 @@ public sealed class BrowserSignInPageTests
         Assert.False(page.Find("button").HasAttribute("disabled"));
     }
 
+    [Theory]
+    [InlineData("/../outside")]
+    [InlineData("/%2e%2e/outside")]
+    [InlineData("/operate/../../outside")]
+    public async Task InvalidReturnPathFallsBackBeforePasswordRenderingAndOidcSubmission(string returnTo)
+    {
+        await using var context = CreateContext();
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/console/auth/signin?returnTo=" + Uri.EscapeDataString(returnTo));
+        context.Services.AddSingleton<IConsoleBrowserAuthentication>(new PendingAuthentication());
+        var passwordPage = context.Render<AuthSignInPage>();
+        Assert.Equal("/console/", passwordPage.Find("a").GetAttribute("href"));
+        passwordPage.Dispose();
+
+        await using var oidcContext = CreateContext();
+        oidcContext.Services.GetRequiredService<NavigationManager>().NavigateTo("/console/auth/signin?returnTo=" + Uri.EscapeDataString(returnTo));
+        var oidc = new StubOidc();
+        oidcContext.Services.AddSingleton<IConsoleOidcAuthentication>(oidc);
+        var providerPage = oidcContext.Render<AuthSignInPage>();
+        await providerPage.Find("button").ClickAsync(new());
+        Assert.Equal("/", oidc.ReturnTo);
+    }
+
     private sealed class StubOidc : IConsoleOidcAuthentication
     {
         public bool IsAvailable => true;

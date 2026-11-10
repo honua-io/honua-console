@@ -21,6 +21,10 @@ public sealed class BrowserOidcAuthentication(
     {
         RequireAvailable();
         var mountedReturnTo = navigation.ToConsoleHref(returnTo);
+        if (mountedReturnTo is not ("/console/" or "/console/operate/connections"))
+        {
+            mountedReturnTo = "/console/";
+        }
         var providers = await GetProvidersAsync(cancellationToken);
         if (!providers.Any(provider => provider.Key == providerKey))
         {

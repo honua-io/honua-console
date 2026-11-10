@@ -27,11 +27,25 @@ public sealed class BrowserOidcAuthenticationTests
     {
         using var fixture = new BrokerFixture();
         fixture.Handler.CallbackCompleted = true;
-        await fixture.Provider.RefreshAsync();
+        var state = await fixture.Provider.GetAuthenticationStateAsync();
+        Assert.True(state.User.Identity?.IsAuthenticated);
         Assert.True(fixture.Session.IsAuthenticated);
         Assert.Equal("identified-csrf", fixture.Session.CsrfToken);
         Assert.Null(fixture.Session.AccessToken);
         Assert.Equal(0, fixture.Handler.Authorizations);
+    }
+
+    [Theory]
+    [InlineData("/", "/console/")]
+    [InlineData("/operate/services", "/console/")]
+    [InlineData("/operate/connections?sort=name", "/console/")]
+    [InlineData("/operate/connections#details", "/console/")]
+    public async Task UnallowlistedReturnDestinationsFallBackToHome(string returnTo, string expected)
+    {
+        using var fixture = new BrokerFixture();
+        await fixture.Authentication.BeginAsync("entra", returnTo);
+        Assert.Equal(expected, fixture.Handler.ReturnTo);
+        Assert.Equal(1, fixture.Handler.Authorizations);
     }
 
     [Fact]

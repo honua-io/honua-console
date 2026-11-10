@@ -212,6 +212,9 @@
             ? profile.Account.AccountId
             : profile.Account.DisplayName;
 
-    private static string SanitizeReturnTo(string? value) =>
-        Honua.Console.Shell.Security.ConsoleReturnUrl.Sanitize(value);
+    private string SanitizeReturnTo(string? value)
+    {
+        var route = Honua.Console.Shell.Security.ConsoleReturnUrl.Sanitize(value);
+        return Navigation.TryGetConsoleHref(route, out _) ? route : "/";
+    }
 }

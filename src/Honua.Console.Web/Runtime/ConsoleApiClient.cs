@@ -142,20 +142,6 @@ public sealed class BrowserAuthenticationStateProvider(
         session.Set(session.Principal, new ConsoleSessionCredentials(CsrfToken: csrf, ExpiresAt: session.ExpiresAt));
     }
 
-    public async Task RefreshAsync()
-    {
-        session.Clear();
-        try
-        {
-            await LoadAuthenticatedStateAsync();
-        }
-        catch
-        {
-            await ClearAuthenticationAsync();
-            throw;
-        }
-    }
-
     private async Task LoadAuthenticatedStateAsync()
     {
         _state = LoadAsync();
