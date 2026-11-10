@@ -160,7 +160,10 @@ public sealed class OperateVersionsPageRenderTests
             return Task.FromResult(new ReconcileResultView
             {
                 Operation = VersionOperationResult.Success("Reconciled", "Review the remaining conflict before posting."),
-                HasConflicts = true, CanPost = false, AutoResolvedCount = 2, RemainingConflictCount = 1
+                HasConflicts = true,
+                CanPost = false,
+                AutoResolvedCount = 2,
+                RemainingConflictCount = 1
             });
         }
 
