@@ -1,6 +1,6 @@
 <div class="console-tree-row" role="treeitem" tabindex="-1" aria-level="@Placement.Level" aria-posinset="@Placement.Position" aria-setsize="@Placement.SiblingCount"
      aria-expanded="@(Node.HasChildren ? (Node.Expanded ? "true" : "false") : null)"
-     aria-busy="@(Node.Loading ? "true" : null)" aria-selected="@(Node.Href is null ? null : Node.Href == View.SelectedPath ? "true" : "false")"
+     aria-busy="@(Node.Loading ? "true" : null)" aria-selected="@(View.Link(Node) is null ? null : View.Link(Node) == View.SelectedPath ? "true" : "false")"
      aria-label="@AccessibleLabel" aria-owns="@View.OwnedContent(Node)" aria-describedby="@(Node.HasReadStatus && Node.Expanded ? ConsolePublicationTreeContext.StatusId(Node) : null)"
      data-publication-key="@Node.Key" data-tree-parent="@Placement.ParentKey" data-tree-label="@Node.Label">
     @if (Node.HasChildren)
@@ -15,7 +15,7 @@
         <span class="console-tree-spacer" aria-hidden="true"></span>
     }
     <span class="console-tree-kind" data-kind="@Node.Kind" aria-hidden="true"></span>
-    @if (Node.Href is { } href)
+    @if (View.Link(Node) is { } href)
     {
         <a href="@href" tabindex="-1" data-tree-link>@Node.Label</a>
     }

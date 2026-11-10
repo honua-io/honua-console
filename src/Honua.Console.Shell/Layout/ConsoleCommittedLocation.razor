@@ -23,7 +23,7 @@
     private bool _disposed;
     private ConsoleEnvironmentAuthority? _authority;
     private IConsoleEnvironmentProfileStore? _profiles;
-    private AuthenticationStateProvider? _authentication;
+    private ConsoleEnvironmentSubscription? _environment;
     private readonly CancellationTokenSource _lifetime = new();
     private CancellationToken _readToken;
 
@@ -33,10 +33,9 @@
         _path = _requestedPath = new Uri(Navigation.Uri).AbsolutePath;
         _bindings = Services.GetService<IConsoleAuthorityBindingValidator>();
         _profiles = Services.GetService<IConsoleEnvironmentProfileStore>();
-        _authentication = Services.GetService<AuthenticationStateProvider>();
         Navigation.LocationChanged += OnLocationChanged;
-        if (_profiles is not null) _profiles.ActiveProfileChanged += OnProfileChanged;
-        if (_authentication is not null) _authentication.AuthenticationStateChanged += OnAuthenticationChanged;
+        _environment = new ConsoleEnvironmentSubscription(_profiles,
+            Services.GetService<AuthenticationStateProvider>(), QueueRead);
         await CheckAuthorityAsync(Interlocked.Increment(ref _readRevision));
     }
 
@@ -90,24 +89,11 @@
         QueueRead();
     }
 
-    private void OnProfileChanged() => QueueRead();
-    private void OnAuthenticationChanged(Task<AuthenticationState> state)
-    {
-        if (_disposed) return;
-        if (_profiles is not null)
-        {
-            _profiles.ActiveProfileChanged -= OnProfileChanged;
-            _profiles.ActiveProfileChanged += OnProfileChanged;
-        }
-        QueueRead();
-    }
-
     public void Dispose()
     {
         _disposed = true;
         Navigation.LocationChanged -= OnLocationChanged;
-        if (_profiles is not null) _profiles.ActiveProfileChanged -= OnProfileChanged;
-        if (_authentication is not null) _authentication.AuthenticationStateChanged -= OnAuthenticationChanged;
+        _environment?.Dispose();
         _lifetime.Cancel();
         _lifetime.Dispose();
     }
