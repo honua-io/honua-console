@@ -60,6 +60,7 @@ public sealed class OperateConnectionV4RenderTests
         page.Find("button").Click();
         page.WaitForAssertion(() => Assert.Contains("Connection test", page.Markup));
         Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+        if (enabled && mount == "/console/") CatalogAdminPreview.Capture("data-connection-detail-tested", page.Markup);
     }
 
     [Theory]
@@ -140,10 +141,12 @@ public sealed class OperateConnectionV4RenderTests
         Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
         ops.Test.SetResult(ConsoleConnectionTestOutcome.MissingBinding("Fixture"));
         page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+        CatalogAdminPreview.Capture("data-connection-new-tested", page.Markup);
         page.FindAll("button").Single(b => b.TextContent.Trim() == "Create connection").Click();
         Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
         ops.Create.SetResult(ConsoleConnectionCreateResult.MissingBinding("Fixture"));
         page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+        CatalogAdminPreview.Capture("data-connection-new-error", page.Markup);
     }
 
     private sealed class Operations : IConsoleConnectionCreateOperation
