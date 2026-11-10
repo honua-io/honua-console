@@ -52,7 +52,6 @@ on:
       - 'src/Honua.Console.Web/**'
       - 'src/Honua.Console.Shell/**'
       - 'src/Honua.Console.Contracts/**'
-      - 'Dockerfile'
 
 permissions:
   contents: read
@@ -210,7 +209,7 @@ jobs:
           cp src/Honua.Console.Web/global.json global.json
           dotnet restore src/Honua.Console.Web/Honua.Console.Web.csproj --configfile NuGet.config --no-cache --locked-mode
           dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore -p:HonuaConsoleCommitSha="$GITHUB_SHA"
-          node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/_studio
+          node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/console/_studio
           docker build --build-arg HONUA_CONSOLE_COMMIT_SHA="$GITHUB_SHA" --build-arg HONUA_CONSOLE_REF="$GITHUB_REF" -t "$HONUA_CONSOLE_E2E_CONSOLE_IMAGE" .
       - name: Install Chromium and axe
         working-directory: e2e/playwright

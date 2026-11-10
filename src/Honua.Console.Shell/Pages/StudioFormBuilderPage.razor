@@ -1,19 +1,31 @@
 @page "/studio/form"
 @using Honua.Console.Shell.Validation
 @inject IStudioFormPackageDataSource FormData
+@inject IServiceProvider Services
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved form changes. Leave this page and discard them?" />
 
 <section class="console-page studio-form-builder">
-    <div class="console-page-heading">
-        <p class="console-kicker">Builder workflow</p>
-        <h1>Form builder</h1>
-        <p>Author a server-owned form package — fields, groups, validation, domains, conditional visibility, attachments, and privacy — then set an explicit offline/sync policy and a validated submit target before publishing to honua-server.</p>
-    </div>
+    @if (IsConsoleV4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/studio-builders-v4.css" />
+        <ConsolePageHeading Title="Form builder">
+            <p>Edit form fields, review offline policy, and publish a validated form.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Builder workflow</p>
+            <h1>Form builder</h1>
+            <p>Author a server-owned form package — fields, groups, validation, domains, conditional visibility, attachments, and privacy — then set an explicit offline/sync policy and a validated submit target before publishing to honua-server.</p>
+        </div>
+    }
 
     @if (_loading)
     {
         <ConsoleStateView Kind="loading"
+                          HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
                           Kicker="Form builder"
                           Title="Loading form packages"
                           Message="Reading the form package lifecycle from honua-server." />
@@ -21,6 +33,7 @@
     else if (_bindingState is not null)
     {
         <ConsoleStateView Kind="error"
+                          HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
                           Kicker="@_bindingState.State"
                           Title="Form package lifecycle is not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
@@ -410,6 +423,8 @@
 </section>
 
 @code {
+    private bool IsConsoleV4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     private bool _loading = true;
     private bool _busy;
     private StudioFormWorkspace _workspace = new([], []);

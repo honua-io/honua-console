@@ -1,18 +1,12 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
 
   <ItemGroup>
     <ProjectReference Include="..\Honua.Console.Shell\Honua.Console.Shell.csproj" />
   </ItemGroup>
 
-  <!-- OpenTelemetry (honua-console#279 PA-234): distributed traces + metrics for the console web host.
-       AspNetCore + HttpClient instrumentation, exported over OTLP. Default-safe: with no
-       OTEL_EXPORTER_OTLP_ENDPOINT configured no exporter is wired and the SDK is a no-op. Versions
-       align with honua-server's ServiceDefaults. -->
   <ItemGroup>
-    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
-    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.1" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.20.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.14" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.14" PrivateAssets="all" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -23,7 +17,8 @@
     <HonuaConsoleCommitSha Condition="'$(HonuaConsoleCommitSha)' == ''">unknown</HonuaConsoleCommitSha>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <PublishTrimmed>true</PublishTrimmed>
+    <StaticWebAssetBasePath>/console/</StaticWebAssetBasePath>
   </PropertyGroup>
 
   <ItemGroup>

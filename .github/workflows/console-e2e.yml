@@ -76,7 +76,7 @@ jobs:
         run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
 
       - name: Verify published Studio assets
-        run: node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/_studio
+        run: node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/console/_studio
 
       - name: Install Playwright dependencies
         working-directory: e2e/playwright

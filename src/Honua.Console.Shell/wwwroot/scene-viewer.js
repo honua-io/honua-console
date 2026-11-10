@@ -19,7 +19,7 @@
 // third-party CDN serving tampered bytes, and there is no third party left in
 // this path.
 
-const CESIUM_BASE_URL = '/_content/Honua.Console.Shell/vendor/cesium/';
+const CESIUM_BASE_URL = new URL('./vendor/cesium/', import.meta.url).href;
 const CESIUM_JS = `${CESIUM_BASE_URL}Cesium.js`;
 const CESIUM_CSS = `${CESIUM_BASE_URL}Widgets/widgets.css`;
 
