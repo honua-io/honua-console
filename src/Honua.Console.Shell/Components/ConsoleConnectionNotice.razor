@@ -2,7 +2,7 @@
 
 @if (States.Count > 0 || !string.IsNullOrWhiteSpace(Error))
 {
-    <article class="console-panel console-state-warning" role="alert" data-connection-notice>
+    <div class="console-panel console-state-warning" role="alert" data-connection-notice>
         <h2>@StatusHeading</h2>
         <p>@StatusMessage</p>
         <div class="console-action-row">
@@ -19,7 +19,7 @@
                 <p>@ConsoleVocabulary.SurfaceName(state.Surface): @state.Detail</p>
             }
         </details>
-    </article>
+    </div>
 }
 
 @code {
