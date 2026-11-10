@@ -306,8 +306,8 @@ public sealed class OperateSyncPageRenderTests
         var navigation = ctx.Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo(navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
         {
-            ["sourceId"] = sourceId,
-            ["replicaId"] = replicaId
+            ["source"] = sourceId,
+            ["replica"] = replicaId
         }));
     }
 
