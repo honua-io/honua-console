@@ -23,6 +23,7 @@ public sealed class OperateVersionsPageRenderTests
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
         Assert.Equal("/console/operate/versions/parcels/review-branch/conflicts", page.Find("[data-conflicts]").GetAttribute("href"));
         Assert.Equal("Actions", page.Find("table[aria-label=\"Branch versions\"] th:last-child").GetAttribute("aria-label"));
+        if (enabled) Assert.Equal("Actions", page.Find("table[aria-label=\"Branch versions\"] th:last-child").TextContent);
         if (enabled) Capture("versions-list", page);
         page.Find("[data-reconcile-policy]").Change("version-wins");
         page.Find("[data-abort-if-conflicts]").Change(true);
