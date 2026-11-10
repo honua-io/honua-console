@@ -65,7 +65,8 @@ public sealed class ConsoleAgentContextMountTests
     {
         using var renderer = new BunitContext();
         var navigation = new HostedNavigationManager("https://honua.example/console/", "");
-        navigation.NavigateTo(location);
+        navigation.SetBrowserLocation(location);
+        Assert.Equal(location, navigation.Uri);
         var registry = new ConsoleAgentContextRegistry();
         renderer.Services.AddSingleton<NavigationManager>(navigation);
         renderer.Services.AddSingleton(registry);
@@ -76,13 +77,20 @@ public sealed class ConsoleAgentContextMountTests
         module.SetupVoid("uninstall", _ => true).SetVoidResult();
         var bridge = renderer.Render<ConsoleAgentContextBridge>();
         Assert.Equal(expected, registry.Current.Route);
-        await bridge.InvokeAsync(() => navigation.NavigateTo("./inbox?q=C:\\x"));
+        await bridge.InvokeAsync(() => navigation.SetBrowserLocation("https://honua.example/console/inbox?q=C:\\x"));
+        Assert.Contains('\\', navigation.Uri);
         Assert.Equal("/inbox", registry.Current.Route);
     }
 
     private sealed class HostedNavigationManager : NavigationManager
     {
         public HostedNavigationManager(string baseUri, string route) => Initialize(baseUri, baseUri + route);
+
+        public void SetBrowserLocation(string location)
+        {
+            Uri = location;
+            NotifyLocationChanged(false);
+        }
 
         protected override void NavigateToCore(string uri, NavigationOptions options)
         {
