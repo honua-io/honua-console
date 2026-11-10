@@ -144,6 +144,51 @@ public sealed class ScenesPageRenderTests
         if (succeeds) Assert.Contains("Survey", page.Find("[data-scenes-table]").TextContent);
     }
 
+    [Fact]
+    public async Task Ingest_DisablesDraftControlsUntilPendingRequestCompletes()
+    {
+        using var ctx = new BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        var client = new DelayedSceneClient();
+        ctx.Services.AddSingleton<IConsoleSceneClient>(client);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        var page = ctx.Render<OperateScenesPage>();
+        page.Find("[data-pointcloud-display-name]").Change("Survey");
+        page.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("LAS sample", "survey.las"));
+
+        var pendingClick = page.Find("[data-pointcloud-ingest-button]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        page.WaitForAssertion(() =>
+        {
+            Assert.True(client.Started);
+            Assert.All(page.FindAll("[data-pointcloud-ingest] input"), input => Assert.True(input.HasAttribute("disabled")));
+        });
+        client.Complete();
+        await pendingClick;
+
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("[data-pointcloud-ingest-success]")));
+        Assert.All(page.FindAll("[data-pointcloud-ingest] input"), input => Assert.False(input.HasAttribute("disabled")));
+        Assert.Equal(string.Empty, page.Find("[data-pointcloud-display-name]").GetAttribute("value"));
+    }
+
+    private sealed class DelayedSceneClient : IConsoleSceneClient
+    {
+        private readonly InMemoryConsoleSceneClient _inner = new();
+        private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool Started { get; private set; }
+        public void Complete() => _completion.SetResult();
+        public Task<SceneReadResult<SceneListResponse>> ListScenesAsync(CancellationToken cancellationToken = default)
+            => _inner.ListScenesAsync(cancellationToken);
+        public Task<string?> ResolveTilesetUrlAsync(string sceneId, CancellationToken cancellationToken = default)
+            => _inner.ResolveTilesetUrlAsync(sceneId, cancellationToken);
+        public async Task<SceneReadResult<PointCloudIngestResult>> IngestPointCloudAsync(
+            PointCloudIngestRequest request, CancellationToken cancellationToken = default)
+        {
+            Started = true;
+            await _completion.Task.WaitAsync(cancellationToken);
+            return await _inner.IngestPointCloudAsync(request, cancellationToken);
+        }
+    }
+
     private sealed class HostedNavigationManager : NavigationManager
     {
         public HostedNavigationManager() => Initialize("http://localhost/console/", "http://localhost/console/operate");

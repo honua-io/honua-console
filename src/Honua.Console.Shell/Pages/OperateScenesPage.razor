@@ -108,23 +108,23 @@
         <div class="console-field-grid">
             <label class="console-field">
                 <span>Display name</span>
-                <input class="console-input" @bind="_displayName" aria-label="Scene display name"
+                <input class="console-input" @bind="_displayName" disabled="@(V4Enabled && _ingesting)" aria-label="Scene display name"
                        placeholder="Survey point cloud" data-pointcloud-display-name />
             </label>
             <label class="console-field">
                 <span>Description</span>
-                <input class="console-input" @bind="_description" aria-label="Scene description"
+                <input class="console-input" @bind="_description" disabled="@(V4Enabled && _ingesting)" aria-label="Scene description"
                        placeholder="Optional description" data-pointcloud-description />
             </label>
             <label class="console-field">
                 <span>Source CRS (EPSG, optional)</span>
-                <input class="console-input" type="number" @bind="_sourceCrs" aria-label="Source CRS EPSG code"
+                <input class="console-input" type="number" @bind="_sourceCrs" disabled="@(V4Enabled && _ingesting)" aria-label="Source CRS EPSG code"
                        placeholder="e.g. 26910" data-pointcloud-source-crs />
             </label>
         </div>
 
         <div class="console-field">
-            <InputFile @key="_fileInputKey" OnChange="OnFileSelected" class="@(V4Enabled ? "console-input" : null)" accept=".las,.laz" aria-label="Point cloud file" data-pointcloud-file />
+            <InputFile @key="_fileInputKey" OnChange="OnFileSelected" class="@(V4Enabled ? "console-input" : null)" accept=".las,.laz" disabled="@(V4Enabled && _ingesting)" aria-label="Point cloud file" data-pointcloud-file />
             @if (_selectedFile is not null)
             {
                 <p class="console-muted" data-pointcloud-selected>
