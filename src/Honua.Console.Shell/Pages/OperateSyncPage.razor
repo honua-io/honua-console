@@ -416,12 +416,21 @@
         }
     }
 
+    private bool _queryApplied;
+    private string? _appliedSourceId;
+    private string? _appliedReplicaId;
+
     protected override async Task OnParametersSetAsync()
     {
         if (!V4Enabled || _loading || _bindingState is not null)
         {
             return;
         }
+        if (_queryApplied && string.Equals(_appliedSourceId, SourceId, StringComparison.Ordinal)
+            && string.Equals(_appliedReplicaId, ReplicaId, StringComparison.Ordinal)) return;
+        _queryApplied = true;
+        _appliedSourceId = SourceId;
+        _appliedReplicaId = ReplicaId;
         var parameterGeneration = ++_parameterGeneration;
         var source = _syncSources.FirstOrDefault(item => string.Equals(item.SourceId, SourceId, StringComparison.Ordinal));
         if (source is null)

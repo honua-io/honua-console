@@ -157,6 +157,28 @@ public sealed class OperateSyncPageRenderTests
         Assert.Equal(keepsSource ? 1 : 0, snapshot.Selection.Count);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Sync_UnchangedQueryPreservesManualReviewAndConflictSelections(bool enabled, bool sourceQuery)
+    {
+        var page = Render(DeepLinkClient(), enabled);
+        var sourceId = sourceQuery ? "cadastre/0" : null;
+        page.Render(parameters => parameters.Add(component => component.SourceId, sourceId));
+        ClickByText(page, "Open queue");
+        ClickByText(page, "Review");
+        page.Find("[data-sync-conflict] input[type=checkbox]").Change(true);
+        page.Find("select[aria-label='Batch action']").Change("AcceptClient");
+
+        page.Render(parameters => parameters.Add(component => component.SourceId, sourceId));
+
+        Assert.Single(page.FindAll("[data-sync-region='conflict-merge']"));
+        Assert.True(page.Find("[data-sync-conflict] input[type=checkbox]").HasAttribute("checked"));
+        Assert.Equal("AcceptClient", page.Find("select[aria-label='Batch action']").GetAttribute("value"));
+    }
+
     [Fact]
     public async Task Sync_LeavingReviewWhileResolutionPendingDoesNotPublishStaleResults()
     {
