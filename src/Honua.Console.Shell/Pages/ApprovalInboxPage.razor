@@ -266,9 +266,11 @@
                 }
                 @if (_selectedProposalId is { Length: > 0 } proposalId)
                 {
+                    var approvalInstance = _approvalInstance;
                     <button type="button" class="console-button console-button-secondary" @onclick="ClearSelection">Close review</button>
-                    <ProposalApprovalPanel ProposalId="@proposalId"
+                    <ProposalApprovalPanel @key="approvalInstance" ProposalId="@proposalId"
                         ReloadToken="_detailReloadToken"
+                        UnsavedChanged="@(summary => OnApprovalUnsavedChanged(approvalInstance, summary))"
                         OnActioned="OnProposalActioned" OnDetailLoaded="OnDetailLoaded" />
                 }
                 else
@@ -288,7 +290,12 @@
         Route = new Uri(Navigation.Uri).AbsolutePath,
         Entities = SelectedEntities,
         Selection = SelectedEntities,
-        Filters = new Dictionary<string, string> { ["ticketType"] = _filter?.ToString() ?? string.Empty }
+        Filters = new Dictionary<string, string> { ["ticketType"] = _filter?.ToString() ?? string.Empty },
+        Unsaved = new()
+        {
+            ChangedFieldCount = _approvalStates.GetValueOrDefault(_approvalInstance)?.ChangedFieldCount ?? 0,
+            PendingOperationCount = _approvalStates.Values.Sum(state => state.PendingOperationCount)
+        }
     };
 
     private IReadOnlyList<ConsoleAgentEntity> SelectedEntities => _selectedProposalId is { Length: > 0 } id
@@ -337,6 +344,8 @@
 
     private ApprovalTicketType? _filter;
     private string? _selectedProposalId;
+    private object _approvalInstance = new();
+    private readonly Dictionary<object, ConsoleAgentUnsavedSummary> _approvalStates = new();
     private string? _routeProposalId;
     private int _detailReloadToken;
     private string? _terminalProposalId;
@@ -359,7 +368,7 @@
     protected override async Task OnInitializedAsync()
     {
         _routeProposalId = string.IsNullOrWhiteSpace(ProposalId) ? null : ProposalId.Trim();
-        _selectedProposalId = _routeProposalId;
+        SetSelectedProposal(_routeProposalId);
 
         _updates = new ConsoleProposalSubscription(Realtime,
             new ConsoleProposalObservers(OnProposalEvent, OnConnectionStateChanged));
@@ -381,7 +390,7 @@
         var proposalId = string.IsNullOrWhiteSpace(ProposalId) ? null : ProposalId.Trim();
         if (string.Equals(proposalId, _routeProposalId, StringComparison.Ordinal)) return;
         _routeProposalId = proposalId;
-        _selectedProposalId = proposalId;
+        SetSelectedProposal(proposalId);
         _terminalProposalId = null;
         _detailReloadToken++;
         ResolveSelectedProposalSource();
@@ -394,7 +403,7 @@
             && _result.Value?.Items.Any(item => string.Equals(item.ProposalId, raw, StringComparison.Ordinal)) == false
             && _result.Value.Items.Any(item => string.Equals(item.ProposalId, "manager:" + raw, StringComparison.Ordinal)))
         {
-            _selectedProposalId = "manager:" + raw;
+            SetSelectedProposal("manager:" + raw);
         }
     }
 
@@ -517,15 +526,37 @@
 
     private void Select(ApprovalInboxItem item)
     {
-        _selectedProposalId = item.ProposalId;
+        SetSelectedProposal(item.ProposalId);
         _terminalProposalId = null;
         SyncSelectionQuery();
     }
 
     private void ClearSelection()
     {
-        _selectedProposalId = null;
+        SetSelectedProposal(null);
         SyncSelectionQuery();
+    }
+
+    private void SetSelectedProposal(string? proposalId)
+    {
+        if (string.Equals(_selectedProposalId, proposalId, StringComparison.Ordinal)) return;
+        _selectedProposalId = proposalId;
+        _approvalInstance = new object();
+    }
+
+    private void OnApprovalUnsavedChanged(object instance, ConsoleAgentUnsavedSummary summary)
+    {
+        if (_disposed) return;
+        // A completed old panel must not clear the current reason, while its server write
+        // remains pending even after the operator selects a different proposal.
+        if (summary.ChangedFieldCount == 0 && summary.PendingOperationCount == 0)
+        {
+            _approvalStates.Remove(instance);
+        }
+        else
+        {
+            _approvalStates[instance] = summary;
+        }
     }
 
     private void SyncSelectionQuery()
