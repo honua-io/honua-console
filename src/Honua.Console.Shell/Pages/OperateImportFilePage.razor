@@ -2,7 +2,6 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using Honua.Console.Shell.Models
 @inject IConsoleFileImportOperation FileImport
-@inject NavigationManager Nav
 
 <section class="console-page">
     <div class="console-page-heading">
@@ -15,7 +14,7 @@
         <div class="studio-field-grid">
             <label>
                 <span>File</span>
-                <InputFile OnChange="OnFileSelected" accept="@_acceptAttribute" />
+                <InputFile OnChange="OnFileSelected" accept="@_acceptAttribute" disabled="@(_busy || _reconcileOutcome)" />
                 @if (_supportedExtensions.Count > 0)
                 {
                     <small class="console-muted">Supported: @string.Join(", ", _supportedExtensions)</small>
@@ -23,11 +22,11 @@
             </label>
             <label>
                 <span>Table name</span>
-                <input class="console-input" @bind="_tableName" @bind:event="oninput" @bind:after="ClearResult" placeholder="parcels" />
+                <input class="console-input" @bind="_tableName" @bind:event="oninput" @bind:after="ClearResult" placeholder="parcels" disabled="@_busy" />
             </label>
             <label>
                 <span>Target schema (optional)</span>
-                <input class="console-input" @bind="_targetSchema" @bind:event="oninput" @bind:after="ClearResult" placeholder="public" />
+                <input class="console-input" @bind="_targetSchema" @bind:event="oninput" @bind:after="ClearResult" placeholder="public" disabled="@_busy" />
             </label>
         </div>
 
@@ -37,6 +36,16 @@
                 <dt>Selected</dt>
                 <dd data-selected-file>@_selectedFile.Name (@FormatSize(_selectedFile.Size))</dd>
             </dl>
+        }
+
+        @if (_preview is { Succeeded: true, CoordinateSystem: { } system, AuthorityBinding: { } binding })
+        {
+            <ImportCoordinateSystemStep @key="_fileRevision" CoordinateSystem="system" AuthorityBinding="@binding"
+                                        Changed="CoordinatesChanged" Disabled="_busy" />
+            @foreach (var warning in _preview.Warnings)
+            {
+                <p role="note">@warning</p>
+            }
         }
 
         @if (_formatError is not null)
@@ -58,7 +67,6 @@
         @if (_busy)
         {
             <div class="console-panel console-state-info" role="status" data-import-progress>
-                <p class="console-kicker">@(_phase == ImportPhase.Uploading ? "Uploading" : "Importing")</p>
                 @if (_phase == ImportPhase.Uploading)
                 {
                     <h2>Uploading @_uploadPercent%</h2>
@@ -66,7 +74,7 @@
                 }
                 else
                 {
-                    <h2>Importing into PostgreSQL…</h2>
+                    <h2>@(_phase == ImportPhase.Previewing ? "Checking coordinate system…" : "Importing into PostgreSQL…")</h2>
                     <progress data-upload-progress></progress>
                 }
             </div>
@@ -76,17 +84,24 @@
         {
             <article class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
                 <p class="console-kicker">@r.State</p>
-                <h2>@(r.Succeeded ? "File imported" : "Import failed")</h2>
+                <h2>@(r.Succeeded ? "File imported" : r.State == ConsoleFileImportResult.CoordinateSystemMismatchState ? "Check the imported coordinate system" : "Import failed")</h2>
                 <p>@r.Detail</p>
-                @if (r.Succeeded)
+                @if (r.Succeeded || r.State == ConsoleFileImportResult.CoordinateSystemMismatchState)
                 {
                     <dl class="console-definition-list">
                         <dt>Table</dt>
                         <dd data-imported-table>@r.TableName</dd>
+                        <dt>Stored coordinate system</dt>
+                        <dd data-import-stored-system>@(r.StoredSrid is { } srid ? $"EPSG:{srid}" : "Not reported")</dd>
+                        <dt>Reprojected</dt>
+                        <dd>@(r.Reprojected is { } reprojected ? reprojected ? "Yes" : "No" : "Not reported")</dd>
                         <dt>Features</dt>
                         <dd>@r.FeatureCount</dd>
                     </dl>
-                    <a class="console-button" href="/operate/publishing/quick">Publish this table</a>
+                    @if (r.Succeeded)
+                    {
+                        <a class="console-button" href="/operate/publishing/quick">Publish this table</a>
+                    }
                 }
                 @if (r.ValidationErrors.Count > 0)
                 {
@@ -101,7 +116,7 @@
         }
 
         <div class="console-action-row">
-            <button class="console-button" type="button" disabled="@(_busy || _selectedFile is null || _formatError is not null)" @onclick="ImportAsync">
+            <button class="console-button" type="button" disabled="@(!CanImport)" @onclick="ImportAsync">
                 @(_busy ? "Working…" : "Import file")
             </button>
             <a href="/operate/connections">Cancel</a>
@@ -110,7 +125,7 @@
 </section>
 
 @code {
-    private enum ImportPhase { Uploading, Importing }
+    private enum ImportPhase { Uploading, Previewing, Importing }
 
     // Cap the browser file read at 100 MB so a runaway upload can't exhaust the circuit.
     private const long MaxFileBytes = 100L * 1024 * 1024;
@@ -119,6 +134,13 @@
     private string _acceptAttribute = string.Empty;
 
     private IBrowserFile? _selectedFile;
+    private byte[]? _fileBytes;
+    private ConsoleFileImportPreview? _preview;
+    private ConsoleFileImportCoordinates? _coordinates;
+    private int _fileRevision;
+    private bool _reconcileOutcome;
+
+    private bool CanImport => !_busy && !_reconcileOutcome && _fileBytes is not null && _preview?.Succeeded == true && _coordinates is not null && _formatError is null;
     private string _tableName = string.Empty;
     private string _targetSchema = string.Empty;
 
@@ -135,13 +157,17 @@
         _acceptAttribute = string.Join(",", _supportedExtensions);
     }
 
-    private void OnFileSelected(InputFileChangeEventArgs args)
+    private async Task OnFileSelected(InputFileChangeEventArgs args)
     {
+        if (_busy || _reconcileOutcome) return;
         ClearResult();
+        ++_fileRevision;
+        _fileBytes = null;
+        _preview = null;
+        _coordinates = null;
         _formatError = null;
         _selectedFile = args.File;
 
-        // Validate the extension against the server's supported formats before allowing an upload.
         var extension = Path.GetExtension(_selectedFile.Name);
         if (_supportedExtensions.Count > 0
             && !_supportedExtensions.Any(ext => string.Equals(ext, extension, StringComparison.OrdinalIgnoreCase)))
@@ -153,10 +179,51 @@
         {
             _tableName = SanitizeTableName(Path.GetFileNameWithoutExtension(_selectedFile.Name));
         }
+        if (_formatError is not null || _reconcileOutcome) return;
+        if (_selectedFile.Size > MaxFileBytes)
+        {
+            _clientError = "The selected file exceeds the 100 MB upload limit. Choose a smaller file.";
+            return;
+        }
+        _busy = true;
+        _phase = ImportPhase.Uploading;
+        _uploadPercent = 0;
+        try
+        {
+            // This progress covers browser-to-Console transfer over the Blazor circuit, before the server request.
+            _fileBytes = await ReadWithProgressAsync(_selectedFile);
+        }
+        catch (Exception exception) when (exception is IOException or InvalidOperationException)
+        {
+            _fileBytes = null;
+            _clientError = $"The selected file could not be read: {exception.Message}";
+        }
+        finally { _busy = false; }
+        if (_fileBytes is null) return;
+        _busy = true;
+        _phase = ImportPhase.Previewing;
+        try
+        {
+            await InvokeAsync(StateHasChanged);
+            _preview = await FileImport.PreviewAsync(_fileBytes, _selectedFile.Name);
+            if (!_preview.Succeeded) _clientError = _preview.Detail;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
+        {
+            _clientError = "The server could not check the file. Choose it again and retry the preview.";
+        }
+        finally { _busy = false; }
+    }
+
+    private void CoordinatesChanged(ConsoleFileImportCoordinates? coordinates)
+    {
+        _coordinates = coordinates;
+        ClearResult();
     }
 
     private void ClearResult()
     {
+        if (_reconcileOutcome) return;
         _clientError = null;
         _result = null;
     }
@@ -164,15 +231,7 @@
     private async Task ImportAsync()
     {
         ClearResult();
-        if (_selectedFile is null)
-        {
-            _clientError = "Choose a file to import.";
-            return;
-        }
-        if (_formatError is not null)
-        {
-            return;
-        }
+        if (!CanImport || _selectedFile is null || _preview?.AuthorityBinding is null || _coordinates is null) return;
         if (string.IsNullOrWhiteSpace(_tableName))
         {
             _clientError = "Enter a table name.";
@@ -180,34 +239,21 @@
         }
 
         _busy = true;
-        _phase = ImportPhase.Uploading;
-        _uploadPercent = 0;
+        _phase = ImportPhase.Importing;
         try
         {
-            // Phase 1: stream the browser file to the console (over the Blazor circuit) with progress —
-            // this is the user-perceived upload. Buffer it, then POST to honua-server.
-            byte[] bytes;
-            try
-            {
-                bytes = await ReadWithProgressAsync(_selectedFile);
-            }
-            catch (Exception ex) when (ex is IOException or InvalidOperationException)
-            {
-                _clientError = $"The file could not be read: {ex.Message}";
-                return;
-            }
-
-            // Phase 2: server-side streamed import.
-            _phase = ImportPhase.Importing;
-            await InvokeAsync(StateHasChanged);
-
             _result = await FileImport.ImportAsync(new ConsoleFileImportCommand
             {
-                FileContent = bytes,
+                FileContent = _fileBytes!,
                 FileName = _selectedFile.Name,
+                SourceSrid = _coordinates.SourceSrid,
+                TargetSrid = _coordinates.TargetSrid,
+                ExpectedSourceSrid = _preview.CoordinateSystem?.EffectiveSourceSrid,
+                AuthorityBinding = _preview.AuthorityBinding,
                 TableName = _tableName.Trim(),
                 TargetSchema = string.IsNullOrWhiteSpace(_targetSchema) ? null : _targetSchema.Trim(),
             });
+            _reconcileOutcome = _result.RequiresReconciliation;
         }
         finally
         {
