@@ -4,6 +4,13 @@ namespace Honua.Console.Shell.Services;
 
 public static class ConsoleNavigationPaths
 {
+    public static string ToConsoleContextRoute(this NavigationManager navigation, string route)
+    {
+        if (!navigation.TryGetConsoleHref(route, out var href))
+            throw new ArgumentException("The context route must stay within the Console application.", nameof(route));
+        return "/" + href[2..].Split('?', '#')[0];
+    }
+
     public static string ToConsoleHref(this NavigationManager navigation, string route)
     {
         ArgumentException.ThrowIfNullOrEmpty(route);
