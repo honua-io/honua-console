@@ -6,12 +6,12 @@ await runV4PagePresentation({
   previews: path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/catalog-preview"),
   pageNames: ["data-layer-style", "data-layer-style-saved", "data-layer-style-unbound"],
   title: "Layer presentation fixture",
-  stylesheet: "v4-data-primitives.css",
+  stylesheet: "v4-shell.css",
   heading: "Layer presentation",
   scope: ".console-page",
   controls: ".console-page :is(a[href], button, input, select, textarea):not(:disabled):visible",
   inspect: async (page, name) => {
-    assert.equal(await page.getByRole("link", { name: "Back to layer" }).getAttribute("href"), "/operate/layers/res-1");
+    assert.equal(await page.getByRole("link", { name: "Back to layer" }).getAttribute("href"), "/console/operate/layers/res-1");
     assert.equal(await page.locator("section.console-panel[aria-labelledby]").count(), 2);
     if (name.endsWith("-unbound")) {
       assert.equal(await page.locator("[data-slot-save], [data-slot-popup]").count(), 0);

@@ -70,11 +70,14 @@ public sealed class OperateLayerStylePageRenderTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task StyleEditor_PreservesSavePayloadAndReportsCountsWithoutJson(bool enabled)
+    [InlineData(false, "/")]
+    [InlineData(true, "/")]
+    [InlineData(false, "/console/")]
+    [InlineData(true, "/console/")]
+    public async Task StyleEditor_PreservesSavePayloadAndReportsCountsWithoutJson(bool enabled, string mount)
     {
         using var context = new BunitContext();
+        context.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager(mount));
         context.AddConsoleNotifications();
         var registry = new ConsoleAgentContextRegistry();
         context.Services.AddSingleton(registry);
@@ -91,13 +94,14 @@ public sealed class OperateLayerStylePageRenderTests
         });
         var page = context.Render<OperateLayerStylePage>(parameters => parameters.Add(p => p.ResourceId, "res-1"));
         Assert.Equal(enabled ? 2 : 0, page.FindAll("section.console-panel[aria-labelledby]").Count);
+        Assert.Equal(mount + "operate/layers/res-1", page.Find("a").GetAttribute("href"));
         Assert.Equal(enabled ? "/operate/layers/res-1/style" : "/", registry.Current.Route);
         if (enabled)
         {
             var entity = Assert.Single(registry.Current.Entities);
             Assert.Equal(new ConsoleAgentEntity { Kind = ConsoleAgentEntityKind.Layer, Id = "7", ResourceId = "res-1" }, entity);
             Assert.Equal("/operate/layers/res-1", ConsoleAgentRoutes.ForEntity(entity));
-            CatalogAdminPreview.Capture("data-layer-style", page.Markup);
+            if (mount == "/console/") CatalogAdminPreview.Capture("data-layer-style", page.Markup);
         }
         page.Find("[data-slot-popup]").Change("{\"title\":\"Private field\"}");
         page.Find("[data-slot-drawing]").Change("{\"renderer\":{}}");
@@ -108,7 +112,7 @@ public sealed class OperateLayerStylePageRenderTests
         Assert.Single(page.FindAll("[data-slot-saved]"));
         Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
         Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
-        if (enabled) CatalogAdminPreview.Capture("data-layer-style-saved", page.Markup);
+        if (enabled && mount == "/console/") CatalogAdminPreview.Capture("data-layer-style-saved", page.Markup);
         page.Find("[data-slot-popup]").Change("Unsaved before disposal");
         Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
         await context.DisposeComponentsAsync();
@@ -146,6 +150,7 @@ public sealed class OperateLayerStylePageRenderTests
     public void StyleEditor_UnboundShowsNoEditors(bool enabled)
     {
         using var context = new BunitContext();
+        context.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager("/console/"));
         context.AddConsoleNotifications();
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource, UnsupportedOperateLayerStyleOverrideDataSource>();
@@ -207,6 +212,17 @@ public sealed class OperateLayerStylePageRenderTests
         "Layer presentation overrides", OperateLayerStyleBindingState.MissingBinding,
         "honua-server resource-presentation slot overrides (pending)",
         "Per-slot style/popup overrides bind to a server-owned contract that has not shipped.");
+
+    private sealed class MountedNavigationManager : Microsoft.AspNetCore.Components.NavigationManager
+    {
+        public MountedNavigationManager(string mount) => Initialize("http://localhost" + mount, "http://localhost" + mount);
+
+        protected override void NavigateToCore(string uri, bool forceLoad)
+        {
+            Uri = ToAbsoluteUri(uri).AbsoluteUri;
+            NotifyLocationChanged(false);
+        }
+    }
 
     private sealed class FakeOverrideDataSource : IOperateLayerStyleOverrideDataSource
     {
