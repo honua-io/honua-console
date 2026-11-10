@@ -5,7 +5,6 @@
     ".github/",
     ".gitignore",
     "AGENTS.md",
-    "Dockerfile",
     "Honua.Console.slnx",
     "LICENSE",
     "Makefile",

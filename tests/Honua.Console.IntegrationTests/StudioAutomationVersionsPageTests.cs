@@ -8,10 +8,13 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class StudioAutomationVersionsPageTests
 {
-    [Fact]
-    public void UnboundRuntime_RendersMissingBindingState()
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void UnboundRuntime_RendersMissingBindingState(ConsolePresentationMode presentation)
     {
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ICollectAutomationClient>(new UnsupportedCollectAutomationClient());
 
@@ -22,12 +25,21 @@ public sealed class StudioAutomationVersionsPageTests
             () => Assert.NotEmpty(page.FindAll("section.console-state-error")),
             TimeSpan.FromSeconds(5));
         Assert.Contains("Automation versioning is not bound", page.Markup, StringComparison.Ordinal);
+        Assert.Equal(presentation == ConsolePresentationMode.V4, page.FindAll(".console-page-heading-v4").Count == 1);
+        if (presentation == ConsolePresentationMode.V4)
+        {
+            Assert.Single(page.FindAll("h1"));
+            CatalogAdminPreview.Capture("automation-versions-unbound", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
+        }
     }
 
-    [Fact]
-    public void BoundRuntime_ListsAppendOnlyHistoryWithCurrentMarker()
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void BoundRuntime_ListsAppendOnlyHistoryWithCurrentMarker(ConsolePresentationMode presentation)
     {
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ICollectAutomationClient>(InMemoryCollectAutomationClient.CreateSeeded());
 
@@ -39,12 +51,22 @@ public sealed class StudioAutomationVersionsPageTests
             TimeSpan.FromSeconds(5));
         Assert.NotEmpty(page.FindAll("li.automation-version-current"));
         Assert.Contains("Initial version.", page.Markup, StringComparison.Ordinal);
+        Assert.Equal("v1", Assert.Single(page.FindAll(".automation-version-item h2")).TextContent);
+        Assert.Equal(presentation == ConsolePresentationMode.V4, page.FindAll(".console-page-heading-v4").Count == 1);
+        if (presentation == ConsolePresentationMode.V4)
+        {
+            Assert.Single(page.FindAll("h1"));
+            CatalogAdminPreview.Capture("automation-versions-seeded", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
+        }
     }
 
-    [Fact]
-    public void ViewBody_TogglesTheVersionPreview()
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void ViewBody_TogglesTheVersionPreview(ConsolePresentationMode presentation)
     {
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ICollectAutomationClient>(InMemoryCollectAutomationClient.CreateSeeded());
 
@@ -69,8 +91,10 @@ public sealed class StudioAutomationVersionsPageTests
             TimeSpan.FromSeconds(5));
     }
 
-    [Fact]
-    public async Task ConfirmedRestore_CommitsANewVersionAndGrowsHistory()
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task ConfirmedRestore_CommitsANewVersionAndGrowsHistory(ConsolePresentationMode presentation)
     {
         var client = InMemoryCollectAutomationClient.CreateSeeded();
 
@@ -80,6 +104,7 @@ public sealed class StudioAutomationVersionsPageTests
         await client.SaveVersionAsync(draft, "v2");
 
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
         ctx.Services.AddSingleton<ICollectAutomationClient>(client);

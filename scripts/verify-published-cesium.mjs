@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { verifyTree } from "./lib/cesium-extracted-tree.mjs";
 
@@ -11,9 +11,14 @@ if (!artifactArgument) {
 }
 
 const artifactRoot = resolve(process.cwd(), artifactArgument);
+let staticRoot = resolve(artifactRoot, "wwwroot", "console");
+try {
+  await access(resolve(staticRoot, "index.html"));
+} catch {
+  staticRoot = resolve(artifactRoot, "wwwroot");
+}
 const cesiumRoot = resolve(
-  artifactRoot,
-  "wwwroot",
+  staticRoot,
   "_content",
   "Honua.Console.Shell",
   "vendor",

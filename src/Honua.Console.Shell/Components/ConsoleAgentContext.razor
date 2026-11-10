@@ -1,5 +1,6 @@
 @implements IDisposable
 @inject IServiceProvider Services
+@inject NavigationManager Navigation
 
 @code {
     [Parameter, EditorRequired] public ConsoleAgentPageContext Context { get; set; } = new();
@@ -10,8 +11,9 @@
         if (Services.GetService<ConsoleV4Options>()?.Enabled != true) return;
         var registry = Services.GetService<ConsoleAgentContextRegistry>();
         if (registry is null) return;
-        if (_registration?.IsActive != true) _registration = registry.Register(Context);
-        else _registration.Publish(Context);
+        var context = Context with { Route = Navigation.ToConsoleContextRoute(Context.Route) };
+        if (_registration?.IsActive != true) _registration = registry.Register(context);
+        else _registration.Publish(context);
     }
 
     public void Dispose() => _registration?.Dispose();

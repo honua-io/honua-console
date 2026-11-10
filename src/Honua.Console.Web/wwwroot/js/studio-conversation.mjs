@@ -5,7 +5,7 @@ import {promptWithStudioDesignFocus} from './studio-design-focus.mjs';
 // The supported browser assistant uses the Studio proxy and canonical MCP tools.
 // Its transcript belongs to this tab; server-owned drafts and saved versions remain durable.
 export class StudioConversation {
-    constructor(workspace, loadAssets = () => import('/_studio/console.js')) {
+    constructor(workspace, loadAssets = () => import(new URL('../_studio/console.js', import.meta.url).href)) {
         this.workspace = workspace;
         this.loadAssets = loadAssets;
         this.messages = [];
