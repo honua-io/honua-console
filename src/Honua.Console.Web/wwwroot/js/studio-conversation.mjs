@@ -1,3 +1,4 @@
+import {promptWithConsolePageContext} from './console-agent-context.mjs';
 import {sameCookieAuthority} from './cookie-workspace-transport.mjs';
 import {promptWithStudioDesignFocus} from './studio-design-focus.mjs';
 
@@ -34,6 +35,7 @@ export class StudioConversation {
         };
         try {
             const designFocus = workspace.studioDesignFocusProvider?.();
+            const pageContext = structuredClone(workspace.pageContextProvider?.() ?? null);
             await workspace.queue;
             check();
             if (workspace.hasUnsavedWork()) throw new Error('Save or discard your edits before asking the assistant.');
@@ -72,7 +74,7 @@ export class StudioConversation {
             this.options = options;
             this.messages.push({role:'user',content:prompt});
             this.transportError = null;
-            const result = await this.sdkSession.chat(promptWithStudioDesignFocus(prompt, designFocus, task), {signal:options.signal});
+            const result = await this.sdkSession.chat(promptWithConsolePageContext(promptWithStudioDesignFocus(prompt, designFocus, task), pageContext), {signal:options.signal});
             check();
             if (this.transportError && result.status === 'error') result.errorMessage = this.transportError;
             const text = result.text || result.errorMessage;

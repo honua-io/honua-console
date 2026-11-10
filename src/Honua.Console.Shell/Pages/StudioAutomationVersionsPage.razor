@@ -2,14 +2,25 @@
 @using Microsoft.JSInterop
 @inject ICollectAutomationClient Automations
 @inject NavigationManager Navigation
+@inject IServiceProvider Services
 @inject IJSRuntime JS
 
-<section class="console-page automation-page automation-versions-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Studio collect.automation</p>
-        <h1>Automation Versions</h1>
-        <p>Review the append-only version history for this automation and restore a prior version. Restoring never rewrites history — it commits a new version that re-instates the chosen one.</p>
-    </div>
+<section class="console-page automation-page automation-versions-page @(IsConsoleV4Enabled ? "console-automations-v4" : null)">
+    @if (IsConsoleV4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/studio-automations-v4.css" />
+        <ConsolePageHeading Title="Automation versions">
+            <p>Review saved versions. Restoring a prior version creates a new version.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Studio collect.automation</p>
+            <h1>Automation Versions</h1>
+            <p>Review the append-only version history for this automation and restore a prior version. Restoring never rewrites history — it commits a new version that re-instates the chosen one.</p>
+        </div>
+    }
 
     <div class="automation-list-actions">
         <a class="console-button-link console-button-secondary" href="@EditorHref">Back to editor</a>
@@ -32,6 +43,7 @@
     @if (_loading)
     {
         <ConsoleStateView Kind="loading"
+                          HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
                           Kicker="Versions"
                           Title="Loading version history"
                           Message="Reading the automation version projection." />
@@ -39,6 +51,7 @@
     else if (_binding is not null)
     {
         <ConsoleStateView Kind="error"
+                          HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
                           Kicker="@_binding.State"
                           Title="Automation versioning is not bound"
                           Message="@($"{_binding.Detail} (contract: {_binding.Contract})")"
@@ -48,6 +61,7 @@
     else if (_versions.Count == 0)
     {
         <ConsoleStateView Kind="empty"
+                          HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
                           Kicker="Versions"
                           Title="No versions yet"
                           Message="Save the automation from the editor to commit its first immutable version."
@@ -62,7 +76,7 @@
                 <li class="console-panel automation-version-item @(version.IsCurrent ? "automation-version-current" : string.Empty)">
                     <div class="console-panel-heading">
                         <div>
-                            <h2>v@version.VersionNumber</h2>
+                            <h2>v@(version.VersionNumber)</h2>
                             <p class="console-muted">@version.VersionId</p>
                         </div>
                         @if (version.IsCurrent)
@@ -111,6 +125,8 @@
 </section>
 
 @code {
+    private bool IsConsoleV4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     [Parameter]
     public string? DraftId { get; set; }
 

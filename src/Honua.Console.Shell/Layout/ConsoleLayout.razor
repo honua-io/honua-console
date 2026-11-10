@@ -15,7 +15,9 @@
 
 <CascadingValue Value="_layerContext" IsFixed="true">
 <ConsoleCommittedLocation />
-<div class="console-shell" data-console-mode="@ModeName">
+<ConsoleAgentContextBridge />
+<div class="console-shell" data-console-mode="@ModeName"
+     data-console-v4="@(WorkspaceServices.GetService<ConsoleV4Options>()?.Enabled == true ? "true" : null)">
     <a class="console-skip-link" href="#console-main">Skip to content</a>
     <ConsoleTopNavigation Groups="navigationGroups" />
     <div class="console-service-workspace">

@@ -73,10 +73,13 @@ public sealed class ProposalApprovalPanelReceiptTests
         panel.WaitForAssertion(() => Assert.Equal(1, proposals.DecisionCalls));
     }
 
-    [Fact]
-    public void DeepLinkedResolvedProposalRemainsInspectableOutsidePendingQueue()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DeepLinkedResolvedProposalRemainsInspectableOutsidePendingQueue(bool enabled)
     {
         using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         context.Services.AddSingleton<IConsoleProposalsClient>(new ProposalClient(ConsoleProposalStatus.Submitted));
         context.Services.AddSingleton<IConsoleApprovalInboxClient>(new EmptyInboxClient());
         context.Services.AddSingleton<IConsoleProposalRealtimeClient>(new NoOpRealtimeClient());
@@ -94,10 +97,13 @@ public sealed class ProposalApprovalPanelReceiptTests
         });
     }
 
-    [Fact]
-    public void ApprovalKeepsServerStatusAndExecutionOperationMachineReadable()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ApprovalKeepsServerStatusAndExecutionOperationMachineReadable(bool enabled)
     {
         using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         var proposals = new ProposalClient();
         context.Services.AddSingleton<IConsoleProposalsClient>(proposals);
         context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
@@ -119,6 +125,7 @@ public sealed class ProposalApprovalPanelReceiptTests
         });
     }
 
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
     [Theory]
     [InlineData(OperateSectionStatus.Allowed)]
     [InlineData(OperateSectionStatus.Forbidden)]
