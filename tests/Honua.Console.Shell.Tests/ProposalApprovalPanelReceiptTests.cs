@@ -61,7 +61,7 @@ public sealed class ProposalApprovalPanelReceiptTests
         context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
             .Add(component => component.ProposalId, "proposal-1"));
-        panel.Find("[data-proposal-reason]").Change("Do not perform this change.");
+        panel.Find("[data-proposal-reason]").Input("Do not perform this change.");
 
         panel.Find("[data-proposal-reject]").Click();
 
