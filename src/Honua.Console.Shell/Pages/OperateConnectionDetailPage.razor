@@ -118,7 +118,7 @@
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private ConsoleAgentPageContext AgentContext => new()
     {
-        Route = ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForConnection(_connection?.Id ?? ConnectionId)) + (new Uri(Navigation.Uri).AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries).Length == 4 ? "/diagnostics" : string.Empty),
+        Route = ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForConnection(_connection?.Id ?? ConnectionId)) + (Navigation.ToBaseRelativePath(new Uri(Navigation.Uri).GetLeftPart(UriPartial.Path)).Split('/', StringSplitOptions.RemoveEmptyEntries).Length == 4 ? "/diagnostics" : string.Empty),
         Entities = _connection is { } connection ? [ConsoleAgentEntity.ForConnection(connection.Id)] : [],
         Unsaved = new() { PendingOperationCount = (_loading ? 1 : 0) + (_testing ? 1 : 0) }
     };

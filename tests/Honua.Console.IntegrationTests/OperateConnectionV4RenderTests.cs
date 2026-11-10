@@ -37,11 +37,14 @@ public sealed class OperateConnectionV4RenderTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void DetailDeepLinkSelectsStableEntityAndRetainsTesting(bool enabled)
+    [InlineData(false, "/")]
+    [InlineData(true, "/")]
+    [InlineData(false, "/console/")]
+    [InlineData(true, "/console/")]
+    public void DetailDeepLinkSelectsStableEntityAndRetainsTesting(bool enabled, string mount)
     {
-        using var context = Context(enabled);
+        using var context = Context(enabled, mount);
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("operate/connections/connection%20a");
         var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
         var page = context.Render<OperateConnectionDetailPage>(parameters => parameters.Add(p => p.ConnectionId, Connection.Id));
         Assert.Equal(Connection.Name, page.Find("h1").TextContent);
@@ -59,11 +62,13 @@ public sealed class OperateConnectionV4RenderTests
         Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
     }
 
-    [Fact]
-    public void DiagnosticsContextPreservesDeepLinkRoute()
+    [Theory]
+    [InlineData("/")]
+    [InlineData("/console/")]
+    public void DiagnosticsContextPreservesDeepLinkRoute(string mount)
     {
-        using var context = Context(true);
-        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/connections/connection%20a/diagnostics");
+        using var context = Context(true, mount);
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("operate/connections/connection%20a/diagnostics");
         context.Render<OperateConnectionDetailPage>(parameters => parameters.Add(p => p.ConnectionId, Connection.Id));
         Assert.Equal("/operate/connections/connection%20a/diagnostics", context.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Route);
     }
