@@ -82,3 +82,28 @@ for (const crossOrigin of [false, true]) {
     assert.equal(identity.csrfToken, undefined);
   });
 }
+
+test("OIDC callback consumes server correlation and redirects only to the stored Console path", async t => {
+  const origin = await start(t, { allowedOrigin: "http://console.test", oidc: true });
+  for (const returnTo of ["/console/unknown", "/console/../outside", "https://other.test/"]) {
+    const rejected = await fetch(`${origin}/api/v1/admin/auth/providers/entra/authorize-url`, {
+      method: "POST", headers: { "Content-Type": "application/json", "X-Honua-CSRF": "anonymous-csrf" },
+      body: JSON.stringify({ returnTo }),
+    });
+    assert.equal(rejected.status, 400);
+  }
+  const authorize = await fetch(`${origin}/api/v1/admin/auth/providers/entra/authorize-url`, {
+    method: "POST", headers: { "Content-Type": "application/json", "X-Honua-CSRF": "anonymous-csrf" },
+    body: JSON.stringify({ returnTo: "/console/operate/connections" }),
+  });
+  assert.equal(authorize.status, 200);
+  const state = new URL((await authorize.json()).authorizeUrl).searchParams.get("state");
+  const callback = `${origin}/admin/auth/callback?code=fixture-code&state=${state}&returnTo=https://other.test/`;
+  const headers = { Cookie: `fixture-pending=${state}` };
+  const response = await fetch(callback, { headers, redirect: "manual" });
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("location"), "/console/operate/connections");
+  assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+  assert.match(response.headers.get("set-cookie"), /console-fixture-session=issued/);
+  assert.equal((await fetch(callback, { headers, redirect: "manual" })).status, 403);
+});

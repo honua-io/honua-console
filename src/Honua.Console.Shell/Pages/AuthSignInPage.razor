@@ -109,7 +109,7 @@
             {
                 _providers = await _oidc.GetProvidersAsync();
             }
-            catch (Exception exception) when (exception is HttpRequestException or System.Text.Json.JsonException or InvalidOperationException)
+            catch (Exception exception) when (exception is HttpRequestException or System.Text.Json.JsonException or InvalidOperationException or OperationCanceledException)
             {
                 _serverAuthMessage = "Identity providers could not be loaded. Check the server connection and try again.";
             }
@@ -200,7 +200,7 @@
             var destination = await _oidc.BeginAsync(providerKey, _returnTo);
             Navigation.NavigateTo(destination.AbsoluteUri, forceLoad: true);
         }
-        catch (Exception exception) when (exception is HttpRequestException or System.Text.Json.JsonException or InvalidOperationException or Microsoft.JSInterop.JSException)
+        catch (Exception exception) when (exception is HttpRequestException or System.Text.Json.JsonException or InvalidOperationException or Microsoft.JSInterop.JSException or OperationCanceledException)
         {
             _serverAuthMessage = "Sign-in could not start. Check the server connection and try again.";
             _signingIn = false;

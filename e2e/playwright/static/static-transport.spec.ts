@@ -54,6 +54,7 @@ test('same-origin OIDC broker redirects and returns beneath the Console mount', 
   const origin = 'http://127.0.0.1:5188';
   const errors: string[] = [];
   const exchanges: string[] = [];
+  const callback = page.waitForResponse(response => new URL(response.url()).pathname === "/admin/auth/callback");
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => {
     if (request.url().endsWith('/providers/entra/token')) exchanges.push(request.postData() ?? '');
@@ -64,15 +65,15 @@ test('same-origin OIDC broker redirects and returns beneath the Console mount', 
   await page.getByRole('button', { name: 'Continue with Organization', exact: true }).click();
   await expect(page).toHaveURL(`${origin}/console/operate/connections`);
   await expect(page.getByRole('link', { name: 'Browser transport fixture', exact: true })).toBeVisible();
-  expect(exchanges).toHaveLength(1);
-  expect(JSON.parse(exchanges[0])).toEqual({ grantType: 'authorization_code', code: 'fixture-code', state: 'fixture-state' });
-  expect(await page.evaluate(() => sessionStorage.getItem('honua.console.pending-oidc'))).toBeNull();
+  const callbackResponse = await callback;
+  expect(callbackResponse.status()).toBe(302);
+  expect(callbackResponse.headers().location).toBe('/console/operate/connections');
+  expect(exchanges).toEqual([]);
+  expect(await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }))).not.toMatch(/fixture-code|fixture-pending|accessToken/);
   expect((await context.cookies(origin)).find(cookie => cookie.name === 'console-fixture-session')?.httpOnly).toBe(true);
   await testInfo.attach('oidc-return', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
-  await page.goto(`${origin}/console/admin/auth/callback?code=fixture-code&state=fixture-state`);
-  await expect(page.getByText('Sign-in could not finish. Start again to request a new sign-in session.', { exact: true })).toBeVisible();
-  await expect(page).toHaveURL(`${origin}/console/admin/auth/callback`);
-  await expect(page.getByRole('link', { name: 'Return to sign-in', exact: true })).toHaveAttribute('href', '/console/auth/signin');
-  expect(exchanges).toHaveLength(1);
+  const replay = await context.request.get(callbackResponse.url(), { maxRedirects: 0 });
+  expect(replay.status()).toBe(403);
+  expect(exchanges).toEqual([]);
   expect(errors).toEqual([]);
 });

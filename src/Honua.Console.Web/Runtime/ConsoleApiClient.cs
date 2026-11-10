@@ -81,10 +81,10 @@ public sealed class ConsoleApiClient(HttpClient http)
             provider.GetProperty("key").GetString()!, provider.GetProperty("displayName").GetString()!)).ToArray();
     }
 
-    public async Task<Uri> CreateAuthorizeUrlAsync(string providerKey, CancellationToken cancellationToken = default)
+    public async Task<Uri> CreateAuthorizeUrlAsync(string providerKey, string returnTo, CancellationToken cancellationToken = default)
     {
         using var response = await http.PostAsJsonAsync(
-            $"api/v1/admin/auth/providers/{Uri.EscapeDataString(providerKey)}/authorize-url", new { }, cancellationToken);
+            $"api/v1/admin/auth/providers/{Uri.EscapeDataString(providerKey)}/authorize-url", new { returnTo }, cancellationToken);
         response.EnsureSuccessStatusCode();
         using var document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
         var value = document?.RootElement.GetProperty("authorizeUrl").GetString();
@@ -95,15 +95,6 @@ public sealed class ConsoleApiClient(HttpClient http)
         }
         return uri;
     }
-
-    public async Task CompleteOidcAsync(string providerKey, string code, string state, CancellationToken cancellationToken = default)
-    {
-        using var response = await http.PostAsJsonAsync(
-            $"api/v1/admin/auth/providers/{Uri.EscapeDataString(providerKey)}/token",
-            new { grantType = "authorization_code", code, state }, cancellationToken);
-        response.EnsureSuccessStatusCode();
-    }
-
 }
 
 public sealed record ConsoleApiSession(ClaimsPrincipal Principal, ConsoleSessionCredentials? Credentials = null);

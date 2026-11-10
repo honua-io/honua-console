@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +10,7 @@ export const fixtureCookie = "console-fixture-session=issued";
 export const fixtureBearer = "console-fixture-bearer";
 
 export function createContractApi({ allowedOrigin, crossOrigin = false, oidc = false }) {
+  const pending = new Map();
   return async (request, response) => {
     response.setHeader("Cache-Control", "no-store");
     const origin = request.headers.origin;
@@ -47,7 +49,8 @@ export function createContractApi({ allowedOrigin, crossOrigin = false, oidc = f
       return;
     }
     if (oidc && pathname === "/api/fixture-provider") {
-      response.writeHead(302, { Location: `${allowedOrigin}/admin/auth/callback?code=fixture-code&state=fixture-state` }).end();
+      const state = new URL(request.url, allowedOrigin).searchParams.get("state");
+      response.writeHead(302, { Location: `${allowedOrigin}/admin/auth/callback?code=fixture-code&state=${encodeURIComponent(state)}` }).end();
       return;
     }
     if (oidc && request.method === "POST" && pathname === "/api/v1/admin/auth/providers/entra/authorize-url") {
@@ -55,23 +58,33 @@ export function createContractApi({ allowedOrigin, crossOrigin = false, oidc = f
         response.writeHead(403).end();
         return;
       }
-      response.setHeader("Set-Cookie", "fixture-pending=issued; Path=/; HttpOnly; SameSite=Lax");
-      json({ authorizeUrl: `${allowedOrigin}/api/fixture-provider?state=fixture-state` });
-      return;
-    }
-    if (oidc && request.method === "POST" && pathname === "/api/v1/admin/auth/providers/entra/token") {
       let body = "";
       for await (const chunk of request) body += chunk;
-      let token;
-      try { token = JSON.parse(body); } catch { /* Invalid fixture input is denied. */ }
-      if (request.headers["x-honua-csrf"] !== "anonymous-csrf"
-        || !request.headers.cookie?.split("; ").includes("fixture-pending=issued")
-        || token?.code !== "fixture-code" || token?.state !== "fixture-state" || token?.grantType !== "authorization_code") {
+      let returnTo;
+      try { returnTo = JSON.parse(body).returnTo ?? "/console/"; } catch { /* Deny invalid input. */ }
+      if (!["/console/", "/console/operate/connections"].includes(returnTo)) {
+        response.writeHead(400).end();
+        return;
+      }
+      const state = randomUUID();
+      pending.set(state, returnTo);
+      response.setHeader("Set-Cookie", `fixture-pending=${state}; Path=/; HttpOnly; SameSite=Lax`);
+      json({ authorizeUrl: `${allowedOrigin}/api/fixture-provider?state=${state}` });
+      return;
+    }
+    if (oidc && request.method === "GET" && pathname === "/admin/auth/callback") {
+      const query = new URL(request.url, allowedOrigin).searchParams;
+      const state = query.get("state");
+      const returnTo = pending.get(state);
+      pending.delete(state);
+      response.setHeader("Referrer-Policy", "no-referrer");
+      if (!returnTo || query.get("code") !== "fixture-code"
+        || !request.headers.cookie?.split("; ").includes(`fixture-pending=${state}`)) {
         response.writeHead(403).end();
         return;
       }
       response.setHeader("Set-Cookie", [`${fixtureCookie}; Path=/; HttpOnly; SameSite=Strict`, "fixture-pending=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"]);
-      response.writeHead(204).end();
+      response.writeHead(302, { Location: returnTo }).end();
       return;
     }
     if (request.method === "POST" && ["/api/v1/admin/auth/session", "/api/v1/admin/auth/password-token"].includes(pathname)) {

@@ -86,59 +86,43 @@ public sealed class BrowserSignInPageTests
     }
 
     [Fact]
-    public async Task CallbackScrubsTheAuthorizationQueryBeforeCompletingAndKeepsMountedReturn()
+    public async Task ProviderDiscoveryTimeoutShowsRecoveryMessage()
     {
-        var navigation = new MountedNavigation();
-        await using var context = CreateContext(navigation);
-        navigation.NavigateTo("/console/admin/auth/callback?code=fixture-code&state=fixture-state");
-        var oidc = new StubOidc { CallbackNavigation = navigation };
-        context.Services.AddSingleton<IConsoleOidcAuthentication>(oidc);
-        context.Render<AuthCallbackPage>();
-        Assert.Equal("fixture-code", oidc.Code);
-        Assert.Equal("fixture-state", oidc.State);
-        Assert.Equal("http://localhost/console/admin/auth/callback", oidc.UriDuringCompletion);
-        Assert.Equal("http://localhost/console/operate/connections", navigation.Uri);
+        await using var context = CreateContext();
+        context.Services.AddSingleton<IConsoleOidcAuthentication>(new StubOidc { TimeoutAt = "discovery" });
+        var page = context.Render<AuthSignInPage>();
+        Assert.Contains("Identity providers could not be loaded", page.Markup);
     }
 
     [Fact]
-    public async Task ProviderErrorDoesNotExchangeCodeOrExposeProviderDetails()
+    public async Task ProviderInitiationTimeoutAllowsRetry()
     {
-        var navigation = new MountedNavigation();
-        await using var context = CreateContext(navigation);
-        navigation.NavigateTo("/console/admin/auth/callback?error=private-provider-detail&code=unused&state=unused");
-        var oidc = new StubOidc();
-        context.Services.AddSingleton<IConsoleOidcAuthentication>(oidc);
-        var page = context.Render<AuthCallbackPage>();
-        Assert.Null(oidc.Code);
-        Assert.DoesNotContain("private-provider-detail", page.Markup);
-        Assert.Equal("/console/auth/signin", page.Find("a").GetAttribute("href"));
-        Assert.Equal("http://localhost/console/admin/auth/callback", navigation.Uri);
+        await using var context = CreateContext();
+        context.Services.AddSingleton<IConsoleOidcAuthentication>(new StubOidc { TimeoutAt = "begin" });
+        var page = context.Render<AuthSignInPage>();
+        await page.Find("button").ClickAsync(new());
+        Assert.Contains("Sign-in could not start", page.Markup);
+        Assert.False(page.Find("button").HasAttribute("disabled"));
     }
 
     private sealed class StubOidc : IConsoleOidcAuthentication
     {
         public bool IsAvailable => true;
+        public string? TimeoutAt { get; init; }
         public string? Provider { get; private set; }
         public string? ReturnTo { get; private set; }
-        public string? Code { get; private set; }
-        public string? State { get; private set; }
-        public string? UriDuringCompletion { get; private set; }
-        public NavigationManager? CallbackNavigation { get; init; }
         public Task<IReadOnlyList<ConsoleIdentityProvider>> GetProvidersAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<ConsoleIdentityProvider>>([new("entra", "Organization")]);
+            TimeoutAt == "discovery"
+                ? Task.FromException<IReadOnlyList<ConsoleIdentityProvider>>(new TaskCanceledException())
+                : Task.FromResult<IReadOnlyList<ConsoleIdentityProvider>>([new("entra", "Organization")]);
         public Task<Uri> BeginAsync(string providerKey, string returnTo, CancellationToken cancellationToken = default)
         {
+            if (TimeoutAt == "begin") return Task.FromException<Uri>(new TaskCanceledException());
             Provider = providerKey;
             ReturnTo = returnTo;
             return Task.FromResult(new Uri("https://identity.example/authorize"));
         }
-        public Task<string> CompleteAsync(string code, string state, CancellationToken cancellationToken = default)
-        {
-            Code = code;
-            State = state;
-            UriDuringCompletion = CallbackNavigation?.Uri;
-            return Task.FromResult("/operate/connections");
-        }
+
     }
 
     private static BunitContext CreateContext(MountedNavigation? navigation = null)

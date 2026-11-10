@@ -68,16 +68,14 @@ server-broker redirects, callback correlation/replay rejection, cookie bootstrap
 return paths. Separate-origin OIDC needs a registered public SPA client and remains unavailable
 in this build.
 
-For same-origin OIDC, set `auth.mode` to `oidc` and provide the public authority, client ID and
-scopes. Provider labels come from `/api/v1/admin/auth/config`; the server owns PKCE, provider
-credentials and token exchange. Keep the server's `Oidc:AdminAuthCallbackUri` and the provider's
-registered redirect at `https://<public-host>/admin/auth/callback`; the server validates that root
-path. Configure the edge to redirect this URL to `/console/admin/auth/callback`, preserving its
-query string, before serving the SPA. `/console/auth/callback` is also accepted by the SPA. Serve callbacks using
-the Console navigation fallback and a `Referrer-Policy: no-referrer` response header. Callback
-query parameters are removed from browser history before exchange. Only short-lived provider,
-state and return-path metadata is stored in session storage; no verifier or provider tokens
-reach browser storage.
+For same-origin OIDC, set `auth.mode` to `oidc`. Provider labels come from
+`/api/v1/admin/auth/config`; the server owns PKCE, callback correlation, provider credentials,
+code exchange and the session cookie. Keep `Oidc:AdminAuthCallbackUri` and the provider's
+registered redirect at `https://<public-host>/admin/auth/callback`. Route that root path to the
+API server. After validating the callback, the server redirects to an allowlisted relative
+Console return path (default `/console/`). Console reloads the session and obtains a fresh,
+identity-bound CSRF token. No callback code, correlation state, provider credentials or tokens
+are stored by the SPA. Keep callback responses uncached and use `Referrer-Policy: no-referrer`.
 Legacy browser configurations launch the test-only host and preserve their existing assertions.
 
 Before rollout, remove the Console service from deployment compositions and validate the API's

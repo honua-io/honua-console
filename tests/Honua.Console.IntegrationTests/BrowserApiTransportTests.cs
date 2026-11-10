@@ -143,6 +143,7 @@ public sealed class BrowserApiTransportTests
 
         Assert.True((await provider.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated);
         Assert.Equal(crossOrigin ? "issued-bearer" : null, session.AccessToken);
+        Assert.True(session.ExpiresAt > DateTimeOffset.UtcNow);
         Assert.Equal(crossOrigin ? null : "identified-csrf", session.CsrfToken);
         Assert.Equal(crossOrigin ? new[] { "password-token", "session" } : new[] { "csrf", "session", "session", "csrf" }, handler.Paths);
     }
@@ -220,7 +221,7 @@ public sealed class BrowserApiTransportTests
             }
             Assert.True(_signedIn);
             Assert.Equal(crossOrigin ? "issued-bearer" : null, request.Headers.Authorization?.Parameter);
-            return Json(new { isAuthenticated = true, claims = new[] { new { type = ClaimTypes.NameIdentifier, value = "operator" } }, expiresAt = DateTimeOffset.UtcNow.AddMinutes(5) });
+            return Json(new { isAuthenticated = true, claims = new[] { new { type = ClaimTypes.NameIdentifier, value = "operator" } }, expiresAt = crossOrigin ? (DateTimeOffset?)null : DateTimeOffset.UtcNow.AddMinutes(5) });
         }
 
         private static HttpResponseMessage Json(object body) => new(HttpStatusCode.OK) { Content = JsonContent.Create(body) };
