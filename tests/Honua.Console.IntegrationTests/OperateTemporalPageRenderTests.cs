@@ -10,13 +10,15 @@ public sealed class OperateTemporalPageRenderTests
 {
     // ---- AC #1: unsupported / unbound temporal sources render a capability explanation, not an empty viewer.
 
-    [Fact]
-    public void TemporalViewer_WhenBindingMissing_RendersCapabilityExplanationNotEmptyViewer()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_WhenBindingMissing_RendersCapabilityExplanationNotEmptyViewer(bool enabled)
     {
         var page = Render(new FakeTemporalClient
         {
             Workspace = new TemporalViewerWorkspace([], [MissingBindingState])
-        });
+        }, enabled);
 
         page.WaitForAssertion(
             () => Assert.Contains("Temporal capability is not bound", page.Markup, StringComparison.Ordinal),
@@ -25,6 +27,7 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Contains("honua-server#1167", page.Markup, StringComparison.Ordinal);
         // Not an empty viewer: no source table is rendered behind the explanation.
         Assert.DoesNotContain("<table", page.Markup, StringComparison.Ordinal);
+        if (enabled) CatalogAdminPreview.Capture("temporal-missing", page.Markup);
     }
 
     [Fact]
@@ -39,11 +42,15 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Equal("Missing binding", state.State);
     }
 
-    [Fact]
-    public void TemporalViewer_MergedBuildPage_RendersMissingBindingThroughRealDi()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_MergedBuildPage_RendersMissingBindingThroughRealDi(bool enabled)
     {
         using var ctx = new Bunit.BunitContext();
         ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         // Register exactly what the merged build registers — the unsupported client — and prove the page
         // renders the capability explanation rather than an empty viewer, with no fabricated source rows.
         ctx.Services.AddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
@@ -59,10 +66,12 @@ public sealed class OperateTemporalPageRenderTests
 
     // ---- Bound source: full surface renders the server-declared capability and is inspectable.
 
-    [Fact]
-    public void TemporalViewer_WhenSourcesBound_RendersServerDeclaredCapabilityModes()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_WhenSourcesBound_RendersServerDeclaredCapabilityModes(bool enabled)
     {
-        var page = Render(new FakeTemporalClient { Workspace = WorkspaceWith(RollbackSource) });
+        var page = Render(new FakeTemporalClient { Workspace = WorkspaceWith(RollbackSource) }, enabled);
 
         page.WaitForAssertion(
             () => Assert.Contains("parcels", page.Markup, StringComparison.Ordinal),
@@ -71,10 +80,13 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Contains("Bidirectional", page.Markup, StringComparison.Ordinal);
         Assert.Contains("retain-7y", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Temporal capability is not bound", page.Markup, StringComparison.Ordinal);
+        if (enabled) CatalogAdminPreview.Capture("temporal-sources", page.Markup);
     }
 
-    [Fact]
-    public void TemporalViewer_InspectSource_ShowsCheckpointsAndRetentionWarning_WhenNoPolicy()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_InspectSource_ShowsCheckpointsAndRetentionWarning_WhenNoPolicy(bool enabled)
     {
         var noRetention = RollbackSource with { RetentionPolicyId = null };
         var client = new FakeTemporalClient
@@ -82,7 +94,7 @@ public sealed class OperateTemporalPageRenderTests
             Workspace = WorkspaceWith(noRetention),
             Checkpoints = new TemporalCheckpointList([Checkpoint("cp-now", "Now"), Checkpoint("cp-prev", "Before release")])
         };
-        var page = Render(client);
+        var page = Render(client, enabled);
 
         InspectFirstSource(page);
 
@@ -97,8 +109,10 @@ public sealed class OperateTemporalPageRenderTests
     //      scrubber axis, now-vs-as-of split, replica auto-resolution rules, three-way merge columns,
     //      and AI advisory strip must be present in the rendered structure, not just the data.
 
-    [Fact]
-    public void TemporalViewer_InspectSource_RendersAsOfHeaderAndScrubberAxis()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_InspectSource_RendersAsOfHeaderAndScrubberAxis(bool enabled)
     {
         var client = new FakeTemporalClient
         {
@@ -110,7 +124,7 @@ public sealed class OperateTemporalPageRenderTests
                 Checkpoint("cp-prev", "Before"),
             ])
         };
-        var page = Render(client);
+        var page = Render(client, enabled);
 
         InspectFirstSource(page);
 
@@ -125,17 +139,20 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Single(page.FindAll(".operate-temporal-tick-release"));
         // Legend distinguishes checkpoints from releases.
         Assert.Contains("release ·", page.Markup, StringComparison.Ordinal);
+        if (enabled) CatalogAdminPreview.Capture("temporal-timeline", page.Markup);
     }
 
-    [Fact]
-    public void TemporalViewer_ScrubberTick_SelectsAsOfCheckpoint()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_ScrubberTick_SelectsAsOfCheckpoint(bool enabled)
     {
         var client = new FakeTemporalClient
         {
             Workspace = WorkspaceWith(RollbackSource),
             Checkpoints = new TemporalCheckpointList([Checkpoint("cp-now", "Now"), Checkpoint("cp-prev", "Before")])
         };
-        var page = Render(client);
+        var page = Render(client, enabled);
         InspectFirstSource(page);
         page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll(".operate-temporal-tick")), TimeSpan.FromSeconds(5));
 
@@ -147,8 +164,10 @@ public sealed class OperateTemporalPageRenderTests
             TimeSpan.FromSeconds(5));
     }
 
-    [Fact]
-    public void TemporalViewer_InvertedDiffSelection_ShowsOrderError_AndGatesCompare()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_InvertedDiffSelection_ShowsOrderError_AndGatesCompare(bool enabled)
     {
         // Two checkpoints with distinct timestamps: cp-now is newer, cp-prev is older.
         var newer = StampedCheckpoint("cp-now", "Now", DateTimeOffset.UtcNow);
@@ -159,7 +178,7 @@ public sealed class OperateTemporalPageRenderTests
             // Newest-first: default selection seeds from = checkpoints[1] (older), to = checkpoints[0] (newer) => valid.
             Checkpoints = new TemporalCheckpointList([newer, older]),
         };
-        var page = Render(client);
+        var page = Render(client, enabled);
         InspectFirstSource(page);
         page.WaitForAssertion(
             () => Assert.NotNull(page.Find("select[aria-label='From checkpoint']")),
@@ -176,8 +195,10 @@ public sealed class OperateTemporalPageRenderTests
         Assert.True(compare.HasAttribute("disabled"));
     }
 
-    [Fact]
-    public void TemporalViewer_ComputeDiff_RendersNowVersusAsOfSplit()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_ComputeDiff_RendersNowVersusAsOfSplit(bool enabled)
     {
         var client = new FakeTemporalClient
         {
@@ -188,7 +209,7 @@ public sealed class OperateTemporalPageRenderTests
                 GeometryChangedFeatures: 2, AttributeChangedFeatures: 5,
                 SampleFeatureChanges: [], GeneratedAt: DateTimeOffset.UtcNow)
         };
-        var page = Render(client);
+        var page = Render(client, enabled);
         InspectFirstSource(page);
         page.WaitForAssertion(() => page.Find("button.console-button"), TimeSpan.FromSeconds(5));
 
@@ -202,8 +223,10 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Single(page.FindAll(".operate-temporal-pane-now"));
     }
 
-    [Fact]
-    public void TemporalViewer_ComputeDiff_RendersAsOfAndNowMapPanes()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_ComputeDiff_RendersAsOfAndNowMapPanes(bool enabled)
     {
         var client = new FakeTemporalClient
         {
@@ -214,7 +237,7 @@ public sealed class OperateTemporalPageRenderTests
                 GeometryChangedFeatures: 2, AttributeChangedFeatures: 5,
                 SampleFeatureChanges: [], GeneratedAt: DateTimeOffset.UtcNow)
         };
-        var page = Render(client);
+        var page = Render(client, enabled);
         InspectFirstSource(page);
         page.WaitForAssertion(() => page.Find("button.console-button"), TimeSpan.FromSeconds(5));
 
@@ -234,12 +257,15 @@ public sealed class OperateTemporalPageRenderTests
         Assert.NotNull(page.Find("[data-temporal-map='now'] .map-preview-timeframe-now"));
         // No live map is bound — the no-mock schematic is what renders.
         Assert.Equal("false", page.Find("[data-temporal-map='as-of'] [data-map-bound]").GetAttribute("data-map-bound"));
+        if (enabled) CatalogAdminPreview.Capture("temporal-diff", page.Markup);
     }
 
-    [Fact]
-    public void TemporalViewer_ReviewReplica_RendersBaseMapInBaseColumn()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_ReviewReplica_RendersBaseMapInBaseColumn(bool enabled)
     {
-        var page = Render(ClientWithConflicts());
+        var page = Render(ClientWithConflicts(), enabled);
 
         InspectFirstSource(page);
         page.WaitForAssertion(() => Assert.Contains("Field Crew 7", page.Markup, StringComparison.Ordinal), TimeSpan.FromSeconds(5));
@@ -256,14 +282,16 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Equal("false", page.Find("[data-temporal-map='base'] [data-map-bound]").GetAttribute("data-map-bound"));
     }
 
-    [Fact]
-    public void TemporalViewer_ReplicaQueue_RendersStatusBadgesAndAutoResolutionRules()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_ReplicaQueue_RendersStatusBadgesAndAutoResolutionRules(bool enabled)
     {
         var page = Render(new FakeTemporalClient
         {
             Workspace = WorkspaceWith(RollbackSource),
             ReplicaQueue = new ReplicaConflictQueue([SampleReplica])
-        });
+        }, enabled);
 
         InspectFirstSource(page);
 
@@ -278,10 +306,12 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Contains("console-status", page.Find("[data-temporal-region='sync-conflicts'] tbody tr").InnerHtml, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void TemporalViewer_ReviewReplica_RendersThreeWayColumnsAndAdvisoryStrip()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_ReviewReplica_RendersThreeWayColumnsAndAdvisoryStrip(bool enabled)
     {
-        var page = Render(ClientWithConflicts());
+        var page = Render(ClientWithConflicts(), enabled);
 
         InspectFirstSource(page);
         page.WaitForAssertion(() => Assert.Contains("Field Crew 7", page.Markup, StringComparison.Ordinal), TimeSpan.FromSeconds(5));
@@ -301,11 +331,13 @@ public sealed class OperateTemporalPageRenderTests
 
     // ---- RBAC / capability denials surface explanations, never fabricated data.
 
-    [Fact]
-    public void TemporalViewer_HistoryReadForbidden_RendersForbiddenExplanation()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_HistoryReadForbidden_RendersForbiddenExplanation(bool enabled)
     {
         var forbidden = RollbackSource with { HistoryReadPermitted = false };
-        var page = Render(new FakeTemporalClient { Workspace = WorkspaceWith(forbidden) });
+        var page = Render(new FakeTemporalClient { Workspace = WorkspaceWith(forbidden) }, enabled);
 
         InspectFirstSource(page);
 
@@ -313,25 +345,31 @@ public sealed class OperateTemporalPageRenderTests
             () => Assert.Contains("History access is not permitted", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.DoesNotContain("Checkpoints", page.Markup, StringComparison.Ordinal);
+        if (enabled) CatalogAdminPreview.Capture("temporal-forbidden", page.Markup);
     }
 
-    [Fact]
-    public void TemporalViewer_NoTemporalSupport_RendersUnsupportedExplanation()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_NoTemporalSupport_RendersUnsupportedExplanation(bool enabled)
     {
         var none = RollbackSource with { Mode = TemporalMode.None, RollbackSupported = false, SyncConflictReviewSupported = false };
-        var page = Render(new FakeTemporalClient { Workspace = WorkspaceWith(none) });
+        var page = Render(new FakeTemporalClient { Workspace = WorkspaceWith(none) }, enabled);
 
         InspectFirstSource(page);
 
         page.WaitForAssertion(
             () => Assert.Contains("This source has no temporal history", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
+        if (enabled) CatalogAdminPreview.Capture("temporal-unsupported", page.Markup);
     }
 
     // ---- Diff (now-vs-as-of) renders counts on success and the blocked state on a binding failure.
 
-    [Fact]
-    public void TemporalViewer_ComputeDiff_RendersSummaryCounts()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_ComputeDiff_RendersSummaryCounts(bool enabled)
     {
         var client = new FakeTemporalClient
         {
@@ -348,7 +386,7 @@ public sealed class OperateTemporalPageRenderTests
                 ],
                 GeneratedAt: DateTimeOffset.UtcNow)
         };
-        var page = Render(client);
+        var page = Render(client, enabled);
         InspectFirstSource(page);
 
         page.WaitForAssertion(() => page.Find("button.console-button"), TimeSpan.FromSeconds(5));
@@ -361,8 +399,10 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Equal(1, client.DiffCalls);
     }
 
-    [Fact]
-    public void TemporalViewer_ComputeDiff_WhenBlocked_RendersBindingExplanationNotCounts()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_ComputeDiff_WhenBlocked_RendersBindingExplanationNotCounts(bool enabled)
     {
         var client = new FakeTemporalClient
         {
@@ -370,7 +410,7 @@ public sealed class OperateTemporalPageRenderTests
             Checkpoints = new TemporalCheckpointList([Checkpoint("cp-now", "Now"), Checkpoint("cp-prev", "Before")]),
             Diff = TemporalDiff.Blocked(MissingBinding)
         };
-        var page = Render(client);
+        var page = Render(client, enabled);
         InspectFirstSource(page);
         page.WaitForAssertion(() => page.Find("button.console-button"), TimeSpan.FromSeconds(5));
 
@@ -385,8 +425,10 @@ public sealed class OperateTemporalPageRenderTests
 
     // ---- AC #2: rollback creates a governed job + result checkpoint, never erasing history.
 
-    [Fact]
-    public void TemporalViewer_Rollback_PlanThenExecute_ProducesGovernedJobAndCheckpoint()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_Rollback_PlanThenExecute_ProducesGovernedJobAndCheckpoint(bool enabled)
     {
         var client = new FakeTemporalClient
         {
@@ -398,7 +440,7 @@ public sealed class OperateTemporalPageRenderTests
             RollbackOperation = new TemporalRollbackOperation("rb-op-1", "plan-1", "job-77", "queued",
                 "alice", "bob", "cp-rollback-9", ["audit-1"], FailureReason: null)
         };
-        var page = Render(client);
+        var page = Render(client, enabled);
         InspectFirstSource(page);
 
         page.WaitForAssertion(
@@ -424,10 +466,13 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Contains("job-77", page.Markup, StringComparison.Ordinal);
         Assert.Contains("audit-1", page.Markup, StringComparison.Ordinal);
         Assert.Equal(1, client.ExecuteRollbackCalls);
+        if (enabled) CatalogAdminPreview.Capture("temporal-rollback", page.Markup);
     }
 
-    [Fact]
-    public void TemporalViewer_Rollback_WhenPlanBlocked_RendersExplanationNotPlan()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_Rollback_WhenPlanBlocked_RendersExplanationNotPlan(bool enabled)
     {
         var client = new FakeTemporalClient
         {
@@ -435,7 +480,7 @@ public sealed class OperateTemporalPageRenderTests
             Checkpoints = new TemporalCheckpointList([Checkpoint("cp-now", "Now"), Checkpoint("cp-prev", "Before")]),
             RollbackPlan = TemporalRollbackPlan.Blocked(MissingBinding)
         };
-        var page = Render(client);
+        var page = Render(client, enabled);
         InspectFirstSource(page);
         page.WaitForAssertion(
             () => Assert.Contains("Governed Rollback", page.Markup, StringComparison.Ordinal),
@@ -451,14 +496,16 @@ public sealed class OperateTemporalPageRenderTests
 
     // ---- Disconnected replica conflict queue + base/client/server review.
 
-    [Fact]
-    public void TemporalViewer_ReplicaConflictQueue_RendersOwnerDeviceGenAndStatus()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_ReplicaConflictQueue_RendersOwnerDeviceGenAndStatus(bool enabled)
     {
         var page = Render(new FakeTemporalClient
         {
             Workspace = WorkspaceWith(RollbackSource),
             ReplicaQueue = new ReplicaConflictQueue([SampleReplica])
-        });
+        }, enabled);
 
         InspectFirstSource(page);
 
@@ -472,10 +519,12 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Contains("Conflicted", page.Markup, StringComparison.Ordinal);      // status
     }
 
-    [Fact]
-    public void TemporalViewer_ReviewReplica_ShowsBaseClientServerAndConflictMarkers()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_ReviewReplica_ShowsBaseClientServerAndConflictMarkers(bool enabled)
     {
-        var page = Render(ClientWithConflicts());
+        var page = Render(ClientWithConflicts(), enabled);
 
         InspectFirstSource(page);
         page.WaitForAssertion(
@@ -490,12 +539,15 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Contains("owner_name", page.Markup, StringComparison.Ordinal);             // field conflict row
         Assert.Contains("Client wins", page.Markup, StringComparison.Ordinal);            // resolution choice
         Assert.Contains("Field merge", page.Markup, StringComparison.Ordinal);
+        if (enabled) CatalogAdminPreview.Capture("temporal-conflicts", page.Markup);
     }
 
     // ---- AC #3: conflict resolution writes audit evidence + a committed change set.
 
-    [Fact]
-    public void TemporalViewer_ResolveConflict_WritesAuditEvidenceAndCommittedChangeSet()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_ResolveConflict_WritesAuditEvidenceAndCommittedChangeSet(bool enabled)
     {
         var client = ClientWithConflicts();
         client.Resolution = new SyncConflictResolutionResult(
@@ -504,7 +556,7 @@ public sealed class OperateTemporalPageRenderTests
             AuditEventIds: ["audit-1", "audit-2"], JobRunId: "job-3");
         // After resolution the page refreshes the review; return no remaining conflicts.
         client.ReviewAfterResolution = new ReplicaConflictReview(SampleReplica, []);
-        var page = Render(client);
+        var page = Render(client, enabled);
 
         InspectFirstSource(page);
         page.WaitForAssertion(() => Assert.Contains("Field Crew 7", page.Markup, StringComparison.Ordinal), TimeSpan.FromSeconds(5));
@@ -522,14 +574,17 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Contains("audit-2", page.Markup, StringComparison.Ordinal);
         Assert.True(client.LastResolution!.WroteAuditedChangeSet);
         Assert.Equal(["conflict-1"], client.LastResolution.ConflictIds);
+        if (enabled) CatalogAdminPreview.Capture("temporal-committed", page.Markup);
     }
 
-    [Fact]
-    public void TemporalViewer_ResolveConflict_WhenBlocked_RendersExplanationNotSuccess()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_ResolveConflict_WhenBlocked_RendersExplanationNotSuccess(bool enabled)
     {
         var client = ClientWithConflicts();
         client.Resolution = SyncConflictResolutionResult.Blocked(["conflict-1"], SyncResolutionAction.KeepServer, MissingBinding);
-        var page = Render(client);
+        var page = Render(client, enabled);
 
         InspectFirstSource(page);
         page.WaitForAssertion(() => Assert.Contains("Field Crew 7", page.Markup, StringComparison.Ordinal), TimeSpan.FromSeconds(5));
@@ -546,13 +601,17 @@ public sealed class OperateTemporalPageRenderTests
 
     // ---- helpers --------------------------------------------------------------------------------------
 
-    private static IRenderedComponent<OperateTemporalPage> Render(ITemporalCapabilityClient client)
+    private static IRenderedComponent<OperateTemporalPage> Render(ITemporalCapabilityClient client, bool enabled)
     {
         var ctx = new Bunit.BunitContext();
         ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton(client);
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
-        return ctx.Render<OperateTemporalPage>();
+        var page = ctx.Render<OperateTemporalPage>();
+        Assert.Equal(enabled ? "Temporal" : "Temporal viewer", page.Find("h1").TextContent);
+        return page;
     }
 
     private static void InspectFirstSource(IRenderedComponent<OperateTemporalPage> page)
