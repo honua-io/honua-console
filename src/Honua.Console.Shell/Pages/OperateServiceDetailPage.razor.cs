@@ -7,6 +7,7 @@ namespace Honua.Console.Shell.Pages;
 public partial class OperateServiceDetailPage
 {
     private bool _interactiveReady;
+    private bool _loading = true;
     private ConsoleAgentUnsavedSummary _folderUnsaved = new();
     private ConsoleAgentUnsavedSummary _metadataUnsaved = new();
 
@@ -26,7 +27,7 @@ public partial class OperateServiceDetailPage
         Unsaved = new()
         {
             ChangedFieldCount = ChangedSettingsCount + _folderUnsaved.ChangedFieldCount + _metadataUnsaved.ChangedFieldCount,
-            PendingOperationCount = (_savingProtocols ? 1 : 0) + (_savingAccess ? 1 : 0)
+            PendingOperationCount = (_loading ? 1 : 0) + (_savingProtocols ? 1 : 0) + (_savingAccess ? 1 : 0)
                 + _folderUnsaved.PendingOperationCount + _metadataUnsaved.PendingOperationCount
         }
     };
@@ -75,12 +76,14 @@ public partial class OperateServiceDetailPage
 
     protected override async Task OnParametersSetAsync()
     {
+        _loading = true;
         var view = await OperateData.GetServicesViewAsync();
         _service = view.Services.FirstOrDefault(
             service => string.Equals(service.Name, ServiceName, StringComparison.OrdinalIgnoreCase));
         _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Services", "Layers");
 
         await LoadSettingsAsync();
+        _loading = false;
     }
 
     private async Task LoadSettingsAsync()

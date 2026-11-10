@@ -30,26 +30,29 @@ public sealed class RemovedOperateEntryPointsRenderTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ServicePage_OffersNoOverridesDiscoveryOrSettingsCaps(bool enabled)
+    [InlineData(false, "/")]
+    [InlineData(true, "/")]
+    [InlineData(false, "/console/")]
+    [InlineData(true, "/console/")]
+    public void ServicePage_OffersNoOverridesDiscoveryOrSettingsCaps(bool enabled, string mount)
     {
-        using var ctx = CreateContext(enabled);
+        using var ctx = CreateContext(enabled, mount);
         ctx.Services.AddSingleton<IServiceConfigurationOperation>(new UnsupportedServiceConfigurationOperation());
 
         var page = ctx.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, Cadastre.Name));
 
         page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-service-detail]")));
+        Assert.NotNull(page.Find($"a[href='{mount}operate/resources/conn-1-layer-1']"));
         Assert.Empty(page.FindAll("[data-publication-overrides-link], [data-service-discovery-link], [data-save-settings-caps]"));
         Assert.Contains(Cadastre.PublicationSlots[0].Url!, page.Markup, StringComparison.Ordinal);
         Assert.Empty(page.FindAll("fieldset[style], article[role='status']"));
         Assert.Equal(enabled ? 4 : 0, page.FindAll("[role='tab']").Count);
-        CatalogAdminPreview.Capture(enabled ? "data-service-detail" : "service", page.Markup);
+        if (mount == "/console/") CatalogAdminPreview.Capture(enabled ? "data-service-detail" : "service", page.Markup);
         if (enabled)
         {
             page.Find("#service-protocols-tab").Click();
             Assert.Contains("console-state-neutral", page.Find(enabled ? "#service-protocols-panel > [role='status']" : "[data-service-config] > [role='status']").ClassList);
-            CatalogAdminPreview.Capture("data-service-detail-unbound", page.Markup);
+            if (mount == "/console/") CatalogAdminPreview.Capture("data-service-detail-unbound", page.Markup);
         }
         else
         {
@@ -134,9 +137,10 @@ public sealed class RemovedOperateEntryPointsRenderTests
             _unsupported.UpdateMapServerSettingsAsync(command, cancellationToken);
     }
 
-    private static BunitContext CreateContext(bool enabled = false)
+    private static BunitContext CreateContext(bool enabled = false, string mount = "/console/")
     {
         var ctx = new BunitContext();
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager(mount));
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         ctx.AddConsoleNotifications();
@@ -144,4 +148,16 @@ public sealed class RemovedOperateEntryPointsRenderTests
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FixedServicesDataSource(Cadastre));
         return ctx;
     }
+
+    private sealed class MountedNavigationManager : Microsoft.AspNetCore.Components.NavigationManager
+    {
+        public MountedNavigationManager(string mount) => Initialize("http://localhost" + mount, "http://localhost" + mount);
+
+        protected override void NavigateToCore(string uri, bool forceLoad)
+        {
+            Uri = ToAbsoluteUri(uri).AbsoluteUri;
+            NotifyLocationChanged(false);
+        }
+    }
+
 }

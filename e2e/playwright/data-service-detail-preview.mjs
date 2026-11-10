@@ -7,11 +7,14 @@ await runV4PagePresentation({
   pageNames: ["data-service-detail", "data-service-detail-unbound", "data-service-detail-protocols", "data-service-detail-access", "data-service-detail-limits", "data-service-detail-success", "data-service-detail-danger"],
   title: "Service detail presentation fixture",
   allowScriptModules: true,
-  stylesheet: "v4-data-primitives.css",
+  stylesheet: "v4-shell.css",
   heading: "Cadastre",
   scope: ".console-page",
   controls: ".console-page :is(a[href], button, input, select, summary):not(:disabled):not([tabindex='-1']):visible",
   inspect: async (page, name) => {
+    if (!name.endsWith("-unbound") && !name.endsWith("-protocols") && !name.endsWith("-access") && !name.endsWith("-limits")) {
+      assert.equal(await page.locator("a[href='/console/operate/resources/conn-1-layer-1']").count(), 1);
+    }
     assert.equal(await page.getByRole("tab").count(), 4);
     assert.equal(await page.locator("[role='tab'][aria-selected='true'][tabindex='0']").count(), 1);
     assert.equal(await page.locator("[role='tabpanel']:visible").count(), 1);

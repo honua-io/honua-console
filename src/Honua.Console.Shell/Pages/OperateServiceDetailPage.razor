@@ -5,6 +5,7 @@
 @inject IServiceConfigurationOperation ServiceConfig
 @inject IConsoleNotificationService Notifications
 @inject IServiceProvider Services
+@inject NavigationManager Navigation
 
 <ConsoleAgentContext Context="@AgentContext" />
 
@@ -333,7 +334,7 @@
                             <td>@layer.Name</td>
                             <td>@layer.Geometry</td>
                             <td>
-                                <a href="@($"/operate/resources/{layer.CanonicalResourceId}")">@layer.CanonicalResourceName</a>
+                                <a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(layer.CanonicalResourceId)}")">@layer.CanonicalResourceName</a>
                                 <small>@layer.CanonicalResourceId</small>
                             </td>
                         </tr>
