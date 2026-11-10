@@ -12,15 +12,17 @@ public sealed class OperateConnectionV4RenderTests
     private static readonly OperateConnectionSummary Connection = new("connection a", "Production database", "PostGIS", "db.example:5432 / spatial", "reader", "Healthy", "Today", null);
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void InventoryUsesStableEncodedConnectionLinks(bool enabled)
+    [InlineData(false, "/")]
+    [InlineData(true, "/")]
+    [InlineData(false, "/console/")]
+    [InlineData(true, "/console/")]
+    public void InventoryUsesStableEncodedConnectionLinks(bool enabled, string mount)
     {
-        using var context = Context(enabled);
+        using var context = Context(enabled, mount);
         var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
         var page = context.Render<OperateConnectionsPage>();
         var link = page.Find("tbody a");
-        Assert.Equal("/operate/connections/connection%20a", link.GetAttribute("href"));
+        Assert.Equal(mount + "operate/connections/connection%20a", link.GetAttribute("href"));
         Assert.Equal("Production database", link.TextContent);
         Assert.Equal(enabled ? 1 : 0, page.FindAll("section.console-panel[aria-labelledby]").Count);
         Assert.Equal(enabled ? "/operate/connections" : "/", registry.Current.Route);
@@ -29,8 +31,8 @@ public sealed class OperateConnectionV4RenderTests
             var entity = Assert.Single(registry.Current.Entities);
             Assert.Equal(ConsoleAgentEntityKind.Connection, entity.Kind);
             Assert.Equal(Connection.Id, entity.Id);
-            Assert.Equal(link.GetAttribute("href"), ConsoleAgentRoutes.ForEntity(entity));
-            CatalogAdminPreview.Capture("data-connections", page.Markup);
+            Assert.Equal("/operate/connections/connection%20a", ConsoleAgentRoutes.ForEntity(entity));
+            if (mount == "/console/") CatalogAdminPreview.Capture("data-connections", page.Markup);
         }
     }
 
@@ -150,14 +152,25 @@ public sealed class OperateConnectionV4RenderTests
         public Task<ConsoleConnectionCreateResult> CreateAsync(ConsoleConnectionCreateCommand command, CancellationToken cancellationToken = default) => Create.Task;
     }
 
-    private static BunitContext Context(bool enabled)
+    private static BunitContext Context(bool enabled, string mount = "/")
     {
         var context = new BunitContext();
+        context.Services.AddSingleton<NavigationManager>(new MountedNavigationManager(mount));
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         context.Services.AddSingleton<ConsoleAgentContextRegistry>();
         context.Services.AddSingleton<IOperateTransitionDataSource>(new Source());
         context.Services.AddSingleton<IConsoleConnectionCreateOperation, UnsupportedConsoleConnectionCreateOperation>();
         return context;
+    }
+
+    private sealed class MountedNavigationManager : NavigationManager
+    {
+        public MountedNavigationManager(string mount) => Initialize("http://localhost" + mount, "http://localhost" + mount + "operate/connections");
+        protected override void NavigateToCore(string uri, bool forceLoad)
+        {
+            Uri = ToAbsoluteUri(uri).ToString();
+            NotifyLocationChanged(false);
+        }
     }
 
     private sealed class Source : IOperateTransitionDataSource

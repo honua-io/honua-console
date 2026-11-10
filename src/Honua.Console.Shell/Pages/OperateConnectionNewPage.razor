@@ -200,7 +200,7 @@
             <button class="console-button" type="button" disabled="@(_busy || _testing || !CanUseProvider)" @onclick="CreateAsync">
                 @(_busy ? "Creating…" : "Create connection")
             </button>
-            <a href="/operate/connections">Cancel</a>
+            <a href="operate/connections">Cancel</a>
         </div>
     </text>;
     private RenderFragment NextSteps => @<text>
@@ -394,9 +394,9 @@
             _dirty.MarkClean();
             StateHasChanged();
             await Task.Yield();
-            Nav.NavigateTo(string.IsNullOrWhiteSpace(_result.ConnectionId)
+            Nav.NavigateTo(Nav.ToConsoleHref(string.IsNullOrWhiteSpace(_result.ConnectionId)
                 ? "/operate/connections"
-                : $"/operate/connections/{_result.ConnectionId}");
+                : ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForConnection(_result.ConnectionId))));
             return;
         }
 
