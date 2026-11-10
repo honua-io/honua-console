@@ -227,7 +227,7 @@ else
     private Task ReportUnsavedAsync() => UnsavedChanged.InvokeAsync(new()
     {
         ChangedFieldCount = !_disposed && _detail?.IsAwaitingApproval == true && !string.IsNullOrEmpty(_reason) ? 1 : 0,
-        PendingOperationCount = _busy ? 1 : 0
+        PendingOperationCount = _pendingDecisions
     });
 
     public async ValueTask DisposeAsync()
@@ -242,6 +242,7 @@ else
     private string? _detailMessage;
     private string? _reason;
     private bool _busy;
+    private int _pendingDecisions;
     private bool _rejectForbidden;
     private bool _reviewMustBeReopened;
     private bool DecisionUnavailable => !RendererInfo.IsInteractive || _busy;
@@ -373,11 +374,12 @@ else
         var proposalId = ProposalId;
         var generation = _reviewGeneration;
         _busy = true;
+        _pendingDecisions++;
         _actionMessage = null;
         _actionDetail = null;
-        await ReportUnsavedAsync();
         try
         {
+            await ReportUnsavedAsync();
             var result = await action();
             if (!IsCurrentReview(generation, proposalId)) return;
             result = EnsureProposalMatch(result, proposalId);
@@ -397,7 +399,7 @@ else
         }
         finally
         {
-
+            _pendingDecisions--;
             if (IsCurrentReview(generation, proposalId)) _busy = false;
             await ReportUnsavedAsync();
         }

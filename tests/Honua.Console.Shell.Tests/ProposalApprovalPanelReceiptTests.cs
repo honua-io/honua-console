@@ -3,6 +3,7 @@ using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
+using Honua.Console.TestFixtures;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -246,16 +247,27 @@ public sealed class ProposalApprovalPanelReceiptTests
         var pending = new TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>();
         var proposals = new ProposalClient { PendingDecision = pending };
         var actioned = new List<string>();
+        var reports = new List<ConsoleAgentUnsavedSummary>();
         context.Services.AddSingleton<IConsoleProposalsClient>(proposals);
         context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
             .Add(component => component.ProposalId, "proposal-1")
-            .Add(component => component.OnActioned, detail => actioned.Add(detail.ProposalId)));
+            .Add(component => component.OnActioned, detail => actioned.Add(detail.ProposalId))
+            .Add(component => component.UnsavedChanged, summary => reports.Add(summary)));
         var click = panel.Find("[data-proposal-approve]").ClickAsync(new());
-        panel.Render(parameters => parameters.Add(component => component.ReloadToken, 1));
+        try
+        {
+            Assert.Equal(1, reports[^1].PendingOperationCount);
+            panel.Render(parameters => parameters.Add(component => component.ReloadToken, 1));
+            Assert.Equal(1, reports[^1].PendingOperationCount);
+        }
+        finally
+        {
+            pending.SetResult(ProposalClient.Allowed(ConsoleProposalStatus.Submitted));
+            await click;
+        }
 
-        pending.SetResult(ProposalClient.Allowed(ConsoleProposalStatus.Submitted));
-        await click;
+        Assert.Equal(0, reports[^1].PendingOperationCount);
 
         Assert.Equal("AwaitingApproval", panel.Find("[data-proposal-status]").GetAttribute("data-proposal-status"));
         Assert.Empty(actioned);
