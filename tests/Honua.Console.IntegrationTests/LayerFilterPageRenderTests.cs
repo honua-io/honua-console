@@ -56,7 +56,8 @@ public sealed class LayerFilterPageRenderTests
     [InlineData(true)]
     public void Filter_ClearRequiresConfirmationAndUpdatesDraft(bool enabled)
     {
-        using var ctx = CreateContext(enabled, out var registry, out var filter);
+        var (context, registry, filter) = CreateContext(new ConsoleV4Options { Enabled = enabled });
+        using var ctx = context;
         filter.SavedExpression = "status = 'active'";
         var page = ctx.Render<OperateLayerFilterPage>(p => p.Add(x => x.ResourceId, ResourceId));
         page.Find("[data-filter-clear]").Click();
@@ -73,7 +74,8 @@ public sealed class LayerFilterPageRenderTests
     [InlineData(true)]
     public void Filter_RejectedSavePreservesDraft(bool enabled)
     {
-        using var ctx = CreateContext(enabled, out var registry, out var filter);
+        var (context, registry, filter) = CreateContext(new ConsoleV4Options { Enabled = enabled });
+        using var ctx = context;
         filter.Completion.SetResult(new() { Succeeded = false, State = "Rejected", Detail = "Unknown field." });
         var page = ctx.Render<OperateLayerFilterPage>(p => p.Add(x => x.ResourceId, ResourceId));
         page.Find("[data-filter-expression]").Change("private_field = 1");
@@ -89,7 +91,8 @@ public sealed class LayerFilterPageRenderTests
     [InlineData(true)]
     public async Task Filter_CompletionFromPreviousLayerCannotReplaceCurrentDraft(bool enabled)
     {
-        using var ctx = CreateContext(enabled, out var registry, out var filter);
+        var (context, registry, filter) = CreateContext(new ConsoleV4Options { Enabled = enabled });
+        using var ctx = context;
         var page = ctx.Render<OperateLayerFilterPage>(p => p.Add(x => x.ResourceId, ResourceId));
         page.Find("[data-filter-expression]").Change("private_field = 1");
         page.Find("[data-filter-save]").Click();
@@ -103,21 +106,21 @@ public sealed class LayerFilterPageRenderTests
         if (enabled) Assert.Equal("roads", Assert.Single(registry.Current.Selection).ResourceId);
     }
 
-    private static BunitContext CreateContext(bool enabled, out ConsoleAgentContextRegistry registry, out FilterOperation filter)
+    private static (BunitContext Context, ConsoleAgentContextRegistry Registry, FilterOperation Operation) CreateContext(ConsoleV4Options options)
     {
         var ctx = new BunitContext();
         ctx.AddConsoleNotifications();
-        registry = new();
-        filter = new();
+        var registry = new ConsoleAgentContextRegistry();
+        var filter = new FilterOperation();
         ctx.Services.AddSingleton(registry);
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton(options);
         ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerToolsMountedNavigationManager());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FixedServicesDataSource([
             new OperateServiceDetail("cadastre", "cadastre", "FeatureServer", "Running", "honua-server", [
                 new(1, "Parcels", "polygon", ResourceId, "parcels"),
                 new(2, "Roads", "line", "roads", "roads")], [], [])]));
         ctx.Services.AddSingleton<IConsoleLayerFilterOperation>(filter);
-        return ctx;
+        return (ctx, registry, filter);
     }
 
     private sealed class FilterOperation : IConsoleLayerFilterOperation
