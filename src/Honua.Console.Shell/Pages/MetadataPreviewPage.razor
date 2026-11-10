@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/metadata/datasets/{DatasetId}"
 @page "/metadata/datasets/{DatasetId}/{Section}"
 @page "/metadata/{Section}"
@@ -8,7 +9,7 @@
 
 <section class="console-page metadata-preview">
     <header class="console-detail-heading">
-        <div><a href="/catalogs">Catalogs</a><h1>@Heading</h1></div>
+        <div><a href="@ConsoleNavigation.ToConsoleHref("/catalogs")">Catalogs</a><h1>@Heading</h1></div>
     </header>
     @if (!Options.Enabled)
     {
@@ -26,11 +27,11 @@
     {
         <p class="console-state console-state-info" role="status">Fixture preview · synthetic data. Local changes are not saved or proposed.</p>
         <nav class="metadata-preview-nav" aria-label="Metadata sections">
-            <a href="/metadata/fields">Metadata fields</a>
+            <a href="@ConsoleNavigation.ToConsoleHref("/metadata/fields")">Metadata fields</a>
             @if (DatasetId is not null)
             {
-                <a href="@(DatasetHref + ContextQuery)">Dataset metadata</a>
-                <a href="@(DatasetHref + "/import" + ContextQuery)">Import preview</a>
+                <a href="@ConsoleNavigation.ToConsoleLinkHref(DatasetHref + ContextQuery)">Dataset metadata</a>
+                <a href="@ConsoleNavigation.ToConsoleLinkHref(DatasetHref + "/import" + ContextQuery)">Import preview</a>
             }
         </nav>
         @if (Section == "fields" && DatasetId is null)

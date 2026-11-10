@@ -8,7 +8,7 @@
         <h2>@StatusHeading</h2>
         <p>@StatusMessage</p>
         <div class="console-action-row">
-            <a class="console-button-link" href="@ActionHref">@ActionLabel</a>
+            <a class="console-button-link" href="@Navigation.ToConsoleLinkHref(ActionHref)">@ActionLabel</a>
             @if (OnRetry.HasDelegate)
             {
                 <button type="button" class="console-button console-button-secondary" @onclick="OnRetry" disabled="@Busy">@(Busy ? "Reading…" : "Try again")</button>

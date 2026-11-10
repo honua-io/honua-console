@@ -44,6 +44,22 @@ public sealed class ConsoleNavigationRenderTests
         Assert.All(page.FindAll("a[href]"), link => Assert.StartsWith(applicationPath, link.GetAttribute("href")));
     }
 
+    [Theory]
+    [InlineData("/studio")]
+    [InlineData("/studio/proof")]
+    public async Task StudioWorkflowLinksStayInsideTheConsoleMount(string route)
+    {
+        await using var context = CreateContext();
+        var navigation = new HostedNavigationManager("/console/");
+        context.Services.AddSingleton<NavigationManager>(navigation);
+        navigation.NavigateTo(navigation.ToConsoleHref(route));
+        var page = context.Render<StudioPage>();
+
+        Assert.NotEmpty(page.FindAll("a[href]"));
+        Assert.All(page.FindAll("a[href]"), link =>
+            Assert.StartsWith("/console/", link.GetAttribute("href")));
+    }
+
     private sealed class HostedNavigationManager : NavigationManager
     {
         public HostedNavigationManager(string applicationPath)
@@ -51,6 +67,8 @@ public sealed class ConsoleNavigationRenderTests
             var applicationBase = "http://localhost" + applicationPath;
             Initialize(applicationBase, applicationBase);
         }
+
+        protected override void NavigateToCore(string uri, bool forceLoad) => Uri = ToAbsoluteUri(uri).AbsoluteUri;
     }
 
     [Theory]

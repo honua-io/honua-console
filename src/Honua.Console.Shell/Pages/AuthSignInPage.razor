@@ -215,6 +215,6 @@
     private string SanitizeReturnTo(string? value)
     {
         var route = Honua.Console.Shell.Security.ConsoleReturnUrl.Sanitize(value);
-        return Navigation.TryGetConsoleHref(route, out _) ? route : "/";
+        return Navigation.GetConsoleHref(route) is not null ? route : "/";
     }
 }

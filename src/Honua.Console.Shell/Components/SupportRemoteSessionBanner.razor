@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @using Honua.Console.Contracts
 @implements IDisposable
 
@@ -72,7 +73,7 @@
         }
 
         <p class="support-session-actions">
-            <a class="support-session-link" href="@AuditHref">View actions (audit / evidence) →</a>
+            <a class="support-session-link" href="@ConsoleNavigation.ToConsoleLinkHref(AuditHref)">View actions (audit / evidence) →</a>
         </p>
     </article>
 }

@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/health"
 @inject IOpsHealthDataSource HealthData
 @inject IServiceProvider ServiceProvider
@@ -65,7 +66,7 @@
                 @if (_view.ServingLatency.HasBreach)
                 {
                     <span class="console-status console-state-warning">SLO breach on one or more protocols</span>
-                    <a class="console-button-link" href="/operate/copilot" data-health-drilldown="serving-latency">
+                    <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/operate/copilot")" data-health-drilldown="serving-latency">
                         Investigate in Copilot Findings
                     </a>
                 }
@@ -124,7 +125,7 @@
                 <span class="console-status @_view.Geoprocessing.Status.CssClass">@_view.Geoprocessing.Status.Label</span>
                 @if (_view.Geoprocessing.Status.IsBreach)
                 {
-                    <a class="console-button-link" href="@OperateObservabilityRoutes.Geoprocessing" data-health-drilldown="geoprocessing">
+                    <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref(OperateObservabilityRoutes.Geoprocessing)" data-health-drilldown="geoprocessing">
                         Open geoprocessing queue
                     </a>
                 }
@@ -182,7 +183,7 @@
                 <span class="console-status @_view.AlertDispatch.Status.CssClass">@_view.AlertDispatch.Status.Label</span>
                 @if (_view.AlertDispatch.Status.IsBreach)
                 {
-                    <a class="console-button-link" href="/operate/copilot" data-health-drilldown="alert-dispatch">
+                    <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/operate/copilot")" data-health-drilldown="alert-dispatch">
                         Investigate in Copilot Findings
                     </a>
                 }
@@ -214,7 +215,7 @@
                 <span class="console-status @_view.Deploy.Status.CssClass">@_view.Deploy.Status.Label</span>
                 @if (_view.Deploy.Status.IsBreach)
                 {
-                    <a class="console-button-link" href="/operate/deploy#deploy-approvals" data-health-drilldown="deploy">
+                    <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/operate/deploy#deploy-approvals")" data-health-drilldown="deploy">
                         Open deploy approvals
                     </a>
                 }
@@ -275,7 +276,7 @@
                         <span class="console-status @_view.Database.PoolUtilization.Status.CssClass">@_view.Database.PoolUtilization.Status.Label</span>
                         @if (_view.Database.PoolUtilization.Status.IsBreach)
                         {
-                            <a class="console-button-link" href="/operate/metrics" data-health-drilldown="database-pool">
+                            <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/operate/metrics")" data-health-drilldown="database-pool">
                                 Open performance metrics
                             </a>
                         }
@@ -297,7 +298,7 @@
                         <span class="console-status @_view.Database.CacheHitRatio.Status.CssClass">@_view.Database.CacheHitRatio.Status.Label</span>
                         @if (_view.Database.CacheHitRatio.Status.IsBreach)
                         {
-                            <a class="console-button-link" href="/operate/metrics" data-health-drilldown="database-cache">
+                            <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/operate/metrics")" data-health-drilldown="database-cache">
                                 Open performance metrics
                             </a>
                         }
@@ -462,7 +463,7 @@
                                 @if (series.HasBreach)
                                 {
                                     <a class="console-chip correlation-id-chip" data-trend-breach-chip
-                                       href="/operate/copilot" data-health-drilldown="serving-latency-trend"
+                                       href="@ConsoleNavigation.ToConsoleHref("/operate/copilot")" data-health-drilldown="serving-latency-trend"
                                        title="Investigate this SLO breach in Copilot Findings">
                                         SLO breach
                                     </a>

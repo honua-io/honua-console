@@ -20,7 +20,8 @@ public sealed class ConsoleNavigationPathsTests
     [InlineData("?tab=jobs#events", "./?tab=jobs#events")]
     public void LocalResultsStayUnderConsoleMount(string target, string expected)
     {
-        Assert.True(new HostedNavigationManager(BaseUri).TryGetConsoleHref(target, out var href));
+        var href = new HostedNavigationManager(BaseUri).GetConsoleHref(target);
+        Assert.NotNull(href);
         Assert.Equal(expected, href);
         Assert.StartsWith(BaseUri, new Uri(new Uri(BaseUri), href).AbsoluteUri);
     }
@@ -42,8 +43,7 @@ public sealed class ConsoleNavigationPathsTests
     [InlineData(null)]
     public void UnsafeResultsDoNotProduceNavigation(string? target)
     {
-        Assert.False(new HostedNavigationManager(BaseUri).TryGetConsoleHref(target, out var href));
-        Assert.Empty(href);
+        Assert.Null(new HostedNavigationManager(BaseUri).GetConsoleHref(target));
     }
 
     [Fact]
@@ -56,9 +56,39 @@ public sealed class ConsoleNavigationPathsTests
     [Fact]
     public void RootHostedConsoleRemainsSupported()
     {
-        Assert.True(new HostedNavigationManager("https://honua.example/").TryGetConsoleHref("/operate/jobs/j1", out var href));
+        var href = new HostedNavigationManager("https://honua.example/").GetConsoleHref("/operate/jobs/j1");
         Assert.Equal("./operate/jobs/j1", href);
     }
+    [Theory]
+    [InlineData("/catalog/item", "/console/catalog/item")]
+    [InlineData("/studio?tab=flows#new", "/console/studio?tab=flows#new")]
+    [InlineData("/auth/signin?returnTo=%2F", "/console/auth/signin?returnTo=%2F")]
+    [InlineData("/console/operate", "/console/operate")]
+    [InlineData("/api/v1/items/1", "/api/v1/items/1")]
+    [InlineData("/rest/services/a", "/rest/services/a")]
+    [InlineData("/admin/auth/callback", "/admin/auth/callback")]
+    [InlineData("/auth/logout", "/auth/logout")]
+    [InlineData("https://external.example/studio", "https://external.example/studio")]
+    [InlineData("#details", "#details")]
+    [InlineData("?tab=jobs", "?tab=jobs")]
+    public void MixedLinksKeepServerAndExternalDestinations(string target, string expected)
+    {
+        Assert.Equal(expected, new HostedNavigationManager(BaseUri).ToConsoleLinkHref(target));
+    }
+
+    [Fact]
+    public void EveryRoutedPageUsesTheConsoleMountInMixedLinks()
+    {
+        var navigation = new HostedNavigationManager(BaseUri);
+        var routes = typeof(ConsoleNavigationPaths).Assembly.GetTypes()
+            .SelectMany(type => type.GetCustomAttributes(typeof(RouteAttribute), inherit: false))
+            .Cast<RouteAttribute>()
+            .Select(attribute => attribute.Template);
+
+        foreach (var route in routes)
+            Assert.Equal(navigation.ToConsoleHref(route), navigation.ToConsoleLinkHref(route));
+    }
+
     private sealed class HostedNavigationManager : NavigationManager
     {
         public HostedNavigationManager(string baseUri) => Initialize(baseUri, baseUri);

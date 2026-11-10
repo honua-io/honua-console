@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/observability"
 @page "/operate/events/{SelectedEventId}"
 @page "/operate/alerts/{SelectedAlertId}"
@@ -55,7 +56,7 @@
                         <p class="console-kicker">Environment and fleet overview</p>
                         <h2 id="fleet-heading">Telemetry State And Compatibility</h2>
                     </div>
-                    <a class="console-button-link" href="@OperateObservabilityRoutes.Observability">Open observability route</a>
+                    <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref(OperateObservabilityRoutes.Observability)">Open observability route</a>
                 </div>
 
                 @if (!_loaded || _overview is null)
@@ -123,7 +124,7 @@
                                             <td>@fact.Signal</td>
                                             <td><span class="console-status @fact.State.CssClass">@fact.State.Label</span></td>
                                             <td>@fact.Freshness</td>
-                                            <td><a href="@fact.EvidenceHref">Open event</a></td>
+                                            <td><a href="@ConsoleNavigation.ToConsoleLinkHref(fact.EvidenceHref)">Open event</a></td>
                                         </tr>
                                     }
                                 </tbody>
@@ -454,7 +455,7 @@
                                 @foreach (var alert in AlertRows)
                                 {
                                     <tr class="@(alert.AlertId == SelectedAlert?.AlertId ? "operate-selected-row" : null)">
-                                        <td><a href="@alert.DetailHref">@alert.Title</a></td>
+                                        <td><a href="@ConsoleNavigation.ToConsoleLinkHref(alert.DetailHref)">@alert.Title</a></td>
                                         <td>@alert.Severity</td>
                                         <td><span class="console-status @alert.Status.CssClass">@alert.Status.Label</span></td>
                                         <td>@alert.OwnerTeam</td>
@@ -676,7 +677,7 @@
                                     @foreach (var job in JobRows)
                                     {
                                         <tr class="@(job.JobRunId == SelectedJobRowId ? "operate-selected-row" : null)">
-                                            <td><a href="@job.DetailHref">@job.JobRunId</a></td>
+                                            <td><a href="@ConsoleNavigation.ToConsoleLinkHref(job.DetailHref)">@job.JobRunId</a></td>
                                             <td>@job.Source</td>
                                             <td>@job.JobType</td>
                                             <td><span class="console-status @job.Status.CssClass">@job.Status.Label</span></td>
@@ -793,7 +794,7 @@
                             <div class="console-chip-row">
                                 @foreach (var eventId in investigation.PinnedEventIds)
                                 {
-                                    <a href="@OperateObservabilityRoutes.EventDetail(eventId)">@eventId</a>
+                                    <a href="@ConsoleNavigation.ToConsoleLinkHref(OperateObservabilityRoutes.EventDetail(eventId))">@eventId</a>
                                 }
                             </div>
                         }

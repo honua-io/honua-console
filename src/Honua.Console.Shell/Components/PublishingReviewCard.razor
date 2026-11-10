@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @namespace Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 
@@ -59,19 +60,19 @@
         <nav class="console-tab-row" aria-label="Evidence links">
             @if (!string.IsNullOrWhiteSpace(Review.Links.JobHref))
             {
-                <a href="@Review.Links.JobHref">Job</a>
+                <a href="@ConsoleNavigation.ToConsoleLinkHref(Review.Links.JobHref)">Job</a>
             }
             @if (!string.IsNullOrWhiteSpace(Review.Links.EventsHref))
             {
-                <a href="@Review.Links.EventsHref">Events</a>
+                <a href="@ConsoleNavigation.ToConsoleLinkHref(Review.Links.EventsHref)">Events</a>
             }
             @if (!string.IsNullOrWhiteSpace(Review.Links.AuditHref))
             {
-                <a href="@Review.Links.AuditHref">Audit</a>
+                <a href="@ConsoleNavigation.ToConsoleLinkHref(Review.Links.AuditHref)">Audit</a>
             }
             @if (!string.IsNullOrWhiteSpace(Review.Links.RollbackHref))
             {
-                <a href="@Review.Links.RollbackHref">Rollback evidence</a>
+                <a href="@ConsoleNavigation.ToConsoleLinkHref(Review.Links.RollbackHref)">Rollback evidence</a>
             }
         </nav>
     </article>
@@ -98,7 +99,7 @@
             <dd>
                 @if (Review.CatalogRegistration.Registered && !string.IsNullOrWhiteSpace(Review.CatalogRegistration.CatalogEntryId))
                 {
-                    <a href="@($"/catalog/{Review.CatalogRegistration.CatalogEntryId}")">@Review.CatalogRegistration.Visibility</a>
+                    <a href="@ConsoleNavigation.ToConsoleLinkHref($"/catalog/{Review.CatalogRegistration.CatalogEntryId}")">@Review.CatalogRegistration.Visibility</a>
                 }
                 else
                 {
