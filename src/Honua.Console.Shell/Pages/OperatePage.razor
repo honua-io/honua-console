@@ -1,13 +1,24 @@
 @page "/operate"
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleCapabilityManifest Capabilities
+@inject IServiceProvider Services
 
-<section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Operator workflow</p>
-        <h1>Operate</h1>
-        <p>Connections, datasets, services, layers, and control-plane settings live under Operate while Studio, Catalog, and Share keep their builder and end-user workflows separate.</p>
-    </div>
+<section class="console-page @(V4Enabled ? "console-operate-overview-v4" : null)">
+    @if (V4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/operate-overview-v4.css" />
+        <ConsolePageHeading Title="Operate">
+            <p>Review health, approvals, connections, services and changes across your workspace.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operator workflow</p>
+            <h1>Operate</h1>
+            <p>Connections, datasets, services, layers, and control-plane settings live under Operate while Studio, Catalog, and Share keep their builder and end-user workflows separate.</p>
+        </div>
+    }
 
     @* Ops-summary strip (console#292, founder decision 2026-07-07): the hub's "is my server
        healthy, what needs me?" glance — overall health, awaiting approvals, open findings, and
@@ -201,6 +212,8 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     private OperateTransitionWorkspace? _workspace;
 
     protected override async Task OnInitializedAsync()
