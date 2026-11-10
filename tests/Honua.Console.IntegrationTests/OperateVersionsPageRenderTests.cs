@@ -37,6 +37,7 @@ public sealed class OperateVersionsPageRenderTests
         Assert.Equal("2", page.Find("[data-auto-resolved]").TextContent);
         Assert.Equal("1", page.Find("[data-remaining-conflicts]").TextContent);
         Assert.Equal("/console/operate/versions/parcels/review-branch/conflicts", page.Find("[data-open-conflicts]").GetAttribute("href"));
+        Assert.Equal("div", page.Find("[data-reconcile-result][role=status]").TagName.ToLowerInvariant());
         if (enabled) Capture("versions-conflicts", page);
     }
 
@@ -57,6 +58,7 @@ public sealed class OperateVersionsPageRenderTests
         page.Find("[data-submit-version]").Click();
 
         page.WaitForAssertion(() => Assert.NotNull(operation.Created));
+        Assert.Equal("div", page.Find("[data-version-result][role=status]").TagName.ToLowerInvariant());
         Assert.Equal("parcels", operation.Created!.ServiceId);
         Assert.Equal("Review edits", operation.Created.VersionName);
         Assert.Equal("operator", operation.Created.Owner);

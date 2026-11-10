@@ -1,4 +1,4 @@
-@page "/operate/versions"
+﻿@page "/operate/versions"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
@@ -90,16 +90,16 @@
         {
             @if (_lastResult is { } result)
             {
-                <article class="console-panel @(result.Succeeded ? "console-state-success" : "console-state-danger")"
+                <div class="console-panel @(result.Succeeded ? "console-state-success" : "console-state-danger")"
                          role="status" data-version-result>
                     <p class="console-kicker">@result.State</p>
                     <p>@result.Detail</p>
-                </article>
+                </div>
             }
 
             @if (_lastReconcile is { } reconcile)
             {
-                <article class="console-panel @(reconcile.CanPost ? "console-state-success" : "console-state-warning")"
+                <div class="console-panel @(reconcile.CanPost ? "console-state-success" : "console-state-warning")"
                          role="status" data-reconcile-result>
                     <p class="console-kicker">Reconcile outcome</p>
                     <p>@reconcile.Operation.Detail</p>
@@ -117,7 +117,7 @@
                             Open conflict resolution
                         </a>
                     }
-                </article>
+                </div>
             }
 
             <section class="console-section" aria-label="Versions">
