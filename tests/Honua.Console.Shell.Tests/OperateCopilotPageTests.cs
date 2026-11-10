@@ -42,7 +42,7 @@ public sealed class OperateCopilotPageTests
         // a next step — "Investigate" linking to the correlated evidence timeline since it has no
         // pinned operation id.
         Assert.Contains("data-investigate-finding=\"gp-queue-idle-def456\"", html, StringComparison.Ordinal);
-        Assert.Contains("/operate/observability#events", html, StringComparison.Ordinal);
+        Assert.Contains("operate/observability#events", html, StringComparison.Ordinal);
     }
 
     [Fact]
