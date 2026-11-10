@@ -2,23 +2,28 @@ using Bunit;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
 public sealed class OperateSyncPageRenderTests
 {
-    [Fact]
-    public void Sync_WhenBindingMissing_RendersNotBoundSurfaceNotEmptyQueue()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Sync_WhenBindingMissing_RendersNotBoundSurfaceNotEmptyQueue(bool enabled)
     {
         var page = Render(new FakeSyncClient
         {
             Workspace = new TemporalViewerWorkspace([], [MissingBindingState])
-        });
+        }, enabled);
 
         page.WaitForAssertion(
             () => Assert.Contains("Sync conflict review is not bound", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
+        Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
+        if (enabled) CatalogAdminPreview.Capture("sync-missing", page.Markup);
         Assert.Contains("honua-server#1167", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("<table", page.Markup, StringComparison.Ordinal);
     }
@@ -39,8 +44,10 @@ public sealed class OperateSyncPageRenderTests
         Assert.DoesNotContain("<table", page.Markup, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Sync_WhenSyncSourceBound_ListsReplicaQueueAndResolvesConflict()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Sync_WhenSyncSourceBound_ListsReplicaQueueAndResolvesConflict(bool enabled)
     {
         var client = new FakeSyncClient
         {
@@ -59,31 +66,87 @@ public sealed class OperateSyncPageRenderTests
                 AuditEventIds: ["audit-1"], JobRunId: "job-3"),
             ReviewAfterResolution = new ReplicaConflictReview(SampleReplica, [])
         };
-        var page = Render(client);
+        var page = Render(client, enabled);
+        Assert.Equal(enabled ? "Sync" : "Disconnected sync review", page.Find("h1").TextContent);
+        if (enabled) CatalogAdminPreview.Capture("sync-list", page.Markup);
 
         page.WaitForAssertion(() => Assert.Contains("Open queue", page.Markup, StringComparison.Ordinal), TimeSpan.FromSeconds(5));
         ClickByText(page, "Open queue");
         page.WaitForAssertion(() => Assert.Contains("Field Crew 7", page.Markup, StringComparison.Ordinal), TimeSpan.FromSeconds(5));
-        Assert.Contains("Replica Conflict Queue", page.Markup, StringComparison.Ordinal);
+        Assert.Contains(enabled ? "Replica conflict queue" : "Replica Conflict Queue", page.Markup, StringComparison.Ordinal);
+        if (enabled) CatalogAdminPreview.Capture("sync-queue", page.Markup);
 
         ClickByText(page, "Review");
-        page.WaitForAssertion(() => Assert.Contains("Base / Client / Server Comparison", page.Markup, StringComparison.Ordinal), TimeSpan.FromSeconds(5));
+        page.WaitForAssertion(() => Assert.Contains(enabled ? "Conflict comparison" : "Base / Client / Server Comparison", page.Markup, StringComparison.Ordinal), TimeSpan.FromSeconds(5));
         Assert.Contains("owner_name", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Geometry conflict", page.Markup, StringComparison.Ordinal);
 
+        if (enabled) CatalogAdminPreview.Capture("sync-conflicts", page.Markup);
         ClickByText(page, "Client wins");
         page.WaitForAssertion(() => Assert.Contains("Committed Change Set", page.Markup, StringComparison.Ordinal), TimeSpan.FromSeconds(5));
         Assert.Contains("cs-9", page.Markup, StringComparison.Ordinal);
         Assert.Contains("audit-1", page.Markup, StringComparison.Ordinal);
+        Assert.Equal("/console/operate/jobs/job-3", page.Find("[data-sync-region=committed] a").GetAttribute("href"));
+        if (enabled) CatalogAdminPreview.Capture("sync-resolved", page.Markup);
     }
 
-    private static IRenderedComponent<OperateSyncPage> Render(ITemporalCapabilityClient client)
+    [Fact]
+    public async Task Sync_DeepLinkLoadsReplicaAndPublishesSelectionAndUnsavedSummary()
+    {
+        using var ctx = new BunitContext();
+        ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        ctx.Services.AddSingleton<ITemporalCapabilityClient>(new FakeSyncClient
+        {
+            Workspace = new TemporalViewerWorkspace([SyncSource], []),
+            ReplicaQueue = new ReplicaConflictQueue([SampleReplica]),
+            ConflictReview = new ReplicaConflictReview(SampleReplica,
+            [
+                new SyncConflict("conflict-1", "replica-1", "src-parcels", "0", "f-1",
+                    SyncConflictType.Attribute, "r-base", "r-server", [],
+                    GeometryConflict: false, DateTimeOffset.UtcNow, SyncConflictStatus.Pending)
+            ])
+        });
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/console/operate/sync?source=src-parcels&replica=replica-1");
+        var page = ctx.Render<OperateSyncPage>(parameters => parameters
+            .Add(x => x.SourceId, "src-parcels").Add(x => x.ReplicaId, "replica-1"));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-sync-conflict]")));
+        var registry = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        Assert.Equal("/operate/sync", registry.Current.Route);
+        Assert.Equal("src-parcels", registry.Current.Filters["sourceId"]);
+        Assert.Equal("replica-1", registry.Current.Filters["replicaId"]);
+        var selected = Assert.Single(registry.Current.Selection);
+        Assert.Equal(ConsoleAgentEntityKind.Layer, selected.Kind);
+        Assert.Equal("0", selected.Id);
+        Assert.Equal("parcels", selected.ResourceId);
+        page.Find("[data-sync-conflict] input[type=checkbox]").Change(true);
+        Assert.Equal(1, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal("conflict-1", registry.Current.Filters["conflictIds"]);
+        page.Find("select[aria-label='Batch action']").Change("AcceptClient");
+        Assert.Equal(2, registry.Current.Unsaved.ChangedFieldCount);
+        await ctx.DisposeComponentsAsync();
+        Assert.Empty(registry.Current.Selection);
+        Assert.Empty(registry.Current.Filters);
+    }
+
+    private static IRenderedComponent<OperateSyncPage> Render(ITemporalCapabilityClient client, bool enabled = false)
     {
         var ctx = new Bunit.BunitContext();
         ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         ctx.Services.AddSingleton(client);
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        ctx.Services.AddSingleton<NavigationManager>(new HostedNavigationManager());
         return ctx.Render<OperateSyncPage>();
+    }
+
+    private sealed class HostedNavigationManager : NavigationManager
+    {
+        public HostedNavigationManager() => Initialize("http://localhost/console/", "http://localhost/console/operate/sync");
+        protected override void NavigateToCore(string uri, bool forceLoad) => Uri = ToAbsoluteUri(uri).ToString();
     }
 
     private static void ClickByText(IRenderedComponent<OperateSyncPage> page, string text) =>
