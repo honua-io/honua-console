@@ -1,4 +1,5 @@
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
@@ -8,8 +9,10 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class OperateReleasesPageRenderTests
 {
-    [Fact]
-    public void ReleaseList_WhenServerReturnsProposals_RendersList()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReleaseList_WhenServerReturnsProposals_RendersList(bool enabled)
     {
         var stub = new StubReleaseClient
         {
@@ -29,6 +32,7 @@ public sealed class OperateReleasesPageRenderTests
         };
 
         using var ctx = new Bunit.BunitContext();
+        ConfigurePresentation(ctx, enabled);
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
@@ -42,10 +46,15 @@ public sealed class OperateReleasesPageRenderTests
                 Assert.Contains("staging", page.Markup, StringComparison.Ordinal);
             },
             TimeSpan.FromSeconds(5));
+        Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
+        Assert.Equal("/console/operate/releases/11111111-2222-3333-4444-555555555555", page.Find(".operate-release-card a").GetAttribute("href"));
+        if (enabled) CatalogAdminPreview.Capture("releases-list", page.Markup);
     }
 
-    [Fact]
-    public void ReleaseList_WhenServerListUnavailable_RendersHonestUnavailableSurface()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReleaseList_WhenServerListUnavailable_RendersHonestUnavailableSurface(bool enabled)
     {
         var stub = new StubReleaseClient
         {
@@ -55,6 +64,7 @@ public sealed class OperateReleasesPageRenderTests
         };
 
         using var ctx = new Bunit.BunitContext();
+        ConfigurePresentation(ctx, enabled);
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
@@ -64,10 +74,13 @@ public sealed class OperateReleasesPageRenderTests
         page.WaitForAssertion(
             () => Assert.Contains("unreachable", page.Markup, StringComparison.OrdinalIgnoreCase),
             TimeSpan.FromSeconds(5));
+        if (enabled) CatalogAdminPreview.Capture("releases-unavailable", page.Markup);
     }
 
-    [Fact]
-    public void ReleaseDetail_WhenServerContractNotBound_RendersMissingBindingSurface()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReleaseDetail_WhenServerContractNotBound_RendersMissingBindingSurface(bool enabled)
     {
         var stub = new StubReleaseClient
         {
@@ -77,6 +90,7 @@ public sealed class OperateReleasesPageRenderTests
         };
 
         using var ctx = new Bunit.BunitContext();
+        ConfigurePresentation(ctx, enabled);
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
@@ -94,10 +108,13 @@ public sealed class OperateReleasesPageRenderTests
                     StringComparison.Ordinal);
             },
             TimeSpan.FromSeconds(5));
+        if (enabled) CatalogAdminPreview.Capture("releases-missing", page.Markup);
     }
 
-    [Fact]
-    public void ReleaseDetail_WhenServerReturnsReadyRelease_RendersDiffMatrixTimelineAndRollback()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReleaseDetail_WhenServerReturnsReadyRelease_RendersDiffMatrixTimelineAndRollback(bool enabled)
     {
         var stub = new StubReleaseClient
         {
@@ -105,6 +122,7 @@ public sealed class OperateReleasesPageRenderTests
         };
 
         using var ctx = new Bunit.BunitContext();
+        ConfigurePresentation(ctx, enabled);
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
@@ -133,7 +151,7 @@ public sealed class OperateReleasesPageRenderTests
                 var scriptsSection = page.Find("#scripts.operate-release-scripts");
                 Assert.NotNull(scriptsSection);
                 Assert.Contains("Data scripts", scriptsSection.QuerySelector("#scripts-heading")!.TextContent, StringComparison.Ordinal);
-                Assert.Contains("2", scriptsSection.QuerySelector("#scripts-heading")!.TextContent, StringComparison.Ordinal);
+                Assert.Contains("2", enabled ? scriptsSection.QuerySelector(".console-metric-value")!.TextContent : scriptsSection.QuerySelector("#scripts-heading")!.TextContent, StringComparison.Ordinal);
                 var scriptRows = page.FindAll("#scripts .operate-script-row");
                 Assert.Equal(2, scriptRows.Count);
                 Assert.Contains("001_add_parcels_index.sql", page.Markup, StringComparison.Ordinal);
@@ -159,14 +177,14 @@ public sealed class OperateReleasesPageRenderTests
                 Assert.Contains("field contract", page.Markup, StringComparison.Ordinal);
                 // Environment matrix / drift state.
                 Assert.NotNull(page.Find("#env-matrix table.operate-env-matrix"));
-                Assert.Contains("Environment matrix and drift", page.Markup, StringComparison.Ordinal);
+                Assert.Contains(enabled ? "Environment matrix" : "Environment matrix and drift", page.Markup, StringComparison.Ordinal);
                 Assert.Contains("behind", page.Markup, StringComparison.Ordinal);
                 Assert.Contains("drift detected", page.Markup, StringComparison.Ordinal);
                 Assert.NotNull(page.Find("#env-matrix tr.operate-drift-row"));
                 // CI/GitOps check timeline shows the same release operation id as server/devops.
                 Assert.NotNull(page.Find("#timeline ol.operate-timeline"));
                 Assert.Contains("op-9", page.Markup, StringComparison.Ordinal);
-                Assert.Contains("CI/GitOps", page.Markup, StringComparison.Ordinal);
+                Assert.Contains(enabled ? "CI timeline" : "CI/GitOps", page.Markup, StringComparison.Ordinal);
                 // Git PR preview link is offered (header + side rail).
                 Assert.Contains("https://git.example/pr/9", page.Markup, StringComparison.Ordinal);
                 // Compatibility preflight summary region (design view).
@@ -184,10 +202,25 @@ public sealed class OperateReleasesPageRenderTests
                 Assert.Contains("console-state-success", page.Markup, StringComparison.Ordinal);
             },
             TimeSpan.FromSeconds(5));
+        var snapshot = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current;
+        if (enabled)
+        {
+            Assert.Equal("/operate/releases/11111111-2222-3333-4444-555555555555", snapshot.Route);
+            Assert.Equal("11111111-2222-3333-4444-555555555555", snapshot.Filters["releaseId"]);
+        }
+        else
+        {
+            Assert.Equal("/", snapshot.Route);
+            Assert.Empty(snapshot.Filters);
+        }
+        Assert.Equal("/console/operate/releases", page.Find(".operate-release-detail-head .console-kicker > a").GetAttribute("href"));
+        if (enabled) CatalogAdminPreview.Capture("releases-ready", page.Markup);
     }
 
-    [Fact]
-    public void ReleaseDetail_WhenOperationHasBlockers_DisablesPullRequestActionWithReason()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReleaseDetail_WhenOperationHasBlockers_DisablesPullRequestActionWithReason(bool enabled)
     {
         var stub = new StubReleaseClient
         {
@@ -195,6 +228,7 @@ public sealed class OperateReleasesPageRenderTests
         };
 
         using var ctx = new Bunit.BunitContext();
+        ConfigurePresentation(ctx, enabled);
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
@@ -219,6 +253,7 @@ public sealed class OperateReleasesPageRenderTests
                 Assert.True(button.HasAttribute("disabled"));
             },
             TimeSpan.FromSeconds(5));
+        if (enabled) CatalogAdminPreview.Capture("releases-blocked", page.Markup);
     }
 
     [Fact]
@@ -254,8 +289,10 @@ public sealed class OperateReleasesPageRenderTests
             TimeSpan.FromSeconds(5));
     }
 
-    [Fact]
-    public void ReleaseDetail_WhenServerReportsNoDataScripts_RendersEmptyScriptsState()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReleaseDetail_WhenServerReportsNoDataScripts_RendersEmptyScriptsState(bool enabled)
     {
         var stub = new StubReleaseClient
         {
@@ -264,6 +301,7 @@ public sealed class OperateReleasesPageRenderTests
         };
 
         using var ctx = new Bunit.BunitContext();
+        ConfigurePresentation(ctx, enabled);
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
@@ -276,17 +314,20 @@ public sealed class OperateReleasesPageRenderTests
             {
                 // The dedicated Data-scripts section still renders, in its empty state.
                 Assert.NotNull(page.Find("#scripts.operate-release-scripts"));
-                Assert.Contains("0", page.Find("#scripts-heading").TextContent, StringComparison.Ordinal);
+                Assert.Contains("0", page.Find(enabled ? "#scripts .console-metric-value" : "#scripts-heading").TextContent, StringComparison.Ordinal);
                 Assert.Contains("reported no data scripts for this release bundle", page.Markup, StringComparison.Ordinal);
                 Assert.Empty(page.FindAll("#scripts .operate-script-row"));
                 // The inline PR preview still renders the change summary.
                 Assert.NotNull(page.Find("#pr-preview ul.operate-pr-diff"));
             },
             TimeSpan.FromSeconds(5));
+        if (enabled) CatalogAdminPreview.Capture("releases-no-scripts", page.Markup);
     }
 
-    [Fact]
-    public void ReleaseDetail_WhenCoordinatedReleaseExists_RendersThreeArtifactsTimelineAndRollback()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReleaseDetail_WhenCoordinatedReleaseExists_RendersThreeArtifactsTimelineAndRollback(bool enabled)
     {
         var stub = new StubReleaseClient
         {
@@ -295,6 +336,7 @@ public sealed class OperateReleasesPageRenderTests
         };
 
         using var ctx = new Bunit.BunitContext();
+        ConfigurePresentation(ctx, enabled);
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
@@ -320,6 +362,7 @@ public sealed class OperateReleasesPageRenderTests
                 Assert.Contains("Coordinated upgrade", page.Markup, StringComparison.Ordinal);
             },
             TimeSpan.FromSeconds(5));
+        if (enabled) CatalogAdminPreview.Capture("releases-coordinated", page.Markup);
     }
 
     [Fact]
@@ -447,6 +490,19 @@ public sealed class OperateReleasesPageRenderTests
             OperateSectionStatus.Allowed,
             string.Empty,
             dataScripts);
+    }
+
+    private static void ConfigurePresentation(BunitContext ctx, bool enabled)
+    {
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
+        ctx.Services.AddSingleton<NavigationManager>(new HostedNavigationManager());
+    }
+
+    private sealed class HostedNavigationManager : NavigationManager
+    {
+        public HostedNavigationManager() => Initialize("http://localhost/console/", "http://localhost/console/operate/releases");
+        protected override void NavigateToCore(string uri, bool forceLoad) => Uri = ToAbsoluteUri(uri).AbsoluteUri;
     }
 
     private sealed class StubReleaseClient : IConsoleGitOpsReleaseClient
