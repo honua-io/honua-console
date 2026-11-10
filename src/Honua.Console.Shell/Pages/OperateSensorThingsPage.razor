@@ -4,24 +4,95 @@
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
+@inject NavigationManager Navigation
+@inject IServiceProvider ServiceProvider
 @inject IConsoleSensorThingsClient SensorThings
 
+<ConsoleAgentContext Context="@AgentContext" />
+
 <section class="console-page" data-sensorthings-page>
-    <div class="console-page-heading">
-        <p class="console-kicker">Operate / SensorThings</p>
-        <h1>SensorThings browser</h1>
-        <p>
-            Browse the connected server's OGC SensorThings (STA v1.1) Things, Datastreams, and
-            Observations, navigate a datastream to its observations, and chart a datastream's
-            observations over time. Read-only (Phase 1); the server serves the conformance-shaped
-            <code>/sta/v1.1</code> API.
-        </p>
-    </div>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="SensorThings"><p>Browse things, datastreams, and observations.</p></ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / SensorThings</p>
+            <h1>SensorThings browser</h1>
+            <p>
+                Browse the connected server's OGC SensorThings (STA v1.1) Things, Datastreams, and
+                Observations, navigate a datastream to its observations, and chart a datastream's
+                observations over time. Read-only (Phase 1); the server serves the conformance-shaped
+                <code>/sta/v1.1</code> API.
+            </p>
+        </div>
+    }
 
     @* ---- Things ---- *@
-    <section class="console-section" data-sensorthings-things>
-        <h2>Things</h2>
-        @if (_things is null)
+    @if (V4Enabled)
+        {
+            <div data-sensorthings-things>
+                <ConsolePanel Title="Things" HeadingId="sensor-things-heading">@ThingsContent</ConsolePanel>
+            </div>
+        }
+        else
+        {
+            <section class="console-section" data-sensorthings-things>
+                <h2>Things</h2>
+                @ThingsContent
+            </section>
+        }
+
+    @* ---- Datastreams (the browseable catalog of chartable series) ---- *@
+    @if (V4Enabled)
+        {
+            <div data-sensorthings-datastreams>
+                <ConsolePanel Title="Datastreams" HeadingId="sensor-streams-heading">@DatastreamsContent</ConsolePanel>
+            </div>
+        }
+        else
+        {
+            <section class="console-section" data-sensorthings-datastreams>
+                <h2>Datastreams</h2>
+                @DatastreamsContent
+            </section>
+        }
+
+    @* ---- Selected datastream: $expand navigation + time-series chart ---- *@
+    @if (DatastreamId.HasValue)
+    {
+        @if (V4Enabled)
+        {
+            <div data-sensorthings-detail>
+                <ConsolePanel Title="Observations" HeadingId="sensor-detail-heading">@DetailContent</ConsolePanel>
+            </div>
+        }
+        else
+        {
+            <section class="console-section" data-sensorthings-detail>
+                <h2>Datastream @DatastreamId.Value.ToString(CultureInfo.InvariantCulture)</h2>
+                @DetailContent
+            </section>
+        }
+    }
+</section>
+
+@code {
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = DatastreamId.HasValue ? $"/operate/sensors/datastreams/{DatastreamId.Value.ToString(CultureInfo.InvariantCulture)}" : "/operate/sensors",
+        Filters = DatastreamId.HasValue ? new Dictionary<string, string> { ["datastreamId"] = DatastreamId.Value.ToString(CultureInfo.InvariantCulture) } : new Dictionary<string, string>()
+    };
+
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private RenderFragment ThingsContent => @<div>
+        @if (V4Enabled)
+        {
+            <ConsoleMetricTile Label="Things" Value="@(_things?.IsOk == true ? _things.Value!.Value.Count : (long?)null)" />
+        }
+@if (_things is null)
         {
             <OperateSectionStatusPanel Heading="Things" Loading="true" />
         }
@@ -39,7 +110,8 @@
         }
         else
         {
-            <table class="console-table" data-sensorthings-things-table>
+            <ConsoleTableRegion Label="Things table">
+<table class="console-table" data-sensorthings-things-table>
                 <thead>
                     <tr><th>@IotIdLabel</th><th>Name</th><th>Description</th></tr>
                 </thead>
@@ -54,13 +126,16 @@
                     }
                 </tbody>
             </table>
+</ConsoleTableRegion>
         }
-    </section>
+    </div>;
 
-    @* ---- Datastreams (the browseable catalog of chartable series) ---- *@
-    <section class="console-section" data-sensorthings-datastreams>
-        <h2>Datastreams</h2>
-        @if (_datastreams is null)
+    private RenderFragment DatastreamsContent => @<div>
+        @if (V4Enabled)
+        {
+            <ConsoleMetricTile Label="Datastreams" Value="@(_datastreams?.IsOk == true ? _datastreams.Value!.Value.Count : (long?)null)" />
+        }
+@if (_datastreams is null)
         {
             <OperateSectionStatusPanel Heading="Datastreams" Loading="true" />
         }
@@ -78,7 +153,8 @@
         }
         else
         {
-            <table class="console-table" data-sensorthings-datastreams-table>
+            <ConsoleTableRegion Label="Datastreams table">
+<table class="console-table" data-sensorthings-datastreams-table>
                 <thead>
                     <tr><th>@IotIdLabel</th><th>Name</th><th>Unit</th><th>Observations</th></tr>
                 </thead>
@@ -91,7 +167,7 @@
                             <td class="console-muted">@(datastream.UnitOfMeasurement?.Symbol ?? "—")</td>
                             <td>
                                 <a class="console-button-link"
-                                   href="@($"/operate/sensors/datastreams/{datastream.IotId.ToString(CultureInfo.InvariantCulture)}")"
+                                   href="@Navigation.ToConsoleHref($"/operate/sensors/datastreams/{datastream.IotId.ToString(CultureInfo.InvariantCulture)}")"
                                    data-datastream-open="@datastream.IotId">
                                     Observations &amp; chart
                                 </a>
@@ -100,16 +176,13 @@
                     }
                 </tbody>
             </table>
+</ConsoleTableRegion>
         }
-    </section>
+    </div>;
 
-    @* ---- Selected datastream: $expand navigation + time-series chart ---- *@
-    @if (DatastreamId is { } selectedId)
-    {
-        <section class="console-section" data-sensorthings-detail>
-            <h2>Datastream @selectedId.ToString(CultureInfo.InvariantCulture)</h2>
-            <div class="console-detail-actions">
-                <a class="console-button-link" href="/operate/sensors" data-sensorthings-back>Back to browser</a>
+    private RenderFragment DetailContent => @<div>
+<div class="console-detail-actions">
+                <a class="console-button-link" href="@Navigation.ToConsoleHref("/operate/sensors")" data-sensorthings-back>Back to browser</a>
             </div>
 
             @if (_series is null)
@@ -132,7 +205,8 @@
                 {
                     <details class="console-detail">
                         <summary>Observations (@series.Points.Count.ToString(CultureInfo.InvariantCulture))</summary>
-                        <table class="console-table" data-sensorthings-observations-table>
+                        <ConsoleTableRegion Label="Observations table">
+<table class="console-table" data-sensorthings-observations-table>
                             <thead>
                                 <tr><th>Phenomenon time</th><th>Result @series.UnitSymbol</th></tr>
                             </thead>
@@ -146,14 +220,12 @@
                                 }
                             </tbody>
                         </table>
+</ConsoleTableRegion>
                     </details>
                 }
             }
-        </section>
-    }
-</section>
+    </div>;
 
-@code {
     [Parameter]
     public long? DatastreamId { get; set; }
 
