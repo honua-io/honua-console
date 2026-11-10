@@ -13,25 +13,32 @@ public sealed class ConsoleApiClient(HttpClient http)
 {
     public Uri BaseUri => http.BaseAddress ?? throw new InvalidOperationException("The Honua API address is missing.");
 
-    public async Task<ClaimsPrincipal> GetPrincipalAsync(CancellationToken cancellationToken = default)
+    public async Task<ConsoleApiSession> GetSessionAsync(CancellationToken cancellationToken = default)
     {
         using var response = await http.GetAsync("api/v1/admin/auth/session", cancellationToken);
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
-            return new ClaimsPrincipal(new ClaimsIdentity());
+            return new ConsoleApiSession(new ClaimsPrincipal(new ClaimsIdentity()));
         }
         response.EnsureSuccessStatusCode();
         using var document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
         var root = document?.RootElement ?? throw new JsonException("Missing session response.");
         if (!root.TryGetProperty("isAuthenticated", out var authenticated) || !authenticated.GetBoolean())
         {
-            return new ClaimsPrincipal(new ClaimsIdentity());
+            return new ConsoleApiSession(new ClaimsPrincipal(new ClaimsIdentity()));
         }
         var claims = root.GetProperty("claims").EnumerateArray()
             .Select(claim => new Claim(claim.GetProperty("type").GetString()!, claim.GetProperty("value").GetString()!));
-        return new ClaimsPrincipal(new ClaimsIdentity(claims, "HonuaBrowserSession"));
+        var credentials = new ConsoleSessionCredentials(
+            CsrfToken: root.TryGetProperty("csrfToken", out var csrf) ? csrf.GetString() : null,
+            AccessToken: root.TryGetProperty("accessToken", out var token) ? token.GetString() : null,
+            ExpiresAt: root.TryGetProperty("expiresAt", out var expiry) && expiry.ValueKind != JsonValueKind.Null
+                ? expiry.GetDateTimeOffset() : null);
+        return new ConsoleApiSession(new ClaimsPrincipal(new ClaimsIdentity(claims, "HonuaBrowserSession")), credentials);
     }
 }
+
+public sealed record ConsoleApiSession(ClaimsPrincipal Principal, ConsoleSessionCredentials? Credentials = null);
 
 public sealed class BrowserAuthenticationStateProvider(
     ConsoleApiClient api,
@@ -43,8 +50,9 @@ public sealed class BrowserAuthenticationStateProvider(
 
     private async Task<AuthenticationState> LoadAsync()
     {
-        var principal = await api.GetPrincipalAsync();
-        session.Set(principal);
+        var result = await api.GetSessionAsync();
+        session.Set(result.Principal, result.Credentials);
+        var principal = session.IsAuthenticated ? result.Principal : new ClaimsPrincipal(new ClaimsIdentity());
         if (session.IsAuthenticated)
         {
             await sessions.SaveSessionAsync(new ConsoleAccountSession

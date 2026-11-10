@@ -1,6 +1,6 @@
 name: Console E2E
 
-# Thin real-browser Playwright smoke for the Honua Console Blazor Web host.
+# Legacy server-host browser regressions. The shipping WASM bundle has its own static gate.
 #
 # This is a real signal: the job fails the run on any browser boot failure (asset 404,
 # transport teardown, a re-introduced ambiguous route, or any console/page error). The
@@ -69,7 +69,7 @@ jobs:
           echo 'export const retired = true;' > "$studio/retired-chunk-Older01.js"
           echo '// older release' >> "$studio/console.js"
 
-      - name: Publish Blazor Web host
+      - name: Publish the static Console
         run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal -p:HonuaConsoleCommitSha=${{ github.sha }}
 
       - name: Verify published Cesium assets
@@ -77,6 +77,9 @@ jobs:
 
       - name: Verify published Studio assets
         run: node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/console/_studio
+
+      - name: Build the non-shipping legacy regression fixture
+        run: dotnet build tests/Honua.Console.LegacyHost/Honua.Console.LegacyHost.csproj -c Release --no-restore --nologo --verbosity minimal
 
       - name: Install Playwright dependencies
         working-directory: e2e/playwright
@@ -97,20 +100,20 @@ jobs:
         working-directory: e2e/playwright
         env:
           CI: "true"
-          # Boot the published artifact instead of `dotnet run` (faster, matches the deployed binary).
-          HONUA_CONSOLE_E2E_DLL: ${{ github.workspace }}/artifacts/honua-console-web/Honua.Console.Web.dll
+          # Retain legacy server-auth/proxy assertions; this fixture is never released.
+          HONUA_CONSOLE_LEGACY_DLL: ${{ github.workspace }}/tests/Honua.Console.LegacyHost/bin/Release/net10.0/Honua.Console.LegacyHost.dll
         run: npx --no-install playwright test
 
       - name: Verify operator-only browser and proxy transport (full and witness)
         working-directory: e2e/playwright
         env:
           CI: "true"
-          HONUA_CONSOLE_E2E_DLL: ${{ github.workspace }}/artifacts/honua-console-web/Honua.Console.Web.dll
+          HONUA_CONSOLE_LEGACY_DLL: ${{ github.workspace }}/tests/Honua.Console.LegacyHost/bin/Release/net10.0/Honua.Console.LegacyHost.dll
         run: npx playwright test --config playwright.operator.config.ts
 
       # honua-server#4428: the Console had NO accessibility gate — every `axe|a11y|accessib|wcag`
       # hit in the repository was prose, while release section 14 requires the focused Console
-      # journey to pass one. This runs axe-core against the same backend-free published host the
+      # journey to pass one. This runs axe-core against the same backend-free legacy fixture the
       # smoke above boots, on all four area routes, tagged to WCAG 2.1 A/AA, and fails on any
       # serious or critical violation. Moderate and minor findings are attached to the report
       # rather than enforced, so the gate asserts a defensible floor instead of a standard the
@@ -119,7 +122,7 @@ jobs:
         working-directory: e2e/playwright
         env:
           CI: "true"
-          HONUA_CONSOLE_E2E_DLL: ${{ github.workspace }}/artifacts/honua-console-web/Honua.Console.Web.dll
+          HONUA_CONSOLE_LEGACY_DLL: ${{ github.workspace }}/tests/Honua.Console.LegacyHost/bin/Release/net10.0/Honua.Console.LegacyHost.dll
         run: npx --no-install playwright test --config playwright.a11y.config.ts
 
       - name: Upload Playwright HTML report

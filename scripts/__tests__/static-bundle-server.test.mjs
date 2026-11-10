@@ -36,3 +36,16 @@ test("static host serves WASM and deep links without hiding API or asset failure
   assert.equal((await fetch(`${origin}/console/unknown`)).status, 404);
   assert.equal((await fetch(`${origin}/console/`, { method: "POST" })).status, 405);
 });
+
+test("deployment fixture overrides only public runtime configuration", async t => {
+  const root = await mkdtemp(join(tmpdir(), "console-static-config-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const configuration = { apiBaseUrl: "https://api.example.test/", auth: { mode: "builtin" } };
+  const server = await startStaticBundleServer(root, 0, { configuration });
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const url = `http://127.0.0.1:${server.address().port}/console/config.json`;
+  assert.deepEqual(await (await fetch(url)).json(), configuration);
+  assert.equal((await fetch(url)).headers.get("cache-control"), "no-store");
+  assert.equal(await (await fetch(url, { method: "HEAD" })).text(), "");
+  assert.equal((await fetch(url, { method: "POST" })).status, 405);
+});

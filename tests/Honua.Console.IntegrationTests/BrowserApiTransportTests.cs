@@ -1,6 +1,8 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
+using Honua.Console.Shell.Services;
 using Honua.Console.Web.Runtime;
 
 namespace Honua.Console.IntegrationTests;
@@ -101,6 +103,45 @@ public sealed class BrowserApiTransportTests
         {
             Auth = new ConsoleBrowserAuthConfiguration { Mode = "oidc", Authority = "https://identity.example/", ClientId = "console", Scopes = null! }
         }.ResolveApiBaseUri(App));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BootstrapRetainsIssuedCredentialsAndRejectsExpiredIdentity(bool expired)
+    {
+        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(expired ? -5 : 5);
+        using var http = new HttpClient(new SessionHandler(expiresAt)) { BaseAddress = Api };
+        var session = new ConsoleBrowserSession();
+        var provider = new BrowserAuthenticationStateProvider(new ConsoleApiClient(http), session,
+            new InMemoryConsoleAccountSessionStore());
+
+        var state = await provider.GetAuthenticationStateAsync();
+
+        Assert.Equal(!expired, state.User.Identity?.IsAuthenticated);
+        Assert.Equal(!expired, session.IsAuthenticated);
+        Assert.Equal("issued-csrf", session.CsrfToken);
+        Assert.Equal("issued-bearer", session.AccessToken);
+        Assert.Equal(expiresAt, session.ExpiresAt);
+    }
+
+    private sealed class SessionHandler(DateTimeOffset expiresAt) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Assert.EndsWith("api/v1/admin/auth/session", request.RequestUri!.AbsolutePath);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new
+                {
+                    isAuthenticated = true,
+                    claims = new[] { new { type = ClaimTypes.NameIdentifier, value = "operator" } },
+                    csrfToken = "issued-csrf",
+                    accessToken = "issued-bearer",
+                    expiresAt
+                })
+            });
+        }
     }
 
     private static ClaimsPrincipal Principal() => new(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "operator")], "test"));

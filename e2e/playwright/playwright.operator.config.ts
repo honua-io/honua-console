@@ -1,13 +1,14 @@
+// Test-only server-host regression; shipping WASM is qualified by playwright.static.config.ts.
 import { defineConfig, devices } from '@playwright/test';
 import path from 'node:path';
 
 const root = new URL('../../', import.meta.url).pathname;
-const dll = process.env.HONUA_CONSOLE_E2E_DLL;
+const dll = process.env.HONUA_CONSOLE_LEGACY_DLL;
 const contentRoot = dll ? path.dirname(dll) : undefined;
 const server = (mode: string, port: number) => ({
   command: dll
     ? `dotnet "${dll}" --urls http://127.0.0.1:${port} --contentRoot "${contentRoot}"`
-    : `dotnet run --no-build --no-launch-profile --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:${port}`,
+    : `dotnet run --no-build --no-launch-profile --project tests/Honua.Console.LegacyHost/Honua.Console.LegacyHost.csproj --urls http://127.0.0.1:${port}`,
   cwd: root, url: `http://127.0.0.1:${port}/version.json`, timeout: 120_000,
   env: {
     ASPNETCORE_ENVIRONMENT: 'Production',

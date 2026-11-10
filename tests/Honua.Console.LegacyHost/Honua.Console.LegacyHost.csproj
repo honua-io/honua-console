@@ -4,6 +4,12 @@
     <ProjectReference Include="..\..\src\Honua.Console.Shell\Honua.Console.Shell.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="../../src/Honua.Console.Web/wwwroot/**/*"
+             Exclude="../../src/Honua.Console.Web/wwwroot/index.html;../../src/Honua.Console.Web/wwwroot/config.json"
+             Link="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <!-- OpenTelemetry (honua-console#279 PA-234): distributed traces + metrics for the console web host.
        AspNetCore + HttpClient instrumentation, exported over OTLP. Default-safe: with no
        OTEL_EXPORTER_OTLP_ENDPOINT configured no exporter is wired and the SDK is a no-op. Versions

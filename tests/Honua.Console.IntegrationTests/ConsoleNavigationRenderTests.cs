@@ -3,6 +3,7 @@ using Honua.Console.Shell.Components;
 using Honua.Console.Shell.DependencyInjection;
 using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Configuration;
@@ -27,6 +28,20 @@ public sealed class ConsoleNavigationRenderTests
             Assert.StartsWith(expectedHome, link.GetAttribute("href")));
         var manager = context.Services.GetRequiredService<NavigationManager>();
         Assert.Equal(expectedHome + "operate/services?sort=name#folders", manager.ToConsoleHref("/operate/services?sort=name#folders"));
+    }
+
+    [Theory]
+    [InlineData("/")]
+    [InlineData("/console/")]
+    public async Task ConnectionPageLinksStayInsideTheApplicationBase(string applicationPath)
+    {
+        await using var context = CreateContext();
+        context.Services.AddSingleton<NavigationManager>(new HostedNavigationManager(applicationPath));
+        context.Services.AddSingleton<IOperateTransitionDataSource>(InMemoryOperateTransitionDataSource.CreateSeeded());
+        var page = context.Render<OperateConnectionsPage>();
+
+        Assert.Equal(applicationPath + "operate/connections/new", page.Find(".console-toolbar a").GetAttribute("href"));
+        Assert.All(page.FindAll("a[href]"), link => Assert.StartsWith(applicationPath, link.GetAttribute("href")));
     }
 
     private sealed class HostedNavigationManager : NavigationManager
