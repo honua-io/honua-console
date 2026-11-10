@@ -5,36 +5,102 @@
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @using Microsoft.AspNetCore.Components.Forms
+@inject NavigationManager Navigation
 @inject IConsoleSceneClient Scenes
 @inject IServiceProvider ServiceProvider
 
+<ConsoleAgentContext Context="@AgentContext" />
+
 <section class="console-page" data-scenes-page>
-    <div class="console-page-heading">
-        <p class="console-kicker">Operate / 3D Scenes</p>
-        <h1>Point clouds &amp; 3D scenes</h1>
-        <p>
-            Discover the connected server's renderable 3D Tiles scenes, ingest a LAS point cloud into a
-            servable tileset, and view the result in the 3D viewer. The server generates the tileset and
-            serves it from <code>/scenes/{id}/tileset.json</code>.
-        </p>
-    </div>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Scenes"><p>Browse 3D scenes and ingest point clouds.</p></ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / 3D Scenes</p>
+            <h1>Point clouds &amp; 3D scenes</h1>
+            <p>
+                Discover the connected server's renderable 3D Tiles scenes, ingest a LAS point cloud into a
+                servable tileset, and view the result in the 3D viewer. The server generates the tileset and
+                serves it from <code>/scenes/{id}/tileset.json</code>.
+            </p>
+        </div>
+    }
 
     @* ---- Selected scene: 3D Tiles viewer ---- *@
     @if (!string.IsNullOrWhiteSpace(SceneId))
     {
-        <section class="console-section" data-scene-viewer-section>
-            <h2>Scene @SceneId</h2>
-            <div class="console-detail-actions">
-                <a class="console-button-link" href="/operate/scenes" data-scenes-back>Back to scenes</a>
+        @if (V4Enabled)
+        {
+            <div data-scene-viewer-section>
+                <ConsolePanel Title="Scene viewer" HeadingId="scene-viewer-heading">@SceneViewerContent</ConsolePanel>
             </div>
-            <SceneViewer TilesetUrl="@_viewerTilesetUrl" EnvironmentId="@_environmentId" AriaLabel="@($"3D Tiles viewer for scene {SceneId}")" />
-        </section>
+        }
+        else
+        {
+            <section class="console-section" data-scene-viewer-section>
+                <h2>Scene @SceneId</h2>
+                @SceneViewerContent
+            </section>
+        }
     }
 
     @* ---- Ingest a LAS point cloud ---- *@
-    <section class="console-section" data-pointcloud-ingest>
-        <h2>Ingest a LAS point cloud</h2>
-        <p class="console-muted">
+    @if (V4Enabled)
+        {
+            <div data-pointcloud-ingest>
+                <ConsolePanel Title="Ingest a point cloud" HeadingId="scene-ingest-heading">@IngestContent</ConsolePanel>
+            </div>
+        }
+        else
+        {
+            <section class="console-section" data-pointcloud-ingest>
+                <h2>Ingest a LAS point cloud</h2>
+                @IngestContent
+            </section>
+        }
+
+    @* ---- Discover scenes from the catalog ---- *@
+    @if (V4Enabled)
+        {
+            <div data-scenes-discovery>
+                <ConsolePanel Title="Scenes" HeadingId="scenes-heading">@DiscoveryContent</ConsolePanel>
+            </div>
+        }
+        else
+        {
+            <section class="console-section" data-scenes-discovery>
+                <h2>Scenes</h2>
+                @DiscoveryContent
+            </section>
+        }
+</section>
+
+@code {
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = string.IsNullOrWhiteSpace(SceneId) ? "/operate/scenes" : $"/operate/scenes/{Uri.EscapeDataString(SceneId)}",
+        Filters = string.IsNullOrWhiteSpace(SceneId) ? new Dictionary<string, string>() : new Dictionary<string, string> { ["sceneId"] = SceneId },
+        Unsaved = new()
+        {
+            ChangedFieldCount = (string.IsNullOrWhiteSpace(_displayName) ? 0 : 1) + (string.IsNullOrWhiteSpace(_description) ? 0 : 1) + (_sourceCrs.HasValue ? 1 : 0) + (_selectedFile is null ? 0 : 1),
+            PendingOperationCount = _ingesting ? 1 : 0
+        }
+    };
+
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private RenderFragment SceneViewerContent => @<div>
+<div class="console-detail-actions">
+                <a class="console-button-link" href="@Navigation.ToConsoleHref("/operate/scenes")" data-scenes-back>Back to scenes</a>
+            </div>
+            <SceneViewer TilesetUrl="@_viewerTilesetUrl" EnvironmentId="@_environmentId" AriaLabel="@($"3D Tiles viewer for scene {SceneId}")" />
+    </div>;
+
+    private RenderFragment IngestContent => @<div>
+<p class="console-muted">
             Upload a <code>.las</code> / <code>.laz</code> file (Enterprise). The server decodes it into a
             3D Tiles point tileset and returns the servable scene.
         </p>
@@ -58,7 +124,7 @@
         </div>
 
         <div class="console-field">
-            <InputFile OnChange="OnFileSelected" accept=".las,.laz" data-pointcloud-file />
+            <InputFile OnChange="OnFileSelected" class="console-input" accept=".las,.laz" aria-label="Point cloud file" data-pointcloud-file />
             @if (_selectedFile is not null)
             {
                 <p class="console-muted" data-pointcloud-selected>
@@ -89,7 +155,7 @@
                     </p>
                     <div class="console-detail-actions">
                         <a class="console-button-link"
-                           href="@($"/operate/scenes/{result.SceneId}")"
+                           href="@Navigation.ToConsoleHref($"/operate/scenes/{Uri.EscapeDataString(result.SceneId)}")"
                            data-pointcloud-view-link="@result.SceneId">
                             View 3D scene
                         </a>
@@ -104,12 +170,14 @@
                 </article>
             }
         }
-    </section>
+    </div>;
 
-    @* ---- Discover scenes from the catalog ---- *@
-    <section class="console-section" data-scenes-discovery>
-        <h2>Scenes</h2>
-        @if (_scenes is null)
+    private RenderFragment DiscoveryContent => @<div>
+        @if (V4Enabled)
+        {
+            <ConsoleMetricTile Label="Scenes" Value="@(_scenes?.IsOk == true ? _scenes.Value!.Scenes.Count : (long?)null)" />
+        }
+@if (_scenes is null)
         {
             <OperateSectionStatusPanel Heading="Scenes" Loading="true" />
         }
@@ -127,7 +195,8 @@
         }
         else
         {
-            <table class="console-table" data-scenes-table>
+            <ConsoleTableRegion Label="Scenes table">
+<table class="console-table" data-scenes-table>
                 <thead>
                     <tr><th>Id</th><th>Name</th><th>Capabilities</th><th></th></tr>
                 </thead>
@@ -146,7 +215,7 @@
                             <td class="console-muted">@(scene.Capabilities.Count == 0 ? "—" : string.Join(", ", scene.Capabilities))</td>
                             <td>
                                 <a class="console-button-link"
-                                   href="@($"/operate/scenes/{scene.Id}")"
+                                   href="@Navigation.ToConsoleHref($"/operate/scenes/{Uri.EscapeDataString(scene.Id)}")"
                                    data-scene-open="@scene.Id">
                                     View
                                 </a>
@@ -155,11 +224,10 @@
                     }
                 </tbody>
             </table>
+</ConsoleTableRegion>
         }
-    </section>
-</section>
+    </div>;
 
-@code {
     private const long MaxFileBytes = 256L * 1024 * 1024;
 
     [Parameter]
