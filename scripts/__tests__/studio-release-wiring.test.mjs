@@ -12,7 +12,7 @@ const workflows = readdirSync(workflowDirectory)
   .map((name) => ({ name, lines: readFileSync(resolve(workflowDirectory, name), "utf8").split("\n") }));
 
 const FETCH_ACTION = "uses: ./.github/actions/fetch-studio-release";
-const PUBLISHED_STUDIO_VERIFICATION = "node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/_studio";
+const PUBLISHED_STUDIO_VERIFICATION = /node scripts\/fetch-studio-release\.mjs --verify artifacts\/[^\s]+\/wwwroot\/console\/_studio/;
 const BUILDS_WEB_HOST = /\bdotnet (?:build|publish|test|run)\b|\bplaywright test\b|e2e\/run-live/;
 const JOB_HEADER = /^ {2}([A-Za-z0-9_-]+):\s*$/;
 
@@ -40,7 +40,7 @@ test("every published Console artifact is verified against the Studio release lo
   let publishes = 0;
   for (const { name, lines } of workflows) {
     const sequence = lines
-      .filter((line) => line.includes("dotnet publish") || line.includes(PUBLISHED_STUDIO_VERIFICATION))
+      .filter((line) => line.includes("dotnet publish") || PUBLISHED_STUDIO_VERIFICATION.test(line))
       .map((line) => (line.includes("dotnet publish") ? "publish" : "verify"));
     publishes += sequence.filter((step) => step === "publish").length;
     const alternates = sequence.every((step, index) => step === (index % 2 === 0 ? "publish" : "verify"));
@@ -76,5 +76,5 @@ test("the e2e publish starts from a Studio tree that looks like an older release
   assert.ok(transition > e2e.indexOf(FETCH_ACTION), "the transition starts from the fetched release");
   assert.ok(e2e.includes('rm "$studio/style.css"'), "a release file is missing at evaluation");
   assert.ok(transition < e2e.indexOf("dotnet publish"), "the transition precedes the publish");
-  assert.ok(e2e.indexOf("dotnet publish") < e2e.indexOf(PUBLISHED_STUDIO_VERIFICATION), "the published tree is verified");
+  assert.ok(e2e.indexOf("dotnet publish") < e2e.search(PUBLISHED_STUDIO_VERIFICATION), "the published tree is verified");
 });

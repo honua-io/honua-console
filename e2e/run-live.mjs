@@ -26,6 +26,9 @@ const COMPOSE_ARGS = [
   '-f', join(SCRIPT_DIR, 'docker-compose.yml'),
   '-f', join(SCRIPT_DIR, 'docker-compose.auth.yml'),
 ];
+if (process.env.HONUA_CONSOLE_E2E_NATIVE_PROBE === 'true') {
+  COMPOSE_ARGS.push('-f', join(SCRIPT_DIR, 'docker-compose.native-probe.yml'));
+}
 const CERT_DIR = join(SCRIPT_DIR, 'playwright', 'live-auth', 'certs');
 const PW_DIR = join(SCRIPT_DIR, 'playwright');
 

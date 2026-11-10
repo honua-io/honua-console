@@ -1,21 +1,31 @@
 @implements IDisposable
 @inject NavigationManager Navigation
 @inject CatalogAdminOptions CatalogOptions
+@inject IServiceProvider Services
 
 <nav class="console-contextbar" aria-label="Breadcrumb">
     <ol>
-        <li><a href="/">Home</a></li>
+        <li><a href="@Navigation.ToConsoleHref("/")">Home</a></li>
         @if (ParentArea is { } area)
         {
-            <li><a href="@area.Path">@area.Name</a></li>
+            <li><a href="@Navigation.ToConsoleHref(area.Path)">@area.Name</a></li>
         }
         @if (Folder is { } folder)
         {
-            <li><span>@folder.Label</span></li>
+            <li>
+                @if (V4Enabled && folder.Href is { } href)
+                {
+                    <a href="@Navigation.ToConsoleHref(href)">@folder.Label</a>
+                }
+                else
+                {
+                    <span>@folder.Label</span>
+                }
+            </li>
         }
         @if (ParentService is { Href: not null } service)
         {
-            <li><a href="@service.Href">@service.Label</a></li>
+            <li><a href="@Navigation.ToConsoleHref(service.Href)">@service.Label</a></li>
         }
         <li aria-current="page">
             <details class="console-navigation-menu" data-navigation-menu="Context">
@@ -23,11 +33,11 @@
                 <div class="console-navigation-items" role="group" aria-label="Current context">
                     @foreach (var entry in ContextActions)
                     {
-                        <a href="@entry.Path">@entry.Label</a>
+                        <a href="@Navigation.ToConsoleHref(entry.Path)">@entry.Label</a>
                     }
                     @if (StudioEnabled && Context.Kind is ConsoleNavigationContextKind.Service or ConsoleNavigationContextKind.Layer)
                     {
-                        <a href="@ConsoleNavigation.Studio.Path">Open in Studio</a>
+                        <a href="@Navigation.ToConsoleHref(ConsoleNavigation.Studio.Path)">Open in Studio</a>
                     }
                 </div>
             </details>
@@ -38,24 +48,27 @@
 @code {
     [Parameter] public IReadOnlyList<ConsoleNavigationGroup> Groups { get; set; } = [];
     [Parameter] public IReadOnlyList<ConsolePublicationNode> PublicationPath { get; set; } = [];
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private bool StudioEnabled => Groups.Any(group => group.Name == "Studio");
     private string RelativePath => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
     private ConsoleNavigationContext Context => ConsoleNavigation.ContextForPath(RelativePath, Definitions);
     private IReadOnlyList<ConsoleNavigationGroup> Definitions => ConsoleNavigation.Definitions(CatalogOptions);
-    private bool HasPublicationPath => (Context.Kind is ConsoleNavigationContextKind.Service or ConsoleNavigationContextKind.Layer)
+    private bool HasPublicationPath => (Context.Kind is ConsoleNavigationContextKind.Folder or ConsoleNavigationContextKind.Service or ConsoleNavigationContextKind.Layer)
         && PublicationPath.LastOrDefault()?.Href == Context.Path;
     private ConsolePublicationNode? SelectedNode => HasPublicationPath ? PublicationPath[^1] : null;
-    private ConsolePublicationNode? Folder => HasPublicationPath
+    private ConsolePublicationNode? Folder => HasPublicationPath && SelectedNode?.Kind != ConsolePublicationNodeKind.Folder
         ? PublicationPath.FirstOrDefault(node => node.Kind == ConsolePublicationNodeKind.Folder) : null;
     private ConsolePublicationNode? ParentService => SelectedNode?.Kind == ConsolePublicationNodeKind.Layer
         ? PublicationPath.FirstOrDefault(node => node.Kind == ConsolePublicationNodeKind.Service) : null;
-    private ConsoleWorkflowArea? ParentArea => ConsoleRouteMap.FindAreaForPath(RelativePath) is { } area
+    private ConsoleWorkflowArea? ParentArea => !(V4Enabled && HasPublicationPath)
+        && ConsoleRouteMap.FindAreaForPath(RelativePath) is { } area
         && area.Path.Trim('/') != RelativePath && area.Name != Context.Label
             ? area.Id == "catalog" ? area with { Name = ConsoleNavigation.ContextForPath(area.Path, Definitions).Label } : area
             : null;
 
     private IEnumerable<ConsoleNavigationDestination> ContextActions => Context.Kind switch
     {
+        ConsoleNavigationContextKind.Folder when V4Enabled => [new(Context.Path, "Folder home"), new("/operate/services#folders", "Manage Folders")],
         ConsoleNavigationContextKind.Service => [new(Context.Path, "Edit service"),
             ConsoleNavigation.Data with { Label = "Layer Preview" }, ConsoleNavigation.AddData],
         ConsoleNavigationContextKind.Layer => [new(Context.Path, "Layer home"),

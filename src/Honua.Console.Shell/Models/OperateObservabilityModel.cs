@@ -4,31 +4,31 @@ namespace Honua.Console.Shell.Models;
 
 public static class OperateObservabilityRoutes
 {
-    public const string Root = "/operate";
-    public const string Observability = "/operate/observability";
+    public const string Root = "operate";
+    public const string Observability = "operate/observability";
 
-    public static string EventDetail(string eventId) => $"/operate/events/{Uri.EscapeDataString(eventId)}";
+    public static string EventDetail(string eventId) => $"operate/events/{Uri.EscapeDataString(eventId)}";
 
-    public static string AlertDetail(string alertId) => $"/operate/alerts/{Uri.EscapeDataString(alertId)}";
+    public static string AlertDetail(string alertId) => $"operate/alerts/{Uri.EscapeDataString(alertId)}";
 
-    public static string JobDetail(string jobRunId) => $"/operate/jobs/{Uri.EscapeDataString(jobRunId)}";
+    public static string JobDetail(string jobRunId) => $"operate/jobs/{Uri.EscapeDataString(jobRunId)}";
 
-    public const string Geoprocessing = "/operate/geoprocessing";
+    public const string Geoprocessing = "operate/geoprocessing";
 
     public static string GeoprocessingJobDetail(string jobRunId) =>
-        $"/operate/geoprocessing/{Uri.EscapeDataString(jobRunId)}";
+        $"operate/geoprocessing/{Uri.EscapeDataString(jobRunId)}";
 
     public static string CorrelationSearch(string correlationId) =>
         $"{Observability}?correlationId={Uri.EscapeDataString(correlationId)}#events";
 
     public static string FindingDetail(string findingId) =>
-        $"/operate/copilot#finding-{Uri.EscapeDataString(findingId)}";
+        $"operate/copilot#finding-{Uri.EscapeDataString(findingId)}";
 
     public static string ProposalDetail(string proposalId) =>
-        $"/inbox?proposalId={Uri.EscapeDataString(proposalId)}";
+        $"inbox?proposalId={Uri.EscapeDataString(proposalId)}";
 
     public static string OperationDetail(string operationId) =>
-        $"/operate/deploy?operationId={Uri.EscapeDataString(operationId)}#deploy-approvals";
+        $"operate/deploy?operationId={Uri.EscapeDataString(operationId)}#deploy-approvals";
 }
 
 // The server matches these values to ExecutionJobKind member names, ignoring case.
@@ -103,7 +103,7 @@ public sealed record OperateObservabilitySnapshot(
     public bool HasUnifiedJobDeepLinks =>
         RequiredJobSources.All(source => Jobs.Any(job =>
             string.Equals(job.Source, source, StringComparison.OrdinalIgnoreCase)
-            && job.DetailHref.StartsWith("/operate/jobs/", StringComparison.Ordinal)));
+            && job.DetailHref.StartsWith("operate/jobs/", StringComparison.Ordinal)));
 }
 
 public sealed record OperateStatus(string State, string Description)

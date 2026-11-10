@@ -184,7 +184,7 @@ jobs:
         run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
 
       - name: Verify published Studio assets
-        run: node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/_studio
+        run: node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/console/_studio
 
       - name: Install catalog presentation browser checks
         run: |
@@ -195,56 +195,61 @@ jobs:
       - name: Verify rendered catalog presentation
         run: node e2e/playwright/catalog-preview.mjs
 
-      - name: Verify rendered services presentation
-        run: node e2e/playwright/data-services-preview.mjs
+      - name: Verify rendered Operate overview presentation
+        run: node e2e/playwright/operate-overview-preview.mjs
         env:
-          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+          HONUA_OPERATE_OVERVIEW_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
 
-      - name: Upload services presentation evidence
+      - name: Upload Operate overview presentation evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: data-services-presentation
-          path: artifacts/catalog-preview/data-services-*
+          name: operate-overview-presentation
+          path: artifacts/catalog-preview/operate-overview-*
           if-no-files-found: error
 
-      - name: Verify rendered service detail presentation
-        run: node e2e/playwright/data-service-detail-preview.mjs
+      - name: Verify rendered Folder presentation
+        run: node e2e/playwright/folder-preview.mjs
+      - name: Verify rendered workflow event presentation
+        run: node e2e/playwright/events-preview.mjs
         env:
-          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+          HONUA_EVENTS_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
 
-      - name: Upload service detail presentation evidence
+      - name: Upload workflow event presentation
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: data-service-detail-presentation
-          path: artifacts/catalog-preview/data-service-detail-*
+          name: workflow-events-presentation
+          path: artifacts/catalog-preview/events-*
           if-no-files-found: error
 
-      - name: Verify rendered layers presentation
-        run: node e2e/playwright/data-layers-preview.mjs
+      - name: Verify rendered approvals presentation
+        run: node e2e/playwright/approvals-preview.mjs
         env:
-          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+          HONUA_APPROVALS_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
 
-      - name: Upload layers presentation evidence
+      - name: Upload approvals presentation evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: data-layers-presentation
-          path: artifacts/catalog-preview/data-layers-*
+          name: approvals-presentation
+          path: |
+            artifacts/catalog-preview/approvals-*
           if-no-files-found: error
 
-      - name: Verify rendered layer detail presentation
-        run: node e2e/playwright/data-layer-detail-preview.mjs
+      - name: Verify rendered builders presentation
+        run: node e2e/playwright/builders-preview.mjs
         env:
-          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+          HONUA_BUILDERS_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
 
-      - name: Upload layer detail presentation evidence
+      - name: Upload builders presentation evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: data-layer-detail-presentation
-          path: artifacts/catalog-preview/data-layer-detail-*
+          name: builders-presentation
+          path: |
+            artifacts/catalog-preview/*-builder-*
+            artifacts/catalog-preview/workflow-editor-*
           if-no-files-found: error
 
       - name: Verify rendered Home presentation
@@ -295,6 +300,21 @@ jobs:
         run: node e2e/playwright/activity-preview.mjs
         env:
           HONUA_ACTIVITY_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Verify rendered Automations presentation
+        run: node e2e/playwright/automations-preview.mjs
+        env:
+          HONUA_AUTOMATIONS_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload Automations presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: automations-presentation
+          path: |
+            artifacts/catalog-preview/automations-*
+            artifacts/catalog-preview/automation-*
+          if-no-files-found: error
 
       - name: Upload Activity presentation evidence
         if: always()
