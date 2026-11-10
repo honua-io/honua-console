@@ -13,10 +13,14 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class ResourceFirstPublishFlowTests
 {
-    [Fact]
-    public void QuickPublish_GenericGeometryRequiresExplicitTypeAndPassesTheChoice()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void QuickPublish_GenericGeometryRequiresExplicitTypeAndPassesTheChoice(bool enabled)
     {
         using var ctx = NewContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         var publish = new RecordingPublishOperation("GEOMETRY");
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish);
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneConnectionDataSource("conn", "Source"));
@@ -34,10 +38,14 @@ public sealed class ResourceFirstPublishFlowTests
         Assert.Equal("Polygon", publish.LastCommand?.GeometryType);
     }
 
-    [Fact]
-    public void QuickPublish_ConcreteGeometryNeedsNoOverride()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void QuickPublish_ConcreteGeometryNeedsNoOverride(bool enabled)
     {
         using var ctx = NewContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         var publish = new RecordingPublishOperation("Point");
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish);
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneConnectionDataSource("conn", "Source"));
@@ -47,8 +55,21 @@ public sealed class ResourceFirstPublishFlowTests
         Assert.Empty(page.FindAll("select[aria-label='Geometry type']"));
         page.Find("input[placeholder='parcels-fs']").Input("points-fs");
         page.Find("input[placeholder='Parcels']").Input("Points");
+        if (enabled)
+        {
+            var state = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current;
+            Assert.Equal("/operate/publishing/quick", state.Route);
+            Assert.True(state.Unsaved.ChangedFieldCount >= 4);
+            Assert.Empty(state.Entities);
+            CatalogAdminPreview.Capture("data-quick-publish", page.Markup);
+        }
         page.Find("[data-workspace-publish]").Click();
         Assert.Equal("Point", publish.LastCommand?.GeometryType);
+        if (enabled)
+        {
+            Assert.Equal(0, ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
+            CatalogAdminPreview.Capture("data-quick-publish-complete", page.Markup);
+        }
     }
 
     private static BunitContext NewContext()

@@ -5,13 +5,23 @@
 @using Honua.Console.Shell.Services
 @inject IPublishingWorkspaceDataSource PublishingData
 @inject IConsoleNotificationService Notifications
+@inject IServiceProvider Services
+
+<ConsoleAgentContext Context="@AgentContext" />
 
 <section class="console-page">
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Publishing"><ChildContent><p>@Intro</p></ChildContent></ConsolePageHeading>
+    }
+    else
+    {
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Publishing</p>
         <h1>Publishing</h1>
-        <p>Publish datasets as layers, review service endpoints, and manage released Studio content. Check supported formats, catalog registration, access, recovery, and provenance before applying a change.</p>
+        <p>@Intro</p>
     </div>
+    }
 
     <PublishWizardWorkspace />
 
@@ -27,12 +37,84 @@
 
         @if (_states.Count == 0 || _showLookup)
         {
-            <section class="console-section" data-publication-lookup>
+            <div data-publication-lookup>
+            @if (V4Enabled)
+            {
+                <ConsolePanel Title="Look up released content" HeadingId="publishing-lookup">@LookupContent</ConsolePanel>
+            }
+            else
+            {
+                <section class="console-section">
                 <div class="console-page-heading">
                     <p class="console-kicker">Review</p>
                     <h2>Look up released content</h2>
                     <p>Enter a release ID to review its route, release a new version, or restore a previous version.</p>
                 </div>
+                    @LookupContent
+                </section>
+            }
+            </div>
+        }
+
+        @if (_workspace.Matrix.Count == 0 && _workspace.Reviews.Count == 0)
+        {
+            @if (_states.Count == 0)
+            {
+                <EmptyState Area="operate" Subject="released content" />
+            }
+        }
+        else
+        {
+            @if (V4Enabled)
+            {
+                <ConsolePanel Title="Publishing formats" HeadingId="publishing-formats">@FormatContent</ConsolePanel>
+            }
+            else
+            {
+                <section class="console-section">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Matrix</p>
+                    <h2>Publishing formats</h2>
+                    <p>Supported output and catalog formats for each object. Review any unsupported or blocked format before publishing.</p>
+                </div>
+                    @FormatContent
+                </section>
+            }
+
+            @if (V4Enabled)
+            {
+                <ConsolePanel Title="Publishing review" HeadingId="publishing-review">@ReviewContent</ConsolePanel>
+            }
+            else
+            {
+                <section class="console-section">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Review</p>
+                    <h2>Publishing review</h2>
+                </div>
+                    @ReviewContent
+                </section>
+            }
+        }
+    }
+</section>
+
+<ConsoleConfirmDialog @ref="_confirm" />
+
+@code {
+    private const string Intro = "Publish datasets as layers, review service endpoints, and manage released Studio content. Check supported formats, catalog registration, access, recovery, and provenance before applying a change.";
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = "/operate/publishing",
+        Unsaved = new()
+        {
+            ChangedFieldCount = (string.IsNullOrWhiteSpace(_lookupId) ? 0 : 1) + (string.IsNullOrWhiteSpace(_republishTitle) ? 0 : 1),
+            PendingOperationCount = (!_loaded ? 1 : 0) + (_busy ? 1 : 0)
+        }
+    };
+    private RenderFragment LookupContent => @<text>
+
 
                 <div class="console-form-row">
                     <input class="console-input"
@@ -62,7 +144,7 @@
                         <section class="console-section">
                             <div class="console-page-heading">
                                 <p class="console-kicker">Actions</p>
-                                <h2>Lifecycle</h2>
+                                @if (V4Enabled) { <h3>Lifecycle</h3> } else { <h2>Lifecycle</h2> }
                             </div>
 
                             <div class="console-form-row">
@@ -70,6 +152,7 @@
                                        placeholder="new version title (optional)"
                                        aria-label="Republish title"
                                        @bind="_republishTitle"
+                                       @bind:event="oninput"
                                        disabled="@_busy" />
                                 <button class="console-button"
                                         type="button"
@@ -125,24 +208,10 @@
                         </section>
                     }
                 }
-            </section>
-        }
 
-        @if (_workspace.Matrix.Count == 0 && _workspace.Reviews.Count == 0)
-        {
-            @if (_states.Count == 0)
-            {
-                <EmptyState Area="operate" Subject="released content" />
-            }
-        }
-        else
-        {
-            <section class="console-section">
-                <div class="console-page-heading">
-                    <p class="console-kicker">Matrix</p>
-                    <h2>Publishing formats</h2>
-                    <p>Supported output and catalog formats for each object. Review any unsupported or blocked format before publishing.</p>
-                </div>
+    </text>;
+    private RenderFragment FormatContent => @<text>
+
 
                 <ConsoleTableRegion Class="console-table-wrap" Label="Supported publishing formats">
                     <table class="console-table">
@@ -176,13 +245,10 @@
                         </tbody>
                     </table>
                 </ConsoleTableRegion>
-            </section>
 
-            <section class="console-section">
-                <div class="console-page-heading">
-                    <p class="console-kicker">Review</p>
-                    <h2>Publishing review</h2>
-                </div>
+    </text>;
+    private RenderFragment ReviewContent => @<text>
+
 
                 <div class="console-panel-grid">
                     @foreach (var review in _workspace.Reviews)
@@ -190,14 +256,9 @@
                         <PublishingReviewCard Review="@review" />
                     }
                 </div>
-            </section>
-        }
-    }
-</section>
 
-<ConsoleConfirmDialog @ref="_confirm" />
+    </text>;
 
-@code {
     private ConsoleConfirmDialog? _confirm;
     private PublishingWorkspace? _workspace;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
