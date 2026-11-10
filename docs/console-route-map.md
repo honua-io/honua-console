@@ -1330,7 +1330,8 @@ Do not navigate on false. This helper only resolves destinations; retain the exi
 changes and stale-response guards when navigating. API/resource URLs do not use this helper.
 
 `ConsoleAgentContext` normalizes page routes through `Navigation.ToConsoleContextRoute(route)`
-before registration or publication. The bridge uses the same helper for browser locations.
+before registration or publication. The bridge removes the base from the current browser location
+with `ToBaseRelativePath`, without applying destination validation to an already-loaded address.
 Context routes exclude the application mount, query and fragment while retaining escaped entity
 identifiers. Page publishers may supply logical routes or mounted paths; query-only navigation
 keeps the active provider, selection and unsaved summary. Use this shared helper for direct registry

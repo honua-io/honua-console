@@ -57,6 +57,29 @@ public sealed class ConsoleAgentContextMountTests
         Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
     }
 
+    [Theory]
+    [InlineData("https://honua.example/console", "/")]
+    [InlineData("https://honua.example/console/inbox?q=C:\\x", "/inbox")]
+    [InlineData("https://honua.example/console/operate/services/a%2F..%2Fb", "/operate/services/a%2F..%2Fb")]
+    public async Task Bridge_accepts_current_browser_locations_without_destination_validation(string location, string expected)
+    {
+        using var renderer = new BunitContext();
+        var navigation = new HostedNavigationManager("https://honua.example/console/", "");
+        navigation.NavigateTo(location);
+        var registry = new ConsoleAgentContextRegistry();
+        renderer.Services.AddSingleton<NavigationManager>(navigation);
+        renderer.Services.AddSingleton(registry);
+        renderer.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        var module = renderer.JSInterop.SetupModule("./js/console-agent-context.mjs");
+        module.SetupVoid("install", _ => true).SetVoidResult();
+        module.SetupVoid("publish", _ => true).SetVoidResult();
+        module.SetupVoid("uninstall", _ => true).SetVoidResult();
+        var bridge = renderer.Render<ConsoleAgentContextBridge>();
+        Assert.Equal(expected, registry.Current.Route);
+        await bridge.InvokeAsync(() => navigation.NavigateTo("./inbox?q=C:\\x"));
+        Assert.Equal("/inbox", registry.Current.Route);
+    }
+
     private sealed class HostedNavigationManager : NavigationManager
     {
         public HostedNavigationManager(string baseUri, string route) => Initialize(baseUri, baseUri + route);

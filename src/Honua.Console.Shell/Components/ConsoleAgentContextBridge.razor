@@ -36,7 +36,7 @@
     [JSInvokable]
     public string ResolveEntityRoute(ConsoleAgentEntity target) => ConsoleAgentRoutes.ForEntity(target);
 
-    private string CurrentRoute() => Navigation.ToConsoleContextRoute(Navigation.Uri);
+    private string CurrentRoute() => "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
     private void LocationChanged(object? sender, LocationChangedEventArgs args) => _registry?.Navigate(CurrentRoute());
     private void ContextChanged() => _ = InvokeAsync(PublishAsync);
 
