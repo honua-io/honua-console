@@ -12,7 +12,7 @@ public sealed class DatasetPageRenderTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Datasets_SelectionAndQueryChangesUseCanonicalResource(bool enabled)
+    public async Task Datasets_SelectionAndQueryChangesUseCanonicalResource(bool enabled)
     {
         var (context, registry) = CreateContext(new ConsoleV4Options { Enabled = enabled });
         using var ctx = context;
@@ -28,7 +28,7 @@ public sealed class DatasetPageRenderTests
             Assert.Equal("parcels", Assert.Single(registry.Current.Selection).ResourceId);
             CatalogAdminPreview.Capture("data-datasets-focused", page.Markup);
         }
-        navigation.NavigateTo("/console/operate/data?focus=draft");
+        await page.InvokeAsync(() => navigation.NavigateTo("/console/operate/data?focus=draft"));
         page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-preview-empty]")));
         if (enabled) Assert.Equal("draft", Assert.Single(registry.Current.Selection).ResourceId);
         page.Find("[data-resource-node='parcels'] .resource-tree__name").Click();
