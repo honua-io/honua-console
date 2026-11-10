@@ -1311,3 +1311,19 @@ is escaped text. No save, proposal, upload, parser, attachment store, schema
 mutation or metadata mutation is implemented here. Local choices never change the
 reported metadata, history or original attachment. The server must supply
 contextual inheritance and enforce its mutation policy and attachment authority.
+
+### Static host navigation
+
+Console route identities remain logical paths such as `/operate/jobs/{id}`. HTML links and
+`NavigationManager.NavigateTo` destinations must resolve beneath the configured application base
+(`/console/` in the release bundle). Shared `OperateObservabilityRoutes` builders therefore return
+base-relative paths such as `operate/jobs/{id}`, with identifiers escaped as before.
+
+For dynamic workflow result URLs, use
+`Navigation.TryGetConsoleHref(target, out var href)` from
+`Honua.Console.Shell.Services`. It accepts logical root-relative paths, base-relative paths,
+and absolute URLs within the current application base. It returns a `./`-relative destination,
+preserving escaped identifiers, query and fragment. External URLs, URLs outside the application
+base, network-path references and path traversal return false with an empty destination.
+Do not navigate on false. This helper only resolves destinations; retain the existing unsaved
+changes and stale-response guards when navigating. API/resource URLs do not use this helper.
