@@ -32,7 +32,7 @@
     @* ---- Things ---- *@
     @if (V4Enabled)
         {
-            <div data-sensorthings-things>
+            <div class="console-section" data-sensorthings-things>
                 <ConsolePanel Title="Things" HeadingId="sensor-things-heading">@ThingsContent</ConsolePanel>
             </div>
         }
@@ -47,7 +47,7 @@
     @* ---- Datastreams (the browseable catalog of chartable series) ---- *@
     @if (V4Enabled)
         {
-            <div data-sensorthings-datastreams>
+            <div class="console-section" data-sensorthings-datastreams>
                 <ConsolePanel Title="Datastreams" HeadingId="sensor-streams-heading">@DatastreamsContent</ConsolePanel>
             </div>
         }
@@ -64,7 +64,7 @@
     {
         @if (V4Enabled)
         {
-            <div data-sensorthings-detail>
+            <div class="console-section" data-sensorthings-detail>
                 <ConsolePanel Title="Observations" HeadingId="sensor-detail-heading">@DetailContent</ConsolePanel>
             </div>
         }
@@ -90,7 +90,7 @@
     private RenderFragment ThingsContent => @<div>
         @if (V4Enabled)
         {
-            <ConsoleMetricTile Label="Things" Value="@(_things?.IsOk == true ? _things.Value!.Value.Count : (long?)null)" />
+            <ConsoleMetricTile Label="Things" Value="@(_things?.IsOk == true ? _things.Value!.Count : (long?)null)" />
         }
 @if (_things is null)
         {
@@ -133,7 +133,7 @@
     private RenderFragment DatastreamsContent => @<div>
         @if (V4Enabled)
         {
-            <ConsoleMetricTile Label="Datastreams" Value="@(_datastreams?.IsOk == true ? _datastreams.Value!.Value.Count : (long?)null)" />
+            <ConsoleMetricTile Label="Datastreams" Value="@(_datastreams?.IsOk == true ? _datastreams.Value!.Count : (long?)null)" />
         }
 @if (_datastreams is null)
         {

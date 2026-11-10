@@ -112,6 +112,23 @@ public sealed class SensorThingsPageRenderTests
         Assert.DoesNotContain("data-sensorthings-datastreams-table", page.Markup, StringComparison.Ordinal);
         if (enabled) CatalogAdminPreview.Capture("sensors-missing", page.Markup);
     }
+    [Fact]
+    public void Metrics_UseServerTotalsWhenOnlyOnePageIsLoaded()
+    {
+        using var ctx = new BunitContext();
+        var seed = new SensorThingsSeed(
+            Enumerable.Range(1, 120).Select(id => new StaThing { IotId = id, Name = $"Thing {id}" }).ToArray(),
+            Enumerable.Range(1, 75).Select(id => new StaDatastream { IotId = id, Name = $"Stream {id}" }).ToArray(),
+            new Dictionary<long, IReadOnlyList<StaObservation>>());
+        ctx.Services.AddSingleton<IConsoleSensorThingsClient>(new InMemoryConsoleSensorThingsClient(seed));
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        var page = ctx.Render<OperateSensorThingsPage>();
+
+        page.WaitForAssertion(() => Assert.Equal(50, page.FindAll("[data-sensorthings-things-table] tbody tr").Count));
+        Assert.Contains("120", page.Find("[data-sensorthings-things] .console-metric-tile").TextContent);
+        Assert.Contains("75", page.Find("[data-sensorthings-datastreams] .console-metric-tile").TextContent);
+    }
+
     private sealed class HostedNavigationManager : NavigationManager
     {
         public HostedNavigationManager() => Initialize("http://localhost/console/", "http://localhost/console/operate");
