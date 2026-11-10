@@ -26,7 +26,7 @@
     @if (V4Enabled)
     {
         <ConsolePanel Title="Service" HeadingId="version-service-heading">@ServiceSelector</ConsolePanel>
-        <ConsolePanel Title="Branch versions" HeadingId="version-list-heading">
+        <ConsolePanel Title="Branch versions" HeadingId="version-list-heading" Class="console-section">
             <ConsoleMetricTile Label="Versions" Value="@(_versions?.Bound == true ? _versions.Versions.Count : (long?)null)" />
             @VersionWorkflow
         </ConsolePanel>
@@ -192,7 +192,7 @@
                             <option value="default-wins">Default wins</option>
                         </select>
                     </label>
-                    <label class="console-inline-check">
+                    <label class="@(V4Enabled ? "console-inline-check console-service-controls" : "console-inline-check")">
                         <input type="checkbox" @bind="_abortIfConflicts" data-abort-if-conflicts />
                         <span>Abort if conflicts (force manual review)</span>
                     </label>

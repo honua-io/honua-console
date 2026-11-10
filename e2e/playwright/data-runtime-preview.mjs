@@ -18,7 +18,7 @@ for (const { prefix, heading, scope, states } of areas.filter(area => !requested
     stylesheet: "v4-shell.css",
     heading,
     scope,
-    controls: name => name === "sensors-missing" ? null : `${scope} :is(a[href], input, select, button, [tabindex='0']):not(:disabled):visible`,
+    controls: name => name === "sensors-missing" ? null : `${scope} :is(a[href], input, select, button, summary, [tabindex='0']):not(:disabled):visible`,
     async inspect(page, name) {
       assert.ok(await page.locator(`${scope} .console-panel[aria-labelledby]`).count() > 0);
       for (const link of await page.locator(`${scope} a[href]`).all()) {
