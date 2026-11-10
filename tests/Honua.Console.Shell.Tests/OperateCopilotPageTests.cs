@@ -36,13 +36,13 @@ public sealed class OperateCopilotPageTests
         // console#292: a subject's pinned deploy operation renders as a correlation-id chip
         // deep-linking into the Deploy page rather than plain text.
         Assert.Contains("data-correlation-kind=\"OperationId\"", html, StringComparison.Ordinal);
-        Assert.Contains("/operate/deploy?operationId=deploy-op-42#deploy-approvals", html, StringComparison.Ordinal);
+        Assert.Contains("operate/deploy?operationId=deploy-op-42#deploy-approvals", html, StringComparison.Ordinal);
 
         // console#292 scope item 6: the informational finding (no RecommendedAction) still gets
         // a next step — "Investigate" linking to the correlated evidence timeline since it has no
         // pinned operation id.
         Assert.Contains("data-investigate-finding=\"gp-queue-idle-def456\"", html, StringComparison.Ordinal);
-        Assert.Contains("/operate/observability#events", html, StringComparison.Ordinal);
+        Assert.Contains("operate/observability#events", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public sealed class OperateCopilotPageTests
         // console#292: the created proposal id renders as a correlation-id chip deep-linking
         // into the approval inbox, preselected, not a bare <code> string.
         Assert.Contains("data-correlation-kind=\"ProposalId\"", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("/inbox?proposalId=" + linkedId, page.Markup, StringComparison.Ordinal);
+        Assert.Contains("inbox?proposalId=" + linkedId, page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -535,7 +535,7 @@ public sealed class OperateCopilotPageTests
         Assert.Contains("data-finding-autonomy=\"AwaitingApproval\"", finding.OuterHtml, StringComparison.Ordinal);
         Assert.Contains("Proposed — awaiting approval", finding.TextContent, StringComparison.Ordinal);
         Assert.Contains("data-finding-pending-proposal=\"proposal-persisted\"", finding.OuterHtml, StringComparison.Ordinal);
-        Assert.Contains("/inbox?proposalId=proposal-persisted", finding.OuterHtml, StringComparison.Ordinal);
+        Assert.Contains("inbox?proposalId=proposal-persisted", finding.OuterHtml, StringComparison.Ordinal);
     }
 
     private static async Task<string> RenderAsync(

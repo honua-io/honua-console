@@ -156,6 +156,69 @@ public sealed class ConsolePublicationNavigationRenderTests
     }
 
     [Fact]
+    public void V4FolderNavigationSelectsTheFolderWithoutReadingItsServices()
+    {
+        using var context = Context();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        var source = new PublicationNavigationSource
+        {
+            ServiceSummaries = [new() { ServiceName = "roads", FolderId = "public/transport", FolderName = "Transport" }]
+        };
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/operate/folders/public%2Ftransport");
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForAssertion(() => Assert.Equal("true", tree.Find("[data-publication-key='folder:public%2Ftransport']").GetAttribute("aria-selected")));
+        Assert.Equal("/operate/folders/public%2Ftransport", tree.Find("[data-publication-key='folder:public%2Ftransport'] a").GetAttribute("href"));
+        Assert.Equal(0, source.ChildReads);
+    }
+
+    [Fact]
+    public void V4BreadcrumbLinksTheFolderAndOmitsTheOperateArea()
+    {
+        var source = new PublicationNavigationSource
+        {
+            ServiceSummaries = [new() { ServiceName = "roads", FolderId = "public", FolderName = "Public", Title = "Roads" }]
+        };
+        using var context = PublicationLayoutContext(source);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        var navigation = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        navigation.NavigateTo("/operate/services/roads/settings");
+        var layout = RenderLayerLayout(context);
+        layout.WaitForAssertion(() => Assert.Equal("Public", layout.Find("nav[aria-label='Breadcrumb'] a[href='/operate/folders/public']").TextContent));
+        Assert.Equal(["Home", "Public", "Roads"], layout.FindAll("nav[aria-label='Breadcrumb'] ol > li")
+            .Select(item => item.QuerySelector("summary")?.TextContent ?? item.TextContent.Trim()));
+        navigation.NavigateTo("/operate/folders/public");
+        layout.WaitForAssertion(() => Assert.Equal("Public", layout.Find("nav[aria-label='Breadcrumb'] summary").TextContent));
+        Assert.Equal(2, layout.FindAll("nav[aria-label='Breadcrumb'] ol > li").Count);
+        Assert.Equal(0, source.ChildReads);
+    }
+
+    [Theory]
+    [InlineData("/operate/services/denied/settings")]
+    [InlineData("/operate/layers/denied")]
+    public void V4BreadcrumbRetainsOperateWhenPublicationPathIsUnavailable(string route)
+    {
+        using var context = Context();
+        context.Services.AddSingleton(new CatalogAdminOptions());
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo(route);
+        var breadcrumb = context.Render<ConsoleBreadcrumbs>();
+        Assert.Equal("Operate", breadcrumb.Find("a[href='/operate']").TextContent);
+    }
+
+    [Fact]
+    public void DisabledFolderRouteDoesNotExposeV4ContextActions()
+    {
+        using var context = Context();
+        context.Services.AddSingleton(new CatalogAdminOptions());
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/folders/public");
+        var breadcrumb = context.Render<ConsoleBreadcrumbs>();
+        Assert.DoesNotContain("Folder home", breadcrumb.Markup);
+        Assert.DoesNotContain("Manage Folders", breadcrumb.Markup);
+    }
+
+    [Fact]
     public void PublicationBreadcrumbFollowsTheAuthorizedFolderServiceAndLayer()
     {
         var source = new PublicationNavigationSource
@@ -709,6 +772,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     private static BunitContext Context()
     {
         var context = new BunitContext();
+        context.Services.AddSingleton<ConsoleAgentContextRegistry>();
         context.AddAuthorization().SetAuthorized("synthetic-operator");
         return context;
     }
