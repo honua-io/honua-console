@@ -105,8 +105,8 @@ public sealed class OperateSyncPageRenderTests
         client.Workspace = new TemporalViewerWorkspace([SyncSource with { SourceId = sourceId }], []);
         ctx.Services.AddSingleton<ITemporalCapabilityClient>(client);
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new SyncLayerDataSource());
-        var page = ctx.Render<OperateSyncPage>(parameters => parameters
-            .Add(x => x.SourceId, sourceId).Add(x => x.ReplicaId, "replica-1"));
+        Navigate(ctx, sourceId, "replica-1");
+        var page = ctx.Render<OperateSyncPage>();
         page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-sync-conflict]")));
         var registry = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>();
         Assert.Equal("/operate/sync", registry.Current.Route);
@@ -141,12 +141,12 @@ public sealed class OperateSyncPageRenderTests
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<ITemporalCapabilityClient>(DeepLinkClient());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new SyncLayerDataSource());
-        var page = ctx.Render<OperateSyncPage>(parameters => parameters
-            .Add(x => x.SourceId, "cadastre/0").Add(x => x.ReplicaId, "replica-1"));
+        Navigate(ctx, "cadastre/0", "replica-1");
+        var page = ctx.Render<OperateSyncPage>();
         page.Find("[data-sync-conflict] input[type=checkbox]").Change(true);
         page.Find("select[aria-label='Batch action']").Change("AcceptClient");
 
-        page.Render(parameters => parameters.Add(x => x.SourceId, sourceId).Add(x => x.ReplicaId, replicaId));
+        Navigate(ctx, sourceId, replicaId);
 
         Assert.Empty(page.FindAll("[data-sync-region='conflict-merge']"));
         Assert.Equal(keepsSource ? 1 : 0, page.FindAll("[data-sync-region='replica-queue']").Count);
@@ -164,15 +164,17 @@ public sealed class OperateSyncPageRenderTests
     [InlineData(true, true)]
     public void Sync_UnchangedQueryPreservesManualReviewAndConflictSelections(bool enabled, bool sourceQuery)
     {
-        var page = Render(DeepLinkClient(), enabled);
+        using var ctx = NewContext(DeepLinkClient(), enabled);
+        var page = ctx.Render<OperateSyncPage>();
         var sourceId = sourceQuery ? "cadastre/0" : null;
-        page.Render(parameters => parameters.Add(component => component.SourceId, sourceId));
+        Navigate(ctx, sourceId);
         ClickByText(page, "Open queue");
         ClickByText(page, "Review");
         page.Find("[data-sync-conflict] input[type=checkbox]").Change(true);
         page.Find("select[aria-label='Batch action']").Change("AcceptClient");
 
-        page.Render(parameters => parameters.Add(component => component.SourceId, sourceId));
+        Navigate(ctx, sourceId);
+        page.Render();
 
         Assert.Single(page.FindAll("[data-sync-region='conflict-merge']"));
         Assert.True(page.Find("[data-sync-conflict] input[type=checkbox]").HasAttribute("checked"));
@@ -191,11 +193,11 @@ public sealed class OperateSyncPageRenderTests
         ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         ctx.Services.AddSingleton<ITemporalCapabilityClient>(client);
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
-        var page = ctx.Render<OperateSyncPage>(parameters => parameters
-            .Add(x => x.SourceId, "cadastre/0").Add(x => x.ReplicaId, "replica-1"));
+        Navigate(ctx, "cadastre/0", "replica-1");
+        var page = ctx.Render<OperateSyncPage>();
         var action = page.InvokeAsync(() => page.FindAll("button").Single(button => button.TextContent.Trim() == "Client wins").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
         page.WaitForAssertion(() => Assert.True(client.ResolutionStarted));
-        page.Render(parameters => parameters.Add(x => x.SourceId, (string?)null).Add(x => x.ReplicaId, (string?)null));
+        Navigate(ctx, null);
         completion.SetResult(new SyncConflictResolutionResult("res-1", ["conflict-1"], SyncResolutionAction.AcceptClient,
             ResultRevisionId: "rev-55", ResultChangeSetId: "cs-9", AuditEventIds: ["audit-1"], JobRunId: "job-3"));
         await action;
@@ -222,15 +224,16 @@ public sealed class OperateSyncPageRenderTests
         ], []);
         client.PendingQueues["cadastre/0"] = first.Task;
         client.PendingQueues["transport/0"] = second.Task;
-        var page = Render(client, enabled: true);
-        page.Render(parameters => parameters.Add(x => x.SourceId, "cadastre/0"));
+        using var ctx = NewContext(client, enabled: true);
+        var page = ctx.Render<OperateSyncPage>();
+        Navigate(ctx, "cadastre/0");
         if (manualSelection)
         {
             _ = page.InvokeAsync(() => page.FindAll("button").Where(button => button.TextContent == "Open queue").Last().ClickAsync(new()));
         }
         else
         {
-            page.Render(parameters => parameters.Add(x => x.SourceId, "transport/0"));
+            Navigate(ctx, "transport/0");
         }
         var renderCount = page.RenderCount;
         first.SetResult(new ReplicaConflictQueue([SampleReplica with { ReplicaId = "stale-replica" }]));
@@ -244,8 +247,9 @@ public sealed class OperateSyncPageRenderTests
     [Fact]
     public void Sync_UnresolvedLayerDoesNotPublishDisplayNameAsEntityIdentity()
     {
-        var page = Render(DeepLinkClient(), enabled: true);
-        page.Render(parameters => parameters.Add(x => x.SourceId, "cadastre/0"));
+        using var ctx = NewContext(DeepLinkClient(), enabled: true);
+        var page = ctx.Render<OperateSyncPage>();
+        Navigate(ctx, "cadastre/0");
         var context = page.FindComponent<ConsoleAgentContext>();
         var snapshot = context.Instance.Context;
         Assert.Empty(snapshot.Entities);
@@ -282,20 +286,39 @@ public sealed class OperateSyncPageRenderTests
 
     private static IRenderedComponent<OperateSyncPage> Render(ITemporalCapabilityClient client, bool enabled = false)
     {
-        var ctx = new Bunit.BunitContext();
+        return NewContext(client, enabled).Render<OperateSyncPage>();
+    }
+
+    private static BunitContext NewContext(ITemporalCapabilityClient client, bool enabled)
+    {
+        var ctx = new BunitContext();
         ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         ctx.Services.AddSingleton(client);
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<NavigationManager>(new HostedNavigationManager());
-        return ctx.Render<OperateSyncPage>();
+        return ctx;
+    }
+
+    private static void Navigate(BunitContext ctx, string? sourceId, string? replicaId = null)
+    {
+        var navigation = ctx.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo(navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+        {
+            ["sourceId"] = sourceId,
+            ["replicaId"] = replicaId
+        }));
     }
 
     private sealed class HostedNavigationManager : NavigationManager
     {
         public HostedNavigationManager() => Initialize("http://localhost/console/", "http://localhost/console/operate/sync");
-        protected override void NavigateToCore(string uri, bool forceLoad) => Uri = ToAbsoluteUri(uri).ToString();
+        protected override void NavigateToCore(string uri, bool forceLoad)
+        {
+            Uri = ToAbsoluteUri(uri).ToString();
+            NotifyLocationChanged(false);
+        }
     }
 
     private static void ClickByText(IRenderedComponent<OperateSyncPage> page, string text) =>
