@@ -204,7 +204,7 @@
                 @if (series.HasPoints)
                 {
                     <details class="console-detail">
-                        <summary>Observations (@series.Points.Count.ToString(CultureInfo.InvariantCulture))</summary>
+                        <summary class="@(V4Enabled ? "console-button console-button-secondary" : null)">Observations (@series.Points.Count.ToString(CultureInfo.InvariantCulture))</summary>
                         <ConsoleTableRegion Label="Observations table">
 <table class="console-table" data-sensorthings-observations-table>
                             <thead>

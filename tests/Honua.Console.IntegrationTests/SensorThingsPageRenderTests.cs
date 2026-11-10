@@ -91,6 +91,7 @@ public sealed class SensorThingsPageRenderTests
             TimeSpan.FromSeconds(5));
         Assert.Contains("data-sensorthings-detail", page.Markup, StringComparison.Ordinal);
         Assert.Contains("data-sensorthings-observations-table", page.Markup, StringComparison.Ordinal);
+        Assert.Equal(enabled, page.Find("details summary").ClassList.Contains("console-button"));
         if (enabled) CatalogAdminPreview.Capture("sensors-detail", page.Markup);
     }
 
