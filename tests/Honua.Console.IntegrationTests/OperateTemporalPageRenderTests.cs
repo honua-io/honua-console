@@ -599,6 +599,43 @@ public sealed class OperateTemporalPageRenderTests
         Assert.DoesNotContain("Committed Change Set", page.Markup, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_AgentContext_TracksReviewSelectionAndClearsOnDisposal(bool enabled)
+    {
+        using var ctx = new BunitContext();
+        ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
+        ctx.Services.AddSingleton<ITemporalCapabilityClient>(ClientWithConflicts());
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        var registry = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        var page = ctx.Render<OperateTemporalPage>();
+        InspectFirstSource(page);
+        ClickByText(page, "Review");
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("input[type=checkbox]")));
+        page.Find("input[type=checkbox]").Change(true);
+        if (enabled)
+        {
+            Assert.Equal("/operate/temporal", registry.Current.Route);
+            Assert.Equal("src-parcels", registry.Current.Filters["sourceId"]);
+            Assert.Equal("replica-1", registry.Current.Filters["replicaId"]);
+            Assert.Equal("conflict-1", registry.Current.Filters["conflictIds"]);
+            Assert.Equal(1, registry.Current.Unsaved.ChangedFieldCount);
+            Assert.Empty(registry.Current.Selection);
+        }
+        else
+        {
+            Assert.Empty(registry.Current.Filters);
+            Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+        }
+        page.Dispose();
+        Assert.Empty(registry.Current.Filters);
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+    }
+
     // ---- helpers --------------------------------------------------------------------------------------
 
     private static IRenderedComponent<OperateTemporalPage> Render(ITemporalCapabilityClient client, bool enabled)

@@ -8,6 +8,8 @@
 @inject IConsoleCapabilityManifest Capabilities
 @inject IConsoleNotificationService Notifications
 
+<ConsoleAgentContext Context="@AgentContext" />
+
 <ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.Temporal"
                        Title="Temporal is not available in this release"
                        Message="Temporal 'git over data' — as-of, diff, governed rollback, and feature history — is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
@@ -198,6 +200,37 @@
                     </table>
                 </ConsoleTableRegion>
     };
+
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = "/operate/temporal",
+        Filters = TemporalFilters,
+        Unsaved = new()
+        {
+            ChangedFieldCount = _selectedConflictIds.Count
+                + (_selectedConflictIds.Count > 0 && _batchAction != SyncResolutionAction.KeepServer ? 1 : 0)
+                + (_rollbackScope != TemporalRollbackScope.ChangeSet ? 1 : 0),
+            PendingOperationCount = (_diffBusy ? 1 : 0) + (_timelineBusy ? 1 : 0)
+                + (_rollbackBusy ? 1 : 0) + (_replicaBusy ? 1 : 0) + (_resolveBusy ? 1 : 0)
+        }
+    };
+
+    private IReadOnlyDictionary<string, string> TemporalFilters
+    {
+        get
+        {
+            var filters = new Dictionary<string, string>();
+            if (_selectedSource is not null) filters["sourceId"] = _selectedSource.SourceId;
+            if (_selectedCheckpointId is not null) filters["checkpointId"] = _selectedCheckpointId;
+            if (_fromCheckpointId is not null) filters["fromCheckpointId"] = _fromCheckpointId;
+            if (_toCheckpointId is not null) filters["toCheckpointId"] = _toCheckpointId;
+            if (!string.IsNullOrWhiteSpace(_featureIdInput)) filters["featureId"] = _featureIdInput.Trim();
+            if (_selectedReplica is not null) filters["replicaId"] = _selectedReplica.ReplicaId;
+            if (_selectedConflictIds.Count > 0)
+                filters["conflictIds"] = string.Join(",", _selectedConflictIds.Order(StringComparer.Ordinal));
+            return filters;
+        }
+    }
 
     private bool _loading = true;
     private TemporalViewerWorkspace _workspace = new([], []);
