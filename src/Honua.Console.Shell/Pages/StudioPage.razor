@@ -99,7 +99,7 @@ else
         if (!EmbedEnabled || IsRetiredRoute) return;
         try
         {
-            _styleNavigation ??= await JS.InvokeAsync<IJSObjectReference>("import", "/js/style-navigation.mjs");
+            _styleNavigation ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/style-navigation.mjs");
             if (!await _styleNavigation.InvokeAsync<bool>("mayLeaveCurrentStyleEditor")) context.PreventNavigation();
         }
         catch (Exception exception) when (exception is JSException or InvalidOperationException or TaskCanceledException)
