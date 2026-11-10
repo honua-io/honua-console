@@ -1,6 +1,7 @@
 using Bunit;
 using Honua.Console.Shell.Models;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -116,6 +117,33 @@ public sealed class ScenesPageRenderTests
         Assert.DoesNotContain("data-scenes-table", page.Markup, StringComparison.Ordinal);
         if (enabled) CatalogAdminPreview.Capture("scenes-missing", page.Markup);
     }
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Ingest_ClearsSubmittedDraftOnlyAfterSuccess(bool succeeds)
+    {
+        using var ctx = new BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton<IConsoleSceneClient>(new InMemoryConsoleSceneClient());
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        var registry = new ConsoleAgentContextRegistry();
+        ctx.Services.AddSingleton(registry);
+        var page = ctx.Render<OperateScenesPage>();
+
+        page.Find("[data-pointcloud-display-name]").Change("Survey");
+        page.Find("[data-pointcloud-description]").Change("Uploaded survey");
+        page.Find("[aria-label='Source CRS EPSG code']").Change("4326");
+        page.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText(succeeds ? "LAS sample" : string.Empty, "survey.las"));
+        page.WaitForAssertion(() => Assert.Equal(4, registry.Current.Unsaved.ChangedFieldCount));
+        page.Find("[data-pointcloud-ingest-button]").Click();
+
+        page.WaitForAssertion(() => Assert.Equal(succeeds ? 0 : 4, registry.Current.Unsaved.ChangedFieldCount));
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+        Assert.Equal(succeeds ? string.Empty : "Survey", page.Find("[data-pointcloud-display-name]").GetAttribute("value"));
+        Assert.Equal(succeeds, page.Find("[data-pointcloud-ingest-button]").HasAttribute("disabled"));
+        if (succeeds) Assert.Contains("Survey", page.Find("[data-scenes-table]").TextContent);
+    }
+
     private sealed class HostedNavigationManager : NavigationManager
     {
         public HostedNavigationManager() => Initialize("http://localhost/console/", "http://localhost/console/operate");

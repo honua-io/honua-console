@@ -50,7 +50,7 @@
     @* ---- Ingest a LAS point cloud ---- *@
     @if (V4Enabled)
         {
-            <div data-pointcloud-ingest>
+            <div class="console-section" data-pointcloud-ingest>
                 <ConsolePanel Title="Ingest a point cloud" HeadingId="scene-ingest-heading">@IngestContent</ConsolePanel>
             </div>
         }
@@ -65,7 +65,7 @@
     @* ---- Discover scenes from the catalog ---- *@
     @if (V4Enabled)
         {
-            <div data-scenes-discovery>
+            <div class="console-section" data-scenes-discovery>
                 <ConsolePanel Title="Scenes" HeadingId="scenes-heading">@DiscoveryContent</ConsolePanel>
             </div>
         }
@@ -124,7 +124,7 @@
         </div>
 
         <div class="console-field">
-            <InputFile OnChange="OnFileSelected" class="console-input" accept=".las,.laz" aria-label="Point cloud file" data-pointcloud-file />
+            <InputFile @key="_fileInputKey" OnChange="OnFileSelected" class="@(V4Enabled ? "console-input" : null)" accept=".las,.laz" aria-label="Point cloud file" data-pointcloud-file />
             @if (_selectedFile is not null)
             {
                 <p class="console-muted" data-pointcloud-selected>
@@ -240,6 +240,7 @@
     private string? _environmentId;
     private string? _resolvedViewerFor;
 
+    private int _fileInputKey;
     private IBrowserFile? _selectedFile;
     private string _displayName = string.Empty;
     private string _description = string.Empty;
@@ -305,6 +306,15 @@
 
             if (_ingestResult.IsOk)
             {
+                if (V4Enabled)
+                {
+                    _selectedFile = null;
+                    _displayName = string.Empty;
+                    _description = string.Empty;
+                    _sourceCrs = null;
+                    _fileInputKey++;
+                }
+
                 // Refresh discovery so the new scene appears in the list.
                 _scenes = await Scenes.ListScenesAsync().ConfigureAwait(false);
             }
