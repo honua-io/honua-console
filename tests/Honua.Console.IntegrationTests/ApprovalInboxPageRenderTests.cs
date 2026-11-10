@@ -544,7 +544,7 @@ public sealed partial class ApprovalInboxPageRenderTests
                 Assert.True(page.Find("[data-proposal-approve]").HasAttribute("disabled"));
             },
             TimeSpan.FromSeconds(5));
-        page.Find("[data-proposal-reason]").Change("The requested change is not appropriate.");
+        page.Find("[data-proposal-reason]").Input("The requested change is not appropriate.");
         Assert.False(page.Find("[data-proposal-reject]").HasAttribute("disabled"));
         page.Find("[data-proposal-reject]").Click();
         page.WaitForAssertion(() =>
