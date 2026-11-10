@@ -1,4 +1,5 @@
 using Bunit;
+using Honua.Console.Shell.Components;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Honua.Console.Shell.Models;
@@ -9,7 +10,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Honua.Console.IntegrationTests;
 
-public sealed class ApprovalInboxPageRenderTests
+public sealed partial class ApprovalInboxPageRenderTests
 {
     public enum PlaceholderDate { UnixEpoch, Minimum }
 
@@ -312,11 +313,17 @@ public sealed class ApprovalInboxPageRenderTests
         var proposals = new FakeConsoleProposalsClient(
             proposals: hasServing ? [managerSummary, FakeProposalFactory.Summary("op-1", ConsoleProposalKind.Deploy)] : [managerSummary],
             details: hasServing ? [managerDetail, FakeProposalFactory.Detail("op-1", ConsoleProposalKind.Deploy)] : [managerDetail]);
-        using var ctx = NewContext(proposals);
+        var registry = new ConsoleAgentContextRegistry();
+        using var ctx = NewContext(proposals, registerServices: context =>
+        {
+            context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+            context.Services.AddSingleton(registry);
+        });
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/inbox?proposalId=" + Uri.EscapeDataString(queryId));
 
         var page = ctx.Render<ApprovalInboxPage>();
         page.WaitForAssertion(() => page.Find("[data-proposal-approve]"), TimeSpan.FromSeconds(5));
+        Assert.Equal(expectedId, Assert.Single(registry.Current.Entities).Id);
         page.Find("[data-proposal-approve]").Click();
         page.WaitForAssertion(() => Assert.Equal(expectedId, Assert.Single(proposals.Approved)), TimeSpan.FromSeconds(5));
     }
@@ -496,7 +503,7 @@ public sealed class ApprovalInboxPageRenderTests
             () => Assert.True(page.Find("[data-proposal-reject]").HasAttribute("disabled")),
             TimeSpan.FromSeconds(5));
 
-        page.Find("[data-proposal-reason]").Change("Out of change window");
+        page.Find("[data-proposal-reason]").Input("Out of change window");
         page.WaitForAssertion(
             () => Assert.False(page.Find("[data-proposal-reject]").HasAttribute("disabled")),
             TimeSpan.FromSeconds(5));

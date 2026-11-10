@@ -28,6 +28,8 @@ public sealed class FakeConsoleProposalsClient : IConsoleProposalsClient
 
     public bool ApproveForbidden { get; set; }
 
+    public Task? ApprovalDelay { get; set; }
+
     public List<string> Approved { get; } = [];
 
     public List<(string ProposalId, string Reason)> Rejected { get; } = [];
@@ -49,20 +51,22 @@ public sealed class FakeConsoleProposalsClient : IConsoleProposalsClient
             : OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Missing, "Proposal not found."));
     }
 
-    private Task<OperateSectionResult<ConsoleProposalDetail>> ApplyApprovalAsync(string proposalId)
+    private async Task<OperateSectionResult<ConsoleProposalDetail>> ApplyApprovalAsync(string proposalId)
+
     {
+        if (ApprovalDelay is { } delay) await delay;
         if (ApproveForbidden)
         {
-            return Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(
+            return OperateSectionResult<ConsoleProposalDetail>.Denied(
                 OperateSectionStatus.Forbidden,
-                "Approving an operation proposal requires the 'approve' permission."));
+                "Approving an operation proposal requires the 'approve' permission.");
         }
 
         Approved.Add(proposalId);
         var detail = _details[proposalId] with { Status = ConsoleProposalStatus.Submitted };
         _details[proposalId] = detail;
         UpdateSummaryStatus(proposalId, ConsoleProposalStatus.Submitted);
-        return Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Allowed(detail));
+        return OperateSectionResult<ConsoleProposalDetail>.Allowed(detail);
     }
 
     public async Task<OperateSectionResult<ConsoleProposalDetail>> GetStatusAsync(

@@ -6,6 +6,7 @@
 @inject IConsoleApprovalInboxClient Inbox
 @inject IConsoleProposalRealtimeClient Realtime
 @inject IServiceProvider ServiceProvider
+@inject NavigationManager Navigation
 @implements IAsyncDisposable
 
 @* APPROVAL INBOX (#193) — the GIS department's work queue as one human-in-the-loop surface.
@@ -23,6 +24,7 @@
 <section class="console-page console-operate-page approval-inbox-page @(V4Enabled ? "approval-inbox-v4" : null)">
     @if (V4Enabled)
     {
+        <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/approval-inbox-v4.css" />
         <ConsolePageHeading Title="Approvals">
             <p>Review proposed changes before they run. Approval permissions and checks are enforced by the connected Honua server.</p>
@@ -264,9 +266,11 @@
                 }
                 @if (_selectedProposalId is { Length: > 0 } proposalId)
                 {
+                    var approvalInstance = _approvalInstance;
                     <button type="button" class="console-button console-button-secondary" @onclick="ClearSelection">Close review</button>
-                    <ProposalApprovalPanel ProposalId="@proposalId"
+                    <ProposalApprovalPanel @key="approvalInstance" ProposalId="@proposalId"
                         ReloadToken="_detailReloadToken"
+                        UnsavedChanged="@(summary => OnApprovalUnsavedChanged(approvalInstance, summary))"
                         OnActioned="OnProposalActioned" OnDetailLoaded="OnDetailLoaded" />
                 }
                 else
@@ -281,6 +285,23 @@
 </section>
 
 @code {
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = new Uri(Navigation.Uri).AbsolutePath,
+        Entities = SelectedEntities,
+        Selection = SelectedEntities,
+        Filters = new Dictionary<string, string> { ["ticketType"] = _filter?.ToString() ?? string.Empty },
+        Unsaved = new()
+        {
+            ChangedFieldCount = _approvalStates.GetValueOrDefault(_approvalInstance)?.ChangedFieldCount ?? 0,
+            PendingOperationCount = _approvalStates.Values.Sum(state => state.PendingOperationCount)
+        }
+    };
+
+    private IReadOnlyList<ConsoleAgentEntity> SelectedEntities => _selectedProposalId is { Length: > 0 } id
+        ? [new() { Kind = ConsoleAgentEntityKind.Approval, Id = id }]
+        : [];
+
     private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
 
     /// <summary>
@@ -323,6 +344,9 @@
 
     private ApprovalTicketType? _filter;
     private string? _selectedProposalId;
+    private object _approvalInstance = new();
+    private readonly Dictionary<object, ConsoleAgentUnsavedSummary> _approvalStates = new();
+    private string? _routeProposalId;
     private int _detailReloadToken;
     private string? _terminalProposalId;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
@@ -343,12 +367,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // A deep-linked proposal id (console#292) pre-selects the work item — the panel loads it
-        // by id directly, independent of whether the queue read below finds/lists it.
-        if (!string.IsNullOrWhiteSpace(ProposalId))
-        {
-            _selectedProposalId = ProposalId.Trim();
-        }
+        _routeProposalId = string.IsNullOrWhiteSpace(ProposalId) ? null : ProposalId.Trim();
+        SetSelectedProposal(_routeProposalId);
 
         _updates = new ConsoleProposalSubscription(Realtime,
             new ConsoleProposalObservers(OnProposalEvent, OnConnectionStateChanged));
@@ -362,6 +382,28 @@
         if (!_disposed)
         {
             _detailPollingTask = PollSelectedDetailAsync(_lifetimeCancellation.Token);
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        var proposalId = string.IsNullOrWhiteSpace(ProposalId) ? null : ProposalId.Trim();
+        if (string.Equals(proposalId, _routeProposalId, StringComparison.Ordinal)) return;
+        _routeProposalId = proposalId;
+        SetSelectedProposal(proposalId);
+        _terminalProposalId = null;
+        _detailReloadToken++;
+        ResolveSelectedProposalSource();
+    }
+
+    private void ResolveSelectedProposalSource()
+    {
+        if (_selectedProposalId is { Length: > 0 } raw
+            && !raw.StartsWith(ConsoleProposalIdentity.ManagementPrefix, StringComparison.Ordinal)
+            && _result.Value?.Items.Any(item => string.Equals(item.ProposalId, raw, StringComparison.Ordinal)) == false
+            && _result.Value.Items.Any(item => string.Equals(item.ProposalId, ConsoleProposalIdentity.ManagementPrefix + raw, StringComparison.Ordinal)))
+        {
+            SetSelectedProposal(ConsoleProposalIdentity.ManagementPrefix + raw);
         }
     }
 
@@ -438,15 +480,9 @@
                 // Only a real success advances the last-good marker; a failure keeps the prior time.
                 _lastSuccessfulRefreshUtc = DateTimeOffset.UtcNow;
 
-                // Older manager-bound surfaces emitted raw IDs. Prefer an exact serving
-                // match, falling back only when this queue contains the qualified manager ID.
-                if (_selectedProposalId is { Length: > 0 } raw
-                    && !raw.StartsWith(ConsoleProposalIdentity.ManagementPrefix, StringComparison.Ordinal)
-                    && _result.Value?.Items.Any(item => string.Equals(item.ProposalId, raw, StringComparison.Ordinal)) == false
-                    && _result.Value.Items.Any(item => string.Equals(item.ProposalId, ConsoleProposalIdentity.ManagementPrefix + raw, StringComparison.Ordinal)))
-                {
-                    _selectedProposalId = ConsoleProposalIdentity.ManagementPrefix + raw;
-                }
+
+                ResolveSelectedProposalSource();
+
 
                 // A selected proposal can leave the pending queue while it is executing.
                 // Keep its server-backed detail visible until the operator closes it.
@@ -492,11 +528,46 @@
 
     private void Select(ApprovalInboxItem item)
     {
-        _selectedProposalId = item.ProposalId;
+        SetSelectedProposal(item.ProposalId);
         _terminalProposalId = null;
+        SyncSelectionQuery();
     }
 
-    private void ClearSelection() => _selectedProposalId = null;
+    private void ClearSelection()
+    {
+        SetSelectedProposal(null);
+        SyncSelectionQuery();
+    }
+
+    private void SetSelectedProposal(string? proposalId)
+    {
+        if (string.Equals(_selectedProposalId, proposalId, StringComparison.Ordinal)) return;
+        _selectedProposalId = proposalId;
+        _approvalInstance = new object();
+    }
+
+    private void OnApprovalUnsavedChanged(object instance, ConsoleAgentUnsavedSummary summary)
+    {
+        if (_disposed) return;
+        // A completed old panel must not clear the current reason, while its server write
+        // remains pending even after the operator selects a different proposal.
+        if (summary.ChangedFieldCount == 0 && summary.PendingOperationCount == 0)
+        {
+            _approvalStates.Remove(instance);
+        }
+        else
+        {
+            _approvalStates[instance] = summary;
+        }
+    }
+
+    private void SyncSelectionQuery()
+    {
+        if (V4Enabled)
+        {
+            Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("proposalId", _selectedProposalId), replace: true);
+        }
+    }
 
     private async Task PollSelectedDetailAsync(CancellationToken cancellationToken)
     {

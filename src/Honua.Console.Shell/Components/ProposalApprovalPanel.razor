@@ -1,6 +1,7 @@
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IConsoleProposalsClient Proposals
+@implements IAsyncDisposable
 
 @if (_detail is null)
 {
@@ -136,7 +137,7 @@ else
                           placeholder="Why are you rejecting this proposal?"
                           disabled="@DecisionUnavailable"
                           data-proposal-reason
-                          @bind="_reason"></textarea>
+                          @bind="_reason" @bind:event="oninput" @bind:after="ReportUnsavedAsync"></textarea>
 
                 <div class="proposal-approval-action-row">
                     <button type="button"
@@ -219,6 +220,22 @@ else
     [Parameter]
     public EventCallback<ConsoleProposalDetail> OnDetailLoaded { get; set; }
 
+    [Parameter]
+    public EventCallback<ConsoleAgentUnsavedSummary> UnsavedChanged { get; set; }
+
+    private bool _disposed;
+    private Task ReportUnsavedAsync() => UnsavedChanged.InvokeAsync(new()
+    {
+        ChangedFieldCount = !_disposed && _detail?.IsAwaitingApproval == true && !string.IsNullOrEmpty(_reason) ? 1 : 0,
+        PendingOperationCount = _busy ? 1 : 0
+    });
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        await ReportUnsavedAsync();
+    }
+
     private ConsoleProposalDetail? _detail;
     private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
     private string _message = string.Empty;
@@ -263,6 +280,7 @@ else
 
     private async Task RefreshReviewAsync()
     {
+
         if (_busy) return;
         _reviewMustBeReopened = false;
         await LoadAsync();
@@ -278,9 +296,11 @@ else
         _message = "Loading proposal review.";
         _detailMessage = null;
         var result = await read(proposalId, CancellationToken.None);
-        if (!IsCurrentReview(generation, proposalId)) return;
+        if (_disposed || !IsCurrentReview(generation, proposalId)) return;
         result = EnsureProposalMatch(result, proposalId);
+
         Apply(result);
+        await ReportUnsavedAsync();
         if (result.IsAllowed && result.Value is { } detail)
         {
             await OnDetailLoaded.InvokeAsync(detail);
@@ -355,6 +375,7 @@ else
         _busy = true;
         _actionMessage = null;
         _actionDetail = null;
+        await ReportUnsavedAsync();
         try
         {
             var result = await action();
@@ -363,6 +384,8 @@ else
             if (result.IsAllowed && result.Value is not null)
             {
                 Apply(result);
+                _reason = null;
+                await ReportUnsavedAsync();
                 _actionMessage = successMessage;
                 _actionMessageClass = "console-state-success";
                 await OnActioned.InvokeAsync(result.Value);
@@ -374,7 +397,9 @@ else
         }
         finally
         {
+
             if (IsCurrentReview(generation, proposalId)) _busy = false;
+            await ReportUnsavedAsync();
         }
     }
 
@@ -391,6 +416,7 @@ else
         {
             _reviewMustBeReopened = true;
             await LoadAsync();
+
         }
     }
 }
