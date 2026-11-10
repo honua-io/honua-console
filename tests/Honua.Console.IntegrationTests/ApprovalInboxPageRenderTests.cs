@@ -84,7 +84,6 @@ public sealed class ApprovalInboxPageRenderTests
         page.WaitForAssertion(() => page.Find("[data-proposal-id='first']"));
         page.Find("[data-proposal-id='first']").Click();
         page.WaitForAssertion(() => page.Find("[data-proposal-reason]"));
-        var firstCallback = page.FindComponent<ProposalApprovalPanel>().Instance.UnsavedChanged;
         page.Find("[data-proposal-reason]").Input("Private rejection explanation");
         page.WaitForAssertion(() => Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount));
         Assert.DoesNotContain("Private rejection explanation", System.Text.Json.JsonSerializer.Serialize(registry.Current));
@@ -93,16 +92,6 @@ public sealed class ApprovalInboxPageRenderTests
         page.WaitForAssertion(() => Assert.Equal("", page.Find("[data-proposal-reason]").TextContent));
         Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
         page.Find("[data-proposal-reason]").Input("Second reason");
-        await page.InvokeAsync(() => firstCallback.InvokeAsync(new ConsoleAgentUnsavedSummary
-        {
-            ChangedFieldCount = 1,
-            PendingOperationCount = 1
-        }));
-        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.PendingOperationCount);
-        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
-        await page.InvokeAsync(() => firstCallback.InvokeAsync(new ConsoleAgentUnsavedSummary()));
-        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
-        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
         page.Find(".approval-inbox-detail > button").Click();
         page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount));
     }
@@ -139,6 +128,48 @@ public sealed class ApprovalInboxPageRenderTests
             await decision;
         }
         page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+        Assert.Equal("first", Assert.Single(proposals.Approved));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AgentContext_KeepsPendingDecisionWhenSwitchingProposals(bool enabled)
+    {
+        var registry = new ConsoleAgentContextRegistry();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var proposals = new FakeConsoleProposalsClient(
+            proposals: [FakeProposalFactory.Summary("first", ConsoleProposalKind.Deploy),
+                FakeProposalFactory.Summary("second", ConsoleProposalKind.Deploy)],
+            details: [FakeProposalFactory.Detail("first", ConsoleProposalKind.Deploy),
+                FakeProposalFactory.Detail("second", ConsoleProposalKind.Deploy)])
+        { ApprovalDelay = release.Task };
+        using var ctx = NewContext(proposals, registerServices: context =>
+        {
+            context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+            context.Services.AddSingleton(registry);
+        });
+        var page = ctx.Render<ApprovalInboxPage>();
+        page.WaitForAssertion(() => page.Find("[data-proposal-id='first']"));
+        page.Find("[data-proposal-id='first']").Click();
+        page.WaitForAssertion(() => page.Find("[data-proposal-approve]"));
+        var decision = page.Find("[data-proposal-approve]").ClickAsync(new MouseEventArgs());
+        try
+        {
+            page.WaitForAssertion(() => Assert.True(page.Find("[data-proposal-approve]").HasAttribute("disabled")));
+            page.Find("[data-proposal-id='second']").Click();
+            page.WaitForAssertion(() => Assert.False(page.Find("[data-proposal-approve]").HasAttribute("disabled")));
+            page.Find("[data-proposal-reason]").Input("Second private reason");
+            page.WaitForAssertion(() => Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.PendingOperationCount));
+            Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        }
+        finally
+        {
+            release.SetResult();
+            await decision;
+        }
+        page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
         Assert.Equal("first", Assert.Single(proposals.Approved));
     }
 
