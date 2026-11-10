@@ -73,6 +73,7 @@ public sealed class ScenesPageRenderTests
         Assert.Contains("data-pointcloud-ingest", page.Markup, StringComparison.Ordinal);
         Assert.Contains("data-pointcloud-file", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Demo point cloud", page.Markup, StringComparison.Ordinal);
+        Assert.Equal("Actions", page.Find("[data-scenes-table] th:last-child").GetAttribute("aria-label"));
         if (enabled) CatalogAdminPreview.Capture("scenes-list", page.Markup);
     }
 
