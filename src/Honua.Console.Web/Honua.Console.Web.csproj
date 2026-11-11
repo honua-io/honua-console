@@ -1,18 +1,12 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
 
   <ItemGroup>
     <ProjectReference Include="..\Honua.Console.Shell\Honua.Console.Shell.csproj" />
   </ItemGroup>
 
-  <!-- OpenTelemetry (honua-console#279 PA-234): distributed traces + metrics for the console web host.
-       AspNetCore + HttpClient instrumentation, exported over OTLP. Default-safe: with no
-       OTEL_EXPORTER_OTLP_ENDPOINT configured no exporter is wired and the SDK is a no-op. Versions
-       align with honua-server's ServiceDefaults. -->
   <ItemGroup>
-    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
-    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.1" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.20.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.14" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.14" PrivateAssets="all" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -23,7 +17,8 @@
     <HonuaConsoleCommitSha Condition="'$(HonuaConsoleCommitSha)' == ''">unknown</HonuaConsoleCommitSha>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <PublishTrimmed>true</PublishTrimmed>
+    <StaticWebAssetBasePath>/console/</StaticWebAssetBasePath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -33,6 +28,15 @@
     </AssemblyAttribute>
     <InternalsVisibleTo Include="Honua.Console.IntegrationTests" />
   </ItemGroup>
+
+  <!-- Workload manifests can replace the SDK pack version even with a pinned SDK.
+       Keep the implicit package aligned with the committed restore lock. -->
+  <Target Name="PinConsoleWebAssemblySdkPack" BeforeTargets="ProcessFrameworkReferences">
+    <ItemGroup>
+      <KnownWebAssemblySdkPack Update="@(KnownWebAssemblySdkPack)"
+                               WebAssemblySdkPackVersion="10.0.13" />
+    </ItemGroup>
+  </Target>
 
   <!-- The Studio release is vendored before Razor inventories static assets, so a clean checkout
        builds, runs and publishes it. Content was evaluated before the fetch, so the _studio items

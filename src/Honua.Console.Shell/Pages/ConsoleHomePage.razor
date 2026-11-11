@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
@@ -56,7 +57,7 @@
             <article class="console-panel console-state-info" data-home-connection-state role="status">
                 <h2>Review the selected environment</h2>
                 <p>The active environment could not be read. Choose a saved environment or review its environment settings.</p>
-                <a class="console-button-link" href="/environments">Review environment</a>
+                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/environments")">Review environment</a>
                 <button class="console-button console-button-secondary" type="button" @onclick="RefreshEnvironmentAsync">Retry</button>
             </article>
         }
@@ -72,7 +73,7 @@
 @code {
     [Parameter] public TimeSpan LoadBudget { get; set; } = ConsoleReadBudget.Default;
     private readonly CancellationTokenSource _lifetime = new();
-    private AuthenticationStateProvider? _authentication;
+    private ConsoleEnvironmentSubscription? _environmentSubscription;
     private OperateSectionResult<ConsoleEnvironmentProfile?> _environment =
         OperateSectionResult<ConsoleEnvironmentProfile?>.Allowed(null);
     private ConsoleEnvironmentProfile? _profile;
@@ -90,7 +91,7 @@
 
     private RenderFragment Administration => @<text>
         <ConsoleHomeWorkAreas />
-        <a href="/environments">Manage environments</a>
+        <a href="@ConsoleNavigation.ToConsoleHref("/environments")">Manage environments</a>
     </text>;
 
     private RenderFragment Operations => @<div class="console-home-workload" @key="_displayGeneration">
@@ -108,9 +109,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        Profiles.ActiveProfileChanged += OnProfileChanged;
-        _authentication = Services.GetService<AuthenticationStateProvider>();
-        if (_authentication is not null) _authentication.AuthenticationStateChanged += OnAuthenticationChanged;
+        _environmentSubscription = new ConsoleEnvironmentSubscription(Profiles,
+            Services.GetService<AuthenticationStateProvider>(), OnProfileChanged);
         await RefreshEnvironmentAsync();
     }
 
@@ -138,24 +138,14 @@
 
     private void OnProfileChanged()
     {
-        if (_disposed) return;
         var generation = Interlocked.Increment(ref _generation);
         _ = InvokeAsync(() => RefreshEnvironmentAsync(generation));
-    }
-
-    private void OnAuthenticationChanged(Task<AuthenticationState> state)
-    {
-        if (_disposed) return;
-        Profiles.ActiveProfileChanged -= OnProfileChanged;
-        Profiles.ActiveProfileChanged += OnProfileChanged;
-        OnProfileChanged();
     }
 
     public void Dispose()
     {
         _disposed = true;
-        Profiles.ActiveProfileChanged -= OnProfileChanged;
-        if (_authentication is not null) _authentication.AuthenticationStateChanged -= OnAuthenticationChanged;
+        _environmentSubscription?.Dispose();
         _lifetime.Cancel();
         _lifetime.Dispose();
     }

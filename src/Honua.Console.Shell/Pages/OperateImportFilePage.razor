@@ -86,7 +86,7 @@
                         <dt>Features</dt>
                         <dd>@r.FeatureCount</dd>
                     </dl>
-                    <a class="console-button" href="/operate/publishing/quick">Publish this table</a>
+                    <a class="console-button" href="@Nav.ToConsoleHref("/operate/publishing/quick")">Publish this table</a>
                 }
                 @if (r.ValidationErrors.Count > 0)
                 {
@@ -104,7 +104,7 @@
             <button class="console-button" type="button" disabled="@(_busy || _selectedFile is null || _formatError is not null)" @onclick="ImportAsync">
                 @(_busy ? "Working…" : "Import file")
             </button>
-            <a href="/operate/connections">Cancel</a>
+            <a href="@Nav.ToConsoleHref("/operate/connections")">Cancel</a>
         </div>
     </article>
 </section>

@@ -1,3 +1,4 @@
+// Test-only server-host regression; shipping WASM is qualified by playwright.static.config.ts.
 import { defineConfig, devices } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
@@ -55,7 +56,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls ${BASE_URL}`,
+    command: `dotnet run --project tests/Honua.Console.LegacyHost/Honua.Console.LegacyHost.csproj --urls ${BASE_URL}`,
     cwd: REPO_ROOT,
     url: `${BASE_URL}/version.json`,
     reuseExistingServer: !process.env.CI,

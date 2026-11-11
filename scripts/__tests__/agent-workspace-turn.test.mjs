@@ -278,6 +278,7 @@ test('shared workspace keeps a working status until cancel or the turn settles',
             return submitted;
         };
     };
+    const sdkController = new AbortController();
     let chatCalls = 0;
     let extraToolDispatch = false;
     const calls = [];
@@ -343,7 +344,7 @@ test('shared workspace keeps a working status until cancel or the turn settles',
                 sdk.options.onEvent?.({ type: 'chat', event: { type: 'textDelta', text: 'Partial answer' } });
                 sdk.options.onEvent?.({ type: 'chat', event: { type: 'toolCallStart', toolName: 'inspect_layer', toolCallId: 'tool-1' } });
                 reachPhase('model');
-                try { await sdk.options.fetchImpl('/api/v1/studio/ai/chat', { method: 'POST', body: '{}' }); }
+                try { await sdk.options.fetchImpl('/api/v1/studio/ai/chat', { method: 'POST', body: '{}', signal: sdkController.signal }); }
                 catch (error) { if (shutdown) return { status: 'completed', text: 'shutdown' }; }
                 return { status: 'completed', text: 'Late success' };
             }
@@ -351,8 +352,8 @@ test('shared workspace keeps a working status until cancel or the turn settles',
             if (call === 3) {
                 sdk.options.onEvent?.({ type: 'chat', event: { type: 'toolCallStart', toolName: 'apply_style', toolCallId: 'tool-2' } });
                 reachPhase('tool');
-                try { await sdk.options.fetchImpl('/api/mcp', { method: 'POST', body: '{}' }); } catch { /* the aborted tool returns here */ }
-                try { await sdk.options.fetchImpl('/api/mcp', { method: 'POST', body: '{}' }); extraToolDispatch = true; }
+                try { await sdk.options.fetchImpl('/api/mcp', { method: 'POST', body: '{}', signal: sdkController.signal }); } catch { /* the aborted tool returns here */ }
+                try { await sdk.options.fetchImpl('/api/mcp', { method: 'POST', body: '{}', signal: sdkController.signal }); extraToolDispatch = true; }
                 catch { /* a cancelled turn must not dispatch another tool */ }
                 return { status: chatOptions.signal?.aborted ? 'cancelled' : 'completed', text: extraToolDispatch ? 'extra tool' : '' };
             }
@@ -407,6 +408,7 @@ test('shared workspace keeps a working status until cancel or the turn settles',
         cancel?.dispatchEvent(new Event('click', { bubbles: true, cancelable: true }));
         await submitted;
         await flush();
+        check(sdkController.signal.aborted === false, 'Cancel aborted the SDK controller');
         check(modelAborted === true, 'Cancel did not abort the in-flight model request');
         check(posted.some(message => message.content === 'Cancelled.'), 'the cancelled turn was not recorded in the transcript');
         check(host.querySelector('[data-workspace-messages]')?.textContent.includes('Cancelled.'), 'the transcript does not show the cancelled turn');

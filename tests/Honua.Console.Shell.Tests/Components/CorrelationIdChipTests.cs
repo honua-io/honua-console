@@ -14,7 +14,7 @@ public sealed class CorrelationIdChipTests : ConsoleComponentTestBase
             .Add(c => c.Kind, CorrelationIdKind.EventId));
 
         var link = cut.Find("[data-correlation-chip]");
-        Assert.Equal("/operate/events/evt-alert-900", link.GetAttribute("href"));
+        Assert.Equal("operate/events/evt-alert-900", link.GetAttribute("href"));
         Assert.Equal("evt-alert-900", link.TextContent.Trim());
     }
 
@@ -26,7 +26,7 @@ public sealed class CorrelationIdChipTests : ConsoleComponentTestBase
             .Add(c => c.Kind, CorrelationIdKind.CorrelationId));
 
         var link = cut.Find("[data-correlation-chip]");
-        Assert.Equal("/operate/observability?correlationId=corr-rel-20260524#events", link.GetAttribute("href"));
+        Assert.Equal("operate/observability?correlationId=corr-rel-20260524#events", link.GetAttribute("href"));
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public sealed class CorrelationIdChipTests : ConsoleComponentTestBase
             .Add(c => c.Kind, CorrelationIdKind.FindingId));
 
         var link = cut.Find("[data-correlation-chip]");
-        Assert.Equal("/operate/copilot#finding-platform-release-skew-abc123", link.GetAttribute("href"));
+        Assert.Equal("operate/copilot#finding-platform-release-skew-abc123", link.GetAttribute("href"));
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public sealed class CorrelationIdChipTests : ConsoleComponentTestBase
             .Add(c => c.Kind, CorrelationIdKind.ProposalId));
 
         var link = cut.Find("[data-correlation-chip]");
-        Assert.Equal("/inbox?proposalId=prop-42", link.GetAttribute("href"));
+        Assert.Equal("inbox?proposalId=prop-42", link.GetAttribute("href"));
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class CorrelationIdChipTests : ConsoleComponentTestBase
             .Add(c => c.Kind, CorrelationIdKind.OperationId));
 
         var link = cut.Find("[data-correlation-chip]");
-        Assert.Equal("/operate/deploy?operationId=deploy-op-2f8c#deploy-approvals", link.GetAttribute("href"));
+        Assert.Equal("operate/deploy?operationId=deploy-op-2f8c#deploy-approvals", link.GetAttribute("href"));
     }
 
     [Fact]

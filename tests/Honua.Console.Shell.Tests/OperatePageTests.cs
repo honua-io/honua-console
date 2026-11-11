@@ -83,6 +83,7 @@ public sealed class OperatePageTests
         services.AddSingleton<IConsoleApprovalInboxClient>(new StubApprovalInboxClient());
         services.AddSingleton<IConsoleProposalRealtimeClient>(new StubProposalRealtimeClient());
 
+        services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         var provider = services.BuildServiceProvider();
 
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());

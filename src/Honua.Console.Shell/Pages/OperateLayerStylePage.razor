@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/layers/{ResourceId}/style"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Services
@@ -10,7 +11,7 @@
         <p class="console-kicker">Operate / Layers</p>
         <h1>Layer presentation</h1>
         <p>Edit this layer's drawing and popup settings. Every service exposing the layer uses these shared settings. Author shared catalog Styles in Studio.</p>
-        <p><a href="@("/operate/layers/" + ResourceId)">Back to layer</a></p>
+        <p><a href="@ConsoleNavigation.ToConsoleLinkHref("/operate/layers/" + ResourceId)">Back to layer</a></p>
     </div>
 
     <article class="console-panel" data-layer-style-catalog>

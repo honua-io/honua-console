@@ -65,8 +65,8 @@
                 <span class="console-status" role="status" aria-live="polite">@(_busyLabel ?? "Working…")</span>
             }
             <button class="console-button console-button-secondary" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="SaveAsync">Save version</button>
-            <a class="console-button-link console-button-secondary" href="@VersionsHref">Versions</a>
-            <a class="console-button-link console-button-secondary" href="/studio/automations">Automations</a>
+            <a class="console-button-link console-button-secondary" href="@Navigation.ToConsoleLinkHref(VersionsHref)">Versions</a>
+            <a class="console-button-link console-button-secondary" href="@Navigation.ToConsoleHref("/studio/automations")">Automations</a>
         </header>
 
         @if (_errorMessage is not null)
@@ -380,7 +380,7 @@
 
         if (!string.Equals(_activeDraftRouteId, _draft.DraftId, StringComparison.Ordinal))
         {
-            Navigation.NavigateTo($"/studio/automations/{_draft.DraftId}", replace: true);
+            Navigation.NavigateTo(Navigation.ToConsoleHref($"/studio/automations/{_draft.DraftId}"), replace: true);
         }
     }
 

@@ -65,6 +65,8 @@ avoid page-specific heading sizes.
 | `ConsolePageHeading` | required `string Title`; optional `RenderFragment ChildContent`, `Actions` | One page `h1`, descriptive content and native action controls. |
 | `ConsolePanel` | required `string Title`, `HeadingId`; optional `string Class`, `RenderFragment ChildContent`, `Actions` | Quiet section named by its `h2`. Use a unique, stable heading ID per instance. |
 | `ConsoleMetricTile` | required `string Label`; optional `long? Value`, `string UnavailableText` (default `"Not available"`), `RenderFragment ChildContent` | One count in a definition list. A null count is unavailable; zero means an actual measured zero. |
+| `ConsoleNameIdentifier` | required `string Name`; optional `string Identifier`, `string Href` | Primary display name and secondary, wrapping identifier. Optional caller-owned Href wraps Name in a native link; the component never infers navigation. |
+| `ConsoleProtocolList` | required `IReadOnlyList<string> Protocols`; optional `string Label` | Semantic list of quiet badges in caller order. Empty input renders nothing; the caller owns availability and vocabulary. |
 
 Reuse `ConsoleBreadcrumbs` for publication context, `ConsoleTableRegion` around native
 tables, and `EmptyState` or `ConsoleStateView` for empty/read states. Use native Blazor

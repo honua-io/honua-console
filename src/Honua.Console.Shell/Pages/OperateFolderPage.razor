@@ -1,0 +1,38 @@
+@inject NavigationManager ConsoleNavigation
+@page "/operate/folders/{FolderId}"
+@using Microsoft.AspNetCore.Components.Authorization
+@implements IDisposable
+@inject IServiceProvider Services
+
+<section class="console-page console-folder-page">
+    @if (Services.GetService<ConsoleV4Options>()?.Enabled == true)
+    {
+        <ConsoleFolderContents FolderId="@FolderId" @key="(FolderId, _generation)" />
+    }
+    else
+    {
+        <ConsolePageHeading Title="Folders" />
+        <p><a href="@ConsoleNavigation.ToConsoleHref("/operate/services#folders")">Manage Folders in Services</a></p>
+    }
+</section>
+
+@code {
+    [Parameter] public string FolderId { get; set; } = string.Empty;
+    private ConsoleEnvironmentSubscription? _environmentSubscription;
+    private int _generation;
+
+    protected override void OnInitialized() =>
+        _environmentSubscription = new ConsoleEnvironmentSubscription(
+            Services.GetService<IConsoleEnvironmentProfileStore>(),
+            Services.GetService<AuthenticationStateProvider>(), Refresh);
+
+    private void Refresh()
+    {
+        _ = InvokeAsync(() => { _generation++; StateHasChanged(); });
+    }
+
+    public void Dispose()
+    {
+        _environmentSubscription?.Dispose();
+    }
+}

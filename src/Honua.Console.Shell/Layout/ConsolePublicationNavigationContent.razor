@@ -1,3 +1,5 @@
+@inject NavigationManager Navigation
+
 @if (ReadState.Loading)
 {
     <p role="status" class="console-tree-message">Loading services…</p>
@@ -8,7 +10,7 @@ else if (ReadState.ServicesRead is { IsAllowed: false } result)
         <OperateSectionStatusPanel Heading="Service navigation" Status="result.Status" Message="@result.Message" />
         @if (ReadState.CanConnectEnvironment)
         {
-            <a href="/environments/new">Connect an environment</a>
+            <a href="@Navigation.ToConsoleHref("/environments/new")">Connect an environment</a>
         }
         else
         {

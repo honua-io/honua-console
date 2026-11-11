@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/releases"
 @page "/operate/releases/{SelectedReleaseId}"
 @inject IConsoleGitOpsReleaseClient ReleaseClient
@@ -47,7 +48,7 @@
                     <p class="console-muted">
                         Paused deploy-control operations awaiting an approval decision, scoped to the releases
                         below. Open a release to review and approve or roll back a specific operation, or see
-                        <a class="console-link" href="@GitOpsReleaseRoutes.Deploy#all-operations">every deploy operation</a>
+                        <a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref($"{GitOpsReleaseRoutes.Deploy}#all-operations")">every deploy operation</a>
                         on the Deploy cockpit.
                     </p>
                 </div>
@@ -95,7 +96,7 @@
                         <article class="console-panel operate-release-card">
                             <div class="console-panel-heading">
                                 <div>
-                                    <h3><a href="@GitOpsReleaseRoutes.ReleaseDetail(proposal.ReleasePackageId)">@proposal.Title</a></h3>
+                                    <h3><a href="@ConsoleNavigation.ToConsoleLinkHref(GitOpsReleaseRoutes.ReleaseDetail(proposal.ReleasePackageId))">@proposal.Title</a></h3>
                                     <p class="console-muted">@proposal.Summary</p>
                                 </div>
                                 <span class="console-status @(proposal.HasBlockingFindings ? "console-state-danger" : "console-state-success")">
@@ -124,7 +125,7 @@
             <p class="console-kicker">Release detail</p>
             <div class="operate-release-title-row">
                 <h2>Release @SelectedReleaseId?.Trim()</h2>
-                <a class="console-link" href="@GitOpsReleaseRoutes.Releases">Back to releases</a>
+                <a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref(GitOpsReleaseRoutes.Releases)">Back to releases</a>
             </div>
         </div>
         <OperateSectionStatusPanel Heading="Release detail" Status="_detail.Status" Message="@_detail.Message" />
@@ -144,7 +145,7 @@
            (View on GitHub · Dry-run · Open PR / Rollback). *@
         <div class="operate-release-detail-head">
             <p class="console-kicker">
-                <a class="console-link" href="@GitOpsReleaseRoutes.Releases">Releases</a>
+                <a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref(GitOpsReleaseRoutes.Releases)">Releases</a>
                 <span class="operate-crumb-sep">/</span>
             </p>
             <div class="operate-release-title-row">
