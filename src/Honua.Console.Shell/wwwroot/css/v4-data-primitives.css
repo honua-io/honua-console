@@ -30,3 +30,12 @@
 .console-shell[data-console-v4="true"] [data-connection-notice] summary {
     min-height: 24px;
 }
+
+/* Sync conflict tables scroll inside their region and choice buttons wrap at 390px. */
+.console-shell[data-console-v4="true"] .operate-sync .console-table-wrap {
+    overflow-x: auto;
+}
+
+.console-shell[data-console-v4="true"] .operate-sync-choices {
+    flex-wrap: wrap;
+}
