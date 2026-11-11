@@ -20,7 +20,8 @@ public sealed class ShareManagePageRenderTests
             Load = new ShareAccessLoad(null, [MissingBinding])
         };
 
-        var page = Render(data, itemId: "item-1", enabled: enabled);
+        var options = new RenderOptions { V4 = new ConsoleV4Options { Enabled = enabled } };
+        var page = Render(data, itemId: "item-1", options);
 
         page.WaitForAssertion(
             () => Assert.Contains("Share access API is not bound", page.Markup, StringComparison.Ordinal),
@@ -40,7 +41,8 @@ public sealed class ShareManagePageRenderTests
                 [])
         };
 
-        var page = Render(data, itemId: "item-1", enabled: enabled);
+        var options = new RenderOptions { V4 = new ConsoleV4Options { Enabled = enabled } };
+        var page = Render(data, itemId: "item-1", options);
 
         page.WaitForAssertion(
             () => Assert.Contains("data-share-access=\"item-1\"", page.Markup, StringComparison.Ordinal),
@@ -64,7 +66,7 @@ public sealed class ShareManagePageRenderTests
         Assert.DoesNotContain("data-share-panel=\"embed\"", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("data-share-panel=\"exports\"", page.Markup, StringComparison.Ordinal);
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
-        CapturePreview(page, "link", enabled);
+        CapturePreview(page, "link", options.V4);
     }
 
     [Theory]
@@ -79,7 +81,8 @@ public sealed class ShareManagePageRenderTests
                 [])
         };
 
-        var page = Render(data, itemId: "item-1", enabled: enabled);
+        var options = new RenderOptions { V4 = new ConsoleV4Options { Enabled = enabled } };
+        var page = Render(data, itemId: "item-1", options);
         page.WaitForAssertion(
             () => Assert.Contains("data-share-tabs", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
@@ -91,7 +94,7 @@ public sealed class ShareManagePageRenderTests
             TimeSpan.FromSeconds(5));
         Assert.DoesNotContain("data-share-panel=\"public-link\"", page.Markup, StringComparison.Ordinal);
 
-        CapturePreview(page, "embed", enabled);
+        CapturePreview(page, "embed", options.V4);
 
         // Exports tab renders the scheduled-export table (Name/Target/Format/Filter/Schedule/Last run/State)
         // and deep-links into Operate jobs per the ShareExports mockup.
@@ -103,7 +106,7 @@ public sealed class ShareManagePageRenderTests
         Assert.Contains("data-share-exports-link", page.Markup, StringComparison.Ordinal);
         Assert.Contains("/operate/jobs", page.Markup, StringComparison.Ordinal);
 
-        CapturePreview(page, "exports", enabled);
+        CapturePreview(page, "exports", options.V4);
 
         // Open-data tab editor is server-bound; with no catalog binding it surfaces the missing-binding state
         // rather than fabricating downloads/license/tags.
@@ -112,10 +115,10 @@ public sealed class ShareManagePageRenderTests
             () => Assert.Contains("data-share-panel=\"opendata\"", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.Contains("not bound to honua-server", page.Markup, StringComparison.Ordinal);
-        CapturePreview(page, "opendata", enabled);
+        CapturePreview(page, "opendata", options.V4);
         page.Find("[data-share-tab='audit']").Click();
         page.WaitForAssertion(() => Assert.Contains("Governed surface", page.Markup, StringComparison.Ordinal));
-        CapturePreview(page, "audit", enabled);
+        CapturePreview(page, "audit", options.V4);
     }
 
     [Fact]
@@ -230,7 +233,7 @@ public sealed class ShareManagePageRenderTests
             ]
         };
 
-        var page = Render(data, itemId: "item-1", catalog: new FakeCatalogClient(detail));
+        var page = Render(data, itemId: "item-1", options: new RenderOptions { Catalog = new FakeCatalogClient(detail) });
         page.WaitForAssertion(
             () => Assert.Contains("data-share-tabs", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
@@ -361,29 +364,34 @@ public sealed class ShareManagePageRenderTests
             TimeSpan.FromSeconds(5));
     }
 
-    private static void CapturePreview(IRenderedComponent<ShareManagePage> page, string tab, bool enabled) =>
-        CatalogAdminPreview.Capture($"share-manage-{tab}-{(enabled ? "v4" : "legacy")}",
-            $"<div class=\"console-shell\" {(enabled ? "data-console-v4=\"true\"" : string.Empty)}>{page.Markup}</div>");
+    private static void CapturePreview(IRenderedComponent<ShareManagePage> page, string tab, ConsoleV4Options options) =>
+        CatalogAdminPreview.Capture($"share-manage-{tab}-{(options.Enabled ? "v4" : "legacy")}",
+            $"<div class=\"console-shell\" {(options.Enabled ? "data-console-v4=\"true\"" : string.Empty)}>{page.Markup}</div>");
 
     private static IRenderedComponent<ShareManagePage> Render(
         FakeShareDataSource data,
         string itemId,
-        IConsoleCatalogClient? catalog = null,
-        bool enabled = false)
+        RenderOptions? options = null)
     {
         var ctx = new Bunit.BunitContext();
         // The page now hosts an <UnsavedChangesGuard/> (Wave 5), which imports a JS module and may call
         // confirm() on navigation; run Loose JSInterop so those calls no-op in render tests.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton(options?.V4 ?? new ConsoleV4Options());
         ctx.Services.AddSingleton<IShareAccessDataSource>(data);
         // The open-data editor reads server-owned content metadata through the catalog client. With no
         // server bound the page renders the missing-binding state; tests inject a fake to exercise the editor.
-        ctx.Services.AddSingleton<IConsoleCatalogClient>(catalog ?? new UnsupportedConsoleCatalogClient());
+        ctx.Services.AddSingleton<IConsoleCatalogClient>(options?.Catalog ?? new UnsupportedConsoleCatalogClient());
         var navigation = ctx.Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo(navigation.GetUriWithQueryParameter("itemId", itemId));
         return ctx.Render<ShareManagePage>();
+    }
+
+    private sealed record RenderOptions
+    {
+        public ConsoleV4Options V4 { get; init; } = new();
+        public IConsoleCatalogClient? Catalog { get; init; }
     }
 
     private static ShareAccessView PublicShare(string tier, bool publicLinkEnabled, bool embedEnabled, bool canShare, bool canEmbed) =>
