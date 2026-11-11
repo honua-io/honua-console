@@ -30,6 +30,11 @@ internal static class StudioWorkflowPackageDraftContent
                 node.Label,
                 node.Column,
                 node.Row,
+                node.RetryPolicy,
+                node.FailurePolicy,
+                node.TimeoutSeconds,
+                node.Condition,
+                node.ForEach,
                 InputPorts = node.InputPorts.ToArray(),
                 OutputPorts = node.OutputPorts.ToArray(),
                 Configuration = node.Configuration
