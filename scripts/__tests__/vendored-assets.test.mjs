@@ -29,7 +29,7 @@ import { verify } from "../vendor-assets.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../..");
 const wwwroot = resolve(repoRoot, "src/Honua.Console.Shell/wwwroot");
-const programPath = resolve(repoRoot, "src/Honua.Console.Web/Program.cs");
+const programPath = resolve(repoRoot, "tests/Honua.Console.LegacyHost/Program.cs");
 const cesiumFetchPath = resolve(repoRoot, "scripts/fetch-cesium.mjs");
 const cesiumTreeContractPath = resolve(repoRoot, "scripts/lib/cesium-extracted-tree.mjs");
 const cesiumTreeLockPath = resolve(repoRoot, "scripts/cesium-extracted-tree.lock.json");
@@ -209,7 +209,7 @@ test("scene-viewer loads Cesium from this origin", () => {
   const sceneViewer = readFileSync(resolve(wwwroot, "scene-viewer.js"), "utf8");
   assert.match(
     sceneViewer,
-    /const CESIUM_BASE_URL = '\/_content\/Honua\.Console\.Shell\/vendor\/cesium\/'/,
+    /const CESIUM_BASE_URL = new URL\('\.\/vendor\/cesium\/', import\.meta\.url\)\.href/,
     "scene-viewer.js must resolve Cesium through the Razor class-library static-asset path",
   );
   assert.doesNotMatch(
@@ -271,7 +271,7 @@ test("Cesium extracted-tree lock binds every published byte, version, and licens
 test("every deployment artifact fetches verified Cesium before publish", () => {
   const workflowPaths = [
     ".github/workflows/ci.yml",
-    ".github/workflows/container-publish.yml",
+    ".github/workflows/static-bundle.yml",
     ".github/workflows/console-aws-browser.yml",
     ".github/workflows/console-e2e.yml",
   ];

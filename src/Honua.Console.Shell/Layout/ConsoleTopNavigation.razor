@@ -1,12 +1,14 @@
+@inject NavigationManager Navigation
+
 @inject IServiceProvider Services
 
 <header class="console-topbar">
-    <a class="console-topbar-brand" href="/">@if (!V4Enabled) { <span>H</span> }<strong>Honua Console</strong></a>
+    <a class="console-topbar-brand" href="@Navigation.ToConsoleHref("/")">@if (!V4Enabled) { <span>H</span> }<strong>Honua Console</strong></a>
     <button type="button" class="console-menu-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="console-primary" data-navigation-toggle>
         <svg viewBox="0 0 24 24" width="@(V4Enabled ? 16 : 20)" height="@(V4Enabled ? 16 : 20)" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
     </button>
     <nav id="console-primary" class="console-topnav" aria-label="Primary">
-        <NavLink href="/" Match="NavLinkMatch.All">Home</NavLink>
+        <NavLink href="@Navigation.ToConsoleHref("/")" Match="NavLinkMatch.All">Home</NavLink>
         @foreach (var group in Groups)
         {
             <details class="console-navigation-menu" data-navigation-menu="@group.Name">
@@ -14,7 +16,7 @@
                 <div class="console-navigation-items" role="group" aria-label="@group.Name">
                     @foreach (var entry in group.Destinations)
                     {
-                        <NavLink href="@entry.Path" Match="NavLinkMatch.All">
+                        <NavLink href="@Navigation.ToConsoleHref(entry.Path)" Match="NavLinkMatch.All">
                             @entry.Label
                             @if (entry.Path is not ("/studio" or "/studio/processes") && !ConsolePresentation.IsFocusedRoute(entry.Path)) { <small>Preview</small> }
                         </NavLink>
@@ -23,7 +25,7 @@
             </details>
         }
     </nav>
-    <a class="console-environment-link" href="/environments" data-workspace-header-target>Choose an environment</a>
+    <a class="console-environment-link" href="@Navigation.ToConsoleHref("/environments")" data-workspace-header-target>Choose an environment</a>
     @if (V4Enabled)
     {
         <button type="button" class="console-theme-toggle" data-console-theme-toggle aria-pressed="false" aria-label="Switch to dark mode" title="Switch to dark mode">
@@ -41,7 +43,7 @@
             <text>Conversation</text>
         }
     </button>
-    <a class="console-help-link" href="/support" aria-label="@(V4Enabled ? "Help" : null)">
+    <a class="console-help-link" href="@Navigation.ToConsoleHref("/support")" aria-label="@(V4Enabled ? "Help" : null)">
         @if (V4Enabled)
         {
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 4m0 3v1" /></svg>

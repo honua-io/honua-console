@@ -1,10 +1,11 @@
+import {promptWithConsolePageContext} from './console-agent-context.mjs';
 import {sameCookieAuthority} from './cookie-workspace-transport.mjs';
 import {promptWithStudioDesignFocus} from './studio-design-focus.mjs';
 
 // The supported browser assistant uses the Studio proxy and canonical MCP tools.
 // Its transcript belongs to this tab; server-owned drafts and saved versions remain durable.
 export class StudioConversation {
-    constructor(workspace, loadAssets = () => import('/_studio/console.js')) {
+    constructor(workspace, loadAssets = () => import(new URL('../_studio/console.js', import.meta.url).href)) {
         this.workspace = workspace;
         this.loadAssets = loadAssets;
         this.messages = [];
@@ -34,6 +35,7 @@ export class StudioConversation {
         };
         try {
             const designFocus = workspace.studioDesignFocusProvider?.();
+            const pageContext = structuredClone(workspace.pageContextProvider?.() ?? null);
             await workspace.queue;
             check();
             if (workspace.hasUnsavedWork()) throw new Error('Save or discard your edits before asking the assistant.');
@@ -72,7 +74,7 @@ export class StudioConversation {
             this.options = options;
             this.messages.push({role:'user',content:prompt});
             this.transportError = null;
-            const result = await this.sdkSession.chat(promptWithStudioDesignFocus(prompt, designFocus, task), {signal:options.signal});
+            const result = await this.sdkSession.chat(promptWithConsolePageContext(promptWithStudioDesignFocus(prompt, designFocus, task), pageContext), {signal:options.signal});
             check();
             if (this.transportError && result.status === 'error') result.errorMessage = this.transportError;
             const text = result.text || result.errorMessage;
@@ -109,8 +111,11 @@ export class StudioConversation {
                 init = {...init,body:JSON.stringify(message)};
             }
         }
+        const turnSignal = this.options?.signal;
+        const signal = init.signal && turnSignal ? AbortSignal.any([init.signal, turnSignal]) : init.signal || turnSignal;
+        if (signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
         const response = await this.workspace.request(`/api/agent-workspace/studio/${endpoint}`, {
-            ...init, credentials:'same-origin', signal:init.signal || this.options?.signal,
+            ...init, credentials:'same-origin', signal,
             headers:{...Object.fromEntries(new Headers(init.headers)),
                 'Content-Type':'application/json','X-CSRF-Token':this.workspace.session.csrfToken,
                 'X-Honua-Environment':this.binding.environmentId,'X-Honua-Session-Partition':this.binding.principalId,

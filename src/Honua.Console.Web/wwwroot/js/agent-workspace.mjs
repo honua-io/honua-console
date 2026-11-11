@@ -1,3 +1,4 @@
+import {attachConsolePageContext, promptWithConsolePageContext} from './console-agent-context.mjs';
 import {hasOperatorShell} from './console-shell-context.mjs';
 import {mountWorkspacePreferences} from './operator-preferences.mjs';
 import {mountRecentVisits} from './operator-recent-visits.mjs';
@@ -371,6 +372,7 @@ export class AgentWorkspace {
     }
     async captureAndSubmit(prompt, options = {}) {
         if (!prompt.trim()) throw new Error('Enter a message.');
+        const pageContext = this.pageContextProvider?.();
         const browserFile = browserImportSelection.forTurn(this);
         this.assertPublishEditsCurrent(true);
         const styleFocus = this.sharedStyleProvider?.();
@@ -429,7 +431,7 @@ export class AgentWorkspace {
             const reply=options.questionReply ? await this.questionReplies.prepare(options.questionReply) : null;
             requireSameAuthority();
             if (options.questionReply) this.questionReplies.requireContext(options.questionReply);
-            capturedPrompt = promptWithStudioDesignFocus(prompt, designFocus, this.context.task);
+            capturedPrompt = promptWithConsolePageContext(promptWithStudioDesignFocus(prompt, designFocus, this.context.task), pageContext);
             const payload={
                 turnId: this.uuid(), viewId: this.viewId, contextRevision: this.context.revision, prompt:capturedPrompt,
                 ...(binding.deployTargetId ? {deployTargetId:binding.deployTargetId} : {}),
@@ -644,6 +646,7 @@ export function mountWorkspace() {
     workspace.selectionProvider ||= () => selectedResource(location.pathname);
     // One session instance lives above route components; embedded Studio receives this same object.
     Object.defineProperty(window, 'honuaAgentWorkspace', { value: workspace, configurable: true });
+    attachConsolePageContext(workspace);
     const report = error => { status.textContent = error.message; };
     const review = new GaSpecReview(workspace);
     const renderReview = () => {
@@ -940,7 +943,7 @@ if (typeof document !== 'undefined') {
     new MutationObserver(mountWorkspace).observe(document.body, { childList: true, subtree: true });
 }
 
-export async function attachNativeAgent(workspace, loadAssets = () => import('/_studio/console.js')) {
+export async function attachNativeAgent(workspace, loadAssets = () => import(new URL('../_studio/console.js', import.meta.url).href)) {
     if (!workspace.session?.nativeAgentAvailable || workspace.agentSession) return;
     const generation=workspace.contextGeneration,workspaceId=workspace.workspaceId;
     const authority=JSON.stringify(['principalId','environmentId','releaseId','sourcePathBase'].map(key=>workspace.session[key]));
@@ -961,8 +964,9 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
         const endpoint = path.endsWith('/mcp') ? 'mcp' : path.endsWith('/ai/chat') ? 'ai' : path.endsWith('/ai/capabilities') ? 'capabilities' : path === 'turn' ? 'turn' : path === 'conversation' ? 'conversation' : null;
         if (!endpoint || !currentTurn) throw new Error('Unbound native agent request rejected.');
         // Model and tool calls share the turn signal. Persisting the transcript must not.
-        const turnSignal = (endpoint === 'ai' || endpoint === 'mcp') && !init.signal ? currentOptions?.signal : undefined;
-        if (turnSignal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
+        const turnSignal = endpoint === 'ai' || endpoint === 'mcp' ? currentOptions?.signal : undefined;
+        const signal = init.signal && turnSignal ? AbortSignal.any([init.signal, turnSignal]) : init.signal || turnSignal;
+        if (signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
         return workspace.request(`/api/agent-workspace/agent/${endpoint}`, {
             ...init, method: ['turn', 'capabilities'].includes(endpoint) || (endpoint === 'conversation' && !init.method) ? 'GET' : (init.method || 'POST'), credentials: 'same-origin', headers: {
                 'Content-Type': 'application/json', 'X-CSRF-Token': boundSession.csrfToken,
@@ -972,7 +976,7 @@ export async function attachNativeAgent(workspace, loadAssets = () => import('/_
                 'X-Honua-Session-Partition': boundSession.principalId,
                 'X-Honua-Turn': currentTurn.turnId
             },
-            ...(turnSignal ? { signal: turnSignal } : {})
+            ...(signal ? { signal } : {})
         });
     };
     const certification = {

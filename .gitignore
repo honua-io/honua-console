@@ -3,6 +3,7 @@ artifacts/
 coverage/
 bin/
 obj/
+TestResults/
 .DS_Store
 .env
 .env.local

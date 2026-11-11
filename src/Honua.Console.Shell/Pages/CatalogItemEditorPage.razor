@@ -34,8 +34,8 @@
         <div class="console-detail-heading">
             <div>
                 <p class="console-kicker">
-                    <a href="@CatalogsListHref">Catalogs</a> <span class="console-crumb-sep">/</span>
-                    <a href="@EndpointHref">endpoint</a> <span class="console-crumb-sep">/</span> item
+                    <a href="@Navigation.ToConsoleLinkHref(CatalogsListHref)">Catalogs</a> <span class="console-crumb-sep">/</span>
+                    <a href="@Navigation.ToConsoleLinkHref(EndpointHref)">endpoint</a> <span class="console-crumb-sep">/</span> item
                 </p>
                 <h1>
                     @item.Title

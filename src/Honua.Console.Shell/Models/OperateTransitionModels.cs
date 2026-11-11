@@ -140,9 +140,9 @@ public sealed record OperateServiceDetail(
     public IReadOnlyList<string> FolderMutationIssues { get; init; } = [];
     public string? PublicServiceName => FolderId is not null && string.IsNullOrWhiteSpace(FolderName) ? null : PublicName ?? Name;
     // ServiceType lists the enabled protocols, comma separated.
-    public bool Serves(string protocol) =>
-        ServiceType.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Contains(protocol, StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyList<string> Protocols =>
+        ServiceType.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+    public bool Serves(string protocol) => Protocols.Contains(protocol, StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed record OperateServiceLayerProjection(

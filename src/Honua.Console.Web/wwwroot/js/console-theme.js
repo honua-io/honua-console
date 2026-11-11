@@ -1,8 +1,8 @@
-// Runs before styles paint; the server supplies an opaque key for the signed-in user.
+// The WebAssembly shell configures an opaque key after its authentication state resolves.
 (() => {
     const root = document.documentElement;
-    if (root.dataset.consoleThemeEnabled !== 'true') return;
-    const key = root.dataset.consoleThemeKey;
+    let enabled = false;
+    let key = null;
     const normalize = value => value === 'dark' ? 'dark' : 'light';
 
     function syncControls() {
@@ -23,11 +23,18 @@
         }));
     }
 
-    let saved;
-    try { saved = key ? localStorage.getItem(key) : null; } catch { /* Storage may be disabled. */ }
-    apply(saved, false);
+    function configure(isEnabled, storageKey) {
+        enabled = isEnabled;
+        key = enabled ? storageKey : null;
+        root.dataset.consoleThemeEnabled = String(enabled);
+        let saved;
+        try { saved = key ? localStorage.getItem(key) : null; } catch { /* Storage may be disabled. */ }
+        apply(saved, false);
+    }
+    window.honuaConsoleTheme = { configure };
+    configure(root.dataset.consoleThemeEnabled === 'true', root.dataset.consoleThemeKey);
     document.addEventListener('click', event => {
-        if (!event.target.closest?.('[data-console-theme-toggle]')) return;
+        if (!enabled || !event.target.closest?.('[data-console-theme-toggle]')) return;
         apply(root.dataset.theme === 'dark' ? 'light' : 'dark');
         try { if (key) localStorage.setItem(key, root.dataset.theme); } catch { /* Keep the in-memory choice. */ }
     });

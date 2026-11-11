@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/import/esri/web-map"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
@@ -25,7 +26,7 @@
             </p>
         </div>
         <div class="console-button-row">
-            <a class="console-button-ghost" href="/operate/import/esri">Discard</a>
+            <a class="console-button-ghost" href="@ConsoleNavigation.ToConsoleHref("/operate/import/esri")">Discard</a>
             <button type="button" class="console-button" @onclick="CreatePackage" disabled="@(_result is null)">Create map package →</button>
         </div>
     </div>
@@ -86,7 +87,7 @@
                 </span>
                 <div class="console-button-row">
                     <button type="button" class="console-button console-button-sm" @onclick="CreatePackage">Pick resource…</button>
-                    <a class="console-button-ghost console-button-sm" href="/operate/resources/new">Import data first</a>
+                    <a class="console-button-ghost console-button-sm" href="@ConsoleNavigation.ToConsoleHref("/operate/resources/new")">Import data first</a>
                 </div>
             </div>
         }

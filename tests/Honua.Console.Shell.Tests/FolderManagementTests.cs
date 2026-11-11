@@ -1,6 +1,7 @@
 using Bunit;
 using Honua.Console.Shell.Components.Operate;
 using Honua.Console.Shell.Services;
+using Honua.Console.Shell.Models;
 using Honua.Sdk.Admin.Models;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -8,6 +9,35 @@ namespace Honua.Console.Shell.Tests;
 
 public sealed class FolderManagementTests
 {
+    [Fact]
+    public void AgentSummaryTracksSelectionEditsAndSaveWithoutFormValues()
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
+        var summaries = new List<ConsoleAgentUnsavedSummary>();
+        ConsoleAgentEntity? selected = null;
+        var panel = context.Render<FolderManagement>(p => p
+            .Add(c => c.UnsavedChanged, summary => summaries.Add(summary))
+            .Add(c => c.SelectionChanged, entity => selected = entity));
+        Assert.Equal(0, summaries[^1].ChangedFieldCount);
+        Assert.Contains(summaries, summary => summary.PendingOperationCount == 1);
+        panel.Find("[data-folder-select]").Change("transport");
+        Assert.Equal(ConsoleAgentEntityKind.Folder, selected!.Kind);
+        Assert.Equal("transport", selected.Id);
+        Assert.Equal("/operate/folders/transport", ConsoleAgentRoutes.ForEntity(selected));
+        panel.Find("[data-folder-name]").Input("Private-path");
+        Assert.Equal(1, summaries[^1].ChangedFieldCount);
+        panel.Find("[data-folder-title]").Input("Private draft title");
+        Assert.Equal(2, summaries[^1].ChangedFieldCount);
+        panel.Find("[data-folder-name]").Input("Transport");
+        Assert.Equal(1, summaries[^1].ChangedFieldCount);
+        Assert.DoesNotContain("Private draft title", System.Text.Json.JsonSerializer.Serialize(summaries));
+        panel.Find("[data-folder-save]").Click();
+        Assert.Equal(0, summaries[^1].ChangedFieldCount);
+        Assert.Equal(0, summaries[^1].PendingOperationCount);
+        Assert.Null(selected);
+    }
+
     [Fact]
     public void EmptyFolderCanBeRenamedAndItsDisplayTitleCleared()
     {
@@ -18,8 +48,8 @@ public sealed class FolderManagementTests
         Assert.Contains("Root", panel.Markup);
         panel.Find("[data-folder-select]").Change("transport");
         Assert.Equal("Transport", panel.Find("[data-folder-name]").GetAttribute("value"));
-        panel.Find("[data-folder-name]").Change("Roads");
-        panel.Find("[data-folder-title]").Change("");
+        panel.Find("[data-folder-name]").Input("Roads");
+        panel.Find("[data-folder-title]").Input("");
         panel.Find("[data-folder-save]").Click();
         Assert.Equal("Roads", client.Updated!.Name);
         Assert.True(client.Updated.Title.IsSpecified);
@@ -35,8 +65,8 @@ public sealed class FolderManagementTests
         var client = new FolderClient { Result = new() { State = "Snapshot changed", Detail = "The catalog changed. Review it again." } };
         context.Services.AddSingleton<IConsoleFolderClient>(client);
         var panel = context.Render<FolderManagement>();
-        panel.Find("[data-folder-name]").Change("New-path");
-        panel.Find("[data-folder-title]").Change("My edits");
+        panel.Find("[data-folder-name]").Input("New-path");
+        panel.Find("[data-folder-title]").Input("My edits");
         panel.Find("[data-folder-save]").Click();
         Assert.Equal(1, client.Mutations);
         Assert.Contains("The catalog changed", panel.Markup);

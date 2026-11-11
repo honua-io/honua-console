@@ -1,90 +1,19 @@
-@inject Microsoft.AspNetCore.Components.NavigationManager Navigation
-@inject IServiceProvider Services
-<!DOCTYPE html>
-<html lang="en" data-theme="light" data-console-theme-enabled="@(ThemeEnabled ? "true" : "false")" data-console-theme-key="@ThemeStorageKey">
+@inject NavigationManager Navigation
 
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <base href="/" />
-    <script src="@Assets["js/console-theme.js"]"></script>
-    <ResourcePreloader />
-    <link rel="stylesheet" href="@Assets["app.css"]" />
-    <link rel="stylesheet" href="@Assets["_content/Honua.Console.Shell/honua-console.css"]" />
-    @* No Honua.Console.Web.styles.css link: the host project has no scoped component CSS (.razor.css),
-       so that bundle is never emitted and linking it 404s on every page. All real styling lives in
-       honua-console.css above. Re-add the bundle link if a scoped *.razor.css is ever introduced. *@
-    <ImportMap />
-    <link rel="icon" type="image/png" href="favicon.png" />
-    <HeadOutlet />
-</head>
-
-<body>
-    <Routes @rendermode="InteractiveServer" />
-    @if (!IsEmbeddedViewer)
-    {
-        <Honua.Console.Shell.Layout.ConsoleConversationDrawer />
-    }
-
-    @* Visible reconnect/error banner. app.css previously hid #blazor-error-ui outright, so a dropped
-       circuit silently froze the page with no feedback. The markup is restored here and styled (visible,
-       fixed to the bottom) in honua-console.css so a lost connection / unhandled error is surfaced with a
-       reload affordance. *@
-    <div id="blazor-error-ui" data-nosnippet>
-        <span class="blazor-error-ui-text">The connection to Honua Console was interrupted.</span>
-        <a href="." class="reload">Reload</a>
-        <span class="dismiss" role="button" tabindex="0" aria-label="Dismiss">🗙</span>
-    </div>
-
-    <script src="@Assets["js/navigation-state.js"]"></script>
-    <script src="@Assets["js/modal-surface.js"]"></script>
-    <script src="@Assets["js/publication-tree.js"]"></script>
-    <script src="@Assets["js/conversation-drawer.js"]"></script>
-    <script src="@Assets["_framework/blazor.web.js"]"></script>
-    @* Entry URLs must match ImportMap's dependency URLs. Mixing a plain entry
-       with its fingerprinted dependency evaluates stateful modules twice. *@
-    <script type="module" src="@Assets["js/agent-workspace.mjs"]"></script>
-    <script type="module" src="@Assets["js/studio-embed.mjs"]"></script>
-    <script type="module" src="@Assets["js/dataset-import-panel.mjs"]"></script>
-    <script>
-        // In-page section navigation: Blazor's interactive router intercepts same-page
-        // "#id" links and does not scroll to the fragment, so handle pure-fragment anchors
-        // here. Only acts when a matching element exists; otherwise leaves the link alone.
-        // Capture phase so this runs before Blazor's delegated router handler.
-        document.addEventListener('click', function (e) {
-            var anchor = e.target.closest && e.target.closest('a[href^="#"]');
-            if (!anchor) { return; }
-            var id = anchor.getAttribute('href').slice(1);
-            if (!id) { return; }
-            var target = document.getElementById(id);
-            if (target) {
-                e.preventDefault();
-                e.stopPropagation();
-                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                if (history.replaceState) { history.replaceState(null, '', '#' + id); }
-            }
-        }, true);
-    </script>
-</body>
-
-</html>
-
-@code {
-    private bool ThemeEnabled => !IsEmbeddedViewer
-        && Services.GetService<Honua.Console.Shell.Models.ConsoleV4Options>()?.Enabled == true;
-
-    private string? ThemeStorageKey
-    {
-        get
+<ErrorBoundary>
+    <ChildContent>
+        <ConsoleTheme />
+        <Routes />
+        @if (!new Uri(Navigation.Uri).AbsolutePath.StartsWith("/console/embed/", StringComparison.OrdinalIgnoreCase))
         {
-            var operatorContext = Services.GetService<Honua.Console.Web.Auth.IConsoleOperatorContext>();
-            return ThemeEnabled && operatorContext?.HasOperator == true
-                ? "honua-theme:" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-                    System.Text.Encoding.UTF8.GetBytes(operatorContext.RequireOperatorKey())))
-                : null;
+            <Honua.Console.Shell.Layout.ConsoleConversationDrawer />
         }
-    }
-
-    private bool IsEmbeddedViewer => new Uri(Navigation.Uri).AbsolutePath
-        .StartsWith("/embed/", StringComparison.OrdinalIgnoreCase);
-}
+    </ChildContent>
+    <ErrorContent>
+        <main role="alert">
+            <h1>Console could not load</h1>
+            <p>Check the API connection and your sign-in session, then reload.</p>
+            <a href=".">Reload Console</a>
+        </main>
+    </ErrorContent>
+</ErrorBoundary>

@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/resources/{ResourceId}"
 @inject IOperateTransitionDataSource OperateData
 
@@ -17,7 +18,7 @@
         <nav class="console-tab-row" aria-label="Dataset edit tabs">
             @foreach (var tab in _resource.EditTabs)
             {
-                <a href="@($"/operate/resources/{_resource.ResourceId}#{tab.ToLowerInvariant()}")">@tab</a>
+                <a href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/resources/{_resource.ResourceId}#{tab.ToLowerInvariant()}")">@tab</a>
             }
         </nav>
 

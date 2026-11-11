@@ -127,7 +127,7 @@
                 }
                 @if (_providerAvailability.DocumentationHref is { } href)
                 {
-                    <a href="@href" data-provider-documentation>How to switch server images</a>
+                    <a href="@Nav.ToConsoleLinkHref(href)" data-provider-documentation>How to switch server images</a>
                 }
             </div>
         }
@@ -157,7 +157,7 @@
             <button class="console-button" type="button" disabled="@(_busy || _testing || !CanUseProvider)" @onclick="CreateAsync">
                 @(_busy ? "Creating…" : "Create connection")
             </button>
-            <a href="/operate/connections">Cancel</a>
+            <a href="@Nav.ToConsoleHref("/operate/connections")">Cancel</a>
         </div>
     </article>
 
@@ -349,9 +349,9 @@
             _dirty.MarkClean();
             StateHasChanged();
             await Task.Yield();
-            Nav.NavigateTo(string.IsNullOrWhiteSpace(_result.ConnectionId)
+            Nav.NavigateTo(Nav.ToConsoleHref(string.IsNullOrWhiteSpace(_result.ConnectionId)
                 ? "/operate/connections"
-                : $"/operate/connections/{_result.ConnectionId}");
+                : $"/operate/connections/{_result.ConnectionId}"));
             return;
         }
 
