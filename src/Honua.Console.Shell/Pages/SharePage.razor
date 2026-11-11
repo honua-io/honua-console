@@ -10,14 +10,24 @@
    Enforced by ConsoleRouteAuthorizationAuditTests (honua-console#254). *@
 @attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @inject IConsoleCatalogClient Catalog
+@inject IServiceProvider Services
 
 <CatalogAvailabilityGate>
 <section class="console-page share-home">
-    <div class="console-page-heading">
-        <p class="console-kicker">Share workflow</p>
-        <h1>Share</h1>
-        <p>Everything this workspace publishes to the outside world — public links, embeds, open-data pages, and exports.</p>
-    </div>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Share">
+            <p>Public links, embeds, open-data pages, and downloads.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Share workflow</p>
+            <h1>Share</h1>
+            <p>Everything this workspace publishes to the outside world — public links, embeds, open-data pages, and exports.</p>
+        </div>
+    }
 
     @if (_missingBinding)
     {
@@ -36,33 +46,52 @@
     }
     else
     {
-        <div class="console-kpi-strip" data-share-kpis>
-            <div class="console-kpi" data-share-kpi="shared-items">
-                <span class="console-kpi-label">Shared items</span>
-                <span class="console-kpi-value">@_items.Count</span>
-                <span class="console-kpi-sub">open-data published</span>
+        @if (V4Enabled)
+        {
+            <ConsolePanel Title="Public sharing" HeadingId="share-summary-heading" Class="console-share-summary console-summary">
+                <div data-share-kpis>
+                    <div data-share-kpi="shared-items">
+                        <ConsoleMetricTile Label="Shared items" Value="@_items.Count">Published as open data</ConsoleMetricTile>
+                    </div>
+                    <dl class="console-share-summary-details console-summary-details">
+                        <div data-share-kpi="open-data-pages"><dt>Open-data pages</dt><dd>@_openDataCount</dd></div>
+                        <div data-share-kpi="embed-enabled"><dt>Embed-enabled</dt><dd>@_embedCount</dd></div>
+                        <div data-share-kpi="public-links"><dt>Public links</dt><dd>@_publicLinkCount</dd></div>
+                        <div data-share-kpi="formats"><dt>Download formats</dt><dd>@_formatCount</dd></div>
+                    </dl>
+                </div>
+            </ConsolePanel>
+        }
+        else
+        {
+            <div class="console-kpi-strip" data-share-kpis>
+                <div class="console-kpi" data-share-kpi="shared-items">
+                    <span class="console-kpi-label">Shared items</span>
+                    <span class="console-kpi-value">@_items.Count</span>
+                    <span class="console-kpi-sub">open-data published</span>
+                </div>
+                <div class="console-kpi" data-share-kpi="open-data-pages">
+                    <span class="console-kpi-label">Open-data pages</span>
+                    <span class="console-kpi-value">@_openDataCount</span>
+                    <span class="console-kpi-sub">public landing</span>
+                </div>
+                <div class="console-kpi" data-share-kpi="embed-enabled">
+                    <span class="console-kpi-label">Embed-enabled</span>
+                    <span class="console-kpi-value">@_embedCount</span>
+                    <span class="console-kpi-sub">iframe-ready</span>
+                </div>
+                <div class="console-kpi" data-share-kpi="public-links">
+                    <span class="console-kpi-label">Public links</span>
+                    <span class="console-kpi-value">@_publicLinkCount</span>
+                    <span class="console-kpi-sub">link or indexed</span>
+                </div>
+                <div class="console-kpi" data-share-kpi="formats">
+                    <span class="console-kpi-label">Download formats</span>
+                    <span class="console-kpi-value">@_formatCount</span>
+                    <span class="console-kpi-sub">across all items</span>
+                </div>
             </div>
-            <div class="console-kpi" data-share-kpi="open-data-pages">
-                <span class="console-kpi-label">Open-data pages</span>
-                <span class="console-kpi-value">@_openDataCount</span>
-                <span class="console-kpi-sub">public landing</span>
-            </div>
-            <div class="console-kpi" data-share-kpi="embed-enabled">
-                <span class="console-kpi-label">Embed-enabled</span>
-                <span class="console-kpi-value">@_embedCount</span>
-                <span class="console-kpi-sub">iframe-ready</span>
-            </div>
-            <div class="console-kpi" data-share-kpi="public-links">
-                <span class="console-kpi-label">Public links</span>
-                <span class="console-kpi-value">@_publicLinkCount</span>
-                <span class="console-kpi-sub">link or indexed</span>
-            </div>
-            <div class="console-kpi" data-share-kpi="formats">
-                <span class="console-kpi-label">Download formats</span>
-                <span class="console-kpi-value">@_formatCount</span>
-                <span class="console-kpi-sub">across all items</span>
-            </div>
-        </div>
+        }
 
         <div class="console-toolbar console-toolbar-spread" data-share-toolbar>
             <span class="console-muted">@_items.Count shared items</span>
@@ -122,6 +151,8 @@
         "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Console can bind the server-owned "
         + "catalog/content metadata projection from honua-server. The merged runtime never renders seeded "
         + "or demo share content (Console Patterns Charter section 11).";
+
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     private IReadOnlyList<ConsoleContentSummary>? _items;
     private bool _missingBinding;

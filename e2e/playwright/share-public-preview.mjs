@@ -15,6 +15,8 @@ await runV4PagePresentation({
     const enabled = name.endsWith("-v4");
     assert.equal(await page.locator(".console-page-heading-v4").count(), enabled ? 1 : 0);
     assert.equal(await page.locator(".share-opendata-download-name").count(), 2);
+    assert.deepEqual(await page.locator(".share-opendata-download-name").allTextContents(),
+      enabled ? ["GeoServices feature service", "OGC API Features"] : ["GeoServices:FeatureService", "OGC:API:Features"]);
     assert.equal(await page.locator("[data-share-opendata-routes] code").textContent(), "/share/public/items/coastal-flood-service");
     assert.match(await page.locator("[data-share-opendata-footer]").textContent(), /resilience-team/);
     assert.equal(await page.locator("button,input,select,textarea").count(), 0);

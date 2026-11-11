@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.JSInterop;
 
 namespace Honua.Console.Web.Runtime;
@@ -6,14 +5,7 @@ namespace Honua.Console.Web.Runtime;
 public sealed class ConsoleBrowserSessionBridge(ConsoleBrowserSession session)
 {
     [JSInvokable]
-    public ConsoleBrowserSessionSnapshot GetSnapshot() => new(
-        session.Revision,
-        session.IsAuthenticated,
-        session.Principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
-            ?? session.Principal.FindFirst("sub")?.Value,
-        session.IsAuthenticated ? session.AccessToken : null,
-        session.IsAuthenticated ? session.CsrfToken : null,
-        session.ExpiresAt);
+    public ConsoleBrowserSessionSnapshot GetSnapshot() => session.Snapshot();
 }
 
 public sealed record ConsoleBrowserSessionSnapshot(

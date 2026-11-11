@@ -37,12 +37,16 @@ public sealed class StudioAutomationEditorPageTests
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
     [InlineData(ConsolePresentationMode.V4)]
-    public void Editor_RendersHeaderTabsAndRulesForBoundDraft(ConsolePresentationMode presentation)
+    public async Task Editor_RendersHeaderTabsAndRulesForBoundDraft(ConsolePresentationMode presentation)
     {
+        var registry = new ConsoleAgentContextRegistry();
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(registry);
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ICollectAutomationClient>(InMemoryCollectAutomationClient.CreateSeeded());
+
+        ctx.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/studio/automations/seed?secret=private");
 
         var page = ctx.Render<StudioAutomationEditorPage>(
             parameters => parameters.Add(p => p.DraftId, InMemoryCollectAutomationClient.SeedDraftId));
@@ -64,6 +68,21 @@ public sealed class StudioAutomationEditorPageTests
             Assert.Equal(page.FindAll(".automation-rule-card").Count, page.FindAll(".automation-rule-card > h2").Count);
             CatalogAdminPreview.Capture("automation-editor-seeded", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
         }
+        if (presentation == ConsolePresentationMode.V4)
+        {
+            Assert.Equal("/studio/automations/seed", registry.Current.Route);
+            Assert.Empty(registry.Current.Entities);
+            Assert.Equal(InMemoryCollectAutomationClient.SeedDraftId, registry.Current.Filters["draftId"]);
+            page.Find("input[aria-label='Automation name']").Input("Changed automation");
+            Assert.Equal(1, registry.Current.Unsaved.ChangedFieldCount);
+            page.FindAll("nav.automation-tab-row button").Single(button => button.TextContent.Trim() == "Settings").Click();
+            Assert.Equal("settings", registry.Current.Filters["tab"]);
+        }
+        else Assert.Equal(0, registry.Current.Generation);
+        await ctx.DisposeComponentsAsync();
+        Assert.Empty(registry.Current.Filters);
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+
     }
 
     [Theory]
