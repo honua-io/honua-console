@@ -14,7 +14,7 @@ public sealed class SharePublicItemV4Tests
     [InlineData(true)]
     public void PublicProjectionPreservesFormatsRoutesAndOwner(bool enabled)
     {
-        using var context = Context(enabled, new InMemoryConsoleCatalogClient());
+        using var context = Context(new ConsoleV4Options { Enabled = enabled }, new InMemoryConsoleCatalogClient());
         var page = context.Render<SharePublicItemPage>(parameters => parameters.Add(p => p.IdOrSlug, "coastal-flood-service"));
         Assert.Equal("Coastal Flood Service", page.Find("h1").TextContent);
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
@@ -36,7 +36,7 @@ public sealed class SharePublicItemV4Tests
     [Fact]
     public void PublicBackLinkStaysInsideApplicationMount()
     {
-        using var context = Context(true, new InMemoryConsoleCatalogClient());
+        using var context = Context(new ConsoleV4Options { Enabled = true }, new InMemoryConsoleCatalogClient());
         context.Services.AddSingleton<NavigationManager>(new MountedNavigationManager("/console/"));
         var page = context.Render<SharePublicItemPage>(parameters => parameters.Add(p => p.IdOrSlug, "coastal-flood-service"));
         Assert.Equal("/console/share/public", page.Find(".share-opendata-back").GetAttribute("href"));
@@ -47,7 +47,7 @@ public sealed class SharePublicItemV4Tests
     [InlineData(true)]
     public void NonPublicItemNeverRendersItsDetails(bool enabled)
     {
-        using var context = Context(enabled, new InMemoryConsoleCatalogClient());
+        using var context = Context(new ConsoleV4Options { Enabled = enabled }, new InMemoryConsoleCatalogClient());
         var page = context.Render<SharePublicItemPage>(parameters => parameters.Add(p => p.IdOrSlug, "map-storm-response"));
         Assert.Contains("Public item not found", page.Markup);
         Assert.DoesNotContain("Storm Response Map", page.Markup);
@@ -60,17 +60,17 @@ public sealed class SharePublicItemV4Tests
     [InlineData(true)]
     public void MissingBindingStaysDistinctFromNotFound(bool enabled)
     {
-        using var context = Context(enabled, new UnsupportedConsoleCatalogClient());
+        using var context = Context(new ConsoleV4Options { Enabled = enabled }, new UnsupportedConsoleCatalogClient());
         var page = context.Render<SharePublicItemPage>(parameters => parameters.Add(p => p.IdOrSlug, "coastal-flood-service"));
         Assert.Contains("Open data is not bound to honua-server", page.Markup);
         Assert.DoesNotContain("Public item not found", page.Markup);
         Assert.Empty(page.FindAll("[data-share-opendata-landing]"));
     }
 
-    private static BunitContext Context(bool enabled, IConsoleCatalogClient catalog)
+    private static BunitContext Context(ConsoleV4Options options, IConsoleCatalogClient catalog)
     {
         var context = new BunitContext();
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        context.Services.AddSingleton(options);
         context.Services.AddSingleton(catalog);
         context.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         return context;
