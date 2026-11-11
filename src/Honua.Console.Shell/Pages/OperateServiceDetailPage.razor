@@ -40,7 +40,7 @@
                 </section>
                 <section id="service-limits-panel" role="tabpanel" aria-labelledby="service-limits-tab" hidden="@(_selectedTab != "service-limits-tab")" tabindex="0">
                     @Runtime
-                    @if (_selectedTab == "service-limits-tab") { @ConfigurationState }
+                    @if (_selectedTab == "service-limits-tab" && !_settings.Bound) { @ConfigurationState }
                     @if (_settings.Bound) { @RenderingLimits }
                 </section>
                 @Administration

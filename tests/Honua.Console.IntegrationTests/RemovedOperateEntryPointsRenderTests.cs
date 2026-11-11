@@ -167,6 +167,4 @@ public sealed class RemovedOperateEntryPointsRenderTests
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FixedServicesDataSource(Cadastre));
         return ctx;
     }
-
-
 }

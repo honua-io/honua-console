@@ -213,7 +213,6 @@ public sealed class OperateLayerStylePageRenderTests
         "honua-server resource-presentation slot overrides (pending)",
         "Per-slot style/popup overrides bind to a server-owned contract that has not shipped.");
 
-
     private sealed class FakeOverrideDataSource : IOperateLayerStyleOverrideDataSource
     {
         public OperateLayerStyleOverrideView View { get; set; } = new("res-1", []);
