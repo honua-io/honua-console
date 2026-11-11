@@ -1,0 +1,8 @@
+@namespace Honua.Console.Shell.Components
+@inject NavigationManager Navigation
+
+<a class="console-button-link" href="@Navigation.ToConsoleHref(ConsoleAgentLayerTool.LayerRoute(CanonicalResourceId))" data-layer-detail-link>Back to layer</a>
+
+@code {
+    [Parameter, EditorRequired] public string CanonicalResourceId { get; set; } = string.Empty;
+}

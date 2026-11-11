@@ -25,7 +25,7 @@
         {
             <ConsolePageHeading Title="@($"{_layer.Name} · relationships")">
                 <ChildContent><p>Connect this layer to related records.</p></ChildContent>
-                <Actions>@BackLink</Actions>
+                <Actions><LayerBackLink CanonicalResourceId="@_layer!.CanonicalResourceId" /></Actions>
             </ConsolePageHeading>
         }
         else
@@ -35,7 +35,7 @@
                 <h1>@_layer.Name · relationships</h1>
                 <p>Author origin/destination relationships on layer @_layer.LayerId. honua-server emits these as <code>relationships[]</code> on FeatureServer layer metadata and uses them to drive related-records / <code>$expand</code> / relationshipQuery.</p>
                 <div class="console-detail-actions">
-                    <a class="console-button-link" href="@LayerHref" data-layer-detail-link>Back to layer</a>
+                    <a class="console-button-link" href="@Navigation.ToConsoleHref(ConsoleAgentLayerTool.LayerRoute(_layer!.CanonicalResourceId))" data-layer-detail-link>Back to layer</a>
                 </div>
             </div>
         }
@@ -53,8 +53,6 @@
 
 @code {
     private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
-    private string LayerHref => Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(_layer!.CanonicalResourceId)}");
-    private RenderFragment BackLink => @<a class="console-button-link" href="@LayerHref" data-layer-detail-link>Back to layer</a>;
     private RenderFragment Editor => @<div data-relationships-panel>
             @if (!_relationships.Bound)
             {
@@ -138,15 +136,8 @@
     private string? _loadedResourceId;
     private long _generation;
     private bool _loading;
-    private IReadOnlyList<ConsoleAgentEntity> SelectedLayer => _layer is null ? [] :
-        [new() { Kind = ConsoleAgentEntityKind.Layer, Id = _layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture), ResourceId = _layer.CanonicalResourceId }];
-    private ConsoleAgentPageContext AgentContext => new()
-    {
-        Route = $"/operate/layers/{Uri.EscapeDataString(ResourceId)}/relationships",
-        Entities = SelectedLayer,
-        Selection = SelectedLayer,
-        Unsaved = new() { ChangedFieldCount = ChangedFields, PendingOperationCount = _loading || _saving ? 1 : 0 }
-    };
+    private ConsoleAgentPageContext AgentContext =>
+        ConsoleAgentLayerTool.Context(_layer, ResourceId, "relationships", ChangedFields, _loading || _saving);
 
     [CascadingParameter] public ConsolePublicationLayerContext? PublicationContext { get; set; }
 

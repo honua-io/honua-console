@@ -25,7 +25,7 @@
         {
             <ConsolePageHeading Title="@($"{Layer.Name} · editing")">
                 <ChildContent><p>Set the editing policy for this layer’s FeatureServer service.</p></ChildContent>
-                <Actions>@BackLink</Actions>
+                <Actions><LayerBackLink CanonicalResourceId="@Layer.CanonicalResourceId" /></Actions>
             </ConsolePageHeading>
         }
         else
@@ -35,7 +35,7 @@
                 <h1>@Layer.Name · editing</h1>
                 <p>Set the editing policy of layer @Layer.LayerId in one of its FeatureServer services. Fields left unchanged keep their current server value.</p>
                 <div class="console-detail-actions">
-                    <a class="console-button-link" href="@LayerHref" data-layer-detail-link>Back to layer</a>
+                    <a class="console-button-link" href="@Navigation.ToConsoleHref(ConsoleAgentLayerTool.LayerRoute(Layer.CanonicalResourceId))" data-layer-detail-link>Back to layer</a>
                 </div>
             </div>
         }
@@ -62,8 +62,6 @@
 
 @code {
     private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
-    private string LayerHref => Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(Layer.CanonicalResourceId)}");
-    private RenderFragment BackLink => @<a class="console-button-link" href="@LayerHref" data-layer-detail-link>Back to layer</a>;
     private RenderFragment EditingFields => @<div data-editing-panel>
         <div class="console-field-grid">
             <label class="console-field">
@@ -101,15 +99,8 @@
     private ConsoleLayerEditingChange? _baseline;
     private long _generation;
     private bool _loading;
-    private IReadOnlyList<ConsoleAgentEntity> SelectedLayer => _exposures.Count == 0 ? [] :
-        [new() { Kind = ConsoleAgentEntityKind.Layer, Id = Layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture), ResourceId = Layer.CanonicalResourceId }];
-    private ConsoleAgentPageContext AgentContext => new()
-    {
-        Route = $"/operate/layers/{Uri.EscapeDataString(ResourceId)}/metadata",
-        Entities = SelectedLayer,
-        Selection = SelectedLayer,
-        Unsaved = new() { ChangedFieldCount = ChangedFields, PendingOperationCount = _loading || _saving ? 1 : 0 }
-    };
+    private ConsoleAgentPageContext AgentContext =>
+        ConsoleAgentLayerTool.Context((_exposures.Count == 0 ? null : Layer), ResourceId, "metadata", ChangedFields, _loading || _saving);
     private int ChangedFields
     {
         get

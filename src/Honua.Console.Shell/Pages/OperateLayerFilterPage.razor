@@ -25,7 +25,7 @@
         {
             <ConsolePageHeading Title="@($"{_layer.Name} · permanent filter")">
                 <ChildContent><p>Set the query filter applied to every read of this layer.</p></ChildContent>
-                <Actions>@BackLink</Actions>
+                <Actions><LayerBackLink CanonicalResourceId="@_layer!.CanonicalResourceId" /></Actions>
             </ConsolePageHeading>
         }
         else
@@ -35,7 +35,7 @@
                 <h1>@_layer.Name · permanent filter</h1>
                 <p>Author the server-enforced query filter on layer @_layer.LayerId. honua-server applies the <strong>permanent filter</strong> to every read of this layer (queries, exports, map renders) and validates the expression against the layer schema. Send a bad expression and the server rejects it with a reason; clearing removes the constraint entirely.</p>
                 <div class="console-detail-actions">
-                    <a class="console-button-link" href="@LayerHref" data-layer-detail-link>Back to layer</a>
+                    <a class="console-button-link" href="@Navigation.ToConsoleHref(ConsoleAgentLayerTool.LayerRoute(_layer!.CanonicalResourceId))" data-layer-detail-link>Back to layer</a>
                 </div>
             </div>
         }
@@ -54,8 +54,6 @@
 
 @code {
     private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
-    private string LayerHref => Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(_layer!.CanonicalResourceId)}");
-    private RenderFragment BackLink => @<a class="console-button-link" href="@LayerHref" data-layer-detail-link>Back to layer</a>;
     private RenderFragment Editor => @<div data-filter-panel>
             @if (!_filter.Bound)
             {
@@ -117,15 +115,8 @@
     private string? _loadedResourceId;
     private long _generation;
     private bool _loading;
-    private IReadOnlyList<ConsoleAgentEntity> SelectedLayer => _layer is null ? [] :
-        [new() { Kind = ConsoleAgentEntityKind.Layer, Id = _layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture), ResourceId = _layer.CanonicalResourceId }];
-    private ConsoleAgentPageContext AgentContext => new()
-    {
-        Route = $"/operate/layers/{Uri.EscapeDataString(ResourceId)}/filter",
-        Entities = SelectedLayer,
-        Selection = SelectedLayer,
-        Unsaved = new() { ChangedFieldCount = ChangedFields, PendingOperationCount = _loading || _busy ? 1 : 0 }
-    };
+    private ConsoleAgentPageContext AgentContext =>
+        ConsoleAgentLayerTool.Context(_layer, ResourceId, "filter", ChangedFields, _loading || _busy);
 
     [CascadingParameter] public ConsolePublicationLayerContext? PublicationContext { get; set; }
 
