@@ -43,6 +43,7 @@ try {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       const row = page.locator(".console-tree-row").first();
       const hasRows = await row.count() > 0;
+      assert.equal(hasRows, name !== "scale-v4-empty");
       const dimensions = hasRows ? await row.evaluate(element => ({ height: element.getBoundingClientRect().height, size: getComputedStyle(element).fontSize })) : null;
       if (hasRows) assert.ok(dimensions.height >= (width === 390 ? 44 : 28));
       if (name.startsWith("scale-v4") && width > 1000) {

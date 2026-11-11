@@ -13,6 +13,7 @@ public sealed class ConsolePublicationNode
     public required ConsolePublicationNodeKind Kind { get; init; }
     public string? Href { get; init; }
     public string? ServiceName { get; init; }
+    public string? PublicName { get; init; }
     public string? GeometryType { get; init; }
     public int ReportedCount { get; init; }
     public List<ConsolePublicationNode> Children { get; set; } = [];
@@ -263,8 +264,9 @@ public sealed class ConsolePublicationTree
     }
 
     public bool IsMatch(ConsolePublicationNode node) => string.IsNullOrWhiteSpace(Filter)
-        || node.Label.Contains(Filter, StringComparison.OrdinalIgnoreCase)
-        || node.ServiceName?.Contains(Filter, StringComparison.OrdinalIgnoreCase) == true
+        || node.Label.Contains(Filter.Trim(), StringComparison.OrdinalIgnoreCase)
+        || node.ServiceName?.Contains(Filter.Trim(), StringComparison.OrdinalIgnoreCase) == true
+        || node.PublicName?.Contains(Filter.Trim(), StringComparison.OrdinalIgnoreCase) == true
         || node.Children.Any(IsMatch);
 
     public static IEnumerable<ConsolePublicationNode> Descendants(ConsolePublicationNode parent) =>
@@ -279,6 +281,7 @@ public sealed class ConsolePublicationTree
         Label = DisplayName(service),
         Kind = ConsolePublicationNodeKind.Service,
         ServiceName = service.ServiceName,
+        PublicName = service.PublicName,
         ReportedCount = service.LayerCount,
         Href = $"/operate/services/{Uri.EscapeDataString(service.ServiceName!)}/settings"
     };

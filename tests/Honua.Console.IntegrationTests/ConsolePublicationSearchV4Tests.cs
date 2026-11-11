@@ -19,7 +19,7 @@ public sealed class ConsolePublicationSearchV4Tests
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
         var tree = context.Render<ConsolePublicationNavigation>();
         tree.WaitForAssertion(() => Assert.Equal(26, tree.FindAll("[role='treeitem']").Count));
-        tree.Find("input").Input("service");
+        tree.Find("input").Input(" service ");
         tree.WaitForAssertion(() => Assert.Single(tree.FindAll("[data-publication-search]")));
         Assert.Equal(["Folders (0)", "Services (500)", "Layers (0)", "Styles (0)"],
             tree.FindAll("[data-publication-search] h3").Select(element => element.TextContent));
@@ -45,6 +45,24 @@ public sealed class ConsolePublicationSearchV4Tests
         tree.Find("input").Input("");
         tree.WaitForAssertion(() => Assert.Empty(tree.FindAll("[data-publication-search]")));
         Assert.Equal(26, tree.FindAll("[role='treeitem']").Count);
+    }
+
+    [Fact]
+    public void SearchMatchesPublicNameWhenTheTitleAndServiceNameDiffer()
+    {
+        var source = new PublicationNavigationSource
+        {
+            ServiceSummaries = [new() { ServiceName = "inventory", Title = "Bridges", PublicName = "roads-public" }]
+        };
+        using var context = PublicationLayoutContext(source);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForAssertion(() => Assert.Equal(2, tree.FindAll("[role='treeitem']").Count));
+        tree.Find("input").Input(" roads ");
+        tree.WaitForAssertion(() => Assert.Single(tree.FindAll("[data-publication-search] [role='treeitem']")));
+        Assert.Contains("Bridges", tree.Find("[data-publication-search] [role='treeitem']").TextContent);
+        Assert.Equal("roads", source.LastQuery.NameQuery);
+        Assert.Equal(" roads ", tree.Find("input").GetAttribute("value"));
     }
 
     [Fact]

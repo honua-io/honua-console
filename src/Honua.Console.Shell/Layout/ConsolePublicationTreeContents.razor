@@ -21,7 +21,16 @@ else
         }
     </div>
 }
-<p class="console-tree-coverage" role="status">@($"Filtering {ConsolePublicationTreeContext.FormatCount(View.Tree.ServiceCount, "service name")} and {ConsolePublicationTreeContext.FormatCount(View.Tree.LayerTotal, "layer")}.") Expand a service to load its layers.</p>
+<p class="console-tree-coverage" role="status">
+    @if (View.FolderNavigationEnabled && !string.IsNullOrWhiteSpace(View.Tree.Filter))
+    {
+        <text>Searching service names in the active scope. Open a result to view its service.</text>
+    }
+    else
+    {
+        <text>@($"Filtering {ConsolePublicationTreeContext.FormatCount(View.Tree.ServiceCount, "service name")} and {ConsolePublicationTreeContext.FormatCount(View.Tree.LayerTotal, "layer")}.") Expand a service to load its layers.</text>
+    }
+</p>
 
 @code {
     [CascadingParameter] public ConsolePublicationTreeContext View { get; set; } = default!;
