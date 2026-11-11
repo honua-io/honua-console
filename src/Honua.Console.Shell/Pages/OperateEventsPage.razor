@@ -1,11 +1,14 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/events"
 @inject IStudioWorkflowPackageClient Workflows
 @using Honua.Console.Shell.Components
 @inject IServiceProvider Services
+@inject NavigationManager Navigation
 
 <section class="console-page @(V4Enabled ? "console-events-v4" : null)">
     @if (V4Enabled)
     {
+        <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/events-v4.css" />
         <ConsolePageHeading Title="Workflow events">
             <p>Run evidence connected to its job and workflow version.</p>
@@ -29,7 +32,7 @@
                                 Contract="GET /api/v1/admin/jobs/{jobId}"
                                 IssueRef="honua-server#1185" />
             <div class="console-toolbar">
-                <a class="console-button-link" href="/operate/observability" data-events-exit-jobs>View workflow jobs</a>
+                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/operate/observability")" data-events-exit-jobs>View workflow jobs</a>
             </div>
         </article>
     }
@@ -59,6 +62,17 @@
 
 @code {
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private ConsoleAgentPageContext AgentContext
+    {
+        get
+        {
+            var selected = string.IsNullOrWhiteSpace(JobId)
+                ? Array.Empty<ConsoleAgentEntity>()
+                : new[] { new ConsoleAgentEntity { Kind = ConsoleAgentEntityKind.Job, Id = JobId.Trim() } };
+            return new() { Route = new Uri(Navigation.Uri).AbsolutePath, Entities = selected, Selection = selected };
+        }
+    }
 
     [SupplyParameterFromQuery(Name = "jobId")]
     private string? JobId { get; set; }

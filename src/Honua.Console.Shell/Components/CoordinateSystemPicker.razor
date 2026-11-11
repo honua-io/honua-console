@@ -1,0 +1,81 @@
+@namespace Honua.Console.Shell.Components
+@inject IConsoleFileImportOperation FileImport
+
+<div class="studio-field-grid">
+    <label>
+        <span>Find @Label.ToLowerInvariant()</span>
+        <input class="console-input" aria-label="Find @Label.ToLowerInvariant()" maxlength="128"
+               placeholder="EPSG code or name" @bind="_query" @bind:event="oninput" @bind:after="ClearSearch" disabled="@Disabled" />
+    </label>
+    <button type="button" class="console-button console-button-secondary" disabled="@(Disabled || _searching || string.IsNullOrWhiteSpace(_query))"
+            @onclick="SearchAsync">@(_searching ? "Searching…" : "Search coordinate systems")</button>
+    @if (_items.Count > 0)
+    {
+        <label>
+            <span>@Label</span>
+            <select class="console-input" aria-label="@Label" value="@Selected?.Code" @onchange="ChooseAsync" disabled="@Disabled">
+                <option value="">Choose a coordinate system…</option>
+                @foreach (var item in _items)
+                {
+                    <option value="@item.Code">EPSG:@item.Code — @item.Name</option>
+                }
+            </select>
+        </label>
+    }
+    @if (_message is not null)
+    {
+        <p role="status">@_message</p>
+    }
+    @if (Selected is { } selected)
+    {
+        <p data-coordinate-system-choice>EPSG:@selected.Code — @selected.Name
+            @if (selected.Unit is { } unit) { <span> · @unit</span> }
+            @if (selected.Area is { } area) { <span> · @area</span> }
+        </p>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string AuthorityBinding { get; set; } = string.Empty;
+    [Parameter] public HonuaAdminCoordinateSystem? Selected { get; set; }
+    [Parameter] public EventCallback<HonuaAdminCoordinateSystem?> SelectedChanged { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    private string _query = string.Empty;
+    private IReadOnlyList<HonuaAdminCoordinateSystem> _items = [];
+    private string? _message;
+    private bool _searching;
+    private int _searchRevision;
+
+    private async Task ClearSearch()
+    {
+        ++_searchRevision;
+        _items = [];
+        _message = null;
+        _searching = false;
+        await SelectedChanged.InvokeAsync(null);
+    }
+
+    private async Task SearchAsync()
+    {
+        var revision = ++_searchRevision;
+        var binding = AuthorityBinding;
+        _searching = true;
+        try
+        {
+            var result = await FileImport.SearchCoordinateSystemsAsync(_query, binding);
+            if (revision != _searchRevision || binding != AuthorityBinding) return;
+            _items = result.Value?.Items ?? [];
+            _message = !result.IsAllowed ? result.Message : _items.Count == 0 ? "No matching coordinate systems. Try an EPSG code or another name."
+                : result.Value!.HasMore ? "More matches are available. Narrow the search to find the intended system." : null;
+        }
+        finally
+        {
+            if (revision == _searchRevision) _searching = false;
+        }
+    }
+
+    private Task ChooseAsync(ChangeEventArgs args) => SelectedChanged.InvokeAsync(
+        int.TryParse(args.Value?.ToString(), out var code) ? _items.FirstOrDefault(item => item.Code == code) : null);
+}

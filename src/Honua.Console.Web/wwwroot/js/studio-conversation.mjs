@@ -5,7 +5,7 @@ import {promptWithStudioDesignFocus} from './studio-design-focus.mjs';
 // The supported browser assistant uses the Studio proxy and canonical MCP tools.
 // Its transcript belongs to this tab; server-owned drafts and saved versions remain durable.
 export class StudioConversation {
-    constructor(workspace, loadAssets = () => import('/_studio/console.js')) {
+    constructor(workspace, loadAssets = () => import(new URL('../_studio/console.js', import.meta.url).href)) {
         this.workspace = workspace;
         this.loadAssets = loadAssets;
         this.messages = [];
@@ -111,8 +111,11 @@ export class StudioConversation {
                 init = {...init,body:JSON.stringify(message)};
             }
         }
+        const turnSignal = this.options?.signal;
+        const signal = init.signal && turnSignal ? AbortSignal.any([init.signal, turnSignal]) : init.signal || turnSignal;
+        if (signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
         const response = await this.workspace.request(`/api/agent-workspace/studio/${endpoint}`, {
-            ...init, credentials:'same-origin', signal:init.signal || this.options?.signal,
+            ...init, credentials:'same-origin', signal,
             headers:{...Object.fromEntries(new Headers(init.headers)),
                 'Content-Type':'application/json','X-CSRF-Token':this.workspace.session.csrfToken,
                 'X-Honua-Environment':this.binding.environmentId,'X-Honua-Session-Partition':this.binding.principalId,

@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/layers/{ResourceId}/metadata"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
@@ -18,7 +19,7 @@
             <h1>@Layer.Name · editing</h1>
             <p>Set the editing policy of layer @Layer.LayerId in one of its FeatureServer services. Fields left unchanged keep their current server value.</p>
             <div class="console-detail-actions">
-                <a class="console-button-link" href="@($"/operate/layers/{Layer.CanonicalResourceId}")" data-layer-detail-link>Back to layer</a>
+                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/layers/{Layer.CanonicalResourceId}")" data-layer-detail-link>Back to layer</a>
             </div>
         </div>
 

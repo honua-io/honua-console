@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @namespace Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 
@@ -50,7 +51,7 @@
                 else if (Connections.Count == 0)
                 {
                     <p class="console-muted">
-                        No data connections are available. <a href="/operate/connections/new">Add a connection</a>,
+                        No data connections are available. <a href="@ConsoleNavigation.ToConsoleHref("/operate/connections/new")">Add a connection</a>,
                         then choose a table here.
                     </p>
                 }

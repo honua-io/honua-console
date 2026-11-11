@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/alerts/rules"
 @using Honua.Console.Shell.Components
 @inject IOperateAlertRulesDataSource RulesData
@@ -16,7 +17,7 @@
         <p class="console-kicker">Operator workflow</p>
         <h1>Alert rules</h1>
         <p>Author and review the realtime, geofence, threshold, and dwell rules that raise alerts. This is the rule definition surface; a firing alert opens its own evidence detail. Rule definitions are server-owned: the list and editor render a capability explanation rather than fabricated rules when the server rule contract is not bound.</p>
-        <p><a class="console-button-link" href="@OperateAlertRulesRoutes.Create" data-alert-rule-create>Create alert rule</a></p>
+        <p><a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref(OperateAlertRulesRoutes.Create)" data-alert-rule-create>Create alert rule</a></p>
     </div>
 
     @if (_loading)
@@ -72,7 +73,7 @@
                                 </td>
                                 <td>@rule.ActiveIncidentCount</td>
                                 <td>
-                                    <a class="console-button-link" href="@OperateAlertRulesRoutes.Detail(rule.RuleId)">Open</a>
+                                    <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref(OperateAlertRulesRoutes.Detail(rule.RuleId))">Open</a>
                                 </td>
                             </tr>
                         }

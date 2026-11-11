@@ -12,7 +12,7 @@ import { inspectV4HomePresentation } from "./v4-home-presentation.mjs";
 import { metadataPreviews, inspectMetadataPresentation } from "./metadata-presentation.mjs";
 
 const previews = path.resolve("artifacts/catalog-preview");
-const assets = path.resolve("artifacts/honua-console-web/wwwroot");
+const assets = path.resolve("artifacts/honua-console-web/wwwroot/console");
 const navigationPreviews = ["navigation-v4-true", "navigation-v4-false"];
 const operatePreviews = ["operate-shared-v4-true", "operate-shared-v4-false"];
 const v4Previews = ["home-v4-true", "home-v4-false", ...navigationPreviews, ...operatePreviews];

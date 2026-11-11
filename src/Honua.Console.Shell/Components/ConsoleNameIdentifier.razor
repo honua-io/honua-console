@@ -1,0 +1,14 @@
+@inject NavigationManager ConsoleNavigation
+<span class="console-name-identifier">
+    <span class="console-name-identifier-name">@if (Href is not null) { <a href="@ConsoleNavigation.ToConsoleLinkHref(Href)">@Name</a> } else { @Name }</span>
+    @if (!string.IsNullOrWhiteSpace(Identifier))
+    {
+        <span class="console-name-identifier-id">@Identifier</span>
+    }
+</span>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+    [Parameter] public string? Identifier { get; set; }
+    [Parameter] public string? Href { get; set; }
+}

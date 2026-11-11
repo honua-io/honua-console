@@ -3,7 +3,9 @@
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Services
+@using Microsoft.Extensions.DependencyInjection
 @inject IRbacAccessDataSource RbacData
+@inject IServiceProvider Services
 @inject IConsoleNotificationService Notifications
 
 @* Settings > Access · roles & permissions (screens-collab-rbac.jsx RBACOverview): the five-level scope
@@ -12,26 +14,28 @@
    (honua-server#1162); renders an explicit missing-binding surface when unconfigured (Charter section 11). *@
 
 <section class="console-page rbac-overview" data-rbac-overview>
-    <div class="console-detail-heading">
-        <div>
-            <p class="console-kicker">Settings <span class="console-crumb-sep">/</span> Access · RBAC</p>
-            <h1>Access · roles &amp; permissions</h1>
-            <p class="console-muted rbac-lede">Roles define permissions for users and automation. The environment enforces grants and object policies.</p>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Roles and permissions">
+            <ChildContent><p class="console-muted rbac-lede">Roles define permissions for users and automation. The environment enforces grants and object policies.</p></ChildContent>
+            <Actions>@HeaderActions</Actions>
+        </ConsolePageHeading>
+        <nav class="console-chip-row rbac-navigation" aria-label="Access settings">
+            <a href="operate/access" aria-current="page">Roles and permissions</a>
+            <a href="operate/access/members" aria-current="false">Users</a>
+        </nav>
+    }
+    else
+    {
+        <div class="console-detail-heading">
+            <div>
+                <p class="console-kicker">Settings <span class="console-crumb-sep">/</span> Access · RBAC</p>
+                <h1>Access · roles &amp; permissions</h1>
+                <p class="console-muted rbac-lede">Roles define permissions for users and automation. The environment enforces grants and object policies.</p>
+            </div>
+            <div class="console-detail-actions">@HeaderActions</div>
         </div>
-        <div class="console-detail-actions">
-            @* Bound to honua-server's Console Access (RBAC) authoring + audit contract (honua-server#1162):
-               role create/delete and the role-change audit trail. Enabled once the overview loads and the
-               caller may manage roles; otherwise honestly disabled with the reason. *@
-            <button class="console-button console-button-secondary" type="button" data-rbac-audit
-                    disabled="@(_overview is null)"
-                    title="@(_overview is null ? "Available once the RBAC overview loads." : "View the role-change audit trail.")"
-                    @onclick="ToggleAuditAsync">Roles audit</button>
-            <button class="console-button" type="button" data-rbac-custom-role
-                    disabled="@(_overview is null || !_overview.CanManageRoles)"
-                    title="@(_overview is null ? "Available once the RBAC overview loads." : (_overview.CanManageRoles ? "Author a custom role." : "You lack the manage-roles permission for this scope."))"
-                    @onclick="ToggleCreate">+ Custom role</button>
-        </div>
-    </div>
+    }
 
     @if (_showCreate && _overview is { } createOverview)
     {
@@ -113,12 +117,19 @@
     else if (_bindingState is not null)
     {
         <ConsoleStateView HeadingLevel="2" Kind="error"
-                          Kicker="@_bindingState.State"
+                          Kicker="@(V4Enabled ? string.Empty : _bindingState.State)"
                           Title="Access (RBAC) API is not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
     }
     else if (_overview is { } overview)
     {
+        @if (V4Enabled)
+        {
+            <ConsoleMetricTile Label="Roles" Value="@(overview.BuiltInRoleCount + overview.CustomRoleCount)">
+                <p class="console-muted">@overview.BuiltInRoleCount built-in roles · @overview.CustomRoleCount custom · @overview.MembersAffected users affected</p>
+            </ConsoleMetricTile>
+        }
+
         <div class="rbac-scope-strip" data-rbac-scope-strip>
             <h2 class="rbac-section-title">Permission scope hierarchy</h2>
             <ol class="rbac-scope-row">
@@ -140,15 +151,18 @@
             <p class="console-muted rbac-scope-note">Default flows top → bottom. Overrides at any level take precedence.</p>
         </div>
 
-        <div class="console-toolbar console-toolbar-spread" data-rbac-toolbar>
-            <div class="console-chip-row">
-                <span class="console-status console-state-neutral">built-in only</span>
-                <span class="console-status console-state-neutral">custom</span>
+        @if (!V4Enabled)
+        {
+            <div class="console-toolbar console-toolbar-spread" data-rbac-toolbar>
+                <div class="console-chip-row">
+                    <span class="console-status console-state-neutral">built-in only</span>
+                    <span class="console-status console-state-neutral">custom</span>
+                </div>
+                <span class="console-muted" data-rbac-counts>
+                    @overview.BuiltInRoleCount built-in roles · @overview.CustomRoleCount custom · @overview.MembersAffected users affected
+                </span>
             </div>
-            <span class="console-muted" data-rbac-counts>
-                @overview.BuiltInRoleCount built-in roles · @overview.CustomRoleCount custom · @overview.MembersAffected users affected
-            </span>
-        </div>
+        }
 
         <ConsoleTableRegion Class="console-table-wrap rbac-matrix-wrap" Label="Roles and permissions">
             <table class="console-table rbac-matrix" data-rbac-matrix>
@@ -214,6 +228,23 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private RenderFragment HeaderActions => @<text>
+            @* Bound to honua-server's Console Access (RBAC) authoring + audit contract (honua-server#1162):
+               role create/delete and the role-change audit trail. Enabled once the overview loads and the
+               caller may manage roles; otherwise honestly disabled with the reason. *@
+            <button class="console-button console-button-secondary" type="button" data-rbac-audit
+                    disabled="@(_overview is null)"
+                    title="@(_overview is null ? "Available once the RBAC overview loads." : "View the role-change audit trail.")"
+                    @onclick="ToggleAuditAsync">Roles audit</button>
+            <button class="console-button" type="button" data-rbac-custom-role
+                    disabled="@(_overview is null || !_overview.CanManageRoles)"
+                    title="@(_overview is null ? "Available once the RBAC overview loads." : (_overview.CanManageRoles ? "Author a custom role." : "You lack the manage-roles permission for this scope."))"
+                    @onclick="ToggleCreate">+ Custom role</button>
+
+    </text>;
+
     private RbacOverviewView? _overview;
     private RbacCapabilityState? _bindingState;
     private bool _loading = true;

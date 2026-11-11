@@ -1,10 +1,11 @@
+@inject NavigationManager ConsoleNavigation
 @using Honua.Console.Contracts
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IServiceProvider Services
 @implements IDisposable
 
-<ConsolePanel Title="What this server serves" HeadingId="home-inventory-heading" Class="console-home-inventory">
+<ConsolePanel Title="What this server serves" HeadingId="home-inventory-heading" Class="console-home-inventory console-summary">
     @if (_busy)
     {
         <p role="status">Reading services and folders…</p>
@@ -12,11 +13,11 @@
     else
     {
         <div class="console-home-inventory-summary">
-            <a href="/operate/services" data-home-services>
+            <a href="@ConsoleNavigation.ToConsoleHref("/operate/services")" data-home-services>
                 <ConsoleMetricTile Label="@(_services.PartialResult ? "Services in returned sources" : "Services")"
                                    Value="@(_services.IsAllowed ? _services.Value?.Total : null)" />
             </a>
-            <dl class="console-home-inventory-details">
+            <dl class="console-home-inventory-details console-summary-details">
                 <div><dt>Folders</dt><dd data-home-folder-count>@FolderCount</dd></div>
                 <div><dt>@(_services.PartialResult ? "Layers in returned sources" : "Layers")</dt><dd data-home-layer-count>@LayerCount</dd></div>
             </dl>

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 // Live-LLM smoke lane (honua-console#283).
 //
-// Drives the STOCK Console Web host against a REAL honua-server that is wired to
+// Drives the legacy regression fixture against a real honua-server wired to
 // a REAL AI generation provider, so the studio generate-from-prompt surfaces
 // (QUERY / MAP / FORM / WORKFLOW) exercise genuine prompt -> LLM -> result
 // generation — the one thing the deterministic live lane cannot cover. LLM
@@ -56,7 +56,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls ${BASE_URL}`,
+    command: `dotnet run --project tests/Honua.Console.LegacyHost/Honua.Console.LegacyHost.csproj --urls ${BASE_URL}`,
     cwd: REPO_ROOT,
     url: `${BASE_URL}/version.json`,
     reuseExistingServer: !process.env.CI,

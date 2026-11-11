@@ -14,6 +14,8 @@
 // keeps its inline SVG schematic placeholder and never throws. This preserves the no-mock /
 // missing-binding contract: a live map appears only when a real style source is bound.
 
+import './map-fetch-guard.js';
+
 // Resolved against document.baseURI rather than a root-absolute path so the Console still works
 // when hosted under a path prefix, and against the DOCUMENT rather than import.meta.url because
 // this module is imported from a blob: URL in some hosts (see e2e map-preview-interop.spec.ts),
@@ -121,8 +123,57 @@ function fitToFeaturesOnce(map) {
     map.on('idle', onIdle);
 }
 
+export function mapRequestParameters(authorize, url) {
+    const approved = authorize(url);
+    return { url: approved.url, credentials: approved.credentials, headers: approved.headers };
+}
+
+export async function requireMapWorkerGuard(maplibregl) {
+    if (typeof maplibregl?.prewarm !== 'function' || typeof maplibregl?.importScriptInWorkers !== 'function') {
+        throw new Error('Map workers cannot be guarded');
+    }
+    maplibregl.prewarm();
+    await maplibregl.importScriptInWorkers(new URL('./map-fetch-guard.js', import.meta.url).href);
+}
+
+export function bindMapSession(map, authorize, subscribe) {
+    if (!map || typeof authorize?.current !== 'function' || typeof subscribe !== 'function') return () => {};
+    let stop = () => {};
+    const listener = () => {
+        if (authorize.current()) return;
+        stop();
+        try {
+            map.remove();
+        } catch {
+            // The map is already gone; the session change still stands.
+        }
+    };
+    stop = subscribe(listener) || (() => {});
+    return () => stop();
+}
+
+const sessionReleases = new Map();
+
 // Attempts to mount a live MapLibre map into the given container.
 // Returns true when a real map was bound; false when the component should keep its placeholder.
+async function mountAuthorizedMap(maplibregl, container, options) {
+    const capture = globalThis.honuaConsoleCaptureResourceAuthorization;
+    const authorize = typeof capture === 'function' ? await capture() : null;
+    const mapOptions = {
+        container,
+        style: options.styleUrl,
+        center: options.center ?? [0, 0],
+        zoom: options.zoom ?? 1,
+        attributionControl: true,
+    };
+    if (authorize) {
+        mapOptions.transformRequest = (url) => mapRequestParameters(authorize, url);
+        await requireMapWorkerGuard(maplibregl);
+    }
+    const map = new maplibregl.Map(mapOptions);
+    return { map, releaseSession: bindMapSession(map, authorize, globalThis.honuaConsoleSubscribeSession) };
+}
+
 export async function init(container, options) {
     if (!container || !options || !options.styleUrl) {
         return false;
@@ -131,14 +182,11 @@ export async function init(container, options) {
     if (!maplibregl) {
         return false;
     }
+    let releaseSession = () => {};
     try {
-        const map = new maplibregl.Map({
-            container,
-            style: options.styleUrl,
-            center: options.center ?? [0, 0],
-            zoom: options.zoom ?? 1,
-            attributionControl: true,
-        });
+        const mounted = await mountAuthorizedMap(maplibregl, container, options);
+        const { map } = mounted;
+        releaseSession = mounted.releaseSession;
         if (options.showScale) {
             map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
         }
@@ -187,9 +235,11 @@ export async function init(container, options) {
         // Remember the initial view so the custom Recenter control can restore it.
         map._homeCenter = options.center ?? [0, 0];
         map._homeZoom = options.zoom ?? 1;
+        sessionReleases.set(map, releaseSession);
         instances.set(container, map);
         return true;
     } catch {
+        releaseSession();
         return false;
     }
 }
@@ -253,6 +303,8 @@ export function recenter(container, center, zoom) {
 export function dispose(container) {
     const map = instances.get(container);
     if (map) {
+        sessionReleases.get(map)?.();
+        sessionReleases.delete(map);
         try {
             map.remove();
         } catch {

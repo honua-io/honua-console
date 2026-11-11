@@ -1,0 +1,30 @@
+.console-shell[data-console-v4="true"] .share-manage .console-chip-row {
+    margin-top: var(--space-3);
+}
+.console-shell[data-console-v4="true"] .share-manage :is(input:not([type="checkbox"]), select, textarea) {
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    border-color: var(--c-border-strong);
+}
+.console-shell[data-console-v4="true"] .share-manage input[type="checkbox"] {
+    min-width: 24px;
+    min-height: 24px;
+}
+.console-shell[data-console-v4="true"] .share-manage [data-share-sidebar] .console-panel-emphasis {
+    background: var(--c-surface);
+    border-color: var(--c-border);
+    box-shadow: none;
+}
+.console-shell[data-console-v4="true"] .share-manage .share-manage-lede {
+    margin-bottom: var(--space-6);
+}
+@media (max-width: 640px) {
+    .console-shell[data-console-v4="true"] .share-manage .console-page-heading-actions {
+        width: 100%;
+    }
+    .console-shell[data-console-v4="true"] .share-manage .console-toolbar {
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        align-items: flex-end;
+    }
+}

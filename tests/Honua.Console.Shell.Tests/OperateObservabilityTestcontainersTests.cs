@@ -8,6 +8,7 @@ using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -119,6 +120,7 @@ public sealed class OperateObservabilityTestcontainersTests
             var services = new ServiceCollection();
             services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
             services.AddSingleton<IConsoleOperateObservabilityClient>(operateClient);
+            services.AddSingleton<NavigationManager>(new TestPageNavigationManager("operate/activity"));
             // OperateObservabilityPage (and its ConsoleCapabilityGate) inject IConsoleCapabilityManifest
             // to gate the SIEM/investigations depth surface behind the first-release cut-line. This
             // hand-rolled render container must register it or Blazor throws at injection time. Advertise
@@ -126,6 +128,7 @@ public sealed class OperateObservabilityTestcontainersTests
             // AddHonuaConsoleShell wires the config-list-backed default in the real host.
             services.AddSingleton<IConsoleCapabilityManifest>(
                 new ConsoleCapabilityManifest([ConsoleCapabilityKeys.SiemInvestigations]));
+            services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
             var provider = services.BuildServiceProvider();
 
             await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
