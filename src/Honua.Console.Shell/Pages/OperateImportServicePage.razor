@@ -127,7 +127,7 @@
         {
             <div class="console-panel console-state-info" role="status" data-discover-progress>
                 <p class="console-kicker">Discovering</p>
-                @if (V4Enabled) { <h3>Scanning the remote service…</h3> } else { <h2>Scanning the remote service…</h2> }
+                @OperateHeading.Section(V4Enabled, "Scanning the remote service…")
                 <progress></progress>
             </div>
         }
@@ -136,7 +136,7 @@
         {
             <div class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
                 <p class="console-kicker">@r.State</p>
-                @if (V4Enabled) { <h3>@(r.Succeeded ? "Service discovered" : "Discovery failed")</h3> } else { <h2>@(r.Succeeded ? "Service discovered" : "Discovery failed")</h2> }
+                @OperateHeading.Section(V4Enabled, r.Succeeded ? "Service discovered" : "Discovery failed")
                 <p>@r.Detail</p>
                 @if (r.Succeeded)
                 {

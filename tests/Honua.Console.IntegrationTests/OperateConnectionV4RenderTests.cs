@@ -55,7 +55,7 @@ public sealed class OperateConnectionV4RenderTests
             Assert.Equal(Connection.Id, entity.Id);
             Assert.Equal("/operate/connections/connection%20a", registry.Current.Route);
             Assert.Equal(registry.Current.Route, ConsoleAgentRoutes.ForEntity(entity));
-            CatalogAdminPreview.Capture("data-connection-detail", page.Markup);
+            if (mount == "/console/") CatalogAdminPreview.Capture("data-connection-detail", page.Markup);
         }
         page.Find("button").Click();
         page.WaitForAssertion(() => Assert.Contains("Connection test", page.Markup));

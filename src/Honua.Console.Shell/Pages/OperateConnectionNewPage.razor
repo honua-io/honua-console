@@ -46,6 +46,9 @@
 @code {
     private const string Intro = "New connections capture provider, endpoint, account binding, and secret reference separately so credentials never need to be displayed in Console. The password is sent to the configured server secret store and is never echoed back.";
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    // Positions in DraftValues and _baseline; keep both arrays in this order.
+    private const int ProviderField = 1;
+    private const int PortField = 4;
     private string[] DraftValues => [_name, _provider, _credentialSource, _host, _port.ToString(System.Globalization.CultureInfo.InvariantCulture), _database, _username, _password, _secretReference, _sslMode, _description];
     private string[] _baseline = [string.Empty, "postgis", "password", string.Empty, "5432", string.Empty, string.Empty, string.Empty, string.Empty, "Disable", string.Empty];
     private bool _loading = true;
@@ -179,7 +182,7 @@
         {
             <div class="console-panel @(test.Tested && test.IsHealthy ? "console-state-success" : "console-state-warning")" role="status">
                 <p class="console-kicker">@test.State</p>
-                @if (V4Enabled) { <h3>@(test.Tested && test.IsHealthy ? "Connection test passed" : "Connection test")</h3> } else { <h2>@(test.Tested && test.IsHealthy ? "Connection test passed" : "Connection test")</h2> }
+                @OperateHeading.Section(V4Enabled, test.Tested && test.IsHealthy ? "Connection test passed" : "Connection test")
                 <p>@test.Detail</p>
             </div>
         }
@@ -188,7 +191,7 @@
         {
             <div class="console-panel console-state-danger" role="alert">
                 <p class="console-kicker">@_result.State</p>
-                @if (V4Enabled) { <h3>Connection not created</h3> } else { <h2>Connection not created</h2> }
+                @OperateHeading.Section(V4Enabled, "Connection not created")
                 <p>@_result.Detail</p>
             </div>
         }
@@ -276,8 +279,8 @@
             _providerAvailability = await ConnectionCreate.GetProviderAvailabilityAsync();
             _provider = AvailableProviders.FirstOrDefault()?.Value ?? string.Empty;
             _port = CurrentProvider.DefaultPort;
-            _baseline[1] = _provider;
-            _baseline[4] = _port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            _baseline[ProviderField] = _provider;
+            _baseline[PortField] = _port.ToString(System.Globalization.CultureInfo.InvariantCulture);
             var view = await OperateData.GetConnectionsViewAsync();
             _existingNames = view.Connections
                 .Select(connection => connection.Name)

@@ -92,12 +92,12 @@
             <div class="console-panel console-state-info" role="status" data-import-progress>
                 @if (_phase == ImportPhase.Uploading)
                 {
-                    @if (V4Enabled) { <h3>Uploading @_uploadPercent%</h3> } else { <h2>Uploading @_uploadPercent%</h2> }
+                    @OperateHeading.Section(V4Enabled, $"Uploading {_uploadPercent}%")
                     <progress value="@_uploadPercent" max="100" data-upload-progress>@_uploadPercent%</progress>
                 }
                 else
                 {
-                    @if (V4Enabled) { <h3>@(_phase == ImportPhase.Previewing ? "Checking coordinate system…" : "Importing into PostgreSQL…")</h3> } else { <h2>@(_phase == ImportPhase.Previewing ? "Checking coordinate system…" : "Importing into PostgreSQL…")</h2> }
+                    @OperateHeading.Section(V4Enabled, _phase == ImportPhase.Previewing ? "Checking coordinate system…" : "Importing into PostgreSQL…")
                     <progress data-upload-progress></progress>
                 }
             </div>
@@ -107,7 +107,7 @@
         {
             <div class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
                 <p class="console-kicker">@r.State</p>
-                @if (V4Enabled) { <h3>@(r.Succeeded ? "File imported" : r.State == ConsoleFileImportResult.CoordinateSystemMismatchState ? "Check the imported coordinate system" : "Import failed")</h3> } else { <h2>@(r.Succeeded ? "File imported" : r.State == ConsoleFileImportResult.CoordinateSystemMismatchState ? "Check the imported coordinate system" : "Import failed")</h2> }
+                @OperateHeading.Section(V4Enabled, r.Succeeded ? "File imported" : r.State == ConsoleFileImportResult.CoordinateSystemMismatchState ? "Check the imported coordinate system" : "Import failed")
                 <p>@r.Detail</p>
                 @if (r.Succeeded || r.State == ConsoleFileImportResult.CoordinateSystemMismatchState)
                 {

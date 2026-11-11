@@ -116,9 +116,14 @@
 
 @code {
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    // operate/connections/{id}/diagnostics has four segments; the id itself may be any text.
+    private bool OnDiagnosticsRoute =>
+        Navigation.ToBaseRelativePath(new Uri(Navigation.Uri).GetLeftPart(UriPartial.Path))
+            .Split('/', StringSplitOptions.RemoveEmptyEntries).Length == 4;
+
     private ConsoleAgentPageContext AgentContext => new()
     {
-        Route = ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForConnection(_connection?.Id ?? ConnectionId)) + (Navigation.ToBaseRelativePath(new Uri(Navigation.Uri).GetLeftPart(UriPartial.Path)).Split('/', StringSplitOptions.RemoveEmptyEntries).Length == 4 ? "/diagnostics" : string.Empty),
+        Route = ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForConnection(_connection?.Id ?? ConnectionId)) + (OnDiagnosticsRoute ? "/diagnostics" : string.Empty),
         Entities = _connection is { } connection ? [ConsoleAgentEntity.ForConnection(connection.Id)] : [],
         Unsaved = new() { PendingOperationCount = (_loading ? 1 : 0) + (_testing ? 1 : 0) }
     };
@@ -140,12 +145,12 @@
     private RenderFragment Diagnostics => @<text>
                 @if (_safeDiagnostic is null)
                 {
-                    @if (V4Enabled) { <h3>No Active Diagnostic</h3> } else { <h2>No Active Diagnostic</h2> }
+                    @OperateHeading.Section(V4Enabled, "No Active Diagnostic")
                     <p class="console-muted">The latest connection test passed without an operator action.</p>
                 }
                 else
                 {
-                    @if (V4Enabled) { <h3>@_safeDiagnostic.FailureCode</h3> } else { <h2>@_safeDiagnostic.FailureCode</h2> }
+                    @OperateHeading.Section(V4Enabled, _safeDiagnostic.FailureCode)
                     <p class="console-muted">@_safeDiagnostic.Summary</p>
                     <dl class="console-definition-list">
                         <dt>Outcome</dt>
