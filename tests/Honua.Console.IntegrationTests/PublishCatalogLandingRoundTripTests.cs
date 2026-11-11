@@ -37,7 +37,7 @@ public sealed class PublishCatalogLandingRoundTripTests
         };
 
         var result = await client.PublishAsync(request);
-        SkipIfServerNotReady(result);
+        RequireContentPublish(result);
         Assert.NotNull(result.Data);
         var publicationId = result.Data!.Route.PublicationId;
         Assert.False(string.IsNullOrWhiteSpace(publicationId));
@@ -54,7 +54,7 @@ public sealed class PublishCatalogLandingRoundTripTests
 
         // 2. The published artifact is reachable ANONYMOUSLY at its slug (the round-trip proof it is live).
         var anon = await verifier.FetchPublishedRouteAnonymouslyAsync(route.RouteSlug!);
-        SkipIfPublishedRouteNotReady(anon);
+        RequireAnonymousRoute(anon);
         Assert.True(anon.Granted, $"The public publication was not anonymously reachable at its slug (HTTP {anon.StatusCode}).");
     }
 
@@ -81,7 +81,7 @@ public sealed class PublishCatalogLandingRoundTripTests
         };
 
         var result = await client.PublishAsync(request);
-        SkipIfServerNotReady(result);
+        RequireContentPublish(result);
         Assert.NotNull(result.Data);
 
         using var verifier = _fixture.CreateVerifier();
@@ -100,7 +100,7 @@ public sealed class PublishCatalogLandingRoundTripTests
         // probe is genuinely anonymous (no bypass); skip cleanly otherwise rather than asserting a false
         // result. The private visibility above is the authoritative independent landing proof regardless.
         var anon = await verifier.FetchPublishedRouteAnonymouslyAsync(route.RouteSlug!);
-        SkipIfPublishedRouteNotReady(anon);
+        RequireAnonymousRoute(anon);
         // Only the dev-auth-bypass profile can excuse a 2xx here (the probe is auto-authenticated as admin).
         // Gate the skip on that explicit signal so a genuine anonymous leak still FAILS in a non-bypass run,
         // rather than being silently masked. (Codex review #147.)
@@ -143,11 +143,9 @@ public sealed class PublishCatalogLandingRoundTripTests
 
         var result = await client.PublishAsync(request);
 
-        // A clean validation rejection (4xx) is the expected behavior; a 5xx means the server image is not
-        // ready for the publish path (contract drift), so skip rather than false-fail.
-        Skip.If(
+        Assert.False(
             result.Issue is { } issue5 && issue5.StatusCode >= 500,
-            $"The pinned honua-server image could not service the publish path ({result.Issue!.State} — {result.Issue.Detail}).");
+            $"The pinned honua-server image could not service the publish path ({result.Issue?.State}).");
 
         Assert.Null(result.Data);
         Assert.NotNull(result.Issue);
@@ -156,26 +154,22 @@ public sealed class PublishCatalogLandingRoundTripTests
         // Independently confirm NOTHING landed: no publication is reachable at the slug, anonymously or not.
         using var verifier = _fixture.CreateVerifier();
         var anon = await verifier.FetchPublishedRouteAnonymouslyAsync(slug);
+        RequireAnonymousRoute(anon);
         Assert.False(anon.Granted, $"A rejected publish unexpectedly left an anonymously-reachable route (HTTP {anon.StatusCode}).");
     }
 
-    // The anonymous published-route surface (GET /api/v1/published/{slug}) can 5xx on a stale pinned image
-    // (the route-resolve path is a known contract-drift point per plan §5.5) or be unreachable (status 0).
-    // That is a server-readiness signal, not a console regression — skip cleanly so the lane reports
-    // "not exercised" rather than a false failure. A clean 2xx grant or 4xx denial is a real result and the
-    // assertion stands. The admin publication-detail read above is the hard landing proof that always runs.
-    private static void SkipIfPublishedRouteNotReady(VerifiedAnonymousFetch fetch)
+    // Status 0 means the lane never reached the server. A 5xx is a failed receipt, not a denial.
+    private static void RequireAnonymousRoute(VerifiedAnonymousFetch fetch)
     {
         Skip.If(
-            fetch.StatusCode == 0 || fetch.StatusCode >= 500,
-            $"The anonymous published-route surface is not ready on the pinned server image (HTTP {fetch.StatusCode}); "
-            + "the route-resolve path is a known contract-drift point (plan §5.5).");
+            fetch.StatusCode == 0,
+            "The anonymous published-route surface could not be reached.");
+        Assert.True(
+            fetch.StatusCode < 500,
+            $"The anonymous published-route surface returned HTTP {fetch.StatusCode}.");
     }
 
-    // A known-valid publish that comes back Unavailable / with a 5xx detail means the pinned server image
-    // cannot service the publish path (contract drift), not a console regression. Skip cleanly so the lane
-    // signals "not exercised" rather than a false failure; the negative companion still proves the reject path.
-    private static void SkipIfServerNotReady(HonuaAdminEndpointResult<HonuaContentPublicationDetail> result)
+    private static void RequireContentPublish(HonuaAdminEndpointResult<HonuaContentPublicationDetail> result)
     {
         if (result.Data is not null)
         {
@@ -183,15 +177,8 @@ public sealed class PublishCatalogLandingRoundTripTests
         }
 
         var issue = result.Issue;
-        var serverNotReady =
-            issue is null
-            || string.Equals(issue.State, "Unavailable", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(issue.State, "Unsupported", StringComparison.OrdinalIgnoreCase)
-            || issue.StatusCode >= 500;
-
-        Skip.If(
-            serverNotReady,
-            $"The pinned honua-server image could not service the content-publish path ({issue?.State} — {issue?.Detail}); "
-            + "the publish→catalog-landing round-trip needs a server build whose console-publications path is ready.");
+        Assert.False(
+            issue is null || LiveImageReceipt.ContentIssueIsImageFailure(issue.StatusCode, issue.State),
+            $"The pinned honua-server image could not service the content-publish path ({issue?.State}).");
     }
 }
