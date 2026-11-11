@@ -33,7 +33,7 @@
     private const string Intro = "Discover the importable layers of a remote GeoServices REST or OGC service — or point at a GeoServices REST catalog root to browse every service. Pick the services and layers you want, then import them into Honua.";
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private RenderFragment ImportForm => @<text>
-        <div class="studio-field-grid @(V4Enabled ? "console-service-controls" : null)">
+        <div class="studio-field-grid @(V4Enabled ? "console-data-controls" : null)">
             <label>
                 <span>Service or catalog URL</span>
                 <input class="console-input" @bind="_serviceUrl" @bind:event="oninput" @bind:after="ClearResult"
@@ -56,7 +56,7 @@
 
         @if (_authMode is "arcgis-token" or "basic")
         {
-            <div class="studio-field-grid @(V4Enabled ? "console-service-controls" : null)" data-auth-fields>
+            <div class="studio-field-grid @(V4Enabled ? "console-data-controls" : null)" data-auth-fields>
                 <label>
                     <span>Username</span>
                     <input class="console-input" aria-label="Username" @bind="_username" @bind:event="oninput" @bind:after="ClearResult" />
@@ -82,7 +82,7 @@
         }
         else if (_authMode == "token")
         {
-            <div class="studio-field-grid @(V4Enabled ? "console-service-controls" : null)" data-auth-fields>
+            <div class="studio-field-grid @(V4Enabled ? "console-data-controls" : null)" data-auth-fields>
                 <label>
                     <span>Token / API key</span>
                     <input class="console-input" type="password" aria-label="Token" @bind="_token" @bind:event="oninput" @bind:after="ClearResult" />
@@ -91,7 +91,7 @@
         }
         else if (_authMode == "oauth")
         {
-            <div class="studio-field-grid @(V4Enabled ? "console-service-controls" : null)" data-auth-fields>
+            <div class="studio-field-grid @(V4Enabled ? "console-data-controls" : null)" data-auth-fields>
                 <label>
                     <span>Token endpoint URL</span>
                     <input class="console-input" aria-label="Token URL" @bind="_tokenUrl" @bind:event="oninput" @bind:after="ClearResult"

@@ -68,7 +68,7 @@
         }
     };
     private RenderFragment PublishForm => @<text>
-            <div class="studio-field-grid @(V4Enabled ? "console-service-controls" : null)">
+            <div class="studio-field-grid @(V4Enabled ? "console-data-controls" : null)">
                 <label>
                     <span>Connection</span>
                     <select class="console-input" aria-label="Connection" data-workspace-field="connectionId" @bind="_connectionId" @bind:after="OnConnectionChanged" disabled="@(!_interactive)">

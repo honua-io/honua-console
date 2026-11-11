@@ -30,7 +30,7 @@
     private const string Intro = "Upload a geospatial file to import it into a new PostGIS table. Supported formats are read live from honua-server; the table can then be published as a service layer.";
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private RenderFragment ImportForm => @<text>
-        <div class="studio-field-grid @(V4Enabled ? "console-service-controls" : null)">
+        <div class="studio-field-grid @(V4Enabled ? "console-data-controls" : null)">
             <label>
                 <span>File</span>
                 <InputFile OnChange="OnFileSelected" accept="@_acceptAttribute" disabled="@(_busy || _reconcileOutcome)" />
