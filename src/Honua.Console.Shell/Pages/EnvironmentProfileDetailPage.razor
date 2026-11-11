@@ -1,3 +1,4 @@
+@inject IServiceProvider Services
 @inject NavigationManager ConsoleNavigation
 @page "/environments/{ProfileId}"
 @inject IConsoleEnvironmentProfileStore Profiles
@@ -15,16 +16,26 @@
 else
 {
     <section class="console-page">
-        <div class="console-detail-heading">
-            <div class="console-page-heading">
-                <p class="console-kicker">@_profile.EnvironmentKind · environment diagnostics</p>
-                <h1>@_profile.DisplayName</h1>
-                <p>@_profile.ServerBaseUri</p>
+        @if (V4Enabled)
+        {
+            <ConsolePageHeading Title="@_profile.DisplayName">
+                <ChildContent><p class="console-kicker">@_profile.EnvironmentKind</p><p>@_profile.ServerBaseUri</p></ChildContent>
+                <Actions><EnvironmentTrustBadge State="_state" /></Actions>
+            </ConsolePageHeading>
+        }
+        else
+        {
+            <div class="console-detail-heading">
+                <div class="console-page-heading">
+                    <p class="console-kicker">@_profile.EnvironmentKind · environment diagnostics</p>
+                    <h1>@_profile.DisplayName</h1>
+                    <p>@_profile.ServerBaseUri</p>
+                </div>
+                <div class="console-detail-actions">
+                    <EnvironmentTrustBadge State="_state" />
+                </div>
             </div>
-            <div class="console-detail-actions">
-                <EnvironmentTrustBadge State="_state" />
-            </div>
-        </div>
+        }
 
         @if (_state?.TrustBlocked == true)
         {
@@ -88,6 +99,7 @@ else
 }
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     [Parameter]
     public string ProfileId { get; set; } = string.Empty;
 

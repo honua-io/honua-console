@@ -5,11 +5,20 @@
 @inject IServiceProvider Services
 
 <section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Environment session</p>
-        <h1>Sign In</h1>
-        <p>Continue with the active environment profile before opening authenticated Console routes.</p>
-    </div>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Sign in">
+            <p>Continue with the active environment profile before opening authenticated Console routes.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Environment session</p>
+            <h1>Sign In</h1>
+            <p>Continue with the active environment profile before opening authenticated Console routes.</p>
+        </div>
+    }
 
     @if (_profile is null)
     {
@@ -82,6 +91,7 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private ConsoleEnvironmentProfile? _profile;
     private string _returnTo = "/";
     private string? _serverAuthMessage;
