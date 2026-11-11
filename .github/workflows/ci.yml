@@ -331,7 +331,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: data-publishing-presentation
-          path: artifacts/catalog-preview/data-publishing*.png
+          path: |
+            artifacts/catalog-preview/data-publishing*.png
+            artifacts/catalog-preview/data-quick-publish*.png
           if-no-files-found: error
 
       - name: Verify rendered service detail presentation
