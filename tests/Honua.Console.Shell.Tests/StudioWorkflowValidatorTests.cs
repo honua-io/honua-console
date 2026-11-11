@@ -66,6 +66,7 @@ public sealed class StudioWorkflowValidatorTests
 
     [Theory]
     [InlineData(-1)]
+    [InlineData(0)]
     [InlineData(11)]
     public void MaxAttemptsOutOfRange_ErrorsOnAttempts(int attempts)
     {

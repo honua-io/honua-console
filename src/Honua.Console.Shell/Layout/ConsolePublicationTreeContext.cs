@@ -7,14 +7,16 @@ public sealed class ConsolePublicationTreeContext
 {
     public required ConsolePublicationTree Tree { get; init; }
     public required string SelectedPath { get; init; }
-    public bool FolderNavigationEnabled { get; init; }
+    public bool V4Enabled { get; init; }
+    public bool SearchPending { get; init; }
 
-    public string? Link(ConsolePublicationNode node) => node.Kind == ConsolePublicationNodeKind.Folder && !FolderNavigationEnabled ? null : node.Href;
+    public string? Link(ConsolePublicationNode node) => node.Kind == ConsolePublicationNodeKind.Folder && !V4Enabled ? null : node.Href;
     public EventCallback<ConsolePublicationNode> Expand { get; init; }
     public EventCallback<ConsolePublicationNode> Collapse { get; init; }
     public EventCallback<ConsolePublicationNode> Retry { get; init; }
     public EventCallback<ConsolePublicationNode> ShowFirstPage { get; init; }
     public EventCallback<ConsolePublicationNode> ShowMore { get; init; }
+    public EventCallback ShowMoreSearch { get; init; }
 
     public IEnumerable<ConsolePublicationNode> PagedParents => Tree.VisibleNodes()
         .Where(node => node.Expanded && (node.VisibleOffset > 0 || Tree.HasHiddenLoadedChildren(node) || OffersMoreServices(node)));

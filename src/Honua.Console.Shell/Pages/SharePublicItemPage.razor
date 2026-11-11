@@ -112,7 +112,7 @@
     private CatalogItemReadResult? _result;
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
-    private static RenderFragment DownloadContent(ConsoleContentDetail item) => @<text>
+    private RenderFragment DownloadContent(ConsoleContentDetail item) => @<text>
                 @if (!item.Summary.Formats.Any())
                 {
                     <p class="console-muted">No downloadable formats are published for this item.</p>
@@ -123,7 +123,7 @@
                         @foreach (var format in item.Summary.Formats)
                         {
                             <li>
-                                <span class="share-opendata-download-name">@format</span>
+                                <span class="share-opendata-download-name">@(V4Enabled ? ConsoleDownloadFormatLabels.Display(format) : format)</span>
                                 <span class="console-muted">download ↓</span>
                             </li>
                         }

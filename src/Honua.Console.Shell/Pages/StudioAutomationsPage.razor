@@ -6,6 +6,7 @@
 <section class="console-page automation-page @(IsConsoleV4Enabled ? "console-automations-v4" : null)">
     @if (IsConsoleV4Enabled)
     {
+        <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/studio-automations-v4.css" />
         <ConsolePageHeading Title="Automations">
             <p>Manage rules that run when form events occur.</p>
@@ -105,6 +106,11 @@
 </section>
 
 @code {
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = new Uri(Navigation.Uri).AbsolutePath,
+    };
+
     private bool IsConsoleV4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     private bool _loading = true;

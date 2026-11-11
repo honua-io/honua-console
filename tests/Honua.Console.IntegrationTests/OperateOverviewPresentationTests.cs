@@ -1,4 +1,5 @@
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
@@ -9,6 +10,33 @@ namespace Honua.Console.IntegrationTests;
 public sealed class OperateOverviewPresentationTests
 {
     public enum CapabilityAdvertisement { None, All }
+
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task AgentContextPublishesSafeRouteAndClearsOnDisposal(ConsolePresentationMode mode)
+    {
+        using var context = new BunitContext();
+        var registry = new ConsoleAgentContextRegistry();
+        context.Services.AddSingleton(registry);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = mode == ConsolePresentationMode.V4 });
+        context.Services.AddSingleton<IConsoleCapabilityManifest>(new ConsoleCapabilityManifest());
+        context.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate?token=private#secret");
+
+        context.Render<OperatePage>();
+
+        Assert.Equal(mode == ConsolePresentationMode.V4 ? "/operate" : "/", registry.Current.Route);
+        Assert.Empty(registry.Current.Entities);
+        Assert.Empty(registry.Current.Filters);
+        Assert.Empty(registry.Current.Selection);
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+        var generation = registry.Current.Generation;
+        await context.DisposeComponentsAsync();
+        if (mode == ConsolePresentationMode.V4) Assert.True(registry.Current.Generation > generation);
+        else Assert.Equal(generation, registry.Current.Generation);
+    }
 
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy, CapabilityAdvertisement.None)]

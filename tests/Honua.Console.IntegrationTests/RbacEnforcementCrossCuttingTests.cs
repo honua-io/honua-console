@@ -77,18 +77,10 @@ public sealed class RbacEnforcementCrossCuttingTests
         Assert.Null(await verifier.GetFeatureServerLayerAsync(serviceName, 0));
         Assert.Null(await verifier.GetFeatureServerLayerAsync(serviceName, 1));
 
-        // --- Conversely, the ALLOWED (admin) principal succeeds against the same source — proving the denial
-        //     above was an authorization decision, not a broken request. (Skips if the publish path is not
-        //     ready on the pinned image; the negative enforcement proof above still stands.) ---
+        // The allowed principal must publish the same source. A server error fails this half of the proof.
         var adminOperation = new HonuaServerServiceLayerPublishOperation(_fixture.CreateOperateClient());
         var allowed = await adminOperation.PublishAsync(command);
-        Skip.If(
-            !allowed.Succeeded
-            && (string.Equals(allowed.State, "Unavailable", StringComparison.OrdinalIgnoreCase)
-                || (allowed.Detail?.Contains("HTTP 5", StringComparison.OrdinalIgnoreCase) ?? false)
-                || (allowed.Detail?.Contains("500", StringComparison.Ordinal) ?? false)),
-            $"The pinned honua-server image could not service the admin layer-publish path ({allowed.State} — {allowed.Detail}); "
-            + "the allowed-scope half of the RBAC round-trip needs a server build whose layer-publishing path is ready.");
+        LiveImageReceipt.RequireLayerPublish(allowed, "RBAC round-trip");
         Assert.True(allowed.Succeeded, $"The admin layer-publish was rejected: {allowed.State} — {allowed.Detail}");
         Assert.NotNull(allowed.LayerId);
 
