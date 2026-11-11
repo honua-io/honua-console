@@ -63,7 +63,7 @@ public sealed class ServiceLayerPublishRoundTripTests
         // the layer-publish path (e.g. a stale image missing the metadata_v2 schema) rather than a console
         // regression. Fail the live evidence on that contract-drift condition; a clean validation rejection (4xx) is
         // still a real failure for a known-valid request. The negative companion proves the reject path.
-        AssertServerReady(result);
+        LiveImageReceipt.RequireLayerPublish(result, "service-layer-publish round-trip");
         Assert.True(result.Succeeded, $"Publish operation failed: {result.State} — {result.Detail}");
         Assert.NotNull(result.LayerId);
         var layerId = result.LayerId!.Value;
@@ -210,7 +210,7 @@ public sealed class ServiceLayerPublishRoundTripTests
         };
 
         var first = await operation.PublishAsync(command);
-        AssertServerReady(first);
+        LiveImageReceipt.RequireLayerPublish(first, "service-layer-publish round-trip");
         Assert.True(first.Succeeded, $"First publish failed: {first.State} — {first.Detail}");
         var layerId = first.LayerId!.Value;
 
@@ -244,27 +244,6 @@ public sealed class ServiceLayerPublishRoundTripTests
             Assert.NotNull(afterConflict);
             Assert.Equal(command.LayerName, afterConflict!.LayerName);
         }
-    }
-
-    // A known-valid publish that comes back Unavailable / with a 5xx detail means the pinned server image
-    // cannot service the layer-publish path (contract drift / missing schema), not a console regression.
-    // Fail the receipt when the required publish path is unavailable.
-    private static void AssertServerReady(ServiceLayerPublishResult result)
-    {
-        if (result.Succeeded)
-        {
-            return;
-        }
-
-        var serverNotReady =
-            string.Equals(result.State, "Unavailable", StringComparison.OrdinalIgnoreCase)
-            || (result.Detail?.Contains("HTTP 5", StringComparison.OrdinalIgnoreCase) ?? false)
-            || (result.Detail?.Contains("500", StringComparison.Ordinal) ?? false);
-
-        Assert.False(
-            serverNotReady,
-            $"The pinned honua-server image could not service the layer-publish path ({result.State} — {result.Detail}); "
-            + "the service-layer-publish round-trip needs a server build whose admin layer-publishing path is ready.");
     }
 
     private static void AssertApprox(double expected, double? actual, double tolerance = 0.5)

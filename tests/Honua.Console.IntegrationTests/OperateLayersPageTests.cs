@@ -16,7 +16,7 @@ public sealed class OperateLayersPageTests
     public void LayersRetainExposureAndResolveCanonicalAgentLinks(bool enabled, string mount)
     {
         using var context = new BunitContext();
-        context.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerMountedNavigationManager(mount));
+        context.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager(mount));
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         context.Services.AddSingleton<ConsoleAgentContextRegistry>();
         var layer = new OperateServiceLayerProjection(42, "Parcels", "Polygon", "connection-1-layer-42", "Parcels dataset");
@@ -46,13 +46,3 @@ public sealed class OperateLayersPageTests
     }
 }
 
-internal sealed class LayerMountedNavigationManager : Microsoft.AspNetCore.Components.NavigationManager
-{
-    public LayerMountedNavigationManager(string mount) => Initialize("http://localhost" + mount, "http://localhost" + mount);
-
-    protected override void NavigateToCore(string uri, bool forceLoad)
-    {
-        Uri = ToAbsoluteUri(uri).AbsoluteUri;
-        NotifyLocationChanged(false);
-    }
-}

@@ -62,7 +62,7 @@
                                 @if (V4Enabled)
                                 {
                                     <ConsoleNameIdentifier Name="@row.Layer.Name" Identifier="@row.Layer.CanonicalResourceId"
-                                                           Href="@Navigation.ToConsoleHref(ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForLayer(row.Layer)))" />
+                                                           Href="@ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForLayer(row.Layer))" />
                                 }
                                 else
                                 {

@@ -109,7 +109,7 @@
                 <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/filter")" data-layer-filter-link>Permanent filter</a>
                 <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/metadata")" data-layer-metadata-link>Editing policy →</a>
             </div></text>;
-    private RenderFragment Fields => @<text>        <section class="console-section @(V4Enabled ? "console-service-controls" : null)" data-fields-panel>
+    private RenderFragment Fields => @<text>        <section class="console-section @(V4Enabled ? "console-data-controls" : null)" data-fields-panel>
             @if (!V4Enabled)
             {
                 <div class="console-page-heading">

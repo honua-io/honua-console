@@ -11,12 +11,7 @@ public partial class OperateServiceDetailPage
     private ConsoleAgentUnsavedSummary _folderUnsaved = new();
     private ConsoleAgentUnsavedSummary _metadataUnsaved = new();
 
-    private ConsoleAgentEntity? SelectedService => _service is null ? null : new()
-    {
-        Kind = ConsoleAgentEntityKind.Service,
-        Id = _service.Name,
-        ServiceName = _service.Name
-    };
+    private ConsoleAgentEntity? SelectedService => _service is null ? null : ConsoleAgentEntity.ForService(_service.Name);
 
     private ConsoleAgentPageContext AgentContext => new()
     {

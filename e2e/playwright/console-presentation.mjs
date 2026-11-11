@@ -194,7 +194,7 @@ export async function checkKeyboardControls(page, { controls, sizedControls, min
   assert.equal(visited.size, total, "Every enabled form, link and pager control must be keyboard reachable");
 }
 
-export async function runV4PagePresentation({ previews, pageNames, title, stylesheet, heading, scope, controls, inspect, prepareMarkup = markup => `<div class="console-shell" data-console-v4="true">${markup}</div>` }) {
+export async function runV4PagePresentation({ previews, pageNames, title, stylesheet, heading, scope, controls, inspect, allowScriptModules = false, prepareMarkup = markup => `<div class="console-shell" data-console-v4="true">${markup}</div>` }) {
   const pages = new Map(await Promise.all(pageNames.map(async name => {
     const markup = await fs.readFile(path.join(previews, `${name}.html`), "utf8");
     return [name, prepareMarkup(markup)];
@@ -204,6 +204,7 @@ export async function runV4PagePresentation({ previews, pageNames, title, styles
     stylesheets: ["/_content/Honua.Console.Shell/honua-console.css"],
     assets: path.resolve("src/Honua.Console.Shell/wwwroot"),
     assetPrefix: "/_content/Honua.Console.Shell/",
+    allowScriptModules,
   });
   let browser;
   try {

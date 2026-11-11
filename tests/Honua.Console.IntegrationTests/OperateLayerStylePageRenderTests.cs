@@ -213,17 +213,6 @@ public sealed class OperateLayerStylePageRenderTests
         "honua-server resource-presentation slot overrides (pending)",
         "Per-slot style/popup overrides bind to a server-owned contract that has not shipped.");
 
-    private sealed class MountedNavigationManager : Microsoft.AspNetCore.Components.NavigationManager
-    {
-        public MountedNavigationManager(string mount) => Initialize("http://localhost" + mount, "http://localhost" + mount);
-
-        protected override void NavigateToCore(string uri, bool forceLoad)
-        {
-            Uri = ToAbsoluteUri(uri).AbsoluteUri;
-            NotifyLocationChanged(false);
-        }
-    }
-
     private sealed class FakeOverrideDataSource : IOperateLayerStyleOverrideDataSource
     {
         public OperateLayerStyleOverrideView View { get; set; } = new("res-1", []);

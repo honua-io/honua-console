@@ -29,7 +29,7 @@ public sealed class OperateLayerFieldRangeDomainTests
         });
 
         using var ctx = new Bunit.BunitContext();
-        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerMountedNavigationManager("/console/"));
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager("/console/"));
         ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();

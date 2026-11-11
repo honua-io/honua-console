@@ -22,7 +22,7 @@ public sealed class RemovedOperateEntryPointsRenderTests
     public void LayerPage_LinksOnlyToSurfacesTheServerSupports(bool enabled)
     {
         using var ctx = CreateContext(enabled);
-        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerMountedNavigationManager("/console/"));
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager("/console/"));
         ctx.Services.AddSingleton<IConsoleLayerFieldsOperation>(new UnsupportedConsoleLayerFieldsOperation());
 
         var page = ctx.Render<OperateLayerDetailPage>(p => p.Add(c => c.ResourceId, Parcels.CanonicalResourceId));
@@ -89,6 +89,21 @@ public sealed class RemovedOperateEntryPointsRenderTests
     }
 
     [Fact]
+    public void ServiceTabs_ShowMissingBindingOnEveryConfigurationTab()
+    {
+        using var ctx = CreateContext(true);
+        ctx.Services.AddSingleton<IServiceConfigurationOperation>(new UnsupportedServiceConfigurationOperation());
+        var page = ctx.Render<OperateServiceDetailPage>(parameters => parameters.Add(component => component.ServiceName, Cadastre.Name));
+
+        foreach (var tab in new[] { "protocols", "access", "limits" })
+        {
+            page.Find($"#service-{tab}-tab").Click();
+            var panel = page.Find($"#service-{tab}-panel");
+            Assert.Contains("Missing binding", panel.TextContent);
+        }
+    }
+
+    [Fact]
     public void ServiceTabs_KeepAccessEditsWhileSwitchingPanels()
     {
         using var ctx = CreateContext(true);
@@ -152,16 +167,4 @@ public sealed class RemovedOperateEntryPointsRenderTests
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FixedServicesDataSource(Cadastre));
         return ctx;
     }
-
-    private sealed class MountedNavigationManager : Microsoft.AspNetCore.Components.NavigationManager
-    {
-        public MountedNavigationManager(string mount) => Initialize("http://localhost" + mount, "http://localhost" + mount);
-
-        protected override void NavigateToCore(string uri, bool forceLoad)
-        {
-            Uri = ToAbsoluteUri(uri).AbsoluteUri;
-            NotifyLocationChanged(false);
-        }
-    }
-
 }

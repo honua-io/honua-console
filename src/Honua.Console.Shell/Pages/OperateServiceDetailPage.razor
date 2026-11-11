@@ -17,7 +17,7 @@
     }
     else
     {
-        <fieldset disabled="@(!_interactiveReady)" aria-label="Service controls" class="console-service-controls">
+        <fieldset disabled="@(!_interactiveReady)" aria-label="Service controls" class="console-data-controls">
             @if (V4Enabled)
             {
                 <div data-service-detail="@_service.Name">
@@ -40,6 +40,7 @@
                 </section>
                 <section id="service-limits-panel" role="tabpanel" aria-labelledby="service-limits-tab" hidden="@(_selectedTab != "service-limits-tab")" tabindex="0">
                     @Runtime
+                    @if (_selectedTab == "service-limits-tab" && !_settings.Bound) { @ConfigurationState }
                     @if (_settings.Bound) { @RenderingLimits }
                 </section>
                 @Administration
