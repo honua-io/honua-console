@@ -29,6 +29,14 @@ public sealed class HonuaServerConsoleFileImportOperation(
                 AuthorityBinding = binding,
                 Warnings = result.Data.Warnings ?? []
             };
+        if (result.Issue is null)
+            return new()
+            {
+                Succeeded = true,
+                State = "Unchecked",
+                AuthorityBinding = binding,
+                Warnings = result.Data?.Warnings ?? []
+            };
         if (IsPreviewTooLarge(result.Issue))
         {
             var undeclared = new HonuaAdminImportCoordinateSystem
@@ -78,11 +86,12 @@ public sealed class HonuaServerConsoleFileImportOperation(
             return new() { State = "Target unverified", Detail = "Check the file’s coordinate system before importing." };
         if (!await bindingValidator.IsCurrentAsync(command.AuthorityBinding, cancellationToken))
             return new() { State = "Target changed", Detail = ReviewFile };
-        if (command.SourceSrid is <= 0 || command.TargetSrid is <= 0)
+        var reportsCoordinates = command.SourceSrid is not null || command.TargetSrid is not null || command.ExpectedSourceSrid is not null;
+        if (reportsCoordinates && (command.SourceSrid is <= 0 || command.TargetSrid is <= 0))
             return new() { State = "Invalid coordinate system", Detail = "Choose a supported coordinate system before importing." };
 
         var expectedSource = command.SourceSrid ?? command.ExpectedSourceSrid;
-        if (expectedSource is not > 0)
+        if (reportsCoordinates && expectedSource is not > 0)
             return new() { State = "Source unverified", Detail = "Check the file and choose its source coordinate system before importing." };
         var expectedStored = command.TargetSrid ?? expectedSource.GetValueOrDefault();
         var result = await ConsoleBoundWrite.SendAsync(
@@ -91,12 +100,12 @@ public sealed class HonuaServerConsoleFileImportOperation(
             () => bindingValidator.IsCurrentAsync(command.AuthorityBinding, CancellationToken.None)).ConfigureAwait(false);
         if (result.Issue is { State: ConsoleWriteOutcome.UnverifiedState } issue)
             return new() { State = issue.State, Detail = issue.Detail };
-        if (result.Data is { Success: true } imported && (imported.SourceSrid is not > 0 || imported.StoredSrid is not > 0 || imported.Reprojected is null))
+        if (reportsCoordinates && result.Data is { Success: true } imported && (imported.SourceSrid is not > 0 || imported.StoredSrid is not > 0 || imported.Reprojected is null))
             return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail };
         // The endpoint returns HTTP 200 with success=false on a failed import; surface its reason.
         if (result.Data is { } data)
         {
-            var mismatch = data.Success && (data.SourceSrid != expectedSource || data.StoredSrid != expectedStored
+            var mismatch = reportsCoordinates && data.Success && (data.SourceSrid != expectedSource || data.StoredSrid != expectedStored
                 || data.Reprojected != (expectedStored != expectedSource));
             return new()
             {

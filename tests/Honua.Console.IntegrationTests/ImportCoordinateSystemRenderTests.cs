@@ -169,6 +169,24 @@ public sealed class ImportCoordinateSystemRenderTests
     }
 
     [Fact]
+    public void ServerWithoutACoordinateSystemStillImportsTheFile()
+    {
+        using var context = new BunitContext();
+        var import = Register(context);
+        import.System = null!;
+        var page = context.Render<OperateImportFilePage>();
+        page.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("regions", "regions.gpkg"));
+        page.WaitForAssertion(() => Assert.Contains("did not report a coordinate system", page.Markup));
+        Assert.Empty(page.FindAll("[data-import-coordinate-system]"));
+        page.Find("button.console-button").Click();
+        page.WaitForAssertion(() => Assert.NotNull(import.Command));
+        Assert.Null(import.Command!.SourceSrid);
+        Assert.Null(import.Command.TargetSrid);
+        Assert.Null(import.Command.ExpectedSourceSrid);
+        Assert.Equal("operator-environment", import.Command.AuthorityBinding);
+    }
+
+    [Fact]
     public async Task OversizeFileExplainsTheLimitWithoutAnImpossibleRetry()
     {
         using var context = new BunitContext();
@@ -275,7 +293,7 @@ public sealed class ImportCoordinateSystemRenderTests
 
     private sealed class ImportOperation : IConsoleFileImportOperation
     {
-        public HonuaAdminImportCoordinateSystem System { get; set; } = new()
+        public HonuaAdminImportCoordinateSystem? System { get; set; } = new()
         {
             DetectedSrid = 2193,
             EffectiveSourceSrid = 2193,
@@ -305,8 +323,9 @@ public sealed class ImportCoordinateSystemRenderTests
                     AuthorityBinding = "operator-environment",
                     Warnings = [ConsoleFileImportPreview.PreviewTooLargeWarning]
                 });
-            return Task.FromResult(new ConsoleFileImportPreview
-            { Succeeded = true, CoordinateSystem = System, AuthorityBinding = "operator-environment" });
+            return Task.FromResult(System is null
+                ? new ConsoleFileImportPreview { Succeeded = true, State = "Unchecked", AuthorityBinding = "operator-environment" }
+                : new ConsoleFileImportPreview { Succeeded = true, CoordinateSystem = System, AuthorityBinding = "operator-environment" });
         }
         public Task<OperateSectionResult<HonuaAdminCoordinateSystemSearch>> SearchCoordinateSystemsAsync(string query, string binding, CancellationToken cancellationToken = default) =>
             Search ?? Task.FromResult(Results);

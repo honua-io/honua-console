@@ -18,19 +18,37 @@ public sealed class FileImportCoordinateSystemTests
         using var client = Client(http);
         var operation = new HonuaServerConsoleFileImportOperation(client, new Authority());
         var result = await operation.PreviewAsync([1, 2, 3], "projected.gpkg");
-        Assert.Equal(hasCoordinateSystem, result.Succeeded);
+        Assert.True(result.Succeeded, result.Detail);
         Assert.Equal("/prefix/api/v1/admin/import/preview", handler.Path);
         Assert.Equal("operator-environment", handler.Binding);
+        Assert.Equal("operator-environment", result.AuthorityBinding);
         if (hasCoordinateSystem)
         {
+            Assert.Equal("Checked", result.State);
             Assert.Equal(2193, result.CoordinateSystem!.DetectedSrid);
             Assert.Equal("NZGD2000 / New Zealand Transverse Mercator 2000", result.CoordinateSystem.DetectedCrs!.Name);
-            Assert.Equal("operator-environment", result.AuthorityBinding);
         }
         else
         {
-            Assert.Null(result.AuthorityBinding);
+            Assert.Equal("Unchecked", result.State);
+            Assert.Null(result.CoordinateSystem);
         }
+    }
+
+    [Fact]
+    public async Task ImportWithoutAReportedSystemAcceptsTheServerOutcome()
+    {
+        using var handler = new ImportHandler { OmitStoredCoordinates = true };
+        using var http = new HttpClient(handler);
+        using var client = Client(http);
+        var operation = new HonuaServerConsoleFileImportOperation(client, new Authority());
+        var result = await operation.ImportAsync(Command(null, null) with { ExpectedSourceSrid = null });
+        Assert.True(result.Succeeded, result.Detail);
+        Assert.Equal("Imported", result.State);
+        Assert.False(handler.Fields.ContainsKey("SourceSrid"));
+        Assert.False(handler.Fields.ContainsKey("TargetSrid"));
+        Assert.Null(result.StoredSrid);
+        Assert.Null(result.Reprojected);
     }
 
     [Theory]
@@ -330,6 +348,7 @@ public sealed class FileImportCoordinateSystemTests
         public string? RawResponse { get; init; }
         public HttpStatusCode Status { get; init; } = HttpStatusCode.OK;
         public bool HasCoordinateSystem { get; init; } = true;
+        public bool OmitStoredCoordinates { get; init; }
         public bool LoseResponse { get; init; }
         public Action? OnSend { get; init; }
         public string? Path { get; private set; }
@@ -368,7 +387,9 @@ public sealed class FileImportCoordinateSystemTests
                 });
             var sourceSrid = Fields.TryGetValue("SourceSrid", out var source) ? int.Parse(source, System.Globalization.CultureInfo.InvariantCulture) : 2193;
             var storedSrid = Fields.TryGetValue("TargetSrid", out var target) ? int.Parse(target, System.Globalization.CultureInfo.InvariantCulture) : sourceSrid;
-            return Json(new { success = true, featureCount = 2, tableName = "projected", sourceSrid, storedSrid, reprojected = sourceSrid != storedSrid });
+            return OmitStoredCoordinates
+                ? Json(new { success = true, featureCount = 2, tableName = "projected" })
+                : Json(new { success = true, featureCount = 2, tableName = "projected", sourceSrid, storedSrid, reprojected = sourceSrid != storedSrid });
         }
 
         private static object Crs => new { code = 2193, name = "NZGD2000 / New Zealand Transverse Mercator 2000", unit = "metre", area = "New Zealand" };
