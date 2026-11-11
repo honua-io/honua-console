@@ -2,6 +2,7 @@ using Bunit;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
@@ -24,10 +25,27 @@ public sealed class SharePublicItemV4Tests
         Assert.Empty(page.FindAll(".console-panel .console-panel"));
         if (enabled)
         {
+            Assert.Equal("Open data · Services", page.Find(".console-page-heading-v4 p").TextContent);
+            Assert.Equal(["#flood", "#open-data", "#coastal"], page.FindAll(".console-chip-row span").Select(node => node.TextContent));
             Assert.Equal(["Download", "Routes"], page.FindAll("h2").Select(node => node.TextContent));
             Assert.Equal("/share/public", page.Find(".share-opendata-back").GetAttribute("href"));
         }
         CatalogAdminPreview.Capture($"share-public-{(enabled ? "v4" : "legacy")}", $"<div class=\"console-shell\" data-console-v4=\"{enabled.ToString().ToLowerInvariant()}\">{page.Markup}</div>");
+    }
+
+    [Fact]
+    public void PublicBackLinkStaysInsideApplicationMount()
+    {
+        using var context = Context(true, new InMemoryConsoleCatalogClient());
+        context.Services.AddSingleton<NavigationManager>(new HostedNavigationManager());
+        var page = context.Render<SharePublicItemPage>(parameters => parameters.Add(p => p.IdOrSlug, "coastal-flood-service"));
+        Assert.Equal("/console/share/public", page.Find(".share-opendata-back").GetAttribute("href"));
+    }
+
+    private sealed class HostedNavigationManager : NavigationManager
+    {
+        public HostedNavigationManager() => Initialize("http://localhost/console/", "http://localhost/console/share/public/items/coastal-flood-service");
+        protected override void NavigateToCore(string uri, bool forceLoad) => Uri = ToAbsoluteUri(uri).AbsoluteUri;
     }
 
     [Theory]

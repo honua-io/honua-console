@@ -22,8 +22,19 @@ await runV4PagePresentation({
     if (enabled) {
       assert.deepEqual(await page.locator("h2").allTextContents(), ["Download", "Routes"]);
       assert.equal(await page.locator(".share-opendata-back").getAttribute("href"), "/share/public");
+      assert.equal(await page.locator(".console-page-heading-v4 p").textContent(), "Open data · Services");
+      assert.deepEqual(await page.locator(".console-chip-row span").allTextContents(), ["#flood", "#open-data", "#coastal"]);
       const intro = page.locator(".share-opendata-intro");
-      assert.ok(await intro.evaluate(element => getComputedStyle(element).maxWidth !== "none"));
+      assert.ok(await intro.evaluate(element => {
+        const ruler = element.cloneNode(false);
+        ruler.style.width = "75ch";
+        ruler.style.maxWidth = "none";
+        ruler.style.position = "absolute";
+        element.after(ruler);
+        const expected = ruler.getBoundingClientRect().width;
+        ruler.remove();
+        return Math.abs(parseFloat(getComputedStyle(element).maxWidth) - expected) < 0.1;
+      }));
     }
   },
 });
