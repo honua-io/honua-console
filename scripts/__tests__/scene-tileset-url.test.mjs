@@ -69,7 +69,7 @@ test('scene requests authorize the current session per URL and map requests stay
     assert.match(String(late.error), /session changed/);
 });
 
-test('a scene request keeps its own view when another view has a newer session', () => {
+test('a scene request keeps its own view when another view has a newer session', async () => {
     let older = 1;
     const first = (url) => {
         if (older !== 1) throw new Error('The Console session changed. Reopen this view before continuing.');
@@ -87,26 +87,77 @@ test('a scene request keeps its own view when another view has a newer session',
     assert.equal(sent, false);
     assert.equal(borrowed.value, undefined);
     assert.match(String(borrowed.error), /session changed/);
-    const owned = {};
-    owned.resolve = (value) => { owned.value = value; };
-    owned.reject = (error) => { owned.error = error; };
-    guardSceneLoad(adaptSceneLoad(({ headers, result }) => {
-        assert.equal(headers.Authorization, 'Bearer next');
-        assert.equal(headers[sceneViewHeader], undefined);
-        result.resolve('loaded');
-    }), lookup)('https://api.example/base/scenes/b.b3dm', '', 'GET', null, { [sceneViewHeader]: 'b' }, owned);
+    const owned = deferred();
+    await withSceneFetch(async (calls) => {
+        guardSceneLoad(() => { throw new Error('authorized scenes do not use the redirecting loader'); }, lookup)(
+            'https://api.example/base/scenes/b.b3dm', 'text', 'GET', null, { [sceneViewHeader]: 'b' }, owned);
+        await flushSceneLoads();
+        assert.equal(calls[0].init.redirect, 'error');
+        assert.equal(calls[0].init.credentials, 'omit');
+        assert.equal(calls[0].init.headers.Authorization, 'Bearer next');
+        assert.equal(calls[0].init.headers[sceneViewHeader], undefined);
+    }, () => new Response('loaded', { status: 200 }));
     assert.equal(owned.value, 'loaded');
     older = 1;
-    const late = {};
-    late.resolve = (value) => { late.value = value; };
-    late.reject = (error) => { late.error = error; };
-    guardSceneLoad(adaptSceneLoad(({ result }) => {
+    const late = deferred();
+    await withSceneFetch(async () => {
+        guardSceneLoad(() => { throw new Error('authorized scenes do not use the redirecting loader'); }, lookup)(
+            'https://api.example/base/scenes/a.b3dm', 'text', 'GET', null, { [sceneViewHeader]: 'a' }, late);
+        await flushSceneLoads();
+    }, () => {
         older = 2;
-        result.resolve('late');
-    }), lookup)('https://api.example/base/scenes/a.b3dm', '', 'GET', null, { [sceneViewHeader]: 'a' }, late);
+        return new Response('late', { status: 200 });
+    });
     assert.equal(late.value, undefined);
     assert.match(String(late.error), /session changed/);
 });
+
+test('an authorized scene load refuses redirects and failed responses', async () => {
+    const authorize = (url) => ({
+        url, api: true, credentials: 'omit', headers: { Authorization: 'Bearer token' },
+    });
+    const redirected = deferred();
+    await withSceneFetch(async (calls) => {
+        guardSceneLoad(() => { throw new Error('xhr'); }, () => authorize)(
+            'https://api.example/base/scenes/a.json', 'json', 'GET', null, { [sceneViewHeader]: 'view' }, redirected);
+        await flushSceneLoads();
+        assert.equal(calls[0].url, 'https://api.example/base/scenes/a.json');
+        assert.equal(calls[0].init.redirect, 'error');
+    }, () => Promise.reject(new TypeError('redirect')));
+    assert.match(String(redirected.error), /redirect/);
+    const failed = deferred();
+    await withSceneFetch(async () => {
+        guardSceneLoad(() => { throw new Error('xhr'); }, () => authorize)(
+            'https://api.example/base/scenes/missing.json', 'arraybuffer', 'GET', null, { [sceneViewHeader]: 'view' }, failed);
+        await flushSceneLoads();
+    }, () => new Response('', { status: 404 }));
+    assert.match(String(failed.error), /404/);
+});
+
+function deferred() {
+    const result = {};
+    result.resolve = (value) => { result.value = value; };
+    result.reject = (error) => { result.error = error; };
+    return result;
+}
+
+async function withSceneFetch(run, respond) {
+    const original = globalThis.fetch;
+    const calls = [];
+    globalThis.fetch = (url, init) => {
+        calls.push({ url, init });
+        return Promise.resolve(respond());
+    };
+    try {
+        await run(calls);
+    } finally {
+        globalThis.fetch = original;
+    }
+}
+
+function flushSceneLoads() {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 test('without an API base, scene paths stay on the environment proxy', () => {
     delete globalThis.honuaConsoleApiBase;

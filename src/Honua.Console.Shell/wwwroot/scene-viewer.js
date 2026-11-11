@@ -218,6 +218,22 @@ function loadGuardedScene(original, lookup, owner, request) {
         deferred.reject(error);
         return undefined;
     }
+    const guarded = guardSceneResult(deferred, () => authorize(String(url)));
+    if (approved.api) {
+        return loadAuthorizedScene({
+            url: String(url),
+            responseType,
+            method,
+            data,
+            headers: approved.headers,
+            credentials: approved.credentials,
+            deferred: guarded,
+        });
+    }
+    return original.call(owner, url, responseType, method, data, approved.headers, guarded, ...rest);
+}
+
+function guardSceneResult(deferred, confirm) {
     let settled = false;
     const guarded = Object.create(deferred);
     guarded.reject = (error) => {
@@ -228,7 +244,7 @@ function loadGuardedScene(original, lookup, owner, request) {
     guarded.resolve = (value) => {
         if (settled) return;
         try {
-            authorize(String(url));
+            confirm();
             settled = true;
             deferred.resolve(value);
         } catch (error) {
@@ -236,7 +252,46 @@ function loadGuardedScene(original, lookup, owner, request) {
             deferred.reject(error);
         }
     };
-    return original.call(owner, url, responseType, method, data, approved.headers, guarded, ...rest);
+    return guarded;
+}
+
+function loadAuthorizedScene(request) {
+    const send = globalThis.fetch;
+    if (typeof send !== 'function') {
+        request.deferred.reject(new Error('Scene requests need fetch'));
+        return undefined;
+    }
+    const init = {
+        method: request.method || 'GET',
+        headers: request.headers,
+        credentials: request.credentials,
+        redirect: 'error',
+        cache: 'no-store',
+    };
+    if (request.data != null) init.body = request.data;
+    send(request.url, init).then(
+        (response) => finishAuthorizedScene(response, request),
+        (error) => request.deferred.reject(error),
+    );
+    return undefined;
+}
+
+function finishAuthorizedScene(response, request) {
+    if (!response.ok) {
+        request.deferred.reject(new Error(`Scene request failed (${response.status})`));
+        return;
+    }
+    readSceneBody(response, request.responseType).then(
+        (body) => request.deferred.resolve(body),
+        (error) => request.deferred.reject(error),
+    );
+}
+
+function readSceneBody(response, responseType) {
+    if (responseType === 'arraybuffer') return response.arrayBuffer();
+    if (responseType === 'blob') return response.blob();
+    if (responseType === 'json') return response.json();
+    return response.text();
 }
 
 export function approveSceneRequest(authorize, url, headers) {
@@ -246,9 +301,9 @@ export function approveSceneRequest(authorize, url, headers) {
     delete next.authorization;
     delete next[sceneViewHeader];
     delete next[sceneViewHeader.toLowerCase()];
-    if (!approved.api) return { headers: next, credentials: 'omit' };
+    if (!approved.api) return { api: false, headers: next, credentials: 'omit' };
     if (approved.headers.Authorization) next.Authorization = approved.headers.Authorization;
-    return { headers: next, credentials: approved.credentials };
+    return { api: true, headers: next, credentials: approved.credentials };
 }
 
 function sceneTilesetSource(Cesium, url, authorize) {
