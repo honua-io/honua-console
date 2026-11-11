@@ -5,6 +5,7 @@ import { runV4PagePresentation } from "./console-presentation.mjs";
 const headings = {
   "environments-v4": "Environments",
   "environment-new-v4": "Add environment",
+  "environment-detail-v4": "Production",
 };
 
 await runV4PagePresentation({
@@ -24,6 +25,8 @@ await runV4PagePresentation({
     } else if (name === "environment-new-v4") {
       assert.equal(await page.locator("input, select").count(), 5);
       assert.ok(await page.locator("[data-environment-validation='blocking']").isVisible());
+    } else {
+      assert.deepEqual(await page.locator("h2").allTextContents(), ["Environment access blocked", "Transports", "Trust state", "Session"]);
     }
   },
 });

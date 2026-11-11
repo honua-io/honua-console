@@ -86,6 +86,40 @@ public sealed class EnvironmentsV4Tests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DiagnosticsKeepTrustTransportAndSessionEvidence(bool enabled)
+    {
+        using var context = Context(enabled, Store());
+        var page = context.Render<EnvironmentProfileDetailPage>(parameters => parameters.Add(p => p.ProfileId, "prod"));
+
+        page.WaitForAssertion(() => Assert.Equal("Production", page.Find("h1").TextContent));
+        Assert.Contains("https://prod.honua.example/", page.Find("h1").ParentElement!.TextContent);
+        Assert.Contains(BlockedMessage, page.Find("[role='alert']").TextContent);
+        Assert.Equal(["Environment access blocked", "Transports", "Trust state", "Session"], page.FindAll("h2").Select(heading => heading.TextContent));
+        Assert.Contains("/settings/prod", page.Markup);
+        Assert.Single(page.FindAll("a[href$='/environments']"));
+        AssertPresentation(page, enabled);
+        if (enabled)
+        {
+            CaptureV4("environment-detail-v4", page.Markup);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnknownEnvironmentKeepsNotFoundState(bool enabled)
+    {
+        using var context = Context(enabled, Store());
+        var page = context.Render<EnvironmentProfileDetailPage>(parameters => parameters.Add(p => p.ProfileId, "missing"));
+
+        page.WaitForAssertion(() => Assert.Equal("Environment not found", page.Find("h1").TextContent));
+        Assert.Equal("missing", page.Find("code").TextContent);
+        Assert.Empty(page.FindAll(".console-page-heading-v4"));
+    }
+
     private static void AssertPresentation<TPage>(IRenderedComponent<TPage> page, bool enabled)
         where TPage : Microsoft.AspNetCore.Components.IComponent
     {

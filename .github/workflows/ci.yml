@@ -437,6 +437,7 @@ jobs:
           path: |
             artifacts/catalog-preview/environments-v4*
             artifacts/catalog-preview/environment-new-v4*
+            artifacts/catalog-preview/environment-detail-v4*
           if-no-files-found: error
 
       - name: Upload catalog presentation evidence

@@ -1,6 +1,7 @@
 @inject NavigationManager ConsoleNavigation
 @page "/environments/{ProfileId}"
 @inject IConsoleEnvironmentProfileStore Profiles
+@inject IServiceProvider Services
 
 @if (_profile is null)
 {
@@ -14,17 +15,32 @@
 }
 else
 {
-    <section class="console-page">
-        <div class="console-detail-heading">
-            <div class="console-page-heading">
-                <p class="console-kicker">@_profile.EnvironmentKind · environment diagnostics</p>
-                <h1>@_profile.DisplayName</h1>
-                <p>@_profile.ServerBaseUri</p>
+    <section class="console-page @(V4Enabled ? "console-environments-v4" : null)">
+        @if (V4Enabled)
+        {
+            <link rel="stylesheet" href="_content/Honua.Console.Shell/css/environments-v4.css" />
+            <ConsolePageHeading Title="@_profile.DisplayName">
+                <ChildContent>
+                    <p>@_profile.EnvironmentKind environment diagnostics for <span class="console-environment-server">@_profile.ServerBaseUri</span></p>
+                </ChildContent>
+                <Actions>
+                    <EnvironmentTrustBadge State="_state" />
+                </Actions>
+            </ConsolePageHeading>
+        }
+        else
+        {
+            <div class="console-detail-heading">
+                <div class="console-page-heading">
+                    <p class="console-kicker">@_profile.EnvironmentKind · environment diagnostics</p>
+                    <h1>@_profile.DisplayName</h1>
+                    <p>@_profile.ServerBaseUri</p>
+                </div>
+                <div class="console-detail-actions">
+                    <EnvironmentTrustBadge State="_state" />
+                </div>
             </div>
-            <div class="console-detail-actions">
-                <EnvironmentTrustBadge State="_state" />
-            </div>
-        </div>
+        }
 
         @if (_state?.TrustBlocked == true)
         {
@@ -88,6 +104,8 @@ else
 }
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     [Parameter]
     public string ProfileId { get; set; } = string.Empty;
 
