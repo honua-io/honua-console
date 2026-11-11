@@ -113,7 +113,7 @@ public sealed class OperateSyncPageRenderTests
         Assert.Equal(sourceId, registry.Current.Filters["sourceId"]);
         Assert.Equal("replica-1", registry.Current.Filters["replicaId"]);
         // Source ids match the server exactly, so another casing never borrows the cadastre layer identity.
-        Assert.Equal(expectedSelections, registry.Current.Selection.Count);
+        page.WaitForAssertion(() => Assert.Equal(expectedSelections, registry.Current.Selection.Count));
         foreach (var selected in registry.Current.Selection)
         {
             Assert.Equal(ConsoleAgentEntityKind.Layer, selected.Kind);
