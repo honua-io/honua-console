@@ -290,10 +290,10 @@ public sealed class OperateAccessPageRenderTests
             Assert.Equal("10", roles.Find(".console-metric-value").TextContent.Trim());
             Assert.Contains("8 built-in roles · 2 custom · 14 users affected", roles.Find(".console-metric-tile").TextContent, StringComparison.Ordinal);
         }
-        CapturePreview(roles, "roles", enabled);
+        CapturePreview(roles, "roles", options);
         roles.Find("[data-rbac-custom-role]").Click();
         Assert.NotNull(roles.Find("[data-rbac-create-form]"));
-        CapturePreview(roles, "roles-create", enabled);
+        CapturePreview(roles, "roles-create", options);
 
         var members = RenderMembers(new FakeRbacDataSource { MembershipLoad = new TeamMembershipLoad(SampleMembership(), []) }, options);
         members.WaitForAssertion(() => Assert.NotEmpty(members.FindAll("[data-rbac-members-table]")));
@@ -308,10 +308,10 @@ public sealed class OperateAccessPageRenderTests
             Assert.Equal("14", members.Find(".console-metric-value").TextContent.Trim());
             Assert.Contains("Public Works · 2 pending · 1 deactivated", members.Find(".console-metric-tile").TextContent, StringComparison.Ordinal);
         }
-        CapturePreview(members, "users", enabled);
+        CapturePreview(members, "users", options);
         members.Find("[data-rbac-invite-open]").Click();
         Assert.NotNull(members.Find("[data-rbac-invite-drawer]"));
-        CapturePreview(members, "users-invite", enabled);
+        CapturePreview(members, "users-invite", options);
     }
 
     [Theory]
@@ -324,18 +324,18 @@ public sealed class OperateAccessPageRenderTests
         roles.WaitForAssertion(() => Assert.Contains("API is not bound", roles.Markup, StringComparison.Ordinal));
         Assert.Equal(enabled ? 0 : 2, roles.FindAll(".console-kicker").Count);
         if (!enabled) Assert.Contains(roles.FindAll(".console-kicker"), kicker => kicker.TextContent == MissingBinding.State);
-        CapturePreview(roles, "roles-unbound", enabled);
+        CapturePreview(roles, "roles-unbound", options);
         var members = RenderMembers(new FakeRbacDataSource { MembershipLoad = new TeamMembershipLoad(null, [MissingBinding]) }, options);
         members.WaitForAssertion(() => Assert.Contains("API is not bound", members.Markup, StringComparison.Ordinal));
         Assert.Equal(enabled ? 0 : 2, members.FindAll(".console-kicker").Count);
         if (!enabled) Assert.Contains(members.FindAll(".console-kicker"), kicker => kicker.TextContent == MissingBinding.State);
-        CapturePreview(members, "users-unbound", enabled);
+        CapturePreview(members, "users-unbound", options);
     }
 
-    private static void CapturePreview<T>(IRenderedComponent<T> page, string name, bool enabled)
+    private static void CapturePreview<T>(IRenderedComponent<T> page, string name, ConsoleV4Options options)
         where T : Microsoft.AspNetCore.Components.IComponent =>
-        CatalogAdminPreview.Capture($"access-{name}-{(enabled ? "v4" : "legacy")}",
-            $"<div class=\"console-shell\" {(enabled ? "data-console-v4=\"true\"" : string.Empty)}>{page.Markup}</div>");
+        CatalogAdminPreview.Capture($"access-{name}-{(options.Enabled ? "v4" : "legacy")}",
+            $"<div class=\"console-shell\" {(options.Enabled ? "data-console-v4=\"true\"" : string.Empty)}>{page.Markup}</div>");
 
     private static IRenderedComponent<OperateAccessRolesPage> RenderRoles(FakeRbacDataSource data, ConsoleV4Options? options = null)
     {
