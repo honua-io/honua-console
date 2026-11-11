@@ -4,6 +4,11 @@
 @inject IConsoleCapabilityManifest Capabilities
 @inject IServiceProvider Services
 
+@if (V4Enabled)
+{
+    <ConsoleAgentContext Context="@(new ConsoleAgentPageContext { Route = new Uri(ConsoleNavigation.Uri).AbsolutePath })" />
+}
+
 <section class="console-page @(V4Enabled ? "console-operate-overview-v4" : null)">
     @if (V4Enabled)
     {

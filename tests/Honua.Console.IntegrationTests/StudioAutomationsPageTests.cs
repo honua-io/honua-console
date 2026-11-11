@@ -38,12 +38,16 @@ public sealed class StudioAutomationsPageTests
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
     [InlineData(ConsolePresentationMode.V4)]
-    public void BoundRuntime_ListsSeededAutomationWithRuleCountAndVersion(ConsolePresentationMode presentation)
+    public async Task BoundRuntime_ListsSeededAutomationWithRuleCountAndVersion(ConsolePresentationMode presentation)
     {
+        var registry = new ConsoleAgentContextRegistry();
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(registry);
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.Services.AddSingleton<ICollectAutomationClient>(InMemoryCollectAutomationClient.CreateSeeded());
+
+        ctx.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/studio/automations?secret=private");
 
         var page = ctx.Render<StudioAutomationsPage>();
 
@@ -75,5 +79,15 @@ public sealed class StudioAutomationsPageTests
         {
             Assert.Contains("v1", automationLink.TextContent, StringComparison.Ordinal);
         }
+        if (presentation == ConsolePresentationMode.V4)
+        {
+            Assert.Equal("/studio/automations", registry.Current.Route);
+            Assert.Empty(registry.Current.Entities);
+        }
+        else Assert.Equal(0, registry.Current.Generation);
+        await ctx.DisposeComponentsAsync();
+        Assert.Empty(registry.Current.Filters);
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+
     }
 }
