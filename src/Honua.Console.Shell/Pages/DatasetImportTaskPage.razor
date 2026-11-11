@@ -1,5 +1,6 @@
 @page "/operate/resources/import/task"
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@inject NavigationManager Nav
 
 <PageTitle>Dataset import · Honua Console</PageTitle>
 @if ((ConsoleWorkspaceFeatures.IsEnabled(Configuration)))
@@ -34,6 +35,6 @@ else
     <section class="console-page">
         <h1>Import a file</h1>
         <p>The conversation import task is experimental. Use file import to preview the coordinate system and import a dataset.</p>
-        <a class="console-button" href="/operate/resources/import">Open file import</a>
+        <a class="console-button" href="@Nav.ToConsoleHref("/operate/resources/import")">Open file import</a>
     </section>
 }

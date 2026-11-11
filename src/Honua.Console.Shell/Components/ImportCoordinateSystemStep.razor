@@ -22,8 +22,8 @@
                                 Selected="_source" SelectedChanged="SourceChanged" Disabled="Disabled" />
     }
     <div class="console-action-row">
-        <label><input type="radio" name="@_radioName" checked="@(!_reproject)" @onchange="() => ChangeReprojection(false)" /> Keep source (recommended)</label>
-        <label><input type="radio" name="@_radioName" checked="@_reproject" @onchange="() => ChangeReprojection(true)" /> Reproject to…</label>
+        <label><input type="radio" name="@_radioName" checked="@(!_reproject)" @onchange="KeepSource" /> Keep source (recommended)</label>
+        <label><input type="radio" name="@_radioName" checked="@_reproject" @onchange="EnableReprojection" /> Reproject to…</label>
     </div>
     @if (_reproject)
     {
@@ -47,7 +47,8 @@
 
     private Task SourceChanged(HonuaAdminCoordinateSystem? source) { _source = source; return NotifyAsync(); }
     private Task TargetChanged(HonuaAdminCoordinateSystem? target) { _target = target; return NotifyAsync(); }
-    private Task ChangeReprojection(bool reproject) { _reproject = reproject; _target = null; return NotifyAsync(); }
+    private Task KeepSource() { _reproject = false; _target = null; return NotifyAsync(); }
+    private Task EnableReprojection() { _reproject = true; _target = null; return NotifyAsync(); }
     private Task NotifyAsync() => Changed.InvokeAsync(CoordinateSystem.RequiresSourceOverride && _source is null || _reproject && _target is null
         ? null : new ConsoleFileImportCoordinates(_source?.Code, _reproject ? _target?.Code : null));
 }

@@ -3,6 +3,7 @@ using Honua.Console.Shell;
 using Honua.Console.Shell.Components.Operate;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -35,6 +36,15 @@ public sealed class UploadFileEntryTests
             Assert.Equal("/operate/resources/import", page.Find("a").GetAttribute("href"));
     }
 
+    [Fact]
+    public void DisabledTaskImportStaysInsideTheConsoleMount()
+    {
+        using var context = CreateContext(experimental: false);
+        context.Services.AddSingleton<NavigationManager>(new MountedNavigationManager("/console/"));
+        var page = context.Render<DatasetImportTaskPage>();
+        Assert.Equal("/console/operate/resources/import", page.Find("a").GetAttribute("href"));
+    }
+
     private static BunitContext CreateContext(bool experimental)
     {
         var context = new BunitContext();
@@ -46,5 +56,13 @@ public sealed class UploadFileEntryTests
                 ["Honua:Agent:WorkspaceApiEnabled"] = experimental.ToString()
             }).Build());
         return context;
+    }
+
+    private sealed class MountedNavigationManager : NavigationManager
+    {
+        public MountedNavigationManager(string applicationPath) =>
+            Initialize("http://localhost" + applicationPath, "http://localhost" + applicationPath);
+
+        protected override void NavigateToCore(string uri, bool forceLoad) => Uri = ToAbsoluteUri(uri).AbsoluteUri;
     }
 }
