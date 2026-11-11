@@ -2,9 +2,11 @@
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
+@using Microsoft.Extensions.DependencyInjection
+@inject IServiceProvider Services
 
 <MapPreview Mode="MapPreviewMode.Layer"
-            StyleUrl="@ConsoleProxyRoutes.MapStyle(EnvironmentId, Layer.LayerId)"
+            StyleUrl="@LayerStyle"
             Center="WorldCenter"
             Zoom="1"
             Bounds="Layer.Extent"
@@ -20,4 +22,8 @@
     [Parameter, EditorRequired] public OperateServiceLayerProjection Layer { get; set; } = default!;
 
     [Parameter] public string? EnvironmentId { get; set; }
+
+    private string? LayerStyle =>
+        Services.GetService<IConsolePreviewAddress>()?.LayerStyle(EnvironmentId, Layer.LayerId)
+        ?? ConsoleProxyRoutes.MapStyle(EnvironmentId, Layer.LayerId);
 }

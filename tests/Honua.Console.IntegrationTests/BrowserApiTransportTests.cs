@@ -86,6 +86,40 @@ public sealed class BrowserApiTransportTests
         Assert.Equal(new Uri("https://honua.example/"), new ConsoleRuntimeConfiguration().ResolveApiBaseUri(App));
     }
 
+    [Fact]
+    public void SessionChangePublishesTheCurrentSnapshot()
+    {
+        var session = new ConsoleBrowserSession();
+        ConsoleBrowserSessionSnapshot? published = null;
+        session.Changed += snapshot => published = snapshot;
+        session.Set(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "operator")], "test")),
+            new ConsoleSessionCredentials(AccessToken: "token"));
+        Assert.Equal("operator", published?.PrincipalId);
+        Assert.Equal("token", published?.AccessToken);
+        session.Clear();
+        Assert.False(published?.Authenticated);
+        Assert.Null(published?.AccessToken);
+    }
+
+    [Fact]
+    public void ExpiryPublishesANewRevision()
+    {
+        var session = new ConsoleBrowserSession();
+        ConsoleBrowserSessionSnapshot? published = null;
+        session.Changed += snapshot => published = snapshot;
+        session.Set(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "operator")], "test")),
+            new ConsoleSessionCredentials(AccessToken: "token", ExpiresAt: DateTimeOffset.UtcNow.AddMilliseconds(40)));
+        Assert.True(published?.Authenticated);
+        var revision = published!.Revision;
+        Thread.Sleep(60);
+        var expired = session.Snapshot();
+        Assert.False(expired.Authenticated);
+        Assert.Null(expired.AccessToken);
+        Assert.True(expired.Revision > revision);
+        Assert.Equal(expired.Revision, published?.Revision);
+        Assert.Equal(expired.Revision, session.Snapshot().Revision);
+    }
+
     [Theory]
     [InlineData("http://remote.example/")]
     [InlineData("https://user:password@honua.example/")]
