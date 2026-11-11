@@ -42,11 +42,14 @@
     const selectedRow = available => available.find(row => row.getAttribute(selectionAttribute) === 'true');
     function keepRowVisible(row) {
         if (!sidebar || !row.isConnected) return;
-        const pane = sidebar.getBoundingClientRect();
+        const branches = row.closest(".console-tree-branches");
+        const scrollPane = branches && branches.scrollHeight > branches.clientHeight
+            && getComputedStyle(branches).overflowY === "auto" ? branches : sidebar;
+        const pane = scrollPane.getBoundingClientRect();
         const bounds = row.getBoundingClientRect();
         const top = Math.max(pane.top, 0), bottom = Math.min(pane.bottom, innerHeight);
-        if (bounds.top < top) sidebar.scrollTop += bounds.top - top;
-        else if (bounds.bottom > bottom) sidebar.scrollTop += bounds.bottom - bottom;
+        if (bounds.top < top) scrollPane.scrollTop += bounds.top - top;
+        else if (bounds.bottom > bottom) scrollPane.scrollTop += bounds.bottom - bottom;
     }
     function reconcileSelection(available) {
         const selection = selectedRow(available);
