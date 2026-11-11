@@ -26,34 +26,30 @@ internal static class ReplicaCreateResponses
 
     private static Decision ClassifySuccess(int statusCode, string body)
     {
-        var document = Parse(body);
+        using var document = Parse(body);
         if (document is null)
         {
             return MissingReplica(statusCode);
         }
 
-        using (document)
+        var replicaId = ReadReplicaId(document.RootElement);
+        if (replicaId is not null)
         {
-            var replicaId = ReadReplicaId(document.RootElement);
-            if (replicaId is not null)
-            {
-                return new Decision(false, replicaId, null);
-            }
-
-            var errorCode = ReadErrorCode(document.RootElement);
-            if (errorCode is int code)
-            {
-                if (IsUnavailable(code))
-                {
-                    return new Decision(true, null, null);
-                }
-
-                return new Decision(false, null, $"createReplica returned {statusCode} with error {code}.");
-            }
+            return new Decision(false, replicaId, null);
         }
 
-        return MissingReplica(statusCode);
+        if (ReadErrorCode(document.RootElement) is not int code)
+        {
+            return MissingReplica(statusCode);
+        }
+
+        return ClassifyError(statusCode, code);
     }
+
+    private static Decision ClassifyError(int statusCode, int code) =>
+        IsUnavailable(code)
+            ? new Decision(true, null, null)
+            : new Decision(false, null, $"createReplica returned {statusCode} with error {code}.");
 
     private static bool IsUnavailable(int code) => code is 400 or 402 or 404 or 405 or 501;
 
