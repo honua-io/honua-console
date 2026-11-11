@@ -89,6 +89,21 @@ public sealed class RemovedOperateEntryPointsRenderTests
     }
 
     [Fact]
+    public void ServiceTabs_ShowMissingBindingOnEveryConfigurationTab()
+    {
+        using var ctx = CreateContext(true);
+        ctx.Services.AddSingleton<IServiceConfigurationOperation>(new UnsupportedServiceConfigurationOperation());
+        var page = ctx.Render<OperateServiceDetailPage>(parameters => parameters.Add(component => component.ServiceName, Cadastre.Name));
+
+        foreach (var tab in new[] { "protocols", "access", "limits" })
+        {
+            page.Find($"#service-{tab}-tab").Click();
+            var panel = page.Find($"#service-{tab}-panel");
+            Assert.Contains("Missing binding", panel.TextContent);
+        }
+    }
+
+    [Fact]
     public void ServiceTabs_KeepAccessEditsWhileSwitchingPanels()
     {
         using var ctx = CreateContext(true);
