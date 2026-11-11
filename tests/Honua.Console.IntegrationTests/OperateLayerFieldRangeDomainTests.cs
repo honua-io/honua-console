@@ -240,7 +240,7 @@ public sealed class OperateLayerFieldRangeDomainTests
 
         page.WaitForAssertion(() => Assert.Contains("Updated", page.Find("[data-domain-result]").TextContent, StringComparison.Ordinal), TimeSpan.FromSeconds(5));
         Assert.Equal("elevation_range", fields.DomainUpdates[0].Authoring.DomainName);
-        Assert.True(registry.Current.Unsaved.ChangedFieldCount >= 1);
+        Assert.Equal(1, registry.Current.Unsaved.ChangedFieldCount);
     }
 
     private sealed class RecordingLayerFieldsOperation : IConsoleLayerFieldsOperation
