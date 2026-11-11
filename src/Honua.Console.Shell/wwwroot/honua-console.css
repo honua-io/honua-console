@@ -325,7 +325,7 @@ p {
     border: 1px solid var(--honua-accent);
     border-radius: 8px;
     background: var(--honua-accent);
-    color: #ffffff;
+    color: var(--c-on-accent, #ffffff);
     font: inherit;
     font-weight: 800;
     text-decoration: none;
@@ -863,7 +863,7 @@ p {
 .console-status-public {
     border-color: var(--honua-accent);
     background: var(--honua-accent);
-    color: #ffffff;
+    color: var(--c-on-accent, #ffffff);
 }
 
 .console-success {
@@ -874,7 +874,7 @@ p {
 .console-button-active {
     border-color: var(--honua-accent);
     background: var(--honua-accent);
-    color: #ffffff;
+    color: var(--c-on-accent, #ffffff);
 }
 
 .console-button-ghost {
@@ -3248,7 +3248,7 @@ p {
     border-radius: 14px 14px 14px 2px;
     background: var(--honua-accent);
     border: 1.5px solid var(--honua-text);
-    color: #fff;
+    color: var(--c-on-accent, #ffffff);
     font-size: 0.8rem;
     font-weight: 700;
     cursor: pointer;
@@ -3380,7 +3380,7 @@ p {
     height: 20px;
     border-radius: 10px 10px 10px 2px;
     background: var(--honua-accent);
-    color: #fff;
+    color: var(--c-on-accent, #ffffff);
     display: grid;
     place-items: center;
     font-size: 0.7rem;
@@ -4521,7 +4521,7 @@ p {
 
 .studio-app-frame-navitem-active {
     background: var(--honua-accent);
-    color: #ffffff;
+    color: var(--c-on-accent, #ffffff);
     font-weight: 700;
 }
 
@@ -4993,7 +4993,7 @@ p {
 
 .publish-mode-option.publish-mode-option-active {
     background: var(--honua-accent);
-    color: #ffffff;
+    color: var(--c-on-accent, #ffffff);
 }
 
 .publish-mode-hint {
@@ -5041,7 +5041,7 @@ p {
 .publish-step-current {
     border-color: var(--honua-accent);
     background: var(--honua-accent);
-    color: #ffffff;
+    color: var(--c-on-accent, #ffffff);
 }
 
 .publish-step-done {
@@ -5223,7 +5223,7 @@ p {
 
 .studio-breakpoint-active {
     background: var(--honua-accent);
-    color: #ffffff;
+    color: var(--c-on-accent, #ffffff);
 }
 
 .studio-dashboard-bar-actions {
@@ -5944,7 +5944,7 @@ p {
 .map-preview-basemap-chip-active {
     border-color: var(--honua-accent);
     background: var(--honua-accent);
-    color: #fff;
+    color: var(--c-on-accent, #ffffff);
 }
 
 /* ---- PublishWizard ------------------------------------------------------- */
@@ -6471,7 +6471,7 @@ p {
 
 .publish-segment-active {
     background: var(--honua-accent);
-    color: #ffffff;
+    color: var(--c-on-accent, #ffffff);
 }
 
 /* Filter chip rows above pickers. */
@@ -7491,7 +7491,7 @@ p {
 
 .esri-intake__mode--on {
     background: var(--honua-accent);
-    color: #fff;
+    color: var(--c-on-accent, #ffffff);
     font-weight: 700;
 }
 
@@ -7582,7 +7582,7 @@ p {
 
 .esri-mapping__filter--on {
     background: var(--honua-accent);
-    color: #fff;
+    color: var(--c-on-accent, #ffffff);
     border-color: var(--honua-accent);
     font-weight: 700;
 }
@@ -9189,7 +9189,7 @@ button.console-chip:focus-visible {
     border-radius: 50%;
     font-size: 0.8rem;
     font-weight: 700;
-    color: #fff;
+    color: var(--c-on-accent, #ffffff);
     background: var(--honua-accent);
 }
 

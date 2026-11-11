@@ -31,16 +31,16 @@ public sealed class StudioWorkflowEditorPageTests
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy, 0)]
     [InlineData(ConsolePresentationMode.V4, 1)]
-    public void Publish_AfterValidationFailedSave_DoesNotShipStalePriorVersion(ConsolePresentationMode presentation, int expectedV4Headings)
+    public async Task Publish_AfterValidationFailedSave_DoesNotShipStalePriorVersion(ConsolePresentationMode presentation, int expectedV4Headings)
     {
         var client = new RecordingWorkflowPackageClient();
         using var ctx = new Bunit.BunitContext();
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         // The page renders <UnsavedChangesGuard/>, which imports a JS module on dirty transitions; allow the
         // bUnit JSInterop to no-op those calls (the guard is exercised directly in UnsavedChangesGuardTests).
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(client);
+        var registry = OpenWorkflowEditorContext(ctx, presentation);
 
         var page = ctx.Render<StudioWorkflowEditorPage>(
             parameters => parameters.Add(p => p.DraftId, RecordingWorkflowPackageClient.PackageId));
@@ -50,8 +50,9 @@ public sealed class StudioWorkflowEditorPageTests
             () => Assert.NotEmpty(page.FindAll("section[aria-label='Package metadata'] input.console-input")),
             TimeSpan.FromSeconds(5));
 
-
         Assert.Equal(expectedV4Headings, page.FindAll(".console-page-heading-v4").Count);
+        Assert.Equal("#workflow-history",
+            page.Find("nav[aria-label='Workflow editor sections'] a:nth-child(4)").GetAttribute("href"));
         Assert.Equal(presentation == ConsolePresentationMode.V4 ? "SECTION" : "MAIN", page.Find(".workflow-main").TagName);
         if (presentation == ConsolePresentationMode.V4)
         {
@@ -61,6 +62,7 @@ public sealed class StudioWorkflowEditorPageTests
 
         // Edit the title so the draft diverges from the last saved version (now dirty).
         TitleInput(page).Input("Parcel normalizer (edited)");
+        Assert.Equal(presentation == ConsolePresentationMode.V4 ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
 
         // Save: the server rejects the graph as invalid, so no version is created and the draft stays dirty.
         FindButton(page, "Save draft").Click();
@@ -84,6 +86,9 @@ public sealed class StudioWorkflowEditorPageTests
             "Save blocked: server validation requires attention",
             page.Markup,
             StringComparison.Ordinal);
+        Assert.Equal(presentation == ConsolePresentationMode.V4 ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        await ctx.DisposeComponentsAsync();
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
     }
 
     [Fact]
@@ -169,6 +174,16 @@ public sealed class StudioWorkflowEditorPageTests
         Assert.NotEmpty(canvas.QuerySelectorAll("marker#workflow-arrow"));
         Assert.NotEmpty(canvas.QuerySelectorAll(".workflow-canvas-nodes .workflow-node"));
         Assert.NotEmpty(canvas.QuerySelectorAll(".workflow-canvas-edge"));
+    }
+
+    private static ConsoleAgentContextRegistry OpenWorkflowEditorContext(Bunit.BunitContext ctx, ConsolePresentationMode presentation)
+    {
+        var registry = new ConsoleAgentContextRegistry();
+        ctx.Services.AddSingleton(registry);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
+        var navigation = ctx.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        navigation.NavigateTo("http://localhost/console/studio/workflows/pkg-1?view=graph");
+        return registry;
     }
 
     private static IElement TitleInput(IRenderedComponent<StudioWorkflowEditorPage> page) =>

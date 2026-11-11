@@ -1,12 +1,22 @@
+@inject IServiceProvider Services
 @inject NavigationManager ConsoleNavigation
 @page "/setup/local"
 
 <section class="console-page console-local-setup" data-local-setup>
-    <div class="console-page-heading">
-        <p class="console-kicker">Set up Honua locally</p>
-        <h1>Start Honua with your local agent</h1>
-        <p>Open your local agent to check Docker and start Honua on this computer. It will check prerequisites and run the installer with your permission.</p>
-    </div>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Start Honua with your local agent">
+            <p>Open your local agent to check Docker and start Honua on this computer. It will check prerequisites and run the installer with your permission.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Set up Honua locally</p>
+            <h1>Start Honua with your local agent</h1>
+            <p>Open your local agent to check Docker and start Honua on this computer. It will check prerequisites and run the installer with your permission.</p>
+        </div>
+    }
     <ol class="console-setup-steps">
         <li><h2>Open your local agent</h2><p>Your browser cannot install software or inspect Docker. Use the agent where you registered Honua. If you have not connected one, follow the <a href="https://honua.gitbook.io/honuaio/start-here/with-ai" target="_blank" rel="noopener noreferrer">Honua agent setup instructions</a>.</p></li>
         <li><h2>Ask it to start Honua</h2>
@@ -20,3 +30,7 @@
         </li>
     </ol>
 </section>
+
+@code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+}
