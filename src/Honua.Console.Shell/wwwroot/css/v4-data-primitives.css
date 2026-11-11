@@ -105,3 +105,7 @@
     white-space: normal;
     overflow-wrap: anywhere;
 }
+
+.console-shell[data-console-v4="true"] .operate-temporal .map-preview-schematic {
+    overflow: hidden;
+}
