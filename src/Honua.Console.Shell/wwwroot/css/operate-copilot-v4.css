@@ -1,18 +1,7 @@
-/* Page presentation only; findings, proposals and autonomy controls keep their shared markup. */
+/* Page presentation only; panel and status colours come from the shared console styles. */
 .console-copilot-v4 {
     gap: var(--space-6);
     color: var(--c-text);
-}
-
-.console-copilot-v4 .console-page-heading-actions .approval-inbox-toolbar {
-    margin: 0;
-}
-
-.console-copilot-v4 .console-panel {
-    border: 1px solid var(--c-border);
-    border-radius: var(--radius-lg);
-    background: var(--c-surface);
-    box-shadow: var(--shadow-panel);
 }
 
 .console-copilot-v4 .console-panel h2,

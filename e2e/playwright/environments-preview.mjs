@@ -27,6 +27,7 @@ await runV4PagePresentation({
       assert.ok(await page.locator("[data-environment-validation='blocking']").isVisible());
     } else {
       assert.deepEqual(await page.locator("h2").allTextContents(), ["Environment access blocked", "Transports", "Trust state", "Session"]);
+      assert.equal(await page.locator(".console-page-heading-actions .console-status").textContent(), "Trust blocked");
     }
   },
 });

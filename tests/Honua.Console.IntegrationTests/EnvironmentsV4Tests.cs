@@ -28,7 +28,7 @@ public sealed class EnvironmentsV4Tests
         AssertPresentation(page, enabled);
         if (enabled)
         {
-            CaptureV4("environments-v4", page.Markup);
+            CatalogAdminPreview.CaptureV4("environments-v4", page.Markup);
         }
     }
 
@@ -82,7 +82,7 @@ public sealed class EnvironmentsV4Tests
         AssertPresentation(page, enabled);
         if (enabled)
         {
-            CaptureV4("environment-new-v4", page.Markup);
+            CatalogAdminPreview.CaptureV4("environment-new-v4", page.Markup);
         }
     }
 
@@ -99,11 +99,12 @@ public sealed class EnvironmentsV4Tests
         Assert.Contains(BlockedMessage, page.Find("[role='alert']").TextContent);
         Assert.Equal(["Environment access blocked", "Transports", "Trust state", "Session"], page.FindAll("h2").Select(heading => heading.TextContent));
         Assert.Contains("/settings/prod", page.Markup);
+        Assert.Equal("Trust blocked", page.Find(enabled ? ".console-page-heading-actions .console-status" : ".console-detail-actions .console-status").TextContent);
         Assert.Single(page.FindAll("a[href$='/environments']"));
         AssertPresentation(page, enabled);
         if (enabled)
         {
-            CaptureV4("environment-detail-v4", page.Markup);
+            CatalogAdminPreview.CaptureV4("environment-detail-v4", page.Markup);
         }
     }
 
@@ -155,7 +156,4 @@ public sealed class EnvironmentsV4Tests
         context.Services.AddSingleton(manifest ?? new RecordingCapabilityManifest());
         return context;
     }
-
-    private static void CaptureV4(string name, string markup) =>
-        CatalogAdminPreview.Capture(name, $"<div class=\"console-shell\" data-console-v4=\"true\">{markup}</div>");
 }

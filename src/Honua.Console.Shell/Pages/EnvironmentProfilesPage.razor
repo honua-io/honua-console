@@ -12,9 +12,7 @@
             <ChildContent>
                 <p>Choose the Honua server to manage. Each environment keeps its own sign-in and saved session.</p>
             </ChildContent>
-            <Actions>
-                <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/environments/new")">Add environment</a>
-            </Actions>
+            <Actions>@AddEnvironmentLink</Actions>
         </ConsolePageHeading>
     }
     else
@@ -26,7 +24,7 @@
         </div>
 
         <div class="console-toolbar">
-            <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/environments/new")">Add environment</a>
+            @AddEnvironmentLink
         </div>
     }
 
@@ -35,7 +33,7 @@
         <article class="console-panel">
             <h2>Add your first environment</h2>
             <p class="console-muted">Add your server address, then sign in to access your data and maps.</p>
-            <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/environments/new")">Add environment</a>
+            @AddEnvironmentLink
         </article>
     }
     else
@@ -110,6 +108,9 @@
 
 @code {
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private RenderFragment AddEnvironmentLink => @<a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/environments/new")">Add environment</a>;
+
     private IReadOnlyList<ConsoleEnvironmentProfile> _profiles = Array.Empty<ConsoleEnvironmentProfile>();
     private ConsoleEnvironmentProfile? _activeProfile;
     private readonly Dictionary<string, ConsoleEnvironmentState?> _states = new(StringComparer.Ordinal);

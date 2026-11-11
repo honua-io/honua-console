@@ -1,17 +1,11 @@
-/* Page presentation only; profile, trust and transport controls use shared components. */
+/* Page presentation only; panel and trust-state colours come from the shared console styles. */
 .console-environments-v4 {
     gap: var(--space-6);
     color: var(--c-text);
 }
 
-.console-environments-v4 .console-panel {
-    border: 1px solid var(--c-border);
-    border-radius: var(--radius-lg);
-    background: var(--c-surface);
-    box-shadow: var(--shadow-panel);
-}
-
-.console-environments-v4 .console-panel h2 {
+.console-environments-v4 .console-panel h2,
+.console-environments-v4 .console-section > h2 {
     font-size: var(--text-lg);
     font-weight: var(--weight-semibold);
 }
@@ -20,11 +14,6 @@
 .console-environments-v4 .console-environment-server {
     min-width: 0;
     overflow-wrap: anywhere;
-}
-
-.console-environments-v4 .console-section > h2 {
-    font-size: var(--text-lg);
-    font-weight: var(--weight-semibold);
 }
 
 @media (max-width: 600px) {

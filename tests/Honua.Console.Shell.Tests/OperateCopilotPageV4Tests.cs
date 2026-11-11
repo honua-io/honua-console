@@ -12,7 +12,7 @@ public sealed partial class OperateCopilotPageTests
     [Theory]
     [InlineData(false, "Copilot Findings")]
     [InlineData(true, "Copilot findings")]
-    public void RolloutKeepsFindingsAutonomyAndProposeFlow(bool v4Enabled, string heading)
+    public void RolloutKeepsFindingsAndAutonomyControls(bool v4Enabled, string heading)
     {
         var findings = new StubOpsFindingsClient { List = OperateSectionResult<OpsFindingsListResponse>.Allowed(BuildAutonomyFindings()) };
         using var ctx = V4Context(v4Enabled, findings, new StubOpsAutonomyClient { LoadResult = OperateSectionResult<OpsAutonomySnapshot>.Allowed(BuildAutonomySnapshot()) });
@@ -20,9 +20,9 @@ public sealed partial class OperateCopilotPageTests
         var page = ctx.Render<OperateCopilotPage>();
 
         Assert.Equal(heading, Assert.Single(page.FindAll("h1")).TextContent);
-        Assert.Equal(v4Enabled, page.FindAll(".console-page-heading-v4").Count == 1);
-        Assert.Equal(v4Enabled, page.FindAll("section.console-copilot-v4 > link[rel='stylesheet'][href$='operate-copilot-v4.css']").Count == 1);
-        Assert.Equal(v4Enabled, page.FindAll(".console-page-heading-actions [data-refresh-findings]").Count == 1);
+        Assert.Equal(v4Enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
+        Assert.Equal(v4Enabled ? 1 : 0, page.FindAll("section.console-copilot-v4 > link[rel='stylesheet'][href$='operate-copilot-v4.css']").Count);
+        Assert.Equal(v4Enabled ? 1 : 0, page.FindAll(".console-page-heading-actions [data-refresh-findings]").Count);
         Assert.Equal(v4Enabled ? 0 : 1, page.FindAll(".console-kicker").Count(kicker => kicker.TextContent == "Graduated operations"));
         Assert.Single(page.FindAll("[data-refresh-findings]"));
         Assert.NotNull(page.Find("#autonomy-policy-heading"));
