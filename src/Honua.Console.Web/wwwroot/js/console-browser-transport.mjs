@@ -62,7 +62,7 @@ export function createConsoleBrowserTransport({ apiBaseUrl, applicationBaseUrl, 
     return Object.freeze({
         async capture() {
             const binding = requireSession(await getSession());
-            const assertCurrent = async () => {
+            const getCurrentSession = async () => {
                 const current = requireSession(await getSession());
                 if (current.revision !== binding.revision || current.principalId !== binding.principalId) {
                     throw new Error('The Console session changed. Reopen this view before continuing.');
@@ -72,15 +72,15 @@ export function createConsoleBrowserTransport({ apiBaseUrl, applicationBaseUrl, 
             return Object.freeze({
                 principalId: binding.principalId,
                 revision: binding.revision,
-                assertCurrent,
+                async assertCurrent() { await getCurrentSession(); },
                 async fetch(route, init = {}) {
                     const url = resolveRoute(route, api);
                     init.signal?.throwIfAborted();
-                    const session = await assertCurrent();
+                    const session = await getCurrentSession();
                     init.signal?.throwIfAborted();
                     const response = await request(url, requestOptions(init, session, sameOrigin));
                     init.signal?.throwIfAborted();
-                    await assertCurrent();
+                    await getCurrentSession();
                     return response;
                 },
             });

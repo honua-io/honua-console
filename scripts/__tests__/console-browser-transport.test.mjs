@@ -77,3 +77,10 @@ test('missing CSRF and pre-cancelled requests never dispatch', async () => {
     await assert.rejects(async () => (await cancelled.transport.capture()).fetch('api/v1/admin/test', { signal }), { name: 'AbortError' });
     assert.equal(cancelled.calls.length, 0);
 });
+
+test('public session assertions do not expose credentials', async () => {
+    const { transport } = fixture({ accessToken: 'token', expiresAt: new Date(Date.now() + 60000).toISOString() });
+    const captured = await transport.capture();
+    assert.deepEqual(Object.keys(captured).sort(), ['assertCurrent', 'fetch', 'principalId', 'revision']);
+    assert.equal(await captured.assertCurrent(), undefined);
+});
