@@ -10,7 +10,7 @@ await runV4PagePresentation({
   heading: "Settings",
   scope: "main",
   controls: "main [tabindex='0']",
-  wrapped: true,
+  prepareMarkup: markup => markup,
   inspect: async (page, name) => {
     const width = page.viewportSize().width;
     assert.equal(await page.getByRole("columnheader").count(), 5);

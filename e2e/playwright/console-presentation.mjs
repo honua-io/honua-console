@@ -194,10 +194,10 @@ export async function checkKeyboardControls(page, { controls, sizedControls, min
   assert.equal(visited.size, total, "Every enabled form, link and pager control must be keyboard reachable");
 }
 
-export async function runV4PagePresentation({ previews, pageNames, title, stylesheet, heading, scope, controls, inspect, wrapped = false }) {
+export async function runV4PagePresentation({ previews, pageNames, title, stylesheet, heading, scope, controls, inspect, prepareMarkup = markup => `<div class="console-shell" data-console-v4="true">${markup}</div>` }) {
   const pages = new Map(await Promise.all(pageNames.map(async name => {
     const markup = await fs.readFile(path.join(previews, `${name}.html`), "utf8");
-    return [name, wrapped ? markup : `<div class="console-shell" data-console-v4="true">${markup}</div>`];
+    return [name, prepareMarkup(markup)];
   })));
   const server = await startPresentationFixtureServer({
     pages, title,
