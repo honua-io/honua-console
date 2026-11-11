@@ -40,7 +40,7 @@
             <div data-publication-lookup>
             @if (V4Enabled)
             {
-                <ConsolePanel Title="Look up released content" HeadingId="publishing-lookup">@LookupContent</ConsolePanel>
+                <ConsolePanel Title="Look up released content" HeadingId="publishing-lookup"><p class="console-muted">Enter a release ID to review its route, release a new version, or restore a previous version.</p>@LookupContent</ConsolePanel>
             }
             else
             {
@@ -67,7 +67,7 @@
         {
             @if (V4Enabled)
             {
-                <ConsolePanel Title="Publishing formats" HeadingId="publishing-formats">@FormatContent</ConsolePanel>
+                <ConsolePanel Title="Publishing formats" HeadingId="publishing-formats"><p class="console-muted">Review any unsupported or blocked format before publishing.</p>@FormatContent</ConsolePanel>
             }
             else
             {
