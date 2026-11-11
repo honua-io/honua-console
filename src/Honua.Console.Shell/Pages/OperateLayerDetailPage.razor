@@ -462,6 +462,8 @@
             DefaultValueText = _defaultValueText,
         };
 
+        // Edits made while the save is pending stay counted as unsaved.
+        var submittedDraft = DomainDraft;
         _domainResult = null;
         return Notifications.RunGuardedAsync(
             async () =>
@@ -470,7 +472,7 @@
                 if (_domainResult.Succeeded)
                 {
                     await LoadFieldsAsync();
-                    _savedDomainDraft = DomainDraft;
+                    _savedDomainDraft = submittedDraft;
                 }
             },
             setBusy: busy => { _savingDomain = busy; StateHasChanged(); },
