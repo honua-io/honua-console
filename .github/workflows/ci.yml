@@ -305,7 +305,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: data-history-presentation
-          path: artifacts/catalog-preview/data-history*.png
+          path: artifacts/catalog-preview/sync-*.png
           if-no-files-found: error
 
       - name: Verify rendered runtime presentation
@@ -318,7 +318,10 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: data-runtime-presentation
-          path: artifacts/catalog-preview/data-runtime*.png
+          path: |
+            artifacts/catalog-preview/scenes-*.png
+            artifacts/catalog-preview/sensors-*.png
+            artifacts/catalog-preview/versions-*.png
           if-no-files-found: error
 
       - name: Verify rendered Operate overview presentation
