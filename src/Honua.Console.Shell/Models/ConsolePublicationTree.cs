@@ -13,6 +13,7 @@ public sealed class ConsolePublicationNode
     public required ConsolePublicationNodeKind Kind { get; init; }
     public string? Href { get; init; }
     public string? ServiceName { get; init; }
+    public string? PublicName { get; init; }
     public string? GeometryType { get; init; }
     public int ReportedCount { get; init; }
     public List<ConsolePublicationNode> Children { get; set; } = [];
@@ -50,6 +51,7 @@ public sealed class ConsolePublicationTree
     public string Filter { get; set; } = "";
     public int ServiceCount { get; private set; }
     public int LayerTotal { get; private set; }
+    public int SearchLimit { get; private set; } = PageSize;
     public int LoadedServiceCount => Descendants(Root).Count(node => node.Kind == ConsolePublicationNodeKind.Service);
     public int LoadedLayerCount => Descendants(Root).Count(node => node.Kind == ConsolePublicationNodeKind.Layer);
     public bool HasUnloadedServices => LoadedServiceCount < ServiceCount;
@@ -61,6 +63,7 @@ public sealed class ConsolePublicationTree
     {
         var services = page.Items ?? [];
         Filter = string.Empty;
+        SearchLimit = PageSize;
         _unfilteredExpansion = null;
         ServiceCount = page.Total;
         LayerTotal = page.LayerTotal;
@@ -165,10 +168,12 @@ public sealed class ConsolePublicationTree
     }
 
     public IReadOnlyList<ConsolePublicationNode> MatchingChildren(ConsolePublicationNode parent) =>
-        parent.Children.Where(Matches).ToArray();
+        parent.Children.Where(IsMatch).ToArray();
 
     public IReadOnlyList<ConsolePublicationNode> VisibleChildren(ConsolePublicationNode parent) =>
         MatchingChildren(parent).Skip(parent.VisibleOffset).Take(parent.VisibleLimit).ToArray();
+
+    public void ShowMoreSearch() => SearchLimit += PageSize;
 
     public void ShowMore(ConsolePublicationNode parent) => parent.VisibleLimit += PageSize;
 
@@ -177,6 +182,7 @@ public sealed class ConsolePublicationTree
         if (string.IsNullOrWhiteSpace(Filter) && !string.IsNullOrWhiteSpace(filter))
             _unfilteredExpansion = Descendants(Root).Prepend(Root).ToDictionary(node => node.Key, node => node.Expanded);
         Filter = filter;
+        SearchLimit = PageSize;
         foreach (var node in Descendants(Root).Prepend(Root)) ShowFirstPage(node);
         if (string.IsNullOrWhiteSpace(filter))
         {
@@ -242,7 +248,7 @@ public sealed class ConsolePublicationTree
     public void RevealPath(string path)
     {
         var target = Descendants(Root).FirstOrDefault(node => node.Href == path);
-        if (target is not null && !Matches(target)) SetFilter("");
+        if (target is not null && !IsMatch(target)) SetFilter("");
         RevealPath(Root, path);
     }
 
@@ -257,10 +263,11 @@ public sealed class ConsolePublicationTree
         return true;
     }
 
-    private bool Matches(ConsolePublicationNode node) => string.IsNullOrWhiteSpace(Filter)
-        || node.Label.Contains(Filter, StringComparison.OrdinalIgnoreCase)
-        || node.ServiceName?.Contains(Filter, StringComparison.OrdinalIgnoreCase) == true
-        || node.Children.Any(Matches);
+    public bool IsMatch(ConsolePublicationNode node) => string.IsNullOrWhiteSpace(Filter)
+        || node.Label.Contains(Filter.Trim(), StringComparison.OrdinalIgnoreCase)
+        || node.ServiceName?.Contains(Filter.Trim(), StringComparison.OrdinalIgnoreCase) == true
+        || node.PublicName?.Contains(Filter.Trim(), StringComparison.OrdinalIgnoreCase) == true
+        || node.Children.Any(IsMatch);
 
     public static IEnumerable<ConsolePublicationNode> Descendants(ConsolePublicationNode parent) =>
         parent.Children.SelectMany(child => Descendants(child).Prepend(child));
@@ -274,6 +281,7 @@ public sealed class ConsolePublicationTree
         Label = DisplayName(service),
         Kind = ConsolePublicationNodeKind.Service,
         ServiceName = service.ServiceName,
+        PublicName = service.PublicName,
         ReportedCount = service.LayerCount,
         Href = $"/operate/services/{Uri.EscapeDataString(service.ServiceName!)}/settings"
     };

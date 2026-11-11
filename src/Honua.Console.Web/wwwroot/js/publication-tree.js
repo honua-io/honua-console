@@ -173,9 +173,11 @@
     function handleEscape(event) {
         if (event.key !== 'Escape' || !event.target.closest(sidebarSelector)) return false;
         event.preventDefault();
-        if (event.target.matches('[data-tree-filter]') && event.target.value) {
-            event.target.value = '';
-            event.target.dispatchEvent(new Event('input', {bubbles: true}));
+        const filter = sidebar.querySelector('[data-tree-filter]');
+        if (filter?.value && (event.target === filter || event.target.closest('[data-publication-search]'))) {
+            filter.value = '';
+            filter.dispatchEvent(new Event('input', {bubbles: true}));
+            filter.focus();
         } else if (isOpen()) closeOverlay();
         else focusRow(rows()[0]);
         return true;

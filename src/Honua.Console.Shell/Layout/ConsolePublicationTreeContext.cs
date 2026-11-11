@@ -15,6 +15,7 @@ public sealed class ConsolePublicationTreeContext
     public EventCallback<ConsolePublicationNode> Retry { get; init; }
     public EventCallback<ConsolePublicationNode> ShowFirstPage { get; init; }
     public EventCallback<ConsolePublicationNode> ShowMore { get; init; }
+    public EventCallback ShowMoreSearch { get; init; }
 
     public IEnumerable<ConsolePublicationNode> PagedParents => Tree.VisibleNodes()
         .Where(node => node.Expanded && (node.VisibleOffset > 0 || Tree.HasHiddenLoadedChildren(node) || OffersMoreServices(node)));

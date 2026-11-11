@@ -72,7 +72,8 @@
         Collapse = EventCallback.Factory.Create<ConsolePublicationNode>(this, Collapse),
         Retry = EventCallback.Factory.Create<ConsolePublicationNode>(this, LoadChildrenAsync),
         ShowFirstPage = EventCallback.Factory.Create<ConsolePublicationNode>(this, ShowFirstPage),
-        ShowMore = EventCallback.Factory.Create<ConsolePublicationNode>(this, ShowMore)
+        ShowMore = EventCallback.Factory.Create<ConsolePublicationNode>(this, ShowMore),
+        ShowMoreSearch = EventCallback.Factory.Create(this, ShowMoreSearchAsync)
     };
     private ConsolePublicationNavigationReadState ReadState => new()
     {
@@ -329,13 +330,16 @@
         await InvokeAsync(StateHasChanged);
     }
     private void ShowFirstPage(ConsolePublicationNode node) => _tree.ShowFirstPage(node);
-    private async Task ShowMore(ConsolePublicationNode node)
+    private Task ShowMore(ConsolePublicationNode node) => ShowMoreAsync(_tree.HasHiddenLoadedChildren(node), () => _tree.ShowMore(node));
+    private Task ShowMoreSearchAsync() => ShowMoreAsync(_tree.SearchLimit < _tree.LoadedServiceCount, _tree.ShowMoreSearch);
+
+    private async Task ShowMoreAsync(bool hasHiddenLoadedServices, Action revealMore)
     {
         if (_inflight is not null || _settled is not { } settled
             || settled.FilterRevision != _filterRevision
             || settled.AuthorityRevision != _authorityRevision)
             return;
-        if (!_tree.HasHiddenLoadedChildren(node) && _tree.HasUnloadedServices)
+        if (!hasHiddenLoadedServices && _tree.HasUnloadedServices)
         {
             var attempt = BeginCatalog(settled.Query.Next(), CatalogApply.Append);
             var outcome = await FinishCatalogAsync(attempt);
@@ -345,9 +349,10 @@
                 return;
             }
         }
-        _tree.ShowMore(node);
+        revealMore();
         await InvokeAsync(StateHasChanged);
     }
+
     private async Task ReconcileLocationAsync()
     {
         await CheckAuthorityAsync();
