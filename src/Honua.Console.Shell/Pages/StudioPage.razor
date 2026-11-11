@@ -9,6 +9,11 @@
 @inject NavigationManager Navigation
 @inject IServiceProvider WorkspaceServices
 
+@if (V4Enabled)
+{
+    <ConsoleAgentContext Context="@AgentContext" />
+}
+
 @if (IsRetiredRoute)
 {
     <section class="console-page" data-legacy-studio-retired>
@@ -76,6 +81,11 @@ else
 }
 
 @code {
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = new Uri(Navigation.Uri).AbsolutePath
+    };
+
     private bool _interactiveReady;
     protected override void OnAfterRender(bool firstRender)
     {

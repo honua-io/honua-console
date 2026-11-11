@@ -8,6 +8,150 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class StudioAutomationVersionsPageTests
 {
+    [Fact]
+    public async Task VersionPreviewReadDoesNotPublishPendingChanges()
+    {
+        using var ctx = new BunitContext();
+        var registry = new ConsoleAgentContextRegistry();
+        var client = new DelayedVersionClient();
+        ctx.Services.AddSingleton(registry);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        ctx.Services.AddSingleton<ICollectAutomationClient>(client);
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        var page = ctx.Render<StudioAutomationVersionsPage>(
+            parameters => parameters.Add(p => p.DraftId, InMemoryCollectAutomationClient.SeedDraftId));
+        var preview = page.FindAll("button").First(b => b.TextContent.Contains("View body", StringComparison.Ordinal));
+        var click = preview.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        await client.PreviewStarted.Task;
+        page.WaitForState(() => page.FindAll("button[disabled]").Count > 0);
+        page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+        client.CompletePreview();
+        await click;
+        await ctx.DisposeComponentsAsync();
+    }
+
+    [Fact]
+    public async Task VersionRestorePublishesPendingWriteUntilCompletion()
+    {
+        using var ctx = new BunitContext();
+        var registry = new ConsoleAgentContextRegistry();
+        var client = new DelayedVersionClient();
+        var draft = (await client.OpenEditorAsync(InMemoryCollectAutomationClient.SeedDraftId)).Draft!;
+        draft.Description = "Updated body";
+        await client.SaveVersionAsync(draft, "Second version");
+        ctx.Services.AddSingleton(registry);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        ctx.Services.AddSingleton<ICollectAutomationClient>(client);
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
+        var page = ctx.Render<StudioAutomationVersionsPage>(
+            parameters => parameters.Add(p => p.DraftId, InMemoryCollectAutomationClient.SeedDraftId));
+        var restore = page.FindAll("button").First(b => b.TextContent.Trim() == "Restore");
+        var click = restore.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        await client.RestoreStarted.Task;
+        page.WaitForAssertion(() => Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount));
+        client.CompleteRestore();
+        await click;
+        page.WaitForAssertion(() =>
+        {
+            Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+            Assert.Contains("Restored v", page.Markup, StringComparison.Ordinal);
+            Assert.Equal(3, page.FindAll("li.automation-version-item").Count);
+        });
+        await ctx.DisposeComponentsAsync();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ChangingDraftDiscardsCompletedAndPendingPreviews(bool completeBeforeNavigation)
+    {
+        using var ctx = new BunitContext();
+        var registry = new ConsoleAgentContextRegistry();
+        var client = new DelayedVersionClient();
+        ctx.Services.AddSingleton(registry);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        ctx.Services.AddSingleton<ICollectAutomationClient>(client);
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        var page = ctx.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, InMemoryCollectAutomationClient.SeedDraftId));
+        var click = page.FindAll("button").First(b => b.TextContent.Contains("View body", StringComparison.Ordinal))
+            .ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        await client.PreviewStarted.Task;
+        if (completeBeforeNavigation)
+        {
+            client.CompletePreview();
+            await click;
+            page.WaitForAssertion(() => Assert.NotEmpty(registry.Current.Filters["versionId"]));
+        }
+        page.Render(p => p.Add(v => v.DraftId, "another-draft"));
+        if (!completeBeforeNavigation)
+        {
+            client.CompletePreview();
+            await click;
+        }
+        page.WaitForAssertion(() =>
+        {
+            Assert.Equal("another-draft", registry.Current.Filters["draftId"]);
+            Assert.Empty(registry.Current.Filters["versionId"]);
+            Assert.Empty(page.FindAll(".automation-version-preview"));
+        });
+        await ctx.DisposeComponentsAsync();
+    }
+
+    [Fact]
+    public async Task DelayedConfirmationPublishesRestoreUntilCompletion()
+    {
+        using var ctx = new BunitContext();
+        var registry = new ConsoleAgentContextRegistry();
+        var client = new DelayedVersionClient();
+        var draft = (await client.OpenEditorAsync(InMemoryCollectAutomationClient.SeedDraftId)).Draft!;
+        await client.SaveVersionAsync(draft, "Second version");
+        ctx.Services.AddSingleton(registry);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        ctx.Services.AddSingleton<ICollectAutomationClient>(client);
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        var confirmation = ctx.JSInterop.Setup<bool>("confirm", _ => true);
+        var page = ctx.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, InMemoryCollectAutomationClient.SeedDraftId));
+        var click = page.FindAll("button").First(b => b.TextContent.Trim() == "Restore")
+            .ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+        await page.InvokeAsync(() => confirmation.SetResult(true));
+        await client.RestoreStarted.Task;
+        page.WaitForAssertion(() => Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount));
+        client.CompleteRestore();
+        await click;
+        page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+        await ctx.DisposeComponentsAsync();
+    }
+
+    private sealed class DelayedVersionClient : ICollectAutomationClient
+    {
+        private readonly InMemoryCollectAutomationClient _inner = InMemoryCollectAutomationClient.CreateSeeded();
+        private readonly TaskCompletionSource _preview = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _restore = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource RestoreStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public void CompleteRestore() => _restore.SetResult();
+        public TaskCompletionSource PreviewStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public void CompletePreview() => _preview.SetResult();
+        public Task<IReadOnlyList<CollectAutomationSummary>> ListAutomationsAsync(CancellationToken cancellationToken = default) => _inner.ListAutomationsAsync(cancellationToken);
+        public Task<CollectAutomationEditorContext> OpenEditorAsync(string? draftId, CancellationToken cancellationToken = default) => _inner.OpenEditorAsync(draftId, cancellationToken);
+        public Task<CollectAutomationSaveResult> SaveVersionAsync(CollectAutomationDraft draft, string changeNote, CancellationToken cancellationToken = default) => _inner.SaveVersionAsync(draft, changeNote, cancellationToken);
+        public Task<CollectAutomationVersionHistory> ListVersionsAsync(string contentItemId, CancellationToken cancellationToken = default) => _inner.ListVersionsAsync(contentItemId, cancellationToken);
+        public async Task<CollectAutomationRestoreResult> RestoreVersionAsync(string contentItemId, string versionId, CancellationToken cancellationToken = default)
+        {
+            RestoreStarted.SetResult();
+            await _restore.Task;
+            return await _inner.RestoreVersionAsync(contentItemId, versionId, cancellationToken);
+        }
+        public async Task<CollectAutomationDraft?> GetVersionAsync(string contentItemId, string versionId, CancellationToken cancellationToken = default)
+        {
+            PreviewStarted.SetResult();
+            await _preview.Task;
+            return await _inner.GetVersionAsync(contentItemId, versionId, cancellationToken);
+        }
+    }
+
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
     [InlineData(ConsolePresentationMode.V4)]
@@ -63,12 +207,16 @@ public sealed class StudioAutomationVersionsPageTests
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
     [InlineData(ConsolePresentationMode.V4)]
-    public void ViewBody_TogglesTheVersionPreview(ConsolePresentationMode presentation)
+    public async Task ViewBody_TogglesTheVersionPreview(ConsolePresentationMode presentation)
     {
+        var registry = new ConsoleAgentContextRegistry();
         using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(registry);
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ICollectAutomationClient>(InMemoryCollectAutomationClient.CreateSeeded());
+
+        ctx.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/studio/automations/seed/versions?secret=private");
 
         var page = ctx.Render<StudioAutomationVersionsPage>(
             parameters => parameters.Add(p => p.DraftId, InMemoryCollectAutomationClient.SeedDraftId));
@@ -83,12 +231,26 @@ public sealed class StudioAutomationVersionsPageTests
             () => Assert.NotEmpty(page.FindAll(".automation-version-preview")),
             TimeSpan.FromSeconds(5));
 
+        if (presentation == ConsolePresentationMode.V4)
+            Assert.False(string.IsNullOrWhiteSpace(registry.Current.Filters["versionId"]));
+
         // Toggling the same version again collapses the preview. Re-find the button: the prior click
         // re-rendered the tree, invalidating the earlier element's event-handler id.
         page.FindAll("button").First(b => b.TextContent.Contains("View body", StringComparison.Ordinal)).Click();
         page.WaitForAssertion(
             () => Assert.Empty(page.FindAll(".automation-version-preview")),
             TimeSpan.FromSeconds(5));
+        if (presentation == ConsolePresentationMode.V4)
+        {
+            Assert.Equal("/studio/automations/seed/versions", registry.Current.Route);
+            Assert.Empty(registry.Current.Entities);
+            Assert.Equal(InMemoryCollectAutomationClient.SeedDraftId, registry.Current.Filters["draftId"]);
+            Assert.Equal(string.Empty, registry.Current.Filters["versionId"]);
+        }
+        else Assert.Equal(0, registry.Current.Generation);
+        await ctx.DisposeComponentsAsync();
+        Assert.Empty(registry.Current.Filters);
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
     }
 
     [Theory]
