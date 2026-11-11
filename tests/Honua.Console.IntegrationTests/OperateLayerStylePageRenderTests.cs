@@ -69,6 +69,134 @@ public sealed class OperateLayerStylePageRenderTests
         Assert.DoesNotContain("Layer overrides are not available", page.Markup, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(false, "/")]
+    [InlineData(true, "/")]
+    [InlineData(false, "/console/")]
+    [InlineData(true, "/console/")]
+    public async Task StyleEditor_PreservesSavePayloadAndReportsCountsWithoutJson(bool enabled, string mount)
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager(mount));
+        context.AddConsoleNotifications();
+        var registry = new ConsoleAgentContextRegistry();
+        context.Services.AddSingleton(registry);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        var source = new FakeOverrideDataSource
+        {
+            View = new("res-1", [new("slot-1", "parcels-fs", "Parcels FeatureServer")]) { LayerId = 7, CanonicalResourceId = "res-1" },
+            SaveResult = new(true)
+        };
+        context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource>(source);
+        context.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new FakeStyleCatalog
+        {
+            Catalog = new([new("streets", "Streets")], "streets", null)
+        });
+        var page = context.Render<OperateLayerStylePage>(parameters => parameters.Add(p => p.ResourceId, "res-1"));
+        Assert.Equal(enabled ? 2 : 0, page.FindAll("section.console-panel[aria-labelledby]").Count);
+        Assert.Equal(mount + "operate/layers/res-1", page.Find("a").GetAttribute("href"));
+        Assert.Equal(enabled ? "/operate/layers/res-1/style" : "/", registry.Current.Route);
+        if (enabled)
+        {
+            var entity = Assert.Single(registry.Current.Entities);
+            Assert.Equal(new ConsoleAgentEntity { Kind = ConsoleAgentEntityKind.Layer, Id = "7", ResourceId = "res-1" }, entity);
+            Assert.Equal("/operate/layers/res-1", ConsoleAgentRoutes.ForEntity(entity));
+            if (mount == "/console/") CatalogAdminPreview.Capture("data-layer-style", page.Markup);
+        }
+        page.Find("[data-slot-popup]").Change("{\"title\":\"Private field\"}");
+        page.Find("[data-slot-drawing]").Change("{\"renderer\":{}}");
+        Assert.Equal(enabled ? 2 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.DoesNotContain("Private field", System.Text.Json.JsonSerializer.Serialize(registry.Current));
+        page.Find("[data-slot-save]").Click();
+        Assert.Equal(new OperateLayerSlotStyleOverrideEdit("res-1", "slot-1", PopupInfoJson: "{\"title\":\"Private field\"}", DrawingInfoJson: "{\"renderer\":{}}"), source.SavedEdit);
+        Assert.Single(page.FindAll("[data-slot-saved]"));
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+        if (enabled && mount == "/console/") CatalogAdminPreview.Capture("data-layer-style-saved", page.Markup);
+        page.Find("[data-slot-popup]").Change("Unsaved before disposal");
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        await context.DisposeComponentsAsync();
+        Assert.Empty(registry.Current.Entities);
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void StyleEditor_BlockedSaveKeepsEditsDirty(bool enabled)
+    {
+        using var context = new BunitContext();
+        context.AddConsoleNotifications();
+        var registry = new ConsoleAgentContextRegistry();
+        context.Services.AddSingleton(registry);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource>(new FakeOverrideDataSource
+        {
+            View = new("res-1", [new("slot-1", "parcels-fs", "Parcels FeatureServer")])
+        });
+        context.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new FakeStyleCatalog());
+        var page = context.Render<OperateLayerStylePage>(parameters => parameters.Add(p => p.ResourceId, "res-1"));
+        page.Find("[data-slot-popup]").Change("private draft");
+        page.Find("[data-slot-save]").Click();
+        Assert.Equal("private draft", page.Find("[data-slot-popup]").GetAttribute("value"));
+        Assert.Contains("Override save is not bound", page.Markup, StringComparison.Ordinal);
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void StyleEditor_UnboundShowsNoEditors(bool enabled)
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager("/console/"));
+        context.AddConsoleNotifications();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource, UnsupportedOperateLayerStyleOverrideDataSource>();
+        context.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
+        var page = context.Render<OperateLayerStylePage>(parameters => parameters.Add(p => p.ResourceId, "res-1"));
+        Assert.Contains("Layer overrides are not available", page.Markup, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll("[data-slot-save], [data-slot-popup]"));
+        if (enabled)
+        {
+            Assert.Equal("Layer overrides are not available", page.Find("section[aria-labelledby=layer-overrides] h3").TextContent);
+            CatalogAdminPreview.Capture("data-layer-style-unbound", page.Markup);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StyleEditor_PendingSaveCountsAndPreservesNewerEdits(bool enabled)
+    {
+        using var context = new BunitContext();
+        context.AddConsoleNotifications();
+        var registry = new ConsoleAgentContextRegistry();
+        context.Services.AddSingleton(registry);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        var completion = new TaskCompletionSource<OperateLayerStyleOverrideSaveResult>();
+        var source = new FakeOverrideDataSource
+        {
+            View = new("res-1", [new("slot-1", "parcels-fs", "Parcels FeatureServer")]),
+            PendingSave = completion.Task
+        };
+        context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource>(source);
+        context.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new FakeStyleCatalog());
+        var page = context.Render<OperateLayerStylePage>(parameters => parameters.Add(p => p.ResourceId, "res-1"));
+        page.Find("[data-slot-popup]").Change("submitted draft");
+        var saving = page.Find("[data-slot-save]").ClickAsync(new());
+        page.WaitForAssertion(() => Assert.True(page.Find("[data-slot-save]").HasAttribute("disabled")));
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.PendingOperationCount);
+        page.Find("[data-slot-popup]").Change("newer draft");
+        completion.SetResult(new(true));
+        await saving;
+        Assert.Equal("submitted draft", source.SavedEdit?.PopupInfoJson);
+        Assert.Equal("newer draft", page.Find("[data-slot-popup]").GetAttribute("value"));
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+    }
+
     private static IRenderedComponent<OperateLayerStylePage> Render(
         IOperateLayerStyleOverrideDataSource overrides,
         IStudioMapStyleCatalogDataSource catalog)
@@ -89,12 +217,17 @@ public sealed class OperateLayerStylePageRenderTests
     {
         public OperateLayerStyleOverrideView View { get; set; } = new("res-1", []);
         public OperateLayerStyleOverrideSaveResult? SaveResult { get; set; }
+        public OperateLayerSlotStyleOverrideEdit? SavedEdit { get; private set; }
+        public Task<OperateLayerStyleOverrideSaveResult>? PendingSave { get; set; }
 
         public Task<OperateLayerStyleOverrideView> GetOverridesAsync(string resourceId, CancellationToken cancellationToken = default) =>
             Task.FromResult(View);
 
-        public Task<OperateLayerStyleOverrideSaveResult> SaveOverrideAsync(OperateLayerSlotStyleOverrideEdit edit, CancellationToken cancellationToken = default) =>
-            Task.FromResult(SaveResult ?? OperateLayerStyleOverrideSaveResult.Blocked(OverrideMissing));
+        public Task<OperateLayerStyleOverrideSaveResult> SaveOverrideAsync(OperateLayerSlotStyleOverrideEdit edit, CancellationToken cancellationToken = default)
+        {
+            SavedEdit = edit;
+            return PendingSave ?? Task.FromResult(SaveResult ?? OperateLayerStyleOverrideSaveResult.Blocked(OverrideMissing));
+        }
     }
 
     private sealed class FakeStyleCatalog : IStudioMapStyleCatalogDataSource
