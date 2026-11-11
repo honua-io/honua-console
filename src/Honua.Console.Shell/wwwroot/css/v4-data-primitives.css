@@ -54,3 +54,13 @@
     border-bottom-color: var(--c-accent);
     color: var(--c-text);
 }
+
+.console-shell[data-console-v4="true"] .console-state {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+    .console-shell[data-console-v4="true"] .console-definition-list {
+        grid-template-columns: minmax(100px, 0.42fr) minmax(0, 1fr);
+    }
+}
