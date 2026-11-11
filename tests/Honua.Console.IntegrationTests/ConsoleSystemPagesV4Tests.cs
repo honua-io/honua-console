@@ -20,6 +20,9 @@ public sealed class ConsoleSystemPagesV4Tests
     public void SharedHeadingPreservesPageContent(bool enabled, string name, string title)
     {
         using var context = new BunitContext();
+        var unsavedChanges = context.JSInterop.SetupModule("./_content/Honua.Console.Shell/unsaved-changes-guard.js");
+        unsavedChanges.SetupVoid("enable").SetVoidResult();
+        unsavedChanges.SetupVoid("disable").SetVoidResult();
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([
             new ConsoleEnvironmentProfile { Id = "prod", DisplayName = "Production", ServerBaseUri = new Uri("https://production.example/"), EnvironmentKind = "staging" }
