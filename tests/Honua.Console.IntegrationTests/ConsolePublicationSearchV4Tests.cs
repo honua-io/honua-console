@@ -112,6 +112,28 @@ public sealed class ConsolePublicationSearchV4Tests
     }
 
     [Fact]
+    public void SearchStopsPagingOnceEveryMatchIsVisible()
+    {
+        var source = new PublicationNavigationSource
+        {
+            IgnoreNameQuery = true,
+            ServiceSummaries = Enumerable.Range(0, 30)
+                .Select(index => new Honua.Sdk.Admin.Models.ServiceSummary
+                {
+                    ServiceName = $"{(index % 4 == 0 ? "wanted" : "other")}-{index:D3}"
+                }).ToArray()
+        };
+        using var context = PublicationLayoutContext(source);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForAssertion(() => Assert.NotEmpty(tree.FindAll("[role='treeitem']")));
+        tree.Find("input").Input("wanted");
+        tree.WaitForAssertion(() => Assert.Equal(8, tree.FindAll("[data-publication-search] [role='treeitem']").Count));
+        Assert.Empty(tree.FindAll("[data-search-more]"));
+        Assert.StartsWith("8 of 8 service matches", tree.Find(".console-search-summary").TextContent);
+    }
+
+    [Fact]
     public void HighlightEncodesUntrustedNamesAndMatchesWithoutCaseSensitivity()
     {
         using var context = new BunitContext();

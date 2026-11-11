@@ -331,27 +331,33 @@
         await InvokeAsync(StateHasChanged);
     }
     private void ShowFirstPage(ConsolePublicationNode node) => _tree.ShowFirstPage(node);
-    private Task ShowMore(ConsolePublicationNode node) => ShowMoreAsync(_tree.HasHiddenLoadedChildren(node), () => _tree.ShowMore(node));
-    private Task ShowMoreSearchAsync() => ShowMoreAsync(_tree.SearchLimit < _tree.MatchingServices.Count(), _tree.ShowMoreSearch);
-
-    private async Task ShowMoreAsync(bool hasHiddenLoadedServices, Action revealMore)
+    private async Task ShowMore(ConsolePublicationNode node)
     {
-        if (_inflight is not null || _settled is not { } settled
-            || settled.FilterRevision != _filterRevision
-            || settled.AuthorityRevision != _authorityRevision)
-            return;
-        if (!hasHiddenLoadedServices && _tree.HasUnloadedServices)
-        {
-            var attempt = BeginCatalog(settled.Query.Next(), CatalogApply.Append);
-            var outcome = await FinishCatalogAsync(attempt);
-            if (outcome != CatalogOutcome.Applied)
-            {
-                if (outcome != CatalogOutcome.Obsolete) await InvokeAsync(StateHasChanged);
-                return;
-            }
-        }
-        revealMore();
+        if (!CatalogSettled) return;
+        if (!_tree.HasHiddenLoadedChildren(node) && !await NextServicePageReadyAsync()) return;
+        _tree.ShowMore(node);
         await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ShowMoreSearchAsync()
+    {
+        if (!CatalogSettled) return;
+        if (!_tree.HasHiddenSearchMatches && !await NextServicePageReadyAsync()) return;
+        _tree.ShowMoreSearch();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private bool CatalogSettled => _inflight is null && _settled is { } settled
+        && settled.FilterRevision == _filterRevision
+        && settled.AuthorityRevision == _authorityRevision;
+
+    private async Task<bool> NextServicePageReadyAsync()
+    {
+        if (!_tree.HasUnloadedServices || _settled is not { } settled) return true;
+        var outcome = await FinishCatalogAsync(BeginCatalog(settled.Query.Next(), CatalogApply.Append));
+        if (outcome == CatalogOutcome.Applied) return true;
+        if (outcome != CatalogOutcome.Obsolete) await InvokeAsync(StateHasChanged);
+        return false;
     }
 
     private async Task ReconcileLocationAsync()

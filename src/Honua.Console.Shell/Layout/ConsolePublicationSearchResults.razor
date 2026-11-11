@@ -15,7 +15,7 @@
         }
         else
         {
-            <h3 id="console-search-services">Services <span>(@View.Tree.ServiceCount)</span></h3>
+            <h3 id="console-search-services">Services <span>(@View.Tree.SearchMatchCount)</span></h3>
         }
         @if (View.SearchPending)
         {
@@ -33,7 +33,7 @@
                     var service = results[index];
                     <li role="none" @key="service.Key">
                         <div class="console-tree-row console-search-row" role="treeitem" aria-level="1"
-                             aria-posinset="@(index + 1)" aria-setsize="@View.Tree.ServiceCount" tabindex="-1"
+                             aria-posinset="@(index + 1)" aria-setsize="@View.Tree.SearchMatchCount" tabindex="-1"
                              aria-selected="@(service.Href == View.SelectedPath ? "true" : "false")"
                              data-publication-key="@service.Key" data-tree-parent="environment" data-tree-label="@service.Label">
                             <span class="console-tree-kind" data-kind="Service" aria-hidden="true"></span>
@@ -46,7 +46,7 @@
                 }
             </ul>
         }
-        @if (!View.SearchPending && results.Count < View.Tree.ServiceCount)
+        @if (!View.SearchPending && View.Tree.HasMoreSearchResults)
         {
             <button type="button" class="console-button console-button-secondary" data-search-more @onclick="View.ShowMoreSearch">Show more services</button>
         }
@@ -61,7 +61,7 @@
     </section>
     @if (!View.SearchPending)
     {
-        <p class="console-search-summary" role="status">@results.Count of @View.Tree.ServiceCount service matches · ↑↓ move · Enter open · Esc back to tree</p>
+        <p class="console-search-summary" role="status">@results.Count of @View.Tree.SearchMatchCount service matches · ↑↓ move · Enter open · Esc back to tree</p>
     }
 </div>
 

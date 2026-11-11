@@ -57,6 +57,9 @@ public sealed class ConsolePublicationTree
         .Where(node => node.Kind == ConsolePublicationNodeKind.Service && IsMatch(node));
     public int LoadedLayerCount => Descendants(Root).Count(node => node.Kind == ConsolePublicationNodeKind.Layer);
     public bool HasUnloadedServices => LoadedServiceCount < ServiceCount;
+    public bool HasHiddenSearchMatches => SearchLimit < MatchingServices.Count();
+    public bool HasMoreSearchResults => HasHiddenSearchMatches || HasUnloadedServices;
+    public int SearchMatchCount => HasUnloadedServices ? ServiceCount : MatchingServices.Count();
 
     public bool HasHiddenLoadedChildren(ConsolePublicationNode parent) =>
         MatchingChildren(parent).Count > parent.VisibleOffset + parent.VisibleLimit;
