@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/layers/{ResourceId}"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Components.Operate
@@ -18,7 +19,7 @@
             <ul>
                 @foreach (var canonicalResourceId in _ambiguousResourceIds)
                 {
-                    <li><a href="@($"/operate/layers/{canonicalResourceId}")">@canonicalResourceId</a></li>
+                    <li><a href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/layers/{canonicalResourceId}")">@canonicalResourceId</a></li>
                 }
             </ul>
         </div>
@@ -34,10 +35,10 @@
             <h1>@_exposures[0].Layer.Name</h1>
             <p>Admin layer @_exposures[0].Layer.LayerId is exposed by @_serviceSummary and reads metadata from @_exposures[0].Layer.CanonicalResourceName.</p>
             <div class="console-detail-actions">
-                <a class="console-button-link" href="@($"/operate/layers/{CanonicalResourceId}/style")" data-layer-style-link>Resource presentation / style</a>
-                <a class="console-button-link" href="@($"/operate/layers/{CanonicalResourceId}/relationships")" data-layer-relationships-link>Relationships</a>
-                <a class="console-button-link" href="@($"/operate/layers/{CanonicalResourceId}/filter")" data-layer-filter-link>Permanent filter</a>
-                <a class="console-button-link" href="@($"/operate/layers/{CanonicalResourceId}/metadata")" data-layer-metadata-link>Editing policy →</a>
+                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/layers/{CanonicalResourceId}/style")" data-layer-style-link>Resource presentation / style</a>
+                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/layers/{CanonicalResourceId}/relationships")" data-layer-relationships-link>Relationships</a>
+                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/layers/{CanonicalResourceId}/filter")" data-layer-filter-link>Permanent filter</a>
+                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/layers/{CanonicalResourceId}/metadata")" data-layer-metadata-link>Editing policy →</a>
             </div>
         </div>
 
@@ -49,7 +50,7 @@
                     <h2>@exposure.Service.DisplayName</h2>
                     <dl class="console-definition-list">
                         <dt>Service</dt>
-                        <dd><a href="@($"/operate/services/{exposure.Service.Name}/settings")">@exposure.Service.DisplayName</a></dd>
+                        <dd><a href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/services/{exposure.Service.Name}/settings")">@exposure.Service.DisplayName</a></dd>
                         <dt>Geometry</dt>
                         <dd>@exposure.Layer.Geometry</dd>
                         <dt>Runtime</dt>
@@ -63,7 +64,7 @@
                 <h2>Resource Owner</h2>
                 <dl class="console-definition-list">
                     <dt>Resource</dt>
-                    <dd><a href="@($"/operate/resources/{_exposures[0].Layer.CanonicalResourceId}")">@_exposures[0].Layer.CanonicalResourceName</a></dd>
+                    <dd><a href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/resources/{_exposures[0].Layer.CanonicalResourceId}")">@_exposures[0].Layer.CanonicalResourceName</a></dd>
                     <dt>Console layer reference</dt>
                     <dd>@_exposures[0].Layer.CanonicalResourceId</dd>
                     <dt>Ownership</dt>

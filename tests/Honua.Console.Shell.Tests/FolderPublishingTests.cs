@@ -63,8 +63,8 @@ public sealed class FolderPublishingTests
 
     [Theory]
     [InlineData("FeatureServer", "/rest/services/Public%20Folder/Public-service/FeatureServer")]
-    [InlineData("Wms", "/ogc/services/Public%20Folder/Public-service/wms")]
-    [InlineData("Wmts", "/ogc/services/Public%20Folder/Public-service/wmts")]
+    [InlineData("Wms", "/rest/services/Public%20Folder/Public-service/MapServer/WMS")]
+    [InlineData("Wmts", "/rest/services/Public%20Folder/Public-service/MapServer/WMTS")]
     [InlineData("OgcFeatures", "/ogc/features")]
     public void ServingRoutesUsePublicNamesAndKeepTheFolderSeparate(string protocol, string expected)
     {

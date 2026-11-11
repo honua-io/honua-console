@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @using System.Globalization
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
@@ -5,7 +6,7 @@
 @implements IAsyncDisposable
 
 <section class="console-panel ops-summary-strip" aria-label="Operational summary" data-ops-summary-strip>
-    <a class="ops-summary-tile" href="/operate/health" data-summary-tile="health">
+    <a class="ops-summary-tile" href="@ConsoleNavigation.ToConsoleHref("/operate/health")" data-summary-tile="health">
         <span class="console-kicker">Health</span>
         @if (!_loaded)
         {
@@ -22,7 +23,7 @@
         @if (_loaded && _overallHealth is null) { <small>@ReadStatus(_healthStatus)</small> }
     </a>
 
-    <a class="ops-summary-tile" href="/inbox" data-summary-tile="approvals">
+    <a class="ops-summary-tile" href="@ConsoleNavigation.ToConsoleHref("/inbox")" data-summary-tile="approvals">
         <span class="console-kicker">Awaiting approval</span>
         <strong data-summary-value="approvals" class="@(_awaitingApprovals is > 0 ? "is-actionable" : null)">
             @(_loaded && _awaitingApprovals is { } awaiting ? awaiting.ToString(CultureInfo.InvariantCulture) : "—")
@@ -31,7 +32,7 @@
         @if (_inboxPartial) { <small>Partial queue</small> }
     </a>
 
-    <a class="ops-summary-tile" href="/operate/copilot" data-summary-tile="findings">
+    <a class="ops-summary-tile" href="@ConsoleNavigation.ToConsoleHref("/operate/copilot")" data-summary-tile="findings">
         <span class="console-kicker">Open findings</span>
         <strong data-summary-value="findings">
             @(_loaded && _openFindings is { } findings ? findings.ToString(CultureInfo.InvariantCulture) : "—")
@@ -39,7 +40,7 @@
         @if (_loaded && _openFindings is null) { <small>@ReadStatus(_findingsStatus)</small> }
     </a>
 
-    <a class="ops-summary-tile" href="/operate/health" data-summary-tile="breaches">
+    <a class="ops-summary-tile" href="@ConsoleNavigation.ToConsoleHref("/operate/health")" data-summary-tile="breaches">
         <span class="console-kicker">SLO breaches</span>
         <strong data-summary-value="breaches" class="@(_sloBreaches is > 0 ? "is-actionable" : null)">
             @(_loaded && _sloBreaches is { } breaches ? breaches.ToString(CultureInfo.InvariantCulture) : "—")

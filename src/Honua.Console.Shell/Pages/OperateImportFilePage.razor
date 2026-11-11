@@ -2,6 +2,7 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using Honua.Console.Shell.Models
 @inject IConsoleFileImportOperation FileImport
+@inject NavigationManager Nav
 
 <section class="console-page">
     <div class="console-page-heading">
@@ -100,7 +101,7 @@
                     </dl>
                     @if (r.Succeeded)
                     {
-                        <a class="console-button" href="/operate/publishing/quick">Publish this table</a>
+                        <a class="console-button" href="@Nav.ToConsoleHref("/operate/publishing/quick")">Publish this table</a>
                     }
                 }
                 @if (r.ValidationErrors.Count > 0)
@@ -119,7 +120,7 @@
             <button class="console-button" type="button" disabled="@(!CanImport)" @onclick="ImportAsync">
                 @(_busy ? "Working…" : "Import file")
             </button>
-            <a href="/operate/connections">Cancel</a>
+            <a href="@Nav.ToConsoleHref("/operate/connections")">Cancel</a>
         </div>
     </article>
 </section>

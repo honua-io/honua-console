@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/catalogs"
 @page "/catalogs/{CatalogId}"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
@@ -8,7 +9,7 @@
 <section class="console-page catalog-admin">
     <header class="console-detail-heading">
         <div>
-            @if (CatalogId is not null) { <a href="/catalogs">Catalogs</a> }
+            @if (CatalogId is not null) { <a href="@ConsoleNavigation.ToConsoleHref("/catalogs")">Catalogs</a> }
             <h1>@(_read?.Overview is { } heading && heading.CatalogId == CatalogId ? heading.Title : "Catalogs")</h1>
             <p class="console-muted">Present services, layers, datasets, maps and apps to the audiences that may read them.</p>
         </div>
@@ -32,7 +33,7 @@
     {
         <div class="console-toolbar console-toolbar-spread">
             <p role="status">@(read.State == "fixture" ? "Fixture preview · synthetic data" : "Live sync is unavailable")</p>
-            <a href="/operate/catalogs">Discovery endpoints</a>
+            <a href="@ConsoleNavigation.ToConsoleHref("/operate/catalogs")">Discovery endpoints</a>
         </div>
         @if (CatalogId is null)
         {
@@ -65,10 +66,10 @@
                             @foreach (var catalog in FilteredCatalogs.Skip(_offset).Take(PageSize))
                             {
                                 <tr @key="catalog.Id">
-                                    <td><a href="@($"/catalogs/{Uri.EscapeDataString(catalog.Id)}")">@catalog.Title</a></td>
+                                    <td><a href="@ConsoleNavigation.ToConsoleLinkHref($"/catalogs/{Uri.EscapeDataString(catalog.Id)}")">@catalog.Title</a></td>
                                     <td>@CatalogAdminLabels.Audience(catalog.Audience)</td><td>@catalog.ScopeLabel</td>
                                     <td>
-                                        @if (ProposalHref(catalog.ProposalHref) is { } proposal) { <a href="@proposal">Review proposal for @catalog.Title</a> }
+                                        @if (ProposalHref(catalog.ProposalHref) is { } proposal) { <a href="@ConsoleNavigation.ToConsoleLinkHref(proposal)">Review proposal for @catalog.Title</a> }
                                         else { <span>Not reported</span> }
                                     </td>
                                 </tr>
@@ -83,10 +84,10 @@
         else if (read.Overview is { } overview && overview.CatalogId == CatalogId)
         {
             <nav class="catalog-admin-tabs" aria-label="Catalog sections">
-                <a href="@($"/catalogs/{Uri.EscapeDataString(CatalogId)}")" aria-current="@(Section is null ? "page" : null)">Overview</a>
-                <a href="@($"/catalogs/{Uri.EscapeDataString(CatalogId)}/settings")" aria-current="@(Section == "settings" ? "page" : null)">Settings and scope</a>
-                <a href="@($"/catalogs/{Uri.EscapeDataString(CatalogId)}/categories")" aria-current="@(Section == "categories" ? "page" : null)">Categories and featured</a>
-                <a href="@($"/catalogs/{Uri.EscapeDataString(CatalogId)}/templates")" aria-current="@(Section is "templates" or "template" ? "page" : null)">Templates</a>
+                <a href="@ConsoleNavigation.ToConsoleLinkHref($"/catalogs/{Uri.EscapeDataString(CatalogId)}")" aria-current="@(Section is null ? "page" : null)">Overview</a>
+                <a href="@ConsoleNavigation.ToConsoleLinkHref($"/catalogs/{Uri.EscapeDataString(CatalogId)}/settings")" aria-current="@(Section == "settings" ? "page" : null)">Settings and scope</a>
+                <a href="@ConsoleNavigation.ToConsoleLinkHref($"/catalogs/{Uri.EscapeDataString(CatalogId)}/categories")" aria-current="@(Section == "categories" ? "page" : null)">Categories and featured</a>
+                <a href="@ConsoleNavigation.ToConsoleLinkHref($"/catalogs/{Uri.EscapeDataString(CatalogId)}/templates")" aria-current="@(Section is "templates" or "template" ? "page" : null)">Templates</a>
             </nav>
             @if (Section == "settings")
             {

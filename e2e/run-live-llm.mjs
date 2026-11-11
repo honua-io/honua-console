@@ -209,7 +209,7 @@ try {
     await waitForUrl(`${SERVER_URL}/healthz/ready`, 120_000);
     log('honua-server ready.');
 
-    // 2. Start the Console bound to the stack.
+    // 2. Start the legacy regression fixture bound to the stack.
     log(`starting Console on ${CONSOLE_BASE} (server -> ${SERVER_URL})...`);
     const consoleOpts = {
       stdio: 'inherit', shell: false,
@@ -218,7 +218,7 @@ try {
     };
     if (process.platform === 'win32') consoleOpts.detached = true;
     consoleProc = spawn('dotnet',
-      ['run', '--project', join(REPO_ROOT, 'src/Honua.Console.Web/Honua.Console.Web.csproj'), '--urls', CONSOLE_BASE],
+      ['run', '--project', join(REPO_ROOT, 'tests/Honua.Console.LegacyHost/Honua.Console.LegacyHost.csproj'), '--urls', CONSOLE_BASE],
       consoleOpts);
     if (process.platform !== 'win32') consoleProc.unref?.();
     await waitForUrl(`${CONSOLE_BASE}/version.json`, 180_000);

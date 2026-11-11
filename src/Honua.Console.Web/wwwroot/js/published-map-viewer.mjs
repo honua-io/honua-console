@@ -45,7 +45,7 @@ function canvasMessage(view) {
 
 /** Owns a viewer instance only. No editor, agent session, lifecycle writer or browser bearer. */
 export function createPublishedMapViewer({route, container, widgetContainer, status, title, origin = globalThis.location.origin,
-    fetchImpl = globalThis.fetch, loadRenderer = () => import('/_studio/console.js')}) {
+    fetchImpl = globalThis.fetch, loadRenderer = () => import(new URL('../_studio/console.js', import.meta.url).href)}) {
     const key = publishedMapPath(route).slice('/maps/published/'.length);
     let generation = 0;
     let lifetime;

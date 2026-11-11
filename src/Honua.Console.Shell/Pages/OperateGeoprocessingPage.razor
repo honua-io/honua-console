@@ -1,4 +1,5 @@
-﻿@page "/operate/geoprocessing"
+@inject NavigationManager ConsoleNavigation
+@page "/operate/geoprocessing"
 @page "/operate/geoprocessing/{SelectedJobRunId}"
 @using Honua.Console.Shell.Components
 @implements IDisposable
@@ -109,7 +110,7 @@
                                 @foreach (var job in FilteredJobs)
                                 {
                                     <tr>
-                                        <td><a href="@OperateObservabilityRoutes.GeoprocessingJobDetail(job.JobRunId)">@job.JobRunId</a></td>
+                                        <td><a href="@ConsoleNavigation.ToConsoleLinkHref(OperateObservabilityRoutes.GeoprocessingJobDetail(job.JobRunId))">@job.JobRunId</a></td>
                                         <td><span class="console-status @job.Status.CssClass">@job.Status.Label</span></td>
                                         <td>@(string.IsNullOrWhiteSpace(job.Status.Description) ? "—" : job.Status.Description)</td>
                                         <td>
@@ -155,12 +156,12 @@
     {
         <div class="operate-release-detail-head">
             <p class="console-kicker">
-                <a class="console-link" href="@OperateObservabilityRoutes.Geoprocessing">Geoprocessing jobs</a>
+                <a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref(OperateObservabilityRoutes.Geoprocessing)">Geoprocessing jobs</a>
                 <span class="operate-crumb-sep">/</span>
             </p>
             <div class="operate-release-title-row">
                 <h2>Job @SelectedJobRunId?.Trim()</h2>
-                <a class="console-link" href="@OperateObservabilityRoutes.Geoprocessing">Back to jobs</a>
+                <a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref(OperateObservabilityRoutes.Geoprocessing)">Back to jobs</a>
             </div>
         </div>
 

@@ -16,8 +16,8 @@
             <p>Create maps, dashboards, reports, forms, apps and analyses with AI. Inspectable, editable, publishable.</p>
         </div>
         <div class="console-detail-actions">
-            <a class="console-button-link console-button-secondary" href="/operate/publishing">Import…</a>
-            <a class="console-button-link" href="@PromptHref(string.Empty)">+ New from prompt</a>
+            <a class="console-button-link console-button-secondary" href="@Navigation.ToConsoleHref("/operate/publishing")">Import…</a>
+            <a class="console-button-link" href="@Navigation.ToConsoleLinkHref(PromptHref(string.Empty))">+ New from prompt</a>
         </div>
     </div>
 
@@ -45,10 +45,10 @@
             </div>
             @* No "pick a type" selector: the AI infers the sub-type (map / dashboard / analysis / ETL / style /
                publish) from the prompt, so the omni-prompt AI console is the single entry (honua-console#203). *@
-            <a class="console-button-link" data-studio-home-send="true" href="@PromptHref(_prompt)"><ConsoleShortcutLabel Action="Send" /></a>
+            <a class="console-button-link" data-studio-home-send="true" href="@Navigation.ToConsoleLinkHref(PromptHref(_prompt))"><ConsoleShortcutLabel Action="Send" /></a>
             @* The omni-prompt console is an Operate surface; its "/studio/ai" alias was removed when the
                Console's non-realtime Studio builder surfaces were shelved. *@
-            <a class="console-button-link console-button-secondary" data-studio-home-omni="true" href="/operate/ai">Ask Honua anything →</a>
+            <a class="console-button-link console-button-secondary" data-studio-home-omni="true" href="@Navigation.ToConsoleHref("/operate/ai")">Ask Honua anything →</a>
         </div>
     </section>
 
@@ -57,7 +57,7 @@
             <h2 id="studio-home-recent-heading">Recent projects</h2>
             <span class="console-muted">your last 14 days</span>
             <div class="studio-home-recent-spacer"></div>
-            <a class="console-button-link console-button-secondary" href="/catalog?sort=modified-desc">View all in Catalog →</a>
+            <a class="console-button-link console-button-secondary" href="@Navigation.ToConsoleHref("/catalog?sort=modified-desc")">View all in Catalog →</a>
         </div>
 
         @if (!_loaded)
@@ -112,7 +112,7 @@
                         {
                             <tr data-recent-project="@item.Id">
                                 <th scope="row">
-                                    <a href="/catalog/@SlugOrId(item)">
+                                    <a href="@Navigation.ToConsoleHref($"/catalog/{SlugOrId(item)}")">
                                         <span class="console-type-glyph" aria-hidden="true">@CatalogContentTypes.GlyphFor(item.Type)</span>
                                         @item.Title
                                     </a>
@@ -132,7 +132,7 @@
                                 <td>@item.Modified.ToLocalTime().ToString("MMM d, yyyy")</td>
                                 <td>@item.Owner</td>
                                 <td>
-                                    <a class="console-button-link console-button-secondary" href="/catalog/@SlugOrId(item)">Open</a>
+                                    <a class="console-button-link console-button-secondary" href="@Navigation.ToConsoleHref($"/catalog/{SlugOrId(item)}")">Open</a>
                                 </td>
                             </tr>
                         }
@@ -203,7 +203,7 @@
                 || string.Equals(args.Code, "Enter", StringComparison.Ordinal)
                 || string.Equals(args.Code, "NumpadEnter", StringComparison.Ordinal)))
         {
-            Navigation.NavigateTo(PromptHref(_prompt));
+            Navigation.NavigateTo(Navigation.ToConsoleHref(PromptHref(_prompt)));
         }
     }
 
