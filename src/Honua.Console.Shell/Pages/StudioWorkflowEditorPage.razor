@@ -639,7 +639,7 @@
 
 @code {
     private ConsoleAgentPageContext AgentContext =>
-        ConsoleAgentPageContext.EditorContext(Navigation.Uri, _dirty.IsDirty, _busy);
+        ConsoleAgentPageContext.EditorContext(Navigation.Uri, _dirty.IsDirty ? 1 : 0, _busy ? 1 : 0);
 
     private bool IsConsoleV4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 

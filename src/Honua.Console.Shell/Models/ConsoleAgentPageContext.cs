@@ -29,8 +29,8 @@ public record ConsoleAgentPageContext
 
     public static ConsoleAgentPageContext EditorContext(
         string navigationUri,
-        bool dirty,
-        bool pending,
+        int changedFieldCount,
+        int pendingOperationCount,
         IReadOnlyDictionary<string, string>? filters = null) =>
         new()
         {
@@ -38,8 +38,8 @@ public record ConsoleAgentPageContext
             Filters = filters ?? new Dictionary<string, string>(),
             Unsaved = new ConsoleAgentUnsavedSummary
             {
-                ChangedFieldCount = dirty ? 1 : 0,
-                PendingOperationCount = pending ? 1 : 0,
+                ChangedFieldCount = changedFieldCount,
+                PendingOperationCount = pendingOperationCount,
             },
         };
 }

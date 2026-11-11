@@ -15,8 +15,8 @@ public sealed class ConsoleAgentContextTests
     {
         var editing = ConsoleAgentPageContext.EditorContext(
             "https://console.example/studio/form?token=hidden",
-            dirty: true,
-            pending: true,
+            changedFieldCount: 1,
+            pendingOperationCount: 1,
             new Dictionary<string, string> { ["tab"] = "rules" });
 
         Assert.Equal("/studio/form", editing.Route);
@@ -26,8 +26,8 @@ public sealed class ConsoleAgentContextTests
 
         var clean = ConsoleAgentPageContext.EditorContext(
             "https://console.example/studio/workflow",
-            dirty: false,
-            pending: false);
+            changedFieldCount: 0,
+            pendingOperationCount: 0);
         Assert.Equal("/studio/workflow", clean.Route);
         Assert.Empty(clean.Filters);
         Assert.Equal(0, clean.Unsaved.ChangedFieldCount);
