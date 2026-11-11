@@ -30,3 +30,9 @@
 .console-shell[data-console-v4="true"] [data-connection-notice] summary {
     min-height: 24px;
 }
+
+.console-shell[data-console-v4="true"] :is(.operate-data-page, .operate-version-conflicts, [data-resource-detail]) :is(input[type="checkbox"], input[type="radio"]):not([role="switch"]) {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
