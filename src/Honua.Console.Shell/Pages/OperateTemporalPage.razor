@@ -640,23 +640,25 @@
                 @if (_diff.SampleFeatureChanges.Count > 0)
                 {
                     <div class="console-muted operate-temporal-subhead">What changed</div>
-                    <table class="console-table" aria-label="Sample feature changes">
-                        <thead>
-                            <tr><th>Feature</th><th>Change</th><th>Geometry</th><th>Fields</th><th>Actor</th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var change in _diff.SampleFeatureChanges)
-                            {
-                                <tr class="@(change.GeometryChanged ? "operate-temporal-geometry-marker" : string.Empty)">
-                                    <td>@change.FeatureId</td>
-                                    <td>@change.ChangeType</td>
-                                    <td>@(change.GeometryChanged ? "changed" : "—")</td>
-                                    <td>@DescribeAttributeChanges(change)</td>
-                                    <td>@(change.ActorId ?? "—")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+                    <ConsoleTableRegion Label="Sample feature changes">
+                        <table class="console-table" aria-label="Sample feature changes">
+                            <thead>
+                                <tr><th>Feature</th><th>Change</th><th>Geometry</th><th>Fields</th><th>Actor</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var change in _diff.SampleFeatureChanges)
+                                {
+                                    <tr class="@(change.GeometryChanged ? "operate-temporal-geometry-marker" : string.Empty)">
+                                        <td>@change.FeatureId</td>
+                                        <td>@change.ChangeType</td>
+                                        <td>@(change.GeometryChanged ? "changed" : "—")</td>
+                                        <td>@DescribeAttributeChanges(change)</td>
+                                        <td>@(change.ActorId ?? "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </ConsoleTableRegion>
                 }
             }
 
@@ -980,20 +982,22 @@
 
                         @if (conflict.FieldConflicts.Count > 0)
                         {
-                            <table class="console-table operate-temporal-threeway-table" aria-label="Field conflicts">
-                                <thead><tr><th>Field</th><th>Base</th><th>Client</th><th>Server</th></tr></thead>
-                                <tbody>
-                                    @foreach (var field in conflict.FieldConflicts)
-                                    {
-                                        <tr class="operate-temporal-field-conflict">
-                                            <td><strong>@field.Field</strong></td>
-                                            <td>@(field.BaseValue ?? "∅")</td>
-                                            <td class="operate-temporal-cell-client">@(field.ClientValue ?? "∅")</td>
-                                            <td class="operate-temporal-cell-server">@(field.ServerValue ?? "∅")</td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
+                            <ConsoleTableRegion Label="Field conflicts">
+                                <table class="console-table operate-temporal-threeway-table" aria-label="Field conflicts">
+                                    <thead><tr><th>Field</th><th>Base</th><th>Client</th><th>Server</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var field in conflict.FieldConflicts)
+                                        {
+                                            <tr class="operate-temporal-field-conflict">
+                                                <td><strong>@field.Field</strong></td>
+                                                <td>@(field.BaseValue ?? "∅")</td>
+                                                <td class="operate-temporal-cell-client">@(field.ClientValue ?? "∅")</td>
+                                                <td class="operate-temporal-cell-server">@(field.ServerValue ?? "∅")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </ConsoleTableRegion>
                         }
                         <div class="operate-temporal-advisory" role="note" aria-label="Resolution advisory">
                             <span class="operate-temporal-advisory-glyph" aria-hidden="true">AI</span>
