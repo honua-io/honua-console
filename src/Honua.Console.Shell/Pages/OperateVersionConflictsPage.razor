@@ -1,12 +1,27 @@
-@inject NavigationManager ConsoleNavigation
 @page "/operate/versions/{ServiceId}/{VersionGuid}/conflicts"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IVersionManagementOperation VersionOps
 @inject IConsoleNotificationService Notifications
+@inject IServiceProvider ServiceProvider
+@inject NavigationManager Navigation
+
+<ConsoleAgentContext Context="@AgentContext" />
 
 <section class="console-page operate-version-conflicts" data-version-conflicts>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Conflict resolution">
+            <ChildContent><p>Review conflicting edits before posting this version to DEFAULT.</p></ChildContent>
+            <Actions>
+                <a class="console-button-link" href="@Navigation.ToConsoleHref("/operate/versions")">Back to versions</a>
+                <button class="console-button console-button-secondary" type="button" @onclick="LoadAsync" disabled="@(_loading || _busy)">Refresh conflicts</button>
+            </Actions>
+        </ConsolePageHeading>
+    }
+    else
+    {
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Versions</p>
         <h1>Conflict resolution</h1>
@@ -15,11 +30,13 @@
     </div>
 
     <div class="console-action-row">
-        <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/operate/versions")">Back to versions</a>
-        <button class="console-button console-button-secondary" type="button" @onclick="LoadAsync" disabled="@_loading">
+        <a class="console-button-link" href="@Navigation.ToConsoleHref("/operate/versions")">Back to versions</a>
+        <button class="console-button console-button-secondary" type="button" @onclick="LoadAsync" disabled="@(_loading || _busy)">
             @(_loading ? "Loading…" : "Refresh conflicts")
         </button>
     </div>
+
+    }
 
     @if (_loading)
     {
@@ -37,30 +54,62 @@
     }
     else if (_conflicts is { } conflicts)
     {
+        @if (V4Enabled)
+        {
+            <ConsolePanel Title="Version conflicts" HeadingId="version-conflicts-heading">
+                <ConsoleMetricTile Label="Conflicts" Value="@conflicts.Conflicts.Count" />
+                @ConflictWorkflow
+            </ConsolePanel>
+        }
+        else
+        {
+            @ConflictWorkflow
+        }
+
+    }
+
+    <ConsoleConfirmDialog @ref="_confirm" />
+</section>
+
+@code {
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = $"/operate/versions/{Uri.EscapeDataString(ServiceId)}/{Uri.EscapeDataString(VersionGuid)}/conflicts",
+        Entities = ServiceSelection,
+        Selection = ServiceSelection,
+        Unsaved = new() { ChangedFieldCount = _choices.Count, PendingOperationCount = _loading || _busy ? 1 : 0 }
+    };
+    private IReadOnlyList<ConsoleAgentEntity> ServiceSelection => string.IsNullOrWhiteSpace(ServiceId) ? [] :
+        [new() { Kind = ConsoleAgentEntityKind.Service, Id = ServiceId, ServiceName = ServiceId }];
+
+    private RenderFragment ConflictWorkflow => @<div>
+        @if (_conflicts is { } conflicts)
+        {
         @if (_resolveResult is { } resolve)
         {
-            <article class="console-panel @(resolve.Operation.Succeeded ? "console-state-success" : "console-state-danger")"
+            <div class="@(V4Enabled ? "console-state" : "console-panel") @(resolve.Operation.Succeeded ? "console-state-success" : "console-state-danger")"
                      role="status" data-resolve-result>
                 <p class="console-kicker">@resolve.Operation.State</p>
                 <p>@resolve.Operation.Detail</p>
-            </article>
+            </div>
         }
 
         @if (_postResult is { } post)
         {
-            <article class="console-panel @(post.Succeeded ? "console-state-success" : "console-state-danger")"
+            <div class="@(V4Enabled ? "console-state" : "console-panel") @(post.Succeeded ? "console-state-success" : "console-state-danger")"
                      role="status" data-post-result>
                 <p class="console-kicker">@post.State</p>
                 <p>@post.Detail</p>
-            </article>
+            </div>
         }
 
         @if (!conflicts.HasConflicts)
         {
-            <article class="console-panel console-state-success" role="status" data-no-conflicts>
+            <div class="@(V4Enabled ? "console-state" : "console-panel") console-state-success" role="status" data-no-conflicts>
                 <p class="console-kicker">Clean</p>
                 <p>No conflicts remain for this version. It can be posted to DEFAULT.</p>
-            </article>
+            </div>
         }
         else
         {
@@ -101,12 +150,9 @@
                 }
             </div>
         </section>
-    }
+        }
+    </div>;
 
-    <ConsoleConfirmDialog @ref="_confirm" />
-</section>
-
-@code {
     [Parameter]
     public string ServiceId { get; set; } = string.Empty;
 
@@ -124,14 +170,36 @@
     private VersionOperationResult? _postResult;
     private ConsoleConfirmDialog? _confirm;
 
-    protected override async Task OnParametersSetAsync() => await LoadAsync();
+    private (string Service, string Version)? _loadedVersion;
+    private int _generation;
+    private int _readGeneration;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var version = (ServiceId, VersionGuid);
+        if (_loadedVersion == version) return;
+        _loadedVersion = version;
+        _generation++;
+        _choices.Clear();
+        _conflicts = null;
+        _resolveResult = null;
+        _postResult = null;
+        _busy = false;
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
+        var generation = _generation;
+        var readGeneration = ++_readGeneration;
+        var serviceId = ServiceId;
+        var versionGuid = VersionGuid;
         _loading = true;
         try
         {
-            _conflicts = await VersionOps.InspectConflictsAsync(ServiceId, VersionGuid);
+            var conflicts = await VersionOps.InspectConflictsAsync(serviceId, versionGuid);
+            if (generation != _generation || readGeneration != _readGeneration) return;
+            _conflicts = conflicts;
             // Drop any stale choices for conflicts that are no longer present.
             if (_conflicts is { Bound: true })
             {
@@ -144,7 +212,7 @@
         }
         finally
         {
-            _loading = false;
+            if (generation == _generation && readGeneration == _readGeneration) _loading = false;
         }
     }
 
@@ -159,16 +227,20 @@
 
     private Task ResolveAsync()
     {
-        if (_conflicts is not { Bound: true } || _choices.Count == 0)
+        if (_busy || _loading || _conflicts is not { Bound: true } || _choices.Count == 0)
         {
             return Task.CompletedTask;
         }
 
+        var generation = _generation;
+        var serviceId = ServiceId;
+        var versionGuid = VersionGuid;
+        var choices = _choices.ToArray();
         _postResult = null;
         return Notifications.RunGuardedAsync(
             async () =>
             {
-                var resolutions = _choices
+                var resolutions = choices
                     .Select(pair =>
                     {
                         var parts = pair.Key.Split(':', 2);
@@ -178,34 +250,42 @@
                     })
                     .ToArray();
 
-                _resolveResult = await VersionOps.ResolveConflictsAsync(ServiceId, VersionGuid, resolutions);
+                var result = await VersionOps.ResolveConflictsAsync(serviceId, versionGuid, resolutions);
+                if (generation != _generation) return;
+                _resolveResult = result;
                 if (_resolveResult.Operation.Succeeded)
                 {
                     await LoadAsync();
                 }
             },
-            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            setBusy: busy => { if (generation == _generation) { _busy = busy; StateHasChanged(); } },
             failureMessage: "Couldn't submit conflict resolutions");
     }
 
     private void ConfirmPost()
     {
         if (_confirm is null) return;
+        var generation = _generation;
         _confirm.Open(
             title: "Post version to DEFAULT?",
-            onConfirm: PostAsync,
+            onConfirm: () => generation == _generation ? PostAsync() : Task.CompletedTask,
             body: "This posts all edits in this branch version to the DEFAULT version. This action is irreversible and affects all users reading from DEFAULT.",
             confirmLabel: "Post to DEFAULT");
     }
 
     private Task PostAsync()
     {
+        if (_busy || _loading || _conflicts is not { Bound: true, HasConflicts: false }) return Task.CompletedTask;
+        var generation = _generation;
+        var serviceId = ServiceId;
+        var versionGuid = VersionGuid;
         return Notifications.RunGuardedAsync(
             async () =>
             {
-                _postResult = await VersionOps.PostAsync(ServiceId, VersionGuid);
+                var result = await VersionOps.PostAsync(serviceId, versionGuid);
+                if (generation == _generation) _postResult = result;
             },
-            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            setBusy: busy => { if (generation == _generation) { _busy = busy; StateHasChanged(); } },
             failureMessage: "Couldn't post the version to DEFAULT");
     }
 
