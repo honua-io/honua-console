@@ -70,3 +70,8 @@
     height: 24px;
     flex-shrink: 0;
 }
+
+.console-shell[data-console-v4="true"] .operate-import-page .console-tree-toggle {
+    min-width: 24px;
+    min-height: 24px;
+}
