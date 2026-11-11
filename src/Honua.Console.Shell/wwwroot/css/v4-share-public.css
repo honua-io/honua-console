@@ -1,0 +1,41 @@
+.console-shell[data-console-v4="true"] .share-opendata-v4 {
+    max-width: 1120px;
+    margin-inline: auto;
+}
+
+.console-shell[data-console-v4="true"] .share-opendata-back {
+    display: inline-block;
+    margin-bottom: var(--space-5);
+}
+
+.console-shell[data-console-v4="true"] .share-opendata-v4 .share-opendata-intro {
+    max-width: 75ch;
+    margin-block: var(--space-5) var(--space-6);
+    font-size: 14px;
+    line-height: 1.65;
+}
+
+.console-shell[data-console-v4="true"] .share-opendata-v4 :is(.share-opendata-downloads, .share-opendata-routes) {
+    margin-top: var(--space-5);
+    padding: var(--space-5);
+    border: 1px solid var(--c-border);
+}
+
+.console-shell[data-console-v4="true"] .share-opendata-download-list li {
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    overflow-wrap: anywhere;
+    background: transparent;
+    border-width: 0 0 1px;
+    border-radius: 0;
+    padding-inline: 0;
+}
+
+.console-shell[data-console-v4="true"] .share-opendata-v4 .console-definition-list dd {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.console-shell[data-console-v4="true"] .share-opendata-v4 .console-inline-code {
+    white-space: normal;
+}

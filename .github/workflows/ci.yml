@@ -208,6 +208,17 @@ jobs:
             artifacts/catalog-preview/settings-legacy*
           if-no-files-found: error
 
+      - name: Verify public item presentation
+        run: node e2e/playwright/share-public-preview.mjs
+
+      - name: Upload public item presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: share-public-presentation
+          path: artifacts/catalog-preview/share-public-*.png
+          if-no-files-found: error
+
       - name: Verify rendered services presentation
         run: node e2e/playwright/data-services-preview.mjs
         env:

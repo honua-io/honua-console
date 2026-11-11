@@ -5,6 +5,7 @@
    public; the attribute only opts this route out of the fail-closed operator-auth fallback. *@
 @attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @inject IConsoleCatalogClient Catalog
+@inject IServiceProvider Services
 
 <CatalogAvailabilityGate>
 <section class="console-page share-opendata">
@@ -26,7 +27,22 @@
     else
     {
         var item = _result.Item;
-        <article class="console-panel share-opendata-landing" data-share-opendata-landing>
+        <article class="@(V4Enabled ? "share-opendata-landing share-opendata-v4" : "console-panel share-opendata-landing")" data-share-opendata-landing>
+            @if (V4Enabled)
+            {
+                <a class="share-opendata-back" href="/share/public">Back to open data</a>
+                <ConsolePageHeading Title="@item.Summary.Title">
+                    <p class="console-muted">Public @CatalogContentTypes.LabelFor(item.Summary.Type).ToLowerInvariant() · Open data</p>
+                </ConsolePageHeading>
+                <div class="console-chip-row">
+                    @foreach (var tag in item.Summary.Tags)
+                    {
+                        <span>#@tag</span>
+                    }
+                </div>
+            }
+            else
+            {
             <header class="share-opendata-hero">
                 <p class="console-kicker">Open-data page <span class="console-crumb-sep">/</span> @CatalogContentTypes.LabelFor(item.Summary.Type)</p>
                 <h1>@item.Summary.Title</h1>
@@ -40,40 +56,39 @@
                 </div>
             </header>
 
+            }
+
             <p class="share-opendata-intro">@item.Description</p>
 
-            <section class="share-opendata-downloads" data-share-opendata-downloads>
-                <p class="console-kicker">Download</p>
-                @if (!item.Summary.Formats.Any())
-                {
-                    <p class="console-muted">No downloadable formats are published for this item.</p>
-                }
-                else
-                {
-                    <ul class="share-opendata-download-list">
-                        @foreach (var format in item.Summary.Formats)
-                        {
-                            <li>
-                                <span class="share-opendata-download-name">@format</span>
-                                <span class="console-muted">download ↓</span>
-                            </li>
-                        }
-                    </ul>
-                }
-            </section>
-
-            @if (item.Publications.Any())
+            @if (V4Enabled)
             {
-                <section class="share-opendata-routes" data-share-opendata-routes>
-                    <p class="console-kicker">Routes</p>
-                    <dl class="console-definition-list">
-                        @foreach (var publication in item.Publications)
-                        {
-                            <dt>Route</dt>
-                            <dd><code class="console-inline-code">@publication.Route</code></dd>
-                        }
-                    </dl>
+                <div data-share-opendata-downloads>
+                    <ConsolePanel Title="Download" HeadingId="public-download-heading" Class="share-opendata-downloads">
+                        @DownloadContent
+                    </ConsolePanel>
+                </div>
+                @if (item.Publications.Any())
+                {
+                    <div data-share-opendata-routes>
+                        <ConsolePanel Title="Routes" HeadingId="public-routes-heading" Class="share-opendata-routes">
+                            @RoutesContent
+                        </ConsolePanel>
+                    </div>
+                }
+            }
+            else
+            {
+                <section class="share-opendata-downloads" data-share-opendata-downloads>
+                    <p class="console-kicker">Download</p>
+                    @DownloadContent
                 </section>
+                @if (item.Publications.Any())
+                {
+                    <section class="share-opendata-routes" data-share-opendata-routes>
+                        <p class="console-kicker">Routes</p>
+                        @RoutesContent
+                    </section>
+                }
             }
 
             <footer class="share-opendata-footer" data-share-opendata-footer>
@@ -95,6 +110,37 @@
     public string IdOrSlug { get; set; } = string.Empty;
 
     private CatalogItemReadResult? _result;
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private ConsoleContentDetail Item => _result!.Item!;
+
+    private RenderFragment DownloadContent => @<text>
+                @if (!Item.Summary.Formats.Any())
+                {
+                    <p class="console-muted">No downloadable formats are published for this item.</p>
+                }
+                else
+                {
+                    <ul class="share-opendata-download-list">
+                        @foreach (var format in Item.Summary.Formats)
+                        {
+                            <li>
+                                <span class="share-opendata-download-name">@format</span>
+                                <span class="console-muted">download ↓</span>
+                            </li>
+                        }
+                    </ul>
+                }
+    </text>;
+
+    private RenderFragment RoutesContent => @<text>
+                    <dl class="console-definition-list">
+                        @foreach (var publication in Item.Publications)
+                        {
+                            <dt>Route</dt>
+                            <dd><code class="console-inline-code">@publication.Route</code></dd>
+                        }
+                    </dl>
+    </text>;
 
     protected override async Task OnParametersSetAsync()
     {
