@@ -322,13 +322,13 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var field in conflict.FieldConflicts)
+                                    @foreach (var fieldConflict in conflict.FieldConflicts)
                                     {
                                         <tr>
-                                            <td class="console-mono">@field.Field</td>
-                                            <td class="operate-sync-col-base">@(field.BaseValue ?? "-")</td>
-                                            <td class="operate-sync-col-client">@(field.ClientValue ?? "-")</td>
-                                            <td class="operate-sync-col-server">@(field.ServerValue ?? "-")</td>
+                                            <td class="console-mono">@fieldConflict.Field</td>
+                                            <td class="operate-sync-col-base">@(fieldConflict.BaseValue ?? "-")</td>
+                                            <td class="operate-sync-col-client">@(fieldConflict.ClientValue ?? "-")</td>
+                                            <td class="operate-sync-col-server">@(fieldConflict.ServerValue ?? "-")</td>
                                         </tr>
                                     }
                                 </tbody>
