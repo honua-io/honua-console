@@ -7,7 +7,7 @@ public static class ConsoleAgentLayerTool
     public const string Metadata = "metadata";
     public const string Relationships = "relationships";
 
-    public static string ToolRoute(string resourceId, string tool) => $"{ConsoleAgentRoutes.ForLayer(resourceId)}/{tool}";
+    public static string ToolRoute(string resourceId, string tool) => $"{ConsoleAgentRoutes.ForRequestedLayer(resourceId)}/{tool}";
 
     public static ConsoleAgentPageContext Context(OperateServiceLayerProjection? layer, string route, ConsoleAgentUnsavedSummary unsaved)
     {

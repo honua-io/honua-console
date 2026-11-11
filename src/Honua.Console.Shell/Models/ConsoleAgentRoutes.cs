@@ -21,6 +21,8 @@ public static class ConsoleAgentRoutes
 
     public static string ForLayer(string resourceId) => $"/operate/layers/{Segment(resourceId)}";
 
+    public static string ForRequestedLayer(string routeResourceId) => $"/operate/layers/{Uri.EscapeDataString(routeResourceId)}";
+
     private static string Segment(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
