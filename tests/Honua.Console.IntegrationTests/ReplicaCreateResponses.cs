@@ -68,6 +68,7 @@ internal static class ReplicaCreateResponses
 
         return default;
     }
+
     private static bool IsSyncDisabled(JsonElement root) =>
         root.TryGetProperty("error", out var error)
         && error.ValueKind == JsonValueKind.Object
