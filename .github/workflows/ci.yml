@@ -208,6 +208,19 @@ jobs:
           path: artifacts/catalog-preview/share-manage-*.png
           if-no-files-found: error
 
+      - name: Verify rendered Support presentation
+        run: node e2e/playwright/support-preview.mjs
+
+      - name: Upload Support presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: support-presentation
+          path: |
+            artifacts/catalog-preview/support-form-*.png
+            artifacts/catalog-preview/support-ticket-*.png
+          if-no-files-found: error
+
       - name: Verify Settings presentation
         run: node e2e/playwright/settings-preview.mjs
 
