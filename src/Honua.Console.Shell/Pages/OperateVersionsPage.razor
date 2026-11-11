@@ -58,7 +58,7 @@
 
     private IReadOnlyList<ConsoleAgentEntity> ServiceSelection => string.IsNullOrWhiteSpace(_serviceId)
         ? []
-        : [new() { Kind = ConsoleAgentEntityKind.Service, Id = _serviceId, ServiceName = _serviceId }];
+        : [ConsoleAgentEntity.ForService(_serviceId)];
 
     private RenderFragment ServiceSelector => @<div>
 

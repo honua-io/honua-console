@@ -422,12 +422,7 @@
         {
             foreach (var layer in service.Layers)
             {
-                _sourceEntities[TemporalSourceCandidate.FormatSourceId(service.Name, layer.LayerId)] = new ConsoleAgentEntity
-                {
-                    Kind = ConsoleAgentEntityKind.Layer,
-                    Id = layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    ResourceId = layer.CanonicalResourceId
-                };
+                _sourceEntities[TemporalSourceCandidate.FormatSourceId(service.Name, layer.LayerId)] = ConsoleAgentEntity.ForLayer(layer);
             }
         }
     }
