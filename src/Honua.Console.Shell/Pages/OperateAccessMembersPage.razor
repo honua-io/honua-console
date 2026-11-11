@@ -2,7 +2,9 @@
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Validation
+@using Microsoft.Extensions.DependencyInjection
 @inject IRbacAccessDataSource RbacData
+@inject IServiceProvider Services
 
 @* Settings > Access > Members (screens-collab-rbac.jsx TeamMembers): the members table (role/scope/
    last-active/source), the pending-invitations list, and the right-hand scoped-invite drawer with
@@ -10,26 +12,28 @@
    metadata/RBAC contract (honua-server#1162); renders missing-binding when unconfigured (Charter §11). *@
 
 <section class="console-page rbac-members" data-rbac-members>
-    <div class="console-detail-heading">
-        <div>
-            <p class="console-kicker">Settings <span class="console-crumb-sep">/</span> Access <span class="console-crumb-sep">/</span> Users</p>
-            <h1>Users @if (_membership is { } headerView) { <text>· @headerView.DisplayWorkspace</text> }</h1>
-            <p class="console-muted rbac-lede">Manage users and invitations by role and permitted scope. Access is enforced by the environment.</p>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Users">
+            <ChildContent><p class="console-muted rbac-lede">Manage users and invitations by role and permitted scope. Access is enforced by the environment.</p></ChildContent>
+            <Actions>@HeaderActions</Actions>
+        </ConsolePageHeading>
+        <nav class="console-chip-row rbac-navigation" aria-label="Access settings">
+            <a href="operate/access" aria-current="false">Roles and permissions</a>
+            <a href="operate/access/members" aria-current="page">Users</a>
+        </nav>
+    }
+    else
+    {
+        <div class="console-detail-heading">
+            <div>
+                <p class="console-kicker">Settings <span class="console-crumb-sep">/</span> Access <span class="console-crumb-sep">/</span> Users</p>
+                <h1>Users @if (_membership is { } headerView) { <text>· @headerView.DisplayWorkspace</text> }</h1>
+                <p class="console-muted rbac-lede">Manage users and invitations by role and permitted scope. Access is enforced by the environment.</p>
+            </div>
+            <div class="console-detail-actions">@HeaderActions</div>
         </div>
-        <div class="console-detail-actions">
-            @* Membership/invitations are a read-only projection of honua-server's RBAC contract
-               (honua-server#1162) — there is no roster-export or invite-mutation surface, so the
-               write/export controls are honestly disabled rather than shipping clickable no-ops
-               (Charter §11). Re-enable when a server-side export/invite contract lands. *@
-            <button class="console-button console-button-secondary" type="button" disabled
-                    title="Roster export is managed on honua-server; not available from this read-only view.">Export CSV</button>
-            <button class="console-button"
-                    type="button"
-                    data-rbac-invite-open
-                    @onclick="OpenInvite"
-                    disabled="@(!(_membership?.CanInvite ?? false))">+ Invite</button>
-        </div>
-    </div>
+    }
 
     @if (_loading)
     {
@@ -41,24 +45,34 @@
     else if (_bindingState is not null)
     {
         <ConsoleStateView HeadingLevel="2" Kind="error"
-                          Kicker="@_bindingState.State"
+                          Kicker="@(V4Enabled ? string.Empty : _bindingState.State)"
                           Title="Access (RBAC) API is not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
     }
     else if (_membership is { } membership)
     {
+        @if (V4Enabled)
+        {
+            <ConsoleMetricTile Label="Active users" Value="@membership.ActiveCount">
+                <p class="console-muted">@membership.DisplayWorkspace · @membership.PendingCount pending · @membership.DeactivatedCount deactivated</p>
+            </ConsoleMetricTile>
+        }
+
         <div class="rbac-members-layout" data-rbac-members-layout>
             <div class="rbac-members-main">
-                <div class="console-toolbar console-toolbar-spread" data-rbac-members-toolbar>
-                    <div class="console-chip-row">
-                        <span class="console-status console-state-info">state: active</span>
-                        <span class="console-status console-state-neutral">role: any</span>
-                        <span class="console-status console-state-neutral">scope: any</span>
+                @if (!V4Enabled)
+                {
+                    <div class="console-toolbar console-toolbar-spread" data-rbac-members-toolbar>
+                        <div class="console-chip-row">
+                            <span class="console-status console-state-info">state: active</span>
+                            <span class="console-status console-state-neutral">role: any</span>
+                            <span class="console-status console-state-neutral">scope: any</span>
+                        </div>
+                        <span class="console-muted" data-rbac-member-counts>
+                            @membership.ActiveCount active · @membership.PendingCount pending · @membership.DeactivatedCount deactivated
+                        </span>
                     </div>
-                    <span class="console-muted" data-rbac-member-counts>
-                        @membership.ActiveCount active · @membership.PendingCount pending · @membership.DeactivatedCount deactivated
-                    </span>
-                </div>
+                }
 
                 <ConsoleTableRegion Class="console-table-wrap" Label="Users">
                     <table class="console-table rbac-members-table" data-rbac-members-table>
@@ -262,6 +276,23 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private RenderFragment HeaderActions => @<text>
+            @* Membership/invitations are a read-only projection of honua-server's RBAC contract
+               (honua-server#1162) — there is no roster-export or invite-mutation surface, so the
+               write/export controls are honestly disabled rather than shipping clickable no-ops
+               (Charter §11). Re-enable when a server-side export/invite contract lands. *@
+            <button class="console-button console-button-secondary" type="button" disabled
+                    title="Roster export is managed on honua-server; not available from this read-only view.">Export CSV</button>
+            <button class="console-button"
+                    type="button"
+                    data-rbac-invite-open
+                    @onclick="OpenInvite"
+                    disabled="@(!(_membership?.CanInvite ?? false))">+ Invite</button>
+
+    </text>;
+
     private TeamMembershipView? _membership;
     private RbacOverviewView? _overview;
     private RbacCapabilityState? _bindingState;
