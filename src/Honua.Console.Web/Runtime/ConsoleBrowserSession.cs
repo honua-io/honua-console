@@ -46,7 +46,7 @@ public sealed class ConsoleBrowserSession
     private ConsoleBrowserSessionSnapshot CreateSnapshot() => new(
         Revision,
         IsAuthenticated,
-        Principal.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? Principal.FindFirst("sub")?.Value,
+        Principal.AccountId(),
         IsAuthenticated ? AccessToken : null,
         IsAuthenticated ? CsrfToken : null,
         ExpiresAt);

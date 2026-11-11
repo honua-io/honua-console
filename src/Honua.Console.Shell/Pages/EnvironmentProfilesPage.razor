@@ -1,14 +1,24 @@
+@inject IServiceProvider Services
 @inject NavigationManager ConsoleNavigation
 @page "/environments"
 @inject IConsoleEnvironmentProfileStore Profiles
 @inject IConsoleCapabilityManifest Capabilities
 
 <section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Console settings</p>
-        <h1>Environments</h1>
-        <p>Choose the Honua server to manage. Each environment keeps its own sign-in and saved session.</p>
-    </div>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Environments">
+            <p>Choose the Honua server to manage. Each environment keeps its own sign-in and saved session.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Console settings</p>
+            <h1>Environments</h1>
+            <p>Choose the Honua server to manage. Each environment keeps its own sign-in and saved session.</p>
+        </div>
+    }
 
     <div class="console-toolbar">
         <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/environments/new")">Add environment</a>
@@ -93,6 +103,7 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private IReadOnlyList<ConsoleEnvironmentProfile> _profiles = Array.Empty<ConsoleEnvironmentProfile>();
     private ConsoleEnvironmentProfile? _activeProfile;
     private readonly Dictionary<string, ConsoleEnvironmentState?> _states = new(StringComparer.Ordinal);

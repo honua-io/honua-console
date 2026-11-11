@@ -208,6 +208,41 @@ public sealed class OperateLayerFieldRangeDomainTests
         Assert.Null(client.LastUpdate);
     }
 
+    [Fact]
+    public async Task V4_DomainEditsMadeDuringSaveStayUnsaved()
+    {
+        var gate = new TaskCompletionSource();
+        var fields = new RecordingLayerFieldsOperation(new ConsoleLayerFields
+        {
+            Bound = true,
+            LayerId = LayerId,
+            Fields = [new ConsoleLayerField { Name = "elevation", Type = "esriFieldTypeDouble", Hidden = false }],
+        })
+        { DomainSaveGate = gate };
+        using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager("/console/"));
+        ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(LayerData(ResourceId, LayerId));
+        ctx.Services.AddSingleton<IConsoleLayerFieldsOperation>(fields);
+        var page = ctx.Render<OperateLayerDetailPage>(p => p.Add(c => c.ResourceId, ResourceId));
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("[data-domain-save]")), TimeSpan.FromSeconds(5));
+        var registry = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+
+        page.Find("[data-domain-field]").Change("elevation");
+        page.Find("[data-domain-type]").Change(ConsoleDomainKind.Range.ToString());
+        page.Find("[data-domain-name]").Change("elevation_range");
+        page.Find("[data-domain-save]").Click();
+        page.Find("[data-domain-name]").Change("elevation_range_v2");
+        await page.InvokeAsync(gate.SetResult);
+
+        page.WaitForAssertion(() => Assert.Contains("Updated", page.Find("[data-domain-result]").TextContent, StringComparison.Ordinal), TimeSpan.FromSeconds(5));
+        Assert.Equal("elevation_range", fields.DomainUpdates[0].Authoring.DomainName);
+        Assert.Equal(1, registry.Current.Unsaved.ChangedFieldCount);
+    }
+
     private sealed class RecordingLayerFieldsOperation : IConsoleLayerFieldsOperation
     {
         private ConsoleLayerFields _state;
@@ -215,6 +250,7 @@ public sealed class OperateLayerFieldRangeDomainTests
         public RecordingLayerFieldsOperation(ConsoleLayerFields initial) => _state = initial;
 
         public int GetCount { get; private set; }
+        public TaskCompletionSource? DomainSaveGate { get; init; }
 
         public List<(int LayerId, ConsoleDomainAuthoring Authoring)> DomainUpdates { get; } = [];
 
@@ -253,7 +289,8 @@ public sealed class OperateLayerFieldRangeDomainTests
                         : f)
                     .ToArray(),
             };
-            return Task.FromResult(new ConsoleSetDomainResult { Succeeded = true, State = "Updated", Detail = "Saved." });
+            var saved = new ConsoleSetDomainResult { Succeeded = true, State = "Updated", Detail = "Saved." };
+            return DomainSaveGate is { } gate ? gate.Task.ContinueWith(_ => saved, TaskScheduler.Default) : Task.FromResult(saved);
         }
 
         public Task<ConsoleSetDomainResult> SetFieldConfigurationAsync(

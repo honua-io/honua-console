@@ -21,7 +21,7 @@ public sealed class RemovedOperateEntryPointsRenderTests
     [InlineData(true)]
     public void LayerPage_LinksOnlyToSurfacesTheServerSupports(bool enabled)
     {
-        using var ctx = CreateContext(enabled);
+        using var ctx = CreateContext(new ConsoleV4Options { Enabled = enabled });
         ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager("/console/"));
         ctx.Services.AddSingleton<IConsoleLayerFieldsOperation>(new UnsupportedConsoleLayerFieldsOperation());
 
@@ -40,7 +40,7 @@ public sealed class RemovedOperateEntryPointsRenderTests
     [InlineData(true, "/console/")]
     public void ServicePage_OffersNoOverridesDiscoveryOrSettingsCaps(bool enabled, string mount)
     {
-        using var ctx = CreateContext(enabled, mount);
+        using var ctx = CreateContext(new ConsoleV4Options { Enabled = enabled }, mount);
         ctx.Services.AddSingleton<IServiceConfigurationOperation>(new UnsupportedServiceConfigurationOperation());
 
         var page = ctx.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, Cadastre.Name));
@@ -71,7 +71,7 @@ public sealed class RemovedOperateEntryPointsRenderTests
     [InlineData("Rejected", "danger", true)]
     public void ServiceResult_PreservesItsOutcomeAndAnnouncement(string state, string appearance, bool enabled)
     {
-        using var ctx = CreateContext(enabled);
+        using var ctx = CreateContext(new ConsoleV4Options { Enabled = enabled });
         ctx.Services.AddSingleton<IServiceConfigurationOperation>(new ResultServiceConfiguration(new()
         {
             Succeeded = state == "Updated",
@@ -91,7 +91,7 @@ public sealed class RemovedOperateEntryPointsRenderTests
     [Fact]
     public void ServiceTabs_ShowMissingBindingOnEveryConfigurationTab()
     {
-        using var ctx = CreateContext(true);
+        using var ctx = CreateContext(new ConsoleV4Options { Enabled = true });
         ctx.Services.AddSingleton<IServiceConfigurationOperation>(new UnsupportedServiceConfigurationOperation());
         var page = ctx.Render<OperateServiceDetailPage>(parameters => parameters.Add(component => component.ServiceName, Cadastre.Name));
 
@@ -106,7 +106,7 @@ public sealed class RemovedOperateEntryPointsRenderTests
     [Fact]
     public void ServiceTabs_KeepAccessEditsWhileSwitchingPanels()
     {
-        using var ctx = CreateContext(true);
+        using var ctx = CreateContext(new ConsoleV4Options { Enabled = true });
         ctx.Services.AddSingleton<IServiceConfigurationOperation>(new ResultServiceConfiguration(new() { State = "Updated", Succeeded = true }));
         var page = ctx.Render<OperateServiceDetailPage>(parameters => parameters.Add(component => component.ServiceName, Cadastre.Name));
 
@@ -156,11 +156,11 @@ public sealed class RemovedOperateEntryPointsRenderTests
             _unsupported.UpdateMapServerSettingsAsync(command, cancellationToken);
     }
 
-    private static BunitContext CreateContext(bool enabled = false, string mount = "/console/")
+    private static BunitContext CreateContext(ConsoleV4Options v4, string mount = "/console/")
     {
         var ctx = new BunitContext();
         ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager(mount));
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton(v4);
         ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;

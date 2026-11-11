@@ -3,10 +3,12 @@
 @using Honua.Console.Shell.Services
 @inject IConsoleReleaseWitnessClient WitnessClient
 @inject IServiceProvider Services
+@inject NavigationManager Navigation
 
 <section class="console-page console-operate-page @(V4Enabled ? "console-release-witness-v4" : null)" data-release-witness-page>
     @if (V4Enabled)
     {
+        <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/release-witness-v4.css" />
         <ConsolePageHeading Title="Publication evidence">
             <p>Read-only runtime, publication, and audit evidence for one sealed candidate approval.</p>
@@ -71,6 +73,15 @@
 </section>
 
 @code {
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = new Uri(Navigation.Uri).AbsolutePath,
+        Entities = _loaded && _result is { IsAllowed: true, Value: { } evidence }
+            ? [new() { Kind = ConsoleAgentEntityKind.Item, Id = evidence.ItemId },
+               new() { Kind = ConsoleAgentEntityKind.Approval, Id = evidence.ProposalId }]
+            : []
+    };
+
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     [SupplyParameterFromQuery(Name = "family")] private string? Family { get; set; }
@@ -79,23 +90,29 @@
     [SupplyParameterFromQuery(Name = "contentHash")] private string? ContentHash { get; set; }
     [SupplyParameterFromQuery(Name = "proposalId")] private string? ProposalId { get; set; }
 
+    private long _requestGeneration;
     private bool _loaded;
     private OperateSectionResult<ConsoleReleaseWitnessEvidence>? _result;
 
     protected override async Task OnParametersSetAsync()
     {
+        var generation = ++_requestGeneration;
         _loaded = false;
+        _result = null;
+        OperateSectionResult<ConsoleReleaseWitnessEvidence> result;
         if (new[] { Family, ItemId, VersionId, ContentHash, ProposalId }.Any(string.IsNullOrWhiteSpace))
         {
-            _result = OperateSectionResult<ConsoleReleaseWitnessEvidence>.Denied(
+            result = OperateSectionResult<ConsoleReleaseWitnessEvidence>.Denied(
                 OperateSectionStatus.Unavailable,
                 "The release witness requires a complete sealed candidate query.");
         }
         else
         {
-            _result = await WitnessClient.ObserveAsync(new(
+            result = await WitnessClient.ObserveAsync(new(
                 Family!.Trim(), ItemId!.Trim(), VersionId!.Trim(), ContentHash!.Trim(), ProposalId!.Trim()));
         }
+        if (generation != _requestGeneration) return;
+        _result = result;
         _loaded = true;
     }
 }
