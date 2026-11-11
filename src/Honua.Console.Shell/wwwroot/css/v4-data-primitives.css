@@ -31,8 +31,49 @@
     min-height: 24px;
 }
 
-.console-shell[data-console-v4="true"] :is(.operate-data-page, .operate-version-conflicts, [data-resource-detail]) :is(input[type="checkbox"], input[type="radio"]):not([role="switch"]) {
+.console-shell[data-console-v4="true"] :is(.operate-data-page, .operate-version-conflicts, .operate-temporal, [data-resource-detail]) :is(input[type="checkbox"], input[type="radio"]):not([role="switch"]) {
     width: 24px;
     height: 24px;
     flex-shrink: 0;
+}
+
+/* v4 temporal ticks keep their thin mark but expose a 24px target. */
+.console-shell[data-console-v4="true"] .operate-temporal-tick {
+    top: 11px;
+    width: 24px;
+    height: 24px;
+    margin-left: -12px;
+    border-radius: 0;
+    background: transparent;
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-tick::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 1px;
+    bottom: 1px;
+    width: 3px;
+    margin-left: -1.5px;
+    border-radius: 1px;
+    background: #7a6f55;
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-tick-release {
+    top: 8px;
+    height: 30px;
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-tick-release::before {
+    width: 4px;
+    margin-left: -2px;
+    background: var(--honua-accent-strong);
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-tick-selected {
+    outline-offset: -2px;
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-tick-selected::before {
+    background: var(--honua-text);
 }

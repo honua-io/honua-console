@@ -496,14 +496,9 @@ public sealed class OperateReleasesPageRenderTests
     {
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
-        ctx.Services.AddSingleton<NavigationManager>(new HostedNavigationManager());
+        ctx.Services.AddSingleton<NavigationManager>(new MountedNavigationManager("/console/", "operate/releases"));
     }
 
-    private sealed class HostedNavigationManager : NavigationManager
-    {
-        public HostedNavigationManager() => Initialize("http://localhost/console/", "http://localhost/console/operate/releases");
-        protected override void NavigateToCore(string uri, bool forceLoad) => Uri = ToAbsoluteUri(uri).AbsoluteUri;
-    }
 
     private sealed class StubReleaseClient : IConsoleGitOpsReleaseClient
     {

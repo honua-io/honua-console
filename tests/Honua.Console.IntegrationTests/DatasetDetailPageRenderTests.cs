@@ -41,31 +41,10 @@ public sealed class DatasetDetailPageRenderTests
         var registry = new ConsoleAgentContextRegistry();
         ctx.Services.AddSingleton(registry);
         ctx.Services.AddSingleton(options);
-        ctx.Services.AddSingleton<NavigationManager>(new DatasetDetailMountedNavigationManager());
+        ctx.Services.AddSingleton<NavigationManager>(new MountedNavigationManager("/console/", "operate/data"));
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new DatasetDataSource());
         return (ctx, registry);
     }
 
-    private sealed class DatasetDataSource : IOperateTransitionDataSource
-    {
-        private static OperateResourceEditPreview Resource(string id) => new(id, id, "file", "private_change", "Review required",
-            new OperateBlastRadius([], ["Public parcels"], [], [], [], []),
-            [new("Warning", "owner", "Check field values", "Review source")], ["Fields", "Preview"]);
-        private readonly OperateTransitionWorkspace _workspace = new([], [Resource("parcels"), Resource("draft")],
-            [new("Public parcels", "Public parcels", "FeatureServer", "Running", "managed", [new(1, "Parcels", "Polygon", "parcels", "parcels")], [], [])], [], []);
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) => Task.FromResult(_workspace);
-        public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) => Task.FromResult<OperateConnectionSummary?>(null);
-        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) => Task.FromResult(_workspace.ResourceEdits.FirstOrDefault(x => x.ResourceId == resourceId));
-        public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) => Task.FromResult(_workspace.Services.FirstOrDefault(x => x.Name == serviceName));
-    }
 }
 
-internal sealed class DatasetDetailMountedNavigationManager : NavigationManager
-{
-    public DatasetDetailMountedNavigationManager() => Initialize("http://localhost/console/", "http://localhost/console/operate/data");
-    protected override void NavigateToCore(string uri, bool forceLoad)
-    {
-        Uri = ToAbsoluteUri(uri).AbsoluteUri;
-        NotifyLocationChanged(false);
-    }
-}

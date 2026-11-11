@@ -98,10 +98,20 @@
     private string? _appliedFocus;
     private int _loadGeneration;
 
+    private Task? _initialLoad;
+
     protected override async Task OnParametersSetAsync()
     {
-        if (!_loaded) await LoadAsync();
-        else ApplyFocus();
+        if (_loaded)
+        {
+            ApplyFocus();
+            return;
+        }
+
+        // Parameter updates during the first read share it; ApplyFocus at its end uses the latest Focus.
+        _initialLoad ??= LoadAsync();
+        try { await _initialLoad; }
+        finally { _initialLoad = null; }
     }
 
     private void ApplyFocus()

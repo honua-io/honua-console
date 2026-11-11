@@ -13,7 +13,7 @@ await runV4PagePresentation({
   controls: () => "[data-releases-page] :is(a[href], button):not(:disabled):visible",
   async inspect(page, name) {
     for (const link of await page.locator("[data-releases-page] a[href]").all()) {
-      assert.match(await link.getAttribute("href"), /^(#|https:\/\/|\/(console\/)?operate\/)/);
+      assert.match(await link.getAttribute("href"), /^(#|https:\/\/|\/console\/operate\/)/);
     }
     if (["ready", "blocked", "no-scripts", "coordinated"].some(state => name === `releases-${state}`)) {
       assert.ok(await page.locator("#semantic-diff .console-panel[aria-labelledby]").isVisible());

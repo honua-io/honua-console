@@ -99,7 +99,7 @@ public sealed class VersionConflictsPageRenderTests
         var operation = new ConflictOperation();
         ctx.Services.AddSingleton(registry);
         ctx.Services.AddSingleton(options);
-        ctx.Services.AddSingleton<NavigationManager>(new VersionConflictsMountedNavigationManager());
+        ctx.Services.AddSingleton<NavigationManager>(new MountedNavigationManager("/console/", "operate/data"));
         ctx.Services.AddSingleton<IVersionManagementOperation>(operation);
         return (ctx, registry, operation);
     }
@@ -134,12 +134,3 @@ public sealed class VersionConflictsPageRenderTests
     }
 }
 
-internal sealed class VersionConflictsMountedNavigationManager : NavigationManager
-{
-    public VersionConflictsMountedNavigationManager() => Initialize("http://localhost/console/", "http://localhost/console/operate/data");
-    protected override void NavigateToCore(string uri, bool forceLoad)
-    {
-        Uri = ToAbsoluteUri(uri).AbsoluteUri;
-        NotifyLocationChanged(false);
-    }
-}

@@ -135,11 +135,19 @@
         }
 
         <section class="console-section" aria-label="Post to DEFAULT">
-            <div class="console-page-heading">
-                <p class="console-kicker">Publish</p>
-                <h2>Post to DEFAULT</h2>
+            @if (V4Enabled)
+            {
+                <h3>Post to DEFAULT</h3>
                 <p>Replays this version's net changes onto DEFAULT. Disabled while conflicts remain.</p>
-            </div>
+            }
+            else
+            {
+                <div class="console-page-heading">
+                    <p class="console-kicker">Publish</p>
+                    <h2>Post to DEFAULT</h2>
+                    <p>Replays this version's net changes onto DEFAULT. Disabled while conflicts remain.</p>
+                </div>
+            }
             <div class="console-action-row">
                 <button class="console-button" type="button" @onclick="ConfirmPost"
                         disabled="@(_busy || conflicts.HasConflicts)" data-post>
