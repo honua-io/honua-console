@@ -313,12 +313,12 @@
                         <div class="workflow-form-grid workflow-form-grid-compact">
                             <label>
                                 <span>Attempts</span>
-                                <input class="console-input" type="number" min="0" max="10" @bind="_draft.RetryPolicy.MaxAttempts" @bind:after="OnEdit" />
+                                <input class="console-input" type="number" min="1" max="10" @bind="_draft.RetryPolicy.MaxAttempts" @bind:after="OnRetryEdit" />
                                 <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.MaxAttempts" State="_validation" />
                             </label>
                             <label>
                                 <span>Backoff seconds</span>
-                                <input class="console-input" type="number" min="0" max="3600" @bind="_draft.RetryPolicy.BackoffSeconds" @bind:after="OnEdit" />
+                                <input class="console-input" type="number" min="0" max="3600" @bind="_draft.RetryPolicy.BackoffSeconds" @bind:after="OnRetryEdit" />
                                 <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.BackoffSeconds" State="_validation" />
                             </label>
                             <label>
@@ -671,6 +671,12 @@
         _validation.SetServerErrors(Array.Empty<ConsoleFieldError>());
     }
 
+    private void OnRetryEdit()
+    {
+        _draft?.ApplyRetryToAllNodes();
+        OnEdit();
+    }
+
     private void RecomputeClientErrors() =>
         _validation.SetClientErrors(_draft is null
             ? Array.Empty<ConsoleFieldError>()
@@ -841,6 +847,7 @@
             }
 
             _lastDryRun = await Workflows.DryRunAsync(_draft);
+            BindServerErrors(_lastDryRun.ValidationIssues);
             if (_lastDryRun.BindingState is not null)
             {
                 _binding = _lastDryRun.BindingState;
@@ -1011,6 +1018,7 @@
             Type = definition.Type,
             Category = definition.Category,
             Label = definition.Label,
+            RetryPolicy = _draft.RetryPolicy.ToExecutionPolicy(),
             Column = _draft.Nodes.Count == 0 ? 1 : _draft.Nodes.Max(item => item.Column) + 1,
             Row = definition.Category == StudioWorkflowContractValues.NodeCategorySink ? 2 : 1,
             InputPorts = definition.InputPorts.ToList(),
