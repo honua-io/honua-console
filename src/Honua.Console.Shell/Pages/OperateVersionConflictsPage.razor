@@ -81,7 +81,7 @@
         Unsaved = new() { ChangedFieldCount = _choices.Count, PendingOperationCount = _loading || _busy ? 1 : 0 }
     };
     private IReadOnlyList<ConsoleAgentEntity> ServiceSelection => string.IsNullOrWhiteSpace(ServiceId) ? [] :
-        [new() { Kind = ConsoleAgentEntityKind.Service, Id = ServiceId, ServiceName = ServiceId }];
+        [ConsoleAgentEntity.ForService(ServiceId)];
 
     private RenderFragment ConflictWorkflow => @<div>
         @if (_conflicts is { } conflicts)
