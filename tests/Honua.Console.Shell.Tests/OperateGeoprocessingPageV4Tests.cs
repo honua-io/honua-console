@@ -8,12 +8,6 @@ namespace Honua.Console.Shell.Tests;
 
 public sealed partial class OperateGeoprocessingPageTests
 {
-    public enum PresentationMode
-    {
-        Legacy,
-        V4
-    }
-
     [Fact]
     public void AgentContextTracksDetailSelectionAndReturnToList()
     {
@@ -66,14 +60,14 @@ public sealed partial class OperateGeoprocessingPageTests
     }
 
     [Theory]
-    [InlineData(PresentationMode.Legacy)]
-    [InlineData(PresentationMode.V4)]
-    public async Task AgentContextTracksTheVisibleStateFilterAndClearsOnDisposal(PresentationMode mode)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task AgentContextTracksTheVisibleStateFilterAndClearsOnDisposal(ConsolePresentationMode mode)
     {
         using var context = new BunitContext();
         var registry = new ConsoleAgentContextRegistry();
         context.Services.AddSingleton(registry);
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = mode == PresentationMode.V4 });
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = mode == ConsolePresentationMode.V4 });
         context.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubGeoprocessingClient
         {
             Jobs = OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed(
@@ -81,7 +75,7 @@ public sealed partial class OperateGeoprocessingPageTests
         });
         var page = context.Render<OperateGeoprocessingPage>();
         page.FindAll("button").Single(button => button.TextContent.Trim().StartsWith("Running", StringComparison.Ordinal)).Click();
-        if (mode == PresentationMode.Legacy)
+        if (mode == ConsolePresentationMode.Legacy)
         {
             Assert.Equal(0, registry.Current.Generation);
             return;
