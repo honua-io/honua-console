@@ -13,7 +13,7 @@ public sealed class ConsoleSettingsV4Tests
     [InlineData(true)]
     public void RolloutPreservesReadOnlyValuesAndSourceEndpoints(bool enabled)
     {
-        using var context = Context(enabled, new([new("api", "Server", "Admin API version", "1", "Server runtime", false, "None", "/api/v1/admin/version")], []));
+        using var context = Context(new ConsoleV4Options { Enabled = enabled }, new([new("api", "Server", "Admin API version", "1", "Server runtime", false, "None", "/api/v1/admin/version")], []));
         var page = context.Render<OperateSettingsPage>();
         Assert.Equal("Settings", page.Find("h1").TextContent);
         Assert.Equal(["Category", "Setting", "Current value", "Scope", "Read from"], page.FindAll("th").Select(cell => cell.TextContent));
@@ -30,7 +30,7 @@ public sealed class ConsoleSettingsV4Tests
     [InlineData(true)]
     public void EmptyConfigurationRetainsExistingEmptyState(bool enabled)
     {
-        using var context = Context(enabled, new([], []));
+        using var context = Context(new ConsoleV4Options { Enabled = enabled }, new([], []));
         var page = context.Render<OperateSettingsPage>();
         Assert.Contains("runtime settings", page.Markup);
         Assert.Empty(page.FindAll("table"));
@@ -46,7 +46,7 @@ public sealed class ConsoleSettingsV4Tests
     [InlineData(true, "unavailable")]
     public void UnreadableConfigurationKeepsCapabilityEvidenceAndSurfaceFiltering(bool enabled, string state)
     {
-        using var context = Context(enabled, new([], [new("Settings", state, "GET /api/v1/admin/version", "Settings could not be read."), new("Operate", "missing", "Server binding", "No server is bound."), new("Services", "unavailable", "Services contract", "Unrelated Services diagnostic.")]));
+        using var context = Context(new ConsoleV4Options { Enabled = enabled }, new([], [new("Settings", state, "GET /api/v1/admin/version", "Settings could not be read."), new("Operate", "missing", "Server binding", "No server is bound."), new("Services", "unavailable", "Services contract", "Unrelated Services diagnostic.")]));
         var page = context.Render<OperateSettingsPage>();
         Assert.Contains(state, page.Markup);
         Assert.Contains("Settings could not be read.", page.Markup);
@@ -58,10 +58,10 @@ public sealed class ConsoleSettingsV4Tests
         Assert.Empty(page.FindAll("#server-configuration-heading"));
     }
 
-    private static BunitContext Context(bool enabled, OperateSettingsView view)
+    private static BunitContext Context(ConsoleV4Options options, OperateSettingsView view)
     {
         var context = new BunitContext();
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        context.Services.AddSingleton(options);
         context.Services.AddSingleton(new SettingsSource(view));
         context.Services.AddSingleton<IOperateTransitionDataSource>(provider => provider.GetRequiredService<SettingsSource>());
         return context;
