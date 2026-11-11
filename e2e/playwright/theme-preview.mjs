@@ -10,10 +10,10 @@ const markup = await fs.readFile(path.join(previews, "navigation-v4-true.html"),
 const legacy = await fs.readFile(path.join(previews, "navigation-v4-false.html"), "utf8");
 const pages = new Map([["user-a", markup], ["user-b", markup], ["anonymous", markup], ["legacy", legacy]]);
 const unwrappedPages = [...pages.keys()];
-const supportPages = ["support-form-v4", "support-ticket-v4"];
-for (const name of supportPages) {
-  const support = await fs.readFile(path.join(previews, `${name}.html`), "utf8");
-  pages.set(name, support);
+const contentPages = ["support-form-v4", "support-ticket-v4", "share-public-v4"];
+for (const name of contentPages) {
+  const content = await fs.readFile(path.join(previews, `${name}.html`), "utf8");
+  pages.set(name, content);
 }
 const server = await startPresentationFixtureServer({
   pages, title: "Console theme presentation fixture", unwrappedPages,
@@ -87,7 +87,7 @@ try {
     await configure(page, "legacy");
     assert.equal(await theme(), "light");
     assert.equal(await page.locator("[data-console-theme-toggle]").count(), 0);
-    for (const name of supportPages) {
+    for (const name of contentPages) {
       await navigate(page, name);
       for (const mode of ["light", "dark"]) {
         await page.evaluate(({ name, mode }) => localStorage.setItem(`honua-theme:${name}`, mode), { name, mode });
