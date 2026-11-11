@@ -863,27 +863,29 @@
             }
             else
             {
-                <table class="console-table" aria-label="Replicas">
-                    <thead>
-                        <tr><th>Replica</th><th>Owner</th><th>Device</th><th>Base checkpoint</th><th>Sync gen</th><th>Status</th><th>Needs review</th><th>@(V4Enabled ? "Actions" : null)</th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var replica in _replicas)
-                        {
-                            var needsReview = replica.PendingConflictCount > 0;
-                            <tr class="@(string.Equals(replica.ReplicaId, _selectedReplica?.ReplicaId, StringComparison.Ordinal) ? "console-row-selected" : string.Empty) @(needsReview ? "operate-temporal-replica-attention" : string.Empty)">
-                                <td><strong>@replica.ReplicaName</strong><small>@replica.SyncDirection</small></td>
-                                <td>@replica.OwnerId</td>
-                                <td>@(replica.DeviceId ?? "—")</td>
-                                <td>@replica.BaseCheckpointId</td>
-                                <td>@replica.ReplicaServerGen</td>
-                                <td><span class="console-status @ReplicaStatusClass(replica.Status)">@replica.Status</span></td>
-                                <td><span class="console-status @(needsReview ? "console-state-warning" : "console-state-success")">@replica.PendingConflictCount</span></td>
-                                <td><button class="console-button @(needsReview ? string.Empty : "console-button-secondary")" type="button" disabled="@_replicaBusy" @onclick="() => ReviewReplicaAsync(replica)">@(needsReview ? "Review" : "Open")</button></td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+                <ConsoleTableRegion Label="Replicas">
+                    <table class="console-table" aria-label="Replicas">
+                        <thead>
+                            <tr><th>Replica</th><th>Owner</th><th>Device</th><th>Base checkpoint</th><th>Sync gen</th><th>Status</th><th>Needs review</th><th>@(V4Enabled ? "Actions" : null)</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var replica in _replicas)
+                            {
+                                var needsReview = replica.PendingConflictCount > 0;
+                                <tr class="@(string.Equals(replica.ReplicaId, _selectedReplica?.ReplicaId, StringComparison.Ordinal) ? "console-row-selected" : string.Empty) @(needsReview ? "operate-temporal-replica-attention" : string.Empty)">
+                                    <td><strong>@replica.ReplicaName</strong><small>@replica.SyncDirection</small></td>
+                                    <td>@replica.OwnerId</td>
+                                    <td>@(replica.DeviceId ?? "—")</td>
+                                    <td>@replica.BaseCheckpointId</td>
+                                    <td>@replica.ReplicaServerGen</td>
+                                    <td><span class="console-status @ReplicaStatusClass(replica.Status)">@replica.Status</span></td>
+                                    <td><span class="console-status @(needsReview ? "console-state-warning" : "console-state-success")">@replica.PendingConflictCount</span></td>
+                                    <td><button class="console-button @(needsReview ? string.Empty : "console-button-secondary")" type="button" disabled="@_replicaBusy" @onclick="() => ReviewReplicaAsync(replica)">@(needsReview ? "Review" : "Open")</button></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </ConsoleTableRegion>
                 <div class="operate-temporal-rules console-chip-row" aria-label="Auto-resolution rules">
                     <span class="console-muted">Auto-resolution rules:</span>
                     <span class="console-status console-state-neutral">latest-wins on identical fields</span>
