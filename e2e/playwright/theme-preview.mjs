@@ -1,0 +1,87 @@
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import path from "node:path";
+import AxeBuilder from "@axe-core/playwright";
+import { chromium } from "@playwright/test";
+import { startPresentationFixtureServer } from "./presentation-fixture-server.mjs";
+
+const previews = path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/catalog-preview");
+const markup = await fs.readFile(path.join(previews, "navigation-v4-true.html"), "utf8");
+const legacy = await fs.readFile(path.join(previews, "navigation-v4-false.html"), "utf8");
+const pages = new Map([["user-a", markup], ["user-b", markup], ["anonymous", markup], ["legacy", legacy]]);
+const htmlAttributes = new Map([...pages.keys()].map(name => [name, {
+  "data-theme": "light", "data-console-theme-enabled": String(name !== "legacy"),
+  "data-console-theme-key": name === "anonymous" ? "" : `honua-theme:${name}`,
+}]));
+const server = await startPresentationFixtureServer({
+  pages, title: "Console theme presentation fixture", unwrappedPages: [...pages.keys()],
+  stylesheets: ["/src/Honua.Console.Shell/wwwroot/honua-console.css"],
+  headScripts: ["/src/Honua.Console.Web/wwwroot/js/console-theme.js"],
+  assets: path.resolve("."), htmlAttributes,
+});
+let browser;
+try {
+  browser = await chromium.launch();
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const theme = () => page.locator("html").getAttribute("data-theme");
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(`${origin}/user-a`);
+    await page.evaluate(() => { localStorage.clear(); });
+    await page.reload();
+    assert.equal(await theme(), "light");
+    for (const mode of ["light", "dark"]) {
+      if (mode === "dark") {
+        await page.getByRole("button", { name: "Switch to dark mode" }).focus();
+        await page.keyboard.press("Enter");
+      }
+      assert.equal(await theme(), mode);
+      assert.equal(await page.locator("[data-console-theme-toggle]").getAttribute("aria-pressed"), String(mode === "dark"));
+      assert.equal(await page.locator("html").evaluate(element => getComputedStyle(element).colorScheme), mode);
+      assert.equal(await page.locator("#services-heading").evaluate(element => getComputedStyle(element).color), mode === "dark" ? "rgb(230, 239, 238)" : "rgb(23, 28, 26)");
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${mode}/${width}: overflow`);
+      const toggleBounds = await page.locator("[data-console-theme-toggle]").boundingBox();
+      assert.ok(toggleBounds.width >= 24 && toggleBounds.height >= 24);
+      assert.deepEqual((await new AxeBuilder({ page }).analyze()).violations, []);
+      await page.screenshot({ path: path.join(previews, `theme-${mode}-${width}.png`), fullPage: true });
+    }
+    await page.reload();
+    assert.equal(await theme(), "dark", "saved preference survives reload");
+    assert.equal(await page.getByRole("button", { name: "Switch to light mode" }).count(), 1);
+    await page.goto(`${origin}/user-b`);
+    assert.equal(await theme(), "light", "another user does not inherit the choice");
+    await page.goto(`${origin}/user-a`);
+    assert.equal(await theme(), "dark");
+    await page.evaluate(() => {
+      const current = document.querySelector('[data-console-theme-toggle]');
+      current.replaceWith(current.cloneNode(true));
+    });
+    await page.getByRole("button", { name: "Switch to light mode" }).focus();
+    await page.keyboard.press("Space");
+    assert.equal(await theme(), "light", "replacement navigation remains operable");
+    await page.goto(`${origin}/anonymous`);
+    await page.getByRole("button", { name: "Switch to dark mode" }).click();
+    assert.equal(await theme(), "dark");
+    await page.reload();
+    assert.equal(await theme(), "light", "anonymous preferences remain in memory");
+    await page.goto(`${origin}/legacy`);
+    await page.evaluate(() => localStorage.setItem("honua-theme:legacy", "dark"));
+    await page.reload();
+    assert.equal(await theme(), "light");
+    assert.equal(await page.locator("[data-console-theme-toggle]").count(), 0);
+    console.log(`${width}px: both modes, keyboard, reload, user isolation, replacement, flag, axe and overflow pass`);
+  }
+  const blocked = await browser.newContext();
+  await blocked.addInitScript(() => Object.defineProperty(window, "localStorage", { get() { throw new Error("Storage unavailable"); } }));
+  const blockedPage = await blocked.newPage();
+  await blockedPage.goto(`${origin}/user-a`);
+  await blockedPage.getByRole("button", { name: "Switch to dark mode" }).click();
+  assert.equal(await blockedPage.locator("html").getAttribute("data-theme"), "dark");
+  await blocked.close();
+  console.log("Blocked storage: in-memory toggle passes");
+} finally {
+  await browser?.close();
+  await new Promise(resolve => server.close(resolve));
+}

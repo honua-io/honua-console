@@ -24,6 +24,13 @@
         }
     </nav>
     <a class="console-environment-link" href="/environments" data-workspace-header-target>Choose an environment</a>
+    @if (V4Enabled)
+    {
+        <button type="button" class="console-theme-toggle" data-console-theme-toggle aria-pressed="false" aria-label="Switch to dark mode" title="Switch to dark mode">
+            <svg class="console-theme-moon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M20 15a9 9 0 0 1-11-11 9 9 0 1 0 11 11Z" /></svg>
+            <svg class="console-theme-sun" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2" /></svg>
+        </button>
+    }
     <button type="button" class="console-conversation-toggle" data-conversation-toggle aria-controls="console-conversation-drawer" aria-expanded="false" aria-label="@(V4Enabled ? "Conversation" : null)">
         @if (V4Enabled)
         {

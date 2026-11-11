@@ -1,55 +1,122 @@
+/* Honua design system: one token set, two modes. Shared light/dark semantic palette.
+   Light = Console v4 (product default). Dark = honua-site brand (marketing default).
+   [data-theme="light"|"dark"] on <html> selects the mode; components use semantic tokens only. */
+
 :root {
+  /* Brand ramps (shared by both modes) */
   --teal-50: #effaf7; --teal-100: #d5f1ea; --teal-200: #a9e2d6; --teal-300: #6fcdbb; --teal-400: #34b29d;
   --teal-500: #159583; --teal-600: #0f766e; --teal-700: #115e59; --teal-800: #134e4a; --teal-900: #0f3b38;
-  --ink-0: #ffffff; --ink-50: #f7f9f8; --ink-100: #eef2f0; --ink-200: #dde4e1; --ink-300: #c2ccc8; --ink-400: #93a09b;
-  --ink-500: #5e6a65; --ink-600: #4b5551; --ink-700: #343c39; --ink-800: #232927; --ink-900: #171c1a; --ink-950: #0f1312;
+  --navy-950: #08131a; --navy-900: #0e1e27; --navy-800: #162a34; --navy-700: #1f3a47; --navy-600: #22343f;
 
-  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --text-xs: 0.75rem; --text-sm: 0.875rem; --text-md: 1rem; --text-lg: 1.125rem; --text-xl: 1.375rem; --text-2xl: 1.75rem;
+  --font-sans: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --text-xs: 0.75rem; --text-sm: 0.875rem; --text-md: 1rem; --text-lg: 1.125rem; --text-xl: 1.375rem; --text-2xl: 1.75rem; --text-3xl: 2.25rem;
   --leading-tight: 1.2; --leading-normal: 1.5;
   --weight-regular: 400; --weight-medium: 500; --weight-semibold: 600; --weight-bold: 700;
-  --tracking-kicker: 0.06em;
 
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
   --radius-sm: 4px; --radius-md: 6px; --radius-lg: 10px; --radius-pill: 999px;
-  --shadow-1: 0 1px 2px rgb(15 19 18 / .06); --shadow-2: 0 4px 16px rgb(15 19 18 / .10); --shadow-3: 0 12px 32px rgb(15 19 18 / .16);
-
-  --topbar-h: 48px; --accent-line-h: 1px; --ctxbar-h: 44px;
-  --side-w: 272px; --drawer-w: 360px; --content-max: 1200px;
-  --bp-sm: 640px; --bp-md: 900px; --bp-lg: 1200px;
-  --z-topbar: 30; --z-side: 20; --z-drawer: 40; --z-menu: 50; --z-dialog: 60; --z-toast: 70;
+  --topbar-h: 48px; --side-w: 272px; --drawer-w: 360px; --content-max: 1200px;
   --dur-fast: 120ms; --dur-base: 180ms; --ease-standard: cubic-bezier(.2,0,0,1);
 }
 
+/* ---------- Light (default for Console, Studio, demos) ---------- */
 :root, :root[data-theme="light"] {
   color-scheme: light;
-  --c-bg: #f7f9f8; --c-surface: #ffffff; --c-surface-2: #eef2f0; --c-surface-3: #dde4e1;
-  --c-border: #dde4e1; --c-border-strong: #7f8c87;
+  --c-bg: #f7f9f8; --c-surface: #ffffff; --c-surface-2: #eef2f0; --c-surface-3: #dde4e1; --c-raised: #ffffff;
+  --c-border: #dde4e1; --c-border-strong: #7f8c87; --c-rule: #e6ebe9;
   --c-text: #171c1a; --c-text-2: #4b5551; --c-text-3: #5e6a65; --c-text-inverse: #ffffff;
   --c-link: #115e59;
   --c-accent: #0f766e; --c-on-accent: #ffffff; --c-accent-hover: #115e59; --c-accent-soft: #d5f1ea; --c-accent-ink: #134e4a;
   --c-focus: #159583; --c-focus-ring: 0 0 0 2px var(--c-surface), 0 0 0 4px var(--c-focus);
-  --c-selected: #e6f6f2;
-  --c-topbar-bg: #ffffff; --c-topbar-text: #171c1a; --c-topbar-hover: #eef2f0;
-  --c-accent-line: #dde4e1;
-  --c-raised: #ffffff; --c-rule: #e6ebe9;
+  --c-selected: #e6f6f2; --c-zebra: #fbfcfb;
+  --c-topbar-bg: #ffffff; --c-side-bg: #f7f9f8; --c-side-selected: #d5f1ea;
+  --c-ok: #15803d; --c-ok-soft: #dcf3e4; --c-ok-ink: #166534; --c-ok-tint: #f4fbf6; --c-ok-line: #cbe8d4;
+  --c-warn: #b45f06; --c-warn-soft: #fdf1d6; --c-warn-ink: #7a4104; --c-warn-tint: #fffaf0; --c-warn-line: #f0dcb4;
+  --c-danger: #b3261e; --c-danger-soft: #fde3e1; --c-danger-ink: #8c1d18; --c-danger-tint: #fff6f5; --c-danger-line: #f3cfcb; --c-on-danger: #ffffff;
+  --c-info: #2563eb; --c-info-soft: #dbeafe; --c-info-ink: #1d4ed8; --c-info-tint: #f5f8ff; --c-info-line: #d6e2fb;
+  --c-neutral: #67736e; --c-neutral-soft: #eef2f0; --c-neutral-ink: #4b5551;
+  --c-ai: #2563eb; --c-ai-soft: #eef3fe; --c-ai-soft-hover: #dde8fd; --c-ai-line: #cfdcf7;
+  --c-demo: #6b5a2e; --c-demo-soft: #f6efdc;
+  --c-diff-del-bg: #fde8e6; --c-diff-add-bg: #dff3e6;
+  --c-scrim: rgb(15 19 18 / .3);
+  --shadow-1: 0 1px 2px rgb(15 19 18 / .06); --shadow-2: 0 4px 16px rgb(15 19 18 / .10); --shadow-3: 0 12px 32px rgb(15 19 18 / .16);
   --shadow-panel: 0 1px 2px rgb(15 19 18 / .05), 0 0 0 1px rgb(15 19 18 / .02);
   --shadow-raised: 0 8px 24px rgb(15 19 18 / .12), 0 1px 2px rgb(15 19 18 / .06);
-  --c-side-bg: #f7f9f8; --c-side-text: #232927; --c-side-muted: #5e6a65; --c-side-hover: #eef2f0; --c-side-selected: #d5f1ea;
-  --c-count-bg: #dde4e1; --c-count-text: #343c39; --c-count-warn-bg: #b45f06; --c-count-warn-text: #ffffff;
-  --c-ok: #15803d; --c-ok-soft: #dcf3e4; --c-ok-ink: #166534;
-  --c-warn: #b45f06; --c-warn-soft: #fdf1d6; --c-warn-ink: #7a4104;
-  --c-danger: #b3261e; --c-danger-soft: #fde3e1; --c-danger-ink: #8c1d18; --c-on-danger: #ffffff;
-  --c-info: #2563eb; --c-info-soft: #dbeafe; --c-info-ink: #1d4ed8;
-  --c-neutral: #67736e; --c-neutral-soft: #eef2f0; --c-neutral-ink: #4b5551;
-  --c-zebra: #fbfcfb;
-  --viz-1: #0d9488; --viz-2: #d97706; --viz-3: #2563eb; --viz-4: #dc2626; --viz-5: #7c3aed; --viz-grid: #dde4e1;
-  --map-water: #d7e7ee; --map-land: #f2f1ea;
+  /* Data: categorical palette (CVD-checked order), sequential teal, diverging */
+  --viz-1: #0d9488; --viz-2: #d97706; --viz-3: #2563eb; --viz-4: #dc2626; --viz-5: #7c3aed; --viz-6: #65a30d; --viz-7: #db2777; --viz-8: #57534e;
+  --viz-seq-1: #d5f1ea; --viz-seq-2: #6fcdbb; --viz-seq-3: #159583; --viz-seq-4: #115e59; --viz-grid: #dde4e1; --viz-axis: #5e6a65;
+  /* Map chrome */
+  --map-water: #c9dfe8; --map-land: #f4f2ec; --map-contour: #c9bfa6; --map-waterbody: #bcd8e4; --map-stream: #8fbfd4;
+  --map-road: #ffffff; --map-road-casing: #d6cfbf; --map-hwy: #fbe2a0; --map-hwy-casing: #d2a54c; --map-parcel: #8f8a7c;
+  --map-zone-base-bus: #efe8e0; --map-zone-base-ind: #ebe7ef; --map-zone-base-ag: #eaf0df; --map-zone-base-park: #dcefe1;
+  --map-label: #3d4744; --map-label-strong: #252b29; --map-label-water: #3f6f86; --map-label-road: #5c625f; --map-halo: #ffffff;
+  --map-chip-bg: rgb(255 255 255 / .88); --map-pin-ring: #ffffff;
+  --map-select: #0f766e; --map-select-line: #0b4f4a;
+  /* Thematic layers */
+  --z-res: #f5e6a1; --z-bus: #f2b7ad; --z-ind: #d9c8ea; --z-ag: #d3e6bd; --z-pub: #bfd6ee; --z-park: #b8e0c6; --z-pd: #f1d1b0; --z-other: #e6e3da;
+  --hz-flood: #2f74c0; --hz-vflood: #1b4f8f; --hz-tsu: #d9480f; --hz-tsux: #f08c00; --hz-slr: #0b7285;
+  --overlay-opacity: 1;
+}
+
+/* ---------- Dark (default for honua-site; opt-in for product) ---------- */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --c-bg: #08131a; --c-surface: #0e1e27; --c-surface-2: #162a34; --c-surface-3: #1f3a47; --c-raised: #162a34;
+  --c-border: #22343f; --c-border-strong: #5f7a87; --c-rule: #172730;
+  --c-text: #e6efee; --c-text-2: #b3c6c4; --c-text-3: #8ea7a6; --c-text-inverse: #08131a;
+  --c-link: #5fc4a6;
+  --c-accent: #5fc4a6; --c-on-accent: #04151a; --c-accent-hover: #7fd3b9; --c-accent-soft: #123a33; --c-accent-ink: #a9e2d6;
+  --c-focus: #5fc4a6; --c-focus-ring: 0 0 0 2px var(--c-surface), 0 0 0 4px var(--c-focus);
+  --c-selected: #12332e; --c-zebra: #11232c;
+  --c-topbar-bg: #0e1e27; --c-side-bg: #0b1820; --c-side-selected: #123a33;
+  --c-ok: #4cc38a; --c-ok-soft: #10301f; --c-ok-ink: #9fe3bd; --c-ok-tint: #0f2620; --c-ok-line: #1f4a37;
+  --c-warn: #f2aa78; --c-warn-soft: #3a2614; --c-warn-ink: #f6c9a6; --c-warn-tint: #241a12; --c-warn-line: #5a3a20;
+  --c-danger: #f29c95; --c-danger-soft: #3d1c1b; --c-danger-ink: #f7c3be; --c-danger-tint: #261616; --c-danger-line: #5a2a28; --c-on-danger: #08131a;
+  --c-info: #85c9f4; --c-info-soft: #13304a; --c-info-ink: #bfe2fa; --c-info-tint: #0f2232; --c-info-line: #24435c;
+  --c-neutral: #8ea7a6; --c-neutral-soft: #162a34; --c-neutral-ink: #c6d6d4;
+  --c-ai: #85c9f4; --c-ai-soft: #13304a; --c-ai-soft-hover: #1a3d5c; --c-ai-line: #24435c;
+  --c-demo: #e9c98a; --c-demo-soft: #33291a;
+  --c-diff-del-bg: #4a1f1e; --c-diff-add-bg: #143a28;
+  --c-scrim: rgb(0 0 0 / .55);
+  --shadow-1: 0 1px 2px rgb(0 0 0 / .4); --shadow-2: 0 4px 16px rgb(0 0 0 / .5); --shadow-3: 0 12px 32px rgb(0 0 0 / .6);
+  --shadow-panel: none; --shadow-raised: 0 0 0 1px #2c4553, 0 10px 28px rgb(0 0 0 / .45);
+  --viz-1: #3aa088; --viz-2: #d9824a; --viz-3: #5fa1cc; --viz-4: #ef6a63; --viz-5: #a78bfa; --viz-6: #84cc16; --viz-7: #f472b6; --viz-8: #a8a29e;
+  --viz-seq-1: #123a33; --viz-seq-2: #1f6e5f; --viz-seq-3: #3aa088; --viz-seq-4: #7fd3b9; --viz-grid: #22343f; --viz-axis: #8ea7a6;
+  --map-water: #0a2230; --map-land: #0f1d24; --map-contour: #24363d; --map-waterbody: #0d2a3a; --map-stream: #1d4a63;
+  --map-road: #2a3e48; --map-road-casing: #17262e; --map-hwy: #6b5432; --map-hwy-casing: #3d3020; --map-parcel: #3b5260;
+  --map-zone-base-bus: #172129; --map-zone-base-ind: #161d29; --map-zone-base-ag: #12211c; --map-zone-base-park: #112620;
+  --map-label: #c4d3d1; --map-label-strong: #e6efee; --map-label-water: #85c9f4; --map-label-road: #9db3b2; --map-halo: #08131a;
+  --map-chip-bg: rgb(8 19 26 / .82); --map-pin-ring: #0e1e27;
+  --map-select: #5fc4a6; --map-select-line: #a9e2d6;
+  --z-res: #6b5f2a; --z-bus: #6e3a33; --z-ind: #4a3d66; --z-ag: #3d5a2c; --z-pub: #2c4a6b; --z-park: #2a5a41; --z-pd: #6a4a2c; --z-other: #2f3a3f;
+  --hz-flood: #5fa1cc; --hz-vflood: #85c9f4; --hz-tsu: #f08c5a; --hz-tsux: #e8b04a; --hz-slr: #3fb8c9;
+  --overlay-opacity: 1.15;
+}
+
+@media (forced-colors: active) {
+  :root { --c-focus-ring: 0 0 0 3px Highlight; }
+  :focus-visible { outline: 3px solid Highlight !important; outline-offset: 2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; --dur-base: 0ms; }
+  *, *::before, *::after { animation-duration: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0ms !important; }
 }
 
 
-/* Legacy routes stay light until dark mode is verified with the embedded editors. */
+:root {
+  --ink-0: #ffffff; --ink-50: #f7f9f8; --ink-100: #eef2f0; --ink-200: #dde4e1; --ink-300: #c2ccc8; --ink-400: #93a09b;
+  --ink-500: #5e6a65; --ink-600: #4b5551; --ink-700: #343c39; --ink-800: #232927; --ink-900: #171c1a; --ink-950: #0f1312;
+  --tracking-kicker: 0.06em;
+  --accent-line-h: 1px; --ctxbar-h: 44px;
+  --bp-sm: 640px; --bp-md: 900px; --bp-lg: 1200px;
+  --z-topbar: 30; --z-side: 20; --z-drawer: 40; --z-menu: 50; --z-dialog: 60; --z-toast: 70;
+  --c-topbar-text: var(--c-text); --c-topbar-hover: var(--c-surface-2); --c-accent-line: var(--c-border);
+  --c-side-text: var(--c-text); --c-side-muted: var(--c-text-3); --c-side-hover: var(--c-surface-2);
+  --c-count-bg: var(--c-surface-3); --c-count-text: var(--c-text-2);
+  --c-count-warn-bg: var(--c-warn); --c-count-warn-text: var(--c-text-inverse);
+}
+
 :root {
     --honua-bg: var(--c-bg);
     --honua-surface: var(--c-surface);
