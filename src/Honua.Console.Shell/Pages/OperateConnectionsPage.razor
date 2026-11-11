@@ -1,5 +1,6 @@
 @page "/operate/connections"
 @inject IOperateTransitionDataSource OperateData
+@inject NavigationManager Navigation
 
 <section class="console-page">
     <div class="console-page-heading">
@@ -9,17 +10,17 @@
     </div>
 
     <div class="console-toolbar">
-        <a class="console-button-link" href="/operate/connections/new">Add Connection</a>
-        <a class="console-button-link" href="/operate/publishing/quick">Publish a layer</a>
-        <a class="console-button-link" href="/operate/resources/import">Import a file</a>
-        <a class="console-button-link" href="/operate/import/service">Import from a service</a>
+        <a class="console-button-link" href="@Navigation.ToConsoleHref("/operate/connections/new")">Add Connection</a>
+        <a class="console-button-link" href="@Navigation.ToConsoleHref("/operate/publishing/quick")">Publish a layer</a>
+        <a class="console-button-link" href="@Navigation.ToConsoleHref("/operate/resources/import")">Import a file</a>
+        <a class="console-button-link" href="@Navigation.ToConsoleHref("/operate/import/service")">Import from a service</a>
     </div>
 
     <ConsoleConnectionNotice Heading="Could not read data connections" States="_states" OnRetry="LoadAsync" />
 
     @if (_connections.Count == 0 && _states.Count == 0)
     {
-        <EmptyState Area="operate" Subject="connections" ActionHref="/operate/connections/new" ActionText="Add Connection" />
+        <EmptyState Area="operate" Subject="connections" ActionHref="@Navigation.ToConsoleHref("/operate/connections/new")" ActionText="Add Connection" />
     }
     else if (_connections.Count > 0)
     {
@@ -40,7 +41,7 @@
                     {
                         <tr>
                             <td>
-                                <a href="@($"/operate/connections/{connection.Id}")">@connection.Name</a>
+                                <a href="@Navigation.ToConsoleHref($"/operate/connections/{connection.Id}")">@connection.Name</a>
                                 <small>@connection.Principal</small>
                             </td>
                             <td>@connection.Provider</td>
@@ -54,7 +55,7 @@
                                 }
                                 else
                                 {
-                                    <a href="@($"/operate/connections/{connection.Id}/diagnostics")">@connection.LastDiagnostic.FailureCode</a>
+                                    <a href="@Navigation.ToConsoleHref($"/operate/connections/{connection.Id}/diagnostics")">@connection.LastDiagnostic.FailureCode</a>
                                 }
                             </td>
                         </tr>

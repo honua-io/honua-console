@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/catalogs"
 @using Honua.Console.Shell.Models
 @inject ICatalogDiscoveryDataSource CatalogDiscovery
@@ -16,7 +17,7 @@
             <h1>Catalogs</h1>
             <p class="console-muted">
                 Discovery endpoints consumers browse to find your data. Server-wide on/off lives in
-                <a href="/operate/settings">Settings → Catalog endpoints</a>. Per-service registration is in each service's settings.
+                <a href="@ConsoleNavigation.ToConsoleHref("/operate/settings")">Settings → Catalog endpoints</a>. Per-service registration is in each service's settings.
             </p>
         </div>
     </div>
@@ -122,8 +123,8 @@
                                     </dd>
                                 </dl>
                                 <div class="console-button-row catalogs-card__actions">
-                                    <a class="console-button-link console-button-sm" href="@DetailHref(endpoint.Key)" data-catalog-browse>Browse items →</a>
-                                    <a class="console-button-ghost console-button-sm" href="/operate/settings">Settings</a>
+                                    <a class="console-button-link console-button-sm" href="@ConsoleNavigation.ToConsoleLinkHref(DetailHref(endpoint.Key))" data-catalog-browse>Browse items →</a>
+                                    <a class="console-button-ghost console-button-sm" href="@ConsoleNavigation.ToConsoleHref("/operate/settings")">Settings</a>
                                 </div>
                             </div>
                         }
@@ -132,7 +133,7 @@
                             <div class="console-overview-card-body catalogs-card__disabled">
                                 <p class="console-status console-state-info catalogs-card__callout" data-catalog-disabled>
                                     <strong>Endpoint disabled.</strong> Turn on in
-                                    <a href="/operate/settings">Settings → Catalog endpoints</a> to expose it to consumers.
+                                    <a href="@ConsoleNavigation.ToConsoleHref("/operate/settings")">Settings → Catalog endpoints</a> to expose it to consumers.
                                     @(endpoint.IsAutoDefault
                                         ? "Already-registered entries will resume on re-enable."
                                         : "Resources can opt in once enabled.")

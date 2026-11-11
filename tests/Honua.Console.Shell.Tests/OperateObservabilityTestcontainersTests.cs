@@ -126,6 +126,7 @@ public sealed class OperateObservabilityTestcontainersTests
             // AddHonuaConsoleShell wires the config-list-backed default in the real host.
             services.AddSingleton<IConsoleCapabilityManifest>(
                 new ConsoleCapabilityManifest([ConsoleCapabilityKeys.SiemInvestigations]));
+            services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
             var provider = services.BuildServiceProvider();
 
             await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());

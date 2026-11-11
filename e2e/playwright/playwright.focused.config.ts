@@ -1,3 +1,4 @@
+// Test-only server-host regression; shipping WASM is qualified by playwright.static.config.ts.
 import { defineConfig, devices } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
@@ -16,7 +17,7 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: externalConsole ? undefined : {
-    command: `dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls ${baseURL}`,
+    command: `dotnet run --project tests/Honua.Console.LegacyHost/Honua.Console.LegacyHost.csproj --urls ${baseURL}`,
     cwd: repoRoot, url: `${baseURL}/version.json`, reuseExistingServer: !process.env.CI, timeout: 180_000,
     env: {
       ASPNETCORE_ENVIRONMENT: 'Development', DOTNET_CLI_TELEMETRY_OPTOUT: '1',

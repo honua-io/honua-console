@@ -1,3 +1,4 @@
+// Test-only server-host regression; shipping WASM is qualified by playwright.static.config.ts.
 import { defineConfig, devices } from '@playwright/test';
 
 // Live-backed real-browser e2e for the Honua Console.
@@ -102,7 +103,7 @@ export default defineConfig({
     },
   ],
   webServer: process.env.HONUA_CONSOLE_E2E_CONSOLE_IMAGE ? undefined : {
-    command: `dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls ${BASE_URL}`,
+    command: `dotnet run --project tests/Honua.Console.LegacyHost/Honua.Console.LegacyHost.csproj --urls ${BASE_URL}`,
     cwd: REPO_ROOT,
     url: `${BASE_URL}/version.json`,
     reuseExistingServer: !process.env.CI,

@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/events"
 @inject IStudioWorkflowPackageClient Workflows
 @using Honua.Console.Shell.Components
@@ -29,7 +30,7 @@
                                 Contract="GET /api/v1/admin/jobs/{jobId}"
                                 IssueRef="honua-server#1185" />
             <div class="console-toolbar">
-                <a class="console-button-link" href="/operate/observability" data-events-exit-jobs>View workflow jobs</a>
+                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/operate/observability")" data-events-exit-jobs>View workflow jobs</a>
             </div>
         </article>
     }

@@ -1,3 +1,4 @@
+// Test-only server-host regression; shipping WASM is qualified by playwright.static.config.ts.
 import { defineConfig, devices } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,11 +7,11 @@ const PORT = Number(process.env.HONUA_CONSOLE_AWS_PORT ?? '5177');
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const SERVER_URL = process.env.HONUA_CONSOLE_AWS_SERVER_URL ?? 'https://demo.honua.io';
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
-const publishedDll = process.env.HONUA_CONSOLE_E2E_DLL;
-const publishDir = publishedDll ? path.dirname(publishedDll) : undefined;
-const webServerCommand = publishedDll
-  ? `dotnet "${publishedDll}" --urls ${BASE_URL} --contentRoot "${publishDir}"`
-  : `dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls ${BASE_URL}`;
+const legacyDll = process.env.HONUA_CONSOLE_LEGACY_DLL;
+const fixtureDir = legacyDll ? path.dirname(legacyDll) : undefined;
+const webServerCommand = legacyDll
+  ? `dotnet "${legacyDll}" --urls ${BASE_URL} --contentRoot "${fixtureDir}"`
+  : `dotnet run --project tests/Honua.Console.LegacyHost/Honua.Console.LegacyHost.csproj --urls ${BASE_URL}`;
 
 // #360 removed the shared admin-key fallback from the browser transport: every privileged
 // read now runs as a governed operator, so the smoke needs its own dedicated operator's

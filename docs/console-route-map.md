@@ -37,7 +37,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /                              Workspace dashboard (post-auth landing) — information + approval landing (#193): leads with the approval-inbox summary + recent activity, then the four area work surfaces
 /inbox                         Approval inbox (#193) — the GIS-department work queue: aggregates pending/active agent-proposed deploy-control operations (release-derived + operator-tracked ids), classified by GIS-desk ticket type, with the review→approve/reject/rollback surface inline. Pure projection over the deploy-control + GitOps-release contracts (no new server contract); missing-binding state when unbound. Alias: /approvals
 /auth/signin                   Sign in (anonymous; returnTo)
-/auth/callback                 OIDC callback (anonymous)
+/auth/callback                 Legacy OIDC callback (anonymous; WASM uses server-owned /admin/auth/callback)
 /auth/signed-out               Post-signout landing (anonymous)
 
 /studio                        Studio workspace (embedded honua-studio); /studio/proof, /studio/drafts and /studio/apps/:itemId/preview open the same page
@@ -1311,3 +1311,28 @@ is escaped text. No save, proposal, upload, parser, attachment store, schema
 mutation or metadata mutation is implemented here. Local choices never change the
 reported metadata, history or original attachment. The server must supply
 contextual inheritance and enforce its mutation policy and attachment authority.
+
+### Static host navigation
+
+Console page routes use paths such as `operate/jobs/{id}`. Shared Operate builders emit
+base-relative links; known logical routes may still use a leading `/`. HTML links and
+`NavigationManager.NavigateTo` destinations must resolve beneath the configured application base
+(`/console/` in the release bundle). Shared `OperateObservabilityRoutes` builders therefore return
+base-relative paths such as `operate/jobs/{id}`, with identifiers escaped as before.
+
+For dynamic workflow result URLs, use
+`Navigation.TryGetConsoleHref(target, out var href)` from
+`Honua.Console.Shell.Services`. It accepts logical root-relative paths, base-relative paths,
+and absolute URLs within the current application base. It returns a `./`-relative destination,
+preserving escaped identifiers, query and fragment. External URLs, URLs outside the application
+base, network-path references and path traversal return false with an empty destination.
+Do not navigate on false. This helper only resolves destinations; retain the existing unsaved
+changes and stale-response guards when navigating. API/resource URLs do not use this helper.
+
+`ConsoleAgentContext` normalizes page routes through `Navigation.ToConsoleContextRoute(route)`
+before registration or publication. The bridge removes the base from the current browser location
+with `ToBaseRelativePath`, without applying destination validation to an already-loaded address.
+Context routes exclude the application mount, query and fragment while retaining escaped entity
+identifiers. Page publishers may supply logical routes or mounted paths; query-only navigation
+keeps the active provider, selection and unsaved summary. Use this shared helper for direct registry
+callers as well.

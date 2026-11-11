@@ -29,7 +29,7 @@ public sealed partial class OperateGeoprocessingPageTests
         Assert.Contains("Geoprocessing Jobs", html);
         Assert.Contains("gp-run-1", html);
         Assert.Contains("gp-run-2", html);
-        Assert.Contains("/operate/geoprocessing/gp-run-1", html);
+        Assert.Contains("operate/geoprocessing/gp-run-1", html);
         Assert.Contains("Executing", html);
         Assert.Contains("analyst.live", html);
         AssertAccessibleProgress(html, ("gp-run-1 progress", 40), ("gp-run-2 progress", 100));
@@ -596,6 +596,7 @@ public sealed partial class OperateGeoprocessingPageTests
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton(client);
+        services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         var provider = services.BuildServiceProvider();
 
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
