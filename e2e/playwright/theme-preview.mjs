@@ -9,13 +9,14 @@ const previews = path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifact
 const markup = await fs.readFile(path.join(previews, "navigation-v4-true.html"), "utf8");
 const legacy = await fs.readFile(path.join(previews, "navigation-v4-false.html"), "utf8");
 const pages = new Map([["user-a", markup], ["user-b", markup], ["anonymous", markup], ["legacy", legacy]]);
+const unwrappedPages = [...pages.keys()];
 const supportPages = ["support-form-v4", "support-ticket-v4"];
 for (const name of supportPages) {
   const support = await fs.readFile(path.join(previews, `${name}.html`), "utf8");
-  pages.set(name, `<main class="console-main">${support}</main>`);
+  pages.set(name, support);
 }
 const server = await startPresentationFixtureServer({
-  pages, title: "Console theme presentation fixture", unwrappedPages: [...pages.keys()],
+  pages, title: "Console theme presentation fixture", unwrappedPages,
   stylesheets: ["/src/Honua.Console.Shell/wwwroot/honua-console.css"],
   headScripts: ["/src/Honua.Console.Web/wwwroot/js/console-theme.js"],
   assets: path.resolve("."),
