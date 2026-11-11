@@ -17,7 +17,13 @@ internal static class ReplicaCreateResponses
 
         if (statusCode is >= 200 and < 300)
         {
-            var replicaId = ReadReplicaId(body);
+            var response = ReadSuccess(body);
+            if (response.Skip)
+            {
+                return response;
+            }
+
+            var replicaId = response.ReplicaId;
             if (replicaId is not null)
             {
                 return new Decision(false, replicaId, null);
@@ -29,26 +35,49 @@ internal static class ReplicaCreateResponses
         return new Decision(false, null, $"createReplica returned {statusCode}.");
     }
 
-    private static string? ReadReplicaId(string body)
+    private static Decision ReadSuccess(string body)
     {
         try
         {
             using var document = JsonDocument.Parse(body);
-            if (document.RootElement.TryGetProperty("replicaID", out var id)
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return default;
+            }
+
+            if (IsSyncDisabled(root))
+            {
+                return new Decision(true, null, null);
+            }
+
+            if (root.TryGetProperty("replicaID", out var id)
                 && id.ValueKind == JsonValueKind.String)
             {
                 var value = id.GetString();
                 if (!string.IsNullOrWhiteSpace(value))
                 {
-                    return value;
+                    return new Decision(false, value, null);
                 }
             }
         }
         catch (JsonException)
         {
-            return null;
+            return default;
         }
 
-        return null;
+        return default;
     }
+    private static bool IsSyncDisabled(JsonElement root) =>
+        root.TryGetProperty("error", out var error)
+        && error.ValueKind == JsonValueKind.Object
+        && error.TryGetProperty("code", out var code)
+        && code.ValueKind == JsonValueKind.Number
+        && code.TryGetInt32(out var statusCode)
+        && statusCode == 400
+        && error.TryGetProperty("details", out var details)
+        && details.ValueKind == JsonValueKind.Array
+        && details.EnumerateArray().Any(detail =>
+            detail.ValueKind == JsonValueKind.String
+            && detail.GetString() == "Offline sync is not enabled for this service.");
 }

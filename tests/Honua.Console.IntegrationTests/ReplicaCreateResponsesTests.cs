@@ -68,4 +68,29 @@ public sealed class ReplicaCreateResponsesTests
         Assert.Equal("rep-1", decision.ReplicaId);
         Assert.Null(decision.Failure);
     }
+
+    [Fact]
+    public void SyncDisabledEnvelopeSkips()
+    {
+        var decision = ReplicaCreateResponses.Classify(200,
+            """{"error":{"code":400,"message":"Bad Request","details":["Offline sync is not enabled for this service."]}}""");
+
+        Assert.True(decision.Skip);
+        Assert.Null(decision.ReplicaId);
+        Assert.Null(decision.Failure);
+    }
+
+    [Theory]
+    [InlineData("""{"error":{"code":400,"details":["Unexpected client rejection"]}}""")]
+    [InlineData("""{"error":{"code":500,"details":["Offline sync is not enabled for this service."]}}""")]
+    [InlineData("""{"error":{"code":401,"details":["secret-token-should-not-leak"]}}""")]
+    public void UnexpectedErrorEnvelopeIsNotASkip(string body)
+    {
+        var decision = ReplicaCreateResponses.Classify(200, body);
+
+        Assert.False(decision.Skip);
+        Assert.Null(decision.ReplicaId);
+        Assert.Equal("createReplica returned 200 without replicaID.", decision.Failure);
+        Assert.DoesNotContain("secret-token-should-not-leak", decision.Failure);
+    }
 }
