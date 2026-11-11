@@ -26,14 +26,22 @@ public sealed class ConsoleSystemPagesV4Tests
         ]));
         context.Services.AddSingleton<IConsoleAccountSessionStore>(new InMemoryConsoleAccountSessionStore());
         context.Services.AddSingleton<IConsoleCapabilityManifest>(ConsoleCapabilityTestManifest.All);
-        IRenderedFragment page = name switch
+        var page = context.Render(builder =>
         {
-            "environments" => context.Render<EnvironmentProfilesPage>(),
-            "environment-new" => context.Render<EnvironmentProfileNewPage>(),
-            "environment-detail" => context.Render<EnvironmentProfileDetailPage>(parameters => parameters.Add(p => p.ProfileId, "prod")),
-            "signin" => context.Render<AuthSignInPage>(),
-            _ => throw new ArgumentOutOfRangeException(nameof(name))
-        };
+            builder.OpenComponent(0, name switch
+            {
+                "environments" => typeof(EnvironmentProfilesPage),
+                "environment-new" => typeof(EnvironmentProfileNewPage),
+                "environment-detail" => typeof(EnvironmentProfileDetailPage),
+                "signin" => typeof(AuthSignInPage),
+                _ => throw new ArgumentOutOfRangeException(nameof(name))
+            });
+            if (name == "environment-detail")
+            {
+                builder.AddAttribute(1, nameof(EnvironmentProfileDetailPage.ProfileId), "prod");
+            }
+            builder.CloseComponent();
+        });
         Assert.Equal(title, page.Find("h1").TextContent);
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
         switch (name)
