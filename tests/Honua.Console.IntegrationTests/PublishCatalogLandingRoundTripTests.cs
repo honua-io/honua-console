@@ -154,6 +154,7 @@ public sealed class PublishCatalogLandingRoundTripTests
         // Independently confirm NOTHING landed: no publication is reachable at the slug, anonymously or not.
         using var verifier = _fixture.CreateVerifier();
         var anon = await verifier.FetchPublishedRouteAnonymouslyAsync(slug);
+        RequireAnonymousRoute(anon);
         Assert.False(anon.Granted, $"A rejected publish unexpectedly left an anonymously-reachable route (HTTP {anon.StatusCode}).");
     }
 
