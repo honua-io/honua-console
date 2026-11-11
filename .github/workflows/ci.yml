@@ -305,7 +305,10 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: data-datasets-presentation
-          path: artifacts/catalog-preview/data-datasets*.png
+          path: |
+            artifacts/catalog-preview/data-datasets*.png
+            artifacts/catalog-preview/data-dataset-*.png
+            artifacts/catalog-preview/data-conflicts-*.png
           if-no-files-found: error
 
       - name: Verify rendered releases presentation
@@ -318,7 +321,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: data-releases-presentation
-          path: artifacts/catalog-preview/data-releases*.png
+          path: artifacts/catalog-preview/releases-*.png
           if-no-files-found: error
 
       - name: Verify rendered temporal presentation
@@ -331,7 +334,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: data-temporal-presentation
-          path: artifacts/catalog-preview/data-temporal*.png
+          path: artifacts/catalog-preview/temporal-*.png
           if-no-files-found: error
 
       - name: Verify rendered Operate overview presentation
