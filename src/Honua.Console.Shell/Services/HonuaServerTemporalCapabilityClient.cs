@@ -5,7 +5,12 @@ using Honua.Console.Shell.Models;
 namespace Honua.Console.Shell.Services;
 
 // The temporal history API has no enumeration verb, so the viewer probes this configured service and layer.
-public sealed record TemporalSourceCandidate(string ServiceId, int LayerId);
+public sealed record TemporalSourceCandidate(string ServiceId, int LayerId)
+{
+    // The server's temporal source id: the Service id and the layer id within it.
+    public static string FormatSourceId(string serviceId, int layerId) =>
+        $"{serviceId}/{layerId.ToString(CultureInfo.InvariantCulture)}";
+}
 
 public sealed record HonuaServerTemporalOptions(IReadOnlyList<TemporalSourceCandidate> Sources)
 {
@@ -704,7 +709,7 @@ public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityCli
     }
 
     private static string SourceId(TemporalSourceCandidate candidate) =>
-        $"{candidate.ServiceId}/{candidate.LayerId.ToString(CultureInfo.InvariantCulture)}";
+        TemporalSourceCandidate.FormatSourceId(candidate.ServiceId, candidate.LayerId);
 
     private static TemporalSourceCapability ToSourceCapability(
         HonuaTemporalCapabilityResponse capability,

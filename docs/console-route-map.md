@@ -112,7 +112,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/environments          Environment and fleet overview
 /operate/environments/:id      Environment detail (drift, fleet tasks)
 /operate/temporal              Temporal data viewer (capability-gated)
-/operate/sync                  Disconnected sync conflict review (capability-gated)
+/operate/sync                  Disconnected sync conflict review (capability-gated); v4 ?source=:sourceId&replica=:replicaId opens the source queue and replica review using server-owned identities
 /operate/versions              Branch-version manager (#177): list/create/alter/delete branch versions + reconcile with an auto-resolution policy (none/last-write-wins/version-wins/default-wins) + abort-if-conflicts; surfaces auto-resolved/remaining counts. Bound to honua-server GeoServices VersionManagementServer (#371 / PR #1551), else the missing-binding state.
 /operate/versions/:service/:guid/conflicts  Conflict resolution (#177): per-feature 3-way diff (base vs DEFAULT vs version) for attributes + geometry (WKT) with per-field highlighting; take-version/take-default/take-base per feature → resolveConflicts; Post to DEFAULT disabled while conflicts remain.
 /operate/import/esri           Source-content import wizard (#102): Source → Select content → Map → Run → Scorecard (?step=0..4). REUSES PublishWizard. Map step shows deterministic per-item conversion fidelity; Run + Scorecard bind the honua-devops migration-run API, else the missing-binding state (Console Patterns Charter §11). Content imports — DISTINCT from the data-layer→PostGIS importer.
