@@ -1,4 +1,4 @@
-// The WebAssembly shell configures an opaque key after its authentication state resolves.
+// The WebAssembly shell enables the theme with an opaque key after its authentication state resolves.
 (() => {
     const root = document.documentElement;
     let enabled = false;
@@ -20,17 +20,28 @@
         syncControls();
     }
 
-    function configure(isEnabled, storageKey) {
-        const nextKey = isEnabled ? storageKey : null;
-        if (enabled === isEnabled && key === nextKey) return;
-        enabled = isEnabled;
-        key = nextKey;
+    function load() {
         root.dataset.consoleThemeEnabled = String(enabled);
         let saved;
         try { saved = key ? localStorage.getItem(key) : null; } catch { /* Storage may be disabled. */ }
         apply(saved);
     }
-    window.honuaConsoleTheme = { configure };
+
+    function enable(storageKey) {
+        const nextKey = storageKey ?? null;
+        if (enabled && key === nextKey) return;
+        enabled = true;
+        key = nextKey;
+        load();
+    }
+
+    function disable() {
+        if (!enabled) return;
+        enabled = false;
+        key = null;
+        load();
+    }
+    window.honuaConsoleTheme = { enable, disable };
     apply(null);
     document.addEventListener('click', event => {
         if (!enabled || !event.target.closest?.('[data-console-theme-toggle]')) return;

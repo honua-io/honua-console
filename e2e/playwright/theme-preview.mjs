@@ -28,7 +28,9 @@ try {
   const context = await browser.newContext();
   const page = await context.newPage();
   const origin = `http://127.0.0.1:${server.address().port}`;
-  const configure = (target, name) => target.evaluate(name => window.honuaConsoleTheme.configure(name !== "legacy", name === "anonymous" ? null : `honua-theme:${name}`), name);
+  const configure = (target, name) => target.evaluate(name => name === "legacy"
+    ? window.honuaConsoleTheme.disable()
+    : window.honuaConsoleTheme.enable(name === "anonymous" ? null : `honua-theme:${name}`), name);
   const navigate = async (target, name) => {
     await target.goto(`${origin}/${name}`);
     await configure(target, name);

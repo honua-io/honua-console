@@ -11,6 +11,9 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class ConsoleThemeTests
 {
+    private const string Enable = "honuaConsoleTheme.enable";
+    private const string Disable = "honuaConsoleTheme.disable";
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -18,8 +21,9 @@ public sealed class ConsoleThemeTests
     {
         await using var context = CreateContext(new ConsoleV4Options { Enabled = enabled });
         context.Render<ConsoleTheme>();
-        Assert.Equal(enabled, context.JSInterop.Invocations.Single().Arguments[0]);
-        Assert.Equal(enabled, context.JSInterop.Invocations.Single().Arguments[1] is string);
+        var invocation = context.JSInterop.Invocations.Single();
+        Assert.Equal(enabled ? Enable : Disable, invocation.Identifier);
+        Assert.Equal(enabled, invocation.Arguments.SingleOrDefault() is string);
     }
 
     [Fact]
@@ -30,7 +34,7 @@ public sealed class ConsoleThemeTests
         await using var second = CreateContext(new ConsoleV4Options { Enabled = true });
         second.Services.AddSingleton(new ConsoleApiClient(new HttpClient { BaseAddress = new Uri("https://other-api.example.test/") }));
         second.Render<ConsoleTheme>();
-        Assert.NotEqual(first.JSInterop.Invocations.Last().Arguments[1], second.JSInterop.Invocations.Last().Arguments[1]);
+        Assert.NotEqual(LastKey(first), LastKey(second));
     }
 
     [Fact]
@@ -39,14 +43,14 @@ public sealed class ConsoleThemeTests
         await using var context = CreateContext(new ConsoleV4Options { Enabled = true });
         var authentication = context.Services.GetRequiredService<AuthenticationSignals>();
         var component = context.Render<ConsoleTheme>();
-        var firstKey = Assert.IsType<string>(context.JSInterop.Invocations.Last().Arguments[1]);
+        var firstKey = Assert.IsType<string>(LastKey(context));
         Assert.DoesNotContain("operator-a", firstKey, StringComparison.Ordinal);
         await component.InvokeAsync(() => authentication.SignIn("operator-b"));
-        component.WaitForAssertion(() => Assert.NotEqual(firstKey, context.JSInterop.Invocations.Last().Arguments[1]));
+        component.WaitForAssertion(() => Assert.NotEqual(firstKey, LastKey(context)));
         await component.InvokeAsync(() => authentication.SignIn(null));
-        component.WaitForAssertion(() => Assert.Null(context.JSInterop.Invocations.Last().Arguments[1]));
+        component.WaitForAssertion(() => Assert.Null(LastKey(context)));
         await component.InvokeAsync(() => authentication.SignIn("operator-a"));
-        component.WaitForAssertion(() => Assert.Equal(firstKey, context.JSInterop.Invocations.Last().Arguments[1]));
+        component.WaitForAssertion(() => Assert.Equal(firstKey, LastKey(context)));
     }
 
     [Fact]
@@ -54,13 +58,17 @@ public sealed class ConsoleThemeTests
     {
         await using var context = CreateContext(new ConsoleV4Options { Enabled = true });
         var component = context.Render<ConsoleTheme>();
-        var key = context.JSInterop.Invocations.Last().Arguments[1];
+        var key = LastKey(context);
         var navigation = context.Services.GetRequiredService<NavigationManager>();
         await component.InvokeAsync(() => navigation.NavigateTo("/console/embed/example"));
-        component.WaitForAssertion(() => Assert.Equal(false, context.JSInterop.Invocations.Last().Arguments[0]));
+        component.WaitForAssertion(() => Assert.Single(context.JSInterop.Invocations[Disable]));
         await component.InvokeAsync(() => navigation.NavigateTo("/console/"));
-        component.WaitForAssertion(() => Assert.Equal(key, context.JSInterop.Invocations.Last().Arguments[1]));
+        component.WaitForAssertion(() => Assert.Equal(2, context.JSInterop.Invocations[Enable].Count));
+        Assert.Equal(key, LastKey(context));
     }
+
+    private static object? LastKey(BunitContext context) =>
+        context.JSInterop.Invocations[Enable].Last().Arguments.Single();
 
     private static BunitContext CreateContext(ConsoleV4Options options)
     {
@@ -69,7 +77,8 @@ public sealed class ConsoleThemeTests
         context.Services.AddSingleton<AuthenticationStateProvider>(provider => provider.GetRequiredService<AuthenticationSignals>());
         context.Services.AddSingleton(options);
         context.Services.AddSingleton(new ConsoleApiClient(new HttpClient { BaseAddress = new Uri("https://api.example.test/") }));
-        context.JSInterop.SetupVoid("honuaConsoleTheme.configure", _ => true).SetVoidResult();
+        context.JSInterop.SetupVoid(Enable, _ => true).SetVoidResult();
+        context.JSInterop.SetupVoid(Disable, _ => true).SetVoidResult();
         return context;
     }
 

@@ -28,15 +28,19 @@
         {
             return;
         }
-        var enabled = V4.Enabled && !ConsoleEmbedRoutes.IsEmbed(Navigation);
+        if (!V4.Enabled || ConsoleEmbedRoutes.IsEmbed(Navigation))
+        {
+            await JavaScript.InvokeVoidAsync("honuaConsoleTheme.disable");
+            return;
+        }
         var user = state.User;
         var id = user.Identity?.IsAuthenticated == true
             ? user.AccountId()
             : null;
-        var key = enabled && !string.IsNullOrEmpty(id)
+        var key = !string.IsNullOrEmpty(id)
             ? "honua-theme:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Api.BaseUri.AbsoluteUri + "\n" + id)))
             : null;
-        await JavaScript.InvokeVoidAsync("honuaConsoleTheme.configure", enabled, key);
+        await JavaScript.InvokeVoidAsync("honuaConsoleTheme.enable", key);
     }
 
     private void AuthenticationChanged(Task<AuthenticationState> state) => Refresh();
