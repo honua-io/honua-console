@@ -74,7 +74,3 @@
     [data-console-v4="true"] .console-tree-toolbar > a { display: flex; align-items: center; }
     [data-console-v4="true"] .console-tree-close { grid-column: 1 / -1; }
 }
-
-@media (min-width: 1001px) {
-    .console-shell[data-console-v4="true"] .console-topbar { position: sticky; top: 0; z-index: var(--z-topbar); padding-block: 0; }
-}

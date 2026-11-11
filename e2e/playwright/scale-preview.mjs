@@ -92,6 +92,26 @@ try {
         assert.equal(await sidebar.isVisible(), false);
         assert.equal(await toggle.evaluate(element => element === document.activeElement), true);
       }
+      if (name === "scale-v4-paged" && width > 1000) {
+        await sidebar.evaluate(element => element.remove());
+        await page.locator("main").evaluate(element => {
+          element.style.minHeight = "1800px";
+          element.innerHTML = '<nav class="operate-section-nav" aria-label="Sections"><a href="#overview">Overview</a></nav><h1 id="overview">Deploy</h1>';
+        });
+        await page.evaluate(() => window.scrollTo(0, 400));
+        assert.equal((await page.locator(".operate-section-nav").boundingBox()).y, 48,
+          "Operate section navigation stays below the sticky topbar without a publication tree");
+        for (const [selector, offset] of [["share-opendata-preview", 60], ["operate-release-side", 60], ["support-context-panel", 64], ["layer-preview-pane", 64]]) {
+          assert.equal(await page.locator("main").evaluate((element, name) => {
+            const panel = document.createElement("aside");
+            panel.className = name;
+            element.append(panel);
+            const top = parseFloat(getComputedStyle(panel).top);
+            panel.remove();
+            return top;
+          }, selector), offset);
+        }
+      }
       await context.close();
       console.log(`${name} ${width}: PASS`);
     }
