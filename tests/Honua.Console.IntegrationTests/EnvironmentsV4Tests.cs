@@ -62,6 +62,30 @@ public sealed class EnvironmentsV4Tests
         Assert.Equal("prod", (await store.GetActiveProfileAsync())?.Id);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AddEnvironmentKeepsFieldsValidationAndCancel(bool enabled)
+    {
+        using var context = Context(enabled, new InMemoryConsoleEnvironmentProfileStore([]));
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        var page = context.Render<EnvironmentProfileNewPage>();
+
+        Assert.Equal("Add environment", page.Find("h1").TextContent);
+        page.Find("#environment-display-name").Change("Honua Prod");
+        page.Find("#environment-server-url").Change("http://insecure.example");
+
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-environment-validation='blocking']")));
+        Assert.True(page.FindAll("button").Single().HasAttribute("disabled"));
+        Assert.Single(page.FindAll("a[href$='/environments']"));
+        Assert.Equal(5, page.FindAll("input, select").Count);
+        AssertPresentation(page, enabled);
+        if (enabled)
+        {
+            CaptureV4("environment-new-v4", page.Markup);
+        }
+    }
+
     private static void AssertPresentation<TPage>(IRenderedComponent<TPage> page, bool enabled)
         where TPage : Microsoft.AspNetCore.Components.IComponent
     {
