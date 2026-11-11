@@ -145,12 +145,12 @@
     private RenderFragment Diagnostics => @<text>
                 @if (_safeDiagnostic is null)
                 {
-                    @OperateHeading.Section(V4Enabled, "No Active Diagnostic")
+                    <OperateSectionHeading Text="No Active Diagnostic" />
                     <p class="console-muted">The latest connection test passed without an operator action.</p>
                 }
                 else
                 {
-                    @OperateHeading.Section(V4Enabled, _safeDiagnostic.FailureCode)
+                    <OperateSectionHeading Text="@(_safeDiagnostic.FailureCode)" />
                     <p class="console-muted">@_safeDiagnostic.Summary</p>
                     <dl class="console-definition-list">
                         <dt>Outcome</dt>

@@ -149,7 +149,7 @@
             {
                 <div class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
                     <p class="console-kicker">@r.State</p>
-                    @OperateHeading.Section(V4Enabled, r.Succeeded ? "Layer published" : r.State == ConsoleWriteOutcome.UnverifiedState ? "Publication outcome unverified" : "Layer not published")
+                    <OperateSectionHeading Text="@(r.Succeeded ? "Layer published" : r.State == ConsoleWriteOutcome.UnverifiedState ? "Publication outcome unverified" : "Layer not published")" />
                     <p>@r.Detail</p>
                     @if (r.Succeeded)
                     {

@@ -40,7 +40,7 @@
             <div data-publication-lookup>
             @if (V4Enabled)
             {
-                <ConsolePanel Title="Look up released content" HeadingId="publishing-lookup"><p class="console-muted">Enter a release ID to review its route, release a new version, or restore a previous version.</p>@LookupContent</ConsolePanel>
+                <ConsolePanel Title="Look up released content" HeadingId="publishing-lookup"><p class="console-muted">@LookupGuidance</p>@LookupContent</ConsolePanel>
             }
             else
             {
@@ -48,7 +48,7 @@
                 <div class="console-page-heading">
                     <p class="console-kicker">Review</p>
                     <h2>Look up released content</h2>
-                    <p>Enter a release ID to review its route, release a new version, or restore a previous version.</p>
+                    <p>@LookupGuidance</p>
                 </div>
                     @LookupContent
                 </section>
@@ -67,7 +67,7 @@
         {
             @if (V4Enabled)
             {
-                <ConsolePanel Title="Publishing formats" HeadingId="publishing-formats"><p class="console-muted">Review any unsupported or blocked format before publishing.</p>@FormatContent</ConsolePanel>
+                <ConsolePanel Title="Publishing formats" HeadingId="publishing-formats"><p class="console-muted">@FormatsGuidance</p>@FormatContent</ConsolePanel>
             }
             else
             {
@@ -75,7 +75,7 @@
                 <div class="console-page-heading">
                     <p class="console-kicker">Matrix</p>
                     <h2>Publishing formats</h2>
-                    <p>Supported output and catalog formats for each object. Review any unsupported or blocked format before publishing.</p>
+                    <p>@FormatsGuidance</p>
                 </div>
                     @FormatContent
                 </section>
@@ -102,6 +102,8 @@
 <ConsoleConfirmDialog @ref="_confirm" />
 
 @code {
+    private const string LookupGuidance = "Enter a release ID to review its route, release a new version, or restore a previous version.";
+    private const string FormatsGuidance = "Supported output and catalog formats for each object. Review any unsupported or blocked format before publishing.";
     private const string Intro = "Publish datasets as layers, review service endpoints, and manage released Studio content. Check supported formats, catalog registration, access, recovery, and provenance before applying a change.";
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private ConsoleAgentPageContext AgentContext => new()
@@ -144,7 +146,7 @@
                         <section class="console-section">
                             <div class="console-page-heading">
                                 <p class="console-kicker">Actions</p>
-                                @OperateHeading.Section(V4Enabled, "Lifecycle")
+                                <OperateSectionHeading Text="Lifecycle" />
                             </div>
 
                             <div class="console-form-row">

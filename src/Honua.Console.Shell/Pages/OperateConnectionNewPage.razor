@@ -182,7 +182,7 @@
         {
             <div class="console-panel @(test.Tested && test.IsHealthy ? "console-state-success" : "console-state-warning")" role="status">
                 <p class="console-kicker">@test.State</p>
-                @OperateHeading.Section(V4Enabled, test.Tested && test.IsHealthy ? "Connection test passed" : "Connection test")
+                <OperateSectionHeading Text="@(test.Tested && test.IsHealthy ? "Connection test passed" : "Connection test")" />
                 <p>@test.Detail</p>
             </div>
         }
@@ -191,7 +191,7 @@
         {
             <div class="console-panel console-state-danger" role="alert">
                 <p class="console-kicker">@_result.State</p>
-                @OperateHeading.Section(V4Enabled, "Connection not created")
+                <OperateSectionHeading Text="Connection not created" />
                 <p>@_result.Detail</p>
             </div>
         }
