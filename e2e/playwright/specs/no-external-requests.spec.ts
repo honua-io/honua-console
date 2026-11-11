@@ -141,9 +141,19 @@ test('a mounted map runs the vendored MapLibre build, fetched from this origin',
   const result = await page.evaluate(
     async ({ modulePath, styleUrl }) => {
       const source = await (await fetch(modulePath)).text();
-      const blobUrl = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+      const base = new URL(modulePath, location.href);
+      const specifier = source.match(/^import '(\.\/[^']+)';/m);
+      let text = source;
+      let dependencyUrl: string | null = null;
+      if (specifier) {
+        const dependency = await (await fetch(new URL(specifier[1], base))).text();
+        dependencyUrl = URL.createObjectURL(new Blob([dependency], { type: 'text/javascript' }));
+        text = source.replace(specifier[0], `import '${dependencyUrl}';`);
+      }
+      const blobUrl = URL.createObjectURL(new Blob([text], { type: 'text/javascript' }));
       const mod = await import(/* @vite-ignore */ blobUrl);
       URL.revokeObjectURL(blobUrl);
+      if (dependencyUrl) URL.revokeObjectURL(dependencyUrl);
 
       const container = document.createElement('div');
       container.style.width = '320px';

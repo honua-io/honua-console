@@ -44,6 +44,17 @@ test('an authorized map fetch keeps overrides and refuses redirects', async () =
     await globalThis.guardedAuthorizedFetch(original, plain);
     assert.equal(calls[2][0], plain);
     assert.equal(calls[2][1], undefined);
+
+    const posted = new Request('https://api.example/base/api/query', { method: 'POST', body: 'kept' });
+    await globalThis.guardedAuthorizedFetch(original, posted);
+    assert.equal(calls[3][0], posted);
+    assert.equal(calls[3][1], undefined);
+    assert.equal(await posted.text(), 'kept');
+
+    await globalThis.guardedAuthorizedFetch(original, 'https://api.example/plain', { method: 'POST', body: 'plain' });
+    assert.equal(calls[4][0], 'https://api.example/plain');
+    assert.equal(calls[4][1].method, 'POST');
+    assert.equal(calls[4][1].body, 'plain');
 });
 
 test('the worker script installs one fetch guard', async () => {
@@ -64,8 +75,26 @@ test('the worker script installs one fetch guard', async () => {
     await context.fetch(request);
     assert.equal(seen[0][0].redirect, 'error');
     assert.equal(seen[0][0].headers.get('Authorization'), 'Bearer worker');
+    const posted = new context.Request('https://api.example/base/api/query', { method: 'POST', body: 'kept' });
+    await context.fetch(posted);
+    assert.equal(seen[1][0], posted);
+    assert.equal(await posted.text(), 'kept');
     assert.equal(typeof context.guardedAuthorizedFetch, 'function');
     assert.equal(context.__honuaAuthorizedFetch, true);
+});
+
+test('a blob copy of map-preview resolves its guard before the module loads', async () => {
+    const sourceUrl = new URL('../../src/Honua.Console.Shell/wwwroot/map-preview.js', import.meta.url);
+    const source = readFileSync(sourceUrl, 'utf8');
+    const specifier = source.match(/^import '(\.\/[^']+)';/m);
+    assert.ok(specifier, 'map-preview must keep one relative guard import for the page and the worker');
+    const unresolved = `data:text/javascript,${encodeURIComponent(source)}`;
+    await assert.rejects(() => import(unresolved), /ERR_UNSUPPORTED_RESOLVE_REQUEST|map-fetch-guard/);
+    const dependency = new URL(specifier[1], sourceUrl).href;
+    const resolved = source.replace(specifier[0], `import '${dependency}';`);
+    const loaded = await import(`data:text/javascript,${encodeURIComponent(resolved)}`);
+    assert.equal(typeof loaded.init, 'function');
+    assert.equal(globalThis.__honuaAuthorizedFetch, true);
 });
 
 test('authenticated map init fails when the worker guard cannot be installed', async () => {

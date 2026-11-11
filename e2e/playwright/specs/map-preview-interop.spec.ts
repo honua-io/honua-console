@@ -32,9 +32,19 @@ test('map-preview.js degrades gracefully (schematic stays) when no style is boun
   const result = await page.evaluate(async (modulePath) => {
     // Pull the exact served source, then import it under a guaranteed JS MIME (Blob URL).
     const src = await (await fetch(modulePath)).text();
-    const blobUrl = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+    const base = new URL(modulePath, location.href);
+    const specifier = src.match(/^import '(\.\/[^']+)';/m);
+    let text = src;
+    let dependencyUrl: string | null = null;
+    if (specifier) {
+      const dependency = await (await fetch(new URL(specifier[1], base))).text();
+      dependencyUrl = URL.createObjectURL(new Blob([dependency], { type: 'text/javascript' }));
+      text = src.replace(specifier[0], `import '${dependencyUrl}';`);
+    }
+    const blobUrl = URL.createObjectURL(new Blob([text], { type: 'text/javascript' }));
     const mod = await import(/* @vite-ignore */ blobUrl);
     URL.revokeObjectURL(blobUrl);
+    if (dependencyUrl) URL.revokeObjectURL(dependencyUrl);
 
     const container = document.createElement('div');
     document.body.appendChild(container);

@@ -1,13 +1,20 @@
 // MapLibre workers load this file with importScripts. It has no imports, so the map module can load it too.
 function guardedAuthorizedFetch(original, input, init) {
-    let effective;
+    const headerSource = init && init.headers != null
+        ? init.headers
+        : (typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined);
+    let authorized = false;
     try {
-        effective = new Request(input, init);
+        authorized = new Headers(headerSource).has('Authorization');
     } catch {
         return original(input, init);
     }
-    if (!new Headers(effective.headers).has('Authorization')) return original(input, init);
-    return original(new Request(effective, { redirect: 'error', signal: effective.signal }));
+    if (!authorized) return original(input, init);
+    try {
+        return original(new Request(input, { ...(init || {}), redirect: 'error' }));
+    } catch {
+        return original(input, init);
+    }
 }
 
 function installGuardedFetch(scope) {
