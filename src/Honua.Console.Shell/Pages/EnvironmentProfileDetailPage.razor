@@ -19,7 +19,7 @@ else
         @if (V4Enabled)
         {
             <ConsolePageHeading Title="@_profile.DisplayName">
-                <ChildContent><p>@_profile.ServerBaseUri</p></ChildContent>
+                <ChildContent><p class="console-kicker">@_profile.EnvironmentKind</p><p>@_profile.ServerBaseUri</p></ChildContent>
                 <Actions><EnvironmentTrustBadge State="_state" /></Actions>
             </ConsolePageHeading>
         }

@@ -22,7 +22,7 @@ public sealed class ConsoleSystemPagesV4Tests
         using var context = new BunitContext();
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([
-            new ConsoleEnvironmentProfile { Id = "prod", DisplayName = "Production", ServerBaseUri = new Uri("https://production.example/"), EnvironmentKind = "production" }
+            new ConsoleEnvironmentProfile { Id = "prod", DisplayName = "Production", ServerBaseUri = new Uri("https://production.example/"), EnvironmentKind = "staging" }
         ]));
         context.Services.AddSingleton<IConsoleAccountSessionStore>(new InMemoryConsoleAccountSessionStore());
         context.Services.AddSingleton<IConsoleCapabilityManifest>(ConsoleCapabilityTestManifest.All);
@@ -39,7 +39,7 @@ public sealed class ConsoleSystemPagesV4Tests
         switch (name)
         {
             case "environments":
-                Assert.Contains("Selected in this browser session", page.Markup);
+                Assert.Contains("Selected for this browser session", page.Markup);
                 Assert.True(page.Find("button").HasAttribute("disabled"));
                 Assert.Equal("/environments/prod", page.Find("a[href$='/environments/prod']").GetAttribute("href"));
                 break;
@@ -50,6 +50,7 @@ public sealed class ConsoleSystemPagesV4Tests
                 Assert.Contains("Server URL must be an absolute https URL", page.Markup);
                 break;
             case "environment-detail":
+                Assert.Contains("staging", page.Markup);
                 Assert.Contains("Not validated", page.Markup);
                 Assert.Contains("https://production.example/", page.Markup);
                 Assert.Contains("Pinned server fingerprint", page.Markup);
