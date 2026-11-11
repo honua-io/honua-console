@@ -304,11 +304,12 @@ public sealed class OperateSyncPageRenderTests
     private static void Navigate(BunitContext ctx, string? sourceId, string? replicaId = null)
     {
         var navigation = ctx.Services.GetRequiredService<NavigationManager>();
-        navigation.NavigateTo(navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+        // Query parameter providers re-render on location change, so navigate on the renderer's dispatcher.
+        ctx.Renderer.Dispatcher.InvokeAsync(() => navigation.NavigateTo(navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
         {
             ["source"] = sourceId,
             ["replica"] = replicaId
-        }));
+        }))).GetAwaiter().GetResult();
     }
 
     private sealed class HostedNavigationManager : NavigationManager
