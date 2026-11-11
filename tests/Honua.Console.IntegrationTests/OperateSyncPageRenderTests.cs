@@ -92,9 +92,9 @@ public sealed class OperateSyncPageRenderTests
     }
 
     [Theory]
-    [InlineData("cadastre/0")]
-    [InlineData("CADASTRE/0")]
-    public async Task Sync_DeepLinkLoadsReplicaAndPublishesSelectionAndUnsavedSummary(string sourceId)
+    [InlineData("cadastre/0", 1)]
+    [InlineData("CADASTRE/0", 0)]
+    public async Task Sync_DeepLinkLoadsReplicaAndPublishesSelectionAndUnsavedSummary(string sourceId, int expectedSelections)
     {
         using var ctx = new BunitContext();
         ctx.AddConsoleNotifications();
@@ -112,11 +112,15 @@ public sealed class OperateSyncPageRenderTests
         Assert.Equal("/operate/sync", registry.Current.Route);
         Assert.Equal(sourceId, registry.Current.Filters["sourceId"]);
         Assert.Equal("replica-1", registry.Current.Filters["replicaId"]);
-        var selected = Assert.Single(registry.Current.Selection);
-        Assert.Equal(ConsoleAgentEntityKind.Layer, selected.Kind);
-        Assert.Equal("0", selected.Id);
-        Assert.Equal("conn-a-layer-0", selected.ResourceId);
-        Assert.Equal("/operate/layers/conn-a-layer-0", ConsoleAgentRoutes.ForEntity(selected));
+        // Source ids match the server exactly, so another casing never borrows the cadastre layer identity.
+        Assert.Equal(expectedSelections, registry.Current.Selection.Count);
+        foreach (var selected in registry.Current.Selection)
+        {
+            Assert.Equal(ConsoleAgentEntityKind.Layer, selected.Kind);
+            Assert.Equal("0", selected.Id);
+            Assert.Equal("conn-a-layer-0", selected.ResourceId);
+            Assert.Equal("/operate/layers/conn-a-layer-0", ConsoleAgentRoutes.ForEntity(selected));
+        }
         page.Find("[data-sync-conflict] input[type=checkbox]").Change(true);
         Assert.Equal(1, registry.Current.Unsaved.ChangedFieldCount);
         Assert.Equal("conflict-1", registry.Current.Filters["conflictIds"]);
@@ -257,6 +261,26 @@ public sealed class OperateSyncPageRenderTests
         Assert.Equal("cadastre/0", snapshot.Filters["sourceId"]);
     }
 
+    [Fact]
+    public void Sync_FailedLayerIdentityReadKeepsSourcesUsable()
+    {
+        using var ctx = NewContext(DeepLinkClient(), enabled: true);
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FailingLayerDataSource());
+        var page = ctx.Render<OperateSyncPage>();
+        Navigate(ctx, "cadastre/0", "replica-1");
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-sync-conflict]")));
+        Assert.Empty(page.FindComponent<ConsoleAgentContext>().Instance.Context.Selection);
+    }
+
+    private sealed class FailingLayerDataSource : IOperateTransitionDataSource
+    {
+        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+            Task.FromException<OperateTransitionWorkspace>(new HttpRequestException("layers unavailable"));
+        public Task<OperateConnectionSummary?> FindConnectionAsync(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<OperateServiceDetail?> FindServiceAsync(string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
     private static FakeSyncClient DeepLinkClient() => new()
     {
         Workspace = new TemporalViewerWorkspace([SyncSource with { SourceId = "cadastre/0" }], []),
@@ -297,7 +321,7 @@ public sealed class OperateSyncPageRenderTests
         ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         ctx.Services.AddSingleton(client);
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
-        ctx.Services.AddSingleton<NavigationManager>(new HostedNavigationManager());
+        ctx.Services.AddSingleton<NavigationManager>(new MountedNavigationManager("/console/", "operate/sync"));
         return ctx;
     }
 
@@ -310,16 +334,6 @@ public sealed class OperateSyncPageRenderTests
             ["source"] = sourceId,
             ["replica"] = replicaId
         }))).GetAwaiter().GetResult();
-    }
-
-    private sealed class HostedNavigationManager : NavigationManager
-    {
-        public HostedNavigationManager() => Initialize("http://localhost/console/", "http://localhost/console/operate/sync");
-        protected override void NavigateToCore(string uri, bool forceLoad)
-        {
-            Uri = ToAbsoluteUri(uri).ToString();
-            NotifyLocationChanged(false);
-        }
     }
 
     private static void ClickByText(IRenderedComponent<OperateSyncPage> page, string text) =>

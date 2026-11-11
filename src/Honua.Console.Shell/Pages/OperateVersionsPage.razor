@@ -1,4 +1,4 @@
-﻿@page "/operate/versions"
+@page "/operate/versions"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
@@ -113,7 +113,7 @@
                     </dl>
                     @if (reconcile.HasConflicts && _reconciledVersionGuid is { } guid)
                     {
-                        <a class="console-button-link" href="@Navigation.ToConsoleLinkHref(ConflictsHref(guid))" data-open-conflicts>
+                        <a class="console-button-link" href="@ConflictsHref(guid)" data-open-conflicts>
                             Open conflict resolution
                         </a>
                     }
@@ -158,7 +158,7 @@
                                                 <button class="console-button console-button-secondary" type="button"
                                                         @onclick="() => ReconcileAsync(version)" disabled="@_busy"
                                                         data-reconcile="@version.VersionGuid">Reconcile</button>
-                                                <a class="console-button-link" href="@Navigation.ToConsoleLinkHref(ConflictsHref(version.VersionGuid))"
+                                                <a class="console-button-link" href="@ConflictsHref(version.VersionGuid)"
                                                    data-conflicts="@version.VersionGuid">Conflicts</a>
                                                 <button class="console-button console-button-secondary" type="button"
                                                         @onclick="() => BeginAlter(version)" disabled="@_busy"

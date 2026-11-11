@@ -51,7 +51,7 @@
         {
             @if (V4Enabled)
             {
-                <div class="console-section" aria-label="Sync-eligible sources">
+                <div class="console-section">
                     <ConsolePanel Title="Sources" HeadingId="sync-sources-heading">
                         <ConsoleMetricTile Label="Sources" Value="@(_syncSources.Count)" />
                         @SyncSourcesContent
@@ -71,7 +71,8 @@
                 {
                     <div class="console-section" data-sync-region="replica-queue" data-sync-source="@_selectedSource.SourceId">
                         <ConsolePanel Title="Replica conflict queue" HeadingId="sync-queue-heading">
-                            <ConsoleMetricTile Label="Replica conflict queue" Value="@(_replicaBinding is null ? _replicas.Count : (long?)null)" />
+                            <p class="console-muted" data-sync-selected-source>Source @_selectedSource.ResourceId</p>
+                            <ConsoleMetricTile Label="Replicas" Value="@(_replicaBinding is null ? _replicas.Count : (long?)null)" />
                             @ReplicaQueueContent
                         </ConsolePanel>
                     </div>
@@ -95,7 +96,8 @@
                 {
                     <div class="console-section" data-sync-region="conflict-merge">
                         <ConsolePanel Title="Conflict comparison" HeadingId="sync-comparison-heading">
-                            <ConsoleMetricTile Label="Conflict comparison" Value="@(_conflictReviewBinding is null ? _conflicts.Count : (long?)null)" />
+                            <p class="console-muted" data-sync-selected-replica>Replica @_selectedReplica.ReplicaName</p>
+                            <ConsoleMetricTile Label="Pending conflicts" Value="@(_conflictReviewBinding is null ? _conflicts.Count : (long?)null)" />
                             @ConflictComparisonContent
                         </ConsolePanel>
                     </div>
@@ -170,7 +172,7 @@
                     @foreach (var source in _syncSources)
                     {
                         var active = string.Equals(source.SourceId, _selectedSource?.SourceId, StringComparison.Ordinal);
-                        <tr class="@(active ? "console-row-selected" : string.Empty)">
+                        <tr class="@(active ? "console-row-selected" : string.Empty)" aria-current="@(V4Enabled && active ? "true" : null)">
                             <td>
                                 <strong>@source.ResourceId</strong>
                                 <small>@source.SourceId</small>
@@ -191,7 +193,7 @@
     private RenderFragment ReplicaQueueContent => @<div>
         @if (_replicaBinding is not null)
         {
-            <ConsoleStateView HeadingLevel="2" Kind="missing"
+            <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 2)" Kind="missing"
                               Kicker="@_replicaBinding.State"
                               Title="Replica queue is not bound"
                               Message="@(_replicaBinding.Detail + " (contract: " + _replicaBinding.Contract + ")")" />
@@ -220,7 +222,8 @@
                     <tbody>
                         @foreach (var replica in _replicas)
                         {
-                            <tr>
+                            var reviewing = V4Enabled && string.Equals(replica.ReplicaId, _selectedReplica?.ReplicaId, StringComparison.Ordinal);
+                            <tr class="@(reviewing ? "console-row-selected" : null)" aria-current="@(reviewing ? "true" : null)">
                                 <td>
                                     <strong>@replica.ReplicaName</strong>
                                     <small>@replica.ReplicaId</small>
@@ -256,7 +259,7 @@
     private RenderFragment ConflictComparisonContent => @<div>
         @if (_conflictReviewBinding is not null)
         {
-            <ConsoleStateView HeadingLevel="2" Kind="missing"
+            <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 2)" Kind="missing"
                               Kicker="@_conflictReviewBinding.State"
                               Title="Conflict review is not bound"
                               Message="@(_conflictReviewBinding.Detail + " (contract: " + _conflictReviewBinding.Contract + ")")" />
@@ -356,7 +359,7 @@
         {
             @if (_resolutionBinding is not null)
             {
-                <ConsoleStateView HeadingLevel="2" Kind="missing"
+                <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 2)" Kind="missing"
                                   Kicker="@_resolutionBinding.State"
                                   Title="Resolution write is not bound"
                                   Message="@(_resolutionBinding.Detail + " (contract: " + _resolutionBinding.Contract + ")")" />
@@ -392,7 +395,21 @@
     [Parameter, SupplyParameterFromQuery(Name = "replica")]
     public string? ReplicaId { get; set; }
 
-    private readonly Dictionary<string, ConsoleAgentEntity> _sourceEntities = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ConsoleAgentEntity> _sourceEntities = new(StringComparer.Ordinal);
+
+    // Layer identities only enrich the agent context, so their read never blocks or breaks the page.
+    private async Task EnrichSourceEntitiesAsync()
+    {
+        try
+        {
+            await LoadSourceEntitiesAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // The sources table is already usable without the optional layer identities.
+        }
+    }
 
     private async Task LoadSourceEntitiesAsync()
     {
@@ -405,8 +422,7 @@
         {
             foreach (var layer in service.Layers)
             {
-                var sourceId = $"{service.Name}/{layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
-                _sourceEntities[sourceId] = new ConsoleAgentEntity
+                _sourceEntities[TemporalSourceCandidate.FormatSourceId(service.Name, layer.LayerId)] = new ConsoleAgentEntity
                 {
                     Kind = ConsoleAgentEntityKind.Layer,
                     Id = layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -502,8 +518,8 @@
         _syncSources = workspace.Sources
             .Where(source => source.SyncConflictReviewSupported)
             .ToArray();
-        await LoadSourceEntitiesAsync();
         _loading = false;
+        _ = EnrichSourceEntitiesAsync();
     }
 
     private Task SelectSourceManuallyAsync(TemporalSourceCapability source)

@@ -116,7 +116,7 @@ public sealed class OperateVersionsPageRenderTests
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         ctx.Services.AddSingleton(new ConsoleAgentContextRegistry());
         ctx.Services.AddSingleton<IConsoleNotificationService, ConsoleNotificationService>();
-        ctx.Services.AddSingleton<NavigationManager>(new HostedNavigationManager());
+        ctx.Services.AddSingleton<NavigationManager>(new MountedNavigationManager("/console/", "operate/versions"));
         return ctx;
     }
 
@@ -129,11 +129,6 @@ public sealed class OperateVersionsPageRenderTests
 
     private static void Capture(string name, IRenderedComponent<OperateVersionsPage> page) =>
         CatalogAdminPreview.Capture(name, page.Markup);
-
-    private sealed class HostedNavigationManager : NavigationManager
-    {
-        public HostedNavigationManager() => Initialize("http://localhost/console/", "http://localhost/console/operate/versions");
-    }
 
     private sealed class SeededVersionOperation : IVersionManagementOperation
     {

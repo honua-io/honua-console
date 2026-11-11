@@ -18,7 +18,7 @@ public sealed class SensorThingsPageRenderTests
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleSensorThingsClient>(new InMemoryConsoleSensorThingsClient());
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
-        ctx.Services.AddSingleton<NavigationManager>(new HostedNavigationManager());
+        ctx.Services.AddSingleton<NavigationManager>(new MountedNavigationManager("/console/", "operate"));
         var page = ctx.Render<OperateSensorThingsPage>();
 
         page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("a[href]")));
@@ -130,8 +130,4 @@ public sealed class SensorThingsPageRenderTests
         Assert.Contains("75", page.Find("[data-sensorthings-datastreams] .console-metric-tile").TextContent);
     }
 
-    private sealed class HostedNavigationManager : NavigationManager
-    {
-        public HostedNavigationManager() => Initialize("http://localhost/console/", "http://localhost/console/operate");
-    }
 }

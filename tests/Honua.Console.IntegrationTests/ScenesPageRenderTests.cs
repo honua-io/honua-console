@@ -19,7 +19,7 @@ public sealed class ScenesPageRenderTests
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleSceneClient>(new InMemoryConsoleSceneClient());
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
-        ctx.Services.AddSingleton<NavigationManager>(new HostedNavigationManager());
+        ctx.Services.AddSingleton<NavigationManager>(new MountedNavigationManager("/console/", "operate"));
         var page = ctx.Render<OperateScenesPage>();
 
         page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("a[href]")));
@@ -192,8 +192,4 @@ public sealed class ScenesPageRenderTests
         }
     }
 
-    private sealed class HostedNavigationManager : NavigationManager
-    {
-        public HostedNavigationManager() => Initialize("http://localhost/console/", "http://localhost/console/operate");
-    }
 }
