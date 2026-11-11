@@ -10,6 +10,77 @@ namespace Honua.Console.IntegrationTests;
 public sealed class OperateObservabilityPageRenderTests
 {
     [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task AgentContextTracksAppliedFiltersAndRouteJobWithoutDraftValues(ConsolePresentationMode mode)
+    {
+        using var context = new BunitContext();
+        var registry = new ConsoleAgentContextRegistry();
+        context.Services.AddSingleton(registry);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = mode == ConsolePresentationMode.V4 });
+        context.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        context.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubOperateClient());
+        context.Services.AddSingleton<IStudioWorkflowPackageClient>(new UnsupportedStudioWorkflowPackageClient());
+        context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/operate/jobs/job-first?token=private-content");
+        var page = context.Render<OperateObservabilityPage>(parameters => parameters.Add(p => p.SelectedJobRunId, "job-first"));
+
+        if (mode == ConsolePresentationMode.Legacy)
+        {
+            Assert.Equal(0, registry.Current.Generation);
+            return;
+        }
+        page.WaitForAssertion(() => Assert.Equal("job-first", Assert.Single(registry.Current.Selection).Id));
+        Assert.Equal(ConsoleAgentEntityKind.Job, Assert.Single(registry.Current.Entities).Kind);
+        Assert.Equal("/operate/jobs/job-first", registry.Current.Route);
+        var filters = page.Find("form[aria-label='Operate evidence filters']");
+        filters.QuerySelectorAll("label").Single(label => label.QuerySelector("span")?.TextContent == "Event type")
+            .QuerySelector("select")!.Change("release");
+        filters.QuerySelector("input")!.Input("corr-applied");
+        Assert.Equal(string.Empty, registry.Current.Filters["correlationId"]);
+        filters.Submit();
+        page.WaitForAssertion(() => Assert.Equal("corr-applied", registry.Current.Filters["correlationId"]));
+        Assert.Equal("release", registry.Current.Filters["eventType"]);
+        page.Render(parameters => parameters.Add(p => p.SelectedJobRunId, "job-next"));
+        page.WaitForAssertion(() => Assert.Equal("job-next", Assert.Single(registry.Current.Selection).Id));
+        await context.DisposeComponentsAsync();
+        Assert.Empty(registry.Current.Selection);
+        Assert.Empty(registry.Current.Filters);
+    }
+
+    [Fact]
+    public async Task AgentContextFollowsTheVisibleJob()
+    {
+        using var emptyContext = new BunitContext();
+        var emptyRegistry = new ConsoleAgentContextRegistry();
+        emptyContext.Services.AddSingleton(emptyRegistry);
+        emptyContext.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        emptyContext.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        emptyContext.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubOperateClient());
+        var emptyPage = emptyContext.Render<OperateObservabilityPage>();
+        emptyPage.WaitForAssertion(() => Assert.Contains("No jobs", emptyPage.Markup, StringComparison.Ordinal));
+        Assert.Empty(emptyRegistry.Current.Entities);
+        Assert.Empty(emptyRegistry.Current.Selection);
+        await emptyContext.DisposeComponentsAsync();
+
+        using var context = new BunitContext();
+        var registry = new ConsoleAgentContextRegistry();
+        context.Services.AddSingleton(registry);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        context.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        context.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubOperateClient
+        {
+            Jobs = OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed([BuildJob("default-job")])
+        });
+        var page = context.Render<OperateObservabilityPage>();
+        page.WaitForAssertion(() => Assert.Equal("default-job", Assert.Single(registry.Current.Selection).Id));
+        Assert.Equal(ConsoleAgentEntityKind.Job, Assert.Single(registry.Current.Entities).Kind);
+        Assert.Contains("operate-selected-row", page.Markup, StringComparison.Ordinal);
+        await context.DisposeComponentsAsync();
+        Assert.Empty(registry.Current.Selection);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void EventTimeline_PreservesDeduplicationAndSelectedEventEvidence(bool v4Enabled)

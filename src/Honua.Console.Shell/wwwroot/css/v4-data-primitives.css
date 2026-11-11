@@ -31,6 +31,80 @@
     min-height: 24px;
 }
 
+.console-shell[data-console-v4="true"] :is(.operate-data-page, .operate-version-conflicts, .operate-temporal, [data-resource-detail]) :is(input[type="checkbox"], input[type="radio"]):not([role="switch"]) {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+/* v4 temporal ticks keep their thin mark but expose a 24px target. */
+.console-shell[data-console-v4="true"] .operate-temporal-tick {
+    top: 11px;
+    width: 24px;
+    height: 24px;
+    margin-left: -12px;
+    border-radius: 0;
+    background: transparent;
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-tick::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 1px;
+    bottom: 1px;
+    width: 3px;
+    margin-left: -1.5px;
+    border-radius: 1px;
+    background: #7a6f55;
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-tick-release {
+    top: 8px;
+    height: 30px;
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-tick-release::before {
+    width: 4px;
+    margin-left: -2px;
+    background: var(--honua-accent-strong);
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-tick-selected {
+    outline-offset: -2px;
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-tick-selected::before {
+    background: var(--honua-text);
+}
+
+.console-shell[data-console-v4="true"] .operate-data-page :is(.resource-tree__toggle, .resource-tree__name, .resource-tree__publication-row) {
+    min-height: 24px;
+}
+
+.console-shell[data-console-v4="true"] [data-releases-page] .console-section {
+    min-width: 0;
+}
+
+/* Temporal detail headers and conflict cards wrap instead of widening the grid at 390px. */
+.console-shell[data-console-v4="true"] .operate-temporal-detail > * {
+    min-width: 0;
+}
+
+.console-shell[data-console-v4="true"] :is(.operate-temporal-header, .operate-temporal-header-title) {
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-header-meta {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal .map-preview-schematic {
+    overflow: hidden;
+}
+
 .console-shell[data-console-v4="true"] .console-tabs {
     display: flex;
     gap: 4px;

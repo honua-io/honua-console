@@ -11,6 +11,30 @@ namespace Honua.Console.Shell.Tests;
 public sealed class ConsoleAgentContextTests
 {
     [Fact]
+    public void Editor_context_counts_one_dirty_field_and_one_pending_operation()
+    {
+        var editing = ConsoleAgentPageContext.EditorContext(
+            "https://console.example/studio/form?token=hidden",
+            changedFieldCount: 1,
+            pendingOperationCount: 1,
+            new Dictionary<string, string> { ["tab"] = "rules" });
+
+        Assert.Equal("/studio/form", editing.Route);
+        Assert.Equal("rules", editing.Filters["tab"]);
+        Assert.Equal(1, editing.Unsaved.ChangedFieldCount);
+        Assert.Equal(1, editing.Unsaved.PendingOperationCount);
+
+        var clean = ConsoleAgentPageContext.EditorContext(
+            "https://console.example/studio/workflow",
+            changedFieldCount: 0,
+            pendingOperationCount: 0);
+        Assert.Equal("/studio/workflow", clean.Route);
+        Assert.Empty(clean.Filters);
+        Assert.Equal(0, clean.Unsaved.ChangedFieldCount);
+        Assert.Equal(0, clean.Unsaved.PendingOperationCount);
+    }
+
+    [Fact]
     public void Snapshot_is_atomic_and_defensively_copies_collections()
     {
         var registry = new ConsoleAgentContextRegistry();

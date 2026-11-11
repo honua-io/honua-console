@@ -8,6 +8,7 @@
 <section class="console-page automation-page automation-versions-page @(IsConsoleV4Enabled ? "console-automations-v4" : null)">
     @if (IsConsoleV4Enabled)
     {
+        <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/studio-automations-v4.css" />
         <ConsolePageHeading Title="Automation versions">
             <p>Review saved versions. Restoring a prior version creates a new version.</p>
@@ -125,13 +126,23 @@
 </section>
 
 @code {
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = new Uri(Navigation.Uri).AbsolutePath,
+        Filters = new Dictionary<string, string> { ["draftId"] = DraftId ?? string.Empty, ["versionId"] = _previewVersionId ?? string.Empty },
+        Unsaved = new() { PendingOperationCount = _restoring ? 1 : 0 },
+    };
+
     private bool IsConsoleV4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     [Parameter]
     public string? DraftId { get; set; }
 
+    private long _pageGeneration;
+    private long _loadGeneration;
     private bool _loading = true;
     private bool _busy;
+    private bool _restoring;
     private string? _errorMessage;
     private string? _restoreMessage;
     private string? _contentItemId;
@@ -140,19 +151,31 @@
     private string? _previewVersionId;
     private CollectAutomationDraft? _preview;
 
-    private string EditorHref => $"/studio/automations/{DraftId}";
+    private string EditorHref => $"studio/automations/{DraftId}";
 
     protected override async Task OnParametersSetAsync()
     {
+        ++_pageGeneration;
+        _previewVersionId = null;
+        _preview = null;
+        _contentItemId = null;
+        _versions = [];
+        _binding = null;
+        _errorMessage = null;
+        _restoreMessage = null;
+        _busy = _restoring;
         await LoadAsync();
     }
 
     private async Task LoadAsync()
     {
+        var pageGeneration = _pageGeneration;
+        var loadGeneration = ++_loadGeneration;
         _loading = true;
         try
         {
             var context = await Automations.OpenEditorAsync(DraftId);
+            if (pageGeneration != _pageGeneration || loadGeneration != _loadGeneration) return;
             _binding = context.BindingState;
             if (_binding is not null)
             {
@@ -168,12 +191,13 @@
             }
 
             var history = await Automations.ListVersionsAsync(_contentItemId);
+            if (pageGeneration != _pageGeneration || loadGeneration != _loadGeneration) return;
             _binding = history.BindingState;
             _versions = history.Versions;
         }
         finally
         {
-            _loading = false;
+            if (pageGeneration == _pageGeneration && loadGeneration == _loadGeneration) _loading = false;
         }
     }
 
@@ -192,11 +216,14 @@
             return;
         }
 
+        var pageGeneration = _pageGeneration;
         _busy = true;
         _errorMessage = null;
         try
         {
-            _preview = await Automations.GetVersionAsync(_contentItemId, versionId);
+            var preview = await Automations.GetVersionAsync(_contentItemId, versionId);
+            if (pageGeneration != _pageGeneration) return;
+            _preview = preview;
             _previewVersionId = _preview is null ? null : versionId;
             if (_preview is null)
             {
@@ -205,11 +232,11 @@
         }
         catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
         {
-            _errorMessage = $"Could not read version: {ex.Message}";
+            if (pageGeneration == _pageGeneration) _errorMessage = $"Could not read version: {ex.Message}";
         }
         finally
         {
-            _busy = false;
+            if (pageGeneration == _pageGeneration) _busy = false;
         }
     }
 
@@ -220,10 +247,12 @@
             return;
         }
 
+        var pageGeneration = _pageGeneration;
+        var contentItemId = _contentItemId;
         // Restore re-instates an older body as a new version: confirm before committing.
         var confirmed = await ConfirmAsync(
             $"Restore v{version.VersionNumber}? This commits a new version that re-instates that body.");
-        if (!confirmed)
+        if (!confirmed || pageGeneration != _pageGeneration || _busy)
         {
             return;
         }
@@ -231,9 +260,12 @@
         _busy = true;
         _errorMessage = null;
         _restoreMessage = null;
+        _restoring = true;
+        StateHasChanged();
         try
         {
-            var result = await Automations.RestoreVersionAsync(_contentItemId, version.VersionId);
+            var result = await Automations.RestoreVersionAsync(contentItemId, version.VersionId);
+            if (pageGeneration != _pageGeneration) return;
             if (result.BindingState is not null)
             {
                 _binding = result.BindingState;
@@ -248,10 +280,11 @@
         }
         catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
         {
-            _errorMessage = $"Restore failed: {ex.Message}";
+            if (pageGeneration == _pageGeneration) _errorMessage = $"Restore failed: {ex.Message}";
         }
         finally
         {
+            _restoring = false;
             _busy = false;
         }
     }

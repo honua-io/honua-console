@@ -48,6 +48,22 @@ public record ConsoleAgentPageContext
     public IReadOnlyDictionary<string, string> Filters { get; init; } = new Dictionary<string, string>();
     public IReadOnlyList<ConsoleAgentEntity> Selection { get; init; } = [];
     public ConsoleAgentUnsavedSummary Unsaved { get; init; } = new();
+
+    public static ConsoleAgentPageContext EditorContext(
+        string navigationUri,
+        int changedFieldCount,
+        int pendingOperationCount,
+        IReadOnlyDictionary<string, string>? filters = null) =>
+        new()
+        {
+            Route = new Uri(navigationUri).AbsolutePath,
+            Filters = filters ?? new Dictionary<string, string>(),
+            Unsaved = new ConsoleAgentUnsavedSummary
+            {
+                ChangedFieldCount = changedFieldCount,
+                PendingOperationCount = pendingOperationCount,
+            },
+        };
 }
 
 public sealed record ConsoleAgentContextSnapshot : ConsoleAgentPageContext

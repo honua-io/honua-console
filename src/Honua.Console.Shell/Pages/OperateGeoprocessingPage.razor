@@ -9,6 +9,7 @@
 <section class="console-page console-operate-page @(V4Enabled ? "console-jobs-v4" : null)">
     @if (V4Enabled)
     {
+        <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/operate-jobs-v4.css" />
         <ConsolePageHeading Title="Geoprocessing jobs">
             <p>Follow job progress, review evidence, and manage runs on the connected Honua server.</p>
@@ -232,6 +233,23 @@
 </section>
 
 @code {
+    private ConsoleAgentPageContext AgentContext
+    {
+        get
+        {
+            IReadOnlyList<ConsoleAgentEntity> selection = string.IsNullOrWhiteSpace(SelectedJobRunId)
+                ? [] : [new() { Kind = ConsoleAgentEntityKind.Job, Id = SelectedJobRunId.Trim() }];
+            return new()
+            {
+                Route = new Uri(ConsoleNavigation.Uri).AbsolutePath,
+                Entities = selection,
+                Selection = selection,
+                Filters = new Dictionary<string, string> { ["state"] = _stateFilter },
+                Unsaved = new() { PendingOperationCount = _actionBusy ? 1 : 0 }
+            };
+        }
+    }
+
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     // Poll cadence for the live list/detail. No realtime stream is exposed by the
@@ -371,6 +389,7 @@
         _actionBusy = true;
         _actionMessage = null;
         _actionDetail = null;
+        StateHasChanged();
         try
         {
             var result = await action(jobRunId, CancellationToken.None);
