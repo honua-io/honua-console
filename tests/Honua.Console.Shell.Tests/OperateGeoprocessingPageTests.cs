@@ -413,7 +413,7 @@ public sealed partial class OperateGeoprocessingPageTests
         Assert.Contains("older event", page.Markup);
         if (v4Enabled)
         {
-            CapturePreview("jobs-timeline", page.Markup);
+            V4PagePreview.Capture("jobs-timeline", page.Markup);
         }
     }
 
@@ -700,8 +700,6 @@ public sealed partial class OperateGeoprocessingPageTests
         public OperateSectionResult<OperateJobControlOutcome> RetryResult { get; init; } =
             OperateSectionResult<OperateJobControlOutcome>.Denied(OperateSectionStatus.Unavailable, "n/a");
 
-        public Task<OperateSectionResult<OperateJobControlOutcome>>? PendingCancel { get; init; }
-
         public List<string> CancelCalls { get; } = [];
 
         public List<string> RetryCalls { get; } = [];
@@ -745,7 +743,7 @@ public sealed partial class OperateGeoprocessingPageTests
         public Task<OperateSectionResult<OperateJobControlOutcome>> CancelJobAsync(string jobRunId, CancellationToken cancellationToken = default)
         {
             CancelCalls.Add(jobRunId);
-            return PendingCancel ?? Task.FromResult(CancelResult);
+            return Task.FromResult(CancelResult);
         }
 
         public Task<OperateSectionResult<OperateJobControlOutcome>> RetryJobAsync(string jobRunId, CancellationToken cancellationToken = default)

@@ -1,0 +1,40 @@
+/* Page presentation only; findings, proposals and autonomy controls keep their shared markup. */
+.console-copilot-v4 {
+    gap: var(--space-6);
+    color: var(--c-text);
+}
+
+.console-copilot-v4 .console-page-heading-actions .approval-inbox-toolbar {
+    margin: 0;
+}
+
+.console-copilot-v4 .console-panel {
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-lg);
+    background: var(--c-surface);
+    box-shadow: var(--shadow-panel);
+}
+
+.console-copilot-v4 .console-panel h2,
+.console-copilot-v4 .operate-section-heading h2 {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+}
+
+.console-copilot-v4 .console-definition-list dd,
+.console-copilot-v4 .operate-metric-recommendations code {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+    .console-copilot-v4 .console-panel-heading,
+    .console-copilot-v4 .operate-section-heading {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .console-copilot-v4 .console-definition-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

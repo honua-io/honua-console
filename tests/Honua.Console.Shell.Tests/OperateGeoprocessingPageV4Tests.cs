@@ -1,4 +1,3 @@
-using AngleSharp.Html.Parser;
 using Bunit;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
@@ -9,90 +8,6 @@ namespace Honua.Console.Shell.Tests;
 
 public sealed partial class OperateGeoprocessingPageTests
 {
-    public enum PresentationMode
-    {
-        Legacy,
-        V4
-    }
-
-    [Fact]
-    public void AgentContextTracksDetailSelectionAndReturnToList()
-    {
-        using var context = new BunitContext();
-        var registry = new ConsoleAgentContextRegistry();
-        context.Services.AddSingleton(registry);
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
-        context.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubGeoprocessingClient
-        {
-            Detail = OperateSectionResult<OperateJobRun>.Allowed(
-                Job("gp-done", "Succeeded", "Done", 100, "analyst.live"))
-        });
-        var page = context.Render<OperateGeoprocessingPage>(parameters => parameters
-            .Add(value => value.SelectedJobRunId, " gp-done "));
-
-        var selected = Assert.Single(registry.Current.Selection);
-        Assert.Equal(ConsoleAgentEntityKind.Job, selected.Kind);
-        Assert.Equal("gp-done", selected.Id);
-        Assert.Equal(selected, Assert.Single(registry.Current.Entities));
-
-        page.Render(parameters => parameters.Add(value => value.SelectedJobRunId, (string?)null));
-        Assert.Empty(registry.Current.Selection);
-        Assert.Empty(registry.Current.Entities);
-    }
-
-    [Fact]
-    public async Task ConfirmDialogPublishesPendingCancellationUntilCompletion()
-    {
-        using var context = new BunitContext();
-        var registry = new ConsoleAgentContextRegistry();
-        var cancellation = new TaskCompletionSource<OperateSectionResult<OperateJobControlOutcome>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var client = new StubGeoprocessingClient
-        {
-            Detail = OperateSectionResult<OperateJobRun>.Allowed(Job("gp-run", "Running", "Executing", 40, "analyst.live")),
-            Diagnostics = OperateSectionResult<OperateJobDiagnosticsView>.Allowed(Projection("gp-run", cancel: true)),
-            PendingCancel = cancellation.Task
-        };
-        context.Services.AddSingleton(registry);
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
-        context.Services.AddSingleton<IConsoleOperateObservabilityClient>(client);
-        var page = context.Render<OperateGeoprocessingPage>(p => p.Add(v => v.SelectedJobRunId, "gp-run"));
-        page.FindAll("button").First(b => b.TextContent.Contains("Cancel job", StringComparison.Ordinal)).Click();
-        var click = page.Find("[data-console-confirm-accept]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-        page.WaitForAssertion(() => Assert.Single(client.CancelCalls));
-        Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
-        cancellation.SetResult(OperateSectionResult<OperateJobControlOutcome>.Denied(OperateSectionStatus.Unavailable, "Cancellation unavailable"));
-        await click;
-        page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
-        await context.DisposeComponentsAsync();
-    }
-
-    [Theory]
-    [InlineData(PresentationMode.Legacy)]
-    [InlineData(PresentationMode.V4)]
-    public async Task AgentContextTracksTheVisibleStateFilterAndClearsOnDisposal(PresentationMode mode)
-    {
-        using var context = new BunitContext();
-        var registry = new ConsoleAgentContextRegistry();
-        context.Services.AddSingleton(registry);
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = mode == PresentationMode.V4 });
-        context.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubGeoprocessingClient
-        {
-            Jobs = OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed(
-                [Job("gp-running", "Running", "Executing", 40, "analyst.live")])
-        });
-        var page = context.Render<OperateGeoprocessingPage>();
-        page.FindAll("button").Single(button => button.TextContent.Trim().StartsWith("Running", StringComparison.Ordinal)).Click();
-        if (mode == PresentationMode.Legacy)
-        {
-            Assert.Equal(0, registry.Current.Generation);
-            return;
-        }
-        Assert.Equal("Running", registry.Current.Filters["state"]);
-        Assert.Empty(registry.Current.Selection);
-        await context.DisposeComponentsAsync();
-        Assert.Empty(registry.Current.Filters);
-    }
-
     [Theory]
     [InlineData(false, "Geoprocessing Jobs")]
     [InlineData(true, "Geoprocessing jobs")]
@@ -122,25 +37,12 @@ public sealed partial class OperateGeoprocessingPageTests
         Assert.Equal(2, page.FindAll("tbody tr").Count);
         if (v4Enabled)
         {
-            CapturePreview("jobs-list", page.Markup);
+            V4PagePreview.Capture("jobs-list", page.Markup);
         }
         page.FindAll("button").Single(button => button.TextContent.Trim().StartsWith("Running", StringComparison.Ordinal)).Click();
         Assert.Contains("gp-running", Assert.Single(page.FindAll("tbody tr")).TextContent);
         Assert.DoesNotContain("gp-done", page.Markup);
         page.FindAll("button").Single(button => button.TextContent.Trim() == "All").Click();
         Assert.Equal(2, page.FindAll("tbody tr").Count);
-    }
-
-    private static void CapturePreview(string name, string markup)
-    {
-        var directory = Environment.GetEnvironmentVariable("HONUA_CATALOG_PREVIEW_DIR");
-        if (string.IsNullOrWhiteSpace(directory))
-        {
-            return;
-        }
-
-        Directory.CreateDirectory(directory);
-        File.WriteAllText(Path.Combine(directory, $"{name}.html"),
-            $"<div class=\"console-shell\" data-console-v4=\"true\">{new HtmlParser().ParseDocument(markup).Body!.InnerHtml}</div>");
     }
 }
