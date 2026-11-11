@@ -42,7 +42,6 @@ public sealed class SharePublicItemV4Tests
         Assert.Equal("/console/share/public", page.Find(".share-opendata-back").GetAttribute("href"));
     }
 
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
