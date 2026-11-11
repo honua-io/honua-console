@@ -284,7 +284,12 @@ public sealed class OperateAccessPageRenderTests
         Assert.Equal(enabled ? 0 : 1, roles.FindAll("[data-rbac-toolbar]").Count);
         Assert.Equal(enabled ? 0 : 1, roles.FindAll("[data-rbac-counts]").Count);
         Assert.Equal(enabled ? 1 : 0, roles.FindAll("nav[aria-label='Access settings']").Count);
-        if (enabled) Assert.Equal("/operate/access", roles.Find("nav[aria-label='Access settings'] [aria-current='page']").GetAttribute("href"));
+        if (enabled)
+        {
+            Assert.Equal("/operate/access", roles.Find("nav[aria-label='Access settings'] [aria-current='page']").GetAttribute("href"));
+            Assert.Equal("10", roles.Find(".console-metric-value").TextContent.Trim());
+            Assert.Contains("8 built-in roles · 2 custom · 14 users affected", roles.Find(".console-metric-tile").TextContent, StringComparison.Ordinal);
+        }
         CapturePreview(roles, "roles", enabled);
         roles.Find("[data-rbac-custom-role]").Click();
         Assert.NotNull(roles.Find("[data-rbac-create-form]"));
@@ -297,7 +302,12 @@ public sealed class OperateAccessPageRenderTests
         Assert.Equal(enabled ? 0 : 1, members.FindAll("[data-rbac-members-toolbar]").Count);
         Assert.Equal(enabled ? 0 : 1, members.FindAll("[data-rbac-member-counts]").Count);
         Assert.Equal(enabled ? 1 : 0, members.FindAll("nav[aria-label='Access settings']").Count);
-        if (enabled) Assert.Equal("/operate/access/members", members.Find("nav[aria-label='Access settings'] [aria-current='page']").GetAttribute("href"));
+        if (enabled)
+        {
+            Assert.Equal("/operate/access/members", members.Find("nav[aria-label='Access settings'] [aria-current='page']").GetAttribute("href"));
+            Assert.Equal("14", members.Find(".console-metric-value").TextContent.Trim());
+            Assert.Contains("Public Works · 2 pending · 1 deactivated", members.Find(".console-metric-tile").TextContent, StringComparison.Ordinal);
+        }
         CapturePreview(members, "users", enabled);
         members.Find("[data-rbac-invite-open]").Click();
         Assert.NotNull(members.Find("[data-rbac-invite-drawer]"));
