@@ -34,6 +34,7 @@
 /* Sync conflict choice buttons wrap on narrow screens. */
 .console-shell[data-console-v4="true"] .operate-sync-choices {
     flex-wrap: wrap;
+}
 
 .console-shell[data-console-v4="true"] .console-tabs {
     display: flex;
