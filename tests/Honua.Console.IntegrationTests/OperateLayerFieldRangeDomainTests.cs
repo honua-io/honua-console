@@ -13,8 +13,10 @@ public sealed class OperateLayerFieldRangeDomainTests
     private const string ResourceId = "conn-1-layer-7";
     private const int LayerId = 7;
 
-    [Fact]
-    public void Save_AuthorsRangeDomainWithDefaultAndPolicies_IssuesUpdateAndReReadsFields()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Save_AuthorsRangeDomainWithDefaultAndPolicies_IssuesUpdateAndReReadsFields(bool enabled)
     {
         var fields = new RecordingLayerFieldsOperation(new ConsoleLayerFields
         {
@@ -27,7 +29,10 @@ public sealed class OperateLayerFieldRangeDomainTests
         });
 
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerMountedNavigationManager("/console/"));
         ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         // The page hosts a <MapPreview/> that imports a JS module on render; the fields panel under test needs
         // no JS, so let unmatched interop calls no-op instead of failing the render.
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
@@ -40,6 +45,20 @@ public sealed class OperateLayerFieldRangeDomainTests
             () => Assert.NotEmpty(page.FindAll("[data-domain-save]")),
             TimeSpan.FromSeconds(5));
 
+        var registry = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
+        if (enabled)
+        {
+            var entity = Assert.Single(registry.Current.Selection);
+            Assert.Equal(ConsoleAgentEntityKind.Layer, entity.Kind);
+            Assert.Equal(LayerId.ToString(), entity.Id);
+            Assert.Equal(ResourceId, entity.ResourceId);
+            Assert.Equal($"/operate/layers/{ResourceId}", ConsoleAgentRoutes.ForEntity(entity));
+            Assert.Equal(ConsoleAgentRoutes.ForEntity(entity), registry.Current.Route);
+            Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+        }
+        else Assert.Empty(registry.Current.Selection);
+
         // Author a RANGE domain with min/max, merge/split policy, and a numeric default value.
         page.Find("[data-domain-field]").Change("elevation");
         page.Find("[data-domain-type]").Change(ConsoleDomainKind.Range.ToString());
@@ -49,6 +68,11 @@ public sealed class OperateLayerFieldRangeDomainTests
         page.Find("[data-domain-merge-policy]").Change("esriMPTDefaultValue");
         page.Find("[data-domain-split-policy]").Change("esriSPTDuplicate");
         page.Find("[data-domain-default-value]").Change("0");
+        if (enabled)
+        {
+            Assert.True(registry.Current.Unsaved.ChangedFieldCount >= 2);
+            Assert.DoesNotContain("elevation_range", System.Text.Json.JsonSerializer.Serialize(registry.Current.Unsaved), StringComparison.Ordinal);
+        }
         page.Find("[data-domain-save]").Click();
 
         // (1) The Save issued exactly one domain authoring update carrying the range bounds, policies, default.
@@ -76,6 +100,12 @@ public sealed class OperateLayerFieldRangeDomainTests
             TimeSpan.FromSeconds(5));
         Assert.Contains("default", page.Find("[data-field-default]").TextContent, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Updated", page.Find("[data-domain-result]").TextContent, StringComparison.Ordinal);
+        if (enabled)
+        {
+            page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount));
+            Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+            CatalogAdminPreview.Capture("data-layer-detail-domain-saved", page.Markup);
+        }
     }
 
     [Fact]

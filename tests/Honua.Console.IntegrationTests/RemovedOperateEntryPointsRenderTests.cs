@@ -16,10 +16,13 @@ public sealed class RemovedOperateEntryPointsRenderTests
             [new("maxFeatures", "1000", "Runtime", RequiresRestart: false)],
             [new("FeatureServer", "https://server.example.test/rest/services/a-long-service-identifier-that-must-fit-on-a-phone/FeatureServer", "Exposed by honua-server")]);
 
-    [Fact]
-    public void LayerPage_LinksOnlyToSurfacesTheServerSupports()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LayerPage_LinksOnlyToSurfacesTheServerSupports(bool enabled)
     {
-        using var ctx = CreateContext();
+        using var ctx = CreateContext(enabled);
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerMountedNavigationManager("/console/"));
         ctx.Services.AddSingleton<IConsoleLayerFieldsOperation>(new UnsupportedConsoleLayerFieldsOperation());
 
         var page = ctx.Render<OperateLayerDetailPage>(p => p.Add(c => c.ResourceId, Parcels.CanonicalResourceId));
@@ -27,6 +30,7 @@ public sealed class RemovedOperateEntryPointsRenderTests
         page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-layer-style-link]")));
         var hrefs = page.FindAll(".console-detail-actions a").Select(link => link.GetAttribute("href")).ToArray();
         Assert.DoesNotContain(hrefs, href => href!.EndsWith("/extrusion") || href.EndsWith("/subtypes") || href.EndsWith("/discovery"));
+        if (enabled) CatalogAdminPreview.Capture("data-layer-detail-unbound", page.Markup);
     }
 
     [Theory]

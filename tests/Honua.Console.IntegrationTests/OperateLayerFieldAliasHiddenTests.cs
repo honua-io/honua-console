@@ -12,8 +12,14 @@ public sealed class OperateLayerFieldAliasHiddenTests
     private const string ResourceId = "conn-1-layer-7";
     private const int LayerId = 7;
 
-    [Fact]
-    public void Save_SetsAliasAndHidden_IssuesUpdateAndReReadsFields()
+    [Theory]
+    [InlineData(false, ResourceId, "/")]
+    [InlineData(false, ResourceId, "/console/")]
+    [InlineData(true, ResourceId, "/")]
+    [InlineData(true, ResourceId, "/console/")]
+    [InlineData(true, "7", "/console/")]
+    [InlineData(true, "CONN-1-LAYER-7", "/console/")]
+    public void Save_SetsAliasAndHidden_IssuesUpdateAndReReadsFields(bool enabled, string layerReference, string mount)
     {
         var fields = new RecordingLayerFieldsOperation(new ConsoleLayerFields
         {
@@ -26,22 +32,46 @@ public sealed class OperateLayerFieldAliasHiddenTests
         });
 
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerMountedNavigationManager(mount));
         ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         // The page hosts a <MapPreview/> that imports a JS module on render; the fields panel under test
         // needs no JS, so let unmatched interop calls no-op instead of failing the render.
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(LayerData(ResourceId, LayerId));
         ctx.Services.AddSingleton<IConsoleLayerFieldsOperation>(fields);
 
-        var page = ctx.Render<OperateLayerDetailPage>(p => p.Add(c => c.ResourceId, ResourceId));
+        var page = ctx.Render<OperateLayerDetailPage>(p => p.Add(c => c.ResourceId, layerReference));
 
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll("[data-field-row]")),
             TimeSpan.FromSeconds(5));
 
+        Assert.Equal($"{mount}operate/layers/{ResourceId}/style", page.Find("[data-layer-style-link]").GetAttribute("href"));
+        var registry = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
+        if (enabled)
+        {
+            var entity = Assert.Single(registry.Current.Selection);
+            Assert.Equal(ConsoleAgentEntityKind.Layer, entity.Kind);
+            Assert.Equal(LayerId.ToString(), entity.Id);
+            Assert.Equal(ResourceId, entity.ResourceId);
+            Assert.Equal($"/operate/layers/{ResourceId}", ConsoleAgentRoutes.ForEntity(entity));
+            Assert.Equal(ConsoleAgentRoutes.ForEntity(entity), registry.Current.Route);
+            Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+            if (mount == "/console/") CatalogAdminPreview.Capture("data-layer-detail", page.Markup);
+        }
+        else Assert.Empty(registry.Current.Selection);
+
         // Author a new alias + hide the field, then Save.
         page.Find("[data-field-alias]").Change("Status code");
         page.Find("[data-field-hidden]").Change(true);
+        if (enabled)
+        {
+            Assert.Equal(2, registry.Current.Unsaved.ChangedFieldCount);
+            Assert.DoesNotContain("Status code", System.Text.Json.JsonSerializer.Serialize(registry.Current.Unsaved), StringComparison.Ordinal);
+        }
         page.Find("[data-field-save]").Click();
 
         // (1) The Save issued exactly one configuration update with Alias/Hidden populated.
@@ -63,6 +93,12 @@ public sealed class OperateLayerFieldAliasHiddenTests
             TimeSpan.FromSeconds(5));
         Assert.True(page.Find("[data-field-hidden]").HasAttribute("checked"));
         Assert.Contains("Updated", page.Find("[data-field-result]").TextContent, StringComparison.Ordinal);
+        if (enabled)
+        {
+            page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount));
+            Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+            if (mount == "/console/") CatalogAdminPreview.Capture("data-layer-detail-alias-saved", page.Markup);
+        }
     }
 
     [Fact]

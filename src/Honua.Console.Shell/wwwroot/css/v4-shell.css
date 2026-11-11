@@ -84,6 +84,10 @@
 }
 
 @media (max-width: 640px) {
+    .console-shell[data-console-v4="true"] .console-definition-list {
+        grid-template-columns: minmax(100px, 0.42fr) minmax(0, 1fr);
+    }
+
     .console-shell[data-console-v4="true"] .console-page-heading-v4 {
         flex-direction: column;
     }
