@@ -21,13 +21,8 @@ public sealed class ReplicaRoundTripTests
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var seeded = await PublishedLayerSeeder.SeedPublishedLayerAsync(_fixture, suffix);
-        Skip.If(
-            seeded is null,
-            "The pinned honua-server image could not service the layer-publish path; the replica round-trip "
-            + "needs a published service/layer to register a replica against.");
-
         var replicaName = $"console-replica-{suffix}";
-        var created = await CreateReplicaAsync(seeded!.ServiceName, replicaName);
+        var created = await CreateReplicaAsync(seeded.ServiceName, replicaName);
         Skip.If(
             created.Skip,
             "The pinned honua-server image has no GeoServices createReplica verb or offline-sync entitlement; "
