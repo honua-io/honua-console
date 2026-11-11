@@ -4,6 +4,10 @@ namespace Honua.Console.IntegrationTests;
 
 internal class UnusedAdminOperateClient : IHonuaAdminOperateClient
 {
+    public virtual Task<HonuaAdminEndpointResult<HonuaAdminImportPreview>> PreviewImportFileAsync(byte[] bytes, string fileName, string authorityBinding, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    public virtual Task<HonuaAdminEndpointResult<HonuaAdminCoordinateSystemSearch>> SearchCoordinateSystemsAsync(string query, string authorityBinding, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    public virtual Task<HonuaAdminEndpointResult<HonuaAdminImportResult>> ImportFileBoundAsync(HonuaAdminFileImportRequest request, string authorityBinding, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
     public virtual Uri BaseUri => new("https://server.test");
 
     public virtual Task<HonuaAdminEndpointResult<System.Text.Json.JsonElement>> GetConnectionProviderManifestAsync(
@@ -23,7 +27,6 @@ internal class UnusedAdminOperateClient : IHonuaAdminOperateClient
     public virtual Task<HonuaAdminEndpointResult<HonuaAdminConnectionTestResult>> TestConnectionAsync(string connectionId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     public virtual Task<HonuaAdminEndpointResult<HonuaAdminTableInfo[]>> ListConnectionTablesAsync(string connectionId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     public virtual Task<HonuaAdminEndpointResult<HonuaAdminImportFormats>> GetImportFormatsAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
-    public virtual Task<HonuaAdminEndpointResult<HonuaAdminImportResult>> ImportFileAsync(byte[] fileContent, string fileName, string tableName, string? targetSchema, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     public virtual Task<HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>> DiscoverExternalServiceAsync(string url, HonuaAdminExternalServiceCredentials? credentials = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     public virtual Task<HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>> StartGeoservicesImportAsync(HonuaAdminGeoservicesImportRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     public virtual Task<HonuaAdminEndpointResult<HonuaAdminGeoservicesImportProgress>> GetGeoservicesImportJobAsync(string jobId, CancellationToken cancellationToken = default) => throw new NotImplementedException();

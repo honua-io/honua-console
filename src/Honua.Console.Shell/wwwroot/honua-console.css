@@ -8,18 +8,24 @@
 @import url("css/metadata-preview.css");
 @import url("css/service-detail.css");
 @import url("css/v4-shell.css");
+@import url("css/v4-access.css");
 @import url("css/v4-navigation.css");
 @import url("css/v4-operate.css");
+@import url("css/v4-share.css");
+@import url("css/v4-share-manage.css");
+
+@import url("css/v4-support.css");
+@import url("css/v4-data-primitives.css");
 @import url("css/folder-v4.css");
+@import url("css/v4-share-public.css");
 
 * {
     box-sizing: border-box;
 }
 
-/* Global keyboard-focus ring. Applies to interactive elements ONLY on keyboard focus
-   (:focus-visible), so mouse clicks don't get an outline but Tab navigation always shows where
-   focus is. Uses box-shadow (not outline) so the ring follows rounded corners; an outline is kept
-   as a fallback for forced-colors / high-contrast modes. */
+/* Shared focus ring: keyboard focus uses :focus-visible. Chromium's native date editor
+   needs :focus-within on date/time inputs to keep the whole control outlined.
+   Box-shadow follows rounded corners; outline supports forced-colors modes. */
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
@@ -29,12 +35,14 @@ summary:focus-visible,
 [tabindex]:focus-visible,
 [role="button"]:focus-visible,
 [role="option"]:focus-visible,
-[role="tab"]:focus-visible {
+[role="tab"]:focus-visible,
+input[type="datetime-local"]:focus-within {
     outline: 2px solid transparent;
     outline-offset: 2px;
     box-shadow: var(--honua-focus-ring);
     border-radius: 4px;
 }
+
 
 /* Page-title focus treatment. <FocusOnNavigate Selector="h1"> (ConsoleRoutes) adds tabindex="-1" to the
    page H1 and focuses it on every route change purely so screen readers announce the new page identity.
@@ -1483,6 +1491,7 @@ p {
 }
 
 .console-table-wrap {
+    position: relative;
     overflow-x: auto;
     border: 1px solid var(--honua-border);
     border-radius: 8px;
@@ -5625,7 +5634,6 @@ p {
     border-color: #8fcfa6;
     background: #ecf7f0;
 }
-
 
 /* ============================================================================
    Shared Shell components: MapPreview, PublishWizard, StudioAiConversation.

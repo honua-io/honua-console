@@ -34,7 +34,7 @@
             <div class="console-detail-actions">
                 @foreach (var action in ResolveViewerActions(map.Summary, isAuthenticated: !_result.AnonymousRead))
                 {
-                    <a class="console-button-link" href="@action.Href">@action.Label</a>
+                    <a class="console-button-link" href="@Navigation.ToConsoleLinkHref(action.Href)">@action.Label</a>
                 }
             </div>
         </div>

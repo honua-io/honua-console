@@ -42,11 +42,14 @@
     const selectedRow = available => available.find(row => row.getAttribute(selectionAttribute) === 'true');
     function keepRowVisible(row) {
         if (!sidebar || !row.isConnected) return;
-        const pane = sidebar.getBoundingClientRect();
+        const branches = row.closest(".console-tree-branches");
+        const scrollPane = branches && branches.scrollHeight > branches.clientHeight
+            && getComputedStyle(branches).overflowY === "auto" ? branches : sidebar;
+        const pane = scrollPane.getBoundingClientRect();
         const bounds = row.getBoundingClientRect();
         const top = Math.max(pane.top, 0), bottom = Math.min(pane.bottom, innerHeight);
-        if (bounds.top < top) sidebar.scrollTop += bounds.top - top;
-        else if (bounds.bottom > bottom) sidebar.scrollTop += bounds.bottom - bottom;
+        if (bounds.top < top) scrollPane.scrollTop += bounds.top - top;
+        else if (bounds.bottom > bottom) scrollPane.scrollTop += bounds.bottom - bottom;
     }
     function reconcileSelection(available) {
         const selection = selectedRow(available);
@@ -170,9 +173,11 @@
     function handleEscape(event) {
         if (event.key !== 'Escape' || !event.target.closest(sidebarSelector)) return false;
         event.preventDefault();
-        if (event.target.matches('[data-tree-filter]') && event.target.value) {
-            event.target.value = '';
-            event.target.dispatchEvent(new Event('input', {bubbles: true}));
+        const filter = sidebar.querySelector('[data-tree-filter]');
+        if (filter?.value && (event.target === filter || event.target.closest('[data-publication-search]'))) {
+            filter.value = '';
+            filter.dispatchEvent(new Event('input', {bubbles: true}));
+            filter.focus();
         } else if (isOpen()) closeOverlay();
         else focusRow(rows()[0]);
         return true;

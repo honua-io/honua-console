@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/versions/{ServiceId}/{VersionGuid}/conflicts"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
@@ -14,7 +15,7 @@
     </div>
 
     <div class="console-action-row">
-        <a class="console-button-link" href="/operate/versions">Back to versions</a>
+        <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/operate/versions")">Back to versions</a>
         <button class="console-button console-button-secondary" type="button" @onclick="LoadAsync" disabled="@_loading">
             @(_loading ? "Loading…" : "Refresh conflicts")
         </button>

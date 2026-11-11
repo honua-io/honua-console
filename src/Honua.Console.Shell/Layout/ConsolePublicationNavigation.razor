@@ -7,20 +7,22 @@
         <button type="button" class="console-publication-toggle console-button console-button-secondary" data-tree-toggle
                 aria-expanded="false" aria-controls="console-publication-sidebar">Browse services</button>
         <button type="button" class="console-tree-backdrop" data-tree-backdrop hidden tabindex="-1" aria-label="Close service navigation"></button>
-        <aside id="console-publication-sidebar" class="console-publication-sidebar" aria-label="Service navigation">
+        <section id="console-publication-sidebar" class="console-publication-sidebar" aria-label="Service navigation">
             <div class="console-tree-toolbar">
-                <label for="console-tree-filter">Filter services</label>
+                <label for="console-tree-filter">@(V4Enabled ? "Search services" : "Filter services")</label>
                 <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter"
-                       @oninput="FilterChanged" disabled="@(_loading || Source is UnsupportedConsolePublicationNavigationSource)" data-tree-filter />
+                       placeholder="@(V4Enabled ? "Search service names…" : null)" @oninput="FilterChanged" disabled="@(_loading || Source is UnsupportedConsolePublicationNavigationSource)" data-tree-filter />
                 @if (Source is not UnsupportedConsolePublicationNavigationSource)
                 {
                     <button type="button" class="console-button console-button-secondary" aria-disabled="@(_loading ? "true" : "false")" @onclick="RefreshAsync">Refresh services</button>
-                    <a href="/operate/services#folders">Manage Folders</a>
+                    <a href="@Navigation.ToConsoleHref("/operate/services#folders")">Manage Folders</a>
                 }
                 <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation">Close</button>
             </div>
-            <ConsolePublicationNavigationContent ReadState="ReadState" />
-        </aside>
+            <div class="console-tree-catalog">
+                <ConsolePublicationNavigationContent ReadState="ReadState" />
+            </div>
+        </section>
     </div>
 </CascadingValue>
 
@@ -52,6 +54,7 @@
     private AuthenticationStateProvider? _authentication;
     private IConsolePublicationNavigationSource Source => Services.GetService<IConsolePublicationNavigationSource>()
         ?? new UnsupportedConsolePublicationNavigationSource();
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private string CurrentPath => "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
     private string SelectedPath
     {
@@ -64,12 +67,14 @@
     private ConsolePublicationTreeContext TreeContext => new()
     {
         Tree = _tree, SelectedPath = SelectedPath,
-        FolderNavigationEnabled = Services.GetService<ConsoleV4Options>()?.Enabled == true,
+        V4Enabled = V4Enabled,
+        SearchPending = _inflight is { Apply: CatalogApply.Replace },
         Expand = EventCallback.Factory.Create<ConsolePublicationNode>(this, ExpandAsync),
         Collapse = EventCallback.Factory.Create<ConsolePublicationNode>(this, Collapse),
         Retry = EventCallback.Factory.Create<ConsolePublicationNode>(this, LoadChildrenAsync),
         ShowFirstPage = EventCallback.Factory.Create<ConsolePublicationNode>(this, ShowFirstPage),
-        ShowMore = EventCallback.Factory.Create<ConsolePublicationNode>(this, ShowMore)
+        ShowMore = EventCallback.Factory.Create<ConsolePublicationNode>(this, ShowMore),
+        ShowMoreSearch = EventCallback.Factory.Create(this, ShowMoreSearchAsync)
     };
     private ConsolePublicationNavigationReadState ReadState => new()
     {
@@ -328,23 +333,33 @@
     private void ShowFirstPage(ConsolePublicationNode node) => _tree.ShowFirstPage(node);
     private async Task ShowMore(ConsolePublicationNode node)
     {
-        if (_inflight is not null || _settled is not { } settled
-            || settled.FilterRevision != _filterRevision
-            || settled.AuthorityRevision != _authorityRevision)
-            return;
-        if (!_tree.HasHiddenLoadedChildren(node) && _tree.HasUnloadedServices)
-        {
-            var attempt = BeginCatalog(settled.Query.Next(), CatalogApply.Append);
-            var outcome = await FinishCatalogAsync(attempt);
-            if (outcome != CatalogOutcome.Applied)
-            {
-                if (outcome != CatalogOutcome.Obsolete) await InvokeAsync(StateHasChanged);
-                return;
-            }
-        }
+        if (!CatalogSettled) return;
+        if (!_tree.HasHiddenLoadedChildren(node) && !await NextServicePageReadyAsync()) return;
         _tree.ShowMore(node);
         await InvokeAsync(StateHasChanged);
     }
+
+    private async Task ShowMoreSearchAsync()
+    {
+        if (!CatalogSettled) return;
+        if (!_tree.HasHiddenSearchMatches && !await NextServicePageReadyAsync()) return;
+        _tree.ShowMoreSearch();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private bool CatalogSettled => _inflight is null && _settled is { } settled
+        && settled.FilterRevision == _filterRevision
+        && settled.AuthorityRevision == _authorityRevision;
+
+    private async Task<bool> NextServicePageReadyAsync()
+    {
+        if (!_tree.HasUnloadedServices || _settled is not { } settled) return true;
+        var outcome = await FinishCatalogAsync(BeginCatalog(settled.Query.Next(), CatalogApply.Append));
+        if (outcome == CatalogOutcome.Applied) return true;
+        if (outcome != CatalogOutcome.Obsolete) await InvokeAsync(StateHasChanged);
+        return false;
+    }
+
     private async Task ReconcileLocationAsync()
     {
         await CheckAuthorityAsync();

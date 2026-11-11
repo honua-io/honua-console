@@ -32,16 +32,17 @@ public interface IHonuaAdminConnectionsClient
 
 public interface IHonuaAdminImportClient
 {
+    Task<HonuaAdminEndpointResult<HonuaAdminImportPreview>> PreviewImportFileAsync(
+        byte[] fileContent, string fileName, string authorityBinding, CancellationToken cancellationToken = default);
+
+    Task<HonuaAdminEndpointResult<HonuaAdminCoordinateSystemSearch>> SearchCoordinateSystemsAsync(
+        string query, string authorityBinding, CancellationToken cancellationToken = default);
+
+    Task<HonuaAdminEndpointResult<HonuaAdminImportResult>> ImportFileBoundAsync(
+        HonuaAdminFileImportRequest request, string authorityBinding, CancellationToken cancellationToken = default);
+
     // The body is the format list itself, not the admin response envelope.
     Task<HonuaAdminEndpointResult<HonuaAdminImportFormats>> GetImportFormatsAsync(
-        CancellationToken cancellationToken = default);
-
-    // The server answers 200 even when the import failed; read Success on the body.
-    Task<HonuaAdminEndpointResult<HonuaAdminImportResult>> ImportFileAsync(
-        byte[] fileContent,
-        string fileName,
-        string tableName,
-        string? targetSchema,
         CancellationToken cancellationToken = default);
 
     // The server accepts only an https URL, and the body is not wrapped in the admin envelope.

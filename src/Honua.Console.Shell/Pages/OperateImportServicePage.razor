@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/import/service"
 @using System.Text
 @using System.Threading
@@ -101,7 +102,7 @@
             <button class="console-button" type="button" disabled="@_busy" @onclick="DiscoverAsync">
                 @(_busy ? "Discovering…" : "Discover service")
             </button>
-            <a href="/operate/connections">Cancel</a>
+            <a href="@ConsoleNavigation.ToConsoleHref("/operate/connections")">Cancel</a>
         </div>
 
         @if (_busy)

@@ -11,7 +11,7 @@ on:
         required: false
         type: string
       console_image:
-        description: 'Immutable Console GHCR digest; empty builds the checked-out PR image'
+        description: 'Legacy server-host replay digest; empty builds the test-only fixture'
         required: false
         type: string
       executor_image:
@@ -31,6 +31,8 @@ on:
     paths:
       - '.github/workflows/console-live-journey.yml'
       - 'e2e/docker-compose*.yml'
+      - 'e2e/Dockerfile.legacy-host'
+      - 'tests/Honua.Console.LegacyHost/**'
       - 'e2e/playwright/live-auth/**'
       - 'e2e/initdb/**'
       - 'e2e/agent-reflection/**'
@@ -52,7 +54,6 @@ on:
       - 'src/Honua.Console.Web/**'
       - 'src/Honua.Console.Shell/**'
       - 'src/Honua.Console.Contracts/**'
-      - 'Dockerfile'
 
 permissions:
   contents: read
@@ -166,7 +167,7 @@ jobs:
             e2e/playwright/test-results/
 
   studio-customer:
-    name: Studio customer journey on real images
+    name: Legacy Studio customer regression on real server images
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.suite == 'studio-customer' || inputs.suite == 'full' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -174,7 +175,7 @@ jobs:
       CI: 'true'
       COMPOSE_PROJECT_NAME: studio-customer
       HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image || vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE }}
-      HONUA_CONSOLE_E2E_CONSOLE_IMAGE: ${{ inputs.console_image || 'honua-console:customer-pr' }}
+      HONUA_CONSOLE_E2E_CONSOLE_IMAGE: ${{ inputs.console_image || 'honua-console-legacy-fixture:customer-pr' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
@@ -204,14 +205,17 @@ jobs:
           if os.environ['CONSOLE_IMAGE'] and not os.environ['SERVER_IMAGE']:
               raise SystemExit('Console replay also requires a pinned server digest')
           PYTHON
-      - name: Build the PR Console image
+      # Preserve legacy server-auth assertions without releasing a Console server image.
+      - name: Build the non-shipping legacy regression image
         if: ${{ !inputs.console_image }}
         run: |
           cp src/Honua.Console.Web/global.json global.json
-          dotnet restore src/Honua.Console.Web/Honua.Console.Web.csproj --configfile NuGet.config --no-cache --locked-mode
+          dotnet restore Honua.Console.slnx --configfile NuGet.config --no-cache --locked-mode
           dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore -p:HonuaConsoleCommitSha="$GITHUB_SHA"
-          node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/_studio
-          docker build --build-arg HONUA_CONSOLE_COMMIT_SHA="$GITHUB_SHA" --build-arg HONUA_CONSOLE_REF="$GITHUB_REF" -t "$HONUA_CONSOLE_E2E_CONSOLE_IMAGE" .
+          node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/console/_studio
+          dotnet publish tests/Honua.Console.LegacyHost/Honua.Console.LegacyHost.csproj -c Release --no-restore -p:IsPublishable=true -p:HonuaConsoleCommitSha="$GITHUB_SHA" -o artifacts/legacy-console-fixture
+          node scripts/fetch-studio-release.mjs --verify artifacts/legacy-console-fixture/wwwroot/_studio
+          docker build -f e2e/Dockerfile.legacy-host --build-arg HONUA_CONSOLE_COMMIT_SHA="$GITHUB_SHA" -t "$HONUA_CONSOLE_E2E_CONSOLE_IMAGE" .
       - name: Install Chromium and axe
         working-directory: e2e/playwright
         run: |
@@ -223,7 +227,7 @@ jobs:
           bash e2e/playwright/live-auth/gen-certs.sh
           sudo chown 1000:0 e2e/playwright/live-auth/certs/kc.key
           sudo chmod 640 e2e/playwright/live-auth/certs/kc.key
-          if [ "$HONUA_CONSOLE_E2E_CONSOLE_IMAGE" != honua-console:customer-pr ]; then
+          if [ "$HONUA_CONSOLE_E2E_CONSOLE_IMAGE" != honua-console-legacy-fixture:customer-pr ]; then
             docker pull "$HONUA_CONSOLE_E2E_CONSOLE_IMAGE"
           fi
           docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml -f e2e/docker-compose.studio-customer.yml up -d --wait --wait-timeout 300

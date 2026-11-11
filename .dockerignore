@@ -3,3 +3,7 @@
 !artifacts/
 !artifacts/honua-console-web/
 !artifacts/honua-console-web/**
+!e2e/
+!e2e/Dockerfile.legacy-host
+!artifacts/legacy-console-fixture/
+!artifacts/legacy-console-fixture/**

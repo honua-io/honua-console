@@ -144,7 +144,7 @@ public sealed record WorkflowNodeRegistrySnapshot
 
 #region Package + graph DTOs (WorkflowPackageModels.cs)
 
-public sealed record WorkflowNode
+public sealed partial record WorkflowNode
 {
     [JsonPropertyName("nodeId")] public string NodeId { get; init; } = string.Empty;
     [JsonPropertyName("nodeTypeId")] public string NodeTypeId { get; init; } = string.Empty;

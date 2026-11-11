@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text;
 using System.Text.Json;
 using Honua.Console.Shell.Services;
@@ -22,17 +21,14 @@ public sealed class ReplicaRoundTripTests
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var seeded = await PublishedLayerSeeder.SeedPublishedLayerAsync(_fixture, suffix);
-        Skip.If(
-            seeded is null,
-            "The pinned honua-server image could not service the layer-publish path; the replica round-trip "
-            + "needs a published service/layer to register a replica against.");
-
         var replicaName = $"console-replica-{suffix}";
-        var replicaId = await CreateReplicaAsync(seeded!.ServiceName, replicaName);
+        var created = await CreateReplicaAsync(seeded.ServiceName, replicaName);
         Skip.If(
-            replicaId is null,
-            "The pinned honua-server image could not service the GeoServices createReplica path; the replica "
-            + "round-trip needs a server build whose disconnected-sync createReplica verb is ready.");
+            created.Skip,
+            "The pinned honua-server image has no GeoServices createReplica verb or offline-sync entitlement; "
+            + "the replica round-trip needs a server build that serves that path.");
+        Assert.True(created.Failure is null, created.Failure);
+        var replicaId = created.ReplicaId;
 
         using var verifier = _fixture.CreateVerifier();
 
@@ -72,9 +68,8 @@ public sealed class ReplicaRoundTripTests
     }
 
     // Creates a named replica through the GeoServices FeatureServer createReplica verb (the durable-sync
-    // entry point, mirroring honua-server's ReplicaManagementEndpointTests seed). Returns the server-issued
-    // replica id, or null when the pinned image cannot service the path so the caller can skip cleanly.
-    private async Task<string?> CreateReplicaAsync(string serviceName, string replicaName)
+    // entry point, mirroring honua-server's ReplicaManagementEndpointTests seed).
+    private async Task<ReplicaCreateResponses.Decision> CreateReplicaAsync(string serviceName, string replicaName)
     {
         using var http = _fixture.CreateRawClient();
         if (!string.IsNullOrWhiteSpace(_fixture.AdminApiKey))
@@ -93,27 +88,7 @@ public sealed class ReplicaRoundTripTests
         using var response = await http.PostAsync(
             $"/rest/services/{Uri.EscapeDataString(serviceName)}/FeatureServer/createReplica",
             new StringContent(payload, Encoding.UTF8, "application/json"));
-
-        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed
-            or HttpStatusCode.NotImplemented
-            || (int)response.StatusCode >= 500)
-        {
-            return null;
-        }
-
         var content = await response.Content.ReadAsStringAsync();
-        if (!response.IsSuccessStatusCode)
-        {
-            return null;
-        }
-
-        using var document = JsonDocument.Parse(content);
-        // The GeoServices createReplica response carries the replica id as "replicaID".
-        if (document.RootElement.TryGetProperty("replicaID", out var id) && id.ValueKind == JsonValueKind.String)
-        {
-            return id.GetString();
-        }
-
-        return null;
+        return ReplicaCreateResponses.Classify((int)response.StatusCode, content);
     }
 }

@@ -48,13 +48,7 @@ public sealed class IdempotencyFidelityCrossCuttingTests
         };
 
         var first = await operation.PublishAsync(command);
-        Skip.If(
-            !first.Succeeded
-            && (string.Equals(first.State, "Unavailable", StringComparison.OrdinalIgnoreCase)
-                || (first.Detail?.Contains("HTTP 5", StringComparison.OrdinalIgnoreCase) ?? false)
-                || (first.Detail?.Contains("500", StringComparison.Ordinal) ?? false)),
-            $"The pinned honua-server image could not service the layer-publish path ({first.State} — {first.Detail}); "
-            + "the idempotency round-trip needs a server build whose layer-publishing path is ready.");
+        LiveImageReceipt.RequireLayerPublish(first, "idempotency round-trip");
         Assert.True(first.Succeeded, $"First publish failed: {first.State} — {first.Detail}");
         var layerId = first.LayerId!.Value;
 

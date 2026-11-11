@@ -37,7 +37,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /                              Workspace dashboard (post-auth landing) — information + approval landing (#193): leads with the approval-inbox summary + recent activity, then the four area work surfaces
 /inbox                         Approval inbox (#193) — the GIS-department work queue: aggregates pending/active agent-proposed deploy-control operations (release-derived + operator-tracked ids), classified by GIS-desk ticket type, with the review→approve/reject/rollback surface inline. Pure projection over the deploy-control + GitOps-release contracts (no new server contract); missing-binding state when unbound. Alias: /approvals
 /auth/signin                   Sign in (anonymous; returnTo)
-/auth/callback                 OIDC callback (anonymous)
+/auth/callback                 Legacy OIDC callback (anonymous; WASM uses server-owned /admin/auth/callback)
 /auth/signed-out               Post-signout landing (anonymous)
 
 /studio                        Studio workspace (embedded honua-studio); /studio/proof, /studio/drafts and /studio/apps/:itemId/preview open the same page
@@ -96,7 +96,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/layers                Layers list — dedicated page (OperateLayersPage) owns this route
 /operate/layers/:id            Layer configuration (default + ?tab=configure); :id is the canonical resource id or the admin layer id publishing returns
 /operate/layers/:id/style      Layer style editor
-/operate/settings              Auth providers, API keys, CORS, license, server info, and catalog endpoints
+/operate/settings              Read-only runtime configuration and policy; v4 uses the shared Server configuration panel
 /operate/catalogs              Catalogs · discovery-endpoints surface (GeoServices service catalog/OGC/OData/STAC/DCAT endpoint cards, auto-default-on vs opt-in, feeders, per-endpoint issues; bound to the catalog discovery-endpoints registry honua-server#1279, else missing-binding). DISTINCT from the singular content catalog at /catalog.
 /operate/catalogs/:key         Catalogs · one discovery endpoint drill-down (Items/Settings/Access/Activity/Validation tabs + mirrored-items table; honua-server#1279)
 /operate/catalogs/:key/items/:itemId  Catalogs · single catalog item editor (auto-mirror item: derived identity, catalog-only presentation, service bindings, standards mapping; honua-server#1279)
@@ -104,8 +104,8 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/sensors/datastreams/:datastreamId  SensorThings · datastream detail with $expand observation navigation + a time-series chart of the datastream's observations
 /operate/scenes                3D Scenes · discover renderable scenes (GET /api/scenes) and ingest a LAS point cloud into a servable 3D Tiles tileset (POST /api/v1/admin/scenes/ingest/pointcloud; bound to honua-server #1840 / #1201, else missing-binding)
 /operate/scenes/:sceneId       3D Scenes · view a scene's 3D Tiles tileset (/scenes/{id}/tileset.json) in the Cesium-backed scene viewer
-/operate/access                Access · roles & permissions (RBAC overview: scope hierarchy + role × permission matrix; bound to Console metadata/RBAC #1162)
-/operate/access/members        Access · team members + scoped-invite drawer (bound to Console metadata/RBAC #1162)
+/operate/access                Access · roles & permissions (RBAC overview: scope hierarchy + role × permission matrix; bound to Console metadata/RBAC #1162; shared v4 flag changes presentation only)
+/operate/access/members        Access · team members + scoped-invite drawer (bound to Console metadata/RBAC #1162; v4 title Users, same scoped membership and invitation actions)
 /operate/releases              GitOps metadata releases (server has no list endpoint; open a release by package id)
 /operate/releases/:id          Release detail: proposal/semantic diff, environment matrix + drift, Git PR preview, CI/GitOps timeline, rollback readiness (bound to honua-server release package #1163 + release-operation lifecycle #1165)
 /operate/deploy                Deploy (#201): one governed flow for two capabilities, both hiding the gitops plumbing behind an approval + outcome surface — (1) server version upgrade with current-version detection (capability manifest /api/v1/capabilities/manifest) + version-mismatch gating (only a behind target may proceed; no-op/downgrade/unknown gated), and (2) cross-environment metadata promotion (dev→staging→prod). Submit/approve/rollback route through the deploy-control admin endpoints (GET/POST /api/v1/admin/deploy/operations/{id}{,/submit,/rollback}); the server has no list-all endpoint, so the queue is projected from release-derived + operator-tracked operation ids. Gitops/PR details live behind a Details toggle. Bound to honua-server #1738 + honua-devops#97/#57, else the missing-binding state.
@@ -1185,7 +1185,9 @@ The primary rail follows Home (`/`), Datasets (`/operate/data`), realtime Maps &
 
 Legacy Studio standalone builder URLs now show direct guidance to `/studio` or `/studio/processes`. `/operate/ai` opens the same primary conversation rather than a separate classifier/generator. Real operations and automation routes remain available. The active editor dependency stays in `honua-studio` until a separately approved migration.
 
-`/operate/resources/import/task` contributes a browser file to the immutable dataset-import task selected in the shared conversation. It uses the pinned SDK and authenticated bounded chunk capability, verifies the complete file digest, and reconciles original transfer receipts after interrupted requests. A retained source receipt does not establish import acceptance. The surface refuses when the deployment or pinned SDK does not expose the canonical transport.
+`/operate/data/new?source=file` opens the direct Admin import form at `/operate/resources/import` by default. The form previews the file, shows the detected coordinate system, keeps that system by default, and accepts an explicit supported target or a required source override when detection is unavailable. Preview, lookup and import retain the reviewed operator and environment binding.
+
+When `Honua:Agent:WorkspaceApiEnabled` is true, `/operate/resources/import/task` contributes a browser file to the immutable dataset-import task selected in the shared conversation. It uses the pinned SDK and authenticated bounded chunk capability, verifies the complete file digest, and reconciles original transfer receipts after interrupted requests. A retained source receipt does not establish import acceptance. The surface refuses when the deployment or pinned SDK does not expose the canonical transport.
 
 ### Active Studio publication maps
 
@@ -1311,3 +1313,32 @@ is escaped text. No save, proposal, upload, parser, attachment store, schema
 mutation or metadata mutation is implemented here. Local choices never change the
 reported metadata, history or original attachment. The server must supply
 contextual inheritance and enforce its mutation policy and attachment authority.
+
+Share uses the shared v4 page heading and a quiet public-sharing summary behind `ConsoleV4Options.Enabled`. The public-item query, public links, configuration links, and missing-binding and empty states keep their existing behavior.
+
+The shared v4 rollout flag also applies the adopted quiet panel, heading, and form treatment to `/support` and `/support/tickets/{ticketId}`. Ticket submission, automatic context, self-service assistance, access scope, polling, diagnosis, and authoritative trust evidence retain their existing contracts. Flag-off keeps the legacy presentation.
+
+### Static host navigation
+
+Console page routes use paths such as `operate/jobs/{id}`. Shared Operate builders emit
+base-relative links; known logical routes may still use a leading `/`. HTML links and
+`NavigationManager.NavigateTo` destinations must resolve beneath the configured application base
+(`/console/` in the release bundle). Shared `OperateObservabilityRoutes` builders therefore return
+base-relative paths such as `operate/jobs/{id}`, with identifiers escaped as before.
+
+For dynamic workflow result URLs, use
+`Navigation.TryGetConsoleHref(target, out var href)` from
+`Honua.Console.Shell.Services`. It accepts logical root-relative paths, base-relative paths,
+and absolute URLs within the current application base. It returns a `./`-relative destination,
+preserving escaped identifiers, query and fragment. External URLs, URLs outside the application
+base, network-path references and path traversal return false with an empty destination.
+Do not navigate on false. This helper only resolves destinations; retain the existing unsaved
+changes and stale-response guards when navigating. API/resource URLs do not use this helper.
+
+`ConsoleAgentContext` normalizes page routes through `Navigation.ToConsoleContextRoute(route)`
+before registration or publication. The bridge removes the base from the current browser location
+with `ToBaseRelativePath`, without applying destination validation to an already-loaded address.
+Context routes exclude the application mount, query and fragment while retaining escaped entity
+identifiers. Page publishers may supply logical routes or mounted paths; query-only navigation
+keeps the active provider, selection and unsaved summary. Use this shared helper for direct registry
+callers as well.

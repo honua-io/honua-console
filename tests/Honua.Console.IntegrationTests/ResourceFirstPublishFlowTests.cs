@@ -8,6 +8,7 @@ using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -54,6 +55,7 @@ public sealed class ResourceFirstPublishFlowTests
     private static BunitContext NewContext()
     {
         var ctx = new BunitContext();
+        ctx.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         return ctx;
@@ -352,14 +354,14 @@ public sealed class ResourceFirstPublishFlowTests
     }
 
     [Fact]
-    public void Flow_FileSource_LinksToTheImportTaskInsteadOfAnInlineUpload()
+    public void Flow_FileSource_LinksToTheSupportedImportInsteadOfAnInlineUpload()
     {
         using var ctx = NewContext();
         RegisterMissingBinding(ctx);
 
         var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "file"));
 
-        Assert.Single(cut.FindAll("a[href='/operate/resources/import/task']"));
+        Assert.Single(cut.FindAll("a[href='/operate/resources/import']"));
         Assert.Empty(cut.FindAll("input[type='file']"));
         Assert.Empty(cut.FindAll("[data-step-body='AddData'] button.console-button"));
     }
