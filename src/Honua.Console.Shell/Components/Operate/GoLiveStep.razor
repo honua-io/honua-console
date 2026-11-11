@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @namespace Honua.Console.Shell.Components.Operate
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
@@ -26,7 +27,7 @@
     <p class="console-muted" data-style-not-applied>
         Style: Go live does not apply a style. honua-server has no operation that binds a catalog style to a
         layer, so the layer serves with its default renderer. Author its drawing info on the
-        <a href="@LayerStyleHref">layer style page</a> after it is live.
+        <a href="@ConsoleNavigation.ToConsoleLinkHref(LayerStyleHref)">layer style page</a> after it is live.
     </p>
     @if (_outcome is null)
     {

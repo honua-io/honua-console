@@ -59,6 +59,7 @@ public sealed class ConsoleHomePageTests
         services.AddSingleton<IOpsHealthDataSource>(new StubOpsHealthDataSource());
         services.AddSingleton<IConsoleOpsFindingsClient>(new StubOpsFindingsClient());
 
+        services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         var provider = services.BuildServiceProvider();
 
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());

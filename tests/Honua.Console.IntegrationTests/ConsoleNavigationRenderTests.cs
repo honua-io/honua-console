@@ -3,6 +3,7 @@ using Honua.Console.Shell.Components;
 using Honua.Console.Shell.DependencyInjection;
 using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Configuration;
@@ -12,14 +13,72 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class ConsoleNavigationRenderTests
 {
-    public enum RolloutMode { Legacy, V4 }
+    [Theory]
+    [InlineData("/", "/")]
+    [InlineData("/console/", "/console/")]
+    public async Task SharedNavigationStaysInsideTheApplicationBase(string applicationPath, string expectedHome)
+    {
+        await using var context = CreateContext();
+        context.Services.AddSingleton<NavigationManager>(new HostedNavigationManager(applicationPath));
+        var shell = context.Render<ConsoleLayout>();
+        Assert.Equal(expectedHome, shell.Find(".console-topbar-brand").GetAttribute("href"));
+        Assert.Equal(expectedHome + "environments", shell.Find("[data-workspace-header-target]").GetAttribute("href"));
+        Assert.Equal(expectedHome + "support", shell.Find(".console-help-link").GetAttribute("href"));
+        Assert.All(shell.FindAll(".console-topnav a, .console-contextbar a"), link =>
+            Assert.StartsWith(expectedHome, link.GetAttribute("href")));
+        var manager = context.Services.GetRequiredService<NavigationManager>();
+        Assert.Equal(expectedHome + "operate/services?sort=name#folders", manager.ToConsoleHref("/operate/services?sort=name#folders"));
+    }
 
     [Theory]
-    [InlineData(RolloutMode.Legacy)]
-    [InlineData(RolloutMode.V4)]
-    public async Task HeaderKeepsNavigationTargetsAcrossTheV4Flag(RolloutMode mode)
+    [InlineData("/")]
+    [InlineData("/console/")]
+    public async Task ConnectionPageLinksStayInsideTheApplicationBase(string applicationPath)
     {
-        var enabled = mode == RolloutMode.V4;
+        await using var context = CreateContext();
+        context.Services.AddSingleton<NavigationManager>(new HostedNavigationManager(applicationPath));
+        context.Services.AddSingleton<IOperateTransitionDataSource>(InMemoryOperateTransitionDataSource.CreateSeeded());
+        var page = context.Render<OperateConnectionsPage>();
+
+        Assert.Equal(applicationPath + "operate/connections/new", page.Find(".console-toolbar a").GetAttribute("href"));
+        Assert.All(page.FindAll("a[href]"), link => Assert.StartsWith(applicationPath, link.GetAttribute("href")));
+    }
+
+    [Theory]
+    [InlineData("/studio")]
+    [InlineData("/studio/proof")]
+    public async Task StudioWorkflowLinksStayInsideTheConsoleMount(string route)
+    {
+        await using var context = CreateContext();
+        var navigation = new HostedNavigationManager("/console/");
+        context.Services.AddSingleton<NavigationManager>(navigation);
+        navigation.NavigateTo(navigation.ToConsoleHref(route));
+        var page = context.Render<StudioPage>();
+
+        Assert.NotEmpty(page.FindAll("a[href]"));
+        Assert.All(page.FindAll("a[href]"), link =>
+            Assert.StartsWith("/console/", link.GetAttribute("href")));
+    }
+
+    private sealed class HostedNavigationManager : NavigationManager
+    {
+        protected override void SetNavigationLockState(bool value) { }
+
+        public HostedNavigationManager(string applicationPath)
+        {
+            var applicationBase = "http://localhost" + applicationPath;
+            Initialize(applicationBase, applicationBase);
+        }
+
+        protected override void NavigateToCore(string uri, bool forceLoad) => Uri = ToAbsoluteUri(uri).AbsoluteUri;
+    }
+
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task HeaderKeepsNavigationTargetsAcrossTheV4Flag(ConsolePresentationMode mode)
+    {
+        var enabled = mode == ConsolePresentationMode.V4;
         await using var context = CreateContext(shellOptions: new HonuaConsoleShellOptions { CatalogAdminEnabled = true });
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
@@ -276,11 +335,11 @@ public sealed class ConsoleNavigationRenderTests
     }
 
     [Theory]
-    [InlineData(RolloutMode.Legacy)]
-    [InlineData(RolloutMode.V4)]
-    public void WitnessKeepsInspectionAndEnvironmentIdentityWithoutAdminMenus(RolloutMode mode)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void WitnessKeepsInspectionAndEnvironmentIdentityWithoutAdminMenus(ConsolePresentationMode mode)
     {
-        var enabled = mode == RolloutMode.V4;
+        var enabled = mode == ConsolePresentationMode.V4;
         using var context = CreateContext(ConsoleProductMode.Witness);
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
@@ -295,11 +354,11 @@ public sealed class ConsoleNavigationRenderTests
     }
 
     [Theory]
-    [InlineData(RolloutMode.Legacy)]
-    [InlineData(RolloutMode.V4)]
-    public void MountedNavigationReflectsCapabilityAvailabilityAndRevocation(RolloutMode mode)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void MountedNavigationReflectsCapabilityAvailabilityAndRevocation(ConsolePresentationMode mode)
     {
-        var enabled = mode == RolloutMode.V4;
+        var enabled = mode == ConsolePresentationMode.V4;
         using var context = CreateContext();
         var manifest = new MutableCatalogManifest();
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
@@ -360,6 +419,7 @@ public sealed class ConsoleNavigationRenderTests
     private static BunitContext CreateContext(ConsoleProductMode mode = ConsoleProductMode.Full, HonuaConsoleShellOptions? shellOptions = null)
     {
         var context = new BunitContext();
+        context.Services.AddSingleton<ConsoleAgentContextRegistry>();
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.AddConsoleNotifications();
         context.AddAuthorization().SetAuthorized("synthetic-operator");

@@ -162,6 +162,7 @@ public sealed class OperateHealthPageTests
         // this no-op only satisfies DI (mirrors OperateTransitionDataSourceTests' NoOpJsRuntime for
         // MapPreview).
         services.AddSingleton<Microsoft.JSInterop.IJSRuntime>(new NoOpJsRuntime());
+        services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         var provider = services.BuildServiceProvider();
 
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());

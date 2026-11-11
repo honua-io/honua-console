@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/layers/{ResourceId}/relationships"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
@@ -18,7 +19,7 @@
             <h1>@_layer.Name · relationships</h1>
             <p>Author origin/destination relationships on layer @_layer.LayerId. honua-server emits these as <code>relationships[]</code> on FeatureServer layer metadata and uses them to drive related-records / <code>$expand</code> / relationshipQuery.</p>
             <div class="console-detail-actions">
-                <a class="console-button-link" href="@($"/operate/layers/{ResourceId}")" data-layer-detail-link>Back to layer</a>
+                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/layers/{ResourceId}")" data-layer-detail-link>Back to layer</a>
             </div>
         </div>
 

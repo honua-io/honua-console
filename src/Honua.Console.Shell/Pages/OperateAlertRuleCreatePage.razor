@@ -13,7 +13,7 @@
         <p class="console-kicker">Operator workflow / Alert rules</p>
         <h1>Create alert rule</h1>
         <p>Creation always persists a disabled rule. Open it next to run an explicit test before enabling delivery.</p>
-        <p><a href="@OperateAlertRulesRoutes.List">Back to alert rules</a></p>
+        <p><a href="@Navigation.ToConsoleLinkHref(OperateAlertRulesRoutes.List)">Back to alert rules</a></p>
     </div>
 
     <article class="console-panel">
@@ -101,7 +101,7 @@
         _result = await RulesData.CreateRuleAsync(Draft());
         if (_result.Succeeded)
         {
-            Navigation.NavigateTo(OperateAlertRulesRoutes.Detail(_result.Rule!.RuleId));
+            Navigation.NavigateTo(Navigation.ToConsoleHref(OperateAlertRulesRoutes.Detail(_result.Rule!.RuleId)));
         }
     }, busy => { _saving = busy; StateHasChanged(); }, "Couldn't create alert rule");
 

@@ -1,3 +1,4 @@
+@inject NavigationManager Navigation
 @inject IConsoleCapabilityManifest Capabilities
 @inject IServiceProvider Services
 @inject CatalogAdminOptions CatalogOptions
@@ -11,7 +12,7 @@
             <ul>
                 @foreach (var entry in group.Destinations)
                 {
-                    <li><a href="@entry.Path">@entry.Label</a></li>
+                    <li><a href="@Navigation.ToConsoleLinkHref(entry.Path)">@entry.Label</a></li>
                 }
             </ul>
         </section>

@@ -26,6 +26,9 @@ const COMPOSE_ARGS = [
   '-f', join(SCRIPT_DIR, 'docker-compose.yml'),
   '-f', join(SCRIPT_DIR, 'docker-compose.auth.yml'),
 ];
+if (process.env.HONUA_CONSOLE_E2E_NATIVE_PROBE === 'true') {
+  COMPOSE_ARGS.push('-f', join(SCRIPT_DIR, 'docker-compose.native-probe.yml'));
+}
 const CERT_DIR = join(SCRIPT_DIR, 'playwright', 'live-auth', 'certs');
 const PW_DIR = join(SCRIPT_DIR, 'playwright');
 
@@ -111,13 +114,13 @@ if (upCode !== 0) {
   process.exit(upCode);
 }
 
-// ── 3. Start Console bound to the stack ─────────────────────────────────────
+// ── 3. Start the legacy regression fixture bound to the stack ─────────────────────────────────────
 // Playwright's webServer config uses reuseExistingServer:true (the default for local runs),
 // so we pre-start the Console here with the correct HONUA_SERVER_BASE_URL so Playwright's
 // URL check finds it live. We spawn dotnet directly (not via shell) to avoid cmd.exe issues
 // in Git Bash / Unix-like environments on Windows.
 console.log(`\n[e2e-live] starting Console on ${CONSOLE_BASE} (server → ${SERVER_URL})...`);
-const CONSOLE_PROJECT = join(REPO_ROOT, 'src/Honua.Console.Web/Honua.Console.Web.csproj');
+const CONSOLE_PROJECT = join(REPO_ROOT, 'tests/Honua.Console.LegacyHost/Honua.Console.LegacyHost.csproj');
 const consoleProcOptions = {
   stdio: 'inherit',
   shell: false,
