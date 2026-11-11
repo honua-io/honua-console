@@ -43,6 +43,29 @@ for (const crossOrigin of [false, true]) {
       expect(headers.authorization).toBeUndefined();
       expect(await page.evaluate(() => document.cookie)).not.toContain('console-fixture-session');
     }
+    const sharedRequest = page.waitForResponse(result =>
+      result.url().startsWith(`${apiOrigin}/api/v1/admin/connections`) && result.request().method() === 'GET');
+    const sharedResult = await page.evaluate(async () => {
+      const transport = await import(new URL('js/console-browser-transport.mjs', document.baseURI).href);
+      const session = await transport.captureConsoleSession();
+      const result = await session.fetch('api/v1/admin/connections', {
+        headers: { Authorization: 'Bearer untrusted', 'X-API-Key': 'untrusted' },
+      });
+      const body = await result.json();
+      await session.assertCurrent();
+      return { principalId: session.principalId, revision: session.revision,
+        keys: Object.keys(session), status: result.status, connectionId: body.data[0].connectionId };
+    });
+    expect(sharedResult.principalId).toBe('fixture-operator');
+    expect(sharedResult.revision).toBeGreaterThan(0);
+    expect(sharedResult.keys.sort()).toEqual(['assertCurrent', 'fetch', 'principalId', 'revision']);
+    expect(sharedResult.status).toBe(200);
+    expect(sharedResult.connectionId).toBe('11111111-1111-1111-1111-111111111111');
+    const sharedHeaders = await (await sharedRequest).request().allHeaders();
+    expect(sharedHeaders['x-api-key']).toBeUndefined();
+    expect(sharedHeaders.authorization).toBe(crossOrigin ? 'Bearer console-fixture-bearer' : undefined);
+    if (crossOrigin) expect(sharedHeaders.cookie).toBeUndefined();
+    else expect(sharedHeaders.cookie).toContain('console-fixture-session=issued');
     expect(errors).toEqual([]);
     expect(failedApi).toEqual([]);
     await testInfo.attach('published-transport', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
