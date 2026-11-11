@@ -16,6 +16,24 @@ function fixture(overrides = {}) {
     return { transport, calls, setSession: value => { session = value; } };
 }
 
+test('fetch is invoked without a receiver so the browser binding stays valid', async () => {
+    const calls = [];
+    function browserFetch(url, init) {
+        if (this !== undefined) throw new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation");
+        calls.push([url, init]);
+        return Promise.resolve(new Response('ok'));
+    }
+    const transport = createConsoleBrowserTransport({
+        apiBaseUrl: 'https://console.example/',
+        applicationBaseUrl: 'https://console.example/console/',
+        getSession: async () => ({ revision: 1, principalId: 'operator', authenticated: true, csrfToken: 'csrf', expiresAt: null }),
+        request: browserFetch,
+    });
+    const response = await (await transport.capture()).fetch('api/test');
+    assert.equal(response.status, 200);
+    assert.equal(calls[0][0], 'https://console.example/api/test');
+});
+
 test('same-origin mutations use current CSRF and discard caller credentials', async () => {
     const { transport, calls } = fixture();
     const captured = await transport.capture();

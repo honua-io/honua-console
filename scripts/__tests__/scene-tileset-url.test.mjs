@@ -4,6 +4,10 @@ import { test } from 'node:test';
 import { mapRequestParameters } from '../../src/Honua.Console.Shell/wwwroot/map-preview.js';
 import { approveSceneRequest, guardSceneLoad, sameOriginTilesetUrl, sceneViewHeader } from '../../src/Honua.Console.Shell/wwwroot/scene-viewer.js';
 
+function adaptSceneLoad(handle) {
+    return (...request) => handle({ url: request[0], headers: request[4], result: request[5] });
+}
+
 test('configured API scenes stay on that API, including a path prefix', () => {
     globalThis.window = { location: { href: 'https://console.example/console/', origin: 'https://console.example' } };
     globalThis.honuaConsoleApiBase = 'https://api.example/base/';
@@ -47,10 +51,10 @@ test('scene requests authorize the current session per URL and map requests stay
     deferred.resolve = (value) => { deferred.value = value; };
     deferred.reject = (error) => { deferred.error = error; };
     const lookup = () => authorize;
-    guardSceneLoad((url, _responseType, _method, _data, headers, result) => {
+    guardSceneLoad(adaptSceneLoad(({ url, headers, result }) => {
         calls.push({ url, authorization: headers.Authorization, view: headers[sceneViewHeader] });
         result.resolve('loaded');
-    }, lookup)('https://external.example/tile.b3dm', '', 'GET', null, { ...inherited, [sceneViewHeader]: 'view-a' }, deferred);
+    }), lookup)('https://external.example/tile.b3dm', '', 'GET', null, { ...inherited, [sceneViewHeader]: 'view-a' }, deferred);
     assert.equal(calls[0].authorization, undefined);
     assert.equal(calls[0].view, undefined);
     assert.equal(deferred.value, 'loaded');
@@ -58,9 +62,9 @@ test('scene requests authorize the current session per URL and map requests stay
     const late = {};
     late.resolve = (value) => { late.value = value; };
     late.reject = (error) => { late.error = error; };
-    guardSceneLoad((_url, _responseType, _method, _data, _headers, result) => {
+    guardSceneLoad(adaptSceneLoad(({ result }) => {
         result.resolve('late');
-    }, lookup)('https://api.example/base/scenes/block/next.b3dm', '', 'GET', null, { [sceneViewHeader]: 'view-a' }, late);
+    }), lookup)('https://api.example/base/scenes/block/next.b3dm', '', 'GET', null, { [sceneViewHeader]: 'view-a' }, late);
     assert.equal(late.value, undefined);
     assert.match(String(late.error), /session changed/);
 });
@@ -86,20 +90,20 @@ test('a scene request keeps its own view when another view has a newer session',
     const owned = {};
     owned.resolve = (value) => { owned.value = value; };
     owned.reject = (error) => { owned.error = error; };
-    guardSceneLoad((_url, _responseType, _method, _data, headers, result) => {
+    guardSceneLoad(adaptSceneLoad(({ headers, result }) => {
         assert.equal(headers.Authorization, 'Bearer next');
         assert.equal(headers[sceneViewHeader], undefined);
         result.resolve('loaded');
-    }, lookup)('https://api.example/base/scenes/b.b3dm', '', 'GET', null, { [sceneViewHeader]: 'b' }, owned);
+    }), lookup)('https://api.example/base/scenes/b.b3dm', '', 'GET', null, { [sceneViewHeader]: 'b' }, owned);
     assert.equal(owned.value, 'loaded');
     older = 1;
     const late = {};
     late.resolve = (value) => { late.value = value; };
     late.reject = (error) => { late.error = error; };
-    guardSceneLoad((_url, _responseType, _method, _data, _headers, result) => {
+    guardSceneLoad(adaptSceneLoad(({ result }) => {
         older = 2;
         result.resolve('late');
-    }, lookup)('https://api.example/base/scenes/a.b3dm', '', 'GET', null, { [sceneViewHeader]: 'a' }, late);
+    }), lookup)('https://api.example/base/scenes/a.b3dm', '', 'GET', null, { [sceneViewHeader]: 'a' }, late);
     assert.equal(late.value, undefined);
     assert.match(String(late.error), /session changed/);
 });

@@ -199,42 +199,44 @@ function sceneViewId(headers) {
 }
 
 export function guardSceneLoad(original, lookup, owner) {
-    return function(url, responseType, method, data, headers, deferred, ...rest) {
-        const viewId = sceneViewId(headers);
-        if (!viewId) return original.call(owner, url, responseType, method, data, headers, deferred, ...rest);
-        const authorize = lookup(viewId);
-        if (!authorize) {
-            deferred.reject(new Error('The Console session changed. Reopen this view before continuing.'));
-            return undefined;
-        }
-        let approved;
-        try {
-            approved = approveSceneRequest(authorize, String(url), headers);
-        } catch (error) {
-            deferred.reject(error);
-            return undefined;
-        }
-        let settled = false;
-        const guarded = Object.create(deferred);
-        guarded.reject = (error) => {
-            if (!settled) {
-                settled = true;
-                deferred.reject(error);
-            }
-        };
-        guarded.resolve = (value) => {
-            if (settled) return;
-            try {
-                authorize(String(url));
-                settled = true;
-                deferred.resolve(value);
-            } catch (error) {
-                settled = true;
-                deferred.reject(error);
-            }
-        };
-        return original.call(owner, url, responseType, method, data, approved.headers, guarded, ...rest);
+    return (...request) => loadGuardedScene(original, lookup, owner, request);
+}
+
+function loadGuardedScene(original, lookup, owner, request) {
+    const [url, responseType, method, data, headers, deferred, ...rest] = request;
+    const viewId = sceneViewId(headers);
+    if (!viewId) return original.call(owner, url, responseType, method, data, headers, deferred, ...rest);
+    const authorize = lookup(viewId);
+    if (!authorize) {
+        deferred.reject(new Error('The Console session changed. Reopen this view before continuing.'));
+        return undefined;
+    }
+    let approved;
+    try {
+        approved = approveSceneRequest(authorize, String(url), headers);
+    } catch (error) {
+        deferred.reject(error);
+        return undefined;
+    }
+    let settled = false;
+    const guarded = Object.create(deferred);
+    guarded.reject = (error) => {
+        if (settled) return;
+        settled = true;
+        deferred.reject(error);
     };
+    guarded.resolve = (value) => {
+        if (settled) return;
+        try {
+            authorize(String(url));
+            settled = true;
+            deferred.resolve(value);
+        } catch (error) {
+            settled = true;
+            deferred.reject(error);
+        }
+    };
+    return original.call(owner, url, responseType, method, data, approved.headers, guarded, ...rest);
 }
 
 export function approveSceneRequest(authorize, url, headers) {

@@ -156,6 +156,24 @@ const sessionReleases = new Map();
 
 // Attempts to mount a live MapLibre map into the given container.
 // Returns true when a real map was bound; false when the component should keep its placeholder.
+async function mountAuthorizedMap(maplibregl, container, options) {
+    const capture = globalThis.honuaConsoleCaptureResourceAuthorization;
+    const authorize = typeof capture === 'function' ? await capture() : null;
+    const mapOptions = {
+        container,
+        style: options.styleUrl,
+        center: options.center ?? [0, 0],
+        zoom: options.zoom ?? 1,
+        attributionControl: true,
+    };
+    if (authorize) {
+        mapOptions.transformRequest = (url) => mapRequestParameters(authorize, url);
+        await requireMapWorkerGuard(maplibregl);
+    }
+    const map = new maplibregl.Map(mapOptions);
+    return { map, releaseSession: bindMapSession(map, authorize, globalThis.honuaConsoleSubscribeSession) };
+}
+
 export async function init(container, options) {
     if (!container || !options || !options.styleUrl) {
         return false;
@@ -166,22 +184,9 @@ export async function init(container, options) {
     }
     let releaseSession = () => {};
     try {
-        const authorize = typeof globalThis.honuaConsoleCaptureResourceAuthorization === 'function'
-            ? await globalThis.honuaConsoleCaptureResourceAuthorization()
-            : null;
-        const mapOptions = {
-            container,
-            style: options.styleUrl,
-            center: options.center ?? [0, 0],
-            zoom: options.zoom ?? 1,
-            attributionControl: true,
-        };
-        if (authorize) {
-            mapOptions.transformRequest = (url) => mapRequestParameters(authorize, url);
-            await requireMapWorkerGuard(maplibregl);
-        }
-        const map = new maplibregl.Map(mapOptions);
-        releaseSession = bindMapSession(map, authorize, globalThis.honuaConsoleSubscribeSession);
+        const mounted = await mountAuthorizedMap(maplibregl, container, options);
+        const { map } = mounted;
+        releaseSession = mounted.releaseSession;
         if (options.showScale) {
             map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
         }
