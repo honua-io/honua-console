@@ -47,6 +47,63 @@ public sealed class ReplicaCreateResponsesTests
         Assert.DoesNotContain(secret, decision.Failure);
     }
 
+    [Theory]
+    [InlineData(400)]
+    [InlineData(402)]
+    [InlineData(404)]
+    [InlineData(405)]
+    [InlineData(501)]
+    public void GeoServicesErrorEnvelopeSkipsWhenTheVerbOrEntitlementIsMissing(int code)
+    {
+        const string secret = "secret-token-should-not-leak";
+        var decision = ReplicaCreateResponses.Classify(
+            200,
+            "{\"error\":{\"code\":" + code + ",\"message\":\"" + secret + "\"}}");
+
+        Assert.True(decision.Skip);
+        Assert.Null(decision.ReplicaId);
+        Assert.Null(decision.Failure);
+    }
+
+    [Fact]
+    public void GeoServicesServerErrorEnvelopeIsNotASkip()
+    {
+        const string secret = "secret-token-should-not-leak";
+        var decision = ReplicaCreateResponses.Classify(
+            200,
+            "{\"error\":{\"code\":500,\"message\":\"" + secret + "\"}}");
+
+        Assert.False(decision.Skip);
+        Assert.Null(decision.ReplicaId);
+        Assert.Equal("createReplica returned 200 with error 500.", decision.Failure);
+        Assert.DoesNotContain(secret, decision.Failure);
+    }
+
+    [Fact]
+    public void GeoServicesTokenErrorIsNotASkip()
+    {
+        const string secret = "secret-token-should-not-leak";
+        var decision = ReplicaCreateResponses.Classify(
+            200,
+            "{\"error\":{\"code\":498,\"message\":\"" + secret + "\"}}");
+
+        Assert.False(decision.Skip);
+        Assert.Equal("createReplica returned 200 with error 498.", decision.Failure);
+        Assert.DoesNotContain(secret, decision.Failure);
+    }
+
+    [Fact]
+    public void ErrorObjectWithoutACodeIsNotASkip()
+    {
+        const string secret = "secret-token-should-not-leak";
+        var decision = ReplicaCreateResponses.Classify(200, "{\"error\":{\"message\":\"" + secret + "\"}}");
+
+        Assert.False(decision.Skip);
+        Assert.Null(decision.ReplicaId);
+        Assert.Equal("createReplica returned 200 without replicaID.", decision.Failure);
+        Assert.DoesNotContain(secret, decision.Failure);
+    }
+
     [Fact]
     public void SuccessWithoutReplicaIdIsNotASkip()
     {
@@ -67,30 +124,5 @@ public sealed class ReplicaCreateResponsesTests
         Assert.False(decision.Skip);
         Assert.Equal("rep-1", decision.ReplicaId);
         Assert.Null(decision.Failure);
-    }
-
-    [Fact]
-    public void SyncDisabledEnvelopeSkips()
-    {
-        var decision = ReplicaCreateResponses.Classify(200,
-            """{"error":{"code":400,"message":"Bad Request","details":["Offline sync is not enabled for this service."]}}""");
-
-        Assert.True(decision.Skip);
-        Assert.Null(decision.ReplicaId);
-        Assert.Null(decision.Failure);
-    }
-
-    [Theory]
-    [InlineData("""{"error":{"code":400,"details":["Unexpected client rejection"]}}""")]
-    [InlineData("""{"error":{"code":500,"details":["Offline sync is not enabled for this service."]}}""")]
-    [InlineData("""{"error":{"code":401,"details":["secret-token-should-not-leak"]}}""")]
-    public void UnexpectedErrorEnvelopeIsNotASkip(string body)
-    {
-        var decision = ReplicaCreateResponses.Classify(200, body);
-
-        Assert.False(decision.Skip);
-        Assert.Null(decision.ReplicaId);
-        Assert.Equal("createReplica returned 200 without replicaID.", decision.Failure);
-        Assert.DoesNotContain("secret-token-should-not-leak", decision.Failure);
     }
 }
