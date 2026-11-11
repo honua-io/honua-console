@@ -106,6 +106,30 @@ test('a capture that resolves after a newer sign-in does not restore the old bea
     assert.throws(() => authorize('https://api.example/base/api/styles/7.json'), /session changed/i);
 });
 
+test('expiry at the same revision reopens public previews and closes the old one', async () => {
+    const expiresAt = new Date(Date.now() + 60000).toISOString();
+    let session = { revision: 1, principalId: 'operator', authenticated: true, accessToken: 'token', expiresAt };
+    const transport = createConsoleBrowserTransport({
+        apiBaseUrl: 'https://api.example/base/',
+        applicationBaseUrl: 'https://console.example/console/',
+        getSession: async () => session,
+    });
+    const removed = [];
+    const stop = transport.subscribeSession((snapshot) => {
+        if (!snapshot.authenticated) removed.push('closed');
+    });
+    const first = await transport.captureResourceAuthorization();
+    assert.equal(first('https://api.example/base/scenes/block/tileset.json').headers.Authorization, 'Bearer token');
+    session = { revision: 1, principalId: 'operator', authenticated: false, accessToken: null, expiresAt: new Date(0).toISOString() };
+    const reopened = await transport.captureResourceAuthorization();
+    const pub = reopened('https://api.example/base/scenes/block/tileset.json');
+    assert.equal(pub.headers.Authorization, undefined);
+    assert.equal(pub.api, true);
+    assert.throws(() => first('https://api.example/base/scenes/block/tileset.json'), /session changed/i);
+    assert.equal(removed.length, 1);
+    stop();
+});
+
 test('unsigned public API reads stay anonymous and signed cross-origin reads need a live bearer', async () => {
     const options = { apiBaseUrl: 'https://api.example/base/', applicationBaseUrl: 'https://console.example/console/' };
     const anonymous = fixture({ options, authenticated: false, accessToken: null, principalId: null, csrfToken: null });

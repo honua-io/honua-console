@@ -128,6 +128,52 @@ export function mapRequestParameters(authorize, url) {
     return { url: approved.url, credentials: approved.credentials, headers: approved.headers };
 }
 
+export function guardedAuthorizedFetch(original, input, init) {
+    const request = typeof Request !== 'undefined' && input instanceof Request ? input : null;
+    const headers = new Headers(request ? request.headers : init?.headers);
+    if (!headers.has('Authorization')) return original(input, init);
+    if (request) return original(new Request(request, { redirect: 'error' }));
+    return original(input, { ...(init ?? {}), redirect: 'error' });
+}
+
+let fetchGuardUsers = 0;
+let restoreFetch = null;
+
+export function installAuthorizedFetchGuard() {
+    if (typeof globalThis.fetch !== 'function' || globalThis.__honuaAuthorizedFetch) return () => {};
+    if (fetchGuardUsers === 0) {
+        const original = globalThis.fetch.bind(globalThis);
+        globalThis.fetch = (input, init) => guardedAuthorizedFetch(original, input, init);
+        restoreFetch = () => {
+            globalThis.fetch = original;
+            restoreFetch = null;
+        };
+    }
+    fetchGuardUsers += 1;
+    return () => {
+        fetchGuardUsers -= 1;
+        if (fetchGuardUsers === 0) restoreFetch?.();
+    };
+}
+
+export function bindMapSession(map, authorize, subscribe) {
+    if (!map || typeof authorize?.current !== 'function' || typeof subscribe !== 'function') return () => {};
+    let stop = () => {};
+    const listener = () => {
+        if (authorize.current()) return;
+        stop();
+        try {
+            map.remove();
+        } catch {
+            // The map is already gone; the session change still stands.
+        }
+    };
+    stop = subscribe(listener) || (() => {});
+    return () => stop();
+}
+
+const sessionReleases = new Map();
+
 export async function init(container, options) {
     if (!container || !options || !options.styleUrl) {
         return false;
@@ -136,6 +182,8 @@ export async function init(container, options) {
     if (!maplibregl) {
         return false;
     }
+    let releaseFetch = () => {};
+    let releaseSession = () => {};
     try {
         const authorize = typeof globalThis.honuaConsoleCaptureResourceAuthorization === 'function'
             ? await globalThis.honuaConsoleCaptureResourceAuthorization()
@@ -148,7 +196,17 @@ export async function init(container, options) {
             attributionControl: true,
         };
         if (authorize) mapOptions.transformRequest = (url) => mapRequestParameters(authorize, url);
+        releaseFetch = authorize ? installAuthorizedFetchGuard() : () => {};
+        try {
+            if (typeof maplibregl.prewarm === 'function') maplibregl.prewarm();
+            if (typeof maplibregl.importScriptInWorkers === 'function') {
+                await maplibregl.importScriptInWorkers(new URL('./map-fetch-guard.js', import.meta.url).href);
+            }
+        } catch {
+            // The main-thread fetch guard still refuses authenticated redirects.
+        }
         const map = new maplibregl.Map(mapOptions);
+        releaseSession = bindMapSession(map, authorize, globalThis.honuaConsoleSubscribeSession);
         if (options.showScale) {
             map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
         }
@@ -197,9 +255,15 @@ export async function init(container, options) {
         // Remember the initial view so the custom Recenter control can restore it.
         map._homeCenter = options.center ?? [0, 0];
         map._homeZoom = options.zoom ?? 1;
+        sessionReleases.set(map, () => {
+            releaseFetch();
+            releaseSession();
+        });
         instances.set(container, map);
         return true;
     } catch {
+        releaseFetch();
+        releaseSession();
         return false;
     }
 }
@@ -263,6 +327,8 @@ export function recenter(container, center, zoom) {
 export function dispose(container) {
     const map = instances.get(container);
     if (map) {
+        sessionReleases.get(map)?.();
+        sessionReleases.delete(map);
         try {
             map.remove();
         } catch {

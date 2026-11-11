@@ -7,6 +7,7 @@ export function initialize(sessionBridge, configuration) {
     });
     globalThis.honuaConsoleApiBase = browserTransport.apiBase;
     globalThis.honuaConsoleCaptureResourceAuthorization = () => browserTransport.captureResourceAuthorization();
+    globalThis.honuaConsoleSubscribeSession = (listener) => browserTransport.subscribeSession(listener);
 }
 
 export function publishSession(snapshot) {
@@ -67,6 +68,17 @@ export function createConsoleBrowserTransport({ apiBaseUrl, applicationBaseUrl, 
     const application = new URL(applicationBaseUrl);
     const sameOrigin = api.origin === application.origin;
     let current = null;
+    const sessionListeners = new Set();
+    const note = (next) => {
+        current = next;
+        for (const listener of [...sessionListeners]) {
+            try {
+                listener(current);
+            } catch {
+                // One preview failing to close must not keep the others on the old session.
+            }
+        }
+    };
     const identity = (session) => ({
         revision: session?.revision ?? null,
         principalId: session?.authenticated ? session.principalId ?? '' : '',
@@ -103,18 +115,28 @@ export function createConsoleBrowserTransport({ apiBaseUrl, applicationBaseUrl, 
     };
     return Object.freeze({
         apiBase: api.href,
-        publishSession(snapshot) { current = identity(snapshot); },
+        publishSession(snapshot) { note(identity(snapshot)); },
+        subscribeSession(listener) {
+            sessionListeners.add(listener);
+            return () => sessionListeners.delete(listener);
+        },
         async captureResourceAuthorization() {
             const captured = identity(await getSession());
             const published = current?.revision ?? -1;
             const seen = captured.revision ?? -1;
-            if (current === null || published < seen) current = captured;
-            return (url) => {
-                if (!current || current.revision !== captured.revision || current.principalId !== captured.principalId) {
+            if (current === null || published < seen) note(captured);
+            else if (published === seen && current.authenticated && !captured.authenticated) note(captured);
+            const authorize = (url) => {
+                if (!authorize.current()) {
                     throw new Error('The Console session changed. Reopen this view before continuing.');
                 }
                 return decide(url, captured);
             };
+            authorize.current = () => Boolean(current)
+                && current.revision === captured.revision
+                && current.principalId === captured.principalId
+                && current.authenticated === captured.authenticated;
+            return authorize;
         },
         async capture() {
             const binding = requireSession(await getSession());

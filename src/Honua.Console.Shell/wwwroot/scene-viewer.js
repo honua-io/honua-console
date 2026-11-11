@@ -186,23 +186,27 @@ export function sameOriginTilesetUrl(value, environmentId) {
     return source.href;
 }
 
-const sceneAuthorizers = new Set();
+export const sceneViewHeader = 'X-Honua-Scene-View';
+
+const sceneViews = new Map();
+let nextSceneView = 1;
+let sceneGateUsers = 0;
 let restoreSceneGate = null;
 
-export function selectSceneAuthorization(authorizers, url) {
-    let failure;
-    for (const authorize of authorizers) {
-        try {
-            return { ...authorize(url), bind: authorize };
-        } catch (error) {
-            failure = error;
-        }
-    }
-    throw failure ?? new Error('The Console session changed. Reopen this view before continuing.');
+function sceneViewId(headers) {
+    if (!headers) return null;
+    return headers[sceneViewHeader] ?? headers[sceneViewHeader.toLowerCase()] ?? null;
 }
 
-export function guardSceneLoad(original, authorize, owner) {
+export function guardSceneLoad(original, lookup, owner) {
     return function(url, responseType, method, data, headers, deferred, ...rest) {
+        const viewId = sceneViewId(headers);
+        if (!viewId) return original.call(owner, url, responseType, method, data, headers, deferred, ...rest);
+        const authorize = lookup(viewId);
+        if (!authorize) {
+            deferred.reject(new Error('The Console session changed. Reopen this view before continuing.'));
+            return undefined;
+        }
         let approved;
         try {
             approved = approveSceneRequest(authorize, String(url), headers);
@@ -211,7 +215,6 @@ export function guardSceneLoad(original, authorize, owner) {
             return undefined;
         }
         let settled = false;
-        const bound = approved.bind ?? authorize;
         const guarded = Object.create(deferred);
         guarded.reject = (error) => {
             if (!settled) {
@@ -222,7 +225,7 @@ export function guardSceneLoad(original, authorize, owner) {
         guarded.resolve = (value) => {
             if (settled) return;
             try {
-                bound(String(url));
+                authorize(String(url));
                 settled = true;
                 deferred.resolve(value);
             } catch (error) {
@@ -239,38 +242,46 @@ export function approveSceneRequest(authorize, url, headers) {
     const next = { ...(headers ?? {}) };
     delete next.Authorization;
     delete next.authorization;
-    if (!approved.api) return { headers: next, credentials: 'omit', bind: approved.bind };
+    delete next[sceneViewHeader];
+    delete next[sceneViewHeader.toLowerCase()];
+    if (!approved.api) return { headers: next, credentials: 'omit' };
     if (approved.headers.Authorization) next.Authorization = approved.headers.Authorization;
-    return { headers: next, credentials: approved.credentials, bind: approved.bind };
+    return { headers: next, credentials: approved.credentials };
 }
 
 function sceneTilesetSource(Cesium, url, authorize) {
     if (!authorize || !Cesium.Resource) return { source: url, release: null };
     const approved = authorize(url);
     if (!approved.api) throw new Error('tileset URL must be a Honua scene route');
+    const viewId = String(nextSceneView++);
+    sceneViews.set(viewId, authorize);
+    const releaseGate = installSceneRequestGate(Cesium);
     return {
-        source: new Cesium.Resource({ url: approved.url }),
-        release: installSceneRequestGate(Cesium, authorize),
+        source: new Cesium.Resource({
+            url: approved.url,
+            headers: { [sceneViewHeader]: viewId },
+        }),
+        release: () => {
+            sceneViews.delete(viewId);
+            releaseGate();
+        },
     };
 }
 
-function installSceneRequestGate(Cesium, authorize) {
+function installSceneRequestGate(Cesium) {
     const implementations = Cesium.Resource?._Implementations;
     const original = implementations?.loadWithXhr;
     if (!original) throw new Error('Cesium scene requests have no request hook');
-    sceneAuthorizers.add(authorize);
-    if (!restoreSceneGate) {
-        implementations.loadWithXhr = guardSceneLoad(
-            original,
-            (url) => selectSceneAuthorization(sceneAuthorizers, url),
-            implementations);
+    if (sceneGateUsers === 0) {
+        implementations.loadWithXhr = guardSceneLoad(original, (id) => sceneViews.get(id), implementations);
         restoreSceneGate = () => {
             implementations.loadWithXhr = original;
             restoreSceneGate = null;
         };
     }
+    sceneGateUsers += 1;
     return () => {
-        sceneAuthorizers.delete(authorize);
-        if (sceneAuthorizers.size === 0) restoreSceneGate?.();
+        sceneGateUsers -= 1;
+        if (sceneGateUsers === 0) restoreSceneGate?.();
     };
 }

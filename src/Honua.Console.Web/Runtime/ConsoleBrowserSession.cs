@@ -15,13 +15,21 @@ public sealed class ConsoleBrowserSession
 
     public event Action<ConsoleBrowserSessionSnapshot>? Changed;
 
-    public ConsoleBrowserSessionSnapshot Snapshot() => new(
-        Revision,
-        IsAuthenticated,
-        Principal.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? Principal.FindFirst("sub")?.Value,
-        IsAuthenticated ? AccessToken : null,
-        IsAuthenticated ? CsrfToken : null,
-        ExpiresAt);
+    private bool liveAnnouncement;
+
+    public ConsoleBrowserSessionSnapshot Snapshot()
+    {
+        if (liveAnnouncement && !IsAuthenticated)
+        {
+            liveAnnouncement = false;
+            AccessToken = null;
+            Revision++;
+            var expired = CreateSnapshot();
+            Changed?.Invoke(expired);
+            return expired;
+        }
+        return CreateSnapshot();
+    }
 
     public void Set(ClaimsPrincipal principal, ConsoleSessionCredentials? credentials = null)
     {
@@ -31,8 +39,17 @@ public sealed class ConsoleBrowserSession
         CsrfToken = credentials?.CsrfToken;
         AccessToken = credentials?.AccessToken;
         ExpiresAt = credentials?.ExpiresAt;
-        Changed?.Invoke(Snapshot());
+        liveAnnouncement = IsAuthenticated;
+        Changed?.Invoke(CreateSnapshot());
     }
+
+    private ConsoleBrowserSessionSnapshot CreateSnapshot() => new(
+        Revision,
+        IsAuthenticated,
+        Principal.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? Principal.FindFirst("sub")?.Value,
+        IsAuthenticated ? AccessToken : null,
+        IsAuthenticated ? CsrfToken : null,
+        ExpiresAt);
 
     public void Clear() => Set(new ClaimsPrincipal(new ClaimsIdentity()));
 }
