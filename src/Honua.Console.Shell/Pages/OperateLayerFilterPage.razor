@@ -35,7 +35,7 @@
                 <h1>@_layer.Name · permanent filter</h1>
                 <p>Author the server-enforced query filter on layer @_layer.LayerId. honua-server applies the <strong>permanent filter</strong> to every read of this layer (queries, exports, map renders) and validates the expression against the layer schema. Send a bad expression and the server rejects it with a reason; clearing removes the constraint entirely.</p>
                 <div class="console-detail-actions">
-                    <a class="console-button-link" href="@Navigation.ToConsoleHref(ConsoleAgentLayerTool.LayerRoute(_layer!.CanonicalResourceId))" data-layer-detail-link>Back to layer</a>
+                    <LayerBackLink CanonicalResourceId="@_layer!.CanonicalResourceId" />
                 </div>
             </div>
         }
@@ -116,7 +116,8 @@
     private long _generation;
     private bool _loading;
     private ConsoleAgentPageContext AgentContext =>
-        ConsoleAgentLayerTool.Context(_layer, ResourceId, "filter", ChangedFields, _loading || _busy);
+        ConsoleAgentLayerTool.Context(_layer, ConsoleAgentLayerTool.ToolRoute(ResourceId, ConsoleAgentLayerTool.Filter),
+            new() { ChangedFieldCount = ChangedFields, PendingOperationCount = _loading || _busy ? 1 : 0 });
 
     [CascadingParameter] public ConsolePublicationLayerContext? PublicationContext { get; set; }
 

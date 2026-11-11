@@ -3,19 +3,15 @@ namespace Honua.Console.Shell.Models;
 // Agent context shared by the layer tool pages (filter, editing, relationships).
 public static class ConsoleAgentLayerTool
 {
-    public static string LayerRoute(string canonicalResourceId) =>
-        $"/operate/layers/{Uri.EscapeDataString(canonicalResourceId)}";
+    public const string Filter = "filter";
+    public const string Metadata = "metadata";
+    public const string Relationships = "relationships";
 
-    public static ConsoleAgentPageContext Context(
-        OperateServiceLayerProjection? layer, string resourceId, string tool, int changedFields, bool pending)
+    public static string ToolRoute(string resourceId, string tool) => $"{ConsoleAgentRoutes.ForLayer(resourceId)}/{tool}";
+
+    public static ConsoleAgentPageContext Context(OperateServiceLayerProjection? layer, string route, ConsoleAgentUnsavedSummary unsaved)
     {
         IReadOnlyList<ConsoleAgentEntity> selected = layer is null ? [] : [ConsoleAgentEntity.ForLayer(layer)];
-        return new()
-        {
-            Route = $"{LayerRoute(resourceId)}/{tool}",
-            Entities = selected,
-            Selection = selected,
-            Unsaved = new() { ChangedFieldCount = changedFields, PendingOperationCount = pending ? 1 : 0 }
-        };
+        return new() { Route = route, Entities = selected, Selection = selected, Unsaved = unsaved };
     }
 }

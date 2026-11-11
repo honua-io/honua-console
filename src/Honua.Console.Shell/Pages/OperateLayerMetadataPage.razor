@@ -35,7 +35,7 @@
                 <h1>@Layer.Name · editing</h1>
                 <p>Set the editing policy of layer @Layer.LayerId in one of its FeatureServer services. Fields left unchanged keep their current server value.</p>
                 <div class="console-detail-actions">
-                    <a class="console-button-link" href="@Navigation.ToConsoleHref(ConsoleAgentLayerTool.LayerRoute(Layer.CanonicalResourceId))" data-layer-detail-link>Back to layer</a>
+                    <LayerBackLink CanonicalResourceId="@Layer.CanonicalResourceId" />
                 </div>
             </div>
         }
@@ -100,7 +100,8 @@
     private long _generation;
     private bool _loading;
     private ConsoleAgentPageContext AgentContext =>
-        ConsoleAgentLayerTool.Context((_exposures.Count == 0 ? null : Layer), ResourceId, "metadata", ChangedFields, _loading || _saving);
+        ConsoleAgentLayerTool.Context((_exposures.Count == 0 ? null : Layer), ConsoleAgentLayerTool.ToolRoute(ResourceId, ConsoleAgentLayerTool.Metadata),
+            new() { ChangedFieldCount = ChangedFields, PendingOperationCount = _loading || _saving ? 1 : 0 });
     private int ChangedFields
     {
         get

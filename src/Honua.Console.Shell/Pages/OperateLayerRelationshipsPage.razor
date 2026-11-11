@@ -35,7 +35,7 @@
                 <h1>@_layer.Name · relationships</h1>
                 <p>Author origin/destination relationships on layer @_layer.LayerId. honua-server emits these as <code>relationships[]</code> on FeatureServer layer metadata and uses them to drive related-records / <code>$expand</code> / relationshipQuery.</p>
                 <div class="console-detail-actions">
-                    <a class="console-button-link" href="@Navigation.ToConsoleHref(ConsoleAgentLayerTool.LayerRoute(_layer!.CanonicalResourceId))" data-layer-detail-link>Back to layer</a>
+                    <LayerBackLink CanonicalResourceId="@_layer!.CanonicalResourceId" />
                 </div>
             </div>
         }
@@ -137,7 +137,8 @@
     private long _generation;
     private bool _loading;
     private ConsoleAgentPageContext AgentContext =>
-        ConsoleAgentLayerTool.Context(_layer, ResourceId, "relationships", ChangedFields, _loading || _saving);
+        ConsoleAgentLayerTool.Context(_layer, ConsoleAgentLayerTool.ToolRoute(ResourceId, ConsoleAgentLayerTool.Relationships),
+            new() { ChangedFieldCount = ChangedFields, PendingOperationCount = _loading || _saving ? 1 : 0 });
 
     [CascadingParameter] public ConsolePublicationLayerContext? PublicationContext { get; set; }
 
