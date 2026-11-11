@@ -15,7 +15,7 @@
 // missing-binding contract: a live chart appears only when a real Vega-Lite spec is bound.
 //
 // Data is REAL: when a featuresUrl is supplied the module fetches the bound layer's actual
-// rows (via the console /map-proxy/features proxy → server FeatureServer query) and injects
+// rows from the supplied feature query and injects
 // them as the spec's inline data. The chart never fabricates sample data; with no rows and
 // no inline data in the spec the embed is skipped and the placeholder stays.
 
@@ -96,8 +96,10 @@ async function fetchRows(featuresUrl) {
         return [];
     }
     try {
-        const approved = typeof globalThis.honuaConsoleAuthorizeResource === 'function'
-            ? await globalThis.honuaConsoleAuthorizeResource(featuresUrl)
+        const capture = globalThis.honuaConsoleCaptureResourceAuthorization;
+        const authorize = typeof capture === 'function' ? await capture() : null;
+        const approved = authorize
+            ? authorize(featuresUrl)
             : { url: featuresUrl, credentials: 'same-origin', headers: {} };
         const headers = new Headers(approved.headers);
         headers.set('Accept', 'application/json');
@@ -106,6 +108,7 @@ async function fetchRows(featuresUrl) {
             credentials: approved.credentials,
             redirect: 'error',
         });
+        authorize?.(approved.url);
         if (!response.ok) {
             return [];
         }

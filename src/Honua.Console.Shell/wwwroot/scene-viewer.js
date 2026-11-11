@@ -74,9 +74,14 @@ export async function init(element, tilesetUrl, environmentId) {
     }
 
     let viewer;
+    let releaseSceneGate = null;
     try {
         const safeTilesetUrl = sameOriginTilesetUrl(tilesetUrl, environmentId);
-        const tilesetSource = await sceneTilesetSource(Cesium, safeTilesetUrl);
+        const authorize = typeof globalThis.honuaConsoleCaptureResourceAuthorization === 'function'
+            ? await globalThis.honuaConsoleCaptureResourceAuthorization()
+            : null;
+        const loaded = sceneTilesetSource(Cesium, safeTilesetUrl, authorize);
+        releaseSceneGate = loaded.release;
         viewer = new Cesium.Viewer(element, {
             // Cesium's implicit default is an Ion-backed base layer. The Console
             // scene surface renders only the supplied candidate-owned tileset.
@@ -92,11 +97,11 @@ export async function init(element, tilesetUrl, environmentId) {
             infoBox: false,
         });
 
-        const tileset = await Cesium.Cesium3DTileset.fromUrl(tilesetSource);
+        const tileset = await Cesium.Cesium3DTileset.fromUrl(loaded.source);
         viewer.scene.primitives.add(tileset);
         await viewer.zoomTo(tileset);
 
-        instances.set(element, { viewer, tileset, tilesetUrl: safeTilesetUrl });
+        instances.set(element, { viewer, tileset, tilesetUrl: safeTilesetUrl, releaseSceneGate });
         return true;
     } catch {
         try {
@@ -104,6 +109,7 @@ export async function init(element, tilesetUrl, environmentId) {
         } catch {
             // Ignore teardown failures while reporting the initialization failure.
         }
+        releaseSceneGate?.();
         return false;
     }
 }
@@ -129,6 +135,7 @@ export function dispose(element) {
         } catch {
             // Ignore teardown failures.
         }
+        instance.releaseSceneGate?.();
         instances.delete(element);
     }
 }
@@ -173,14 +180,97 @@ export function sameOriginTilesetUrl(value, environmentId) {
             `/scene-proxy/${encodeURIComponent(environmentId)}${source.pathname}${source.search}`,
             page.origin).href;
     }
-    if (source.origin !== window.location.origin || !PINNED_SCENE_PROXY.test(source.pathname)) {
+    if (source.origin !== page.origin || !PINNED_SCENE_PROXY.test(source.pathname)) {
         throw new Error('tileset URL must be a Honua scene route');
     }
     return source.href;
 }
 
-async function sceneTilesetSource(Cesium, url) {
-    if (typeof globalThis.honuaConsoleAuthorizeResource !== 'function' || !Cesium.Resource) return url;
-    const approved = await globalThis.honuaConsoleAuthorizeResource(url);
-    return new Cesium.Resource({ url: approved.url, headers: approved.headers });
+const sceneAuthorizers = new Set();
+let restoreSceneGate = null;
+
+export function selectSceneAuthorization(authorizers, url) {
+    let failure;
+    for (const authorize of authorizers) {
+        try {
+            return { ...authorize(url), bind: authorize };
+        } catch (error) {
+            failure = error;
+        }
+    }
+    throw failure ?? new Error('The Console session changed. Reopen this view before continuing.');
+}
+
+export function guardSceneLoad(original, authorize, owner) {
+    return function(url, responseType, method, data, headers, deferred, ...rest) {
+        let approved;
+        try {
+            approved = approveSceneRequest(authorize, String(url), headers);
+        } catch (error) {
+            deferred.reject(error);
+            return undefined;
+        }
+        let settled = false;
+        const bound = approved.bind ?? authorize;
+        const guarded = Object.create(deferred);
+        guarded.reject = (error) => {
+            if (!settled) {
+                settled = true;
+                deferred.reject(error);
+            }
+        };
+        guarded.resolve = (value) => {
+            if (settled) return;
+            try {
+                bound(String(url));
+                settled = true;
+                deferred.resolve(value);
+            } catch (error) {
+                settled = true;
+                deferred.reject(error);
+            }
+        };
+        return original.call(owner, url, responseType, method, data, approved.headers, guarded, ...rest);
+    };
+}
+
+export function approveSceneRequest(authorize, url, headers) {
+    const approved = authorize(url);
+    const next = { ...(headers ?? {}) };
+    delete next.Authorization;
+    delete next.authorization;
+    if (!approved.api) return { headers: next, credentials: 'omit', bind: approved.bind };
+    if (approved.headers.Authorization) next.Authorization = approved.headers.Authorization;
+    return { headers: next, credentials: approved.credentials, bind: approved.bind };
+}
+
+function sceneTilesetSource(Cesium, url, authorize) {
+    if (!authorize || !Cesium.Resource) return { source: url, release: null };
+    const approved = authorize(url);
+    if (!approved.api) throw new Error('tileset URL must be a Honua scene route');
+    return {
+        source: new Cesium.Resource({ url: approved.url }),
+        release: installSceneRequestGate(Cesium, authorize),
+    };
+}
+
+function installSceneRequestGate(Cesium, authorize) {
+    const implementations = Cesium.Resource?._Implementations;
+    const original = implementations?.loadWithXhr;
+    if (!original) throw new Error('Cesium scene requests have no request hook');
+    sceneAuthorizers.add(authorize);
+    if (!restoreSceneGate) {
+        implementations.loadWithXhr = guardSceneLoad(
+            original,
+            (url) => selectSceneAuthorization(sceneAuthorizers, url),
+            implementations);
+        restoreSceneGate = () => {
+            implementations.loadWithXhr = original;
+            restoreSceneGate = null;
+        };
+    }
+    return () => {
+        sceneAuthorizers.delete(authorize);
+        if (sceneAuthorizers.size === 0) restoreSceneGate?.();
+    };
 }

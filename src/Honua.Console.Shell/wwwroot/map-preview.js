@@ -123,6 +123,11 @@ function fitToFeaturesOnce(map) {
 
 // Attempts to mount a live MapLibre map into the given container.
 // Returns true when a real map was bound; false when the component should keep its placeholder.
+export function mapRequestParameters(authorize, url) {
+    const approved = authorize(url);
+    return { url: approved.url, credentials: approved.credentials, headers: approved.headers };
+}
+
 export async function init(container, options) {
     if (!container || !options || !options.styleUrl) {
         return false;
@@ -132,18 +137,18 @@ export async function init(container, options) {
         return false;
     }
     try {
-        const map = new maplibregl.Map({
+        const authorize = typeof globalThis.honuaConsoleCaptureResourceAuthorization === 'function'
+            ? await globalThis.honuaConsoleCaptureResourceAuthorization()
+            : null;
+        const mapOptions = {
             container,
             style: options.styleUrl,
             center: options.center ?? [0, 0],
             zoom: options.zoom ?? 1,
             attributionControl: true,
-            transformRequest: async (url) => {
-                if (typeof globalThis.honuaConsoleAuthorizeResource !== 'function') return { url };
-                const approved = await globalThis.honuaConsoleAuthorizeResource(url);
-                return { url: approved.url, credentials: approved.credentials, headers: approved.headers };
-            },
-        });
+        };
+        if (authorize) mapOptions.transformRequest = (url) => mapRequestParameters(authorize, url);
+        const map = new maplibregl.Map(mapOptions);
         if (options.showScale) {
             map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
         }

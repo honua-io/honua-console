@@ -6,7 +6,11 @@ export function initialize(sessionBridge, configuration) {
         getSession: () => sessionBridge.invokeMethodAsync('GetSnapshot'),
     });
     globalThis.honuaConsoleApiBase = browserTransport.apiBase;
-    globalThis.honuaConsoleAuthorizeResource = url => browserTransport.authorizeResource(url);
+    globalThis.honuaConsoleCaptureResourceAuthorization = () => browserTransport.captureResourceAuthorization();
+}
+
+export function publishSession(snapshot) {
+    browserTransport?.publishSession(snapshot);
 }
 
 export function captureConsoleSession() {
@@ -62,38 +66,55 @@ export function createConsoleBrowserTransport({ apiBaseUrl, applicationBaseUrl, 
     }
     const application = new URL(applicationBaseUrl);
     const sameOrigin = api.origin === application.origin;
-    let boundSession = null;
+    let current = null;
+    const identity = (session) => ({
+        revision: session?.revision ?? null,
+        principalId: session?.authenticated ? session.principalId ?? '' : '',
+        authenticated: Boolean(session?.authenticated),
+        accessToken: session?.accessToken ?? null,
+        expiresAt: session?.expiresAt ?? null,
+    });
+    const decide = (url, session) => {
+        const target = new URL(url, application);
+        if (target.username || target.password || target.hash) {
+            throw new Error('A Console resource URL must not contain credentials or a fragment.');
+        }
+        const rest = target.origin === api.origin && target.pathname.startsWith(api.pathname)
+            ? target.pathname.slice(api.pathname.length)
+            : null;
+        const apiResource = rest !== null && /^(?:api|tiles|rest|scenes|ogc)(?:\/|$)/.test(rest);
+        if (!apiResource) {
+            return {
+                url: target.href,
+                api: false,
+                credentials: target.origin === application.origin ? 'same-origin' : 'omit',
+                headers: {},
+            };
+        }
+        const expiry = session.expiresAt == null ? null : Date.parse(session.expiresAt);
+        const tokenLive = Boolean(session.accessToken)
+            && (expiry === null || (Number.isFinite(expiry) && expiry > Date.now()));
+        if (session.authenticated && !sameOrigin && !tokenLive) {
+            throw new Error('Cross-origin Console access requires an operator bearer token.');
+        }
+        const headers = {};
+        if (session.authenticated && tokenLive) headers.Authorization = `Bearer ${session.accessToken}`;
+        return { url: target.href, api: true, credentials: sameOrigin ? 'same-origin' : 'omit', headers };
+    };
     return Object.freeze({
         apiBase: api.href,
-        async authorizeResource(url) {
-            const target = new URL(url, application);
-            if (target.username || target.password || target.hash) {
-                throw new Error('A Console resource URL must not contain credentials or a fragment.');
-            }
-            const onApi = target.origin === api.origin && target.pathname.startsWith(api.pathname);
-            if (!onApi) {
-                return {
-                    url: target.href,
-                    credentials: target.origin === application.origin ? 'same-origin' : 'omit',
-                    headers: {},
-                };
-            }
-            const session = await getSession();
-            const principalId = session?.authenticated ? session.principalId ?? '' : '';
-            const revision = session?.revision ?? null;
-            if (boundSession && (boundSession.revision !== revision || boundSession.principalId !== principalId)) {
-                throw new Error('The Console session changed. Reopen this view before continuing.');
-            }
-            boundSession = { revision, principalId };
-            const expiry = session?.expiresAt == null ? null : Date.parse(session.expiresAt);
-            const tokenLive = Boolean(session?.accessToken)
-                && (expiry === null || (Number.isFinite(expiry) && expiry > Date.now()));
-            if (session?.authenticated && !sameOrigin && !tokenLive) {
-                throw new Error('Cross-origin Console access requires an operator bearer token.');
-            }
-            const headers = {};
-            if (session?.authenticated && tokenLive) headers.Authorization = `Bearer ${session.accessToken}`;
-            return { url: target.href, credentials: sameOrigin ? 'same-origin' : 'omit', headers };
+        publishSession(snapshot) { current = identity(snapshot); },
+        async captureResourceAuthorization() {
+            const captured = identity(await getSession());
+            const published = current?.revision ?? -1;
+            const seen = captured.revision ?? -1;
+            if (current === null || published < seen) current = captured;
+            return (url) => {
+                if (!current || current.revision !== captured.revision || current.principalId !== captured.principalId) {
+                    throw new Error('The Console session changed. Reopen this view before continuing.');
+                }
+                return decide(url, captured);
+            };
         },
         async capture() {
             const binding = requireSession(await getSession());

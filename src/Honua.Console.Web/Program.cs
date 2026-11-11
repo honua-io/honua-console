@@ -62,4 +62,6 @@ await transport.InvokeVoidAsync("initialize", sessionBridge, new
     ApiBaseUrl = apiBaseUri.AbsoluteUri,
     ApplicationBaseUrl = applicationBaseUri.AbsoluteUri
 });
+session.Changed += snapshot => _ = transport.InvokeVoidAsync("publishSession", snapshot);
+await transport.InvokeVoidAsync("publishSession", session.Snapshot());
 await host.RunAsync();

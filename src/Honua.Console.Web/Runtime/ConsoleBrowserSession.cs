@@ -13,6 +13,16 @@ public sealed class ConsoleBrowserSession
     public bool IsAuthenticated => Principal.Identity?.IsAuthenticated == true
         && (ExpiresAt is null || ExpiresAt > DateTimeOffset.UtcNow);
 
+    public event Action<ConsoleBrowserSessionSnapshot>? Changed;
+
+    public ConsoleBrowserSessionSnapshot Snapshot() => new(
+        Revision,
+        IsAuthenticated,
+        Principal.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? Principal.FindFirst("sub")?.Value,
+        IsAuthenticated ? AccessToken : null,
+        IsAuthenticated ? CsrfToken : null,
+        ExpiresAt);
+
     public void Set(ClaimsPrincipal principal, ConsoleSessionCredentials? credentials = null)
     {
         ArgumentNullException.ThrowIfNull(principal);
@@ -21,6 +31,7 @@ public sealed class ConsoleBrowserSession
         CsrfToken = credentials?.CsrfToken;
         AccessToken = credentials?.AccessToken;
         ExpiresAt = credentials?.ExpiresAt;
+        Changed?.Invoke(Snapshot());
     }
 
     public void Clear() => Set(new ClaimsPrincipal(new ClaimsIdentity()));

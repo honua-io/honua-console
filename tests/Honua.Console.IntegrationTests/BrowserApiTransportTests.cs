@@ -86,6 +86,21 @@ public sealed class BrowserApiTransportTests
         Assert.Equal(new Uri("https://honua.example/"), new ConsoleRuntimeConfiguration().ResolveApiBaseUri(App));
     }
 
+    [Fact]
+    public void SessionChangePublishesTheCurrentSnapshot()
+    {
+        var session = new ConsoleBrowserSession();
+        ConsoleBrowserSessionSnapshot? published = null;
+        session.Changed += snapshot => published = snapshot;
+        session.Set(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "operator")], "test")),
+            new ConsoleSessionCredentials(AccessToken: "token"));
+        Assert.Equal("operator", published?.PrincipalId);
+        Assert.Equal("token", published?.AccessToken);
+        session.Clear();
+        Assert.False(published?.Authenticated);
+        Assert.Null(published?.AccessToken);
+    }
+
     [Theory]
     [InlineData("http://remote.example/")]
     [InlineData("https://user:password@honua.example/")]
