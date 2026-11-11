@@ -21,6 +21,7 @@ public sealed class ConsoleSupportV4Tests
         page.WaitForAssertion(() => Assert.Contains("Console version", page.Markup));
         Assert.Equal(enabled ? "Support" : "Contact support", page.Find("h1").TextContent);
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
+        Assert.Equal(enabled ? "new-ticket-heading" : null, page.Find("article.console-panel").GetAttribute("aria-labelledby"));
         Assert.Equal(2, page.FindAll("select").Count);
         Assert.Equal(4, page.FindAll("input:not([type=checkbox])").Count);
         Assert.Single(page.FindAll("textarea"));

@@ -1313,6 +1313,7 @@ reported metadata, history or original attachment. The server must supply
 contextual inheritance and enforce its mutation policy and attachment authority.
 
 The shared v4 rollout flag also applies the adopted quiet panel, heading, and form treatment to `/support` and `/support/tickets/{ticketId}`. Ticket submission, automatic context, self-service assistance, access scope, polling, diagnosis, and authoritative trust evidence retain their existing contracts. Flag-off keeps the legacy presentation.
+
 ### Static host navigation
 
 Console page routes use paths such as `operate/jobs/{id}`. Shared Operate builders emit

@@ -33,10 +33,10 @@
     <SupportSelfServicePanel SeedQuery="@_symptoms" OnContextChanged="OnSelfServiceContextChanged" />
 
     <div class="console-page-body support-layout">
-        <article class="console-panel" aria-label="New support ticket">
+        <article class="console-panel" aria-labelledby="@(V4Enabled ? "new-ticket-heading" : null)">
             @if (V4Enabled)
             {
-                <div class="console-panel-heading"><h2>New ticket</h2></div>
+                <div class="console-panel-heading"><h2 id="new-ticket-heading">New ticket</h2></div>
             }
             <div class="studio-field-grid">
                 <label>
