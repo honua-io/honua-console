@@ -10,7 +10,7 @@ await runV4PagePresentation({
   stylesheet: "v4-shell.css",
   heading: name => name === "system-signin-v4" ? "Sign in" : titles[name.replace(/^system-/, "").replace(/-(v4|legacy)$/, "")],
   scope: "main",
-  controls: "main :is(a[href], input, select, button):not(:disabled):visible",
+  controls: "main :is(a[href], input, select, button, summary):not(:disabled):visible",
   prepareMarkup: markup => markup,
   inspect: async (page, name) => {
     assert.equal(await page.locator(".console-page-heading-v4").count(), name.endsWith("-v4") ? 1 : 0);
