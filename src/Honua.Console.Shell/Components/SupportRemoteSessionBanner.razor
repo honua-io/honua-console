@@ -1,4 +1,5 @@
 @inject NavigationManager ConsoleNavigation
+@inject IServiceProvider Services
 @using Honua.Console.Contracts
 @implements IDisposable
 
@@ -111,7 +112,14 @@
 
     private SupportAccessBoundary? Boundary => Ticket?.AccessBoundary;
 
-    private string AccessModeLabel => string.IsNullOrWhiteSpace(AccessMode) ? "read-only" : AccessMode;
+    private string AccessModeLabel
+    {
+        get
+        {
+            var mode = string.IsNullOrWhiteSpace(AccessMode) ? "read-only" : AccessMode;
+            return Services.GetService<ConsoleV4Options>()?.Enabled == true ? SupportTicketLabels.Display(mode)! : mode;
+        }
+    }
 
     // An elevated session window exists when the authoritative session is active
     // and not read-only/disabled, or — best-effort, absent trust — when the
