@@ -892,6 +892,7 @@ public sealed class ConsoleOperateObservabilityClientTests
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton<IConsoleOperateObservabilityClient>(new RenderingOperateClient());
+        services.AddSingleton<NavigationManager>(new TestPageNavigationManager("operate/activity"));
         // The investigations section is capability-gated (first-release cut-line); advertise it so the
         // full-page live-data render under test exercises that surface.
         services.AddSingleton<IConsoleCapabilityManifest>(
@@ -923,6 +924,7 @@ public sealed class ConsoleOperateObservabilityClientTests
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton<IConsoleOperateObservabilityClient>(new RenderingOperateClient());
+        services.AddSingleton<NavigationManager>(new TestPageNavigationManager("operate/activity"));
         // The investigations section is capability-gated (first-release cut-line); advertise it so the
         // full-page live-data render under test exercises that surface.
         services.AddSingleton<IConsoleCapabilityManifest>(
