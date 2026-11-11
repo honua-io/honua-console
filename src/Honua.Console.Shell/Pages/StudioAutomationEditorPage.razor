@@ -10,6 +10,7 @@
 <section class="console-page automation-page automation-editor-page @(IsConsoleV4Enabled ? "console-automations-v4" : null)">
     @if (IsConsoleV4Enabled)
     {
+        <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/studio-automations-v4.css" />
         <ConsolePageHeading Title="Automation editor">
             <p>Edit rules and save a new automation version.</p>
@@ -254,6 +255,13 @@
 </section>
 
 @code {
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = new Uri(Navigation.Uri).AbsolutePath,
+        Filters = new Dictionary<string, string> { ["draftId"] = DraftId ?? string.Empty, ["tab"] = _activeTab },
+        Unsaved = new() { ChangedFieldCount = _dirty.IsDirty ? 1 : 0, PendingOperationCount = _busy ? 1 : 0 },
+    };
+
     private bool IsConsoleV4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     private const string TabRules = "rules";
@@ -289,8 +297,8 @@
 
     private string VersionsHref =>
         _draft is null || string.IsNullOrWhiteSpace(_draft.DraftId)
-            ? "/studio/automations"
-            : $"/studio/automations/{_draft.DraftId}/versions";
+            ? "studio/automations"
+            : $"studio/automations/{_draft.DraftId}/versions";
 
     protected override async Task OnParametersSetAsync()
     {

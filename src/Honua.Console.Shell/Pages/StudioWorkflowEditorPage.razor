@@ -9,6 +9,7 @@
 <section class="console-page workflow-page">
     @if (IsConsoleV4Enabled)
     {
+        <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/studio-builders-v4.css" />
         <ConsolePageHeading Title="Workflow editor">
             <p>Edit a workflow, test a run, and review it before publishing.</p>
@@ -637,6 +638,16 @@
 </section>
 
 @code {
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = new Uri(Navigation.Uri).AbsolutePath,
+        Unsaved = new()
+        {
+            ChangedFieldCount = _dirty.IsDirty ? 1 : 0,
+            PendingOperationCount = _busy ? 1 : 0
+        }
+    };
+
     private bool IsConsoleV4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     private static readonly string[] ParameterTypes = ["string", "date", "number", "boolean", "geometry"];
