@@ -103,6 +103,7 @@
 
 .console-shell[data-console-v4="true"] .operate-temporal .map-preview-schematic {
     overflow: hidden;
+}
 
 .console-shell[data-console-v4="true"] .console-tabs {
     display: flex;
