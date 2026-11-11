@@ -209,13 +209,14 @@ export async function runV4PagePresentation({ previews, pageNames, title, styles
   try {
     browser = await chromium.launch();
     const context = await browser.newContext();
-    const page = await context.newPage();
     for (const name of pages.keys()) {
       for (const width of [1280, 390]) {
+        const page = await context.newPage();
         await inspectV4Presentation(page, {
           previews, name, width, origin: `http://127.0.0.1:${server.address().port}`,
           stylesheet, heading, scope, controls, inspect,
         });
+        await page.close();
       }
     }
   } finally {

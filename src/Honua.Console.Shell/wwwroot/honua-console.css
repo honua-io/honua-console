@@ -10,6 +10,8 @@
 @import url("css/v4-shell.css");
 @import url("css/v4-navigation.css");
 @import url("css/v4-operate.css");
+@import url("css/v4-share.css");
+
 @import url("css/v4-support.css");
 @import url("css/v4-data-primitives.css");
 @import url("css/folder-v4.css");
@@ -1486,6 +1488,7 @@ p {
 }
 
 .console-table-wrap {
+    position: relative;
     overflow-x: auto;
     border: 1px solid var(--honua-border);
     border-radius: 8px;
