@@ -9,7 +9,7 @@ await runV4PagePresentation({
   title: "Support rollout",
   stylesheet: "v4-support.css",
   prepareMarkup: markup => markup,
-  heading: name => name.includes("ticket") ? "Ticket ticket-9" : name.endsWith("-v4") ? "Support" : "Contact support",
+  heading: name => name.includes("ticket") ? "Ticket ticket-9" : "Contact support",
   scope: "main",
   controls: null,
   inspect: async (page, name) => {
@@ -30,7 +30,7 @@ await runV4PagePresentation({
       }
     } else {
       assert.ok((await page.locator("main").textContent()).includes("diagnose errors"));
-      assert.deepEqual(await page.locator(".support-phase-badge").allTextContents(), ["resolved", "read-only"]);
+      assert.deepEqual(await page.locator(".support-phase-badge").allTextContents(), enabled ? ["Resolved", "Read-only"] : ["resolved", "read-only"]);
       const links = "main a[href]:not([aria-disabled=true])";
       if (await page.locator(links).count()) {
         await checkKeyboardControls(page, { controls: links, sizedControls: "button", minimumHeight: 24 });

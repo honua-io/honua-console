@@ -1,0 +1,97 @@
+/* Access inherits the adopted v4 shell. The legacy surface keeps its existing styles. */
+.console-shell[data-console-v4="true"] :is(.rbac-overview, .rbac-members) {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+.console-shell[data-console-v4="true"] .rbac-navigation {
+    gap: 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--honua-border);
+}
+.console-shell[data-console-v4="true"] .rbac-navigation a {
+    min-height: 24px;
+    text-underline-offset: 4px;
+}
+.console-shell[data-console-v4="true"] .rbac-navigation [aria-current="page"] {
+    color: var(--honua-text);
+    font-weight: 600;
+}
+.console-shell[data-console-v4="true"] :is(.rbac-section-title, .rbac-invite-head h2) {
+    margin: 0 0 12px;
+    font-size: 16px;
+    font-weight: 600;
+}
+.console-shell[data-console-v4="true"] :is(.rbac-scope-strip, .rbac-invite-drawer) {
+    border-radius: var(--radius-lg);
+    box-shadow: none;
+    background: var(--honua-surface);
+}
+.console-shell[data-console-v4="true"] .rbac-scope-cell {
+    min-width: 120px;
+    flex: 1 1 120px;
+    border: 0;
+    background: transparent;
+}
+.console-shell[data-console-v4="true"] .rbac-scope-label {
+    font-weight: 500;
+}
+.console-shell[data-console-v4="true"] .rbac-members-layout {
+    gap: 24px;
+}
+.console-shell[data-console-v4="true"] .rbac-invite-drawer {
+    max-width: 760px;
+    width: 100%;
+}
+.console-shell[data-console-v4="true"] :is(.rbac-invite-body, .rbac-members-main) {
+    gap: 24px;
+}
+.console-shell[data-console-v4="true"] :is(.rbac-overview, .rbac-members) :is(input:not([type="checkbox"]):not([type="radio"]), select) {
+    min-height: 36px;
+    padding: 6px 12px;
+}
+.console-shell[data-console-v4="true"] :is(.rbac-overview, .rbac-members) :is(input[type="checkbox"], input[type="radio"]) {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    accent-color: var(--honua-accent);
+    margin: 0;
+}
+@media (max-width: 640px) {
+    .console-shell[data-console-v4="true"] .rbac-scope-arrow { display: none; }
+    .console-shell[data-console-v4="true"] .rbac-invite-drawer { min-width: 0; }
+}
+
+.console-shell[data-console-v4="true"] .rbac-create-grants {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    border: 0;
+    padding: 0;
+    margin: 24px 0;
+}
+.console-shell[data-console-v4="true"] .rbac-create-grant {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.console-shell[data-console-v4="true"] :is(.rbac-invite-head, .rbac-invite-foot) {
+    background: transparent;
+    padding: 24px;
+    border: 0;
+}
+.console-shell[data-console-v4="true"] .rbac-invite-body { padding: 0 24px; }
+.console-shell[data-console-v4="true"] .rbac-invite-group {
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    gap: 12px;
+}
+.console-shell[data-console-v4="true"] .rbac-invite-group legend {
+    padding: 0 0 12px;
+    color: var(--honua-text);
+}
+.console-shell[data-console-v4="true"] .rbac-invite-grants {
+    background: transparent;
+    padding: 0;
+}

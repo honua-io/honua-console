@@ -19,7 +19,12 @@ public sealed class ConsoleSupportV4Tests
         using var context = Context(new ConsoleV4Options { Enabled = enabled });
         var page = context.Render<SupportPage>();
         page.WaitForAssertion(() => Assert.Contains("Console version", page.Markup));
-        Assert.Equal(enabled ? "Support" : "Contact support", page.Find("h1").TextContent);
+        Assert.Equal("Contact support", page.Find("h1").TextContent);
+        var lead = page.Find(".console-page-heading p:last-child").TextContent;
+        foreach (var contextItem in new[] { "who you are", "environment", "Console build", "current route", "recent errors", "review and edit" })
+        {
+            Assert.Contains(contextItem, lead);
+        }
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
         Assert.Equal(enabled ? "new-ticket-heading" : null, page.Find("article.console-panel").GetAttribute("aria-labelledby"));
         Assert.Equal(2, page.FindAll("select").Count);
@@ -92,8 +97,9 @@ public sealed class ConsoleSupportV4Tests
         page.WaitForAssertion(() => Assert.Contains("Status", page.Markup));
         Assert.Equal("Ticket ticket-9", page.Find("h1").TextContent);
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
-        Assert.Contains("resolved", page.Markup);
-        Assert.Contains("read-only", page.Markup);
+        Assert.Equal(enabled ? "Resolved" : "resolved", page.FindAll(".support-phase-badge")[0].TextContent);
+        Assert.Equal(enabled ? "Read-only" : "read-only", page.FindAll(".support-phase-badge")[1].TextContent);
+        Assert.Contains(enabled ? "Sev2 - major impact" : "sev2", page.Markup);
         Assert.Contains("diagnose errors", page.Markup);
         Assert.Contains("honua-server", page.Markup);
         Capture(page.Markup, context.Services.GetRequiredService<ConsoleV4Options>(), "ticket");
@@ -114,6 +120,49 @@ public sealed class ConsoleSupportV4Tests
         page.WaitForAssertion(() => Assert.Contains("Ticket cannot be read.", page.Markup));
         Assert.Empty(page.FindAll(".support-phase-badge"));
         Assert.Equal("/support", page.Find("a").GetAttribute("href"));
+    }
+
+    [Theory]
+    [InlineData("sev1", "Sev1 - critical / outage")]
+    [InlineData("sev3", "Sev3 - minor / question")]
+    [InlineData("future-severity", "future-severity")]
+    public void V4SeverityMatchesFormAndPreservesUnknownValues(string severity, string label)
+    {
+        using var context = Context(new ConsoleV4Options { Enabled = true });
+        var client = context.Services.GetRequiredService<TicketClient>();
+        client.Result = SupportTicketResult.Allowed(client.Result.Value! with { Severity = severity });
+        var page = context.Render<SupportTicketDetailPage>(parameters => parameters.Add(component => component.TicketId, "ticket-9"));
+        page.WaitForAssertion(() => Assert.Contains(label, page.Markup));
+    }
+
+    [Theory]
+    [InlineData("guided-fix", "Guided fix")]
+    [InlineData("operator-scoped", "Operator scoped")]
+    [InlineData("future-mode", "future-mode")]
+    public void V4AccessModeMatchesFormAndPreservesUnknownValues(string accessMode, string label)
+    {
+        using var context = Context(new ConsoleV4Options { Enabled = true });
+        var client = context.Services.GetRequiredService<TicketClient>();
+        client.Result = SupportTicketResult.Allowed(client.Result.Value! with { AllowedAccessMode = accessMode });
+        var page = context.Render<SupportTicketDetailPage>(parameters => parameters.Add(component => component.TicketId, "ticket-9"));
+        page.WaitForAssertion(() => Assert.Equal(label, page.FindAll(".support-phase-badge")[1].TextContent));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InFlightTicketUsesReadableStatusAndPhaseOnlyInV4(bool enabled)
+    {
+        using var context = Context(new ConsoleV4Options { Enabled = enabled });
+        var client = context.Services.GetRequiredService<TicketClient>();
+        client.Result = SupportTicketResult.Allowed(client.Result.Value! with
+        {
+            CustomerStatus = "in-progress",
+            Phase = "approval-pending"
+        });
+        var page = context.Render<SupportTicketDetailPage>(parameters => parameters.Add(component => component.TicketId, "ticket-9"));
+        page.WaitForAssertion(() => Assert.Equal(enabled ? "In progress" : "in-progress", page.FindAll(".support-phase-badge")[0].TextContent));
+        Assert.Contains(enabled ? "Approval pending" : "approval-pending", page.Markup);
     }
 
     private static void Capture(string markup, ConsoleV4Options options, string kind) =>
