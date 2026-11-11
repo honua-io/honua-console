@@ -296,7 +296,7 @@
                 <article class="console-panel operate-sync-conflict" data-sync-conflict="@conflict.ConflictId">
                     <div class="console-panel-heading">
                         <div>
-                            <label class="@(V4Enabled ? "console-service-controls" : "console-inline-check")">
+                            <label class="@(V4Enabled ? "console-data-controls" : "console-inline-check")">
                                 <input type="checkbox"
                                        checked="@_selectedConflictIds.Contains(conflict.ConflictId)"
                                        @onchange="e => ToggleConflict(conflict.ConflictId, e)" />
