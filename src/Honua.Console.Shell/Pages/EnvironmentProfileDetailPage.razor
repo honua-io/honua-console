@@ -1,7 +1,7 @@
-@inject IServiceProvider Services
 @inject NavigationManager ConsoleNavigation
 @page "/environments/{ProfileId}"
 @inject IConsoleEnvironmentProfileStore Profiles
+@inject IServiceProvider Services
 
 @if (_profile is null)
 {
@@ -15,12 +15,17 @@
 }
 else
 {
-    <section class="console-page">
+    <section class="console-page @(V4Enabled ? "console-environments-v4" : null)">
         @if (V4Enabled)
         {
+            <link rel="stylesheet" href="_content/Honua.Console.Shell/css/environments-v4.css" />
             <ConsolePageHeading Title="@_profile.DisplayName">
-                <ChildContent><p class="console-kicker">@_profile.EnvironmentKind</p><p>@_profile.ServerBaseUri</p></ChildContent>
-                <Actions><EnvironmentTrustBadge State="_state" /></Actions>
+                <ChildContent>
+                    <p>Diagnostics for the @_profile.EnvironmentKind environment at <span class="console-environment-server">@_profile.ServerBaseUri</span></p>
+                </ChildContent>
+                <Actions>
+                    <EnvironmentTrustBadge State="_state" />
+                </Actions>
             </ConsolePageHeading>
         }
         else
@@ -39,10 +44,10 @@ else
 
         @if (_state?.TrustBlocked == true)
         {
-            <article class="console-panel console-status-danger" role="alert">
+            <div class="console-panel console-status-danger" role="alert">
                 <h2>Environment access blocked</h2>
                 <p class="console-muted">@(_state.Trust?.SanitizedMessage ?? "The certificate changed and must be acknowledged or revalidated.")</p>
-            </article>
+            </div>
         }
 
         <div class="console-section">
@@ -100,6 +105,7 @@ else
 
 @code {
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     [Parameter]
     public string ProfileId { get; set; } = string.Empty;
 

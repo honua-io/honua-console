@@ -413,7 +413,7 @@ public sealed partial class OperateGeoprocessingPageTests
         Assert.Contains("older event", page.Markup);
         if (v4Enabled)
         {
-            CapturePreview("jobs-timeline", page.Markup);
+            V4PagePreview.Capture("jobs-timeline", page.Markup);
         }
     }
 
