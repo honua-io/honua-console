@@ -68,6 +68,8 @@ export default defineConfig({
       Honua__Server__BaseUrl: '',
       Honua__Server__AdminApiKey: '',
       Honua__Server__PublicationIds: '',
+      // The dataset-import task is the experimental workspace surface. Smoke covers that page.
+      Honua__Agent__WorkspaceApiEnabled: 'true',
     },
   },
 });

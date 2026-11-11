@@ -195,6 +195,19 @@ jobs:
       - name: Verify rendered catalog presentation
         run: node e2e/playwright/catalog-preview.mjs
 
+      - name: Verify Settings presentation
+        run: node e2e/playwright/settings-preview.mjs
+
+      - name: Upload Settings presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: settings-presentation
+          path: |
+            artifacts/catalog-preview/settings-v4*
+            artifacts/catalog-preview/settings-legacy*
+          if-no-files-found: error
+
       - name: Verify rendered services presentation
         run: node e2e/playwright/data-services-preview.mjs
         env:

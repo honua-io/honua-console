@@ -141,31 +141,6 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         return await _transport.SendAsync(call, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<HonuaAdminEndpointResult<HonuaAdminImportResult>> ImportFileAsync(
-        byte[] fileContent,
-        string fileName,
-        string tableName,
-        string? targetSchema,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(fileContent);
-        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-
-        var call = new AdminEndpointCall<HonuaAdminImportResult>(
-            () => Request(
-                HttpMethod.Post,
-                "/api/v1/admin/import/upload",
-                ImportUploadForm(new ImportUpload(fileContent, fileName, tableName, targetSchema))),
-            "POST /api/v1/admin/import/upload",
-            new(
-                AdminFailureMappings.AnyNonEmptyServerMessage,
-                AdminResponseBodies.Optional<HonuaAdminImportResult, HonuaAdminImportResult>(
-                BareBody(AdminBodyRead.Buffered, "import-result"),
-                result => result ?? new HonuaAdminImportResult())));
-        return await _transport.SendAsync(call, cancellationToken).ConfigureAwait(false);
-    }
-
     public async Task<HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>> DiscoverExternalServiceAsync(
         string url,
         HonuaAdminExternalServiceCredentials? credentials = null,
@@ -466,10 +441,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
 
     private static MultipartFormDataContent ImportUploadForm(ImportUpload upload)
     {
-        var form = new MultipartFormDataContent();
-        var fileEntry = new ByteArrayContent(upload.FileContent);
-        fileEntry.Headers.TryAddWithoutValidation("Content-Type", "application/octet-stream");
-        form.Add(fileEntry, "file", upload.FileName);
+        var form = ImportFileForm(upload.FileContent, upload.FileName);
         form.Add(new StringContent(upload.TableName), "TableName");
         if (!string.IsNullOrWhiteSpace(upload.TargetSchema))
         {
@@ -952,6 +924,12 @@ public sealed record HonuaAdminExternalLayerCandidate
 
 public sealed record HonuaAdminImportResult
 {
+    public int? SourceSrid { get; init; }
+
+    public int? StoredSrid { get; init; }
+
+    public bool? Reprojected { get; init; }
+
     public bool Success { get; init; }
 
     public long FeatureCount { get; init; }
