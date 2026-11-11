@@ -102,7 +102,7 @@ public sealed class LayerRelationshipsAndTimeInfoRenderTests
         var registry = new ConsoleAgentContextRegistry();
         ctx.Services.AddSingleton(registry);
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
-        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerToolsMountedNavigationManager());
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager("/console/"));
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(LayerData());
         ctx.Services.AddSingleton<IConsoleLayerRelationshipsOperation>(new FakeRelationships
         {

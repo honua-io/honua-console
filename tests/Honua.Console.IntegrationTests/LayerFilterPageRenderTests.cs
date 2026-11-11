@@ -21,7 +21,7 @@ public sealed class LayerFilterPageRenderTests
         var filter = new FilterOperation();
         ctx.Services.AddSingleton(registry);
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
-        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerToolsMountedNavigationManager());
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager("/console/"));
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(FixedServicesDataSource.WithLayer(
             new OperateServiceLayerProjection(1, "Parcels", "polygon", ResourceId, "parcels")));
         ctx.Services.AddSingleton<IConsoleLayerFilterOperation>(filter);
@@ -114,7 +114,7 @@ public sealed class LayerFilterPageRenderTests
         var filter = new FilterOperation();
         ctx.Services.AddSingleton(registry);
         ctx.Services.AddSingleton(options);
-        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerToolsMountedNavigationManager());
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager("/console/"));
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FixedServicesDataSource([
             new OperateServiceDetail("cadastre", "cadastre", "FeatureServer", "Running", "honua-server", [
                 new(1, "Parcels", "polygon", ResourceId, "parcels"),
@@ -141,16 +141,5 @@ public sealed class LayerFilterPageRenderTests
             SavedExpression = null;
             return Task.FromResult(new ConsoleSetLayerFilterResult { Succeeded = true, State = "Cleared" });
         }
-    }
-}
-
-internal sealed class LayerToolsMountedNavigationManager : Microsoft.AspNetCore.Components.NavigationManager
-{
-    public LayerToolsMountedNavigationManager() => Initialize("http://localhost/console/", "http://localhost/console/");
-
-    protected override void NavigateToCore(string uri, bool forceLoad)
-    {
-        Uri = ToAbsoluteUri(uri).AbsoluteUri;
-        NotifyLocationChanged(false);
     }
 }

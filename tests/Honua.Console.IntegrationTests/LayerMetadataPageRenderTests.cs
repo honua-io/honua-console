@@ -114,7 +114,7 @@ public sealed class LayerMetadataPageRenderTests
         var registry = new ConsoleAgentContextRegistry();
         ctx.Services.AddSingleton(registry);
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
-        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerToolsMountedNavigationManager());
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager("/console/"));
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/console/operate/layers/conn-1-layer-1/metadata");
         var page = ctx.Render<OperateLayerMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
         page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-editing-save]")));
