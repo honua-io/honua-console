@@ -1,7 +1,3 @@
-/* Share configuration keeps the existing forms and commands under the single v4 flag. */
-.console-shell[data-console-v4="true"] .share-manage .console-page-heading-v4 {
-    align-items: flex-start;
-}
 .console-shell[data-console-v4="true"] .share-manage .console-chip-row {
     margin-top: var(--space-3);
 }
@@ -26,7 +22,9 @@
     .console-shell[data-console-v4="true"] .share-manage .console-page-heading-actions {
         width: 100%;
     }
-    .console-shell[data-console-v4="true"] .share-manage .console-action-row {
+    .console-shell[data-console-v4="true"] .share-manage .console-toolbar {
         flex-wrap: wrap;
+        gap: var(--space-2);
+        align-items: flex-end;
     }
 }

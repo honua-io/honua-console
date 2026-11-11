@@ -19,6 +19,13 @@ await runV4PagePresentation({
     assert.equal(await page.locator("[data-share-tab]").count(), 5);
     assert.equal(await page.locator("[data-share-sidebar]").count(), 1);
     assert.equal(await page.getByRole("button", { name: "Open share access", exact: true }).count(), 1);
+    if (enabled && name.includes("-link-") && page.viewportSize().width === 390) {
+      const expiry = await page.locator("input[type='datetime-local']").boundingBox();
+      const mint = await page.getByRole("button", { name: "Mint token", exact: true }).boundingBox();
+      assert.ok(expiry && mint);
+      assert.ok(mint.y >= expiry.y + expiry.height || mint.x >= expiry.x + expiry.width || expiry.x >= mint.x + mint.width,
+        "Mint token must not overlap the expiry field");
+    }
     if (enabled) {
       const input = page.locator("input[placeholder='item-...']");
       assert.equal(await input.evaluate(element => getComputedStyle(element).borderRadius), "6px");

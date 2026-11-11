@@ -20,7 +20,7 @@
 }
 
 /* Shared focus ring: keyboard focus uses :focus-visible. Chromium's native date editor
-   needs :focus-within on Share expiry inputs to keep the whole control outlined.
+   needs :focus-within on date/time inputs to keep the whole control outlined.
    Box-shadow follows rounded corners; outline supports forced-colors modes. */
 a:focus-visible,
 button:focus-visible,
@@ -32,13 +32,12 @@ summary:focus-visible,
 [role="button"]:focus-visible,
 [role="option"]:focus-visible,
 [role="tab"]:focus-visible,
-.share-manage input[type="datetime-local"]:focus-within {
+input[type="datetime-local"]:focus-within {
     outline: 2px solid transparent;
     outline-offset: 2px;
     box-shadow: var(--honua-focus-ring);
     border-radius: 4px;
 }
-
 
 
 /* Page-title focus treatment. <FocusOnNavigate Selector="h1"> (ConsoleRoutes) adds tabindex="-1" to the
@@ -5631,7 +5630,6 @@ p {
     border-color: #8fcfa6;
     background: #ecf7f0;
 }
-
 
 /* ============================================================================
    Shared Shell components: MapPreview, PublishWizard, StudioAiConversation.
