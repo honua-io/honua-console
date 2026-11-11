@@ -96,7 +96,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/layers                Layers list — dedicated page (OperateLayersPage) owns this route
 /operate/layers/:id            Layer configuration (default + ?tab=configure); :id is the canonical resource id or the admin layer id publishing returns
 /operate/layers/:id/style      Layer style editor
-/operate/settings              Auth providers, API keys, CORS, license, server info, and catalog endpoints
+/operate/settings              Read-only runtime configuration and policy; v4 uses the shared Server configuration panel
 /operate/catalogs              Catalogs · discovery-endpoints surface (GeoServices service catalog/OGC/OData/STAC/DCAT endpoint cards, auto-default-on vs opt-in, feeders, per-endpoint issues; bound to the catalog discovery-endpoints registry honua-server#1279, else missing-binding). DISTINCT from the singular content catalog at /catalog.
 /operate/catalogs/:key         Catalogs · one discovery endpoint drill-down (Items/Settings/Access/Activity/Validation tabs + mirrored-items table; honua-server#1279)
 /operate/catalogs/:key/items/:itemId  Catalogs · single catalog item editor (auto-mirror item: derived identity, catalog-only presentation, service bindings, standards mapping; honua-server#1279)
@@ -1185,7 +1185,9 @@ The primary rail follows Home (`/`), Datasets (`/operate/data`), realtime Maps &
 
 Legacy Studio standalone builder URLs now show direct guidance to `/studio` or `/studio/processes`. `/operate/ai` opens the same primary conversation rather than a separate classifier/generator. Real operations and automation routes remain available. The active editor dependency stays in `honua-studio` until a separately approved migration.
 
-`/operate/resources/import/task` contributes a browser file to the immutable dataset-import task selected in the shared conversation. It uses the pinned SDK and authenticated bounded chunk capability, verifies the complete file digest, and reconciles original transfer receipts after interrupted requests. A retained source receipt does not establish import acceptance. The surface refuses when the deployment or pinned SDK does not expose the canonical transport.
+`/operate/data/new?source=file` opens the direct Admin import form at `/operate/resources/import` by default. The form previews the file, shows the detected coordinate system, keeps that system by default, and accepts an explicit supported target or a required source override when detection is unavailable. Preview, lookup and import retain the reviewed operator and environment binding.
+
+When `Honua:Agent:WorkspaceApiEnabled` is true, `/operate/resources/import/task` contributes a browser file to the immutable dataset-import task selected in the shared conversation. It uses the pinned SDK and authenticated bounded chunk capability, verifies the complete file digest, and reconciles original transfer receipts after interrupted requests. A retained source receipt does not establish import acceptance. The surface refuses when the deployment or pinned SDK does not expose the canonical transport.
 
 ### Active Studio publication maps
 
