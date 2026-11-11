@@ -28,7 +28,7 @@
         {
             return;
         }
-        var enabled = V4.Enabled && !ConsoleRoutes.IsEmbed(Navigation);
+        var enabled = V4.Enabled && !ConsoleEmbedRoutes.IsEmbed(Navigation);
         var user = state.User;
         var id = user.Identity?.IsAuthenticated == true
             ? user.AccountId()

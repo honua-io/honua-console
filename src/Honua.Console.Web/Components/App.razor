@@ -5,7 +5,7 @@
     <ChildContent>
         <ConsoleTheme />
         <Routes />
-        @if (!ConsoleRoutes.IsEmbed(Navigation))
+        @if (!ConsoleEmbedRoutes.IsEmbed(Navigation))
         {
             <Honua.Console.Shell.Layout.ConsoleConversationDrawer />
         }
