@@ -334,6 +334,47 @@ jobs:
             artifacts/catalog-preview/sensors-*.png
             artifacts/catalog-preview/versions-*.png
 
+      - name: Verify rendered datasets presentation
+        run: node e2e/playwright/data-datasets-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload datasets presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-datasets-presentation
+          path: |
+            artifacts/catalog-preview/data-datasets*.png
+            artifacts/catalog-preview/data-dataset-*.png
+            artifacts/catalog-preview/data-conflicts-*.png
+          if-no-files-found: error
+
+      - name: Verify rendered releases presentation
+        run: node e2e/playwright/data-releases-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload releases presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-releases-presentation
+          path: artifacts/catalog-preview/releases-*.png
+          if-no-files-found: error
+
+      - name: Verify rendered temporal presentation
+        run: node e2e/playwright/data-temporal-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload temporal presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-temporal-presentation
+          path: artifacts/catalog-preview/temporal-*.png
+
       - name: Verify rendered service detail presentation
         run: node e2e/playwright/data-service-detail-preview.mjs
         env:
