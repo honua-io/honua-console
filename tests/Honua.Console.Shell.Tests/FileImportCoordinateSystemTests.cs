@@ -235,6 +235,61 @@ public sealed class FileImportCoordinateSystemTests
         Assert.Empty(result.Warnings);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.RequestEntityTooLarge, """{"title":"Request payload exceeds maximum allowed size","detail":"Maximum payload size is 10,485,760 bytes"}""")]
+    [InlineData(HttpStatusCode.BadRequest, """{"detail":"File size exceeds maximum allowed size of 10,485,760 bytes."}""")]
+    public async Task PreviewSizeCeilingKeepsTheBindingAndRequiresAnExplicitSource(HttpStatusCode status, string body)
+    {
+        using var handler = new ImportHandler { Status = status, RawResponse = body };
+        using var http = new HttpClient(handler);
+        using var client = Client(http);
+
+        var result = await new HonuaServerConsoleFileImportOperation(client, new Authority()).PreviewAsync([1, 2, 3], "large.gpkg");
+
+        Assert.True(result.Succeeded, result.Detail);
+        Assert.Equal("unknown", result.CoordinateSystem!.DetectionMethod);
+        Assert.True(result.CoordinateSystem.RequiresSourceOverride);
+        Assert.Null(result.CoordinateSystem.EffectiveSourceSrid);
+        Assert.Null(result.CoordinateSystem.DetectedSrid);
+        Assert.Equal("operator-environment", result.AuthorityBinding);
+        Assert.Contains(ConsoleFileImportPreview.PreviewTooLargeWarning, result.Warnings);
+        Assert.Equal("/prefix/api/v1/admin/import/preview", handler.Path);
+    }
+
+    [Fact]
+    public async Task PayloadTooLargeWithoutASizePhraseStillRequiresAnExplicitSource()
+    {
+        using var handler = new ImportHandler { Status = HttpStatusCode.RequestEntityTooLarge, RawResponse = "<html>413</html>" };
+        using var http = new HttpClient(handler);
+        using var client = Client(http);
+
+        var result = await new HonuaServerConsoleFileImportOperation(client, new Authority()).PreviewAsync([1, 2, 3], "large.gpkg");
+
+        Assert.True(result.Succeeded, result.Detail);
+        Assert.DoesNotContain("maximum", result.Detail ?? "", StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("unknown", result.CoordinateSystem!.DetectionMethod);
+        Assert.True(result.CoordinateSystem.RequiresSourceOverride);
+        Assert.Null(result.CoordinateSystem.EffectiveSourceSrid);
+        Assert.Null(result.CoordinateSystem.DetectedSrid);
+        Assert.Equal("operator-environment", result.AuthorityBinding);
+        Assert.Contains(ConsoleFileImportPreview.PreviewTooLargeWarning, result.Warnings);
+    }
+
+    [Fact]
+    public async Task OrdinaryPreviewRejectionDoesNotBecomeAnExplicitSource()
+    {
+        using var handler = new ImportHandler { Status = HttpStatusCode.BadRequest, RawResponse = """{"detail":"Failed to preview file"}""" };
+        using var http = new HttpClient(handler);
+        using var client = Client(http);
+
+        var result = await new HonuaServerConsoleFileImportOperation(client, new Authority()).PreviewAsync([1], "broken.gpkg");
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.AuthorityBinding);
+        Assert.Null(result.CoordinateSystem);
+        Assert.Equal("Failed to preview file", result.Detail);
+    }
+
     [Fact]
     public async Task ExplicitTargetCannotInventAnUnknownSource()
     {
@@ -290,8 +345,9 @@ public sealed class FileImportCoordinateSystemTests
                     Fields[part.Headers.ContentDisposition!.Name!.Trim('"')] = await part.ReadAsStringAsync(cancellationToken);
             OnSend?.Invoke();
             if (LoseResponse) throw new HttpRequestException("response lost");
+            if (Status != HttpStatusCode.OK)
+                return new(Status) { Content = new StringContent(RawResponse ?? """{"message":"registry unavailable"}""", System.Text.Encoding.UTF8, "application/json") };
             if (RawResponse is { } raw) return new(HttpStatusCode.OK) { Content = new StringContent(raw) };
-            if (Status != HttpStatusCode.OK) return new(Status) { Content = JsonContent.Create(new { message = "registry unavailable" }) };
             if (Path.Contains("coordinate-systems", StringComparison.Ordinal))
                 return Json(new { items = new[] { Crs }, hasMore = false });
             if (Path.EndsWith("preview", StringComparison.Ordinal))

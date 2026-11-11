@@ -42,6 +42,9 @@ public sealed record ConsoleFileImportResult : ConsoleOperationResult<ConsoleFil
 
 public sealed record ConsoleFileImportPreview : ConsoleOperationResult<ConsoleFileImportPreview>
 {
+    public const string PreviewTooLargeWarning =
+        "This file is larger than the server can check before import. Choose its source coordinate system. The server reports the system it stored.";
+
     public HonuaAdminImportCoordinateSystem? CoordinateSystem { get; init; }
 
     public string? AuthorityBinding { get; init; }

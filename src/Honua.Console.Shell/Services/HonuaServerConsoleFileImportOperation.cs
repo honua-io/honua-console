@@ -29,6 +29,23 @@ public sealed class HonuaServerConsoleFileImportOperation(
                 AuthorityBinding = binding,
                 Warnings = result.Data.Warnings ?? []
             };
+        if (IsPreviewTooLarge(result.Issue))
+        {
+            var undeclared = new HonuaAdminImportCoordinateSystem
+            {
+                DetectionMethod = "unknown",
+                RequiresSourceOverride = true
+            };
+            if (IsUsable(undeclared))
+                return new()
+                {
+                    Succeeded = true,
+                    State = "Source required",
+                    CoordinateSystem = undeclared,
+                    AuthorityBinding = binding,
+                    Warnings = [ConsoleFileImportPreview.PreviewTooLargeWarning]
+                };
+        }
         return new()
         {
             State = result.Issue?.State ?? "Unavailable",
@@ -97,6 +114,16 @@ public sealed class HonuaServerConsoleFileImportOperation(
             };
         }
         return new() { State = result.Issue?.State ?? "Unavailable", Detail = result.Issue?.Detail ?? "The server did not accept the file-import request." };
+    }
+
+    private static bool IsPreviewTooLarge(HonuaAdminEndpointIssue? issue)
+    {
+        if (issue is null) return false;
+        if (issue.StatusCode == 413) return true;
+        var detail = issue.Detail;
+        return detail.Contains("maximum allowed size", StringComparison.OrdinalIgnoreCase)
+            || detail.Contains("maximum payload size", StringComparison.OrdinalIgnoreCase)
+            || detail.Contains("payload exceeds", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsUsable(HonuaAdminImportCoordinateSystem system) =>

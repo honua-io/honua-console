@@ -141,6 +141,34 @@ public sealed class ImportCoordinateSystemRenderTests
     }
 
     [Fact]
+    public async Task FileBetweenPreviewAndUploadLimitsImportsAfterAnExplicitSource()
+    {
+        using var context = new BunitContext();
+        var import = Register(context);
+        import.UncheckedWhenLargerThanPreview = true;
+        var page = context.Render<OperateImportFilePage>();
+        const long size = 20L * 1024 * 1024;
+        await page.InvokeAsync(() => page.FindComponent<InputFile>().Instance.OnChange.InvokeAsync(
+            new InputFileChangeEventArgs([new SizedFile("large.gpkg", size)])));
+
+        page.WaitForAssertion(() => Assert.Contains(ConsoleFileImportPreview.PreviewTooLargeWarning, page.Markup));
+        Assert.Equal(size, import.PreviewLength);
+        Assert.True(page.Find("button.console-button:not(.console-button-secondary)").HasAttribute("disabled"));
+        var source = page.FindComponent<CoordinateSystemPicker>();
+        source.Find("input").Input("2193");
+        source.Find("button").Click();
+        source.Find("select").Change("2193");
+        page.Find("button.console-button:not(.console-button-secondary)").Click();
+
+        page.WaitForAssertion(() => Assert.NotNull(import.Command));
+        Assert.Equal(2193, import.Command!.SourceSrid);
+        Assert.Null(import.Command.ExpectedSourceSrid);
+        Assert.Null(import.Command.TargetSrid);
+        Assert.Equal("operator-environment", import.Command.AuthorityBinding);
+        Assert.Equal(size, import.Command.FileContent.LongLength);
+    }
+
+    [Fact]
     public async Task OversizeFileExplainsTheLimitWithoutAnImpossibleRetry()
     {
         using var context = new BunitContext();
@@ -200,6 +228,43 @@ public sealed class ImportCoordinateSystemRenderTests
             throw new IOException("The device could not read the selected file.");
     }
 
+    private sealed class SizedFile(string name, long size) : IBrowserFile
+    {
+        public string Name => name;
+        public DateTimeOffset LastModified => DateTimeOffset.UnixEpoch;
+        public long Size => size;
+        public string ContentType => "application/octet-stream";
+        public Stream OpenReadStream(long maxAllowedSize = 512000, CancellationToken cancellationToken = default) =>
+            size > maxAllowedSize
+                ? throw new InvalidOperationException("The selected file exceeds the read limit.")
+                : new ZeroStream(size);
+    }
+
+    private sealed class ZeroStream(long length) : Stream
+    {
+        private long _position;
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => length;
+        public override long Position { get => _position; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => ReadInto(buffer.AsSpan(offset, count));
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ReadInto(buffer.Span));
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        private int ReadInto(Span<byte> buffer)
+        {
+            var count = (int)Math.Min(buffer.Length, length - _position);
+            if (count <= 0) return 0;
+            buffer[..count].Clear();
+            _position += count;
+            return count;
+        }
+    }
+
     private static ImportOperation Register(BunitContext context)
     {
         context.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -222,13 +287,27 @@ public sealed class ImportCoordinateSystemRenderTests
         public ConsoleFileImportCommand? Command { get; private set; }
         public ConsoleFileImportResult Outcome { get; set; } = new()
         { Succeeded = true, State = "Imported", StoredSrid = 2193, Reprojected = false, TableName = "projected" };
+        public bool UncheckedWhenLargerThanPreview { get; set; }
+        public long PreviewLength { get; private set; }
         public Task<OperateSectionResult<HonuaAdminCoordinateSystemSearch>>? Search { get; set; }
         public OperateSectionResult<HonuaAdminCoordinateSystemSearch> Results => OperateSectionResult<HonuaAdminCoordinateSystemSearch>.Allowed(new()
         { Items = [new() { Code = 2193, Name = "New Zealand Transverse Mercator 2000" }, new() { Code = 4326, Name = "WGS 84" }] });
         public Task<IReadOnlyList<string>> GetSupportedExtensionsAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<string>>([".gpkg"]);
         public Task<ConsoleFileImportPreview> PreviewAsync(byte[] bytes, string name, CancellationToken cancellationToken = default)
-            => Task.FromResult(new ConsoleFileImportPreview
+        {
+            PreviewLength = bytes.LongLength;
+            if (UncheckedWhenLargerThanPreview && bytes.LongLength > 10L * 1024 * 1024)
+                return Task.FromResult(new ConsoleFileImportPreview
+                {
+                    Succeeded = true,
+                    State = "Source required",
+                    CoordinateSystem = new() { DetectionMethod = "unknown", RequiresSourceOverride = true },
+                    AuthorityBinding = "operator-environment",
+                    Warnings = [ConsoleFileImportPreview.PreviewTooLargeWarning]
+                });
+            return Task.FromResult(new ConsoleFileImportPreview
             { Succeeded = true, CoordinateSystem = System, AuthorityBinding = "operator-environment" });
+        }
         public Task<OperateSectionResult<HonuaAdminCoordinateSystemSearch>> SearchCoordinateSystemsAsync(string query, string binding, CancellationToken cancellationToken = default) =>
             Search ?? Task.FromResult(Results);
         public Task<ConsoleFileImportResult> ImportAsync(ConsoleFileImportCommand command, CancellationToken cancellationToken = default)
