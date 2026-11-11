@@ -5,6 +5,10 @@
 @inject IOperateTransitionDataSource OperateData
 @inject IServiceConfigurationOperation ServiceConfig
 @inject IConsoleNotificationService Notifications
+@inject IServiceProvider Services
+@inject NavigationManager Navigation
+
+<ConsoleAgentContext Context="@AgentContext" />
 
 <section class="console-page" data-service-name="@ServiceName" data-service-loaded="@(_service is not null)">
     @if (_service is null)
@@ -13,191 +17,49 @@
     }
     else
     {
-        <fieldset disabled="@(!_interactiveReady)" aria-label="Service controls" class="console-service-controls">
-        <div class="console-page-heading" data-service-detail="@_service.Name">
-            <p class="console-kicker">Operate / Services</p>
-            <h1>@_service.DisplayName</h1>
-            <p>@_service.MetadataOwnership</p>
-        </div>
-
-        <div class="console-panel-grid">
-            <article class="console-panel">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">Runtime settings</p>
-                        <h2>Service controls</h2>
-                    </div>
-                    <span class="console-status">@_service.RuntimeStatus</span>
-                </div>
-                <ConsoleTableRegion Class="console-table-wrap" Label="Service controls">
-                    <table class="console-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Value</th>
-                                <th>Apply scope</th>
-                                <th>Restart</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var setting in _service.RuntimeSettings)
-                            {
-                                <tr>
-                                    <td>@setting.Name</td>
-                                    <td>@setting.Value</td>
-                                    <td>@RuntimeSettingScope(setting)</td>
-                                    <td>@(setting.RequiresRestart ? "Required" : "Not required")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </ConsoleTableRegion>
-            </article>
-
-            <article class="console-panel">
-                <p class="console-kicker">Protocols</p>
-                <h2>Service endpoints</h2>
-                <dl class="console-definition-list console-protocols">
-                    @foreach (var slot in _service.PublicationSlots)
-                    {
-                        <div class="console-protocol-pill">
-                            <dt title="@slot.Name">@slot.Name</dt>
-                            <dd>
-                                <strong title="@slot.Status">@slot.Status</strong>
-                                <small title="@slot.Url">@(slot.Url ?? "No single service URL")</small>
-                            </dd>
-                        </div>
-                    }
-                </dl>
-            </article>
-        </div>
-
-        @foreach (var reason in _service.FolderMutationIssues)
-        {
-            <p class="console-state-warning" role="status" data-folder-reconciliation>@reason</p>
-        }
-        <Honua.Console.Shell.Components.Operate.FolderManagement ServiceName="@ServiceName" CurrentFolderId="@_service.FolderId" OnSaved="OnParametersSetAsync" />
-        <DiscoveryMetadataEditor Address="@Honua.Console.Contracts.DiscoveryMetadataAddress.ForService(ServiceName)" />
-
-        <section class="console-section" data-service-config>
-            <div class="console-page-heading">
-                <p class="console-kicker">Protocols &amp; access</p>
-                <h2>How this service is served</h2>
-                <p>Enable the protocols this service exposes (FeatureServer, MapServer, WMS, WFS, WMTS, OGC API, OData, vector tiles, STAC) and set whether it is reachable anonymously.</p>
-            </div>
-
-            @if (!_settings.Bound)
+        <fieldset disabled="@(!_interactiveReady)" aria-label="Service controls" class="console-data-controls">
+            @if (V4Enabled)
             {
-                <div class="console-panel console-state-neutral" role="status">
-                    <p class="console-kicker">Missing binding</p>
-                    <p>@_settings.Detail</p>
+                <div data-service-detail="@_service.Name">
+                    <ConsolePageHeading Title="@_service.DisplayName">
+                        <p><code>@_service.Name</code> · @_service.MetadataOwnership</p>
+                    </ConsolePageHeading>
                 </div>
+                <ConsoleTabs Tabs="ServiceTabs" Label="Service settings" @bind-SelectedId="_selectedTab" />
+                <section id="service-layers-panel" role="tabpanel" aria-labelledby="service-layers-tab" hidden="@(_selectedTab != "service-layers-tab")" tabindex="0">
+                    @Layers
+                </section>
+                <section id="service-protocols-panel" role="tabpanel" aria-labelledby="service-protocols-tab" hidden="@(_selectedTab != "service-protocols-tab")" tabindex="0">
+                    @Endpoints
+                    @if (_selectedTab == "service-protocols-tab") { @ConfigurationState }
+                    @if (_settings.Bound) { @ProtocolEditor }
+                </section>
+                <section id="service-access-panel" role="tabpanel" aria-labelledby="service-access-tab" hidden="@(_selectedTab != "service-access-tab")" tabindex="0">
+                    @if (_selectedTab == "service-access-tab") { @ConfigurationState }
+                    @if (_settings.Bound) { @AccessEditor }
+                </section>
+                <section id="service-limits-panel" role="tabpanel" aria-labelledby="service-limits-tab" hidden="@(_selectedTab != "service-limits-tab")" tabindex="0">
+                    @Runtime
+                    @if (_selectedTab == "service-limits-tab" && !_settings.Bound) { @ConfigurationState }
+                    @if (_settings.Bound) { @RenderingLimits }
+                </section>
+                @Administration
             }
             else
             {
-                @if (_configResult is { } result)
-                {
-                    <div class="console-panel @(result.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-config-result>
-                        <p class="console-kicker">@result.State</p>
-                        <p>@result.Detail</p>
-                    </div>
-                }
-
-                <div class="console-panel-grid">
-                    <article class="console-panel">
-                        <p class="console-kicker">Protocols</p>
-                        <h3>Enabled protocols</h3>
-                        <div class="console-check-grid">
-                            @foreach (var protocol in _availableProtocols)
-                            {
-                                <label class="console-inline-check">
-                                    <input type="checkbox" checked="@_selectedProtocols.Contains(protocol)"
-                                           @onchange="e => ToggleProtocol(protocol, (bool)e.Value!)"
-                                           data-protocol="@protocol" />
-                                    <span>@protocol</span>
-                                </label>
-                            }
-                        </div>
-                        <div class="console-action-row">
-                            <button class="console-button" type="button" disabled="@(_savingProtocols || _selectedProtocols.Count == 0)"
-                                    @onclick="SaveProtocolsAsync" data-save-protocols>
-                                @(_savingProtocols ? "Saving…" : "Save protocols")
-                            </button>
-                        </div>
-                    </article>
-
-                    <article class="console-panel">
-                        <p class="console-kicker">Access</p>
-                        <h3>Access policy</h3>
-                        <label class="console-inline-check">
-                            <input type="checkbox" @bind="_allowAnonymous" data-allow-anonymous />
-                            <span>Allow anonymous read</span>
-                        </label>
-                        <label class="console-inline-check">
-                            <input type="checkbox" @bind="_allowAnonymousWrite" data-allow-anonymous-write />
-                            <span>Allow anonymous write</span>
-                        </label>
-                        <label class="console-field">
-                            <span>Allowed read roles</span>
-                            <input type="text" @bind="_allowedRoles" data-allowed-roles
-                                   placeholder="viewer, editor" />
-                            <small>Comma- or newline-separated role names granted read access. Leave blank to clear.</small>
-                        </label>
-                        <label class="console-field">
-                            <span>Allowed write roles</span>
-                            <input type="text" @bind="_allowedWriteRoles" data-allowed-write-roles
-                                   placeholder="editor, admin" />
-                            <small>Comma- or newline-separated role names granted write access. Leave blank to clear.</small>
-                        </label>
-                        <div class="console-action-row">
-                            <button class="console-button" type="button" disabled="@_savingAccess"
-                                    @onclick="SaveAccessAsync" data-save-access>
-                                @(_savingAccess ? "Saving…" : "Save access policy")
-                            </button>
-                        </div>
-                    </article>
-
-                    <article class="console-panel" data-mapserver-unsupported>
-                        <h3>MapServer render settings</h3>
-                        <HonuaState Kind="unavailable" Title="Unsupported"
-                                    Message="This server does not support editing MapServer render settings. The settings read reports compatibility defaults." HeadingLevel="4" />
-                    </article>
+                <div class="console-page-heading" data-service-detail="@_service.Name">
+                    <p class="console-kicker">Operate / Services</p>
+                    <h1>@_service.DisplayName</h1>
+                    <p>@_service.MetadataOwnership</p>
                 </div>
+                <div class="console-panel-grid">
+                    @Runtime
+                    @Endpoints
+                </div>
+                @Administration
+                @Configuration
+                @Layers
             }
-        </section>
-
-        <section class="console-section">
-            <div class="console-page-heading">
-                <p class="console-kicker">Layers</p>
-                <h2>Layers</h2>
-            </div>
-            <ConsoleTableRegion Class="console-table-wrap" Label="Service layers">
-                <table class="console-table">
-                    <thead>
-                        <tr>
-                            <th>Layer ID</th>
-                            <th>Name</th>
-                            <th>Geometry</th>
-                            <th>Canonical metadata owner</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var layer in _service.Layers)
-                        {
-                            <tr data-layer-id="@layer.LayerId">
-                                <td>@layer.LayerId</td>
-                                <td>@layer.Name</td>
-                                <td>@layer.Geometry</td>
-                                <td>
-                                    <a href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/resources/{layer.CanonicalResourceId}")">@layer.CanonicalResourceName</a>
-                                    <small>@layer.CanonicalResourceId</small>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </ConsoleTableRegion>
-        </section>
         </fieldset>
     }
 
@@ -208,135 +70,279 @@
     [Parameter]
     public string ServiceName { get; set; } = string.Empty;
 
-    private bool _interactiveReady;
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private string _selectedTab = "service-layers-tab";
+    private static readonly IReadOnlyList<ConsoleTab> ServiceTabs =
+    [
+        new("service-layers-tab", "Layers", "service-layers-panel"),
+        new("service-protocols-tab", "Protocols", "service-protocols-panel"),
+        new("service-access-tab", "Access", "service-access-panel"),
+        new("service-limits-tab", "Limits and rendering", "service-limits-panel")
+    ];
 
-    protected override void OnAfterRender(bool firstRender)
-    {
-        if (firstRender)
+    private RenderFragment Runtime => @<text>
+        @if (V4Enabled)
         {
-            _interactiveReady = true;
-            StateHasChanged();
-        }
-    }
-
-    private OperateServiceDetail? _service;
-    private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
-
-    // Curated fallback protocol set used when the server doesn't enumerate AvailableProtocols. Mirrors
-    // honua-server's ServiceProtocols constants (the operator-facing serving protocols).
-    private static readonly string[] FallbackProtocols =
-    {
-        "FeatureServer", "MapServer", "OgcFeatures", "Wms", "Wfs20", "Wmts",
-        "OData", "OGC-API-Tiles", "Stac"
-    };
-
-    private ServiceSettingsView _settings = ServiceSettingsView.Unbound(string.Empty, "Loading…");
-    private IReadOnlyList<string> _availableProtocols = Array.Empty<string>();
-    private readonly HashSet<string> _selectedProtocols = new(StringComparer.OrdinalIgnoreCase);
-    private bool _allowAnonymous;
-    private bool _allowAnonymousWrite;
-    private string _allowedRoles = string.Empty;
-    private string _allowedWriteRoles = string.Empty;
-    private bool _savingProtocols;
-    private bool _savingAccess;
-    private ServiceConfigurationResult? _configResult;
-
-
-
-    protected override async Task OnParametersSetAsync()
-    {
-        var view = await OperateData.GetServicesViewAsync();
-        _service = view.Services.FirstOrDefault(
-            service => string.Equals(service.Name, ServiceName, StringComparison.OrdinalIgnoreCase));
-        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Services", "Layers");
-
-        await LoadSettingsAsync();
-    }
-
-    private async Task LoadSettingsAsync()
-    {
-        _settings = await ServiceConfig.GetSettingsAsync(ServiceName);
-        _availableProtocols = _settings.AvailableProtocols.Count > 0
-            ? _settings.AvailableProtocols
-            : FallbackProtocols;
-        _selectedProtocols.Clear();
-        foreach (var protocol in _settings.EnabledProtocols)
-        {
-            _selectedProtocols.Add(protocol);
-        }
-
-        _allowAnonymous = _settings.AllowAnonymous;
-        _allowAnonymousWrite = _settings.AllowAnonymousWrite;
-        _allowedRoles = string.Join(", ", _settings.AllowedRoles);
-        _allowedWriteRoles = string.Join(", ", _settings.AllowedWriteRoles);
-
-
-    }
-
-    private static string RuntimeSettingScope(OperateRuntimeSetting setting) =>
-        setting.Name.StartsWith("mapServer.", StringComparison.OrdinalIgnoreCase) ? "Compatibility default" : setting.ApplyScope;
-
-    private static string[] ParseRoles(string? raw) =>
-        (raw ?? string.Empty)
-            .Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-    private void ToggleProtocol(string protocol, bool enabled)
-    {
-        if (enabled)
-        {
-            _selectedProtocols.Add(protocol);
+            <ConsolePanel Title="Service controls" HeadingId="service-runtime-heading">
+                <ChildContent>@RuntimeContent</ChildContent>
+                <Actions><span class="console-status">@_service!.RuntimeStatus</span></Actions>
+            </ConsolePanel>
         }
         else
         {
-            _selectedProtocols.Remove(protocol);
+            <article class="console-panel">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Runtime settings</p>
+                        <h2>Service controls</h2>
+                    </div>
+                    <span class="console-status">@_service!.RuntimeStatus</span>
+                </div>
+                @RuntimeContent
+            </article>
         }
+    </text>;
 
-        _configResult = null;
-    }
+    private RenderFragment RuntimeContent => @<text>
+        <ConsoleTableRegion Class="console-table-wrap" Label="@(V4Enabled ? "Runtime setting values" : "Service controls")">
+            <table class="console-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Value</th>
+                        <th>Apply scope</th>
+                        <th>Restart</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var setting in _service!.RuntimeSettings)
+                    {
+                        <tr>
+                            <td>@setting.Name</td>
+                            <td>@setting.Value</td>
+                            <td>@RuntimeSettingScope(setting)</td>
+                            <td>@(setting.RequiresRestart ? "Required" : "Not required")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </ConsoleTableRegion>
+    </text>;
 
-    private Task SaveProtocolsAsync()
-    {
-        _configResult = null;
-        return Notifications.RunGuardedAsync(
-            async () =>
+    private RenderFragment Endpoints => @<text>
+        @if (V4Enabled)
+        {
+            <ConsolePanel Title="Service endpoints" HeadingId="service-endpoints-heading">
+                @EndpointsContent
+            </ConsolePanel>
+        }
+        else
+        {
+            <article class="console-panel">
+                <p class="console-kicker">Protocols</p>
+                <h2>Service endpoints</h2>
+                @EndpointsContent
+            </article>
+        }
+    </text>;
+
+    private RenderFragment EndpointsContent => @<text>
+        <dl class="console-definition-list console-protocols">
+            @foreach (var slot in _service!.PublicationSlots)
             {
-                _configResult = await ServiceConfig.UpdateProtocolsAsync(new ServiceProtocolsCommand
-                {
-                    ServiceName = ServiceName,
-                    EnabledProtocols = _selectedProtocols.ToArray()
-                });
-                if (_configResult.Succeeded)
-                {
-                    await LoadSettingsAsync();
-                }
-            },
-            setBusy: busy => { _savingProtocols = busy; StateHasChanged(); },
-            failureMessage: "Couldn't save protocols");
-    }
+                <div class="console-protocol-pill">
+                    <dt title="@slot.Name">@slot.Name</dt>
+                    <dd>
+                        <strong title="@slot.Status">@slot.Status</strong>
+                        <small title="@slot.Url">@(slot.Url ?? "No single service URL")</small>
+                    </dd>
+                </div>
+            }
+        </dl>
+    </text>;
 
-    private Task SaveAccessAsync()
-    {
-        _configResult = null;
-        return Notifications.RunGuardedAsync(
-            async () =>
+    private RenderFragment Administration => @<text>
+        @foreach (var reason in _service!.FolderMutationIssues)
+        {
+            <p class="console-state-warning" role="status" data-folder-reconciliation>@reason</p>
+        }
+        <Honua.Console.Shell.Components.Operate.FolderManagement ServiceName="@ServiceName" CurrentFolderId="@_service!.FolderId" OnSaved="OnParametersSetAsync" UnsavedChanged="@(summary => _folderUnsaved = summary)" />
+        <DiscoveryMetadataEditor Address="@Honua.Console.Contracts.DiscoveryMetadataAddress.ForService(ServiceName)" UnsavedChanged="@(summary => _metadataUnsaved = summary)" />
+    </text>;
+
+    private RenderFragment Configuration => @<text>
+        <section class="console-section" data-service-config>
+            <div class="console-page-heading">
+                <p class="console-kicker">Protocols &amp; access</p>
+                <h2>How this service is served</h2>
+                <p>Enable the protocols this service exposes (FeatureServer, MapServer, WMS, WFS, WMTS, OGC API, OData, vector tiles, STAC) and set whether it is reachable anonymously.</p>
+            </div>
+
+            @ConfigurationState
+            @if (_settings.Bound)
             {
-                _configResult = await ServiceConfig.UpdateAccessPolicyAsync(new ServiceAccessPolicyCommand
-                {
-                    ServiceName = ServiceName,
-                    AllowAnonymous = _allowAnonymous,
-                    AllowAnonymousWrite = _allowAnonymousWrite,
-                    AllowedRoles = ParseRoles(_allowedRoles),
-                    AllowedWriteRoles = ParseRoles(_allowedWriteRoles)
-                });
-                if (_configResult.Succeeded)
-                {
-                    await LoadSettingsAsync();
-                }
-            },
-            setBusy: busy => { _savingAccess = busy; StateHasChanged(); },
-            failureMessage: "Couldn't save access policy");
-    }
+                <div class="console-panel-grid">
+                    @ProtocolEditor
+                    @AccessEditor
+                    @RenderingLimits
+                </div>
+            }
+        </section>
+    </text>;
 
+    private RenderFragment ConfigurationState => @<text>
+        @if (!_settings.Bound)
+        {
+            <div class="console-panel console-state-neutral" role="status">
+                <p class="console-kicker">Missing binding</p>
+                <p>@_settings.Detail</p>
+            </div>
+        }
+        else if (_configResult is { } result)
+        {
+            <div class="console-panel @(result.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-config-result>
+                <p class="console-kicker">@result.State</p>
+                <p>@result.Detail</p>
+            </div>
+        }
+    </text>;
+
+    private RenderFragment ProtocolEditor => @<text>
+        @if (V4Enabled)
+        {
+            <ConsolePanel Title="Enabled protocols" HeadingId="service-enabled-protocols-heading">
+                @ProtocolEditorContent
+            </ConsolePanel>
+        }
+        else
+        {
+            <article class="console-panel">
+                <p class="console-kicker">Protocols</p>
+                <h3>Enabled protocols</h3>
+                @ProtocolEditorContent
+            </article>
+        }
+    </text>;
+
+    private RenderFragment ProtocolEditorContent => @<text>
+        <div class="console-check-grid">
+            @foreach (var protocol in _availableProtocols)
+            {
+                <label class="console-inline-check">
+                    <input type="checkbox" checked="@_selectedProtocols.Contains(protocol)"
+                           @onchange="e => ToggleProtocol(protocol, (bool)e.Value!)"
+                           data-protocol="@protocol" />
+                    <span>@protocol</span>
+                </label>
+            }
+        </div>
+        <div class="console-action-row">
+            <button class="console-button" type="button" disabled="@(_savingProtocols || _selectedProtocols.Count == 0)"
+                    @onclick="SaveProtocolsAsync" data-save-protocols>
+                @(_savingProtocols ? "Saving…" : "Save protocols")
+            </button>
+        </div>
+    </text>;
+
+    private RenderFragment AccessEditor => @<text>
+        @if (V4Enabled)
+        {
+            <ConsolePanel Title="Access policy" HeadingId="service-access-heading">
+                @AccessEditorContent
+            </ConsolePanel>
+        }
+        else
+        {
+            <article class="console-panel">
+                <p class="console-kicker">Access</p>
+                <h3>Access policy</h3>
+                @AccessEditorContent
+            </article>
+        }
+    </text>;
+
+    private RenderFragment AccessEditorContent => @<text>
+        <label class="console-inline-check">
+            <input type="checkbox" @bind="_allowAnonymous" data-allow-anonymous />
+            <span>Allow anonymous read</span>
+        </label>
+        <label class="console-inline-check">
+            <input type="checkbox" @bind="_allowAnonymousWrite" data-allow-anonymous-write />
+            <span>Allow anonymous write</span>
+        </label>
+        <label class="console-field">
+            <span>Allowed read roles</span>
+            <input type="text" @bind="_allowedRoles" data-allowed-roles
+                   placeholder="viewer, editor" />
+            <small>Comma- or newline-separated role names granted read access. Leave blank to clear.</small>
+        </label>
+        <label class="console-field">
+            <span>Allowed write roles</span>
+            <input type="text" @bind="_allowedWriteRoles" data-allowed-write-roles
+                   placeholder="editor, admin" />
+            <small>Comma- or newline-separated role names granted write access. Leave blank to clear.</small>
+        </label>
+        <div class="console-action-row">
+            <button class="console-button" type="button" disabled="@_savingAccess"
+                    @onclick="SaveAccessAsync" data-save-access>
+                @(_savingAccess ? "Saving…" : "Save access policy")
+            </button>
+        </div>
+    </text>;
+
+    private RenderFragment RenderingLimits => @<text>
+        <article class="console-panel" data-mapserver-unsupported>
+            <h3>MapServer render settings</h3>
+            <HonuaState Kind="unavailable" Title="Unsupported"
+                        Message="This server does not support editing MapServer render settings. The settings read reports compatibility defaults." HeadingLevel="4" />
+        </article>
+    </text>;
+
+    private RenderFragment Layers => @<text>
+        @if (V4Enabled)
+        {
+            <ConsolePanel Title="Layers" HeadingId="service-layers-heading">
+                @LayersContent
+            </ConsolePanel>
+        }
+        else
+        {
+            <section class="console-section">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Layers</p>
+                    <h2>Layers</h2>
+                </div>
+                @LayersContent
+            </section>
+        }
+    </text>;
+
+    private RenderFragment LayersContent => @<text>
+        <ConsoleTableRegion Class="console-table-wrap" Label="Service layers">
+            <table class="console-table">
+                <thead>
+                    <tr>
+                        <th>Layer ID</th>
+                        <th>Name</th>
+                        <th>Geometry</th>
+                        <th>Canonical metadata owner</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var layer in _service!.Layers)
+                    {
+                        <tr data-layer-id="@layer.LayerId">
+                            <td>@layer.LayerId</td>
+                            <td>@layer.Name</td>
+                            <td>@layer.Geometry</td>
+                            <td>
+                                <a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(layer.CanonicalResourceId)}")">@layer.CanonicalResourceName</a>
+                                <small>@layer.CanonicalResourceId</small>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </ConsoleTableRegion>
+    </text>;
 }
