@@ -58,9 +58,9 @@ public sealed class StudioWorkflowValidator : IFieldValidator<StudioWorkflowPack
 
     private static void EvaluateRetryBounds(StudioWorkflowRetryPolicy retry, List<ConsoleFieldError> errors)
     {
-        if (!NumericBoundsRule.IsWithin(retry.MaxAttempts, 0, 10))
+        if (!NumericBoundsRule.IsWithin(retry.MaxAttempts, 1, 10))
         {
-            errors.Add(Error(StudioWorkflowFieldKeys.MaxAttempts, "workflow.retry.maxAttempts.range", "Max attempts must be between 0 and 10."));
+            errors.Add(Error(StudioWorkflowFieldKeys.MaxAttempts, "workflow.retry.maxAttempts.range", "Max attempts must be between 1 and 10."));
         }
 
         if (!NumericBoundsRule.IsWithin(retry.BackoffSeconds, 0, 3600))

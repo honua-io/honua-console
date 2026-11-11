@@ -9,8 +9,10 @@
 <section class="console-page console-support-page">
     @if (V4Enabled)
     {
-        <ConsolePageHeading Title="Support">
-            <p class="console-muted">Describe the issue. Your environment and recent errors are attached to the ticket.</p>
+        <ConsolePageHeading Title="Contact support">
+            <p class="console-muted">
+                @SupportDescription
+            </p>
         </ConsolePageHeading>
     }
     else
@@ -19,9 +21,7 @@
             <p class="console-kicker">Support</p>
             <h1>Contact support</h1>
             <p>
-                Open a support ticket without copying log dumps. The Console auto-attaches who you are, the connected
-                environment, the running Console build, your current route, and the server's recent errors so support gets
-                context, not a paste of logs. You can review and edit everything before you submit.
+                @SupportDescription
             </p>
         </div>
     }
@@ -42,9 +42,9 @@
                 <label>
                     <span>Severity</span>
                     <select class="console-input" @bind="_severity">
-                        <option value="sev1">Sev1 - critical / outage</option>
-                        <option value="sev2">Sev2 - major impact</option>
-                        <option value="sev3">Sev3 - minor / question</option>
+                        <option value="sev1">@SupportTicketLabels.Display("sev1")</option>
+                        <option value="sev2">@SupportTicketLabels.Display("sev2")</option>
+                        <option value="sev3">@SupportTicketLabels.Display("sev3")</option>
                     </select>
                 </label>
                 <label>
@@ -58,9 +58,9 @@
                 <label>
                     <span>Allowed access mode</span>
                     <select class="console-input" @bind="_allowedAccessMode">
-                        <option value="read-only">Read-only</option>
-                        <option value="guided-fix">Guided fix</option>
-                        <option value="operator-scoped">Operator scoped</option>
+                        <option value="read-only">@SupportTicketLabels.Display("read-only")</option>
+                        <option value="guided-fix">@SupportTicketLabels.Display("guided-fix")</option>
+                        <option value="operator-scoped">@SupportTicketLabels.Display("operator-scoped")</option>
                     </select>
                 </label>
                 <label>
@@ -145,6 +145,10 @@
 
 @code {
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private const string SupportDescription = "Open a support ticket without copying log dumps. The Console auto-attaches who you are, the connected " +
+        "environment, the running Console build, your current route, and the server's recent errors so support gets " +
+        "context, not a paste of logs. You can review and edit everything before you submit.";
 
     private string _severity = "sev3";
     private string _service = "honua-server";
