@@ -37,16 +37,11 @@ public sealed class SharePublicItemV4Tests
     public void PublicBackLinkStaysInsideApplicationMount()
     {
         using var context = Context(true, new InMemoryConsoleCatalogClient());
-        context.Services.AddSingleton<NavigationManager>(new HostedNavigationManager());
+        context.Services.AddSingleton<NavigationManager>(new MountedNavigationManager("/console/"));
         var page = context.Render<SharePublicItemPage>(parameters => parameters.Add(p => p.IdOrSlug, "coastal-flood-service"));
         Assert.Equal("/console/share/public", page.Find(".share-opendata-back").GetAttribute("href"));
     }
 
-    private sealed class HostedNavigationManager : NavigationManager
-    {
-        public HostedNavigationManager() => Initialize("http://localhost/console/", "http://localhost/console/share/public/items/coastal-flood-service");
-        protected override void NavigateToCore(string uri, bool forceLoad) => Uri = ToAbsoluteUri(uri).AbsoluteUri;
-    }
 
     [Theory]
     [InlineData(false)]
