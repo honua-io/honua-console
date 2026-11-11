@@ -16,7 +16,7 @@ public sealed class ConsoleThemeTests
     [InlineData(false, false)]
     public async Task ThemeUsesTheSingleV4Flag(bool flag, bool enabled)
     {
-        await using var context = CreateContext(flag, out _);
+        await using var context = CreateContext(new ConsoleV4Options { Enabled = flag });
         context.Render<ConsoleTheme>();
         Assert.Equal(enabled, context.JSInterop.Invocations.Single().Arguments[0]);
         Assert.Equal(enabled, context.JSInterop.Invocations.Single().Arguments[1] is string);
@@ -25,7 +25,8 @@ public sealed class ConsoleThemeTests
     [Fact]
     public async Task AccountChangesAndSignOutReconfigureThePreference()
     {
-        await using var context = CreateContext(true, out var authentication);
+        await using var context = CreateContext(new ConsoleV4Options { Enabled = true });
+        var authentication = context.Services.GetRequiredService<AuthenticationSignals>();
         var component = context.Render<ConsoleTheme>();
         var firstKey = Assert.IsType<string>(context.JSInterop.Invocations.Last().Arguments[1]);
         Assert.DoesNotContain("operator-a", firstKey, StringComparison.Ordinal);
@@ -40,7 +41,7 @@ public sealed class ConsoleThemeTests
     [Fact]
     public async Task EmbedNavigationDisablesThemeAndReturningRestoresTheScope()
     {
-        await using var context = CreateContext(true, out _);
+        await using var context = CreateContext(new ConsoleV4Options { Enabled = true });
         var component = context.Render<ConsoleTheme>();
         var key = context.JSInterop.Invocations.Last().Arguments[1];
         var navigation = context.Services.GetRequiredService<NavigationManager>();
@@ -50,14 +51,14 @@ public sealed class ConsoleThemeTests
         component.WaitForAssertion(() => Assert.Equal(key, context.JSInterop.Invocations.Last().Arguments[1]));
     }
 
-    private static BunitContext CreateContext(bool flag, out AuthenticationSignals authentication)
+    private static BunitContext CreateContext(ConsoleV4Options options)
     {
         var context = new BunitContext();
-        authentication = new AuthenticationSignals();
-        context.Services.AddSingleton<AuthenticationStateProvider>(authentication);
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = flag });
+        context.Services.AddSingleton<AuthenticationSignals>();
+        context.Services.AddSingleton<AuthenticationStateProvider>(provider => provider.GetRequiredService<AuthenticationSignals>());
+        context.Services.AddSingleton(options);
         context.Services.AddSingleton(new ConsoleApiClient(new HttpClient { BaseAddress = new Uri("https://api.example.test/") }));
-        context.JSInterop.SetupVoid("honuaConsoleTheme.configure", _ => true);
+        context.JSInterop.SetupVoid("honuaConsoleTheme.configure", _ => true).SetVoidResult();
         return context;
     }
 

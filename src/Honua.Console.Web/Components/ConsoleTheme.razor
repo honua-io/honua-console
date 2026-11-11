@@ -33,7 +33,7 @@
         var enabled = V4.Enabled && !new Uri(Navigation.Uri).AbsolutePath.StartsWith("/console/embed/", StringComparison.OrdinalIgnoreCase);
         var user = state.User;
         var id = user.Identity?.IsAuthenticated == true
-            ? user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub")
+            ? user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? user.FindFirst("sub")?.Value
             : null;
         var key = enabled && !string.IsNullOrEmpty(id)
             ? "honua-theme:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Api.BaseUri.AbsoluteUri + "\n" + id)))
