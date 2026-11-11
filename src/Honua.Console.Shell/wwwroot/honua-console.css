@@ -15,6 +15,7 @@
 @import url("css/v4-support.css");
 @import url("css/v4-data-primitives.css");
 @import url("css/folder-v4.css");
+@import url("css/v4-share-public.css");
 
 * {
     box-sizing: border-box;
