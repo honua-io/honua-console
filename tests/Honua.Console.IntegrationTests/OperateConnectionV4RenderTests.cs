@@ -163,22 +163,12 @@ public sealed class OperateConnectionV4RenderTests
     private static BunitContext Context(bool enabled, string mount = "/")
     {
         var context = new BunitContext();
-        context.Services.AddSingleton<NavigationManager>(new MountedNavigationManager(mount));
+        context.Services.AddSingleton<NavigationManager>(new MountedNavigationManager(mount, "operate/connections"));
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         context.Services.AddSingleton<ConsoleAgentContextRegistry>();
         context.Services.AddSingleton<IOperateTransitionDataSource>(new Source());
         context.Services.AddSingleton<IConsoleConnectionCreateOperation, UnsupportedConsoleConnectionCreateOperation>();
         return context;
-    }
-
-    private sealed class MountedNavigationManager : NavigationManager
-    {
-        public MountedNavigationManager(string mount) => Initialize("http://localhost" + mount, "http://localhost" + mount + "operate/connections");
-        protected override void NavigateToCore(string uri, bool forceLoad)
-        {
-            Uri = ToAbsoluteUri(uri).ToString();
-            NotifyLocationChanged(false);
-        }
     }
 
     private sealed class Source : IOperateTransitionDataSource
