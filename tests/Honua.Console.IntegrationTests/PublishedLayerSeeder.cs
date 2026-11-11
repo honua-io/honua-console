@@ -36,8 +36,7 @@ internal static class PublishedLayerSeeder
         await command.ExecuteNonQueryAsync();
     }
 
-    // An unsuccessful publish, including a configuration rejection, returns null so the caller skips; failures while seeding the table or connection still throw.
-    public static async Task<SeededLayer?> SeedPublishedLayerAsync(
+    public static async Task<SeededLayer> SeedPublishedLayerAsync(
         TemporalReplicaFixture fixture,
         string slugSuffix)
     {
@@ -64,13 +63,12 @@ internal static class PublishedLayerSeeder
         };
 
         var result = await operation.PublishAsync(command);
-        if (!result.Succeeded || result.LayerId is null)
-        {
-            // Server-not-ready for the publish path (contract drift / stale image) — let the caller skip.
-            return null;
-        }
+        LiveImageReceipt.RequireLayerPublish(result, "published-layer seed");
+        Assert.True(
+            result.Succeeded && result.LayerId is not null,
+            $"Layer publish failed ({result.State}).");
 
-        return new SeededLayer(serviceName, result.LayerId.Value, connectionId, table);
+        return new SeededLayer(serviceName, result.LayerId!.Value, connectionId, table);
     }
 
     public static async Task<SeededLayer> PublishNamespacedLayerAsync(

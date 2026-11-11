@@ -1,0 +1,10 @@
+{
+  "apiBaseUrl": "/",
+  "auth": {
+    "mode": "builtin",
+    "authority": null,
+    "clientId": null,
+    "scopes": []
+  },
+  "v4Enabled": false
+}

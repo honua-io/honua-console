@@ -113,3 +113,18 @@
 
     .console-shell[data-console-v4="true"] .console-topnav { order: 2; }
 }
+
+@media (min-width: 1001px) {
+    .console-shell[data-console-v4="true"] .console-topbar {
+        position: sticky;
+        top: 0;
+        z-index: var(--z-topbar);
+        padding-block: 0;
+    }
+
+    .console-shell[data-console-v4="true"] .operate-section-nav { top: var(--topbar-h); }
+    .console-shell[data-console-v4="true"] .share-opendata-preview,
+    .console-shell[data-console-v4="true"] .operate-release-side { top: calc(var(--topbar-h) + 12px); }
+    .console-shell[data-console-v4="true"] .support-context-panel,
+    .console-shell[data-console-v4="true"] .layer-preview-pane { top: calc(var(--topbar-h) + 1rem); }
+}

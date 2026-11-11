@@ -184,7 +184,7 @@ jobs:
         run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
 
       - name: Verify published Studio assets
-        run: node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/_studio
+        run: node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/console/_studio
 
       - name: Install catalog presentation browser checks
         run: |
@@ -194,6 +194,93 @@ jobs:
 
       - name: Verify rendered catalog presentation
         run: node e2e/playwright/catalog-preview.mjs
+
+      - name: Verify service navigation at scale
+        run: node e2e/playwright/scale-preview.mjs
+
+      - name: Upload scale navigation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: scale-navigation-presentation
+          path: artifacts/catalog-preview/scale-*.png
+          if-no-files-found: error
+
+      - name: Verify rendered Share presentation
+        run: node e2e/playwright/share-home-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload Share overview presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: share-overview-presentation
+          path: artifacts/catalog-preview/share-home-*.png
+          if-no-files-found: error
+
+      - name: Verify rendered Share configuration presentation
+        run: node e2e/playwright/share-manage-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload Share configuration presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: share-manage-presentation
+          path: artifacts/catalog-preview/share-manage-*.png
+          if-no-files-found: error
+
+      - name: Verify rendered users and roles presentation
+        run: node e2e/playwright/access-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload users and roles presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: access-presentation
+          path: artifacts/catalog-preview/access-*.png
+          if-no-files-found: error
+
+      - name: Verify rendered Support presentation
+        run: node e2e/playwright/support-preview.mjs
+
+      - name: Upload Support presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: support-presentation
+          path: |
+            artifacts/catalog-preview/support-form-*.png
+            artifacts/catalog-preview/support-ticket-*.png
+          if-no-files-found: error
+
+      - name: Verify Settings presentation
+        run: node e2e/playwright/settings-preview.mjs
+
+      - name: Upload Settings presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: settings-presentation
+          path: |
+            artifacts/catalog-preview/settings-v4*
+            artifacts/catalog-preview/settings-legacy*
+          if-no-files-found: error
+
+      - name: Verify public item presentation
+        run: node e2e/playwright/share-public-preview.mjs
+
+      - name: Upload public item presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: share-public-presentation
+          path: artifacts/catalog-preview/share-public-*.png
+          if-no-files-found: error
 
       - name: Verify rendered services presentation
         run: node e2e/playwright/data-services-preview.mjs

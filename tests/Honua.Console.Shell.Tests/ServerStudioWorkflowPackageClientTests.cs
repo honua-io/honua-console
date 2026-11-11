@@ -4,7 +4,7 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-public sealed class ServerStudioWorkflowPackageClientTests
+public sealed partial class ServerStudioWorkflowPackageClientTests
 {
     [Fact]
     public async Task OpenEditor_MapsNodeRegistryCategories_FromPorts()
@@ -61,6 +61,7 @@ public sealed class ServerStudioWorkflowPackageClientTests
         var draft = await NewDraftWithSinkAsync(client);
         draft.Parameters.Add(new StudioWorkflowParameter { Name = "county", Type = "string", Required = true });
         draft.RetryPolicy.MaxAttempts = 7;
+        draft.ApplyRetryToAllNodes();
         draft.PublicationIntent.Mode = StudioWorkflowContractValues.PublicationModeScheduledJob;
         draft.PublicationIntent.RouteSlug = "nightly-normalizer";
 
@@ -321,6 +322,8 @@ public sealed class ServerStudioWorkflowPackageClientTests
 
         // Settable so a single test can fail one version-create (e.g. a 400) and then succeed on a later save.
         public int? VersionStatusCode { get; set; }
+        public WorkflowPackageValidationResult VersionValidation { get; init; } = new() { IsValid = true };
+        public int DryRunCalls { get; private set; }
         public List<WorkflowPackage> Packages { get; } = [];
         public List<WorkflowPackageVersion> Versions { get; } = [];
         public List<WorkflowPublication> Publications { get; } = [];
@@ -463,7 +466,7 @@ public sealed class ServerStudioWorkflowPackageClientTests
                 SchemaVersion = "workflow-package.v1",
                 PackageHash = $"hash-{next}",
                 Graph = Packages[index].Graph,
-                Validation = new WorkflowPackageValidationResult { IsValid = true },
+                Validation = VersionValidation,
                 CreatedAt = DateTimeOffset.UtcNow
             };
             Versions.Add(version);
@@ -492,10 +495,12 @@ public sealed class ServerStudioWorkflowPackageClientTests
         public Task<WorkflowEndpointResult<WorkflowDryRunResult>> DryRunVersionAsync(
             string packageId,
             int version,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(WorkflowEndpointResult<WorkflowDryRunResult>.FromData(new WorkflowDryRunResult
+            CancellationToken cancellationToken = default)
+        {
+            DryRunCalls++;
+            return Task.FromResult(WorkflowEndpointResult<WorkflowDryRunResult>.FromData(new WorkflowDryRunResult
             {
-                Validation = new WorkflowPackageValidationResult { IsValid = true },
+                Validation = VersionValidation,
                 EstimatedDurationSeconds = 12,
                 EstimatedCostWeight = 3.5,
                 PackageHash = "hash-1",
@@ -511,6 +516,7 @@ public sealed class ServerStudioWorkflowPackageClientTests
                     }
                 ]
             }));
+        }
 
         public Task<WorkflowEndpointResult<WorkflowPublication>> PublishVersionAsync(
             string packageId,

@@ -1,3 +1,4 @@
+// Test-only server-host regression; shipping WASM is qualified by playwright.static.config.ts.
 import { defineConfig, devices } from '@playwright/test';
 import path from 'node:path';
 import { mkdirSync, mkdtempSync } from 'node:fs';
@@ -11,12 +12,12 @@ const certificate = path.join(tls, 'certificate.pem');
 const key = path.join(tls, 'key.pem');
 execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
   '-subj', '/CN=localhost', '-addext', 'subjectAltName=IP:127.0.0.1', '-out', certificate, '-keyout', key], { stdio: 'ignore' });
-const dll = process.env.HONUA_CONSOLE_E2E_DLL;
+const dll = process.env.HONUA_CONSOLE_LEGACY_DLL;
 const contentRoot = dll ? path.dirname(dll) : undefined;
 const server = (mode: string, port: number) => ({
   command: dll
     ? `dotnet "${dll}" --urls https://127.0.0.1:${port} --contentRoot "${contentRoot}"`
-    : `dotnet run --no-build --no-launch-profile --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls https://127.0.0.1:${port}`,
+    : `dotnet run --no-build --no-launch-profile --project tests/Honua.Console.LegacyHost/Honua.Console.LegacyHost.csproj --urls https://127.0.0.1:${port}`,
   ignoreHTTPSErrors: true, cwd: root, url: `https://127.0.0.1:${port}/version.json`, timeout: 120_000,
   env: {
     ASPNETCORE_ENVIRONMENT: 'Production',

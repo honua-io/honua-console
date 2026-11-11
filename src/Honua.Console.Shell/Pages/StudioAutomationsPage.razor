@@ -6,6 +6,7 @@
 <section class="console-page automation-page @(IsConsoleV4Enabled ? "console-automations-v4" : null)">
     @if (IsConsoleV4Enabled)
     {
+        <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/studio-automations-v4.css" />
         <ConsolePageHeading Title="Automations">
             <p>Manage rules that run when form events occur.</p>
@@ -21,7 +22,7 @@
     }
 
     <div class="automation-list-actions">
-        <a class="console-button-link" href="/studio/automations/new">New automation</a>
+        <a class="console-button-link" href="@Navigation.ToConsoleHref("/studio/automations/new")">New automation</a>
     </div>
 
     @if (_loading)
@@ -62,7 +63,7 @@
                     {
                         <tr>
                             <th scope="row">
-                                <a href="@EditorHref(automation)">@automation.Name</a>
+                                <a href="@Navigation.ToConsoleLinkHref(EditorHref(automation))">@automation.Name</a>
                                 <small>@(string.IsNullOrWhiteSpace(automation.FormId) ? "No form bound" : automation.FormId)</small>
                             </th>
                             <td><span class="console-status @(automation.Enabled ? string.Empty : "console-status-warning")">@(automation.Enabled ? "Enabled" : "Disabled")</span></td>
@@ -80,7 +81,7 @@
         <div class="console-panel-grid automation-grid">
             @foreach (var automation in _automations)
             {
-                <a class="console-panel console-area-link automation-card" href="@EditorHref(automation)">
+                <a class="console-panel console-area-link automation-card" href="@Navigation.ToConsoleLinkHref(EditorHref(automation))">
                     <div class="console-panel-heading">
                         <div>
                             <h2>@automation.Name</h2>
@@ -105,6 +106,11 @@
 </section>
 
 @code {
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = new Uri(Navigation.Uri).AbsolutePath,
+    };
+
     private bool IsConsoleV4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     private bool _loading = true;

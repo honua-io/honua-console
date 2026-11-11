@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/import/esri/dashboard"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
@@ -23,8 +24,8 @@
             </p>
         </div>
         <div class="console-button-row">
-            <a class="console-button-ghost" href="/operate/import/esri">Discard</a>
-            <a class="console-button" href="/operate/publishing">Create dashboard package →</a>
+            <a class="console-button-ghost" href="@ConsoleNavigation.ToConsoleHref("/operate/import/esri")">Discard</a>
+            <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/operate/publishing")">Create dashboard package →</a>
         </div>
     </div>
 

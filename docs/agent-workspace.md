@@ -187,3 +187,32 @@ To move Console to another Studio release:
 2. Update those fields in `scripts/studio-release.lock.json`.
 3. Run `node scripts/fetch-studio-release.mjs`, then `npm test` and the Playwright
    smoke, and confirm `gh attestation verify` passes with the flags the CI job uses.
+
+### Static Console browser transport
+
+Browser modules import `captureConsoleSession` from `js/console-browser-transport.mjs`.
+The WASM host initializes it with the configured API base and the in-memory
+`ConsoleBrowserSession`; it does not persist credentials. Capture once when opening
+an authenticated view:
+
+```js
+const session = await captureConsoleSession();
+const response = await session.fetch('api/v1/admin/metadata/layers/12/suggest-style', {
+    method: 'POST', signal,
+});
+const suggestion = await response.json();
+await session.assertCurrent();
+```
+
+Routes are relative to the configured API base, without a leading slash. The
+transport rejects other origins and paths outside that base, replaces caller
+credentials, disables redirects, and uses the current server-issued CSRF token
+for same-origin mutations. A separate API origin requires a live operator bearer
+and omits cookies. Captures expose the principal ID and session revision, never
+tokens. Replacing or clearing the Console session invalidates existing captures.
+Call `assertCurrent()` after reading a response body and before applying it; keep
+the view, environment and draft revision checks at the call site as well.
+
+This transport does not supply missing server routes or recreate the retired
+Console BFF. Agent workspace and process callers still require their native
+server contracts before migration.

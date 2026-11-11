@@ -68,7 +68,7 @@
 
         <div class="console-action-row">
             <button class="console-button" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="CreateAsync">Connect and continue</button>
-            <a href="/environments">Cancel</a>
+            <a href="@Nav.ToConsoleHref("/environments")">Cancel</a>
         </div>
     </article>
 </section>
@@ -135,7 +135,7 @@
         _dirty.MarkClean();
 
         await Profiles.ActivateProfileAsync(profileId);
-        Nav.NavigateTo("/auth/signin");
+        Nav.NavigateTo(Nav.ToConsoleHref("/auth/signin"));
     }
 
     private async Task<string> ResolveUniqueIdAsync(string candidate)

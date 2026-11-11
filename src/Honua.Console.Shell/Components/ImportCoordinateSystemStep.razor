@@ -1,0 +1,54 @@
+@namespace Honua.Console.Shell.Components
+
+<fieldset disabled="@Disabled" data-import-coordinate-system>
+    <legend>Coordinate system</legend>
+    @if (CoordinateSystem.DetectedSrid is { } detected)
+    {
+        <p data-import-detected-system>Detected: EPSG:@detected
+            @if (CoordinateSystem.DetectedCrs is { } crs) { <span> — @crs.Name</span> }
+        </p>
+    }
+    else
+    {
+        <p data-import-detected-system>The file’s source coordinate system could not be identified. Choose it before importing.</p>
+    }
+    @if (CoordinateSystem.DetectionMethod == "format-defined")
+    {
+        <p class="console-muted">The file format defines this coordinate system.</p>
+    }
+    @if (CoordinateSystem.RequiresSourceOverride)
+    {
+        <CoordinateSystemPicker Label="Source coordinate system" AuthorityBinding="@AuthorityBinding"
+                                Selected="_source" SelectedChanged="SourceChanged" Disabled="Disabled" />
+    }
+    <div class="console-action-row">
+        <label><input type="radio" name="@_radioName" checked="@(!_reproject)" @onchange="KeepSource" /> Keep source (recommended)</label>
+        <label><input type="radio" name="@_radioName" checked="@_reproject" @onchange="EnableReprojection" /> Reproject to…</label>
+    </div>
+    @if (_reproject)
+    {
+        <CoordinateSystemPicker Label="Target coordinate system" AuthorityBinding="@AuthorityBinding"
+                                Selected="_target" SelectedChanged="TargetChanged" Disabled="Disabled" />
+    }
+</fieldset>
+
+@code {
+    [Parameter, EditorRequired] public HonuaAdminImportCoordinateSystem CoordinateSystem { get; set; } = default!;
+    [Parameter, EditorRequired] public string AuthorityBinding { get; set; } = string.Empty;
+    [Parameter] public EventCallback<ConsoleFileImportCoordinates?> Changed { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    private readonly string _radioName = $"coordinate-mode-{Guid.NewGuid():N}";
+    private HonuaAdminCoordinateSystem? _source;
+    private HonuaAdminCoordinateSystem? _target;
+    private bool _reproject;
+
+    protected override Task OnInitializedAsync() => NotifyAsync();
+
+    private Task SourceChanged(HonuaAdminCoordinateSystem? source) { _source = source; return NotifyAsync(); }
+    private Task TargetChanged(HonuaAdminCoordinateSystem? target) { _target = target; return NotifyAsync(); }
+    private Task KeepSource() { _reproject = false; _target = null; return NotifyAsync(); }
+    private Task EnableReprojection() { _reproject = true; _target = null; return NotifyAsync(); }
+    private Task NotifyAsync() => Changed.InvokeAsync(CoordinateSystem.RequiresSourceOverride && _source is null || _reproject && _target is null
+        ? null : new ConsoleFileImportCoordinates(_source?.Code, _reproject ? _target?.Code : null));
+}

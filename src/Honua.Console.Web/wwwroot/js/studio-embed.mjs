@@ -24,7 +24,7 @@ async function studioElement(session) {
     let app = elementsByEnvironment.get(session.environmentId);
     if (!app) {
         app = document.createElement('honua-studio-app');
-        app.styleEditorAssetsUrl = '/_studio/maputnik/index.html';
+        app.styleEditorAssetsUrl = new URL('../_studio/maputnik/index.html', import.meta.url).href;
         trackStudioLeaseTurns(app);
         app.routingMode = 'host'; app.setAttribute('base-path', '/studio');
         app.addEventListener('honua-studio-navigate', event => {
@@ -116,7 +116,7 @@ async function mount() {
     host.dataset.mounted = 'true';
     const status = host.querySelector('[data-studio-status]');
     try {
-        assets ||= import('/_studio/console.js');
+        assets ||= import(new URL('../_studio/console.js', import.meta.url).href);
         const module = await assets;
         module.registerAllStudioElements();
         const response = await fetch('/api/agent-workspace/session', { credentials: 'same-origin' });
@@ -150,7 +150,7 @@ async function mount() {
         }
         status.textContent = `Connected to ${session.environmentName}`;
         if (!document.querySelector('link[data-studio-style]')) {
-            const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = '/_studio/style.css';
+            const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = new URL('../_studio/style.css', import.meta.url).href;
             link.dataset.studioStyle = 'true'; document.head.append(link);
         }
     } catch (error) {
@@ -169,7 +169,7 @@ async function mountProcesses() {
     host.dataset.mounted = 'true';
     const status = host.querySelector('[data-processes-status]');
     try {
-        assets ||= import('/_studio/console.js');
+        assets ||= import(new URL('../_studio/console.js', import.meta.url).href);
         const module = await assets; module.registerAllStudioElements();
         const response = await fetch('/api/agent-workspace/session', { credentials: 'same-origin' });
         if (!response.ok) throw new Error('Sign in to Honua to open Processes.');

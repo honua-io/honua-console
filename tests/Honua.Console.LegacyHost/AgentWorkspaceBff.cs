@@ -32,7 +32,7 @@ internal static partial class AgentWorkspaceBff
             return Results.Json(new
             {
                 authenticated = true,
-                conversationMode = configuration.GetValue<bool>("Honua:Agent:WorkspaceApiEnabled") ? "workspace" : "studio",
+                conversationMode = Honua.Console.Shell.Services.ConsoleWorkspaceFeatures.IsEnabled(configuration) ? "workspace" : "studio",
                 gaSpecWorkflow = configuration.GetValue<bool>("Honua:Agent:GaSpecWorkflowEnabled"),
                 maxArtifactUploadBytes = ProcessArtifactFileMaximumBytes,
                 importTransportResumable = false,

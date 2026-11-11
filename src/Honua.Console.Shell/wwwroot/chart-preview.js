@@ -15,7 +15,7 @@
 // missing-binding contract: a live chart appears only when a real Vega-Lite spec is bound.
 //
 // Data is REAL: when a featuresUrl is supplied the module fetches the bound layer's actual
-// rows (via the console /map-proxy/features proxy → server FeatureServer query) and injects
+// rows from the supplied feature query and injects
 // them as the spec's inline data. The chart never fabricates sample data; with no rows and
 // no inline data in the spec the embed is skipped and the placeholder stays.
 
@@ -91,16 +91,26 @@ function loadVegaEmbed() {
 // feature JSON ({features:[{attributes:{...}}]}) to a plain array of attribute records that
 // Vega-Lite can plot. Returns [] on any failure so the caller falls back to the spec's own
 // inline data (if any) — never fabricated rows.
-async function fetchRows(featuresUrl) {
+export async function fetchRows(featuresUrl, authorize = null) {
     if (!featuresUrl) {
         return [];
     }
     try {
-        const response = await fetch(featuresUrl, { headers: { Accept: 'application/json' } });
+        const approved = authorize
+            ? authorize(featuresUrl)
+            : { url: featuresUrl, credentials: 'same-origin', headers: {} };
+        const headers = new Headers(approved.headers);
+        headers.set('Accept', 'application/json');
+        const response = await fetch(approved.url, {
+            headers,
+            credentials: approved.credentials,
+            redirect: 'error',
+        });
         if (!response.ok) {
             return [];
         }
         const body = await response.json();
+        authorize?.(approved.url);
         const features = Array.isArray(body?.features) ? body.features : [];
         return features
             .map(f => (f && typeof f.attributes === 'object' && f.attributes !== null ? f.attributes : null))
@@ -142,9 +152,11 @@ export async function init(container, options) {
         delete spec.usermeta.embedOptions;
     }
 
-    // Bind the bound layer's real rows. If the proxy returns nothing, honour any inline data the
+    // Bind the bound layer's real rows. If the feature query returns nothing, honour any inline data the
     // server already put in the spec; if neither exists there is nothing real to chart — bail.
-    const rows = await fetchRows(options.featuresUrl);
+    const capture = globalThis.honuaConsoleCaptureResourceAuthorization;
+    const authorize = typeof capture === 'function' ? await capture() : null;
+    const rows = await fetchRows(options.featuresUrl, authorize);
     if (rows.length > 0) {
         spec.data = { values: rows };
     } else if (!spec.data || (Array.isArray(spec.data.values) && spec.data.values.length === 0)) {
@@ -180,6 +192,7 @@ export async function init(container, options) {
         return false;
     }
     try {
+        if (authorize && options.featuresUrl) authorize(options.featuresUrl);
         const result = await vegaEmbed(container, spec, {
             actions: false,
             renderer: 'svg',
