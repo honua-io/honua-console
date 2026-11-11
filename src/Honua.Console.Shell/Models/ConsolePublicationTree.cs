@@ -53,6 +53,8 @@ public sealed class ConsolePublicationTree
     public int LayerTotal { get; private set; }
     public int SearchLimit { get; private set; } = PageSize;
     public int LoadedServiceCount => Descendants(Root).Count(node => node.Kind == ConsolePublicationNodeKind.Service);
+    public IEnumerable<ConsolePublicationNode> MatchingServices => Descendants(Root)
+        .Where(node => node.Kind == ConsolePublicationNodeKind.Service && IsMatch(node));
     public int LoadedLayerCount => Descendants(Root).Count(node => node.Kind == ConsolePublicationNodeKind.Layer);
     public bool HasUnloadedServices => LoadedServiceCount < ServiceCount;
 

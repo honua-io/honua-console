@@ -86,6 +86,32 @@ public sealed class ConsolePublicationSearchV4Tests
     }
 
     [Fact]
+    public void SearchReadsTheNextPageWhenLoadedServicesDoNotAllMatch()
+    {
+        var source = new PublicationNavigationSource
+        {
+            IgnoreNameQuery = true,
+            ServiceSummaries = Enumerable.Range(0, 500)
+                .Select(index => new Honua.Sdk.Admin.Models.ServiceSummary
+                {
+                    ServiceName = $"{(index % 4 == 0 ? "wanted" : "other")}-{index:D3}"
+                }).ToArray()
+        };
+        using var context = PublicationLayoutContext(source);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForAssertion(() => Assert.Equal(26, tree.FindAll("[role='treeitem']").Count));
+        tree.Find("input").Input("wanted");
+        tree.WaitForAssertion(() => Assert.Equal(25, tree.FindAll("[data-publication-search] [role='treeitem']").Count));
+        Assert.Equal(2, source.ServiceReads);
+        tree.Find("[data-search-more]").Click();
+        tree.WaitForAssertion(() => Assert.Equal(3, source.ServiceReads));
+        tree.WaitForAssertion(() => Assert.Equal(50, tree.FindAll("[data-publication-search] [role='treeitem']").Count));
+        Assert.Equal(2, source.LastQuery.Page);
+        Assert.Equal("wanted", source.LastQuery.NameQuery);
+    }
+
+    [Fact]
     public void HighlightEncodesUntrustedNamesAndMatchesWithoutCaseSensitivity()
     {
         using var context = new BunitContext();

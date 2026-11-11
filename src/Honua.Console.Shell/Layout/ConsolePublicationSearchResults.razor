@@ -9,7 +9,14 @@
         <p class="console-search-empty">Folder search is not available yet.</p>
     </section>
     <section aria-labelledby="console-search-services">
-        <h3 id="console-search-services">Services @if (!View.SearchPending) { <span>(@View.Tree.ServiceCount)</span> }</h3>
+        @if (View.SearchPending)
+        {
+            <h3 id="console-search-services">Services</h3>
+        }
+        else
+        {
+            <h3 id="console-search-services">Services <span>(@View.Tree.ServiceCount)</span></h3>
+        }
         @if (View.SearchPending)
         {
             <p class="console-search-empty" role="status">Searching…</p>
@@ -61,8 +68,7 @@
 @code {
     [CascadingParameter] public ConsolePublicationTreeContext View { get; set; } = default!;
 
-    private IReadOnlyList<ConsolePublicationNode> Results => ConsolePublicationTree.Descendants(View.Tree.Root)
-        .Where(node => node.Kind == ConsolePublicationNodeKind.Service && View.Tree.IsMatch(node))
+    private IReadOnlyList<ConsolePublicationNode> Results => View.Tree.MatchingServices
         .OrderBy(node => node.Label, StringComparer.OrdinalIgnoreCase)
         .Take(View.Tree.SearchLimit).ToArray();
 }
