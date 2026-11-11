@@ -108,6 +108,9 @@ public sealed class OperatePublishingPageRenderTests
         // Review renders slot, endpoints, catalog registration, policy, warnings, rollback class,
         // provenance, and the evidence deep links.
         Assert.Contains("Publishing review", page.Markup, StringComparison.Ordinal);
+        // Both modes keep the full format guidance and the lookup instructions.
+        Assert.Contains("Supported output and catalog formats for each object. Review any unsupported or blocked format before publishing.", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Enter a release ID to review its route, release a new version, or restore a previous version.", page.Markup, StringComparison.Ordinal);
         Assert.Contains("public-default", page.Markup, StringComparison.Ordinal);
         Assert.Contains("https://server.example/ogc/parcels", page.Markup, StringComparison.Ordinal);
         Assert.Contains("reversible", page.Markup, StringComparison.Ordinal);
