@@ -257,6 +257,7 @@ function guardSceneResult(deferred, confirm) {
 
 function loadAuthorizedScene(request) {
     const send = globalThis.fetch;
+    const controller = new AbortController();
     if (typeof send !== 'function') {
         request.deferred.reject(new Error('Scene requests need fetch'));
         return undefined;
@@ -267,13 +268,14 @@ function loadAuthorizedScene(request) {
         credentials: request.credentials,
         redirect: 'error',
         cache: 'no-store',
+        signal: controller.signal,
     };
     if (request.data != null) init.body = request.data;
     send(request.url, init).then(
         (response) => finishAuthorizedScene(response, request),
         (error) => request.deferred.reject(error),
     );
-    return undefined;
+    return { abort() { controller.abort(); } };
 }
 
 function finishAuthorizedScene(response, request) {

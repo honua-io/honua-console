@@ -112,6 +112,32 @@ test('a scene request keeps its own view when another view has a newer session',
     assert.match(String(late.error), /session changed/);
 });
 
+test('cancelling an authorized scene load aborts the fetch', async () => {
+    const authorize = (url) => ({
+        url, api: true, credentials: 'omit', headers: { Authorization: 'Bearer token' },
+    });
+    const pending = deferred();
+    let signal;
+    const original = globalThis.fetch;
+    globalThis.fetch = (url, init) => new Promise((resolve, reject) => {
+        signal = init.signal;
+        init.signal.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError')));
+    });
+    try {
+        const handle = guardSceneLoad(() => { throw new Error('xhr'); }, () => authorize)(
+            'https://api.example/base/scenes/a.b3dm', 'arraybuffer', 'GET', null, { [sceneViewHeader]: 'view' }, pending);
+        assert.equal(typeof handle.abort, 'function');
+        assert.equal(signal.aborted, false);
+        handle.abort();
+        await flushSceneLoads();
+        assert.equal(signal.aborted, true);
+        assert.equal(pending.value, undefined);
+        assert.match(String(pending.error), /abort/i);
+    } finally {
+        globalThis.fetch = original;
+    }
+});
+
 test('an authorized scene load refuses redirects and failed responses', async () => {
     const authorize = (url) => ({
         url, api: true, credentials: 'omit', headers: { Authorization: 'Bearer token' },
