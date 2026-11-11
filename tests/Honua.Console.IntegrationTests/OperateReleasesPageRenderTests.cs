@@ -499,7 +499,6 @@ public sealed class OperateReleasesPageRenderTests
         ctx.Services.AddSingleton<NavigationManager>(new MountedNavigationManager("/console/", "operate/releases"));
     }
 
-
     private sealed class StubReleaseClient : IConsoleGitOpsReleaseClient
     {
         public OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>> Proposals { get; init; } =

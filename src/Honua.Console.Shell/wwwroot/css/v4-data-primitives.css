@@ -77,3 +77,7 @@
 .console-shell[data-console-v4="true"] .operate-temporal-tick-selected::before {
     background: var(--honua-text);
 }
+
+.console-shell[data-console-v4="true"] .operate-data-page :is(.resource-tree__toggle, .resource-tree__name, .resource-tree__publication-row) {
+    min-height: 24px;
+}

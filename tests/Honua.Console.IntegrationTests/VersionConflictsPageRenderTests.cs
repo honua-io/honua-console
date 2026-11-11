@@ -133,4 +133,3 @@ public sealed class VersionConflictsPageRenderTests
         public Task<ReconcileResultView> ReconcileAsync(ReconcileVersionCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }
-
