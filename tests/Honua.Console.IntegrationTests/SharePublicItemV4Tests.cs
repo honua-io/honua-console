@@ -34,26 +34,15 @@ public sealed class SharePublicItemV4Tests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task UnknownDownloadFormatIsPreserved(bool enabled)
+    [InlineData(false, "GeoServices:MapServer", "GeoServices:MapServer")]
+    [InlineData(true, "GeoServices:MapServer", "GeoServices map service")]
+    [InlineData(false, "custom-format/vNext", "custom-format/vNext")]
+    [InlineData(true, "custom-format/vNext", "custom-format/vNext")]
+    public async Task DownloadFormatLabelPreservesUnknownAndFollowsFlag(bool enabled, string format, string expected)
     {
         var catalog = new InMemoryConsoleCatalogClient();
         var item = await catalog.GetOpenDataItemAsync("coastal-flood-service");
-        item.Item!.Summary.Formats[0] = "custom-format/vNext";
-        using var context = Context(new ConsoleV4Options { Enabled = enabled }, catalog);
-        var page = context.Render<SharePublicItemPage>(parameters => parameters.Add(p => p.IdOrSlug, "coastal-flood-service"));
-        Assert.Equal("custom-format/vNext", page.Find(".share-opendata-download-name").TextContent);
-    }
-
-    [Theory]
-    [InlineData(false, "GeoServices:MapServer")]
-    [InlineData(true, "GeoServices map service")]
-    public async Task MapServiceDownloadLabelFollowsFlag(bool enabled, string expected)
-    {
-        var catalog = new InMemoryConsoleCatalogClient();
-        var item = await catalog.GetOpenDataItemAsync("coastal-flood-service");
-        item.Item!.Summary.Formats[0] = "GeoServices:MapServer";
+        item.Item!.Summary.Formats[0] = format;
         using var context = Context(new ConsoleV4Options { Enabled = enabled }, catalog);
         var page = context.Render<SharePublicItemPage>(parameters => parameters.Add(p => p.IdOrSlug, "coastal-flood-service"));
         Assert.Equal(expected, page.Find(".share-opendata-download-name").TextContent);
