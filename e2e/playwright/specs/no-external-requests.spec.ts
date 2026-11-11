@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { test, expect } from '@playwright/test';
+import { installServedModuleLoader } from '../fixtures/import-served-module';
 import { scenePoints } from '../fixtures/scene-points';
 
 // Spec 6 (honua-console#333): the Console serves its own assets. Nothing it loads may come from an
@@ -134,26 +135,19 @@ test('a mounted map runs the vendored MapLibre build, fetched from this origin',
   const origin = new URL(baseURL!).origin;
   const offOrigin = recordOffOriginRequests(page, origin);
   await page.goto('/studio', { waitUntil: 'domcontentloaded' });
+  await page.evaluate(installServedModuleLoader);
 
   // Force the load path the backend-free walk above cannot reach: mount a real map. The style URL
   // is a same-origin document that is not a MapLibre style, so the map reports a style error a
   // moment later — irrelevant here. What matters is that `loadMapLibre()` ran, and where from.
   const result = await page.evaluate(
     async ({ modulePath, styleUrl }) => {
-      const source = await (await fetch(modulePath)).text();
-      const base = new URL(modulePath, location.href);
-      const specifier = source.match(/^import '(\.\/[^']+)';/m);
-      let text = source;
-      let dependencyUrl: string | null = null;
-      if (specifier) {
-        const dependency = await (await fetch(new URL(specifier[1], base))).text();
-        dependencyUrl = URL.createObjectURL(new Blob([dependency], { type: 'text/javascript' }));
-        text = source.replace(specifier[0], `import '${dependencyUrl}';`);
-      }
-      const blobUrl = URL.createObjectURL(new Blob([text], { type: 'text/javascript' }));
-      const mod = await import(/* @vite-ignore */ blobUrl);
-      URL.revokeObjectURL(blobUrl);
-      if (dependencyUrl) URL.revokeObjectURL(dependencyUrl);
+      const load = (globalThis as { importServedModule?: (path: string) => Promise<{
+        init: (container: unknown, options: unknown) => Promise<boolean>;
+        dispose: (container: unknown) => void;
+      }> }).importServedModule;
+      if (!load) throw new Error('served module loader is not installed');
+      const mod = await load(modulePath);
 
       const container = document.createElement('div');
       container.style.width = '320px';

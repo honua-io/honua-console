@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { installServedModuleLoader } from '../fixtures/import-served-module';
 
 // Spec 4: the MapPreview JS interop module (`map-preview.js`) — the browser-side surface
 // bUnit cannot cover (bUnit fakes JS interop and never loads the real ES module).
@@ -28,23 +29,16 @@ test('map-preview.js is served by the host and is the MapPreview ES module', asy
 test('map-preview.js degrades gracefully (schematic stays) when no style is bound', async ({ page }) => {
   // Load a host page so fetch + import resolve same-origin under the host's CSP.
   await page.goto('/studio', { waitUntil: 'domcontentloaded' });
+  await page.evaluate(installServedModuleLoader);
 
   const result = await page.evaluate(async (modulePath) => {
-    // Pull the exact served source, then import it under a guaranteed JS MIME (Blob URL).
-    const src = await (await fetch(modulePath)).text();
-    const base = new URL(modulePath, location.href);
-    const specifier = src.match(/^import '(\.\/[^']+)';/m);
-    let text = src;
-    let dependencyUrl: string | null = null;
-    if (specifier) {
-      const dependency = await (await fetch(new URL(specifier[1], base))).text();
-      dependencyUrl = URL.createObjectURL(new Blob([dependency], { type: 'text/javascript' }));
-      text = src.replace(specifier[0], `import '${dependencyUrl}';`);
-    }
-    const blobUrl = URL.createObjectURL(new Blob([text], { type: 'text/javascript' }));
-    const mod = await import(/* @vite-ignore */ blobUrl);
-    URL.revokeObjectURL(blobUrl);
-    if (dependencyUrl) URL.revokeObjectURL(dependencyUrl);
+    const load = (globalThis as { importServedModule?: (path: string) => Promise<{
+      init: (container: unknown, options: unknown) => Promise<boolean>;
+      setBasemap: unknown;
+      dispose: (container: unknown) => void;
+    }> }).importServedModule;
+    if (!load) throw new Error('served module loader is not installed');
+    const mod = await load(modulePath);
 
     const container = document.createElement('div');
     document.body.appendChild(container);
