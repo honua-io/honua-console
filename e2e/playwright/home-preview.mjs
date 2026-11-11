@@ -9,7 +9,7 @@ import { checkKeyboardControls } from "./console-presentation.mjs";
 const previews = path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/catalog-preview");
 const pages = new Map(await Promise.all(["home-inventory-v4", "home-inventory-legacy"].map(async name => {
   const markup = await fs.readFile(path.join(previews, `${name}.html`), "utf8");
-  return [name, `<div class="console-shell" data-console-v4="${name.endsWith("v4")}">${markup}</div>`];
+  return [name, `<div class="console-shell"${name.endsWith("v4") ? ' data-console-v4="true"' : ""}>${markup}</div>`];
 })));
 const server = await startPresentationFixtureServer({
   pages, title: "Home presentation fixture",
@@ -40,6 +40,9 @@ try {
         const leadSize = await inventory.locator(".console-metric-value").evaluate(element => parseFloat(getComputedStyle(element).fontSize));
         const secondary = await inventory.locator(".console-home-inventory-details dd").evaluateAll(elements => elements.map(element => parseFloat(getComputedStyle(element).fontSize)));
         assert.ok(secondary.every(size => size < leadSize), "Services must be the single large inventory count");
+        assert.deepEqual(secondary, [18, 18], "Secondary inventory counts retain their adopted type size");
+        const labels = await inventory.locator(".console-home-inventory-details dt").evaluateAll(elements => elements.map(element => getComputedStyle(element).fontSize));
+        assert.deepEqual(labels, ["12px", "12px"], "Inventory labels retain their adopted type size");
       } else assert.equal(await inventory.count(), 0);
       await checkKeyboardControls(page, {
         controls: "main :is(a[href], input, select, button, summary, [tabindex='0']):not(:disabled):visible",

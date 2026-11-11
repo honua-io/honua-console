@@ -18,7 +18,7 @@ public sealed class SharePublicItemV4Tests
         var page = context.Render<SharePublicItemPage>(parameters => parameters.Add(p => p.IdOrSlug, "coastal-flood-service"));
         Assert.Equal("Coastal Flood Service", page.Find("h1").TextContent);
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
-        Assert.Equal(["GeoServices:FeatureService", "OGC:API:Features"], page.FindAll(".share-opendata-download-name").Select(node => node.TextContent));
+        Assert.Equal(enabled ? ["GeoServices feature service", "OGC API Features"] : ["GeoServices:FeatureService", "OGC:API:Features"], page.FindAll(".share-opendata-download-name").Select(node => node.TextContent));
         Assert.Equal("/share/public/items/coastal-flood-service", page.Find("[data-share-opendata-routes] code").TextContent);
         Assert.Contains("resilience-team", page.Find("[data-share-opendata-footer]").TextContent);
         Assert.Empty(page.FindAll("button,input,select,textarea"));
@@ -31,6 +31,21 @@ public sealed class SharePublicItemV4Tests
             Assert.Equal("/share/public", page.Find(".share-opendata-back").GetAttribute("href"));
         }
         CatalogAdminPreview.Capture($"share-public-{(enabled ? "v4" : "legacy")}", $"<div class=\"console-shell\" data-console-v4=\"{enabled.ToString().ToLowerInvariant()}\">{page.Markup}</div>");
+    }
+
+    [Theory]
+    [InlineData(false, "GeoServices:MapServer", "GeoServices:MapServer")]
+    [InlineData(true, "GeoServices:MapServer", "GeoServices map service")]
+    [InlineData(false, "custom-format/vNext", "custom-format/vNext")]
+    [InlineData(true, "custom-format/vNext", "custom-format/vNext")]
+    public async Task DownloadFormatLabelPreservesUnknownAndFollowsFlag(bool enabled, string format, string expected)
+    {
+        var catalog = new InMemoryConsoleCatalogClient();
+        var item = await catalog.GetOpenDataItemAsync("coastal-flood-service");
+        item.Item!.Summary.Formats[0] = format;
+        using var context = Context(new ConsoleV4Options { Enabled = enabled }, catalog);
+        var page = context.Render<SharePublicItemPage>(parameters => parameters.Add(p => p.IdOrSlug, "coastal-flood-service"));
+        Assert.Equal(expected, page.Find(".share-opendata-download-name").TextContent);
     }
 
     [Fact]
