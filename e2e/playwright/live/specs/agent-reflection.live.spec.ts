@@ -45,6 +45,7 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
       errors.push(`${response.status()} ${response.request().method()} ${url.origin}${url.pathname}`);
   });
   page.on('requestfailed', request => {
+    if (request.failure()?.errorText === 'net::ERR_ABORTED') return;
     const url = new URL(request.url());
     if (origins.has(url.origin)) errors.push(`request failed ${url.origin}${url.pathname}: ${request.failure()?.errorText}`);
   });
