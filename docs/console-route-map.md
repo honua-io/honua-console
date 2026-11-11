@@ -1185,7 +1185,9 @@ The primary rail follows Home (`/`), Datasets (`/operate/data`), realtime Maps &
 
 Legacy Studio standalone builder URLs now show direct guidance to `/studio` or `/studio/processes`. `/operate/ai` opens the same primary conversation rather than a separate classifier/generator. Real operations and automation routes remain available. The active editor dependency stays in `honua-studio` until a separately approved migration.
 
-`/operate/resources/import/task` contributes a browser file to the immutable dataset-import task selected in the shared conversation. It uses the pinned SDK and authenticated bounded chunk capability, verifies the complete file digest, and reconciles original transfer receipts after interrupted requests. A retained source receipt does not establish import acceptance. The surface refuses when the deployment or pinned SDK does not expose the canonical transport.
+`/operate/data/new?source=file` opens the direct Admin import form at `/operate/resources/import` by default. The form previews the file, shows the detected coordinate system, keeps that system by default, and accepts an explicit supported target or a required source override when detection is unavailable. Preview, lookup and import retain the reviewed operator and environment binding.
+
+When `Honua:Agent:WorkspaceApiEnabled` is true, `/operate/resources/import/task` contributes a browser file to the immutable dataset-import task selected in the shared conversation. It uses the pinned SDK and authenticated bounded chunk capability, verifies the complete file digest, and reconciles original transfer receipts after interrupted requests. A retained source receipt does not establish import acceptance. The surface refuses when the deployment or pinned SDK does not expose the canonical transport.
 
 ### Active Studio publication maps
 
