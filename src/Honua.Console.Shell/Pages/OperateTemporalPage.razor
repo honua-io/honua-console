@@ -3,24 +3,31 @@
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @using Honua.Console.Shell.Validation
+@inject IServiceProvider Services
 @inject ITemporalCapabilityClient TemporalData
 @inject IConsoleCapabilityManifest Capabilities
 @inject IConsoleNotificationService Notifications
+
+<ConsoleAgentContext Context="@AgentContext" />
 
 <ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.Temporal"
                        Title="Temporal is not available in this release"
                        Message="Temporal 'git over data' — as-of, diff, governed rollback, and feature history — is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
 <section class="console-page operate-temporal" data-temporal-viewer="capability-gate">
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Temporal">
+            <p class="console-page-intro">Inspect layer history, compare checkpoints, and review governed rollback and sync conflicts.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
     <div class="console-page-heading">
         <p class="console-kicker">Operator workflow</p>
         <h1>Temporal viewer</h1>
         <p>Inspect temporal data history, compare a now-vs-as-of state, plan governed rollbacks, and review disconnected replica sync conflicts. Temporal capability is server-owned: each source declares which modes it supports, and unsupported sources show a capability explanation rather than an empty viewer.</p>
     </div>
-
-    @* Time-info setter: declares which fields make a service time-aware (start/end time + track id).
-       Self-contained component — binds the admin time-info endpoint
-       (PUT /api/v1/admin/services/{svc}/timeinfo) independent of the capability viewer below, and renders an
-       honest missing-binding state when no server is configured. *@
+    }
     <ServiceTimeInfoSetter />
 
     @if (_loading)
@@ -32,7 +39,6 @@
     }
     else if (_bindingState is not null)
     {
-        @* AC #1: unsupported / unbound temporal sources render a capability explanation, not an empty viewer. *@
         <ConsoleStateView HeadingLevel="2" Kind="missing"
                           Kicker="@_bindingState.State"
                           Title="Temporal capability is not bound"
@@ -74,57 +80,32 @@
         }
         else
         {
-            <section class="console-section" aria-label="Temporal sources">
-                <ConsoleTableRegion Class="console-table-wrap" Label="Layer history capabilities">
-                    <table class="console-table" aria-label="Temporal source capabilities">
-                        <thead>
-                            <tr>
-                                <th>Source</th>
-                                <th>Layer</th>
-                                <th>History mode</th>
-                                <th>Sync</th>
-                                <th>Rollback</th>
-                                <th>Conflict review</th>
-                                <th>Retention</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var source in _workspace.Sources)
-                            {
-                                var active = string.Equals(source.SourceId, _selectedSource?.SourceId, StringComparison.Ordinal);
-                                <tr class="@(active ? "console-row-selected" : string.Empty)">
-                                    <td>
-                                        <strong>@source.ResourceId</strong>
-                                        <small>@source.SourceId</small>
-                                    </td>
-                                    <td>@source.LayerId</td>
-                                    <td>@source.Mode</td>
-                                    <td>@source.SyncCapability</td>
-                                    <td>@(source.RollbackSupported ? "supported" : "—")</td>
-                                    <td>@(source.SyncConflictReviewSupported ? "supported" : "—")</td>
-                                    <td>@(string.IsNullOrWhiteSpace(source.RetentionPolicyId) ? "—" : source.RetentionPolicyId)</td>
-                                    <td>
-                                        <button class="console-button console-button-secondary" type="button"
-                                                @onclick="() => SelectSourceAsync(source)">Inspect</button>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </ConsoleTableRegion>
-            </section>
+            @if (V4Enabled)
+            {
+                <ConsolePanel Title="Sources" HeadingId="temporal-sources-heading">
+                    <ConsoleMetricTile Label="Temporal sources" Value="@_workspace.Sources.Count" />
+                    @RenderSources()
+                </ConsolePanel>
+            }
+            else
+            {
+                <section class="console-section" aria-label="Temporal sources">@RenderSources()</section>
+            }
 
             @if (_selectedSource is not null)
             {
                 <section class="console-section operate-temporal-detail" aria-label="Temporal detail" data-temporal-detail="@_selectedSource.SourceId">
-                    @* Design: source header mirrors the mockup as-of header — icon, "· as-of" title,
-                       capability badge, summary metrics, and the primary as-of/diff/rollback actions. *@
                     <div class="operate-temporal-header">
                         <div class="operate-temporal-header-title">
-                            <span class="operate-temporal-source-glyph" aria-hidden="true">◇</span>
+                            @if (!V4Enabled)
+                            {
+                                <span class="operate-temporal-source-glyph" aria-hidden="true">◇</span>
+                            }
                             <div>
-                                <p class="console-kicker">@_selectedSource.ResourceId</p>
+                                @if (!V4Enabled)
+                                {
+                                    <p class="console-kicker">@_selectedSource.ResourceId</p>
+                                }
                                 <h2>@_selectedSource.ResourceId · as-of</h2>
                             </div>
                             <span class="console-status console-state-success operate-temporal-cap-badge">@DescribeMode(_selectedSource.Mode)</span>
@@ -148,7 +129,6 @@
 
                     @if (!_selectedSource.HistoryReadPermitted)
                     {
-                        @* Security/governance: history access is permissioned separately from current read. *@
                         <ConsoleStateView HeadingLevel="2" Kind="unavailable"
                                           Kicker="Forbidden"
                                           Title="History access is not permitted"
@@ -178,6 +158,90 @@
 </ConsoleCapabilityGate>
 
 @code {
+    [Parameter, SupplyParameterFromQuery(Name = "sourceId")]
+    public string? SourceId { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "checkpointId")]
+    public string? CheckpointId { get; set; }
+
+    private int _parameterGeneration;
+    private int _sourceGeneration;
+    private Task _sourceLoadTask = Task.CompletedTask;
+
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private RenderFragment RenderSources() => __builder =>
+    {
+                <ConsoleTableRegion Class="console-table-wrap" Label="Layer history capabilities">
+                    <table class="console-table" aria-label="Temporal source capabilities">
+                        <thead>
+                            <tr>
+                                <th>Source</th>
+                                <th>Layer</th>
+                                <th>History mode</th>
+                                <th>Sync</th>
+                                <th>Rollback</th>
+                                <th>Conflict review</th>
+                                <th>Retention</th>
+                                <th>@(V4Enabled ? "Actions" : null)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var source in _workspace.Sources)
+                            {
+                                var active = string.Equals(source.SourceId, _selectedSource?.SourceId, StringComparison.Ordinal);
+                                <tr class="@(active ? "console-row-selected" : string.Empty)">
+                                    <td>
+                                        <strong>@source.ResourceId</strong>
+                                        <small>@source.SourceId</small>
+                                    </td>
+                                    <td>@source.LayerId</td>
+                                    <td>@source.Mode</td>
+                                    <td>@source.SyncCapability</td>
+                                    <td>@(source.RollbackSupported ? "supported" : "—")</td>
+                                    <td>@(source.SyncConflictReviewSupported ? "supported" : "—")</td>
+                                    <td>@(string.IsNullOrWhiteSpace(source.RetentionPolicyId) ? "—" : source.RetentionPolicyId)</td>
+                                    <td>
+                                        <button class="console-button console-button-secondary" type="button"
+                                                @onclick="() => InspectSourceAsync(source)">Inspect</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </ConsoleTableRegion>
+    };
+
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = "/operate/temporal",
+        Filters = TemporalFilters,
+        Unsaved = new()
+        {
+            ChangedFieldCount = _selectedConflictIds.Count
+                + (_selectedConflictIds.Count > 0 && _batchAction != SyncResolutionAction.KeepServer ? 1 : 0)
+                + (_rollbackScope != TemporalRollbackScope.ChangeSet ? 1 : 0),
+            PendingOperationCount = (_diffBusy ? 1 : 0) + (_timelineBusy ? 1 : 0)
+                + (_rollbackBusy ? 1 : 0) + (_replicaBusy ? 1 : 0) + (_resolveBusy ? 1 : 0)
+        }
+    };
+
+    private IReadOnlyDictionary<string, string> TemporalFilters
+    {
+        get
+        {
+            var filters = new Dictionary<string, string>();
+            if (_selectedSource is not null) filters["sourceId"] = _selectedSource.SourceId;
+            if (_selectedCheckpointId is not null) filters["checkpointId"] = _selectedCheckpointId;
+            if (_fromCheckpointId is not null) filters["fromCheckpointId"] = _fromCheckpointId;
+            if (_toCheckpointId is not null) filters["toCheckpointId"] = _toCheckpointId;
+            if (!string.IsNullOrWhiteSpace(_featureIdInput)) filters["featureId"] = _featureIdInput.Trim();
+            if (_selectedReplica is not null) filters["replicaId"] = _selectedReplica.ReplicaId;
+            if (_selectedConflictIds.Count > 0)
+                filters["conflictIds"] = string.Join(",", _selectedConflictIds.Order(StringComparer.Ordinal));
+            return filters;
+        }
+    }
+
     private bool _loading = true;
     private TemporalViewerWorkspace _workspace = new([], []);
     private TemporalCapabilityState? _bindingState;
@@ -253,6 +317,61 @@
         _loading = false;
     }
 
+    private bool _queryApplied;
+    private string? _appliedSourceId;
+    private string? _appliedCheckpointId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!V4Enabled || _loading || _bindingState is not null) return;
+        if (_queryApplied && string.Equals(_appliedSourceId, SourceId, StringComparison.Ordinal)
+            && string.Equals(_appliedCheckpointId, CheckpointId, StringComparison.Ordinal)) return;
+        _queryApplied = true;
+        _appliedSourceId = SourceId;
+        _appliedCheckpointId = CheckpointId;
+        var generation = ++_parameterGeneration;
+        var source = _workspace.Sources.FirstOrDefault(item =>
+            string.Equals(item.SourceId, SourceId, StringComparison.Ordinal));
+        if (source is null)
+        {
+            ++_sourceGeneration;
+            _selectedSource = null;
+            ResetDetailState();
+            return;
+        }
+        if (_selectedSource?.SourceId != source.SourceId)
+        {
+            await SelectSourceAsync(source);
+        }
+        else
+        {
+            await _sourceLoadTask;
+        }
+        if (generation != _parameterGeneration) return;
+        if (!string.IsNullOrWhiteSpace(CheckpointId))
+        {
+            var checkpoint = _checkpoints.FirstOrDefault(item =>
+                string.Equals(item.CheckpointId, CheckpointId, StringComparison.Ordinal));
+            if (checkpoint is not null) SelectCheckpoint(checkpoint);
+            else
+            {
+                _selectedCheckpointId = null;
+                _fromCheckpointId = null;
+                RevalidateDiffSelection();
+            }
+        }
+        else if (_checkpoints.FirstOrDefault() is { } latest)
+        {
+            SelectCheckpoint(latest);
+        }
+    }
+
+    private Task InspectSourceAsync(TemporalSourceCapability source)
+    {
+        ++_parameterGeneration;
+        return SelectSourceAsync(source);
+    }
+
     private void ApplyStates(IReadOnlyList<TemporalCapabilityState> states)
     {
         _bindingState = states.FirstOrDefault(state =>
@@ -262,17 +381,24 @@
             .ToArray();
     }
 
-    private async Task SelectSourceAsync(TemporalSourceCapability source)
+    private Task SelectSourceAsync(TemporalSourceCapability source)
     {
         _selectedSource = source;
         ResetDetailState();
+        var generation = ++_sourceGeneration;
+        _sourceLoadTask = LoadSourceAsync(source, generation);
+        return _sourceLoadTask;
+    }
 
+    private async Task LoadSourceAsync(TemporalSourceCapability source, int generation)
+    {
         if (!source.HistoryReadPermitted || source.Mode == TemporalMode.None)
         {
             return;
         }
 
         var checkpoints = await TemporalData.GetCheckpointsAsync(source.SourceId);
+        if (generation != _sourceGeneration) return;
         _checkpointBinding = checkpoints.BindingState;
         _checkpoints = checkpoints.Checkpoints;
         _fromCheckpointId = _checkpoints.Count > 1 ? _checkpoints[1].CheckpointId : _checkpoints.FirstOrDefault()?.CheckpointId;
@@ -283,6 +409,7 @@
         if (source.SyncConflictReviewSupported)
         {
             var queue = await TemporalData.GetReplicaConflictQueueAsync(source.SourceId);
+            if (generation != _sourceGeneration) return;
             _replicaBinding = queue.BindingState;
             _replicas = queue.Replicas;
         }
@@ -301,6 +428,7 @@
         _featureIdInput = string.Empty;
         _timeline = null;
         _timelineBinding = null;
+        if (V4Enabled) _rollbackScope = TemporalRollbackScope.ChangeSet;
         _rollbackPlan = null;
         _rollbackOperation = null;
         _rollbackBinding = null;
@@ -316,12 +444,28 @@
 
     private RenderFragment RenderTimeline() => __builder =>
     {
-        <article class="console-panel operate-temporal-checkpoints" aria-label="Dataset timeline" data-temporal-region="timeline">
-            <div class="console-panel-heading">
+        if (V4Enabled)
+        {
+            <div class="console-section operate-temporal-checkpoints" aria-label="Dataset timeline" data-temporal-region="timeline">
+                <ConsolePanel Title="Time scrubber" HeadingId="temporal-timeline-heading">@RenderTimelineContent()</ConsolePanel>
+            </div>
+        }
+        else
+        {
+        <article class="console-panel operate-temporal-checkpoints" aria-label="Dataset timeline" data-temporal-region="timeline">@RenderTimelineContent()</article>
+        }
+    };
+
+    private RenderFragment RenderTimelineContent() => __builder =>
+    {
+            <div class="@(V4Enabled ? null : "console-panel-heading")">
+                @if (!V4Enabled)
+                {
                 <div>
                     <p class="console-kicker">As-of time</p>
                     <h2>Time scrubber</h2>
                 </div>
+                }
                 @if (_checkpoints.Count > 0)
                 {
                     <span class="console-muted operate-temporal-asof-readout">As-of @(_selectedCheckpoint?.Label ?? _checkpoints[^1].Label)</span>
@@ -341,10 +485,6 @@
                 {
                     <p class="console-status">No retention policy is declared for this source; history may be pruned without notice.</p>
                 }
-
-                @* Design: horizontal time axis with one tick per checkpoint and release ticks emphasized,
-                   plus a playhead at the selected as-of, mirroring the mockup scrubber. The axis is driven by
-                   the real server checkpoint set — no fabricated edit ticks. *@
                 <div class="operate-temporal-axis" role="group" aria-label="Checkpoint axis">
                     <div class="operate-temporal-axis-line" aria-hidden="true"></div>
                     @{
@@ -360,7 +500,7 @@
                                 class="operate-temporal-tick @(isRelease ? "operate-temporal-tick-release" : string.Empty) @(isSelected ? "operate-temporal-tick-selected" : string.Empty)"
                                 style="@($"left:{percent.ToString(System.Globalization.CultureInfo.InvariantCulture)}%")"
                                 title="@($"{checkpoint.Label} · {checkpoint.CreatedAt:u}")"
-                                aria-pressed="@isSelected"
+                                aria-pressed="@(isSelected ? "true" : "false")"
                                 aria-label="@($"{checkpoint.CursorType} {checkpoint.Label}")"
                                 @onclick="() => SelectCheckpoint(checkpoint)"></button>
                     }
@@ -376,8 +516,6 @@
                     <span class="operate-temporal-legend-spacer"></span>
                     <button type="button" class="console-button console-button-secondary" @onclick="JumpToLatest">Latest</button>
                 </div>
-
-                @* Selected checkpoint detail keeps the original attribution + cursor info available. *@
                 @if (_selectedCheckpoint is not null)
                 {
                     <dl class="console-definition-list operate-temporal-checkpoint-detail">
@@ -390,7 +528,7 @@
                     </dl>
                 }
             }
-        </article>
+
     };
 
     private RenderFragment RenderDiff() => __builder =>
@@ -400,12 +538,28 @@
             return;
         }
 
-        <article class="console-panel operate-temporal-diff" aria-label="Now versus as-of comparison" data-temporal-region="diff">
-            <div class="console-panel-heading">
+        if (V4Enabled)
+        {
+            <div class="console-section operate-temporal-diff" aria-label="Now versus as-of comparison" data-temporal-region="diff">
+                <ConsolePanel Title="Change comparison" HeadingId="temporal-diff-heading">@RenderDiffContent()</ConsolePanel>
+            </div>
+        }
+        else
+        {
+        <article class="console-panel operate-temporal-diff" aria-label="Now versus as-of comparison" data-temporal-region="diff">@RenderDiffContent()</article>
+        }
+    };
+
+    private RenderFragment RenderDiffContent() => __builder =>
+    {
+            <div class="@(V4Enabled ? null : "console-panel-heading")">
+                @if (!V4Enabled)
+                {
                 <div>
                     <p class="console-kicker">Now vs as-of</p>
                     <h2>Diff Summary</h2>
                 </div>
+                }
             </div>
             @if (_checkpoints.Count >= 2)
             {
@@ -444,16 +598,12 @@
             }
             else if (_diff is not null)
             {
-                @* Design: side-by-side as-of vs now panes, mirroring the mockup split. The left pane
-                   summarizes the as-of selection; the right pane summarizes what changed into "now". *@
                 <div class="operate-temporal-split" aria-label="As-of versus now">
                     <section class="operate-temporal-pane operate-temporal-pane-asof" aria-label="As-of state">
                         <header class="operate-temporal-pane-head">
                             <span class="console-status console-state-neutral">as-of</span>
                             <span class="console-muted">@DescribeCheckpoint(_diff.FromCheckpointId)</span>
                         </header>
-                        @* Design: as-of map pane from the mockup split. The map renders the schematic
-                           placeholder unless a real style source is bound — no mock backend (server #1166). *@
                         <div class="operate-temporal-pane-map operate-temporal-pane-map-asof" data-temporal-map="as-of">
                             <MapPreview Mode="MapPreviewMode.Layer"
                                         Height="220"
@@ -472,7 +622,6 @@
                             <span class="console-status console-state-success">now</span>
                             <span class="console-muted">@DescribeCheckpoint(_diff.ToCheckpointId)</span>
                         </header>
-                        @* Design: now map pane from the mockup split. *@
                         <div class="operate-temporal-pane-map operate-temporal-pane-map-now" data-temporal-map="now">
                             <MapPreview Mode="MapPreviewMode.Layer"
                                         Height="220"
@@ -510,7 +659,7 @@
                     </table>
                 }
             }
-        </article>
+
     };
 
     private RenderFragment RenderFeatureTimeline() => __builder =>
@@ -520,12 +669,28 @@
             return;
         }
 
-        <article class="console-panel operate-temporal-feature" aria-label="Feature timeline">
-            <div class="console-panel-heading">
+        if (V4Enabled)
+        {
+            <div class="console-section operate-temporal-feature" aria-label="Feature timeline">
+                <ConsolePanel Title="Revision history" HeadingId="temporal-feature-heading">@RenderFeatureTimelineContent()</ConsolePanel>
+            </div>
+        }
+        else
+        {
+        <article class="console-panel operate-temporal-feature" aria-label="Feature timeline">@RenderFeatureTimelineContent()</article>
+        }
+    };
+
+    private RenderFragment RenderFeatureTimelineContent() => __builder =>
+    {
+            <div class="@(V4Enabled ? null : "console-panel-heading")">
+                @if (!V4Enabled)
+                {
                 <div>
                     <p class="console-kicker">Feature timeline</p>
                     <h2>Revision History</h2>
                 </div>
+                }
             </div>
             <div class="operate-temporal-feature-controls">
                 <label>
@@ -562,7 +727,7 @@
                     </ol>
                 }
             }
-        </article>
+
     };
 
     private RenderFragment RenderRollback() => __builder =>
@@ -572,12 +737,28 @@
             return;
         }
 
-        <article class="console-panel operate-temporal-rollback" aria-label="Rollback review">
-            <div class="console-panel-heading">
+        if (V4Enabled)
+        {
+            <div class="console-section operate-temporal-rollback" aria-label="Rollback review">
+                <ConsolePanel Title="Rollback review" HeadingId="temporal-rollback-heading">@RenderRollbackContent()</ConsolePanel>
+            </div>
+        }
+        else
+        {
+        <article class="console-panel operate-temporal-rollback" aria-label="Rollback review">@RenderRollbackContent()</article>
+        }
+    };
+
+    private RenderFragment RenderRollbackContent() => __builder =>
+    {
+            <div class="@(V4Enabled ? null : "console-panel-heading")">
+                @if (!V4Enabled)
+                {
                 <div>
                     <p class="console-kicker">Rollback review</p>
                     <h2>Governed Rollback</h2>
                 </div>
+                }
             </div>
             <p class="console-muted">Rollback creates a new corrective operation and a new checkpoint. It never erases immutable history.</p>
             <div class="operate-temporal-rollback-controls">
@@ -634,7 +815,7 @@
                     <dt>Audit events</dt><dd>@(_rollbackOperation.AuditEventIds.Count == 0 ? "—" : string.Join(", ", _rollbackOperation.AuditEventIds))</dd>
                 </dl>
             }
-        </article>
+
     };
 
     private RenderFragment RenderConflictReview() => __builder =>
@@ -644,12 +825,28 @@
             return;
         }
 
-        <article class="console-panel operate-temporal-conflicts" aria-label="Replica conflict queue" data-temporal-region="sync-conflicts">
-            <div class="console-panel-heading">
+        if (V4Enabled)
+        {
+            <div class="console-section operate-temporal-conflicts" aria-label="Replica conflict queue" data-temporal-region="sync-conflicts">
+                <ConsolePanel Title="Replica conflict queue" HeadingId="temporal-conflicts-heading">@RenderConflictReviewContent()</ConsolePanel>
+            </div>
+        }
+        else
+        {
+        <article class="console-panel operate-temporal-conflicts" aria-label="Replica conflict queue" data-temporal-region="sync-conflicts">@RenderConflictReviewContent()</article>
+        }
+    };
+
+    private RenderFragment RenderConflictReviewContent() => __builder =>
+    {
+            <div class="@(V4Enabled ? null : "console-panel-heading")">
+                @if (!V4Enabled)
+                {
                 <div>
                     <p class="console-kicker">Disconnected sync</p>
                     <h2>Replica Conflict Queue</h2>
                 </div>
+                }
                 @if (_replicaBinding is null && _replicas.Count > 0)
                 {
                     <span class="console-muted">@_replicas.Count(r => r.PendingConflictCount > 0) replicas with conflicts · @_replicas.Sum(r => r.PendingConflictCount) rows</span>
@@ -668,7 +865,7 @@
             {
                 <table class="console-table" aria-label="Replicas">
                     <thead>
-                        <tr><th>Replica</th><th>Owner</th><th>Device</th><th>Base checkpoint</th><th>Sync gen</th><th>Status</th><th>Needs review</th><th></th></tr>
+                        <tr><th>Replica</th><th>Owner</th><th>Device</th><th>Base checkpoint</th><th>Sync gen</th><th>Status</th><th>Needs review</th><th>@(V4Enabled ? "Actions" : null)</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var replica in _replicas)
@@ -687,9 +884,6 @@
                         }
                     </tbody>
                 </table>
-
-                @* Design: auto-resolution rules footer from the mockup — explains which conflicts the server
-                   resolves automatically before any reach this review queue. *@
                 <div class="operate-temporal-rules console-chip-row" aria-label="Auto-resolution rules">
                     <span class="console-muted">Auto-resolution rules:</span>
                     <span class="console-status console-state-neutral">latest-wins on identical fields</span>
@@ -702,7 +896,7 @@
             {
                 @RenderConflictDetail();
             }
-        </article>
+
     };
 
     private RenderFragment RenderConflictDetail() => __builder =>
@@ -758,16 +952,10 @@
                         {
                             <p class="console-status operate-temporal-geometry-marker">Geometry conflict: client and server geometry diverged from the base.</p>
                         }
-
-                        @* Design: base / client / server three-way merge columns from the mockup. Each
-                           column header is badged (base = neutral, client = info, server = accent); the
-                           field-conflict rows highlight the diverging client and server values. *@
                         <div class="operate-temporal-threeway" aria-label="Base client server comparison">
                             <div class="operate-temporal-threeway-col operate-temporal-col-base">
                                 <span class="console-status console-state-neutral">base</span>
                                 <small class="console-muted">@(conflict.BaseRevisionId ?? "—") · last common state</small>
-                                @* Design: "map at base" thumbnail from the mockup base column. Renders the
-                                   schematic placeholder unless a real style source is bound (server #1167). *@
                                 <div class="operate-temporal-col-base-map" data-temporal-map="base">
                                     <MapPreview Mode="MapPreviewMode.Layer"
                                                 Height="140"
@@ -805,8 +993,6 @@
                                 </tbody>
                             </table>
                         }
-
-                        @* AI advisory + resolution action bar, mirroring the mockup's advisory strip. *@
                         <div class="operate-temporal-advisory" role="note" aria-label="Resolution advisory">
                             <span class="operate-temporal-advisory-glyph" aria-hidden="true">AI</span>
                             <p class="operate-temporal-advisory-text">
@@ -882,10 +1068,12 @@
             return;
         }
 
+        var generation = _sourceGeneration;
         _diffBusy = true;
         try
         {
             var diff = await TemporalData.GetDiffAsync(_selectedSource.SourceId, _fromCheckpointId, _toCheckpointId);
+            if (generation != _sourceGeneration) return;
             _diffBinding = diff.BindingState;
             _diff = diff.BindingState is null ? diff : null;
         }
@@ -902,10 +1090,12 @@
             return;
         }
 
+        var generation = _sourceGeneration;
         _timelineBusy = true;
         try
         {
             var timeline = await TemporalData.GetFeatureTimelineAsync(_selectedSource.SourceId, _featureIdInput.Trim());
+            if (generation != _sourceGeneration) return;
             _timelineBinding = timeline.BindingState;
             _timeline = timeline.BindingState is null ? timeline : null;
         }
@@ -922,11 +1112,13 @@
             return;
         }
 
+        var generation = _sourceGeneration;
         _rollbackBusy = true;
         try
         {
             _rollbackOperation = null;
             var plan = await TemporalData.CreateRollbackPlanAsync(_selectedSource.SourceId, _rollbackScope, _fromCheckpointId);
+            if (generation != _sourceGeneration) return;
             _rollbackBinding = plan.BindingState;
             _rollbackPlan = plan.BindingState is null ? plan : null;
         }
@@ -948,13 +1140,18 @@
 
     private Task ExecuteRollbackAsync()
     {
+        if (_rollbackPlan is null) return Task.CompletedTask;
+        var generation = _sourceGeneration;
+        var planId = _rollbackPlan.RollbackPlanId;
         _rollbackOperation = null;
         _rollbackBinding = null;
         return Notifications.RunGuardedAsync(
             async () =>
             {
-                _rollbackOperation = await TemporalData.ExecuteRollbackAsync(_rollbackPlan!.RollbackPlanId);
-                _rollbackBinding = _rollbackOperation.BindingState;
+                var operation = await TemporalData.ExecuteRollbackAsync(planId);
+                if (generation != _sourceGeneration) return;
+                _rollbackOperation = operation;
+                _rollbackBinding = operation.BindingState;
             },
             setBusy: busy => { _rollbackBusy = busy; StateHasChanged(); },
             failureMessage: "Couldn't execute the rollback");
@@ -967,10 +1164,12 @@
         _lastResolution = null;
         _resolutionBinding = null;
 
+        var generation = _sourceGeneration;
         _replicaBusy = true;
         try
         {
             var review = await TemporalData.GetReplicaConflictReviewAsync(replica.ReplicaId);
+            if (generation != _sourceGeneration || _selectedReplica?.ReplicaId != replica.ReplicaId) return;
             _conflictReviewBinding = review.BindingState;
             _conflicts = review.BindingState is null ? review.Conflicts : [];
         }
@@ -1005,17 +1204,21 @@
             return;
         }
 
+        var generation = _sourceGeneration;
+        var replicaId = _selectedReplica?.ReplicaId;
         _resolveBusy = true;
         try
         {
             var result = await TemporalData.ResolveConflictsAsync(new SyncConflictResolutionRequest(conflictIds, action));
+            if (generation != _sourceGeneration || _selectedReplica?.ReplicaId != replicaId) return;
             _resolutionBinding = result.BindingState;
             _lastResolution = result.BindingState is null ? result : null;
 
-            if (result.BindingState is null && _selectedReplica is not null)
+            if (result.BindingState is null && replicaId is not null)
             {
                 // Refresh the queue/review so resolved conflicts drop out and audit evidence stays accurate.
-                var review = await TemporalData.GetReplicaConflictReviewAsync(_selectedReplica.ReplicaId);
+                var review = await TemporalData.GetReplicaConflictReviewAsync(replicaId);
+                if (generation != _sourceGeneration || _selectedReplica?.ReplicaId != replicaId) return;
                 _conflictReviewBinding = review.BindingState;
                 _conflicts = review.BindingState is null ? review.Conflicts : [];
                 _selectedConflictIds.Clear();
