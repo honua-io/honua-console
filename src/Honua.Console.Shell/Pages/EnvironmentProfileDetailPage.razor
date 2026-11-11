@@ -44,10 +44,10 @@ else
 
         @if (_state?.TrustBlocked == true)
         {
-            <article class="console-panel console-status-danger" role="alert">
+            <div class="console-panel console-status-danger" role="alert">
                 <h2>Environment access blocked</h2>
                 <p class="console-muted">@(_state.Trust?.SanitizedMessage ?? "The certificate changed and must be acknowledged or revalidated.")</p>
-            </article>
+            </div>
         }
 
         <div class="console-section">
