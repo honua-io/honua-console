@@ -39,6 +39,7 @@
     text-decoration: none;
 }
 
+.console-shell[data-console-v4="true"] .console-theme-toggle,
 .console-shell[data-console-v4="true"] .console-conversation-toggle,
 .console-shell[data-console-v4="true"] .console-help-link,
 .console-shell[data-console-v4="true"] .console-menu-toggle {
@@ -57,6 +58,7 @@
 
 .console-shell[data-console-v4="true"] .console-menu-toggle { display: none; }
 
+.console-shell[data-console-v4="true"] .console-theme-toggle:hover,
 .console-shell[data-console-v4="true"] .console-conversation-toggle:hover,
 .console-shell[data-console-v4="true"] .console-help-link:hover,
 .console-shell[data-console-v4="true"] .console-menu-toggle:hover { background: var(--c-topbar-hover); }
@@ -113,6 +115,10 @@
 
     .console-shell[data-console-v4="true"] .console-topnav { order: 2; }
 }
+
+.console-theme-sun { display: none; }
+:root[data-theme="dark"] .console-theme-sun { display: block; }
+:root[data-theme="dark"] .console-theme-moon { display: none; }
 
 @media (min-width: 1001px) {
     .console-shell[data-console-v4="true"] .console-topbar {
