@@ -1,4 +1,3 @@
-@inject NavigationManager ConsoleNavigation
 @page "/operate/layers/{ResourceId}/relationships"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
@@ -6,30 +5,63 @@
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleLayerRelationshipsOperation LayerRelationships
 @inject IConsoleNotificationService Notifications
+@inject IServiceProvider ServiceProvider
+@inject NavigationManager Navigation
+
+<ConsoleAgentContext Context="@AgentContext" />
 
 <section class="console-page" data-relationships-page>
-    @if (_layer is null)
+    @if (_loading)
+    {
+        <p role="status">Loading layer…</p>
+    }
+    else if (_layer is null)
     {
         <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
     }
     else
     {
-        <div class="console-page-heading">
-            <p class="console-kicker">Operate / Layers</p>
-            <h1>@_layer.Name · relationships</h1>
-            <p>Author origin/destination relationships on layer @_layer.LayerId. honua-server emits these as <code>relationships[]</code> on FeatureServer layer metadata and uses them to drive related-records / <code>$expand</code> / relationshipQuery.</p>
-            <div class="console-detail-actions">
-                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/layers/{ResourceId}")" data-layer-detail-link>Back to layer</a>
+        @if (V4Enabled)
+        {
+            <ConsolePageHeading Title="@($"{_layer.Name} · relationships")">
+                <ChildContent><p>Connect this layer to related records.</p></ChildContent>
+                <Actions>@BackLink</Actions>
+            </ConsolePageHeading>
+        }
+        else
+        {
+            <div class="console-page-heading">
+                <p class="console-kicker">Operate / Layers</p>
+                <h1>@_layer.Name · relationships</h1>
+                <p>Author origin/destination relationships on layer @_layer.LayerId. honua-server emits these as <code>relationships[]</code> on FeatureServer layer metadata and uses them to drive related-records / <code>$expand</code> / relationshipQuery.</p>
+                <div class="console-detail-actions">
+                    <a class="console-button-link" href="@LayerHref" data-layer-detail-link>Back to layer</a>
+                </div>
             </div>
-        </div>
+        }
 
-        <section class="console-section" data-relationships-panel>
+        @if (V4Enabled)
+        {
+            <ConsolePanel Title="Relationships" HeadingId="layer-relationships-heading" Class="console-section">@Editor</ConsolePanel>
+        }
+        else
+        {
+            <section class="console-section">@Editor</section>
+        }
+    }
+</section>
+
+@code {
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+    private string LayerHref => Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(_layer!.CanonicalResourceId)}");
+    private RenderFragment BackLink => @<a class="console-button-link" href="@LayerHref" data-layer-detail-link>Back to layer</a>;
+    private RenderFragment Editor => @<div data-relationships-panel>
             @if (!_relationships.Bound)
             {
-                <article class="console-panel console-state-warning" role="status" data-relationships-unbound>
-                    <p class="console-kicker">Unavailable</p>
+                <div class="@(V4Enabled ? "console-state console-state-warning" : "console-panel console-state-warning")" role="status" data-relationships-unbound>
+                    <p class="@(V4Enabled ? null : "console-kicker")">Unavailable</p>
                     <p>@_relationships.Detail</p>
-                </article>
+                </div>
             }
             else
             {
@@ -44,7 +76,7 @@
                                 <th>Origin field</th>
                                 <th>Destination field</th>
                                 <th>GeoServices rel id</th>
-                                <th></th>
+                                <th aria-label="Actions">@(V4Enabled ? "Actions" : null)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -96,17 +128,26 @@
 
                 @if (_result is { } r)
                 {
-                    <div class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-relationships-result>
-                        <p class="console-kicker">@r.State</p>
+                    <div class="@(V4Enabled ? "console-state" : "console-panel") @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-relationships-result>
+                        <p class="@(V4Enabled ? null : "console-kicker")">@r.State</p>
                         <p>@r.Detail</p>
                     </div>
                 }
             }
-        </section>
-    }
-</section>
+    </div>;
+    private string? _loadedResourceId;
+    private long _generation;
+    private bool _loading;
+    private IReadOnlyList<ConsoleAgentEntity> SelectedLayer => _layer is null ? [] :
+        [new() { Kind = ConsoleAgentEntityKind.Layer, Id = _layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture), ResourceId = _layer.CanonicalResourceId }];
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = $"/operate/layers/{Uri.EscapeDataString(ResourceId)}/relationships",
+        Entities = SelectedLayer,
+        Selection = SelectedLayer,
+        Unsaved = new() { ChangedFieldCount = ChangedFields, PendingOperationCount = _loading || _saving ? 1 : 0 }
+    };
 
-@code {
     [CascadingParameter] public ConsolePublicationLayerContext? PublicationContext { get; set; }
 
     [Parameter]
@@ -118,30 +159,61 @@
     private bool _saving;
     private ConsoleSetRelationshipsResult? _result;
 
-    protected override async Task OnParametersSetAsync()
+    private ConsoleLayerRelationship[] _baseline = [];
+    private int ChangedFields
     {
-        var attempt = PublicationContext?.BeginRead(ResourceId);
-        var view = await OperateData.GetLayersViewAsync();
-        var exposures = view.FindExposures(ResourceId);
-        if (attempt is { } read) PublicationContext!.CompleteRead(read, exposures);
-        _layer = exposures.FirstOrDefault()?.Layer;
-
-        if (_layer is not null)
+        get
         {
-            await LoadRelationshipsAsync();
+            var current = _rows.Select(row => row.ToModel()).ToArray();
+            var changed = Math.Abs(current.Length - _baseline.Length);
+            for (var i = 0; i < Math.Min(current.Length, _baseline.Length); i++)
+            {
+                var row = current[i];
+                var original = _baseline[i];
+                changed += (row.Name == original.Name ? 0 : 1)
+                    + (row.RelatedLayerId == original.RelatedLayerId ? 0 : 1)
+                    + (row.Role == original.Role ? 0 : 1)
+                    + (row.Cardinality == original.Cardinality ? 0 : 1)
+                    + (row.OriginField == original.OriginField ? 0 : 1)
+                    + (row.DestinationField == original.DestinationField ? 0 : 1)
+                    + (row.EsriRelationshipId == original.EsriRelationshipId ? 0 : 1);
+            }
+            return changed;
         }
     }
 
-    private async Task LoadRelationshipsAsync()
+    protected override async Task OnParametersSetAsync()
     {
-        _relationships = await LayerRelationships.GetRelationshipsAsync(_layer!.LayerId);
+        if (string.Equals(_loadedResourceId, ResourceId, StringComparison.Ordinal)) return;
+        _loadedResourceId = ResourceId;
+        var generation = ++_generation;
+        var resourceId = ResourceId;
+        _layer = null;
+        _result = null;
+        _saving = false;
         _rows.Clear();
-        if (_relationships.Bound)
+        _baseline = [];
+        _relationships = ConsoleLayerRelationships.Unbound("Loading…");
+        _loading = true;
+        var attempt = PublicationContext?.BeginRead(resourceId);
+        try
         {
-            foreach (var rel in _relationships.Relationships)
-            {
-                _rows.Add(RelationshipRow.From(rel));
-            }
+            var view = await OperateData.GetLayersViewAsync();
+            if (generation != _generation) return;
+            var exposures = view.FindExposures(resourceId);
+            if (attempt is { } read) PublicationContext!.CompleteRead(read, exposures);
+            _layer = exposures.FirstOrDefault()?.Layer;
+            if (_layer is null) return;
+            var relationships = await LayerRelationships.GetRelationshipsAsync(_layer.LayerId);
+            if (generation != _generation) return;
+            _relationships = relationships;
+            if (!relationships.Bound) return;
+            _rows.AddRange(relationships.Relationships.Select(RelationshipRow.From));
+            _baseline = _rows.Select(row => row.ToModel()).ToArray();
+        }
+        finally
+        {
+            if (generation == _generation) _loading = false;
         }
     }
 
@@ -151,19 +223,32 @@
 
     private Task SaveAsync()
     {
-        if (_layer is null) return Task.CompletedTask;
+        if (_layer is null || _saving) return Task.CompletedTask;
+        var generation = _generation;
+        var layerId = _layer.LayerId;
+        var payload = _rows.Select(row => row.ToModel()).ToArray();
         _result = null;
         return Notifications.RunGuardedAsync(
             async () =>
             {
-                var payload = _rows.Select(row => row.ToModel()).ToArray();
-                _result = await LayerRelationships.SetRelationshipsAsync(_layer.LayerId, payload);
-                if (_result.Succeeded)
+                var result = await LayerRelationships.SetRelationshipsAsync(layerId, payload);
+                if (generation != _generation) return;
+                _result = result;
+                if (!result.Succeeded) return;
+                var relationships = await LayerRelationships.GetRelationshipsAsync(layerId);
+                if (generation != _generation) return;
+                _relationships = relationships;
+                if (!relationships.Bound) return;
+                var savedRows = relationships.Relationships.Select(RelationshipRow.From).ToArray();
+                // Server normalization replaces the draft only when no newer edits exist.
+                if (_rows.Select(row => row.ToModel()).SequenceEqual(payload))
                 {
-                    await LoadRelationshipsAsync();
+                    _rows.Clear();
+                    _rows.AddRange(savedRows);
                 }
+                _baseline = savedRows.Select(row => row.ToModel()).ToArray();
             },
-            setBusy: busy => { _saving = busy; StateHasChanged(); },
+            setBusy: busy => { if (generation == _generation) { _saving = busy; StateHasChanged(); } },
             failureMessage: "Couldn't save relationships");
     }
 

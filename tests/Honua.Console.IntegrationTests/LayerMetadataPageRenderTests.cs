@@ -3,6 +3,7 @@ using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Components;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -102,6 +103,40 @@ public sealed class LayerMetadataPageRenderTests
 
         page.WaitForAssertion(() => Assert.Equal(2, metadata.Changes.Count));
         Assert.Equal(new ConsoleLayerEditingChange { ServiceName = "cadastre", LayerId = 2 }, metadata.Changes[1]);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EditingContext_TracksCanonicalLayerAndCountsWithoutFieldValues(bool enabled)
+    {
+        using var ctx = CreateContext(new RecordingMetadata());
+        var registry = new ConsoleAgentContextRegistry();
+        ctx.Services.AddSingleton(registry);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerToolsMountedNavigationManager());
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/console/operate/layers/conn-1-layer-1/metadata");
+        var page = ctx.Render<OperateLayerMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-editing-save]")));
+        Assert.Equal(enabled, page.FindAll(".console-page-heading-v4").Count == 1);
+        Assert.Equal("/console/operate/layers/conn-1-layer-1", page.Find("[data-layer-detail-link]").GetAttribute("href"));
+        if (enabled)
+        {
+            var entity = Assert.Single(registry.Current.Selection);
+            Assert.Equal(ConsoleAgentEntityKind.Layer, entity.Kind);
+            Assert.Equal("1", entity.Id);
+            Assert.Equal(ResourceId, entity.ResourceId);
+        }
+        if (enabled) CatalogAdminPreview.Capture("data-layer-editing", page.Markup);
+        page.Find("[data-editing-globalid]").Change("private_field_name");
+        page.Find("[data-editing-delete]").Change("false");
+        page.WaitForAssertion(() => Assert.Equal(enabled ? 2 : 0, registry.Current.Unsaved.ChangedFieldCount));
+        Assert.DoesNotContain("private_field_name", System.Text.Json.JsonSerializer.Serialize(registry.Current));
+        page.Render(p => p.Add(x => x.ResourceId, ResourceId));
+        Assert.Equal("private_field_name", page.Find("[data-editing-globalid]").GetAttribute("value"));
+        page.Find("[data-editing-save]").Click();
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-editing-result]")));
+        page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount));
     }
 
     private static OperateServiceDetail Service(string name, string protocols = "FeatureServer") =>

@@ -1,4 +1,3 @@
-@inject NavigationManager ConsoleNavigation
 @page "/operate/layers/{ResourceId}/metadata"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
@@ -6,69 +5,126 @@
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleLayerMetadataOperation LayerMetadata
 @inject IConsoleNotificationService Notifications
+@inject IServiceProvider ServiceProvider
+@inject NavigationManager Navigation
+
+<ConsoleAgentContext Context="@AgentContext" />
 
 <section class="console-page" data-layer-metadata-page>
-    @if (_exposures.Count == 0)
+    @if (_loading)
+    {
+        <p role="status">Loading layer…</p>
+    }
+    else if (_exposures.Count == 0)
     {
         <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
     }
     else
     {
-        <div class="console-page-heading">
-            <p class="console-kicker">Operate / Layers</p>
-            <h1>@Layer.Name · editing</h1>
-            <p>Set the editing policy of layer @Layer.LayerId in one of its FeatureServer services. Fields left unchanged keep their current server value.</p>
-            <div class="console-detail-actions">
-                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/layers/{Layer.CanonicalResourceId}")" data-layer-detail-link>Back to layer</a>
-            </div>
-        </div>
-
-        @if (_editableExposures.Count == 0)
+        @if (V4Enabled)
         {
-            <article class="console-panel console-state-warning" role="status" data-editing-unavailable>
-                <p>Editing policy applies to FeatureServer services, and no FeatureServer service exposes this layer.</p>
-            </article>
+            <ConsolePageHeading Title="@($"{Layer.Name} · editing")">
+                <ChildContent><p>Set the editing policy for this layer’s FeatureServer service.</p></ChildContent>
+                <Actions>@BackLink</Actions>
+            </ConsolePageHeading>
         }
         else
         {
-            <section class="console-section" data-editing-panel>
-                <div class="console-field-grid">
-                    <label class="console-field">
-                        <span>Service</span>
-                        <select class="console-input" @bind="_edit.ServiceName" aria-label="Service" data-editing-service>
-                            @foreach (var exposure in _editableExposures)
-                            {
-                                <option value="@exposure.Service.Name">@exposure.Service.DisplayName</option>
-                            }
-                        </select>
-                    </label>
-                    <label class="console-field">
-                        <span>Global id field</span>
-                        <input class="console-input" @bind="_edit.GlobalIdField" aria-label="Global id field" data-editing-globalid placeholder="(unchanged)" />
-                    </label>
-                    <TriStateSelect Label="Supports attachments" @bind-Value="_edit.SupportsAttachments" data-editing-attachments />
-                    <TriStateSelect Label="Allow create" @bind-Value="_edit.AllowCreate" data-editing-create />
-                    <TriStateSelect Label="Allow update" @bind-Value="_edit.AllowUpdate" data-editing-update />
-                    <TriStateSelect Label="Allow delete" @bind-Value="_edit.AllowDelete" data-editing-delete />
+            <div class="console-page-heading">
+                <p class="console-kicker">Operate / Layers</p>
+                <h1>@Layer.Name · editing</h1>
+                <p>Set the editing policy of layer @Layer.LayerId in one of its FeatureServer services. Fields left unchanged keep their current server value.</p>
+                <div class="console-detail-actions">
+                    <a class="console-button-link" href="@LayerHref" data-layer-detail-link>Back to layer</a>
                 </div>
-                <div class="console-action-row">
-                    <button class="console-button" type="button" disabled="@_saving" @onclick="SaveEditingAsync" data-editing-save>
-                        @(_saving ? "Saving…" : "Save editing policy")
-                    </button>
-                </div>
-                @if (_result is { } result)
-                {
-                    <div class="console-panel @(result.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-editing-result>
-                        <p class="console-kicker">@result.State</p>
-                        <p>@result.Detail</p>
-                    </div>
-                }
-            </section>
+            </div>
+        }
+
+        @if (_editableExposures.Count == 0)
+        {
+            <div class="@(V4Enabled ? "console-state console-state-warning" : "console-panel console-state-warning")" role="status" data-editing-unavailable>
+                <p>Editing policy applies to FeatureServer services, and no FeatureServer service exposes this layer.</p>
+            </div>
+        }
+        else
+        {
+            @if (V4Enabled)
+            {
+                <ConsolePanel Title="Editing policy" HeadingId="layer-editing-heading" Class="console-section">@EditingFields</ConsolePanel>
+            }
+            else
+            {
+                <section class="console-section">@EditingFields</section>
+            }
         }
     }
 </section>
 
 @code {
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+    private string LayerHref => Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(Layer.CanonicalResourceId)}");
+    private RenderFragment BackLink => @<a class="console-button-link" href="@LayerHref" data-layer-detail-link>Back to layer</a>;
+    private RenderFragment EditingFields => @<div data-editing-panel>
+        <div class="console-field-grid">
+            <label class="console-field">
+                <span>Service</span>
+                <select class="console-input" @bind="_edit.ServiceName" aria-label="Service" data-editing-service>
+                    @foreach (var exposure in _editableExposures)
+                    {
+                        <option value="@exposure.Service.Name">@exposure.Service.DisplayName</option>
+                    }
+                </select>
+            </label>
+            <label class="console-field">
+                <span>Global id field</span>
+                <input class="console-input" @bind="_edit.GlobalIdField" aria-label="Global id field" data-editing-globalid placeholder="(unchanged)" />
+            </label>
+            <TriStateSelect Label="Supports attachments" @bind-Value="_edit.SupportsAttachments" data-editing-attachments />
+            <TriStateSelect Label="Allow create" @bind-Value="_edit.AllowCreate" data-editing-create />
+            <TriStateSelect Label="Allow update" @bind-Value="_edit.AllowUpdate" data-editing-update />
+            <TriStateSelect Label="Allow delete" @bind-Value="_edit.AllowDelete" data-editing-delete />
+        </div>
+        <div class="console-action-row">
+            <button class="console-button" type="button" disabled="@_saving" @onclick="SaveEditingAsync" data-editing-save>
+                @(_saving ? "Saving…" : "Save editing policy")
+            </button>
+        </div>
+        @if (_result is { } result)
+        {
+            <div class="@(V4Enabled ? "console-state" : "console-panel") @(result.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-editing-result>
+                <p class="@(V4Enabled ? null : "console-kicker")">@result.State</p>
+                <p>@result.Detail</p>
+            </div>
+        }
+    </div>;
+
+    private ConsoleLayerEditingChange? _baseline;
+    private long _generation;
+    private bool _loading;
+    private IReadOnlyList<ConsoleAgentEntity> SelectedLayer => _exposures.Count == 0 ? [] :
+        [new() { Kind = ConsoleAgentEntityKind.Layer, Id = Layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture), ResourceId = Layer.CanonicalResourceId }];
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = $"/operate/layers/{Uri.EscapeDataString(ResourceId)}/metadata",
+        Entities = SelectedLayer,
+        Selection = SelectedLayer,
+        Unsaved = new() { ChangedFieldCount = ChangedFields, PendingOperationCount = _loading || _saving ? 1 : 0 }
+    };
+    private int ChangedFields
+    {
+        get
+        {
+            if (_baseline is null || _exposures.Count == 0) return 0;
+            var current = _edit.ToChange(Layer.LayerId);
+            return (current.ServiceName == _baseline.ServiceName ? 0 : 1)
+                + (current.GlobalIdField == _baseline.GlobalIdField ? 0 : 1)
+                + (current.SupportsAttachments == _baseline.SupportsAttachments ? 0 : 1)
+                + (current.AllowCreate == _baseline.AllowCreate ? 0 : 1)
+                + (current.AllowUpdate == _baseline.AllowUpdate ? 0 : 1)
+                + (current.AllowDelete == _baseline.AllowDelete ? 0 : 1);
+        }
+    }
+
     [CascadingParameter] public ConsolePublicationLayerContext? PublicationContext { get; set; }
 
     [Parameter]
@@ -85,36 +141,52 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        var attempt = PublicationContext?.BeginRead(ResourceId);
-        var view = await OperateData.GetLayersViewAsync();
-        _exposures = view.FindExposures(ResourceId);
-        if (attempt is { } read) PublicationContext!.CompleteRead(read, _exposures);
-        _editableExposures = _exposures
-            .Where(exposure => exposure.Service.Serves(PublishProtocolCatalog.Protocols.FeatureServer))
-            .ToArray();
-        if (!string.Equals(_loadedResourceId, ResourceId, StringComparison.Ordinal))
+        if (string.Equals(_loadedResourceId, ResourceId, StringComparison.Ordinal)) return;
+        _loadedResourceId = ResourceId;
+        var generation = ++_generation;
+        var resourceId = ResourceId;
+        _exposures = [];
+        _editableExposures = [];
+        _baseline = null;
+        _result = null;
+        _saving = false;
+        _loading = true;
+        var attempt = PublicationContext?.BeginRead(resourceId);
+        try
         {
-            _loadedResourceId = ResourceId;
+            var view = await OperateData.GetLayersViewAsync();
+            if (generation != _generation) return;
+            _exposures = view.FindExposures(resourceId);
+            if (attempt is { } read) PublicationContext!.CompleteRead(read, _exposures);
+            _editableExposures = _exposures
+                .Where(exposure => exposure.Service.Serves(PublishProtocolCatalog.Protocols.FeatureServer))
+                .ToArray();
             _edit = new EditingForm { ServiceName = _editableExposures.FirstOrDefault()?.Service.Name ?? string.Empty };
-            _result = null;
+            if (_exposures.Count > 0) _baseline = _edit.ToChange(Layer.LayerId);
+        }
+        finally
+        {
+            if (generation == _generation) _loading = false;
         }
     }
 
     private Task SaveEditingAsync()
     {
-        var submittedFor = ResourceId;
+        if (_saving || _exposures.Count == 0) return Task.CompletedTask;
+        var generation = _generation;
         var change = _edit.ToChange(Layer.LayerId);
         _result = null;
         return Notifications.RunGuardedAsync(
             async () =>
             {
                 var result = await LayerMetadata.SetEditingAsync(change);
-                if (string.Equals(submittedFor, ResourceId, StringComparison.Ordinal))
+                if (generation == _generation)
                 {
                     _result = result;
+                    if (result.Succeeded) _baseline = change;
                 }
             },
-            setBusy: busy => { _saving = busy; StateHasChanged(); },
+            setBusy: busy => { if (generation == _generation) { _saving = busy; StateHasChanged(); } },
             failureMessage: "Couldn't save the editing policy");
     }
 
