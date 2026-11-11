@@ -83,7 +83,7 @@ try {
       assert.deepEqual(errors, []);
       await page.screenshot({ path: path.join(previews, `${name}-${width}.png`), fullPage: true });
       if (width === 390) {
-        if (name === "scale-v4-search" || name === "scale-v4-empty") {
+        if (name.endsWith("search") || name.endsWith("empty")) {
           await page.locator("[data-tree-filter]").focus();
           await page.keyboard.press("Escape");
           assert.equal(await page.locator("[data-tree-filter]").inputValue(), "");

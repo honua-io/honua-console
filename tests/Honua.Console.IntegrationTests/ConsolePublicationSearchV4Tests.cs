@@ -2,6 +2,7 @@ using Bunit;
 using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Models;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
 using static Honua.Console.IntegrationTests.ConsolePublicationRenderFixture;
@@ -31,6 +32,10 @@ public sealed class ConsolePublicationSearchV4Tests
             var expected = (page + 2) * 25;
             tree.WaitForAssertion(() => Assert.Equal(expected, tree.FindAll("[role='treeitem']").Count));
         }
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/operate/services/service-080/settings");
+        tree.WaitForAssertion(() => Assert.Equal(125, tree.FindAll("[role='treeitem']").Count));
+        Assert.Equal("service:service-080", tree.Find("[aria-selected='true']").GetAttribute("data-publication-key"));
         Assert.Equal(0, source.ChildReads);
         Assert.Equal(0, source.ConnectionReads);
         Assert.All(tree.FindAll("[data-tree-link]"), link => Assert.StartsWith("/operate/services/", link.GetAttribute("href")));
@@ -40,6 +45,22 @@ public sealed class ConsolePublicationSearchV4Tests
         tree.Find("input").Input("");
         tree.WaitForAssertion(() => Assert.Empty(tree.FindAll("[data-publication-search]")));
         Assert.Equal(26, tree.FindAll("[role='treeitem']").Count);
+    }
+
+    [Fact]
+    public void PendingSearchHidesServicesThatDoNotMatchTheNewQuery()
+    {
+        var source = new PublicationNavigationSource();
+        using var context = PublicationLayoutContext(source);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForAssertion(() => Assert.Equal(26, tree.FindAll("[role='treeitem']").Count));
+        source.HoldCount = 1;
+        tree.Find("input").Input("absent");
+        tree.WaitForAssertion(() => Assert.Equal(2, source.ServiceReads));
+        Assert.Empty(tree.FindAll("[role='treeitem']"));
+        source.ReleaseNext();
+        tree.WaitForAssertion(() => Assert.Contains("Services <span>(0)</span>", tree.Markup));
     }
 
     [Fact]

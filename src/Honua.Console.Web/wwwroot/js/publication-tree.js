@@ -171,8 +171,7 @@
         if (event.key !== 'Escape' || !event.target.closest(sidebarSelector)) return false;
         event.preventDefault();
         const filter = sidebar.querySelector('[data-tree-filter]');
-        if (filter?.value && sidebar.querySelector('[data-publication-search]')
-            && (event.target === filter || event.target.closest('[data-publication-search]'))) {
+        if (filter?.value && (event.target === filter || event.target.closest('[data-publication-search]'))) {
             filter.value = '';
             filter.dispatchEvent(new Event('input', {bubbles: true}));
             filter.focus();
