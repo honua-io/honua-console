@@ -7,48 +7,35 @@
 @using Honua.Console.Shell.Validation
 @inject IShareAccessDataSource ShareData
 @inject IConsoleCatalogClient Catalog
+@inject IServiceProvider Services
 
 <CatalogAvailabilityGate>
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved share configuration changes. Leave this page and discard them?" />
 
 <section class="console-page share-manage" data-share-config>
-    <div class="console-detail-heading">
-        <div>
-            <p class="console-kicker">Share <span class="console-crumb-sep">/</span> Link &amp; embed configuration</p>
-            <h1>@(_share?.DisplayTitle ?? "Share access")</h1>
-            <div class="console-chip-row" data-share-status-row>
-                @if (_share is { } headerShare)
-                {
-                    <span class="console-status @(headerShare.IsPublic ? "console-state-success" : "console-state-neutral")" data-share-header-tier="@headerShare.AccessTier">@TierLabel(headerShare.AccessTier)</span>
-                    @if (headerShare.EmbedEnabled)
-                    {
-                        <span class="console-status console-state-info" data-share-header-embed>embed enabled</span>
-                    }
-                    @if (headerShare.OpenDataEligible)
-                    {
-                        <span class="console-status console-state-success" data-share-header-opendata>open-data eligible</span>
-                    }
-                    <span class="console-muted">@(headerShare.IsPublic ? "reachable by anyone with the link" : "membership-scoped read")</span>
-                }
-                else
-                {
-                    <span class="console-muted">Open a content item to manage its public link, embed, open-data page, and exports.</span>
-                }
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="@(_share?.DisplayTitle ?? "Share access")">
+            <ChildContent>@HeaderStatus</ChildContent>
+            <Actions>@OpenItemForm</Actions>
+        </ConsolePageHeading>
+        <p class="console-muted share-manage-lede">Manage public links, embeds, open-data pages and exports.</p>
+    }
+    else
+    {
+        <div class="console-detail-heading">
+            <div>
+                <p class="console-kicker">Share <span class="console-crumb-sep">/</span> Link &amp; embed configuration</p>
+                <h1>@(_share?.DisplayTitle ?? "Share access")</h1>
+                @HeaderStatus
+            </div>
+            <div class="console-detail-actions">
+                @OpenItemForm
             </div>
         </div>
-        <div class="console-detail-actions">
-            <form class="console-action-row" @onsubmit="OpenItem" @formname="open-share-item">
-                <label class="studio-form-label">
-                    <span>Content item id</span>
-                    <input class="console-input" @bind="_itemIdInput" @bind:after="OnItemIdEdit" placeholder="item-..." />
-                    <ValidationMessageInline FieldKey="@ShareManageFieldKeys.ItemId" State="_validation" />
-                </label>
-                <button class="console-button" type="submit" disabled="@(_busy || _validation.Errors(ShareManageFieldKeys.ItemId).Any(e => e.IsBlocking))">Open share access</button>
-            </form>
-        </div>
-    </div>
 
-    <p class="console-muted share-manage-lede">Manage a content item's server-owned Share access: public/private visibility, public-link tokens with expiration, embed enablement and embed tokens, dependency-closure safety, and open-data eligibility. State is authored on honua-server's Console Share access API and is never resolved client-side.</p>
+        <p class="console-muted share-manage-lede">Manage a content item's server-owned Share access: public/private visibility, public-link tokens with expiration, embed enablement and embed tokens, dependency-closure safety, and open-data eligibility. State is authored on honua-server's Console Share access API and is never resolved client-side.</p>
+    }
 
     @if (_share is not null)
     {
@@ -282,7 +269,7 @@
                                             <th>Created</th>
                                             <th>Expires</th>
                                             <th>Status</th>
-                                            <th></th>
+                                            <th><span class="console-visually-hidden">Actions</span></th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -637,6 +624,42 @@
 </CatalogAvailabilityGate>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private RenderFragment HeaderStatus => @<text>
+        <div class="console-chip-row" data-share-status-row>
+                @if (_share is { } headerShare)
+                {
+                    <span class="console-status @(headerShare.IsPublic ? "console-state-success" : "console-state-neutral")" data-share-header-tier="@headerShare.AccessTier">@TierLabel(headerShare.AccessTier)</span>
+                    @if (headerShare.EmbedEnabled)
+                    {
+                        <span class="console-status console-state-info" data-share-header-embed>embed enabled</span>
+                    }
+                    @if (headerShare.OpenDataEligible)
+                    {
+                        <span class="console-status console-state-success" data-share-header-opendata>open-data eligible</span>
+                    }
+                    <span class="console-muted">@(headerShare.IsPublic ? "reachable by anyone with the link" : "membership-scoped read")</span>
+                }
+                else
+                {
+                    <span class="console-muted">Open a content item to manage its public link, embed, open-data page, and exports.</span>
+                }
+            </div>
+    </text>;
+
+    private RenderFragment OpenItemForm => @<text>
+        <form class="console-action-row" @onsubmit="OpenItem" @formname="open-share-item">
+                <label class="studio-form-label">
+                    <span>Content item id</span>
+                    <input class="console-input" @bind="_itemIdInput" @bind:after="OnItemIdEdit" placeholder="item-..." />
+                    <ValidationMessageInline FieldKey="@ShareManageFieldKeys.ItemId" State="_validation" />
+                </label>
+                <button class="console-button" type="submit" disabled="@(_busy || _validation.Errors(ShareManageFieldKeys.ItemId).Any(e => e.IsBlocking))">Open share access</button>
+            </form>
+    </text>;
+
+
     private static readonly string[] AccessTiers =
     [
         HonuaConsoleShareAccessTiers.Private,

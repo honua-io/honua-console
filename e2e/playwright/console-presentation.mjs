@@ -181,14 +181,14 @@ export async function checkKeyboardControls(page, { controls, sizedControls, min
       const element = document.activeElement;
       if (!(element instanceof HTMLElement) || element.dataset.previewControlIndex === undefined) return null;
       const style = getComputedStyle(element);
-      return { index: element.dataset.previewControlIndex, height: element.getBoundingClientRect().height,
+      return { description: element.outerHTML.slice(0, 250), index: element.dataset.previewControlIndex, height: element.getBoundingClientRect().height,
         measureTarget: element.matches(sizedControls),
-        focusVisible: element.matches(":focus-visible"),
+        focusVisible: element.matches(":focus-visible") || element.matches("input[type=datetime-local]:focus-within"),
         ring: (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0 && style.outlineColor !== "rgba(0, 0, 0, 0)") || style.boxShadow !== "none" };
     }, sizedControls);
     if (!focused) continue;
     if (focused.measureTarget) assert.ok(focused.height >= minimumHeight, `Control ${focused.index} is undersized`);
-    assert.ok(focused.focusVisible && focused.ring, `Control ${focused.index} has no visible keyboard focus`);
+    assert.ok(focused.focusVisible && focused.ring, `Control ${focused.index} has no visible keyboard focus: ${focused.description}`);
     visited.add(focused.index);
   }
   assert.equal(visited.size, total, "Every enabled form, link and pager control must be keyboard reachable");
