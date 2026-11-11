@@ -1,0 +1,29 @@
+/* Page presentation only; panel and status colours come from the shared console styles. */
+.console-copilot-v4 {
+    gap: var(--space-6);
+    color: var(--c-text);
+}
+
+.console-copilot-v4 .console-panel h2,
+.console-copilot-v4 .operate-section-heading h2 {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+}
+
+.console-copilot-v4 .console-definition-list dd,
+.console-copilot-v4 .operate-metric-recommendations code {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+    .console-copilot-v4 .console-panel-heading,
+    .console-copilot-v4 .operate-section-heading {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .console-copilot-v4 .console-definition-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
