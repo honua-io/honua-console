@@ -88,14 +88,26 @@ public sealed class ImportCoordinateSystemRenderTests
         Assert.Empty(picker.FindAll("select"));
     }
 
-    [Fact]
-    public void FileImportUsesPreviewAndNeverInventsATarget()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FileImportUsesPreviewAndNeverInventsATarget(bool enabled)
     {
         using var context = new BunitContext();
-        var import = Register(context);
+        var import = Register(context, enabled);
         var page = context.Render<OperateImportFilePage>();
         page.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("projected", "projected.gpkg"));
         page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-import-coordinate-system]")));
+        var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        Assert.Equal(enabled ? "/operate/resources/import" : "/", registry.Current.Route);
+        Assert.Equal(enabled ? 1 : 0, page.FindAll("section.console-panel[aria-labelledby]").Count);
+        if (enabled)
+        {
+            Assert.Equal(2, registry.Current.Unsaved.ChangedFieldCount);
+            Assert.Empty(registry.Current.Entities);
+            Assert.DoesNotContain("projected.gpkg", System.Text.Json.JsonSerializer.Serialize(registry.Current));
+            CatalogAdminPreview.Capture("data-import-file", page.Markup);
+        }
         page.Find("button.console-button").Click();
         page.WaitForAssertion(() => Assert.NotNull(import.Command));
         Assert.Null(import.Command!.TargetSrid);
@@ -103,6 +115,9 @@ public sealed class ImportCoordinateSystemRenderTests
         Assert.Equal("operator-environment", import.Command.AuthorityBinding);
         Assert.Equal("projected", System.Text.Encoding.UTF8.GetString(import.Command.FileContent));
         Assert.Equal("EPSG:2193", page.Find("[data-import-stored-system]").TextContent);
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+        if (enabled) CatalogAdminPreview.Capture("data-import-file-complete", page.Markup);
     }
 
     [Fact]
@@ -283,9 +298,11 @@ public sealed class ImportCoordinateSystemRenderTests
         }
     }
 
-    private static ImportOperation Register(BunitContext context)
+    private static ImportOperation Register(BunitContext context, bool enabled = false)
     {
         context.JSInterop.Mode = JSRuntimeMode.Loose;
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        context.Services.AddSingleton<ConsoleAgentContextRegistry>();
         var import = new ImportOperation();
         context.Services.AddSingleton<IConsoleFileImportOperation>(import);
         return import;
