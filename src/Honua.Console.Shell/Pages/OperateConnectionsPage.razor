@@ -52,10 +52,10 @@
     };
     private RenderFragment ConnectionActions => @<text>
 <div class="@(V4Enabled ? "console-panel-actions" : "console-toolbar")">
-        <a class="console-button-link" href="operate/connections/new">Add Connection</a>
-        <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="operate/publishing/quick">Publish a layer</a>
-        <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="operate/resources/import">Import a file</a>
-        <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="operate/import/service">Import from a service</a>
+        <a class="console-button-link" href="@Navigation.ToConsoleHref("/operate/connections/new")">Add Connection</a>
+        <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref("/operate/publishing/quick")">Publish a layer</a>
+        <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref("/operate/resources/import")">Import a file</a>
+        <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref("/operate/import/service")">Import from a service</a>
     </div></text>;
     private RenderFragment ConnectionTable => @<text>
         <ConsoleTableRegion Class="console-table-wrap" Label="@(V4Enabled ? "Connection table" : "Connections")">

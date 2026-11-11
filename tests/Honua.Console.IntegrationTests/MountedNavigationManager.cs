@@ -12,4 +12,9 @@ internal sealed class MountedNavigationManager : NavigationManager
         Uri = ToAbsoluteUri(uri).AbsoluteUri;
         NotifyLocationChanged(false);
     }
+
+    // Pages with an unsaved-changes guard register location-changing handlers.
+    protected override void SetNavigationLockState(bool value)
+    {
+    }
 }

@@ -200,7 +200,7 @@
             <button class="console-button" type="button" disabled="@(_busy || _testing || !CanUseProvider)" @onclick="CreateAsync">
                 @(_busy ? "Creating…" : "Create connection")
             </button>
-            <a href="operate/connections">Cancel</a>
+            <a href="@Nav.ToConsoleHref("/operate/connections")">Cancel</a>
         </div>
     </text>;
     private RenderFragment NextSteps => @<text>
