@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using Bunit;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
@@ -10,6 +11,23 @@ namespace Honua.Console.IntegrationTests;
 // A failed validation keeps the editor dirty so a later publish cannot reuse a stale version and drop the current edits.
 public sealed class StudioWorkflowEditorPageTests
 {
+    [Fact]
+    public void RetryEditor_ExplicitGlobalChange_UpdatesNodesWithoutChangingFailurePolicy()
+    {
+        var client = new RecordingWorkflowPackageClient();
+        client.Draft.Nodes.Add(new StudioWorkflowNode { Id = "source", Type = "test.echo", FailurePolicy = WorkflowStepFailurePolicy.Skip });
+        client.Draft.Nodes.Add(new StudioWorkflowNode { Id = "sink", Type = "test.echo" });
+        using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(client);
+        var page = ctx.Render<StudioWorkflowEditorPage>(parameters => parameters.Add(p => p.DraftId, RecordingWorkflowPackageClient.PackageId));
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("input[type='number'][max='10']")), TimeSpan.FromSeconds(5));
+        page.Find("input[type='number'][max='10']").Change("4");
+        page.WaitForAssertion(() => Assert.All(client.Draft.Nodes, node => Assert.Equal(4, node.RetryPolicy!.MaxAttempts)));
+        Assert.Equal(WorkflowStepFailurePolicy.Skip, client.Draft.Nodes[0].FailurePolicy);
+    }
+
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy, 0)]
     [InlineData(ConsolePresentationMode.V4, 1)]
@@ -164,6 +182,8 @@ public sealed class StudioWorkflowEditorPageTests
     {
         public const string PackageId = "pkg-1";
 
+        public StudioWorkflowPackageDraft Draft { get; } = CreateBoundDraft();
+
         public int SaveCalls { get; private set; }
 
         public int PublishCalls { get; private set; }
@@ -185,7 +205,7 @@ public sealed class StudioWorkflowEditorPageTests
         public Task<StudioWorkflowEditorContext> OpenEditorAsync(
             string? draftId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(new StudioWorkflowEditorContext(BindingState: null, NodeDefinitions: [], CreateBoundDraft()));
+            Task.FromResult(new StudioWorkflowEditorContext(BindingState: null, NodeDefinitions: [], Draft));
 
         public Task<IReadOnlyList<StudioWorkflowDraftSummary>> ListDraftsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<StudioWorkflowDraftSummary>>([]);
@@ -195,10 +215,10 @@ public sealed class StudioWorkflowEditorPageTests
             Task.FromResult<IReadOnlyList<StudioWorkflowNodeDefinition>>([]);
 
         public Task<StudioWorkflowPackageDraft> CreateDraftAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(CreateBoundDraft());
+            Task.FromResult(Draft);
 
         public Task<StudioWorkflowPackageDraft?> GetDraftAsync(string draftId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<StudioWorkflowPackageDraft?>(CreateBoundDraft());
+            Task.FromResult<StudioWorkflowPackageDraft?>(Draft);
 
         // A failed graph validation: validation issues with no version id and no binding state - the same
         // shape ServerStudioWorkflowPackageClient returns on a 400 from POST .../versions.

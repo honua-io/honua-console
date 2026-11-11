@@ -1,20 +1,30 @@
 @page "/support"
 @implements IDisposable
 @inject IConsoleSupportTicketClient SupportClient
+@inject IServiceProvider Services
 @inject ConsoleSupportContextBuilder ContextBuilder
 @inject IConsoleSupportDeflectionLog DeflectionLog
 @inject NavigationManager Nav
 
-<section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Support</p>
-        <h1>Contact support</h1>
-        <p>
-            Open a support ticket without copying log dumps. The Console auto-attaches who you are, the connected
-            environment, the running Console build, your current route, and the server's recent errors so support gets
-            context, not a paste of logs. You can review and edit everything before you submit.
-        </p>
-    </div>
+<section class="console-page console-support-page">
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Contact support">
+            <p class="console-muted">
+                @SupportDescription
+            </p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Support</p>
+            <h1>Contact support</h1>
+            <p>
+                @SupportDescription
+            </p>
+        </div>
+    }
 
     @* L0 self-service deflection (honua-console#165): qwen assistant + KB search,
        shown BEFORE the ticket form. The panel hides itself when neither the LLM
@@ -23,14 +33,18 @@
     <SupportSelfServicePanel SeedQuery="@_symptoms" OnContextChanged="OnSelfServiceContextChanged" />
 
     <div class="console-page-body support-layout">
-        <article class="console-panel">
+        <article class="console-panel" aria-labelledby="@(V4Enabled ? "new-ticket-heading" : null)">
+            @if (V4Enabled)
+            {
+                <div class="console-panel-heading"><h2 id="new-ticket-heading">New ticket</h2></div>
+            }
             <div class="studio-field-grid">
                 <label>
                     <span>Severity</span>
                     <select class="console-input" @bind="_severity">
-                        <option value="sev1">Sev1 - critical / outage</option>
-                        <option value="sev2">Sev2 - major impact</option>
-                        <option value="sev3">Sev3 - minor / question</option>
+                        <option value="sev1">@SupportTicketLabels.Display("sev1")</option>
+                        <option value="sev2">@SupportTicketLabels.Display("sev2")</option>
+                        <option value="sev3">@SupportTicketLabels.Display("sev3")</option>
                     </select>
                 </label>
                 <label>
@@ -44,9 +58,9 @@
                 <label>
                     <span>Allowed access mode</span>
                     <select class="console-input" @bind="_allowedAccessMode">
-                        <option value="read-only">Read-only</option>
-                        <option value="guided-fix">Guided fix</option>
-                        <option value="operator-scoped">Operator scoped</option>
+                        <option value="read-only">@SupportTicketLabels.Display("read-only")</option>
+                        <option value="guided-fix">@SupportTicketLabels.Display("guided-fix")</option>
+                        <option value="operator-scoped">@SupportTicketLabels.Display("operator-scoped")</option>
                     </select>
                 </label>
                 <label>
@@ -88,7 +102,7 @@
         <aside class="console-panel support-context-panel" aria-label="Auto-attached context">
             <div class="console-panel-heading">
                 <h2>Auto-attached context</h2>
-                <p class="console-muted">Captured for you. Submitted with the ticket - no copy/paste required.</p>
+                <p class="console-muted">@(V4Enabled ? "Included when you submit the ticket." : "Captured for you. Submitted with the ticket - no copy/paste required.")</p>
             </div>
 
             @if (_context is null)
@@ -130,6 +144,12 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private const string SupportDescription = "Open a support ticket without copying log dumps. The Console auto-attaches who you are, the connected " +
+        "environment, the running Console build, your current route, and the server's recent errors so support gets " +
+        "context, not a paste of logs. You can review and edit everything before you submit.";
+
     private string _severity = "sev3";
     private string _service = "honua-server";
     private string _requestedAction = string.Empty;
@@ -222,7 +242,7 @@
             // "deflected" log.
             _ticketFiled = true;
             DeflectionLog.ProceededToTicket(DeflectionActivity, result.Value!.Id);
-            Nav.NavigateTo($"/support/tickets/{result.Value.Id}");
+            Nav.NavigateTo(Nav.ToConsoleHref($"/support/tickets/{result.Value.Id}"));
             return;
         }
 

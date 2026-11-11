@@ -313,12 +313,12 @@
                         <div class="workflow-form-grid workflow-form-grid-compact">
                             <label>
                                 <span>Attempts</span>
-                                <input class="console-input" type="number" min="0" max="10" @bind="_draft.RetryPolicy.MaxAttempts" @bind:after="OnEdit" />
+                                <input class="console-input" type="number" min="1" max="10" @bind="_draft.RetryPolicy.MaxAttempts" @bind:after="OnRetryEdit" />
                                 <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.MaxAttempts" State="_validation" />
                             </label>
                             <label>
                                 <span>Backoff seconds</span>
-                                <input class="console-input" type="number" min="0" max="3600" @bind="_draft.RetryPolicy.BackoffSeconds" @bind:after="OnEdit" />
+                                <input class="console-input" type="number" min="0" max="3600" @bind="_draft.RetryPolicy.BackoffSeconds" @bind:after="OnRetryEdit" />
                                 <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.BackoffSeconds" State="_validation" />
                             </label>
                             <label>
@@ -463,9 +463,9 @@
                             @if (HasDryRunJobEvidence(_lastDryRun))
                             {
                                 <dt>Job</dt>
-                                <dd><a href="@_lastDryRun.OperateJobUrl">@_lastDryRun.JobId</a></dd>
+                                <dd><a href="@Navigation.ToConsoleLinkHref(_lastDryRun.OperateJobUrl)">@_lastDryRun.JobId</a></dd>
                                 <dt>Events</dt>
-                                <dd><a href="@_lastDryRun.OperateEventsUrl">Open event evidence</a></dd>
+                                <dd><a href="@Navigation.ToConsoleLinkHref(_lastDryRun.OperateEventsUrl)">Open event evidence</a></dd>
                             }
                         </dl>
                         <ul class="workflow-compact-list">
@@ -511,9 +511,9 @@
                             @if (HasPublishJobEvidence(_lastPublish))
                             {
                                 <dt>Job</dt>
-                                <dd><a href="@_lastPublish.OperateJobUrl">@_lastPublish.JobId</a></dd>
+                                <dd><a href="@Navigation.ToConsoleLinkHref(_lastPublish.OperateJobUrl)">@_lastPublish.JobId</a></dd>
                                 <dt>Events</dt>
-                                <dd><a href="@_lastPublish.OperateEventsUrl">Open event evidence</a></dd>
+                                <dd><a href="@Navigation.ToConsoleLinkHref(_lastPublish.OperateEventsUrl)">Open event evidence</a></dd>
                             }
                             <dt>Endpoint</dt>
                             <dd>@(_lastPublish.InvocationEndpoint ?? "not exposed")</dd>
@@ -587,12 +587,12 @@
                                         @if (!string.IsNullOrWhiteSpace(run.OperateJobUrl))
                                         {
                                             <dt>Job</dt>
-                                            <dd><a href="@run.OperateJobUrl">@(string.IsNullOrWhiteSpace(run.JobId) ? "Open job" : run.JobId)</a></dd>
+                                            <dd><a href="@Navigation.ToConsoleLinkHref(run.OperateJobUrl)">@(string.IsNullOrWhiteSpace(run.JobId) ? "Open job" : run.JobId)</a></dd>
                                         }
                                         @if (!string.IsNullOrWhiteSpace(run.ProvenanceUrl))
                                         {
                                             <dt>Provenance</dt>
-                                            <dd><a href="@run.ProvenanceUrl">Content item history</a></dd>
+                                            <dd><a href="@Navigation.ToConsoleLinkHref(run.ProvenanceUrl)">Content item history</a></dd>
                                         }
                                     </dl>
                                     @if (run.Artifacts.Count > 0)
@@ -669,6 +669,12 @@
         _dirty.MarkDirty();
         RecomputeClientErrors();
         _validation.SetServerErrors(Array.Empty<ConsoleFieldError>());
+    }
+
+    private void OnRetryEdit()
+    {
+        _draft?.ApplyRetryToAllNodes();
+        OnEdit();
     }
 
     private void RecomputeClientErrors() =>
@@ -841,6 +847,7 @@
             }
 
             _lastDryRun = await Workflows.DryRunAsync(_draft);
+            BindServerErrors(_lastDryRun.ValidationIssues);
             if (_lastDryRun.BindingState is not null)
             {
                 _binding = _lastDryRun.BindingState;
@@ -934,7 +941,7 @@
         // resolves the persisted draft. Existing drafts stay put.
         if (!string.Equals(_activeDraftRouteId, _draft.ContentItemId, StringComparison.Ordinal))
         {
-            Navigation.NavigateTo($"/studio/workflows/{_draft.ContentItemId}", replace: true);
+            Navigation.NavigateTo(Navigation.ToConsoleHref($"/studio/workflows/{_draft.ContentItemId}"), replace: true);
         }
     }
 
@@ -1011,6 +1018,7 @@
             Type = definition.Type,
             Category = definition.Category,
             Label = definition.Label,
+            RetryPolicy = _draft.RetryPolicy.ToExecutionPolicy(),
             Column = _draft.Nodes.Count == 0 ? 1 : _draft.Nodes.Max(item => item.Column) + 1,
             Row = definition.Category == StudioWorkflowContractValues.NodeCategorySink ? 2 : 1,
             InputPorts = definition.InputPorts.ToList(),

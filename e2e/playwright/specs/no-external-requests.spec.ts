@@ -281,10 +281,7 @@ test('a mounted 3D Tiles scene uses vendored Cesium, no Ion base layer, and only
   await page.goto('/operate/scenes', { waitUntil: 'domcontentloaded' });
 
   const result = await page.evaluate(async ({ modulePath, splitHostTileset }) => {
-    const source = await (await fetch(modulePath)).text();
-    const blobUrl = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
-    const mod = await import(/* @vite-ignore */ blobUrl);
-    URL.revokeObjectURL(blobUrl);
+    const mod = await import(/* @vite-ignore */ modulePath);
 
     const container = document.createElement('div');
     container.style.width = '640px';

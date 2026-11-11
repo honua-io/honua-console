@@ -3,6 +3,7 @@ using Honua.Console.Web.Auth;
 using Honua.Console.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.WebHost.UseStaticWebAssets();
 
 builder.AddLegacyConsoleServices();
 

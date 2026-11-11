@@ -271,17 +271,91 @@ public sealed class OperateAccessPageRenderTests
         Assert.True(page.Find("[data-rbac-invite-open]").HasAttribute("disabled"));
     }
 
-    private static IRenderedComponent<OperateAccessRolesPage> RenderRoles(FakeRbacDataSource data)
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AccessRollout_PreservesLoadedViewsAndActions(bool enabled)
+    {
+        var options = new ConsoleV4Options { Enabled = enabled };
+        var roles = RenderRoles(new FakeRbacDataSource { OverviewLoad = new RbacOverviewLoad(SampleOverview(), []) }, options);
+        roles.WaitForAssertion(() => Assert.NotEmpty(roles.FindAll("[data-rbac-matrix]")));
+        Assert.Equal(enabled ? 1 : 0, roles.FindAll(".console-page-heading-v4").Count);
+        Assert.Equal(enabled ? 1 : 0, roles.FindAll(".console-metric-tile").Count);
+        Assert.Equal(enabled ? 0 : 1, roles.FindAll("[data-rbac-toolbar]").Count);
+        Assert.Equal(enabled ? 0 : 1, roles.FindAll("[data-rbac-counts]").Count);
+        Assert.Equal(enabled ? 1 : 0, roles.FindAll("nav[aria-label='Access settings']").Count);
+        if (enabled)
+        {
+            Assert.Equal("operate/access", roles.Find("nav[aria-label='Access settings'] [aria-current='page']").GetAttribute("href"));
+            Assert.Equal(new[] { "/console/operate/access", "/console/operate/access/members" },
+                roles.FindAll("nav[aria-label='Access settings'] a").Select(link =>
+                    new Uri(new Uri("https://example.test/console/"), link.GetAttribute("href")!).AbsolutePath));
+            Assert.Equal("10", roles.Find(".console-metric-value").TextContent.Trim());
+            Assert.Contains("8 built-in roles · 2 custom · 14 users affected", roles.Find(".console-metric-tile").TextContent, StringComparison.Ordinal);
+        }
+        CapturePreview(roles, "roles", options);
+        roles.Find("[data-rbac-custom-role]").Click();
+        Assert.NotNull(roles.Find("[data-rbac-create-form]"));
+        CapturePreview(roles, "roles-create", options);
+
+        var members = RenderMembers(new FakeRbacDataSource { MembershipLoad = new TeamMembershipLoad(SampleMembership(), []) }, options);
+        members.WaitForAssertion(() => Assert.NotEmpty(members.FindAll("[data-rbac-members-table]")));
+        Assert.Equal(enabled ? 1 : 0, members.FindAll(".console-page-heading-v4").Count);
+        Assert.Equal(enabled ? 1 : 0, members.FindAll(".console-metric-tile").Count);
+        Assert.Equal(enabled ? 0 : 1, members.FindAll("[data-rbac-members-toolbar]").Count);
+        Assert.Equal(enabled ? 0 : 1, members.FindAll("[data-rbac-member-counts]").Count);
+        Assert.Equal(enabled ? 1 : 0, members.FindAll("nav[aria-label='Access settings']").Count);
+        if (enabled)
+        {
+            Assert.Equal("operate/access/members", members.Find("nav[aria-label='Access settings'] [aria-current='page']").GetAttribute("href"));
+            Assert.Equal(new[] { "/console/operate/access", "/console/operate/access/members" },
+                members.FindAll("nav[aria-label='Access settings'] a").Select(link =>
+                    new Uri(new Uri("https://example.test/console/"), link.GetAttribute("href")!).AbsolutePath));
+            Assert.Equal("14", members.Find(".console-metric-value").TextContent.Trim());
+            Assert.Contains("Public Works · 2 pending · 1 deactivated", members.Find(".console-metric-tile").TextContent, StringComparison.Ordinal);
+        }
+        CapturePreview(members, "users", options);
+        members.Find("[data-rbac-invite-open]").Click();
+        Assert.NotNull(members.Find("[data-rbac-invite-drawer]"));
+        CapturePreview(members, "users-invite", options);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AccessRollout_PreservesMissingBinding(bool enabled)
+    {
+        var options = new ConsoleV4Options { Enabled = enabled };
+        var roles = RenderRoles(new FakeRbacDataSource { OverviewLoad = new RbacOverviewLoad(null, [MissingBinding]) }, options);
+        roles.WaitForAssertion(() => Assert.Contains("API is not bound", roles.Markup, StringComparison.Ordinal));
+        Assert.Equal(enabled ? 0 : 2, roles.FindAll(".console-kicker").Count);
+        if (!enabled) Assert.Contains(roles.FindAll(".console-kicker"), kicker => kicker.TextContent == MissingBinding.State);
+        CapturePreview(roles, "roles-unbound", options);
+        var members = RenderMembers(new FakeRbacDataSource { MembershipLoad = new TeamMembershipLoad(null, [MissingBinding]) }, options);
+        members.WaitForAssertion(() => Assert.Contains("API is not bound", members.Markup, StringComparison.Ordinal));
+        Assert.Equal(enabled ? 0 : 2, members.FindAll(".console-kicker").Count);
+        if (!enabled) Assert.Contains(members.FindAll(".console-kicker"), kicker => kicker.TextContent == MissingBinding.State);
+        CapturePreview(members, "users-unbound", options);
+    }
+
+    private static void CapturePreview<T>(IRenderedComponent<T> page, string name, ConsoleV4Options options)
+        where T : Microsoft.AspNetCore.Components.IComponent =>
+        CatalogAdminPreview.Capture($"access-{name}-{(options.Enabled ? "v4" : "legacy")}",
+            $"<div class=\"console-shell\" {(options.Enabled ? "data-console-v4=\"true\"" : string.Empty)}>{page.Markup}</div>");
+
+    private static IRenderedComponent<OperateAccessRolesPage> RenderRoles(FakeRbacDataSource data, ConsoleV4Options? options = null)
     {
         var ctx = new Bunit.BunitContext();
         ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(options ?? new ConsoleV4Options());
         ctx.Services.AddSingleton<IRbacAccessDataSource>(data);
         return ctx.Render<OperateAccessRolesPage>();
     }
 
-    private static IRenderedComponent<OperateAccessMembersPage> RenderMembers(FakeRbacDataSource data)
+    private static IRenderedComponent<OperateAccessMembersPage> RenderMembers(FakeRbacDataSource data, ConsoleV4Options? options = null)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(options ?? new ConsoleV4Options());
         ctx.Services.AddSingleton<IRbacAccessDataSource>(data);
         return ctx.Render<OperateAccessMembersPage>();
     }

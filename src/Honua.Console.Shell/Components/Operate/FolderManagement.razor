@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @using Honua.Sdk.Admin.Models
 @implements IAsyncDisposable
 @inject IServiceProvider Services
@@ -44,12 +45,12 @@
                 <div class="studio-field-grid">
                     <label class="console-field">
                         <span>Folder path name</span>
-                        <input class="console-input" @bind="_name" @bind:after="ReportContextAsync" maxlength="128" data-folder-name />
+                        <input class="console-input" @bind="_name" @bind:event="oninput" @bind:after="ReportContextAsync" maxlength="128" data-folder-name />
                         <small>One path segment. A rename preserves saved client connections.</small>
                     </label>
                     <label class="console-field">
                         <span>Folder title</span>
-                        <input class="console-input" @bind="_title" @bind:after="ReportContextAsync" maxlength="512" data-folder-title />
+                        <input class="console-input" @bind="_title" @bind:event="oninput" @bind:after="ReportContextAsync" maxlength="512" data-folder-title />
                         <small>Display text only. Leave blank to clear the title.</small>
                     </label>
                 </div>
@@ -93,7 +94,7 @@
         <div data-folder-result data-state="@result.State"><HonuaState Kind="@(result.Succeeded ? "success" : "denied")" Title="@result.State" Message="@result.Detail" HeadingLevel="3" /></div>
         @if (!result.Succeeded)
         {
-            <p role="status">Review the current catalog and refresh before making another change. Approval-required operations must use the separate human approval channel. <a href="/inbox">Open approvals</a></p>
+            <p role="status">Review the current catalog and refresh before making another change. Approval-required operations must use the separate human approval channel. <a href="@ConsoleNavigation.ToConsoleHref("/inbox")">Open approvals</a></p>
         }
     }
 </section>

@@ -136,7 +136,7 @@ public sealed class OperateServicesPageTests
         var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
         var page = context.Render<OperateServicesPage>();
         page.Find("[data-folder-select]").Change("transport");
-        page.Find("[data-folder-title]").Change("Private title");
+        page.Find("[data-folder-title]").Input("Private title");
         Assert.Equal(enabled ? "/operate/services" : "/", registry.Current.Route);
         Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
         if (enabled)
@@ -153,7 +153,7 @@ public sealed class OperateServicesPageTests
         Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
         Assert.Empty(registry.Current.Selection);
         page.Find("[data-folder-select]").Change("transport");
-        page.Find("[data-folder-title]").Change("Unsaved before disposal");
+        page.Find("[data-folder-title]").Input("Unsaved before disposal");
         Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
         Assert.Equal(enabled ? 1 : 0, registry.Current.Selection.Count);
         await context.DisposeComponentsAsync();

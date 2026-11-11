@@ -111,8 +111,11 @@ export class StudioConversation {
                 init = {...init,body:JSON.stringify(message)};
             }
         }
+        const turnSignal = this.options?.signal;
+        const signal = init.signal && turnSignal ? AbortSignal.any([init.signal, turnSignal]) : init.signal || turnSignal;
+        if (signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
         const response = await this.workspace.request(`/api/agent-workspace/studio/${endpoint}`, {
-            ...init, credentials:'same-origin', signal:init.signal || this.options?.signal,
+            ...init, credentials:'same-origin', signal,
             headers:{...Object.fromEntries(new Headers(init.headers)),
                 'Content-Type':'application/json','X-CSRF-Token':this.workspace.session.csrfToken,
                 'X-Honua-Environment':this.binding.environmentId,'X-Honua-Session-Partition':this.binding.principalId,

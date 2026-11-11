@@ -7,6 +7,7 @@ using Honua.Console.Web.Runtime;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Microsoft.JSInterop;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -22,7 +23,12 @@ var clients = new BrowserServerBoundClientFactory(apiBaseUri, applicationBaseUri
 builder.Services.AddSingleton(configuration);
 builder.Services.AddSingleton(session);
 builder.Services.AddSingleton<IHonuaServerBoundClientFactory>(clients);
-builder.Services.AddSingleton(new ConsoleApiClient(clients.CreatePublicClient(apiBaseUri)));
+builder.Services.AddSingleton(new ConsoleApiClient(clients.CreatePublicClient(apiBaseUri))
+{
+    UsesCookieSession = Uri.Compare(apiBaseUri, applicationBaseUri, UriComponents.SchemeAndServer,
+        UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0,
+    SupportsPasswordSignIn = configuration.Auth.Mode == "builtin"
+});
 builder.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([
     new ConsoleEnvironmentProfile
     {
@@ -37,8 +43,22 @@ builder.Services.AddHonuaConsoleShell(new HonuaConsoleShellOptions
     V4Enabled = configuration.V4Enabled
 });
 builder.Services.AddAuthorizationCore();
-builder.Services.AddSingleton<AuthenticationStateProvider>(services => new BrowserAuthenticationStateProvider(
+builder.Services.AddSingleton<BrowserAuthenticationStateProvider>(services => new BrowserAuthenticationStateProvider(
     services.GetRequiredService<ConsoleApiClient>(), session,
     services.GetRequiredService<IConsoleAccountSessionStore>()));
 
-await builder.Build().RunAsync();
+builder.Services.AddSingleton<AuthenticationStateProvider>(services => services.GetRequiredService<BrowserAuthenticationStateProvider>());
+builder.Services.AddSingleton<IConsoleBrowserAuthentication>(services => services.GetRequiredService<BrowserAuthenticationStateProvider>());
+
+builder.Services.AddSingleton<IConsoleOidcAuthentication, BrowserOidcAuthentication>();
+
+var host = builder.Build();
+await using var transport = await host.Services.GetRequiredService<IJSRuntime>()
+    .InvokeAsync<IJSObjectReference>("import", "./js/console-browser-transport.mjs");
+using var sessionBridge = DotNetObjectReference.Create(new ConsoleBrowserSessionBridge(session));
+await transport.InvokeVoidAsync("initialize", sessionBridge, new
+{
+    ApiBaseUrl = apiBaseUri.AbsoluteUri,
+    ApplicationBaseUrl = applicationBaseUri.AbsoluteUri
+});
+await host.RunAsync();

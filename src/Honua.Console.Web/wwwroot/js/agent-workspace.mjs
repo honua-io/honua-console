@@ -964,8 +964,9 @@ export async function attachNativeAgent(workspace, loadAssets = () => import(new
         const endpoint = path.endsWith('/mcp') ? 'mcp' : path.endsWith('/ai/chat') ? 'ai' : path.endsWith('/ai/capabilities') ? 'capabilities' : path === 'turn' ? 'turn' : path === 'conversation' ? 'conversation' : null;
         if (!endpoint || !currentTurn) throw new Error('Unbound native agent request rejected.');
         // Model and tool calls share the turn signal. Persisting the transcript must not.
-        const turnSignal = (endpoint === 'ai' || endpoint === 'mcp') && !init.signal ? currentOptions?.signal : undefined;
-        if (turnSignal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
+        const turnSignal = endpoint === 'ai' || endpoint === 'mcp' ? currentOptions?.signal : undefined;
+        const signal = init.signal && turnSignal ? AbortSignal.any([init.signal, turnSignal]) : init.signal || turnSignal;
+        if (signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
         return workspace.request(`/api/agent-workspace/agent/${endpoint}`, {
             ...init, method: ['turn', 'capabilities'].includes(endpoint) || (endpoint === 'conversation' && !init.method) ? 'GET' : (init.method || 'POST'), credentials: 'same-origin', headers: {
                 'Content-Type': 'application/json', 'X-CSRF-Token': boundSession.csrfToken,
@@ -975,7 +976,7 @@ export async function attachNativeAgent(workspace, loadAssets = () => import(new
                 'X-Honua-Session-Partition': boundSession.principalId,
                 'X-Honua-Turn': currentTurn.turnId
             },
-            ...(turnSignal ? { signal: turnSignal } : {})
+            ...(signal ? { signal } : {})
         });
     };
     const certification = {

@@ -30,7 +30,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
         [PutAuthoringDocument] = (client, token) => Run(client.UpdateLayerPopupInfoAsync(7, null, token)),
         [GetTableDiscovery] = (client, token) => Run(client.ListConnectionTablesAsync("conn-1", token)),
         [GetImportFormats] = (client, token) => Run(client.GetImportFormatsAsync(token)),
-        [PostImportUpload] = (client, token) => Run(client.ImportFileAsync([1, 2, 3], "roads.csv", "roads", null, token)),
+        [PostImportUpload] = (client, token) => Run(client.ImportFileBoundAsync(new([1, 2, 3], "roads.csv", "roads", null, null, null), "reviewed-environment", token)),
         [PostExternalDiscovery] = (client, token) => Run(client.DiscoverExternalServiceAsync("https://external.example/arcgis/rest/services", null, token)),
         [PostGeoservicesImport] = (client, token) => Run(client.StartGeoservicesImportAsync(
             new HonuaAdminGeoservicesImportRequest { ServiceUrl = "https://external.example/FeatureServer", TableName = "roads" }, token)),
@@ -224,7 +224,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     [Theory]
     [InlineData(GetTableDiscovery, "table-discovery")]
     [InlineData(GetImportFormats, "formats")]
-    [InlineData(PostImportUpload, "import-result")]
+    [InlineData(PostImportUpload, "import outcome")]
     [InlineData(PostExternalDiscovery, "discovery")]
     [InlineData(PostGeoservicesImport, "import-job")]
     [InlineData(GetGeoservicesImportJob, "import-progress")]
@@ -258,7 +258,6 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
 
     [Theory]
     [InlineData(GetImportFormats, typeof(HonuaAdminImportFormats))]
-    [InlineData(PostImportUpload, typeof(HonuaAdminImportResult))]
     [InlineData(PostExternalDiscovery, typeof(HonuaAdminExternalServiceDiscovery))]
     [InlineData(GetGeoservicesImportJob, typeof(HonuaAdminGeoservicesImportProgress))]
     public async Task NullBareBody_IsAnEmptyResult(string call, Type resultType)
@@ -270,7 +269,6 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     }
 
     [Theory]
-    [InlineData(PostImportUpload, typeof(HonuaAdminImportResult))]
     [InlineData(PostExternalDiscovery, typeof(HonuaAdminExternalServiceDiscovery))]
     [InlineData(GetGeoservicesImportJob, typeof(HonuaAdminGeoservicesImportProgress))]
     public async Task EmptyBufferedBareBody_IsAnEmptyResult(string call, Type resultType)
@@ -279,6 +277,18 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
 
         Assert.Null(outcome.Issue);
         Assert.IsType(resultType, outcome.Data);
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("")]
+    public async Task UnconfirmedImportOutcome_IsUnsupported(string body)
+    {
+        var outcome = await SendAsync(PostImportUpload, ScriptedHttpHandler.Returning(HttpStatusCode.OK, body));
+
+        Assert.Null(outcome.Data);
+        Assert.Equal("Unsupported", outcome.Issue?.State);
+        Assert.Equal(200, outcome.Issue?.StatusCode);
     }
 
     [Theory]

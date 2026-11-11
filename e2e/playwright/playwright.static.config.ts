@@ -16,10 +16,15 @@ export default defineConfig({
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 900 } } },
     { name: 'mobile', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } } },
   ],
-  webServer: {
+  webServer: [{
     command: 'node e2e/playwright/static-bundle-server.mjs',
     cwd: fileURLToPath(new URL('../../', import.meta.url)),
     url: `${origin}/console/index.html`,
     reuseExistingServer: false,
-  },
+  }, {
+    command: 'node e2e/playwright/static-contract-server.mjs',
+    cwd: fileURLToPath(new URL('../../', import.meta.url)),
+    url: 'http://127.0.0.1:5186/console/index.html',
+    reuseExistingServer: false,
+  }],
 });

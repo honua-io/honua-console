@@ -52,13 +52,32 @@ journeys before rollout; do not add unrestricted origins to fix a blocked reques
 
 The browser host is under integration. The API must provide browser sign-in, session/CSRF
 bootstrap, authorized resource endpoints and static fallback before this bundle replaces the
-server-rendered deployment. The old authentication and proxy code remains in a non-publishable
-test fixture while its replacement endpoints are verified. A successful static build alone does
+server-rendered deployment. The old authentication and proxy code remains in a test-only
+host while its replacement endpoints are verified. It is excluded from release publication;
+the legacy customer regression explicitly packages it into a test container. A successful static build alone does
 not prove sign-in, Studio, map resources or mutation workflows.
 
-The static-bundle workflow replaces Console container publication. Before rollout, replace the
-published-DLL browser harness with static hosting, remove the Console service from deployment
-compositions, and validate the
-API's session and resource contracts in same-origin and cross-origin browsers. Browser transport
-tests and the retained host tests cover boundaries independently; neither substitutes for those
-end-to-end journeys.
+The static-bundle workflow replaces Console container publication. Its Playwright gate serves
+the published files at 1280 and 390 pixels. One fixture checks unbound navigation and missing
+API responses. A password-contract fixture submits the sign-in form and checks same-origin
+cookie issuance with identity-bound CSRF refresh, cross-origin bearer issuance without cookies,
+authorized resource rendering and links beneath `/console/`. It also checks that the bearer
+is absent from browser storage. This fixture models the API contract; it does not qualify
+the actual server implementation. The same-origin OIDC fixture checks provider selection,
+server-broker redirects, callback correlation/replay rejection, cookie bootstrap and mounted
+return paths. Separate-origin OIDC needs a registered public SPA client and remains unavailable
+in this build.
+
+For same-origin OIDC, set `auth.mode` to `oidc`. Provider labels come from
+`/api/v1/admin/auth/config`; the server owns PKCE, callback correlation, provider credentials,
+code exchange and the session cookie. Keep `Oidc:AdminAuthCallbackUri` and the provider's
+registered redirect at `https://<public-host>/admin/auth/callback`. Route that root path to the
+API server. After validating the callback, the server redirects to an allowlisted relative
+Console return path (default `/console/`). Console reloads the session and obtains a fresh,
+identity-bound CSRF token. No callback code, correlation state, provider credentials or tokens
+are stored by the SPA. Keep callback responses uncached and use `Referrer-Policy: no-referrer`.
+Legacy browser configurations launch the test-only host and preserve their existing assertions.
+
+Before rollout, remove the Console service from deployment compositions and validate the API's
+actual sign-in, session and resource contracts in same-origin and cross-origin browsers. The
+password-contract fixture and retained host tests do not substitute for those end-to-end journeys.

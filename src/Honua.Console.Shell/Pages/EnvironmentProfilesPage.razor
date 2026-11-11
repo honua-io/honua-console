@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/environments"
 @inject IConsoleEnvironmentProfileStore Profiles
 @inject IConsoleCapabilityManifest Capabilities
@@ -10,7 +11,7 @@
     </div>
 
     <div class="console-toolbar">
-        <a class="console-button" href="/environments/new">Add environment</a>
+        <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/environments/new")">Add environment</a>
     </div>
 
     @if (_profiles.Count == 0)
@@ -18,7 +19,7 @@
         <article class="console-panel">
             <h2>Add your first environment</h2>
             <p class="console-muted">Add your server address, then sign in to access your data and maps.</p>
-            <a class="console-button" href="/environments/new">Add environment</a>
+            <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/environments/new")">Add environment</a>
         </article>
     }
     else
@@ -83,7 +84,7 @@
                                 ? "Selected for this browser session. Server access depends on your sign-in and permissions."
                                 : "Select this environment to use it in Console.")
                         </span>
-                        <a href="@($"/environments/{profile.Id}")">Diagnostics</a>
+                        <a href="@ConsoleNavigation.ToConsoleLinkHref($"/environments/{profile.Id}")">Diagnostics</a>
                     </div>
                 </article>
             }

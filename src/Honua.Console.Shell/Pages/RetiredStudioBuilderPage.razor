@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/studio/workflows/new"
 @page "/studio/query"
 @page "/studio/analysis"
@@ -22,8 +23,8 @@
         <h1>This view has moved to the Studio workspace</h1>
         <p>Edit maps with visual controls and your Console conversation. Use Processes for analysis and workflow authoring.</p>
     }
-    <a class="console-button-link" href="/studio">Open Studio workspace</a>
-    <a class="console-button-link console-button-secondary" href="/studio/processes">Open Processes</a>
+    <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/studio")">Open Studio workspace</a>
+    <a class="console-button-link console-button-secondary" href="@ConsoleNavigation.ToConsoleHref("/studio/processes")">Open Processes</a>
 </section>
 
 @code {

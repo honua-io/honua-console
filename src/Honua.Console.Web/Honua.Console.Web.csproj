@@ -29,6 +29,15 @@
     <InternalsVisibleTo Include="Honua.Console.IntegrationTests" />
   </ItemGroup>
 
+  <!-- Workload manifests can replace the SDK pack version even with a pinned SDK.
+       Keep the implicit package aligned with the committed restore lock. -->
+  <Target Name="PinConsoleWebAssemblySdkPack" BeforeTargets="ProcessFrameworkReferences">
+    <ItemGroup>
+      <KnownWebAssemblySdkPack Update="@(KnownWebAssemblySdkPack)"
+                               WebAssemblySdkPackVersion="10.0.13" />
+    </ItemGroup>
+  </Target>
+
   <!-- The Studio release is vendored before Razor inventories static assets, so a clean checkout
        builds, runs and publishes it. Content was evaluated before the fetch, so the _studio items
        are replaced with what the fetch left on disk: a new release drops chunks an older one had. -->

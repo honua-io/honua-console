@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @using Honua.Sdk.Admin.Models
 @implements IDisposable
 @inject IServiceProvider Services
@@ -39,7 +40,7 @@ else
                         <tbody>
                             @foreach (var service in _matches)
                             {
-                                <tr><th scope="row"><a href="@($"/operate/services/{Uri.EscapeDataString(service.ServiceName)}/settings")">@service.ServiceName</a></th><td>@(service.Title ?? "Not set")</td><td>@service.LayerCount</td><td>@string.Join(", ", service.EnabledProtocols ?? [])</td></tr>
+                                <tr><th scope="row"><a href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/services/{Uri.EscapeDataString(service.ServiceName)}/settings")">@service.ServiceName</a></th><td>@(service.Title ?? "Not set")</td><td>@service.LayerCount</td><td>@string.Join(", ", service.EnabledProtocols ?? [])</td></tr>
                             }
                         </tbody>
                     </table>
@@ -58,7 +59,7 @@ else
     <ConsolePanel Title="Administration" HeadingId="folder-administration-heading">
         <dl class="console-definition-list"><div><dt>Name</dt><dd>@_folder.Metadata.Name</dd></div><div><dt>Title</dt><dd>@(_folder.Metadata.Title ?? "Not set")</dd></div></dl>
         <p>Access is managed per Service.</p>
-        <a href="/operate/services#folders">Edit, rename or delete a Folder</a>
+        <a href="@ConsoleNavigation.ToConsoleHref("/operate/services#folders")">Edit, rename or delete a Folder</a>
     </ConsolePanel>
 }
 @if (!_loading && (ConsoleReadBudget.IsErrorState(_folders.Status) || ConsoleReadBudget.IsErrorState(_services.Status)))

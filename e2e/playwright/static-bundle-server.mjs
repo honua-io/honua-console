@@ -9,12 +9,22 @@ const contentTypes = {
   ".woff2": "font/woff2", ".png": "image/png", ".svg": "image/svg+xml", ".ico": "image/x-icon",
 };
 
-export async function startStaticBundleServer(directory, port = 0) {
+export async function startStaticBundleServer(directory, port = 0, { configuration, handleApi } = {}) {
   const root = await realpath(directory);
   const server = createServer(async (request, response) => {
     response.setHeader("Cache-Control", "no-store");
+    const url = new URL(request.url, "http://localhost");
+    if (handleApi && (url.pathname.startsWith("/api/") || url.pathname === "/admin/auth/callback")) {
+      await handleApi(request, response);
+      return;
+    }
     if (!["GET", "HEAD"].includes(request.method)) {
       response.writeHead(405).end();
+      return;
+    }
+    if (configuration && url.pathname === "/console/config.json") {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(request.method === "HEAD" ? undefined : JSON.stringify(configuration));
       return;
     }
     try {
