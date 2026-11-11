@@ -67,7 +67,8 @@
     private ConsolePublicationTreeContext TreeContext => new()
     {
         Tree = _tree, SelectedPath = SelectedPath,
-        FolderNavigationEnabled = V4Enabled,
+        V4Enabled = V4Enabled,
+        SearchPending = _inflight is { Apply: CatalogApply.Replace },
         Expand = EventCallback.Factory.Create<ConsolePublicationNode>(this, ExpandAsync),
         Collapse = EventCallback.Factory.Create<ConsolePublicationNode>(this, Collapse),
         Retry = EventCallback.Factory.Create<ConsolePublicationNode>(this, LoadChildrenAsync),
@@ -331,7 +332,7 @@
     }
     private void ShowFirstPage(ConsolePublicationNode node) => _tree.ShowFirstPage(node);
     private Task ShowMore(ConsolePublicationNode node) => ShowMoreAsync(_tree.HasHiddenLoadedChildren(node), () => _tree.ShowMore(node));
-    private Task ShowMoreSearchAsync() => ShowMoreAsync(_tree.SearchLimit < _tree.LoadedServiceCount, _tree.ShowMoreSearch);
+    private Task ShowMoreSearchAsync() => ShowMoreAsync(_tree.SearchLimit < ConsolePublicationTree.Descendants(_tree.Root).Count(node => node.Kind == ConsolePublicationNodeKind.Service && _tree.IsMatch(node)), _tree.ShowMoreSearch);
 
     private async Task ShowMoreAsync(bool hasHiddenLoadedServices, Action revealMore)
     {

@@ -1,6 +1,6 @@
 @inject NavigationManager Navigation
 
-@if (View.FolderNavigationEnabled && !string.IsNullOrWhiteSpace(View.Tree.Filter))
+@if (Searching)
 {
     <ConsolePublicationSearchResults />
 }
@@ -22,7 +22,7 @@ else
     </div>
 }
 <p class="console-tree-coverage" role="status">
-    @if (View.FolderNavigationEnabled && !string.IsNullOrWhiteSpace(View.Tree.Filter))
+    @if (Searching)
     {
         <text>Searching service names in the active scope. Open a result to view its service.</text>
     }
@@ -34,4 +34,5 @@ else
 
 @code {
     [CascadingParameter] public ConsolePublicationTreeContext View { get; set; } = default!;
+    private bool Searching => View.V4Enabled && !string.IsNullOrWhiteSpace(View.Tree.Filter);
 }

@@ -21,7 +21,7 @@ public sealed class ConsolePublicationSearchV4Tests
         tree.WaitForAssertion(() => Assert.Equal(26, tree.FindAll("[role='treeitem']").Count));
         tree.Find("input").Input(" service ");
         tree.WaitForAssertion(() => Assert.Single(tree.FindAll("[data-publication-search]")));
-        Assert.Equal(["Folders (0)", "Services (500)", "Layers (0)", "Styles (0)"],
+        Assert.Equal(["Folders", "Services (500)", "Layers", "Styles"],
             tree.FindAll("[data-publication-search] h3").Select(element => element.TextContent));
         Assert.Equal(25, tree.FindAll("[role='treeitem']").Count);
         Assert.Equal("service", source.LastQuery.NameQuery);
@@ -77,6 +77,10 @@ public sealed class ConsolePublicationSearchV4Tests
         tree.Find("input").Input("absent");
         tree.WaitForAssertion(() => Assert.Equal(2, source.ServiceReads));
         Assert.Empty(tree.FindAll("[role='treeitem']"));
+        Assert.Equal("Services", tree.Find("#console-search-services").TextContent.Trim());
+        Assert.Contains("Searching…", tree.Markup);
+        Assert.DoesNotContain("No services match this search.", tree.Markup);
+        Assert.Empty(tree.FindAll("[data-search-more], .console-search-summary"));
         source.ReleaseNext();
         tree.WaitForAssertion(() => Assert.Contains("Services <span>(0)</span>", tree.Markup));
     }

@@ -61,7 +61,7 @@ try {
       }
       if (name === "scale-v4-search" || name === "scale-v4-empty") {
         assert.deepEqual(await page.locator("[data-publication-search] h3").allTextContents(),
-          ["Folders (0)", `Services (${name.endsWith("search") ? 1 : 0})`, "Layers (0)", "Styles (0)"]);
+          ["Folders", `Services (${name.endsWith("search") ? 1 : 0})`, "Layers", "Styles"]);
         assert.equal(await page.locator(".console-search-scope").textContent(), "Scope: Services · service names");
         if (name.endsWith("search")) {
           assert.deepEqual(await page.locator("mark").allTextContents(), ["service-499", "service-499"]);
