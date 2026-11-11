@@ -255,12 +255,11 @@
 </section>
 
 @code {
-    private ConsoleAgentPageContext AgentContext => new()
-    {
-        Route = new Uri(Navigation.Uri).AbsolutePath,
-        Filters = new Dictionary<string, string> { ["draftId"] = DraftId ?? string.Empty, ["tab"] = _activeTab },
-        Unsaved = new() { ChangedFieldCount = _dirty.IsDirty ? 1 : 0, PendingOperationCount = _busy ? 1 : 0 },
-    };
+    private ConsoleAgentPageContext AgentContext => ConsoleAgentPageContext.EditorContext(
+        Navigation.Uri,
+        _dirty.IsDirty,
+        _busy,
+        new Dictionary<string, string> { ["draftId"] = DraftId ?? string.Empty, ["tab"] = _activeTab });
 
     private bool IsConsoleV4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
