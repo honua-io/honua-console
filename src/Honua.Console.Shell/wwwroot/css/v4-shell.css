@@ -101,12 +101,12 @@
 
 .console-shell[data-console-v4="true"] .console-summary-details dt {
     color: var(--c-text-2);
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
     font-weight: var(--weight-regular);
 }
 
 .console-shell[data-console-v4="true"] .console-summary-details dd {
     margin: var(--space-1) 0 0;
-    font-size: var(--text-md);
+    font-size: var(--text-lg);
     font-variant-numeric: tabular-nums;
 }
