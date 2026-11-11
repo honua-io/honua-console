@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/services/{ServiceName}/settings"
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
@@ -188,7 +189,7 @@
                                 <td>@layer.Name</td>
                                 <td>@layer.Geometry</td>
                                 <td>
-                                    <a href="@($"/operate/resources/{layer.CanonicalResourceId}")">@layer.CanonicalResourceName</a>
+                                    <a href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/resources/{layer.CanonicalResourceId}")">@layer.CanonicalResourceName</a>
                                     <small>@layer.CanonicalResourceId</small>
                                 </td>
                             </tr>

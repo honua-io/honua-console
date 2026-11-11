@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @using Honua.Console.Contracts
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
@@ -61,7 +62,7 @@ else
             @if (proposal.PrUrl is { Length: > 0 } prUrl)
             {
                 <dt>Pull request</dt>
-                <dd><a class="console-link" href="@prUrl" rel="noopener noreferrer" target="_blank">@prUrl</a></dd>
+                <dd><a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref(prUrl)" rel="noopener noreferrer" target="_blank">@prUrl</a></dd>
             }
             @if (!string.IsNullOrWhiteSpace(proposal.CommitSha))
             {
@@ -86,7 +87,7 @@ else
                             <span class="console-chip">@evidence.Kind</span>
                             @if (evidence.Uri is { Length: > 0 } uri)
                             {
-                                <a class="console-link" href="@uri" rel="noopener noreferrer" target="_blank">@evidence.RefId</a>
+                                <a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref(uri)" rel="noopener noreferrer" target="_blank">@evidence.RefId</a>
                             }
                             else
                             {
@@ -243,7 +244,7 @@ else
             {
                 <p class="console-muted operate-deploy-no-reject" data-no-reject-note>
                     There is no separate Reject here: deploy operations are approved in the
-                    <a class="console-link" href="/inbox">approval inbox</a> — declining one is
+                    <a class="console-link" href="@ConsoleNavigation.ToConsoleHref("/inbox")">approval inbox</a> — declining one is
                     done there (or by leaving it unsubmitted, where it stays AwaitingApproval until it expires or is
                     cancelled out of band). Once submitted, <strong>Rollback</strong> is the recovery lever.
                 </p>
@@ -308,7 +309,7 @@ else
                         No recorded prior revision is available for this operation, so there is no forward-deploy
                         recovery to propose. <strong>Supersede with a new operation:</strong> create a fresh deploy
                         operation targeting this same target id through your devops/agent tooling, then track its
-                        operation id on the <a class="console-link" href="@GitOpsReleaseRoutes.Deploy">Deploy page</a>.
+                        operation id on the <a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref(GitOpsReleaseRoutes.Deploy)">Deploy page</a>.
                     </p>
                 }
             </div>

@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/studio/styles"
 @page "/studio/styles/{StyleId}"
 @using Honua.Console.Contracts
@@ -48,7 +49,7 @@
                 <p class="console-kicker">@issue.State</p>
                 <p>@issue.Detail</p>
                 <button class="console-button-link" type="button" disabled="@(_loading || _saving)" @onclick="ReloadAsync" data-style-reload>Try again</button>
-                <a class="console-button-link" href="/environments">Review connection</a>
+                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/environments")">Review connection</a>
             </div>
         }
         else

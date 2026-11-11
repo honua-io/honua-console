@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/share/manage"
 @using Honua.Console.Contracts
 @using Honua.Console.Shell.Components
@@ -451,7 +452,7 @@
                                     </section>
 
                                     <div class="console-action-row">
-                                        <a class="console-button console-button-secondary" data-share-opendata-link href="/share/public/items/@share.ItemId">Open public landing ↗</a>
+                                        <a class="console-button console-button-secondary" data-share-opendata-link href="@ConsoleNavigation.ToConsoleHref($"/share/public/items/{share.ItemId}")">Open public landing ↗</a>
                                     </div>
                                 </div>
 
@@ -559,7 +560,7 @@
                         </ConsoleTableRegion>
 
                         <div class="console-action-row">
-                            <a class="console-button console-button-secondary" data-share-exports-link href="/operate/jobs?itemId=@share.ItemId">View export jobs in Operate ↗</a>
+                            <a class="console-button console-button-secondary" data-share-exports-link href="@ConsoleNavigation.ToConsoleHref($"/operate/jobs?itemId={share.ItemId}")">View export jobs in Operate ↗</a>
                         </div>
                         <p class="console-muted">Exports run as scheduled jobs · token rotations and connection failures surface as alerts in the Event viewer.</p>
                     </article>
@@ -576,7 +577,7 @@
                         </div>
                         <p class="console-muted">Share is a governed surface: every visibility, embed, and token change emits an audit event, and token links log the issuer. Request and traffic counters for shared content are server-owned and stream from honua-server.</p>
                         <div class="console-action-row">
-                            <a class="console-button console-button-secondary" data-share-audit-link href="/operate/events?itemId=@share.ItemId">Open audit events ↗</a>
+                            <a class="console-button console-button-secondary" data-share-audit-link href="@ConsoleNavigation.ToConsoleHref($"/operate/events?itemId={share.ItemId}")">Open audit events ↗</a>
                         </div>
                     </article>
                 }

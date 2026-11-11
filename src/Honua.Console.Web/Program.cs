@@ -1,477 +1,64 @@
+using System.Net.Http.Json;
 using Honua.Console.Shell.DependencyInjection;
-using Honua.Console.Web;
-using Honua.Console.Web.Auth;
+using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Services;
 using Honua.Console.Web.Components;
-using Microsoft.AspNetCore.HttpOverrides;
+using Honua.Console.Web.Runtime;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Microsoft.JSInterop;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebAssemblyHostBuilder.CreateDefault(args);
+builder.RootComponents.Add<App>("#app");
+builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// Add services to the container.
-builder.Services.AddRazorComponents()
-    // Detailed circuit errors leak exception messages and stack traces to the browser, so only enable
-    // them in Development; production circuits surface a generic error and log the detail server-side.
-    .AddInteractiveServerComponents(options => options.DetailedErrors = builder.Environment.IsDevelopment());
-
-// NL->workflow generation against a local CPU model can hold a circuit for minutes and
-// return a graph payload larger than SignalR's 32 KB default receive cap. Raise the cap and
-// the client timeout so a slow-but-valid generation renders instead of terminating the circuit.
-builder.Services.Configure<Microsoft.AspNetCore.SignalR.HubOptions>(options =>
+var applicationBaseUri = new Uri(builder.HostEnvironment.BaseAddress);
+using var configurationClient = new HttpClient { BaseAddress = applicationBaseUri };
+var configuration = await configurationClient.GetFromJsonAsync<ConsoleRuntimeConfiguration>("config.json")
+    ?? throw new InvalidOperationException("Console config.json is missing.");
+var apiBaseUri = configuration.ResolveApiBaseUri(applicationBaseUri);
+var session = new ConsoleBrowserSession();
+var clients = new BrowserServerBoundClientFactory(apiBaseUri, applicationBaseUri, session);
+builder.Services.AddSingleton(configuration);
+builder.Services.AddSingleton(session);
+builder.Services.AddSingleton<IHonuaServerBoundClientFactory>(clients);
+builder.Services.AddSingleton(new ConsoleApiClient(clients.CreatePublicClient(apiBaseUri))
 {
-    options.MaximumReceiveMessageSize = 10 * 1024 * 1024; // 10 MB
-    options.ClientTimeoutInterval = TimeSpan.FromMinutes(5);
-    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    UsesCookieSession = Uri.Compare(apiBaseUri, applicationBaseUri, UriComponents.SchemeAndServer,
+        UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0,
+    SupportsPasswordSignIn = configuration.Auth.Mode == "builtin"
 });
-// OpenTelemetry traces + metrics for the console host (honua-console#279 PA-234). Default-safe: only
-// exports when OTEL_EXPORTER_OTLP_ENDPOINT is configured.
-builder.AddConsoleObservability();
-builder.Services.AddSingleton<AgentMcpSessions>();
-builder.Services.AddHttpClient("honua-agent-workspace").ConfigurePrimaryHttpMessageHandler(() =>
-    new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
-builder.Services.AddHttpClient("honua-studio-audience").ConfigurePrimaryHttpMessageHandler(() =>
-    new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
-builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-Token");
-
-builder.Services.AddHonuaConsoleShell(ConsoleShellConfiguration.ReadOptions(builder.Configuration));
-
-// Operator authentication (honua-console#233): fail-closed cookie/edge auth + RequireAuthenticatedUser
-// fallback policy so no Console route is reachable anonymously. See ConsoleAuthentication for the model.
-builder.AddConsoleAuthentication();
-builder.AddConsoleServerSessionBff();
-builder.Services.Configure<ForwardedHeadersOptions>(ConsoleForwardedHeaders.Apply);
-
-var app = builder.Build();
-
-// Before HSTS, HTTPS redirection, auth, and the map-proxy tile origin. The ingress peer is a
-// private address; see ConsoleForwardedHeaders.
-app.UseForwardedHeaders();
-
-// Content-Security-Policy: this origin holds the Blazor session and the admin-keyed map BFF proxy,
-// so it must constrain where executable code, styles, images, and network connections may come from
-// — a tampered or injected script here would run with full session/proxy access. MapLibre is served
-// from this origin as a committed, version-pinned asset (honua-console#333), so unpkg.com is gone
-// from the policy entirely, and so are Vega/Vega-Lite/Vega-Embed for the chart preview
-// (honua-console#334). Cesium now follows too: scene-viewer.js loads it from this origin under
-// /_content/Honua.Console.Shell/vendor/cesium/, fetched at deploy/build time by
-// scripts/fetch-cesium.mjs rather than committed —
-// its Build/Cesium tree is ~20 MB resolved dynamically through window.CESIUM_BASE_URL, which is
-// deploy weight rather than repo weight. When the assets are absent SceneViewer keeps its inline
-// SVG placeholder, so 3D is a capability that lights up when its bytes are present and an
-// air-gapped deployment no longer hangs on an unreachable CDN. **cdn.jsdelivr.net is gone from this
-// policy entirely** — scripts/__tests__/vendored-assets.test.mjs fails if the policy admits an
-// origin no interop script still uses, and vice versa.
-// object-src/base-uri/frame-ancestors/form-action are locked down to block plugin,
-// base-tag, clickjacking, and form-hijack vectors. 'unsafe-eval' is required by the Vega chart
-// runtime (and Cesium WASM); 'unsafe-inline' (style/script) by the MapLibre/Cesium/Vega inline
-// styles and the Blazor bootstrap. 'blob:' in script-src lets same-origin code execute module bytes
-// pulled from this origin under a guaranteed MIME (the map-preview interop is loaded this way, and
-// MapLibre/Cesium also spin up blob-backed workers); given 'unsafe-inline'/'unsafe-eval' are already
-// permitted, allowing same-origin blob scripts adds no meaningful capability and introduces no new
-// remote code origin. Set on every response (static assets and rendered pages).
-var contentSecurityPolicy = string.Join("; ", new[]
+builder.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([
+    new ConsoleEnvironmentProfile
+    {
+        Id = "configured-api",
+        DisplayName = apiBaseUri.Host,
+        ServerBaseUri = apiBaseUri
+    }
+]));
+builder.Services.AddHonuaConsoleShell(new HonuaConsoleShellOptions
 {
-    "default-src 'self'",
-    "base-uri 'self'",
-    "object-src 'none'",
-    "frame-ancestors 'self'",
-    "form-action 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://tile.openstreetmap.org",
-    "font-src 'self' data:",
-    "worker-src 'self' blob:",
-    "child-src 'self' blob:",
-    "connect-src 'self' https://tile.openstreetmap.org",
+    ServerBaseUrl = apiBaseUri.AbsoluteUri,
+    V4Enabled = configuration.V4Enabled
 });
-app.Use(async (context, next) =>
+builder.Services.AddAuthorizationCore();
+builder.Services.AddSingleton<BrowserAuthenticationStateProvider>(services => new BrowserAuthenticationStateProvider(
+    services.GetRequiredService<ConsoleApiClient>(), session,
+    services.GetRequiredService<IConsoleAccountSessionStore>()));
+
+builder.Services.AddSingleton<AuthenticationStateProvider>(services => services.GetRequiredService<BrowserAuthenticationStateProvider>());
+builder.Services.AddSingleton<IConsoleBrowserAuthentication>(services => services.GetRequiredService<BrowserAuthenticationStateProvider>());
+
+builder.Services.AddSingleton<IConsoleOidcAuthentication, BrowserOidcAuthentication>();
+
+var host = builder.Build();
+await using var transport = await host.Services.GetRequiredService<IJSRuntime>()
+    .InvokeAsync<IJSObjectReference>("import", "./js/console-browser-transport.mjs");
+using var sessionBridge = DotNetObjectReference.Create(new ConsoleBrowserSessionBridge(session));
+await transport.InvokeVoidAsync("initialize", sessionBridge, new
 {
-    context.Response.Headers["Content-Security-Policy"] = contentSecurityPolicy;
-    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
-    await next();
+    ApiBaseUrl = apiBaseUri.AbsoluteUri,
+    ApplicationBaseUrl = applicationBaseUri.AbsoluteUri
 });
-
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
-}
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.Use(async (context, next) =>
-{
-    if ((context.Request.Path.StartsWithSegments("/map-proxy") || context.Request.Path.StartsWithSegments("/scene-proxy")
-        || context.Request.Path.StartsWithSegments("/api/studio/viewer"))
-        && context.Features.Get<Microsoft.AspNetCore.Diagnostics.IStatusCodePagesFeature>() is { } statusPages)
-    {
-        // Fetch clients must receive the original 401/403, never a rendered not-found page.
-        statusPages.Enabled = false;
-    }
-
-    await next();
-});
-app.UseHttpsRedirection();
-
-// Authentication + the trusted edge-forwarded-identity middleware + authorization. Must run before
-// the antiforgery middleware and the component/map-proxy endpoints so the fail-closed fallback policy
-// gates every route (honua-console#233).
-app.UseConsoleAuthentication();
-
-app.UseAntiforgery();
-
-// Anonymous sign-in / sign-out endpoints (the cookie LoginPath target).
-app.MapConsoleAuthEndpoints();
-app.MapConsoleServerSessionBff();
-app.MapAgentWorkspaceBff();
-app.MapAgentSessionBff();
-app.MapLocalProcessBff();
-app.MapStudioReadBff();
-app.MapStudioAudienceBff();
-
-// Static assets and the build-metadata probe are public (no operator identity required).
-app.MapStaticAssets().AllowAnonymous();
-app.MapGet("/version.json", (HttpContext context) =>
-{
-    context.Response.Headers["Cache-Control"] = "no-store";
-    return Results.Json(ConsoleBuildMetadata.Create());
-}).AllowAnonymous();
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode()
-    .AddAdditionalAssemblies(typeof(Honua.Console.Shell.ConsoleRoutes).Assembly);
-
-// Map-preview proxy: these same-origin endpoints stream authorized styles, tiles and features
-// from honua-server with the operator bearer attached server-side. Rewritten tile URLs keep
-// MapLibre requests on the Console origin without exposing server credentials to the browser.
-//
-// Every proxy request resolves the active environment at request time and uses the same operator-only
-// binding and credential boundaries as privileged clients. The final handler rejects missing, expired
-// and target-mismatched credentials before transport. Proxy URLs carry the environment profile id that
-// produced them (ConsoleProxyRoutes); a request whose pin is no longer the active profile fails closed
-// with 409 rather than rendering another environment's assets in a stale view.
-
-// The map proxy is the hottest console path but had no error logging, metrics, or trace on upstream
-// failure (honua-console#279 PA-235). A single category logger is captured by the endpoint closures so
-// an upstream honua-server fault is recorded here (with layerId / z,x,y / status) instead of vanishing
-// behind the browser's opaque status code, and ConsoleMapProxyTelemetry counts requests/failures.
-var mapProxyLogger = app.Services.GetRequiredService<ILoggerFactory>()
-    .CreateLogger("Honua.Console.Web.MapProxy");
-
-app.MapGet("/map-proxy/{environmentId}/styles/{layerId:int}.json", async (
-    string environmentId,
-    int layerId,
-    HttpContext httpContext,
-    IHttpClientFactory httpClientFactory,
-    Honua.Console.Web.Auth.IConsoleOperatorScope operatorScope,
-    Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
-    CancellationToken cancellationToken) =>
-{
-    // The endpoint acts with honua-server privileges, so it requires an authenticated operator
-    // (honua-console#233/#210/#254). Fail-closed BY CONSTRUCTION: the operator is resolved from the
-    // request's scoped operator accessor, which reads HttpContext.User directly and has no shared
-    // ambient/anonymous fallback. A scope with no resolved operator yields null and cannot proceed
-    // past this point (the host fail-closed fallback policy is the defense-in-depth layer); the
-    // explicit deny keeps the 401 contract for the browser fetch even if route metadata changes.
-    var operatorIdentity = await operatorScope.ResolveAsync(cancellationToken);
-    if (operatorIdentity is null)
-    {
-        return Results.StatusCode(StatusCodes.Status401Unauthorized);
-    }
-
-    var (activeProfile, pinFailure) = await Honua.Console.Web.MapProxySupport.ResolvePinnedProfileAsync(
-        profileStore, environmentId, cancellationToken);
-    if (activeProfile is null)
-    {
-        httpContext.Response.Headers.CacheControl = "no-store";
-        return pinFailure!;
-    }
-
-    httpContext.Response.Headers.CacheControl = "no-store";
-
-    var client = httpClientFactory.CreateClient("honua-map-proxy");
-    using var request = new HttpRequestMessage(HttpMethod.Get,
-        Honua.Console.Shell.Services.ConsoleServerHttp.BuildUri(
-            activeProfile.ServerBaseUri, $"api/styles/{layerId}.json"));
-
-    HttpResponseMessage response;
-    try
-    {
-        response = await client.SendAsync(request, cancellationToken);
-    }
-    catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
-    {
-        ConsoleMapProxyTelemetry.RecordTransportFault("styles");
-        mapProxyLogger.LogWarning(ex,
-            "Map-proxy styles upstream request failed for layer {LayerId}: honua-server was unreachable or timed out.",
-            layerId);
-        return Results.StatusCode(StatusCodes.Status502BadGateway);
-    }
-
-    using (response)
-    {
-        ConsoleMapProxyTelemetry.RecordResponse("styles", (int)response.StatusCode);
-        if (!response.IsSuccessStatusCode)
-        {
-            mapProxyLogger.LogWarning(
-                "Map-proxy styles upstream returned {StatusCode} for layer {LayerId}.",
-                (int)response.StatusCode, layerId);
-            return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
-        }
-
-        var styleJson = await response.Content.ReadAsStringAsync(cancellationToken);
-        // Route tile URLs back through this proxy so the browser fetches tiles with the operator bearer attached
-        // here, not in the page. The URL MUST be ABSOLUTE: MapLibre loads vector tiles in a web worker that
-        // calls new Request(url) with no document base, so a root-relative "/map-proxy/tiles/..." throws
-        // "Failed to parse URL" and no feature tile ever loads. Build the absolute origin from the incoming
-        // request after forwarded proto/host are applied, so a TLS-terminating ingress yields https.
-        // Parse the style sources rather than string-replacing a
-        // single prefix, so absolute server-emitted tile URLs are rewritten too (honua-console#213).
-        // The rewritten tile URLs keep the style's environment pin, so tiles never outlive their environment.
-        var absoluteTileBase = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}"
-            + Honua.Console.Shell.Services.ConsoleProxyRoutes.MapTileBase(activeProfile.Id);
-        styleJson = Honua.Console.Web.MapProxySupport.RewriteTileUrls(styleJson, absoluteTileBase);
-        return Results.Content(styleJson, "application/json");
-    }
-});
-
-app.MapGet("/map-proxy/{environmentId}/tiles/{layerId:int}/{z:int}/{x:int}/{y:int}.mvt", async (
-    string environmentId,
-    int layerId,
-    int z,
-    int x,
-    int y,
-    HttpContext httpContext,
-    IHttpClientFactory httpClientFactory,
-    Honua.Console.Web.Auth.IConsoleOperatorScope operatorScope,
-    Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
-    CancellationToken cancellationToken) =>
-{
-    // The endpoint acts with honua-server privileges, so it requires an authenticated operator
-    // (honua-console#233/#210/#254). Fail-closed BY CONSTRUCTION: the operator is resolved from the
-    // request's scoped operator accessor, which reads HttpContext.User directly and has no shared
-    // ambient/anonymous fallback. A scope with no resolved operator yields null and cannot proceed
-    // past this point (the host fail-closed fallback policy is the defense-in-depth layer); the
-    // explicit deny keeps the 401 contract for the browser fetch even if route metadata changes.
-    var operatorIdentity = await operatorScope.ResolveAsync(cancellationToken);
-    if (operatorIdentity is null)
-    {
-        return Results.StatusCode(StatusCodes.Status401Unauthorized);
-    }
-
-    var (activeProfile, pinFailure) = await Honua.Console.Web.MapProxySupport.ResolvePinnedProfileAsync(
-        profileStore, environmentId, cancellationToken);
-    if (activeProfile is null)
-    {
-        httpContext.Response.Headers.CacheControl = "no-store";
-        return pinFailure!;
-    }
-
-    httpContext.Response.Headers.CacheControl = "no-store";
-
-    var client = httpClientFactory.CreateClient("honua-map-proxy");
-    using var request = new HttpRequestMessage(
-        HttpMethod.Get,
-        Honua.Console.Shell.Services.ConsoleServerHttp.BuildUri(
-            activeProfile.ServerBaseUri, $"tiles/{layerId}/{z}/{x}/{y}.mvt"));
-
-    // Forward the browser's validators so the upstream can answer 304 and the browser revalidates cheaply.
-    Honua.Console.Web.MapProxySupport.ForwardConditionalHeaders(httpContext.Request, request);
-
-    // Tiles are the hottest path. Read only the headers first and stream the body straight to the
-    // browser instead of buffering each tile into a byte[], and forward the upstream caching/validator
-    // headers so the browser can cache tiles rather than re-fetching every tile through this admin-keyed
-    // proxy on every view (honua-console#236). The response is disposed once the request completes.
-    HttpResponseMessage response;
-    try
-    {
-        response = await client.SendAsync(
-            request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-    }
-    catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
-    {
-        ConsoleMapProxyTelemetry.RecordTransportFault("tiles");
-        mapProxyLogger.LogWarning(ex,
-            "Map-proxy tile upstream request failed for layer {LayerId} z/x/y {Z}/{X}/{Y}: honua-server was unreachable or timed out.",
-            layerId, z, x, y);
-        return Results.StatusCode(StatusCodes.Status502BadGateway);
-    }
-
-    httpContext.Response.RegisterForDispose(response);
-    ConsoleMapProxyTelemetry.RecordResponse("tiles", (int)response.StatusCode);
-
-    if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
-    {
-        return Results.StatusCode(StatusCodes.Status204NoContent);
-    }
-
-    if (response.StatusCode == System.Net.HttpStatusCode.NotModified)
-    {
-        Honua.Console.Web.MapProxySupport.ApplyTileCacheHeaders(response, httpContext.Response);
-        return Results.StatusCode(StatusCodes.Status304NotModified);
-    }
-
-    if (!response.IsSuccessStatusCode)
-    {
-        mapProxyLogger.LogWarning(
-            "Map-proxy tile upstream returned {StatusCode} for layer {LayerId} z/x/y {Z}/{X}/{Y}.",
-            (int)response.StatusCode, layerId, z, x, y);
-        return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
-    }
-
-    Honua.Console.Web.MapProxySupport.ApplyTileCacheHeaders(response, httpContext.Response);
-    var contentType = response.Content.Headers.ContentType?.ToString() ?? "application/vnd.mapbox-vector-tile";
-    var tileStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-    return Results.Stream(tileStream, contentType);
-});
-
-// Real tabular feature rows for the Studio query-result table and the live chart (graphs) preview.
-// Proxies the server's GeoServices FeatureServer query (the only feature-row contract; it needs both the
-// serviceId and the layerId, both captured into the editor binding at generation time) with the admin
-// key injected here, never in the page. Returns the server's GeoServices feature JSON verbatim so the browser
-// chart/table interop maps attributes → rows. No binding → the caller never calls this (no mock rows).
-app.MapGet("/map-proxy/{environmentId}/features/{serviceId}/{layerId:int}", async (
-    string environmentId,
-    string serviceId,
-    int layerId,
-    int? limit,
-    HttpContext httpContext,
-    IHttpClientFactory httpClientFactory,
-    Honua.Console.Web.Auth.IConsoleOperatorScope operatorScope,
-    Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
-    CancellationToken cancellationToken) =>
-{
-    // The endpoint acts with honua-server privileges, so it requires an authenticated operator
-    // (honua-console#233/#210/#254). Fail-closed BY CONSTRUCTION: the operator is resolved from the
-    // request's scoped operator accessor, which reads HttpContext.User directly and has no shared
-    // ambient/anonymous fallback. A scope with no resolved operator yields null and cannot proceed
-    // past this point (the host fail-closed fallback policy is the defense-in-depth layer); the
-    // explicit deny keeps the 401 contract for the browser fetch even if route metadata changes.
-    var operatorIdentity = await operatorScope.ResolveAsync(cancellationToken);
-    if (operatorIdentity is null)
-    {
-        return Results.StatusCode(StatusCodes.Status401Unauthorized);
-    }
-
-    var (activeProfile, pinFailure) = await Honua.Console.Web.MapProxySupport.ResolvePinnedProfileAsync(
-        profileStore, environmentId, cancellationToken);
-    if (activeProfile is null)
-    {
-        httpContext.Response.Headers.CacheControl = "no-store";
-        return pinFailure!;
-    }
-
-    httpContext.Response.Headers.CacheControl = "no-store";
-
-    var count = limit is > 0 and <= 2000 ? limit.Value : 200;
-    var client = httpClientFactory.CreateClient("honua-map-proxy");
-    var url = Honua.Console.Shell.Services.ConsoleServerHttp.BuildUri(
-        activeProfile.ServerBaseUri,
-        $"rest/services/{Uri.EscapeDataString(serviceId)}/FeatureServer/{layerId}/query"
-            + $"?where=1%3D1&outFields=*&returnGeometry=false&resultRecordCount={count}&f=json");
-    using var request = new HttpRequestMessage(HttpMethod.Get, url);
-
-    HttpResponseMessage response;
-    try
-    {
-        response = await client.SendAsync(request, cancellationToken);
-    }
-    catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
-    {
-        ConsoleMapProxyTelemetry.RecordTransportFault("features");
-        mapProxyLogger.LogWarning(ex,
-            "Map-proxy features upstream request failed for service {ServiceId} layer {LayerId}: honua-server was unreachable or timed out.",
-            Honua.Console.Web.MapProxySupport.LogSafe(serviceId), layerId);
-        return Results.StatusCode(StatusCodes.Status502BadGateway);
-    }
-
-    using (response)
-    {
-        ConsoleMapProxyTelemetry.RecordResponse("features", (int)response.StatusCode);
-        if (!response.IsSuccessStatusCode)
-        {
-            mapProxyLogger.LogWarning(
-                "Map-proxy features upstream returned {StatusCode} for service {ServiceId} layer {LayerId}.",
-                (int)response.StatusCode, Honua.Console.Web.MapProxySupport.LogSafe(serviceId), layerId);
-            return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
-        }
-
-        var json = await response.Content.ReadAsStringAsync(cancellationToken);
-        return Results.Content(json, "application/json");
-    }
-});
-
-// Same-origin 3D Tiles BFF. SceneViewer rewrites the server-owned
-// /scenes/{id}/... tree to this route so Cesium workers, tileset JSON, and
-// binary descendants never require a split-host CSP exception and never
-// receive an operator credential in the browser.
-app.MapGet("/scene-proxy/{environmentId}/scenes/{sceneId}/{**assetPath}", async (
-    string environmentId,
-    string sceneId,
-    string assetPath,
-    HttpContext httpContext,
-    IHttpClientFactory httpClientFactory,
-    Honua.Console.Web.Auth.IConsoleOperatorScope operatorScope,
-    Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
-    CancellationToken cancellationToken) =>
-{
-    var operatorIdentity = await operatorScope.ResolveAsync(cancellationToken);
-    if (operatorIdentity is null)
-    {
-        return Results.StatusCode(StatusCodes.Status401Unauthorized);
-    }
-
-    var safeSceneId = Honua.Console.Web.MapProxySupport.NormalizeSceneAssetPath(sceneId);
-    var safeAssetPath = Honua.Console.Web.MapProxySupport.NormalizeSceneAssetPath(assetPath);
-    if (safeSceneId is null || safeSceneId.Contains('/') || safeAssetPath is null)
-    {
-        return Results.BadRequest();
-    }
-
-    var (activeProfile, pinFailure) = await Honua.Console.Web.MapProxySupport.ResolvePinnedProfileAsync(
-        profileStore, environmentId, cancellationToken);
-    if (activeProfile is null)
-    {
-        httpContext.Response.Headers.CacheControl = "no-store";
-        return pinFailure!;
-    }
-
-    var client = httpClientFactory.CreateClient("honua-map-proxy");
-    using var request = new HttpRequestMessage(
-        HttpMethod.Get,
-        Honua.Console.Web.MapProxySupport.BuildSceneAssetUri(
-            activeProfile.ServerBaseUri, safeSceneId, safeAssetPath));
-    Honua.Console.Web.MapProxySupport.ForwardConditionalHeaders(httpContext.Request, request);
-
-    HttpResponseMessage response;
-    try
-    {
-        response = await client.SendAsync(
-            request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-    }
-    catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
-    {
-        ConsoleMapProxyTelemetry.RecordTransportFault("scenes");
-        mapProxyLogger.LogWarning(ex,
-            "Scene proxy upstream request failed for scene {SceneId} asset {AssetPath}.",
-            Honua.Console.Web.MapProxySupport.LogSafe(sceneId),
-            Honua.Console.Web.MapProxySupport.LogSafe(assetPath));
-        return Results.StatusCode(StatusCodes.Status502BadGateway);
-    }
-
-    httpContext.Response.RegisterForDispose(response);
-    ConsoleMapProxyTelemetry.RecordResponse("scenes", (int)response.StatusCode);
-    if (response.StatusCode == System.Net.HttpStatusCode.NotModified)
-    {
-        Honua.Console.Web.MapProxySupport.ApplyTileCacheHeaders(response, httpContext.Response);
-        return Results.StatusCode(StatusCodes.Status304NotModified);
-    }
-    if (!response.IsSuccessStatusCode)
-    {
-        return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
-    }
-
-    Honua.Console.Web.MapProxySupport.ApplyTileCacheHeaders(response, httpContext.Response);
-    var contentType = response.Content.Headers.ContentType?.ToString() ?? "application/octet-stream";
-    var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-    return Results.Stream(stream, contentType);
-});
-
-app.Run();
+await host.RunAsync();

@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @using static Honua.Console.Shell.Models.CatalogAdminLabels
 
 <section class="catalog-templates" aria-labelledby="catalog-templates-heading">
@@ -25,7 +26,7 @@
                             <tr>
                                 <th scope="row">
                                     @if (CatalogAdminLinks.TemplateHref(Templates.CatalogId, row.Id) is { } href)
-                                    { <a href="@href">@row.Title</a> }
+                                    { <a href="@ConsoleNavigation.ToConsoleLinkHref(href)">@row.Title</a> }
                                     else
                                     { <span>@row.Title · Template destination is unavailable</span> }
                                 </th>

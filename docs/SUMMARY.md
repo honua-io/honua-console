@@ -7,6 +7,7 @@
 ## Guides
 
 * [Run Console locally and in staging](deployment/LOCAL_AND_STAGING.md)
+* [Deploy the static Console bundle](deployment/STATIC_SPA.md)
 * [Live AWS browser smoke](ops/live-aws-smoke.md)
 * [runbook/folder-management.md](runbook/folder-management.md)
 * [Use the built-in Studio assistant](studio-assistant.md)

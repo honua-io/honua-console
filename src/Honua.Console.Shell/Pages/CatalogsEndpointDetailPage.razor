@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/catalogs/{Key}"
 @using Honua.Console.Shell.Models
 @using Microsoft.JSInterop
@@ -33,7 +34,7 @@
         <div class="console-detail-heading">
             <div>
                 <p class="console-kicker">
-                    <a href="@CatalogsListHref">Catalogs</a> <span class="console-crumb-sep">/</span> @endpoint.Title
+                    <a href="@ConsoleNavigation.ToConsoleLinkHref(CatalogsListHref)">Catalogs</a> <span class="console-crumb-sep">/</span> @endpoint.Title
                 </p>
                 <h1>
                     @endpoint.Title
@@ -67,7 +68,7 @@
                 @if (!string.IsNullOrWhiteSpace(endpoint.Url))
                 {
                     <a class="console-button console-button-secondary" data-catalog-open-url
-                       href="@endpoint.Url" target="_blank" rel="noopener noreferrer">Open ↗</a>
+                       href="@ConsoleNavigation.ToConsoleLinkHref(endpoint.Url)" target="_blank" rel="noopener noreferrer">Open ↗</a>
                 }
                 else
                 {
@@ -127,7 +128,7 @@
                         {
                             <tr data-catalog-item="@item.Id" class="@(item.HasIssues ? "catalogs-row--issue" : null)">
                                 <td>
-                                    <a href="@ItemHref(item.Id)" data-catalog-item-link><strong>@item.Title</strong></a>
+                                    <a href="@ConsoleNavigation.ToConsoleLinkHref(ItemHref(item.Id))" data-catalog-item-link><strong>@item.Title</strong></a>
                                 </td>
                                 <td><code>@item.Id</code></td>
                                 <td><code>@(item.FromService ?? "—")</code></td>

@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/data"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Components.Operate
@@ -12,7 +13,7 @@
         <h1>Datasets</h1>
         <p>Datasets and the services that expose them. Expand a dataset to see its layers, then select a layer to preview its endpoint.</p>
         <div class="console-action-row">
-            <a class="console-button" href="/operate/data/new">+ Add data</a>
+            <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/operate/data/new")">+ Add data</a>
         </div>
     </div>
 

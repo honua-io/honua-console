@@ -86,7 +86,7 @@ public sealed class OperateObservabilityModelTests
         Assert.All(OperateObservabilitySnapshot.RequiredJobSources, source =>
             Assert.Contains(snapshot.Jobs, job => string.Equals(job.Source, source, StringComparison.OrdinalIgnoreCase)));
         Assert.All(snapshot.Jobs, job =>
-            Assert.Equal($"/operate/jobs/{job.JobRunId}", job.DetailHref));
+            Assert.Equal($"operate/jobs/{job.JobRunId}", job.DetailHref));
     }
 
     [Fact]
