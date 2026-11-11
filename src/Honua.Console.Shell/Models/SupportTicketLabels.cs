@@ -15,7 +15,17 @@ internal static class SupportTicketLabels
         "cancelled" => "Cancelled",
         "closed" => "Closed",
         "diagnosed" => "Diagnosed",
-        "in progress" => "In progress",
+        "in-progress" => "In progress",
+        "open" => "Open",
+        "escalated" => "Escalated",
+        "re-opened" => "Reopened",
+        "intake" => "Intake",
+        "triaging" => "Triaging",
+        "guided-fix-issued" => "Guided fix issued",
+        "escalation-requested" => "Escalation requested",
+        "approval-pending" => "Approval pending",
+        "operator-executing" => "Operator executing",
+        "validating" => "Validating",
         _ => value
     };
 }

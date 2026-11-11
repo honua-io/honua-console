@@ -148,6 +148,23 @@ public sealed class ConsoleSupportV4Tests
         page.WaitForAssertion(() => Assert.Equal(label, page.FindAll(".support-phase-badge")[1].TextContent));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InFlightTicketUsesReadableStatusAndPhaseOnlyInV4(bool enabled)
+    {
+        using var context = Context(new ConsoleV4Options { Enabled = enabled });
+        var client = context.Services.GetRequiredService<TicketClient>();
+        client.Result = SupportTicketResult.Allowed(client.Result.Value! with
+        {
+            CustomerStatus = "in-progress",
+            Phase = "approval-pending"
+        });
+        var page = context.Render<SupportTicketDetailPage>(parameters => parameters.Add(component => component.TicketId, "ticket-9"));
+        page.WaitForAssertion(() => Assert.Equal(enabled ? "In progress" : "in-progress", page.FindAll(".support-phase-badge")[0].TextContent));
+        Assert.Contains(enabled ? "Approval pending" : "approval-pending", page.Markup);
+    }
+
     private static void Capture(string markup, ConsoleV4Options options, string kind) =>
         CatalogAdminPreview.Capture($"support-{kind}-{(options.Enabled ? "v4" : "legacy")}", $"<div class=\"console-shell\" data-console-v4=\"{options.Enabled.ToString().ToLowerInvariant()}\">{markup}</div>");
 
