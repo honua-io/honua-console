@@ -16,7 +16,7 @@ public sealed class ConsoleSupportV4Tests
     [InlineData(true)]
     public void RolloutPreservesTicketFormAndContext(bool enabled)
     {
-        using var context = Context(enabled);
+        using var context = Context(new ConsoleV4Options { Enabled = enabled });
         var page = context.Render<SupportPage>();
         page.WaitForAssertion(() => Assert.Contains("Console version", page.Markup));
         Assert.Equal(enabled ? "Support" : "Contact support", page.Find("h1").TextContent);
@@ -27,7 +27,7 @@ public sealed class ConsoleSupportV4Tests
         Assert.Single(page.FindAll("textarea"));
         Assert.True(page.Find("button").HasAttribute("disabled"));
         Assert.Contains("Auto-attached context", page.Markup);
-        Capture(page.Markup, enabled, "form");
+        Capture(page.Markup, context.Services.GetRequiredService<ConsoleV4Options>(), "form");
     }
 
     [Theory]
@@ -35,7 +35,7 @@ public sealed class ConsoleSupportV4Tests
     [InlineData(true)]
     public async Task SubmitRetainsAccessScopeSecretContextAndNavigation(bool enabled)
     {
-        using var context = Context(enabled);
+        using var context = Context(new ConsoleV4Options { Enabled = enabled });
         var page = context.Render<SupportPage>();
         await page.InvokeAsync(() =>
         {
@@ -70,7 +70,7 @@ public sealed class ConsoleSupportV4Tests
     [InlineData(true)]
     public void FailedSubmissionRetainsInputAndAllowsRetry(bool enabled)
     {
-        using var context = Context(enabled);
+        using var context = Context(new ConsoleV4Options { Enabled = enabled });
         context.Services.GetRequiredService<TicketClient>().Result = SupportTicketResult.Denied(OperateSectionStatus.Forbidden, "Ticket creation is not allowed.");
         var page = context.Render<SupportPage>();
         page.FindAll("input:not([type=checkbox])")[1].Change("diagnose");
@@ -87,7 +87,7 @@ public sealed class ConsoleSupportV4Tests
     [InlineData(true)]
     public void TicketDetailPreservesStatusAccessAndRequestedAction(bool enabled)
     {
-        using var context = Context(enabled);
+        using var context = Context(new ConsoleV4Options { Enabled = enabled });
         var page = context.Render<SupportTicketDetailPage>(parameters => parameters.Add(component => component.TicketId, "ticket-9"));
         page.WaitForAssertion(() => Assert.Contains("Status", page.Markup));
         Assert.Equal("Ticket ticket-9", page.Find("h1").TextContent);
@@ -96,7 +96,7 @@ public sealed class ConsoleSupportV4Tests
         Assert.Contains("read-only", page.Markup);
         Assert.Contains("diagnose errors", page.Markup);
         Assert.Contains("honua-server", page.Markup);
-        Capture(page.Markup, enabled, "ticket");
+        Capture(page.Markup, context.Services.GetRequiredService<ConsoleV4Options>(), "ticket");
     }
 
     [Theory]
@@ -108,7 +108,7 @@ public sealed class ConsoleSupportV4Tests
     [InlineData(true, OperateSectionStatus.Unavailable)]
     public void TicketFailureKeepsServerEvidenceAndReturnLink(bool enabled, OperateSectionStatus status)
     {
-        using var context = Context(enabled);
+        using var context = Context(new ConsoleV4Options { Enabled = enabled });
         context.Services.GetRequiredService<TicketClient>().Result = SupportTicketResult.Denied(status, "Ticket cannot be read.");
         var page = context.Render<SupportTicketDetailPage>(parameters => parameters.Add(component => component.TicketId, "ticket-9"));
         page.WaitForAssertion(() => Assert.Contains("Ticket cannot be read.", page.Markup));
@@ -116,14 +116,14 @@ public sealed class ConsoleSupportV4Tests
         Assert.Equal("/support", page.Find("a").GetAttribute("href"));
     }
 
-    private static void Capture(string markup, bool enabled, string kind) =>
-        CatalogAdminPreview.Capture($"support-{kind}-{(enabled ? "v4" : "legacy")}", $"<div class=\"console-shell\" data-console-v4=\"{enabled.ToString().ToLowerInvariant()}\">{markup}</div>");
+    private static void Capture(string markup, ConsoleV4Options options, string kind) =>
+        CatalogAdminPreview.Capture($"support-{kind}-{(options.Enabled ? "v4" : "legacy")}", $"<div class=\"console-shell\" data-console-v4=\"{options.Enabled.ToString().ToLowerInvariant()}\">{markup}</div>");
 
-    private static BunitContext Context(bool enabled)
+    private static BunitContext Context(ConsoleV4Options options)
     {
         var context = new BunitContext();
         context.JSInterop.Mode = JSRuntimeMode.Loose;
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        context.Services.AddSingleton(options);
         context.Services.AddSingleton(new TicketClient());
         context.Services.AddSingleton<IConsoleSupportTicketClient>(provider => provider.GetRequiredService<TicketClient>());
         var profiles = new InMemoryConsoleEnvironmentProfileStore([]);
