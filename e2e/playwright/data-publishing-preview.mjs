@@ -19,6 +19,8 @@ await runV4PagePresentation({
       if (name.endsWith("-complete")) {
         assert.ok(await page.getByRole("heading", { name: "Layer published", level: 3 }).isVisible());
       }
+    } else if (name === "data-publishing-lookup") {
+      assert.ok(await page.getByRole("heading", { name: "Look up released content", exact: true }).isVisible());
     } else {
       assert.ok(await page.getByRole("heading", { name: "Publishing formats", exact: true }).isVisible());
       assert.ok(await page.getByRole("heading", { name: "Publishing review", exact: true }).isVisible());
