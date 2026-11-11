@@ -1,0 +1,32 @@
+@foreach (var part in Parts())
+{
+    @if (part.Match)
+    {
+        <mark>@part.Text</mark>
+    }
+    else
+    {
+        @part.Text
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+    [Parameter, EditorRequired] public string Query { get; set; } = "";
+
+    private IEnumerable<(string Text, bool Match)> Parts()
+    {
+        var query = Query.Trim();
+        var offset = 0;
+        if (query.Length > 0)
+        {
+            while (Text.IndexOf(query, offset, StringComparison.OrdinalIgnoreCase) is var match && match >= 0)
+            {
+                if (match > offset) yield return (Text[offset..match], false);
+                yield return (Text.Substring(match, query.Length), true);
+                offset = match + query.Length;
+            }
+        }
+        if (offset < Text.Length) yield return (Text[offset..], false);
+    }
+}

@@ -1,0 +1,14 @@
+.console-shell[data-console-v4="true"] .console-share-summary-details {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-4);
+    margin: var(--space-5) 0 0;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--c-border);
+}
+
+@media (max-width: 640px) {
+    .console-shell[data-console-v4="true"] .console-share-summary-details {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}

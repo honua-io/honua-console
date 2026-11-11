@@ -22,6 +22,7 @@ var session = new ConsoleBrowserSession();
 var clients = new BrowserServerBoundClientFactory(apiBaseUri, applicationBaseUri, session);
 builder.Services.AddSingleton(configuration);
 builder.Services.AddSingleton(session);
+builder.Services.AddSingleton<IConsolePreviewAddress>(new ConfiguredApiPreviewAddress(apiBaseUri));
 builder.Services.AddSingleton<IHonuaServerBoundClientFactory>(clients);
 builder.Services.AddSingleton(new ConsoleApiClient(clients.CreatePublicClient(apiBaseUri))
 {
@@ -61,4 +62,6 @@ await transport.InvokeVoidAsync("initialize", sessionBridge, new
     ApiBaseUrl = apiBaseUri.AbsoluteUri,
     ApplicationBaseUrl = applicationBaseUri.AbsoluteUri
 });
+session.Changed += snapshot => _ = transport.InvokeVoidAsync("publishSession", snapshot);
+await transport.InvokeVoidAsync("publishSession", session.Snapshot());
 await host.RunAsync();
