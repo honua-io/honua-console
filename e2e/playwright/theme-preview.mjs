@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "@playwright/test";
+import { runV4PagePresentation } from "./console-presentation.mjs";
 import { startPresentationFixtureServer } from "./presentation-fixture-server.mjs";
 
 const previews = path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/catalog-preview");
@@ -10,7 +11,7 @@ const markup = await fs.readFile(path.join(previews, "navigation-v4-true.html"),
 const legacy = await fs.readFile(path.join(previews, "navigation-v4-false.html"), "utf8");
 const pages = new Map([["user-a", markup], ["user-b", markup], ["anonymous", markup], ["legacy", legacy]]);
 const unwrappedPages = [...pages.keys()];
-const contentPages = ["support-form-v4", "support-ticket-v4", "share-public-v4"];
+const contentPages = ["support-form-v4", "support-ticket-v4", "share-public-v4", "theme-route-setup-v4", "theme-route-missing-v4"];
 for (const name of contentPages) {
   const content = await fs.readFile(path.join(previews, `${name}.html`), "utf8");
   pages.set(name, content);
@@ -118,3 +119,23 @@ try {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));
 }
+
+await runV4PagePresentation({
+  previews,
+  pageNames: ["setup", "missing"].flatMap(name => ["v4", "legacy"].map(flag => `theme-route-${name}-${flag}`)),
+  title: "Console setup and missing-route presentation",
+  stylesheet: "v4-shell.css",
+  prepareMarkup: markup => markup,
+  heading: name => name.includes("setup") ? "Start Honua with your local agent" : name.endsWith("-v4") ? "Page not found" : "Page Not Found",
+  scope: "main",
+  controls: "main :is(a[href], button):visible",
+  inspect: async (page, name) => {
+    assert.equal(await page.locator(".console-page-heading-v4").count(), name.endsWith("-v4") ? 1 : 0);
+    if (name.includes("setup")) {
+      assert.equal(await page.getByRole("button", { name: "Copy request for my local agent" }).count(), 1);
+      assert.equal(await page.locator("a[href='/environments/new']").count(), 1);
+    } else {
+      assert.equal(await page.getByRole("link", { name: "Return Home" }).getAttribute("href"), "/");
+    }
+  },
+});
