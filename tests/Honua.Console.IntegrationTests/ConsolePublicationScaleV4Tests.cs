@@ -39,7 +39,14 @@ public sealed class ConsolePublicationScaleV4Tests
         Capture((tree.Markup, header.Markup), presentation, "expanded");
 
         tree.Find("input").Input("service-499");
-        tree.WaitForAssertion(() => Assert.Contains("1 service name and 10 layers", tree.Markup));
+        tree.WaitForAssertion(() => Assert.Contains(options.Enabled
+            ? "Searching service names in the active scope. Open a result to view its service."
+            : "1 service name and 10 layers", tree.Markup));
+        if (options.Enabled)
+        {
+            Assert.Contains("1 of 1 service matches", tree.Markup);
+            Assert.Contains("10 layers", tree.Find(".console-search-path").TextContent);
+        }
         Assert.Equal(options.Enabled ? 1 : 2, tree.FindAll("[role='treeitem']").Count);
         Assert.Equal("service-499", source.LastQuery.NameQuery);
         Assert.Equal(1, source.ChildReads);
