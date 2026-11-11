@@ -77,6 +77,7 @@ internal static class ConsolePublicationRenderFixture
 internal sealed class PublicationNavigationSource : IConsolePublicationNavigationSource
 {
     public bool RefuseLayerReads { get; init; }
+    public bool IgnoreNameQuery { get; init; }
     public IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary>? ServiceSummaries { get; init; }
     public OperateSectionResult<HonuaAdminServicePage>? FailNext { get; set; }
     public int HoldCount { get; set; }
@@ -117,7 +118,7 @@ internal sealed class PublicationNavigationSource : IConsolePublicationNavigatio
         var services = ServiceSummaries?.ToArray() ?? Enumerable.Range(0, 500)
             .Select(index => new Honua.Sdk.Admin.Models.ServiceSummary { ServiceName = $"service-{index:D3}", LayerCount = 10 })
             .ToArray();
-        if (!string.IsNullOrWhiteSpace(query.NameQuery))
+        if (!IgnoreNameQuery && !string.IsNullOrWhiteSpace(query.NameQuery))
         {
             services = services.Where(service =>
                 service.ServiceName?.Contains(query.NameQuery, StringComparison.OrdinalIgnoreCase) == true
