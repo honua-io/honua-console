@@ -204,3 +204,43 @@ test('Studio rejects whitespace even when page context is available', async()=>{
  assert.equal(sends,0);
  assert.deepEqual((await workspace.conversation()).messages,[]);
 });
+
+for (const endpoint of ['/api/ai/chat', '/api/mcp']) {
+ test(`cancelling a Studio ${endpoint} request overrides an SDK signal and prevents another dispatch`,async()=>{
+  const controller=new AbortController();
+  const sdkController=new AbortController();
+  let entered,dispatches=0,turns=0,transport;
+  const waiting=new Promise(resolve=>{entered=resolve;});
+  const {workspace,options}=await readyWorkspace({
+   request:async(path,init)=>{
+    dispatches++;
+    transport=init.signal;
+    entered();
+    await new Promise((resolve,reject)=>{
+     init.signal.addEventListener('abort',()=>reject(new DOMException('Cancelled','AbortError')),{once:true});
+    });
+   },
+   chat:async()=>{
+    if(++turns>1)return {status:'complete',text:'Next turn completed'};
+    const init={method:'POST',signal:sdkController.signal};
+    await assert.rejects(options().fetchImpl(endpoint,init),{name:'AbortError'});
+    await assert.rejects(options().fetchImpl(endpoint,init),{name:'AbortError'});
+    return {status:'complete',text:'Late success'};
+   }
+  });
+  await workspace.select([],{kind:'studio-composition',id:'draft',revision:7});
+  const pending=workspace.submit('Edit this map',{signal:controller.signal});
+  await waiting;
+  controller.abort();
+  assert.equal(transport.aborted,true);
+  assert.equal(sdkController.signal.aborted,false);
+  assert.equal((await pending).status,'cancelled');
+  assert.equal(dispatches,1);
+  assert.equal(workspace.context.task.revision,7);
+  const messages=(await workspace.conversation()).messages;
+  assert.match(messages.at(-1).content,/Cancelled.*changes already applied/);
+  assert.ok(messages.every(message=>message.content!=='Late success'));
+  assert.equal(workspace.studioConversation.busy,false);
+  assert.equal((await workspace.submit('Continue safely')).status,'complete');
+ });
+}

@@ -7,6 +7,7 @@ using Honua.Console.Web.Runtime;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Microsoft.JSInterop;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -51,4 +52,13 @@ builder.Services.AddSingleton<IConsoleBrowserAuthentication>(services => service
 
 builder.Services.AddSingleton<IConsoleOidcAuthentication, BrowserOidcAuthentication>();
 
-await builder.Build().RunAsync();
+var host = builder.Build();
+await using var transport = await host.Services.GetRequiredService<IJSRuntime>()
+    .InvokeAsync<IJSObjectReference>("import", "./js/console-browser-transport.mjs");
+using var sessionBridge = DotNetObjectReference.Create(new ConsoleBrowserSessionBridge(session));
+await transport.InvokeVoidAsync("initialize", sessionBridge, new
+{
+    ApiBaseUrl = apiBaseUri.AbsoluteUri,
+    ApplicationBaseUrl = applicationBaseUri.AbsoluteUri
+});
+await host.RunAsync();
