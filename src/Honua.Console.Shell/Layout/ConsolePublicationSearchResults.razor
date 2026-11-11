@@ -1,0 +1,61 @@
+@inject NavigationManager Navigation
+
+@{ var results = Results; }
+
+<div class="console-tree-branches console-search-results" data-publication-search>
+    <p class="console-search-scope">Scope: @View.Tree.Root.Label · service names</p>
+    <section aria-labelledby="console-search-folders">
+        <h3 id="console-search-folders">Folders <span>(0)</span></h3>
+        <p class="console-search-empty">Folder search is not available yet.</p>
+    </section>
+    <section aria-labelledby="console-search-services">
+        <h3 id="console-search-services">Services <span>(@View.Tree.ServiceCount)</span></h3>
+        @if (results.Count == 0)
+        {
+            <p class="console-search-empty" role="status">No services match this search.</p>
+        }
+        else
+        {
+            <ul role="tree" aria-labelledby="console-search-services" class="console-publication-tree" data-publication-tree>
+                @for (var index = 0; index < results.Count; index++)
+                {
+                    var service = results[index];
+                    <li role="none" @key="service.Key">
+                        <div class="console-tree-row console-search-row" role="treeitem" aria-level="1"
+                             aria-posinset="@(index + 1)" aria-setsize="@View.Tree.ServiceCount" tabindex="-1"
+                             aria-selected="@(service.Href == View.SelectedPath ? "true" : "false")"
+                             data-publication-key="@service.Key" data-tree-parent="environment" data-tree-label="@service.Label">
+                            <span class="console-tree-kind" data-kind="Service" aria-hidden="true"></span>
+                            <a href="@Navigation.ToConsoleHref(service.Href!)" tabindex="-1" data-tree-link>
+                                <ConsoleSearchHighlight Text="@service.Label" Query="@View.Tree.Filter" />
+                                <span class="console-search-path"><ConsoleSearchHighlight Text="@(service.ServiceName ?? service.Label)" Query="@View.Tree.Filter" /> · @ConsolePublicationTreeContext.FormatCount(service.ReportedCount, "layer")</span>
+                            </a>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+        @if (results.Count < View.Tree.ServiceCount)
+        {
+            <button type="button" class="console-button console-button-secondary" data-search-more @onclick="View.ShowMoreSearch">Show more services</button>
+        }
+    </section>
+    <section aria-labelledby="console-search-layers">
+        <h3 id="console-search-layers">Layers <span>(0)</span></h3>
+        <p class="console-search-empty">Layer search is not available yet.</p>
+    </section>
+    <section aria-labelledby="console-search-styles">
+        <h3 id="console-search-styles">Styles <span>(0)</span></h3>
+        <p class="console-search-empty">Style search is not available yet.</p>
+    </section>
+    <p class="console-search-summary" role="status">@results.Count of @View.Tree.ServiceCount service matches · ↑↓ move · Enter open · Esc back to tree</p>
+</div>
+
+@code {
+    [CascadingParameter] public ConsolePublicationTreeContext View { get; set; } = default!;
+
+    private IReadOnlyList<ConsolePublicationNode> Results => ConsolePublicationTree.Descendants(View.Tree.Root)
+        .Where(node => node.Kind == ConsolePublicationNodeKind.Service)
+        .OrderBy(node => node.Label, StringComparer.OrdinalIgnoreCase)
+        .Take(View.Tree.Root.VisibleLimit).ToArray();
+}

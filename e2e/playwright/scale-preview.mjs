@@ -41,8 +41,9 @@ try {
       assert.equal(await sidebar.isVisible(), true);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       const row = page.locator(".console-tree-row").first();
-      const dimensions = await row.evaluate(element => ({ height: element.getBoundingClientRect().height, size: getComputedStyle(element).fontSize }));
-      assert.ok(dimensions.height >= (width === 390 ? 44 : 28));
+      const hasRows = await row.count() > 0;
+      const dimensions = hasRows ? await row.evaluate(element => ({ height: element.getBoundingClientRect().height, size: getComputedStyle(element).fontSize })) : null;
+      if (hasRows) assert.ok(dimensions.height >= (width === 390 ? 44 : 28));
       if (name.startsWith("scale-v4") && width === 1280) {
         assert.equal((await sidebar.boundingBox()).width, 248);
         assert.ok(dimensions.height < 36);
@@ -54,9 +55,24 @@ try {
           assert.equal(await page.locator(".console-tree-branches").evaluate(element => element.scrollHeight > element.clientHeight), true);
         }
       }
+      if (name === "scale-v4-search" || name === "scale-v4-empty") {
+        assert.deepEqual(await page.locator("[data-publication-search] h3").allTextContents(),
+          ["Folders (0)", `Services (${name.endsWith("search") ? 1 : 0})`, "Layers (0)", "Styles (0)"]);
+        assert.equal(await page.locator(".console-search-scope").textContent(), "Scope: Services · service names");
+        if (name.endsWith("search")) {
+          assert.deepEqual(await page.locator("mark").allTextContents(), ["service-499", "service-499"]);
+          await page.locator("[data-tree-link]").evaluate(element => element.addEventListener("click", event => {
+            event.preventDefault();
+            element.dataset.activated = "true";
+          }));
+          await page.getByRole("treeitem").focus();
+          await page.keyboard.press("Enter");
+          assert.equal(await page.locator("[data-tree-link]").getAttribute("data-activated"), "true");
+        }
+      }
       const first = page.getByRole("treeitem").first();
-      await first.focus();
-      if (!name.endsWith("empty")) {
+      if (hasRows) await first.focus();
+      if (await page.getByRole("treeitem").count() > 1) {
         await page.keyboard.press("ArrowDown");
         assert.equal(await page.getByRole("treeitem").nth(1).evaluate(element => element === document.activeElement), true);
         await page.keyboard.press("ArrowUp");
@@ -67,6 +83,12 @@ try {
       assert.deepEqual(errors, []);
       await page.screenshot({ path: path.join(previews, `${name}-${width}.png`), fullPage: true });
       if (width === 390) {
+        if (name === "scale-v4-search" || name === "scale-v4-empty") {
+          await page.locator("[data-tree-filter]").focus();
+          await page.keyboard.press("Escape");
+          assert.equal(await page.locator("[data-tree-filter]").inputValue(), "");
+          assert.equal(await sidebar.isVisible(), true);
+        }
         await page.keyboard.press("Escape");
         assert.equal(await sidebar.isVisible(), false);
         assert.equal(await toggle.evaluate(element => element === document.activeElement), true);
