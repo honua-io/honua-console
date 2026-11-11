@@ -118,7 +118,8 @@
                 {
                     <VersionConflictDiff Conflict="conflict"
                                          Choice="@GetChoice(conflict.Key)"
-                                         ChoiceChanged="OnChoiceChanged" />
+                                         ChoiceChanged="OnChoiceChanged"
+                                         Panel="@(!V4Enabled)" />
                 }
             </section>
 

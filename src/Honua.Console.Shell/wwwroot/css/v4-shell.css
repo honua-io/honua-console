@@ -98,3 +98,13 @@
 @media (max-width: 640px) {
     .console-shell[data-console-v4="true"] h1 { font-size: var(--text-xl); }
 }
+
+.console-shell[data-console-v4="true"] :is(input[type="checkbox"], input[type="radio"]):not([role="switch"]) {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.console-shell[data-console-v4="true"] :is(.resource-tree__toggle, .resource-tree__name, .resource-tree__publication-row) {
+    min-height: 24px;
+}
