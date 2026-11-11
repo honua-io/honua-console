@@ -20,8 +20,9 @@ let browser;
 try {
   browser = await chromium.launch();
   for (const name of names) {
-    for (const width of [1280, 390]) {
-      const page = await browser.newPage({ viewport: { width, height: 844 } });
+    for (const width of (name === "scale-v4-paged" ? [1280, 1050, 390] : [1280, 390])) {
+      const context = await browser.newContext({ viewport: { width, height: 844 } });
+      const page = await context.newPage();
       const errors = [];
       page.on("pageerror", error => errors.push(error.message));
       const stylesheet = page.waitForResponse(response => response.url().endsWith("/css/publication-tree.css"));
@@ -43,10 +44,10 @@ try {
       const row = page.locator(".console-tree-row").first();
       const dimensions = await row.evaluate(element => ({ height: element.getBoundingClientRect().height, size: getComputedStyle(element).fontSize }));
       assert.ok(dimensions.height >= (width === 390 ? 44 : 28));
-      if (name.startsWith("scale-v4") && width === 1280) {
-        assert.equal((await sidebar.boundingBox()).width, 248);
+      if (name.startsWith("scale-v4") && width > 1000) {
+        assert.equal((await sidebar.boundingBox()).width, 272);
         assert.ok(dimensions.height < 36);
-        assert.equal(dimensions.size, "13px");
+        assert.equal(dimensions.size, "14px");
         assert.equal((await page.locator(".console-topbar").boundingBox()).height, 48);
         const footer = await page.locator(".console-tree-coverage").boundingBox();
         assert.ok(footer.y + footer.height <= 845, "Coverage remains visible while the tree scrolls");
@@ -62,6 +63,26 @@ try {
         await page.keyboard.press("ArrowUp");
         assert.equal(await first.evaluate(element => element === document.activeElement), true);
       }
+      if (name === "scale-v4-paged") {
+        await page.keyboard.press("End");
+        const last = page.getByRole("treeitem").last();
+        assert.equal(await last.evaluate(element => element === document.activeElement), true);
+        const visibility = await last.evaluate(element => {
+          const pane = element.closest(".console-tree-branches");
+          const row = element.getBoundingClientRect(), bounds = pane.getBoundingClientRect();
+          return pane.scrollTop > 0 && row.top >= bounds.top && row.bottom <= bounds.bottom + 1;
+        });
+        assert.equal(visibility, true, "End keeps the focused row inside the scrolling branches");
+        await page.keyboard.press("Home");
+        if (width > 1000) {
+          await page.locator("main").evaluate(element => element.style.minHeight = "1800px");
+          await page.evaluate(() => window.scrollTo(0, 400));
+          const footer = await page.locator(".console-tree-coverage").boundingBox();
+          assert.ok(Math.abs(footer.y + footer.height - 844) <= 1, "Coverage stays at the viewport bottom after page scroll");
+          assert.equal((await sidebar.boundingBox()).y, 48);
+          await page.evaluate(() => window.scrollTo(0, 0));
+        }
+      }
       const accessibility = await new AxeBuilder({ page }).analyze();
       assert.deepEqual(accessibility.violations.map(violation => violation.id), []);
       assert.deepEqual(errors, []);
@@ -71,7 +92,7 @@ try {
         assert.equal(await sidebar.isVisible(), false);
         assert.equal(await toggle.evaluate(element => element === document.activeElement), true);
       }
-      await page.close();
+      await context.close();
       console.log(`${name} ${width}: PASS`);
     }
   }
