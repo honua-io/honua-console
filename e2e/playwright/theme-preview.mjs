@@ -9,6 +9,11 @@ const previews = path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifact
 const markup = await fs.readFile(path.join(previews, "navigation-v4-true.html"), "utf8");
 const legacy = await fs.readFile(path.join(previews, "navigation-v4-false.html"), "utf8");
 const pages = new Map([["user-a", markup], ["user-b", markup], ["anonymous", markup], ["legacy", legacy]]);
+const supportPages = ["support-form-v4", "support-ticket-v4"];
+for (const name of supportPages) {
+  const support = await fs.readFile(path.join(previews, `${name}.html`), "utf8");
+  pages.set(name, `<main class="console-main">${support}</main>`);
+}
 const server = await startPresentationFixtureServer({
   pages, title: "Console theme presentation fixture", unwrappedPages: [...pages.keys()],
   stylesheets: ["/src/Honua.Console.Shell/wwwroot/honua-console.css"],
@@ -81,6 +86,20 @@ try {
     await configure(page, "legacy");
     assert.equal(await theme(), "light");
     assert.equal(await page.locator("[data-console-theme-toggle]").count(), 0);
+    for (const name of supportPages) {
+      await navigate(page, name);
+      for (const mode of ["light", "dark"]) {
+        await page.evaluate(({ name, mode }) => localStorage.setItem(`honua-theme:${name}`, mode), { name, mode });
+        await page.reload();
+        await configure(page, name);
+        assert.equal(await theme(), mode);
+        assert.equal(await page.locator("html").evaluate(element => getComputedStyle(element).colorScheme), mode);
+        assert.equal(await page.getByRole("heading", { level: 1 }).isVisible(), true);
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}/${mode}/${width}: overflow`);
+        assert.deepEqual((await new AxeBuilder({ page }).include("main").analyze()).violations, []);
+        await page.screenshot({ path: path.join(previews, `theme-${name}-${mode}-${width}.png`), fullPage: true });
+      }
+    }
     console.log(`${width}px: both modes, keyboard, reload, user isolation, replacement, flag, axe and overflow pass`);
   }
   const blocked = await browser.newContext();
