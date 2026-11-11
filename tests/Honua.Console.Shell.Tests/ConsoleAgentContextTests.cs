@@ -115,6 +115,7 @@ public sealed class ConsoleAgentContextTests
     }
 
     [Theory]
+    [InlineData(ConsoleAgentEntityKind.Connection, "/operate/connections/a%20b")]
     [InlineData(ConsoleAgentEntityKind.Folder, "/operate/folders/a%20b")]
     [InlineData(ConsoleAgentEntityKind.Service, "/operate/services/a%20b/settings")]
     [InlineData(ConsoleAgentEntityKind.Layer, "/operate/layers/a%20b")]

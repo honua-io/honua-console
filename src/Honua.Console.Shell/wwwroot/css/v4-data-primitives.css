@@ -143,3 +143,14 @@
         grid-template-columns: minmax(100px, 0.42fr) minmax(0, 1fr);
     }
 }
+
+.console-shell[data-console-v4="true"] .operate-import-page input:is([type="radio"], [type="checkbox"]):not([role="switch"]) {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.console-shell[data-console-v4="true"] .operate-import-page .console-tree-toggle {
+    min-width: 24px;
+    min-height: 24px;
+}
