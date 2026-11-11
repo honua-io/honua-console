@@ -117,7 +117,7 @@ public sealed class ConsolePublicationTreeTests
         Assert.Contains(tree.Root.Children, node => node.Label == "roads/legacy" && node.Href == "/operate/services/roads%2Flegacy/settings");
         Assert.Equal("unresolved-folder", Assert.Single(folders.Single(folder => folder.Label == "Folder unavailable").Children).Label);
         Assert.DoesNotContain(tree.Root.Children, node => node.Label == "unresolved-folder" && node.Kind == ConsolePublicationNodeKind.Service);
-        Assert.All(folders, folder => Assert.Null(folder.Href));
+        Assert.All(folders, folder => Assert.Equal("/operate/folders/" + folder.Key["folder:".Length..], folder.Href));
     }
 
     [Fact]

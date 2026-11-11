@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @using Honua.Console.Contracts
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
@@ -12,7 +13,7 @@
     else
     {
         <div class="console-home-inventory-summary">
-            <a href="/operate/services" data-home-services>
+            <a href="@ConsoleNavigation.ToConsoleHref("/operate/services")" data-home-services>
                 <ConsoleMetricTile Label="@(_services.PartialResult ? "Services in returned sources" : "Services")"
                                    Value="@(_services.IsAllowed ? _services.Value?.Total : null)" />
             </a>

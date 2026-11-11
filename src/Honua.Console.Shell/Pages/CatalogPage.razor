@@ -14,7 +14,7 @@
             <p>Everything your workspace owns — data, maps, dashboards, forms, apps, workflows, analyses, GP services. Versioned, governed, reusable.</p>
         </div>
         <div class="console-detail-actions">
-            <a class="console-button-link console-button-secondary" href="/operate/publishing">Import…</a>
+            <a class="console-button-link console-button-secondary" href="@Navigation.ToConsoleHref("/operate/publishing")">Import…</a>
         </div>
     </div>
 
@@ -80,13 +80,13 @@
             </div>
 
             <nav class="console-type-strip" aria-label="Catalog content types">
-                <a class="@TypeStripClass(string.Empty)" href="@BuildTypeHref(string.Empty)">
+                <a class="@TypeStripClass(string.Empty)" href="@Navigation.ToConsoleLinkHref(BuildTypeHref(string.Empty))">
                     <span>All</span>
                     <small>@(_result?.Items.Count ?? 0)</small>
                 </a>
                 @foreach (var type in CatalogContentTypes.All)
                 {
-                    <a class="@TypeStripClass(type.Key)" href="@BuildTypeHref(type.Key)" title="@type.Description">
+                    <a class="@TypeStripClass(type.Key)" href="@Navigation.ToConsoleLinkHref(BuildTypeHref(type.Key))" title="@type.Description">
                         <span class="console-type-glyph" aria-hidden="true">@type.Glyph</span>
                         <span>@type.Label</span>
                         <small>@TypeCount(type.Key)</small>
@@ -129,8 +129,8 @@
                     Browse them in Operate, or publish the first item into this workspace.
                 </p>
                 <div class="console-action-row">
-                    <a class="console-button-link" href="/operate/data">Operate → Data &amp; Layers</a>
-                    <a class="console-button-link console-button-secondary" href="/operate/publishing">Open Publishing</a>
+                    <a class="console-button-link" href="@Navigation.ToConsoleHref("/operate/data")">Operate → Data &amp; Layers</a>
+                    <a class="console-button-link console-button-secondary" href="@Navigation.ToConsoleHref("/operate/publishing")">Open Publishing</a>
                 </div>
             </section>
         }
@@ -159,7 +159,7 @@
                     {
                         <tr>
                             <th scope="row">
-                                <a href="/catalog/@SlugOrId(item)">
+                                <a href="@Navigation.ToConsoleHref($"/catalog/{SlugOrId(item)}")">
                                     <span class="console-type-glyph" aria-hidden="true">@CatalogContentTypes.GlyphFor(item.Type)</span>
                                     @item.Title
                                 </a>
@@ -188,7 +188,7 @@
                                 <div class="console-action-row">
                                     @foreach (var action in ConsoleCatalogActionPolicy.Resolve(item, isAuthenticated: true))
                                     {
-                                        <a href="@action.Href">@action.Label</a>
+                                        <a href="@Navigation.ToConsoleLinkHref(action.Href)">@action.Label</a>
                                     }
                                 </div>
                             </td>

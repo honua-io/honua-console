@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/environments/{ProfileId}"
 @inject IConsoleEnvironmentProfileStore Profiles
 
@@ -7,7 +8,7 @@
         <div class="console-state">
             <h1>Environment not found</h1>
             <p class="console-muted">No environment profile exists for <code>@ProfileId</code>.</p>
-            <a class="console-button" href="/environments">Back to environments</a>
+            <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/environments")">Back to environments</a>
         </div>
     </section>
 }
@@ -81,7 +82,7 @@ else
         </div>
 
         <div class="console-toolbar">
-            <a href="/environments">Back to environments</a>
+            <a href="@ConsoleNavigation.ToConsoleHref("/environments")">Back to environments</a>
         </div>
     </section>
 }

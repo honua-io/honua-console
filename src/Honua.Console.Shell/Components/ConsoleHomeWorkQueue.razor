@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IConsoleApprovalInboxClient Inbox
@@ -92,7 +93,7 @@
     {
         <p role="note" data-home-inbox-partial>@ApprovalInboxPresentation.PartialMessage(_inbox.Message)</p>
     }
-    <a class="console-button-link console-home-inbox-cta" href="/inbox" data-open-inbox>Open inbox</a>
+    <a class="console-button-link console-home-inbox-cta" href="@ConsoleNavigation.ToConsoleHref("/inbox")" data-open-inbox>Open inbox</a>
 </section>
 
 @code {

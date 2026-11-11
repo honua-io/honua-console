@@ -43,7 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           global-json-file: src/Honua.Console.Web/global.json
 
@@ -57,17 +57,20 @@ jobs:
       - name: Fetch the locked Studio release
         uses: ./.github/actions/fetch-studio-release
 
-      - name: Restore and publish Console
-        working-directory: src/Honua.Console.Web
+      - name: Restore and publish the static Console
         run: |
-          dotnet restore Honua.Console.Web.csproj --configfile ../../NuGet.config --no-cache --locked-mode
-          dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal -p:HonuaConsoleCommitSha=${{ github.sha }}
+          cp src/Honua.Console.Web/global.json global.json
+          dotnet restore Honua.Console.slnx --configfile NuGet.config --no-cache --locked-mode
+          dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal -p:HonuaConsoleCommitSha=${{ github.sha }}
 
       - name: Verify published Cesium assets
         run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
 
       - name: Verify published Studio assets
-        run: node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/_studio
+        run: node scripts/fetch-studio-release.mjs --verify artifacts/honua-console-web/wwwroot/console/_studio
+
+      - name: Build the non-shipping legacy regression fixture
+        run: dotnet build tests/Honua.Console.LegacyHost/Honua.Console.LegacyHost.csproj -c Release --no-restore --nologo --verbosity minimal
 
       - name: Install Playwright
         working-directory: e2e/playwright
@@ -75,11 +78,12 @@ jobs:
           npm ci
           npx --no-install playwright install --with-deps chromium
 
-      - name: Run the AWS-bound Console journeys
+      # Legacy server-auth regression against AWS; static WASM qualification runs separately.
+      - name: Run the AWS-bound legacy Console journeys
         working-directory: e2e/playwright
         env:
           CI: "true"
-          HONUA_CONSOLE_E2E_DLL: ${{ github.workspace }}/artifacts/honua-console-web/Honua.Console.Web.dll
+          HONUA_CONSOLE_LEGACY_DLL: ${{ github.workspace }}/tests/Honua.Console.LegacyHost/bin/Release/net10.0/Honua.Console.LegacyHost.dll
           HONUA_CONSOLE_AWS_SERVER_URL: https://demo.honua.io
           HONUA_CONSOLE_AWS_OPERATOR_USERNAME: ${{ secrets.HONUA_CONSOLE_AWS_OPERATOR_USERNAME }}
           HONUA_CONSOLE_AWS_OPERATOR_PASSWORD: ${{ secrets.HONUA_CONSOLE_AWS_OPERATOR_PASSWORD }}

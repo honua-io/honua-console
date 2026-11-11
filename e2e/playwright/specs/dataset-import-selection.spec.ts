@@ -19,18 +19,21 @@ async function interactiveDocument(page: Page, integrity?: string) {
         const html=await response.text();
         const baseHref=html.match(/<base\s+href="([^"]+)"/i)?.[1];
         const documentBase=new URL(baseHref ?? route.request().url(),route.request().url());
-        let matched=0;
-        // The published import map protects its modules with SRI. Bind only this
-        // controlled fixture's entry to its actual digest; preserve every other
-        // asset's integrity. Production assets and headers are unchanged.
+        let maps=0;
+        // Bind only the controlled SDK bytes to their digest, preserving all
+        // other integrity entries. The legacy host can omit this linked asset
+        // from its generated map; dynamic imports still use the canonical URL.
         const controlled=integrity ? html.replace(/(<script[^>]*\btype="importmap"[^>]*>)([\s\S]*?)(<\/script>)/g,
             (_match,start,json,end)=>{
                 const map=JSON.parse(json);
-                for(const key of Object.keys(map.integrity || {}))
-                    if(importSdkUrl(new URL(key,documentBase))) {map.integrity[key]=integrity;matched++;}
+                maps++;
+                map.integrity ??= {};
+                for(const key of Object.keys(map.integrity))
+                    if(importSdkUrl(new URL(key,documentBase))) map.integrity[key]=integrity;
+                map.integrity[new URL('_studio/console.js',documentBase).href]=integrity;
                 return start+JSON.stringify(map)+end;
             }) : html;
-        if(integrity) expect(matched,'Controlled SDK must replace an existing import-map integrity entry').toBeGreaterThan(0);
+        if(integrity) expect(maps,'Controlled SDK requires the host import map').toBe(1);
         // Await the real interactive boot before applying controlled workspace
         // state; otherwise hydration can replace the panel during an assertion.
         const manualBoot=controlled.replace(/<script src="([^"]*_framework\/blazor\.web\.[^"]+)"/,

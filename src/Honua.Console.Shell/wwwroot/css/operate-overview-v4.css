@@ -1,0 +1,47 @@
+.console-operate-overview-v4 {
+    color: var(--c-text);
+    font-family: var(--font-sans);
+}
+
+.console-operate-overview-v4 .console-page-heading-v4 p {
+    max-width: 72ch;
+    color: var(--c-text-2);
+    font-size: var(--text-sm);
+}
+
+.console-operate-overview-v4 .console-panel-grid {
+    gap: var(--space-5);
+    margin-block: var(--space-6);
+}
+
+.console-operate-overview-v4 .console-area-link {
+    min-width: 0;
+    padding: var(--space-5);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-lg);
+    background: var(--c-surface);
+    overflow-wrap: anywhere;
+}
+
+.console-operate-overview-v4 .console-area-link h2 {
+    font-size: var(--text-md);
+}
+
+.console-operate-overview-v4 .console-area-link .console-kicker {
+    display: none;
+}
+
+.console-operate-overview-v4 .console-area-link .console-profile-count {
+    color: var(--c-text-2);
+    font-size: var(--text-md);
+}
+
+.console-operate-overview-v4 .console-event-list {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+    .console-operate-overview-v4 .console-panel-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

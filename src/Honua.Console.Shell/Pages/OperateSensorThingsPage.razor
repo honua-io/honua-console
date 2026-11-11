@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/sensors"
 @page "/operate/sensors/datastreams/{DatastreamId:long}"
 @using System.Globalization
@@ -91,7 +92,7 @@
                             <td class="console-muted">@(datastream.UnitOfMeasurement?.Symbol ?? "—")</td>
                             <td>
                                 <a class="console-button-link"
-                                   href="@($"/operate/sensors/datastreams/{datastream.IotId.ToString(CultureInfo.InvariantCulture)}")"
+                                   href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/sensors/datastreams/{datastream.IotId.ToString(CultureInfo.InvariantCulture)}")"
                                    data-datastream-open="@datastream.IotId">
                                     Observations &amp; chart
                                 </a>
@@ -109,7 +110,7 @@
         <section class="console-section" data-sensorthings-detail>
             <h2>Datastream @selectedId.ToString(CultureInfo.InvariantCulture)</h2>
             <div class="console-detail-actions">
-                <a class="console-button-link" href="/operate/sensors" data-sensorthings-back>Back to browser</a>
+                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/operate/sensors")" data-sensorthings-back>Back to browser</a>
             </div>
 
             @if (_series is null)
