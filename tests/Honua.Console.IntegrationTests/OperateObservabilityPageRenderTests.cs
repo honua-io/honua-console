@@ -49,8 +49,20 @@ public sealed class OperateObservabilityPageRenderTests
     }
 
     [Fact]
-    public async Task AgentContextDoesNotSelectTheDefaultJobRow()
+    public async Task AgentContextFollowsTheVisibleJob()
     {
+        using var emptyContext = new BunitContext();
+        var emptyRegistry = new ConsoleAgentContextRegistry();
+        emptyContext.Services.AddSingleton(emptyRegistry);
+        emptyContext.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        emptyContext.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        emptyContext.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubOperateClient());
+        var emptyPage = emptyContext.Render<OperateObservabilityPage>();
+        emptyPage.WaitForAssertion(() => Assert.Contains("No jobs", emptyPage.Markup, StringComparison.Ordinal));
+        Assert.Empty(emptyRegistry.Current.Entities);
+        Assert.Empty(emptyRegistry.Current.Selection);
+        await emptyContext.DisposeComponentsAsync();
+
         using var context = new BunitContext();
         var registry = new ConsoleAgentContextRegistry();
         context.Services.AddSingleton(registry);
@@ -61,10 +73,11 @@ public sealed class OperateObservabilityPageRenderTests
             Jobs = OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed([BuildJob("default-job")])
         });
         var page = context.Render<OperateObservabilityPage>();
-        page.WaitForAssertion(() => Assert.Contains("default-job", page.Markup, StringComparison.Ordinal));
-        Assert.Empty(registry.Current.Entities);
-        Assert.Empty(registry.Current.Selection);
+        page.WaitForAssertion(() => Assert.Equal("default-job", Assert.Single(registry.Current.Selection).Id));
+        Assert.Equal(ConsoleAgentEntityKind.Job, Assert.Single(registry.Current.Entities).Kind);
+        Assert.Contains("operate-selected-row", page.Markup, StringComparison.Ordinal);
         await context.DisposeComponentsAsync();
+        Assert.Empty(registry.Current.Selection);
     }
 
     [Theory]
