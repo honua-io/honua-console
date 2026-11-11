@@ -46,8 +46,9 @@ public sealed partial class HonuaAdminOperateHttpClient
     {
         ArgumentNullException.ThrowIfNull(fileContent);
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
-        return SendImportAsync<HonuaAdminImportPreview>(HttpMethod.Post, "/api/v1/admin/import/preview",
-            authorityBinding, () => ImportFileForm(fileContent, fileName), cancellationToken);
+        return SendImportAsync(new ImportSend<HonuaAdminImportPreview>(
+            HttpMethod.Post, "/api/v1/admin/import/preview", () => ImportFileForm(fileContent, fileName)),
+            authorityBinding, cancellationToken);
     }
 
     public Task<HonuaAdminEndpointResult<HonuaAdminCoordinateSystemSearch>> SearchCoordinateSystemsAsync(
@@ -55,9 +56,9 @@ public sealed partial class HonuaAdminOperateHttpClient
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
         if (query.Trim().Length > 128) throw new ArgumentException("Use at most 128 characters.", nameof(query));
-        return SendImportAsync<HonuaAdminCoordinateSystemSearch>(HttpMethod.Get,
-            $"/api/v1/admin/coordinate-systems?q={Uri.EscapeDataString(query.Trim())}&limit=20",
-            authorityBinding, () => null, cancellationToken);
+        return SendImportAsync(new ImportSend<HonuaAdminCoordinateSystemSearch>(
+            HttpMethod.Get, $"/api/v1/admin/coordinate-systems?q={Uri.EscapeDataString(query.Trim())}&limit=20", () => null),
+            authorityBinding, cancellationToken);
     }
 
     public Task<HonuaAdminEndpointResult<HonuaAdminImportResult>> ImportFileBoundAsync(
@@ -72,27 +73,30 @@ public sealed partial class HonuaAdminOperateHttpClient
                 && success.ValueKind is JsonValueKind.True or JsonValueKind.False
                     ? HonuaAdminEndpointResult<HonuaAdminImportResult>.FromData(body.Deserialize<HonuaAdminImportResult>(JsonOptions)!)
                     : context.Unsupported<HonuaAdminImportResult>("The server did not confirm the import outcome."));
-        return SendImportAsync<HonuaAdminImportResult>(HttpMethod.Post, "/api/v1/admin/import/upload",
-            authorityBinding, () =>
-            {
-                var form = ImportUploadForm(new(request.FileContent, request.FileName, request.TableName, request.TargetSchema));
-                if (request.SourceSrid is { } source) form.Add(new StringContent(source.ToString(CultureInfo.InvariantCulture)), "SourceSrid");
-                if (request.TargetSrid is { } target) form.Add(new StringContent(target.ToString(CultureInfo.InvariantCulture)), "TargetSrid");
-                return form;
-            }, cancellationToken, readOutcome);
+        return SendImportAsync(new ImportSend<HonuaAdminImportResult>(HttpMethod.Post, "/api/v1/admin/import/upload", () =>
+        {
+            var form = ImportUploadForm(new(request.FileContent, request.FileName, request.TableName, request.TargetSchema));
+            if (request.SourceSrid is { } source) form.Add(new StringContent(source.ToString(CultureInfo.InvariantCulture)), "SourceSrid");
+            if (request.TargetSrid is { } target) form.Add(new StringContent(target.ToString(CultureInfo.InvariantCulture)), "TargetSrid");
+            return form;
+        }, readOutcome), authorityBinding, cancellationToken);
     }
 
-    private Task<HonuaAdminEndpointResult<T>> SendImportAsync<T>(HttpMethod method, string path,
-        string authorityBinding, Func<HttpContent?> content, CancellationToken cancellationToken, AdminResponseReader<T>? readBody = null) where T : class
+    private sealed record ImportSend<T>(HttpMethod Method, string Path, Func<HttpContent?> Content, AdminResponseReader<T>? ReadBody = null)
+        where T : class;
+
+    private Task<HonuaAdminEndpointResult<T>> SendImportAsync<T>(
+        ImportSend<T> send, string authorityBinding, CancellationToken cancellationToken) where T : class
     {
+        ArgumentNullException.ThrowIfNull(send);
         ArgumentException.ThrowIfNullOrWhiteSpace(authorityBinding);
         return _transport.SendAsync(new AdminEndpointCall<T>(() =>
         {
-            var message = Request(method, path, content());
+            var message = Request(send.Method, send.Path, send.Content());
             message.Options.Set(ConsoleAuthorityRequestOptions.Expected, authorityBinding);
             return message;
-        }, $"{method} {path.Split('?')[0]}", new(AdminFailureMappings.AnyNonEmptyServerMessage,
-            readBody ?? AdminResponseBodies.Json<T, T>(BareBody(AdminBodyRead.Buffered, "import"),
+        }, $"{send.Method} {send.Path.Split('?')[0]}", new(AdminFailureMappings.AnyNonEmptyServerMessage,
+            send.ReadBody ?? AdminResponseBodies.Json<T, T>(BareBody(AdminBodyRead.Buffered, "import"),
                 (body, context) => body is null ? context.Unsupported<T>(MissingData) : HonuaAdminEndpointResult<T>.FromData(body)))), cancellationToken);
     }
 
