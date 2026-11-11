@@ -286,7 +286,10 @@ public sealed class OperateAccessPageRenderTests
         Assert.Equal(enabled ? 1 : 0, roles.FindAll("nav[aria-label='Access settings']").Count);
         if (enabled)
         {
-            Assert.Equal("/operate/access", roles.Find("nav[aria-label='Access settings'] [aria-current='page']").GetAttribute("href"));
+            Assert.Equal("operate/access", roles.Find("nav[aria-label='Access settings'] [aria-current='page']").GetAttribute("href"));
+            Assert.Equal(new[] { "/console/operate/access", "/console/operate/access/members" },
+                roles.FindAll("nav[aria-label='Access settings'] a").Select(link =>
+                    new Uri(new Uri("https://example.test/console/"), link.GetAttribute("href")!).AbsolutePath));
             Assert.Equal("10", roles.Find(".console-metric-value").TextContent.Trim());
             Assert.Contains("8 built-in roles · 2 custom · 14 users affected", roles.Find(".console-metric-tile").TextContent, StringComparison.Ordinal);
         }
@@ -304,7 +307,10 @@ public sealed class OperateAccessPageRenderTests
         Assert.Equal(enabled ? 1 : 0, members.FindAll("nav[aria-label='Access settings']").Count);
         if (enabled)
         {
-            Assert.Equal("/operate/access/members", members.Find("nav[aria-label='Access settings'] [aria-current='page']").GetAttribute("href"));
+            Assert.Equal("operate/access/members", members.Find("nav[aria-label='Access settings'] [aria-current='page']").GetAttribute("href"));
+            Assert.Equal(new[] { "/console/operate/access", "/console/operate/access/members" },
+                members.FindAll("nav[aria-label='Access settings'] a").Select(link =>
+                    new Uri(new Uri("https://example.test/console/"), link.GetAttribute("href")!).AbsolutePath));
             Assert.Equal("14", members.Find(".console-metric-value").TextContent.Trim());
             Assert.Contains("Public Works · 2 pending · 1 deactivated", members.Find(".console-metric-tile").TextContent, StringComparison.Ordinal);
         }
