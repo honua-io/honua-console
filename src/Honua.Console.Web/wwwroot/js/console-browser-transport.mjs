@@ -68,9 +68,24 @@ export function createConsoleBrowserTransport({ apiBaseUrl, applicationBaseUrl, 
     const application = new URL(applicationBaseUrl);
     const sameOrigin = api.origin === application.origin;
     let current = null;
+    let expiryTimer = null;
     const sessionListeners = new Set();
+    const armExpiry = (snapshot) => {
+        if (expiryTimer) clearTimeout(expiryTimer);
+        expiryTimer = null;
+        if (!snapshot?.authenticated || snapshot.expiresAt == null) return;
+        const expiry = Date.parse(snapshot.expiresAt);
+        if (!Number.isFinite(expiry)) return;
+        expiryTimer = setTimeout(() => {
+            expiryTimer = null;
+            if (!current || current.revision !== snapshot.revision || !current.authenticated) return;
+            note({ ...current, authenticated: false, principalId: '', accessToken: null });
+        }, Math.max(0, expiry - Date.now()));
+        expiryTimer.unref?.();
+    };
     const note = (next) => {
         current = next;
+        armExpiry(next);
         for (const listener of [...sessionListeners]) {
             try {
                 listener(current);
@@ -79,13 +94,18 @@ export function createConsoleBrowserTransport({ apiBaseUrl, applicationBaseUrl, 
             }
         }
     };
-    const identity = (session) => ({
-        revision: session?.revision ?? null,
-        principalId: session?.authenticated ? session.principalId ?? '' : '',
-        authenticated: Boolean(session?.authenticated),
-        accessToken: session?.accessToken ?? null,
-        expiresAt: session?.expiresAt ?? null,
-    });
+    const identity = (session) => {
+        const expiry = session?.expiresAt == null ? null : Date.parse(session.expiresAt);
+        const live = Boolean(session?.authenticated)
+            && (expiry === null || (Number.isFinite(expiry) && expiry > Date.now()));
+        return {
+            revision: session?.revision ?? null,
+            principalId: live ? session.principalId ?? '' : '',
+            authenticated: live,
+            accessToken: live ? session.accessToken ?? null : null,
+            expiresAt: session?.expiresAt ?? null,
+        };
+    };
     const decide = (url, session) => {
         const target = new URL(url, application);
         if (target.username || target.password || target.hash) {
@@ -132,10 +152,16 @@ export function createConsoleBrowserTransport({ apiBaseUrl, applicationBaseUrl, 
                 }
                 return decide(url, captured);
             };
+            const captureLive = () => {
+                if (!captured.authenticated || captured.expiresAt == null) return true;
+                const expiry = Date.parse(captured.expiresAt);
+                return Number.isFinite(expiry) && expiry > Date.now();
+            };
             authorize.current = () => Boolean(current)
                 && current.revision === captured.revision
                 && current.principalId === captured.principalId
-                && current.authenticated === captured.authenticated;
+                && current.authenticated === captured.authenticated
+                && captureLive();
             return authorize;
         },
         async capture() {

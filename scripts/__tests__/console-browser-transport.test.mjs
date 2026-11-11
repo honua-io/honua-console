@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { bindMapSession } from '../../src/Honua.Console.Shell/wwwroot/map-preview.js';
 import { createConsoleBrowserTransport } from '../../src/Honua.Console.Web/wwwroot/js/console-browser-transport.mjs';
 
 function fixture(overrides = {}) {
@@ -127,6 +128,34 @@ test('expiry at the same revision reopens public previews and closes the old one
     assert.equal(pub.api, true);
     assert.throws(() => first('https://api.example/base/scenes/block/tileset.json'), /session changed/i);
     assert.equal(removed.length, 1);
+    stop();
+});
+
+test('an idle capture stops authorizing when its token expires', async () => {
+    const expiresAt = new Date(Date.now() + 40).toISOString();
+    const session = { revision: 1, principalId: 'operator', authenticated: true, accessToken: 'token', expiresAt };
+    const transport = createConsoleBrowserTransport({
+        apiBaseUrl: 'https://console.example/',
+        applicationBaseUrl: 'https://console.example/console/',
+        getSession: async () => session,
+    });
+    const closed = [];
+    const stop = transport.subscribeSession((snapshot) => {
+        if (!snapshot.authenticated) closed.push(snapshot.revision);
+    });
+    const first = await transport.captureResourceAuthorization();
+    assert.equal(first('https://console.example/api/styles/7.json').headers.Authorization, 'Bearer token');
+    const map = { removed: false, remove() { this.removed = true; } };
+    const releaseMap = bindMapSession(map, first, transport.subscribeSession);
+    await new Promise((done) => setTimeout(done, 80));
+    assert.deepEqual(closed, [1]);
+    assert.equal(map.removed, true);
+    releaseMap();
+    assert.throws(() => first('https://console.example/api/styles/7.json'), /session changed/i);
+    const reopened = await transport.captureResourceAuthorization();
+    const pub = reopened('https://console.example/api/styles/7.json');
+    assert.equal(pub.headers.Authorization, undefined);
+    assert.equal(pub.api, true);
     stop();
 });
 

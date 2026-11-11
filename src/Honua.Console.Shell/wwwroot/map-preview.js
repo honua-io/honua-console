@@ -14,6 +14,8 @@
 // keeps its inline SVG schematic placeholder and never throws. This preserves the no-mock /
 // missing-binding contract: a live map appears only when a real style source is bound.
 
+import './map-fetch-guard.js';
+
 // Resolved against document.baseURI rather than a root-absolute path so the Console still works
 // when hosted under a path prefix, and against the DOCUMENT rather than import.meta.url because
 // this module is imported from a blob: URL in some hosts (see e2e map-preview-interop.spec.ts),
@@ -121,39 +123,17 @@ function fitToFeaturesOnce(map) {
     map.on('idle', onIdle);
 }
 
-// Attempts to mount a live MapLibre map into the given container.
-// Returns true when a real map was bound; false when the component should keep its placeholder.
 export function mapRequestParameters(authorize, url) {
     const approved = authorize(url);
     return { url: approved.url, credentials: approved.credentials, headers: approved.headers };
 }
 
-export function guardedAuthorizedFetch(original, input, init) {
-    const request = typeof Request !== 'undefined' && input instanceof Request ? input : null;
-    const headers = new Headers(request ? request.headers : init?.headers);
-    if (!headers.has('Authorization')) return original(input, init);
-    if (request) return original(new Request(request, { redirect: 'error' }));
-    return original(input, { ...(init ?? {}), redirect: 'error' });
-}
-
-let fetchGuardUsers = 0;
-let restoreFetch = null;
-
-export function installAuthorizedFetchGuard() {
-    if (typeof globalThis.fetch !== 'function' || globalThis.__honuaAuthorizedFetch) return () => {};
-    if (fetchGuardUsers === 0) {
-        const original = globalThis.fetch.bind(globalThis);
-        globalThis.fetch = (input, init) => guardedAuthorizedFetch(original, input, init);
-        restoreFetch = () => {
-            globalThis.fetch = original;
-            restoreFetch = null;
-        };
+export async function requireMapWorkerGuard(maplibregl) {
+    if (typeof maplibregl?.prewarm !== 'function' || typeof maplibregl?.importScriptInWorkers !== 'function') {
+        throw new Error('Map workers cannot be guarded');
     }
-    fetchGuardUsers += 1;
-    return () => {
-        fetchGuardUsers -= 1;
-        if (fetchGuardUsers === 0) restoreFetch?.();
-    };
+    maplibregl.prewarm();
+    await maplibregl.importScriptInWorkers(new URL('./map-fetch-guard.js', import.meta.url).href);
 }
 
 export function bindMapSession(map, authorize, subscribe) {
@@ -174,6 +154,8 @@ export function bindMapSession(map, authorize, subscribe) {
 
 const sessionReleases = new Map();
 
+// Attempts to mount a live MapLibre map into the given container.
+// Returns true when a real map was bound; false when the component should keep its placeholder.
 export async function init(container, options) {
     if (!container || !options || !options.styleUrl) {
         return false;
@@ -182,7 +164,6 @@ export async function init(container, options) {
     if (!maplibregl) {
         return false;
     }
-    let releaseFetch = () => {};
     let releaseSession = () => {};
     try {
         const authorize = typeof globalThis.honuaConsoleCaptureResourceAuthorization === 'function'
@@ -195,15 +176,9 @@ export async function init(container, options) {
             zoom: options.zoom ?? 1,
             attributionControl: true,
         };
-        if (authorize) mapOptions.transformRequest = (url) => mapRequestParameters(authorize, url);
-        releaseFetch = authorize ? installAuthorizedFetchGuard() : () => {};
-        try {
-            if (typeof maplibregl.prewarm === 'function') maplibregl.prewarm();
-            if (typeof maplibregl.importScriptInWorkers === 'function') {
-                await maplibregl.importScriptInWorkers(new URL('./map-fetch-guard.js', import.meta.url).href);
-            }
-        } catch {
-            // The main-thread fetch guard still refuses authenticated redirects.
+        if (authorize) {
+            mapOptions.transformRequest = (url) => mapRequestParameters(authorize, url);
+            await requireMapWorkerGuard(maplibregl);
         }
         const map = new maplibregl.Map(mapOptions);
         releaseSession = bindMapSession(map, authorize, globalThis.honuaConsoleSubscribeSession);
@@ -255,14 +230,10 @@ export async function init(container, options) {
         // Remember the initial view so the custom Recenter control can restore it.
         map._homeCenter = options.center ?? [0, 0];
         map._homeZoom = options.zoom ?? 1;
-        sessionReleases.set(map, () => {
-            releaseFetch();
-            releaseSession();
-        });
+        sessionReleases.set(map, releaseSession);
         instances.set(container, map);
         return true;
     } catch {
-        releaseFetch();
         releaseSession();
         return false;
     }
