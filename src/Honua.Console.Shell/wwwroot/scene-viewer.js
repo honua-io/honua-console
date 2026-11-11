@@ -76,6 +76,7 @@ export async function init(element, tilesetUrl, environmentId) {
     let viewer;
     try {
         const safeTilesetUrl = sameOriginTilesetUrl(tilesetUrl, environmentId);
+        const tilesetSource = await sceneTilesetSource(Cesium, safeTilesetUrl);
         viewer = new Cesium.Viewer(element, {
             // Cesium's implicit default is an Ion-backed base layer. The Console
             // scene surface renders only the supplied candidate-owned tileset.
@@ -91,7 +92,7 @@ export async function init(element, tilesetUrl, environmentId) {
             infoBox: false,
         });
 
-        const tileset = await Cesium.Cesium3DTileset.fromUrl(safeTilesetUrl);
+        const tileset = await Cesium.Cesium3DTileset.fromUrl(tilesetSource);
         viewer.scene.primitives.add(tileset);
         await viewer.zoomTo(tileset);
 
@@ -135,15 +136,32 @@ export function dispose(element) {
 // Same-origin scene BFF route pinned to one environment profile: /scene-proxy/{environmentId}/scenes/...
 const PINNED_SCENE_PROXY = /^\/scene-proxy\/[^/]+\/scenes\//;
 
-function sameOriginTilesetUrl(value, environmentId) {
-    const source = new URL(value, window.location.href);
+export function sameOriginTilesetUrl(value, environmentId) {
+    const page = globalThis.window?.location;
+    if (!page?.href || !page.origin) {
+        throw new Error('tileset URL needs the Console page location');
+    }
+    const source = new URL(value, page.href);
     if (source.username || source.password || source.hash) {
         throw new Error('tileset URL must not contain credentials or a fragment');
     }
 
+    const apiBase = globalThis.honuaConsoleApiBase;
+    if (apiBase) {
+        const api = new URL(apiBase);
+        if (source.origin === api.origin && source.pathname.startsWith(api.pathname)) {
+            const rest = source.pathname.slice(api.pathname.length);
+            if (rest === 'scenes' || rest.startsWith('scenes/')) return source.href;
+            throw new Error('tileset URL must be a Honua scene route');
+        }
+        if (source.origin === page.origin && source.pathname.startsWith('/scenes/')) {
+            return new URL(`scenes${source.pathname.slice('/scenes'.length)}${source.search}`, api).href;
+        }
+        throw new Error('tileset URL must be a Honua scene route');
+    }
+
     // A server-bound Console commonly has a different origin from honua-server.
-    // Derive the upstream from the active environment inside the same-origin BFF;
-    // never widen browser CSP or forward an operator credential cross-origin.
+    // Derive the upstream from the active environment inside the same-origin BFF.
     // The route carries the environment that produced the URL, so descendant tiles
     // Cesium resolves relative to it fail closed (409) once another environment is
     // activated instead of loading that environment's assets into this scene.
@@ -153,10 +171,16 @@ function sameOriginTilesetUrl(value, environmentId) {
         }
         return new URL(
             `/scene-proxy/${encodeURIComponent(environmentId)}${source.pathname}${source.search}`,
-            window.location.origin).href;
+            page.origin).href;
     }
     if (source.origin !== window.location.origin || !PINNED_SCENE_PROXY.test(source.pathname)) {
         throw new Error('tileset URL must be a Honua scene route');
     }
     return source.href;
+}
+
+async function sceneTilesetSource(Cesium, url) {
+    if (typeof globalThis.honuaConsoleAuthorizeResource !== 'function' || !Cesium.Resource) return url;
+    const approved = await globalThis.honuaConsoleAuthorizeResource(url);
+    return new Cesium.Resource({ url: approved.url, headers: approved.headers });
 }

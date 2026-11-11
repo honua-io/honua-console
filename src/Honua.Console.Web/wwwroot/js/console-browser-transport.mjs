@@ -5,6 +5,8 @@ export function initialize(sessionBridge, configuration) {
         ...configuration,
         getSession: () => sessionBridge.invokeMethodAsync('GetSnapshot'),
     });
+    globalThis.honuaConsoleApiBase = browserTransport.apiBase;
+    globalThis.honuaConsoleAuthorizeResource = url => browserTransport.authorizeResource(url);
 }
 
 export function captureConsoleSession() {
@@ -58,8 +60,41 @@ export function createConsoleBrowserTransport({ apiBaseUrl, applicationBaseUrl, 
     if (!['http:', 'https:'].includes(api.protocol) || api.username || api.password || api.search || api.hash || !api.pathname.endsWith('/')) {
         throw new Error('The configured Honua API base URL is invalid.');
     }
-    const sameOrigin = api.origin === new URL(applicationBaseUrl).origin;
+    const application = new URL(applicationBaseUrl);
+    const sameOrigin = api.origin === application.origin;
+    let boundSession = null;
     return Object.freeze({
+        apiBase: api.href,
+        async authorizeResource(url) {
+            const target = new URL(url, application);
+            if (target.username || target.password || target.hash) {
+                throw new Error('A Console resource URL must not contain credentials or a fragment.');
+            }
+            const onApi = target.origin === api.origin && target.pathname.startsWith(api.pathname);
+            if (!onApi) {
+                return {
+                    url: target.href,
+                    credentials: target.origin === application.origin ? 'same-origin' : 'omit',
+                    headers: {},
+                };
+            }
+            const session = await getSession();
+            const principalId = session?.authenticated ? session.principalId ?? '' : '';
+            const revision = session?.revision ?? null;
+            if (boundSession && (boundSession.revision !== revision || boundSession.principalId !== principalId)) {
+                throw new Error('The Console session changed. Reopen this view before continuing.');
+            }
+            boundSession = { revision, principalId };
+            const expiry = session?.expiresAt == null ? null : Date.parse(session.expiresAt);
+            const tokenLive = Boolean(session?.accessToken)
+                && (expiry === null || (Number.isFinite(expiry) && expiry > Date.now()));
+            if (session?.authenticated && !sameOrigin && !tokenLive) {
+                throw new Error('Cross-origin Console access requires an operator bearer token.');
+            }
+            const headers = {};
+            if (session?.authenticated && tokenLive) headers.Authorization = `Bearer ${session.accessToken}`;
+            return { url: target.href, credentials: sameOrigin ? 'same-origin' : 'omit', headers };
+        },
         async capture() {
             const binding = requireSession(await getSession());
             const getCurrentSession = async () => {

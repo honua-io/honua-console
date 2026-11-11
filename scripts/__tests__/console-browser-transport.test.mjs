@@ -68,6 +68,32 @@ test('expired or changed authority rejects dispatch and late responses', async (
     await assert.rejects(() => result, /session changed/i);
 });
 
+test('resource loads authorize only the configured API and keep external tiles anonymous', async () => {
+    const options = { apiBaseUrl: 'https://api.example/base/', applicationBaseUrl: 'https://console.example/console/' };
+    const signedIn = fixture({ options, accessToken: 'token', expiresAt: new Date(Date.now() + 60000).toISOString() });
+    const style = await signedIn.transport.authorizeResource('https://api.example/base/api/styles/7.json');
+    assert.equal(style.credentials, 'omit');
+    assert.equal(style.headers.Authorization, 'Bearer token');
+    const external = await signedIn.transport.authorizeResource('https://tile.openstreetmap.org/1/2/3.png');
+    assert.equal(external.credentials, 'omit');
+    assert.deepEqual(external.headers, {});
+    const app = await signedIn.transport.authorizeResource('https://console.example/console/map-proxy/env/styles/7.json');
+    assert.equal(app.credentials, 'same-origin');
+    assert.deepEqual(app.headers, {});
+    signedIn.setSession({ revision: 2, principalId: 'other', authenticated: true, accessToken: 'next', expiresAt: new Date(Date.now() + 60000).toISOString() });
+    await assert.rejects(() => signedIn.transport.authorizeResource('https://api.example/base/tiles/7/0/0/0.mvt'), /session changed/i);
+});
+
+test('unsigned public API reads stay anonymous and signed cross-origin reads need a live bearer', async () => {
+    const options = { apiBaseUrl: 'https://api.example/base/', applicationBaseUrl: 'https://console.example/console/' };
+    const anonymous = fixture({ options, authenticated: false, accessToken: null, principalId: null, csrfToken: null });
+    const pub = await anonymous.transport.authorizeResource('https://api.example/base/scenes/block/tileset.json');
+    assert.equal(pub.headers.Authorization, undefined);
+    assert.equal(pub.credentials, 'omit');
+    const signedOut = fixture({ options, accessToken: null });
+    await assert.rejects(() => signedOut.transport.authorizeResource('https://api.example/base/scenes/block/tileset.json'), /bearer/i);
+});
+
 test('missing CSRF and pre-cancelled requests never dispatch', async () => {
     const missing = fixture({ csrfToken: null });
     await assert.rejects(async () => (await missing.transport.capture()).fetch('api/v1/admin/test', { method: 'POST' }), /CSRF/);

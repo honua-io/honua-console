@@ -138,6 +138,11 @@ export async function init(container, options) {
             center: options.center ?? [0, 0],
             zoom: options.zoom ?? 1,
             attributionControl: true,
+            transformRequest: async (url) => {
+                if (typeof globalThis.honuaConsoleAuthorizeResource !== 'function') return { url };
+                const approved = await globalThis.honuaConsoleAuthorizeResource(url);
+                return { url: approved.url, credentials: approved.credentials, headers: approved.headers };
+            },
         });
         if (options.showScale) {
             map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');

@@ -96,7 +96,16 @@ async function fetchRows(featuresUrl) {
         return [];
     }
     try {
-        const response = await fetch(featuresUrl, { headers: { Accept: 'application/json' } });
+        const approved = typeof globalThis.honuaConsoleAuthorizeResource === 'function'
+            ? await globalThis.honuaConsoleAuthorizeResource(featuresUrl)
+            : { url: featuresUrl, credentials: 'same-origin', headers: {} };
+        const headers = new Headers(approved.headers);
+        headers.set('Accept', 'application/json');
+        const response = await fetch(approved.url, {
+            headers,
+            credentials: approved.credentials,
+            redirect: 'error',
+        });
         if (!response.ok) {
             return [];
         }
