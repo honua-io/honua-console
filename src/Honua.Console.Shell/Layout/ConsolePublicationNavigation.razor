@@ -9,9 +9,9 @@
         <button type="button" class="console-tree-backdrop" data-tree-backdrop hidden tabindex="-1" aria-label="Close service navigation"></button>
         <aside id="console-publication-sidebar" class="console-publication-sidebar" aria-label="Service navigation">
             <div class="console-tree-toolbar">
-                <label for="console-tree-filter">Filter services</label>
+                <label for="console-tree-filter">@(V4Enabled ? "Search services" : "Filter services")</label>
                 <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter"
-                       @oninput="FilterChanged" disabled="@(_loading || Source is UnsupportedConsolePublicationNavigationSource)" data-tree-filter />
+                       placeholder="@(V4Enabled ? "Search service names…" : null)" @oninput="FilterChanged" disabled="@(_loading || Source is UnsupportedConsolePublicationNavigationSource)" data-tree-filter />
                 @if (Source is not UnsupportedConsolePublicationNavigationSource)
                 {
                     <button type="button" class="console-button console-button-secondary" aria-disabled="@(_loading ? "true" : "false")" @onclick="RefreshAsync">Refresh services</button>
@@ -19,7 +19,9 @@
                 }
                 <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation">Close</button>
             </div>
-            <ConsolePublicationNavigationContent ReadState="ReadState" />
+            <div class="console-tree-catalog">
+                <ConsolePublicationNavigationContent ReadState="ReadState" />
+            </div>
         </aside>
     </div>
 </CascadingValue>
@@ -52,6 +54,7 @@
     private AuthenticationStateProvider? _authentication;
     private IConsolePublicationNavigationSource Source => Services.GetService<IConsolePublicationNavigationSource>()
         ?? new UnsupportedConsolePublicationNavigationSource();
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private string CurrentPath => "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
     private string SelectedPath
     {
@@ -64,7 +67,7 @@
     private ConsolePublicationTreeContext TreeContext => new()
     {
         Tree = _tree, SelectedPath = SelectedPath,
-        FolderNavigationEnabled = Services.GetService<ConsoleV4Options>()?.Enabled == true,
+        FolderNavigationEnabled = V4Enabled,
         Expand = EventCallback.Factory.Create<ConsolePublicationNode>(this, ExpandAsync),
         Collapse = EventCallback.Factory.Create<ConsolePublicationNode>(this, Collapse),
         Retry = EventCallback.Factory.Create<ConsolePublicationNode>(this, LoadChildrenAsync),
