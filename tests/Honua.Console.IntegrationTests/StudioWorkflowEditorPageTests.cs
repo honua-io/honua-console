@@ -34,17 +34,13 @@ public sealed class StudioWorkflowEditorPageTests
     public async Task Publish_AfterValidationFailedSave_DoesNotShipStalePriorVersion(ConsolePresentationMode presentation, int expectedV4Headings)
     {
         var client = new RecordingWorkflowPackageClient();
-        var registry = new ConsoleAgentContextRegistry();
         using var ctx = new Bunit.BunitContext();
-        ctx.Services.AddSingleton(registry);
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
+        var registry = OpenWorkflowEditorContext(ctx, presentation);
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         // The page renders <UnsavedChangesGuard/>, which imports a JS module on dirty transitions; allow the
         // bUnit JSInterop to no-op those calls (the guard is exercised directly in UnsavedChangesGuardTests).
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(client);
-        var navigation = ctx.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
-        navigation.NavigateTo("http://localhost/console/studio/workflows/pkg-1?view=graph");
 
         var page = ctx.Render<StudioWorkflowEditorPage>(
             parameters => parameters.Add(p => p.DraftId, RecordingWorkflowPackageClient.PackageId));
@@ -53,7 +49,6 @@ public sealed class StudioWorkflowEditorPageTests
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll("section[aria-label='Package metadata'] input.console-input")),
             TimeSpan.FromSeconds(5));
-
 
         Assert.Equal(expectedV4Headings, page.FindAll(".console-page-heading-v4").Count);
         Assert.Equal("#workflow-history",
@@ -179,6 +174,16 @@ public sealed class StudioWorkflowEditorPageTests
         Assert.NotEmpty(canvas.QuerySelectorAll("marker#workflow-arrow"));
         Assert.NotEmpty(canvas.QuerySelectorAll(".workflow-canvas-nodes .workflow-node"));
         Assert.NotEmpty(canvas.QuerySelectorAll(".workflow-canvas-edge"));
+    }
+
+    private static ConsoleAgentContextRegistry OpenWorkflowEditorContext(Bunit.BunitContext ctx, ConsolePresentationMode presentation)
+    {
+        var registry = new ConsoleAgentContextRegistry();
+        ctx.Services.AddSingleton(registry);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
+        var navigation = ctx.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        navigation.NavigateTo("http://localhost/console/studio/workflows/pkg-1?view=graph");
+        return registry;
     }
 
     private static IElement TitleInput(IRenderedComponent<StudioWorkflowEditorPage> page) =>
