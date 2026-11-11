@@ -22,12 +22,7 @@ public sealed class TemporalCapabilityRoundTripTests
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var seeded = await PublishedLayerSeeder.SeedPublishedLayerAsync(_fixture, suffix);
-        Skip.If(
-            seeded is null,
-            "The pinned honua-server image could not service the layer-publish path; the temporal capability "
-            + "round-trip needs a published service/layer to inspect.");
-
-        var sourceKey = $"{seeded!.ServiceName}/{seeded.LayerId.ToString(CultureInfo.InvariantCulture)}";
+        var sourceKey = $"{seeded.ServiceName}/{seeded.LayerId.ToString(CultureInfo.InvariantCulture)}";
 
         // --- Independent server read FIRST: the canonical temporal capability descriptor. ---
         using var verifier = _fixture.CreateVerifier();

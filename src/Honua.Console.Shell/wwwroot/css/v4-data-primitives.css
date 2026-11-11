@@ -34,4 +34,37 @@
 /* Sync conflict choice buttons wrap on narrow screens. */
 .console-shell[data-console-v4="true"] .operate-sync-choices {
     flex-wrap: wrap;
+
+.console-shell[data-console-v4="true"] .console-tabs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--c-border);
+    margin-bottom: var(--space-4);
+}
+
+.console-shell[data-console-v4="true"] .console-tabs [role="tab"] {
+    flex-shrink: 0;
+    padding: 10px 14px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--c-text-2);
+    font: inherit;
+    cursor: pointer;
+}
+
+.console-shell[data-console-v4="true"] .console-tabs [aria-selected="true"] {
+    border-bottom-color: var(--c-accent);
+    color: var(--c-text);
+}
+
+.console-shell[data-console-v4="true"] .console-state {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+    .console-shell[data-console-v4="true"] .console-definition-list {
+        grid-template-columns: minmax(100px, 0.42fr) minmax(0, 1fr);
+    }
 }

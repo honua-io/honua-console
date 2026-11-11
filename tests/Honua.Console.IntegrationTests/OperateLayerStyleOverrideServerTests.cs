@@ -32,6 +32,8 @@ public sealed class OperateLayerStyleOverrideServerTests
         var view = await source.GetOverridesAsync(ResourceId);
 
         Assert.Null(view.BindingState);
+        Assert.Equal(1, view.LayerId);
+        Assert.Equal(ResourceId, view.CanonicalResourceId);
         var slot = Assert.Single(view.Slots);
         Assert.Equal("1", slot.SlotId);
         Assert.Equal("E2E Source", slot.ServiceDisplayName);
@@ -127,6 +129,8 @@ public sealed class OperateLayerStyleOverrideServerTests
         var view = await source.GetOverridesAsync(ResourceId);
 
         Assert.Empty(view.Slots);
+        Assert.Null(view.LayerId);
+        Assert.Null(view.CanonicalResourceId);
         Assert.NotNull(view.BindingState);
         Assert.Equal(OperateLayerStyleBindingState.MissingBinding, view.BindingState!.State);
     }

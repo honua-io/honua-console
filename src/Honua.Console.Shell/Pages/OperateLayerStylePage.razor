@@ -1,22 +1,70 @@
-@inject NavigationManager ConsoleNavigation
 @page "/operate/layers/{ResourceId}/style"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Services
 @inject IOperateLayerStyleOverrideDataSource OverrideData
 @inject IStudioMapStyleCatalogDataSource StyleCatalog
 @inject IConsoleNotificationService Notifications
+@inject IServiceProvider Services
+@inject NavigationManager Navigation
+
+<ConsoleAgentContext Context="@AgentContext" />
 
 <section class="console-page operate-layer-style" data-layer-style="@ResourceId">
-    <div class="console-page-heading">
-        <p class="console-kicker">Operate / Layers</p>
-        <h1>Layer presentation</h1>
-        <p>Edit this layer's drawing and popup settings. Every service exposing the layer uses these shared settings. Author shared catalog Styles in Studio.</p>
-        <p><a href="@ConsoleNavigation.ToConsoleLinkHref("/operate/layers/" + ResourceId)">Back to layer</a></p>
-    </div>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Layer presentation">
+            <ChildContent><p>@Intro</p></ChildContent>
+            <Actions><a class="console-button-link console-button-secondary" href="@LayerHref">Back to layer</a></Actions>
+        </ConsolePageHeading>
+        <ConsolePanel Title="Base styles" HeadingId="layer-base-styles">@CatalogContent</ConsolePanel>
+        <ConsolePanel Title="Layer overrides" HeadingId="layer-overrides">@OverrideContent</ConsolePanel>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Layers</p>
+            <h1>Layer presentation</h1>
+            <p>@Intro</p>
+            <p><a href="@LayerHref">Back to layer</a></p>
+        </div>
 
-    <article class="console-panel" data-layer-style-catalog>
-        <p class="console-kicker">Available base styles</p>
-        <h2>Server style list</h2>
+        <article class="console-panel">
+            <p class="console-kicker">Available base styles</p>
+            <h2>Server style list</h2>
+            @CatalogContent
+        </article>
+        <section class="console-section" aria-label="Layer style overrides">
+            <div class="console-page-heading">
+                <p class="console-kicker">Layer presentation</p>
+                <h2>Layer style overrides</h2>
+            </div>
+            @OverrideContent
+        </section>
+    }
+</section>
+
+@code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private const string Intro = "Edit this layer's drawing and popup settings. Every service exposing the layer uses these shared settings. Author shared catalog Styles in Studio.";
+    private string LayerRoute => $"/operate/layers/{Uri.EscapeDataString(_overrides.CanonicalResourceId ?? ResourceId)}";
+    private string LayerHref => Navigation.ToConsoleHref(LayerRoute);
+    private ConsoleAgentEntity? LayerEntity => !_loading && _overrides.BindingState is null && _overrides.LayerId is { } id && _overrides.CanonicalResourceId is { } resource
+        ? ConsoleAgentEntity.ForLayer(id, resource)
+        : null;
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = $"{LayerRoute}/style",
+        Entities = LayerEntity is { } entity ? [entity] : [],
+        Unsaved = new()
+        {
+            ChangedFieldCount = _overrides.Slots.Sum(slot =>
+                (PopupValue(slot.SlotId) != (slot.PopupInfoJson ?? string.Empty) ? 1 : 0) +
+                (DrawingValue(slot.SlotId) != (slot.DrawingInfoJson ?? string.Empty) ? 1 : 0)),
+            PendingOperationCount = (_loading ? 1 : 0) + (_saving ? 1 : 0)
+        }
+    };
+
+    private RenderFragment CatalogContent => @<div data-layer-style-catalog>
         @if (_catalog.Issue is { } catalogState)
         {
             <div class="console-panel console-state-warning" role="status" data-style-catalog-state>
@@ -37,24 +85,19 @@
                 }
             </ul>
         }
-    </article>
+    </div>;
 
-    <section class="console-section" aria-label="Layer style overrides">
-        <div class="console-page-heading">
-            <p class="console-kicker">Layer presentation</p>
-            <h2>Layer style overrides</h2>
-        </div>
-
+    private RenderFragment OverrideContent => @<text>
         @if (_loading)
         {
-            <ConsoleStateView HeadingLevel="2" Kind="loading"
+            <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 2)" Kind="loading"
                               Kicker="Layer presentation"
                               Title="Loading layer overrides"
                               Message="Reading layer style and popup overrides from honua-server." />
         }
         else if (_overrides.BindingState is { } binding)
         {
-            <ConsoleStateView HeadingLevel="2" Kind="@StateKind(binding.State)"
+            <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 2)" Kind="@StateKind(binding.State)"
                               Kicker="@binding.State"
                               Title="Layer overrides are not available"
                               Message="@(binding.Detail + " (contract: " + binding.Contract + ")")" />
@@ -67,7 +110,7 @@
         {
             @foreach (var slot in _overrides.Slots)
             {
-                <article class="console-panel" data-style-slot="@slot.SlotId">
+                <article class="@(V4Enabled ? "console-section" : "console-panel")" data-style-slot="@slot.SlotId">
                     <div class="console-panel-heading">
                         <div>
                             <p class="console-kicker">@slot.ServiceName</p>
@@ -99,7 +142,7 @@
 
             @if (_saveResult is { } result && result.BindingState is { } saveBinding)
             {
-                <ConsoleStateView HeadingLevel="2" Kind="@StateKind(saveBinding.State)"
+                <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 2)" Kind="@StateKind(saveBinding.State)"
                                   Kicker="@saveBinding.State"
                                   Title="Override save is not bound"
                                   Message="@(saveBinding.Detail + " (contract: " + saveBinding.Contract + ")")" />
@@ -112,10 +155,8 @@
                 </div>
             }
         }
-    </section>
-</section>
+    </text>;
 
-@code {
     [CascadingParameter] public ConsolePublicationLayerContext? PublicationContext { get; set; }
 
     [Parameter]
@@ -175,6 +216,15 @@
                     PopupInfoJson: PopupValue(slot.SlotId),
                     DrawingInfoJson: DrawingValue(slot.SlotId));
                 _saveResult = await OverrideData.SaveOverrideAsync(edit);
+                if (_saveResult.Succeeded)
+                {
+                    _overrides = _overrides with
+                    {
+                        Slots = _overrides.Slots.Select(current => current.SlotId == slot.SlotId
+                            ? current with { PopupInfoJson = edit.PopupInfoJson, DrawingInfoJson = edit.DrawingInfoJson }
+                            : current).ToArray()
+                    };
+                }
             },
             setBusy: busy => { _saving = busy; StateHasChanged(); },
             failureMessage: "Couldn't save style override");
