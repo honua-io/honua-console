@@ -49,10 +49,13 @@ public sealed class SharePublicItemV4Tests
     [Theory]
     [InlineData(false, "GeoServices:MapServer")]
     [InlineData(true, "GeoServices map service")]
-    public void MapServiceDownloadLabelFollowsFlag(bool enabled, string expected)
+    public async Task MapServiceDownloadLabelFollowsFlag(bool enabled, string expected)
     {
-        using var context = Context(new ConsoleV4Options { Enabled = enabled }, new InMemoryConsoleCatalogClient());
-        var page = context.Render<SharePublicItemPage>(parameters => parameters.Add(p => p.IdOrSlug, "legacy-parcels-service"));
+        var catalog = new InMemoryConsoleCatalogClient();
+        var item = await catalog.GetOpenDataItemAsync("coastal-flood-service");
+        item.Item!.Summary.Formats[0] = "GeoServices:MapServer";
+        using var context = Context(new ConsoleV4Options { Enabled = enabled }, catalog);
+        var page = context.Render<SharePublicItemPage>(parameters => parameters.Add(p => p.IdOrSlug, "coastal-flood-service"));
         Assert.Equal(expected, page.Find(".share-opendata-download-name").TextContent);
     }
 
