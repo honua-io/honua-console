@@ -8,7 +8,7 @@ await runV4PagePresentation({
   pageNames: ["support-form-v4", "support-form-legacy", "support-ticket-v4", "support-ticket-legacy"],
   title: "Support rollout",
   stylesheet: "v4-support.css",
-  wrapped: true,
+  prepareMarkup: markup => markup,
   heading: name => name.includes("ticket") ? "Ticket ticket-9" : name.endsWith("-v4") ? "Support" : "Contact support",
   scope: "main",
   controls: null,
