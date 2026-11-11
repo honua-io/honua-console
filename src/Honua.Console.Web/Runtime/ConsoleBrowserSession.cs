@@ -5,6 +5,7 @@ namespace Honua.Console.Web.Runtime;
 // One WASM app instance is one browser tab. Tokens stay in memory, never localStorage or config.json.
 public sealed class ConsoleBrowserSession
 {
+    public long Revision { get; private set; }
     public ClaimsPrincipal Principal { get; private set; } = new(new ClaimsIdentity());
     public string? AccessToken { get; private set; }
     public DateTimeOffset? ExpiresAt { get; private set; }
@@ -15,6 +16,7 @@ public sealed class ConsoleBrowserSession
     public void Set(ClaimsPrincipal principal, ConsoleSessionCredentials? credentials = null)
     {
         ArgumentNullException.ThrowIfNull(principal);
+        Revision++;
         Principal = principal;
         CsrfToken = credentials?.CsrfToken;
         AccessToken = credentials?.AccessToken;
