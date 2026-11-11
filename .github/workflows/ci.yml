@@ -424,6 +424,20 @@ jobs:
           path: artifacts/catalog-preview/activity-*
           if-no-files-found: error
 
+      - name: Verify Environments presentation
+        run: node e2e/playwright/environments-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload Environments presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: environments-presentation
+          path: |
+            artifacts/catalog-preview/environments-v4*
+          if-no-files-found: error
+
       - name: Upload catalog presentation evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9

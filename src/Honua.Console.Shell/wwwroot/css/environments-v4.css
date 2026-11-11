@@ -1,0 +1,40 @@
+/* Page presentation only; profile, trust and transport controls use shared components. */
+.console-environments-v4 {
+    gap: var(--space-6);
+    color: var(--c-text);
+}
+
+.console-environments-v4 .console-panel {
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-lg);
+    background: var(--c-surface);
+    box-shadow: var(--shadow-panel);
+}
+
+.console-environments-v4 .console-panel h2 {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+}
+
+.console-environments-v4 .console-definition-list dd,
+.console-environments-v4 .console-environment-server {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.console-environments-v4 .console-section > h2 {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+}
+
+@media (max-width: 600px) {
+    .console-environments-v4 .console-panel-heading,
+    .console-environments-v4 .console-action-row {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .console-environments-v4 .console-definition-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
