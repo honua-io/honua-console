@@ -428,7 +428,7 @@
         _featureIdInput = string.Empty;
         _timeline = null;
         _timelineBinding = null;
-        _rollbackScope = TemporalRollbackScope.ChangeSet;
+        if (V4Enabled) _rollbackScope = TemporalRollbackScope.ChangeSet;
         _rollbackPlan = null;
         _rollbackOperation = null;
         _rollbackBinding = null;
