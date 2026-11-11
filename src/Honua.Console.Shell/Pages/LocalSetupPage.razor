@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/setup/local"
 
 <section class="console-page console-local-setup" data-local-setup>
@@ -15,7 +16,7 @@
             <p class="console-muted">The agent reports prerequisites and actual installation results. Copying this request does not install or start anything.</p>
         </li>
         <li><h2>Open the Console address it returns</h2><p>Sign in, start a workspace, then add data. A running container alone does not confirm that your session or agent is connected.</p>
-            <a class="console-button-link" href="/environments/new">Connect an existing deployment instead</a>
+            <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/environments/new")">Connect an existing deployment instead</a>
         </li>
     </ol>
 </section>

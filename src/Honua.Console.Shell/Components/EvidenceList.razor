@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @if (Items.Count > 0)
 {
     <section class="operate-evidence-section">
@@ -6,7 +7,7 @@
             @foreach (var item in Items)
             {
                 <li data-evidence-id="@item.Identifier">
-                    <a href="@item.Href">@item.Label</a>
+                    <a href="@ConsoleNavigation.ToConsoleLinkHref(item.Href)">@item.Label</a>
                     <span>@item.Kind</span>
                     <p>@item.Detail</p>
                 </li>

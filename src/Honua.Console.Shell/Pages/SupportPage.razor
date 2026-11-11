@@ -238,7 +238,7 @@
             // "deflected" log.
             _ticketFiled = true;
             DeflectionLog.ProceededToTicket(DeflectionActivity, result.Value!.Id);
-            Nav.NavigateTo($"/support/tickets/{result.Value.Id}");
+            Nav.NavigateTo(Nav.ToConsoleHref($"/support/tickets/{result.Value.Id}"));
             return;
         }
 

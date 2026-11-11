@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @using Honua.Console.Shell.Models
 
 @* Shared clickable id chip (console#292 incident golden path): everywhere a correlationId /
@@ -14,7 +15,7 @@
 }
 else
 {
-    <a class="console-chip correlation-id-chip" href="@ResolvedHref"
+    <a class="console-chip correlation-id-chip" href="@ConsoleNavigation.ToConsoleLinkHref(ResolvedHref)"
        data-correlation-chip data-correlation-kind="@Kind" data-correlation-id="@Value"
        title="@ResolvedTitle">
         <span class="console-mono">@Value</span>

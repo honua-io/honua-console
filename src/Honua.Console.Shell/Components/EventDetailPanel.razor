@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 <aside class="console-panel operate-detail-panel" aria-labelledby="event-detail-heading">
     <p class="console-kicker">Event detail</p>
     <h3 id="event-detail-heading">@Event.Message</h3>
@@ -36,7 +37,7 @@
         <div class="console-chip-row">
             @foreach (var related in Event.RelatedObjects)
             {
-                <a href="@related.Href">@related.Kind: @related.Label</a>
+                <a href="@ConsoleNavigation.ToConsoleLinkHref(related.Href)">@related.Kind: @related.Label</a>
             }
         </div>
     </section>

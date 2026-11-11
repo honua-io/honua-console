@@ -24,7 +24,7 @@
             <p class="console-kicker">No connections</p>
             <h2>No data connections are available</h2>
             <p>Create and test a data connection first, then return here to publish a table from it.</p>
-            <a class="console-button" href="/operate/connections/new">Add Connection</a>
+            <a class="console-button" href="@Nav.ToConsoleHref("/operate/connections/new")">Add Connection</a>
         </article>
     }
     else if (_connections.Count > 0)
@@ -121,7 +121,7 @@
                             <dt>Service</dt>
                             <dd data-published-service>@r.ServiceName</dd>
                             <dt>Endpoints</dt>
-                            <dd><a href="@($"/operate/services/{Uri.EscapeDataString(r.ServiceName ?? _serviceName)}/settings")">Read current Service endpoints</a></dd>
+                            <dd><a href="@Nav.ToConsoleLinkHref($"/operate/services/{Uri.EscapeDataString(r.ServiceName ?? _serviceName)}/settings")">Read current Service endpoints</a></dd>
                             <dt>Geometry / SRID</dt>
                             <dd>@r.GeometryType / @r.Srid</dd>
                         </dl>
@@ -142,14 +142,14 @@
                 <p role="status" data-workspace-publication-state></p>
                 <button class="console-button console-button-secondary" type="button" data-workspace-publication-check>Check original publication</button>
                 <button class="console-button console-button-secondary" type="button" data-workspace-publication-acknowledge hidden>I reviewed the previous result and current draft</button>
-                <a href="/inbox">Review approvals</a>
+                <a href="@Nav.ToConsoleHref("/inbox")">Review approvals</a>
             </section>
             <div class="console-action-row">
                 <button class="console-button console-button-secondary" type="button" disabled="@_busy" data-workspace-save>Save draft</button>
                 <button class="console-button" type="button" disabled="@(_busy || _requiresCatalogRead)" data-workspace-publish @onclick="PublishAsync">
                     @(_busy ? "Publishing…" : "Publish layer")
                 </button>
-                <a href="/operate/services">View services</a>
+                <a href="@Nav.ToConsoleHref("/operate/services")">View services</a>
             </div>
         </article>
     }

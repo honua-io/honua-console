@@ -21,7 +21,7 @@ public sealed class OperateEnvironmentEndpointTests
         var service = Assert.Single(services);
         Assert.Equal("https://active.example/active-mount/rest/services/Places%20North/FeatureServer",
             service.PublicationSlots.Single(slot => slot.Name == "FeatureServer").Url);
-        Assert.Equal("https://active.example/active-mount/ogc/services/Places%20North/wms",
+        Assert.Equal("https://active.example/active-mount/rest/services/Places%20North/MapServer/WMS",
             service.PublicationSlots.Single(slot => slot.Name == "Wms").Url);
         Assert.Equal("https://active.example/active-mount/ogc/features",
             service.PublicationSlots.Single(slot => slot.Name == "OgcFeatures").Url);
@@ -46,7 +46,7 @@ public sealed class OperateEnvironmentEndpointTests
         Assert.Equal("Review publication path.", Assert.Single(service.FolderMutationIssues));
         Assert.Equal("https://active.example/active-mount/rest/services/Survey%20North/Public%20parcels/FeatureServer",
             service.PublicationSlots.Single(slot => slot.Name == "FeatureServer").Url);
-        Assert.Equal("https://active.example/active-mount/ogc/services/Survey%20North/Public%20parcels/wms",
+        Assert.Equal("https://active.example/active-mount/rest/services/Survey%20North/Public%20parcels/MapServer/WMS",
             service.PublicationSlots.Single(slot => slot.Name == "Wms").Url);
     }
 

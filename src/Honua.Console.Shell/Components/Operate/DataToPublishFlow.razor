@@ -35,7 +35,7 @@
             <p class="console-kicker">Connect to your data</p>
             <h2>Check the data connection</h2>
             <p>@binding</p>
-            <a class="console-button-link" href="/environments">Review environment</a>
+            <a class="console-button-link" href="@Nav.ToConsoleHref("/environments")">Review environment</a>
         </article>
     }
 
@@ -52,17 +52,17 @@
                 @if (_flow.Source.Mode == AddDataMode.File)
                 {
                     <p>Choose the original dataset, then describe its destination in the shared conversation.</p>
-                    <a class="console-button" href="/operate/resources/import/task">Choose dataset file</a>
+                    <a class="console-button" href="@Nav.ToConsoleHref("/operate/resources/import/task")">Choose dataset file</a>
                 }
                 @if (_flow.Source.Mode == AddDataMode.RemoteService)
                 {
                     <div data-remote-service-import>
                         <OperateImportServicePage />
-                        <p class="console-muted">Imported services create datasets — <a href="/operate/data">open the dataset tree</a> to publish them as the protocols you want.</p>
+                        <p class="console-muted">Imported services create datasets — <a href="@Nav.ToConsoleHref("/operate/data")">open the dataset tree</a> to publish them as the protocols you want.</p>
                     </div>
                 }
                 <div class="console-action-row">
-                    <a href="/operate/data">Cancel</a>
+                    <a href="@Nav.ToConsoleHref("/operate/data")">Cancel</a>
                     @if (_flow.Source.Mode is AddDataMode.Table or AddDataMode.ExistingResource)
                     {
                         <button type="button" class="console-button" disabled="@(!CanContinueToPublish)" @onclick="ContinueToPublish">
@@ -83,7 +83,7 @@
                 <p class="console-muted" data-service-fixed>
                     honua-server serves a source table through one layer in one service, so this flow configures the
                     service the dataset is already in. To serve the data from a new service,
-                    <a href="/operate/publishing/quick">publish a table</a> into it.
+                    <a href="@Nav.ToConsoleHref("/operate/publishing/quick")">publish a table</a> into it.
                 </p>
                 <div class="console-action-row">
                     <button type="button" @onclick="() => GoToStep(FlowStep.AddData)">Back</button>
@@ -115,7 +115,7 @@
                 }
                 @if (!string.IsNullOrWhiteSpace(_flow.StyleId))
                 {
-                    <p><a class="console-link" href="@StyleEditorHref">Edit this shared catalog style →</a></p>
+                    <p><a class="console-link" href="@Nav.ToConsoleLinkHref(StyleEditorHref)">Edit this shared catalog style →</a></p>
                 }
                 <div class="console-action-row">
                     <button type="button" @onclick="() => GoToStep(FlowStep.Publish)">Back</button>
@@ -194,7 +194,7 @@
         if (intake.Mode == AddDataMode.Table)
         {
             // The canonical publish-layer form is bound to the same server draft as chat.
-            Nav.NavigateTo("/operate/publishing/quick");
+            Nav.NavigateTo(Nav.ToConsoleHref("/operate/publishing/quick"));
             return;
         }
 

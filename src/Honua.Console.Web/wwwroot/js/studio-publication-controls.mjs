@@ -1,7 +1,7 @@
 import { capturedProcessFetch } from './cookie-workspace-transport.mjs';
 import { publishedMapPath } from './published-map-viewer.mjs';
 
-const id = value => typeof value === 'string' && value.length > 0 && value.length <= 128 && !/[^A-Za-z0-9_-]/.test(value);
+import { studioAuthority, studioResourceId as id } from './studio-workspace-authority.mjs';
 const audiences = new Set(['personal', 'team', 'organization', 'public']);
 const terminal = receipt => ['accepted', 'rejected', 'approval-rejected', 'approval-failed', 'approval-cancelled', 'approval-rolled-back'].includes(receipt?.status);
 
@@ -16,11 +16,7 @@ export class StudioPublicationSession {
             return response.json();
         });
     }
-    authority() {
-        const binding = this.app.workspaceCookieBinding;
-        if (!binding?.principalId || !binding.environmentId) throw new Error('Reconnect Studio before publishing.');
-        return JSON.stringify([binding.principalId, binding.environmentId, binding.sourcePathBase || '']);
-    }
+    authority() { return studioAuthority(this.app); }
     key() {
         const draftId = this.app.workspaceDraftIdentity?.draftId;
         if (!id(draftId)) throw new Error('Select a map draft before publishing.');

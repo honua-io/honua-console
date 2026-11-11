@@ -1,4 +1,10 @@
 using System.Net;
+using Honua.Console.Web;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.Extensions.DependencyInjection;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
@@ -8,7 +14,39 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class ConsoleServerSessionBffTests
 {
+    public sealed class CallbackTestRoot : Microsoft.AspNetCore.Components.ComponentBase;
+
     private static readonly Uri ServerOrigin = new("https://server.example/");
+
+    [Fact]
+    public async Task LegacyCallbackRemainsReachableWithSharedShellRoutes()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.AddLegacyConsoleServices();
+        builder.Services.AddSingleton<IConsoleOperatorContext>(new SwitchableOperatorContext("operator-a"));
+        await using var app = builder.Build();
+        app.UseAuthentication();
+        app.Use((context, next) =>
+        {
+            context.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+                [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "operator-a")],
+                "Test"));
+            return next(context);
+        });
+        app.UseAuthorization();
+        app.UseAntiforgery();
+        app.MapConsoleServerSessionBff();
+        app.MapRazorComponents<CallbackTestRoot>()
+            .AddInteractiveServerRenderMode()
+            .AddAdditionalAssemblies(typeof(Honua.Console.Shell.ConsoleRoutes).Assembly);
+        await app.StartAsync();
+        var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
+        using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = new Uri(address) };
+        using var response = await client.GetAsync("/admin/auth/callback?code=expired&state=expired");
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("serverAuth=denied", response.Headers.Location?.OriginalString);
+    }
 
     [Fact]
     public async Task SessionStore_SameProfileAcrossOperators_IsolatesCookieJars()

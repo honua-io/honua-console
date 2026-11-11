@@ -176,6 +176,7 @@ public sealed class OperateTransitionLiveServerTests
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton(dataSource);
+        services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         await using var serviceProvider = services.BuildServiceProvider();
         var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
         await using var renderer = new HtmlRenderer(serviceProvider, loggerFactory);

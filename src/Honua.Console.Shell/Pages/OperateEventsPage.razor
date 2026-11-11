@@ -1,13 +1,25 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/events"
 @inject IStudioWorkflowPackageClient Workflows
-@inject IConsoleCapabilityManifest Capabilities
+@using Honua.Console.Shell.Components
+@inject IServiceProvider Services
 
-<section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Operate events</p>
-        <h1>Workflow Event Evidence</h1>
-        <p>Workflow dry-run and publication events stay connected to the server-owned job id and package version they came from.</p>
-    </div>
+<section class="console-page @(V4Enabled ? "console-events-v4" : null)">
+    @if (V4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/events-v4.css" />
+        <ConsolePageHeading Title="Workflow events">
+            <p>Run evidence connected to its job and workflow version.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate events</p>
+            <h1>Workflow Event Evidence</h1>
+            <p>Workflow dry-run and publication events stay connected to the server-owned job id and package version they came from.</p>
+        </div>
+    }
 
     @if (_evidence is null)
     {
@@ -18,7 +30,7 @@
                                 Contract="GET /api/v1/admin/jobs/{jobId}"
                                 IssueRef="honua-server#1185" />
             <div class="console-toolbar">
-                <a class="console-button-link" href="/operate/observability" data-events-exit-jobs>View workflow jobs</a>
+                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/operate/observability")" data-events-exit-jobs>View workflow jobs</a>
             </div>
         </article>
     }
@@ -47,6 +59,8 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     [SupplyParameterFromQuery(Name = "jobId")]
     private string? JobId { get; set; }
 

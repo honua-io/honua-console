@@ -13,7 +13,7 @@ function mount() {
     for (const name of ['status','destination','source','file','progress','check','clear','transfer','submit','recover','pause','cancel'])
         controls[name] = host.querySelector(`[data-import-${name}]`);
     let controller, submission, workspace, binding, generation = 0, prepareScope, preparing = false, selectionAbort, connecting = false;
-    const sdk = () => import('/_studio/console.js');
+    const sdk = () => import(new URL('../_studio/console.js', import.meta.url).href);
     const status = message => { if (controls.status.textContent !== message) controls.status.textContent = message; };
     const errorMessage = error => error instanceof TypeError ? 'This import action could not finish. Check the original status before continuing.' : error?.message || 'Check the original import status before continuing.';
     const current = () => host.isConnected && window.honuaAgentWorkspace === workspace &&

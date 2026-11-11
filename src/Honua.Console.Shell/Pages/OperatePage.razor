@@ -1,13 +1,25 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate"
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleCapabilityManifest Capabilities
+@inject IServiceProvider Services
 
-<section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Operator workflow</p>
-        <h1>Operate</h1>
-        <p>Connections, datasets, services, layers, and control-plane settings live under Operate while Studio, Catalog, and Share keep their builder and end-user workflows separate.</p>
-    </div>
+<section class="console-page @(V4Enabled ? "console-operate-overview-v4" : null)">
+    @if (V4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/operate-overview-v4.css" />
+        <ConsolePageHeading Title="Operate">
+            <p>Review health, approvals, connections, services and changes across your workspace.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operator workflow</p>
+            <h1>Operate</h1>
+            <p>Connections, datasets, services, layers, and control-plane settings live under Operate while Studio, Catalog, and Share keep their builder and end-user workflows separate.</p>
+        </div>
+    }
 
     @* Ops-summary strip (console#292, founder decision 2026-07-07): the hub's "is my server
        healthy, what needs me?" glance — overall health, awaiting approvals, open findings, and
@@ -23,7 +35,7 @@
         <OperateCapabilityStateList States="@_workspace.CapabilityStates" />
 
         <div class="console-panel-grid console-panel-grid-wide">
-            <a class="console-panel console-area-link" href="/operate/connections">
+            <a class="console-panel console-area-link" href="@ConsoleNavigation.ToConsoleHref("/operate/connections")">
                 <div class="console-panel-heading">
                     <div>
                         <p class="console-kicker">Connections</p>
@@ -34,7 +46,7 @@
                 <p class="console-muted">Test connections and inspect operator-safe diagnostics.</p>
             </a>
 
-            <a class="console-panel console-area-link" href="/operate/resources">
+            <a class="console-panel console-area-link" href="@ConsoleNavigation.ToConsoleHref("/operate/resources")">
                 <div class="console-panel-heading">
                     <div>
                         <p class="console-kicker">Datasets</p>
@@ -45,7 +57,7 @@
                 <p class="console-muted">Review validation state, blast radius, and publish impact before applying changes.</p>
             </a>
 
-            <a class="console-panel console-area-link" href="/operate/services">
+            <a class="console-panel console-area-link" href="@ConsoleNavigation.ToConsoleHref("/operate/services")">
                 <div class="console-panel-heading">
                     <div>
                         <p class="console-kicker">Services</p>
@@ -56,7 +68,7 @@
                 <p class="console-muted">Manage services and layers while dataset metadata stays shared.</p>
             </a>
 
-            <a class="console-panel console-area-link" href="/operate/publishing">
+            <a class="console-panel console-area-link" href="@ConsoleNavigation.ToConsoleHref("/operate/publishing")">
                 <div class="console-panel-heading">
                     <div>
                         <p class="console-kicker">Publishing</p>
@@ -66,7 +78,7 @@
                 <p class="console-muted">Publish datasets as layers and review services, endpoints, catalog registration, access, recovery, and provenance.</p>
             </a>
 
-            <a class="console-panel console-area-link" href="/operate/settings">
+            <a class="console-panel console-area-link" href="@ConsoleNavigation.ToConsoleHref("/operate/settings")">
                 <div class="console-panel-heading">
                     <div>
                         <p class="console-kicker">Settings</p>
@@ -82,7 +94,7 @@
                renders the "unsupported" state. The gated page still renders that state if reached by URL. *@
             @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.Temporal))
             {
-                <a class="console-panel console-area-link" href="/operate/temporal">
+                <a class="console-panel console-area-link" href="@ConsoleNavigation.ToConsoleHref("/operate/temporal")">
                     <div class="console-panel-heading">
                         <div>
                             <p class="console-kicker">Temporal</p>
@@ -95,7 +107,7 @@
 
             @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.DisconnectedSync))
             {
-                <a class="console-panel console-area-link" href="/operate/sync">
+                <a class="console-panel console-area-link" href="@ConsoleNavigation.ToConsoleHref("/operate/sync")">
                     <div class="console-panel-heading">
                         <div>
                             <p class="console-kicker">Sync</p>
@@ -108,7 +120,7 @@
 
             @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.RealtimeAlerting))
             {
-                <a class="console-panel console-area-link" href="/operate/alerts/rules">
+                <a class="console-panel console-area-link" href="@ConsoleNavigation.ToConsoleHref("/operate/alerts/rules")">
                     <div class="console-panel-heading">
                         <div>
                             <p class="console-kicker">Alerts</p>
@@ -119,7 +131,7 @@
                 </a>
             }
 
-            <a class="console-panel console-area-link" href="/operate/releases">
+            <a class="console-panel console-area-link" href="@ConsoleNavigation.ToConsoleHref("/operate/releases")">
                 <div class="console-panel-heading">
                     <div>
                         <p class="console-kicker">Releases</p>
@@ -129,7 +141,7 @@
                 <p class="console-muted">Review release proposals, semantic diffs, and rollback readiness before creating a Git PR.</p>
             </a>
 
-            <a class="console-panel console-area-link" href="/operate/geoprocessing">
+            <a class="console-panel console-area-link" href="@ConsoleNavigation.ToConsoleHref("/operate/geoprocessing")">
                 <div class="console-panel-heading">
                     <div>
                         <p class="console-kicker">Geoprocessing</p>
@@ -139,7 +151,7 @@
                 <p class="console-muted">Track durable geoprocessing runs: state, current phase, progress, requester, and per-job logs and artifacts.</p>
             </a>
 
-            <a class="console-panel console-area-link" href="/operate/metrics">
+            <a class="console-panel console-area-link" href="@ConsoleNavigation.ToConsoleHref("/operate/metrics")">
                 <div class="console-panel-heading">
                     <div>
                         <p class="console-kicker">Metrics</p>
@@ -149,7 +161,7 @@
                 <p class="console-muted">Connection-pool and query-admission saturation, cache hit ratio, memory and GC pressure, the upload queue, database resilience, and the comprehensive health report at a glance.</p>
             </a>
 
-            <a class="console-panel console-area-link" href="/operate/health">
+            <a class="console-panel console-area-link" href="@ConsoleNavigation.ToConsoleHref("/operate/health")">
                 <div class="console-panel-heading">
                     <div>
                         <p class="console-kicker">Health</p>
@@ -159,7 +171,7 @@
                 <p class="console-muted">The consolidated at-a-glance snapshot: overall status, per-protocol serving latency, the geoprocessing queue, alert-dispatch backlog, coordinated-deploy readiness and platform-release skew, and database vitals.</p>
             </a>
 
-            <a class="console-panel console-area-link" href="/operate/copilot">
+            <a class="console-panel console-area-link" href="@ConsoleNavigation.ToConsoleHref("/operate/copilot")">
                 <div class="console-panel-heading">
                     <div>
                         <p class="console-kicker">Copilot</p>
@@ -201,6 +213,8 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     private OperateTransitionWorkspace? _workspace;
 
     protected override async Task OnInitializedAsync()
