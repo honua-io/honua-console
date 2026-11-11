@@ -112,7 +112,7 @@
     private CatalogItemReadResult? _result;
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
-    private static RenderFragment DownloadContent(ConsoleContentDetail item) => @<text>
+    private RenderFragment DownloadContent(ConsoleContentDetail item) => @<text>
                 @if (!item.Summary.Formats.Any())
                 {
                     <p class="console-muted">No downloadable formats are published for this item.</p>
@@ -123,13 +123,21 @@
                         @foreach (var format in item.Summary.Formats)
                         {
                             <li>
-                                <span class="share-opendata-download-name">@format</span>
+                                <span class="share-opendata-download-name">@DownloadFormatLabel(format)</span>
                                 <span class="console-muted">download ↓</span>
                             </li>
                         }
                     </ul>
                 }
     </text>;
+
+    private string DownloadFormatLabel(string format) => V4Enabled ? format switch
+    {
+        "GeoServices:FeatureService" => "GeoServices feature service",
+        "GeoServices:MapServer" => "GeoServices map service",
+        "OGC:API:Features" => "OGC API Features",
+        _ => format
+    } : format;
 
     private static RenderFragment RoutesContent(ConsoleContentDetail item) => @<text>
                     <dl class="console-definition-list">
