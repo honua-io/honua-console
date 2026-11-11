@@ -1,4 +1,5 @@
-﻿@page "/operate/layers/{ResourceId}/filter"
+@inject NavigationManager ConsoleNavigation
+@page "/operate/layers/{ResourceId}/filter"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
@@ -18,7 +19,7 @@
             <h1>@_layer.Name · permanent filter</h1>
             <p>Author the server-enforced query filter on layer @_layer.LayerId. honua-server applies the <strong>permanent filter</strong> to every read of this layer (queries, exports, map renders) and validates the expression against the layer schema. Send a bad expression and the server rejects it with a reason; clearing removes the constraint entirely.</p>
             <div class="console-detail-actions">
-                <a class="console-button-link" href="@($"/operate/layers/{ResourceId}")" data-layer-detail-link>Back to layer</a>
+                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/layers/{ResourceId}")" data-layer-detail-link>Back to layer</a>
             </div>
         </div>
 

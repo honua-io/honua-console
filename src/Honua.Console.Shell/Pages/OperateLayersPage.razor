@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/layers"
 @inject IOperateTransitionDataSource OperateData
 
@@ -31,12 +32,12 @@
                     @foreach (var row in _layers)
                     {
                         <tr data-layer-id="@row.Layer.LayerId" data-service-id="@row.Service.Name">
-                            <td><a href="@($"/operate/layers/{row.Layer.CanonicalResourceId}")">@row.Layer.LayerId</a></td>
+                            <td><a href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/layers/{row.Layer.CanonicalResourceId}")">@row.Layer.LayerId</a></td>
                             <td>@row.Layer.Name</td>
-                            <td><a href="@($"/operate/services/{row.Service.Name}/settings")">@row.Service.DisplayName</a></td>
+                            <td><a href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/services/{row.Service.Name}/settings")">@row.Service.DisplayName</a></td>
                             <td>@row.Layer.Geometry</td>
                             <td>
-                                <a href="@($"/operate/resources/{row.Layer.CanonicalResourceId}")">@row.Layer.CanonicalResourceName</a>
+                                <a href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/resources/{row.Layer.CanonicalResourceId}")">@row.Layer.CanonicalResourceName</a>
                                 <small>@row.Layer.CanonicalResourceId</small>
                             </td>
                         </tr>

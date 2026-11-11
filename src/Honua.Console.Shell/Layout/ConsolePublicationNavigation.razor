@@ -15,7 +15,7 @@
                 @if (Source is not UnsupportedConsolePublicationNavigationSource)
                 {
                     <button type="button" class="console-button console-button-secondary" aria-disabled="@(_loading ? "true" : "false")" @onclick="RefreshAsync">Refresh services</button>
-                    <a href="/operate/services#folders">Manage Folders</a>
+                    <a href="@Navigation.ToConsoleHref("/operate/services#folders")">Manage Folders</a>
                 }
                 <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation">Close</button>
             </div>

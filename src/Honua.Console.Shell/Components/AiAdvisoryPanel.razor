@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @namespace Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 
@@ -12,7 +13,7 @@
             <ul>
                 @foreach (var evidence in Advisory.EvidenceLinks)
                 {
-                    <li><a href="@evidence.Href">@evidence.Label</a> <span>@evidence.Kind</span></li>
+                    <li><a href="@ConsoleNavigation.ToConsoleLinkHref(evidence.Href)">@evidence.Label</a> <span>@evidence.Kind</span></li>
                 }
             </ul>
         </div>
@@ -31,7 +32,7 @@
                     <li>
                         @if (href is not null)
                         {
-                            <a class="console-button-link operate-ai-action" data-ai-action href="@href">@action</a>
+                            <a class="console-button-link operate-ai-action" data-ai-action href="@ConsoleNavigation.ToConsoleLinkHref(href)">@action</a>
                         }
                         else if (OnActionSelected.HasDelegate)
                         {

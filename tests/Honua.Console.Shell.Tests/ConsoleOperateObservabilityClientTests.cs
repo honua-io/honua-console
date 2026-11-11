@@ -785,6 +785,7 @@ public sealed class ConsoleOperateObservabilityClientTests
     {
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         var provider = services.BuildServiceProvider();
 
         const string sanitizedCommand = "ogr2ogr -f GPKG <scratch>/out.gpkg <path>/in.shp";
@@ -831,6 +832,7 @@ public sealed class ConsoleOperateObservabilityClientTests
     {
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         var provider = services.BuildServiceProvider();
 
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
@@ -852,6 +854,7 @@ public sealed class ConsoleOperateObservabilityClientTests
     {
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         var provider = services.BuildServiceProvider();
 
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
@@ -893,6 +896,7 @@ public sealed class ConsoleOperateObservabilityClientTests
         // full-page live-data render under test exercises that surface.
         services.AddSingleton<IConsoleCapabilityManifest>(
             new ConsoleCapabilityManifest([ConsoleCapabilityKeys.SiemInvestigations]));
+        services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         var provider = services.BuildServiceProvider();
 
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
@@ -923,6 +927,7 @@ public sealed class ConsoleOperateObservabilityClientTests
         // full-page live-data render under test exercises that surface.
         services.AddSingleton<IConsoleCapabilityManifest>(
             new ConsoleCapabilityManifest([ConsoleCapabilityKeys.SiemInvestigations]));
+        services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         var provider = services.BuildServiceProvider();
 
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());

@@ -1,3 +1,5 @@
+@inject NavigationManager Navigation
+
 <div class="console-tree-row" role="treeitem" tabindex="-1" aria-level="@Placement.Level" aria-posinset="@Placement.Position" aria-setsize="@Placement.SiblingCount"
      aria-expanded="@(Node.HasChildren ? (Node.Expanded ? "true" : "false") : null)"
      aria-busy="@(Node.Loading ? "true" : null)" aria-selected="@(View.Link(Node) is null ? null : View.Link(Node) == View.SelectedPath ? "true" : "false")"
@@ -17,7 +19,7 @@
     <span class="console-tree-kind" data-kind="@Node.Kind" aria-hidden="true"></span>
     @if (View.Link(Node) is { } href)
     {
-        <a href="@href" tabindex="-1" data-tree-link>@Node.Label</a>
+        <a href="@Navigation.ToConsoleHref(href)" tabindex="-1" data-tree-link>@Node.Label</a>
     }
     else
     {

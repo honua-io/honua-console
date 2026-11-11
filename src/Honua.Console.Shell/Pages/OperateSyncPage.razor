@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/sync"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Services
@@ -275,7 +276,7 @@
                                     @if (!string.IsNullOrWhiteSpace(resolution.JobRunId))
                                     {
                                         <dt>Job</dt>
-                                        <dd><a href="@("/operate/jobs/" + resolution.JobRunId)">@resolution.JobRunId</a></dd>
+                                        <dd><a href="@ConsoleNavigation.ToConsoleLinkHref("/operate/jobs/" + resolution.JobRunId)">@resolution.JobRunId</a></dd>
                                     }
                                     <dt>Audit events</dt>
                                     <dd>@string.Join(", ", resolution.AuditEventIds)</dd>

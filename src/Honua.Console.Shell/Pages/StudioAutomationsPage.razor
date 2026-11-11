@@ -21,7 +21,7 @@
     }
 
     <div class="automation-list-actions">
-        <a class="console-button-link" href="/studio/automations/new">New automation</a>
+        <a class="console-button-link" href="@Navigation.ToConsoleHref("/studio/automations/new")">New automation</a>
     </div>
 
     @if (_loading)
@@ -62,7 +62,7 @@
                     {
                         <tr>
                             <th scope="row">
-                                <a href="@EditorHref(automation)">@automation.Name</a>
+                                <a href="@Navigation.ToConsoleLinkHref(EditorHref(automation))">@automation.Name</a>
                                 <small>@(string.IsNullOrWhiteSpace(automation.FormId) ? "No form bound" : automation.FormId)</small>
                             </th>
                             <td><span class="console-status @(automation.Enabled ? string.Empty : "console-status-warning")">@(automation.Enabled ? "Enabled" : "Disabled")</span></td>
@@ -80,7 +80,7 @@
         <div class="console-panel-grid automation-grid">
             @foreach (var automation in _automations)
             {
-                <a class="console-panel console-area-link automation-card" href="@EditorHref(automation)">
+                <a class="console-panel console-area-link automation-card" href="@Navigation.ToConsoleLinkHref(EditorHref(automation))">
                     <div class="console-panel-heading">
                         <div>
                             <h2>@automation.Name</h2>
