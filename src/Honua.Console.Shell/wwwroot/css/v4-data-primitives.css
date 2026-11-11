@@ -81,3 +81,12 @@
 .console-shell[data-console-v4="true"] .operate-data-page :is(.resource-tree__toggle, .resource-tree__name, .resource-tree__publication-row) {
     min-height: 24px;
 }
+
+/* Wide data tables scroll inside their region instead of widening the page at 390px. */
+.console-shell[data-console-v4="true"] .operate-temporal .console-table-wrap {
+    overflow-x: auto;
+}
+
+.console-shell[data-console-v4="true"] [data-releases-page] .console-section {
+    min-width: 0;
+}
