@@ -7,7 +7,7 @@
         <button type="button" class="console-publication-toggle console-button console-button-secondary" data-tree-toggle
                 aria-expanded="false" aria-controls="console-publication-sidebar">Browse services</button>
         <button type="button" class="console-tree-backdrop" data-tree-backdrop hidden tabindex="-1" aria-label="Close service navigation"></button>
-        <aside id="console-publication-sidebar" class="console-publication-sidebar" aria-label="Service navigation">
+        <section id="console-publication-sidebar" class="console-publication-sidebar" aria-label="Service navigation">
             <div class="console-tree-toolbar">
                 <label for="console-tree-filter">@(V4Enabled ? "Search services" : "Filter services")</label>
                 <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter"
@@ -22,7 +22,7 @@
             <div class="console-tree-catalog">
                 <ConsolePublicationNavigationContent ReadState="ReadState" />
             </div>
-        </aside>
+        </section>
     </div>
 </CascadingValue>
 

@@ -47,7 +47,7 @@ try {
       const dimensions = hasRows ? await row.evaluate(element => ({ height: element.getBoundingClientRect().height, size: getComputedStyle(element).fontSize })) : null;
       if (hasRows) assert.ok(dimensions.height >= (width === 390 ? 44 : 28));
       if (name.startsWith("scale-v4") && width > 1000) {
-        assert.equal((await sidebar.boundingBox()).width, 272);
+        assert.equal((await page.locator(".console-publication-navigation").boundingBox()).width, 272);
         if (hasRows) {
           assert.ok(dimensions.height < (name.endsWith("search") ? 60 : 36));
           assert.equal(dimensions.size, "14px");
@@ -72,6 +72,11 @@ try {
           await page.getByRole("treeitem").focus();
           await page.keyboard.press("Enter");
           assert.equal(await page.locator("[data-tree-link]").getAttribute("data-activated"), "true");
+          if (width === 390) {
+            assert.equal(await sidebar.isVisible(), false, "Following a result closes the narrow navigation drawer");
+            await toggle.click();
+            await page.waitForFunction(() => document.querySelector(".console-publication-sidebar").hasAttribute("data-tree-open"));
+          }
         }
       }
       const first = page.getByRole("treeitem").first();
