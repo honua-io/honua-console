@@ -42,15 +42,15 @@
         <article class="console-panel">
             <div class="console-panel-heading">
                 <h2>Status</h2>
-                <span class="support-phase-badge">@PhaseLabel</span>
+                <span class="support-phase-badge">@TicketLabel(PhaseLabel)</span>
             </div>
             <dl class="support-context-list">
-                <ContextRow Label="Customer status" Value="@_ticket.CustomerStatus" />
-                <ContextRow Label="Phase" Value="@_ticket.Phase" />
-                <ContextRow Label="Severity" Value="@_ticket.Severity" />
+                <ContextRow Label="Customer status" Value="@TicketLabel(_ticket.CustomerStatus)" />
+                <ContextRow Label="Phase" Value="@TicketLabel(_ticket.Phase)" />
+                <ContextRow Label="Severity" Value="@TicketLabel(_ticket.Severity)" />
                 <ContextRow Label="Service" Value="@_ticket.Service" />
                 <ContextRow Label="Environment" Value="@_ticket.Environment" />
-                <ContextRow Label="Access mode" Value="@_ticket.AllowedAccessMode" />
+                <ContextRow Label="Access mode" Value="@TicketLabel(_ticket.AllowedAccessMode)" />
                 <ContextRow Label="Assigned operator" Value="@_ticket.AssignedOperatorId" />
                 <ContextRow Label="Created" Value="@_ticket.CreatedAt.ToString("u")" />
                 <ContextRow Label="Updated" Value="@_ticket.UpdatedAt.ToString("u")" />
@@ -143,6 +143,8 @@
         OperateSectionStatus.Forbidden => "warning",
         _ => "info"
     };
+
+    private string? TicketLabel(string? value) => V4Enabled ? SupportTicketLabels.Display(value) : value;
 
     private string PhaseLabel =>
         string.IsNullOrWhiteSpace(_ticket?.CustomerStatus) ? _ticket?.Phase ?? "unknown" : _ticket!.CustomerStatus;
