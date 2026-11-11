@@ -1,4 +1,3 @@
-@using System.Security.Claims
 @using System.Security.Cryptography
 @using System.Text
 @using Microsoft.AspNetCore.Components.Authorization
@@ -24,16 +23,15 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         var generation = _generation;
-        var stateTask = Authentication.GetAuthenticationStateAsync();
-        var state = await stateTask;
+        var state = await Authentication.GetAuthenticationStateAsync();
         if (_disposed || generation != _generation)
         {
             return;
         }
-        var enabled = V4.Enabled && !new Uri(Navigation.Uri).AbsolutePath.StartsWith("/console/embed/", StringComparison.OrdinalIgnoreCase);
+        var enabled = V4.Enabled && !ConsoleRoutes.IsEmbed(Navigation);
         var user = state.User;
         var id = user.Identity?.IsAuthenticated == true
-            ? user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? user.FindFirst("sub")?.Value
+            ? user.AccountId()
             : null;
         var key = enabled && !string.IsNullOrEmpty(id)
             ? "honua-theme:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Api.BaseUri.AbsoluteUri + "\n" + id)))

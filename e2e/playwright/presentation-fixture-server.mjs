@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 
-export async function startPresentationFixtureServer({ pages, title, stylesheets, assets, assetPrefix = "/", unwrappedPages = [], scripts = new Map(), headScripts = [], htmlAttributes = new Map() }) {
+export async function startPresentationFixtureServer({ pages, title, stylesheets, assets, assetPrefix = "/", unwrappedPages = [], scripts = new Map(), headScripts = [] }) {
   const root = path.resolve(assets);
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url, "http://localhost");
@@ -11,13 +11,11 @@ export async function startPresentationFixtureServer({ pages, title, stylesheets
     if (markup !== undefined) {
       const body = unwrappedPages.includes(name) ? markup : `<main class="console-main">${markup}</main>`;
       const pageScripts = scripts.get(name) ?? [];
-      const attributes = Object.entries(htmlAttributes.get(name) ?? {}).map(([key, value]) =>
-        ` ${key}="${String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;")}"`).join("");
       response.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",
         "Content-Security-Policy": `default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; script-src ${pageScripts.length || headScripts.length ? "'self'" : "'none'"}; frame-src 'none'; base-uri 'none'`,
       });
-      response.end(`<!doctype html><html lang="en"${attributes}><head><title>${title}</title><meta name="viewport" content="width=device-width">${headScripts.map(src => `<script src="${src}"></script>`).join("")}${stylesheets.map(href => `<link rel="stylesheet" href="${href}">`).join("")}</head><body>${body}${pageScripts.map(src => `<script src="${src}" defer></script>`).join("")}</body></html>`);
+      response.end(`<!doctype html><html lang="en"><head><title>${title}</title><meta name="viewport" content="width=device-width">${headScripts.map(src => `<script src="${src}"></script>`).join("")}${stylesheets.map(href => `<link rel="stylesheet" href="${href}">`).join("")}</head><body>${body}${pageScripts.map(src => `<script src="${src}" defer></script>`).join("")}</body></html>`);
       return;
     }
     const file = path.resolve(root, url.pathname.slice(assetPrefix.length));

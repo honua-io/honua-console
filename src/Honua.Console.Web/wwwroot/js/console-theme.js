@@ -15,24 +15,23 @@
         });
     }
 
-    function apply(value, announce = true) {
+    function apply(value) {
         root.dataset.theme = normalize(value);
         syncControls();
-        if (announce) document.dispatchEvent(new CustomEvent('honua:theme', {
-            detail: { theme: root.dataset.theme }
-        }));
     }
 
     function configure(isEnabled, storageKey) {
+        const nextKey = isEnabled ? storageKey : null;
+        if (enabled === isEnabled && key === nextKey) return;
         enabled = isEnabled;
-        key = enabled ? storageKey : null;
+        key = nextKey;
         root.dataset.consoleThemeEnabled = String(enabled);
         let saved;
         try { saved = key ? localStorage.getItem(key) : null; } catch { /* Storage may be disabled. */ }
-        apply(saved, false);
+        apply(saved);
     }
     window.honuaConsoleTheme = { configure };
-    configure(root.dataset.consoleThemeEnabled === 'true', root.dataset.consoleThemeKey);
+    apply(null);
     document.addEventListener('click', event => {
         if (!enabled || !event.target.closest?.('[data-console-theme-toggle]')) return;
         apply(root.dataset.theme === 'dark' ? 'light' : 'dark');

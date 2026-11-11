@@ -1,10 +1,11 @@
+@using Honua.Console.Web.Runtime
 @inject NavigationManager Navigation
 
 <ErrorBoundary>
     <ChildContent>
         <ConsoleTheme />
         <Routes />
-        @if (!new Uri(Navigation.Uri).AbsolutePath.StartsWith("/console/embed/", StringComparison.OrdinalIgnoreCase))
+        @if (!ConsoleRoutes.IsEmbed(Navigation))
         {
             <Honua.Console.Shell.Layout.ConsoleConversationDrawer />
         }

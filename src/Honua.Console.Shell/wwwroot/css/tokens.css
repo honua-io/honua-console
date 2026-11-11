@@ -69,7 +69,6 @@
     --honua-space-small: var(--space-2);
 }
 
-/* Adopted v4 dark palette; legacy and light values remain unchanged. */
 :root[data-console-theme-enabled="true"][data-theme="dark"] {
   color-scheme: dark;
   --c-bg: #08131a;
@@ -78,6 +77,7 @@
   --c-surface-3: #1f3a47;
   --c-raised: #162a34;
   --c-border: #22343f;
+  --c-accent-line: #22343f;
   --c-border-strong: #5f7a87;
   --c-rule: #172730;
   --c-text: #e6efee;
@@ -133,4 +133,6 @@
   --c-side-hover: var(--c-surface-2);
   --c-count-bg: var(--c-surface-3);
   --c-count-text: var(--c-text-2);
+  --c-count-warn-bg: var(--c-warn-soft);
+  --c-count-warn-text: var(--c-warn-ink);
 }

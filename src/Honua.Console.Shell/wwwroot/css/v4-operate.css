@@ -44,13 +44,11 @@
 }
 
 .console-shell[data-console-v4="true"] .proposal-approval-panel.is-data-import {
-    border-color: var(--c-ok-line);
-    background: var(--c-ok-tint);
+    box-shadow: inset 4px 0 0 var(--honua-accent), var(--shadow-panel);
 }
 
 .console-shell[data-console-v4="true"] .proposal-approval-panel.is-deliverable {
-    border-color: var(--c-ai-line);
-    background: var(--c-ai-soft);
+    box-shadow: inset 4px 0 0 #6d28d9, var(--shadow-panel);
 }
 
 .console-shell[data-console-v4="true"] .proposal-approval-summary {
