@@ -32,7 +32,7 @@ public sealed class OperateLayerFieldAliasHiddenTests
         });
 
         using var ctx = new Bunit.BunitContext();
-        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerMountedNavigationManager(mount));
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager(mount));
         ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();

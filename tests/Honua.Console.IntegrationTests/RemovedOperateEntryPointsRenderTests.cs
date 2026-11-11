@@ -22,7 +22,7 @@ public sealed class RemovedOperateEntryPointsRenderTests
     public void LayerPage_LinksOnlyToSurfacesTheServerSupports(bool enabled)
     {
         using var ctx = CreateContext(enabled);
-        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new LayerMountedNavigationManager("/console/"));
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager("/console/"));
         ctx.Services.AddSingleton<IConsoleLayerFieldsOperation>(new UnsupportedConsoleLayerFieldsOperation());
 
         var page = ctx.Render<OperateLayerDetailPage>(p => p.Add(c => c.ResourceId, Parcels.CanonicalResourceId));
@@ -153,15 +153,5 @@ public sealed class RemovedOperateEntryPointsRenderTests
         return ctx;
     }
 
-    private sealed class MountedNavigationManager : Microsoft.AspNetCore.Components.NavigationManager
-    {
-        public MountedNavigationManager(string mount) => Initialize("http://localhost" + mount, "http://localhost" + mount);
-
-        protected override void NavigateToCore(string uri, bool forceLoad)
-        {
-            Uri = ToAbsoluteUri(uri).AbsoluteUri;
-            NotifyLocationChanged(false);
-        }
-    }
 
 }
