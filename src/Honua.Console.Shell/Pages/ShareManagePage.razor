@@ -482,7 +482,7 @@
                                                     @foreach (var format in summary.Formats)
                                                     {
                                                         <li>
-                                                            <span class="share-opendata-download-name">@format</span>
+                                                            <span class="share-opendata-download-name">@(V4Enabled ? ConsoleDownloadFormatLabels.Display(format) : format)</span>
                                                             <span class="console-muted">↓</span>
                                                         </li>
                                                     }

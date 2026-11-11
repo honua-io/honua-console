@@ -4,7 +4,7 @@ import { runV4PagePresentation } from "./console-presentation.mjs";
 
 await runV4PagePresentation({
   previews: path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR || "artifacts/catalog-preview"),
-  pageNames: ["link", "embed", "exports", "opendata", "audit"].flatMap(tab =>
+  pageNames: ["link", "embed", "exports", "opendata", "opendata-bound", "audit"].flatMap(tab =>
     ["v4", "legacy"].map(flag => `share-manage-${tab}-${flag}`)),
   title: "Share configuration presentation",
   stylesheet: "v4-share-manage.css",
@@ -25,6 +25,12 @@ await runV4PagePresentation({
       assert.ok(expiry && mint);
       assert.ok(mint.y >= expiry.y + expiry.height || mint.x >= expiry.x + expiry.width || expiry.x >= mint.x + mint.width,
         "Mint token must not overlap the expiry field");
+    }
+    if (name.includes("opendata-bound")) {
+      const formats = await page.locator(".share-opendata-download-name").allTextContents();
+      assert.ok(formats.includes(enabled ? "GeoServices feature service" : "GeoServices:FeatureService"));
+      assert.ok(formats.includes(enabled ? "GeoServices map service" : "GeoServices:MapServer"));
+      assert.ok(formats.includes(enabled ? "OGC API Features" : "OGC:API:Features"));
     }
     if (enabled) {
       const input = page.locator("input[placeholder='item-...']");

@@ -123,21 +123,13 @@
                         @foreach (var format in item.Summary.Formats)
                         {
                             <li>
-                                <span class="share-opendata-download-name">@DownloadFormatLabel(format)</span>
+                                <span class="share-opendata-download-name">@(V4Enabled ? ConsoleDownloadFormatLabels.Display(format) : format)</span>
                                 <span class="console-muted">download ↓</span>
                             </li>
                         }
                     </ul>
                 }
     </text>;
-
-    private string DownloadFormatLabel(string format) => V4Enabled ? format switch
-    {
-        "GeoServices:FeatureService" => "GeoServices feature service",
-        "GeoServices:MapServer" => "GeoServices map service",
-        "OGC:API:Features" => "OGC API Features",
-        _ => format
-    } : format;
 
     private static RenderFragment RoutesContent(ConsoleContentDetail item) => @<text>
                     <dl class="console-definition-list">

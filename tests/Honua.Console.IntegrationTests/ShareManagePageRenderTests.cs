@@ -204,8 +204,10 @@ public sealed class ShareManagePageRenderTests
         Assert.Contains("shown only once", page.Markup, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void ShareManage_OpenDataTab_RendersTwoPaneEditorWithDownloadsLicenseDiscoverabilityAndStac()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ShareManage_OpenDataTab_RendersTwoPaneEditorWithDownloadsLicenseDiscoverabilityAndStac(bool enabled)
     {
         var data = new FakeShareDataSource
         {
@@ -223,7 +225,7 @@ public sealed class ShareManagePageRenderTests
                 Type = "layer",
                 Owner = "State Assessor",
                 Tags = ["parcels", "cadastre", "assessor"],
-                Formats = ["GeoJSON", "GeoPackage", "Shapefile", "CSV (WKT)", "PMTiles"]
+                Formats = ["GeoJSON", "GeoPackage", "Shapefile", "CSV (WKT)", "PMTiles", "GeoServices:FeatureService", "GeoServices:MapServer", "OGC:API:Features"]
             },
             Description = "Statewide tax parcel boundaries for fiscal year 2024.",
             Bindings =
@@ -233,7 +235,7 @@ public sealed class ShareManagePageRenderTests
             ]
         };
 
-        var page = Render(data, itemId: "item-1", options: new RenderOptions { Catalog = new FakeCatalogClient(detail) });
+        var page = Render(data, itemId: "item-1", options: new RenderOptions { V4 = new ConsoleV4Options { Enabled = enabled }, Catalog = new FakeCatalogClient(detail) });
         page.WaitForAssertion(
             () => Assert.Contains("data-share-tabs", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
@@ -258,6 +260,12 @@ public sealed class ShareManagePageRenderTests
         // Right pane: live public-page preview.
         Assert.Contains("data-share-opendata-preview", page.Markup, StringComparison.Ordinal);
         Assert.Contains("powered by Honua", page.Markup, StringComparison.Ordinal);
+        var formats = page.FindAll(".share-opendata-download-name").Select(node => node.TextContent).ToArray();
+        Assert.Contains(enabled ? "GeoServices feature service" : "GeoServices:FeatureService", formats);
+        Assert.Contains(enabled ? "GeoServices map service" : "GeoServices:MapServer", formats);
+        Assert.Contains(enabled ? "OGC API Features" : "OGC:API:Features", formats);
+        Assert.Contains("CSV (WKT)", formats);
+        CapturePreview(page, "opendata-bound", new ConsoleV4Options { Enabled = enabled });
     }
 
     [Fact]
