@@ -8,11 +8,15 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class OperatePublishingPageRenderTests
 {
-    [Fact]
-    public void OperatePublishingPage_WhenUnbound_RendersMissingBindingWithoutMockData()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OperatePublishingPage_WhenUnbound_RendersMissingBindingWithoutMockData(bool enabled)
     {
         using var ctx = new Bunit.BunitContext();
         ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
@@ -35,6 +39,12 @@ public sealed class OperatePublishingPageRenderTests
         Assert.Empty(page.FindAll("ol.publish-stepper"));
         Assert.Single(page.FindAll("[data-connection-notice]"));
         Assert.Contains("publish-flow-map", page.Markup, StringComparison.Ordinal);
+
+        if (enabled)
+        {
+            Assert.Equal("/operate/publishing", ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Route);
+            CatalogAdminPreview.Capture("data-publishing-unbound", page.Markup);
+        }
     }
 
     [Fact]
@@ -68,11 +78,15 @@ public sealed class OperatePublishingPageRenderTests
         Assert.DoesNotContain("Compatibility", page.Markup, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void OperatePublishingPage_WhenBound_RendersMatrixAndReviewSurface()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OperatePublishingPage_WhenBound_RendersMatrixAndReviewSurface(bool enabled)
     {
         using var ctx = new Bunit.BunitContext();
         ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new StubPublishingWorkspaceDataSource());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
@@ -94,6 +108,9 @@ public sealed class OperatePublishingPageRenderTests
         // Review renders slot, endpoints, catalog registration, policy, warnings, rollback class,
         // provenance, and the evidence deep links.
         Assert.Contains("Publishing review", page.Markup, StringComparison.Ordinal);
+        // Both modes keep the full format guidance and the lookup instructions.
+        Assert.Contains("Supported output and catalog formats for each object. Review any unsupported or blocked format before publishing.", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Enter a release ID to review its route, release a new version, or restore a previous version.", page.Markup, StringComparison.Ordinal);
         Assert.Contains("public-default", page.Markup, StringComparison.Ordinal);
         Assert.Contains("https://server.example/ogc/parcels", page.Markup, StringComparison.Ordinal);
         Assert.Contains("reversible", page.Markup, StringComparison.Ordinal);
@@ -108,13 +125,23 @@ public sealed class OperatePublishingPageRenderTests
         Assert.Contains("mirrors to", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Catalog registration", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Public sharing exposes all attributes.", page.Markup, StringComparison.Ordinal);
+
+        if (enabled)
+        {
+            Assert.Equal("/operate/publishing", ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Route);
+            CatalogAdminPreview.Capture("data-publishing", page.Markup);
+        }
     }
 
-    [Fact]
-    public void OperatePublishingPage_Lookup_RendersReviewVersionsAndDrivesRepublishRollback()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OperatePublishingPage_Lookup_RendersReviewVersionsAndDrivesRepublishRollback(bool enabled)
     {
         using var ctx = new Bunit.BunitContext();
         ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         var source = new InteractivePublishingWorkspaceDataSource();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(source);
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
@@ -145,6 +172,17 @@ public sealed class OperatePublishingPageRenderTests
         page.WaitForAssertion(
             () => Assert.Equal("ver-1", source.LastRollbackTarget),
             TimeSpan.FromSeconds(5));
+
+        if (enabled)
+        {
+            Assert.Equal("/operate/publishing", ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Route);
+            Assert.Equal(0, ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
+            page.Find("input[aria-label='Republish title']").Input("Next release");
+            Assert.Equal(1, ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
+            page.Find("input[aria-label='Republish title']").Input("");
+            Assert.Equal(0, ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
+            CatalogAdminPreview.Capture("data-publishing-lookup", page.Markup);
+        }
     }
 
     [Fact]

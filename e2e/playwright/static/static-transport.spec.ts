@@ -23,7 +23,7 @@ for (const crossOrigin of [false, true]) {
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
     const response = await connections;
     expect(response.status()).toBe(200);
-    await expect(page.getByRole('heading', { name: 'Data Connections', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Data connections$/i })).toBeVisible();
     const connectionLink = page.getByRole('link', { name: 'Browser transport fixture', exact: true });
     await expect(connectionLink).toBeVisible();
     await expect(connectionLink).toHaveAttribute('href', '/console/operate/connections/11111111-1111-1111-1111-111111111111');

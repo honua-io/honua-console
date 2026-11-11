@@ -8,6 +8,7 @@ public static class ConsoleAgentRoutes
         var id = Segment(target.Id);
         return target.Kind switch
         {
+            ConsoleAgentEntityKind.Connection => $"/operate/connections/{id}",
             ConsoleAgentEntityKind.Folder => $"/operate/folders/{id}",
             ConsoleAgentEntityKind.Service => $"/operate/services/{Segment(target.ServiceName ?? target.Id)}/settings",
             ConsoleAgentEntityKind.Layer => ForLayer(target.ResourceId ?? target.Id),
