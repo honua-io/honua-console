@@ -1,0 +1,63 @@
+/* Page presentation only; panel, table and status colours come from the shared console styles. */
+.console-alert-rules-v4 {
+    gap: var(--space-6);
+    color: var(--c-text);
+}
+
+.console-alert-rules-v4 .console-panel h2 {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+}
+
+.console-alert-rules-v4 .console-alert-rules-back {
+    margin: 0;
+    font-size: var(--text-sm);
+}
+
+.console-alert-rules-v4 .console-table td small,
+.console-alert-rules-v4 .console-definition-list dd {
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.console-alert-rules-v4 .studio-field-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: var(--space-4);
+}
+
+.console-alert-rules-v4 .studio-field-grid label {
+    display: grid;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.console-alert-rules-v4 .console-action-row {
+    margin-top: var(--space-5);
+}
+
+/* The test and enable actions carry only the secondary modifier; give them the shared button box. */
+.console-alert-rules-v4 button.console-button-secondary:not(.console-button) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 38px;
+    padding: 0 13px;
+    border-width: 1px;
+    border-style: solid;
+    border-radius: 8px;
+    font: inherit;
+    font-weight: var(--weight-semibold);
+}
+
+@media (max-width: 600px) {
+    .console-alert-rules-v4 .console-panel-heading,
+    .console-alert-rules-v4 .console-action-row {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .console-alert-rules-v4 .console-definition-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

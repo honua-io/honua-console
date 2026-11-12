@@ -5,16 +5,39 @@
 @inject IOperateAlertRulesDataSource RulesData
 @inject IConsoleCapabilityManifest Capabilities
 @inject IConsoleNotificationService Notifications
+@inject IServiceProvider Services
 
 <ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.RealtimeAlerting"
                        Title="Realtime / geofence alerting is not available in this release"
                        Message="Realtime, geofence, threshold, and dwell alert-rule authoring is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
-<section class="console-page operate-alert-rule" data-alert-rule-detail="@RuleId">
-    <div class="console-page-heading">
-        <p class="console-kicker">Operator workflow / Alert rules</p>
-        <h1>Alert rule</h1>
-        <p><a href="@ConsoleNavigation.ToConsoleLinkHref(OperateAlertRulesRoutes.List)">Back to alert rules</a></p>
-    </div>
+<section class="console-page operate-alert-rule @(V4Enabled ? "console-alert-rules-v4" : null)" data-alert-rule-detail="@RuleId">
+    @if (V4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/operate-alert-rules-v4.css" />
+        <p class="console-alert-rules-back"><a href="@ConsoleNavigation.ToConsoleLinkHref(OperateAlertRulesRoutes.List)">Back to alert rules</a></p>
+        <ConsolePageHeading Title="@(_rule?.Name is { Length: > 0 } name ? name : "Alert rule")">
+            <ChildContent>
+                @if (_rule is not null)
+                {
+                    <p>@_rule.RuleType rule <span class="console-mono">@_rule.RuleId</span></p>
+                }
+            </ChildContent>
+            <Actions>
+                @if (_rule is not null)
+                {
+                    <span class="console-status @StatusClass(_rule)">@_rule.Status.State</span>
+                }
+            </Actions>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operator workflow / Alert rules</p>
+            <h1>Alert rule</h1>
+            <p><a href="@ConsoleNavigation.ToConsoleLinkHref(OperateAlertRulesRoutes.List)">Back to alert rules</a></p>
+        </div>
+    }
 
     @if (_loading)
     {
@@ -36,131 +59,155 @@
     }
     else
     {
-        <article class="console-panel">
-            <div class="console-panel-heading">
-                <div>
-                    <p class="console-kicker">@_rule.RuleType</p>
-                    <h2>@_rule.Name</h2>
+        @if (V4Enabled)
+        {
+            <ConsolePanel Title="Overview" HeadingId="alert-rule-overview-heading">
+                @RuleOverview
+            </ConsolePanel>
+            <ConsolePanel Title="Condition builder" HeadingId="alert-rule-condition-heading" Class="console-alert-rule-editor">
+                <div data-alert-rule-editor>
+                    @RuleEditor
                 </div>
-                <span class="console-status @StatusClass(_rule)">@_rule.Status.State</span>
-            </div>
-            <p class="console-muted">@_rule.Description</p>
-            <dl class="console-definition-list">
-                <dt>Rule ID</dt>
-                <dd class="console-mono">@_rule.RuleId</dd>
-                <dt>Last evaluated</dt>
-                <dd>@_rule.LastEvaluatedAt</dd>
-                <dt>Active incidents</dt>
-                <dd>@_rule.ActiveIncidentCount</dd>
-                <dt>Delivery failures</dt>
-                <dd>@_rule.DeliveryFailureCount</dd>
-            </dl>
-            @if (_rule.ValidationMessages.Count > 0)
-            {
-                <ul class="console-state-warning">
-                    @foreach (var message in _rule.ValidationMessages)
-                    {
-                        <li>@message</li>
-                    }
-                </ul>
-            }
-        </article>
-
-        <article class="console-panel" data-alert-rule-editor>
-            <p class="console-kicker">Condition</p>
-            <h2>Condition builder</h2>
-            <div class="studio-field-grid">
-                <label>
-                    <span>Name</span>
-                    <input class="console-input" @bind="_name" data-rule-name />
-                </label>
-                <label>
-                    <span>Subject</span>
-                    <input class="console-input" @bind="_subject" data-rule-subject placeholder="metric, layer, or geofence subject" />
-                </label>
-                <label>
-                    <span>Operator</span>
-                    <input class="console-input" @bind="_operator" data-rule-operator placeholder="gte, lte, enters, dwells" />
-                </label>
-                <label>
-                    <span>Threshold</span>
-                    <input class="console-input" @bind="_threshold" data-rule-threshold />
-                </label>
-                <label>
-                    <span>Window</span>
-                    <input class="console-input" @bind="_window" data-rule-window placeholder="5m, 1h" />
-                </label>
-                <label>
-                    <span>Geofence zone (geofence/dwell)</span>
-                    <input class="console-input" @bind="_geofenceZoneId" data-rule-zone />
-                </label>
-                <label>
-                    <span>Dwell minutes (dwell)</span>
-                    <input class="console-input" type="number" @bind="_dwellMinutes" data-rule-dwell />
-                </label>
-                <label>
-                    <span>Delivery channels (comma separated)</span>
-                    <input class="console-input" @bind="_deliveryChannels" data-rule-channels />
-                </label>
-            </div>
-
-            <div class="console-action-row">
-                <button class="console-button" type="button" disabled="@_saving" @onclick="SaveAsync" data-rule-save>
-                    @(_saving ? "Saving..." : "Save rule")
-                </button>
-                <button class="console-button-secondary" type="button" disabled="@_testing" @onclick="TestAsync" data-rule-test>
-                    @(_testing ? "Testing..." : "Test rule")
-                </button>
-                <button class="console-button-secondary" type="button"
-                        disabled="@(_enabling || (!_rule.Enabled && !CanEnable))"
-                        @onclick="ToggleEnabledAsync" data-rule-enable>
-                    @(_enabling ? "Updating..." : _rule.Enabled ? "Disable rule" : "Enable tested rule")
-                </button>
-            </div>
-
-            @if (_testResult is { } test)
-            {
-                @if (test.BindingState is { } testBinding)
-                {
-                    <ConsoleStateView HeadingLevel="2" Kind="@StateKind(testBinding.State)"
-                                      Kicker="@testBinding.State"
-                                      Title="Rule test is not bound"
-                                      Message="@(testBinding.Detail + " (contract: " + testBinding.Contract + ")")" />
-                }
-                else
-                {
-                    <div class="console-panel @(test.Succeeded ? "console-state-success" : "console-state-warning")" role="status" data-rule-test-result>
-                        <p class="console-kicker">Non-production test</p>
-                        <p>@(test.Succeeded ? "Draft validation passed. No event was emitted and the rule remains disabled." : "Draft validation failed. The rule was not enabled.")</p>
-                        @foreach (var error in test.Errors) { <p>@error</p> }
-                        @foreach (var warning in test.Warnings) { <p>@warning</p> }
+            </ConsolePanel>
+        }
+        else
+        {
+            <article class="console-panel">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">@_rule.RuleType</p>
+                        <h2>@_rule.Name</h2>
                     </div>
-                }
-            }
+                    <span class="console-status @StatusClass(_rule)">@_rule.Status.State</span>
+                </div>
+                @RuleOverview
+            </article>
 
-            @if (_saveResult is { } result)
-            {
-                @if (result.BindingState is { } saveBinding)
-                {
-                    <ConsoleStateView HeadingLevel="2" Kind="@StateKind(saveBinding.State)"
-                                      Kicker="@saveBinding.State"
-                                      Title="Rule save is not bound"
-                                      Message="@(saveBinding.Detail + " (contract: " + saveBinding.Contract + ")")" />
-                }
-                else if (result.Succeeded)
-                {
-                    <div class="console-panel console-state-success" role="status" data-rule-saved>
-                        <p class="console-kicker">Saved</p>
-                        <p>The alert rule was saved on honua-server.</p>
-                    </div>
-                }
-            }
-        </article>
+            <article class="console-panel" data-alert-rule-editor>
+                <p class="console-kicker">Condition</p>
+                <h2>Condition builder</h2>
+                @RuleEditor
+            </article>
+        }
     }
 </section>
 </ConsoleCapabilityGate>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private RenderFragment RuleOverview => @<text>
+        <p class="console-muted">@(_rule!.Description)</p>
+        <dl class="console-definition-list">
+            <dt>Rule ID</dt>
+            <dd class="console-mono">@(_rule!.RuleId)</dd>
+            <dt>Last evaluated</dt>
+            <dd>@(_rule!.LastEvaluatedAt)</dd>
+            <dt>Active incidents</dt>
+            <dd>@(_rule!.ActiveIncidentCount)</dd>
+            <dt>Delivery failures</dt>
+            <dd>@(_rule!.DeliveryFailureCount)</dd>
+        </dl>
+        @if (_rule!.ValidationMessages.Count > 0)
+        {
+            <ul class="console-state-warning">
+                @foreach (var message in _rule!.ValidationMessages)
+                {
+                    <li>@message</li>
+                }
+            </ul>
+        }
+    </text>;
+
+    private RenderFragment RuleEditor => @<text>
+        <div class="studio-field-grid">
+            <label>
+                <span>Name</span>
+                <input class="console-input" @bind="_name" data-rule-name />
+            </label>
+            <label>
+                <span>Subject</span>
+                <input class="console-input" @bind="_subject" data-rule-subject placeholder="metric, layer, or geofence subject" />
+            </label>
+            <label>
+                <span>Operator</span>
+                <input class="console-input" @bind="_operator" data-rule-operator placeholder="gte, lte, enters, dwells" />
+            </label>
+            <label>
+                <span>Threshold</span>
+                <input class="console-input" @bind="_threshold" data-rule-threshold />
+            </label>
+            <label>
+                <span>Window</span>
+                <input class="console-input" @bind="_window" data-rule-window placeholder="5m, 1h" />
+            </label>
+            <label>
+                <span>Geofence zone (geofence/dwell)</span>
+                <input class="console-input" @bind="_geofenceZoneId" data-rule-zone />
+            </label>
+            <label>
+                <span>Dwell minutes (dwell)</span>
+                <input class="console-input" type="number" @bind="_dwellMinutes" data-rule-dwell />
+            </label>
+            <label>
+                <span>Delivery channels (comma separated)</span>
+                <input class="console-input" @bind="_deliveryChannels" data-rule-channels />
+            </label>
+        </div>
+
+        <div class="console-action-row">
+            <button class="console-button" type="button" disabled="@_saving" @onclick="SaveAsync" data-rule-save>
+                @(_saving ? "Saving..." : "Save rule")
+            </button>
+            <button class="console-button-secondary" type="button" disabled="@_testing" @onclick="TestAsync" data-rule-test>
+                @(_testing ? "Testing..." : "Test rule")
+            </button>
+            <button class="console-button-secondary" type="button"
+                    disabled="@(_enabling || (!_rule!.Enabled && !CanEnable))"
+                    @onclick="ToggleEnabledAsync" data-rule-enable>
+                @(_enabling ? "Updating..." : _rule!.Enabled ? "Disable rule" : "Enable tested rule")
+            </button>
+        </div>
+
+        @if (_testResult is { } test)
+        {
+            @if (test.BindingState is { } testBinding)
+            {
+                <ConsoleStateView HeadingLevel="2" Kind="@StateKind(testBinding.State)"
+                                  Kicker="@testBinding.State"
+                                  Title="Rule test is not bound"
+                                  Message="@(testBinding.Detail + " (contract: " + testBinding.Contract + ")")" />
+            }
+            else
+            {
+                <div class="console-panel @(test.Succeeded ? "console-state-success" : "console-state-warning")" role="status" data-rule-test-result>
+                    <p class="console-kicker">Non-production test</p>
+                    <p>@(test.Succeeded ? "Draft validation passed. No event was emitted and the rule remains disabled." : "Draft validation failed. The rule was not enabled.")</p>
+                    @foreach (var error in test.Errors) { <p>@error</p> }
+                    @foreach (var warning in test.Warnings) { <p>@warning</p> }
+                </div>
+            }
+        }
+
+        @if (_saveResult is { } result)
+        {
+            @if (result.BindingState is { } saveBinding)
+            {
+                <ConsoleStateView HeadingLevel="2" Kind="@StateKind(saveBinding.State)"
+                                  Kicker="@saveBinding.State"
+                                  Title="Rule save is not bound"
+                                  Message="@(saveBinding.Detail + " (contract: " + saveBinding.Contract + ")")" />
+            }
+            else if (result.Succeeded)
+            {
+                <div class="console-panel console-state-success" role="status" data-rule-saved>
+                    <p class="console-kicker">Saved</p>
+                    <p>The alert rule was saved on honua-server.</p>
+                </div>
+            }
+        }
+    </text>;
+
     [Parameter]
     public string RuleId { get; set; } = string.Empty;
 

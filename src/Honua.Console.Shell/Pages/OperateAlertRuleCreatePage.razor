@@ -4,19 +4,43 @@
 @inject IConsoleCapabilityManifest Capabilities
 @inject IConsoleNotificationService Notifications
 @inject NavigationManager Navigation
+@inject IServiceProvider Services
 
 <ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.RealtimeAlerting"
                        Title="Realtime / geofence alerting is not available in this release"
                        Message="Alert-rule authoring is not advertised by the connected environment.">
-<section class="console-page operate-alert-rule" data-alert-rule-create-page>
-    <div class="console-page-heading">
-        <p class="console-kicker">Operator workflow / Alert rules</p>
-        <h1>Create alert rule</h1>
-        <p>Creation always persists a disabled rule. Open it next to run an explicit test before enabling delivery.</p>
-        <p><a href="@Navigation.ToConsoleLinkHref(OperateAlertRulesRoutes.List)">Back to alert rules</a></p>
-    </div>
+<section class="console-page operate-alert-rule @(V4Enabled ? "console-alert-rules-v4" : null)" data-alert-rule-create-page>
+    @if (V4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/operate-alert-rules-v4.css" />
+        <p class="console-alert-rules-back"><a href="@Navigation.ToConsoleLinkHref(OperateAlertRulesRoutes.List)">Back to alert rules</a></p>
+        <ConsolePageHeading Title="Create alert rule">
+            <p>New rules are saved disabled. Test the rule before you enable delivery.</p>
+        </ConsolePageHeading>
+        <ConsolePanel Title="Rule definition" HeadingId="alert-rule-create-heading">
+            @CreateForm
+        </ConsolePanel>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operator workflow / Alert rules</p>
+            <h1>Create alert rule</h1>
+            <p>Creation always persists a disabled rule. Open it next to run an explicit test before enabling delivery.</p>
+            <p><a href="@Navigation.ToConsoleLinkHref(OperateAlertRulesRoutes.List)">Back to alert rules</a></p>
+        </div>
 
-    <article class="console-panel">
+        <article class="console-panel">
+            @CreateForm
+        </article>
+    }
+</section>
+</ConsoleCapabilityGate>
+
+@code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private RenderFragment CreateForm => @<text>
         @if (_loading)
         {
             <ConsoleStateView HeadingLevel="2" Kind="loading" Kicker="Alert rules" Title="Checking alert-rule binding" Message="Checking the connected honua-server before opening the authoring form." />
@@ -60,11 +84,8 @@
                                   Message="@(resultBinding.Detail + " (contract: " + resultBinding.Contract + ")")" />
             }
         }
-    </article>
-</section>
-</ConsoleCapabilityGate>
+    </text>;
 
-@code {
     private string _serviceId = string.Empty;
     private int _layerId;
     private string _name = string.Empty;
