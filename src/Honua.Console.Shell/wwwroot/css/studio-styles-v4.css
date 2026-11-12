@@ -1,0 +1,39 @@
+/* v4 shared style editor. Page presentation only; state colours come from the shared console styles. */
+/* Notes and save/load results are quiet callouts, not a second card inside the Style panel. */
+.studio-style-editor-v4 .console-state {
+    padding: 12px 16px;
+}
+
+.studio-style-editor-v4 .console-state p {
+    margin: 0;
+}
+
+.studio-style-editor-v4 .console-state .console-kicker {
+    font-weight: var(--weight-semibold);
+}
+
+.studio-style-editor-v4 [data-style-impact] h3 {
+    margin: var(--space-4) 0 var(--space-2);
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+}
+
+.studio-style-editor-v4 [data-style-impact] :is(li, code) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.studio-style-editor-v4 textarea {
+    width: 100%;
+    max-width: 100%;
+}
+
+@media (max-width: 600px) {
+    .studio-style-editor-v4 .studio-field-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .studio-style-editor-v4 .console-toolbar {
+        flex-wrap: wrap;
+    }
+}

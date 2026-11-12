@@ -9,10 +9,47 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class SharedStyleEditorRenderTests
 {
-    [Fact]
-    public void ConflictRetainsDirtyContentAndUsesReviewedVersionAndImpact()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void V4FlagChangesOnlyThePresentation(bool v4)
     {
         using var context = new BunitContext();
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        context.JSInterop.SetupModule("./_content/Honua.Console.Shell/unsaved-changes-guard.js").Mode = JSRuntimeMode.Loose;
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = v4 });
+        context.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new Source());
+        var page = context.Render<StudioStyleEditorPage>(parameters => parameters.Add(component => component.StyleId, "shared"));
+
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("[data-style-consumers] li")));
+        Assert.Equal(v4 ? "Styles" : "Shared catalog style editor", page.Find("h1").TextContent);
+        Assert.Equal(v4 ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
+        Assert.Single(page.FindAll("[data-shared-style-scope]"));
+        Assert.Single(page.FindAll("[data-style-content]"));
+        Assert.Single(page.FindAll("[data-style-save]"));
+        Assert.Equal(2, page.FindAll(v4 ? "[data-style-impact] h3" : "[data-style-impact] h2").Count);
+        Assert.Equal(v4 ? 1 : 2, page.FindAll(".console-panel").Count);
+        if (v4)
+        {
+            Assert.Equal("Style", page.Find(".console-panel h2").TextContent);
+            Assert.Empty(page.FindAll(".console-panel .console-panel"));
+            CatalogAdminPreview.CaptureV4("studio-styles-v4", page.Markup);
+        }
+        else
+        {
+            Assert.Equal("console-page studio-style-editor", page.Find("[data-shared-style-editor]").GetAttribute("class"));
+            Assert.Equal("Studio / Styles", page.Find(".console-page-heading .console-kicker").TextContent);
+            Assert.Equal("note", page.Find("article[data-shared-style-scope]").GetAttribute("role"));
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ConflictRetainsDirtyContentAndUsesReviewedVersionAndImpact(bool v4)
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = v4 });
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.JSInterop.SetupModule("./_content/Honua.Console.Shell/unsaved-changes-guard.js").Mode = JSRuntimeMode.Loose;
         var source = new Source();
@@ -32,10 +69,13 @@ public sealed class SharedStyleEditorRenderTests
         });
     }
 
-    [Fact]
-    public void AcceptedUpdateWithFailedReadbackRetainsCandidateAndNeverReplaysWrite()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AcceptedUpdateWithFailedReadbackRetainsCandidateAndNeverReplaysWrite(bool v4)
     {
         using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = v4 });
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.JSInterop.SetupModule("./_content/Honua.Console.Shell/unsaved-changes-guard.js").Mode = JSRuntimeMode.Loose;
         var source = new Source { WriteSucceeds = true, FailReadback = true };
