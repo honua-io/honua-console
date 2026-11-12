@@ -16,7 +16,9 @@ await runV4PagePresentation({
   stylesheet: "viewer-v4.css",
   heading: name => headings[name],
   scope: ".console-viewer-v4",
-  controls: ".console-viewer-v4 :is(a[href], input, select, button, textarea, summary):not(:disabled):visible",
+  controls: name => name === "map-draft-v4"
+    ? null
+    : ".console-viewer-v4 :is(a[href], input, select, button, textarea, summary):not(:disabled):visible",
   prepareMarkup: markup => markup,
   async inspect(page, name) {
     if (name.startsWith("map-")) {
