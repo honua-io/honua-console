@@ -160,10 +160,10 @@
             <button class="console-button" type="button" disabled="@_saving" @onclick="SaveAsync" data-rule-save>
                 @(_saving ? "Saving..." : "Save rule")
             </button>
-            <button class="console-button-secondary" type="button" disabled="@_testing" @onclick="TestAsync" data-rule-test>
+            <button class="@(V4Enabled ? "console-button console-button-secondary" : "console-button-secondary")" type="button" disabled="@_testing" @onclick="TestAsync" data-rule-test>
                 @(_testing ? "Testing..." : "Test rule")
             </button>
-            <button class="console-button-secondary" type="button"
+            <button class="@(V4Enabled ? "console-button console-button-secondary" : "console-button-secondary")" type="button"
                     disabled="@(_enabling || (!rule.Enabled && !CanEnable))"
                     @onclick="ToggleEnabledAsync" data-rule-enable>
                 @(_enabling ? "Updating..." : rule.Enabled ? "Disable rule" : "Enable tested rule")

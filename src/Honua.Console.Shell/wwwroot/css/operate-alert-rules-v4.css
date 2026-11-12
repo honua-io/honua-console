@@ -37,19 +37,6 @@
     margin-top: var(--space-5);
 }
 
-/* The test and enable actions carry only the secondary modifier; give them the shared button box. */
-.console-alert-rules-v4 button.console-button-secondary:not(.console-button) {
-    display: inline-flex;
-    align-items: center;
-    min-height: 38px;
-    padding: 0 13px;
-    border-width: 1px;
-    border-style: solid;
-    border-radius: 8px;
-    font: inherit;
-    font-weight: var(--weight-semibold);
-}
-
 @media (max-width: 600px) {
     .console-alert-rules-v4 .console-panel-heading,
     .console-alert-rules-v4 .console-action-row {
