@@ -1,13 +1,11 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text;
 using Honua.Console.Shell.Models;
-using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Tests;
 
-// Interactive decisions use the operator bearer, and a separation-of-duties conflict returns 403.
+// Approval sends only the review capability over the ambient human session; other decisions use the operator bearer.
 public sealed class ConsoleProposalsClientTests
 {
     [Theory]
@@ -140,12 +138,11 @@ public sealed class ConsoleProposalsClientTests
         Assert.EndsWith("/api/v1/admin/proposals/prop-1", request.RequestUri!.AbsolutePath, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task ApprovePostsApproveEndpoint_AndReturnsResolvedDetail()
-    {
-        const string body = """
+    private const string SubmittedDetail = """
         {
           "proposalId": "prop-1",
+          "version": 3,
+          "planHash": "plan-3",
           "kind": "Deploy",
           "status": "Submitted",
           "summary": "Upgrade server to v21",
@@ -161,133 +158,137 @@ public sealed class ConsoleProposalsClientTests
           "resolvedAt": "2026-06-28T10:10:00Z"
         }
         """;
-        var handler = new RecordingHandler(_ => Json(body));
+
+    private static string Review(string proposalId = "prop-1", long version = 3, string planHash = "plan-3") => $$"""
+        {
+          "proposal": { "proposalId": "{{proposalId}}", "version": {{version}}, "planHash": "{{planHash}}", "kind": "Deploy",
+            "status": "AwaitingApproval", "summary": "Upgrade", "createdAt": "2026-06-28T10:00:00Z", "updatedAt": "2026-06-28T10:05:00Z" },
+          "review": { "tenantId": null, "proposalId": "{{proposalId}}", "proposalVersion": {{version}}, "planHash": "{{planHash}}",
+            "expiresAt": "2026-06-28T10:15:00Z", "capability": "cap-for-{{proposalId}}-{{version}}" }
+        }
+        """;
+
+    private static RecordingHandler ReviewThenApprove(string review, Func<HttpRequestMessage, HttpResponseMessage>? approve = null) =>
+        new(request => request.RequestUri!.AbsolutePath.EndsWith("/approval-review", StringComparison.Ordinal)
+            ? Json(review)
+            : (approve ?? (_ => Json(SubmittedDetail)))(request));
+
+    [Fact]
+    public async Task ApproveOpensHumanReviewThenSendsItsCapability_AndReturnsResolvedDetail()
+    {
+        var handler = ReviewThenApprove(Review());
         var client = CreateClient(handler, sessions: BearerSessions());
 
-        var result = await client.ApproveAsync("prop-1");
+        var result = await client.ApproveAsync("prop-1", new ConsoleProposalReviewedPlan(3, "plan-3"));
 
         Assert.Equal(OperateSectionStatus.Allowed, result.Status);
         Assert.Equal(ConsoleProposalStatus.Submitted, result.Value!.Status);
         Assert.Equal("deploy-op-7", result.Value!.ExecutionOperationId);
+        Assert.Equal(3, result.Value.Version);
+        Assert.Equal("plan-3", result.Value.PlanHash);
 
-        var request = Assert.Single(handler.Requests);
-        Assert.Equal(HttpMethod.Post, request.Method);
-        Assert.EndsWith("/api/v1/admin/proposals/prop-1/approve", request.RequestUri!.AbsolutePath, StringComparison.Ordinal);
+        Assert.Collection(
+            handler.Requests,
+            review =>
+            {
+                Assert.Equal(HttpMethod.Get, review.Method);
+                Assert.EndsWith("/api/v1/admin/proposals/prop-1/approval-review", review.RequestUri!.AbsolutePath, StringComparison.Ordinal);
+                Assert.False(review.Headers.Contains("X-Honua-Approval-Capability"));
+            },
+            approve =>
+            {
+                Assert.Equal(HttpMethod.Post, approve.Method);
+                Assert.EndsWith("/api/v1/admin/proposals/prop-1/approve", approve.RequestUri!.AbsolutePath, StringComparison.Ordinal);
+                Assert.Equal("cap-for-prop-1-3", Assert.Single(approve.Headers.GetValues("X-Honua-Approval-Capability")));
+            });
     }
 
-    [Fact]
-    public async Task ApprovePrefersSignedInOperatorBearer_AndLeavesAuditIdentityToServerClaims()
+    // The server refuses approval over any explicit credential; only the ambient human session decides.
+    [Theory]
+    [InlineData(ConsoleServerCredentialMode.Interactive, ConsoleAccountAuthMode.AccountRbac)]
+    [InlineData(ConsoleServerCredentialMode.HeadlessService, ConsoleAccountAuthMode.ServiceApiKey)]
+    public async Task ApproveNeverSendsBearerOrAdminKey(ConsoleServerCredentialMode mode, ConsoleAccountAuthMode authMode)
     {
-        var handler = new RecordingHandler(_ => Json("""
-        {
-          "proposalId": "prop-1",
-          "kind": "Deploy",
-          "status": "Submitted",
-          "summary": "Upgrade server",
-          "diff": [],
-          "dryRun": [],
-          "riskLevel": "High",
-          "blockingReasons": [],
-          "warnings": [],
-          "createdAt": "2026-06-28T10:00:00Z",
-          "updatedAt": "2026-06-28T10:10:00Z"
-        }
-        """));
-        var sessions = new InMemoryConsoleAccountSessionStore();
-        await sessions.SaveSessionAsync(new ConsoleAccountSession
-        {
-            ProfileId = "live",
-            AccessToken = "operator-alice-bearer"
-        });
-        var client = CreateClient(handler, adminApiKey: "shared-admin-key", sessions: sessions);
+        var handler = ReviewThenApprove(Review());
+        var client = CreateClient(handler, adminApiKey: "shared-admin-key", sessions: BearerSessions(),
+            credentialMode: mode, accountAuthMode: authMode);
 
         _ = await client.ApproveAsync("prop-1");
 
-        var request = Assert.Single(handler.Requests);
-        Assert.Equal(new AuthenticationHeaderValue("Bearer", "operator-alice-bearer"), request.Headers.Authorization);
-        Assert.False(request.Headers.Contains("X-API-Key"));
-        Assert.DoesNotContain(request.Headers, header => header.Key.Contains("Actor", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public async Task ApproveInteractiveSentinelFailsClosedWithoutSharedAdminIdentity()
-    {
-        var handler = new RecordingHandler(_ => throw new InvalidOperationException("Request must not be sent."));
-        var sessions = new InMemoryConsoleAccountSessionStore();
-        await sessions.SaveSessionAsync(new ConsoleAccountSession
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.All(handler.Requests, request =>
         {
-            ProfileId = "live",
-            AccessToken = ConsoleAuthConstants.SessionSentinelPrefix + "live"
+            Assert.Null(request.Headers.Authorization);
+            Assert.False(request.Headers.Contains("X-API-Key"));
+            Assert.DoesNotContain(request.Headers, header => header.Key.Contains("Actor", StringComparison.OrdinalIgnoreCase));
         });
-        var client = CreateClient(handler, adminApiKey: "shared-admin-key", sessions: sessions);
+    }
+
+    [Theory]
+    [InlineData(4, "plan-3")]
+    [InlineData(3, "plan-other")]
+    public async Task ApproveRefusesWhenThePlanChangedSinceItWasReviewed(long serverVersion, string serverHash)
+    {
+        var handler = ReviewThenApprove(Review(version: serverVersion, planHash: serverHash),
+            _ => throw new InvalidOperationException("Approve must not be sent."));
+        var client = CreateClient(handler);
+
+        var result = await client.ApproveAsync("prop-1", new ConsoleProposalReviewedPlan(3, "plan-3"));
+
+        Assert.False(result.IsAllowed);
+        Assert.Contains("changed", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(handler.Requests);
+    }
+
+    [Theory]
+    [InlineData("""{ "proposal": null, "review": null }""")]
+    [InlineData("""{ "review": { "proposalId": "prop-1", "proposalVersion": 3, "capability": "" } }""")]
+    [InlineData("""{ "review": { "proposalId": "prop-other", "proposalVersion": 3, "capability": "cap" } }""")]
+    public async Task ApproveFailsClosedWithoutAMatchingCapability(string review)
+    {
+        var handler = ReviewThenApprove(review, _ => throw new InvalidOperationException("Approve must not be sent."));
+        var client = CreateClient(handler);
 
         var result = await client.ApproveAsync("prop-1");
 
-        Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
-        Assert.Contains("sign in", result.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Empty(handler.Requests);
+        Assert.Equal(OperateSectionStatus.Unavailable, result.Status);
+        Assert.Single(handler.Requests);
     }
 
-    [Fact]
-    public async Task ApproveExplicitHeadlessModeUsesAdminKeyOnlyWithoutInteractiveSession()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ApproveHumanSessionRefusalExplainsTheBrowserSessionRequirement(bool refuseReview)
     {
-        var handler = new RecordingHandler(_ => Json("""
-        {
-          "proposalId": "prop-1",
-          "kind": "Deploy",
-          "status": "Submitted",
-          "summary": "Upgrade server",
-          "diff": [],
-          "dryRun": [],
-          "riskLevel": "High",
-          "blockingReasons": [],
-          "warnings": [],
-          "createdAt": "2026-06-28T10:00:00Z",
-          "updatedAt": "2026-06-28T10:10:00Z"
-        }
-        """));
-        var client = CreateClient(
-            handler,
-            adminApiKey: "shared-admin-key",
-            credentialMode: ConsoleServerCredentialMode.HeadlessService,
-            accountAuthMode: ConsoleAccountAuthMode.ServiceApiKey);
-
-        var result = await client.ApproveAsync("prop-1");
-
-        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
-        var request = Assert.Single(handler.Requests);
-        Assert.True(request.Headers.TryGetValues("X-API-Key", out var values));
-        Assert.Equal("shared-admin-key", Assert.Single(values));
-        Assert.Null(request.Headers.Authorization);
-    }
-
-    [Fact]
-    public async Task ApproveForbiddenMapsToForbiddenResult_NotFabricatedSuccess()
-    {
-        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden));
+        var handler = new RecordingHandler(request =>
+            refuseReview || !request.RequestUri!.AbsolutePath.EndsWith("/approval-review", StringComparison.Ordinal)
+                ? new HttpResponseMessage(HttpStatusCode.Forbidden)
+                : Json(Review()));
         var client = CreateClient(handler, sessions: BearerSessions());
 
         var result = await client.ApproveAsync("prop-1");
 
         Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
         Assert.Null(result.Value);
-        Assert.Contains("approve", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("live signed-in browser session", result.Message, StringComparison.Ordinal);
+        Assert.Contains("'approve' grant", result.Message, StringComparison.Ordinal);
+        Assert.Equal(refuseReview ? 1 : 2, handler.Requests.Count);
     }
 
     [Fact]
     public async Task ApproveFailurePreservesProblemDetailAndComparableIdentifiers()
     {
-        var handler = new RecordingHandler(_ =>
+        var handler = ReviewThenApprove(Review("prop-identity-1"), _ =>
         {
-            var response = new HttpResponseMessage(HttpStatusCode.Forbidden)
+            var response = new HttpResponseMessage(HttpStatusCode.Conflict)
             {
-                ReasonPhrase = "Forbidden",
+                ReasonPhrase = "Conflict",
                 Content = new StringContent(
                     """
                     {
                       "title": "Approval denied",
-                      "detail": "The requester cannot approve their own proposal.",
-                      "code": "separation-of-duties",
+                      "detail": "The proposal is no longer awaiting approval.",
+                      "code": "proposal-resolved",
                       "proposalId": "prop-identity-1",
                       "operationId": "op-identity-1",
                       "correlationId": "corr-identity-1"
@@ -303,13 +304,38 @@ public sealed class ConsoleProposalsClientTests
 
         var result = await client.ApproveAsync("prop-identity-1");
 
-        Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
-        Assert.Equal("The requester cannot approve their own proposal.", result.Message);
-        Assert.Contains("code=separation-of-duties", result.Detail, StringComparison.Ordinal);
+        Assert.Equal(OperateSectionStatus.Unavailable, result.Status);
+        Assert.Equal("The proposal is no longer awaiting approval.", result.Message);
+        Assert.Contains("code=proposal-resolved", result.Detail, StringComparison.Ordinal);
         Assert.Contains("proposalId=prop-identity-1", result.Detail, StringComparison.Ordinal);
         Assert.Contains("operationId=op-identity-1", result.Detail, StringComparison.Ordinal);
         Assert.Contains("correlationId=corr-identity-1", result.Detail, StringComparison.Ordinal);
         Assert.Contains("requestId=request-identity-1", result.Detail, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(ConsoleServerCredentialMode.Interactive)]
+    [InlineData(ConsoleServerCredentialMode.HeadlessService)]
+    public async Task RejectUsesTheHostBrowserTransportWhenItOwnsCredentials(ConsoleServerCredentialMode mode)
+    {
+        var handler = new RecordingHandler(_ => Json(SubmittedDetail));
+        var profiles = new InMemoryConsoleEnvironmentProfileStore(
+            [Profile(ConsoleAccountAuthMode.ServiceApiKey)], activeProfileId: "live");
+        var client = new HttpConsoleProposalsClient(new HttpClient(handler), profiles, new InMemoryConsoleAccountSessionStore(),
+            adminApiKey: "shared-admin-key", operatorBearerProvider: new BrowserTransportBearers(), credentialMode: mode);
+
+        var result = await client.RejectAsync("prop-1", "Out of window");
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        var request = Assert.Single(handler.Requests);
+        Assert.Null(request.Headers.Authorization);
+        Assert.False(request.Headers.Contains("X-API-Key"));
+    }
+
+    private sealed class BrowserTransportBearers : IConsoleOperatorBearerProvider
+    {
+        public Task<ConsoleOperatorBearerResolution> ResolveAsync(ConsoleEnvironmentProfile profile, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ConsoleOperatorBearerResolution { HasInteractiveSession = true, UsesBrowserTransport = true });
     }
 
     [Fact]
@@ -392,18 +418,7 @@ public sealed class ConsoleProposalsClientTests
         ConsoleServerCredentialMode credentialMode = ConsoleServerCredentialMode.Interactive,
         ConsoleAccountAuthMode accountAuthMode = ConsoleAccountAuthMode.AccountRbac)
     {
-        var profile = new ConsoleEnvironmentProfile
-        {
-            Id = "live",
-            DisplayName = "Live Server Alpha",
-            ServerBaseUri = new Uri("https://server.example"),
-            UpdatedAt = DateTimeOffset.Parse("2026-06-28T10:00:00Z"),
-            Account = new ConsoleAccountBinding
-            {
-                AuthMode = accountAuthMode,
-                AccountId = "operator.live"
-            }
-        };
+        var profile = Profile(accountAuthMode);
         var profiles = new InMemoryConsoleEnvironmentProfileStore([profile], activeProfileId: profile.Id);
         return new HttpConsoleProposalsClient(
             new HttpClient(handler),
@@ -412,6 +427,19 @@ public sealed class ConsoleProposalsClientTests
             adminApiKey,
             credentialMode: credentialMode);
     }
+
+    private static ConsoleEnvironmentProfile Profile(ConsoleAccountAuthMode accountAuthMode = ConsoleAccountAuthMode.AccountRbac) => new()
+    {
+        Id = "live",
+        DisplayName = "Live Server Alpha",
+        ServerBaseUri = new Uri("https://server.example"),
+        UpdatedAt = DateTimeOffset.Parse("2026-06-28T10:00:00Z"),
+        Account = new ConsoleAccountBinding
+        {
+            AuthMode = accountAuthMode,
+            AccountId = "operator.live"
+        }
+    };
 
     private static IConsoleAccountSessionStore BearerSessions()
     {

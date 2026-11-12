@@ -38,6 +38,7 @@ builder.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConso
         ServerBaseUri = apiBaseUri
     }
 ]));
+builder.Services.AddSingleton<IConsoleOperatorBearerProvider>(new BrowserOperatorBearerProvider(session, apiBaseUri));
 builder.Services.AddHonuaConsoleShell(new HonuaConsoleShellOptions
 {
     ServerBaseUrl = apiBaseUri.AbsoluteUri,
