@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
@@ -135,5 +136,31 @@ internal static class PublishedLayerSeeder
         var connectionId = document.RootElement.GetProperty("data").GetProperty("connectionId").GetString();
         Assert.False(string.IsNullOrWhiteSpace(connectionId), $"connection create returned no id: {payload}");
         return connectionId!;
+    }
+
+    // Creates a named replica through the GeoServices FeatureServer createReplica verb (the durable-sync
+    // entry point, mirroring honua-server's ReplicaManagementEndpointTests seed).
+    public static async Task<ReplicaCreateResponses.Decision> CreateReplicaAsync(
+        TemporalReplicaFixture fixture, string serviceName, string replicaName)
+    {
+        using var http = fixture.CreateRawClient();
+        if (!string.IsNullOrWhiteSpace(fixture.AdminApiKey))
+        {
+            http.DefaultRequestHeaders.TryAddWithoutValidation("X-API-Key", fixture.AdminApiKey);
+        }
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            replicaName,
+            layers = "0",
+            syncModel = "perReplica",
+            f = "json"
+        });
+
+        using var response = await http.PostAsync(
+            $"/rest/services/{Uri.EscapeDataString(serviceName)}/FeatureServer/createReplica",
+            new StringContent(payload, Encoding.UTF8, "application/json"));
+        var content = await response.Content.ReadAsStringAsync();
+        return ReplicaCreateResponses.Classify((int)response.StatusCode, content);
     }
 }

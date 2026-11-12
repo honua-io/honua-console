@@ -1,5 +1,3 @@
-using System.Text;
-using System.Text.Json;
 using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
@@ -22,7 +20,7 @@ public sealed class ReplicaRoundTripTests
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var seeded = await PublishedLayerSeeder.SeedPublishedLayerAsync(_fixture, suffix);
         var replicaName = $"console-replica-{suffix}";
-        var created = await CreateReplicaAsync(seeded.ServiceName, replicaName);
+        var created = await PublishedLayerSeeder.CreateReplicaAsync(_fixture, seeded.ServiceName, replicaName);
         Skip.If(
             created.Skip,
             "The pinned honua-server image has no GeoServices createReplica verb or offline-sync entitlement; "
@@ -65,30 +63,5 @@ public sealed class ReplicaRoundTripTests
         Assert.Equal(sourceKey, consoleReplica.SourceId);
         // Pending-conflict counts come from the deferred conflict-review slice (#1287) — never fabricated.
         Assert.Equal(0, consoleReplica.PendingConflictCount);
-    }
-
-    // Creates a named replica through the GeoServices FeatureServer createReplica verb (the durable-sync
-    // entry point, mirroring honua-server's ReplicaManagementEndpointTests seed).
-    private async Task<ReplicaCreateResponses.Decision> CreateReplicaAsync(string serviceName, string replicaName)
-    {
-        using var http = _fixture.CreateRawClient();
-        if (!string.IsNullOrWhiteSpace(_fixture.AdminApiKey))
-        {
-            http.DefaultRequestHeaders.TryAddWithoutValidation("X-API-Key", _fixture.AdminApiKey);
-        }
-
-        var payload = JsonSerializer.Serialize(new
-        {
-            replicaName,
-            layers = "0",
-            syncModel = "perReplica",
-            f = "json"
-        });
-
-        using var response = await http.PostAsync(
-            $"/rest/services/{Uri.EscapeDataString(serviceName)}/FeatureServer/createReplica",
-            new StringContent(payload, Encoding.UTF8, "application/json"));
-        var content = await response.Content.ReadAsStringAsync();
-        return ReplicaCreateResponses.Classify((int)response.StatusCode, content);
     }
 }
