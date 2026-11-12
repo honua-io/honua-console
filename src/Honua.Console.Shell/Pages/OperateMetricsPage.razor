@@ -1,18 +1,29 @@
 @page "/operate/metrics"
 @using Honua.Console.Shell.Components
 @inject IOperateMetricsDataSource MetricsData
+@inject IServiceProvider Services
 
-<section class="console-page console-operate-page">
-    <div class="console-page-heading operate-heading">
-        <p class="console-kicker">Operator workflow</p>
-        <h1>Operate Metrics</h1>
-        <p>
-            Quantitative server performance and health at a glance: connection-pool and query-admission saturation,
-            cache hit ratio, memory and GC pressure, the upload queue, database resilience, and the comprehensive
-            health report. Bound to the connected honua-server production-monitoring API; each metric degrades on its
-            own and renders an honest missing-binding state when unavailable.
-        </p>
-    </div>
+<section class="console-page console-operate-page @(V4Enabled ? "console-monitoring-v4 console-metrics-v4" : null)">
+    @if (V4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/operate-monitoring-v4.css" />
+        <ConsolePageHeading Title="Server metrics">
+            <p>Connection pool, cache, memory, upload queue and database resilience from the connected server. Each metric shows its own state when it is unavailable.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading operate-heading">
+            <p class="console-kicker">Operator workflow</p>
+            <h1>Operate Metrics</h1>
+            <p>
+                Quantitative server performance and health at a glance: connection-pool and query-admission saturation,
+                cache hit ratio, memory and GC pressure, the upload queue, database resilience, and the comprehensive
+                health report. Bound to the connected honua-server production-monitoring API; each metric degrades on its
+                own and renders an honest missing-binding state when unavailable.
+            </p>
+        </div>
+    }
 
     <nav class="operate-section-nav" aria-label="Operate metrics sections">
         <a href="#connection-pool">Connection pool</a>
@@ -40,7 +51,7 @@
             <div class="operate-section-heading">
                 <div>
                     <p class="console-kicker">Database connection pool</p>
-                    <h2 id="connection-pool-heading">Connection Pool And Query Admission</h2>
+                    <h2 id="connection-pool-heading">@(V4Enabled ? "Connection pool and query admission" : "Connection Pool And Query Admission")</h2>
                 </div>
             </div>
 
@@ -120,7 +131,7 @@
             <div class="operate-section-heading">
                 <div>
                     <p class="console-kicker">Cache performance</p>
-                    <h2 id="cache-heading">Cache Hit Ratio</h2>
+                    <h2 id="cache-heading">@(V4Enabled ? "Cache hit ratio" : "Cache Hit Ratio")</h2>
                 </div>
             </div>
 
@@ -165,7 +176,7 @@
             <div class="operate-section-heading">
                 <div>
                     <p class="console-kicker">System resources</p>
-                    <h2 id="resources-heading">Memory And Garbage Collection</h2>
+                    <h2 id="resources-heading">@(V4Enabled ? "Memory and garbage collection" : "Memory And Garbage Collection")</h2>
                 </div>
             </div>
 
@@ -202,7 +213,7 @@
             <div class="operate-section-heading">
                 <div>
                     <p class="console-kicker">File upload queue</p>
-                    <h2 id="upload-queue-heading">Upload Queue Depth</h2>
+                    <h2 id="upload-queue-heading">@(V4Enabled ? "Upload queue depth" : "Upload Queue Depth")</h2>
                 </div>
             </div>
 
@@ -236,7 +247,7 @@
             <div class="operate-section-heading">
                 <div>
                     <p class="console-kicker">Database resilience</p>
-                    <h2 id="database-resilience-heading">Circuit Breaker And Error Rate</h2>
+                    <h2 id="database-resilience-heading">@(V4Enabled ? "Circuit breaker and error rate" : "Circuit Breaker And Error Rate")</h2>
                 </div>
             </div>
 
@@ -297,7 +308,7 @@
             <div class="operate-section-heading">
                 <div>
                     <p class="console-kicker">Comprehensive health</p>
-                    <h2 id="health-heading">Dependency Health Checks</h2>
+                    <h2 id="health-heading">@(V4Enabled ? "Dependency health checks" : "Dependency Health Checks")</h2>
                 </div>
             </div>
 
@@ -353,6 +364,8 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     private bool _loaded;
     private OperateMetricsSnapshot? _snapshot;
 
