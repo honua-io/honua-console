@@ -16,35 +16,35 @@
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have an unsaved Web Map import. Leave this page and discard it?" />
 
 <section class="console-page esri-import" data-esri-import="web-map">
-    <div class="console-detail-heading">
-        <div>
-            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import source content <span class="console-crumb-sep">/</span> Web Map</p>
-            <h1>Import source Web Map</h1>
-            <p class="console-muted">
-                Convert a source Web Map JSON into a Honua map package (<code>honua.map-package.v1</code>).
-                Layer-by-layer fidelity is shown before you commit.
-            </p>
-        </div>
+    <EsriImportHeading Title="Import source Web Map" Crumb="Web Map">
+        <Description>
+            Convert a source Web Map JSON into a Honua map package (<code>honua.map-package.v1</code>).
+            Layer-by-layer fidelity is shown before you commit.
+        </Description>
+        <Actions>
         <div class="console-button-row">
             <a class="console-button-ghost" href="@ConsoleNavigation.ToConsoleHref("/operate/import/esri")">Discard</a>
             <button type="button" class="console-button" @onclick="CreatePackage" disabled="@(_result is null)">Create map package →</button>
         </div>
-    </div>
+        </Actions>
+    </EsriImportHeading>
 
-    <EsriImportIntake Noun="Web Map"
-                      Kind="EsriContentKind.WebMap"
-                      Result="_result"
-                      Parse="ParseWebMap"
-                      OnParsed="OnParsed"
-                      Dirty="_dirty"
-                      SampleJson="@EsriImportSampleDocuments.WebMap"
-                      SampleFileName="@EsriImportSampleDocuments.WebMapFileName" />
+    <EsriImportPanel Title="Source Web Map" HeadingId="esri-intake-heading">
+        <EsriImportIntake Noun="Web Map"
+                          Kind="EsriContentKind.WebMap"
+                          Result="_result"
+                          Parse="ParseWebMap"
+                          OnParsed="OnParsed"
+                          Dirty="_dirty"
+                          SampleJson="@EsriImportSampleDocuments.WebMap"
+                          SampleFileName="@EsriImportSampleDocuments.WebMapFileName" />
+    </EsriImportPanel>
 
     @if (_result is { } result)
     {
         <div class="esri-import__split">
             <div class="esri-import__mapping">
-                <SourceTargetMappingTable Rows="result.Rows"
+                <SourceTargetMappingTable AsPanel="true" Rows="result.Rows"
                                           Heading="Layer mapping"
                                           Subhead="source operational layer → Honua map-package layer"
                                           SourceHeader="Source layer"
@@ -53,11 +53,11 @@
                                           CarryOver="result.CarryOver" />
             </div>
 
-            <aside class="esri-import__preview" data-esri-target-preview>
-                <div class="esri-import__preview-head">
-                    <span class="console-kicker">Target map package</span>
+            <EsriImportPreview Title="Target map package">
+                <Head>
                     <strong><code>@result.TargetSchema</code></strong>
-                </div>
+                </Head>
+                <ChildContent>
                 <MapPreview Mode="MapPreviewMode.Layer" Height="220" ShowPopup="false" />
                 <dl class="esri-import__facts">
                     <dt>Name</dt>
@@ -74,7 +74,8 @@
                     @result.ManualCount need@(result.ManualCount == 1 ? "s" : string.Empty) a resource binding ·
                     @result.DropCount dropped. You can finish in Studio after import.
                 </p>
-            </aside>
+                </ChildContent>
+            </EsriImportPreview>
         </div>
 
         @if (result.FirstUnbound is { } unbound)

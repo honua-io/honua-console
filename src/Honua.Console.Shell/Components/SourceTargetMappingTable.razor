@@ -1,11 +1,19 @@
 @namespace Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
+@inject IServiceProvider ServiceProvider
 
 @* Source-to-target mappings show conversion fidelity and data-binding blockers before content is created. *@
-<div class="esri-mapping" data-esri-mapping>
+<div class="esri-mapping @(V4Panel ? "console-panel" : null)" data-esri-mapping aria-labelledby="@(V4Panel ? PanelHeadingId : null)">
     <div class="esri-mapping__head">
         <div class="esri-mapping__heading">
-            <h3>@Heading</h3>
+            @if (V4Panel)
+            {
+                <h2 id="@PanelHeadingId">@Heading</h2>
+            }
+            else
+            {
+                <h3>@Heading</h3>
+            }
             @if (!string.IsNullOrWhiteSpace(Subhead))
             {
                 <span class="console-muted esri-mapping__subhead">@Subhead</span>
@@ -105,6 +113,13 @@
 </div>
 
 @code {
+    private const string PanelHeadingId = "esri-mapping-heading";
+
+    /// <summary>The mapping is a top-level section of its page, so in v4 it renders as its own panel with an h2.</summary>
+    [Parameter] public bool AsPanel { get; set; }
+
+    private bool V4Panel => AsPanel && ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+
     private static readonly IReadOnlyList<EsriMappingRow> NoRows = [];
     private static readonly IReadOnlyList<EsriCarryOver> NoCarryOver = [];
 

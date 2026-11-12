@@ -13,35 +13,35 @@
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have an unsaved StoryMap import. Leave this page and discard it?" />
 
 <section class="console-page esri-import" data-esri-import="storymap">
-    <div class="console-detail-heading">
-        <div>
-            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import source content <span class="console-crumb-sep">/</span> StoryMap / Hub</p>
-            <h1>Import StoryMap / Hub site</h1>
-            <p class="console-muted">
-                Convert a source story map or Hub / Open-Data site into Console content (a report + linked
-                maps). P4 · lowest priority of the four.
-            </p>
-        </div>
+    <EsriImportHeading Title="Import StoryMap / Hub site" Crumb="StoryMap / Hub">
+        <Description>
+            Convert a source story map or Hub / Open-Data site into Console content (a report + linked
+            maps). P4 · lowest priority of the four.
+        </Description>
+        <Actions>
         <div class="console-button-row">
             <a class="console-button-ghost" href="@ConsoleNavigation.ToConsoleHref("/operate/import/esri")">Discard</a>
             <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/operate/publishing")">Create content →</a>
         </div>
-    </div>
+        </Actions>
+    </EsriImportHeading>
 
-    <EsriImportIntake Noun="StoryMap"
-                      Kind="EsriContentKind.StoryMap"
-                      Result="_result"
-                      Parse="ParseStoryMap"
-                      OnParsed="OnParsed"
-                      Dirty="_dirty"
-                      SampleJson="@EsriImportSampleDocuments.StoryMap"
-                      SampleFileName="@EsriImportSampleDocuments.StoryMapFileName" />
+    <EsriImportPanel Title="Source StoryMap" HeadingId="esri-intake-heading">
+        <EsriImportIntake Noun="StoryMap"
+                          Kind="EsriContentKind.StoryMap"
+                          Result="_result"
+                          Parse="ParseStoryMap"
+                          OnParsed="OnParsed"
+                          Dirty="_dirty"
+                          SampleJson="@EsriImportSampleDocuments.StoryMap"
+                          SampleFileName="@EsriImportSampleDocuments.StoryMapFileName" />
+    </EsriImportPanel>
 
     @if (_result is { } result)
     {
         <div class="esri-import__split">
             <div class="esri-import__mapping">
-                <SourceTargetMappingTable Rows="result.Rows"
+                <SourceTargetMappingTable AsPanel="true" Rows="result.Rows"
                                           Heading="Section → content mapping"
                                           Subhead="StoryMap section → Console report block"
                                           SourceHeader="Section"
@@ -49,10 +49,7 @@
                                           TargetHeader="→ Console block" />
             </div>
 
-            <aside class="esri-import__preview" data-esri-target-preview>
-                <div class="esri-import__preview-head">
-                    <span class="console-kicker">Target content preview</span>
-                </div>
+            <EsriImportPreview Title="Target content preview">
                 <div class="esri-story-preview" aria-label="Report content preview">
                     <div class="esri-story-preview__hero">
                         <span class="esri-story-preview__hero-title">@result.SuggestedName</span>
@@ -75,7 +72,7 @@
                     Scroll-driven sidecar + swipe degrade to stepped / static.
                     @result.DropCount external embed@(result.DropCount == 1 ? string.Empty : "s") dropped (link kept in notes).
                 </p>
-            </aside>
+            </EsriImportPreview>
         </div>
     }
     else

@@ -1,0 +1,20 @@
+@namespace Honua.Console.Shell.Components
+@inject IServiceProvider ServiceProvider
+
+@* A source-content import section: a titled v4 panel, or the bare content when v4 is off. *@
+@if (ServiceProvider.GetService<Models.ConsoleV4Options>()?.Enabled == true)
+{
+    <ConsolePanel Title="@Title" HeadingId="@HeadingId">@ChildContent</ConsolePanel>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string HeadingId { get; set; } = string.Empty;
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}
