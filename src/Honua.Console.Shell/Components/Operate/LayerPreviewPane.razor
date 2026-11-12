@@ -53,7 +53,7 @@
     else
     {
         <p class="console-muted" data-preview-empty>
-            Pick a dataset&rsquo;s layer in the tree to preview its served endpoint here.
+            @EmptyText
         </p>
     }
 </aside>
@@ -71,6 +71,9 @@
     /// <summary>The other publications on the same resource, for the "open in" protocol picker.</summary>
     [Parameter] public IReadOnlyList<PreviewSelection> Protocols { get; set; } = [];
 
+    // Shown when nothing previewable is selected; each page names where its layers are picked.
+    [Parameter] public string EmptyText { get; set; } = "Pick a dataset’s layer in the tree to preview its served endpoint here.";
+
     /// <summary>Raised when the user switches which protocol to preview the selected resource in.</summary>
     [Parameter] public EventCallback<string> OnProtocolSelected { get; set; }
 
@@ -82,11 +85,23 @@
         }
     }
 
+    internal static Task SelectAsync(
+        EventCallback<PreviewSelection> onSelected, ResourceTreeNode node, PublicationTreeNode publication) =>
+        onSelected.HasDelegate && PreviewSelection.For(node, publication) is { } selection
+            ? onSelected.InvokeAsync(selection)
+            : Task.CompletedTask;
+
     /// <summary>A previewable publication: the resource it belongs to, the protocol, and the served route.</summary>
     public sealed record PreviewSelection(
         string ResourceId,
         string ResourceName,
         string ProtocolId,
         string ProtocolLabel,
-        string Route);
+        string Route)
+    {
+        public static PreviewSelection? For(ResourceTreeNode node, PublicationTreeNode publication) =>
+            publication.Route is { } route
+                ? new(node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, route)
+                : null;
+    }
 }

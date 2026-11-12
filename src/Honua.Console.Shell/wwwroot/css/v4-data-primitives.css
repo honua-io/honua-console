@@ -36,7 +36,7 @@
     flex-wrap: wrap;
 }
 
-.console-shell[data-console-v4="true"] :is(.operate-data-page, .operate-version-conflicts, .operate-temporal, [data-resource-detail]) :is(input[type="checkbox"], input[type="radio"]):not([role="switch"]) {
+.console-shell[data-console-v4="true"] :is(.operate-data-page, .operate-version-conflicts, .operate-temporal, [data-resource-detail], .data-publish-flow) :is(input[type="checkbox"], input[type="radio"]):not([role="switch"]) {
     width: 24px;
     height: 24px;
     flex-shrink: 0;
@@ -153,4 +153,85 @@
 .console-shell[data-console-v4="true"] .operate-import-page .console-tree-toggle {
     min-width: 24px;
     min-height: 24px;
+}
+
+/* v4 Layer Preview catalog (mockup 08): toolbar, results status and per-row format links. */
+.console-shell[data-console-v4="true"] .layer-preview-catalog__toolbar,
+.console-shell[data-console-v4="true"] .layer-preview-catalog__formats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__toolbar {
+    justify-content: flex-end;
+    margin-bottom: var(--space-3);
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__search {
+    flex: 1 1 16rem;
+    max-width: 20rem;
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__search input {
+    width: 100%;
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__status {
+    margin: 0 0 var(--space-3);
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__table td a:not(.console-button),
+.console-shell[data-console-v4="true"] .layer-preview-catalog__map {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--c-accent);
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__name {
+    overflow-wrap: anywhere;
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__table tr[aria-current="true"] {
+    background: var(--c-surface-2);
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__table select {
+    width: 100%;
+    max-width: 14rem;
+}
+
+.console-shell[data-console-v4="true"] .operate-data-page > .layer-preview-pane {
+    margin-top: var(--space-4);
+}
+
+/* Links inside Add data sentences keep a 24px target without leaving the line. */
+.console-shell[data-console-v4="true"] .data-publish-flow p a {
+    padding-block: 2px;
+}
+
+/* Completed Add data steps use the v4 success ink so their labels keep 4.5:1 contrast. */
+.console-shell[data-console-v4="true"] .data-publish-flow__rail-step--done {
+    color: var(--c-ok-ink);
+}
+
+/* Add data Back buttons and the layer pager read as secondary actions in v4 without changing their markup. */
+.console-shell[data-console-v4="true"] .data-publish-flow .console-action-row > button:not(.console-button),
+.console-shell[data-console-v4="true"] .layer-preview-catalog .catalog-admin-paging > button {
+    min-height: 36px;
+    padding: 0 14px;
+    border: 1px solid var(--c-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--c-surface);
+    color: var(--c-text);
+    font: inherit;
+    cursor: pointer;
 }
