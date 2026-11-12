@@ -63,10 +63,12 @@ test("the policy never admits inline script or plugins", () => {
 });
 
 test("index.html has no inline script or inline event handler", () => {
-  for (const [tag] of indexHtml.matchAll(/<script\b[^>]*>/g)) {
-    assert.match(tag, /\bsrc="/, `inline script is blocked by script-src: ${tag}`);
+  const html = indexHtml.toLowerCase();
+  const openings = html.split("<script").slice(1).map((rest) => rest.slice(0, rest.indexOf(">")));
+  for (const attributes of openings) {
+    assert.match(attributes, /\ssrc\s*=/, `inline script is blocked by script-src: <script${attributes}>`);
   }
-  assert.doesNotMatch(indexHtml, /\son[a-z]+="/, "inline event handlers are blocked by script-src");
+  assert.doesNotMatch(html, /\son[a-z]+\s*=/, "inline event handlers are blocked by script-src");
   assert.doesNotMatch(indexHtml, /href="javascript:/i);
 });
 
