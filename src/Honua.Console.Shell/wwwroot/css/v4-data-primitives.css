@@ -201,3 +201,7 @@
 .console-shell[data-console-v4="true"] :is(.esri-intake__bar, .esri-intake__modes) {
     flex-wrap: wrap;
 }
+
+.console-shell[data-console-v4="true"] .esri-mapping.console-panel .esri-mapping__head {
+    padding: 0 0 var(--space-3);
+}
