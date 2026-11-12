@@ -45,7 +45,7 @@ public sealed class OperateTemporalLiveServerTests
 
         var source = Assert.Single((await client.GetWorkspaceAsync()).Sources);
         var checkpoints = await client.GetCheckpointsAsync(sourceKey);
-        if (serverCapability!.SupportsHistory)
+        if (serverCapability!.SupportsHistory || serverCapability.SupportsAsOf)
         {
             Assert.NotEqual(TemporalMode.None, source.Mode);
             Assert.Null(checkpoints.BindingState);
@@ -67,7 +67,10 @@ public sealed class OperateTemporalLiveServerTests
             Assert.Equal(TemporalMode.None, source.Mode);
             Assert.Empty(checkpoints.Checkpoints);
             Assert.NotNull(checkpoints.BindingState);
-            Assert.Contains(nameof(TemporalMode.None), page.Markup, StringComparison.Ordinal);
+            page.FindAll("button").First(b => b.TextContent.Trim() == "Inspect").Click();
+            page.WaitForAssertion(
+                () => Assert.Contains("This source has no temporal history", page.Markup, StringComparison.Ordinal),
+                TimeSpan.FromSeconds(10));
         }
     }
 
@@ -155,11 +158,15 @@ public sealed class OperateTemporalLiveServerTests
         Assert.True(response.IsSuccessStatusCode, $"conflict list returned {(int)response.StatusCode}: {body}");
 
         using var document = JsonDocument.Parse(body);
-        var root = document.RootElement.TryGetProperty("data", out var data) ? data : document.RootElement;
-        if (!root.TryGetProperty("conflicts", out var conflicts) || conflicts.ValueKind != JsonValueKind.Array)
+        var root = document.RootElement;
+        if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object)
         {
-            return [];
+            root = data;
         }
+
+        Assert.True(
+            root.TryGetProperty("conflicts", out var conflicts) && conflicts.ValueKind == JsonValueKind.Array,
+            $"conflict list has no conflicts array: {body}");
 
         return conflicts.EnumerateArray()
             .Select(c => c.GetProperty("conflictId").GetString()!)
