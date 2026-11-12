@@ -9,6 +9,14 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
+test("static bundle supersedes stale pull-request heads but never cancels release runs", async () => {
+  const workflow = await readFile(join(root, ".github/workflows/static-bundle.yml"), "utf8");
+  assert.match(
+    workflow,
+    /concurrency:\n(?:  #.*\n)*  group: \$\{\{ github\.workflow \}\}-\$\{\{ github\.event_name == 'pull_request' && github\.event\.pull_request\.number \|\| github\.run_id \}\}\n  cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}\n/,
+  );
+});
+
 test("static release validates locked assets before packaging and limits release writes", async () => {
   const workflow = await readFile(join(root, ".github/workflows/static-bundle.yml"), "utf8");
   assert.match(workflow, /permissions:\n  contents: read/);
