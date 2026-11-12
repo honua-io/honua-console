@@ -3,9 +3,10 @@
 @inject IConsoleCatalogReadContextResolver ReadContexts
 @inject NavigationManager Navigation
 @inject IConsoleCapabilityManifest Capabilities
+@inject IServiceProvider ServiceProvider
 
 <CatalogAvailabilityGate>
-<section class="console-page console-viewer-page">
+<section class="@(V4Enabled ? "console-page console-viewer-page console-viewer-v4" : "console-page console-viewer-page")">
     @if (!_accessResolved)
     {
         <ConsoleStateView Kind="loading" Kicker="Loading" Title="Checking map access" Message="The workspace session is being checked before draft map hydration starts." />
@@ -29,28 +30,27 @@
     else
     {
         var map = _result.MapPackage;
-        <div class="console-page-heading console-detail-heading">
-            <div>
-                <p class="console-kicker">Draft map</p>
-                <h1>@map.Summary.Title</h1>
-                <p>@map.Summary.Summary</p>
+        @if (V4Enabled)
+        {
+            <ConsolePageHeading Title="@map.Summary.Title"><p>@map.Summary.Summary</p></ConsolePageHeading>
+        }
+        else
+        {
+            <div class="console-page-heading console-detail-heading">
+                <div>
+                    <p class="console-kicker">Draft map</p>
+                    <h1>@map.Summary.Title</h1>
+                    <p>@map.Summary.Summary</p>
+                </div>
             </div>
-        </div>
+        }
 
-        <div class="console-map-surface" aria-label="Draft map preview">
+        <div class="console-map-surface" role="@(V4Enabled ? "region" : null)" aria-label="Draft map preview">
             <div class="console-map-canvas">
                 <span>@map.Summary.Title</span>
                 <small>Unsaved draft · Extent @map.InitialExtent</small>
             </div>
-            <aside class="console-map-panel" aria-label="Draft map layers">
-                <h2>Layers</h2>
-                <ul>
-                    @foreach (var layer in map.Layers)
-                    {
-                        <li>@layer</li>
-                    }
-                </ul>
-            </aside>
+            <ConsoleMapLayersPanel Layers="@map.Layers" Label="Draft map layers" HeadingId="draft-map-layers-heading" />
         </div>
     }
 </section>
@@ -61,6 +61,8 @@
     private MapPackageReadResult? _result;
     private bool _accessResolved;
     private bool _requiresAuthentication;
+
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
 
     protected override async Task OnParametersSetAsync()
     {
