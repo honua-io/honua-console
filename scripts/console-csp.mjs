@@ -54,7 +54,11 @@ export async function verifyServedHeaders(origin, { fetchImpl = globalThis.fetch
   const problems = [];
   for (const [form, path] of Object.entries(SAMPLE_PATHS)) {
     const url = new URL(`${base}${path}`, origin);
-    const response = await fetchImpl(url, { headers: { Accept: "text/html" } });
+    const response = await fetchImpl(url, { headers: { Accept: "text/html" }, redirect: "manual" });
+    if (response.status !== 200) {
+      problems.push(`${url}: returned HTTP ${response.status}, expected 200 from the Console fallback`);
+      continue;
+    }
     const served = response.headers.get("content-security-policy");
     if (served !== headerPolicy(form)) problems.push(`${url}: served ${served ?? "no"} CSP, expected the ${form} form`);
   }
@@ -64,6 +68,7 @@ export async function verifyServedHeaders(origin, { fetchImpl = globalThis.fetch
 async function main([command, argument]) {
   const [verb, form] = command?.split("=") ?? [];
   if (verb === "--header") {
+    if (argument !== undefined) throw new Error(`--header takes no argument; use --header=${argument}`);
     process.stdout.write(`${headerPolicy(form ?? "app")}\n`);
     return 0;
   }

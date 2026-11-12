@@ -1,6 +1,8 @@
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { createServer } from "node:http";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 import {
@@ -14,6 +16,7 @@ import {
 } from "../console-csp.mjs";
 
 const indexHtml = readFileSync(defaultIndexPath, "utf8");
+const cspScript = fileURLToPath(new URL("../console-csp.mjs", import.meta.url));
 const directive = (policy, name) => policy.split("; ").find((entry) => entry.startsWith(`${name} `));
 
 test("index.html carries the meta policy generated from config/console-csp.json", () => {
@@ -69,9 +72,10 @@ test("index.html has no inline script or inline event handler", () => {
 
 test("--verify-origin compares the served app and embed headers with the source", async () => {
   let embedPolicy = headerPolicy("embed");
+  let embedStatus = 200;
   const server = createServer((request, response) => {
     const embed = request.url.startsWith("/console/embed/");
-    response.writeHead(200, { "Content-Security-Policy": embed ? embedPolicy : headerPolicy("app") }).end();
+    response.writeHead(embed ? embedStatus : 200, { "Content-Security-Policy": embed ? embedPolicy : headerPolicy("app") }).end();
   });
   await new Promise((listening) => server.listen(0, "127.0.0.1", listening));
   try {
@@ -81,7 +85,20 @@ test("--verify-origin compares the served app and embed headers with the source"
     const problems = await verifyServedHeaders(origin);
     assert.equal(problems.length, 1);
     assert.match(problems[0], /embed\/maps\/csp-check: .*expected the embed form/);
+    embedPolicy = headerPolicy("embed");
+    for (const status of [302, 404]) {
+      embedStatus = status;
+      const refused = await verifyServedHeaders(origin);
+      assert.equal(refused.length, 1);
+      assert.match(refused[0], new RegExp(`returned HTTP ${status}`));
+    }
   } finally {
     server.close();
   }
+});
+
+test("--header rejects a space-separated form name instead of printing the app form", () => {
+  const result = spawnSync(process.execPath, [cspScript, "--header", "embed"], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /--header=embed/);
 });
