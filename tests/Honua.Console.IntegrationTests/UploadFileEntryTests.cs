@@ -1,6 +1,7 @@
 using Bunit;
 using Honua.Console.Shell;
 using Honua.Console.Shell.Components.Operate;
+using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
@@ -34,6 +35,34 @@ public sealed class UploadFileEntryTests
         Assert.Equal(experimental ? 1 : 0, page.FindAll("[data-dataset-import-panel]").Count);
         if (!experimental)
             Assert.Equal("/operate/resources/import", page.Find("a").GetAttribute("href"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TaskImportUsesV4HeadingAndPanelBehindTheFlag(bool experimental)
+    {
+        using var context = CreateContext(experimental);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        context.Services.AddSingleton<NavigationManager>(new MountedNavigationManager("/console/"));
+        var page = context.Render<DatasetImportTaskPage>();
+        var heading = page.Find(".console-page-heading-v4 h1").TextContent;
+        if (experimental)
+        {
+            Assert.Equal("Import dataset", heading);
+            var panel = page.Find("[data-dataset-import-panel] > section.console-panel[aria-labelledby='dataset-import-file-heading']");
+            Assert.Equal("Original file", panel.QuerySelector("h2")!.TextContent);
+            foreach (var hook in new[] { "status", "destination", "source", "file", "progress", "check", "clear", "transfer", "submit", "recover", "pause", "cancel" })
+                Assert.Single(panel.QuerySelectorAll($"[data-import-{hook}]"));
+            CatalogAdminPreview.Capture("data-import-task", page.Markup);
+        }
+        else
+        {
+            Assert.Equal("Import a file", heading);
+            Assert.Equal("/console/operate/resources/import", page.Find(".console-page-heading-actions a").GetAttribute("href"));
+            Assert.Empty(page.FindAll("[data-dataset-import-panel]"));
+            CatalogAdminPreview.Capture("data-import-task-off", page.Markup);
+        }
     }
 
     [Fact]
