@@ -199,7 +199,7 @@ public sealed class OperateLayerFieldAliasHiddenTests
     private static FixedServicesDataSource LayerData(string resourceId, int layerId) =>
         new(new OperateServiceDetail(
             "parcels-fs", "Parcels FeatureServer", "FeatureServer", "Running", "honua-server",
-            [new OperateServiceLayerProjection(layerId, "parcels", "Polygon", resourceId, "conn-1.parcels")],
+            [new OperateServiceLayer(layerId, "parcels", "Polygon", resourceId, "conn-1.parcels")],
             [],
             []));
 }

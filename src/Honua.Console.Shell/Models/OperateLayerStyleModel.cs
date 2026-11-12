@@ -16,7 +16,7 @@ public sealed record OperateLayerStyleBindingState(string Surface, string State,
 
 public sealed record OperateLayerStyleOverrideView(
     string ResourceId,
-    IReadOnlyList<OperateLayerSlotStyleOverride> Slots,
+    IReadOnlyList<OperateLayerStyleOverride> Layers,
     OperateLayerStyleBindingState? BindingState = null)
 {
     public int? LayerId { get; init; }
@@ -24,8 +24,8 @@ public sealed record OperateLayerStyleOverrideView(
 }
 
 // PopupInfoJson is the GeoServices popupInfo document and DrawingInfoJson is the drawingInfo renderer. Empty means nothing is stored.
-public sealed record OperateLayerSlotStyleOverride(
-    string SlotId,
+public sealed record OperateLayerStyleOverride(
+    string LayerId,
     string ServiceName,
     string ServiceDisplayName,
     string? StyleIdOverride = null,
@@ -34,9 +34,9 @@ public sealed record OperateLayerSlotStyleOverride(
     string? DrawingInfoJson = null);
 
 // A blank PopupInfoJson or DrawingInfoJson clears the stored document. StyleIdOverride and PopupTemplateOverride are not sent to the server.
-public sealed record OperateLayerSlotStyleOverrideEdit(
+public sealed record OperateLayerStyleOverrideEdit(
     string ResourceId,
-    string SlotId,
+    string LayerId,
     string? StyleIdOverride = null,
     string? PopupTemplateOverride = null,
     string? PopupInfoJson = null,

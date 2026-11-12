@@ -34,12 +34,12 @@ public sealed class OperateLayerStyleOverrideServerTests
         Assert.Null(view.BindingState);
         Assert.Equal(1, view.LayerId);
         Assert.Equal(ResourceId, view.CanonicalResourceId);
-        var slot = Assert.Single(view.Slots);
-        Assert.Equal("1", slot.SlotId);
-        Assert.Equal("E2E Source", slot.ServiceDisplayName);
-        Assert.Contains("\"title\"", slot.PopupInfoJson!, StringComparison.Ordinal);
-        Assert.Contains("\"fieldName\": \"name\"", slot.PopupInfoJson!, StringComparison.Ordinal); // pretty-printed
-        Assert.Contains("\"uniqueValue\"", slot.DrawingInfoJson!, StringComparison.Ordinal);
+        var layer = Assert.Single(view.Layers);
+        Assert.Equal("1", layer.LayerId);
+        Assert.Equal("E2E Source", layer.ServiceDisplayName);
+        Assert.Contains("\"title\"", layer.PopupInfoJson!, StringComparison.Ordinal);
+        Assert.Contains("\"fieldName\": \"name\"", layer.PopupInfoJson!, StringComparison.Ordinal); // pretty-printed
+        Assert.Contains("\"uniqueValue\"", layer.DrawingInfoJson!, StringComparison.Ordinal);
 
         Assert.Contains(requests, r => r.Method == HttpMethod.Get && r.Path == "/api/v1/admin/metadata/layers/1/popup-info");
         Assert.Contains(requests, r => r.Method == HttpMethod.Get && r.Path == "/api/v1/admin/metadata/layers/1/drawing-info");
@@ -58,9 +58,9 @@ public sealed class OperateLayerStyleOverrideServerTests
                 return OkDocument(1, null);
             }));
 
-        var edit = new OperateLayerSlotStyleOverrideEdit(
+        var edit = new OperateLayerStyleOverrideEdit(
             ResourceId,
-            SlotId: "1",
+            LayerId: "1",
             PopupInfoJson: """{"title":"{name}","fieldInfos":[{"fieldName":"name","label":"Name","visible":true}]}""",
             DrawingInfoJson: """{"renderer":{"type":"uniqueValue","field1":"name","uniqueValueInfos":[{"value":"a","label":"A"}]}}""");
 
@@ -90,8 +90,8 @@ public sealed class OperateLayerStyleOverrideServerTests
                 return OkDocument(1, null);
             }));
 
-        var result = await source.SaveOverrideAsync(new OperateLayerSlotStyleOverrideEdit(
-            ResourceId, SlotId: "1", PopupInfoJson: "  ", DrawingInfoJson: string.Empty));
+        var result = await source.SaveOverrideAsync(new OperateLayerStyleOverrideEdit(
+            ResourceId, LayerId: "1", PopupInfoJson: "  ", DrawingInfoJson: string.Empty));
 
         Assert.True(result.Succeeded);
         Assert.Equal("null", bodies["/api/v1/admin/metadata/layers/1/popup-info"]);
@@ -110,8 +110,8 @@ public sealed class OperateLayerStyleOverrideServerTests
                 return OkDocument(1, null);
             }));
 
-        var result = await source.SaveOverrideAsync(new OperateLayerSlotStyleOverrideEdit(
-            ResourceId, SlotId: "1", PopupInfoJson: "{ not json", DrawingInfoJson: string.Empty));
+        var result = await source.SaveOverrideAsync(new OperateLayerStyleOverrideEdit(
+            ResourceId, LayerId: "1", PopupInfoJson: "{ not json", DrawingInfoJson: string.Empty));
 
         Assert.False(called);
         Assert.False(result.Succeeded);
@@ -128,7 +128,7 @@ public sealed class OperateLayerStyleOverrideServerTests
 
         var view = await source.GetOverridesAsync(ResourceId);
 
-        Assert.Empty(view.Slots);
+        Assert.Empty(view.Layers);
         Assert.Null(view.LayerId);
         Assert.Null(view.CanonicalResourceId);
         Assert.NotNull(view.BindingState);
@@ -144,7 +144,7 @@ public sealed class OperateLayerStyleOverrideServerTests
 
         var view = await source.GetOverridesAsync(ResourceId);
 
-        Assert.Empty(view.Slots);
+        Assert.Empty(view.Layers);
         Assert.Equal(OperateLayerStyleBindingState.Forbidden, view.BindingState!.State);
     }
 
@@ -181,7 +181,7 @@ public sealed class OperateLayerStyleOverrideServerTests
     {
         public Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default)
         {
-            var layer = new OperateServiceLayerProjection(
+            var layer = new OperateServiceLayer(
                 LayerId: layerId,
                 Name: layerName,
                 Geometry: "Polygon",
@@ -195,7 +195,7 @@ public sealed class OperateLayerStyleOverrideServerTests
                 MetadataOwnership: "server",
                 Layers: [layer],
                 RuntimeSettings: [],
-                PublicationSlots: []);
+                Endpoints: []);
             return Task.FromResult(new OperateServicesView([service], []));
         }
 

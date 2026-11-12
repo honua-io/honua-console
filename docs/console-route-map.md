@@ -787,10 +787,10 @@ draft hydration remains authenticated-only.
 `/maps/:mapId` is anonymous-capable for `ShareAccess.sharing = public`
 and for `sharing = public-link` when the URL carries the matching
 `?token=<value>` query that `honua-portal:src/share/snippet.ts:27` emits
-(see §2.5). Authenticated reads use the server-owned saved-map/package
+(see §2.5). Authenticated reads use the server-owned saved-map
 read path described in §4.2 and §4.6; `item-role` gates only post-load
 actions. The `forbidden` surface renders for authenticated denials; the
-`unsupported-package` surface renders when the saved-map package is newer
+`unsupported-package` surface renders when the saved map is newer
 than the Console runtime; the `unavailable` surface (§7) renders for
 anonymous denials so upgrade copy is not leaked to anonymous users
 (§13 Q5).
@@ -987,16 +987,16 @@ read contract.
 | Forbidden | `ConsoleStateView Kind="forbidden"` | authenticated gate denial or authenticated item/package read denial (scope, item-role action, share-tier, edition, entitlement, server read) | failed authenticated gate token from §4.6 or server/SDK unauthorized read result; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`); anonymous denials on anonymous-capable Share/Public/Catalog/Maps/Embed routes use `Kind="unavailable"` |
 | Missing item | `ConsoleStateView Kind="missing"` | item id resolved to not found, or an anonymous open-data item URL resolves to an item that fails `open-data` eligibility | item-kind hint: map, service, layer, app, dashboard, report; open-data failures use generic public-not-found copy |
 | Unsupported service metadata | `ConsoleStateView Kind="unsupported-service"` | service metadata schema not yet supported by Console (e.g. pre-Metadata v2) | shared between `/catalog/:idOrSlug`, `/maps/new?from=:itemId`, and Studio "open from catalog" |
-| Unsupported package binding | `ConsoleStateView Kind="unsupported-package"` | generated-app, generated Studio package, or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/map`, `/maps/:mapId`, and `/embed/maps/:mapId` (`/studio/app`, `/studio/form`, `/studio/query`, `/studio/analysis`, `/studio/dashboard`, and `/studio/report` are server-bound and render their own missing-binding / capability-state surface instead) |
+| Unsupported content version | `ConsoleStateView Kind="unsupported-package"` | generated app, generated Studio content, or saved map newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/map`, `/maps/:mapId`, and `/embed/maps/:mapId` (`/studio/app`, `/studio/form`, `/studio/query`, `/studio/analysis`, `/studio/dashboard`, and `/studio/report` are server-bound and render their own missing-binding / capability-state surface instead) |
 | Empty state | `ConsoleStateView Kind="empty"` | list/query returned zero rows | per-area copy + CTA; areas: catalog, studio, share, operate, workspace, groups |
 | Loading | `ConsoleStateView Kind="loading"` | route mounted, content pending | never blocks shell paint |
 | Errored session | `<SessionErrorView retry>` | session is `ErroredSession` | distinct from unauthenticated; renders diagnostic id |
 | Unavailable (anonymous) | `ConsoleStateView Kind="unavailable"` | anonymous read or authorization denial on `/share/*`, `/public*`, `/catalog/:idOrSlug`, `/maps/:mapId`, or `/embed/maps/:mapId`, including private/org/group content, protected content, missing or invalid public-link tokens, failed embed authorization, and entitlement/license denials before authentication | does not reveal protected titles, token validity, or upgrade copy to anonymous users (§13 Q5) |
 
 The catalog/share route-slice client returns `CatalogItemReadResult` or
-`MapPackageReadResult` with `Status` values `Allowed`, `Missing`,
+`MapReadResult` with `Status` values `Allowed`, `Missing`,
 `Forbidden`, `Unavailable`, `UnsupportedServiceMetadata`, and
-`UnsupportedPackageBinding`. `AnonymousRead` controls whether Studio,
+`UnsupportedContentBinding`. `AnonymousRead` controls whether Studio,
 Share, and permission details are hidden after an otherwise allowed
 public or public-link read.
 

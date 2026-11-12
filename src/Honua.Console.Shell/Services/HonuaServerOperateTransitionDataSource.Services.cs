@@ -8,7 +8,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource
 {
     private sealed class ServiceProjection(
         IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse> serviceSettings,
-        IReadOnlyList<LayerRow> layerRows, OperatePublicationProjection publications)
+        IReadOnlyList<LayerRow> layerRows, OperateServiceEndpointResolver publications)
     {
         public IReadOnlyList<OperateServiceDetail> Map(IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> summaries)
         {
@@ -76,7 +76,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource
                 PublicName = service.PublicName,
                 FolderMutationIssues = service.FolderMutationIssues
             };
-            return detail with { PublicationSlots = publications.ForService(detail.PublicServiceName, protocols, detail.FolderName) };
+            return detail with { Endpoints = publications.ForService(detail.PublicServiceName, protocols, detail.FolderName) };
         }
 
         private IReadOnlyList<OperateRuntimeSetting> MapRuntimeSettings(
@@ -94,7 +94,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource
                 new(
                     "layerCount",
                     service.LayerCount.ToString(CultureInfo.InvariantCulture),
-                    "Published service layer projection",
+                    "Published service layer",
                     RequiresRestart: false)
             };
 

@@ -187,7 +187,7 @@ public sealed class DiscoveryMetadataEditorTests
         context.Services.AddSingleton<IHonuaDiscoveryMetadataClient>(client);
         context.Services.AddSingleton<IConsoleLayerFieldsOperation>(new UnsupportedConsoleLayerFieldsOperation());
         context.Services.AddSingleton<IOperateTransitionDataSource>(FixedServicesDataSource.WithLayer(
-            new OperateServiceLayerProjection(42, "Roads", "Line", "connection-layer-42", "Roads")));
+            new OperateServiceLayer(42, "Roads", "Line", "connection-layer-42", "Roads")));
         var page = context.Render<OperateLayerDetailPage>(parameters => parameters.Add(layer => layer.ResourceId, "connection-layer-42"));
         page.WaitForAssertion(() => Assert.Equal(DiscoveryMetadataAddress.ForLayer(42), client.LastAddress));
         Assert.Contains("shared dataset metadata", page.Markup, StringComparison.Ordinal);

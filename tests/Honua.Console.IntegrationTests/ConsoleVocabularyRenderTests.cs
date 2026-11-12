@@ -56,7 +56,7 @@ public sealed class ConsoleVocabularyRenderTests
     public void ProtocolPicker_UsesServiceAndDatasetWords()
     {
         using var context = new BunitContext();
-        var picker = context.Render<PublishProtocolPicker>(parameters => parameters.Add(p => p.ServiceSlot, "roads"));
+        var picker = context.Render<PublishProtocolPicker>(parameters => parameters.Add(p => p.ServiceName, "roads"));
         Assert.Equal("Service", picker.Find(".studio-form-label").TextContent);
         Assert.Contains("dataset", picker.Find(".publish-protocol-picker__slot .console-muted").TextContent);
         Assert.Equal("roads", picker.Find("[data-service-slot]").TextContent);

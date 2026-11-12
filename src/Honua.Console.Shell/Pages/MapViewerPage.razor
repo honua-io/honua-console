@@ -8,15 +8,15 @@
 <section class="console-page console-viewer-page">
     @if (_result is null)
     {
-        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading map" Message="The saved map package is loading." />
+        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading map" Message="The saved map is loading." />
     }
-    else if (_result.Status != CatalogReadStatus.Allowed || _result.MapPackage is null)
+    else if (_result.Status != CatalogReadStatus.Allowed || _result.Map is null)
     {
         @RenderReadState(_result.Status, _result.Message)
     }
     else
     {
-        var map = _result.MapPackage;
+        var map = _result.Map;
         <div class="console-page-heading console-detail-heading">
             <div>
                 <p class="console-kicker">Map viewer</p>
@@ -62,13 +62,13 @@
     [Parameter]
     public string MapId { get; set; } = string.Empty;
 
-    private MapPackageReadResult? _result;
+    private MapReadResult? _result;
 
     protected override async Task OnParametersSetAsync()
     {
         var token = ConsoleUrlQuery.GetValue(Navigation.Uri, "token") ?? string.Empty;
         var context = await ReadContexts.ResolveAsync(token);
-        _result = await Catalog.GetMapPackageAsync(MapId, context);
+        _result = await Catalog.GetMapAsync(MapId, context);
     }
 
     private RenderFragment RenderReadState(CatalogReadStatus status, string message) => builder =>
@@ -77,7 +77,7 @@
         {
             CatalogReadStatus.Missing => ("missing", "Missing map", "Map not found", "The requested saved map does not exist or is no longer available."),
             CatalogReadStatus.Forbidden => ("forbidden", "Forbidden", "You do not have access", "The authenticated saved-map read was denied by policy."),
-            CatalogReadStatus.UnsupportedPackageBinding => ("unsupported-package", "Unsupported package", "Unsupported map package", message),
+            CatalogReadStatus.UnsupportedContentBinding => ("unsupported-package", "Unsupported version", "Unsupported map version", message),
             _ => ("unavailable", "Unavailable", "This map link is unavailable", "This anonymous map link is missing, expired, or not allowed to reveal protected content.")
         };
 

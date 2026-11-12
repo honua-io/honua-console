@@ -8,11 +8,11 @@
 <section class="console-page console-viewer-page">
     @if (!_accessResolved)
     {
-        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Checking map access" Message="The workspace session is being checked before draft map hydration starts." />
+        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Checking map access" Message="Your session is being checked before draft map hydration starts." />
     }
     else if (_requiresAuthentication)
     {
-        <ConsoleStateView Kind="unauthenticated" Kicker="Sign in required" Title="Sign in to create a map" Message="Draft map hydration requires a signed-in workspace session." ActionHref="@BuildSignInHref()" ActionLabel="Sign In" />
+        <ConsoleStateView Kind="unauthenticated" Kicker="Sign in required" Title="Sign in to create a map" Message="Draft map hydration requires a signed-in session." ActionHref="@BuildSignInHref()" ActionLabel="Sign In" />
     }
     else if (string.IsNullOrWhiteSpace(_sourceItemId))
     {
@@ -22,13 +22,13 @@
     {
         <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading draft map" Message="The draft map is hydrating from the catalog item." />
     }
-    else if (_result.Status != CatalogReadStatus.Allowed || _result.MapPackage is null)
+    else if (_result.Status != CatalogReadStatus.Allowed || _result.Map is null)
     {
         @RenderReadState(_result.Status, _result.Message)
     }
     else
     {
-        var map = _result.MapPackage;
+        var map = _result.Map;
         <div class="console-page-heading console-detail-heading">
             <div>
                 <p class="console-kicker">Draft map</p>
@@ -58,7 +58,7 @@
 
 @code {
     private string _sourceItemId = string.Empty;
-    private MapPackageReadResult? _result;
+    private MapReadResult? _result;
     private bool _accessResolved;
     private bool _requiresAuthentication;
 
@@ -93,7 +93,7 @@
         {
             CatalogReadStatus.Missing => ("missing", "Missing source", "Source item not found", "The source item for this draft map does not exist or is no longer available."),
             CatalogReadStatus.Forbidden => ("forbidden", "Forbidden", "You do not have access", "The authenticated draft-map read was denied by item policy."),
-            CatalogReadStatus.UnsupportedPackageBinding => ("unsupported-package", "Unsupported package", "Unsupported package binding", message),
+            CatalogReadStatus.UnsupportedContentBinding => ("unsupported-package", "Unsupported version", "Unsupported content version", message),
             CatalogReadStatus.UnsupportedServiceMetadata => ("unsupported-service", "Unsupported source", "Cannot hydrate map draft", message),
             _ => ("unavailable", "Unavailable", "Cannot hydrate map draft", "Sign in or choose a catalog item that can be opened in the viewer.")
         };

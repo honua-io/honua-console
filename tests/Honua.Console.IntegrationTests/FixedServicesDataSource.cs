@@ -5,7 +5,7 @@ namespace Honua.Console.IntegrationTests;
 
 internal sealed class FixedServicesDataSource(params OperateServiceDetail[] services) : IOperateTransitionDataSource
 {
-    public static FixedServicesDataSource WithLayer(OperateServiceLayerProjection layer) =>
+    public static FixedServicesDataSource WithLayer(OperateServiceLayer layer) =>
         new(new OperateServiceDetail("svc", "Service", "FeatureServer", "running", "server", [layer], [], []));
 
     public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>

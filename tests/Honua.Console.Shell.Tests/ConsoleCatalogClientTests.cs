@@ -58,7 +58,7 @@ public sealed class ConsoleCatalogClientTests
         var search = await catalog.SearchAsync(new CatalogListRequest(), CatalogReadContext.Authenticated);
         var item = await catalog.GetCatalogItemAsync("coastal-flood-service", CatalogReadContext.Authenticated);
         var openData = await catalog.GetOpenDataItemAsync("coastal-flood-service");
-        var map = await catalog.GetMapPackageAsync("storm-response-map", CatalogReadContext.Authenticated);
+        var map = await catalog.GetMapAsync("storm-response-map", CatalogReadContext.Authenticated);
         var draft = await catalog.GetDraftMapAsync("utilities-layer", CatalogReadContext.Authenticated);
         var embed = await catalog.AuthorizeEmbedAsync(
             "storm-response-map",
@@ -130,7 +130,7 @@ public sealed class ConsoleCatalogClientTests
         Assert.Equal(CatalogReadStatus.Unavailable, noSession.Status);
         Assert.Equal(CatalogReadStatus.Unavailable, publicLink.Status);
         Assert.Equal(CatalogReadStatus.Allowed, authenticated.Status);
-        Assert.Equal("Utilities Critical Layer draft map", authenticated.MapPackage?.Summary.Title);
+        Assert.Equal("Utilities Critical Layer draft map", authenticated.Map?.Summary.Title);
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public sealed class ConsoleCatalogClientTests
         var state = MapDraftPage.ResolveReadState(result.Status, result.Message);
 
         Assert.Equal(CatalogReadStatus.Missing, result.Status);
-        Assert.Null(result.MapPackage);
+        Assert.Null(result.Map);
         Assert.Equal("missing", state.Kind);
     }
 
@@ -158,7 +158,7 @@ public sealed class ConsoleCatalogClientTests
             CatalogReadContext.Authenticated);
 
         Assert.Equal(CatalogReadStatus.UnsupportedServiceMetadata, result.Status);
-        Assert.Null(result.MapPackage);
+        Assert.Null(result.Map);
     }
 
     [Fact]
@@ -166,17 +166,17 @@ public sealed class ConsoleCatalogClientTests
     {
         var catalog = new InMemoryConsoleCatalogClient();
 
-        var denied = await catalog.GetMapPackageAsync(
+        var denied = await catalog.GetMapAsync(
             "storm-response-map",
             CatalogReadContext.AnonymousPublicLink("wrong-token"));
-        var allowed = await catalog.GetMapPackageAsync(
+        var allowed = await catalog.GetMapAsync(
             "storm-response-map",
             CatalogReadContext.AnonymousPublicLink("pl-storm-map"));
 
         Assert.Equal(CatalogReadStatus.Unavailable, denied.Status);
         Assert.Equal(CatalogReadStatus.Allowed, allowed.Status);
         Assert.True(allowed.AnonymousRead);
-        Assert.Equal("Storm Response Map", allowed.MapPackage?.Summary.Title);
+        Assert.Equal("Storm Response Map", allowed.Map?.Summary.Title);
     }
 
     [Fact]
@@ -189,14 +189,14 @@ public sealed class ConsoleCatalogClientTests
 
         var context = await resolver.ResolveAsync(publicLinkToken: null);
         var item = await catalog.GetCatalogItemAsync("coastal-flood-service", context);
-        var map = await catalog.GetMapPackageAsync("public-field-map", context);
+        var map = await catalog.GetMapAsync("public-field-map", context);
 
         Assert.True(context.Anonymous);
         Assert.Equal(CatalogReadStatus.Allowed, item.Status);
         Assert.True(item.AnonymousRead);
         Assert.Equal(CatalogReadStatus.Allowed, map.Status);
         Assert.True(map.AnonymousRead);
-        Assert.Equal("Public Field Map", map.MapPackage?.Summary.Title);
+        Assert.Equal("Public Field Map", map.Map?.Summary.Title);
         Assert.DoesNotContain(
             ConsoleCatalogActionPolicy.Resolve(item.Item!.Summary, isAuthenticated: !item.AnonymousRead),
             action => action.Id is "studio" or "share");
@@ -242,7 +242,7 @@ public sealed class ConsoleCatalogClientTests
 
         var context = await resolver.ResolveAsync(publicLinkToken: "stale-token");
         var linkItem = await catalog.GetCatalogItemAsync("utilities-layer", context);
-        var linkMap = await catalog.GetMapPackageAsync("storm-response-map", context);
+        var linkMap = await catalog.GetMapAsync("storm-response-map", context);
         var actions = ConsoleCatalogActionPolicy.Resolve(
             linkItem.Item!.Summary,
             isAuthenticated: !linkItem.AnonymousRead,
@@ -283,12 +283,12 @@ public sealed class ConsoleCatalogClientTests
         var legacyService = await catalog.GetCatalogItemAsync(
             "legacy-parcels-service",
             CatalogReadContext.Authenticated);
-        var futureMap = await catalog.GetMapPackageAsync(
+        var futureMap = await catalog.GetMapAsync(
             "future-response-map",
             CatalogReadContext.Authenticated);
 
         Assert.Equal(CatalogReadStatus.UnsupportedServiceMetadata, legacyService.Status);
-        Assert.Equal(CatalogReadStatus.UnsupportedPackageBinding, futureMap.Status);
+        Assert.Equal(CatalogReadStatus.UnsupportedContentBinding, futureMap.Status);
     }
 
     [Fact]
@@ -351,21 +351,21 @@ public sealed class ConsoleCatalogClientTests
     public async Task MapViewerActionsFollowCatalogItemPolicy()
     {
         var catalog = new InMemoryConsoleCatalogClient();
-        var viewerMap = await catalog.GetMapPackageAsync(
+        var viewerMap = await catalog.GetMapAsync(
             "public-field-map",
             CatalogReadContext.Authenticated);
-        var ownerMap = await catalog.GetMapPackageAsync(
+        var ownerMap = await catalog.GetMapAsync(
             "storm-response-map",
             CatalogReadContext.Authenticated);
 
         var viewerActions = MapViewerPage.ResolveViewerActions(
-            viewerMap.MapPackage!.Summary,
+            viewerMap.Map!.Summary,
             isAuthenticated: true);
         var ownerActions = MapViewerPage.ResolveViewerActions(
-            ownerMap.MapPackage!.Summary,
+            ownerMap.Map!.Summary,
             isAuthenticated: true);
         var anonymousActions = MapViewerPage.ResolveViewerActions(
-            ownerMap.MapPackage!.Summary,
+            ownerMap.Map!.Summary,
             isAuthenticated: false);
 
         Assert.Contains(viewerActions, action => action.Id == "detail");
@@ -383,25 +383,25 @@ public sealed class ConsoleCatalogClientTests
         var publicItem = await catalog.GetCatalogItemAsync(
             "coastal-flood-service",
             CatalogReadContext.AnonymousPublicLink(token: null));
-        var publicMap = await catalog.GetMapPackageAsync(
+        var publicMap = await catalog.GetMapAsync(
             "public-field-map",
             CatalogReadContext.AnonymousPublicLink(token: null));
         var publicLinkItem = await catalog.GetCatalogItemAsync(
             "utilities-layer",
             CatalogReadContext.AnonymousPublicLink("pl-utilities"));
-        var publicLinkMap = await catalog.GetMapPackageAsync(
+        var publicLinkMap = await catalog.GetMapAsync(
             "storm-response-map",
             CatalogReadContext.AnonymousPublicLink("pl-storm-map"));
 
         Assert.Equal("Public read", ConsoleAnonymousReadLabels.ReadLabel(publicItem.Item!.Summary));
-        Assert.Equal("Public read", ConsoleAnonymousReadLabels.ReadLabel(publicMap.MapPackage!.Summary));
+        Assert.Equal("Public read", ConsoleAnonymousReadLabels.ReadLabel(publicMap.Map!.Summary));
         Assert.Equal("Public-link read", ConsoleAnonymousReadLabels.ReadLabel(publicLinkItem.Item!.Summary));
-        Assert.Equal("Public-link read", ConsoleAnonymousReadLabels.ReadLabel(publicLinkMap.MapPackage!.Summary));
+        Assert.Equal("Public-link read", ConsoleAnonymousReadLabels.ReadLabel(publicLinkMap.Map!.Summary));
         Assert.Equal(
-            "Anonymous public reads do not expose workspace permission details.",
+            "Anonymous public reads do not expose permission details.",
             ConsoleAnonymousReadLabels.PermissionsHiddenMessage(publicItem.Item.Summary));
         Assert.Equal(
-            "Anonymous public-link reads do not expose workspace permission details.",
+            "Anonymous public-link reads do not expose permission details.",
             ConsoleAnonymousReadLabels.PermissionsHiddenMessage(publicLinkItem.Item.Summary));
     }
 

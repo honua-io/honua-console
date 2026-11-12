@@ -10,7 +10,7 @@ public sealed class DataToPublishFlowState
 
     public List<string> EnabledProtocols { get; set; } = [.. PublishProtocolCatalog.DefaultEnabled];
 
-    public string ServiceSlot { get; set; } = "service";
+    public string ServiceName { get; set; } = "service";
 
     public string? StyleId { get; set; }
 
@@ -18,10 +18,10 @@ public sealed class DataToPublishFlowState
 
     public FlowStep Step { get; set; } = FlowStep.AddData;
 
-    public string TargetService => PublishProtocolCatalog.ServiceNameFor(ServiceSlot);
+    public string TargetService => PublishProtocolCatalog.ServiceNameFor(ServiceName);
 
     public IReadOnlyList<PublishProtocolPlan> PlannedPublications =>
-        PublishProtocolCatalog.PlanPublications(ServiceSlot, EnabledProtocols);
+        PublishProtocolCatalog.PlanPublications(ServiceName, EnabledProtocols);
 }
 
 public enum AddDataMode

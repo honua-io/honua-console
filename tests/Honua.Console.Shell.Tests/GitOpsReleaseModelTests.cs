@@ -62,7 +62,7 @@ public sealed class GitOpsReleaseModelTests
     [InlineData(GitOpsChangeClass.FieldContract, "field contract")]
     [InlineData(GitOpsChangeClass.SchemaContract, "schema contract")]
     [InlineData(GitOpsChangeClass.ServiceConfig, "service config")]
-    [InlineData(GitOpsChangeClass.AppPackage, "app package")]
+    [InlineData(GitOpsChangeClass.App, "app")]
     public void ChangeClassRendersDesignVocabulary(GitOpsChangeClass changeClass, string expectedLabel)
     {
         Assert.Equal(expectedLabel, GitOpsReleasePresentation.Label(changeClass));

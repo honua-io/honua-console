@@ -4,7 +4,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-// popupInfo and drawingInfo are stored on the layer, not on each service exposure, so every exposure shares one slot.
+// popupInfo and drawingInfo are stored on the layer, not on each service exposure, so every exposure shares one entry.
 public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerStyleOverrideDataSource
 {
     internal const string Surface = "Layer presentation overrides";
@@ -52,16 +52,16 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
             return new OperateLayerStyleOverrideView(resourceId, [], ToBindingState(DrawingContract, drawingIssue));
         }
 
-        // Every exposure shares the same canonical resource (and thus the same stored presentation), so a
-        // single slot represents the layer; its service name is taken from the first exposure for display.
-        var slot = new OperateLayerSlotStyleOverride(
-            SlotId: layerId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        // Every exposure shares the same canonical resource (and thus the same stored presentation), so
+        // one entry represents the layer; its service name is taken from the first exposure for display.
+        var layer = new OperateLayerStyleOverride(
+            LayerId: layerId.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ServiceName: first.Service.Name,
             ServiceDisplayName: first.Layer.Name,
             PopupInfoJson: Pretty(popup.Data?.Document),
             DrawingInfoJson: Pretty(drawing.Data?.Document));
 
-        return new OperateLayerStyleOverrideView(resourceId, [slot])
+        return new OperateLayerStyleOverrideView(resourceId, [layer])
         {
             LayerId = layerId,
             CanonicalResourceId = first.Layer.CanonicalResourceId
@@ -69,7 +69,7 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
     }
 
     public async Task<OperateLayerStyleOverrideSaveResult> SaveOverrideAsync(
-        OperateLayerSlotStyleOverrideEdit edit,
+        OperateLayerStyleOverrideEdit edit,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(edit);
@@ -80,13 +80,13 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
             return OperateLayerStyleOverrideSaveResult.Blocked(missing);
         }
 
-        if (!int.TryParse(edit.SlotId, out var layerId))
+        if (!int.TryParse(edit.LayerId, out var layerId))
         {
             return OperateLayerStyleOverrideSaveResult.Blocked(new OperateLayerStyleBindingState(
                 Surface,
                 OperateLayerStyleBindingState.Unsupported,
                 PopupContract,
-                $"The slot id '{edit.SlotId}' is not a layer id."));
+                $"The layer id '{edit.LayerId}' is not numeric."));
         }
 
         // Parse the editor text into the raw documents up front so an invalid edit never reaches the server.

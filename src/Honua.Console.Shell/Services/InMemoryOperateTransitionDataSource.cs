@@ -165,7 +165,7 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
                             "Warning",
                             "geometry",
                             "The source table has 14 invalid geometries that will be skipped by the tile cache.",
-                            "Repair geometries before promoting the publication slot.")
+                            "Repair geometries before promoting the layer.")
                     ],
                     [
                         "Overview",
@@ -186,15 +186,15 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
                     "Planning Feature Service",
                     "Feature service",
                     "Running",
-                    "Canonical metadata is owned by data resources. Service settings only control runtime, slots, and exposure.",
+                    "Canonical metadata is owned by data resources. Service settings only control runtime, protocols, and exposure.",
                     [
-                        new OperateServiceLayerProjection(
+                        new OperateServiceLayer(
                             12,
                             "Parcels",
                             "Polygon",
                             "res-parcels-2026",
                             "City Parcels 2026"),
-                        new OperateServiceLayerProjection(
+                        new OperateServiceLayer(
                             13,
                             "Permit Applications",
                             "Point",
@@ -219,11 +219,11 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
                             RequiresRestart: true)
                     ],
                     [
-                        new OperatePublicationSlot(
+                        new OperateServiceEndpoint(
                             "production",
                             "https://server.honua.example/services/planning",
                             "Serving revision 42"),
-                        new OperatePublicationSlot(
+                        new OperateServiceEndpoint(
                             "staging",
                             "https://server.honua.example/services/planning-staging",
                             "Ready for promotion")
@@ -235,7 +235,7 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
                     "identity-provider",
                     "Identity",
                     "OIDC provider metadata",
-                    "Replace issuer metadata URL for the production tenant.",
+                    "Replace issuer metadata URL for the production environment.",
                     "Identity policy and sign-in discovery",
                     RequiresRestart: false,
                     "No restart; active sessions keep their current claims until refresh.",
@@ -262,7 +262,7 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
                     "license",
                     "License",
                     "License entitlement file",
-                    "Upload renewed Pro entitlement for the staging tenant.",
+                    "Upload renewed Pro entitlement for the staging environment.",
                     "License cache and edition gates",
                     RequiresRestart: false,
                     "No restart; cache refresh applies the entitlement.",
