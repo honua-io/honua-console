@@ -4,7 +4,7 @@
     color: var(--c-text);
 }
 
-.console-alert-rules-v4 .console-panel h2 {
+.console-alert-rules-v4 .console-panel-heading > h2 {
     font-size: var(--text-lg);
     font-weight: var(--weight-semibold);
 }

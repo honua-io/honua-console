@@ -62,11 +62,11 @@
         @if (V4Enabled)
         {
             <ConsolePanel Title="Overview" HeadingId="alert-rule-overview-heading">
-                @RuleOverview
+                @RuleOverview(_rule)
             </ConsolePanel>
-            <ConsolePanel Title="Condition builder" HeadingId="alert-rule-condition-heading" Class="console-alert-rule-editor">
+            <ConsolePanel Title="Condition builder" HeadingId="alert-rule-condition-heading">
                 <div data-alert-rule-editor>
-                    @RuleEditor
+                    @RuleEditor(_rule)
                 </div>
             </ConsolePanel>
         }
@@ -80,13 +80,13 @@
                     </div>
                     <span class="console-status @StatusClass(_rule)">@_rule.Status.State</span>
                 </div>
-                @RuleOverview
+                @RuleOverview(_rule)
             </article>
 
             <article class="console-panel" data-alert-rule-editor>
                 <p class="console-kicker">Condition</p>
                 <h2>Condition builder</h2>
-                @RuleEditor
+                @RuleEditor(_rule)
             </article>
         }
     }
@@ -95,23 +95,24 @@
 
 @code {
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private int StateHeadingLevel => V4Enabled ? 3 : 2;
 
-    private RenderFragment RuleOverview => @<text>
-        <p class="console-muted">@(_rule!.Description)</p>
+    private RenderFragment<OperateAlertRuleDefinition> RuleOverview => rule => @<text>
+        <p class="console-muted">@(rule.Description)</p>
         <dl class="console-definition-list">
             <dt>Rule ID</dt>
-            <dd class="console-mono">@(_rule!.RuleId)</dd>
+            <dd class="console-mono">@(rule.RuleId)</dd>
             <dt>Last evaluated</dt>
-            <dd>@(_rule!.LastEvaluatedAt)</dd>
+            <dd>@(rule.LastEvaluatedAt)</dd>
             <dt>Active incidents</dt>
-            <dd>@(_rule!.ActiveIncidentCount)</dd>
+            <dd>@(rule.ActiveIncidentCount)</dd>
             <dt>Delivery failures</dt>
-            <dd>@(_rule!.DeliveryFailureCount)</dd>
+            <dd>@(rule.DeliveryFailureCount)</dd>
         </dl>
-        @if (_rule!.ValidationMessages.Count > 0)
+        @if (rule.ValidationMessages.Count > 0)
         {
             <ul class="console-state-warning">
-                @foreach (var message in _rule!.ValidationMessages)
+                @foreach (var message in rule.ValidationMessages)
                 {
                     <li>@message</li>
                 }
@@ -119,7 +120,7 @@
         }
     </text>;
 
-    private RenderFragment RuleEditor => @<text>
+    private RenderFragment<OperateAlertRuleDefinition> RuleEditor => rule => @<text>
         <div class="studio-field-grid">
             <label>
                 <span>Name</span>
@@ -163,9 +164,9 @@
                 @(_testing ? "Testing..." : "Test rule")
             </button>
             <button class="console-button-secondary" type="button"
-                    disabled="@(_enabling || (!_rule!.Enabled && !CanEnable))"
+                    disabled="@(_enabling || (!rule.Enabled && !CanEnable))"
                     @onclick="ToggleEnabledAsync" data-rule-enable>
-                @(_enabling ? "Updating..." : _rule!.Enabled ? "Disable rule" : "Enable tested rule")
+                @(_enabling ? "Updating..." : rule.Enabled ? "Disable rule" : "Enable tested rule")
             </button>
         </div>
 
@@ -173,7 +174,7 @@
         {
             @if (test.BindingState is { } testBinding)
             {
-                <ConsoleStateView HeadingLevel="2" Kind="@StateKind(testBinding.State)"
+                <ConsoleStateView HeadingLevel="@StateHeadingLevel" Kind="@StateKind(testBinding.State)"
                                   Kicker="@testBinding.State"
                                   Title="Rule test is not bound"
                                   Message="@(testBinding.Detail + " (contract: " + testBinding.Contract + ")")" />
@@ -193,7 +194,7 @@
         {
             @if (result.BindingState is { } saveBinding)
             {
-                <ConsoleStateView HeadingLevel="2" Kind="@StateKind(saveBinding.State)"
+                <ConsoleStateView HeadingLevel="@StateHeadingLevel" Kind="@StateKind(saveBinding.State)"
                                   Kicker="@saveBinding.State"
                                   Title="Rule save is not bound"
                                   Message="@(saveBinding.Detail + " (contract: " + saveBinding.Contract + ")")" />

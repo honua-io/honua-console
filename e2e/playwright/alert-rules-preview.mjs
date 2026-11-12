@@ -5,7 +5,7 @@ import { runV4PagePresentation } from "./console-presentation.mjs";
 const headings = { "alert-rules-create": "Create alert rule", "alert-rules-detail": "Speeding geofence" };
 
 await runV4PagePresentation({
-  previews: path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/alert-rules-preview"),
+  previews: path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/catalog-preview"),
   pageNames: ["alert-rules-list", "alert-rules-unbound", "alert-rules-create", "alert-rules-detail"],
   title: "Alert rules presentation fixture",
   stylesheet: "operate-alert-rules-v4.css",

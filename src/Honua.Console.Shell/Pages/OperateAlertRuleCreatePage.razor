@@ -39,15 +39,16 @@
 
 @code {
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private int StateHeadingLevel => V4Enabled ? 3 : 2;
 
     private RenderFragment CreateForm => @<text>
         @if (_loading)
         {
-            <ConsoleStateView HeadingLevel="2" Kind="loading" Kicker="Alert rules" Title="Checking alert-rule binding" Message="Checking the connected honua-server before opening the authoring form." />
+            <ConsoleStateView HeadingLevel="@StateHeadingLevel" Kind="loading" Kicker="Alert rules" Title="Checking alert-rule binding" Message="Checking the connected honua-server before opening the authoring form." />
         }
         else if (_binding is { } binding)
         {
-            <ConsoleStateView HeadingLevel="2" Kind="@StateKind(binding.State)"
+            <ConsoleStateView HeadingLevel="@StateHeadingLevel" Kind="@StateKind(binding.State)"
                               Kicker="@binding.State"
                               Title="Alert-rule creation is not bound"
                               Message="@(binding.Detail + " (contract: " + binding.Contract + ")")" />
@@ -78,7 +79,7 @@
             </div>
             @if (_result?.BindingState is { } resultBinding)
             {
-                <ConsoleStateView HeadingLevel="2" Kind="@StateKind(resultBinding.State)"
+                <ConsoleStateView HeadingLevel="@StateHeadingLevel" Kind="@StateKind(resultBinding.State)"
                                   Kicker="@resultBinding.State"
                                   Title="Rule was not created"
                                   Message="@(resultBinding.Detail + " (contract: " + resultBinding.Contract + ")")" />

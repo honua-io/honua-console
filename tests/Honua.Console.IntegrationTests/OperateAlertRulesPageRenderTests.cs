@@ -191,11 +191,11 @@ public sealed class OperateAlertRulesPageRenderTests
         var page = RenderList(new FakeRulesDataSource { ListView = new OperateAlertRulesView([SampleRule]) }, presentation);
 
         page.WaitForAssertion(() => Assert.Single(page.FindAll("tr[data-alert-rule='rule-1']")), TimeSpan.FromSeconds(5));
-        AssertPresentation(page.Markup, page.FindAll("h1"), presentation, "Alert rules", "Alert rules");
+        AssertPresentation(page, presentation, ("Alert rules", "Alert rules"));
         Assert.Single(page.FindAll("[data-alert-rule-create]"));
         Assert.Equal("/operate/alerts/rules/rule-1", page.Find("tr[data-alert-rule='rule-1'] a").GetAttribute("href"));
         Assert.Equal(presentation == ConsolePresentationMode.V4 ? 1 : 0, page.FindAll("#alert-rules-heading").Count);
-        Capture("alert-rules-list", page.Markup, presentation);
+        if (presentation == ConsolePresentationMode.V4) CatalogAdminPreview.CaptureV4("alert-rules-list", page.Markup);
     }
 
     [Theory]
@@ -208,9 +208,9 @@ public sealed class OperateAlertRulesPageRenderTests
         page.WaitForAssertion(
             () => Assert.Contains("Alert rules are not bound", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
-        AssertPresentation(page.Markup, page.FindAll("h1"), presentation, "Alert rules", "Alert rules");
+        AssertPresentation(page, presentation, ("Alert rules", "Alert rules"));
         Assert.Empty(page.FindAll("table"));
-        Capture("alert-rules-unbound", page.Markup, presentation);
+        if (presentation == ConsolePresentationMode.V4) CatalogAdminPreview.CaptureV4("alert-rules-unbound", page.Markup);
     }
 
     [Theory]
@@ -221,15 +221,15 @@ public sealed class OperateAlertRulesPageRenderTests
         var page = RenderCreate(new FakeRulesDataSource(), presentation);
 
         page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-rule-create-submit]")), TimeSpan.FromSeconds(5));
-        AssertPresentation(page.Markup, page.FindAll("h1"), presentation, "Create alert rule", "Create alert rule");
+        AssertPresentation(page, presentation, ("Create alert rule", "Create alert rule"));
         Assert.Equal(10, page.FindAll(".studio-field-grid label").Count);
-        Assert.Equal("/operate/alerts/rules", page.Find("a[href='/operate/alerts/rules']").GetAttribute("href"));
+        Assert.Equal("Back to alert rules", Assert.Single(page.FindAll("a[href='/operate/alerts/rules']")).TextContent);
         if (presentation == ConsolePresentationMode.V4)
         {
             Assert.NotNull(page.Find("#alert-rule-create-heading").Closest(".console-panel")!.QuerySelector("[data-rule-create-submit]"));
         }
 
-        Capture("alert-rules-create", page.Markup, presentation);
+        if (presentation == ConsolePresentationMode.V4) CatalogAdminPreview.CaptureV4("alert-rules-create", page.Markup);
     }
 
     [Theory]
@@ -243,7 +243,7 @@ public sealed class OperateAlertRulesPageRenderTests
             presentation);
 
         page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-alert-rule-editor]")), TimeSpan.FromSeconds(5));
-        AssertPresentation(page.Markup, page.FindAll("h1"), presentation, "Speeding geofence", "Alert rule");
+        AssertPresentation(page, presentation, ("Speeding geofence", "Alert rule"));
         Assert.Contains("Condition builder", page.Markup, StringComparison.Ordinal);
         Assert.Contains("zone-9", page.Find("[data-rule-zone]").GetAttribute("value"), StringComparison.Ordinal);
         Assert.True(page.Find("[data-rule-enable]").HasAttribute("disabled"));
@@ -251,7 +251,54 @@ public sealed class OperateAlertRulesPageRenderTests
         Assert.Single(page.FindAll("[data-rule-test]"));
         Assert.Equal(presentation == ConsolePresentationMode.V4 ? 2 : 0,
             page.FindAll("#alert-rule-overview-heading, #alert-rule-condition-heading").Count);
-        Capture("alert-rules-detail", page.Markup, presentation);
+        if (presentation == ConsolePresentationMode.V4) CatalogAdminPreview.CaptureV4("alert-rules-detail", page.Markup);
+    }
+
+    [Fact]
+    public void RuleDetail_V4_TestedDraftEnablesThroughPanelHandlers()
+    {
+        var enabled = false;
+        var page = RenderDetail(
+            new FakeRulesDataSource
+            {
+                DetailView = new OperateAlertRuleDetailView(SampleDefinition with { Enabled = false }),
+                SaveHandler = _ => new OperateAlertRuleSaveResult(SampleDefinition with { Enabled = false }),
+                EnableHandler = (_, value) =>
+                {
+                    enabled = value;
+                    return new OperateAlertRuleSaveResult(SampleDefinition with { Enabled = value });
+                }
+            },
+            "rule-1",
+            ConsolePresentationMode.V4);
+
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-rule-test]")), TimeSpan.FromSeconds(5));
+        page.Find("[data-rule-test]").Click();
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-rule-test-result]")), TimeSpan.FromSeconds(5));
+        Assert.False(page.Find("[data-rule-enable]").HasAttribute("disabled"));
+
+        page.Find("[data-rule-enable]").Click();
+
+        page.WaitForAssertion(() => Assert.True(enabled), TimeSpan.FromSeconds(5));
+        page.WaitForAssertion(() => Assert.Equal("Disable rule", page.Find("[data-rule-enable]").TextContent.Trim()), TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void RuleCreate_V4_SubmitRendersRefusalInsidePanel()
+    {
+        var forbidden = new OperateAlertRulesBindingState(
+            "Alert rules", OperateAlertRulesBindingState.Forbidden, "honua-server#1169", "Operator is not allowed.");
+        var page = RenderCreate(
+            new FakeRulesDataSource { CreateResult = OperateAlertRuleSaveResult.Blocked(forbidden) },
+            ConsolePresentationMode.V4);
+
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-rule-create-submit]")), TimeSpan.FromSeconds(5));
+        page.Find("[data-rule-create-submit]").Click();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("Operator is not allowed.", page.Find("#alert-rule-create-heading").Closest(".console-panel")!.TextContent, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Equal("Rule was not created", page.Find(".console-panel h3").TextContent);
     }
 
     private static Bunit.BunitContext CreateContext(ConsolePresentationMode presentation)
@@ -261,23 +308,17 @@ public sealed class OperateAlertRulesPageRenderTests
         return ctx;
     }
 
-    private static void AssertPresentation(
-        string markup,
-        IReadOnlyList<AngleSharp.Dom.IElement> headings,
+    private static void AssertPresentation<TPage>(
+        IRenderedComponent<TPage> page,
         ConsolePresentationMode presentation,
-        string v4Heading,
-        string legacyHeading)
+        (string V4, string Legacy) heading)
+        where TPage : Microsoft.AspNetCore.Components.IComponent
     {
         var v4 = presentation == ConsolePresentationMode.V4;
-        Assert.Equal(v4 ? v4Heading : legacyHeading, Assert.Single(headings).TextContent);
-        Assert.Equal(v4, markup.Contains("console-page-heading-v4", StringComparison.Ordinal));
-        Assert.Equal(v4, markup.Contains("console-alert-rules-v4", StringComparison.Ordinal));
-        Assert.Equal(v4, markup.Contains("operate-alert-rules-v4.css", StringComparison.Ordinal));
-    }
-
-    private static void Capture(string name, string markup, ConsolePresentationMode presentation)
-    {
-        if (presentation == ConsolePresentationMode.V4) CatalogAdminPreview.CaptureV4(name, markup);
+        Assert.Equal(v4 ? heading.V4 : heading.Legacy, Assert.Single(page.FindAll("h1")).TextContent);
+        Assert.Equal(v4, page.Markup.Contains("console-page-heading-v4", StringComparison.Ordinal));
+        Assert.Equal(v4, page.Markup.Contains("console-alert-rules-v4", StringComparison.Ordinal));
+        Assert.Equal(v4, page.Markup.Contains("operate-alert-rules-v4.css", StringComparison.Ordinal));
     }
 
     private static IRenderedComponent<OperateAlertRulesPage> RenderList(IOperateAlertRulesDataSource data, ConsolePresentationMode presentation = ConsolePresentationMode.Legacy)
