@@ -77,7 +77,7 @@
         {
             CatalogReadStatus.Missing => ("missing", "Missing map", "Map not found", "The requested saved map does not exist or is no longer available."),
             CatalogReadStatus.Forbidden => ("forbidden", "Forbidden", "You do not have access", "The authenticated saved-map read was denied by policy."),
-            CatalogReadStatus.UnsupportedContentBinding => ("unsupported-package", "Unsupported version", "Unsupported map version", message),
+            CatalogReadStatus.UnsupportedContentBinding => ("unsupported-package", "Unsupported", "Unsupported map binding", message),
             _ => ("unavailable", "Unavailable", "This map link is unavailable", "This anonymous map link is missing, expired, or not allowed to reveal protected content.")
         };
 

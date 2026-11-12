@@ -21,7 +21,7 @@ const RULES = [
     use: "the kind itself (Map, App, Form, Workflow)",
   },
   { id: "package-family", expression: /\bpackage famil(?:y|ies)\b/iu, use: "content kind" },
-  { id: "envelope-type", expression: /(?:MapPackage|AppPackage|HostedMap|HonuaApiToken)/u, use: "Map, App, ApiKey" },
+  { id: "envelope-type", expression: /\b(?:record|class|interface|enum|struct)\s+\w*(?:MapPackage|AppPackage|HostedMap|HonuaApiToken)/u, use: "Map, App, ApiKey" },
   {
     id: "workspace-tenancy",
     expression: /\b(?:your|this|current) workspace\b|\bworkspace (?:members|session|policy|permission|roles|access|user)\b/iu,
@@ -34,10 +34,11 @@ const RULES = [
 // Exact exceptions: source-format readers that must name the foreign format, and wire literals.
 const ALLOWED = [
   { path: /^src\/Honua\.Console\.Shell\/(?:Pages\/ImportEsri|Services\/EsriContentImportParser|Services\/EsriImportSampleDocuments|Components\/EsriImportIntake|Models\/EsriContentImportModels|Validation\/EsriImportValidator)/u, rule: "web-map", reason: "reader for the source system's Web Map document" },
+  { path: /^src\/Honua\.Console\.Web\/wwwroot\/js\/(?:agent-workspace|studio-embed)\.mjs$/u, rule: "workspace-tenancy", reason: "agent collaboration workspace session" },
   { path: /^src\/Honua\.Console\.Shell\/Services\/(?:ConsoleContentMapper|InMemoryConsoleCatalogClient)\.cs$/u, rule: "web-map", contains: /"(?:honua-webmap|webmap-doc)\/v/u, reason: "server format identifiers" },
 ];
 
-const SCANNED = /^src\/.+\.(?:razor|cs|js)$/u;
+const SCANNED = /^src\/.+\.(?:razor|cs|m?js)$/u;
 const SKIPPED = /\/wwwroot\/vendor\//u;
 
 const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));

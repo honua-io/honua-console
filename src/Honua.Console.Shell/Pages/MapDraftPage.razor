@@ -93,7 +93,7 @@
         {
             CatalogReadStatus.Missing => ("missing", "Missing source", "Source item not found", "The source item for this draft map does not exist or is no longer available."),
             CatalogReadStatus.Forbidden => ("forbidden", "Forbidden", "You do not have access", "The authenticated draft-map read was denied by item policy."),
-            CatalogReadStatus.UnsupportedContentBinding => ("unsupported-package", "Unsupported version", "Unsupported content version", message),
+            CatalogReadStatus.UnsupportedContentBinding => ("unsupported-package", "Unsupported", "Unsupported content binding", message),
             CatalogReadStatus.UnsupportedServiceMetadata => ("unsupported-service", "Unsupported source", "Cannot hydrate map draft", message),
             _ => ("unavailable", "Unavailable", "Cannot hydrate map draft", "Sign in or choose a catalog item that can be opened in the viewer.")
         };

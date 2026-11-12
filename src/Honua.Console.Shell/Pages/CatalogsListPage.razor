@@ -185,7 +185,7 @@
 
     // Carry the active workspace through drill-down links so browsing a non-default workspace's registry
     // (e.g. /operate/catalogs?workspace=tenant-a) does not silently switch the detail/item pages back to the
-    // default `workspace` scope. An absent workspace stays absent (ToQueryString drops empty values), so the default
+    // `current` default. An absent workspace stays absent (ToQueryString drops empty values), so the default
     // never gains a spurious ?workspace=current.
     private string DetailHref(string key) =>
         $"/operate/catalogs/{Uri.EscapeDataString(key)}{WorkspaceQuery()}";

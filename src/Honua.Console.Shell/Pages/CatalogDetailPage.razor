@@ -349,7 +349,7 @@
             CatalogReadStatus.Missing => ("missing", "Missing item", "Catalog item not found", "The requested item does not exist or is not eligible for this route."),
             CatalogReadStatus.Forbidden => ("forbidden", "Forbidden", "You do not have access", "The authenticated read was denied by item policy."),
             CatalogReadStatus.UnsupportedServiceMetadata => ("unsupported-service", "Unsupported service", "Unsupported service metadata", message),
-            CatalogReadStatus.UnsupportedContentBinding => ("unsupported-package", "Unsupported version", "Unsupported content version", message),
+            CatalogReadStatus.UnsupportedContentBinding => ("unsupported-package", "Unsupported", "Unsupported content binding", message),
             _ => ("unavailable", "Unavailable", "This link is unavailable", "This anonymous link is missing, expired, or not allowed to reveal protected content.")
         };
 

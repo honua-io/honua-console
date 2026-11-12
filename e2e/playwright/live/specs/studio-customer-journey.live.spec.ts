@@ -650,7 +650,7 @@ test('New map keyboard creation persists a real draft without browser errors', a
   try {
     await expect(page.locator('[data-studio-status]')).toContainText('Connected to');
     const key = `keyboard-map-${nonce()}`;
-    await page.getByRole('textbox', { name: 'New map package key', exact: true }).focus();
+    await page.getByRole('textbox', { name: 'New map key', exact: true }).focus();
     await page.keyboard.type(key);
     await page.keyboard.press('Tab');
     await expect(page.getByRole('button', { name: 'New map', exact: true })).toBeFocused();

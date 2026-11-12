@@ -73,7 +73,7 @@
         var (kind, kicker, title, body) = status switch
         {
             CatalogReadStatus.Missing => ("missing", "Missing map", "Embedded map not found", "The embedded map is not available."),
-            CatalogReadStatus.UnsupportedContentBinding => ("unsupported-package", "Unsupported version", "Unsupported map version", message),
+            CatalogReadStatus.UnsupportedContentBinding => ("unsupported-package", "Unsupported", "Unsupported map binding", message),
             _ => ("unavailable", "Unavailable", "Embed unavailable", "This embed is private, expired, missing a valid fragment token, or no longer allowed.")
         };
 
