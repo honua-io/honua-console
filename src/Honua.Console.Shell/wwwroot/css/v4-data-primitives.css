@@ -202,6 +202,10 @@
     flex-wrap: wrap;
 }
 
+.console-shell[data-console-v4="true"] .esri-mapping__filter {
+    min-height: 24px;
+}
+
 .console-shell[data-console-v4="true"] .esri-mapping.console-panel .esri-mapping__head {
     padding: 0 0 var(--space-3);
 }
