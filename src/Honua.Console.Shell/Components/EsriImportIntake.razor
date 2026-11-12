@@ -1,9 +1,20 @@
 @namespace Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Validation
+@inject IServiceProvider ServiceProvider
 
 @* Shared source-content intake. Connected reads require a live server binding; local JSON intake is parsed in Console. *@
-<div class="esri-intake" data-esri-intake>
+@if (ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true)
+{
+    <ConsolePanel Title="@($"Source {Noun}")" HeadingId="esri-intake-heading">@Body</ConsolePanel>
+}
+else
+{
+    @Body
+}
+
+@code {
+    private RenderFragment Body => @<div class="esri-intake" data-esri-intake>
     <div class="esri-intake__bar">
         <div class="esri-intake__modes" role="tablist" aria-label="Intake mode">
             @foreach (var option in ModeOptions)
@@ -109,9 +120,8 @@
             }
         </div>
     }
-</div>
+</div>;
 
-@code {
     private string _mode = "paste";
     private string _pasteValue = string.Empty;
     private string _urlValue = string.Empty;
