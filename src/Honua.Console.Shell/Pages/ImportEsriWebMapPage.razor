@@ -9,7 +9,7 @@
 
 @* Import source Web Map JSON → honua.map-package.v1 (screens-import-esri.jsx ImportEsriWebMap).
    Intake (paste/upload/URL/connected ArcGIS) → layer-by-layer source → target mapping with per-layer
-   fidelity badge + reason note, MapPreview target, "Create map package →" CTA wired to /operate/publishing.
+   fidelity badge + reason note, MapPreview target, "Create map →" CTA wired to /operate/publishing.
    The source-format JSON parse is deterministic Console-side work; the publish target binds the real publishing
    workspace contract, else the inline missing-binding banner shows (Console Patterns Charter section 11). *@
 
@@ -21,13 +21,13 @@
             <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import source content <span class="console-crumb-sep">/</span> Web Map</p>
             <h1>Import source Web Map</h1>
             <p class="console-muted">
-                Convert a source Web Map JSON into a Honua map package (<code>honua.map-package.v1</code>).
+                Convert a source Web Map JSON into a Honua Map (<code>honua.map-package.v1</code>).
                 Layer-by-layer fidelity is shown before you commit.
             </p>
         </div>
         <div class="console-button-row">
             <a class="console-button-ghost" href="@ConsoleNavigation.ToConsoleHref("/operate/import/esri")">Discard</a>
-            <button type="button" class="console-button" @onclick="CreatePackage" disabled="@(_result is null)">Create map package →</button>
+            <button type="button" class="console-button" @onclick="CreatePackage" disabled="@(_result is null)">Create map →</button>
         </div>
     </div>
 
@@ -46,7 +46,7 @@
             <div class="esri-import__mapping">
                 <SourceTargetMappingTable Rows="result.Rows"
                                           Heading="Layer mapping"
-                                          Subhead="source operational layer → Honua map-package layer"
+                                          Subhead="source operational layer → Honua map layer"
                                           SourceHeader="Source layer"
                                           TargetHeader="→ Honua layer"
                                           ShowBoundColumn="true"
@@ -55,7 +55,7 @@
 
             <aside class="esri-import__preview" data-esri-target-preview>
                 <div class="esri-import__preview-head">
-                    <span class="console-kicker">Target map package</span>
+                    <span class="console-kicker">Target map</span>
                     <strong><code>@result.TargetSchema</code></strong>
                 </div>
                 <MapPreview Mode="MapPreviewMode.Layer" Height="220" ShowPopup="false" />
@@ -97,7 +97,7 @@
             <ConsoleStateView HeadingLevel="2" Kind="missing"
                               Kicker="@_publishBinding.State"
                               Title="No publish target is bound"
-                              Message="@($"{_publishBinding.Detail} Create the package as a draft and bind it once a honua-server is connected.")" />
+                              Message="@($"{_publishBinding.Detail} Create the map as a draft and bind it once a honua-server is connected.")" />
         }
     }
     else
@@ -147,7 +147,7 @@
         _publishBinding = binding is null
             ? new PublishingMissingBinding(
                 "Missing binding",
-                "Connect a honua-server (Honua:Server:BaseUrl / HONUA_SERVER_BASE_URL) to publish this package to /operate/publishing.")
+                "Connect a honua-server (Honua:Server:BaseUrl / HONUA_SERVER_BASE_URL) to publish this map to /operate/publishing.")
             : new PublishingMissingBinding(binding.State, binding.Detail);
     }
 

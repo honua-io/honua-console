@@ -34,7 +34,7 @@
             </div>
         </div>
 
-        <p class="console-muted share-manage-lede">Manage a content item's server-owned Share access: public/private visibility, public-link tokens with expiration, embed enablement and embed tokens, dependency-closure safety, and open-data eligibility. State is authored on honua-server's Console Share access API and is never resolved client-side.</p>
+        <p class="console-muted share-manage-lede">Manage an item's server-owned Share access: public/private visibility, public-link tokens with expiration, embed enablement and embed tokens, dependency-closure safety, and open-data eligibility. State is authored on honua-server's Console Share access API and is never resolved client-side.</p>
     }
 
     @if (_share is not null)
@@ -607,7 +607,7 @@
                     </div>
                     <dl class="console-definition-list">
                         <dt>Audience</dt>
-                        <dd>@(sideShare.IsPublic ? "Anyone with the link" : "Workspace members only")</dd>
+                        <dd>@(sideShare.IsPublic ? "Anyone with the link" : "Users with access only")</dd>
                         <dt>Anonymous read</dt>
                         <dd>@(sideShare.AnonymousEligible ? "Allowed" : "Blocked")</dd>
                         <dt>Embed</dt>
@@ -643,7 +643,7 @@
                 }
                 else
                 {
-                    <span class="console-muted">Open a content item to manage its public link, embed, open-data page, and exports.</span>
+                    <span class="console-muted">Open a map, app or other item to manage its public link, embed, open-data page, and exports.</span>
                 }
             </div>
     </text>;
@@ -651,7 +651,7 @@
     private RenderFragment OpenItemForm => @<text>
         <form class="console-action-row" @onsubmit="OpenItem" @formname="open-share-item">
                 <label class="studio-form-label">
-                    <span>Content item id</span>
+                    <span>Item ID</span>
                     <input class="console-input" @bind="_itemIdInput" @bind:after="OnItemIdEdit" placeholder="item-..." />
                     <ValidationMessageInline FieldKey="@ShareManageFieldKeys.ItemId" State="_validation" />
                 </label>
@@ -692,7 +692,7 @@
         ("geopackage", "GeoPackage", "OGC standard"),
         ("shapefile", "Shapefile (zip)", "legacy"),
         ("csv", "CSV (WKT)", "tabular"),
-        ("pmtiles", "PMTiles", "web map tiles"),
+        ("pmtiles", "PMTiles", "map tiles"),
         ("kml", "KML/KMZ", "Google Earth")
     ];
 

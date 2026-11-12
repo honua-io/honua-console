@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-server#1184 / honua-sdk-dotnet#166): honua-server owns the form package
+// SHIM(honua-server#1184 / honua-sdk-dotnet#166): honua-server owns the form
 // content/publication contract (FormPackage* records in Honua.Core.Features.Forms.Packages,
 // admin lifecycle under /api/v1/admin/forms/packages and runtime offline-policy under
 // /api/v1/forms/packages). honua-sdk-dotnet does not yet project these as a consumable stable
@@ -91,7 +91,7 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
     private static readonly AdminBodyFormat BodyFormat = new(
         JsonOptions,
         AdminBodyRead.Streamed,
-        "The Honua server form package response did not match the expected contract");
+        "The Honua server form response did not match the expected contract");
 
     private readonly HttpClient _httpClient;
     private readonly AdminEndpointTransport _transport;
@@ -107,7 +107,7 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
         _transport = new AdminEndpointTransport(
             httpClient,
             options.ApiKey,
-            AdminTransportFailure.Unreachable("The Honua server form package endpoint"));
+            AdminTransportFailure.Unreachable("The Honua server form endpoint"));
     }
 
     public Uri BaseUri { get; }
@@ -244,7 +244,7 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
 
     public void Dispose() => _httpClient.Dispose();
 
-    private const string EmptyBody = "The Honua server form package response body was empty.";
+    private const string EmptyBody = "The Honua server form response body was empty.";
 
     private static string VersionPath(string formId, int packageVersion) =>
         $"{AdminBase}/{Uri.EscapeDataString(formId)}/versions/{packageVersion.ToString(CultureInfo.InvariantCulture)}";

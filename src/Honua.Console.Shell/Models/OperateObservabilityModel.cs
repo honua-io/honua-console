@@ -559,7 +559,7 @@ public static class OperateObservabilityFixture
                 new("degraded", "One alert is firing; telemetry export is partially configured."),
                 "2026-05-24 09:34 HST",
                 "Platform Ops",
-                "2 package bindings drifted from release rel-2026.05.18"),
+                "2 content bindings drifted from release rel-2026.05.18"),
             new(
                 "staging",
                 "Staging",
@@ -585,7 +585,7 @@ public static class OperateObservabilityFixture
             new("SDK contract projection", "mock UI projection", "honua-sdk-dotnet operate contract", new("unknown", "The backend/SDK projection is tracked in honua-server#1168-1170 and honua-sdk-js#229."), "docs/architecture/operate-observability-information-model.md"),
             new("Admin realtime stream", "not advertised", "optional", new("unsupported", "Realtime is not required for static evidence review."), "evt-telemetry-004"),
             new("OTLP exporter", "not configured", "optional", new("not configured", "Operators can still inspect product-level events and raw evidence links."), "evt-telemetry-001"),
-            new("Package binding compatibility", "2 drifted", "0 drifted", new("degraded", "Generated app and layer package bindings differ from release rel-2026.05.18."), "evt-release-211")
+            new("Content binding compatibility", "2 drifted", "0 drifted", new("degraded", "Generated app and layer content bindings differ from release rel-2026.05.18."), "evt-release-211")
         ],
         Events:
         [
@@ -605,7 +605,7 @@ public static class OperateObservabilityFixture
                 "alert-slo-burn",
                 [
                     new("grafana", "SLO burn panel", "https://grafana.example.invalid/d/slo-parcels", "Error budget burn exceeded 2 percent over 30 minutes."),
-                    new("log", "Release gate log", "/operate/events/evt-log-410", "Gate watcher recorded three failed package preview checks.")
+                    new("log", "Release gate log", "/operate/events/evt-log-410", "Gate watcher recorded three failed content preview checks.")
                 ],
                 [
                     new("alert", "alert-slo-burn", "/operate/alerts/alert-slo-burn"),
@@ -624,7 +624,7 @@ public static class OperateObservabilityFixture
                         new("grafana", "SLO burn panel", "https://grafana.example.invalid/d/slo-parcels", "Metric evidence linked from the alert.")
                     ],
                     [
-                        "Review package binding drift before retrying the publish job.",
+                        "Review content binding drift before retrying the publish job.",
                         "Keep the release gate active until the SLO panel returns below threshold."
                     ])),
             new(
@@ -642,7 +642,7 @@ public static class OperateObservabilityFixture
                 "job-publish-001",
                 "alert-slo-burn",
                 [
-                    new("log", "Job runner log", "/operate/jobs/job-publish-001", "Stage preview failed after package binding validation."),
+                    new("log", "Job runner log", "/operate/jobs/job-publish-001", "Stage preview failed after content binding validation."),
                     new("artifact", "Preview failure report", "/operate/jobs/job-publish-001#artifacts", "Failure report captured by the job runner.")
                 ],
                 [
@@ -651,7 +651,7 @@ public static class OperateObservabilityFixture
                 ],
                 [
                     "Job queued",
-                    "Package validation passed with warnings",
+                    "Content validation passed with warnings",
                     "Preview stage failed"
                 ],
                 new(
@@ -662,7 +662,7 @@ public static class OperateObservabilityFixture
                     ],
                     [
                         "Open the artifact report before retrying.",
-                        "Use retry only after the package binding warning is resolved."
+                        "Use retry only after the content binding warning is resolved."
                     ])),
             new(
                 "evt-audit-118",
@@ -696,7 +696,7 @@ public static class OperateObservabilityFixture
                 "warning",
                 "release",
                 "gitops",
-                "GitOps release detected package binding drift before deployment.",
+                "GitOps release detected content binding drift before deployment.",
                 "prod",
                 "honua-prod-01",
                 "corr-rel-20260524",
@@ -778,7 +778,7 @@ public static class OperateObservabilityFixture
                 "error",
                 "log",
                 "generated app preview",
-                "Preview renderer returned binding unsupported for dashboard package.",
+                "Preview renderer returned binding unsupported for dashboard.",
                 "prod",
                 "honua-prod-01",
                 "corr-rel-20260524",
@@ -959,7 +959,7 @@ public static class OperateObservabilityFixture
                 "Studio",
                 "gp",
                 "studio-analysis",
-                new("succeeded", "Studio analysis package completed."),
+                new("succeeded", "Studio analysis completed."),
                 "mira@honua.example",
                 "2026-05-24 07:12 HST",
                 "staging",
@@ -968,7 +968,7 @@ public static class OperateObservabilityFixture
                 "none",
                 ["studio-project:watershed-dashboard", "content:watershed-score"],
                 [
-                    Stage("Queued", "succeeded", 100, "Studio submitted the package run."),
+                    Stage("Queued", "succeeded", 100, "Studio submitted the analysis run."),
                     Stage("Analyze", "succeeded", 100, "Spatial analysis completed."),
                     Stage("Publish artifact", "succeeded", 100, "Result attached to Studio project.")
                 ]),
@@ -987,7 +987,7 @@ public static class OperateObservabilityFixture
                 ["content:parcels-service", "release:rel-2026.05.18", "app:parcel-dashboard"],
                 [
                     Stage("Queued", "succeeded", 100, "Publish request accepted."),
-                    Stage("Validate package", "warning", 100, "Package binding drift detected."),
+                    Stage("Validate content", "warning", 100, "Package binding drift detected."),
                     Stage("Preview generated app", "failed", 34, "Dashboard binding unsupported by current preview runtime."),
                     Stage("Promote", "blocked", 0, "Promotion blocked until preview succeeds.")
                 ]),
@@ -1087,7 +1087,7 @@ public static class OperateObservabilityFixture
             new(
                 "inv-prod-17",
                 "Production publish SLO burn",
-                new("mitigating", "Operator is reviewing package binding drift before retry."),
+                new("mitigating", "Operator is reviewing content binding drift before retry."),
                 "alex@honua.example",
                 "2026-05-24 09:21-10:00 HST",
                 ["evt-alert-900", "evt-job-301", "evt-log-410"],
@@ -1095,7 +1095,7 @@ public static class OperateObservabilityFixture
                 ["job-publish-001", "job-gitops-001"],
                 [
                     "Pinned the alert, publish job, and raw preview renderer log.",
-                    "Waiting for package owner to update unsupported dashboard binding."
+                    "Waiting for the dashboard owner to update unsupported dashboard binding."
                 ]),
             new(
                 "inv-sync-04",

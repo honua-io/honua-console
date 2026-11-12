@@ -273,7 +273,7 @@
     }
 
     // Carry the active workspace through the item drill-down and the back-to-list breadcrumb so a non-default
-    // workspace's registry stays selected instead of silently reverting to the current workspace.
+    // workspace's registry stays selected instead of silently reverting to the default `workspace` scope.
     private string ItemHref(string itemId) =>
         $"/operate/catalogs/{Uri.EscapeDataString(Key)}/items/{Uri.EscapeDataString(itemId)}{WorkspaceQuery()}";
 

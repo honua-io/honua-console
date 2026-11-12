@@ -13,17 +13,17 @@
 <section class="console-page" data-legacy-studio-retired>
     @if (V4Enabled)
     {
-        <ConsolePageHeading Title="This view has moved to the Studio workspace">
+        <ConsolePageHeading Title="This view has moved to Studio">
             <p>Edit maps with visual controls and your Console conversation. Use Processes for analysis and workflow authoring.</p>
         </ConsolePageHeading>
     }
     else
     {
         <p class="console-kicker">Studio</p>
-        <h1>This view has moved to the Studio workspace</h1>
+        <h1>This view has moved to Studio</h1>
         <p>Edit maps with visual controls and your Console conversation. Use Processes for analysis and workflow authoring.</p>
     }
-    <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/studio")">Open Studio workspace</a>
+    <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/studio")">Open Studio</a>
     <a class="console-button-link console-button-secondary" href="@ConsoleNavigation.ToConsoleHref("/studio/processes")">Open Processes</a>
 </section>
 

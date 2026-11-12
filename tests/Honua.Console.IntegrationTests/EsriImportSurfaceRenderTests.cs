@@ -126,7 +126,7 @@ public sealed class EsriImportSurfaceRenderTests
         Assert.DoesNotContain("Layer mapping", page.Markup, StringComparison.Ordinal);
         Assert.Empty(page.FindAll("[data-esri-binding-banner]"));
         // The Create CTA is disabled until something is parsed.
-        var create = page.FindAll("button.console-button").First(b => b.TextContent.Contains("Create map package", StringComparison.Ordinal));
+        var create = page.FindAll("button.console-button").First(b => b.TextContent.Contains("Create map", StringComparison.Ordinal));
         Assert.True(create.HasAttribute("disabled"));
     }
 
@@ -138,7 +138,7 @@ public sealed class EsriImportSurfaceRenderTests
 
         var page = ctx.Render<ImportEsriWebMapPage>();
         page.Find("[data-intake-sample]").Click();
-        page.FindAll("button.console-button").First(b => b.TextContent.Contains("Create map package", StringComparison.Ordinal)).Click();
+        page.FindAll("button.console-button").First(b => b.TextContent.Contains("Create map", StringComparison.Ordinal)).Click();
 
         page.WaitForAssertion(
             () => Assert.Contains("No publish target is bound", page.Markup, StringComparison.Ordinal),
@@ -223,12 +223,12 @@ public sealed class EsriImportSurfaceRenderTests
 
         // Default state is the empty intake — the sample is not preloaded as the user's import.
         Assert.Contains("Paste or upload a source notebook", page.Markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("Cell → notebook-package mapping", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Cell → notebook mapping", page.Markup, StringComparison.Ordinal);
 
         // Loading the bundled sample parses it through the real parser and populates the surface.
         page.Find("[data-intake-sample]").Click();
 
-        Assert.Contains("Cell → notebook-package mapping", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Cell → notebook mapping", page.Markup, StringComparison.Ordinal);
         Assert.Contains("honua.notebook-package.v1", page.Markup, StringComparison.Ordinal);
         Assert.Contains("esri-notebook-preview", page.Markup, StringComparison.Ordinal);
 
@@ -251,7 +251,7 @@ public sealed class EsriImportSurfaceRenderTests
 
         var page = ctx.Render<ImportEsriNotebookPage>();
 
-        var create = page.FindAll("button.console-button").First(b => b.TextContent.Contains("Create notebook package", StringComparison.Ordinal));
+        var create = page.FindAll("button.console-button").First(b => b.TextContent.Contains("Create notebook", StringComparison.Ordinal));
         Assert.True(create.HasAttribute("disabled"));
     }
 
