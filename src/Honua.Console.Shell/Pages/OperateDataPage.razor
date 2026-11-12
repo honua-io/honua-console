@@ -12,8 +12,8 @@
 <section class="console-page operate-data-page" data-operate-data>
     @if (V4Enabled)
     {
-        <ConsolePageHeading Title="Datasets">
-            <ChildContent><p>Browse datasets and the services that expose them.</p></ChildContent>
+        <ConsolePageHeading Title="Layer preview">
+            <ChildContent><p>Browse every dataset and open it as a map or through its served routes.</p></ChildContent>
             <Actions><a class="console-button" href="@Navigation.ToConsoleHref("/operate/data/new")">Add data</a></Actions>
         </ConsolePageHeading>
     }
@@ -40,7 +40,19 @@
 
         @if (V4Enabled)
         {
-            <ConsolePanel Title="Dataset publications" HeadingId="data-publications-heading">@DatasetBrowser</ConsolePanel>
+            <ConsolePanel Title="Layers" HeadingId="data-publications-heading">
+                <LayerPreviewCatalog Rows="@_catalogRows" SelectedResourceId="@_selectedResource?.ResourceId" SelectedProtocolId="@_preview?.ProtocolId"
+                                     OnPublicationSelected="OnPublicationSelected" />
+            </ConsolePanel>
+            @if (_selectedResource is not null)
+            {
+                <LayerPreviewPane Selection="@_preview"
+                                  Layer="@PreviewLayer"
+                                  EnvironmentId="@_environmentId"
+                                  Protocols="@_previewProtocols"
+                                  EmptyText="This dataset is not published yet. Publish it, or pick Map on a published layer."
+                                  OnProtocolSelected="OnPreviewProtocolChanged" />
+            }
         }
         else
         {
@@ -90,6 +102,8 @@
     private OperateServicesView? _servicesView;
     private string? _environmentId;
 
+    private IReadOnlyList<LayerPreviewCatalog.Row> _catalogRows = [];
+
     private OperateServiceLayerProjection? PreviewLayer => _preview is { } preview ? _servicesView?.FindLayer(preview.ResourceId) : null;
 
     private bool _loaded;
@@ -130,6 +144,7 @@
         _loaded = false;
         _loadError = null;
         _nodes = [];
+        _catalogRows = [];
         _states = [];
         _preview = null;
         _previewProtocols = [];
@@ -149,6 +164,7 @@
         _environmentId = environmentId;
 
         _nodes = ResourcePublicationsTreeBuilder.Build(resourcesView.ResourceEdits, servicesView.Services);
+        if (V4Enabled) _catalogRows = CatalogRows(_nodes, servicesView);
         _states = OperateCapabilityStateFilters.ForSurface(
             resourcesView.CapabilityStates.Concat(servicesView.CapabilityStates).ToArray(),
             "Resources", "Layers", "Services");
@@ -184,16 +200,20 @@
 
     private void SetPreviewFromResource(ResourceTreeNode node, PublicationTreeNode publication)
     {
-        if (publication.Route is null) return;
-        _preview = new LayerPreviewPane.PreviewSelection(
-            node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, publication.Route);
+        if (LayerPreviewPane.PreviewSelection.For(node, publication) is not { } selection) return;
+        _preview = selection;
         _previewProtocols = ProtocolsFor(node);
+    }
+
+    private static IReadOnlyList<LayerPreviewCatalog.Row> CatalogRows(IReadOnlyList<ResourceTreeNode> nodes, OperateServicesView servicesView)
+    {
+        var geometry = servicesView.GeometryByCanonicalResourceId();
+        return nodes.Select(node => new LayerPreviewCatalog.Row(node, geometry.GetValueOrDefault(node.ResourceId))).ToArray();
     }
 
     private static IReadOnlyList<LayerPreviewPane.PreviewSelection> ProtocolsFor(ResourceTreeNode node) =>
         node.Publications
-            .Where(publication => publication.Route is not null)
-            .Select(publication => new LayerPreviewPane.PreviewSelection(
-                node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, publication.Route!))
+            .Select(publication => LayerPreviewPane.PreviewSelection.For(node, publication))
+            .OfType<LayerPreviewPane.PreviewSelection>()
             .ToArray();
 }

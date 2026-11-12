@@ -55,6 +55,8 @@ jobs:
         run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release --no-restore -o artifacts/static-publish
       - name: Verify published Cesium assets
         run: node scripts/verify-published-cesium.mjs artifacts/static-publish
+      - name: Verify the published Content-Security-Policy
+        run: node scripts/console-csp.mjs --check artifacts/static-publish/wwwroot/console/index.html
       - name: Verify published Studio assets
         run: node scripts/fetch-studio-release.mjs --verify artifacts/static-publish/wwwroot/console/_studio
       - name: Install browser test dependencies
