@@ -63,9 +63,12 @@ public sealed class DatasetPageRenderTests
         page.Find("tr[data-resource-node='parcels'] [data-catalog-map]").Click();
         Assert.Equal("parcels", Assert.Single(registry.Current.Selection).ResourceId);
         Assert.Contains("parcels", page.Find("[data-layer-preview] h2").TextContent);
-        var protocol = page.FindAll("tr[data-resource-node='parcels'] [data-catalog-all-formats] option")[^1].GetAttribute("value");
-        page.Find("tr[data-resource-node='parcels'] [data-catalog-all-formats]").Change(protocol);
-        Assert.Equal(protocol, page.Find("[data-preview-open-in]").GetAttribute("value"));
+        var protocol = page.FindAll("tr[data-resource-node='parcels'] [data-catalog-all-formats] option")[^1];
+        page.Find("[data-catalog-search]").Input("draft");
+        page.Find("tr[data-resource-node='draft'] [data-publish]");
+        page.Find("[data-catalog-search]").Input(string.Empty);
+        page.Find("tr[data-resource-node='parcels'] [data-catalog-all-formats]").Change(protocol.GetAttribute("value"));
+        Assert.EndsWith(protocol.TextContent, page.Find("[data-layer-preview] h2").TextContent);
 
         page.Find("[data-catalog-type]").Change("Not served");
         Assert.Equal("draft", Assert.Single(page.FindAll("tbody tr")).GetAttribute("data-resource-node"));

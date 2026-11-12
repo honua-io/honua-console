@@ -23,7 +23,8 @@ for (const { names, heading, scope } of [
         assert.equal(await page.locator("[data-layer-preview-catalog] tbody tr").count(), 2);
         assert.equal(await page.locator(`${scope} > .console-panel[aria-labelledby]`).count(), 1);
         for (const target of await page.locator("[data-layer-preview-catalog] :is(a, button, select):visible").all()) {
-          assert.ok((await target.boundingBox()).height >= 24, "Layer preview targets must be at least 24px tall");
+          assert.ok((await target.boundingBox()).height >= 24,
+            `Layer preview target "${(await target.textContent()).trim()}" must be at least 24px tall`);
         }
       }
       if (name === "data-conflicts-pending") {

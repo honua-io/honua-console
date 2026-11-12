@@ -189,7 +189,7 @@
     font-weight: 600;
 }
 
-.console-shell[data-console-v4="true"] .layer-preview-catalog__formats a,
+.console-shell[data-console-v4="true"] .layer-preview-catalog__table td a:not(.console-button),
 .console-shell[data-console-v4="true"] .layer-preview-catalog__map {
     display: inline-flex;
     align-items: center;
@@ -209,4 +209,13 @@
 
 .console-shell[data-console-v4="true"] .layer-preview-catalog__table tr[aria-current="true"] {
     background: var(--c-surface-2);
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__table select {
+    width: 100%;
+    max-width: 14rem;
+}
+
+.console-shell[data-console-v4="true"] .operate-data-page > .layer-preview-pane {
+    margin-top: var(--space-4);
 }
