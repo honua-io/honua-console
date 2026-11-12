@@ -15,7 +15,7 @@ const sharedKeyboardTargets = {
   sizedControls: "input, select, button, textarea, summary, .console-button-link",
   minimumHeight: 24
 };
-const statusEdges = { info: "rgb(37, 99, 235)", warning: "rgb(180, 95, 6)", danger: "rgb(179, 38, 30)",
+export const statusEdges = { info: "rgb(37, 99, 235)", warning: "rgb(180, 95, 6)", danger: "rgb(179, 38, 30)",
   neutral: "rgb(103, 115, 110)", success: "rgb(21, 128, 61)" };
 
 export async function inspectCatalogCounts(page, name) {
@@ -125,7 +125,7 @@ async function inspectProtocolPills(page) {
   assert.ok(childrenFit, "Every protocol name, status and URL box must fit inside its pill");
 }
 
-async function inspectNoticeSurface(surface, edgeColor) {
+export async function inspectNoticeSurface(surface, edgeColor) {
   assert.equal(await surface.count(), 1);
   const normal = await surface.evaluate(element => {
     const style = getComputedStyle(element);
