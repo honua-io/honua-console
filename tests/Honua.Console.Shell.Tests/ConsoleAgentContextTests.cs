@@ -147,6 +147,21 @@ public sealed class ConsoleAgentContextTests
     }
 
     [Theory]
+    [InlineData(" ", "/operate/layers/%20/filter")]
+    [InlineData("a/b", "/operate/layers/a%2Fb/filter")]
+    public void Layer_tool_route_escapes_unresolved_ids_without_throwing(string resourceId, string expected)
+    {
+        Assert.Equal(expected, ConsoleAgentLayerTool.ToolRoute(resourceId, ConsoleAgentLayerTool.Filter));
+    }
+
+    [Fact]
+    public void Layer_tool_route_accepts_overlong_unresolved_ids()
+    {
+        var resourceId = new string('x', 300);
+        Assert.Equal($"/operate/layers/{resourceId}/filter", ConsoleAgentLayerTool.ToolRoute(resourceId, ConsoleAgentLayerTool.Filter));
+    }
+
+    [Theory]
     [InlineData("https://other.example")]
     [InlineData("//other.example")]
     [InlineData("/bad\\route")]

@@ -11,13 +11,17 @@ public static class ConsoleAgentRoutes
             ConsoleAgentEntityKind.Connection => $"/operate/connections/{id}",
             ConsoleAgentEntityKind.Folder => $"/operate/folders/{id}",
             ConsoleAgentEntityKind.Service => $"/operate/services/{Segment(target.ServiceName ?? target.Id)}/settings",
-            ConsoleAgentEntityKind.Layer => $"/operate/layers/{Segment(target.ResourceId ?? target.Id)}",
+            ConsoleAgentEntityKind.Layer => ForLayer(target.ResourceId ?? target.Id),
             ConsoleAgentEntityKind.Job => $"/operate/jobs/{id}",
             ConsoleAgentEntityKind.Approval => $"/inbox?proposalId={id}",
             ConsoleAgentEntityKind.Item => $"/share/manage?itemId={id}",
             _ => throw new ArgumentOutOfRangeException(nameof(target))
         };
     }
+
+    public static string ForLayer(string resourceId) => $"/operate/layers/{Segment(resourceId)}";
+
+    public static string ForRequestedLayer(string routeResourceId) => $"/operate/layers/{Uri.EscapeDataString(routeResourceId)}";
 
     private static string Segment(string value)
     {
