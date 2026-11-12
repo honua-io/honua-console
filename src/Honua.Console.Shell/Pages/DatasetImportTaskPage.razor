@@ -28,8 +28,8 @@ else if (V4Enabled)
 {
     <section class="console-page">
         <ConsolePageHeading Title="Import a file">
-            <ChildContent><p>The conversation import task is experimental. Use file import to preview the coordinate system and import a dataset.</p></ChildContent>
-            <Actions><a class="console-button" href="@Nav.ToConsoleHref("/operate/resources/import")">Open file import</a></Actions>
+            <ChildContent>@ExperimentalNotice</ChildContent>
+            <Actions>@FileImportLink</Actions>
         </ConsolePageHeading>
     </section>
 }
@@ -37,13 +37,19 @@ else
 {
     <section class="console-page">
         <h1>Import a file</h1>
-        <p>The conversation import task is experimental. Use file import to preview the coordinate system and import a dataset.</p>
-        <a class="console-button" href="@Nav.ToConsoleHref("/operate/resources/import")">Open file import</a>
+        @ExperimentalNotice
+        @FileImportLink
     </section>
 }
 
 @code {
     private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private RenderFragment ExperimentalNotice =>
+        @<p>The conversation import task is experimental. Use file import to preview the coordinate system and import a dataset.</p>;
+
+    private RenderFragment FileImportLink =>
+        @<a class="console-button" href="@Nav.ToConsoleHref("/operate/resources/import")">Open file import</a>;
 
     private RenderFragment TaskBody => @<text>
     <p role="status" aria-live="polite" data-import-status>Checking the current task…</p>

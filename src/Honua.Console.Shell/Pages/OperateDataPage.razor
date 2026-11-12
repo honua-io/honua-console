@@ -41,7 +41,7 @@
         @if (V4Enabled)
         {
             <ConsolePanel Title="Layers" HeadingId="data-publications-heading">
-                <LayerPreviewCatalog Rows="@_catalogRows" SelectedResourceId="@_selectedResource?.ResourceId"
+                <LayerPreviewCatalog Rows="@_catalogRows" SelectedResourceId="@_selectedResource?.ResourceId" SelectedProtocolId="@_preview?.ProtocolId"
                                      OnPublicationSelected="OnPublicationSelected" />
             </ConsolePanel>
             @if (_selectedResource is not null)
@@ -50,6 +50,7 @@
                                   Layer="@PreviewLayer"
                                   EnvironmentId="@_environmentId"
                                   Protocols="@_previewProtocols"
+                                  EmptyText="This dataset is not published yet. Publish it, or pick Map on a published layer."
                                   OnProtocolSelected="OnPreviewProtocolChanged" />
             }
         }

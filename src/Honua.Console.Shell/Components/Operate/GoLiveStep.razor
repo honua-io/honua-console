@@ -4,8 +4,9 @@
 @using Honua.Console.Shell.Services
 @inject IServiceConfigurationOperation ServiceConfiguration
 @inject IConsoleNotificationService Notifications
+@inject IServiceProvider ServiceProvider
 
-@if (V4)
+@if (V4Enabled)
 {
     <div data-step-body="GoLive">
         <ConsolePanel Title="@($"Go live: {Flow.Resource.Name} → {Flow.TargetService}")" HeadingId="data-flow-golive-heading">@Body</ConsolePanel>
@@ -45,43 +46,12 @@ else
     </p>
     @if (_outcome is null)
     {
-        <ConsoleTableRegion Label="Planned routes">
-        <table class="console-table" data-route-preview>
-            <thead><tr><th>Protocol</th><th>Route</th></tr></thead>
-            <tbody>
-                @foreach (var plan in Flow.PlannedPublications)
-                {
-                    <tr><td>@plan.Label</td><td class="console-mono">@plan.Route</td></tr>
-                }
-            </tbody>
-        </table>
-        </ConsoleTableRegion>
+        @Table("Planned routes", PlannedRoutes)
     }
     else
     {
         <section data-publish-results>
-            <ConsoleTableRegion Label="Publish results">
-            <table class="console-table">
-                <thead><tr><th>Protocol</th><th>State</th><th>Route or detail</th></tr></thead>
-                <tbody>
-                    @foreach (var protocol in _outcome.Protocols)
-                    {
-                        <tr data-protocol-result="@protocol.Plan.ProtocolId" data-state="@ResultState(protocol.Result)">
-                            <td>@protocol.Plan.Label</td>
-                            <td>@protocol.Result.State</td>
-                            @if (protocol.Result.Succeeded)
-                            {
-                                <td class="console-mono" data-live-route>@protocol.Plan.Route</td>
-                            }
-                            else
-                            {
-                                <td>@protocol.Result.Detail</td>
-                            }
-                        </tr>
-                    }
-                </tbody>
-            </table>
-            </ConsoleTableRegion>
+            @Table("Publish results", PublishResults)
             <p data-visibility-result data-state="@ResultState(_outcome.Visibility)">Visibility: <strong>@_outcome.Visibility.State</strong> @_outcome.Visibility.Detail</p>
             <p data-layer-result data-state="@ResultState(_outcome.Layer)">Layer: <strong>@_outcome.Layer.State</strong> @_outcome.Layer.Detail</p>
             @if (_outcome.AllLive)
@@ -104,8 +74,42 @@ else
 
     [Parameter, EditorRequired] public DataToPublishFlowState Flow { get; set; } = default!;
 
-    /// <summary>Render the step as a v4 panel (the Console v4 flag is owned by the flow's host).</summary>
-    [Parameter] public bool V4 { get; set; }
+    private RenderFragment PlannedRoutes => @<table class="console-table" data-route-preview>
+        <thead><tr><th>Protocol</th><th>Route</th></tr></thead>
+        <tbody>
+            @foreach (var plan in Flow.PlannedPublications)
+            {
+                <tr><td>@plan.Label</td><td class="console-mono">@plan.Route</td></tr>
+            }
+        </tbody>
+    </table>;
+
+    private RenderFragment PublishResults => @<table class="console-table">
+        <thead><tr><th>Protocol</th><th>State</th><th>Route or detail</th></tr></thead>
+        <tbody>
+            @foreach (var protocol in _outcome?.Protocols ?? [])
+            {
+                <tr data-protocol-result="@protocol.Plan.ProtocolId" data-state="@ResultState(protocol.Result)">
+                    <td>@protocol.Plan.Label</td>
+                    <td>@protocol.Result.State</td>
+                    @if (protocol.Result.Succeeded)
+                    {
+                        <td class="console-mono" data-live-route>@protocol.Plan.Route</td>
+                    }
+                    else
+                    {
+                        <td>@protocol.Result.Detail</td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>;
+
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    // v4 tables scroll inside a labelled region at narrow widths; legacy tables keep their markup.
+    private RenderFragment Table(string label, RenderFragment table) =>
+        V4Enabled ? @<ConsoleTableRegion Label="@label">@table</ConsoleTableRegion> : table;
 
     [Parameter] public EventCallback OnBack { get; set; }
 

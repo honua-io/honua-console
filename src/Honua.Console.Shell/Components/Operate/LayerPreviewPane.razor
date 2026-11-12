@@ -53,7 +53,7 @@
     else
     {
         <p class="console-muted" data-preview-empty>
-            Pick a published layer to preview its served endpoint here.
+            @EmptyText
         </p>
     }
 </aside>
@@ -70,6 +70,9 @@
 
     /// <summary>The other publications on the same resource, for the "open in" protocol picker.</summary>
     [Parameter] public IReadOnlyList<PreviewSelection> Protocols { get; set; } = [];
+
+    // Shown when nothing previewable is selected; each page names where its layers are picked.
+    [Parameter] public string EmptyText { get; set; } = "Pick a dataset’s layer in the tree to preview its served endpoint here.";
 
     /// <summary>Raised when the user switches which protocol to preview the selected resource in.</summary>
     [Parameter] public EventCallback<string> OnProtocolSelected { get; set; }

@@ -395,8 +395,10 @@ public sealed class ResourceFirstPublishFlowTests
         AssertStepHeading(cut, "Style", "Style this dataset");
         cut.Find("[data-step-body=\"Style\"] button.console-button").Click();
         AssertStepHeading(cut, "GoLive", v4 ? "Go live: parcels → parcels" : "parcels → parcels");
+        Assert.Equal(v4 ? 1 : 0, cut.FindAll("[data-step-body='GoLive'] [role='region']").Count);
 
         cut.Find("[data-go-live-apply]").Click();
+        Assert.Equal(v4 ? 1 : 0, cut.FindAll("[data-step-body='GoLive'] [role='region']").Count);
         if (v4) CatalogAdminPreview.Capture("data-flow-golive", cut.Markup);
 
         Assert.Equal(2, cut.FindAll("[data-protocol-result]").Count);

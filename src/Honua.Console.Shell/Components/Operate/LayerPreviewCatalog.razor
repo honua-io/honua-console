@@ -20,27 +20,26 @@
         </label>
         <label class="layer-preview-catalog__field layer-preview-catalog__search">
             <span class="console-visually-hidden">Search layers</span>
-            <input class="console-input" type="search" placeholder="Search layers" value="@_query"
+            <input class="console-input" type="search" placeholder="Search layers" value="@_queryText"
                    @oninput="OnQueryChanged" data-catalog-search />
         </label>
     </div>
 
+    <p class="console-muted layer-preview-catalog__status" role="status" data-catalog-results>@ResultsText</p>
     @if (Rows.Count == 0)
     {
-        <p class="console-muted" data-tree-empty>
-            <span>No datasets yet.</span> <a href="@ConsoleNavigation.ToConsoleHref("/operate/data/new")">Add data</a><span> — it becomes a dataset you can publish as a layer.</span>
+        <p class="console-muted" data-catalog-empty>
+            <a href="@ConsoleNavigation.ToConsoleHref("/operate/data/new")">Add data</a><span> — it becomes a dataset you can publish as a layer.</span>
         </p>
     }
     else if (Filtered.Count == 0)
     {
-        <p class="console-muted" data-tree-empty>
-            <span>No layers match this search.</span>
+        <p data-catalog-empty>
             <button type="button" class="console-button console-button-secondary" @onclick="ClearFilters">Clear filters</button>
         </p>
     }
     else
     {
-        @Pager("top")
         <ConsoleTableRegion Label="Layers to preview">
             <table class="console-table layer-preview-catalog__table">
                 <thead>
@@ -83,6 +82,7 @@
                                 @if (routed.Length > 0)
                                 {
                                     <select class="console-input" aria-label="All formats for @node.Name" data-catalog-all-formats
+                                            value="@(IsSelected(node) ? SelectedProtocolId ?? string.Empty : string.Empty)"
                                             @onchange="args => SelectProtocol(node, args)">
                                         <option value="">All formats…</option>
                                         @foreach (var publication in routed)
@@ -102,7 +102,11 @@
                 </tbody>
             </table>
         </ConsoleTableRegion>
-        @Pager("bottom")
+        @if (Filtered.Count > PageSize)
+        {
+            <CatalogAdminPager Label="Layer pages" Offset="@(CurrentPage * PageSize)" Total="@Filtered.Count" PageSize="PageSize"
+                               OffsetChanged="offset => _page = offset / PageSize" />
+        }
     }
 </div>
 
@@ -110,17 +114,18 @@
     internal const int PageSize = 25;
     private const int CommonFormatCount = 2;
 
-    /// <summary>One catalog row: the dataset and the geometry of its served layer, when it has one.</summary>
     public sealed record Row(ResourceTreeNode Node, string? Geometry);
 
     [Parameter] public IReadOnlyList<Row> Rows { get; set; } = [];
 
-    /// <summary>The dataset currently previewed; its page is shown when it first arrives.</summary>
+    // The previewed dataset: its page is revealed whenever the selection changes.
     [Parameter] public string? SelectedResourceId { get; set; }
+
+    [Parameter] public string? SelectedProtocolId { get; set; }
 
     [Parameter] public EventCallback<LayerPreviewPane.PreviewSelection> OnPublicationSelected { get; set; }
 
-    private string _query = string.Empty;
+    private string _queryText = string.Empty;
     private string _type = string.Empty;
     private int _page;
     private string? _revealedResourceId;
@@ -130,10 +135,12 @@
 
     private IReadOnlyList<Row> Filtered => Rows
         .Where(row => _type.Length == 0 || string.Equals(TypeLabel(row), _type, StringComparison.Ordinal))
-        .Where(row => _query.Length == 0
-            || row.Node.Name.Contains(_query, StringComparison.OrdinalIgnoreCase)
-            || row.Node.ResourceId.Contains(_query, StringComparison.OrdinalIgnoreCase))
+        .Where(row => Query.Length == 0
+            || row.Node.Name.Contains(Query, StringComparison.OrdinalIgnoreCase)
+            || row.Node.ResourceId.Contains(Query, StringComparison.OrdinalIgnoreCase))
         .ToArray();
+
+    private string Query => _queryText.Trim();
 
     private int PageCount => Math.Max(1, (Filtered.Count + PageSize - 1) / PageSize);
 
@@ -154,30 +161,17 @@
         if (index >= 0) _page = index / PageSize;
     }
 
-    private RenderFragment Pager(string position) => __builder =>
+    private string ResultsText
     {
-        var first = CurrentPage * PageSize + 1;
-        var last = Math.Min(Filtered.Count, first + PageSize - 1);
-        <nav class="layer-preview-catalog__pager" aria-label="Layer pages, @position" data-catalog-pager="@position">
-            @if (PageCount > 1)
-            {
-                <button type="button" class="console-button console-button-secondary" disabled="@(CurrentPage == 0)"
-                        aria-label="Previous page" @onclick="() => _page = CurrentPage - 1">‹</button>
-                @for (var index = 0; index < PageCount; index++)
-                {
-                    var page = index;
-                    <button type="button" class="console-button console-button-secondary"
-                            aria-current="@(page == CurrentPage ? "page" : null)" aria-label="Page @(page + 1)"
-                            @onclick="() => _page = page">@(page + 1)</button>
-                }
-                <button type="button" class="console-button console-button-secondary" disabled="@(CurrentPage == PageCount - 1)"
-                        aria-label="Next page" @onclick="() => _page = CurrentPage + 1">›</button>
-            }
-            <span class="console-muted" role="@(position == "top" ? "status" : null)" data-catalog-results>
-                Results @first to @last (out of @Filtered.Count @(Filtered.Count == 1 ? "layer" : "layers"))
-            </span>
-        </nav>
-    };
+        get
+        {
+            if (Rows.Count == 0) return "No datasets yet.";
+            if (Filtered.Count == 0) return "No layers match this search.";
+            var first = CurrentPage * PageSize + 1;
+            var last = Math.Min(Filtered.Count, first + PageSize - 1);
+            return $"Results {first} to {last} (out of {Filtered.Count} {(Filtered.Count == 1 ? "layer" : "layers")})";
+        }
+    }
 
     private void OnTypeChanged(ChangeEventArgs args)
     {
@@ -187,13 +181,13 @@
 
     private void OnQueryChanged(ChangeEventArgs args)
     {
-        _query = (args.Value as string ?? string.Empty).Trim();
+        _queryText = args.Value as string ?? string.Empty;
         _page = 0;
     }
 
     private void ClearFilters()
     {
-        _query = string.Empty;
+        _queryText = string.Empty;
         _type = string.Empty;
         _page = 0;
     }
