@@ -60,7 +60,7 @@
                 <span>@map.Summary.Title</span>
                 <small>Extent @map.InitialExtent</small>
             </div>
-            <ConsoleMapLayersPanel Layers="@map.Layers" Label="Map layers" HeadingId="map-viewer-layers-heading" V4="@V4Enabled" />
+            <ConsoleMapLayersPanel Layers="@map.Layers" Label="Map layers" HeadingId="map-viewer-layers-heading" />
         </div>
     }
 </section>
@@ -73,7 +73,6 @@
     private MapPackageReadResult? _result;
 
     private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
-
 
     protected override async Task OnParametersSetAsync()
     {

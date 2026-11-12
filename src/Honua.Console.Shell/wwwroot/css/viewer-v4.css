@@ -30,10 +30,23 @@
     font-weight: var(--weight-semibold);
 }
 
+/* Same 42px grid as the legacy canvas, drawn with theme tokens instead of a fixed light fill. */
+.console-viewer-v4 .console-map-canvas {
+    background:
+        linear-gradient(90deg, var(--c-border) 1px, transparent 1px),
+        linear-gradient(0deg, var(--c-border) 1px, transparent 1px),
+        var(--c-surface-2);
+    background-size: 42px 42px;
+}
+
 .console-viewer-v4 .console-map-canvas :is(span, small) {
     border-color: var(--c-border);
     background: var(--c-surface);
     color: var(--c-text);
+}
+
+.console-viewer-v4 .console-map-canvas small {
+    color: var(--c-text-2);
 }
 
 .console-viewer-v4 .console-chip-row {

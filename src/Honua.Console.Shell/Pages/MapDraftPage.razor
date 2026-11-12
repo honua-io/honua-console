@@ -50,7 +50,7 @@
                 <span>@map.Summary.Title</span>
                 <small>Unsaved draft · Extent @map.InitialExtent</small>
             </div>
-            <ConsoleMapLayersPanel Layers="@map.Layers" Label="Draft map layers" HeadingId="draft-map-layers-heading" V4="@V4Enabled" />
+            <ConsoleMapLayersPanel Layers="@map.Layers" Label="Draft map layers" HeadingId="draft-map-layers-heading" />
         </div>
     }
 </section>
@@ -63,7 +63,6 @@
     private bool _requiresAuthentication;
 
     private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
-
 
     protected override async Task OnParametersSetAsync()
     {
