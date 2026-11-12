@@ -57,9 +57,40 @@ export function createStudioCookieSession(session) {
     });
 }
 
+// K3: the legacy host forwarded /api/processes/X to the server's native api/v1/X. Native
+// sessions call those routes directly, with the same allowlist and method rules as that host.
+const PROCESS_ID='[A-Za-z0-9_-]{1,128}';
+const PROCESS_PACKAGE=/^console\/workflow-packages\/([^/]{1,256})\/versions(?:\/([1-9][0-9]{0,9})(?:\/(validate|dry-run|publish))?)?$/;
+const PROCESS_ROUTE=new RegExp(`^(?:admin/import/upload|admin/import/jobs/${PROCESS_ID}(?:/cancel)?|admin/connections/${PROCESS_ID}/layers/?`
+    +`|console/workflow-node-registry|console/workflow-packages|console/workflow-publications(?:/${PROCESS_ID}/runs)?`
+    +`|operations/handles/${PROCESS_ID}|admin/operations/${PROCESS_ID}(?:/cancel)?|admin/proposals/${PROCESS_ID})$`);
+
+export function nativeProcessRoute(input,method='GET') {
+    if(typeof input!=='string' || !input.startsWith('/api/processes/')) throw new Error('Unapproved Processes transport route.');
+    const path=input.slice('/api/processes/'.length);
+    if(path.startsWith('local/')) throw new Error('Local Python and .NET processes are not available on this server yet.');
+    const verb=String(method).toUpperCase();
+    const post=verb==='POST', get=verb==='GET';
+    const pkg=PROCESS_PACKAGE.exec(path);
+    let allowed;
+    if(pkg) {
+        let id;
+        try { id=decodeURIComponent(pkg[1]); } catch { id=''; }
+        if(!id || id!==id.trim() || /[\u0000-\u001f\u007f\\/]/.test(id) || id==='.' || id==='..') throw new Error('Unapproved Processes transport route.');
+        allowed=pkg[3] ? post : pkg[2] ? get : get || post;
+    } else {
+        if(!PROCESS_ROUTE.test(path)) throw new Error('Unapproved Processes transport route.');
+        allowed=path==='admin/import/upload' || path.endsWith('/cancel') || path.endsWith('/runs') ? post
+            : path==='console/workflow-packages' ? get || post : get;
+    }
+    if(!allowed) throw new Error('Unapproved Processes transport method.');
+    return `api/v1/${path}`;
+}
+
 export function capturedProcessFetch(session,{request=fetch,current=()=>session}={}) {
     const binding={...session};
     return (input,init={})=>{
+        if(binding.transport) return nativeProcessFetch(binding,current,input,init);
         if(typeof input!=='string' || !input.startsWith('/api/processes/')) throw new Error('Unapproved Processes transport route.');
         const lease=current();
         if(!binding.principalId || !sameCookieAuthority(binding,lease)) throw new Error('The process connection changed. Reopen it after saving your work.');
@@ -69,4 +100,16 @@ export function capturedProcessFetch(session,{request=fetch,current=()=>session}
         headers.set('X-CSRF-Token',lease.csrfToken);
         return request(input,{...init,credentials:'same-origin',headers});
     };
+}
+
+// The Console transport owns cookie/bearer, CSRF and the API origin; the legacy partition and
+// environment headers were Console-host checks and are not sent to the native API.
+function nativeProcessFetch(binding,current,input,init) {
+    const route=nativeProcessRoute(input,init.method);
+    const lease=current();
+    if(!binding.principalId || !sameCookieAuthority(binding,lease) || lease?.transport?.principalId!==binding.transport.principalId)
+        throw new Error('The process connection changed. Reopen it after saving your work.');
+    const headers=new Headers(init.headers);
+    for(const name of ['X-Honua-Environment','X-Honua-Session-Partition']) headers.delete(name);
+    return binding.transport.fetch(route,{...init,headers});
 }

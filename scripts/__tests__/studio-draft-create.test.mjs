@@ -125,6 +125,20 @@ test('operation status uses the current cookie lease and exact read-only proxy p
 });
 
 
+test('operation status on a native session reads api/v1 through the Console transport (K3)', async () => {
+    const f = fixture();
+    await f.session.submit('map');
+    let route;
+    const transport = { principalId: 'human', fetch: async path => { route = path; return Response.json({ data: { operationInstanceId: 'operation', status: 4 } }); } };
+    f.app.workspaceProcessBinding = { ...f.app.workspaceCookieBinding, transport };
+    const original = globalThis.fetch;
+    try {
+        globalThis.fetch = () => assert.fail('the legacy /api/processes proxy must not be used');
+        await new StudioDraftCreateSession(f.app).refresh();
+    } finally { globalThis.fetch = original; }
+    assert.equal(route, 'api/v1/operations/handles/operation');
+});
+
 test('a disconnected host cannot reconcile an in-flight approval', async () => {
     const f = fixture();
     await f.session.submit('map');

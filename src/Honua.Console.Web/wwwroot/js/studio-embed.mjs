@@ -81,6 +81,8 @@ async function studioElement(session) {
     app.workspaceAuthorityChanged=changedAuthority;
     app.workspaceCookieBinding={principalId:session.principalId,environmentId:session.environmentId,sourcePathBase:session.sourcePathBase};
     app.session = cookieSession;
+    // Console-owned: native process reads go through the Console transport (K3); absent on the legacy host.
+    app.workspaceProcessBinding = session.transport ? {...app.workspaceCookieBinding, transport:session.transport} : undefined;
     app.workspaceSavedMaps?.sessionChanged();
     app.workspace = window.honuaAgentWorkspace;
     if (app.workspace) app.workspace.studioBindingProvider = () => app.isConnected ? app.workspaceCookieBinding : undefined;
@@ -176,6 +178,8 @@ async function mountProcesses() {
         const custom = document.createElement('honua-studio-custom-processes');
         custom.client = new module.LocalProcessWorkspace({...options,maxArtifactUploadBytes:session.maxArtifactUploadBytes,workspaceId:()=>window.honuaAgentWorkspace?.workspaceId});
         view = processView = {builtin,custom,host,mode:'builtin',session};
+        // K3: local Python/.NET processes ran on the Console host only; no native route yet (honua-server#7437, rc.3).
+        const localProcesses = !session.transport;
         const sourceApp=await studioElement(session);
         const pickerApp=async()=>{
             const renewed=await readStudioSession().catch(()=>{throw new Error('Sign in again before choosing a process source.');});
@@ -197,7 +201,7 @@ async function mountProcesses() {
                     view.builtinIdentity={packageId:task.id,version:task.revision,contentHash:task.contentHash};
                     await workspace.select([],task);
                 }
-            } else if(workspace.context?.task?.kind === 'local-process-workspace') {
+            } else if(localProcesses && workspace.context?.task?.kind === 'local-process-workspace') {
                 const task=workspace.context.task;view.mode='custom';
                 const current=captureWorkspaceFollow(workspace,task,()=>processView===view && host.isConnected && view.mode==='custom');
                 if(await custom.attachWorkspaceTask({projectId:task.id,revision:task.revision,sourceDigest:task.contentHash}) && current()) {
@@ -228,7 +232,8 @@ async function mountProcesses() {
             return actual;
         };
         host.querySelector('[data-processes-builtin]').append(builtin);
-        host.querySelector('[data-processes-custom]').append(custom);
+        const customSlot = host.querySelector('[data-processes-custom]');
+        if(localProcesses) customSlot.append(custom); else customSlot.hidden = true;
         custom.addEventListener('honua-processes-layer-ready', async event => {
             try {
                 if(!host.isConnected || window.honuaAgentWorkspace?.session?.environmentId !== session.environmentId) return;

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {capturedProcessFetch, createStudioCookieSession, scheduleCookieSessionRenewal} from '../../src/Honua.Console.Web/wwwroot/js/cookie-workspace-transport.mjs';
+import {capturedProcessFetch, nativeProcessRoute, createStudioCookieSession, scheduleCookieSessionRenewal} from '../../src/Honua.Console.Web/wwwroot/js/cookie-workspace-transport.mjs';
 
 function leaseClock(t) {
  let now=Date.parse('2026-10-24T00:00:00Z'),next=0;
@@ -126,4 +126,41 @@ test('Processes never borrows another authority or origin',()=>{
   assert.throws(()=>request('/api/processes/local/runs'),/connection changed/);
  }
  assert.throws(()=>capturedProcessFetch(binding)('https://elsewhere.test/api/processes/local/runs'),/Unapproved/);
+});
+
+test('native Processes maps the legacy BFF routes onto api/v1 with its method rules',()=>{
+ const ok=[['GET','console/workflow-node-registry'],['POST','console/workflow-packages'],['GET','console/workflow-packages'],
+  ['POST','console/workflow-packages/pkg%20one/versions'],['GET','console/workflow-packages/pkg/versions/2'],
+  ['POST','console/workflow-packages/pkg/versions/2/validate'],['POST','console/workflow-packages/pkg/versions/2/publish'],
+  ['GET','console/workflow-publications'],['POST','console/workflow-publications/pub_1/runs'],['GET','operations/handles/op-1'],
+  ['GET','admin/operations/op-1'],['POST','admin/operations/op-1/cancel'],['GET','admin/proposals/p1'],
+  ['POST','admin/import/upload'],['GET','admin/import/jobs/j1'],['POST','admin/import/jobs/j1/cancel'],['GET','admin/connections/c1/layers']];
+ for(const [method,path] of ok) assert.equal(nativeProcessRoute(`/api/processes/${path}`,method),`api/v1/${path}`,`${method} ${path}`);
+ const refused=[['POST','admin/operations/op-1'],['GET','admin/operations/op-1/cancel'],['GET','console/workflow-packages/pkg/versions/2/publish'],
+  ['POST','console/workflow-packages/pkg/versions/2'],['DELETE','console/workflow-packages'],['GET','admin/users'],['GET','admin/proposals/../secrets'],
+  ['GET','console/workflow-packages/%2E%2E/versions'],['GET','console/workflow-packages/a%2Fb/versions'],['GET','console/workflow-packages/%20a/versions']];
+ for(const [method,path] of refused) assert.throws(()=>nativeProcessRoute(`/api/processes/${path}`,method),/Unapproved/,`${method} ${path}`);
+ assert.throws(()=>nativeProcessRoute('https://elsewhere.test/api/processes/admin/proposals/p1'),/Unapproved/);
+ assert.throws(()=>nativeProcessRoute('/api/processes/local/runs','POST'),/not available on this server/);
+});
+
+test('native Processes sends through the Console transport without legacy host headers',async()=>{
+ let sent;
+ const transport={principalId:'actor',fetch:async(route,init)=>{sent={route,init};return {ok:true};}};
+ const binding={principalId:'actor',environmentId:'default',sourcePathBase:'',transport};
+ const request=capturedProcessFetch(binding,{current:()=>binding,request:()=>assert.fail('legacy request must not be used')});
+ await request('/api/processes/console/workflow-packages',{method:'POST',body:'{}',headers:{'X-Honua-Session-Partition':'actor','X-Honua-Environment':'default','X-CSRF-Token':'undefined'}});
+ assert.equal(sent.route,'api/v1/console/workflow-packages');assert.equal(sent.init.method,'POST');assert.equal(sent.init.body,'{}');
+ assert.equal(sent.init.headers.has('X-Honua-Session-Partition'),false);assert.equal(sent.init.headers.has('X-Honua-Environment'),false);
+});
+
+test('native Processes never borrows another authority or transport',()=>{
+ const transport={principalId:'actor',fetch:()=>assert.fail('must not send')};
+ const binding={principalId:'actor',environmentId:'default',sourcePathBase:'',transport};
+ for(const key of ['principalId','environmentId','sourcePathBase']) {
+  const request=capturedProcessFetch(binding,{current:()=>({...binding,[key]:'changed'})});
+  assert.throws(()=>request('/api/processes/admin/proposals/p1'),/connection changed/);
+ }
+ const swapped=capturedProcessFetch(binding,{current:()=>({...binding,transport:{principalId:'other'}})});
+ assert.throws(()=>swapped('/api/processes/admin/proposals/p1'),/connection changed/);
 });
