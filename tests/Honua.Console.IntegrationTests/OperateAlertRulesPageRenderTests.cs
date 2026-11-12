@@ -284,6 +284,45 @@ public sealed class OperateAlertRulesPageRenderTests
     }
 
     [Fact]
+    public void RuleDetail_V4_SaveSendsBoundFieldValues()
+    {
+        OperateAlertRuleEdit? savedEdit = null;
+        var page = RenderDetail(
+            new FakeRulesDataSource
+            {
+                DetailView = new OperateAlertRuleDetailView(SampleDefinition),
+                SaveHandler = edit =>
+                {
+                    savedEdit = edit;
+                    return new OperateAlertRuleSaveResult(SampleDefinition);
+                }
+            },
+            "rule-1",
+            ConsolePresentationMode.V4);
+
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-rule-zone]")), TimeSpan.FromSeconds(5));
+        page.Find("[data-rule-zone]").Change("zone-12");
+        page.Find("[data-rule-save]").Click();
+
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-rule-saved]")), TimeSpan.FromSeconds(5));
+        Assert.Equal("zone-12", savedEdit!.Condition.GeofenceZoneId);
+    }
+
+    [Fact]
+    public void RulesList_WithoutPresentationOptions_RendersLegacy()
+    {
+        using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton<IOperateAlertRulesDataSource>(new FakeRulesDataSource { ListView = new OperateAlertRulesView([SampleRule]) });
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+
+        var page = ctx.Render<OperateAlertRulesPage>();
+
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("tr[data-alert-rule='rule-1']")), TimeSpan.FromSeconds(5));
+        AssertPresentation(page, ConsolePresentationMode.Legacy, ("Alert rules", "Alert rules"));
+        Assert.Equal("Actions", page.Find("th .console-visually-hidden").TextContent);
+    }
+
+    [Fact]
     public void RuleCreate_V4_SubmitRendersRefusalInsidePanel()
     {
         var forbidden = new OperateAlertRulesBindingState(
@@ -298,7 +337,8 @@ public sealed class OperateAlertRulesPageRenderTests
         page.WaitForAssertion(
             () => Assert.Contains("Operator is not allowed.", page.Find("#alert-rule-create-heading").Closest(".console-panel")!.TextContent, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
-        Assert.Equal("Rule was not created", page.Find(".console-panel h3").TextContent);
+        var panel = page.Find("#alert-rule-create-heading").Closest(".console-panel")!;
+        Assert.Equal("Rule was not created", panel.QuerySelector("h3")!.TextContent.Trim());
     }
 
     private static Bunit.BunitContext CreateContext(ConsolePresentationMode presentation)
