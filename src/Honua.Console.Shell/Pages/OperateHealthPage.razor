@@ -11,18 +11,28 @@
    admin observability API; a missing / unsupported / forbidden / unavailable read renders the
    shared status surface, never seeded data (Console Patterns Charter section 11). *@
 
-<section class="console-page console-operate-page">
-    <div class="console-page-heading operate-heading">
-        <p class="console-kicker">Operator workflow</p>
-        <h1>Ops Health</h1>
-        <p>
-            The consolidated operational-health snapshot at a glance: overall status, per-protocol
-            serving latency, the geoprocessing queue, alert-dispatch backlog, coordinated-deploy
-            readiness and platform-release skew, and database vitals. Bound to the connected
-            honua-server admin observability API; renders an honest missing-binding state when
-            unavailable.
-        </p>
-    </div>
+<section class="console-page console-operate-page @(V4Enabled ? "console-monitoring-v4 console-health-v4" : null)">
+    @if (V4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/operate-monitoring-v4.css" />
+        <ConsolePageHeading Title="Operational health">
+            <p>Overall status, serving latency, job and alert queues, deploy readiness and database vitals from the connected server.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading operate-heading">
+            <p class="console-kicker">Operator workflow</p>
+            <h1>Ops Health</h1>
+            <p>
+                The consolidated operational-health snapshot at a glance: overall status, per-protocol
+                serving latency, the geoprocessing queue, alert-dispatch backlog, coordinated-deploy
+                readiness and platform-release skew, and database vitals. Bound to the connected
+                honua-server admin observability API; renders an honest missing-binding state when
+                unavailable.
+            </p>
+        </div>
+    }
 
     <div class="approval-inbox-toolbar" role="group" aria-label="Ops health controls">
         @if (_loaded && _view is not null)
@@ -61,7 +71,7 @@
             <div class="operate-section-heading">
                 <div>
                     <p class="console-kicker">Serving latency · @_view.ServingLatency.WindowLabel</p>
-                    <h2 id="serving-latency-heading">Per-Protocol Latency And Error Rate</h2>
+                    <h2 id="serving-latency-heading">@(V4Enabled ? "Latency and error rate by protocol" : "Per-Protocol Latency And Error Rate")</h2>
                 </div>
                 @if (_view.ServingLatency.HasBreach)
                 {
@@ -120,7 +130,7 @@
             <div class="operate-section-heading">
                 <div>
                     <p class="console-kicker">Geoprocessing queue</p>
-                    <h2 id="geoprocessing-heading">Active Jobs By Status And Backend</h2>
+                    <h2 id="geoprocessing-heading">@(V4Enabled ? "Active jobs by status and backend" : "Active Jobs By Status And Backend")</h2>
                 </div>
                 <span class="console-status @_view.Geoprocessing.Status.CssClass">@_view.Geoprocessing.Status.Label</span>
                 @if (_view.Geoprocessing.Status.IsBreach)
@@ -178,7 +188,7 @@
             <div class="operate-section-heading">
                 <div>
                     <p class="console-kicker">Alert dispatch</p>
-                    <h2 id="alert-dispatch-heading">Backlog And Dead-Letters</h2>
+                    <h2 id="alert-dispatch-heading">@(V4Enabled ? "Backlog and dead letters" : "Backlog And Dead-Letters")</h2>
                 </div>
                 <span class="console-status @_view.AlertDispatch.Status.CssClass">@_view.AlertDispatch.Status.Label</span>
                 @if (_view.AlertDispatch.Status.IsBreach)
@@ -210,7 +220,7 @@
             <div class="operate-section-heading">
                 <div>
                     <p class="console-kicker">Coordinated deploy</p>
-                    <h2 id="deploy-heading">Deploy Readiness And Platform Release</h2>
+                    <h2 id="deploy-heading">@(V4Enabled ? "Deploy readiness and platform release" : "Deploy Readiness And Platform Release")</h2>
                 </div>
                 <span class="console-status @_view.Deploy.Status.CssClass">@_view.Deploy.Status.Label</span>
                 @if (_view.Deploy.Status.IsBreach)
@@ -265,7 +275,7 @@
             <div class="operate-section-heading">
                 <div>
                     <p class="console-kicker">Database vitals</p>
-                    <h2 id="database-heading">Connection Pool, Cache, And Errors</h2>
+                    <h2 id="database-heading">@(V4Enabled ? "Connection pool, cache and errors" : "Connection Pool, Cache, And Errors")</h2>
                 </div>
             </div>
 
@@ -344,7 +354,7 @@
             <div class="operate-section-heading">
                 <div>
                     <p class="console-kicker">Dependency health</p>
-                    <h2 id="health-checks-heading">Comprehensive Health Checks</h2>
+                    <h2 id="health-checks-heading">@(V4Enabled ? "Comprehensive health checks" : "Comprehensive Health Checks")</h2>
                 </div>
                 <span class="console-status @_view.Health.Status.CssClass">@_view.Health.Status.Label</span>
             </div>
@@ -394,7 +404,7 @@
             <div class="operate-section-heading">
                 <div>
                     <p class="console-kicker">Trend charts &middot; @CurrentRangeSelection.Label</p>
-                    <h2 id="trends-heading">Serving Latency, Error Rate, Queue, And Backlog Over Time</h2>
+                    <h2 id="trends-heading">@(V4Enabled ? "Trends" : "Serving Latency, Error Rate, Queue, And Backlog Over Time")</h2>
                 </div>
                 <span class="console-status @TrendRealtimeStateClass" data-realtime-pill title="@TrendRealtimeStateTitle">
                     @TrendRealtimeStateLabel
@@ -508,6 +518,8 @@
 </section>
 
 @code {
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+
     // Re-fetch the trend history on this cadence so the live band (held at native 30-60s cadence
     // per the pinned reconnect-seam choice) never grows without bound and is regularly subsumed
     // back into the confirmed, downsampled history window.

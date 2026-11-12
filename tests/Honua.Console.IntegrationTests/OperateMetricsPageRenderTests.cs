@@ -56,6 +56,34 @@ public sealed class OperateMetricsPageRenderTests
             TimeSpan.FromSeconds(5));
     }
 
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void Metrics_PresentationKeepsEverySectionAndBar(ConsolePresentationMode presentation)
+    {
+        using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
+        ctx.Services.AddSingleton<IOperateMetricsDataSource>(new StubMetricsDataSource { Snapshot = BuildLiveSnapshot() });
+
+        var page = ctx.Render<OperateMetricsPage>();
+
+        page.WaitForAssertion(() => Assert.Equal(2, page.FindAll("#health table.operate-table tbody tr").Count), TimeSpan.FromSeconds(5));
+        var v4 = presentation == ConsolePresentationMode.V4;
+        Assert.Equal(v4 ? "Server metrics" : "Operate Metrics", Assert.Single(page.FindAll("h1")).TextContent);
+        Assert.Equal(v4 ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
+        Assert.Equal(v4 ? 1 : 0, page.FindAll(".console-monitoring-v4.console-metrics-v4").Count);
+        Assert.Equal(
+            v4 ? "Connection pool and query admission" : "Connection Pool And Query Admission",
+            page.Find("#connection-pool-heading").TextContent);
+        Assert.Equal(6, page.FindAll(".operate-section-nav a").Count);
+        foreach (var section in new[] { "#connection-pool", "#cache", "#upload-queue", "#database-resilience" })
+        {
+            Assert.NotEmpty(page.FindAll($"{section} .operate-metric-bar"));
+        }
+
+        if (v4) CatalogAdminPreview.CaptureV4("metrics-live", page.Markup);
+    }
+
     [Fact]
     public void Metrics_WhenNoEnvironmentBound_RendersMissingBindingState()
     {
