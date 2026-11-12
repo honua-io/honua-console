@@ -11,6 +11,11 @@
     color: var(--honua-text);
 }
 
+/* The page-level shared-scope note is a quiet one-line notice, not a full state block. */
+.studio-style-editor-v4 > .console-state {
+    padding: 12px 16px;
+}
+
 .studio-style-editor-v4 .console-state p {
     margin: 0;
 }
