@@ -36,7 +36,7 @@
     flex-wrap: wrap;
 }
 
-.console-shell[data-console-v4="true"] :is(.operate-data-page, .operate-version-conflicts, .operate-temporal, [data-resource-detail]) :is(input[type="checkbox"], input[type="radio"]):not([role="switch"]) {
+.console-shell[data-console-v4="true"] :is(.operate-data-page, .operate-version-conflicts, .operate-temporal, [data-resource-detail], .data-publish-flow) :is(input[type="checkbox"], input[type="radio"]):not([role="switch"]) {
     width: 24px;
     height: 24px;
     flex-shrink: 0;
@@ -218,4 +218,14 @@
 
 .console-shell[data-console-v4="true"] .operate-data-page > .layer-preview-pane {
     margin-top: var(--space-4);
+}
+
+/* Links inside Add data sentences keep a 24px target without leaving the line. */
+.console-shell[data-console-v4="true"] .data-publish-flow p a {
+    padding-block: 2px;
+}
+
+/* Completed Add data steps use the v4 success ink so their labels keep 4.5:1 contrast. */
+.console-shell[data-console-v4="true"] .data-publish-flow__rail-step--done {
+    color: var(--c-ok-ink);
 }

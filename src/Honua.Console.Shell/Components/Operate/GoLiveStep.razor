@@ -5,9 +5,23 @@
 @inject IServiceConfigurationOperation ServiceConfiguration
 @inject IConsoleNotificationService Notifications
 
-<article class="console-panel" data-step-body="GoLive">
-    <p class="console-kicker">⑤ Go live — review &amp; approve</p>
-    <h2>@Flow.Resource.Name → @Flow.TargetService</h2>
+@if (V4)
+{
+    <div data-step-body="GoLive">
+        <ConsolePanel Title="@($"Go live: {Flow.Resource.Name} → {Flow.TargetService}")" HeadingId="data-flow-golive-heading">@Body</ConsolePanel>
+    </div>
+}
+else
+{
+    <article class="console-panel" data-step-body="GoLive">
+        <p class="console-kicker">⑤ Go live — review &amp; approve</p>
+        <h2>@Flow.Resource.Name → @Flow.TargetService</h2>
+        @Body
+    </article>
+}
+
+@code {
+    private RenderFragment Body => @<text>
     <p class="console-muted">
         Apply &amp; publish sets the protocols of <code>@Flow.TargetService</code> to exactly the ones below and
         applies the visibility. Protocols and visibility are per service: every layer in
@@ -31,6 +45,7 @@
     </p>
     @if (_outcome is null)
     {
+        <ConsoleTableRegion Label="Planned routes">
         <table class="console-table" data-route-preview>
             <thead><tr><th>Protocol</th><th>Route</th></tr></thead>
             <tbody>
@@ -40,10 +55,12 @@
                 }
             </tbody>
         </table>
+        </ConsoleTableRegion>
     }
     else
     {
         <section data-publish-results>
+            <ConsoleTableRegion Label="Publish results">
             <table class="console-table">
                 <thead><tr><th>Protocol</th><th>State</th><th>Route or detail</th></tr></thead>
                 <tbody>
@@ -64,6 +81,7 @@
                     }
                 </tbody>
             </table>
+            </ConsoleTableRegion>
             <p data-visibility-result data-state="@ResultState(_outcome.Visibility)">Visibility: <strong>@_outcome.Visibility.State</strong> @_outcome.Visibility.Detail</p>
             <p data-layer-result data-state="@ResultState(_outcome.Layer)">Layer: <strong>@_outcome.Layer.State</strong> @_outcome.Layer.Detail</p>
             @if (_outcome.AllLive)
@@ -82,10 +100,12 @@
             @(_busy ? "Publishing…" : "Apply & publish")
         </button>
     </div>
-</article>
+    </text>;
 
-@code {
     [Parameter, EditorRequired] public DataToPublishFlowState Flow { get; set; } = default!;
+
+    /// <summary>Render the step as a v4 panel (the Console v4 flag is owned by the flow's host).</summary>
+    [Parameter] public bool V4 { get; set; }
 
     [Parameter] public EventCallback OnBack { get; set; }
 

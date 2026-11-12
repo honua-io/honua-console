@@ -77,6 +77,21 @@ public sealed class ResourceFirstPublishFlowTests
         }
     }
 
+    private static void AssertStepHeading(IRenderedComponent<DataToPublishFlow> cut, string step, string? heading)
+    {
+        var body = cut.Find($"[data-step-body='{step}']");
+        var headings = body.QuerySelectorAll("h2");
+        if (heading is null)
+        {
+            Assert.Empty(headings);
+            return;
+        }
+
+        Assert.Equal(heading, Assert.Single(headings).TextContent.Trim());
+        Assert.Equal(body.TagName == "DIV", body.QuerySelector("section.console-panel[aria-labelledby]") is not null);
+        if (body.TagName == "DIV") Assert.Empty(body.QuerySelectorAll(".console-kicker"));
+    }
+
     private static BunitContext NewContext()
     {
         var ctx = new BunitContext();
@@ -359,19 +374,30 @@ public sealed class ResourceFirstPublishFlowTests
         Assert.Single(cut.FindAll("[data-service-fixed]"));
     }
 
-    [Fact]
-    public void Flow_ExistingResourceReachesGoLiveWithTheRealApply()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Flow_ExistingResourceReachesGoLiveWithTheRealApply(bool v4)
     {
         using var ctx = NewContext();
         RegisterExistingResource(ctx);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4 });
         ctx.Services.AddSingleton<IServiceConfigurationOperation>(new UnsupportedServiceConfigurationOperation());
         var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "existingresource"));
+        Assert.Equal(v4 ? "Add data" : "Add data & publish", cut.Find("h1").TextContent);
         cut.Find("select[aria-label=\"Existing dataset\"]").Change("rsc_parcels");
+        AssertStepHeading(cut, "AddData", v4 ? "Choose data" : null);
+        if (v4) CatalogAdminPreview.Capture("data-flow-add", cut.Markup);
         cut.Find("[data-step-body=\"AddData\"] button.console-button").Click();
+        AssertStepHeading(cut, "Publish", v4 ? "Publish parcels" : "Choose how to expose this dataset");
+        if (v4) CatalogAdminPreview.Capture("data-flow-publish", cut.Markup);
         cut.Find("[data-step-body=\"Publish\"] button.console-button").Click();
+        AssertStepHeading(cut, "Style", "Style this dataset");
         cut.Find("[data-step-body=\"Style\"] button.console-button").Click();
+        AssertStepHeading(cut, "GoLive", v4 ? "Go live: parcels → parcels" : "parcels → parcels");
 
         cut.Find("[data-go-live-apply]").Click();
+        if (v4) CatalogAdminPreview.Capture("data-flow-golive", cut.Markup);
 
         Assert.Equal(2, cut.FindAll("[data-protocol-result]").Count);
         Assert.DoesNotContain("publishes table sources directly", cut.Markup, StringComparison.Ordinal);

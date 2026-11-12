@@ -8,13 +8,23 @@
 @inject IStudioMapStyleCatalogDataSource StyleData
 @inject NavigationManager Nav
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@inject IServiceProvider ServiceProvider
 
 <section class="console-page data-publish-flow" data-data-publish-flow>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Add data">
+            <p>Add data as a dataset, publish it through the protocols you choose, style it and go live.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Add data</p>
         <h1>Add data &amp; publish</h1>
         <p>One journey: add data → it becomes a dataset → publish it as the services/protocols you choose → style → live.</p>
     </div>
+    }
 
     <div class="data-publish-flow__header">
         <ol class="data-publish-flow__rail" data-step-rail>
@@ -43,7 +53,7 @@
     @switch (_flow.Step)
     {
         case FlowStep.AddData:
-            <article class="console-panel" data-step-body="AddData">
+            @StepShell(FlowStep.AddData, null, null, "Choose data", @<text>
                 <AddDataIntake Connections="_connectionOptions"
                                ExistingResources="_resourceOptions"
                                SupportedExtensions="_supportedExtensions"
@@ -71,13 +81,11 @@
                         </button>
                     }
                 </div>
-            </article>
+            </text>)
             break;
 
         case FlowStep.Publish:
-            <article class="console-panel" data-step-body="Publish">
-                <p class="console-kicker">③ Publish "@_flow.Resource.Name"</p>
-                <h2>Choose how to expose this dataset</h2>
+            @StepShell(FlowStep.Publish, $"③ Publish \"{_flow.Resource.Name}\"", "Choose how to expose this dataset", $"Publish {_flow.Resource.Name}", @<text>
                 <PublishProtocolPicker Enabled="_flow.EnabledProtocols"
                                        EnabledChanged="OnProtocolsChanged"
                                        ServiceSlot="@_flow.ServiceSlot" />
@@ -90,13 +98,11 @@
                     <button type="button" @onclick="() => GoToStep(FlowStep.AddData)">Back</button>
                     <button type="button" class="console-button" disabled="@(_flow.EnabledProtocols.Count == 0)" @onclick="() => GoToStep(FlowStep.Style)">Continue to style →</button>
                 </div>
-            </article>
+            </text>)
             break;
 
         case FlowStep.Style:
-            <article class="console-panel" data-step-body="Style">
-                <p class="console-kicker">④ Style</p>
-                <h2>Style this dataset</h2>
+            @StepShell(FlowStep.Style, "④ Style", "Style this dataset", "Style this dataset", @<text>
                 <p class="console-muted">Go live does not apply the style you pick here: honua-server has no operation that binds a catalog style to a layer. Pick a shared style to open it in the style editor, or skip this step.</p>
                 <div class="studio-field-grid">
                     <label class="studio-form-label">
@@ -122,17 +128,34 @@
                     <button type="button" @onclick="() => GoToStep(FlowStep.Publish)">Back</button>
                     <button type="button" class="console-button" @onclick="() => GoToStep(FlowStep.GoLive)">Continue to go live →</button>
                 </div>
-            </article>
+            </text>)
             break;
 
         case FlowStep.GoLive:
-            <GoLiveStep Flow="_flow" OnBack="() => GoToStep(FlowStep.Style)" />
+            <GoLiveStep Flow="_flow" V4="@V4Enabled" OnBack="() => GoToStep(FlowStep.Style)" />
             break;
     }
 </section>
 
 @code {
     [Parameter] public string? InitialSource { get; set; }
+
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    /// <summary>
+    /// One step body in its frame: a v4 panel titled <paramref name="v4Title"/>, or the legacy article with its
+    /// numbered kicker and heading. Both keep <c>data-step-body</c> on the outer element.
+    /// </summary>
+    private RenderFragment StepShell(FlowStep step, string? legacyKicker, string? legacyTitle, string v4Title, RenderFragment body) =>
+        V4Enabled
+            ? @<div data-step-body="@step.ToString()">
+                  <ConsolePanel Title="@v4Title" HeadingId="@($"data-flow-{step.ToString().ToLowerInvariant()}-heading")">@body</ConsolePanel>
+              </div>
+            : @<article class="console-panel" data-step-body="@step.ToString()">
+                  @if (legacyKicker is not null) { <p class="console-kicker">@legacyKicker</p> }
+                  @if (legacyTitle is not null) { <h2>@legacyTitle</h2> }
+                  @body
+              </article>;
 
     private readonly DataToPublishFlowState _flow = new();
 
