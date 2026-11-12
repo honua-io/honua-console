@@ -4,7 +4,7 @@ import { runV4PagePresentation } from "./console-presentation.mjs";
 
 const previews = path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/data-datasets");
 for (const { names, heading, scope } of [
-  { names: ["datasets", "datasets-focused"], heading: "Datasets", scope: "[data-operate-data]" },
+  { names: ["datasets", "datasets-focused", "datasets-paged"], heading: "Layer preview", scope: "[data-operate-data]" },
   { names: ["dataset-detail", "dataset-missing"], heading: name => name.endsWith("missing") ? "Dataset Not Found" : "parcels", scope: "[data-resource-detail]" },
   { names: ["conflicts-pending", "conflicts-resolved", "conflicts-clean", "conflicts-posted", "conflicts-missing"], heading: "Conflict resolution", scope: "[data-version-conflicts]" },
 ]) {
@@ -19,8 +19,14 @@ for (const { names, heading, scope } of [
         assert.equal(await page.locator("nav a").first().getAttribute("href"), "/console/operate/resources/parcels#fields");
       }
       if (name.startsWith("data-datasets")) {
-        assert.equal(await page.locator("[data-resource-tree]").count(), 1);
+        assert.equal(await page.locator("[data-resource-tree]").count(), 0);
+        assert.equal(await page.locator("[data-layer-preview-catalog] tbody tr").count(), name.endsWith("paged") ? 25 : 2);
+        assert.equal(await page.locator("[data-layer-preview-catalog] .catalog-admin-paging").count(), name.endsWith("paged") ? 1 : 0);
         assert.equal(await page.locator(`${scope} > .console-panel[aria-labelledby]`).count(), 1);
+        for (const target of await page.locator("[data-layer-preview-catalog] :is(a, button, select):visible").all()) {
+          assert.ok((await target.boundingBox()).height >= 24,
+            `Layer preview target "${(await target.textContent()).trim()}" must be at least 24px tall`);
+        }
       }
       if (name === "data-conflicts-pending") {
         assert.ok(await page.locator("[data-post]").isDisabled());

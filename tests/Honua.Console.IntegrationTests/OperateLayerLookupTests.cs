@@ -90,6 +90,20 @@ public sealed class OperateLayerLookupTests
         return ctx;
     }
 
+    [Fact]
+    public void GeometryByCanonicalResourceId_MatchesFindLayerForEveryServedResource()
+    {
+        var parcelsAsLines = ParcelsOnConnA with { Geometry = "LineString" };
+        var view = ViewOf(Service("zoning", parcelsAsLines), Service("cadastre", ParcelsOnConnA, ShelterOnConnA));
+
+        var geometry = view.GeometryByCanonicalResourceId();
+
+        Assert.Equal(view.FindLayer("conn-a-layer-1")!.Geometry, geometry["conn-a-layer-1"]);
+        Assert.Equal("Polygon", geometry["CONN-A-LAYER-1"]);
+        Assert.Equal("Point", geometry["conn-a-layer-2"]);
+        Assert.False(geometry.ContainsKey("conn-b-layer-1"));
+    }
+
     private static OperateServicesView ViewOf(params OperateServiceDetail[] services) => new(services, []);
 
     private static OperateServiceDetail Service(string name, params OperateServiceLayerProjection[] layers) =>
