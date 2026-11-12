@@ -374,33 +374,64 @@ public sealed class ResourceFirstPublishFlowTests
         Assert.Single(cut.FindAll("[data-service-fixed]"));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Flow_ExistingResourceReachesGoLiveWithTheRealApply(bool v4)
+    [Fact]
+    public void Flow_ExistingResourceReachesGoLiveWithTheRealApply()
     {
         using var ctx = NewContext();
-        RegisterExistingResource(ctx);
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4 });
-        ctx.Services.AddSingleton<IServiceConfigurationOperation>(new UnsupportedServiceConfigurationOperation());
-        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "existingresource"));
-        Assert.Equal(v4 ? "Add data" : "Add data & publish", cut.Find("h1").TextContent);
-        cut.Find("select[aria-label=\"Existing dataset\"]").Change("rsc_parcels");
-        AssertStepHeading(cut, "AddData", v4 ? "Choose data" : null);
-        if (v4) CatalogAdminPreview.Capture("data-flow-add", cut.Markup);
-        cut.Find("[data-step-body=\"AddData\"] button.console-button").Click();
-        AssertStepHeading(cut, "Publish", v4 ? "Publish parcels" : "Choose how to expose this dataset");
-        if (v4) CatalogAdminPreview.Capture("data-flow-publish", cut.Markup);
-        cut.Find("[data-step-body=\"Publish\"] button.console-button").Click();
+        var cut = RenderExistingResourceFlow(ctx, new ConsoleV4Options { Enabled = false });
+        Assert.Equal("Add data & publish", cut.Find("h1").TextContent);
+        AssertStepHeading(cut, "AddData", null);
+        ContinueFrom(cut, "AddData");
+        AssertStepHeading(cut, "Publish", "Choose how to expose this dataset");
+        ContinueFrom(cut, "Publish");
         AssertStepHeading(cut, "Style", "Style this dataset");
-        cut.Find("[data-step-body=\"Style\"] button.console-button").Click();
-        AssertStepHeading(cut, "GoLive", v4 ? "Go live: parcels → parcels" : "parcels → parcels");
-        Assert.Equal(v4 ? 1 : 0, cut.FindAll("[data-step-body='GoLive'] [role='region']").Count);
+        ContinueFrom(cut, "Style");
+        AssertStepHeading(cut, "GoLive", "parcels → parcels");
+        Assert.Empty(cut.FindAll("[data-step-body='GoLive'] [role='region']"));
 
         cut.Find("[data-go-live-apply]").Click();
-        Assert.Equal(v4 ? 1 : 0, cut.FindAll("[data-step-body='GoLive'] [role='region']").Count);
-        if (v4) CatalogAdminPreview.Capture("data-flow-golive", cut.Markup);
+        Assert.Empty(cut.FindAll("[data-step-body='GoLive'] [role='region']"));
+        AssertRealApplyResults(cut);
+    }
 
+    [Fact]
+    public void Flow_V4ExistingResourceReachesGoLiveWithTheRealApply()
+    {
+        using var ctx = NewContext();
+        var cut = RenderExistingResourceFlow(ctx, new ConsoleV4Options { Enabled = true });
+        Assert.Equal("Add data", cut.Find("h1").TextContent);
+        AssertStepHeading(cut, "AddData", "Choose data");
+        CatalogAdminPreview.Capture("data-flow-add", cut.Markup);
+        ContinueFrom(cut, "AddData");
+        AssertStepHeading(cut, "Publish", "Publish parcels");
+        CatalogAdminPreview.Capture("data-flow-publish", cut.Markup);
+        ContinueFrom(cut, "Publish");
+        AssertStepHeading(cut, "Style", "Style this dataset");
+        ContinueFrom(cut, "Style");
+        AssertStepHeading(cut, "GoLive", "Go live: parcels → parcels");
+        Assert.Single(cut.FindAll("[data-step-body='GoLive'] [role='region']"));
+
+        cut.Find("[data-go-live-apply]").Click();
+        Assert.Single(cut.FindAll("[data-step-body='GoLive'] [role='region']"));
+        CatalogAdminPreview.Capture("data-flow-golive", cut.Markup);
+        AssertRealApplyResults(cut);
+    }
+
+    private static IRenderedComponent<DataToPublishFlow> RenderExistingResourceFlow(BunitContext ctx, ConsoleV4Options v4Options)
+    {
+        RegisterExistingResource(ctx);
+        ctx.Services.AddSingleton(v4Options);
+        ctx.Services.AddSingleton<IServiceConfigurationOperation>(new UnsupportedServiceConfigurationOperation());
+        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "existingresource"));
+        cut.Find("select[aria-label=\"Existing dataset\"]").Change("rsc_parcels");
+        return cut;
+    }
+
+    private static void ContinueFrom(IRenderedComponent<DataToPublishFlow> cut, string step) =>
+        cut.Find($"[data-step-body=\"{step}\"] button.console-button").Click();
+
+    private static void AssertRealApplyResults(IRenderedComponent<DataToPublishFlow> cut)
+    {
         Assert.Equal(2, cut.FindAll("[data-protocol-result]").Count);
         Assert.DoesNotContain("publishes table sources directly", cut.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Unsupported here", cut.Markup, StringComparison.Ordinal);

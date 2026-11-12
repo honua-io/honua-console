@@ -85,11 +85,23 @@
         }
     }
 
+    internal static Task SelectAsync(
+        EventCallback<PreviewSelection> onSelected, ResourceTreeNode node, PublicationTreeNode publication) =>
+        onSelected.HasDelegate && PreviewSelection.For(node, publication) is { } selection
+            ? onSelected.InvokeAsync(selection)
+            : Task.CompletedTask;
+
     /// <summary>A previewable publication: the resource it belongs to, the protocol, and the served route.</summary>
     public sealed record PreviewSelection(
         string ResourceId,
         string ResourceName,
         string ProtocolId,
         string ProtocolLabel,
-        string Route);
+        string Route)
+    {
+        public static PreviewSelection? For(ResourceTreeNode node, PublicationTreeNode publication) =>
+            publication.Route is { } route
+                ? new(node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, route)
+                : null;
+    }
 }

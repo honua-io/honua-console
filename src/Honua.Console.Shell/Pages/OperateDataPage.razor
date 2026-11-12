@@ -164,9 +164,7 @@
         _environmentId = environmentId;
 
         _nodes = ResourcePublicationsTreeBuilder.Build(resourcesView.ResourceEdits, servicesView.Services);
-        _catalogRows = _nodes
-            .Select(node => new LayerPreviewCatalog.Row(node, servicesView.FindLayer(node.ResourceId)?.Geometry))
-            .ToArray();
+        if (V4Enabled) _catalogRows = CatalogRows(_nodes, servicesView);
         _states = OperateCapabilityStateFilters.ForSurface(
             resourcesView.CapabilityStates.Concat(servicesView.CapabilityStates).ToArray(),
             "Resources", "Layers", "Services");
@@ -202,16 +200,20 @@
 
     private void SetPreviewFromResource(ResourceTreeNode node, PublicationTreeNode publication)
     {
-        if (publication.Route is null) return;
-        _preview = new LayerPreviewPane.PreviewSelection(
-            node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, publication.Route);
+        if (LayerPreviewPane.PreviewSelection.For(node, publication) is not { } selection) return;
+        _preview = selection;
         _previewProtocols = ProtocolsFor(node);
+    }
+
+    private static IReadOnlyList<LayerPreviewCatalog.Row> CatalogRows(IReadOnlyList<ResourceTreeNode> nodes, OperateServicesView servicesView)
+    {
+        var geometry = servicesView.GeometryByCanonicalResourceId();
+        return nodes.Select(node => new LayerPreviewCatalog.Row(node, geometry.GetValueOrDefault(node.ResourceId))).ToArray();
     }
 
     private static IReadOnlyList<LayerPreviewPane.PreviewSelection> ProtocolsFor(ResourceTreeNode node) =>
         node.Publications
-            .Where(publication => publication.Route is not null)
-            .Select(publication => new LayerPreviewPane.PreviewSelection(
-                node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, publication.Route!))
+            .Select(publication => LayerPreviewPane.PreviewSelection.For(node, publication))
+            .OfType<LayerPreviewPane.PreviewSelection>()
             .ToArray();
 }

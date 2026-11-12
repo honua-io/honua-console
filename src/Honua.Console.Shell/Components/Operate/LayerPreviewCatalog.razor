@@ -193,10 +193,7 @@
     }
 
     private Task Select(ResourceTreeNode node, PublicationTreeNode publication) =>
-        OnPublicationSelected.HasDelegate && publication.Route is { } route
-            ? OnPublicationSelected.InvokeAsync(new LayerPreviewPane.PreviewSelection(
-                node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, route))
-            : Task.CompletedTask;
+        LayerPreviewPane.SelectAsync(OnPublicationSelected, node, publication);
 
     private Task SelectProtocol(ResourceTreeNode node, ChangeEventArgs args)
     {
