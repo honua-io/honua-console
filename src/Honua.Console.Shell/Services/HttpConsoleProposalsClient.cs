@@ -111,7 +111,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
             ProposalJsonContext.Default.ProposalHumanReviewWire, capability: null, cancellationToken).ConfigureAwait(false);
         if (review.Status == OperateSectionStatus.Missing)
         {
-            // Servers before honua-server#7147 have no approval-review route (404). They take the plain
+            // Servers without the approval-review route answer it with 404. They take the plain
             // approve and apply their own approve-grant and separation-of-duties rules; a server with the
             // route never 404s a live proposal, and rejects a capability-less approve.
             return await SendDetailAsync(HttpMethod.Post, ProposalAdminRoutes.Approve(id), content: null, cancellationToken)

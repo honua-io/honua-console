@@ -203,7 +203,7 @@ public sealed class ConsoleProposalsClientTests
             });
     }
 
-    // Servers before honua-server#7147 have no approval-review route: the Console falls back to the
+    // On servers without the approval-review route the Console falls back to the
     // plain approve so their own grant and separation-of-duties refusal (403) still reaches the operator.
     [Theory]
     [InlineData(HttpStatusCode.OK, OperateSectionStatus.Allowed)]
