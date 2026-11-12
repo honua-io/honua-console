@@ -9,6 +9,7 @@ import { mountStudioStyleControls } from './studio-style-controls.mjs';
 import { mountStudioLayerPicker } from './studio-layer-picker.mjs';
 import { hasPendingStudioLeaseTurn, trackStudioLeaseTurns } from './studio-lease-turns.mjs';
 import { captureStudioDesignFocus } from './studio-design-focus.mjs';
+import { readStudioSession, StudioSignInRequired } from './studio-session.mjs';
 let assets;
 let element;
 const elementsByEnvironment = new Map();
@@ -106,8 +107,6 @@ async function studioElement(session) {
     app.agentSessionAdapter = app.workspaceAgentAdapter;
     return app;
 }
-class StudioSignInRequired extends Error {}
-const SIGN_IN_REQUIRED_STATUSES = new Set([401, 403]);
 
 async function mount() {
     const host = document.querySelector('[data-studio-embed]');
@@ -118,10 +117,7 @@ async function mount() {
         assets ||= import(new URL('../_studio/console.js', import.meta.url).href);
         const module = await assets;
         module.registerAllStudioElements();
-        const response = await fetch('/api/agent-workspace/session', { credentials: 'same-origin' });
-        if (SIGN_IN_REQUIRED_STATUSES.has(response.status)) throw new StudioSignInRequired();
-        if (!response.ok) throw new Error(`The workspace session request failed with ${response.status}.`);
-        session = await response.json();
+        session = await readStudioSession();
         element = await studioElement(session);
         element.currentPath = location.pathname;
         host.querySelector('[data-studio-mount]').append(element);
@@ -169,9 +165,9 @@ async function mountProcesses() {
     try {
         assets ||= import(new URL('../_studio/console.js', import.meta.url).href);
         const module = await assets; module.registerAllStudioElements();
-        const response = await fetch('/api/agent-workspace/session', { credentials: 'same-origin' });
-        if (!response.ok) throw new Error('Sign in to Honua to open Processes.');
-        const session = await response.json();
+        const session = await readStudioSession().catch(error => {
+            throw error instanceof StudioSignInRequired ? new Error('Sign in to Honua to open Processes.') : error;
+        });
         let view;
         const options = { environmentId: session.environmentId, csrfToken: session.csrfToken, principalId:session.principalId,
             fetchImpl:capturedProcessFetch(session,{current:()=>view?.session || session}) };
@@ -182,9 +178,7 @@ async function mountProcesses() {
         view = processView = {builtin,custom,host,mode:'builtin',session};
         const sourceApp=await studioElement(session);
         const pickerApp=async()=>{
-            const response=await fetch('/api/agent-workspace/session',{credentials:'same-origin'});
-            if(!response.ok) throw new Error('Sign in again before choosing a process source.');
-            const renewed=await response.json();
+            const renewed=await readStudioSession().catch(()=>{throw new Error('Sign in again before choosing a process source.');});
             if(processView!==view || !host.isConnected || view.mode!=='builtin' || !sameCookieAuthority(session,renewed))
                 throw new Error('The process view or connection changed. Review it before choosing a source.');
             const app=await studioElement(renewed);
@@ -263,9 +257,7 @@ scheduleCookieSessionRenewal(() => session, async () => {
     const retained=sharedBinding && element?.workspaceCookieBinding?.principalId === sharedBinding ? element : undefined;
     if(!view && !app && !retained) return;
     try {
-        const response=await fetch('/api/agent-workspace/session',{credentials:'same-origin'});
-        if(!response.ok) return;
-        const refreshed=await response.json(),bound=view?.session || session;
+        const refreshed=await readStudioSession(),bound=view?.session || session;
         if(!sameCookieAuthority(bound,refreshed)) {
             const status=document.querySelector(view ? '[data-processes-status]' : '[data-studio-status]');
             if(status) status.textContent='The connection changed. Save your work and reopen this view to reconnect.';
