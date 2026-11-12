@@ -82,7 +82,9 @@ dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http:
 Read-only and explicitly headless paths may send the key as `X-API-Key`;
 interactive mutations (proposal decisions, deploy submit/rollback) require a
 forwardable operator bearer via the built-in per-operator BFF and fail closed
-without one. See [Console authentication](docs/console-authentication.md) and
+without one. The published Console's Content-Security-Policy admits a separate-origin
+API only over HTTPS (`connect-src` has no `http:`); serve a plain-HTTP API from the
+Console's own origin instead. See [Console authentication](docs/console-authentication.md) and
 [Local and staging startup](docs/deployment/LOCAL_AND_STAGING.md).
 
 ### Or run it from honua-server's compose stack
@@ -159,8 +161,8 @@ the committed MapLibre and Vega assets. Cesium's runtime remains build-time outp
 For committed bundles, the script re-fetches from npm, checks the tarball against npm's own
 `dist.integrity`, and records a sha384 digest of every byte it writes; `npm test`
 fails if a committed asset ever stops matching its digest, if a wwwroot interop
-script reaches an origin nobody declared, or if the CSP and those scripts disagree
-about which external origins are still needed.
+script reaches an origin nobody declared, or if the Console CSP
+(`config/console-csp.json`) blocks one of those origins or admits an external script origin.
 
 The embedded Studio editor is not committed either. `scripts/studio-release.lock.json`
 pins an attested honua-studio release archive by tag and SHA-256, and

@@ -3,6 +3,7 @@
 
 <head>
     <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self'; form-action 'self'" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/console/" />
 
@@ -28,30 +29,12 @@
     <script src="js/modal-surface.js"></script>
     <script src="js/publication-tree.js"></script>
     <script src="js/conversation-drawer.js"></script>
+    <script src="js/fragment-navigation.js"></script>
     <script src="_framework/blazor.webassembly.js"></script>
 
     <script type="module" src="js/agent-workspace.mjs"></script>
     <script type="module" src="js/studio-embed.mjs"></script>
     <script type="module" src="js/dataset-import-panel.mjs"></script>
-    <script>
-        // In-page section navigation: Blazor's interactive router intercepts same-page
-        // "#id" links and does not scroll to the fragment, so handle pure-fragment anchors
-        // here. Only acts when a matching element exists; otherwise leaves the link alone.
-        // Capture phase so this runs before Blazor's delegated router handler.
-        document.addEventListener('click', function (e) {
-            var anchor = e.target.closest && e.target.closest('a[href^="#"]');
-            if (!anchor) { return; }
-            var id = anchor.getAttribute('href').slice(1);
-            if (!id) { return; }
-            var target = document.getElementById(id);
-            if (target) {
-                e.preventDefault();
-                e.stopPropagation();
-                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                if (history.replaceState) { history.replaceState(null, '', '#' + id); }
-            }
-        }, true);
-    </script>
 </body>
 
 </html>
