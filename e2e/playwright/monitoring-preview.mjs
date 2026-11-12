@@ -6,7 +6,7 @@ const headings = { "health-snapshot": "Operational health", "metrics-live": "Ser
 const sections = { "health-snapshot": 8, "metrics-live": 6, "deploy-overview": 5 };
 
 await runV4PagePresentation({
-  previews: path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/monitoring-preview"),
+  previews: path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/catalog-preview"),
   pageNames: Object.keys(headings),
   title: "Operate monitoring presentation fixture",
   stylesheet: "operate-monitoring-v4.css",

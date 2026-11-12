@@ -47,6 +47,7 @@ public sealed class OperateDeployPageRenderTests
         Assert.Equal("Deploy", Assert.Single(page.FindAll("h1")).TextContent);
         Assert.Equal(v4 ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
         Assert.Equal(v4 ? 1 : 0, page.FindAll(".console-monitoring-v4.console-deploy-v4").Count);
+        Assert.Equal(v4, page.Markup.Contains("operate-monitoring-v4.css", StringComparison.Ordinal));
         foreach (var section in new[] { "#all-operations", "#server-upgrade", "#cross-env-promote", "#platform-release", "#deploy-approvals" })
         {
             Assert.NotNull(page.Find(section));

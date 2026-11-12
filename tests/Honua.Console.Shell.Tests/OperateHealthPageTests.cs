@@ -152,6 +152,17 @@ public sealed class OperateHealthPageTests
         Assert.Contains("not permitted", html);
     }
 
+    private static readonly (string Id, string V4, string Legacy)[] SectionHeadings =
+    [
+        ("serving-latency-heading", "Latency and error rate by protocol", "Per-Protocol Latency And Error Rate"),
+        ("geoprocessing-heading", "Active jobs by status and backend", "Active Jobs By Status And Backend"),
+        ("alert-dispatch-heading", "Backlog and dead letters", "Backlog And Dead-Letters"),
+        ("deploy-heading", "Deploy readiness and platform release", "Deploy Readiness And Platform Release"),
+        ("database-heading", "Connection pool, cache and errors", "Connection Pool, Cache, And Errors"),
+        ("health-checks-heading", "Comprehensive health checks", "Comprehensive Health Checks"),
+        ("trends-heading", "Latency, errors, queue and backlog trends", "Serving Latency, Error Rate, Queue, And Backlog Over Time"),
+    ];
+
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
     [InlineData(ConsolePresentationMode.V4)]
@@ -169,9 +180,10 @@ public sealed class OperateHealthPageTests
         Assert.Equal(v4, document.QuerySelector(".console-page-heading-v4") is not null);
         Assert.Equal(v4, document.QuerySelector(".console-monitoring-v4.console-health-v4") is not null);
         Assert.Equal(v4, html.Contains("operate-monitoring-v4.css", StringComparison.Ordinal));
-        Assert.Equal(
-            v4 ? "Latency and error rate by protocol" : "Per-Protocol Latency And Error Rate",
-            document.QuerySelector("#serving-latency-heading")!.TextContent);
+        foreach (var (id, v4Text, legacyText) in SectionHeadings)
+        {
+            Assert.Equal(v4 ? v4Text : legacyText, document.QuerySelector($"#{id}")!.TextContent);
+        }
         Assert.Equal(8, document.QuerySelectorAll(".operate-section-nav a").Length);
         Assert.NotNull(document.QuerySelector("[data-refresh-health]"));
         Assert.NotNull(document.QuerySelector("[data-health-drilldown='serving-latency']"));
