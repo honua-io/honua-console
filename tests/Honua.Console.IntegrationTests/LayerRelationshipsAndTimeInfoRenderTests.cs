@@ -92,6 +92,102 @@ public sealed class LayerRelationshipsAndTimeInfoRenderTests
         Assert.Empty(component.FindAll("input, button, textarea"));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Relationships_ContextCountsDraftAndPreservesItOnRerender(bool enabled)
+    {
+        using var ctx = new BunitContext();
+        ctx.AddConsoleNotifications();
+        var registry = new ConsoleAgentContextRegistry();
+        ctx.Services.AddSingleton(registry);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager("/console/"));
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(LayerData());
+        ctx.Services.AddSingleton<IConsoleLayerRelationshipsOperation>(new FakeRelationships
+        {
+            Read = new() { Bound = true, LayerId = 1, Relationships = [] }
+        });
+        var page = ctx.Render<OperateLayerRelationshipsPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        page.WaitForAssertion(() => page.Find("[data-rel-add]"));
+        Assert.Equal(enabled, page.FindAll(".console-page-heading-v4").Count == 1);
+        Assert.Equal("/console/operate/layers/conn-1-layer-1", page.Find("[data-layer-detail-link]").GetAttribute("href"));
+        if (enabled)
+        {
+            Assert.Equal(ResourceId, Assert.Single(registry.Current.Selection).ResourceId);
+            Assert.Equal("1", Assert.Single(registry.Current.Entities).Id);
+        }
+        if (enabled) CatalogAdminPreview.Capture("data-layer-relationships-empty", page.Markup);
+        page.Find("[data-rel-add]").Click();
+        page.Find("[data-rel-name]").Change("private_relationship_name");
+        page.WaitForAssertion(() => Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount));
+        Assert.DoesNotContain("private_relationship_name", System.Text.Json.JsonSerializer.Serialize(registry.Current));
+        page.Render(p => p.Add(x => x.ResourceId, ResourceId));
+        Assert.Equal("private_relationship_name", page.Find("[data-rel-name]").GetAttribute("value"));
+        if (enabled) CatalogAdminPreview.Capture("data-layer-relationships-draft", page.Markup);
+        page.Find("[data-rel-remove]").Click();
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Relationships_RejectedSavePreservesDraft(bool enabled)
+    {
+        var (ctx, registry) = DraftContext(enabled, new FakeRelationships
+        {
+            Read = new() { Bound = true, LayerId = 1, Relationships = [] },
+            SaveResult = new ConsoleSetRelationshipsResult { Succeeded = false, State = "Rejected", Detail = "Unknown origin field." }
+        });
+        using var _ = ctx;
+        var page = ctx.Render<OperateLayerRelationshipsPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        page.WaitForAssertion(() => page.Find("[data-rel-add]"));
+        page.Find("[data-rel-add]").Click();
+        page.Find("[data-rel-name]").Change("owners");
+        page.Find("[data-rel-save]").Click();
+        page.WaitForAssertion(() => Assert.Contains("Unknown origin field.", page.Find("[data-relationships-result]").TextContent));
+        Assert.Equal("owners", page.Find("[data-rel-name]").GetAttribute("value"));
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Relationships_EditsDuringSaveSurviveItsCompletion(bool enabled)
+    {
+        var relationships = new FakeRelationships
+        {
+            Read = new() { Bound = true, LayerId = 1, Relationships = [] },
+            PendingSave = new TaskCompletionSource<ConsoleSetRelationshipsResult>()
+        };
+        var (ctx, registry) = DraftContext(enabled, relationships);
+        using var _ = ctx;
+        var page = ctx.Render<OperateLayerRelationshipsPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        page.WaitForAssertion(() => page.Find("[data-rel-add]"));
+        page.Find("[data-rel-add]").Click();
+        page.Find("[data-rel-name]").Change("owners");
+        page.Find("[data-rel-save]").Click();
+        page.Find("[data-rel-name]").Change("owners_v2");
+        await page.InvokeAsync(() => relationships.PendingSave.SetResult(new ConsoleSetRelationshipsResult { Succeeded = true, State = "Updated" }));
+        page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+        Assert.Equal("owners_v2", page.Find("[data-rel-name]").GetAttribute("value"));
+        if (enabled) Assert.True(registry.Current.Unsaved.ChangedFieldCount > 0);
+    }
+
+    private static (BunitContext Context, ConsoleAgentContextRegistry Registry) DraftContext(bool enabled, FakeRelationships relationships)
+    {
+        var ctx = new BunitContext();
+        ctx.AddConsoleNotifications();
+        var registry = new ConsoleAgentContextRegistry();
+        ctx.Services.AddSingleton(registry);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager("/console/"));
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(LayerData());
+        ctx.Services.AddSingleton<IConsoleLayerRelationshipsOperation>(relationships);
+        return (ctx, registry);
+    }
+
     private static IRenderedComponent<OperateLayerRelationshipsPage> RenderRelationships(FakeRelationships relationships)
     {
         var ctx = new Bunit.BunitContext();
@@ -108,6 +204,7 @@ public sealed class LayerRelationshipsAndTimeInfoRenderTests
     {
         public ConsoleLayerRelationships Read { get; set; } = ConsoleLayerRelationships.Unbound("test");
         public ConsoleSetRelationshipsResult? SaveResult { get; set; }
+        public TaskCompletionSource<ConsoleSetRelationshipsResult>? PendingSave { get; set; }
         public IReadOnlyList<ConsoleLayerRelationship>? LastSaved { get; private set; }
 
         public Task<ConsoleLayerRelationships> GetRelationshipsAsync(int layerId, CancellationToken cancellationToken = default) =>
@@ -117,7 +214,7 @@ public sealed class LayerRelationshipsAndTimeInfoRenderTests
             int layerId, IReadOnlyList<ConsoleLayerRelationship> relationships, CancellationToken cancellationToken = default)
         {
             LastSaved = relationships;
-            return Task.FromResult(SaveResult ?? new ConsoleSetRelationshipsResult { Succeeded = true, State = "Updated" });
+            return PendingSave?.Task ?? Task.FromResult(SaveResult ?? new ConsoleSetRelationshipsResult { Succeeded = true, State = "Updated" });
         }
     }
 

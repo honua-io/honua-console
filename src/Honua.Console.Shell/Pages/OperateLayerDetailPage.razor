@@ -313,7 +313,7 @@
     private ConsoleAgentEntity? SelectedLayer => _exposures.Count == 0 ? null : ConsoleAgentEntity.ForLayer(_exposures[0].Layer);
     private ConsoleAgentPageContext AgentContext => new()
     {
-        Route = SelectedLayer is { } layer ? ConsoleAgentRoutes.ForEntity(layer) : $"/operate/layers/{Uri.EscapeDataString(ResourceId)}",
+        Route = SelectedLayer is { } layer ? ConsoleAgentRoutes.ForEntity(layer) : ConsoleAgentRoutes.ForRequestedLayer(ResourceId),
         Entities = SelectedLayer is { } entity ? [entity] : [],
         Selection = SelectedLayer is { } selected ? [selected] : [],
         Unsaved = new()
