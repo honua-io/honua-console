@@ -1,0 +1,213 @@
+@namespace Honua.Console.Shell.Components.Operate
+@using Honua.Console.Shell.Models
+@inject NavigationManager ConsoleNavigation
+
+@*
+    v4 Layer Preview catalog (mockup 08): every dataset as one table row with its type, its served
+    routes and a Map action that opens the existing Layer Preview pane. Filtering and paging stay local.
+*@
+<div class="layer-preview-catalog" data-layer-preview-catalog>
+    <div class="layer-preview-catalog__toolbar">
+        <label class="layer-preview-catalog__field">
+            <span class="console-visually-hidden">Layer type</span>
+            <select class="console-input" value="@_type" @onchange="OnTypeChanged" data-catalog-type>
+                <option value="">All types</option>
+                @foreach (var type in Types)
+                {
+                    <option value="@type">@type</option>
+                }
+            </select>
+        </label>
+        <label class="layer-preview-catalog__field layer-preview-catalog__search">
+            <span class="console-visually-hidden">Search layers</span>
+            <input class="console-input" type="search" placeholder="Search layers" value="@_query"
+                   @oninput="OnQueryChanged" data-catalog-search />
+        </label>
+    </div>
+
+    @if (Rows.Count == 0)
+    {
+        <p class="console-muted" data-tree-empty>
+            <span>No datasets yet.</span> <a href="@ConsoleNavigation.ToConsoleHref("/operate/data/new")">Add data</a><span> — it becomes a dataset you can publish as a layer.</span>
+        </p>
+    }
+    else if (Filtered.Count == 0)
+    {
+        <p class="console-muted" data-tree-empty>
+            <span>No layers match this search.</span>
+            <button type="button" class="console-button console-button-secondary" @onclick="ClearFilters">Clear filters</button>
+        </p>
+    }
+    else
+    {
+        @Pager("top")
+        <ConsoleTableRegion Label="Layers to preview">
+            <table class="console-table layer-preview-catalog__table">
+                <thead>
+                    <tr>
+                        <th scope="col">Type</th>
+                        <th scope="col">Title</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Common formats</th>
+                        <th scope="col">All formats</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in PageRows)
+                    {
+                        var node = row.Node;
+                        var routed = node.Publications.Where(publication => publication.Route is not null).ToArray();
+                        <tr data-resource-node="@node.ResourceId" aria-current="@(IsSelected(node) ? "true" : null)">
+                            <td data-catalog-row-type>@TypeLabel(row)</td>
+                            <td><a href="@ConsoleNavigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(node.ResourceId)}")">@node.Name</a></td>
+                            <td class="console-mono layer-preview-catalog__name">@node.ResourceId</td>
+                            <td>
+                                @if (routed.Length > 0)
+                                {
+                                    <div class="layer-preview-catalog__formats">
+                                        <button type="button" class="layer-preview-catalog__map" data-catalog-map
+                                                aria-label="Map @node.Name" @onclick="() => Select(node, routed[0])">Map</button>
+                                        @foreach (var publication in routed.Take(CommonFormatCount))
+                                        {
+                                            <a href="@publication.Route" target="_blank" rel="noopener" data-catalog-route="@publication.ProtocolId"
+                                               aria-label="@publication.ProtocolLabel for @node.Name">@publication.ProtocolLabel</a>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <a class="console-button" href="@ConsoleNavigation.ToConsoleLinkHref(ResourcePublicationsTree.PublishHref(node))" data-publish>Publish</a>
+                                }
+                            </td>
+                            <td>
+                                @if (routed.Length > 0)
+                                {
+                                    <select class="console-input" aria-label="All formats for @node.Name" data-catalog-all-formats
+                                            @onchange="args => SelectProtocol(node, args)">
+                                        <option value="">All formats…</option>
+                                        @foreach (var publication in routed)
+                                        {
+                                            <option value="@publication.ProtocolId">@publication.ProtocolLabel</option>
+                                        }
+                                    </select>
+                                    <a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref(ResourcePublicationsTree.ExposeHref(node))" data-expose>Expose another protocol</a>
+                                }
+                                else
+                                {
+                                    <span class="console-muted">Not published</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </ConsoleTableRegion>
+        @Pager("bottom")
+    }
+</div>
+
+@code {
+    internal const int PageSize = 25;
+    private const int CommonFormatCount = 2;
+
+    /// <summary>One catalog row: the dataset and the geometry of its served layer, when it has one.</summary>
+    public sealed record Row(ResourceTreeNode Node, string? Geometry);
+
+    [Parameter] public IReadOnlyList<Row> Rows { get; set; } = [];
+
+    /// <summary>The dataset currently previewed; its page is shown when it first arrives.</summary>
+    [Parameter] public string? SelectedResourceId { get; set; }
+
+    [Parameter] public EventCallback<LayerPreviewPane.PreviewSelection> OnPublicationSelected { get; set; }
+
+    private string _query = string.Empty;
+    private string _type = string.Empty;
+    private int _page;
+    private string? _revealedResourceId;
+
+    private IReadOnlyList<string> Types =>
+        Rows.Select(TypeLabel).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+
+    private IReadOnlyList<Row> Filtered => Rows
+        .Where(row => _type.Length == 0 || string.Equals(TypeLabel(row), _type, StringComparison.Ordinal))
+        .Where(row => _query.Length == 0
+            || row.Node.Name.Contains(_query, StringComparison.OrdinalIgnoreCase)
+            || row.Node.ResourceId.Contains(_query, StringComparison.OrdinalIgnoreCase))
+        .ToArray();
+
+    private int PageCount => Math.Max(1, (Filtered.Count + PageSize - 1) / PageSize);
+
+    private IEnumerable<Row> PageRows => Filtered.Skip(CurrentPage * PageSize).Take(PageSize);
+
+    private int CurrentPage => Math.Min(_page, PageCount - 1);
+
+    private static string TypeLabel(Row row) => string.IsNullOrWhiteSpace(row.Geometry) ? "Not served" : row.Geometry;
+
+    private bool IsSelected(ResourceTreeNode node) =>
+        string.Equals(node.ResourceId, SelectedResourceId, StringComparison.Ordinal);
+
+    protected override void OnParametersSet()
+    {
+        if (string.Equals(_revealedResourceId, SelectedResourceId, StringComparison.Ordinal)) return;
+        _revealedResourceId = SelectedResourceId;
+        var index = Filtered.Select(row => row.Node.ResourceId).ToList().IndexOf(SelectedResourceId ?? string.Empty);
+        if (index >= 0) _page = index / PageSize;
+    }
+
+    private RenderFragment Pager(string position) => __builder =>
+    {
+        var first = CurrentPage * PageSize + 1;
+        var last = Math.Min(Filtered.Count, first + PageSize - 1);
+        <nav class="layer-preview-catalog__pager" aria-label="Layer pages, @position" data-catalog-pager="@position">
+            @if (PageCount > 1)
+            {
+                <button type="button" class="console-button console-button-secondary" disabled="@(CurrentPage == 0)"
+                        aria-label="Previous page" @onclick="() => _page = CurrentPage - 1">‹</button>
+                @for (var index = 0; index < PageCount; index++)
+                {
+                    var page = index;
+                    <button type="button" class="console-button console-button-secondary"
+                            aria-current="@(page == CurrentPage ? "page" : null)" aria-label="Page @(page + 1)"
+                            @onclick="() => _page = page">@(page + 1)</button>
+                }
+                <button type="button" class="console-button console-button-secondary" disabled="@(CurrentPage == PageCount - 1)"
+                        aria-label="Next page" @onclick="() => _page = CurrentPage + 1">›</button>
+            }
+            <span class="console-muted" role="@(position == "top" ? "status" : null)" data-catalog-results>
+                Results @first to @last (out of @Filtered.Count @(Filtered.Count == 1 ? "layer" : "layers"))
+            </span>
+        </nav>
+    };
+
+    private void OnTypeChanged(ChangeEventArgs args)
+    {
+        _type = args.Value as string ?? string.Empty;
+        _page = 0;
+    }
+
+    private void OnQueryChanged(ChangeEventArgs args)
+    {
+        _query = (args.Value as string ?? string.Empty).Trim();
+        _page = 0;
+    }
+
+    private void ClearFilters()
+    {
+        _query = string.Empty;
+        _type = string.Empty;
+        _page = 0;
+    }
+
+    private Task Select(ResourceTreeNode node, PublicationTreeNode publication) =>
+        OnPublicationSelected.HasDelegate && publication.Route is { } route
+            ? OnPublicationSelected.InvokeAsync(new LayerPreviewPane.PreviewSelection(
+                node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, route))
+            : Task.CompletedTask;
+
+    private Task SelectProtocol(ResourceTreeNode node, ChangeEventArgs args)
+    {
+        var publication = node.Publications.FirstOrDefault(candidate =>
+            candidate.Route is not null && string.Equals(candidate.ProtocolId, args.Value as string, StringComparison.Ordinal));
+        return publication is null ? Task.CompletedTask : Select(node, publication);
+    }
+}

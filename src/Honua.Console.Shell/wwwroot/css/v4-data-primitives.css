@@ -154,3 +154,59 @@
     min-width: 24px;
     min-height: 24px;
 }
+
+/* v4 Layer Preview catalog (mockup 08): toolbar, pager and per-row format links. */
+.console-shell[data-console-v4="true"] .layer-preview-catalog__toolbar,
+.console-shell[data-console-v4="true"] .layer-preview-catalog__pager,
+.console-shell[data-console-v4="true"] .layer-preview-catalog__formats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__toolbar {
+    justify-content: flex-end;
+    margin-bottom: var(--space-3);
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__search {
+    flex: 1 1 16rem;
+    max-width: 20rem;
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__search input {
+    width: 100%;
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__pager {
+    margin: var(--space-3) 0;
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__pager [aria-current="page"] {
+    border-color: var(--c-accent);
+    color: var(--c-text);
+    font-weight: 600;
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__formats a,
+.console-shell[data-console-v4="true"] .layer-preview-catalog__map {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--c-accent);
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__name {
+    overflow-wrap: anywhere;
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__table tr[aria-current="true"] {
+    background: var(--c-surface-2);
+}

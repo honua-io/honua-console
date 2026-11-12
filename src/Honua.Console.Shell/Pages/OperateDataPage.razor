@@ -12,8 +12,8 @@
 <section class="console-page operate-data-page" data-operate-data>
     @if (V4Enabled)
     {
-        <ConsolePageHeading Title="Datasets">
-            <ChildContent><p>Browse datasets and the services that expose them.</p></ChildContent>
+        <ConsolePageHeading Title="Layer preview">
+            <ChildContent><p>Browse every dataset and open it as a map or through its served routes.</p></ChildContent>
             <Actions><a class="console-button" href="@Navigation.ToConsoleHref("/operate/data/new")">Add data</a></Actions>
         </ConsolePageHeading>
     }
@@ -40,7 +40,18 @@
 
         @if (V4Enabled)
         {
-            <ConsolePanel Title="Dataset publications" HeadingId="data-publications-heading">@DatasetBrowser</ConsolePanel>
+            <ConsolePanel Title="Layers" HeadingId="data-publications-heading">
+                <LayerPreviewCatalog Rows="@_catalogRows" SelectedResourceId="@_selectedResource?.ResourceId"
+                                     OnPublicationSelected="OnPublicationSelected" />
+            </ConsolePanel>
+            @if (_selectedResource is not null)
+            {
+                <LayerPreviewPane Selection="@_preview"
+                                  Layer="@PreviewLayer"
+                                  EnvironmentId="@_environmentId"
+                                  Protocols="@_previewProtocols"
+                                  OnProtocolSelected="OnPreviewProtocolChanged" />
+            }
         }
         else
         {
@@ -90,6 +101,8 @@
     private OperateServicesView? _servicesView;
     private string? _environmentId;
 
+    private IReadOnlyList<LayerPreviewCatalog.Row> _catalogRows = [];
+
     private OperateServiceLayerProjection? PreviewLayer => _preview is { } preview ? _servicesView?.FindLayer(preview.ResourceId) : null;
 
     private bool _loaded;
@@ -130,6 +143,7 @@
         _loaded = false;
         _loadError = null;
         _nodes = [];
+        _catalogRows = [];
         _states = [];
         _preview = null;
         _previewProtocols = [];
@@ -149,6 +163,9 @@
         _environmentId = environmentId;
 
         _nodes = ResourcePublicationsTreeBuilder.Build(resourcesView.ResourceEdits, servicesView.Services);
+        _catalogRows = _nodes
+            .Select(node => new LayerPreviewCatalog.Row(node, servicesView.FindLayer(node.ResourceId)?.Geometry))
+            .ToArray();
         _states = OperateCapabilityStateFilters.ForSurface(
             resourcesView.CapabilityStates.Concat(servicesView.CapabilityStates).ToArray(),
             "Resources", "Layers", "Services");
