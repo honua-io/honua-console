@@ -161,6 +161,7 @@
     min-width: 0;
 }
 
+/* Same breakpoint as the legacy .esri-import__split stack in honua-console.css. */
 @media (max-width: 1100px) {
     .console-shell[data-console-v4="true"] .esri-import__split {
         grid-template-columns: minmax(0, 1fr);
@@ -178,7 +179,25 @@
     text-decoration: line-through;
 }
 
-/* The story hero swatch is a fixed gold in both themes, so its title uses fixed dark ink for 4.5:1. */
+/* The story hero swatch is a fixed gold in both themes, so its title uses a fixed dark ink for 4.5:1. */
+.console-shell[data-console-v4="true"] .esri-story-preview__hero {
+    --esri-story-hero-ink: #171c1a;
+}
+
 .console-shell[data-console-v4="true"] .esri-story-preview__hero-title {
-    color: #171c1a;
+    color: var(--esri-story-hero-ink);
+}
+
+/* A v4 mapping panel takes the panel frame and heading scale instead of the legacy card frame. */
+.console-shell[data-console-v4="true"] .esri-mapping.console-panel {
+    border-radius: var(--radius-lg);
+}
+
+.console-shell[data-console-v4="true"] .esri-mapping .console-panel-heading h2 {
+    margin: 0;
+    font-size: var(--text-md);
+}
+
+.console-shell[data-console-v4="true"] :is(.esri-intake__bar, .esri-intake__modes) {
+    flex-wrap: wrap;
 }

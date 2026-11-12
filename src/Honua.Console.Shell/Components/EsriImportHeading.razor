@@ -32,7 +32,7 @@ else
 @code {
     [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
 
-    /// <summary>The legacy breadcrumb's last segment; null on the wizard, which is the section root.</summary>
+    // The legacy breadcrumb's last segment; the wizard is the section root and has none.
     [Parameter] public string? Crumb { get; set; }
 
     [Parameter] public RenderFragment? Description { get; set; }

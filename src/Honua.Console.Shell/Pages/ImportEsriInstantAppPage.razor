@@ -28,22 +28,20 @@
         </Actions>
     </EsriImportHeading>
 
-    <EsriImportPanel Title="Source Instant App" HeadingId="esri-intake-heading">
-        <EsriImportIntake Noun="Instant App"
-                          Kind="EsriContentKind.InstantApp"
-                          Result="_result"
-                          Parse="ParseInstantApp"
-                          OnParsed="OnParsed"
-                          Dirty="_dirty"
-                          SampleJson="@EsriImportSampleDocuments.InstantApp"
-                          SampleFileName="@EsriImportSampleDocuments.InstantAppFileName" />
-    </EsriImportPanel>
+    <EsriImportIntake Noun="Instant App"
+                      Kind="EsriContentKind.InstantApp"
+                      Result="_result"
+                      Parse="ParseInstantApp"
+                      OnParsed="OnParsed"
+                      Dirty="_dirty"
+                      SampleJson="@EsriImportSampleDocuments.InstantApp"
+                      SampleFileName="@EsriImportSampleDocuments.InstantAppFileName" />
 
     @if (_result is { } result)
     {
         <div class="esri-import__split">
             <div class="esri-import__mapping">
-                <SourceTargetMappingTable AsPanel="true" Rows="result.Rows"
+                <SourceTargetMappingTable HeadingLevel="2" Rows="result.Rows"
                                           Heading="Capability → app element mapping"
                                           Subhead="source app capability → Honua app panel / tool"
                                           SourceHeader="Source capability"

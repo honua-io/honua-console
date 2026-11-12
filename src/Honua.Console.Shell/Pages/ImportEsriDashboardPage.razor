@@ -27,22 +27,20 @@
         </Actions>
     </EsriImportHeading>
 
-    <EsriImportPanel Title="Source Dashboard" HeadingId="esri-intake-heading">
-        <EsriImportIntake Noun="Dashboard"
-                          Kind="EsriContentKind.Dashboard"
-                          Result="_result"
-                          Parse="ParseDashboard"
-                          OnParsed="OnParsed"
-                          Dirty="_dirty"
-                          SampleJson="@EsriImportSampleDocuments.Dashboard"
-                          SampleFileName="@EsriImportSampleDocuments.DashboardFileName" />
-    </EsriImportPanel>
+    <EsriImportIntake Noun="Dashboard"
+                      Kind="EsriContentKind.Dashboard"
+                      Result="_result"
+                      Parse="ParseDashboard"
+                      OnParsed="OnParsed"
+                      Dirty="_dirty"
+                      SampleJson="@EsriImportSampleDocuments.Dashboard"
+                      SampleFileName="@EsriImportSampleDocuments.DashboardFileName" />
 
     @if (_result is { } result)
     {
         <div class="esri-import__split">
             <div class="esri-import__mapping">
-                <SourceTargetMappingTable AsPanel="true" Rows="result.Rows"
+                <SourceTargetMappingTable HeadingLevel="2" Rows="result.Rows"
                                           Heading="Element → widget mapping"
                                           Subhead="source dashboard element → Honua dashboard widget"
                                           SourceHeader="Source element"

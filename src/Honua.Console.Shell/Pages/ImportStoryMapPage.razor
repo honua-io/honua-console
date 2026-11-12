@@ -26,22 +26,20 @@
         </Actions>
     </EsriImportHeading>
 
-    <EsriImportPanel Title="Source StoryMap" HeadingId="esri-intake-heading">
-        <EsriImportIntake Noun="StoryMap"
-                          Kind="EsriContentKind.StoryMap"
-                          Result="_result"
-                          Parse="ParseStoryMap"
-                          OnParsed="OnParsed"
-                          Dirty="_dirty"
-                          SampleJson="@EsriImportSampleDocuments.StoryMap"
-                          SampleFileName="@EsriImportSampleDocuments.StoryMapFileName" />
-    </EsriImportPanel>
+    <EsriImportIntake Noun="StoryMap"
+                      Kind="EsriContentKind.StoryMap"
+                      Result="_result"
+                      Parse="ParseStoryMap"
+                      OnParsed="OnParsed"
+                      Dirty="_dirty"
+                      SampleJson="@EsriImportSampleDocuments.StoryMap"
+                      SampleFileName="@EsriImportSampleDocuments.StoryMapFileName" />
 
     @if (_result is { } result)
     {
         <div class="esri-import__split">
             <div class="esri-import__mapping">
-                <SourceTargetMappingTable AsPanel="true" Rows="result.Rows"
+                <SourceTargetMappingTable HeadingLevel="2" Rows="result.Rows"
                                           Heading="Section → content mapping"
                                           Subhead="StoryMap section → Console report block"
                                           SourceHeader="Section"

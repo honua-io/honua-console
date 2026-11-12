@@ -3,8 +3,29 @@
 @inject IServiceProvider ServiceProvider
 
 @* Source-to-target mappings show conversion fidelity and data-binding blockers before content is created. *@
-<div class="esri-mapping @(V4Panel ? "console-panel" : null)" data-esri-mapping aria-labelledby="@(V4Panel ? PanelHeadingId : null)">
-    <div class="esri-mapping__head">
+@if (V4Panel)
+{
+    <section class="esri-mapping console-panel" data-esri-mapping aria-labelledby="@PanelHeadingId">
+        @Body
+    </section>
+}
+else
+{
+    <div class="esri-mapping" data-esri-mapping>
+        @Body
+    </div>
+}
+
+@code {
+    private const string PanelHeadingId = "esri-mapping-heading";
+
+    // Level 2 marks the mapping as a page section: in v4 it becomes its own panel. Legacy pages keep h3 until the v4 flip.
+    [Parameter] public int HeadingLevel { get; set; } = 3;
+
+    private bool V4Panel => HeadingLevel == 2 && ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private RenderFragment Body => @<text>
+    <div class="esri-mapping__head @(V4Panel ? "console-panel-heading" : null)">
         <div class="esri-mapping__heading">
             @if (V4Panel)
             {
@@ -110,15 +131,7 @@
             }
         </div>
     }
-</div>
-
-@code {
-    private const string PanelHeadingId = "esri-mapping-heading";
-
-    /// <summary>The mapping is a top-level section of its page, so in v4 it renders as its own panel with an h2.</summary>
-    [Parameter] public bool AsPanel { get; set; }
-
-    private bool V4Panel => AsPanel && ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+    </text>;
 
     private static readonly IReadOnlyList<EsriMappingRow> NoRows = [];
     private static readonly IReadOnlyList<EsriCarryOver> NoCarryOver = [];

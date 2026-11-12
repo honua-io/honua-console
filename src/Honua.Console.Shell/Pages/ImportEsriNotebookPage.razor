@@ -33,22 +33,20 @@
         </Actions>
     </EsriImportHeading>
 
-    <EsriImportPanel Title="Source Notebook" HeadingId="esri-intake-heading">
-        <EsriImportIntake Noun="Notebook"
-                          Kind="EsriContentKind.Notebook"
-                          Result="_result"
-                          Parse="ParseNotebook"
-                          OnParsed="OnParsed"
-                          Dirty="_dirty"
-                          SampleJson="@EsriImportSampleDocuments.Notebook"
-                          SampleFileName="@EsriImportSampleDocuments.NotebookFileName" />
-    </EsriImportPanel>
+    <EsriImportIntake Noun="Notebook"
+                      Kind="EsriContentKind.Notebook"
+                      Result="_result"
+                      Parse="ParseNotebook"
+                      OnParsed="OnParsed"
+                      Dirty="_dirty"
+                      SampleJson="@EsriImportSampleDocuments.Notebook"
+                      SampleFileName="@EsriImportSampleDocuments.NotebookFileName" />
 
     @if (_result is { } result)
     {
         <div class="esri-import__split">
             <div class="esri-import__mapping">
-                <SourceTargetMappingTable AsPanel="true" Rows="result.Rows"
+                <SourceTargetMappingTable HeadingLevel="2" Rows="result.Rows"
                                           Heading="Cell → notebook-package mapping"
                                           Subhead="source notebook cell / parameter / schedule → Honua notebook package element"
                                           SourceHeader="Notebook element"

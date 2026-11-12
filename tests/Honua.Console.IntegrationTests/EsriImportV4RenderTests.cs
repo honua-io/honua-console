@@ -9,81 +9,88 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class EsriImportV4RenderTests
 {
-    public static TheoryData<string, bool> ContentPages()
-    {
-        var data = new TheoryData<string, bool>();
-        foreach (var page in new[] { "dashboard", "instant-app", "notebook", "web-map", "storymap" })
-        {
-            data.Add(page, false);
-            data.Add(page, true);
-        }
+    public static TheoryData<string> ContentPages() => new("dashboard", "instant-app", "notebook", "web-map", "storymap");
 
-        return data;
+    [Theory]
+    [MemberData(nameof(ContentPages))]
+    public void ContentImportPages_V4RenderHeadingIntakeMappingAndPreviewAsPanels(string slug)
+    {
+        using var ctx = NewContext(v4: true);
+        var (type, title, _, noun) = Page(slug);
+        var page = ctx.Render(builder => { builder.OpenComponent(0, type); builder.CloseComponent(); });
+        CatalogAdminPreview.Capture($"data-esri-{slug}-empty", page.Markup);
+        page.Find("[data-intake-sample]").Click();
+
+        Assert.Equal(title, page.Find(".console-page-heading-v4 h1").TextContent);
+        Assert.Empty(page.FindAll(".console-detail-heading, .console-page-heading-v4 .console-kicker, .esri-import__preview-head"));
+        var intake = page.Find("section.console-panel[aria-labelledby='esri-intake-heading']");
+        Assert.Equal($"Source {noun}", intake.QuerySelector("h2")!.TextContent);
+        Assert.NotNull(intake.QuerySelector("[data-esri-intake]"));
+        var mapping = page.Find("section[data-esri-mapping].console-panel[aria-labelledby='esri-mapping-heading']");
+        Assert.NotNull(mapping.QuerySelector(".console-panel-heading h2#esri-mapping-heading"));
+        Assert.Empty(mapping.QuerySelectorAll("h3"));
+        Assert.NotNull(page.Find("[data-esri-target-preview] > section.console-panel[aria-labelledby='esri-target-preview-heading']"));
+        Assert.Empty(page.FindAll(".console-panel .console-panel"));
+        CatalogAdminPreview.Capture($"data-esri-{slug}", page.Markup);
     }
 
     [Theory]
     [MemberData(nameof(ContentPages))]
-    public void ContentImportPages_UseV4PanelsOnlyBehindTheFlag(string slug, bool v4)
+    public void ContentImportPages_LegacyKeepBreadcrumbHeadingAsideAndNestedMappingHeading(string slug)
     {
-        using var ctx = NewContext(v4);
-        var (type, title, crumb, noun) = Page(slug);
+        using var ctx = NewContext(v4: false);
+        var (type, title, crumb, _) = Page(slug);
         var page = ctx.Render(builder => { builder.OpenComponent(0, type); builder.CloseComponent(); });
-
-        if (v4) CatalogAdminPreview.Capture($"data-esri-{slug}-empty", page.Markup);
         page.Find("[data-intake-sample]").Click();
 
-        Assert.Equal(title, page.Find("h1").TextContent);
-        var mapping = page.Find("[data-esri-mapping]");
+        Assert.Empty(page.FindAll(".console-page-heading-v4, .console-panel"));
+        var heading = page.Find(".console-page > .console-detail-heading");
+        Assert.Equal($"Operate / Import source content / {crumb}", Normalize(heading.QuerySelector(".console-kicker")!.TextContent));
+        Assert.Equal(title, heading.QuerySelector("h1")!.TextContent);
+        Assert.NotNull(heading.QuerySelector(":scope > div > p.console-muted"));
+        Assert.NotEmpty(heading.QuerySelectorAll(":scope > .console-button-row > :is(a, button)"));
+        Assert.Empty(page.FindAll("[aria-labelledby='esri-intake-heading']"));
         var preview = page.Find("[data-esri-target-preview]");
-        if (v4)
-        {
-            Assert.Single(page.FindAll(".console-page-heading-v4"));
-            Assert.Empty(page.FindAll(".console-detail-heading, .console-page-heading-v4 .console-kicker, .esri-import__preview-head"));
-            var intake = page.Find("section.console-panel[aria-labelledby='esri-intake-heading']");
-            Assert.Equal($"Source {noun}", intake.QuerySelector("h2")!.TextContent);
-            Assert.NotNull(intake.QuerySelector("[data-esri-intake]"));
-            Assert.Contains("console-panel", mapping.ClassList);
-            Assert.Equal("esri-mapping-heading", mapping.GetAttribute("aria-labelledby"));
-            Assert.NotNull(mapping.QuerySelector("h2#esri-mapping-heading"));
-            Assert.Empty(mapping.QuerySelectorAll("h3"));
-            Assert.NotNull(preview.QuerySelector(":scope > section.console-panel > .console-panel-heading > h2"));
-            Assert.Empty(page.FindAll(".console-panel .console-panel"));
-            CatalogAdminPreview.Capture($"data-esri-{slug}", page.Markup);
-        }
-        else
-        {
-            Assert.Empty(page.FindAll(".console-page-heading-v4, .console-panel"));
-            Assert.EndsWith($"/ {crumb}", Normalize(page.Find(".console-detail-heading .console-kicker").TextContent));
-            Assert.Equal("ASIDE", preview.TagName);
-            Assert.NotNull(preview.QuerySelector(".esri-import__preview-head .console-kicker"));
-            Assert.NotNull(mapping.QuerySelector("h3"));
-            Assert.Null(mapping.GetAttribute("aria-labelledby"));
-        }
+        Assert.Equal("ASIDE", preview.TagName);
+        Assert.NotNull(preview.QuerySelector(":scope > .esri-import__preview-head > .console-kicker"));
+        var mapping = page.Find("[data-esri-mapping]");
+        Assert.Equal("DIV", mapping.TagName);
+        Assert.NotNull(mapping.QuerySelector(".esri-mapping__heading > h3"));
+        Assert.Null(mapping.GetAttribute("aria-labelledby"));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void WizardPage_UsesV4HeadingOnlyBehindTheFlag(bool v4)
+    [Fact]
+    public void WizardPage_V4PutsTheSourceContextBesideTheHeading()
     {
-        using var ctx = NewContext(v4);
-        ctx.Services.AddSingleton<IEsriMigrationRunDataSource>(new UnsupportedEsriMigrationRunDataSource());
-        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("operate/import/esri?step=0");
+        using var ctx = NewWizardContext(v4: true);
         var page = ctx.Render<ImportEsriWizardPage>();
 
-        Assert.Equal("Import source content", page.Find("h1").TextContent);
+        Assert.Equal("Import source content", page.Find(".console-page-heading-v4 h1").TextContent);
+        Assert.NotNull(page.Find(".console-page-heading-v4 .console-page-heading-actions .esri-wizard__context"));
+        Assert.Empty(page.FindAll(".console-detail-heading"));
         Assert.Single(page.FindAll("[data-publish-wizard]"));
-        if (v4)
-        {
-            Assert.NotNull(page.Find(".console-page-heading-v4 .console-page-heading-actions .esri-wizard__context"));
-            Assert.Empty(page.FindAll(".console-detail-heading"));
-            CatalogAdminPreview.Capture("data-esri-wizard", page.Markup);
-        }
-        else
-        {
-            Assert.Equal("Operate / Import source content", Normalize(page.Find(".console-detail-heading .console-kicker").TextContent));
-            Assert.NotNull(page.Find(".console-detail-heading .esri-wizard__context"));
-        }
+        CatalogAdminPreview.Capture("data-esri-wizard", page.Markup);
+    }
+
+    [Fact]
+    public void WizardPage_LegacyKeepsTheBreadcrumbHeading()
+    {
+        using var ctx = NewWizardContext(v4: false);
+        var page = ctx.Render<ImportEsriWizardPage>();
+
+        var heading = page.Find(".console-page > .console-detail-heading");
+        Assert.Equal("Operate / Import source content", Normalize(heading.QuerySelector(".console-kicker")!.TextContent));
+        Assert.Equal("Import source content", heading.QuerySelector("h1")!.TextContent);
+        Assert.NotNull(heading.QuerySelector(":scope > .esri-wizard__context"));
+        Assert.Single(page.FindAll("[data-publish-wizard]"));
+    }
+
+    private static BunitContext NewWizardContext(bool v4)
+    {
+        var ctx = NewContext(v4);
+        ctx.Services.AddSingleton<IEsriMigrationRunDataSource>(new UnsupportedEsriMigrationRunDataSource());
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("operate/import/esri?step=0");
+        return ctx;
     }
 
     private static (Type Type, string Title, string Crumb, string Noun) Page(string slug) => slug switch

@@ -5,7 +5,7 @@
 @if (V4Enabled)
 {
     <div class="esri-import__preview-v4" data-esri-target-preview>
-        <ConsolePanel Title="@Title" HeadingId="@HeadingId">
+        <ConsolePanel Title="@Title" HeadingId="esri-target-preview-heading">
             @Head
             @ChildContent
         </ConsolePanel>
@@ -25,9 +25,6 @@ else
 @code {
     [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
 
-    [Parameter] public string HeadingId { get; set; } = "esri-target-preview-heading";
-
-    /// <summary>Optional detail under the title, such as the target schema.</summary>
     [Parameter] public RenderFragment? Head { get; set; }
 
     [Parameter] public RenderFragment? ChildContent { get; set; }

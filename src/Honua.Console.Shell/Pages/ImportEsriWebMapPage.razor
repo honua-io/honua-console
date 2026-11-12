@@ -29,22 +29,20 @@
         </Actions>
     </EsriImportHeading>
 
-    <EsriImportPanel Title="Source Web Map" HeadingId="esri-intake-heading">
-        <EsriImportIntake Noun="Web Map"
-                          Kind="EsriContentKind.WebMap"
-                          Result="_result"
-                          Parse="ParseWebMap"
-                          OnParsed="OnParsed"
-                          Dirty="_dirty"
-                          SampleJson="@EsriImportSampleDocuments.WebMap"
-                          SampleFileName="@EsriImportSampleDocuments.WebMapFileName" />
-    </EsriImportPanel>
+    <EsriImportIntake Noun="Web Map"
+                      Kind="EsriContentKind.WebMap"
+                      Result="_result"
+                      Parse="ParseWebMap"
+                      OnParsed="OnParsed"
+                      Dirty="_dirty"
+                      SampleJson="@EsriImportSampleDocuments.WebMap"
+                      SampleFileName="@EsriImportSampleDocuments.WebMapFileName" />
 
     @if (_result is { } result)
     {
         <div class="esri-import__split">
             <div class="esri-import__mapping">
-                <SourceTargetMappingTable AsPanel="true" Rows="result.Rows"
+                <SourceTargetMappingTable HeadingLevel="2" Rows="result.Rows"
                                           Heading="Layer mapping"
                                           Subhead="source operational layer → Honua map-package layer"
                                           SourceHeader="Source layer"
