@@ -8,12 +8,17 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class OperateImportReplacementConsentTests
 {
-    [Fact]
-    public void MixedSelection_RequiresCurrentActionConfirmationAndPreservesPerTargetIntent()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MixedSelection_RequiresCurrentActionConfirmationAndPreservesPerTargetIntent(bool enabled)
     {
         var operation = new RecordingImportOperation();
         using var ctx = new BunitContext().AddConsoleNotifications();
         ctx.Services.AddSingleton<IConsoleServiceImportOperation>(operation);
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         var page = ctx.Render<OperateImportServicePage>();
 
         page.Find("input[placeholder^='https://']").Input("https://source.example/FeatureServer");
@@ -23,6 +28,17 @@ public sealed class OperateImportReplacementConsentTests
         for (var index = 0; index < 2; index++)
         {
             page.FindAll("[data-layer-checkbox]")[index].Change(true);
+        }
+
+        var registry = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        Assert.Equal(enabled ? "/operate/import/service" : "/", registry.Current.Route);
+        Assert.Equal(enabled ? 1 : 0, page.FindAll("section.console-panel[aria-labelledby]").Count);
+        if (enabled)
+        {
+            Assert.Equal("2", registry.Current.Filters["selectedLayerCount"]);
+            Assert.True(registry.Current.Unsaved.ChangedFieldCount > 0);
+            Assert.DoesNotContain("source.example", System.Text.Json.JsonSerializer.Serialize(registry.Current));
+            CatalogAdminPreview.Capture("data-import-service", page.Markup);
         }
 
         var replacementChoices = page.FindAll("[data-replace-target]");
