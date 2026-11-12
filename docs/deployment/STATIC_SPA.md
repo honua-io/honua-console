@@ -51,19 +51,28 @@ restrictive `Referrer-Policy`.
 `config/console-csp.json` is the only place the Console policy is defined; each directive records
 why it is there. `index.html` carries it as a `<meta http-equiv="Content-Security-Policy">`
 fallback, so a bucket served without headers is still covered. Browsers ignore
-`frame-ancestors`, `report-uri` and `sandbox` in a meta policy, so the CDN must also send the
-header form, which adds `frame-ancestors 'none'`:
+`frame-ancestors`, `report-uri` and `sandbox` in a meta policy, so the CDN must also send a
+header form. There are two, and each needs its own CDN behaviour:
+
+| Path | Header form | Framing |
+| --- | --- | --- |
+| `/console/embed/*` (more specific, so list it first) | `--header=embed` | Any site may frame public map embeds |
+| `/console/*` | `--header` (the `app` form) | `frame-ancestors 'self'`; only the Console frames its own pages |
 
 ```sh
-node scripts/console-csp.mjs --header    # the Content-Security-Policy response header value
-node scripts/console-csp.mjs --write     # restamp index.html after editing the JSON
+node scripts/console-csp.mjs --header                  # app form for /console/*
+node scripts/console-csp.mjs --header=embed            # embed form for /console/embed/*
+node scripts/console-csp.mjs --write                   # restamp index.html after editing the JSON
+node scripts/console-csp.mjs --verify-origin <origin>  # compare a deployment's served headers
 ```
 
-The Launch Stack delivers this header through its CloudFront response-headers policy for
-`/console/*`. If you host the bundle behind your own CDN or web server, set the same header there.
-Both policies apply and a request must pass each, so do not widen only one. The API origin is
-chosen per deployment, so `connect-src` admits `https:` and `wss:`; serve the API over HTTPS. Validate changes with
-the browser journeys before rollout.
+The Launch Stack delivers these headers through CloudFront response-headers policies. If you host
+the bundle behind your own CDN or web server, set the same headers on the same paths. The meta
+and header policies both apply and a request must pass each, so do not widen only one.
+
+The API origin is chosen per deployment, so `connect-src` admits `https:` and `wss:` but not
+`http:`. A separate-origin API must use HTTPS; a plain-HTTP API works only from the Console's
+own origin. Validate policy changes with the browser journeys before rollout.
 
 ## Migration status
 

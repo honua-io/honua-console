@@ -4,14 +4,28 @@
     { "name": "default-src", "sources": ["'self'"], "reason": "Anything not listed below loads only from the Console origin." },
     { "name": "base-uri", "sources": ["'self'"], "reason": "The <base href> stays on the Console origin." },
     { "name": "object-src", "sources": ["'none'"], "reason": "No plugins or <object>/<embed> content." },
-    { "name": "script-src", "sources": ["'self'", "'wasm-unsafe-eval'", "'unsafe-eval'"], "reason": "Same-origin scripts only, no inline script; WASM for the .NET runtime and Cesium/MapLibre decoders; eval because the vendored Vega chart stack compiles expressions with Function()." },
+    { "name": "script-src", "sources": ["'self'", "'wasm-unsafe-eval'", "'unsafe-eval'"], "reason": "Same-origin scripts only, no inline script; WASM for the .NET runtime and Cesium/MapLibre decoders; eval because the vendored Vega chart stack and the Cesium Viewer widgets (Knockout bindings) compile code with Function()." },
     { "name": "style-src", "sources": ["'self'", "'unsafe-inline'"], "reason": "Razor components render style attributes and Vega/Studio inject <style> elements." },
     { "name": "img-src", "sources": ["'self'", "https:", "data:", "blob:"], "reason": "Map tiles, sprites and thumbnails come from operator-chosen servers; MapLibre and Vega decode into data:/blob: URLs." },
     { "name": "font-src", "sources": ["'self'", "data:"], "reason": "Bundled fonts and data: glyphs embedded in vendored stylesheets." },
-    { "name": "connect-src", "sources": ["'self'", "https:", "wss:"], "reason": "The Honua API origin is chosen at deploy time (config.json apiBaseUrl), map sources are arbitrary HTTPS servers, and live operation updates use SignalR WebSockets." },
+    { "name": "connect-src", "sources": ["'self'", "https:", "wss:"], "reason": "The Honua API origin is chosen at deploy time (config.json apiBaseUrl) and must use HTTPS when it is not the Console origin; map sources are arbitrary HTTPS servers; live operation updates use SignalR WebSockets." },
     { "name": "worker-src", "sources": ["'self'", "blob:"], "reason": "Cesium workers load from the Console origin; MapLibre starts its worker from a blob: URL." },
+    { "name": "child-src", "sources": ["'self'", "blob:"], "reason": "Worker fallback for browsers without worker-src (Safari before 15.5)." },
     { "name": "frame-src", "sources": ["'self'"], "reason": "Only the bundled Studio style editor is framed." },
-    { "name": "form-action", "sources": ["'self'"], "reason": "Forms submit to the Console origin; sign-in redirects are navigations, not form posts." },
-    { "name": "frame-ancestors", "sources": ["'none'"], "headerOnly": true, "reason": "The Console is never framed. Browsers ignore this directive in a <meta> policy." }
-  ]
+    { "name": "form-action", "sources": ["'self'"], "reason": "Forms submit to the Console origin; sign-in redirects are navigations, not form posts." }
+  ],
+  "headerForms": {
+    "app": {
+      "paths": "<base>/*",
+      "reason": "Every Console response; same-origin framing keeps the Console's own Studio style editor working.",
+      "add": [
+        { "name": "frame-ancestors", "sources": ["'self'"], "reason": "Only the Console may frame Console pages. Browsers ignore this directive in a <meta> policy." }
+      ]
+    },
+    "embed": {
+      "paths": "<base>/embed/*",
+      "reason": "Public map embeds are framed by third-party sites, so this form adds no frame-ancestors restriction.",
+      "add": []
+    }
+  }
 }

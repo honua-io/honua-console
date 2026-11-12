@@ -1,8 +1,17 @@
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { test } from "node:test";
 
-import { defaultIndexPath, headerPolicy, loadDirectives, metaPolicy, readMetaPolicy } from "../console-csp.mjs";
+import {
+  defaultIndexPath,
+  headerPolicy,
+  loadPolicySource,
+  metaPolicy,
+  readMetaPolicy,
+  stampMetaTag,
+  verifyServedHeaders,
+} from "../console-csp.mjs";
 
 const indexHtml = readFileSync(defaultIndexPath, "utf8");
 const directive = (policy, name) => policy.split("; ").find((entry) => entry.startsWith(`${name} `));
@@ -13,22 +22,34 @@ test("index.html carries the meta policy generated from config/console-csp.json"
     metaPolicy(),
     "run `node scripts/console-csp.mjs --write` after editing config/console-csp.json",
   );
-  assert.ok(
-    indexHtml.indexOf("Content-Security-Policy") < indexHtml.indexOf("<link"),
-    "the meta policy must precede every stylesheet and script it governs",
-  );
+  const metaAt = indexHtml.indexOf("Content-Security-Policy");
+  for (const governed of ["<base", "<link", "<script"]) {
+    assert.ok(metaAt < indexHtml.indexOf(governed), `the meta policy must precede the first ${governed}`);
+  }
+});
+
+test("--write refuses a document it cannot place the policy in", () => {
+  assert.throws(() => stampMetaTag("<html><head></head></html>"), /neither a CSP <meta>/);
+  assert.equal(readMetaPolicy(stampMetaTag('<head>\n  <meta charset="utf-8" />\n  <base href="/" />')), metaPolicy());
 });
 
 test("every directive is unique and justified", () => {
-  const directives = loadDirectives();
-  assert.equal(new Set(directives.map(({ name }) => name)).size, directives.length);
-  for (const { name, reason } of directives) assert.ok(reason?.length > 0, `${name} needs a reason`);
+  const source = loadPolicySource();
+  const forms = Object.values(source.headerForms);
+  const all = [...source.directives, ...forms.flatMap((form) => form.add)];
+  for (const { name, reason } of all) assert.ok(reason?.length > 0, `${name} needs a reason`);
+  for (const form of forms) {
+    const names = [...source.directives, ...form.add].map(({ name }) => name);
+    assert.equal(new Set(names).size, names.length);
+  }
 });
 
-test("the header form adds what a meta policy cannot carry", () => {
-  assert.equal(directive(headerPolicy(), "frame-ancestors"), "frame-ancestors 'none'");
+test("the app header limits framing to the Console; the embed header leaves framing open", () => {
+  assert.equal(directive(headerPolicy("app"), "frame-ancestors"), "frame-ancestors 'self'");
+  assert.equal(directive(headerPolicy("embed"), "frame-ancestors"), undefined);
+  assert.equal(headerPolicy("embed"), metaPolicy());
   assert.equal(directive(metaPolicy(), "frame-ancestors"), undefined);
-  assert.ok(headerPolicy().startsWith(metaPolicy()));
+  assert.throws(() => headerPolicy("unknown"), /unknown header form/);
 });
 
 test("the policy never admits inline script or plugins", () => {
@@ -44,4 +65,23 @@ test("index.html has no inline script or inline event handler", () => {
   }
   assert.doesNotMatch(indexHtml, /\son[a-z]+="/, "inline event handlers are blocked by script-src");
   assert.doesNotMatch(indexHtml, /href="javascript:/i);
+});
+
+test("--verify-origin compares the served app and embed headers with the source", async () => {
+  let embedPolicy = headerPolicy("embed");
+  const server = createServer((request, response) => {
+    const embed = request.url.startsWith("/console/embed/");
+    response.writeHead(200, { "Content-Security-Policy": embed ? embedPolicy : headerPolicy("app") }).end();
+  });
+  await new Promise((listening) => server.listen(0, "127.0.0.1", listening));
+  try {
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    assert.deepEqual(await verifyServedHeaders(origin), []);
+    embedPolicy = headerPolicy("app");
+    const problems = await verifyServedHeaders(origin);
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /embed\/maps\/csp-check: .*expected the embed form/);
+  } finally {
+    server.close();
+  }
 });

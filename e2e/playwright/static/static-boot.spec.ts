@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { recordCspViolations } from './csp-violations';
 
 for (const route of ['/console/', '/console/operate/connections']) {
   test(`static bundle boots ${route} with an explicit unavailable API state`, async ({ page }, testInfo) => {
@@ -6,12 +7,7 @@ for (const route of ['/console/', '/console/operate/connections']) {
     const frameworkErrors: string[] = [];
     const failedAssets: string[] = [];
     const runtime: string[] = [];
-    await page.addInitScript(() => {
-      const violations: string[] = [];
-      (window as unknown as { cspViolations: string[] }).cspViolations = violations;
-      document.addEventListener('securitypolicyviolation', event =>
-        violations.push(`${event.effectiveDirective} ${event.blockedURI}`));
-    });
+    const cspViolations = await recordCspViolations(page);
     page.on('pageerror', error => errors.push(error.message));
     page.on('console', message => {
       if (message.type() === 'error' && message.text().includes('fail:')) frameworkErrors.push(message.text());
@@ -39,7 +35,7 @@ for (const route of ['/console/', '/console/operate/connections']) {
     expect(failedAssets).toEqual([]);
     expect(errors).toEqual([]);
     await expect(page.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveCount(1);
-    expect(await page.evaluate(() => (window as unknown as { cspViolations: string[] }).cspViolations)).toEqual([]);
+    expect(await cspViolations()).toEqual([]);
     await testInfo.attach('static-bundle', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
   });
 }

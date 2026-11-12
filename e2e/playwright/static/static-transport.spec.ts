@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { recordCspViolations } from './csp-violations';
 
 for (const crossOrigin of [false, true]) {
   // The cross-origin fixture serves its API over plain-HTTP loopback, which the production CSP's
@@ -11,6 +12,7 @@ for (const crossOrigin of [false, true]) {
       const apiOrigin = crossOrigin ? 'http://127.0.0.1:5187' : browserOrigin;
       const errors: string[] = [];
       const failedApi: string[] = [];
+      const cspViolations = await recordCspViolations(page);
       page.on('pageerror', error => errors.push(error.message));
       page.on('response', response => {
         const path = new URL(response.url()).pathname;
@@ -72,6 +74,7 @@ for (const crossOrigin of [false, true]) {
       else expect(sharedHeaders.cookie).toContain('console-fixture-session=issued');
       expect(errors).toEqual([]);
       expect(failedApi).toEqual([]);
+      expect(await cspViolations()).toEqual([]);
       await testInfo.attach('published-transport', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
     });
   });
@@ -82,6 +85,7 @@ test('same-origin OIDC broker redirects and returns beneath the Console mount', 
   const origin = 'http://127.0.0.1:5188';
   const errors: string[] = [];
   const exchanges: string[] = [];
+  const cspViolations = await recordCspViolations(page);
   const callback = page.waitForResponse(response => new URL(response.url()).pathname === "/admin/auth/callback");
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => {
@@ -104,4 +108,5 @@ test('same-origin OIDC broker redirects and returns beneath the Console mount', 
   expect(replay.status()).toBe(403);
   expect(exchanges).toEqual([]);
   expect(errors).toEqual([]);
+  expect(await cspViolations()).toEqual([]);
 });
