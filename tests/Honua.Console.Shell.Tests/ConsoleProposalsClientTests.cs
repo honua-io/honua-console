@@ -203,6 +203,33 @@ public sealed class ConsoleProposalsClientTests
             });
     }
 
+    // On servers without the approval-review route the Console falls back to the
+    // plain approve so their own grant and separation-of-duties refusal (403) still reaches the operator.
+    [Theory]
+    [InlineData(HttpStatusCode.OK, OperateSectionStatus.Allowed)]
+    [InlineData(HttpStatusCode.Forbidden, OperateSectionStatus.Forbidden)]
+    public async Task ApproveFallsBackToPlainApproveWhenTheServerHasNoReviewRoute(HttpStatusCode approve, OperateSectionStatus expected)
+    {
+        var handler = new RecordingHandler(request =>
+            request.RequestUri!.AbsolutePath.EndsWith("/approval-review", StringComparison.Ordinal)
+                ? new HttpResponseMessage(HttpStatusCode.NotFound)
+                : approve == HttpStatusCode.OK ? Json(SubmittedDetail) : new HttpResponseMessage(approve));
+        var client = CreateClient(handler, sessions: BearerSessions());
+
+        var result = await client.ApproveAsync("prop-1", new ConsoleProposalReviewedPlan(3, "plan-3"));
+
+        Assert.Equal(expected, result.Status);
+        Assert.Collection(
+            handler.Requests,
+            review => Assert.EndsWith("/approval-review", review.RequestUri!.AbsolutePath, StringComparison.Ordinal),
+            post =>
+            {
+                Assert.Equal(HttpMethod.Post, post.Method);
+                Assert.EndsWith("/api/v1/admin/proposals/prop-1/approve", post.RequestUri!.AbsolutePath, StringComparison.Ordinal);
+                Assert.False(post.Headers.Contains("X-Honua-Approval-Capability"));
+            });
+    }
+
     // The server refuses approval over any explicit credential; only the ambient human session decides.
     [Theory]
     [InlineData(ConsoleServerCredentialMode.Interactive, ConsoleAccountAuthMode.AccountRbac)]
