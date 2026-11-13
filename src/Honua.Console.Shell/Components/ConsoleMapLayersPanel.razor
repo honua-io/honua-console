@@ -1,0 +1,28 @@
+@* The Layers list beside a map preview. v4: a quiet ConsolePanel inside the map surface; legacy: the original aside. *@
+@inject IServiceProvider ServiceProvider
+@if (V4Enabled)
+{
+    <ConsolePanel Title="Layers" HeadingId="@HeadingId" Class="console-map-panel">@List</ConsolePanel>
+}
+else
+{
+    <aside class="console-map-panel" aria-label="@Label">
+        <h2>Layers</h2>
+        @List
+    </aside>
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<string> Layers { get; set; } = [];
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string HeadingId { get; set; } = string.Empty;
+
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private RenderFragment List => @<ul>
+        @foreach (var layer in Layers)
+        {
+            <li>@layer</li>
+        }
+    </ul>;
+}

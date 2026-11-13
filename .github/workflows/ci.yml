@@ -319,6 +319,38 @@ jobs:
           path: artifacts/catalog-preview/data-connection*.png
           if-no-files-found: error
 
+      - name: Verify rendered shared style editor presentation
+        run: node e2e/playwright/studio-styles-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload shared style editor presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: studio-styles-presentation
+          path: |
+            artifacts/catalog-preview/studio-styles-v4-*.png
+            artifacts/catalog-preview/studio-styles-conflict-v4-*.png
+          if-no-files-found: error
+
+      - name: Verify rendered map viewer, metadata and conversation presentation
+        run: node e2e/playwright/viewer-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload map viewer, metadata and conversation presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: viewer-presentation
+          path: |
+            artifacts/catalog-preview/map-viewer-v4-*.png
+            artifacts/catalog-preview/map-draft-v4-*.png
+            artifacts/catalog-preview/metadata-dataset-v4-*.png
+            artifacts/catalog-preview/conversation-entry-v4-*.png
+          if-no-files-found: error
+
       - name: Verify rendered import presentation
         run: node e2e/playwright/data-import-preview.mjs
         env:
@@ -401,6 +433,19 @@ jobs:
             artifacts/catalog-preview/data-conflicts-*.png
             artifacts/catalog-preview/data-flow-*.png
             artifacts/catalog-preview/data-import-task*.png
+          if-no-files-found: error
+
+      - name: Verify rendered source content import presentation
+        run: node e2e/playwright/data-esri-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload source content import presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-esri-presentation
+          path: artifacts/catalog-preview/data-esri-*.png
           if-no-files-found: error
 
       - name: Verify rendered releases presentation
@@ -522,6 +567,35 @@ jobs:
         with:
           name: workflow-events-presentation
           path: artifacts/catalog-preview/events-*
+          if-no-files-found: error
+
+      - name: Verify rendered alert rules presentation
+        run: node e2e/playwright/alert-rules-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload alert rules presentation
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: alert-rules-presentation
+          path: artifacts/catalog-preview/alert-rules-*
+          if-no-files-found: error
+
+      - name: Verify rendered operate monitoring presentation
+        run: node e2e/playwright/monitoring-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload operate monitoring presentation
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: operate-monitoring-presentation
+          path: |
+            artifacts/catalog-preview/health-snapshot*
+            artifacts/catalog-preview/metrics-live*
+            artifacts/catalog-preview/deploy-overview*
           if-no-files-found: error
 
       - name: Verify rendered approvals presentation

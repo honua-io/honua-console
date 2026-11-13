@@ -155,6 +155,61 @@
     min-height: 24px;
 }
 
+/* Source-content imports: the mapping and target panels shrink and wrap at 390px instead of widening the page. */
+.console-shell[data-console-v4="true"] .esri-import__split > *,
+.console-shell[data-console-v4="true"] .esri-import__preview-v4 {
+    min-width: 0;
+}
+
+/* Same breakpoint as the legacy .esri-import__split stack in honua-console.css. */
+@media (max-width: 1100px) {
+    .console-shell[data-console-v4="true"] .esri-import__split {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.console-shell[data-console-v4="true"] .esri-mapping__head {
+    flex-wrap: wrap;
+}
+
+/* Dropped carry-over tags keep 4.5:1 contrast: muted text with a strike instead of faded opacity. */
+.console-shell[data-console-v4="true"] .esri-carryover--out {
+    opacity: 1;
+    color: var(--c-text-2);
+    text-decoration: line-through;
+}
+
+/* The story hero swatch is a fixed gold in both themes, so its title uses a fixed dark ink for 4.5:1. */
+.console-shell[data-console-v4="true"] .esri-story-preview__hero {
+    --esri-story-hero-ink: #171c1a;
+}
+
+.console-shell[data-console-v4="true"] .esri-story-preview__hero-title {
+    color: var(--esri-story-hero-ink);
+}
+
+/* A v4 mapping panel takes the panel frame and heading scale instead of the legacy card frame. */
+.console-shell[data-console-v4="true"] .esri-mapping.console-panel {
+    border-radius: var(--radius-lg);
+}
+
+.console-shell[data-console-v4="true"] .esri-mapping .console-panel-heading h2 {
+    margin: 0;
+    font-size: var(--text-md);
+}
+
+.console-shell[data-console-v4="true"] :is(.esri-intake__bar, .esri-intake__modes) {
+    flex-wrap: wrap;
+}
+
+.console-shell[data-console-v4="true"] .esri-mapping__filter {
+    min-height: 24px;
+}
+
+.console-shell[data-console-v4="true"] .esri-mapping.console-panel .esri-mapping__head {
+    padding: 0 0 var(--space-3);
+}
+
 /* v4 Layer Preview catalog (mockup 08): toolbar, results status and per-row format links. */
 .console-shell[data-console-v4="true"] .layer-preview-catalog__toolbar,
 .console-shell[data-console-v4="true"] .layer-preview-catalog__formats {
