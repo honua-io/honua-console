@@ -10,7 +10,8 @@ export class StudioPublicationSession {
     constructor(app, { storage = app.workspace?.storage, uuid = () => crypto.randomUUID(), readProposal } = {}) {
         this.app = app; this.storage = storage; this.uuid = uuid;
         this.readProposal = readProposal ?? (async proposalId => {
-            const request = capturedProcessFetch(app.workspaceCookieBinding, { current: () => app.workspaceCookieBinding });
+            const binding = () => app.workspaceProcessBinding ?? app.workspaceCookieBinding;
+            const request = capturedProcessFetch(binding(), { current: binding });
             const response = await request(`/api/processes/admin/proposals/${encodeURIComponent(proposalId)}`);
             if (!response.ok) throw new Error(`Approval status could not be read (${response.status}). The original submission is retained.`);
             return response.json();
