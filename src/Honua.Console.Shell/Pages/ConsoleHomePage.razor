@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @page "/"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
@@ -56,7 +57,7 @@
             <article class="console-panel console-state-info" data-home-connection-state role="status">
                 <h2>Review the selected environment</h2>
                 <p>The active environment could not be read. Choose a saved environment or review its environment settings.</p>
-                <a class="console-button-link" href="/environments">Review environment</a>
+                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/environments")">Review environment</a>
                 <button class="console-button console-button-secondary" type="button" @onclick="RefreshEnvironmentAsync">Retry</button>
             </article>
         }
@@ -90,7 +91,7 @@
 
     private RenderFragment Administration => @<text>
         <ConsoleHomeWorkAreas />
-        <a href="/environments">Manage environments</a>
+        <a href="@ConsoleNavigation.ToConsoleHref("/environments")">Manage environments</a>
     </text>;
 
     private RenderFragment Operations => @<div class="console-home-workload" @key="_displayGeneration">

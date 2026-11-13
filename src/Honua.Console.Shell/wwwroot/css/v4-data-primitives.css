@@ -1,0 +1,292 @@
+.console-shell[data-console-v4="true"] .console-name-identifier {
+    display: grid;
+    gap: 2px;
+    overflow-wrap: anywhere;
+}
+
+.console-shell[data-console-v4="true"] .console-name-identifier-id {
+    color: var(--c-text-2);
+    font-size: var(--text-xs);
+}
+
+.console-shell[data-console-v4="true"] .console-protocol-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.console-shell[data-console-v4="true"] .console-protocol-list li {
+    padding: 2px 6px;
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-sm);
+    color: var(--c-text-2);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+}
+
+.console-shell[data-console-v4="true"] [data-connection-notice] summary {
+    min-height: 24px;
+}
+
+/* Sync conflict choice buttons wrap on narrow screens. */
+.console-shell[data-console-v4="true"] .operate-sync-choices {
+    flex-wrap: wrap;
+}
+
+.console-shell[data-console-v4="true"] :is(.operate-data-page, .operate-version-conflicts, .operate-temporal, [data-resource-detail], .data-publish-flow) :is(input[type="checkbox"], input[type="radio"]):not([role="switch"]) {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+/* v4 temporal ticks keep their thin mark but expose a 24px target. */
+.console-shell[data-console-v4="true"] .operate-temporal-tick {
+    top: 11px;
+    width: 24px;
+    height: 24px;
+    margin-left: -12px;
+    border-radius: 0;
+    background: transparent;
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-tick::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 1px;
+    bottom: 1px;
+    width: 3px;
+    margin-left: -1.5px;
+    border-radius: 1px;
+    background: #7a6f55;
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-tick-release {
+    top: 8px;
+    height: 30px;
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-tick-release::before {
+    width: 4px;
+    margin-left: -2px;
+    background: var(--honua-accent-strong);
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-tick-selected {
+    outline-offset: -2px;
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-tick-selected::before {
+    background: var(--honua-text);
+}
+
+.console-shell[data-console-v4="true"] .operate-data-page :is(.resource-tree__toggle, .resource-tree__name, .resource-tree__publication-row) {
+    min-height: 24px;
+}
+
+.console-shell[data-console-v4="true"] [data-releases-page] .console-section {
+    min-width: 0;
+}
+
+/* Temporal detail headers and conflict cards wrap instead of widening the grid at 390px. */
+.console-shell[data-console-v4="true"] .operate-temporal-detail > * {
+    min-width: 0;
+}
+
+.console-shell[data-console-v4="true"] :is(.operate-temporal-header, .operate-temporal-header-title) {
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal-header-meta {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.console-shell[data-console-v4="true"] .operate-temporal .map-preview-schematic {
+    overflow: hidden;
+}
+
+.console-shell[data-console-v4="true"] .console-tabs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--c-border);
+    margin-bottom: var(--space-4);
+}
+
+.console-shell[data-console-v4="true"] .console-tabs [role="tab"] {
+    flex-shrink: 0;
+    padding: 10px 14px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--c-text-2);
+    font: inherit;
+    cursor: pointer;
+}
+
+.console-shell[data-console-v4="true"] .console-tabs [aria-selected="true"] {
+    border-bottom-color: var(--c-accent);
+    color: var(--c-text);
+}
+
+.console-shell[data-console-v4="true"] .console-state {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+    .console-shell[data-console-v4="true"] .console-definition-list {
+        grid-template-columns: minmax(100px, 0.42fr) minmax(0, 1fr);
+    }
+}
+
+.console-shell[data-console-v4="true"] .operate-import-page input:is([type="radio"], [type="checkbox"]):not([role="switch"]) {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.console-shell[data-console-v4="true"] .operate-import-page .console-tree-toggle {
+    min-width: 24px;
+    min-height: 24px;
+}
+
+/* Source-content imports: the mapping and target panels shrink and wrap at 390px instead of widening the page. */
+.console-shell[data-console-v4="true"] .esri-import__split > *,
+.console-shell[data-console-v4="true"] .esri-import__preview-v4 {
+    min-width: 0;
+}
+
+/* Same breakpoint as the legacy .esri-import__split stack in honua-console.css. */
+@media (max-width: 1100px) {
+    .console-shell[data-console-v4="true"] .esri-import__split {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.console-shell[data-console-v4="true"] .esri-mapping__head {
+    flex-wrap: wrap;
+}
+
+/* Dropped carry-over tags keep 4.5:1 contrast: muted text with a strike instead of faded opacity. */
+.console-shell[data-console-v4="true"] .esri-carryover--out {
+    opacity: 1;
+    color: var(--c-text-2);
+    text-decoration: line-through;
+}
+
+/* The story hero swatch is a fixed gold in both themes, so its title uses a fixed dark ink for 4.5:1. */
+.console-shell[data-console-v4="true"] .esri-story-preview__hero {
+    --esri-story-hero-ink: #171c1a;
+}
+
+.console-shell[data-console-v4="true"] .esri-story-preview__hero-title {
+    color: var(--esri-story-hero-ink);
+}
+
+/* A v4 mapping panel takes the panel frame and heading scale instead of the legacy card frame. */
+.console-shell[data-console-v4="true"] .esri-mapping.console-panel {
+    border-radius: var(--radius-lg);
+}
+
+.console-shell[data-console-v4="true"] .esri-mapping .console-panel-heading h2 {
+    margin: 0;
+    font-size: var(--text-md);
+}
+
+.console-shell[data-console-v4="true"] :is(.esri-intake__bar, .esri-intake__modes) {
+    flex-wrap: wrap;
+}
+
+.console-shell[data-console-v4="true"] .esri-mapping__filter {
+    min-height: 24px;
+}
+
+.console-shell[data-console-v4="true"] .esri-mapping.console-panel .esri-mapping__head {
+    padding: 0 0 var(--space-3);
+}
+
+/* v4 Layer Preview catalog (mockup 08): toolbar, results status and per-row format links. */
+.console-shell[data-console-v4="true"] .layer-preview-catalog__toolbar,
+.console-shell[data-console-v4="true"] .layer-preview-catalog__formats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__toolbar {
+    justify-content: flex-end;
+    margin-bottom: var(--space-3);
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__search {
+    flex: 1 1 16rem;
+    max-width: 20rem;
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__search input {
+    width: 100%;
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__status {
+    margin: 0 0 var(--space-3);
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__table td a:not(.console-button),
+.console-shell[data-console-v4="true"] .layer-preview-catalog__map {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--c-accent);
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__name {
+    overflow-wrap: anywhere;
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__table tr[aria-current="true"] {
+    background: var(--c-surface-2);
+}
+
+.console-shell[data-console-v4="true"] .layer-preview-catalog__table select {
+    width: 100%;
+    max-width: 14rem;
+}
+
+.console-shell[data-console-v4="true"] .operate-data-page > .layer-preview-pane {
+    margin-top: var(--space-4);
+}
+
+/* Links inside Add data sentences keep a 24px target without leaving the line. */
+.console-shell[data-console-v4="true"] .data-publish-flow p a {
+    padding-block: 2px;
+}
+
+/* Completed Add data steps use the v4 success ink so their labels keep 4.5:1 contrast. */
+.console-shell[data-console-v4="true"] .data-publish-flow__rail-step--done {
+    color: var(--c-ok-ink);
+}
+
+/* Add data Back buttons and the layer pager read as secondary actions in v4 without changing their markup. */
+.console-shell[data-console-v4="true"] .data-publish-flow .console-action-row > button:not(.console-button),
+.console-shell[data-console-v4="true"] .layer-preview-catalog .catalog-admin-paging > button {
+    min-height: 36px;
+    padding: 0 14px;
+    border: 1px solid var(--c-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--c-surface);
+    color: var(--c-text);
+    font: inherit;
+    cursor: pointer;
+}

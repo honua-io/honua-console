@@ -1,4 +1,5 @@
-﻿@page "/operate/geoprocessing"
+@inject NavigationManager ConsoleNavigation
+@page "/operate/geoprocessing"
 @page "/operate/geoprocessing/{SelectedJobRunId}"
 @using Honua.Console.Shell.Components
 @implements IDisposable
@@ -8,6 +9,7 @@
 <section class="console-page console-operate-page @(V4Enabled ? "console-jobs-v4" : null)">
     @if (V4Enabled)
     {
+        <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/operate-jobs-v4.css" />
         <ConsolePageHeading Title="Geoprocessing jobs">
             <p>Follow job progress, review evidence, and manage runs on the connected Honua server.</p>
@@ -109,7 +111,7 @@
                                 @foreach (var job in FilteredJobs)
                                 {
                                     <tr>
-                                        <td><a href="@OperateObservabilityRoutes.GeoprocessingJobDetail(job.JobRunId)">@job.JobRunId</a></td>
+                                        <td><a href="@ConsoleNavigation.ToConsoleLinkHref(OperateObservabilityRoutes.GeoprocessingJobDetail(job.JobRunId))">@job.JobRunId</a></td>
                                         <td><span class="console-status @job.Status.CssClass">@job.Status.Label</span></td>
                                         <td>@(string.IsNullOrWhiteSpace(job.Status.Description) ? "—" : job.Status.Description)</td>
                                         <td>
@@ -155,12 +157,12 @@
     {
         <div class="operate-release-detail-head">
             <p class="console-kicker">
-                <a class="console-link" href="@OperateObservabilityRoutes.Geoprocessing">Geoprocessing jobs</a>
+                <a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref(OperateObservabilityRoutes.Geoprocessing)">Geoprocessing jobs</a>
                 <span class="operate-crumb-sep">/</span>
             </p>
             <div class="operate-release-title-row">
                 <h2>Job @SelectedJobRunId?.Trim()</h2>
-                <a class="console-link" href="@OperateObservabilityRoutes.Geoprocessing">Back to jobs</a>
+                <a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref(OperateObservabilityRoutes.Geoprocessing)">Back to jobs</a>
             </div>
         </div>
 
@@ -231,6 +233,23 @@
 </section>
 
 @code {
+    private ConsoleAgentPageContext AgentContext
+    {
+        get
+        {
+            IReadOnlyList<ConsoleAgentEntity> selection = string.IsNullOrWhiteSpace(SelectedJobRunId)
+                ? [] : [new() { Kind = ConsoleAgentEntityKind.Job, Id = SelectedJobRunId.Trim() }];
+            return new()
+            {
+                Route = new Uri(ConsoleNavigation.Uri).AbsolutePath,
+                Entities = selection,
+                Selection = selection,
+                Filters = new Dictionary<string, string> { ["state"] = _stateFilter },
+                Unsaved = new() { PendingOperationCount = _actionBusy ? 1 : 0 }
+            };
+        }
+    }
+
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     // Poll cadence for the live list/detail. No realtime stream is exposed by the
@@ -370,6 +389,7 @@
         _actionBusy = true;
         _actionMessage = null;
         _actionDetail = null;
+        StateHasChanged();
         try
         {
             var result = await action(jobRunId, CancellationToken.None);

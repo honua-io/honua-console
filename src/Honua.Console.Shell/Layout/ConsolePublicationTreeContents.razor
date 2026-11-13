@@ -1,17 +1,38 @@
-<ul role="tree" aria-label="Services and layers" class="console-publication-tree" data-publication-tree>
-    <ConsolePublicationTreeItem Node="View.Tree.Root" />
-</ul>
-<ConsolePublicationTreePaging />
-@if (!string.IsNullOrWhiteSpace(View.Tree.Filter) && View.Tree.MatchingChildren(View.Tree.Root).Count == 0)
+@inject NavigationManager Navigation
+
+@if (Searching)
 {
-    <p class="console-tree-message" role="status">No services match this filter.</p>
+    <ConsolePublicationSearchResults />
 }
-else if (View.Tree.ServiceCount == 0)
+else
 {
-    <p class="console-tree-message" role="status">No services returned by this server. <a href="/operate/data/new">Add data</a></p>
+    <div class="console-tree-branches">
+        <ul role="tree" aria-label="Services and layers" class="console-publication-tree" data-publication-tree>
+            <ConsolePublicationTreeItem Node="View.Tree.Root" />
+        </ul>
+        <ConsolePublicationTreePaging />
+        @if (!string.IsNullOrWhiteSpace(View.Tree.Filter) && View.Tree.MatchingChildren(View.Tree.Root).Count == 0)
+        {
+            <p class="console-tree-message" role="status">No services match this filter.</p>
+        }
+        else if (View.Tree.ServiceCount == 0)
+        {
+            <p class="console-tree-message" role="status">No services returned by this server. <a href="@Navigation.ToConsoleHref("/operate/data/new")">Add data</a></p>
+        }
+    </div>
 }
-<p class="console-tree-coverage" role="status">@($"Filtering {ConsolePublicationTreeContext.FormatCount(View.Tree.ServiceCount, "service name")} and {ConsolePublicationTreeContext.FormatCount(View.Tree.LayerTotal, "layer")}.") Expand a service to load its layers.</p>
+<p class="console-tree-coverage" role="status">
+    @if (Searching)
+    {
+        <text>Searching service names in the active scope. Open a result to view its service.</text>
+    }
+    else
+    {
+        <text>@($"Filtering {ConsolePublicationTreeContext.FormatCount(View.Tree.ServiceCount, "service name")} and {ConsolePublicationTreeContext.FormatCount(View.Tree.LayerTotal, "layer")}.") Expand a service to load its layers.</text>
+    }
+</p>
 
 @code {
     [CascadingParameter] public ConsolePublicationTreeContext View { get; set; } = default!;
+    private bool Searching => View.V4Enabled && !string.IsNullOrWhiteSpace(View.Tree.Filter);
 }

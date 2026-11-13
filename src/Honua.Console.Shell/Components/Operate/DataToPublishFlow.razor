@@ -7,13 +7,24 @@
 @inject IOperateTransitionDataSource OperateData
 @inject IStudioMapStyleCatalogDataSource StyleData
 @inject NavigationManager Nav
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@inject IServiceProvider ServiceProvider
 
 <section class="console-page data-publish-flow" data-data-publish-flow>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Add data">
+            <p>Add data as a dataset, publish it through the protocols you choose, style it and go live.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Add data</p>
         <h1>Add data &amp; publish</h1>
         <p>One journey: add data → it becomes a dataset → publish it as the services/protocols you choose → style → live.</p>
     </div>
+    }
 
     <div class="data-publish-flow__header">
         <ol class="data-publish-flow__rail" data-step-rail>
@@ -35,14 +46,14 @@
             <p class="console-kicker">Connect to your data</p>
             <h2>Check the data connection</h2>
             <p>@binding</p>
-            <a class="console-button-link" href="/environments">Review environment</a>
+            <a class="console-button-link" href="@Nav.ToConsoleHref("/environments")">Review environment</a>
         </article>
     }
 
     @switch (_flow.Step)
     {
         case FlowStep.AddData:
-            <article class="console-panel" data-step-body="AddData">
+            @StepShell(FlowStep.AddData, new(null, null, "Choose data"), @<text>
                 <AddDataIntake Connections="_connectionOptions"
                                ExistingResources="_resourceOptions"
                                SupportedExtensions="_supportedExtensions"
@@ -51,18 +62,18 @@
                                OnSourceChosen="OnSourceChosen" />
                 @if (_flow.Source.Mode == AddDataMode.File)
                 {
-                    <p>Choose the original dataset, then describe its destination in the shared conversation.</p>
-                    <a class="console-button" href="/operate/resources/import/task">Choose dataset file</a>
+                    <p>Choose the original file to preview its coordinate system and import a dataset.</p>
+                    <a class="console-button" href="@Nav.ToConsoleHref(ConsoleWorkspaceFeatures.IsEnabled(Configuration) ? "/operate/resources/import/task" : "/operate/resources/import")">Choose dataset file</a>
                 }
                 @if (_flow.Source.Mode == AddDataMode.RemoteService)
                 {
                     <div data-remote-service-import>
                         <OperateImportServicePage />
-                        <p class="console-muted">Imported services create datasets — <a href="/operate/data">open the dataset tree</a> to publish them as the protocols you want.</p>
+                        <p class="console-muted">Imported services create datasets — <a href="@Nav.ToConsoleHref("/operate/data")">open the dataset tree</a> to publish them as the protocols you want.</p>
                     </div>
                 }
                 <div class="console-action-row">
-                    <a href="/operate/data">Cancel</a>
+                    <a href="@Nav.ToConsoleHref("/operate/data")">Cancel</a>
                     @if (_flow.Source.Mode is AddDataMode.Table or AddDataMode.ExistingResource)
                     {
                         <button type="button" class="console-button" disabled="@(!CanContinueToPublish)" @onclick="ContinueToPublish">
@@ -70,32 +81,28 @@
                         </button>
                     }
                 </div>
-            </article>
+            </text>)
             break;
 
         case FlowStep.Publish:
-            <article class="console-panel" data-step-body="Publish">
-                <p class="console-kicker">③ Publish "@_flow.Resource.Name"</p>
-                <h2>Choose how to expose this dataset</h2>
+            @StepShell(FlowStep.Publish, new($"③ Publish \"{_flow.Resource.Name}\"", "Choose how to expose this dataset", $"Publish {_flow.Resource.Name}"), @<text>
                 <PublishProtocolPicker Enabled="_flow.EnabledProtocols"
                                        EnabledChanged="OnProtocolsChanged"
                                        ServiceSlot="@_flow.ServiceSlot" />
                 <p class="console-muted" data-service-fixed>
                     honua-server serves a source table through one layer in one service, so this flow configures the
                     service the dataset is already in. To serve the data from a new service,
-                    <a href="/operate/publishing/quick">publish a table</a> into it.
+                    <a href="@Nav.ToConsoleHref("/operate/publishing/quick")">publish a table</a> into it.
                 </p>
                 <div class="console-action-row">
                     <button type="button" @onclick="() => GoToStep(FlowStep.AddData)">Back</button>
                     <button type="button" class="console-button" disabled="@(_flow.EnabledProtocols.Count == 0)" @onclick="() => GoToStep(FlowStep.Style)">Continue to style →</button>
                 </div>
-            </article>
+            </text>)
             break;
 
         case FlowStep.Style:
-            <article class="console-panel" data-step-body="Style">
-                <p class="console-kicker">④ Style</p>
-                <h2>Style this dataset</h2>
+            @StepShell(FlowStep.Style, new("④ Style", "Style this dataset", "Style this dataset"), @<text>
                 <p class="console-muted">Go live does not apply the style you pick here: honua-server has no operation that binds a catalog style to a layer. Pick a shared style to open it in the style editor, or skip this step.</p>
                 <div class="studio-field-grid">
                     <label class="studio-form-label">
@@ -115,13 +122,13 @@
                 }
                 @if (!string.IsNullOrWhiteSpace(_flow.StyleId))
                 {
-                    <p><a class="console-link" href="@StyleEditorHref">Edit this shared catalog style →</a></p>
+                    <p><a class="console-link" href="@Nav.ToConsoleLinkHref(StyleEditorHref)">Edit this shared catalog style →</a></p>
                 }
                 <div class="console-action-row">
                     <button type="button" @onclick="() => GoToStep(FlowStep.Publish)">Back</button>
                     <button type="button" class="console-button" @onclick="() => GoToStep(FlowStep.GoLive)">Continue to go live →</button>
                 </div>
-            </article>
+            </text>)
             break;
 
         case FlowStep.GoLive:
@@ -132,6 +139,21 @@
 
 @code {
     [Parameter] public string? InitialSource { get; set; }
+
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private sealed record StepFrame(string? LegacyKicker, string? LegacyTitle, string V4Title);
+
+    private RenderFragment StepShell(FlowStep step, StepFrame frame, RenderFragment body) =>
+        V4Enabled
+            ? @<div data-step-body="@step.ToString()">
+                  <ConsolePanel Title="@frame.V4Title" HeadingId="@($"data-flow-{step.ToString().ToLowerInvariant()}-heading")">@body</ConsolePanel>
+              </div>
+            : @<article class="console-panel" data-step-body="@step.ToString()">
+                  @if (frame.LegacyKicker is not null) { <p class="console-kicker">@frame.LegacyKicker</p> }
+                  @if (frame.LegacyTitle is not null) { <h2>@frame.LegacyTitle</h2> }
+                  @body
+              </article>;
 
     private readonly DataToPublishFlowState _flow = new();
 
@@ -194,7 +216,7 @@
         if (intake.Mode == AddDataMode.Table)
         {
             // The canonical publish-layer form is bound to the same server draft as chat.
-            Nav.NavigateTo("/operate/publishing/quick");
+            Nav.NavigateTo(Nav.ToConsoleHref("/operate/publishing/quick"));
             return;
         }
 

@@ -4,7 +4,7 @@
    with per-field highlighting for the differing rows, plus a per-feature take-version / take-default /
    take-base chooser. The parent owns the selected choice and is notified through ChoiceChanged. *@
 
-<article class="console-panel version-conflict" data-conflict="@Conflict.Key">
+<article class="@(Panel ? "console-panel version-conflict" : "version-conflict")" data-conflict="@Conflict.Key">
     <div class="console-panel-heading">
         <div>
             <p class="console-kicker">Layer @Conflict.LayerId · Object @Conflict.ObjectId</p>
@@ -89,6 +89,9 @@
     /// <summary>Raised with the per-feature key and the chosen resolution when the operator picks one.</summary>
     [Parameter]
     public EventCallback<(string Key, string Choice)> ChoiceChanged { get; set; }
+
+    [Parameter]
+    public bool Panel { get; set; } = true;
 
     private bool HasGeometry =>
         !string.IsNullOrEmpty(Conflict.BaseGeometry)

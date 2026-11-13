@@ -7,6 +7,7 @@ test('inspector identities reach the visible conversation and frozen native turn
     const task = { id: 'design-draft', revision: 3, kind: 'studio-composition', packageKey: 'design-package' };
     let context: any = { workspaceId: 'design-workspace', revision: 1, targetId: 'fixture-target', selectedResources: [], task };
     const session = {
+        authenticated: true,
         environmentId: 'design-environment', environmentName: 'Design fixture', principalId: 'design-human',
         csrfToken: 'fixture-csrf', expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
         releaseId: 'fixture-release', sourcePathBase: '', nativeAgentAvailable: false,

@@ -45,24 +45,14 @@ public sealed class HonuaServerServiceLayerPublishOperation : IServiceLayerPubli
             Enabled = command.Enabled
         };
 
-        HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary> result;
-        try
-        {
-            result = command.AuthorityBinding is { } binding
-                ? await _client.PublishLayerBoundAsync(command.ConnectionId, request, binding, cancellationToken).ConfigureAwait(false)
-                : await _client.PublishLayerAsync(command.ConnectionId, request, cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
-        {
-            return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail };
-        }
-        if (command.AuthorityBinding is { } sentBinding && _authority is not null &&
-            !await _authority.IsCurrentAsync(sentBinding, CancellationToken.None))
-            return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail };
-
-
-        if (command.AuthorityBinding is not null && result.Issue is { State: "Unavailable", StatusCode: null } transportIssue)
-            return new() { State = ConsoleWriteOutcome.UnverifiedState, Detail = ConsoleWriteOutcome.UnverifiedDetail + " " + transportIssue.Detail };
+        var result = await ConsoleBoundWrite.SendAsync(
+            () => command.AuthorityBinding is { } binding
+                ? _client.PublishLayerBoundAsync(command.ConnectionId, request, binding, cancellationToken)
+                : _client.PublishLayerAsync(command.ConnectionId, request, cancellationToken),
+            command.AuthorityBinding is { } sentBinding && _authority is { } bindingValidator
+                ? () => bindingValidator.IsCurrentAsync(sentBinding, CancellationToken.None) : null).ConfigureAwait(false);
+        if (result.Issue is { State: ConsoleWriteOutcome.UnverifiedState } unverified)
+            return new() { State = unverified.State, Detail = unverified.Detail };
 
         if (result.Data is { } layer)
         {

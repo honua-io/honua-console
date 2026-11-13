@@ -2,13 +2,23 @@
 @inject IConsoleEnvironmentProfileStore Profiles
 @inject IConsoleAccountSessionStore Sessions
 @inject NavigationManager Navigation
+@inject IServiceProvider Services
 
 <section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Environment session</p>
-        <h1>Sign In</h1>
-        <p>Continue with the active environment profile before opening authenticated Console routes.</p>
-    </div>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Sign in">
+            <p>Continue with the active environment profile before opening authenticated Console routes.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Environment session</p>
+            <h1>Sign In</h1>
+            <p>Continue with the active environment profile before opening authenticated Console routes.</p>
+        </div>
+    }
 
     @if (_profile is null)
     {
@@ -43,18 +53,53 @@
                 <dd>@_returnTo</dd>
             </dl>
 
-            <div class="console-detail-actions">
-                <button class="console-button" type="button" @onclick="SignInAsync">Continue</button>
-                <a class="console-button-link" href="@_returnTo">Cancel</a>
-            </div>
+            <form @onsubmit="SignInAsync" @onsubmit:preventDefault>
+                @if (_browserAuth?.SupportsPasswordSignIn == true)
+                {
+                    <label class="console-field">
+                        <span>Password</span>
+                        <input class="console-input" type="password" autocomplete="current-password" required
+                               @bind="_password" disabled="@_signingIn" />
+                    </label>
+                }
+                @if (_oidc?.IsAvailable == true)
+                {
+                    @foreach (var provider in _providers)
+                    {
+                        <button class="console-button" type="button" disabled="@_signingIn"
+                                @onclick="() => BeginOidcAsync(provider.Key)">Continue with @provider.DisplayName</button>
+                    }
+                    @if (_providers.Count == 0)
+                    {
+                        <p role="status">No identity providers are available. Contact your deployment administrator.</p>
+                    }
+                }
+                else if (_browserAuth is not null && !_browserAuth.SupportsPasswordSignIn)
+                {
+                    <p role="status">Identity provider sign-in is not available in this Console build yet.</p>
+                }
+                @if (_browserAuth?.SupportsPasswordSignIn ?? (_oidc?.IsAvailable != true))
+                {
+                    <div class="console-detail-actions">
+                        <button class="console-button" type="submit" disabled="@_signingIn">@(_signingIn ? "Signing in…" : "Continue")</button>
+                        <a class="console-button-link" href="@Navigation.ToConsoleHref(_returnTo)">Cancel</a>
+                    </div>
+                }
+            </form>
         </div>
     }
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private ConsoleEnvironmentProfile? _profile;
     private string _returnTo = "/";
     private string? _serverAuthMessage;
+    private IConsoleBrowserAuthentication? _browserAuth;
+    private string _password = string.Empty;
+    private bool _signingIn;
+    private IConsoleOidcAuthentication? _oidc;
+    private IReadOnlyList<ConsoleIdentityProvider> _providers = [];
 
     protected override async Task OnParametersSetAsync()
     {
@@ -66,12 +111,31 @@
             _ => null
         };
         _profile = await Profiles.GetActiveProfileAsync();
+        _browserAuth = Services.GetService<IConsoleBrowserAuthentication>();
+        _oidc = Services.GetService<IConsoleOidcAuthentication>();
+        if (_oidc?.IsAvailable == true)
+        {
+            try
+            {
+                _providers = await _oidc.GetProvidersAsync();
+            }
+            catch (Exception exception) when (exception is HttpRequestException or System.Text.Json.JsonException or InvalidOperationException or OperationCanceledException)
+            {
+                _serverAuthMessage = "Identity providers could not be loaded. Check the server connection and try again.";
+            }
+        }
     }
 
     private async Task SignInAsync()
     {
-        if (_profile is null)
+        if (_profile is null || _signingIn)
         {
+            return;
+        }
+
+        if (_browserAuth is not null)
+        {
+            await SignInBrowserAsync();
             return;
         }
 
@@ -105,11 +169,62 @@
         Navigation.NavigateTo(_returnTo);
     }
 
+    private async Task SignInBrowserAsync()
+    {
+        if (!_browserAuth!.SupportsPasswordSignIn || string.IsNullOrWhiteSpace(_password))
+        {
+            return;
+        }
+        _signingIn = true;
+        _serverAuthMessage = null;
+        try
+        {
+            await _browserAuth.SignInAsync(_password);
+            Navigation.NavigateTo(Navigation.ToConsoleHref(_returnTo));
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+        {
+            _serverAuthMessage = "The password was not accepted. Try again.";
+        }
+        catch (Exception exception) when (exception is HttpRequestException or System.Text.Json.JsonException or InvalidOperationException or TaskCanceledException)
+        {
+            _serverAuthMessage = "Sign-in could not finish. Check the server connection and try again.";
+        }
+        finally
+        {
+            _password = string.Empty;
+            _signingIn = false;
+        }
+    }
+
+    private async Task BeginOidcAsync(string providerKey)
+    {
+        if (_signingIn || _oidc?.IsAvailable != true)
+        {
+            return;
+        }
+        _signingIn = true;
+        _serverAuthMessage = null;
+        try
+        {
+            var destination = await _oidc.BeginAsync(providerKey, _returnTo);
+            Navigation.NavigateTo(destination.AbsoluteUri, forceLoad: true);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or System.Text.Json.JsonException or InvalidOperationException or Microsoft.JSInterop.JSException or OperationCanceledException)
+        {
+            _serverAuthMessage = "Sign-in could not start. Check the server connection and try again.";
+            _signingIn = false;
+        }
+    }
+
     private static string AccountLabel(ConsoleEnvironmentProfile profile) =>
         string.IsNullOrWhiteSpace(profile.Account.DisplayName)
             ? profile.Account.AccountId
             : profile.Account.DisplayName;
 
-    private static string SanitizeReturnTo(string? value) =>
-        Honua.Console.Shell.Security.ConsoleReturnUrl.Sanitize(value);
+    private string SanitizeReturnTo(string? value)
+    {
+        var route = Honua.Console.Shell.Security.ConsoleReturnUrl.Sanitize(value);
+        return Navigation.GetConsoleHref(route) is not null ? route : "/";
+    }
 }

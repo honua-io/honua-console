@@ -3,6 +3,7 @@ using Honua.Console.Shell.Components;
 using Honua.Console.Shell.DependencyInjection;
 using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Configuration;
@@ -12,6 +13,66 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class ConsoleNavigationRenderTests
 {
+    [Theory]
+    [InlineData("/", "/")]
+    [InlineData("/console/", "/console/")]
+    public async Task SharedNavigationStaysInsideTheApplicationBase(string applicationPath, string expectedHome)
+    {
+        await using var context = CreateContext();
+        context.Services.AddSingleton<NavigationManager>(new HostedNavigationManager(applicationPath));
+        var shell = context.Render<ConsoleLayout>();
+        Assert.Equal(expectedHome, shell.Find(".console-topbar-brand").GetAttribute("href"));
+        Assert.Equal(expectedHome + "environments", shell.Find("[data-workspace-header-target]").GetAttribute("href"));
+        Assert.Equal(expectedHome + "support", shell.Find(".console-help-link").GetAttribute("href"));
+        Assert.All(shell.FindAll(".console-topnav a, .console-contextbar a"), link =>
+            Assert.StartsWith(expectedHome, link.GetAttribute("href")));
+        var manager = context.Services.GetRequiredService<NavigationManager>();
+        Assert.Equal(expectedHome + "operate/services?sort=name#folders", manager.ToConsoleHref("/operate/services?sort=name#folders"));
+    }
+
+    [Theory]
+    [InlineData("/")]
+    [InlineData("/console/")]
+    public async Task ConnectionPageLinksStayInsideTheApplicationBase(string applicationPath)
+    {
+        await using var context = CreateContext();
+        context.Services.AddSingleton<NavigationManager>(new HostedNavigationManager(applicationPath));
+        context.Services.AddSingleton<IOperateTransitionDataSource>(InMemoryOperateTransitionDataSource.CreateSeeded());
+        var page = context.Render<OperateConnectionsPage>();
+
+        Assert.Equal(applicationPath + "operate/connections/new", page.Find(".console-toolbar a").GetAttribute("href"));
+        Assert.All(page.FindAll("a[href]"), link => Assert.StartsWith(applicationPath, link.GetAttribute("href")));
+    }
+
+    [Theory]
+    [InlineData("/studio")]
+    [InlineData("/studio/proof")]
+    public async Task StudioWorkflowLinksStayInsideTheConsoleMount(string route)
+    {
+        await using var context = CreateContext();
+        var navigation = new HostedNavigationManager("/console/");
+        context.Services.AddSingleton<NavigationManager>(navigation);
+        navigation.NavigateTo(navigation.ToConsoleHref(route));
+        var page = context.Render<StudioPage>();
+
+        Assert.NotEmpty(page.FindAll("a[href]"));
+        Assert.All(page.FindAll("a[href]"), link =>
+            Assert.StartsWith("/console/", link.GetAttribute("href")));
+    }
+
+    private sealed class HostedNavigationManager : NavigationManager
+    {
+        protected override void SetNavigationLockState(bool value) { }
+
+        public HostedNavigationManager(string applicationPath)
+        {
+            var applicationBase = "http://localhost" + applicationPath;
+            Initialize(applicationBase, applicationBase);
+        }
+
+        protected override void NavigateToCore(string uri, bool forceLoad) => Uri = ToAbsoluteUri(uri).AbsoluteUri;
+    }
+
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
     [InlineData(ConsolePresentationMode.V4)]
@@ -38,6 +99,14 @@ public sealed class ConsoleNavigationRenderTests
             .Add(component => component.HeadingId, "services-heading"));
         var conversation = navigation.Find("[data-conversation-toggle]");
         var help = navigation.Find(".console-help-link");
+        Assert.Equal(enabled ? 1 : 0, navigation.FindAll("[data-console-theme-toggle]").Count);
+        if (enabled)
+        {
+            var theme = navigation.Find("[data-console-theme-toggle]");
+            Assert.Equal("button", theme.GetAttribute("type"));
+            Assert.Equal("false", theme.GetAttribute("aria-pressed"));
+            Assert.Equal("Switch to dark mode", theme.GetAttribute("aria-label"));
+        }
         Assert.Equal(enabled ? "Conversation" : null, conversation.GetAttribute("aria-label"));
         Assert.Equal(enabled ? "Help" : null, help.GetAttribute("aria-label"));
         if (!enabled)

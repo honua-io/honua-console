@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @inject IStudioWorkflowPackageClient Workflows
 
 @* Non-routable component. The /operate/jobs/{jobRunId} route is owned solely by
@@ -46,7 +47,7 @@ else
                 <dt>Version</dt>
                 <dd>@(string.IsNullOrWhiteSpace(_evidence.VersionId) ? "draft only" : _evidence.VersionId)</dd>
                 <dt>Events</dt>
-                <dd><a href="@_evidence.OperateEventsUrl">Open event evidence</a></dd>
+                <dd><a href="@ConsoleNavigation.ToConsoleLinkHref(_evidence.OperateEventsUrl)">Open event evidence</a></dd>
             </dl>
         </article>
 

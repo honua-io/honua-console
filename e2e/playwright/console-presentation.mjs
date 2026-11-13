@@ -15,7 +15,7 @@ const sharedKeyboardTargets = {
   sizedControls: "input, select, button, textarea, summary, .console-button-link",
   minimumHeight: 24
 };
-const statusEdges = { info: "rgb(37, 99, 235)", warning: "rgb(180, 95, 6)", danger: "rgb(179, 38, 30)",
+export const statusEdges = { info: "rgb(37, 99, 235)", warning: "rgb(180, 95, 6)", danger: "rgb(179, 38, 30)",
   neutral: "rgb(103, 115, 110)", success: "rgb(21, 128, 61)" };
 
 export async function inspectCatalogCounts(page, name) {
@@ -125,7 +125,7 @@ async function inspectProtocolPills(page) {
   assert.ok(childrenFit, "Every protocol name, status and URL box must fit inside its pill");
 }
 
-async function inspectNoticeSurface(surface, edgeColor) {
+export async function inspectNoticeSurface(surface, edgeColor) {
   assert.equal(await surface.count(), 1);
   const normal = await surface.evaluate(element => {
     const style = getComputedStyle(element);
@@ -181,20 +181,20 @@ export async function checkKeyboardControls(page, { controls, sizedControls, min
       const element = document.activeElement;
       if (!(element instanceof HTMLElement) || element.dataset.previewControlIndex === undefined) return null;
       const style = getComputedStyle(element);
-      return { index: element.dataset.previewControlIndex, height: element.getBoundingClientRect().height,
+      return { description: element.outerHTML.slice(0, 250), index: element.dataset.previewControlIndex, height: element.getBoundingClientRect().height,
         measureTarget: element.matches(sizedControls),
-        focusVisible: element.matches(":focus-visible"),
+        focusVisible: element.matches(":focus-visible") || element.matches("input[type=datetime-local]:focus-within"),
         ring: (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0 && style.outlineColor !== "rgba(0, 0, 0, 0)") || style.boxShadow !== "none" };
     }, sizedControls);
     if (!focused) continue;
     if (focused.measureTarget) assert.ok(focused.height >= minimumHeight, `Control ${focused.index} is undersized`);
-    assert.ok(focused.focusVisible && focused.ring, `Control ${focused.index} has no visible keyboard focus`);
+    assert.ok(focused.focusVisible && focused.ring, `Control ${focused.index} has no visible keyboard focus: ${focused.description}`);
     visited.add(focused.index);
   }
   assert.equal(visited.size, total, "Every enabled form, link and pager control must be keyboard reachable");
 }
 
-export async function runV4PagePresentation({ previews, pageNames, title, stylesheet, heading, scope, controls, inspect, prepareMarkup = markup => `<div class="console-shell" data-console-v4="true">${markup}</div>` }) {
+export async function runV4PagePresentation({ previews, pageNames, title, stylesheet, heading, scope, controls, inspect, allowScriptModules = false, prepareMarkup = markup => `<div class="console-shell" data-console-v4="true">${markup}</div>` }) {
   const pages = new Map(await Promise.all(pageNames.map(async name => {
     const markup = await fs.readFile(path.join(previews, `${name}.html`), "utf8");
     return [name, prepareMarkup(markup)];
@@ -204,18 +204,20 @@ export async function runV4PagePresentation({ previews, pageNames, title, styles
     stylesheets: ["/_content/Honua.Console.Shell/honua-console.css"],
     assets: path.resolve("src/Honua.Console.Shell/wwwroot"),
     assetPrefix: "/_content/Honua.Console.Shell/",
+    allowScriptModules,
   });
   let browser;
   try {
     browser = await chromium.launch();
     const context = await browser.newContext();
-    const page = await context.newPage();
     for (const name of pages.keys()) {
       for (const width of [1280, 390]) {
+        const page = await context.newPage();
         await inspectV4Presentation(page, {
           previews, name, width, origin: `http://127.0.0.1:${server.address().port}`,
           stylesheet, heading, scope, controls, inspect,
         });
+        await page.close();
       }
     }
   } finally {

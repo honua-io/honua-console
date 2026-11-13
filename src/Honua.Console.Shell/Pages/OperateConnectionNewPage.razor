@@ -5,17 +5,63 @@
 @inject IConsoleConnectionCreateOperation ConnectionCreate
 @inject IOperateTransitionDataSource OperateData
 @inject NavigationManager Nav
+@inject IServiceProvider Services
+
+<ConsoleAgentContext Context="@AgentContext" />
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have an unsaved connection. Leave this page and discard it?" />
 
 <section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Operate / Connections</p>
-        <h1>Add Connection</h1>
-        <p>New connections capture provider, endpoint, account binding, and secret reference separately so credentials never need to be displayed in Console. The password is sent to the configured server secret store and is never echoed back.</p>
-    </div>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Add connection"><ChildContent><p>@Intro</p></ChildContent></ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Connections</p>
+            <h1>Add Connection</h1>
+            <p>@Intro</p>
+        </div>
+    }
 
-    <article class="console-panel">
+    @if (V4Enabled)
+    {
+        <ConsolePanel Title="Connection details" HeadingId="new-connection-details">@ConnectionForm</ConsolePanel>
+        <ConsolePanel Title="Test and datasets" HeadingId="new-connection-next">@NextSteps</ConsolePanel>
+    }
+    else
+    {
+        <article class="console-panel">@ConnectionForm</article>
+        <div class="console-panel-grid">
+            <article class="console-panel">
+                <p class="console-kicker">What happens next</p>
+                <h2>Test and datasets</h2>
+                @NextSteps
+            </article>
+        </div>
+    }
+</section>
+
+@code {
+    private const string Intro = "New connections capture provider, endpoint, account binding, and secret reference separately so credentials never need to be displayed in Console. The password is sent to the configured server secret store and is never echoed back.";
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    // Positions in DraftValues and _baseline; keep both arrays in this order.
+    private const int ProviderField = 1;
+    private const int PortField = 4;
+    private string[] DraftValues => [_name, _provider, _credentialSource, _host, _port.ToString(System.Globalization.CultureInfo.InvariantCulture), _database, _username, _password, _secretReference, _sslMode, _description];
+    private string[] _baseline = [string.Empty, "postgis", "password", string.Empty, "5432", string.Empty, string.Empty, string.Empty, string.Empty, "Disable", string.Empty];
+    private bool _loading = true;
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = "/operate/connections/new",
+        Unsaved = new()
+        {
+            ChangedFieldCount = DraftValues.Zip(_baseline).Count(pair => pair.First != pair.Second),
+            PendingOperationCount = (_loading ? 1 : 0) + (_busy ? 1 : 0) + (_testing ? 1 : 0)
+        }
+    };
+    private RenderFragment ConnectionForm => @<text>
         <div class="studio-field-grid">
             <label>
                 <span>Connection name</span>
@@ -127,27 +173,27 @@
                 }
                 @if (_providerAvailability.DocumentationHref is { } href)
                 {
-                    <a href="@href" data-provider-documentation>How to switch server images</a>
+                    <a href="@Nav.ToConsoleLinkHref(href)" data-provider-documentation>How to switch server images</a>
                 }
             </div>
         }
 
         @if (_testOutcome is { } test)
         {
-            <article class="console-panel @(test.Tested && test.IsHealthy ? "console-state-success" : "console-state-warning")" role="status">
+            <div class="console-panel @(test.Tested && test.IsHealthy ? "console-state-success" : "console-state-warning")" role="status">
                 <p class="console-kicker">@test.State</p>
-                <h2>@(test.Tested && test.IsHealthy ? "Connection test passed" : "Connection test")</h2>
+                <OperateSectionHeading Text="@(test.Tested && test.IsHealthy ? "Connection test passed" : "Connection test")" />
                 <p>@test.Detail</p>
-            </article>
+            </div>
         }
 
         @if (_result is { Succeeded: false })
         {
-            <article class="console-panel console-state-danger" role="alert">
+            <div class="console-panel console-state-danger" role="alert">
                 <p class="console-kicker">@_result.State</p>
-                <h2>Connection not created</h2>
+                <OperateSectionHeading Text="Connection not created" />
                 <p>@_result.Detail</p>
-            </article>
+            </div>
         }
 
         <div class="console-action-row">
@@ -157,25 +203,18 @@
             <button class="console-button" type="button" disabled="@(_busy || _testing || !CanUseProvider)" @onclick="CreateAsync">
                 @(_busy ? "Creating…" : "Create connection")
             </button>
-            <a href="/operate/connections">Cancel</a>
+            <a href="@Nav.ToConsoleHref("/operate/connections")">Cancel</a>
         </div>
-    </article>
-
-    <div class="console-panel-grid">
-        <article class="console-panel">
-            <p class="console-kicker">What happens next</p>
-            <h2>Test and datasets</h2>
+    </text>;
+    private RenderFragment NextSteps => @<text>
             <dl class="console-definition-list">
                 <dt>Diagnostics</dt>
                 <dd>Structured checks with redacted evidence on the connection detail page.</dd>
                 <dt>Next route</dt>
                 <dd>Create a dataset or publish a layer from a table in this connection.</dd>
             </dl>
-        </article>
-    </div>
-</section>
+    </text>;
 
-@code {
     private sealed record ProviderOption(string Value, string Label, int DefaultPort, string DatabaseLabel, string? DatabaseHint);
 
     // Provider engines honua-server's DataProviderNames.Normalize accepts, with their default ports and the
@@ -235,14 +274,23 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _providerAvailability = await ConnectionCreate.GetProviderAvailabilityAsync();
-        _provider = AvailableProviders.FirstOrDefault()?.Value ?? string.Empty;
-        _port = CurrentProvider.DefaultPort;
-        var view = await OperateData.GetConnectionsViewAsync();
-        _existingNames = view.Connections
-            .Select(connection => connection.Name)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            _providerAvailability = await ConnectionCreate.GetProviderAvailabilityAsync();
+            _provider = AvailableProviders.FirstOrDefault()?.Value ?? string.Empty;
+            _port = CurrentProvider.DefaultPort;
+            _baseline[ProviderField] = _provider;
+            _baseline[PortField] = _port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var view = await OperateData.GetConnectionsViewAsync();
+            _existingNames = view.Connections
+                .Select(connection => connection.Name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private void OnProviderChanged()
@@ -349,9 +397,9 @@
             _dirty.MarkClean();
             StateHasChanged();
             await Task.Yield();
-            Nav.NavigateTo(string.IsNullOrWhiteSpace(_result.ConnectionId)
+            Nav.NavigateTo(Nav.ToConsoleHref(string.IsNullOrWhiteSpace(_result.ConnectionId)
                 ? "/operate/connections"
-                : $"/operate/connections/{_result.ConnectionId}");
+                : ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForConnection(_result.ConnectionId))));
             return;
         }
 

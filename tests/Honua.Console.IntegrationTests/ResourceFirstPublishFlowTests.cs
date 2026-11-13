@@ -8,15 +8,20 @@ using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 
 namespace Honua.Console.IntegrationTests;
 
 public sealed class ResourceFirstPublishFlowTests
 {
-    [Fact]
-    public void QuickPublish_GenericGeometryRequiresExplicitTypeAndPassesTheChoice()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void QuickPublish_GenericGeometryRequiresExplicitTypeAndPassesTheChoice(bool enabled)
     {
         using var ctx = NewContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         var publish = new RecordingPublishOperation("GEOMETRY");
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish);
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneConnectionDataSource("conn", "Source"));
@@ -34,10 +39,14 @@ public sealed class ResourceFirstPublishFlowTests
         Assert.Equal("Polygon", publish.LastCommand?.GeometryType);
     }
 
-    [Fact]
-    public void QuickPublish_ConcreteGeometryNeedsNoOverride()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void QuickPublish_ConcreteGeometryNeedsNoOverride(bool enabled)
     {
         using var ctx = NewContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         var publish = new RecordingPublishOperation("Point");
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish);
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneConnectionDataSource("conn", "Source"));
@@ -47,13 +56,46 @@ public sealed class ResourceFirstPublishFlowTests
         Assert.Empty(page.FindAll("select[aria-label='Geometry type']"));
         page.Find("input[placeholder='parcels-fs']").Input("points-fs");
         page.Find("input[placeholder='Parcels']").Input("Points");
+        if (enabled)
+        {
+            var state = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current;
+            Assert.Equal("/operate/publishing/quick", state.Route);
+            Assert.Equal(4, state.Unsaved.ChangedFieldCount);
+            page.Find("[data-service-public-name]").Change("public-points");
+            Assert.Equal(5, ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
+            page.Find("[data-service-public-name]").Change("");
+            Assert.Equal(4, ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
+            Assert.Empty(state.Entities);
+            CatalogAdminPreview.Capture("data-quick-publish", page.Markup);
+        }
         page.Find("[data-workspace-publish]").Click();
         Assert.Equal("Point", publish.LastCommand?.GeometryType);
+        if (enabled)
+        {
+            Assert.Equal(0, ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
+            CatalogAdminPreview.Capture("data-quick-publish-complete", page.Markup);
+        }
+    }
+
+    private static void AssertStepHeading(IRenderedComponent<DataToPublishFlow> cut, string step, string? heading)
+    {
+        var body = cut.Find($"[data-step-body='{step}']");
+        var headings = body.QuerySelectorAll("h2");
+        if (heading is null)
+        {
+            Assert.Empty(headings);
+            return;
+        }
+
+        Assert.Equal(heading, Assert.Single(headings).TextContent.Trim());
+        Assert.Equal(body.TagName == "DIV", body.QuerySelector("section.console-panel[aria-labelledby]") is not null);
+        if (body.TagName == "DIV") Assert.Empty(body.QuerySelectorAll(".console-kicker"));
     }
 
     private static BunitContext NewContext()
     {
         var ctx = new BunitContext();
+        ctx.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         return ctx;
@@ -336,30 +378,74 @@ public sealed class ResourceFirstPublishFlowTests
     public void Flow_ExistingResourceReachesGoLiveWithTheRealApply()
     {
         using var ctx = NewContext();
+        var cut = RenderExistingResourceFlow(ctx, new ConsoleV4Options { Enabled = false });
+        Assert.Equal("Add data & publish", cut.Find("h1").TextContent);
+        AssertStepHeading(cut, "AddData", null);
+        ContinueFrom(cut, "AddData");
+        AssertStepHeading(cut, "Publish", "Choose how to expose this dataset");
+        ContinueFrom(cut, "Publish");
+        AssertStepHeading(cut, "Style", "Style this dataset");
+        ContinueFrom(cut, "Style");
+        AssertStepHeading(cut, "GoLive", "parcels → parcels");
+        Assert.Empty(cut.FindAll("[data-step-body='GoLive'] [role='region']"));
+
+        cut.Find("[data-go-live-apply]").Click();
+        Assert.Empty(cut.FindAll("[data-step-body='GoLive'] [role='region']"));
+        AssertRealApplyResults(cut);
+    }
+
+    [Fact]
+    public void Flow_V4ExistingResourceReachesGoLiveWithTheRealApply()
+    {
+        using var ctx = NewContext();
+        var cut = RenderExistingResourceFlow(ctx, new ConsoleV4Options { Enabled = true });
+        Assert.Equal("Add data", cut.Find("h1").TextContent);
+        AssertStepHeading(cut, "AddData", "Choose data");
+        CatalogAdminPreview.Capture("data-flow-add", cut.Markup);
+        ContinueFrom(cut, "AddData");
+        AssertStepHeading(cut, "Publish", "Publish parcels");
+        CatalogAdminPreview.Capture("data-flow-publish", cut.Markup);
+        ContinueFrom(cut, "Publish");
+        AssertStepHeading(cut, "Style", "Style this dataset");
+        ContinueFrom(cut, "Style");
+        AssertStepHeading(cut, "GoLive", "Go live: parcels → parcels");
+        Assert.Single(cut.FindAll("[data-step-body='GoLive'] [role='region']"));
+
+        cut.Find("[data-go-live-apply]").Click();
+        Assert.Single(cut.FindAll("[data-step-body='GoLive'] [role='region']"));
+        CatalogAdminPreview.Capture("data-flow-golive", cut.Markup);
+        AssertRealApplyResults(cut);
+    }
+
+    private static IRenderedComponent<DataToPublishFlow> RenderExistingResourceFlow(BunitContext ctx, ConsoleV4Options v4Options)
+    {
         RegisterExistingResource(ctx);
+        ctx.Services.AddSingleton(v4Options);
         ctx.Services.AddSingleton<IServiceConfigurationOperation>(new UnsupportedServiceConfigurationOperation());
         var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "existingresource"));
         cut.Find("select[aria-label=\"Existing dataset\"]").Change("rsc_parcels");
-        cut.Find("[data-step-body=\"AddData\"] button.console-button").Click();
-        cut.Find("[data-step-body=\"Publish\"] button.console-button").Click();
-        cut.Find("[data-step-body=\"Style\"] button.console-button").Click();
+        return cut;
+    }
 
-        cut.Find("[data-go-live-apply]").Click();
+    private static void ContinueFrom(IRenderedComponent<DataToPublishFlow> cut, string step) =>
+        cut.Find($"[data-step-body=\"{step}\"] button.console-button").Click();
 
+    private static void AssertRealApplyResults(IRenderedComponent<DataToPublishFlow> cut)
+    {
         Assert.Equal(2, cut.FindAll("[data-protocol-result]").Count);
         Assert.DoesNotContain("publishes table sources directly", cut.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Unsupported here", cut.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Flow_FileSource_LinksToTheImportTaskInsteadOfAnInlineUpload()
+    public void Flow_FileSource_LinksToTheSupportedImportInsteadOfAnInlineUpload()
     {
         using var ctx = NewContext();
         RegisterMissingBinding(ctx);
 
         var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "file"));
 
-        Assert.Single(cut.FindAll("a[href='/operate/resources/import/task']"));
+        Assert.Single(cut.FindAll("a[href='/operate/resources/import']"));
         Assert.Empty(cut.FindAll("input[type='file']"));
         Assert.Empty(cut.FindAll("[data-step-body='AddData'] button.console-button"));
     }

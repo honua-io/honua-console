@@ -11,6 +11,30 @@ namespace Honua.Console.Shell.Tests;
 public sealed class ConsoleAgentContextTests
 {
     [Fact]
+    public void Editor_context_counts_one_dirty_field_and_one_pending_operation()
+    {
+        var editing = ConsoleAgentPageContext.EditorContext(
+            "https://console.example/studio/form?token=hidden",
+            changedFieldCount: 1,
+            pendingOperationCount: 1,
+            new Dictionary<string, string> { ["tab"] = "rules" });
+
+        Assert.Equal("/studio/form", editing.Route);
+        Assert.Equal("rules", editing.Filters["tab"]);
+        Assert.Equal(1, editing.Unsaved.ChangedFieldCount);
+        Assert.Equal(1, editing.Unsaved.PendingOperationCount);
+
+        var clean = ConsoleAgentPageContext.EditorContext(
+            "https://console.example/studio/workflow",
+            changedFieldCount: 0,
+            pendingOperationCount: 0);
+        Assert.Equal("/studio/workflow", clean.Route);
+        Assert.Empty(clean.Filters);
+        Assert.Equal(0, clean.Unsaved.ChangedFieldCount);
+        Assert.Equal(0, clean.Unsaved.PendingOperationCount);
+    }
+
+    [Fact]
     public void Snapshot_is_atomic_and_defensively_copies_collections()
     {
         var registry = new ConsoleAgentContextRegistry();
@@ -91,6 +115,7 @@ public sealed class ConsoleAgentContextTests
     }
 
     [Theory]
+    [InlineData(ConsoleAgentEntityKind.Connection, "/operate/connections/a%20b")]
     [InlineData(ConsoleAgentEntityKind.Folder, "/operate/folders/a%20b")]
     [InlineData(ConsoleAgentEntityKind.Service, "/operate/services/a%20b/settings")]
     [InlineData(ConsoleAgentEntityKind.Layer, "/operate/layers/a%20b")]
@@ -119,6 +144,21 @@ public sealed class ConsoleAgentContextTests
     public void Invalid_entity_identity_is_rejected(string id)
     {
         Assert.ThrowsAny<ArgumentException>(() => ConsoleAgentRoutes.ForEntity(Folder(id)));
+    }
+
+    [Theory]
+    [InlineData(" ", "/operate/layers/%20/filter")]
+    [InlineData("a/b", "/operate/layers/a%2Fb/filter")]
+    public void Layer_tool_route_escapes_unresolved_ids_without_throwing(string resourceId, string expected)
+    {
+        Assert.Equal(expected, ConsoleAgentLayerTool.ToolRoute(resourceId, ConsoleAgentLayerTool.Filter));
+    }
+
+    [Fact]
+    public void Layer_tool_route_accepts_overlong_unresolved_ids()
+    {
+        var resourceId = new string('x', 300);
+        Assert.Equal($"/operate/layers/{resourceId}/filter", ConsoleAgentLayerTool.ToolRoute(resourceId, ConsoleAgentLayerTool.Filter));
     }
 
     [Theory]

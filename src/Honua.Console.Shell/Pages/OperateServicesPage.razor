@@ -1,12 +1,55 @@
+@inject NavigationManager ConsoleNavigation
 @page "/operate/services"
 @inject IOperateTransitionDataSource OperateData
+@inject IServiceProvider Services
+
+<ConsoleAgentContext Context="@AgentContext" />
 
 <section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Operate / Services</p>
-        <h1>Services</h1>
-        <p>Browse services and open their protocol and access settings.</p>
-    </div>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Services">
+            <p>Browse services and open their protocol and access settings.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Services</p>
+            <h1>Services</h1>
+            <p>Browse services and open their protocol and access settings.</p>
+        </div>
+    }
+
+    @if (V4Enabled)
+    {
+        <ConsolePanel Title="Services" HeadingId="services-list-heading">
+            @ServiceList
+        </ConsolePanel>
+    }
+    else
+    {
+        @ServiceList
+    }
+    <Honua.Console.Shell.Components.Operate.FolderManagement OnSaved="LoadAsync" UnsavedChanged="@(summary => _folderUnsaved = summary)" SelectionChanged="@(entity => _selectedFolder = entity)" />
+</section>
+
+@code {
+    private ConsoleAgentUnsavedSummary _folderUnsaved = new();
+    private ConsoleAgentEntity? _selectedFolder;
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = "/operate/services",
+        Entities = _selectedFolder is { } entity ? [entity] : [],
+        Selection = _selectedFolder is { } selected ? [selected] : [],
+        Unsaved = _folderUnsaved
+    };
+
+    private static ConsoleAgentEntity ServiceEntity(OperateServiceDetail service) => ConsoleAgentEntity.ForService(service.Name);
+
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private RenderFragment ServiceList => @<text>
 
     @if (_loading)
     {
@@ -16,7 +59,7 @@
 
     @if (_services.Count > 0)
     {
-        <ConsoleTableRegion Class="console-table-wrap" Label="Services">
+        <ConsoleTableRegion Class="console-table-wrap" Label="@(V4Enabled ? "Service inventory" : "Services")">
             <table class="console-table">
                 <thead>
                     <tr>
@@ -30,8 +73,27 @@
                     @foreach (var service in _services)
                     {
                         <tr>
-                            <td><a href="@($"/operate/services/{Uri.EscapeDataString(service.Name)}/settings")">@service.DisplayName</a></td>
-                            <td>@service.ServiceType</td>
+                            <td>
+                                @if (V4Enabled)
+                                {
+                                    <ConsoleNameIdentifier Name="@service.DisplayName" Identifier="@service.Name"
+                                                           Href="@ConsoleAgentRoutes.ForEntity(ServiceEntity(service))" />
+                                }
+                                else
+                                {
+                                    <a href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/services/{Uri.EscapeDataString(service.Name)}/settings")">@service.DisplayName</a>
+                                }
+                            </td>
+                            <td>
+                                @if (V4Enabled)
+                                {
+                                    <ConsoleProtocolList Protocols="@service.Protocols" />
+                                }
+                                else
+                                {
+                                    @service.ServiceType
+                                }
+                            </td>
                             <td>@if (_states.Count > 0) { <span>Unknown</span> } else { @service.Layers.Count }</td>
                             <td>@service.RuntimeStatus</td>
                         </tr>
@@ -44,10 +106,8 @@
     {
         <EmptyState Area="operate" Subject="services" />
     }
-    <Honua.Console.Shell.Components.Operate.FolderManagement OnSaved="LoadAsync" />
-</section>
+    </text>;
 
-@code {
     private IReadOnlyList<OperateServiceDetail> _services = [];
     private IReadOnlyList<OperateCapabilityState> _states = [];
     private string? _loadError;

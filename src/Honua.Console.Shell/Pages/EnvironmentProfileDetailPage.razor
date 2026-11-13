@@ -1,5 +1,7 @@
+@inject NavigationManager ConsoleNavigation
 @page "/environments/{ProfileId}"
 @inject IConsoleEnvironmentProfileStore Profiles
+@inject IServiceProvider Services
 
 @if (_profile is null)
 {
@@ -7,30 +9,45 @@
         <div class="console-state">
             <h1>Environment not found</h1>
             <p class="console-muted">No environment profile exists for <code>@ProfileId</code>.</p>
-            <a class="console-button" href="/environments">Back to environments</a>
+            <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/environments")">Back to environments</a>
         </div>
     </section>
 }
 else
 {
-    <section class="console-page">
-        <div class="console-detail-heading">
-            <div class="console-page-heading">
-                <p class="console-kicker">@_profile.EnvironmentKind · environment diagnostics</p>
-                <h1>@_profile.DisplayName</h1>
-                <p>@_profile.ServerBaseUri</p>
+    <section class="console-page @(V4Enabled ? "console-environments-v4" : null)">
+        @if (V4Enabled)
+        {
+            <link rel="stylesheet" href="_content/Honua.Console.Shell/css/environments-v4.css" />
+            <ConsolePageHeading Title="@_profile.DisplayName">
+                <ChildContent>
+                    <p>Diagnostics for the @_profile.EnvironmentKind environment at <span class="console-environment-server">@_profile.ServerBaseUri</span></p>
+                </ChildContent>
+                <Actions>
+                    <EnvironmentTrustBadge State="_state" />
+                </Actions>
+            </ConsolePageHeading>
+        }
+        else
+        {
+            <div class="console-detail-heading">
+                <div class="console-page-heading">
+                    <p class="console-kicker">@_profile.EnvironmentKind · environment diagnostics</p>
+                    <h1>@_profile.DisplayName</h1>
+                    <p>@_profile.ServerBaseUri</p>
+                </div>
+                <div class="console-detail-actions">
+                    <EnvironmentTrustBadge State="_state" />
+                </div>
             </div>
-            <div class="console-detail-actions">
-                <EnvironmentTrustBadge State="_state" />
-            </div>
-        </div>
+        }
 
         @if (_state?.TrustBlocked == true)
         {
-            <article class="console-panel console-status-danger" role="alert">
+            <div class="console-panel console-status-danger" role="alert">
                 <h2>Environment access blocked</h2>
                 <p class="console-muted">@(_state.Trust?.SanitizedMessage ?? "The certificate changed and must be acknowledged or revalidated.")</p>
-            </article>
+            </div>
         }
 
         <div class="console-section">
@@ -81,12 +98,14 @@ else
         </div>
 
         <div class="console-toolbar">
-            <a href="/environments">Back to environments</a>
+            <a href="@ConsoleNavigation.ToConsoleHref("/environments")">Back to environments</a>
         </div>
     </section>
 }
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     [Parameter]
     public string ProfileId { get; set; } = string.Empty;
 

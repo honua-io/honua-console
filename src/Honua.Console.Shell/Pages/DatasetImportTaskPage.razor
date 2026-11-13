@@ -1,9 +1,57 @@
 @page "/operate/resources/import/task"
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@inject NavigationManager Nav
+@inject IServiceProvider ServiceProvider
 
 <PageTitle>Dataset import · Honua Console</PageTitle>
-<section class="console-page" data-dataset-import-panel>
-    <h1>Import dataset</h1>
-    <p>Contribute the original file to the import task in this conversation.</p>
+@if (ConsoleWorkspaceFeatures.IsEnabled(Configuration))
+{
+    @if (V4Enabled)
+    {
+        <section class="console-page" data-dataset-import-panel>
+            <ConsolePageHeading Title="Import dataset">
+                <p>Contribute the original file to the import task in this conversation.</p>
+            </ConsolePageHeading>
+            <ConsolePanel Title="Original file" HeadingId="dataset-import-file-heading">@TaskBody</ConsolePanel>
+        </section>
+    }
+    else
+    {
+        <section class="console-page" data-dataset-import-panel>
+            <h1>Import dataset</h1>
+            <p>Contribute the original file to the import task in this conversation.</p>
+            @TaskBody
+        </section>
+    }
+}
+else if (V4Enabled)
+{
+    <section class="console-page">
+        <ConsolePageHeading Title="Import a file">
+            <ChildContent>@ExperimentalNotice</ChildContent>
+            <Actions>@FileImportLink</Actions>
+        </ConsolePageHeading>
+    </section>
+}
+else
+{
+    <section class="console-page">
+        <h1>Import a file</h1>
+        @ExperimentalNotice
+        @FileImportLink
+    </section>
+}
+
+@code {
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private RenderFragment ExperimentalNotice =>
+        @<p>The conversation import task is experimental. Use file import to preview the coordinate system and import a dataset.</p>;
+
+    private RenderFragment FileImportLink =>
+        @<a class="console-button" href="@Nav.ToConsoleHref("/operate/resources/import")">Open file import</a>;
+
+    private RenderFragment TaskBody => @<text>
     <p role="status" aria-live="polite" data-import-status>Checking the current task…</p>
     <dl>
         <dt>Destination</dt><dd data-import-destination>Not bound</dd>
@@ -24,4 +72,5 @@
         </div>
     </div>
     <p>The file is checked in bounded chunks. A retained source is separate from an accepted import job.</p>
-</section>
+    </text>;
+}

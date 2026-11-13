@@ -1,4 +1,4 @@
-# The same published Console bits are exercised in PR CI and digest replay.
+# Legacy server-host regression fixture; shipping WASM has a separate static-bundle gate.
 services:
   postgis:
     ports:
@@ -11,7 +11,7 @@ services:
       # direct, while publication keeps its separate governed approval floor.
       Licensing__Mode: Disabled
   console:
-    image: ${HONUA_CONSOLE_E2E_CONSOLE_IMAGE:?Set a built Console image or immutable GHCR digest}
+    image: ${HONUA_CONSOLE_E2E_CONSOLE_IMAGE:?Set a legacy test-fixture image or immutable replay digest}
     network_mode: "service:postgis"
     depends_on:
       honua-server:

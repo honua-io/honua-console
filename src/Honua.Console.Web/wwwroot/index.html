@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self'; form-action 'self'" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/console/" />
+
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="_content/Honua.Console.Shell/honua-console.css" />
+
+
+    <link rel="icon" type="image/png" href="favicon.png" />
+
+</head>
+
+<body>
+    <div id="app"><p role="status">Loading Honua Console…</p></div>
+
+    <div id="blazor-error-ui" data-nosnippet>
+        <span class="blazor-error-ui-text">Honua Console encountered an error.</span>
+        <a href="." class="reload">Reload</a>
+        <span class="dismiss" role="button" tabindex="0" aria-label="Dismiss">🗙</span>
+    </div>
+
+    <script src="js/console-theme.js"></script>
+    <script src="js/navigation-state.js"></script>
+    <script src="js/modal-surface.js"></script>
+    <script src="js/publication-tree.js"></script>
+    <script src="js/conversation-drawer.js"></script>
+    <script src="js/fragment-navigation.js"></script>
+    <script src="_framework/blazor.webassembly.js"></script>
+
+    <script type="module" src="js/agent-workspace.mjs"></script>
+    <script type="module" src="js/studio-embed.mjs"></script>
+    <script type="module" src="js/dataset-import-panel.mjs"></script>
+</body>
+
+</html>

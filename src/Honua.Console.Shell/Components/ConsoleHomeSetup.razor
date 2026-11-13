@@ -1,10 +1,11 @@
+@inject NavigationManager ConsoleNavigation
 <div class="console-start-options" data-first-run-actions>
-    <a class="console-panel console-start-option" href="/setup/local" data-start-local>
+    <a class="console-panel console-start-option" href="@ConsoleNavigation.ToConsoleHref("/setup/local")" data-start-local>
         <h2>Set up Honua locally</h2>
         <p>Use your local agent to check Docker and start Honua on your computer.</p>
         <strong>Start with Docker →</strong>
     </a>
-    <a class="console-panel console-start-option" href="/environments/new" data-connect-existing>
+    <a class="console-panel console-start-option" href="@ConsoleNavigation.ToConsoleHref("/environments/new")" data-connect-existing>
         <h2>Connect an existing deployment</h2>
         <p>Choose your server address and sign in with your own account.</p>
         <strong>Connect →</strong>

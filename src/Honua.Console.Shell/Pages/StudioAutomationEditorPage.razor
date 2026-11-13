@@ -10,6 +10,7 @@
 <section class="console-page automation-page automation-editor-page @(IsConsoleV4Enabled ? "console-automations-v4" : null)">
     @if (IsConsoleV4Enabled)
     {
+        <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/studio-automations-v4.css" />
         <ConsolePageHeading Title="Automation editor">
             <p>Edit rules and save a new automation version.</p>
@@ -65,8 +66,8 @@
                 <span class="console-status" role="status" aria-live="polite">@(_busyLabel ?? "Working…")</span>
             }
             <button class="console-button console-button-secondary" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="SaveAsync">Save version</button>
-            <a class="console-button-link console-button-secondary" href="@VersionsHref">Versions</a>
-            <a class="console-button-link console-button-secondary" href="/studio/automations">Automations</a>
+            <a class="console-button-link console-button-secondary" href="@Navigation.ToConsoleLinkHref(VersionsHref)">Versions</a>
+            <a class="console-button-link console-button-secondary" href="@Navigation.ToConsoleHref("/studio/automations")">Automations</a>
         </header>
 
         @if (_errorMessage is not null)
@@ -254,6 +255,12 @@
 </section>
 
 @code {
+    private ConsoleAgentPageContext AgentContext => ConsoleAgentPageContext.EditorContext(
+        Navigation.Uri,
+        _dirty.IsDirty ? 1 : 0,
+        _busy ? 1 : 0,
+        new Dictionary<string, string> { ["draftId"] = DraftId ?? string.Empty, ["tab"] = _activeTab });
+
     private bool IsConsoleV4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     private const string TabRules = "rules";
@@ -289,8 +296,8 @@
 
     private string VersionsHref =>
         _draft is null || string.IsNullOrWhiteSpace(_draft.DraftId)
-            ? "/studio/automations"
-            : $"/studio/automations/{_draft.DraftId}/versions";
+            ? "studio/automations"
+            : $"studio/automations/{_draft.DraftId}/versions";
 
     protected override async Task OnParametersSetAsync()
     {
@@ -380,7 +387,7 @@
 
         if (!string.Equals(_activeDraftRouteId, _draft.DraftId, StringComparison.Ordinal))
         {
-            Navigation.NavigateTo($"/studio/automations/{_draft.DraftId}", replace: true);
+            Navigation.NavigateTo(Navigation.ToConsoleHref($"/studio/automations/{_draft.DraftId}"), replace: true);
         }
     }
 

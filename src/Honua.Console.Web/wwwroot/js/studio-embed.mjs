@@ -9,6 +9,7 @@ import { mountStudioStyleControls } from './studio-style-controls.mjs';
 import { mountStudioLayerPicker } from './studio-layer-picker.mjs';
 import { hasPendingStudioLeaseTurn, trackStudioLeaseTurns } from './studio-lease-turns.mjs';
 import { captureStudioDesignFocus } from './studio-design-focus.mjs';
+import { readStudioSession, StudioSignInRequired } from './studio-session.mjs';
 let assets;
 let element;
 const elementsByEnvironment = new Map();
@@ -23,7 +24,7 @@ async function studioElement(session) {
     let app = elementsByEnvironment.get(session.environmentId);
     if (!app) {
         app = document.createElement('honua-studio-app');
-        app.styleEditorAssetsUrl = '/_studio/maputnik/index.html';
+        app.styleEditorAssetsUrl = new URL('../_studio/maputnik/index.html', import.meta.url).href;
         trackStudioLeaseTurns(app);
         app.routingMode = 'host'; app.setAttribute('base-path', '/studio');
         app.addEventListener('honua-studio-navigate', event => {
@@ -38,7 +39,7 @@ async function studioElement(session) {
             if (workspace?.session?.environmentId === session.environmentId) {
                 workspace.agentSession?.attachDraft(event.detail ? {draftId:event.detail.draftId,generation:event.detail.generation} : undefined);
                 if (!event.detail) {
-                    const staleAuthority=app.workspaceAuthorityChanged && workspace.session.principalId !== app.workspaceCookieBinding?.principalId;
+                    const staleAuthority=app.workspaceAuthorityChanged && !sameCookieAuthority(workspace.session,app.workspaceCookieBinding);
                     if(staleAuthority) {
                         workspace.agentSession?.sdkSession?.close();workspace.agentSession=null;
                     }
@@ -73,13 +74,18 @@ async function studioElement(session) {
     const previous=app.workspaceCookieBinding;
     const requestGeneration = (app.workspaceBindingRequest || 0) + 1;
     app.workspaceBindingRequest = requestGeneration;
-    const changedAuthority=Boolean(previous && (previous.principalId !== session.principalId || previous.environmentId !== session.environmentId || previous.sourcePathBase !== session.sourcePathBase));
+    const changedAuthority=Boolean(previous && !sameCookieAuthority(previous,session));
     if (changedAuthority) await app.prepareWorkspaceTurn();
     if (app.workspaceBindingRequest !== requestGeneration) throw new Error('A newer Studio connection replaced this request.');
     const cookieSession = createStudioCookieSession(session);
     app.workspaceAuthorityChanged=changedAuthority;
-    app.workspaceCookieBinding={principalId:session.principalId,environmentId:session.environmentId,sourcePathBase:session.sourcePathBase};
+    app.workspaceCookieBinding={principalId:session.principalId,environmentId:session.environmentId,sourcePathBase:session.sourcePathBase,tenantId:session.tenantId};
+    // The released bundle's renewal comparison predates tenant identity. Clear the
+    // session first so its normal authority reset detaches the previous tenant's draft.
+    if (previous && previous.tenantId !== session.tenantId) app.session = undefined;
     app.session = cookieSession;
+    // Native process reads use the captured Console transport; legacy hosts omit this binding.
+    app.workspaceProcessBinding = session.transport ? {...app.workspaceCookieBinding, transport:session.transport} : undefined;
     app.workspaceSavedMaps?.sessionChanged();
     app.workspace = window.honuaAgentWorkspace;
     if (app.workspace) app.workspace.studioBindingProvider = () => app.isConnected ? app.workspaceCookieBinding : undefined;
@@ -106,8 +112,6 @@ async function studioElement(session) {
     app.agentSessionAdapter = app.workspaceAgentAdapter;
     return app;
 }
-class StudioSignInRequired extends Error {}
-const SIGN_IN_REQUIRED_STATUSES = new Set([401, 403]);
 
 async function mount() {
     const host = document.querySelector('[data-studio-embed]');
@@ -115,13 +119,10 @@ async function mount() {
     host.dataset.mounted = 'true';
     const status = host.querySelector('[data-studio-status]');
     try {
-        assets ||= import('/_studio/console.js');
+        assets ||= import(new URL('../_studio/console.js', import.meta.url).href);
         const module = await assets;
         module.registerAllStudioElements();
-        const response = await fetch('/api/agent-workspace/session', { credentials: 'same-origin' });
-        if (SIGN_IN_REQUIRED_STATUSES.has(response.status)) throw new StudioSignInRequired();
-        if (!response.ok) throw new Error(`The workspace session request failed with ${response.status}.`);
-        session = await response.json();
+        session = await readStudioSession();
         element = await studioElement(session);
         element.currentPath = location.pathname;
         host.querySelector('[data-studio-mount]').append(element);
@@ -148,7 +149,7 @@ async function mount() {
         }
         status.textContent = `Connected to ${session.environmentName}`;
         if (!document.querySelector('link[data-studio-style]')) {
-            const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = '/_studio/style.css';
+            const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = new URL('../_studio/style.css', import.meta.url).href;
             link.dataset.studioStyle = 'true'; document.head.append(link);
         }
     } catch (error) {
@@ -167,11 +168,11 @@ async function mountProcesses() {
     host.dataset.mounted = 'true';
     const status = host.querySelector('[data-processes-status]');
     try {
-        assets ||= import('/_studio/console.js');
+        assets ||= import(new URL('../_studio/console.js', import.meta.url).href);
         const module = await assets; module.registerAllStudioElements();
-        const response = await fetch('/api/agent-workspace/session', { credentials: 'same-origin' });
-        if (!response.ok) throw new Error('Sign in to Honua to open Processes.');
-        const session = await response.json();
+        const session = await readStudioSession().catch(error => {
+            throw error instanceof StudioSignInRequired ? new Error('Sign in to Honua to open Processes.') : error;
+        });
         let view;
         const options = { environmentId: session.environmentId, csrfToken: session.csrfToken, principalId:session.principalId,
             fetchImpl:capturedProcessFetch(session,{current:()=>view?.session || session}) };
@@ -180,11 +181,11 @@ async function mountProcesses() {
         const custom = document.createElement('honua-studio-custom-processes');
         custom.client = new module.LocalProcessWorkspace({...options,maxArtifactUploadBytes:session.maxArtifactUploadBytes,workspaceId:()=>window.honuaAgentWorkspace?.workspaceId});
         view = processView = {builtin,custom,host,mode:'builtin',session};
+        // Local Python/.NET processes require the Console host.
+        const localProcesses = !session.transport;
         const sourceApp=await studioElement(session);
         const pickerApp=async()=>{
-            const response=await fetch('/api/agent-workspace/session',{credentials:'same-origin'});
-            if(!response.ok) throw new Error('Sign in again before choosing a process source.');
-            const renewed=await response.json();
+            const renewed=await readStudioSession().catch(()=>{throw new Error('Sign in again before choosing a process source.');});
             if(processView!==view || !host.isConnected || view.mode!=='builtin' || !sameCookieAuthority(session,renewed))
                 throw new Error('The process view or connection changed. Review it before choosing a source.');
             const app=await studioElement(renewed);
@@ -193,7 +194,9 @@ async function mountProcesses() {
         };
         if(typeof sourceApp.listProcessSources==='function' && typeof sourceApp.resolveProcessSource==='function')
             builtin.sourcePicker={list:async()=> (await pickerApp()).listProcessSources(),resolve:async id=>(await pickerApp()).resolveProcessSource(id)};
-        const workspace=window.honuaAgentWorkspace;
+        const candidate=window.honuaAgentWorkspace;
+        const workspace=session.transport && (candidate?.session?.principalId!==session.principalId
+            || candidate?.session?.environmentId!==session.environmentId) ? undefined : candidate;
         if(workspace) {
             workspace.prepareContextProvider=()=> location.pathname === '/studio/processes' ? processContextPreparation() : undefined;
             if(workspace.context?.task?.kind === 'workflow-package') {
@@ -203,7 +206,7 @@ async function mountProcesses() {
                     view.builtinIdentity={packageId:task.id,version:task.revision,contentHash:task.contentHash};
                     await workspace.select([],task);
                 }
-            } else if(workspace.context?.task?.kind === 'local-process-workspace') {
+            } else if(localProcesses && workspace.context?.task?.kind === 'local-process-workspace') {
                 const task=workspace.context.task;view.mode='custom';
                 const current=captureWorkspaceFollow(workspace,task,()=>processView===view && host.isConnected && view.mode==='custom');
                 if(await custom.attachWorkspaceTask({projectId:task.id,revision:task.revision,sourceDigest:task.contentHash}) && current()) {
@@ -212,7 +215,9 @@ async function mountProcesses() {
                 }
             } else await workspace.select([],null);
         }
-        if(processView!==view || !host.isConnected || workspace?.session?.principalId!==session.principalId || workspace?.session?.environmentId!==session.environmentId) return;
+        if(session.transport) await session.transport.assertCurrent();
+        if(processView!==view || !host.isConnected || (!session.transport
+            && (workspace?.session?.principalId!==session.principalId || workspace?.session?.environmentId!==session.environmentId))) return;
         custom.addEventListener('focusin',()=>{
             if(!host.isConnected || processView!==view) return;
             view.mode='custom';
@@ -234,7 +239,8 @@ async function mountProcesses() {
             return actual;
         };
         host.querySelector('[data-processes-builtin]').append(builtin);
-        host.querySelector('[data-processes-custom]').append(custom);
+        const customSlot = host.querySelector('[data-processes-custom]');
+        if(localProcesses) customSlot.append(custom); else customSlot.hidden = true;
         custom.addEventListener('honua-processes-layer-ready', async event => {
             try {
                 if(!host.isConnected || window.honuaAgentWorkspace?.session?.environmentId !== session.environmentId) return;
@@ -263,9 +269,7 @@ scheduleCookieSessionRenewal(() => session, async () => {
     const retained=sharedBinding && element?.workspaceCookieBinding?.principalId === sharedBinding ? element : undefined;
     if(!view && !app && !retained) return;
     try {
-        const response=await fetch('/api/agent-workspace/session',{credentials:'same-origin'});
-        if(!response.ok) return;
-        const refreshed=await response.json(),bound=view?.session || session;
+        const refreshed=await readStudioSession(),bound=view?.session || session;
         if(!sameCookieAuthority(bound,refreshed)) {
             const status=document.querySelector(view ? '[data-processes-status]' : '[data-studio-status]');
             if(status) status.textContent='The connection changed. Save your work and reopen this view to reconnect.';

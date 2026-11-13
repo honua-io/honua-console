@@ -1,3 +1,5 @@
+using Honua.Console.Contracts;
+
 namespace Honua.Console.Shell.Models;
 
 public static class StudioWorkflowContractValues
@@ -12,6 +14,9 @@ public static class StudioWorkflowContractValues
     public const string NodeCategoryTransform = "transform";
     public const string NodeCategorySink = "sink";
 
+    public const string FailureModeRouteEdges = "route-failure-edges";
+    public const string FailureModeFailFast = "fail-fast";
+
     public const string EdgeKindSuccess = "success";
     public const string EdgeKindFailure = "failure";
 
@@ -22,6 +27,15 @@ public static class StudioWorkflowContractValues
 
 public sealed class StudioWorkflowPackageDraft
 {
+    public void ApplyRetryToAllNodes()
+    {
+        var policy = RetryPolicy.ToExecutionPolicy();
+        foreach (var node in Nodes)
+        {
+            node.RetryPolicy = policy;
+        }
+    }
+
     public string DraftId { get; set; } = string.Empty;
     public string ContentItemId { get; set; } = string.Empty;
     public string CurrentVersionId { get; set; } = string.Empty;
@@ -88,6 +102,11 @@ public sealed class StudioWorkflowNode
     public int Row { get; set; }
     public List<string> InputPorts { get; set; } = [];
     public List<string> OutputPorts { get; set; } = [];
+    public StepRetryPolicy? RetryPolicy { get; set; }
+    public WorkflowStepFailurePolicy? FailurePolicy { get; set; }
+    public int? TimeoutSeconds { get; set; }
+    public WorkflowStepCondition? Condition { get; set; }
+    public WorkflowForEachSpec? ForEach { get; set; }
     public Dictionary<string, string> Configuration { get; set; } = new(StringComparer.Ordinal);
 }
 
@@ -129,9 +148,19 @@ public sealed class StudioWorkflowWorkerProfile
 
 public sealed class StudioWorkflowRetryPolicy
 {
+    private const double FixedBackoffMultiplier = 1;
+
+    public StepRetryPolicy ToExecutionPolicy() => new()
+    {
+        MaxAttempts = MaxAttempts,
+        InitialDelaySeconds = BackoffSeconds,
+        BackoffMultiplier = FixedBackoffMultiplier,
+        MaxDelaySeconds = Math.Max(1, BackoffSeconds)
+    };
+
     public int MaxAttempts { get; set; } = 3;
     public int BackoffSeconds { get; set; } = 60;
-    public string FailureMode { get; set; } = "route-failure-edges";
+    public string FailureMode { get; set; } = StudioWorkflowContractValues.FailureModeRouteEdges;
 }
 
 public sealed class StudioWorkflowPublicationIntent
@@ -188,6 +217,8 @@ public sealed class StudioWorkflowSaveResult
 
 public sealed class StudioWorkflowDryRunResult
 {
+    public IReadOnlyList<StudioWorkflowValidationIssue> ValidationIssues { get; set; } = [];
+
     public string JobId { get; set; } = string.Empty;
     public string JobKind { get; set; } = StudioWorkflowContractValues.DryRunJobKind;
     public string Status { get; set; } = "queued";

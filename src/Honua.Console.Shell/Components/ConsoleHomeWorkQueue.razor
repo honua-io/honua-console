@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IConsoleApprovalInboxClient Inbox
@@ -56,7 +57,7 @@
         <div class="console-home-inbox-metrics" role="status" aria-live="polite">
             @if (ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true)
             {
-                <div class="console-home-pending" data-home-awaiting-count>
+                <div class="console-home-pending console-summary" data-home-awaiting-count>
                     <ConsoleMetricTile Label="@(_inbox.PartialResult ? "Awaiting approval in returned sources" : "Awaiting approval")"
                                        Value="snapshot.AwaitingApprovalCount" />
                 </div>
@@ -92,7 +93,7 @@
     {
         <p role="note" data-home-inbox-partial>@ApprovalInboxPresentation.PartialMessage(_inbox.Message)</p>
     }
-    <a class="console-button-link console-home-inbox-cta" href="/inbox" data-open-inbox>Open inbox</a>
+    <a class="console-button-link console-home-inbox-cta" href="@ConsoleNavigation.ToConsoleHref("/inbox")" data-open-inbox>Open inbox</a>
 </section>
 
 @code {

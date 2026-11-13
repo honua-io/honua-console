@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @inject IConsoleCapabilityManifest Capabilities
 @page "/operate/deploy"
 @using Honua.Console.Shell.Components
@@ -5,6 +6,7 @@
 @using Honua.Console.Shell.Services
 @inject IConsoleDeployApprovalClient ApprovalClient
 @inject IConsoleGitOpsReleaseClient ReleaseClient
+@inject IServiceProvider Services
 
 @* OPERATE → DEPLOY — one governed flow for two capabilities, both hiding the gitops
    plumbing behind an approval + outcome surface (matching the AI-mode direction in #193/#200):
@@ -25,16 +27,26 @@
    404/501 there degrades this page to exactly its pre-#290 behavior). Raw PR/gitops
    mechanics live behind a Details toggle on each card, never on the primary surface. *@
 
-<section class="console-page console-operate-page operate-deploy-page">
-    <div class="console-page-heading operate-heading">
-        <p class="console-kicker">Operator workflow</p>
-        <h1>Deploy</h1>
-        <p>
-            Upgrade the target Honua server and promote metadata across environments as governed,
-            approved, rollback-able operations. The gitops plumbing stays hidden — you approve the
-            outcome here; the PR and reconcile details live behind a Details toggle.
-        </p>
-    </div>
+<section class="console-page console-operate-page @(V4Enabled ? "console-monitoring-v4 console-deploy-v4" : null) operate-deploy-page">
+    @if (V4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/operate-monitoring-v4.css" />
+        <ConsolePageHeading Title="Deploy">
+            <p>Upgrade the server and promote metadata between environments as approved operations you can roll back. Pull request and reconcile details stay behind each Details toggle.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading operate-heading">
+            <p class="console-kicker">Operator workflow</p>
+            <h1>Deploy</h1>
+            <p>
+                Upgrade the target Honua server and promote metadata across environments as governed,
+                approved, rollback-able operations. The gitops plumbing stays hidden — you approve the
+                outcome here; the PR and reconcile details live behind a Details toggle.
+            </p>
+        </div>
+    }
 
     <nav class="operate-section-nav" aria-label="Deploy sections">
         <a href="#all-operations">All operations</a>
@@ -96,7 +108,7 @@
                     rollback readiness live on the release surface.
                 </p>
             </div>
-            <a class="console-button-link" href="@GitOpsReleaseRoutes.Releases" data-open-releases>
+            <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref(GitOpsReleaseRoutes.Releases)" data-open-releases>
                 Open releases
             </a>
         </div>
@@ -128,7 +140,7 @@
                 @foreach (var proposal in PromotionProposals)
                 {
                     <li class="operate-deploy-promote-row" data-promote-proposal="@proposal.ReleasePackageId">
-                        <a class="operate-deploy-promote-link" href="@GitOpsReleaseRoutes.ReleaseDetail(proposal.ReleasePackageId)">
+                        <a class="operate-deploy-promote-link" href="@ConsoleNavigation.ToConsoleLinkHref(GitOpsReleaseRoutes.ReleaseDetail(proposal.ReleasePackageId))">
                             <span class="operate-deploy-promote-head">
                                 <strong>@proposal.Title</strong>
                                 <span class="console-status @(proposal.HasBlockingFindings ? "console-state-danger" : "console-state-success")">
@@ -236,6 +248,8 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     /// <summary>
     /// A deploy-control operation id to pre-track on load (console#292 correlation-id chip deep
     /// link, e.g. <c>CorrelationIdRoutes.Resolve(CorrelationIdKind.OperationId, id)</c>). Kept

@@ -1,29 +1,64 @@
 @page "/operate/connections"
 @inject IOperateTransitionDataSource OperateData
+@inject IServiceProvider Services
+@inject NavigationManager Navigation
+
+<ConsoleAgentContext Context="@AgentContext" />
 
 <section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Operate / Connections</p>
-        <h1>Data Connections</h1>
-        <p>Connection tests report structured checks and safe evidence for operators before datasets or services use the source.</p>
-    </div>
-
-    <div class="console-toolbar">
-        <a class="console-button-link" href="/operate/connections/new">Add Connection</a>
-        <a class="console-button-link" href="/operate/publishing/quick">Publish a layer</a>
-        <a class="console-button-link" href="/operate/resources/import">Import a file</a>
-        <a class="console-button-link" href="/operate/import/service">Import from a service</a>
-    </div>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Data connections">
+            <ChildContent><p>Connection tests report structured checks and safe evidence before datasets or services use the source.</p></ChildContent>
+            <Actions>@ConnectionActions</Actions>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Connections</p>
+            <h1>Data Connections</h1>
+            <p>Connection tests report structured checks and safe evidence for operators before datasets or services use the source.</p>
+        </div>
+        @ConnectionActions
+    }
 
     <ConsoleConnectionNotice Heading="Could not read data connections" States="_states" OnRetry="LoadAsync" />
 
     @if (_connections.Count == 0 && _states.Count == 0)
     {
-        <EmptyState Area="operate" Subject="connections" ActionHref="/operate/connections/new" ActionText="Add Connection" />
+        <EmptyState Area="operate" Subject="connections" ActionHref="@Navigation.ToConsoleHref("/operate/connections/new")" ActionText="Add Connection" />
     }
     else if (_connections.Count > 0)
     {
-        <ConsoleTableRegion Class="console-table-wrap" Label="Connections">
+        @if (V4Enabled)
+        {
+            <ConsolePanel Title="Connections" HeadingId="connections-heading">@ConnectionTable</ConsolePanel>
+        }
+        else
+        {
+            @ConnectionTable
+        }
+    }
+</section>
+
+@code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = "/operate/connections",
+        Entities = _connections.Select(connection => ConsoleAgentEntity.ForConnection(connection.Id)).ToArray(),
+        Unsaved = new() { PendingOperationCount = _loading ? 1 : 0 }
+    };
+    private RenderFragment ConnectionActions => @<text>
+<div class="@(V4Enabled ? "console-panel-actions" : "console-toolbar")">
+        <a class="console-button-link" href="@Navigation.ToConsoleHref("/operate/connections/new")">Add Connection</a>
+        <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref("/operate/publishing/quick")">Publish a layer</a>
+        <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref("/operate/resources/import")">Import a file</a>
+        <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref("/operate/import/service")">Import from a service</a>
+    </div></text>;
+    private RenderFragment ConnectionTable => @<text>
+        <ConsoleTableRegion Class="console-table-wrap" Label="@(V4Enabled ? "Connection table" : "Connections")">
             <table class="console-table">
                 <thead>
                     <tr>
@@ -40,7 +75,7 @@
                     {
                         <tr>
                             <td>
-                                <a href="@($"/operate/connections/{connection.Id}")">@connection.Name</a>
+                                <a href="@Navigation.ToConsoleHref(ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForConnection(connection.Id)))">@connection.Name</a>
                                 <small>@connection.Principal</small>
                             </td>
                             <td>@connection.Provider</td>
@@ -54,18 +89,16 @@
                                 }
                                 else
                                 {
-                                    <a href="@($"/operate/connections/{connection.Id}/diagnostics")">@connection.LastDiagnostic.FailureCode</a>
+                                    <a href="@Navigation.ToConsoleHref(ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForConnection(connection.Id)) + "/diagnostics")">@connection.LastDiagnostic.FailureCode</a>
                                 }
                             </td>
                         </tr>
                     }
                 </tbody>
             </table>
-        </ConsoleTableRegion>
-    }
-</section>
+        </ConsoleTableRegion></text>;
 
-@code {
+    private bool _loading = true;
     private IReadOnlyList<OperateConnectionSummary> _connections = Array.Empty<OperateConnectionSummary>();
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
@@ -73,9 +106,17 @@
 
     private async Task LoadAsync()
     {
-        var view = await OperateData.GetConnectionsViewAsync();
-        _connections = view.Connections;
-        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Connections");
+        _loading = true;
+        try
+        {
+            var view = await OperateData.GetConnectionsViewAsync();
+            _connections = view.Connections;
+            _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Connections");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private static string StatusClass(string status) =>

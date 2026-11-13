@@ -1,3 +1,4 @@
+@inject NavigationManager ConsoleNavigation
 @namespace Honua.Console.Shell.Components.Operate
 @using Honua.Console.Shell.Models
 
@@ -16,7 +17,7 @@
             }
             else
             {
-                <span>No datasets yet.</span> <a href="/operate/data/new">Add data</a><span> — it becomes a dataset you can publish as a layer.</span>
+                <span>No datasets yet.</span> <a href="@ConsoleNavigation.ToConsoleHref("/operate/data/new")">Add data</a><span> — it becomes a dataset you can publish as a layer.</span>
             }
         </p>
     }
@@ -54,7 +55,7 @@
                                 </li>
                             }
                             <li class="resource-tree__expose">
-                                <a class="console-link" href="@ExposeHref(node)" data-expose>+ expose another protocol…</a>
+                                <a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref(ExposeHref(node))" data-expose>+ expose another protocol…</a>
                             </li>
                         </ul>
                     }
@@ -62,7 +63,7 @@
                     @if (!node.HasPublications)
                     {
                         <div class="resource-tree__draft-actions">
-                            <a class="console-button" href="@PublishHref(node)" data-publish>Publish →</a>
+                            <a class="console-button" href="@ConsoleNavigation.ToConsoleLinkHref(PublishHref(node))" data-publish>Publish →</a>
                         </div>
                     }
                 </li>
@@ -115,19 +116,12 @@
         }
     }
 
-    private async Task SelectPublication(ResourceTreeNode node, PublicationTreeNode publication)
-    {
-        if (publication.Route is null) return;
-        if (OnPublicationSelected.HasDelegate)
-        {
-            await OnPublicationSelected.InvokeAsync(new LayerPreviewPane.PreviewSelection(
-                node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, publication.Route));
-        }
-    }
+    private Task SelectPublication(ResourceTreeNode node, PublicationTreeNode publication) =>
+        LayerPreviewPane.SelectAsync(OnPublicationSelected, node, publication);
 
-    private static string PublishHref(ResourceTreeNode node) =>
+    internal static string PublishHref(ResourceTreeNode node) =>
         $"/operate/data/new?source=existingresource&resource={Uri.EscapeDataString(node.ResourceId)}";
 
-    private static string ExposeHref(ResourceTreeNode node) =>
+    internal static string ExposeHref(ResourceTreeNode node) =>
         $"/operate/data/new?source=existingresource&resource={Uri.EscapeDataString(node.ResourceId)}&step=publish";
 }

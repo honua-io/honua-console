@@ -1,4 +1,5 @@
-<section class="console-state console-state-@Kind" aria-live="polite">
+@inject NavigationManager ConsoleNavigation
+<section class="console-state console-state-@Kind @(Treatment == ConsoleStateTreatment.Informational ? "console-state-informational" : null)" aria-live="polite">
     @if (!string.IsNullOrWhiteSpace(Kicker))
     {
         <p class="console-kicker">@Kicker</p>
@@ -7,12 +8,13 @@
     <p class="console-muted">@Message</p>
     @if (!string.IsNullOrWhiteSpace(ActionHref) && !string.IsNullOrWhiteSpace(ActionLabel))
     {
-        <a class="console-button-link" href="@ActionHref">@ActionLabel</a>
+        <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref(ActionHref)">@ActionLabel</a>
     }
     @ChildContent
 </section>
 
 @code {
+    [Parameter] public ConsoleStateTreatment Treatment { get; set; }
     [Parameter] public string Kind { get; set; } = "empty";
     [Parameter] public string? Kicker { get; set; }
     [Parameter] public string Title { get; set; } = "Nothing to show";

@@ -22,6 +22,7 @@ public sealed class OperateEventsPageRenderTests
         context.Services.AddSingleton<IStudioWorkflowPackageClient>(client);
         context.Services.GetRequiredService<NavigationManager>().NavigateTo($"/operate/events?jobId={run.JobId}");
 
+        var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
         var page = context.Render<OperateEventsPage>();
 
         AssertPresentation(page, presentation);
@@ -31,7 +32,19 @@ public sealed class OperateEventsPageRenderTests
         Assert.All(page.FindAll(".console-event-list small"), node => Assert.Equal(evidence!.VersionId, node.TextContent));
         Assert.All(page.FindAll(".console-event-list span"), node => Assert.Equal(evidence!.CreatedAt.ToString("HH:mm:ss"), node.TextContent));
         Assert.Empty(page.FindAll("[data-events-dead-end]"));
-        if (presentation == ConsolePresentationMode.V4) Capture("events-run", page.Markup);
+        if (presentation == ConsolePresentationMode.V4)
+        {
+            CatalogAdminPreview.CaptureV4("events-run", page.Markup);
+            Assert.Equal("/operate/events", registry.Current.Route);
+            var selected = Assert.Single(registry.Current.Selection);
+            Assert.Equal(ConsoleAgentEntityKind.Job, selected.Kind);
+            Assert.Equal(run.JobId, selected.Id);
+            Assert.Equal(selected, Assert.Single(registry.Current.Entities));
+        }
+        else Assert.Equal(0, registry.Current.Generation);
+        await context.DisposeComponentsAsync();
+        Assert.Empty(registry.Current.Entities);
+        Assert.Empty(registry.Current.Selection);
     }
 
     [Theory]
@@ -52,12 +65,13 @@ public sealed class OperateEventsPageRenderTests
         Assert.Equal("/operate/observability", page.Find("[data-events-exit-jobs]").GetAttribute("href"));
         Assert.Empty(page.FindAll(".console-event-list"));
         Assert.Contains("GET /api/v1/admin/jobs/{jobId}", page.Markup, StringComparison.Ordinal);
-        if (presentation == ConsolePresentationMode.V4) Capture("events-missing", page.Markup);
+        if (presentation == ConsolePresentationMode.V4) CatalogAdminPreview.CaptureV4("events-missing", page.Markup);
     }
 
     private static BunitContext CreateContext(ConsolePresentationMode presentation)
     {
         var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleAgentContextRegistry());
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         return context;
     }
@@ -67,7 +81,4 @@ public sealed class OperateEventsPageRenderTests
         Assert.Equal(presentation == ConsolePresentationMode.V4 ? "Workflow events" : "Workflow Event Evidence", Assert.Single(page.FindAll("h1")).TextContent);
         Assert.Equal(presentation == ConsolePresentationMode.V4 ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
     }
-
-    private static void Capture(string name, string markup) =>
-        CatalogAdminPreview.Capture(name, $"<div class=\"console-shell\" data-console-v4=\"true\">{markup}</div>");
 }

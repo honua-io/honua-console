@@ -152,9 +152,49 @@ public sealed class OperateHealthPageTests
         Assert.Contains("not permitted", html);
     }
 
-    private static async Task<string> RenderAsync(IOpsHealthDataSource dataSource)
+    private static readonly (string Id, string V4, string Legacy)[] SectionHeadings =
+    [
+        ("serving-latency-heading", "Latency and error rate by protocol", "Per-Protocol Latency And Error Rate"),
+        ("geoprocessing-heading", "Active jobs by status and backend", "Active Jobs By Status And Backend"),
+        ("alert-dispatch-heading", "Backlog and dead letters", "Backlog And Dead-Letters"),
+        ("deploy-heading", "Deploy readiness and platform release", "Deploy Readiness And Platform Release"),
+        ("database-heading", "Connection pool, cache and errors", "Connection Pool, Cache, And Errors"),
+        ("health-checks-heading", "Comprehensive health checks", "Comprehensive Health Checks"),
+        ("trends-heading", "Latency, errors, queue and backlog trends", "Serving Latency, Error Rate, Queue, And Backlog Over Time"),
+    ];
+
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task PresentationKeepsSectionsDrilldownsAndRefresh(ConsolePresentationMode presentation)
+    {
+        var view = OpsHealthDataSource.Map(BuildSnapshot());
+        var html = await RenderAsync(new StubOpsHealthDataSource
+        {
+            Result = OperateSectionResult<OpsHealthView>.Allowed(view)
+        }, presentation);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var v4 = presentation == ConsolePresentationMode.V4;
+
+        Assert.Equal(v4 ? "Operational health" : "Ops Health", Assert.Single(document.QuerySelectorAll("h1")).TextContent);
+        Assert.Equal(v4, document.QuerySelector(".console-page-heading-v4") is not null);
+        Assert.Equal(v4, document.QuerySelector(".console-monitoring-v4.console-health-v4") is not null);
+        Assert.Equal(v4, html.Contains("operate-monitoring-v4.css", StringComparison.Ordinal));
+        foreach (var (id, v4Text, legacyText) in SectionHeadings)
+        {
+            Assert.Equal(v4 ? v4Text : legacyText, document.QuerySelector($"#{id}")!.TextContent);
+        }
+        Assert.Equal(8, document.QuerySelectorAll(".operate-section-nav a").Length);
+        Assert.NotNull(document.QuerySelector("[data-refresh-health]"));
+        Assert.NotNull(document.QuerySelector("[data-health-drilldown='serving-latency']"));
+        Assert.NotNull(document.QuerySelector("[data-health-drilldown='deploy']"));
+        if (v4) V4PagePreview.Capture("health-snapshot", html);
+    }
+
+    private static async Task<string> RenderAsync(IOpsHealthDataSource dataSource, ConsolePresentationMode presentation = ConsolePresentationMode.Legacy)
     {
         var services = new ServiceCollection();
+        services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton(dataSource);
         // The Trends section renders ChartPreview, which [Inject]s IJSRuntime. Static HtmlRenderer
@@ -162,6 +202,7 @@ public sealed class OperateHealthPageTests
         // this no-op only satisfies DI (mirrors OperateTransitionDataSourceTests' NoOpJsRuntime for
         // MapPreview).
         services.AddSingleton<Microsoft.JSInterop.IJSRuntime>(new NoOpJsRuntime());
+        services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         var provider = services.BuildServiceProvider();
 
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());

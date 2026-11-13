@@ -61,7 +61,11 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
             PopupInfoJson: Pretty(popup.Data?.Document),
             DrawingInfoJson: Pretty(drawing.Data?.Document));
 
-        return new OperateLayerStyleOverrideView(resourceId, [slot]);
+        return new OperateLayerStyleOverrideView(resourceId, [slot])
+        {
+            LayerId = layerId,
+            CanonicalResourceId = first.Layer.CanonicalResourceId
+        };
     }
 
     public async Task<OperateLayerStyleOverrideSaveResult> SaveOverrideAsync(

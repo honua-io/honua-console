@@ -2,18 +2,66 @@
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
+@inject IServiceProvider ServiceProvider
 @inject IVersionManagementOperation VersionOps
 @inject NavigationManager Navigation
 @inject IConsoleNotificationService Notifications
 
-<section class="console-page operate-versions" data-version-manager>
-    <div class="console-page-heading">
-        <p class="console-kicker">Operator workflow</p>
-        <h1>Branch versions</h1>
-        <p>Manage branch versions for a service, reconcile a version against DEFAULT with an auto-resolution policy, and open the conflict-resolution view to merge edits before posting. Branch versioning is server-owned (PostGIS feature provider, Enterprise-gated); an unbound or unsupported server shows a capability explanation rather than an empty list.</p>
-    </div>
+<ConsoleAgentContext Context="@AgentContext" />
 
-    <section class="console-section" aria-label="Service selector">
+<section class="console-page operate-versions" data-version-manager>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Versions"><p>Manage branch versions and reconcile edits with DEFAULT.</p></ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operator workflow</p>
+            <h1>Branch versions</h1>
+            <p>Manage branch versions for a service, reconcile a version against DEFAULT with an auto-resolution policy, and open the conflict-resolution view to merge edits before posting. Branch versioning is server-owned (PostGIS feature provider, Enterprise-gated); an unbound or unsupported server shows a capability explanation rather than an empty list.</p>
+        </div>
+    }
+
+    @if (V4Enabled)
+    {
+        <ConsolePanel Title="Service" HeadingId="version-service-heading">@ServiceSelector</ConsolePanel>
+        <ConsolePanel Title="Branch versions" HeadingId="version-list-heading" Class="console-section">
+            <ConsoleMetricTile Label="Versions" Value="@(_versions?.Bound == true ? _versions.Versions.Count : (long?)null)" />
+            @VersionWorkflow
+        </ConsolePanel>
+    }
+    else
+    {
+        <section class="console-section" aria-label="Service selector">@ServiceSelector</section>
+        @VersionWorkflow
+    }
+
+    <ConsoleConfirmDialog @ref="_confirm" />
+</section>
+
+@code {
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = "/operate/versions",
+        Entities = ServiceSelection,
+        Selection = ServiceSelection,
+        Filters = _serviceId is null ? new Dictionary<string, string>() : new Dictionary<string, string> { ["serviceId"] = _serviceId },
+        Unsaved = new()
+        {
+            ChangedFieldCount = (_formName == _originalName ? 0 : 1) + (_formOwner == _originalOwner ? 0 : 1) + (_formAccess == _originalAccess ? 0 : 1) + (_formDescription == _originalDescription ? 0 : 1),
+            PendingOperationCount = _loading || _busy ? 1 : 0
+        }
+    };
+
+    private IReadOnlyList<ConsoleAgentEntity> ServiceSelection => string.IsNullOrWhiteSpace(_serviceId)
+        ? []
+        : [ConsoleAgentEntity.ForService(_serviceId)];
+
+    private RenderFragment ServiceSelector => @<div>
+
         <div class="console-action-row">
             <label class="console-field">
                 <span class="console-field-label">Service id</span>
@@ -25,8 +73,10 @@
                 @(_loading ? "Loading…" : "Load versions")
             </button>
         </div>
-    </section>
 
+    </div>;
+
+    private RenderFragment VersionWorkflow => @<div>
     @if (_versions is { } versions)
     {
         @if (!versions.Bound)
@@ -40,16 +90,16 @@
         {
             @if (_lastResult is { } result)
             {
-                <article class="console-panel @(result.Succeeded ? "console-state-success" : "console-state-danger")"
+                <div class="console-panel @(result.Succeeded ? "console-state-success" : "console-state-danger")"
                          role="status" data-version-result>
                     <p class="console-kicker">@result.State</p>
                     <p>@result.Detail</p>
-                </article>
+                </div>
             }
 
             @if (_lastReconcile is { } reconcile)
             {
-                <article class="console-panel @(reconcile.CanPost ? "console-state-success" : "console-state-warning")"
+                <div class="console-panel @(reconcile.CanPost ? "console-state-success" : "console-state-warning")"
                          role="status" data-reconcile-result>
                     <p class="console-kicker">Reconcile outcome</p>
                     <p>@reconcile.Operation.Detail</p>
@@ -67,7 +117,7 @@
                             Open conflict resolution
                         </a>
                     }
-                </article>
+                </div>
             }
 
             <section class="console-section" aria-label="Versions">
@@ -87,7 +137,7 @@
                                     <th>State</th>
                                     <th>Created</th>
                                     <th>Edits</th>
-                                    <th></th>
+                                    <th aria-label="Actions">@(V4Enabled ? "Actions" : null)</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -142,7 +192,7 @@
                             <option value="default-wins">Default wins</option>
                         </select>
                     </label>
-                    <label class="console-inline-check">
+                    <label class="@(V4Enabled ? "console-inline-check console-data-controls" : "console-inline-check")">
                         <input type="checkbox" @bind="_abortIfConflicts" data-abort-if-conflicts />
                         <span>Abort if conflicts (force manual review)</span>
                     </label>
@@ -190,10 +240,9 @@
             </section>
         }
     }
-<ConsoleConfirmDialog @ref="_confirm" />
-</section>
 
-@code {
+    </div>;
+
     private string _serviceIdInput = string.Empty;
     private string? _serviceId;
     private OperateVersionListView? _versions;
@@ -211,6 +260,11 @@
     // Create/alter form state. _alterGuid is null in create mode and the version guid in alter mode.
     private string? _alterGuid;
     private string? _alterName;
+    private string _originalName = string.Empty;
+    private string _originalOwner = string.Empty;
+    private string _originalAccess = "private";
+    private string _originalDescription = string.Empty;
+
     private string _formName = string.Empty;
     private string _formOwner = string.Empty;
     private string _formAccess = "private";
@@ -292,8 +346,17 @@
         _formOwner = version.Owner;
         _formAccess = string.IsNullOrWhiteSpace(version.Access) ? "private" : version.Access.ToLowerInvariant();
         _formDescription = version.Description ?? string.Empty;
+        CaptureFormBaseline();
         _lastResult = null;
         _lastReconcile = null;
+    }
+
+    private void CaptureFormBaseline()
+    {
+        _originalName = _formName;
+        _originalOwner = _formOwner;
+        _originalAccess = _formAccess;
+        _originalDescription = _formDescription;
     }
 
     private void CancelAlter()
@@ -304,6 +367,7 @@
         _formOwner = string.Empty;
         _formAccess = "private";
         _formDescription = string.Empty;
+        CaptureFormBaseline();
     }
 
     private Task SubmitFormAsync()
@@ -352,7 +416,7 @@
 
 
     private string ConflictsHref(string versionGuid) =>
-        $"/operate/versions/{Uri.EscapeDataString(_serviceId ?? string.Empty)}/{Uri.EscapeDataString(versionGuid)}/conflicts";
+        Navigation.ToConsoleHref($"/operate/versions/{Uri.EscapeDataString(_serviceId ?? string.Empty)}/{Uri.EscapeDataString(versionGuid)}/conflicts");
 
     private static string DescribeBinding(string? detail, string? contract) =>
         string.IsNullOrWhiteSpace(contract)

@@ -3,15 +3,20 @@
 @inject IConsoleGitOpsReleaseClient ReleaseClient
 @inject IConsoleDeployApprovalClient ApprovalClient
 @inject IConsoleCapabilityManifest Capabilities
+@inject IServiceProvider Services
+@inject NavigationManager Navigation
 
-@* Capability-gated depth (first-release cut-line): the GitOps metadata *release* workspace is the
-   cross-environment promotion + coordinated-release + rollback-readiness surface. It renders the
-   first-class "unsupported" state until the deployment advertises cross-environment-promotion, matching
-   the gated promotion section on /operate/deploy. The server-upgrade deploy floor stays live elsewhere. *@
+<ConsoleAgentContext Context="@AgentContext" />
 <ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.CrossEnvironmentPromotion"
                        Title="Cross-environment releases are not available in this release"
                        Message="Promoting and coordinating metadata / service + layer releases across a dev → staging → prod fleet — including cross-environment rollback readiness — is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
-<section class="console-page console-operate-page">
+<section class="console-page console-operate-page" data-releases-page>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Releases"><p>Review release proposals, approvals, and rollback readiness.</p></ConsolePageHeading>
+    }
+    else
+    {
     <div class="console-page-heading operate-heading">
         <p class="console-kicker">Operator workflow</p>
         <h1>GitOps Metadata Releases</h1>
@@ -22,6 +27,7 @@
             metadata release contracts (release package + GitOps manifest and the release-operation lifecycle).
         </p>
     </div>
+    }
 
     @if (!HasSelectedReleaseRoute)
     {
@@ -29,31 +35,32 @@
             <a href="#proposals">Release proposals</a>
             <a href="#deploy-approvals">Deploy approvals</a>
         </nav>
-
-        @* DEPLOY APPROVALS — the human-in-the-loop approval queue for paused deploy-control
-           operations, scoped to the release proposals visible on THIS page. console#290: the
-           deploy-control surface now has a real paged list endpoint (GET
-           /api/v1/admin/deploy/operations, honua-server PR #2577); the unscoped, all-kinds
-           view lives on the Deploy cockpit's "All deploy operations" section. This section
-           stays release-scoped (projected from the deploy operation ids on the release
-           operations in view) because it answers a narrower question — "what needs approval
-           among the releases shown above" — not "every operation on the server". When none
-           are known, the section renders an honest empty/unsupported state. *@
-        <section id="deploy-approvals" class="operate-section" aria-labelledby="deploy-approvals-heading">
-            <div class="operate-section-heading">
+        RenderFragment DeployApprovalsContent = @<text>
+            @if (V4Enabled)
+            {
+<p class="console-muted">
+                        Paused deploy-control operations awaiting an approval decision, scoped to the releases
+                        below. Open a release to review and approve or roll back a specific operation, or see
+                        <a class="console-link" href="@Navigation.ToConsoleHref(GitOpsReleaseRoutes.Deploy + "#all-operations")">every deploy operation</a>
+                        on the Deploy cockpit.
+                    </p>
+            }
+            else
+            {
+<div class="operate-section-heading">
                 <div>
                     <p class="console-kicker">Human-in-the-loop</p>
                     <h2 id="deploy-approvals-heading">Deploy approvals</h2>
                     <p class="console-muted">
                         Paused deploy-control operations awaiting an approval decision, scoped to the releases
                         below. Open a release to review and approve or roll back a specific operation, or see
-                        <a class="console-link" href="@GitOpsReleaseRoutes.Deploy#all-operations">every deploy operation</a>
+                        <a class="console-link" href="@Navigation.ToConsoleHref(GitOpsReleaseRoutes.Deploy + "#all-operations")">every deploy operation</a>
                         on the Deploy cockpit.
                     </p>
                 </div>
             </div>
-
-            @if (!_pendingApprovalsLoaded)
+            }
+@if (!_pendingApprovalsLoaded)
             {
                 <OperateSectionStatusPanel Heading="Deploy approvals" Loading="true" />
             }
@@ -63,17 +70,33 @@
                     SelectedOperationId="@_selectedApprovalOperationId"
                     OnSelect="OnApprovalSelectedFromList" />
             }
-        </section>
+        </text>;
+    if (V4Enabled)
+    {
+        <div id="deploy-approvals" class="console-section">
+            <ConsolePanel Title="Deploy approvals" HeadingId="deploy-approvals-heading">@DeployApprovalsContent</ConsolePanel>
+        </div>
+    }
+    else
+    {
+        <section id="deploy-approvals" class="operate-section" aria-labelledby="deploy-approvals-heading">@DeployApprovalsContent</section>
+    }
 
-        <section id="proposals" class="operate-section" aria-labelledby="proposals-heading">
-            <div class="operate-section-heading">
+        RenderFragment ProposalsContent = @<text>
+            @if (V4Enabled)
+            {
+<ConsoleMetricTile Label="Release proposals" Value="@(_listLoaded && _proposals?.IsAllowed == true ? Proposals.Count : (long?)null)" />
+            }
+            else
+            {
+<div class="operate-section-heading">
                 <div>
                     <p class="console-kicker">Release proposal</p>
                     <h2 id="proposals-heading">Proposed Metadata Releases</h2>
                 </div>
             </div>
-
-            @if (!_listLoaded || _proposals is null)
+            }
+@if (!_listLoaded || _proposals is null)
             {
                 <OperateSectionStatusPanel Heading="Release proposals" Loading="true" />
             }
@@ -89,13 +112,13 @@
             }
             else
             {
-                <div class="console-panel-grid">
+                <div class="@(V4Enabled ? "console-section" : "console-panel-grid")">
                     @foreach (var proposal in Proposals)
                     {
-                        <article class="console-panel operate-release-card">
+                        <article class="@(V4Enabled ? "console-section" : "console-panel") operate-release-card">
                             <div class="console-panel-heading">
                                 <div>
-                                    <h3><a href="@GitOpsReleaseRoutes.ReleaseDetail(proposal.ReleasePackageId)">@proposal.Title</a></h3>
+                                    <h3><a href="@Navigation.ToConsoleHref(GitOpsReleaseRoutes.ReleaseDetail(proposal.ReleasePackageId))">@proposal.Title</a></h3>
                                     <p class="console-muted">@proposal.Summary</p>
                                 </div>
                                 <span class="console-status @(proposal.HasBlockingFindings ? "console-state-danger" : "console-state-success")">
@@ -112,7 +135,17 @@
                     }
                 </div>
             }
-        </section>
+        </text>;
+    if (V4Enabled)
+    {
+        <div id="proposals" class="console-section">
+            <ConsolePanel Title="Release proposals" HeadingId="proposals-heading">@ProposalsContent</ConsolePanel>
+        </div>
+    }
+    else
+    {
+        <section id="proposals" class="operate-section" aria-labelledby="proposals-heading">@ProposalsContent</section>
+    }
     }
     else if (!_detailLoaded || _detail is null)
     {
@@ -124,7 +157,7 @@
             <p class="console-kicker">Release detail</p>
             <div class="operate-release-title-row">
                 <h2>Release @SelectedReleaseId?.Trim()</h2>
-                <a class="console-link" href="@GitOpsReleaseRoutes.Releases">Back to releases</a>
+                <a class="console-link" href="@Navigation.ToConsoleHref(GitOpsReleaseRoutes.Releases)">Back to releases</a>
             </div>
         </div>
         <OperateSectionStatusPanel Heading="Release detail" Status="_detail.Status" Message="@_detail.Message" />
@@ -138,13 +171,9 @@
             && string.Equals(operation.Status, "applied", StringComparison.OrdinalIgnoreCase);
         var blocked = !detail.CanProposePullRequest;
         var changeCount = proposal.ChangedResources.Count;
-
-        @* HEADER — mirrors the mockup's title row: crumb, rel id · source → targets,
-           a status badge, a summary line, and a right-aligned governed action row
-           (View on GitHub · Dry-run · Open PR / Rollback). *@
         <div class="operate-release-detail-head">
             <p class="console-kicker">
-                <a class="console-link" href="@GitOpsReleaseRoutes.Releases">Releases</a>
+                <a class="console-link" href="@Navigation.ToConsoleHref(GitOpsReleaseRoutes.Releases)">Releases</a>
                 <span class="operate-crumb-sep">/</span>
             </p>
             <div class="operate-release-title-row">
@@ -189,9 +218,6 @@
                 </div>
             </div>
         </div>
-
-        @* TAB STRIP — the mockup's section tabs, here as in-page section anchors so the
-           whole governed release reads top-to-bottom without losing the design's IA. *@
         <nav class="console-tab-row operate-release-tabs" aria-label="Release sections">
             <a href="#semantic-diff" class="active">Semantic diff <small>@changeCount</small></a>
             <a href="#coordinated">Coordinated upgrade</a>
@@ -209,15 +235,23 @@
 
         <div class="operate-detail-grid operate-release-grid">
             <div class="operate-detail-panel operate-release-main">
-                @* SEMANTIC DIFF — grouped resource changes (design view #1). *@
-                <section id="semantic-diff" class="console-panel operate-table-panel" aria-labelledby="semantic-diff-heading">
-                    <div class="console-panel-heading operate-release-card-head">
+                @{
+    RenderFragment SemanticDiffContent = @<text>
+            @if (V4Enabled)
+            {
+<p class="console-muted">Grouped by resource type &middot; what is being promoted, not raw manifests.</p>
+<ConsoleMetricTile Label="Changes" Value="@changeCount" />
+            }
+            else
+            {
+<div class="console-panel-heading operate-release-card-head">
                         <div>
                             <h3 id="semantic-diff-heading">Semantic diff &middot; @changeCount change@(changeCount == 1 ? "" : "s")</h3>
                             <p class="console-muted">Grouped by resource type &middot; what is being promoted, not raw manifests.</p>
                         </div>
                     </div>
-                    @if (changeCount == 0)
+            }
+@if (changeCount == 0)
                     {
                         <p class="console-muted operate-release-empty">No semantic resources are changed by this proposal.</p>
                     }
@@ -252,16 +286,34 @@
                             </table>
                         </ConsoleTableRegion>
                     }
-                </section>
+        </text>;
+    }
+    @if (V4Enabled)
+    {
+        <div id="semantic-diff" class="console-section">
+            <ConsolePanel Title="Semantic diff" HeadingId="semantic-diff-heading">@SemanticDiffContent</ConsolePanel>
+        </div>
+    }
+    else
+    {
+        <section id="semantic-diff" class="console-panel operate-table-panel" aria-labelledby="semantic-diff-heading">@SemanticDiffContent</section>
+    }
+                @{
+    RenderFragment CoordinatedContent = @<text>
+            @if (V4Enabled)
+            {
+<p class="console-muted">Container image + DB/schema change + metadata as one ordered, gated, rollback-able op.</p>
 
-                @* COORDINATED PLATFORM UPGRADE (Demo C, honua-server#97) — the container image +
-                   DB/schema change + metadata semantic diff promoted as ONE ordered, gated,
-                   rollback-able op. Renders the three artifact kinds, the ordered step timeline with
-                   per-step gate/approve status, and the rollback readiness for the whole op. An
-                   independent sub-read; when no coordinated op exists, the established missing state
-                   shows instead of fabricated data. *@
-                <section id="coordinated" class="console-panel operate-table-panel" aria-labelledby="coordinated-heading">
-                    <div class="console-panel-heading operate-release-card-head">
+                        @if (_coordinated is { IsAllowed: true, Value: { } coordinatedBadge })
+                        {
+                            <span class="console-status @(coordinatedBadge.RollbackReady ? "console-state-info" : "console-state-neutral")">
+                                @coordinatedBadge.Status
+                            </span>
+                        }
+            }
+            else
+            {
+<div class="console-panel-heading operate-release-card-head">
                         <div>
                             <h3 id="coordinated-heading">Coordinated platform upgrade</h3>
                             <p class="console-muted">Container image + DB/schema change + metadata as one ordered, gated, rollback-able op.</p>
@@ -273,7 +325,8 @@
                             </span>
                         }
                     </div>
-                    @if (_coordinated is null || !_coordinated.IsAllowed)
+            }
+@if (_coordinated is null || !_coordinated.IsAllowed)
                     {
                         <OperateSectionStatusPanel Heading="Coordinated release"
                             Status="_coordinated?.Status ?? OperateSectionStatus.Unavailable"
@@ -282,8 +335,6 @@
                     else
                     {
                         var coordinated = _coordinated.Value!;
-
-                        @* Three artifact kinds side by side. *@
                         <ConsoleTableRegion Class="operate-table-scroll" Label="Release artifacts">
                             <table class="operate-table operate-diff-table">
                                 <thead>
@@ -307,9 +358,14 @@
                                 </tbody>
                             </table>
                         </ConsoleTableRegion>
-
-                        @* Ordered step timeline with per-step gate / approve / rollback status. *@
-                        <h4 class="operate-coordinated-subhead">Ordered steps</h4>
+                        @if (V4Enabled)
+                        {
+                            <h3 class="operate-coordinated-subhead">Ordered steps</h3>
+                        }
+                        else
+                        {
+                            <h4 class="operate-coordinated-subhead">Ordered steps</h4>
+                        }
                         <ol class="operate-timeline operate-coordinated-timeline">
                             @foreach (var step in coordinated.Steps)
                             {
@@ -366,7 +422,7 @@
                         @if (coordinated.Blockers.Count > 0)
                         {
                             <div class="operate-blocker-list">
-                                <h4>Blockers</h4>
+                                @if (V4Enabled) { <h3>Blockers</h3> } else { <h4>Blockers</h4> }
                                 <ul class="operate-note-list">
                                     @foreach (var blocker in coordinated.Blockers)
                                     {
@@ -376,11 +432,34 @@
                             </div>
                         }
                     }
-                </section>
+        </text>;
+    }
+    @if (V4Enabled)
+    {
+        <div id="coordinated" class="console-section">
+            <ConsolePanel Title="Coordinated upgrade" HeadingId="coordinated-heading">@CoordinatedContent</ConsolePanel>
+        </div>
+    }
+    else
+    {
+        <section id="coordinated" class="console-panel operate-table-panel" aria-labelledby="coordinated-heading">@CoordinatedContent</section>
+    }
+                @{
+    RenderFragment EnvMatrixContent = @<text>
+            @if (V4Enabled)
+            {
+<p class="console-muted">Which revision of each target runs where.</p>
 
-                @* ENVIRONMENT MATRIX — which revision of each item runs where (design view #3). *@
-                <section id="env-matrix" class="console-panel operate-table-panel" aria-labelledby="env-matrix-heading">
-                    <div class="console-panel-heading operate-release-card-head">
+                        @if (detail.EnvironmentMatrix.Count > 0)
+                        {
+                            <span class="console-status @(detail.HasDrift ? "console-state-warning" : "console-state-success")">
+                                @(detail.HasDrift ? "drift detected" : "all aligned")
+                            </span>
+                        }
+            }
+            else
+            {
+<div class="console-panel-heading operate-release-card-head">
                         <div>
                             <h3 id="env-matrix-heading">Environment matrix and drift</h3>
                             <p class="console-muted">Which revision of each target runs where.</p>
@@ -392,7 +471,8 @@
                             </span>
                         }
                     </div>
-                    @if (detail.EnvironmentMatrix.Count == 0)
+            }
+@if (detail.EnvironmentMatrix.Count == 0)
                     {
                         <p class="console-muted operate-release-empty">The release proposal has no target environments to compare.</p>
                     }
@@ -430,26 +510,46 @@
                             </table>
                         </ConsoleTableRegion>
                     }
-                </section>
-
-                @* DATA SCRIPTS — dedicated section listing each data script in the release
-                   bundle with its rollback coverage badge (design "Data scripts · N",
-                   covered / no rollback). Bound to the server data-script projection; when
-                   the server reports none, render the established empty/missing state. *@
-                <section id="scripts" class="console-panel operate-table-panel operate-release-scripts" aria-labelledby="scripts-heading">
-                    <div class="console-panel-heading operate-release-card-head">
-                        <div>
-                            <h3 id="scripts-heading">Data scripts &middot; @detail.Scripts.Count</h3>
-                            <p class="console-muted">Each script in the release bundle with its rollback coverage.</p>
-                        </div>
-                        @if (detail.Scripts.Count > 0)
+        </text>;
+    }
+    @if (V4Enabled)
+    {
+        <div id="env-matrix" class="console-section">
+            <ConsolePanel Title="Environment matrix" HeadingId="env-matrix-heading">@EnvMatrixContent</ConsolePanel>
+        </div>
+    }
+    else
+    {
+        <section id="env-matrix" class="console-panel operate-table-panel" aria-labelledby="env-matrix-heading">@EnvMatrixContent</section>
+    }
+                @{
+    RenderFragment ScriptCoverage = @<text>
+        @if (detail.Scripts.Count > 0)
                         {
                             <span class="console-status @(detail.AllDataScriptsCovered ? "console-state-success" : detail.HasDataScriptCoverageGap ? "console-state-warning" : "console-state-neutral")">
                                 @(detail.AllDataScriptsCovered ? "all covered" : detail.HasDataScriptCoverageGap ? "coverage gap" : "coverage unverified")
                             </span>
                         }
+    </text>;
+    RenderFragment ScriptsContent = @<text>
+            @if (V4Enabled)
+            {
+<p class="console-muted">Each script in the release bundle with its rollback coverage.</p>
+
+                        @ScriptCoverage
+<ConsoleMetricTile Label="Data scripts" Value="@detail.Scripts.Count" />
+            }
+            else
+            {
+<div class="console-panel-heading operate-release-card-head">
+                        <div>
+                            <h3 id="scripts-heading">Data scripts &middot; @detail.Scripts.Count</h3>
+                            <p class="console-muted">Each script in the release bundle with its rollback coverage.</p>
+                        </div>
+                        @ScriptCoverage
                     </div>
-                    @if (detail.Scripts.Count == 0)
+            }
+@if (detail.Scripts.Count == 0)
                     {
                         <p class="console-muted operate-release-empty">
                             The connected server reported no data scripts for this release bundle.
@@ -469,13 +569,32 @@
                             }
                         </ul>
                     }
-                </section>
+        </text>;
+    }
+    @if (V4Enabled)
+    {
+        <div id="scripts" class="console-section operate-release-scripts">
+            <ConsolePanel Title="Data scripts" HeadingId="scripts-heading">@ScriptsContent</ConsolePanel>
+        </div>
+    }
+    else
+    {
+        <section id="scripts" class="console-panel operate-table-panel operate-release-scripts" aria-labelledby="scripts-heading">@ScriptsContent</section>
+    }
+                @{
+    RenderFragment PrPreviewContent = @<text>
+            @if (V4Enabled)
+            {
+<p class="console-muted">Inline change summary &middot; what this PR would write to the config repository.</p>
 
-                @* GIT PR PREVIEW — inline change summary (the diff the PR would carry),
-                   grouped by resource, rendered in-page rather than only as an external
-                   link. The external "View on GitHub" link is preserved when present. *@
-                <section id="pr-preview" class="console-panel operate-table-panel operate-release-pr" aria-labelledby="pr-preview-heading">
-                    <div class="console-panel-heading operate-release-card-head">
+                        @if (operation?.PrUrl is { Length: > 0 } prHeadUrl)
+                        {
+                            <a class="console-link operate-pr-external" href="@prHeadUrl" rel="noopener noreferrer" target="_blank">View on GitHub &rarr;</a>
+                        }
+            }
+            else
+            {
+<div class="console-panel-heading operate-release-card-head">
                         <div>
                             <h3 id="pr-preview-heading">Git PR preview</h3>
                             <p class="console-muted">Inline change summary &middot; what this PR would write to the config repository.</p>
@@ -485,7 +604,8 @@
                             <a class="console-link operate-pr-external" href="@prHeadUrl" rel="noopener noreferrer" target="_blank">View on GitHub &rarr;</a>
                         }
                     </div>
-                    @if (operation is not null && (!string.IsNullOrWhiteSpace(operation.CommitSha) || operation.PrUrl is { Length: > 0 }))
+            }
+@if (operation is not null && (!string.IsNullOrWhiteSpace(operation.CommitSha) || operation.PrUrl is { Length: > 0 }))
                     {
                         <dl class="console-definition-list operate-pr-meta">
                             @if (operation.PrUrl is { Length: > 0 } prMetaUrl)
@@ -535,18 +655,34 @@
                             No release operation has opened a Git PR yet; the preview above reflects the proposed change set.
                         </p>
                     }
-                </section>
-
-                @* CI/GITOPS CHECK TIMELINE — chronological stages (design view "CI timeline").
-                   Mirrors the GitOpsCITimeline mockup's check-row list. *@
-                <section id="timeline" class="console-panel operate-table-panel" aria-labelledby="timeline-heading">
-                    <div class="console-panel-heading operate-release-card-head">
+        </text>;
+    }
+    @if (V4Enabled)
+    {
+        <div id="pr-preview" class="console-section operate-release-pr">
+            <ConsolePanel Title="Git PR preview" HeadingId="pr-preview-heading">@PrPreviewContent</ConsolePanel>
+        </div>
+    }
+    else
+    {
+        <section id="pr-preview" class="console-panel operate-table-panel operate-release-pr" aria-labelledby="pr-preview-heading">@PrPreviewContent</section>
+    }
+                @{
+    RenderFragment TimelineContent = @<text>
+            @if (V4Enabled)
+            {
+<p class="console-muted">Chronological &middot; the same release operation ids produced by server/devops.</p>
+            }
+            else
+            {
+<div class="console-panel-heading operate-release-card-head">
                         <div>
                             <h3 id="timeline-heading">CI/GitOps check timeline</h3>
                             <p class="console-muted">Chronological &middot; the same release operation ids produced by server/devops.</p>
                         </div>
                     </div>
-                    @if (operation is null)
+            }
+@if (operation is null)
                     {
                         <OperateSectionStatusPanel Heading="Release operation"
                             Status="_detail.Value!.OperationStatus"
@@ -590,7 +726,7 @@
                         @if (operation.Blockers.Count > 0)
                         {
                             <div class="operate-blocker-list">
-                                <h4>Blockers</h4>
+                                @if (V4Enabled) { <h3>Blockers</h3> } else { <h4>Blockers</h4> }
                                 <ul class="operate-note-list">
                                     @foreach (var blocker in operation.Blockers)
                                     {
@@ -603,7 +739,7 @@
                         @if (operation.Warnings.Count > 0)
                         {
                             <div class="operate-warning-list">
-                                <h4>Warnings</h4>
+                                @if (V4Enabled) { <h3>Warnings</h3> } else { <h4>Warnings</h4> }
                                 <ul class="operate-note-list">
                                     @foreach (var warning in operation.Warnings)
                                     {
@@ -613,31 +749,49 @@
                             </div>
                         }
                     }
-                </section>
-
-                @* DEPLOY APPROVAL — the human-in-the-loop approve/reject/rollback surface for
-                   the deploy-control operation behind this release. Bound to the operation's
-                   durable deploy operation id (falling back to the release operation id). The
-                   panel reads the live operation, polls its lifecycle, and routes the governed
-                   actions through the server's deploy-control approval gate. *@
+        </text>;
+    }
+    @if (V4Enabled)
+    {
+        <div id="timeline" class="console-section">
+            <ConsolePanel Title="CI timeline" HeadingId="timeline-heading">@TimelineContent</ConsolePanel>
+        </div>
+    }
+    else
+    {
+        <section id="timeline" class="console-panel operate-table-panel" aria-labelledby="timeline-heading">@TimelineContent</section>
+    }
                 @if (operation is not null && DeployApprovalOperationId(operation) is { Length: > 0 } approvalOperationId)
                 {
-                    <section id="deploy-approval" class="operate-section" aria-labelledby="deploy-approval-section-heading">
-                        <div class="console-panel-heading operate-release-card-head">
+                    RenderFragment DeployApprovalContent = @<text>
+            @if (V4Enabled)
+            {
+<p class="console-muted">Approve, reject, or roll back the paused deploy-control operation.</p>
+            }
+            else
+            {
+<div class="console-panel-heading operate-release-card-head">
                             <div>
                                 <h3 id="deploy-approval-section-heading">Approval</h3>
                                 <p class="console-muted">Approve, reject, or roll back the paused deploy-control operation.</p>
                             </div>
                         </div>
-                        <OperateDeploymentApprovalPanel OperationId="@approvalOperationId"
+            }
+<OperateDeploymentApprovalPanel OperationId="@approvalOperationId"
                             OnActioned="OnApprovalActioned" />
-                    </section>
+        </text>;
+    if (V4Enabled)
+    {
+        <div id="deploy-approval" class="console-section">
+            <ConsolePanel Title="Approval" HeadingId="deploy-approval-section-heading">@DeployApprovalContent</ConsolePanel>
+        </div>
+    }
+    else
+    {
+        <section id="deploy-approval" class="operate-section" aria-labelledby="deploy-approval-section-heading">@DeployApprovalContent</section>
+    }
                 }
             </div>
-
-            @* SIDE COLUMN — mockup's right rail: breaking-change callout, compatibility
-               preflight summary, release facts, "what proceed does", rollback readiness,
-               and the governed-operation note. *@
             <aside class="operate-detail-panel operate-release-side" aria-label="Release context">
                 @if (blocked)
                 {
@@ -647,9 +801,13 @@
                     </div>
                 }
 
-                <section id="preflight" class="console-panel" aria-labelledby="preflight-heading">
-                    <h3 id="preflight-heading">Compatibility preflight</h3>
-                    <ul class="operate-note-list operate-preflight-list">
+                @{
+    RenderFragment PreflightContent = @<text>
+            @if (!V4Enabled)
+            {
+<h3 id="preflight-heading">Compatibility preflight</h3>
+            }
+<ul class="operate-note-list operate-preflight-list">
                         <li class="@(blocked ? "console-state-danger" : "console-state-success")">
                             @(blocked ? "Blocking findings present" : "No blocking findings")
                         </li>
@@ -671,11 +829,26 @@
                             <li class="console-state-warning">@operation.Warnings.Count operation warning@(operation.Warnings.Count == 1 ? "" : "s")</li>
                         }
                     </ul>
-                </section>
+        </text>;
+    }
+    @if (V4Enabled)
+    {
+        <div id="preflight" class="console-section">
+            <ConsolePanel Title="Compatibility preflight" HeadingId="preflight-heading">@PreflightContent</ConsolePanel>
+        </div>
+    }
+    else
+    {
+        <section id="preflight" class="console-panel" aria-labelledby="preflight-heading">@PreflightContent</section>
+    }
 
-                <section class="console-panel operate-release-facts" aria-labelledby="release-facts-heading">
-                    <h3 id="release-facts-heading">Release</h3>
-                    <dl class="console-definition-list">
+                @{
+    RenderFragment ReleaseFactsContent = @<text>
+            @if (!V4Enabled)
+            {
+<h3 id="release-facts-heading">Release</h3>
+            }
+<dl class="console-definition-list">
                         <dt>Package id</dt>
                         <dd class="console-mono">@proposal.ReleasePackageId</dd>
                         <dt>Source</dt>
@@ -704,27 +877,52 @@
                     {
                         <a class="console-link" href="@sidePrUrl" rel="noopener noreferrer" target="_blank">View on GitHub &rarr;</a>
                     }
-                </section>
+        </text>;
+    }
+    @if (V4Enabled)
+    {
+        <div id="release-facts" class="console-section">
+            <ConsolePanel Title="Release" HeadingId="release-facts-heading">@ReleaseFactsContent</ConsolePanel>
+        </div>
+    }
+    else
+    {
+        <section class="console-panel operate-release-facts" aria-labelledby="release-facts-heading">@ReleaseFactsContent</section>
+    }
 
                 @if (!applied)
                 {
-                    <section class="console-panel operate-release-steps" aria-labelledby="proceed-heading">
-                        <h3 id="proceed-heading">What proceed does</h3>
-                        <ol class="operate-note-list">
+                    RenderFragment ProceedContent = @<text>
+            @if (!V4Enabled)
+            {
+<h3 id="proceed-heading">What proceed does</h3>
+            }
+<ol class="operate-note-list">
                             <li>Open the Git PR on the config repository.</li>
                             <li>CI runs the compatibility preflight and dry-run on the targets.</li>
                             <li>On green, await human approval.</li>
                             <li>Apply with the chosen strategy.</li>
                             <li>Open the auto-rollback window.</li>
                         </ol>
-                    </section>
+        </text>;
+    if (V4Enabled)
+    {
+        <div id="proceed" class="console-section">
+            <ConsolePanel Title="What proceed does" HeadingId="proceed-heading">@ProceedContent</ConsolePanel>
+        </div>
+    }
+    else
+    {
+        <section class="console-panel operate-release-steps" aria-labelledby="proceed-heading">@ProceedContent</section>
+    }
                 }
-
-                @* ROLLBACK READINESS — rollback class + window visible before apply
-                   (acceptance criterion). Mirrors the mockup's rollback callout/card. *@
-                <section id="rollback" class="console-panel operate-rollback-summary" aria-labelledby="rollback-heading">
-                    <h3 id="rollback-heading">Rollback readiness</h3>
-                    @if (operation?.RollbackPlan is null)
+                @{
+    RenderFragment RollbackContent = @<text>
+            @if (!V4Enabled)
+            {
+<h3 id="rollback-heading">Rollback readiness</h3>
+            }
+@if (operation?.RollbackPlan is null)
                     {
                         <p class="console-muted">The release operation did not report a rollback plan yet.</p>
                     }
@@ -749,7 +947,7 @@
                         </dl>
                         @if (rollback.Steps.Count > 0)
                         {
-                            <h4>Rollback steps</h4>
+                            @if (V4Enabled) { <h3>Rollback steps</h3> } else { <h4>Rollback steps</h4> }
                             <ol class="operate-note-list">
                                 @foreach (var step in rollback.Steps)
                                 {
@@ -759,7 +957,7 @@
                         }
                         @if (rollback.EvidenceRequired.Count > 0)
                         {
-                            <h4>Required rollback evidence</h4>
+                            @if (V4Enabled) { <h3>Required rollback evidence</h3> } else { <h4>Required rollback evidence</h4> }
                             <ul class="operate-note-list">
                                 @foreach (var evidence in rollback.EvidenceRequired)
                                 {
@@ -768,7 +966,18 @@
                             </ul>
                         }
                     }
-                </section>
+        </text>;
+    }
+    @if (V4Enabled)
+    {
+        <div id="rollback" class="console-section">
+            <ConsolePanel Title="Rollback readiness" HeadingId="rollback-heading">@RollbackContent</ConsolePanel>
+        </div>
+    }
+    else
+    {
+        <section id="rollback" class="console-panel operate-rollback-summary" aria-labelledby="rollback-heading">@RollbackContent</section>
+    }
 
                 <p class="operate-release-governed console-state-danger">
                     Governed operation &middot; emits an audit event and creates a release artifact.
@@ -780,6 +989,16 @@
 </ConsoleCapabilityGate>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = HasSelectedReleaseRoute ? $"/operate/releases/{Uri.EscapeDataString(SelectedReleaseId!.Trim())}" : "/operate/releases",
+        Filters = HasSelectedReleaseRoute
+            ? new Dictionary<string, string> { ["releaseId"] = SelectedReleaseId!.Trim() }
+            : new Dictionary<string, string>()
+    };
+
     [Parameter]
     public string? SelectedReleaseId { get; set; }
 

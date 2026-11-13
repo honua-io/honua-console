@@ -1,5 +1,6 @@
+@inject NavigationManager ConsoleNavigation
 @using Honua.Sdk.Admin.Models
-@implements IDisposable
+@implements IAsyncDisposable
 @inject IServiceProvider Services
 
 <section class="console-section" id="folders" data-folder-management data-folder-completions="@_completedMutations">
@@ -44,12 +45,12 @@
                 <div class="studio-field-grid">
                     <label class="console-field">
                         <span>Folder path name</span>
-                        <input class="console-input" @bind="_name" maxlength="128" data-folder-name />
+                        <input class="console-input" @bind="_name" @bind:event="oninput" @bind:after="ReportContextAsync" maxlength="128" data-folder-name />
                         <small>One path segment. A rename preserves saved client connections.</small>
                     </label>
                     <label class="console-field">
                         <span>Folder title</span>
-                        <input class="console-input" @bind="_title" maxlength="512" data-folder-title />
+                        <input class="console-input" @bind="_title" @bind:event="oninput" @bind:after="ReportContextAsync" maxlength="512" data-folder-title />
                         <small>Display text only. Leave blank to clear the title.</small>
                     </label>
                 </div>
@@ -60,7 +61,7 @@
                     @if (SelectedFolder is not null)
                     {
                         <label class="console-inline-check">
-                            <input type="checkbox" @bind="_confirmDelete" data-folder-delete-confirm />
+                            <input type="checkbox" @bind="_confirmDelete" @bind:after="ReportContextAsync" data-folder-delete-confirm />
                             <span>I want to delete this empty Folder</span>
                         </label>
                         <button class="console-button console-button-secondary" type="button" @onclick="DeleteAsync" disabled="@(!CanWrite || !_confirmDelete)" data-folder-delete>Delete empty Folder</button>
@@ -72,7 +73,7 @@
                 <p>Service identity: <code>@ServiceName</code>. Moving preserves this identity.</p>
                 <label class="console-field">
                     <span>Destination Folder</span>
-                    <select class="console-input" aria-label="Destination Folder" @bind="_folderId" data-service-folder>
+                    <select class="console-input" aria-label="Destination Folder" @bind="_folderId" @bind:after="ReportContextAsync" data-service-folder>
                         <option value="">Root</option>
                         @foreach (var folder in catalog.ActiveFolders)
                         {
@@ -93,7 +94,7 @@
         <div data-folder-result data-state="@result.State"><HonuaState Kind="@(result.Succeeded ? "success" : "denied")" Title="@result.State" Message="@result.Detail" HeadingLevel="3" /></div>
         @if (!result.Succeeded)
         {
-            <p role="status">Review the current catalog and refresh before making another change. Approval-required operations must use the separate human approval channel. <a href="/inbox">Open approvals</a></p>
+            <p role="status">Review the current catalog and refresh before making another change. Approval-required operations must use the separate human approval channel. <a href="@ConsoleNavigation.ToConsoleHref("/inbox")">Open approvals</a></p>
         }
     }
 </section>
@@ -102,12 +103,28 @@
     [Parameter] public string? ServiceName { get; set; }
     [Parameter] public string? CurrentFolderId { get; set; }
     [Parameter] public EventCallback OnSaved { get; set; }
+    [Parameter] public EventCallback<ConsoleAgentUnsavedSummary> UnsavedChanged { get; set; }
+    [Parameter] public EventCallback<ConsoleAgentEntity?> SelectionChanged { get; set; }
+
+    private async Task ReportContextAsync()
+    {
+        var changed = ServiceName is null
+            ? (_name != (SelectedFolder?.Metadata.Name ?? "") ? 1 : 0)
+                + (_title != (SelectedFolder?.Metadata.Title ?? "") ? 1 : 0)
+                + (_confirmDelete ? 1 : 0)
+            : (_folderId != _savedFolderId ? 1 : 0);
+        await UnsavedChanged.InvokeAsync(new() { ChangedFieldCount = changed, PendingOperationCount = (_loading ? 1 : 0) + (_busy ? 1 : 0) });
+        await SelectionChanged.InvokeAsync(SelectedFolder is { } folder
+            ? new ConsoleAgentEntity { Kind = ConsoleAgentEntityKind.Folder, Id = folder.Metadata.Id }
+            : null);
+    }
     private readonly CancellationTokenSource _lifetime = new();
     private ConsoleFolderCatalog? _catalog;
     private OperateSectionResult<ConsoleFolderCatalog>? _read;
     private ConsoleFolderMutationResult? _result;
     private string? _loadedService;
     private string _folderId = "";
+    private string _savedFolderId = "";
     private string _name = "";
     private string _title = "";
     private bool _confirmDelete;
@@ -128,23 +145,26 @@
         _initialized = true;
         _loadedService = ServiceName;
         _catalog = null;
-        _folderId = CurrentFolderId ?? "";
+        _folderId = _savedFolderId = CurrentFolderId ?? "";
         _name = _title = "";
         _result = null;
         await RefreshAsync();
     }
 
-    private void SelectFolder()
+    private async Task SelectFolder()
     {
         _name = SelectedFolder?.Metadata.Name ?? "";
         _title = SelectedFolder?.Metadata.Title ?? "";
         _confirmDelete = false;
+        await ReportContextAsync();
     }
 
     private async Task RefreshAsync()
     {
+        if (_lifetime.IsCancellationRequested) return;
         var generation = ++_generation;
         _loading = true;
+        await ReportContextAsync();
         var read = await ConsoleReadBudget.RunAsync(Client.ReadAsync, ConsoleReadBudget.Default,
             "Folders could not be read. Check the environment and refresh.", _lifetime.Token);
         if (_lifetime.IsCancellationRequested || generation != _generation) return;
@@ -154,6 +174,7 @@
         if (!_requiresRefresh) _unverifiedAuthority = null;
         _confirmDelete = false;
         _loading = false;
+        await ReportContextAsync();
     }
 
     private Task SaveAsync()
@@ -189,6 +210,7 @@
         var folderChanges = Services.GetService<ConsoleFolderChanges>();
         _busy = true;
         _requiresRefresh = true;
+        await ReportContextAsync();
         try
         {
             var result = await execute(catalog);
@@ -204,16 +226,19 @@
             if (result.State == Honua.Console.Contracts.ConsoleWriteOutcome.UnverifiedState)
                 _unverifiedAuthority = catalog.AuthorityBinding;
             if (!result.Succeeded) return;
+            if (ServiceName is not null) _savedFolderId = _folderId;
             await OnSaved.InvokeAsync();
             if (ServiceName is null) _folderId = _name = _title = "";
             await RefreshAsync();
         }
-        finally { _busy = false; }
+        finally { _busy = false; if (!_lifetime.IsCancellationRequested) await ReportContextAsync(); }
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         _lifetime.Cancel();
         _lifetime.Dispose();
+        await UnsavedChanged.InvokeAsync(new());
+        await SelectionChanged.InvokeAsync(null);
     }
 }

@@ -1,0 +1,116 @@
+name: Console static bundle
+
+on:
+  pull_request:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  # A newer push to the same pull request cancels the run for the stale head.
+  # Release runs get a unique group (run_id) and are never cancelled.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Publish static bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      attestations: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: src/Honua.Console.Web/global.json
+      - name: Select the pinned SDK
+        run: cp src/Honua.Console.Web/global.json global.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20.x
+      - name: Restore from public sources
+        run: dotnet restore Honua.Console.slnx --configfile NuGet.config --no-cache --locked-mode
+      - name: Fetch digest-verified Cesium assets
+        run: node scripts/fetch-cesium.mjs --force
+      - name: Fetch the locked Studio release
+        id: studio
+        uses: ./.github/actions/fetch-studio-release
+      - name: Verify Studio build provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE: ${{ steps.studio.outputs.archive }}
+          LOCK: scripts/studio-release.lock.json
+        run: |
+          gh attestation verify "$ARCHIVE" \
+            --repo honua-io/honua-studio \
+            --signer-workflow honua-io/honua-studio/.github/workflows/release.yml \
+            --source-ref "refs/tags/$(jq -r .tag "$LOCK")" \
+            --source-digest "$(jq -r .sourceCommit "$LOCK")" \
+            --deny-self-hosted-runners </dev/null
+      - name: Publish trimmed WASM
+        run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release --no-restore -o artifacts/static-publish
+      - name: Verify published Cesium assets
+        run: node scripts/verify-published-cesium.mjs artifacts/static-publish
+      - name: Verify the published Content-Security-Policy
+        run: node scripts/console-csp.mjs --check artifacts/static-publish/wwwroot/console/index.html
+      - name: Verify published Studio assets
+        run: node scripts/fetch-studio-release.mjs --verify artifacts/static-publish/wwwroot/console/_studio
+      - name: Install browser test dependencies
+        working-directory: e2e/playwright
+        run: npm ci
+      - name: Install Chromium
+        working-directory: e2e/playwright
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Verify static bundle boot and deep links at desktop and mobile widths
+        working-directory: e2e/playwright
+        env:
+          CI: "true"
+        run: npx --no-install playwright test --config playwright.static.config.ts
+      - name: Upload static browser evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: console-static-browser
+          path: |
+            e2e/playwright/playwright-report/
+            e2e/playwright/test-results/
+          if-no-files-found: ignore
+      - name: Package static files
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -n "$RELEASE_TAG" ]; then
+            version="${RELEASE_TAG#v}"
+          else
+            version="0.0.0-pr.${PR_NUMBER}"
+          fi
+          python3 scripts/package-console-static.py artifacts/static-publish/wwwroot/console --version "$version"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: console-static-release
+          path: artifacts/static-release/*
+          if-no-files-found: error
+
+  release:
+    name: Attach static release asset
+    needs: build
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: console-static-release
+          path: static-release
+      - name: Attach versioned bundle and checksum receipt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" static-release/* </dev/null

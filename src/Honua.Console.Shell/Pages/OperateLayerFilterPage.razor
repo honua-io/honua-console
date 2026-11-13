@@ -1,39 +1,71 @@
-﻿@page "/operate/layers/{ResourceId}/filter"
+@page "/operate/layers/{ResourceId}/filter"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleLayerFilterOperation LayerFilter
 @inject IConsoleNotificationService Notifications
+@inject IServiceProvider ServiceProvider
+@inject NavigationManager Navigation
+
+<ConsoleAgentContext Context="@AgentContext" />
 
 <section class="console-page" data-filter-page>
-    @if (_layer is null)
+    @if (_loading)
+    {
+        <p role="status">Loading layer…</p>
+    }
+    else if (_layer is null)
     {
         <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
     }
     else
     {
-        <div class="console-page-heading">
-            <p class="console-kicker">Operate / Layers</p>
-            <h1>@_layer.Name · permanent filter</h1>
-            <p>Author the server-enforced query filter on layer @_layer.LayerId. honua-server applies the <strong>permanent filter</strong> to every read of this layer (queries, exports, map renders) and validates the expression against the layer schema. Send a bad expression and the server rejects it with a reason; clearing removes the constraint entirely.</p>
-            <div class="console-detail-actions">
-                <a class="console-button-link" href="@($"/operate/layers/{ResourceId}")" data-layer-detail-link>Back to layer</a>
+        @if (V4Enabled)
+        {
+            <ConsolePageHeading Title="@($"{_layer.Name} · permanent filter")">
+                <ChildContent><p>Set the query filter applied to every read of this layer.</p></ChildContent>
+                <Actions><LayerBackLink CanonicalResourceId="@_layer!.CanonicalResourceId" /></Actions>
+            </ConsolePageHeading>
+        }
+        else
+        {
+            <div class="console-page-heading">
+                <p class="console-kicker">Operate / Layers</p>
+                <h1>@_layer.Name · permanent filter</h1>
+                <p>Author the server-enforced query filter on layer @_layer.LayerId. honua-server applies the <strong>permanent filter</strong> to every read of this layer (queries, exports, map renders) and validates the expression against the layer schema. Send a bad expression and the server rejects it with a reason; clearing removes the constraint entirely.</p>
+                <div class="console-detail-actions">
+                    <LayerBackLink CanonicalResourceId="@_layer!.CanonicalResourceId" />
+                </div>
             </div>
-        </div>
+        }
 
-        <section class="console-section" data-filter-panel>
+        @if (V4Enabled)
+        {
+            <ConsolePanel Title="Permanent filter" HeadingId="layer-filter-heading" Class="console-section">@Editor</ConsolePanel>
+        }
+        else
+        {
+            <section class="console-section">@Editor</section>
+        }
+    }
+    <ConsoleConfirmDialog @ref="_confirm" />
+</section>
+
+@code {
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+    private RenderFragment Editor => @<div data-filter-panel>
             @if (!_filter.Bound)
             {
-                <article class="console-panel console-state-warning" role="status" data-filter-unbound>
-                    <p class="console-kicker">Unavailable</p>
+                <div class="@(V4Enabled ? "console-state console-state-warning" : "console-panel console-state-warning")" role="status" data-filter-unbound>
+                    <p class="@(V4Enabled ? null : "console-kicker")">Unavailable</p>
                     <p>@_filter.Detail</p>
-                </article>
+                </div>
             }
             else
             {
-                <article class="console-panel" data-filter-current>
-                    <p class="console-kicker">Current</p>
+                <div class="@(V4Enabled ? null : "console-panel")" data-filter-current>
+                    @if (!V4Enabled) { <p class="console-kicker">Current</p> }
                     @if (_filter.HasFilter)
                     {
                         <p>A permanent filter (<code>@_filter.Language</code>) is enforced on this layer.</p>
@@ -42,7 +74,7 @@
                     {
                         <p class="console-muted" data-filter-none>No permanent filter is saved on this layer — reads are unconstrained.</p>
                     }
-                </article>
+                </div>
 
                 <div class="console-field">
                     <label class="console-label" for="filter-language">Language</label>
@@ -73,18 +105,20 @@
 
                 @if (_result is { } r)
                 {
-                    <div class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-filter-result>
-                        <p class="console-kicker">@r.State</p>
+                    <div class="@(V4Enabled ? "console-state" : "console-panel") @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-filter-result>
+                        <p class="@(V4Enabled ? null : "console-kicker")">@r.State</p>
                         <p>@r.Detail</p>
                     </div>
                 }
             }
-        </section>
-    }
-    <ConsoleConfirmDialog @ref="_confirm" />
-</section>
+    </div>;
+    private string? _loadedResourceId;
+    private long _generation;
+    private bool _loading;
+    private ConsoleAgentPageContext AgentContext =>
+        ConsoleAgentLayerTool.Context(_layer, ConsoleAgentLayerTool.ToolRoute(ResourceId, ConsoleAgentLayerTool.Filter),
+            new() { ChangedFieldCount = ChangedFields, PendingOperationCount = _loading || _busy ? 1 : 0 });
 
-@code {
     [CascadingParameter] public ConsolePublicationLayerContext? PublicationContext { get; set; }
 
     [Parameter]
@@ -98,80 +132,93 @@
     private ConsoleSetLayerFilterResult? _result;
     private ConsoleConfirmDialog? _confirm;
 
+    private string _baselineExpression = string.Empty;
+    private string _baselineLanguage = "arcgis-sql";
+    private int ChangedFields => (_editExpression == _baselineExpression ? 0 : 1)
+        + (_editLanguage == _baselineLanguage ? 0 : 1);
+
     protected override async Task OnParametersSetAsync()
     {
-        var attempt = PublicationContext?.BeginRead(ResourceId);
-        var view = await OperateData.GetLayersViewAsync();
-        var exposures = view.FindExposures(ResourceId);
-        if (attempt is { } read) PublicationContext!.CompleteRead(read, exposures);
-        _layer = exposures.FirstOrDefault()?.Layer;
-
-        if (_layer is not null)
+        if (string.Equals(_loadedResourceId, ResourceId, StringComparison.Ordinal)) return;
+        _loadedResourceId = ResourceId;
+        var generation = ++_generation;
+        var resourceId = ResourceId;
+        _layer = null;
+        _result = null;
+        _busy = false;
+        _editExpression = _baselineExpression = string.Empty;
+        _editLanguage = _baselineLanguage = "arcgis-sql";
+        _filter = ConsoleLayerFilter.Unbound("Loading…");
+        _loading = true;
+        var attempt = PublicationContext?.BeginRead(resourceId);
+        try
         {
-            await LoadFilterAsync();
+            var view = await OperateData.GetLayersViewAsync();
+            if (generation != _generation) return;
+            var exposures = view.FindExposures(resourceId);
+            if (attempt is { } read) PublicationContext!.CompleteRead(read, exposures);
+            _layer = exposures.FirstOrDefault()?.Layer;
+            if (_layer is null) return;
+            var filter = await LayerFilter.GetFilterAsync(_layer.LayerId);
+            if (generation != _generation) return;
+            _filter = filter;
+            if (filter.Bound)
+            {
+                _editExpression = _baselineExpression = filter.Expression;
+                _editLanguage = _baselineLanguage = filter.Language;
+            }
+        }
+        finally
+        {
+            if (generation == _generation) _loading = false;
         }
     }
 
-    private async Task LoadFilterAsync()
-    {
-        _filter = await LayerFilter.GetFilterAsync(_layer!.LayerId);
-        if (_filter.Bound)
-        {
-            _editExpression = _filter.Expression;
-            _editLanguage = _filter.Language;
-        }
-    }
+    private enum FilterWriteOperation { Save, Clear }
 
-    private Task SaveAsync()
-    {
-        if (_layer is null)
-        {
-            return Task.CompletedTask;
-        }
+    private Task SaveAsync() => WriteFilterAsync(FilterWriteOperation.Save);
 
+    private Task WriteFilterAsync(FilterWriteOperation operation)
+    {
+        if (_layer is null || _busy) return Task.CompletedTask;
+        var layerId = _layer.LayerId;
+        var generation = _generation;
+        var expression = _editExpression;
+        var language = _editLanguage;
         _result = null;
         return Notifications.RunGuardedAsync(
             async () =>
             {
-                _result = await LayerFilter.SaveFilterAsync(_layer.LayerId, _editExpression, _editLanguage);
-                if (_result.Succeeded)
-                {
-                    await LoadFilterAsync();
-                }
+                var result = operation == FilterWriteOperation.Clear
+                    ? await LayerFilter.ClearFilterAsync(layerId)
+                    : await LayerFilter.SaveFilterAsync(layerId, expression, language);
+                if (generation != _generation) return;
+                _result = result;
+                if (!result.Succeeded) return;
+                var filter = await LayerFilter.GetFilterAsync(layerId);
+                if (generation != _generation) return;
+                _filter = filter;
+                if (!filter.Bound) return;
+                // Preserve edits made while the submitted request was in flight.
+                if (_editExpression == expression) _editExpression = filter.Expression;
+                if (_editLanguage == language) _editLanguage = filter.Language;
+                _baselineExpression = filter.Expression;
+                _baselineLanguage = filter.Language;
             },
-            setBusy: busy => { _busy = busy; StateHasChanged(); },
-            failureMessage: "Couldn't save the filter");
+            setBusy: busy => { if (generation == _generation) { _busy = busy; StateHasChanged(); } },
+            failureMessage: operation == FilterWriteOperation.Clear ? "Couldn't clear the filter" : "Couldn't save the filter");
     }
 
     private void ConfirmClear()
     {
         if (_confirm is null) return;
+        var generation = _generation;
         _confirm.Open(
             title: "Clear the permanent filter?",
-            onConfirm: ClearAsync,
+            onConfirm: () => generation == _generation ? ClearAsync() : Task.CompletedTask,
             body: "This removes the server-enforced query filter from this layer. All reads will be unrestricted until a new filter is set. This cannot be undone.",
             confirmLabel: "Clear filter");
     }
 
-    private Task ClearAsync()
-    {
-        if (_layer is null)
-        {
-            return Task.CompletedTask;
-        }
-
-        _result = null;
-        return Notifications.RunGuardedAsync(
-            async () =>
-            {
-                _result = await LayerFilter.ClearFilterAsync(_layer.LayerId);
-                if (_result.Succeeded)
-                {
-                    _editExpression = string.Empty;
-                    await LoadFilterAsync();
-                }
-            },
-            setBusy: busy => { _busy = busy; StateHasChanged(); },
-            failureMessage: "Couldn't clear the filter");
-    }
+    private Task ClearAsync() => WriteFilterAsync(FilterWriteOperation.Clear);
 }
