@@ -67,6 +67,7 @@ public sealed class CatalogBrowseV4Tests
         {
             Assert.Single(page.FindAll("nav a[aria-current='page']"));
             Assert.Empty(page.FindAll(".console-overview-card"));
+            Assert.Single(page.FindAll(".console-detail-panel.console-panel-quiet"));
             CatalogAdminPreview.CaptureV4("catalog-item-overview-v4", page.Markup);
         }
         else

@@ -35,14 +35,14 @@
 
     @if (_loading)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="loading"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="loading"
                           Kicker="Catalogs"
                           Title="Loading discovery endpoints"
                           Message="Reading the catalog discovery-endpoints registry from honua-server." />
     }
     else if (_bindingState is not null)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="missing"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="missing"
                           Kicker="@_bindingState.State"
                           Title="Catalog discovery endpoints are not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
@@ -64,7 +64,7 @@
 
         @if (registry.Endpoints.Count == 0)
         {
-            <ConsoleStateView HeadingLevel="2" Kind="empty"
+            <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="empty"
                               Kicker="Catalogs"
                               Title="No discovery endpoints"
                               Message="The registry returned no catalog discovery endpoints for this workspace." />
@@ -167,10 +167,9 @@
                         }
                         @if (V4Enabled)
                         {
-                            <section class="console-summary" aria-labelledby="@($"catalog-endpoint-{endpoint.Key}-heading")">
-                                <div class="console-panel-heading"><h2 id="@($"catalog-endpoint-{endpoint.Key}-heading")">@endpoint.Title</h2></div>
+                            <ConsolePanel Title="@endpoint.Title" HeadingId="@($"catalog-endpoint-{endpoint.Key}-heading")" Surface="ConsolePanelSurface.Quiet" Class="console-summary">
                                 @EndpointContent
-                            </section>
+                            </ConsolePanel>
                         }
                         else
                         {
@@ -183,7 +182,7 @@
     }
     else
     {
-        <ConsoleStateView HeadingLevel="2" Kind="empty"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="empty"
                           Kicker="Catalogs"
                           Title="No discovery endpoints"
                           Message="The catalog discovery-endpoints registry returned no data for this workspace." />

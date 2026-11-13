@@ -9,7 +9,7 @@
 <section class="console-page">
     @if (_result is null)
     {
-        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading item" Message="Catalog detail is loading." />
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="loading" Kicker="Loading" Title="Loading item" Message="Catalog detail is loading." />
     }
     else if (_result.Status != CatalogReadStatus.Allowed || _result.Item is null)
     {
@@ -179,14 +179,14 @@
                        lands, the catalog client sets UsageBound and the live closure renders below. *@
                     @if (!item.UsageBound)
                     {
-                        <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 1)" Kind="missing" Kicker="Missing binding" Title="Dependency usage is not bound"
+                        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="@(V4Enabled ? 3 : 1)" Kind="missing" Kicker="Missing binding" Title="Dependency usage is not bound"
                                           Message="This server version can't report which maps, apps, or workflows depend on this item. Console won't guess downstream consumers — review impact from Lineage instead." />
                         <ConsoleDiagnostics Detail="The connected honua-server exposes no dependency/usage (blast-radius) endpoint for content items; metadata v2 has no usage projection."
                                             IssueRef="honua-server#1162" />
                     }
                     else if (item.Usage.Length == 0)
                     {
-                        <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 1)" Kind="empty" Kicker="No usage" Title="No downstream consumers" Message="No saved maps, apps, dashboards, reports, or workflows currently depend on this item." />
+                        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="@(V4Enabled ? 3 : 1)" Kind="empty" Kicker="No usage" Title="No downstream consumers" Message="No saved maps, apps, dashboards, reports, or workflows currently depend on this item." />
                     }
                     else
                     {
@@ -334,10 +334,9 @@
         </text>;
         @if (V4Enabled)
         {
-            <section class="console-section console-detail-panel" aria-labelledby="catalog-detail-heading">
-                <div class="console-panel-heading"><h2 id="catalog-detail-heading">@Tabs.First(tab => tab.Id == _tab).Label</h2></div>
+            <ConsolePanel Title="@Tabs.First(tab => tab.Id == _tab).Label" HeadingId="catalog-detail-heading" Surface="ConsolePanelSurface.Quiet" Class="console-detail-panel">
                 @DetailContent
-            </section>
+            </ConsolePanel>
         }
         else
         {

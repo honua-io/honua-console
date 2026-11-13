@@ -33,7 +33,7 @@
         RenderFragment CatalogContent = @<text>
     @if (_accessResolved && !_requiresAuthentication)
     {
-        <form class="console-filter-bar" method="get" action="/catalog">
+        <form class="@(V4Enabled ? "console-filter-bar console-filter-bar-quiet" : "console-filter-bar")" method="get" action="/catalog">
             <label>
                 <span>Search</span>
                 <input name="q" value="@_search.Query" placeholder="Search title, summary, or tag" />
@@ -120,7 +120,7 @@
 
     @if (!_accessResolved)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="loading" Kicker="Loading" Title="Checking catalog access" Message="The workspace session is being checked before catalog summaries load." />
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="loading" Kicker="Loading" Title="Checking catalog access" Message="The workspace session is being checked before catalog summaries load." />
     }
     else if (_requiresAuthentication)
     {
@@ -128,7 +128,7 @@
     }
     else if (_result is null)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="loading" Kicker="Loading" Title="Loading catalog" Message="Catalog summaries are loading." />
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="loading" Kicker="Loading" Title="Loading catalog" Message="Catalog summaries are loading." />
     }
     else if (!_result.Succeeded)
     {
@@ -158,7 +158,7 @@
         }
         else
         {
-            <ConsoleStateView HeadingLevel="2" Kind="empty" Kicker="Empty catalog" Title="No content matched" Message="Try a broader search or publish the first item into this workspace." ActionHref="/operate/publishing" ActionLabel="Open Publishing" />
+            <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="empty" Kicker="Empty catalog" Title="No content matched" Message="Try a broader search or publish the first item into this workspace." ActionHref="/operate/publishing" ActionLabel="Open Publishing" />
         }
     }
     else
