@@ -1,6 +1,6 @@
 import { captureConsoleSession } from './console-browser-transport.mjs';
 
-// Studio bootstrap on the native Honua API (K3): GET api/v1/studio/session through the
+// Studio bootstrap on the native Honua API: GET api/v1/studio/session through the
 // Console transport, which owns the cookie/bearer choice and CSRF. No Console host needed.
 export class StudioSignInRequired extends Error {}
 
