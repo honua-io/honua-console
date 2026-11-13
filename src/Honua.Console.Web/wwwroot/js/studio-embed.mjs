@@ -39,7 +39,7 @@ async function studioElement(session) {
             if (workspace?.session?.environmentId === session.environmentId) {
                 workspace.agentSession?.attachDraft(event.detail ? {draftId:event.detail.draftId,generation:event.detail.generation} : undefined);
                 if (!event.detail) {
-                    const staleAuthority=app.workspaceAuthorityChanged && workspace.session.principalId !== app.workspaceCookieBinding?.principalId;
+                    const staleAuthority=app.workspaceAuthorityChanged && !sameCookieAuthority(workspace.session,app.workspaceCookieBinding);
                     if(staleAuthority) {
                         workspace.agentSession?.sdkSession?.close();workspace.agentSession=null;
                     }
@@ -74,12 +74,15 @@ async function studioElement(session) {
     const previous=app.workspaceCookieBinding;
     const requestGeneration = (app.workspaceBindingRequest || 0) + 1;
     app.workspaceBindingRequest = requestGeneration;
-    const changedAuthority=Boolean(previous && (previous.principalId !== session.principalId || previous.environmentId !== session.environmentId || previous.sourcePathBase !== session.sourcePathBase));
+    const changedAuthority=Boolean(previous && !sameCookieAuthority(previous,session));
     if (changedAuthority) await app.prepareWorkspaceTurn();
     if (app.workspaceBindingRequest !== requestGeneration) throw new Error('A newer Studio connection replaced this request.');
     const cookieSession = createStudioCookieSession(session);
     app.workspaceAuthorityChanged=changedAuthority;
-    app.workspaceCookieBinding={principalId:session.principalId,environmentId:session.environmentId,sourcePathBase:session.sourcePathBase};
+    app.workspaceCookieBinding={principalId:session.principalId,environmentId:session.environmentId,sourcePathBase:session.sourcePathBase,tenantId:session.tenantId};
+    // The released bundle's renewal comparison predates tenant identity. Clear the
+    // session first so its normal authority reset detaches the previous tenant's draft.
+    if (previous && previous.tenantId !== session.tenantId) app.session = undefined;
     app.session = cookieSession;
     // Native process reads use the captured Console transport; legacy hosts omit this binding.
     app.workspaceProcessBinding = session.transport ? {...app.workspaceCookieBinding, transport:session.transport} : undefined;

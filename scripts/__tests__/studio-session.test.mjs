@@ -91,3 +91,40 @@ test('native capture failures never fall back to the legacy host',async()=>{
  await assert.rejects(readStudioSession({capture:async()=>{throw new Error('signed out');},
   request:()=>assert.fail('legacy fallback')}),StudioSignInRequired);
 });
+
+for (const nextTenant of ['t2', undefined]) {
+    test(`observing tenant ${nextTenant} revokes old requests and body readers without a Console revision change`, async () => {
+        const { createStudioCookieSession, capturedProcessFetch } = await import('../../src/Honua.Console.Web/wwwroot/js/cookie-workspace-transport.mjs');
+        let tenantId = 't1', release;
+        const consoleTransport = createConsoleBrowserTransport({
+            apiBaseUrl: 'https://console.example/', applicationBaseUrl: 'https://console.example/',
+            getSession: async () => ({ revision: 1, principalId: 'operator', authenticated: true }),
+            request: async url => url.endsWith('/session') ? Response.json({ data: { ...valid, tenantId } })
+                : new Response(new ReadableStream({ pull(controller) { return new Promise(resolve => {
+                    release = () => { controller.enqueue(new TextEncoder().encode('{"old":true}')); controller.close(); resolve(); };
+                }); } }, { highWaterMark: 0 })),
+        });
+        const capture = () => consoleTransport.capture();
+        const first = await readStudioSession({ capture });
+        const adapter = createStudioCookieSession(first);
+        const response = await adapter.fetchRequest('api/v1/studio/drafts');
+        const clone = response.clone();
+        const reading = new Response(response.body).json();
+        while (!release) await new Promise(resolve => setImmediate(resolve));
+        tenantId = nextTenant;
+        const next = await readStudioSession({ capture });
+        await next.transport.assertCurrent();
+        release();
+        await assert.rejects(reading, /authority changed/);
+        await assert.rejects(clone.json(), /authority changed/);
+        await assert.rejects(adapter.fetchRequest('api/v1/studio/drafts'), /authority changed/);
+        await assert.rejects(capturedProcessFetch(first)('/api/processes/console/workflow-packages'), /authority changed/);
+    });
+}
+
+test('same-tenant renewal preserves existing readers', async () => {
+    const { capture } = fixture();
+    const first = await readStudioSession({ capture });
+    await readStudioSession({ capture });
+    await first.transport.assertCurrent();
+});

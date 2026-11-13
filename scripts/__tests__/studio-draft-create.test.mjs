@@ -270,3 +270,27 @@ test('unclassified HTTP failures retain the original command because creation ma
         await assert.rejects(f.session.submit('changed-map'), /original/);
     }
 });
+
+test('New map recovery stays partitioned by tenant for the same principal and workspace', async () => {
+    const f = fixture();
+    f.app.workspaceCookieBinding.tenantId = 'first';
+    await f.session.submit('map');
+    assert.equal(f.session.read().receipt.proposalId, 'proposal');
+    f.app.workspaceCookieBinding.tenantId = 'second';
+    const next = new StudioDraftCreateSession(f.app, f.options);
+    assert.equal(next.read(), null);
+    await next.refresh();
+    assert.deepEqual(f.attached, []);
+    f.app.workspaceCookieBinding.tenantId = 'first';
+    assert.equal(f.session.read().receipt.proposalId, 'proposal');
+});
+
+
+test('sessions without tenant identity keep existing New map recovery keys', async () => {
+    const f = fixture();
+    await f.session.submit('map');
+    const key = `honua.studio.create.${encodeURIComponent(JSON.stringify(['human', 'local', '']))}`;
+    assert.ok(f.records.has(key));
+    f.app.workspaceCookieBinding.tenantId = undefined;
+    assert.equal(new StudioDraftCreateSession(f.app, f.options).read().receipt.proposalId, 'proposal');
+});

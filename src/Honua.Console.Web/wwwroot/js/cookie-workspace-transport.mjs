@@ -1,8 +1,7 @@
 // Human transport only. Renew the lease without borrowing another view's authority.
 // Native sessions also carry tenantId; a tenant switch under the same principal is a new authority.
 export function sameCookieAuthority(left,right) {
-    if(left?.tenantId!==undefined && right?.tenantId!==undefined && left.tenantId!==right.tenantId) return false;
-    return ['principalId','environmentId','sourcePathBase'].every(key=>left?.[key]===right?.[key]);
+    return ['principalId','environmentId','sourcePathBase','tenantId'].every(key=>left?.[key]===right?.[key]);
 }
 
 // Rebind before the captured lease expires, including short server bearers. The
@@ -38,7 +37,7 @@ export function createStudioCookieSession(session) {
         kind: 'cookie', baseUrl: transport ? '/api/v1/studio' : '/api/studio', expiresAt,
         ...nativeTransport,
         csrfToken: session.csrfToken, environmentId: session.environmentId,
-        principalId: session.principalId, sourcePathBase: session.sourcePathBase,
+        principalId: session.principalId, sourcePathBase: session.sourcePathBase, tenantId: session.tenantId,
         onExpired(listener) {
             if (typeof listener !== 'function') throw new TypeError('A Studio expiry listener is required.');
             let cancelled = false;

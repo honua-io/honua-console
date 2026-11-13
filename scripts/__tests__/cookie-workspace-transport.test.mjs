@@ -60,7 +60,7 @@ test('Studio cookie adapter snapshots only allowed fields and rejects invalid ex
  const clock=leaseClock(t);
  const session={...lease(clock.expiry(5000)),accessToken:'not-projected',fetchRequest:'not-projected',baseUrl:'https://untrusted.test'};
  const adapter=createStudioCookieSession(session);
- assert.deepEqual(Object.keys(adapter).sort(),['baseUrl','csrfToken','environmentId','expiresAt','kind','onExpired','principalId','sourcePathBase'].sort());
+ assert.deepEqual(Object.keys(adapter).sort(),['baseUrl','csrfToken','environmentId','expiresAt','kind','onExpired','principalId','sourcePathBase','tenantId'].sort());
  assert.equal(adapter.kind,'cookie');assert.equal(adapter.baseUrl,'/api/studio');assert.ok(Object.isFrozen(adapter));
  session.csrfToken='changed';session.expiresAt='invalid';
  assert.equal(adapter.csrfToken,'csrf');assert.equal(adapter.expiresAt,clock.expiry(5000));
@@ -262,6 +262,6 @@ test('a tenant switch under the same principal is a different authority',()=>{
  const base={principalId:'partition',environmentId:'environment',sourcePathBase:''};
  assert.equal(sameCookieAuthority({...base,tenantId:'a'},{...base,tenantId:'a'}),true);
  assert.equal(sameCookieAuthority({...base,tenantId:'a'},{...base,tenantId:'b'}),false);
- assert.equal(sameCookieAuthority(base,{...base,tenantId:'a'}),true);
+ assert.equal(sameCookieAuthority(base,{...base,tenantId:'a'}),false);
  assert.equal(sameCookieAuthority({...base,tenantId:'a'},{...base,environmentId:'other',tenantId:'a'}),false);
 });
