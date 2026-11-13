@@ -116,19 +116,12 @@
         }
     }
 
-    private async Task SelectPublication(ResourceTreeNode node, PublicationTreeNode publication)
-    {
-        if (publication.Route is null) return;
-        if (OnPublicationSelected.HasDelegate)
-        {
-            await OnPublicationSelected.InvokeAsync(new LayerPreviewPane.PreviewSelection(
-                node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, publication.Route));
-        }
-    }
+    private Task SelectPublication(ResourceTreeNode node, PublicationTreeNode publication) =>
+        LayerPreviewPane.SelectAsync(OnPublicationSelected, node, publication);
 
-    private static string PublishHref(ResourceTreeNode node) =>
+    internal static string PublishHref(ResourceTreeNode node) =>
         $"/operate/data/new?source=existingresource&resource={Uri.EscapeDataString(node.ResourceId)}";
 
-    private static string ExposeHref(ResourceTreeNode node) =>
+    internal static string ExposeHref(ResourceTreeNode node) =>
         $"/operate/data/new?source=existingresource&resource={Uri.EscapeDataString(node.ResourceId)}&step=publish";
 }

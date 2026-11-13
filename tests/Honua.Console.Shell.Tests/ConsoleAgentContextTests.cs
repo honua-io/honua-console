@@ -115,6 +115,7 @@ public sealed class ConsoleAgentContextTests
     }
 
     [Theory]
+    [InlineData(ConsoleAgentEntityKind.Connection, "/operate/connections/a%20b")]
     [InlineData(ConsoleAgentEntityKind.Folder, "/operate/folders/a%20b")]
     [InlineData(ConsoleAgentEntityKind.Service, "/operate/services/a%20b/settings")]
     [InlineData(ConsoleAgentEntityKind.Layer, "/operate/layers/a%20b")]
@@ -143,6 +144,21 @@ public sealed class ConsoleAgentContextTests
     public void Invalid_entity_identity_is_rejected(string id)
     {
         Assert.ThrowsAny<ArgumentException>(() => ConsoleAgentRoutes.ForEntity(Folder(id)));
+    }
+
+    [Theory]
+    [InlineData(" ", "/operate/layers/%20/filter")]
+    [InlineData("a/b", "/operate/layers/a%2Fb/filter")]
+    public void Layer_tool_route_escapes_unresolved_ids_without_throwing(string resourceId, string expected)
+    {
+        Assert.Equal(expected, ConsoleAgentLayerTool.ToolRoute(resourceId, ConsoleAgentLayerTool.Filter));
+    }
+
+    [Fact]
+    public void Layer_tool_route_accepts_overlong_unresolved_ids()
+    {
+        var resourceId = new string('x', 300);
+        Assert.Equal($"/operate/layers/{resourceId}/filter", ConsoleAgentLayerTool.ToolRoute(resourceId, ConsoleAgentLayerTool.Filter));
     }
 
     [Theory]

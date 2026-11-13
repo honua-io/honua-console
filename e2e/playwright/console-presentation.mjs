@@ -15,7 +15,7 @@ const sharedKeyboardTargets = {
   sizedControls: "input, select, button, textarea, summary, .console-button-link",
   minimumHeight: 24
 };
-const statusEdges = { info: "rgb(37, 99, 235)", warning: "rgb(180, 95, 6)", danger: "rgb(179, 38, 30)",
+export const statusEdges = { info: "rgb(37, 99, 235)", warning: "rgb(180, 95, 6)", danger: "rgb(179, 38, 30)",
   neutral: "rgb(103, 115, 110)", success: "rgb(21, 128, 61)" };
 
 export async function inspectCatalogCounts(page, name) {
@@ -125,7 +125,7 @@ async function inspectProtocolPills(page) {
   assert.ok(childrenFit, "Every protocol name, status and URL box must fit inside its pill");
 }
 
-async function inspectNoticeSurface(surface, edgeColor) {
+export async function inspectNoticeSurface(surface, edgeColor) {
   assert.equal(await surface.count(), 1);
   const normal = await surface.evaluate(element => {
     const style = getComputedStyle(element);
@@ -194,7 +194,7 @@ export async function checkKeyboardControls(page, { controls, sizedControls, min
   assert.equal(visited.size, total, "Every enabled form, link and pager control must be keyboard reachable");
 }
 
-export async function runV4PagePresentation({ previews, pageNames, title, stylesheet, heading, scope, controls, inspect, prepareMarkup = markup => `<div class="console-shell" data-console-v4="true">${markup}</div>` }) {
+export async function runV4PagePresentation({ previews, pageNames, title, stylesheet, heading, scope, controls, inspect, allowScriptModules = false, prepareMarkup = markup => `<div class="console-shell" data-console-v4="true">${markup}</div>` }) {
   const pages = new Map(await Promise.all(pageNames.map(async name => {
     const markup = await fs.readFile(path.join(previews, `${name}.html`), "utf8");
     return [name, prepareMarkup(markup)];
@@ -204,6 +204,7 @@ export async function runV4PagePresentation({ previews, pageNames, title, styles
     stylesheets: ["/_content/Honua.Console.Shell/honua-console.css"],
     assets: path.resolve("src/Honua.Console.Shell/wwwroot"),
     assetPrefix: "/_content/Honua.Console.Shell/",
+    allowScriptModules,
   });
   let browser;
   try {
