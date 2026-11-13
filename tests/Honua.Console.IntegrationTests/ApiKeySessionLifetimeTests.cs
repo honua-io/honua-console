@@ -48,7 +48,7 @@ public sealed class ApiKeySessionLifetimeTests
 
     private static IRenderedComponent<OperateApiKeysPage> CreateKey(BunitContext context)
     {
-        var page = context.RenderComponent<OperateApiKeysPage>();
+        var page = context.Render<OperateApiKeysPage>();
         page.Find("#api-key-name").Change("Reporting app");
         page.Find("#api-key-permissions").Change("admin:read");
         page.Find("form").Submit();
