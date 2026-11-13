@@ -1,3 +1,4 @@
+@inject IServiceProvider Services
 @page "/operate/catalogs/{Key}/items/{ItemId}"
 @using Honua.Console.Shell.Models
 @using Microsoft.JSInterop
@@ -31,6 +32,28 @@
     }
     else if (_item is { } item)
     {
+        RenderFragment HeaderActions = @<text>
+
+
+                <button class="console-button console-button-secondary" type="button"
+                        data-catalog-copy-url @onclick="CopyItemUrlAsync">
+                    @(_copied ? "✓ Copied" : "⧉ Copy item URL")
+                </button>
+        </text>;
+        @if (V4Enabled)
+        {
+            <ConsolePageHeading Title="@item.Title">
+                <ChildContent>
+                <p><a href="@Navigation.ToConsoleLinkHref(CatalogsListHref)">Catalogs</a> / <a href="@Navigation.ToConsoleLinkHref(EndpointHref)">Endpoint</a></p>
+                <p>Item @item.Id · @item.BackingServiceCount backing services</p>
+                @if (item.AutoMirror) { <span class="console-status console-state-info" data-catalog-auto-mirror>auto-mirror</span> }
+                @if (item.Live) { <span class="console-status console-state-success">live</span> }
+                </ChildContent>
+                <Actions>@HeaderActions</Actions>
+            </ConsolePageHeading>
+        }
+        else
+        {
         <div class="console-detail-heading">
             <div>
                 <p class="console-kicker">
@@ -50,20 +73,10 @@
                 </h1>
                 <p class="console-muted">item @item.Id · @item.BackingServiceCount backing services</p>
             </div>
-            <div class="console-detail-actions">
-                @* Copy item URL copies THIS item-editor page's absolute URL to the clipboard — a real,
-                   self-contained target. The former "Preview ↗" and "↗ Open Data Resource" controls were
-                   removed: the catalog discovery-endpoints item projection (honua-server#1279) carries no
-                   public-link slug / public item URL and no backing data-resource URL, so there is no honest
-                   target to navigate to. They were dead buttons (no @@onclick) and shipping them would
-                   fabricate a capability the contract does not yet expose; restore them when #1279 lands
-                   those fields. *@
-                <button class="console-button console-button-secondary" type="button"
-                        data-catalog-copy-url @onclick="CopyItemUrlAsync">
-                    @(_copied ? "✓ Copied" : "⧉ Copy item URL")
-                </button>
-            </div>
+            <div class="console-detail-actions">@HeaderActions</div>
         </div>
+        }
+
 
         <div class="catalogs-field-legend" data-catalog-field-legend>
             <span class="catalogs-field-legend__item" data-catalog-field-state="system"><span class="console-status console-state-neutral">system</span> server-assigned</span>
@@ -81,14 +94,7 @@
 
                 @foreach (var group in item.Groups)
                 {
-                    <div class="console-field-group catalogs-field-group" data-catalog-field-group="@group.Title">
-                        <header>
-                            <h3>@group.Title</h3>
-                            @if (!string.IsNullOrWhiteSpace(group.Subtitle))
-                            {
-                                <small class="console-muted">@group.Subtitle</small>
-                            }
-                        </header>
+                    RenderFragment Fields = @<text>
                         <dl class="catalogs-fields">
                             @foreach (var field in group.Fields)
                             {
@@ -107,21 +113,58 @@
                                 </div>
                             }
                         </dl>
+                    </text>;
+                    @if (V4Enabled)
+                    {
+                        <section data-catalog-field-group="@group.Title">
+                            <ConsolePanel Title="@group.Title" HeadingId="@($"catalog-fields-{Array.IndexOf(item.Groups.ToArray(), group)}")">
+                                @if (!string.IsNullOrWhiteSpace(group.Subtitle)) { <p class="console-muted">@group.Subtitle</p> }
+                                @Fields
+                            </ConsolePanel>
+                        </section>
+                    }
+                    else
+                    {
+                    <div class="console-field-group catalogs-field-group" data-catalog-field-group="@group.Title">
+                        <header>
+                            <h3>@group.Title</h3>
+                            @if (!string.IsNullOrWhiteSpace(group.Subtitle))
+                            {
+                                <small class="console-muted">@group.Subtitle</small>
+                            }
+                        </header>
+                        @Fields
                     </div>
+                    }
+
                 }
             </div>
 
             <aside class="console-detail-overview-side">
-                <div class="console-overview-card" data-catalog-quick-facts>
-                    <header><h3>Quick facts</h3></header>
-                    <div class="console-overview-card-body">
+                @{ RenderFragment QuickFacts = @<text>
                         <dl class="catalogs-fields">
                             <div class="catalogs-field"><dt>Item ID</dt><dd><code>@item.Id</code></dd></div>
                             <div class="catalogs-field"><dt>Services</dt><dd>@item.BackingServiceCount</dd></div>
                             <div class="catalogs-field"><dt>Tags</dt><dd>@item.TagCount</dd></div>
                         </dl>
+                </text>; }
+                @if (V4Enabled)
+                {
+                    <section data-catalog-quick-facts>
+                        <ConsolePanel Title="Quick facts" HeadingId="catalog-item-facts-heading">
+                            <ConsoleMetricTile Label="Backing services" Value="@item.BackingServiceCount" />
+                            @QuickFacts
+                        </ConsolePanel>
+                    </section>
+                }
+                else
+                {
+                    <div class="console-overview-card" data-catalog-quick-facts>
+                        <header><h3>Quick facts</h3></header>
+                        <div class="console-overview-card-body">@QuickFacts</div>
                     </div>
-                </div>
+                }
+
 
                 @if (item.HasIssues)
                 {
@@ -147,6 +190,8 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     [Parameter]
     public string Key { get; set; } = string.Empty;
 

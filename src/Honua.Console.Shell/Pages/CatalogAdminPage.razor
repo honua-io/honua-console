@@ -1,3 +1,4 @@
+@inject IServiceProvider Services
 @inject NavigationManager ConsoleNavigation
 @page "/catalogs"
 @page "/catalogs/{CatalogId}"
@@ -7,6 +8,17 @@
 @inject ICatalogAdminSource Catalogs
 
 <section class="console-page catalog-admin">
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="@(_read?.Overview is { } heading && heading.CatalogId == CatalogId ? heading.Title : "Catalogs")">
+            <ChildContent>
+                @if (CatalogId is not null) { <a href="@ConsoleNavigation.ToConsoleHref("/catalogs")">Catalogs</a> }
+                <p>Present services, layers, datasets, maps and apps to the audiences that may read them.</p>
+            </ChildContent>
+        </ConsolePageHeading>
+    }
+    else
+    {
     <header class="console-detail-heading">
         <div>
             @if (CatalogId is not null) { <a href="@ConsoleNavigation.ToConsoleHref("/catalogs")">Catalogs</a> }
@@ -14,6 +26,9 @@
             <p class="console-muted">Present services, layers, datasets, maps and apps to the audiences that may read them.</p>
         </div>
     </header>
+    }
+    @{
+        RenderFragment AdministrationContent = @<text>
     @if (!Options.Enabled)
     {
         <ConsoleStateView HeadingLevel="2" Kind="disabled" Title="Catalogs are not enabled"
@@ -187,9 +202,28 @@
             <ConsoleStateView HeadingLevel="2" Kind="denied" Title="Catalog is unavailable" Message="This catalog could not be read." />
         }
     }
+        </text>;
+    }
+    @if (V4Enabled)
+    {
+        <ConsolePanel Title="@(CatalogId is null ? "Catalogs" : "Catalog administration")" HeadingId="catalog-admin-heading">
+            @if (CatalogId is null && _read is { State: "fixture" or "success" })
+            {
+                <ConsoleMetricTile Label="Matching catalogs" Value="@FilteredCatalogs.Count" />
+            }
+            @AdministrationContent
+        </ConsolePanel>
+    }
+    else
+    {
+        @AdministrationContent
+    }
+
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     [Parameter] public string? CatalogId { get; set; }
     [Parameter] public string? Section { get; set; }
     [Parameter] public string? TemplateId { get; set; }
