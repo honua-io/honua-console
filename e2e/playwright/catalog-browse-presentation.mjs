@@ -32,6 +32,12 @@ try {
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} overflows at ${width}`);
       assert.equal(await page.locator(".console-panel:not(.console-panel-quiet)").count(), 0);
       if (name === "catalog-browse-v4") {
+        const table = page.locator(".console-content-table");
+        assert.equal(await table.evaluate(element => getComputedStyle(element).minWidth), "864px");
+        const region = page.getByRole("region", { name: "Catalog content items", exact: true });
+        if (width === 390) {
+          assert.ok(await region.evaluate(element => element.scrollWidth > element.clientWidth), "Mobile results must scroll within their region");
+        }
         await page.getByRole("textbox", { name: "Search", exact: true }).focus();
         await page.keyboard.type("roads");
         assert.equal(await page.getByRole("textbox", { name: "Search", exact: true }).inputValue(), "roads");
