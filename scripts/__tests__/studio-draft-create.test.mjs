@@ -129,7 +129,7 @@ test('operation status on a native session reads api/v1 through the Console tran
     const f = fixture();
     await f.session.submit('map');
     let route;
-    const transport = { principalId: 'human', fetch: async path => { route = path; return Response.json({ data: { operationInstanceId: 'operation', status: 4 } }); } };
+    const transport = { principalId: 'human', assertCurrent: async () => {}, fetch: async path => { route = path; return Response.json({ data: { operationInstanceId: 'operation', status: 4 } }); } };
     f.app.workspaceProcessBinding = { ...f.app.workspaceCookieBinding, transport };
     const original = globalThis.fetch;
     try {

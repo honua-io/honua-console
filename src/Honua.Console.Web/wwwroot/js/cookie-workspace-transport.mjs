@@ -28,7 +28,9 @@ export function createStudioCookieSession(session) {
     const deadline = typeof expiresAt === 'string' ? Date.parse(expiresAt) : NaN;
     if (!Number.isFinite(deadline)) throw new Error('The Studio cookie lease expiry is invalid. Reconnect before opening Studio.');
     const transport = session.transport;
-    const nativeTransport = transport ? { fetchRequest: transport.fetch.bind(transport) } : {};
+    const request = transport?.fetch.bind(transport);
+    const nativeTransport = transport ? { fetchRequest: (input,init)=>request(input,init)
+        .then(response=>guardNativeResponse(response,()=>transport.assertCurrent())) } : {};
     const maximumDelay = 2147483647;
     return Object.freeze({
         kind: 'cookie', baseUrl: transport ? '/api/v1/studio' : '/api/studio', expiresAt,
@@ -114,14 +116,14 @@ function nativeProcessFetch({binding,current},input,init) {
         throw new Error('The process connection changed. Reopen it after saving your work.');
     const headers=new Headers(init.headers);
     for(const name of ['X-Honua-Environment','X-Honua-Session-Partition']) headers.delete(name);
-    return lease.transport.fetch(route,{...init,headers}).then(response=>guardProcessResponse(response,()=>lease.transport.assertCurrent()));
+    return lease.transport.fetch(route,{...init,headers}).then(response=>guardNativeResponse(response,()=>lease.transport.assertCurrent()));
 }
 
-// Processes reads JSON after fetch resolves, so header-time checks alone cannot protect its editor.
-function guardProcessResponse(response,assertCurrent) {
+// Embedded editors consume bodies after fetch resolves; check the captured authority through consumption.
+function guardNativeResponse(response,assertCurrent) {
     return new Proxy(response,{
         get(target,key) {
-            if(key==='clone') return ()=>guardProcessResponse(target.clone(),assertCurrent);
+            if(key==='clone') return ()=>guardNativeResponse(target.clone(),assertCurrent);
             if(['json','text','blob','arrayBuffer','formData','bytes'].includes(key)) return async()=>{
                 await assertCurrent();
                 const value=await target[key]();

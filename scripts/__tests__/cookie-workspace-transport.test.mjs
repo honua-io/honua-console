@@ -229,3 +229,16 @@ test('native Processes returns current JSON and protects cloned response bodies'
  active=false;
  await assert.rejects(clone.json(),/session changed/);
 });
+
+for (const method of ['json','text']) test(`native Studio rejects a session switch during ${method} consumption without replaying a write`,async()=>{
+ let active=true,finish,calls=0;
+ const transport={assertCurrent:async()=>{if(!active) throw new Error('Console session changed');},
+  fetch:async()=>{calls++;return {[method]:()=>new Promise(resolve=>{finish=resolve;})};}};
+ const adapter=createStudioCookieSession({...lease(new Date(Date.now()+60000).toISOString()),transport});
+ const response=await adapter.fetchRequest('api/v1/studio/drafts',{method:'POST',body:'{}'});
+ const reading=response[method]();
+ await Promise.resolve();
+ active=false;finish(method==='json'?{draftId:'old'}:'old');
+ await assert.rejects(reading,/session changed/);
+ assert.equal(calls,1);
+});
