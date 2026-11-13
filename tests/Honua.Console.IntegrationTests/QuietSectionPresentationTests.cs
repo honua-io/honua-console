@@ -20,7 +20,7 @@ public sealed class QuietSectionPresentationTests
             .Add(c => c.HeadingId, "layers")
             .Add(c => c.Surface, ConsolePanelSurface.Quiet)
             .Add(c => c.Heading, ConsolePanelHeading.VisuallyHidden)
-            .AddChildContent("<div class='console-filter-bar console-filter-bar-quiet'><label>Search layers<input type='search' /></label><label>Geometry<select><option>All types</option><option>Line</option></select></label><button type='button'>Apply filters</button></div>" + table.Markup));
+            .AddChildContent("<div class='console-filter-bar console-filter-bar-quiet'><label>Search layers<input type='search' /></label><label>Geometry<select><option>All types</option><option>Line</option></select></label><button class='console-button' type='button'>Apply filters</button></div>" + table.Markup));
         var state = context.Render<ConsoleStateView>(p => p
             .Add(c => c.Kind, "unavailable")
             .Add(c => c.Treatment, ConsoleStateTreatment.Informational)
@@ -33,6 +33,6 @@ public sealed class QuietSectionPresentationTests
         Assert.Equal("0", panel.Find("[role=region]").GetAttribute("tabindex"));
         Assert.Equal("polite", state.Find("section").GetAttribute("aria-live"));
         CatalogAdminPreview.Capture($"quiet-sections-{enabled.ToString().ToLowerInvariant()}",
-            $"<div class=\"console-shell\" data-console-v4=\"{enabled.ToString().ToLowerInvariant()}\"><main class=\"console-main\"><h1>Service overview</h1>{panel.Markup}{state.Markup}</main></div>");
+            $"<div class=\"console-shell\" data-console-v4=\"{enabled.ToString().ToLowerInvariant()}\"><div class=\"console-main\"><h1>Service overview</h1>{panel.Markup}{state.Markup}</div></div>");
     }
 }
