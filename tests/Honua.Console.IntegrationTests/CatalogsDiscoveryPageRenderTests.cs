@@ -243,7 +243,8 @@ public sealed class CatalogsDiscoveryPageRenderTests
         if (enabled)
         {
             Assert.Empty(page.FindAll(".console-overview-card"));
-            Assert.Equal(page.FindAll("[data-catalog-field-group]").Count + 1, page.FindAll(".console-panel").Count);
+            Assert.Empty(page.FindAll(".console-panel"));
+            Assert.Equal(page.FindAll("[data-catalog-field-group]").Count + 1, page.FindAll(".console-panel-heading h2").Count);
             CatalogAdminPreview.CaptureV4("catalog-entry-v4", page.Markup);
         }
 

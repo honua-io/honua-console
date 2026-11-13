@@ -86,7 +86,7 @@
 
         <div class="console-detail-overview catalogs-item__layout">
             <div class="console-detail-overview-main">
-                <p class="console-status console-state-info catalogs-card__callout" data-catalog-auto-mirror-note>
+                <p class="@(V4Enabled ? "console-muted" : "console-status console-state-info catalogs-card__callout")" data-catalog-auto-mirror-note>
                     <strong>Auto-mirror.</strong> Most fields below come straight from the underlying Data Resource. The
                     catalog adds a thin layer of presentation — tags, thumbnail, featured flag, related items. Edit the
                     canonical fields in the resource and they propagate here.
@@ -116,11 +116,10 @@
                     </text>;
                     @if (V4Enabled)
                     {
-                        <section data-catalog-field-group="@group.Title">
-                            <ConsolePanel Title="@group.Title" HeadingId="@($"catalog-fields-{Array.IndexOf(item.Groups.ToArray(), group)}")">
-                                @if (!string.IsNullOrWhiteSpace(group.Subtitle)) { <p class="console-muted">@group.Subtitle</p> }
-                                @Fields
-                            </ConsolePanel>
+                        <section class="console-section" data-catalog-field-group="@group.Title" aria-labelledby="@($"catalog-fields-{Array.IndexOf(item.Groups.ToArray(), group)}")">
+                            <div class="console-panel-heading"><h2 id="@($"catalog-fields-{Array.IndexOf(item.Groups.ToArray(), group)}")">@group.Title</h2></div>
+                            @if (!string.IsNullOrWhiteSpace(group.Subtitle)) { <p class="console-muted">@group.Subtitle</p> }
+                            @Fields
                         </section>
                     }
                     else
@@ -144,17 +143,21 @@
                 @{ RenderFragment QuickFacts = @<text>
                         <dl class="catalogs-fields">
                             <div class="catalogs-field"><dt>Item ID</dt><dd><code>@item.Id</code></dd></div>
-                            <div class="catalogs-field"><dt>Services</dt><dd>@item.BackingServiceCount</dd></div>
+                            @if (!V4Enabled)
+                            {
+                                <div class="catalogs-field"><dt>Services</dt><dd>@item.BackingServiceCount</dd></div>
+                            }
                             <div class="catalogs-field"><dt>Tags</dt><dd>@item.TagCount</dd></div>
                         </dl>
                 </text>; }
                 @if (V4Enabled)
                 {
                     <section data-catalog-quick-facts>
-                        <ConsolePanel Title="Quick facts" HeadingId="catalog-item-facts-heading">
+                        <section class="console-section console-summary" aria-labelledby="catalog-item-facts-heading">
+                            <div class="console-panel-heading"><h2 id="catalog-item-facts-heading">Quick facts</h2></div>
                             <ConsoleMetricTile Label="Backing services" Value="@item.BackingServiceCount" />
                             @QuickFacts
-                        </ConsolePanel>
+                        </section>
                     </section>
                 }
                 else

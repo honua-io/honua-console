@@ -206,13 +206,13 @@
     }
     @if (V4Enabled)
     {
-        <ConsolePanel Title="@(CatalogId is null ? "Catalogs" : "Catalog administration")" HeadingId="catalog-admin-heading">
+        <section class="console-section console-summary" aria-label="Catalog administration">
             @if (CatalogId is null && _read is { State: "fixture" or "success" })
             {
                 <ConsoleMetricTile Label="Matching catalogs" Value="@FilteredCatalogs.Count" />
             }
             @AdministrationContent
-        </ConsolePanel>
+        </section>
     }
     else
     {

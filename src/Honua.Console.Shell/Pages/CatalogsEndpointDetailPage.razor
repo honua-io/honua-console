@@ -56,7 +56,7 @@
             <ConsolePageHeading Title="@endpoint.Title">
                 <ChildContent>
                 <a href="@ConsoleNavigation.ToConsoleLinkHref(CatalogsListHref)">Catalogs</a>
-                <p>@endpoint.Entries items</p>
+
                 <span class="@(endpoint.Enabled ? "console-status console-state-success" : "console-status console-state-neutral")" data-catalog-state="@(endpoint.Enabled ? "on" : "off")">@(endpoint.Enabled ? "ON" : "OFF")</span>
                 @if (endpoint.HasIssues) { <span class="console-status console-state-warning" data-catalog-issues="@endpoint.IssueCount">@endpoint.IssueCount issues</span> }
                 @if (!string.IsNullOrWhiteSpace(detail.LastRebuild)) { <p class="console-muted">Last rebuild @detail.LastRebuild</p> }
@@ -210,10 +210,11 @@
             </text>;
         @if (V4Enabled)
         {
-            <ConsolePanel Title="Items" HeadingId="catalog-endpoint-items-heading">
+            <section class="console-section console-summary" aria-labelledby="catalog-endpoint-items-heading">
+                <div class="console-panel-heading"><h2 id="catalog-endpoint-items-heading">Items</h2></div>
                 <ConsoleMetricTile Label="Entries" Value="@endpoint.Entries" />
                 @ItemsContent
-            </ConsolePanel>
+            </section>
         }
         else
         {
