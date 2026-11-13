@@ -11,7 +11,7 @@ The original v4 mockups were unavailable in the lane handoff. Direct mockup comp
 Run through the build-host shim:
 
 ```bash
-HONUA_CATALOG_PREVIEW_DIR="$PWD/artifacts/catalog-browse/previews" dotnet test tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj --configuration Release --filter "FullyQualifiedName~CatalogBrowseV4Tests|FullyQualifiedName~CatalogsDiscoveryPageRenderTests"
+remote-run bash -c 'HONUA_CATALOG_PREVIEW_DIR="$PWD/artifacts/catalog-browse/previews" dotnet test tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj --configuration Release --filter "FullyQualifiedName~CatalogBrowseV4Tests|FullyQualifiedName~CatalogsDiscoveryPageRenderTests"'
 ```
 
 Then, after `npm ci --prefix e2e`, run on the lane host:

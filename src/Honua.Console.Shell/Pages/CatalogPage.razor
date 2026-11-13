@@ -11,7 +11,7 @@
     @if (V4Enabled)
     {
         <ConsolePageHeading Title="Catalog">
-            <ChildContent><p>Find and reuse workspace content.</p></ChildContent>
+            <ChildContent><p>Find and reuse accessible content.</p></ChildContent>
             <Actions><a class="console-button-link" href="@Navigation.ToConsoleHref("/operate/publishing")">Import…</a></Actions>
         </ConsolePageHeading>
     }
@@ -90,7 +90,9 @@
         {
             @if (V4Enabled)
             {
-                <ConsoleMetricTile Label="Items shown" Value="@(_result is { Succeeded: true } ? _result.Items.Count : (long?)null)" />
+                <div role="status">
+                    <ConsoleMetricTile Label="Items shown" Value="@(_result is { Succeeded: true } ? _result.Items.Count : (long?)null)" />
+                </div>
             }
             else
             {
@@ -222,7 +224,7 @@
     }
     @if (V4Enabled)
     {
-        <ConsolePanel Title="Workspace content" HeadingId="catalog-content-heading">@CatalogContent</ConsolePanel>
+        <ConsolePanel Title="Catalog content" HeadingId="catalog-content-heading">@CatalogContent</ConsolePanel>
     }
     else
     {

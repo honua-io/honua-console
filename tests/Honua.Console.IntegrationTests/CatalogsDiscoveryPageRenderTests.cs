@@ -25,7 +25,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
             RegistryLoad = new CatalogDiscoveryRegistryLoad(null, [MissingBinding])
         };
 
-        var page = RenderList(data, enabled: enabled);
+        var page = RenderList(data, options: new ConsoleV4Options { Enabled = enabled });
 
         page.WaitForAssertion(
             () => Assert.Contains("Catalog discovery endpoints are not bound", page.Markup, StringComparison.Ordinal),
@@ -45,7 +45,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
             RegistryLoad = new CatalogDiscoveryRegistryLoad(SampleRegistry(), [])
         };
 
-        var page = RenderList(data, enabled: enabled);
+        var page = RenderList(data, options: new ConsoleV4Options { Enabled = enabled });
 
         page.WaitForAssertion(
             () => Assert.Contains("data-catalogs-grid", page.Markup, StringComparison.Ordinal),
@@ -308,7 +308,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
             RegistryLoad = new CatalogDiscoveryRegistryLoad(SampleRegistry(), [])
         };
 
-        var page = RenderList(data, workspace: "tenant-a", enabled: enabled);
+        var page = RenderList(data, workspace: "tenant-a", options: new ConsoleV4Options { Enabled = enabled });
 
         page.WaitForAssertion(
             () => Assert.Contains("data-catalogs-grid", page.Markup, StringComparison.Ordinal),
@@ -378,11 +378,11 @@ public sealed class CatalogsDiscoveryPageRenderTests
         Assert.Contains("href=\"/operate/catalogs?workspace=tenant-a\"", page.Markup, StringComparison.Ordinal);
     }
 
-    private static IRenderedComponent<CatalogsListPage> RenderList(FakeCatalogDiscoveryDataSource data, string? workspace = null, bool enabled = false)
+    private static IRenderedComponent<CatalogsListPage> RenderList(FakeCatalogDiscoveryDataSource data, string? workspace = null, ConsoleV4Options? options = null)
     {
         var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton(options ?? new ConsoleV4Options());
         NavigateToWorkspace(ctx, "operate/catalogs", workspace);
         return ctx.Render<CatalogsListPage>();
     }
