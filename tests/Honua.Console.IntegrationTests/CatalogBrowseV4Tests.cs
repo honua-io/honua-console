@@ -61,6 +61,7 @@ public sealed class CatalogBrowseV4Tests
         Assert.Equal(8, page.FindAll("nav.console-tab-row a").Count);
         Assert.Contains("Item ID", page.Find(".console-detail-panel").TextContent);
         Assert.NotEmpty(page.FindAll("a.console-button-link"));
+        Assert.Single(page.FindAll("h2, h3").Where(heading => heading.TextContent == "Overview"));
         if (enabled)
         {
             Assert.Single(page.FindAll("nav a[aria-current='page']"));

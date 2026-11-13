@@ -206,7 +206,10 @@
                     <div class="console-detail-overview">
                         <div class="console-detail-overview-main">
                             <article class="@(V4Enabled ? "console-section" : "console-overview-card")">
-                                <header><h3>Overview</h3></header>
+                                @if (!V4Enabled)
+                                {
+                                    <header><h3>Overview</h3></header>
+                                }
                                 <div class="@(V4Enabled ? "console-section" : "console-overview-card-body")">
                                     <p>@item.Description</p>
                                     <dl class="console-definition-list">
