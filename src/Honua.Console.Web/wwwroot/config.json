@@ -6,5 +6,5 @@
     "clientId": null,
     "scopes": []
   },
-  "v4Enabled": false
+  "v4Enabled": true
 }
