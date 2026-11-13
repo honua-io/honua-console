@@ -178,7 +178,7 @@ async function mountProcesses() {
         const custom = document.createElement('honua-studio-custom-processes');
         custom.client = new module.LocalProcessWorkspace({...options,maxArtifactUploadBytes:session.maxArtifactUploadBytes,workspaceId:()=>window.honuaAgentWorkspace?.workspaceId});
         view = processView = {builtin,custom,host,mode:'builtin',session};
-        // K3: local Python/.NET processes ran on the Console host only; no native route yet (honua-server#7437, rc.3).
+        // Local Python/.NET processes require the Console host.
         const localProcesses = !session.transport;
         const sourceApp=await studioElement(session);
         const pickerApp=async()=>{

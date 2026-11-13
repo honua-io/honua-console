@@ -26,6 +26,7 @@ export async function readStudioSession({ capture = captureConsoleSession, now =
         || typeof data.sourcePathBase !== 'string' || data.sourcePathBase.endsWith('/')) {
         throw new Error('The Studio session response is invalid. Reload the page.');
     }
+    await transport.assertCurrent();
     return Object.freeze({
         authenticated: true,
         principalId: data.principalId,

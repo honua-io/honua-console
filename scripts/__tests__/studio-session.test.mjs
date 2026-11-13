@@ -70,3 +70,10 @@ test('omits a non-string tenant', async () => {
     const { capture } = fixture({ payload: body({ ...valid, tenantId: undefined }) });
     assert.equal((await readStudioSession({ capture })).tenantId, undefined);
 });
+
+test('rejects authority changes while the bootstrap body is consumed',async()=>{
+ let current=true;
+ const capture=async()=>({fetch:async()=>({ok:true,status:200,json:async()=>{current=false;return {data:valid};}}),
+  assertCurrent:async()=>{if(!current) throw new Error('Console session changed');}});
+ await assert.rejects(readStudioSession({capture}),/session changed/);
+});

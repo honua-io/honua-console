@@ -73,7 +73,7 @@ test('Studio cookie adapter snapshots only allowed fields and rejects invalid ex
 test('native Studio delegates credentials, CSRF and origin to the captured Console transport',async()=>{
  for(const crossOrigin of [false,true]) {
   let sent;
-  const snapshot={authenticated:true,principalId:'operator',revision:1,expiresAt:new Date(Date.now()+60000).toISOString(),
+  let snapshot={authenticated:true,principalId:'operator',revision:1,expiresAt:new Date(Date.now()+60000).toISOString(),
    csrfToken:'host-csrf',...(crossOrigin?{accessToken:'host-bearer'}:{})};
   const browser=createConsoleBrowserTransport({apiBaseUrl:crossOrigin?'https://api.test/deploy/':'https://console.test/deploy/',
    applicationBaseUrl:'https://console.test/',getSession:async()=>snapshot,request:async(url,init)=>{sent={url,init};return {ok:true};}});
@@ -93,7 +93,7 @@ test('native Studio delegates credentials, CSRF and origin to the captured Conso
   for(const route of ['https://untrusted.test/api/v1/studio/drafts','/api/v1/studio/drafts','../api/v1/studio/drafts'])
    await assert.rejects(adapter.fetchRequest(route),/relative Honua API route/);
   assert.equal(sent,undefined);
-  snapshot.revision++;
+  snapshot={...snapshot,revision:2};
   await assert.rejects(adapter.fetchRequest('api/v1/studio/drafts'),/session changed/);
   assert.equal(sent,undefined);
  }
@@ -172,7 +172,7 @@ test('native Processes maps the legacy BFF routes onto api/v1 with its method ru
  for(const [method,path] of ok) assert.equal(nativeProcessRoute(`/api/processes/${path}`,method),`api/v1/${path}`,`${method} ${path}`);
  const refused=[['POST','admin/operations/op-1'],['GET','admin/operations/op-1/cancel'],['GET','console/workflow-packages/pkg/versions/2/publish'],
   ['POST','console/workflow-packages/pkg/versions/2'],['DELETE','console/workflow-packages'],['GET','admin/users'],['GET','admin/proposals/../secrets'],
-  ['GET','console/workflow-packages/%2E%2E/versions'],['GET','console/workflow-packages/a%2Fb/versions'],['GET','console/workflow-packages/%20a/versions']];
+  ['GET','console/workflow-packages/%2E%2E/versions'],['GET','console/workflow-packages/a%2Fb/versions'],['GET','console/workflow-packages/%20a/versions'],['GET','console/workflow-packages/p?x=/versions'],['GET','console/workflow-packages/p#x/versions']];
  for(const [method,path] of refused) assert.throws(()=>nativeProcessRoute(`/api/processes/${path}`,method),/Unapproved/,`${method} ${path}`);
  assert.throws(()=>nativeProcessRoute('https://elsewhere.test/api/processes/admin/proposals/p1'),/Unapproved/);
  assert.throws(()=>nativeProcessRoute('/api/processes/local/runs','POST'),/not available on this server/);
@@ -197,4 +197,13 @@ test('native Processes never borrows another authority or transport',()=>{
  }
  const swapped=capturedProcessFetch(binding,{current:()=>({...binding,transport:{principalId:'other'}})});
  assert.throws(()=>swapped('/api/processes/admin/proposals/p1'),/connection changed/);
+});
+
+test('retained native Processes clients use a renewed same-authority capture without replay',async()=>{
+ let oldCalls=0,newCalls=0;
+ const binding={principalId:'actor',environmentId:'default',sourcePathBase:'',transport:{principalId:'actor',fetch:()=>{oldCalls++;throw new Error('expired capture');}}};
+ const renewed={...binding,transport:{principalId:'actor',fetch:async()=>{newCalls++;return {ok:true};}}};
+ const request=capturedProcessFetch(binding,{current:()=>renewed});
+ await request('/api/processes/console/workflow-packages',{method:'POST',body:'{}'});
+ assert.equal(oldCalls,0);assert.equal(newCalls,1);
 });

@@ -69,7 +69,7 @@ const PROCESS_ROUTE=new RegExp(`^(?:admin/import/upload|admin/import/jobs/${PROC
     +`|operations/handles/${PROCESS_ID}|admin/operations/${PROCESS_ID}(?:/cancel)?|admin/proposals/${PROCESS_ID})$`);
 
 export function nativeProcessRoute(input,method='GET') {
-    if(typeof input!=='string' || !input.startsWith('/api/processes/')) throw new Error('Unapproved Processes transport route.');
+    if(typeof input!=='string' || !input.startsWith('/api/processes/') || /[?#]/.test(input)) throw new Error('Unapproved Processes transport route.');
     const path=input.slice('/api/processes/'.length);
     if(path.startsWith('local/')) throw new Error('Local Python and .NET processes are not available on this server yet.');
     const verb=String(method).toUpperCase();
@@ -114,5 +114,5 @@ function nativeProcessFetch(binding,current,input,init) {
         throw new Error('The process connection changed. Reopen it after saving your work.');
     const headers=new Headers(init.headers);
     for(const name of ['X-Honua-Environment','X-Honua-Session-Partition']) headers.delete(name);
-    return binding.transport.fetch(route,{...init,headers});
+    return lease.transport.fetch(route,{...init,headers});
 }
