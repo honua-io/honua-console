@@ -12,15 +12,12 @@
    (Console Patterns Charter section 11). *@
 
 <section class="console-page esri-wizard" data-esri-wizard>
-    <div class="console-detail-heading">
-        <div>
-            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import source content</p>
-            <h1>Import source content</h1>
-            <p class="console-muted">
-                Connect a source GIS system, select content, review the per-item conversion fidelity, then run
-                the migration and review the parity scorecard.
-            </p>
-        </div>
+    <EsriImportHeading Title="Import source content">
+        <Description>
+            Connect a source GIS system, select content, review the per-item conversion fidelity, then run
+            the migration and review the parity scorecard.
+        </Description>
+        <Actions>
         <div class="esri-wizard__context console-chip-row">
             @if (PlanView is { } context)
             {
@@ -32,7 +29,8 @@
                 <span class="console-muted">No source GIS system is connected.</span>
             }
         </div>
-    </div>
+        </Actions>
+    </EsriImportHeading>
 
     <PublishWizard Steps="Steps"
                    Current="_step"

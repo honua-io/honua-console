@@ -15,20 +15,18 @@
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have an unsaved Instant App import. Leave this page and discard it?" />
 
 <section class="console-page esri-import" data-esri-import="instant-app">
-    <div class="console-detail-heading">
-        <div>
-            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import source content <span class="console-crumb-sep">/</span> Instant App</p>
-            <h1>Import source Instant App</h1>
-            <p class="console-muted">
-                Convert a source app configuration (Sidebar / Basic template) into a Honua App
-                (<code>honua.app-package.v1</code>). Capability-by-capability fidelity is shown before commit.
-            </p>
-        </div>
+    <EsriImportHeading Title="Import source Instant App" Crumb="Instant App">
+        <Description>
+            Convert a source app configuration (Sidebar / Basic template) into a Honua App
+            (<code>honua.app-package.v1</code>). Capability-by-capability fidelity is shown before commit.
+        </Description>
+        <Actions>
         <div class="console-button-row">
             <a class="console-button-ghost" href="@ConsoleNavigation.ToConsoleHref("/operate/import/esri")">Discard</a>
             <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/operate/publishing")">Create app →</a>
         </div>
-    </div>
+        </Actions>
+    </EsriImportHeading>
 
     <EsriImportIntake Noun="Instant App"
                       Kind="EsriContentKind.InstantApp"
@@ -43,7 +41,7 @@
     {
         <div class="esri-import__split">
             <div class="esri-import__mapping">
-                <SourceTargetMappingTable Rows="result.Rows"
+                <SourceTargetMappingTable HeadingLevel="2" Rows="result.Rows"
                                           Heading="Capability → app element mapping"
                                           Subhead="source app capability → Honua app panel / tool"
                                           SourceHeader="Source capability"
@@ -54,11 +52,11 @@
                                           CarryOver="result.CarryOver" />
             </div>
 
-            <aside class="esri-import__preview" data-esri-target-preview>
-                <div class="esri-import__preview-head">
-                    <span class="console-kicker">Target app shell</span>
+            <EsriImportPreview Title="Target app shell">
+                <Head>
                     <strong><code>@result.TargetSchema</code></strong>
-                </div>
+                </Head>
+                <ChildContent>
                 <div class="esri-app-preview" aria-label="Approximated app shell layout">
                     <div class="esri-app-preview__header">@result.SuggestedName</div>
                     <div class="esri-app-preview__body">
@@ -82,7 +80,8 @@
                     The app's primary map imports via <a href="@ConsoleNavigation.ToConsoleHref("/operate/import/esri/web-map")">Import Web Map</a> —
                     bind it after import. @result.DropCount unsupported capabilit@(result.DropCount == 1 ? "y" : "ies") dropped.
                 </p>
-            </aside>
+                </ChildContent>
+            </EsriImportPreview>
         </div>
 
         @if (result.FirstUnbound is { } unbound)
