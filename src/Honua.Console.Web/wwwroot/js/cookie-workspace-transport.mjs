@@ -1,5 +1,7 @@
 // Human transport only. Renew the lease without borrowing another view's authority.
+// Native sessions also carry tenantId; a tenant switch under the same principal is a new authority.
 export function sameCookieAuthority(left,right) {
+    if(left?.tenantId!==undefined && right?.tenantId!==undefined && left.tenantId!==right.tenantId) return false;
     return ['principalId','environmentId','sourcePathBase'].every(key=>left?.[key]===right?.[key]);
 }
 

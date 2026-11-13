@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createConsoleBrowserTransport} from '../../src/Honua.Console.Web/wwwroot/js/console-browser-transport.mjs';
-import {capturedProcessFetch, nativeProcessRoute, createStudioCookieSession, scheduleCookieSessionRenewal} from '../../src/Honua.Console.Web/wwwroot/js/cookie-workspace-transport.mjs';
+import {capturedProcessFetch, nativeProcessRoute, createStudioCookieSession, sameCookieAuthority, scheduleCookieSessionRenewal} from '../../src/Honua.Console.Web/wwwroot/js/cookie-workspace-transport.mjs';
 
 function leaseClock(t) {
  let now=Date.parse('2026-10-24T00:00:00Z'),next=0;
@@ -256,4 +256,12 @@ test('native Studio reconstructed responses reject a session switch during a str
  active=false;finish();
  await assert.rejects(reading,/session changed/);
  assert.equal(calls,1);
+});
+
+test('a tenant switch under the same principal is a different authority',()=>{
+ const base={principalId:'partition',environmentId:'environment',sourcePathBase:''};
+ assert.equal(sameCookieAuthority({...base,tenantId:'a'},{...base,tenantId:'a'}),true);
+ assert.equal(sameCookieAuthority({...base,tenantId:'a'},{...base,tenantId:'b'}),false);
+ assert.equal(sameCookieAuthority(base,{...base,tenantId:'a'}),true);
+ assert.equal(sameCookieAuthority({...base,tenantId:'a'},{...base,environmentId:'other',tenantId:'a'}),false);
 });
