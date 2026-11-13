@@ -3,15 +3,12 @@ using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
+using static Honua.Console.IntegrationTests.OperateAlertRulesTestFixture;
 
 namespace Honua.Console.IntegrationTests;
 
 public sealed class OperateAlertRulesPageRenderTests
 {
-    private static readonly OperateAlertRulesBindingState MissingBinding = new(
-        "Alert rules", OperateAlertRulesBindingState.MissingBinding, "honua-server#1169",
-        "Alert rule definitions bind to honua-server#1169.");
-
     [Fact]
     public void RulesList_WhenBindingMissing_RendersNotBoundSurface()
     {
@@ -181,75 +178,5 @@ public sealed class OperateAlertRulesPageRenderTests
         Assert.Equal("rule-1", savedEdit!.RuleId);
         Assert.False(savedEdit.Enabled);
         Assert.Contains("speed", savedEdit.Condition.Subject, StringComparison.Ordinal);
-    }
-
-    private static IRenderedComponent<OperateAlertRulesPage> RenderList(IOperateAlertRulesDataSource data)
-    {
-        var ctx = new Bunit.BunitContext();
-        ctx.Services.AddSingleton(data);
-        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
-        return ctx.Render<OperateAlertRulesPage>();
-    }
-
-    private static IRenderedComponent<OperateAlertRuleDetailPage> RenderDetail(IOperateAlertRulesDataSource data, string ruleId)
-    {
-        var ctx = new Bunit.BunitContext();
-        ctx.AddConsoleNotifications();
-        ctx.Services.AddSingleton(data);
-        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
-        return ctx.Render<OperateAlertRuleDetailPage>(parameters => parameters.Add(p => p.RuleId, ruleId));
-    }
-
-    private static IRenderedComponent<OperateAlertRuleCreatePage> RenderCreate(IOperateAlertRulesDataSource data)
-    {
-        var ctx = new Bunit.BunitContext();
-        ctx.AddConsoleNotifications();
-        ctx.Services.AddSingleton(data);
-        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
-        return ctx.Render<OperateAlertRuleCreatePage>();
-    }
-
-    private static readonly OperateAlertRule SampleRule = new(
-        "rule-1", "Speeding geofence", "geofence", Enabled: true,
-        new OperateStatus("healthy", "Evaluated."), "speed > 60 in zone-9", "Slack #ops",
-        "2026-06-01T00:00:00Z", ActiveIncidentCount: 2, DeliveryFailureCount: 0, ValidationMessages: []);
-
-    private static readonly OperateAlertRuleDefinition SampleDefinition = new(
-        "rule-1", "Speeding geofence", "geofence", Enabled: true,
-        new OperateStatus("healthy", "Evaluated."), "Raise when a vehicle exceeds 60 in zone-9.",
-        new OperateAlertRuleCondition("speed", "gte", "60", "5m", GeofenceZoneId: "zone-9", DwellMinutes: null),
-        "Slack #ops", ["slack"], "2026-06-01T00:00:00Z",
-        ActiveIncidentCount: 2, DeliveryFailureCount: 0, ValidationMessages: []);
-
-    private sealed class FakeRulesDataSource : IOperateAlertRulesDataSource
-    {
-        public OperateAlertRulesView ListView { get; set; } = new([]);
-        public OperateAlertRuleDetailView DetailView { get; set; } = new(Rule: null);
-        public OperateAlertRuleSaveResult? SaveResult { get; set; }
-        public OperateAlertRuleSaveResult? CreateResult { get; set; }
-        public OperateAlertRuleTestResult? TestResult { get; set; }
-        public Func<OperateAlertRuleEdit, OperateAlertRuleSaveResult>? SaveHandler { get; set; }
-        public Func<string, bool, OperateAlertRuleSaveResult>? EnableHandler { get; set; }
-
-        public Task<OperateAlertRulesView> GetRulesAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(ListView);
-
-        public Task<OperateAlertRuleDetailView> GetRuleAsync(string ruleId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(DetailView);
-
-        public Task<OperateAlertRuleSaveResult> SaveRuleAsync(OperateAlertRuleEdit edit, CancellationToken cancellationToken = default) =>
-            Task.FromResult(SaveHandler?.Invoke(edit) ?? SaveResult ?? OperateAlertRuleSaveResult.Blocked(MissingBinding));
-
-        public Task<OperateAlertRuleTestResult> TestRuleAsync(OperateAlertRuleDraft draft, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new OperateAlertRuleTestResult(true, [], []));
-
-        public Task<OperateAlertRuleTestResult> TestRuleAsync(OperateAlertRuleEdit edit, CancellationToken cancellationToken = default) =>
-            Task.FromResult(TestResult ?? new OperateAlertRuleTestResult(true, [], []));
-
-        public Task<OperateAlertRuleSaveResult> CreateRuleAsync(OperateAlertRuleDraft draft, CancellationToken cancellationToken = default) =>
-            Task.FromResult(CreateResult ?? SaveResult ?? OperateAlertRuleSaveResult.Blocked(MissingBinding));
-
-        public Task<OperateAlertRuleSaveResult> SetRuleEnabledAsync(string ruleId, bool enabled, CancellationToken cancellationToken = default) =>
-            Task.FromResult(EnableHandler?.Invoke(ruleId, enabled) ?? SaveResult ?? OperateAlertRuleSaveResult.Blocked(MissingBinding));
     }
 }
