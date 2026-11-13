@@ -1,7 +1,6 @@
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-sdk-dotnet#166): SDK 2.2.0 has no API-key management projection.
-// Owner: s-catalog-ui; replace through honua-console#7 when the SDK exposes these routes.
+// SHIM: SDK 2.2.0 has no API-key management projection; replacement is tracked in SDK_SHIM_POLICY.md.
 public sealed record HonuaAdminCreateApiKeyRequest(string Name, IReadOnlyList<string> Permissions)
 {
     public DateTimeOffset? ExpiresAt { get; init; }
