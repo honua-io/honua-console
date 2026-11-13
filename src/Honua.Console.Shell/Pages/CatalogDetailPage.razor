@@ -1,3 +1,4 @@
+@inject IServiceProvider Services
 @page "/catalog/{IdOrSlug}"
 @inject IConsoleCatalogClient Catalog
 @inject IConsoleCatalogReadContextResolver ReadContexts
@@ -19,6 +20,36 @@
         var item = _result.Item;
         var summary = item.Summary;
 
+        @if (V4Enabled)
+        {
+            <ConsolePageHeading Title="@summary.Title">
+                <ChildContent>
+                    <p>@summary.Summary</p>
+                    <div class="console-chip-row">
+                        <span class="@StatusBadgeClass(summary)">@StatusLabel(summary)</span>
+                        <span>@CatalogContentTypes.LabelFor(summary.Type)</span>
+                        <span>@summary.Owner</span>
+                        <span>@VisibilityLabel(summary.Access.Sharing)</span>
+                        @if (_result.AnonymousRead)
+                        {
+                            <span>@ConsoleAnonymousReadLabels.ReadLabel(summary)</span>
+                        }
+                        @foreach (var format in summary.Formats)
+                        {
+                            <span>@format</span>
+                        }
+                    </div>
+                </ChildContent>
+                <Actions>
+                    @foreach (var action in ConsoleCatalogActionPolicy.Resolve(summary, isAuthenticated: !_result.AnonymousRead, publicLinkToken: _token))
+                    {
+                        <a class="console-button-link" href="@Navigation.ToConsoleLinkHref(action.Href)">@action.Label</a>
+                    }
+                </Actions>
+            </ConsolePageHeading>
+        }
+        else
+        {
         <div class="console-page-heading console-detail-heading">
             <div>
                 <p class="console-kicker">@CatalogContentTypes.LabelFor(summary.Type)</p>
@@ -49,12 +80,13 @@
                 }
             </div>
         </div>
+        }
 
         <nav class="console-tab-row" aria-label="Catalog item detail tabs">
             @foreach (var tab in Tabs)
             {
                 var count = TabCount(item, tab.Id);
-                <a class="@TabClass(tab.Id)" href="@Navigation.ToConsoleLinkHref(BuildTabHref(tab.Id))">
+                <a class="@TabClass(tab.Id)" href="@Navigation.ToConsoleLinkHref(BuildTabHref(tab.Id))" aria-current="@(V4Enabled && _tab == tab.Id ? "page" : null)">
                     @tab.Label
                     @if (count is { } value)
                     {
@@ -64,11 +96,12 @@
             }
         </nav>
 
-        <section class="console-panel console-detail-panel">
+        RenderFragment DetailContent = @<text>
+
             @switch (_tab)
             {
                 case "versions":
-                    <h2>Versions</h2>
+                    @if (!V4Enabled) { <h2>Versions</h2> }
                     <ul class="console-event-list">
                         @foreach (var version in item.Versions)
                         {
@@ -81,7 +114,7 @@
                     </ul>
                     break;
                 case "lineage":
-                    <h2>Lineage</h2>
+                    @if (!V4Enabled) { <h2>Lineage</h2> }
                     <ul class="console-event-list">
                         @foreach (var link in item.Lineage)
                         {
@@ -94,7 +127,7 @@
                     </ul>
                     break;
                 case "bindings":
-                    <h2>Bindings</h2>
+                    @if (!V4Enabled) { <h2>Bindings</h2> }
                     <dl class="console-definition-list">
                         @foreach (var binding in item.Bindings)
                         {
@@ -104,7 +137,7 @@
                     </dl>
                     break;
                 case "publication":
-                    <h2>Publication And Share</h2>
+                    @if (!V4Enabled) { <h2>Publication And Share</h2> }
                     <dl class="console-definition-list">
                         <dt>Canonical share link</dt>
                         <dd>@ConsoleShareLinkBuilder.BuildRelativeShareLink(summary)</dd>
@@ -121,10 +154,10 @@
                     </div>
                     break;
                 case "permissions":
-                    <h2>Permissions</h2>
+                    @if (!V4Enabled) { <h2>Permissions</h2> }
                     @if (_result.AnonymousRead)
                     {
-                        <ConsoleStateView Kind="unavailable" Kicker="Unavailable" Title="Permissions are hidden" Message="@ConsoleAnonymousReadLabels.PermissionsHiddenMessage(summary)" />
+                        <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 1)" Kind="unavailable" Kicker="Unavailable" Title="Permissions are hidden" Message="@ConsoleAnonymousReadLabels.PermissionsHiddenMessage(summary)" />
                     }
                     else
                     {
@@ -138,7 +171,7 @@
                     }
                     break;
                 case "activity":
-                    <h2>Activity</h2>
+                    @if (!V4Enabled) { <h2>Activity</h2> }
                     <ul class="console-event-list">
                         @foreach (var activity in item.Activity)
                         {
@@ -151,7 +184,7 @@
                     </ul>
                     break;
                 case "usage":
-                    <h2>Usage And Risk</h2>
+                    @if (!V4Enabled) { <h2>Usage And Risk</h2> }
                     @* Pre-retirement blast-radius / impact view (UI-011): what depends on this item before you
                        edit or retire it. The honua-server Console metadata v2 content API (honua-server#1162)
                        exposes no dependency/usage endpoint, so the server-bound read leaves UsageBound false and
@@ -160,14 +193,14 @@
                        lands, the catalog client sets UsageBound and the live closure renders below. *@
                     @if (!item.UsageBound)
                     {
-                        <ConsoleStateView Kind="missing" Kicker="Missing binding" Title="Dependency usage is not bound"
+                        <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 1)" Kind="missing" Kicker="Missing binding" Title="Dependency usage is not bound"
                                           Message="This server version can't report which maps, apps, or workflows depend on this item. Console won't guess downstream consumers — review impact from Lineage instead." />
                         <ConsoleDiagnostics Detail="The connected honua-server exposes no dependency/usage (blast-radius) endpoint for content items; metadata v2 has no usage projection."
                                             IssueRef="honua-server#1162" />
                     }
                     else if (item.Usage.Length == 0)
                     {
-                        <ConsoleStateView Kind="empty" Kicker="No usage" Title="No downstream consumers" Message="No saved maps, apps, dashboards, reports, or workflows currently depend on this item." />
+                        <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 1)" Kind="empty" Kicker="No usage" Title="No downstream consumers" Message="No saved maps, apps, dashboards, reports, or workflows currently depend on this item." />
                     }
                     else
                     {
@@ -186,9 +219,9 @@
                 default:
                     <div class="console-detail-overview">
                         <div class="console-detail-overview-main">
-                            <article class="console-overview-card">
+                            <article class="@(V4Enabled ? "console-section" : "console-overview-card")">
                                 <header><h3>Overview</h3></header>
-                                <div class="console-overview-card-body">
+                                <div class="@(V4Enabled ? "console-section" : "console-overview-card-body")">
                                     <p>@item.Description</p>
                                     <dl class="console-definition-list">
                                         <dt>Item ID</dt>
@@ -203,14 +236,14 @@
                                 </div>
                             </article>
 
-                            <article class="console-overview-card">
+                            <article class="@(V4Enabled ? "console-section" : "console-overview-card")">
                                 <header>
                                     <h3>Versions</h3>
                                     <span class="console-overview-card-note">@item.Versions.Length version@(item.Versions.Length == 1 ? string.Empty : "s")</span>
                                 </header>
                                 @if (item.Versions.Length == 0)
                                 {
-                                    <div class="console-overview-card-body">
+                                    <div class="@(V4Enabled ? "console-section" : "console-overview-card-body")">
                                         <p class="console-overview-empty">No saved versions yet for this item.</p>
                                     </div>
                                 }
@@ -234,14 +267,14 @@
                                 }
                             </article>
 
-                            <article class="console-overview-card">
+                            <article class="@(V4Enabled ? "console-section" : "console-overview-card")">
                                 <header>
                                     <h3>Lineage</h3>
                                     <span class="console-overview-card-note">upstream dependencies and downstream consumers</span>
                                 </header>
                                 @if (item.Lineage.Length == 0)
                                 {
-                                    <div class="console-overview-card-body">
+                                    <div class="@(V4Enabled ? "console-section" : "console-overview-card-body")">
                                         <p class="console-overview-empty">No lineage relationships are recorded for this item.</p>
                                     </div>
                                 }
@@ -262,9 +295,9 @@
                         </div>
 
                         <aside class="console-detail-overview-side">
-                            <article class="console-overview-card">
+                            <article class="@(V4Enabled ? "console-section" : "console-overview-card")">
                                 <header><h3>Quick facts</h3></header>
-                                <div class="console-overview-card-body">
+                                <div class="@(V4Enabled ? "console-section" : "console-overview-card-body")">
                                     <dl class="console-definition-list">
                                         <dt>Type</dt>
                                         <dd>@CatalogContentTypes.LabelFor(summary.Type)</dd>
@@ -285,9 +318,9 @@
                                 </div>
                             </article>
 
-                            <article class="console-overview-card">
+                            <article class="@(V4Enabled ? "console-section" : "console-overview-card")">
                                 <header><h3>Publication</h3></header>
-                                <div class="console-overview-card-body">
+                                <div class="@(V4Enabled ? "console-section" : "console-overview-card-body")">
                                     <dl class="console-definition-list">
                                         <dt>Visibility</dt>
                                         <dd>@VisibilityLabel(summary.Access.Sharing)</dd>
@@ -309,12 +342,22 @@
                     </div>
                     break;
             }
-        </section>
+        </text>;
+        @if (V4Enabled)
+        {
+            <ConsolePanel Title="@Tabs.First(tab => tab.Id == _tab).Label" HeadingId="catalog-detail-heading" Class="console-detail-panel">@DetailContent</ConsolePanel>
+        }
+        else
+        {
+            <section class="console-panel console-detail-panel">@DetailContent</section>
+        }
     }
 </section>
 </CatalogAvailabilityGate>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     [Parameter]
     public string IdOrSlug { get; set; } = string.Empty;
 

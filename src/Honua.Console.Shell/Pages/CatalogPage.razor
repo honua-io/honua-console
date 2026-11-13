@@ -1,3 +1,4 @@
+@inject IServiceProvider Services
 @page "/catalog"
 @inject IConsoleCatalogClient Catalog
 @inject IConsoleCatalogReadContextResolver ReadContexts
@@ -7,6 +8,15 @@
 
 <CatalogAvailabilityGate>
 <section class="console-page">
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Catalog">
+            <ChildContent><p>Find and reuse workspace content.</p></ChildContent>
+            <Actions><a class="console-button-link" href="@Navigation.ToConsoleHref("/operate/publishing")">Import…</a></Actions>
+        </ConsolePageHeading>
+    }
+    else
+    {
     <div class="console-page-heading console-detail-heading">
         <div>
             <p class="console-kicker">Catalog</p>
@@ -17,7 +27,10 @@
             <a class="console-button-link console-button-secondary" href="@Navigation.ToConsoleHref("/operate/publishing")">Import…</a>
         </div>
     </div>
+    }
 
+    @{
+        RenderFragment CatalogContent = @<text>
     @if (_accessResolved && !_requiresAuthentication)
     {
         <form class="console-filter-bar" method="get" action="/catalog">
@@ -75,9 +88,16 @@
 
         @if (_result is null || _result.Succeeded)
         {
-            <div class="console-result-toolbar" role="status">
-                <span class="console-result-count">@(_result?.Items.Count ?? 0) items shown</span>
-            </div>
+            @if (V4Enabled)
+            {
+                <ConsoleMetricTile Label="Items shown" Value="@(_result is { Succeeded: true } ? _result.Items.Count : (long?)null)" />
+            }
+            else
+            {
+                <div class="console-result-toolbar" role="status">
+                    <span class="console-result-count">@(_result?.Items.Count ?? 0) items shown</span>
+                </div>
+            }
 
             <nav class="console-type-strip" aria-label="Catalog content types">
                 <a class="@TypeStripClass(string.Empty)" href="@Navigation.ToConsoleLinkHref(BuildTypeHref(string.Empty))">
@@ -198,10 +218,22 @@
             </table>
         </ConsoleTableRegion>
     }
+        </text>;
+    }
+    @if (V4Enabled)
+    {
+        <ConsolePanel Title="Workspace content" HeadingId="catalog-content-heading">@CatalogContent</ConsolePanel>
+    }
+    else
+    {
+        @CatalogContent
+    }
 </section>
 </CatalogAvailabilityGate>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
 
     private CatalogSearchState _search = new();
     private CatalogSearchResult? _result;
