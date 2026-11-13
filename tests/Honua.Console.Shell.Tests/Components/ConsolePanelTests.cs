@@ -16,7 +16,8 @@ public sealed class ConsolePanelTests : ConsoleComponentTestBase
         Assert.Equal("layers", cut.Find("section").GetAttribute("aria-labelledby"));
         Assert.Equal("Layers", cut.Find("#layers").TextContent);
         Assert.DoesNotContain("console-panel-quiet", cut.Find("section").ClassList);
-        Assert.DoesNotContain("console-panel-title-hidden", cut.Find("h2").ClassList);
+        Assert.False(cut.Find("h2").HasAttribute("class"));
+        Assert.Empty(cut.FindAll(".console-panel-heading-concealed"));
     }
 
     [Fact]
@@ -33,9 +34,21 @@ public sealed class ConsolePanelTests : ConsoleComponentTestBase
         Assert.Contains("console-panel-quiet", cut.Find("section").ClassList);
         Assert.Equal("layers", cut.Find("section").GetAttribute("aria-labelledby"));
         Assert.Contains("console-panel-title-hidden", cut.Find("#layers").ClassList);
-        Assert.Null(cut.Find("h2").GetAttribute("aria-hidden"));
         Assert.Equal("Add layer", cut.Find(".console-panel-actions button").TextContent);
         Assert.Empty(cut.FindAll(".console-panel-heading-concealed"));
         Assert.Equal("Layer inventory", cut.Find("section > p").TextContent);
+    }
+
+    [Fact]
+    public void Hidden_heading_without_actions_collapses_the_heading_row()
+    {
+        var cut = Render<ConsolePanel>(p => p
+            .Add(c => c.Title, "Layers")
+            .Add(c => c.HeadingId, "layers")
+            .Add(c => c.Heading, ConsolePanelHeading.VisuallyHidden));
+
+        Assert.Single(cut.FindAll(".console-panel-heading-concealed"));
+        Assert.Equal("layers", cut.Find("section").GetAttribute("aria-labelledby"));
+        Assert.Equal("Layers", cut.Find("#layers").TextContent);
     }
 }

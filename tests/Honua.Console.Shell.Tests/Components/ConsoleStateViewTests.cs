@@ -53,6 +53,14 @@ public sealed class ConsoleStateViewTests : ConsoleComponentTestBase
     }
 
     [Fact]
+    public void Default_treatment_keeps_the_standard_state_presentation()
+    {
+        var cut = Render<ConsoleStateView>(p => p.Add(c => c.Kind, "unavailable"));
+
+        Assert.DoesNotContain("console-state-informational", cut.Find("section").ClassList);
+    }
+
+    [Fact]
     public void Applies_title_kicker_and_message_parameters()
     {
         var cut = Render<ConsoleStateView>(p => p

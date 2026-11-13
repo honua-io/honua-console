@@ -33,6 +33,6 @@ public sealed class QuietSectionPresentationTests
         Assert.Equal("0", panel.Find("[role=region]").GetAttribute("tabindex"));
         Assert.Equal("polite", state.Find("section").GetAttribute("aria-live"));
         CatalogAdminPreview.Capture($"quiet-sections-{enabled.ToString().ToLowerInvariant()}",
-            $"<div class=\"console-shell\" data-console-v4=\"{enabled.ToString().ToLowerInvariant()}\"><div class=\"console-main\"><h1>Service overview</h1>{panel.Markup}{state.Markup}</div></div>");
+            $"<div class=\"console-shell\" data-console-v4=\"{enabled.ToString().ToLowerInvariant()}\"><h1>Service overview</h1>{panel.Markup}{state.Markup}</div>");
     }
 }
