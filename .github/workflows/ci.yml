@@ -319,6 +319,17 @@ jobs:
           path: artifacts/catalog-preview/data-connection*.png
           if-no-files-found: error
 
+      - name: Verify shared quiet section presentation
+        run: node e2e/playwright/quiet-sections-preview.mjs
+
+      - name: Upload shared quiet section presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: quiet-sections-presentation
+          path: artifacts/catalog-preview/quiet-sections-*.png
+          if-no-files-found: error
+
       - name: Verify rendered shared style editor presentation
         run: node e2e/playwright/studio-styles-preview.mjs
         env:
