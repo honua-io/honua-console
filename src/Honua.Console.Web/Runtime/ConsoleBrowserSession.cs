@@ -5,6 +5,12 @@ namespace Honua.Console.Web.Runtime;
 // One WASM app instance is one browser tab. Tokens stay in memory, never localStorage or config.json.
 public sealed class ConsoleBrowserSession
 {
+    private readonly Guid _authorityId = Guid.NewGuid();
+
+    internal string? CaptureAuthority(Uri apiBaseUri) => IsAuthenticated
+        ? $"{apiBaseUri.AbsoluteUri}|{_authorityId:N}|{Revision}"
+        : null;
+
     public long Revision { get; private set; }
     public ClaimsPrincipal Principal { get; private set; } = new(new ClaimsIdentity());
     public string? AccessToken { get; private set; }

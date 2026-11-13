@@ -45,7 +45,7 @@ public sealed class ApiKeyManagementTests
         page.Find("[data-console-confirm-accept]").Click();
         page.WaitForAssertion(() => Assert.Equal(1, fixture.Handler.Mutations));
         Assert.EndsWith($"/{Fixture.KeyId:D}/revoke", fixture.Handler.Path);
-        Assert.Contains("revoked", page.Markup);
+        page.WaitForAssertion(() => Assert.Contains("revoked", page.Markup));
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class ApiKeyManagementTests
         using var fixture = new Fixture();
         fixture.Handler.Status = HttpStatusCode.Forbidden;
         var page = fixture.Context.Render<OperateApiKeysPage>();
-        page.WaitForAssertion(() => Assert.Contains("403", page.Markup));
+        page.WaitForAssertion(() => Assert.Contains("Missing permission", page.Markup));
         Assert.Empty(page.FindAll("form"));
         Assert.DoesNotContain("No API keys", page.Markup);
         V4PagePreview.Capture("api-keys-denied", page.Markup);
@@ -88,7 +88,7 @@ public sealed class ApiKeyManagementTests
         page.Find("#api-key-name").Change("Reporting app");
         page.Find("#api-key-permissions").Change("admin:read");
         page.Find("form").Submit();
-        page.WaitForAssertion(() => Assert.Contains("403", page.Markup));
+        page.WaitForAssertion(() => Assert.Contains("Missing permission", page.Markup));
         Assert.True(page.Find("button[type=submit]").HasAttribute("disabled"));
         page.Find("form").Submit();
         Assert.Equal(1, fixture.Handler.Mutations);

@@ -258,6 +258,17 @@ jobs:
             artifacts/catalog-preview/support-ticket-*.png
           if-no-files-found: error
 
+      - name: Verify API keys presentation
+        run: node e2e/playwright/api-keys-preview.mjs
+
+      - name: Upload API keys presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf43041c898312bd50442a0a839f0c15f99dfc4f # v4
+        with:
+          name: api-keys-presentation
+          path: artifacts/catalog-preview/api-keys-*
+          if-no-files-found: error
+
       - name: Verify Settings presentation
         run: node e2e/playwright/settings-preview.mjs
 
