@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {createConsoleBrowserTransport} from '../../src/Honua.Console.Web/wwwroot/js/console-browser-transport.mjs';
 import {capturedProcessFetch, nativeProcessRoute, createStudioCookieSession, scheduleCookieSessionRenewal} from '../../src/Honua.Console.Web/wwwroot/js/cookie-workspace-transport.mjs';
 
 function leaseClock(t) {
@@ -67,6 +68,39 @@ test('Studio cookie adapter snapshots only allowed fields and rejects invalid ex
   assert.throws(()=>createStudioCookieSession(lease(expiresAt)),/lease expiry is invalid/);
  assert.throws(()=>adapter.onExpired(undefined),/expiry listener/);
  assert.equal(clock.timers.size,0);
+});
+
+test('native Studio delegates credentials, CSRF and origin to the captured Console transport',async()=>{
+ for(const crossOrigin of [false,true]) {
+  let sent;
+  const snapshot={authenticated:true,principalId:'operator',revision:1,expiresAt:new Date(Date.now()+60000).toISOString(),
+   csrfToken:'host-csrf',...(crossOrigin?{accessToken:'host-bearer'}:{})};
+  const browser=createConsoleBrowserTransport({apiBaseUrl:crossOrigin?'https://api.test/deploy/':'https://console.test/deploy/',
+   applicationBaseUrl:'https://console.test/',getSession:async()=>snapshot,request:async(url,init)=>{sent={url,init};return {ok:true};}});
+  const session={...lease(snapshot.expiresAt),transport:await browser.capture(),fetchRequest:()=>assert.fail('untrusted callback'),baseUrl:'https://untrusted.test'};
+  const adapter=createStudioCookieSession(session);
+  assert.equal(adapter.baseUrl,'/api/v1/studio');assert.ok(Object.isFrozen(adapter));
+  session.transport=undefined;
+  await adapter.fetchRequest('api/v1/studio/drafts',{method:'POST',body:'{}',redirect:'follow',credentials:'include',
+   headers:{Authorization:'Bearer injected',Cookie:'injected','X-CSRF-Token':'injected','X-Honua-CSRF':'injected','X-API-Key':'injected'}});
+  assert.equal(sent.url,`${crossOrigin?'https://api.test':'https://console.test'}/deploy/api/v1/studio/drafts`);
+  assert.equal(sent.init.headers.get('Authorization'),crossOrigin?'Bearer host-bearer':null);
+  assert.equal(sent.init.headers.get('X-Honua-CSRF'),crossOrigin?null:'host-csrf');
+  for(const header of ['Cookie','X-CSRF-Token','X-API-Key']) assert.equal(sent.init.headers.has(header),false);
+  assert.equal(sent.init.credentials,crossOrigin?'omit':'same-origin');assert.equal(sent.init.redirect,'error');
+  assert.equal(sent.init.body,'{}');
+  sent=undefined;
+  for(const route of ['https://untrusted.test/api/v1/studio/drafts','/api/v1/studio/drafts','../api/v1/studio/drafts'])
+   await assert.rejects(adapter.fetchRequest(route),/relative Honua API route/);
+  assert.equal(sent,undefined);
+  snapshot.revision++;
+  await assert.rejects(adapter.fetchRequest('api/v1/studio/drafts'),/session changed/);
+  assert.equal(sent,undefined);
+ }
+});
+
+test('native Studio never falls back to browser fetch for an invalid captured transport',()=>{
+ assert.throws(()=>createStudioCookieSession({...lease(new Date(Date.now()+60000).toISOString()),transport:{}}),TypeError);
 });
 
 test('Studio expiry rechecks the deadline and notifies once even if a timer fires early',t=>{

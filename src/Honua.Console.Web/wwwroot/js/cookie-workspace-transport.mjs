@@ -27,9 +27,12 @@ export function createStudioCookieSession(session) {
     const expiresAt = session?.expiresAt;
     const deadline = typeof expiresAt === 'string' ? Date.parse(expiresAt) : NaN;
     if (!Number.isFinite(deadline)) throw new Error('The Studio cookie lease expiry is invalid. Reconnect before opening Studio.');
+    const transport = session.transport;
+    const nativeTransport = transport ? { fetchRequest: transport.fetch.bind(transport) } : {};
     const maximumDelay = 2147483647;
     return Object.freeze({
-        kind: 'cookie', baseUrl: '/api/studio', expiresAt,
+        kind: 'cookie', baseUrl: transport ? '/api/v1/studio' : '/api/studio', expiresAt,
+        ...nativeTransport,
         csrfToken: session.csrfToken, environmentId: session.environmentId,
         principalId: session.principalId, sourcePathBase: session.sourcePathBase,
         onExpired(listener) {
