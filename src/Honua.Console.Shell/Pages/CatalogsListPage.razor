@@ -167,7 +167,10 @@
                         }
                         @if (V4Enabled)
                         {
-                            <ConsolePanel Title="@endpoint.Title" HeadingId="@($"catalog-endpoint-{endpoint.Key}-heading")">@EndpointContent</ConsolePanel>
+                            <section class="console-summary" aria-labelledby="@($"catalog-endpoint-{endpoint.Key}-heading")">
+                                <div class="console-panel-heading"><h2 id="@($"catalog-endpoint-{endpoint.Key}-heading")">@endpoint.Title</h2></div>
+                                @EndpointContent
+                            </section>
                         }
                         else
                         {

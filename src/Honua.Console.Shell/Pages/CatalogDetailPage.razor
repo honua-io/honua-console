@@ -334,7 +334,10 @@
         </text>;
         @if (V4Enabled)
         {
-            <ConsolePanel Title="@Tabs.First(tab => tab.Id == _tab).Label" HeadingId="catalog-detail-heading" Class="console-detail-panel">@DetailContent</ConsolePanel>
+            <section class="console-section console-detail-panel" aria-labelledby="catalog-detail-heading">
+                <div class="console-panel-heading"><h2 id="catalog-detail-heading">@Tabs.First(tab => tab.Id == _tab).Label</h2></div>
+                @DetailContent
+            </section>
         }
         else
         {

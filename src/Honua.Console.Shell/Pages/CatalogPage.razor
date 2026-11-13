@@ -90,7 +90,7 @@
         {
             @if (V4Enabled)
             {
-                <div role="status">
+                <div class="console-summary" role="status">
                     <ConsoleMetricTile Label="Items shown" Value="@(_result is { Succeeded: true } ? _result.Items.Count : (long?)null)" />
                 </div>
             }
@@ -164,7 +164,7 @@
     else
     {
         <ConsoleTableRegion Class="console-table-wrap" Label="Catalog content items">
-            <table class="console-content-table">
+            <table class="console-content-table" style="@(V4Enabled ? "min-width: 54rem" : null)">
                 <thead>
                     <tr>
                         <th scope="col">Title</th>
@@ -224,7 +224,7 @@
     }
     @if (V4Enabled)
     {
-        <ConsolePanel Title="Catalog content" HeadingId="catalog-content-heading">@CatalogContent</ConsolePanel>
+        <section class="console-section" aria-label="Catalog content">@CatalogContent</section>
     }
     else
     {

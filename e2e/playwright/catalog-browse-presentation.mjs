@@ -30,7 +30,7 @@ try {
       await page.locator(".console-page-heading-v4").waitFor();
       assert.equal(await page.locator("h1").count(), 1);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} overflows at ${width}`);
-      assert.equal(await page.locator(".console-panel").first().evaluate(element => getComputedStyle(element).padding), "20px");
+      assert.equal(await page.locator(".console-panel").count(), 0);
       if (name === "catalog-browse-v4") {
         await page.getByRole("textbox", { name: "Search", exact: true }).focus();
         await page.keyboard.type("roads");
@@ -49,6 +49,12 @@ try {
       } else {
         assert.equal(await page.locator("[data-catalog-endpoint]").count(), 5);
         assert.equal(await page.locator(".console-metric-tile").count(), 3);
+      }
+      for (const metric of await page.locator(".console-metric-tile").all()) {
+        assert.deepEqual(await metric.evaluate(element => {
+          const style = getComputedStyle(element);
+          return { padding: style.padding, border: style.borderTopWidth, shadow: style.boxShadow };
+        }), { padding: "0px", border: "0px", shadow: "none" });
       }
       assert.deepEqual((await new AxeBuilder({ page }).analyze()).violations, []);
       await page.screenshot({ path: path.join(previews, `${name}-${width}.png`), fullPage: true });

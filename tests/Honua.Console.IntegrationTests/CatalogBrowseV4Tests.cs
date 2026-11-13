@@ -27,7 +27,8 @@ public sealed class CatalogBrowseV4Tests
         if (enabled)
         {
             Assert.Equal(page.FindAll("tbody tr").Count.ToString(), page.Find(".console-metric-value").TextContent);
-            Assert.Equal("Catalog content", page.Find(".console-panel-heading h2").TextContent);
+            Assert.Empty(page.FindAll(".console-panel"));
+            Assert.Single(page.FindAll("section[aria-label='Catalog content']"));
             CatalogAdminPreview.CaptureV4("catalog-browse-v4", page.Markup);
         }
         else
@@ -61,7 +62,7 @@ public sealed class CatalogBrowseV4Tests
         Assert.Equal(8, page.FindAll("nav.console-tab-row a").Count);
         Assert.Contains("Item ID", page.Find(".console-detail-panel").TextContent);
         Assert.NotEmpty(page.FindAll("a.console-button-link"));
-        Assert.Single(page.FindAll("h2, h3").Where(heading => heading.TextContent == "Overview"));
+        Assert.Single(page.FindAll("h2, h3"), heading => heading.TextContent == "Overview");
         if (enabled)
         {
             Assert.Single(page.FindAll("nav a[aria-current='page']"));
