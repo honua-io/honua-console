@@ -1,5 +1,6 @@
 using Bunit;
 using Honua.Console.Shell.Components;
+using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Tests.Components;
 
@@ -30,6 +31,25 @@ public sealed class ConsoleStateViewTests : ConsoleComponentTestBase
         var cut = Render<ConsoleStateView>(p => p.Add(c => c.Kind, kind));
 
         Assert.Contains(expectedClass, cut.Find("section").ClassList);
+    }
+
+    [Fact]
+    public void Informational_treatment_preserves_read_state_and_actions()
+    {
+        var cut = Render<ConsoleStateView>(p => p
+            .Add(c => c.Treatment, ConsoleStateTreatment.Informational)
+            .Add(c => c.Kind, "unavailable")
+            .Add(c => c.HeadingLevel, 3)
+            .Add(c => c.Title, "Catalog unavailable")
+            .Add(c => c.ActionHref, "/catalog")
+            .Add(c => c.ActionLabel, "Try again"));
+
+        var section = cut.Find("section");
+        Assert.Contains("console-state-unavailable", section.ClassList);
+        Assert.Contains("console-state-informational", section.ClassList);
+        Assert.Equal("polite", section.GetAttribute("aria-live"));
+        Assert.Equal("Catalog unavailable", cut.Find("h3").TextContent);
+        Assert.Equal("/catalog", cut.Find("a").GetAttribute("href"));
     }
 
     [Fact]

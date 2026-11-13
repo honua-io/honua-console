@@ -1,7 +1,10 @@
-<HonuaState Kind="@Kind" Kicker="@Kicker" Title="@Title" Message="@Message"
+<HonuaState Treatment="@Treatment" Kind="@Kind" Kicker="@Kicker" Title="@Title" Message="@Message"
             HeadingLevel="@HeadingLevel" ActionHref="@ActionHref" ActionLabel="@ActionLabel" />
 
 @code {
+    [Parameter]
+    public ConsoleStateTreatment Treatment { get; set; }
+
     [Parameter]
     public int HeadingLevel { get; set; } = 1;
 
