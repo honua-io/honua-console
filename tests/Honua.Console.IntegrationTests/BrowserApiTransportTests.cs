@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
 using Honua.Console.Shell.Services;
+using Honua.Console.Contracts;
 using Honua.Console.Web.Runtime;
 
 namespace Honua.Console.IntegrationTests;
@@ -78,6 +79,21 @@ public sealed class BrowserApiTransportTests
         Assert.Equal("operator-token", request.Headers.Authorization?.Parameter);
         Assert.False(request.Headers.Contains("X-CSRF-Token"));
         Assert.Equal(1, recorder.Calls);
+    }
+
+    [Fact]
+    public async Task PinnedRequestRejectsAnUnknownAuthorityBeforeSending()
+    {
+        var recorder = new RecordingHandler();
+        var session = new ConsoleBrowserSession();
+        session.Set(Principal(), new ConsoleSessionCredentials(CsrfToken: "issued-csrf"));
+        using var client = Client(session, recorder);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/v1/admin/api-keys/");
+        request.Options.Set(ConsoleAuthorityRequestOptions.Expected, "stale-authority");
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.SendAsync(request));
+
+        Assert.Equal(0, recorder.Calls);
     }
 
     [Fact]
