@@ -2,6 +2,7 @@ using Honua.Console.Contracts;
 using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.Shell.Pages;
@@ -116,7 +117,8 @@ public partial class OperateApiKeysPage
     private void ConfirmRevoke(HonuaAdminApiKeyResponse key)
     {
         if (_busy || _needsRefresh || _binding is not { } binding) return;
-        _confirm?.Open($"Revoke {key.Name}?", () => RevokeAsync(key.Id, binding),
+        var revoke = EventCallback.Factory.Create(this, () => RevokeAsync(key.Id, binding));
+        _confirm?.Open($"Revoke {key.Name}?", () => revoke.InvokeAsync(),
             "Applications using this key will lose access. This cannot be undone.");
     }
 
