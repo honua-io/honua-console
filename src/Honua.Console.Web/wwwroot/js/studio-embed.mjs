@@ -81,7 +81,7 @@ async function studioElement(session) {
     app.workspaceAuthorityChanged=changedAuthority;
     app.workspaceCookieBinding={principalId:session.principalId,environmentId:session.environmentId,sourcePathBase:session.sourcePathBase};
     app.session = cookieSession;
-    // Console-owned: native process reads go through the Console transport (K3); absent on the legacy host.
+    // Native process reads use the captured Console transport; legacy hosts omit this binding.
     app.workspaceProcessBinding = session.transport ? {...app.workspaceCookieBinding, transport:session.transport} : undefined;
     app.workspaceSavedMaps?.sessionChanged();
     app.workspace = window.honuaAgentWorkspace;

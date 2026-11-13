@@ -62,8 +62,7 @@ export function createStudioCookieSession(session) {
     });
 }
 
-// K3: the legacy host forwarded /api/processes/X to the server's native api/v1/X. Native
-// sessions call those routes directly, with the same allowlist and method rules as that host.
+// Native process routes preserve the host's path allowlist and method restrictions.
 const PROCESS_ID='[A-Za-z0-9_-]{1,128}';
 const PROCESS_PACKAGE=/^console\/workflow-packages\/([^/]{1,256})\/versions(?:\/([1-9][0-9]{0,9})(?:\/(validate|dry-run|publish))?)?$/;
 const PROCESS_ROUTE=new RegExp(`^(?:admin/import/upload|admin/import/jobs/${PROCESS_ID}(?:/cancel)?|admin/connections/${PROCESS_ID}/layers/?`
