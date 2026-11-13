@@ -193,10 +193,10 @@
       },
       "Honua.Sdk.Studio": {
         "type": "Transitive",
-        "resolved": "1.13.1",
-        "contentHash": "RAAxd3Jfb1uJOr/7DtzNHbhT3Y8Mkc8IffcThuLvBwfTFqVKEXFnImUIKuppC1BTTR70DjYdJHBY2m0Z3OSsCA==",
+        "resolved": "2.2.0",
+        "contentHash": "nSk7QpbmBMWe8sUbnO1aHA/Lae/4GESiBJfGvtnKhyO9yG4cyfx57Bn1b9AvFi7qyrNq+1v8VIM/kr20TP9CQw==",
         "dependencies": {
-          "Honua.Sdk.Abstractions": "1.13.1",
+          "Honua.Sdk.Abstractions": "2.2.0",
           "Microsoft.Extensions.Http": "10.0.7",
           "Microsoft.Extensions.Http.Resilience": "10.5.0",
           "Microsoft.Extensions.Options": "10.0.7"
@@ -797,7 +797,7 @@
         "type": "Project",
         "dependencies": {
           "Honua.Console.Contracts": "[1.0.0, )",
-          "Honua.Sdk.Studio": "[1.13.1, )",
+          "Honua.Sdk.Studio": "[2.2.0, )",
           "Microsoft.AspNetCore.Components.Authorization": "[10.0.14, )",
           "Microsoft.AspNetCore.Components.Web": "[10.0.14, )",
           "Microsoft.AspNetCore.SignalR.Client": "[10.0.14, )"
