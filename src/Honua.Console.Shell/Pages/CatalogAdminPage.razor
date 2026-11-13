@@ -31,12 +31,12 @@
         RenderFragment AdministrationContent = @<text>
     @if (!Options.Enabled)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="disabled" Title="Catalogs are not enabled"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="disabled" Title="Catalogs are not enabled"
                           Message="The catalog preview is disabled for this Console." />
     }
     else if (_loading)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="loading" Title="Loading catalogs" Message="Reading catalog administration." />
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="loading" Title="Loading catalogs" Message="Reading catalog administration." />
     }
     else if (_read is { State: "missing" or "unsupported" or "unavailable" or "forbidden" } unavailable)
     {
@@ -52,7 +52,7 @@
         </div>
         @if (CatalogId is null)
         {
-            <div class="catalog-admin-filters">
+            <div class="@(V4Enabled ? "catalog-admin-filters console-filter-bar console-filter-bar-quiet" : "catalog-admin-filters")">
                 <label for="catalog-query">Search catalogs
                     <input id="catalog-query" type="search" value="@_query" @oninput="SearchChanged" />
                 </label>
@@ -70,11 +70,11 @@
             </div>
             @if (FilteredCatalogs.Count == 0)
             {
-                <ConsoleStateView HeadingLevel="2" Kind="empty" Title="No matching catalogs" Message="Change the search or audience filter." />
+                <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="empty" Title="No matching catalogs" Message="Change the search or audience filter." />
             }
             else
             {
-                <div class="catalog-admin-table" role="region" aria-label="Catalog list" tabindex="0">
+                <ConsoleTableRegion Class="catalog-admin-table" Label="Catalog list">
                     <table>
                         <thead><tr><th scope="col">Catalog</th><th scope="col">Audience</th><th scope="col">Scope</th><th scope="col">Proposal</th></tr></thead>
                         <tbody>
@@ -91,7 +91,7 @@
                             }
                         </tbody>
                     </table>
-                </div>
+                </ConsoleTableRegion>
                 <CatalogAdminPager Label="Catalog pages" Offset="_offset" Total="FilteredCatalogs.Count"
                                    PageSize="PageSize" OffsetChanged="value => _offset = value" />
             }
@@ -109,35 +109,35 @@
                 @if (read.Settings is { } settings && settings.CatalogId == CatalogId)
                 { <CatalogSettingsView Settings="settings" /> }
                 else
-                { <ConsoleStateView HeadingLevel="2" Kind="unsupported" Title="Catalog settings are unavailable" Message="The server has not reported settings for this catalog." /> }
+                { <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="unsupported" Title="Catalog settings are unavailable" Message="The server has not reported settings for this catalog." /> }
             }
             else if (Section == "categories")
             {
                 @if (read.Arrangement is { } arrangement && arrangement.CatalogId == CatalogId)
                 { <CatalogCategoriesView @key="arrangement" Arrangement="arrangement" /> }
                 else
-                { <ConsoleStateView HeadingLevel="2" Kind="unsupported" Title="Categories and featured are unavailable" Message="The server has not reported categories and featured items for this catalog." /> }
+                { <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="unsupported" Title="Categories and featured are unavailable" Message="The server has not reported categories and featured items for this catalog." /> }
             }
             else if (Section == "templates")
             {
                 @if (read.Templates is { } templates && templates.CatalogId == CatalogId)
                 { <CatalogTemplatesView @key="templates" Templates="templates" /> }
                 else
-                { <ConsoleStateView HeadingLevel="2" Kind="unsupported" Title="Templates are unavailable" Message="The server has not reported templates for this catalog." /> }
+                { <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="unsupported" Title="Templates are unavailable" Message="The server has not reported templates for this catalog." /> }
             }
             else if (Section == "template")
             {
                 @if (read.Template is { } template && template.CatalogId == CatalogId && template.TemplateId == TemplateId)
                 { <CatalogTemplateEditorView @key="template" Template="template" /> }
                 else
-                { <ConsoleStateView HeadingLevel="2" Kind="unsupported" Title="Template is unavailable" Message="The server has not reported this template." /> }
+                { <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="unsupported" Title="Template is unavailable" Message="The server has not reported this template." /> }
             }
             else if (Section == "listing")
             {
                 @if (read.Listing is { } listing && listing.CatalogId == CatalogId && listing.ItemId == ItemId)
                 { <CatalogListingView @key="listing" Listing="listing" /> }
                 else
-                { <ConsoleStateView HeadingLevel="2" Kind="unsupported" Title="Item listing is unavailable" Message="The server has not reported this item listing." /> }
+                { <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="unsupported" Title="Item listing is unavailable" Message="The server has not reported this item listing." /> }
             }
             else
             {
@@ -154,7 +154,7 @@
             @if (overview.KindVisibility.Count == 0) { <p>Kind breakdown is not reported.</p> }
             else
             {
-                <div class="catalog-admin-table catalog-kind-counts" role="region" aria-label="Visibility by kind" tabindex="0">
+                <ConsoleTableRegion Class="catalog-admin-table catalog-kind-counts" Label="Visibility by kind">
                     <table>
                         <thead><tr><th scope="col">Kind</th><th scope="col">Listed</th><th scope="col">Audience-restricted</th><th scope="col">Hidden here</th><th scope="col">Opted out</th><th scope="col">Matched</th></tr></thead>
                         <tbody>
@@ -164,13 +164,13 @@
                             }
                         </tbody>
                     </table>
-                </div>
+                </ConsoleTableRegion>
             }
             <h2>Needs attention</h2>
             @if (overview.Attention.Count == 0) { <p>No attention items reported.</p> }
             else
             {
-                <div class="catalog-admin-filters">
+                <div class="@(V4Enabled ? "catalog-admin-filters console-filter-bar console-filter-bar-quiet" : "catalog-admin-filters")">
                     <label for="attention-query">Search attention items<input id="attention-query" type="search" value="@_attentionQuery" @oninput="AttentionSearchChanged" /></label>
                     <label for="attention-issue">Issue
                         <select id="attention-issue" value="@_attentionReason" @onchange="AttentionReasonChanged">
@@ -206,13 +206,13 @@
     }
     @if (V4Enabled)
     {
-        <section class="console-section console-summary" aria-label="Catalog administration">
+        <ConsolePanel Title="Catalog administration" HeadingId="catalog-administration-heading" Surface="ConsolePanelSurface.Quiet" Heading="ConsolePanelHeading.VisuallyHidden" Class="console-summary">
             @if (CatalogId is null && _read is { State: "fixture" or "success" })
             {
                 <ConsoleMetricTile Label="Matching catalogs" Value="@FilteredCatalogs.Count" />
             }
             @AdministrationContent
-        </section>
+        </ConsolePanel>
     }
     else
     {

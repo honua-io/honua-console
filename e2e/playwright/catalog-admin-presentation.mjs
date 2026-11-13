@@ -30,7 +30,7 @@ try {
       await page.locator(".console-page-heading-v4").waitFor();
       assert.equal(await page.locator("h1").count(), 1);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} overflows at ${width}`);
-      assert.equal(await page.locator(".console-panel").count(), 0);
+      assert.equal(await page.locator(".console-panel:not(.console-panel-quiet)").count(), 0);
       if (name === "catalog-admin-list-v4") {
         const search = page.locator("#catalog-query");
         await search.focus();

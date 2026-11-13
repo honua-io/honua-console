@@ -18,14 +18,14 @@
 <section class="console-page catalogs-item" data-catalogs-item data-catalog-endpoint="@Key" data-catalog-item="@ItemId">
     @if (_loading)
     {
-        <ConsoleStateView Kind="loading"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="loading"
                           Kicker="Catalogs"
                           Title="Loading item"
                           Message="Reading the catalog item from honua-server." />
     }
     else if (_bindingState is not null)
     {
-        <ConsoleStateView Kind="missing"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="missing"
                           Kicker="@_bindingState.State"
                           Title="Catalog discovery endpoints are not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
@@ -123,11 +123,12 @@
                     </text>;
                     @if (V4Enabled)
                     {
-                        <section class="console-section" data-catalog-field-group="@group.Title" aria-labelledby="@($"catalog-fields-{groupIndex}")">
-                            <div class="console-panel-heading"><h2 id="@($"catalog-fields-{groupIndex}")">@group.Title</h2></div>
+                        <div data-catalog-field-group="@group.Title">
+                        <ConsolePanel Title="@group.Title" HeadingId="@($"catalog-fields-{groupIndex}")" Surface="ConsolePanelSurface.Quiet">
                             @if (!string.IsNullOrWhiteSpace(group.Subtitle)) { <p class="console-muted">@group.Subtitle</p> }
                             @Fields
-                        </section>
+                        </ConsolePanel>
+                        </div>
                     }
                     else
                     {
@@ -160,11 +161,10 @@
                 @if (V4Enabled)
                 {
                     <section data-catalog-quick-facts>
-                        <section class="console-section console-summary" aria-labelledby="catalog-item-facts-heading">
-                            <div class="console-panel-heading"><h2 id="catalog-item-facts-heading">Quick facts</h2></div>
+                        <ConsolePanel Title="Quick facts" HeadingId="catalog-item-facts-heading" Surface="ConsolePanelSurface.Quiet" Class="console-summary">
                             <ConsoleMetricTile Label="Backing services" Value="@item.BackingServiceCount" />
                             @QuickFacts
-                        </section>
+                        </ConsolePanel>
                     </section>
                 }
                 else
@@ -192,7 +192,7 @@
     }
     else
     {
-        <ConsoleStateView Kind="empty"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="empty"
                           Kicker="Catalogs"
                           Title="Item not found"
                           Message="The catalog discovery-endpoints registry returned no item for this id." />

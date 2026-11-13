@@ -16,14 +16,14 @@
 <section class="console-page catalogs-detail" data-catalogs-detail data-catalog-endpoint="@Key">
     @if (_loading)
     {
-        <ConsoleStateView Kind="loading"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="loading"
                           Kicker="Catalogs"
                           Title="Loading endpoint"
                           Message="Reading the catalog endpoint detail from honua-server." />
     }
     else if (_bindingState is not null)
     {
-        <ConsoleStateView Kind="missing"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="missing"
                           Kicker="@_bindingState.State"
                           Title="Catalog discovery endpoints are not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
@@ -127,7 +127,7 @@
 
         @if (detail.Items.Count == 0)
         {
-            <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 1)" Kind="empty"
+            <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="@(V4Enabled ? 3 : 1)" Kind="empty"
                               Kicker="Items"
                               Title="No mirrored items"
                               Message="This endpoint has no published items yet." />
@@ -214,11 +214,10 @@
             </text>;
         @if (V4Enabled)
         {
-            <section class="console-section console-summary" aria-labelledby="catalog-endpoint-items-heading">
-                <div class="console-panel-heading"><h2 id="catalog-endpoint-items-heading">Items</h2></div>
+            <ConsolePanel Title="Items" HeadingId="catalog-endpoint-items-heading" Surface="ConsolePanelSurface.Quiet" Class="console-summary">
                 <ConsoleMetricTile Label="Entries" Value="@endpoint.Entries" />
                 @ItemsContent
-            </section>
+            </ConsolePanel>
         }
         else
         {
@@ -228,7 +227,7 @@
     }
     else
     {
-        <ConsoleStateView Kind="empty"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="empty"
                           Kicker="Catalogs"
                           Title="Endpoint not found"
                           Message="The catalog discovery-endpoints registry returned no detail for this endpoint." />
