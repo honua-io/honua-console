@@ -1,10 +1,11 @@
 @page "/operate/settings/api-keys"
 @implements IDisposable
 @inject IServiceProvider Services
+@inject NavigationManager Navigation
 
 <section class="console-page">
     <ConsolePageHeading Title="API keys">
-        <p><a href="/operate/settings">Settings</a> / API keys</p>
+        <p><a href="@Navigation.ToConsoleHref("/operate/settings")">Settings</a> / API keys</p>
         <p>Create and revoke credentials for the connected server. Full administrator authority is required for changes.</p>
     </ConsolePageHeading>
     @if (_issue is not null)

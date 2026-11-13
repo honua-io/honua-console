@@ -1,13 +1,14 @@
 @page "/operate/settings"
 @inject IOperateTransitionDataSource OperateData
 @inject IServiceProvider Services
+@inject NavigationManager Navigation
 
 <section class="console-page">
     @if (V4Enabled)
     {
         <ConsolePageHeading Title="Settings">
             <p>Runtime configuration and policy from the connected honua-server.</p>
-            <p><a href="/operate/settings/api-keys">Manage API keys</a></p>
+            <p><a href="@Navigation.ToConsoleHref("/operate/settings/api-keys")">Manage API keys</a></p>
         </ConsolePageHeading>
     }
     else
