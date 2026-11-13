@@ -104,7 +104,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
             EndpointLoad = new CatalogEndpointDetailLoad(null, [MissingBinding])
         };
 
-        var page = RenderDetail(data, "esri", options: new ConsoleV4Options { Enabled = enabled });
+        var page = RenderDetail(data, new CatalogRoute { Key = "esri", Presentation = new ConsoleV4Options { Enabled = enabled } });
 
         page.WaitForAssertion(
             () => Assert.Contains("Catalog discovery endpoints are not bound", page.Markup, StringComparison.Ordinal),
@@ -122,7 +122,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
             EndpointLoad = new CatalogEndpointDetailLoad(SampleEndpointDetail(), [])
         };
 
-        var page = RenderDetail(data, "esri", options: new ConsoleV4Options { Enabled = enabled });
+        var page = RenderDetail(data, new CatalogRoute { Key = "esri", Presentation = new ConsoleV4Options { Enabled = enabled } });
 
         page.WaitForAssertion(
             () => Assert.Contains("data-catalog-items-table", page.Markup, StringComparison.Ordinal),
@@ -215,7 +215,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
             ItemLoad = new CatalogItemLoad(null, [MissingBinding])
         };
 
-        var page = RenderItem(data, "esri", "a3bf-0214", options: new ConsoleV4Options { Enabled = enabled });
+        var page = RenderItem(data, new CatalogRoute { Key = "esri", ItemId = "a3bf-0214", Presentation = new ConsoleV4Options { Enabled = enabled } });
 
         page.WaitForAssertion(
             () => Assert.Contains("Catalog discovery endpoints are not bound", page.Markup, StringComparison.Ordinal),
@@ -233,7 +233,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
             ItemLoad = new CatalogItemLoad(SampleItem(), [])
         };
 
-        var page = RenderItem(data, "esri", "a3bf-0214", options: new ConsoleV4Options { Enabled = enabled });
+        var page = RenderItem(data, new CatalogRoute { Key = "esri", ItemId = "a3bf-0214", Presentation = new ConsoleV4Options { Enabled = enabled } });
 
         page.WaitForAssertion(
             () => Assert.Contains("data-catalog-field-legend", page.Markup, StringComparison.Ordinal),
@@ -365,7 +365,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
             EndpointLoad = new CatalogEndpointDetailLoad(SampleEndpointDetail(), [])
         };
 
-        var page = RenderDetail(data, "esri", workspace: "tenant-a", options: new ConsoleV4Options { Enabled = enabled });
+        var page = RenderDetail(data, new CatalogRoute { Key = "esri", Workspace = "tenant-a", Presentation = new ConsoleV4Options { Enabled = enabled } });
 
         page.WaitForAssertion(
             () => Assert.Contains("data-catalog-items-table", page.Markup, StringComparison.Ordinal),
@@ -389,7 +389,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
             ItemLoad = new CatalogItemLoad(SampleItem(), [])
         };
 
-        var page = RenderItem(data, "esri", "a3bf-0214", workspace: "tenant-a", options: new ConsoleV4Options { Enabled = enabled });
+        var page = RenderItem(data, new CatalogRoute { Key = "esri", ItemId = "a3bf-0214", Workspace = "tenant-a", Presentation = new ConsoleV4Options { Enabled = enabled } });
 
         page.WaitForAssertion(
             () => Assert.Contains("data-catalog-field-legend", page.Markup, StringComparison.Ordinal),
@@ -408,25 +408,33 @@ public sealed class CatalogsDiscoveryPageRenderTests
         return ctx.Render<CatalogsListPage>();
     }
 
-    private static IRenderedComponent<CatalogsEndpointDetailPage> RenderDetail(FakeCatalogDiscoveryDataSource data, string key, string? workspace = null, ConsoleV4Options? options = null)
+    private static IRenderedComponent<CatalogsEndpointDetailPage> RenderDetail(FakeCatalogDiscoveryDataSource data, CatalogRoute route)
     {
         var ctx = new Bunit.BunitContext();
-        ctx.Services.AddSingleton(options ?? new ConsoleV4Options());
+        ctx.Services.AddSingleton(route.Presentation);
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
-        NavigateToWorkspace(ctx, $"operate/catalogs/{key}", workspace);
+        NavigateToWorkspace(ctx, $"operate/catalogs/{route.Key}", route.Workspace);
         return ctx.Render<CatalogsEndpointDetailPage>(parameters => parameters
-            .Add(p => p.Key, key));
+            .Add(p => p.Key, route.Key));
     }
 
-    private static IRenderedComponent<CatalogItemEditorPage> RenderItem(FakeCatalogDiscoveryDataSource data, string key, string itemId, string? workspace = null, ConsoleV4Options? options = null)
+    private static IRenderedComponent<CatalogItemEditorPage> RenderItem(FakeCatalogDiscoveryDataSource data, CatalogRoute route)
     {
         var ctx = new Bunit.BunitContext();
-        ctx.Services.AddSingleton(options ?? new ConsoleV4Options());
+        ctx.Services.AddSingleton(route.Presentation);
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
-        NavigateToWorkspace(ctx, $"operate/catalogs/{key}/items/{itemId}", workspace);
+        NavigateToWorkspace(ctx, $"operate/catalogs/{route.Key}/items/{route.ItemId}", route.Workspace);
         return ctx.Render<CatalogItemEditorPage>(parameters => parameters
-            .Add(p => p.Key, key)
-            .Add(p => p.ItemId, itemId));
+            .Add(p => p.Key, route.Key)
+            .Add(p => p.ItemId, route.ItemId));
+    }
+
+    private sealed record CatalogRoute
+    {
+        public required string Key { get; init; }
+        public string? ItemId { get; init; }
+        public string? Workspace { get; init; }
+        public ConsoleV4Options Presentation { get; init; } = new();
     }
 
     // Drives the page's [SupplyParameterFromQuery] workspace via the navigation URI, since the parameter is
