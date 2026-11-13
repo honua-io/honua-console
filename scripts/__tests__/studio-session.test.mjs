@@ -77,3 +77,17 @@ test('rejects authority changes while the bootstrap body is consumed',async()=>{
   assertCurrent:async()=>{if(!current) throw new Error('Console session changed');}});
  await assert.rejects(readStudioSession({capture}),/session changed/);
 });
+
+test('explicit legacy host bootstraps cookie authority without initializing native transport',async()=>{
+ const data={...valid,csrfToken:'csrf',expiresAt:new Date(60000).toISOString()};let sent;
+ const session=await readStudioSession({mode:'legacy',now:()=>0,capture:()=>assert.fail('native capture'),
+  request:async(...args)=>{sent=args;return Response.json(data);}});
+ assert.equal(sent[0],'/api/agent-workspace/session');
+ assert.equal(sent[1].credentials,'same-origin');assert.equal(sent[1].redirect,'error');
+ assert.equal(session.csrfToken,'csrf');assert.equal(session.transport,undefined);assert.ok(Object.isFrozen(session));
+});
+
+test('native capture failures never fall back to the legacy host',async()=>{
+ await assert.rejects(readStudioSession({capture:async()=>{throw new Error('signed out');},
+  request:()=>assert.fail('legacy fallback')}),StudioSignInRequired);
+});

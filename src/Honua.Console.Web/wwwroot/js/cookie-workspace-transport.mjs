@@ -121,8 +121,10 @@ function nativeProcessFetch({binding,current},input,init) {
 
 // Embedded editors consume bodies after fetch resolves; check the captured authority through consumption.
 function guardNativeResponse(response,assertCurrent) {
+    let body;
     return new Proxy(response,{
         get(target,key) {
+            if(key==='body') return target.body ? body ??= guardNativeBody(target.body,assertCurrent) : null;
             if(key==='clone') return ()=>guardNativeResponse(target.clone(),assertCurrent);
             if(['json','text','blob','arrayBuffer','formData','bytes'].includes(key)) return async()=>{
                 await assertCurrent();
@@ -134,4 +136,24 @@ function guardNativeResponse(response,assertCurrent) {
             return typeof value==='function' ? value.bind(target) : value;
         },
     });
+}
+
+function guardNativeBody(body,assertCurrent) {
+    let reader;
+    return new ReadableStream({
+        async pull(controller) {
+            try {
+                await assertCurrent();
+                reader ??= body.getReader();
+                const part=await reader.read();
+                await assertCurrent();
+                if(part.done) controller.close();
+                else controller.enqueue(part.value);
+            } catch(error) {
+                if(reader) void reader.cancel(error).catch(()=>{});
+                controller.error(error);
+            }
+        },
+        cancel(reason) { return reader ? reader.cancel(reason) : body.cancel(reason); },
+    },{highWaterMark:0});
 }

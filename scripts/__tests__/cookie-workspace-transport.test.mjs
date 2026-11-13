@@ -242,3 +242,18 @@ for (const method of ['json','text']) test(`native Studio rejects a session swit
  await assert.rejects(reading,/session changed/);
  assert.equal(calls,1);
 });
+
+test('native Studio reconstructed responses reject a session switch during a streamed body',async()=>{
+ let active=true,finish,calls=0;
+ const source=new ReadableStream({pull(controller){return new Promise(resolve=>{finish=()=>{controller.enqueue(new TextEncoder().encode('{"draftId":"old"}'));controller.close();resolve();};});}},{highWaterMark:0});
+ const transport={assertCurrent:async()=>{if(!active) throw new Error('Console session changed');},
+  fetch:async()=>{calls++;return new Response(source);}};
+ const adapter=createStudioCookieSession({...lease(new Date(Date.now()+60000).toISOString()),transport});
+ const response=await adapter.fetchRequest('api/v1/studio/drafts',{method:'POST',body:'{}'});
+ assert.equal(response.body,response.body);
+ const reading=new Response(response.body).json();
+ while(!finish) await new Promise(resolve=>setImmediate(resolve));
+ active=false;finish();
+ await assert.rejects(reading,/session changed/);
+ assert.equal(calls,1);
+});
