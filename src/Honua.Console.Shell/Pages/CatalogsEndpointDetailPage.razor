@@ -32,6 +32,10 @@
     {
         var endpoint = detail.Endpoint;
 
+        @* Copy / Open act on the real endpoint URL the registry returns; both are honestly disabled
+           when this endpoint carries no URL. Rebuild index has no honua-server mutation contract in
+           the discovery-endpoints registry (honua-server#1279), so it is honestly disabled rather
+           than a clickable no-op (Charter §11). *@
         RenderFragment HeaderActions = @<text>
 
 
