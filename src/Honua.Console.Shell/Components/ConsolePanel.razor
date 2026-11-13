@@ -1,6 +1,6 @@
-<section class="console-panel @Class" aria-labelledby="@HeadingId">
-    <div class="console-panel-heading">
-        <h2 id="@HeadingId">@Title</h2>
+<section class="console-panel @(Surface == ConsolePanelSurface.Quiet ? "console-panel-quiet" : null) @Class" aria-labelledby="@HeadingId">
+    <div class="console-panel-heading @(Heading == ConsolePanelHeading.VisuallyHidden && Actions is null ? "console-panel-heading-concealed" : null)">
+        <h2 id="@HeadingId" class="@(Heading == ConsolePanelHeading.VisuallyHidden ? "console-panel-title-hidden" : null)">@Title</h2>
         @if (Actions is not null)
         {
             <div class="console-panel-actions">@Actions</div>
@@ -12,6 +12,8 @@
 @code {
     [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
     [Parameter, EditorRequired] public string HeadingId { get; set; } = string.Empty;
+    [Parameter] public ConsolePanelSurface Surface { get; set; }
+    [Parameter] public ConsolePanelHeading Heading { get; set; }
     [Parameter] public string? Class { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public RenderFragment? Actions { get; set; }

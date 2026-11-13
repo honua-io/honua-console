@@ -20,6 +20,7 @@
 ## Reference
 
 * [Unified agent workspace host](agent-workspace.md)
+* [Console v4 shared sections](console-v4-shared-sections.md)
 * [Build artifact contract](deployment/BUILD_ARTIFACT.md)
 * [.NET SDK and runtime provenance](dotnet-runtime-provenance.md)
 * [Embedding contract](operate/embed-contract.md)
