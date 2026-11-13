@@ -12,6 +12,7 @@ public partial class OperateApiKeysPage
     private IHonuaAdminOperateClient? _client;
     private IConsoleAuthorityBindingValidator? _authority;
     private IConsoleEnvironmentProfileStore? _profiles;
+    private IConsoleAuthorityChangeSource? _authorityChanges;
     private ConsoleConfirmDialog? _confirm;
     private IReadOnlyList<HonuaAdminApiKeyResponse> _keys = [];
     private HonuaAdminEndpointIssue? _issue;
@@ -30,6 +31,8 @@ public partial class OperateApiKeysPage
     {
         _client = Services.GetService<IHonuaAdminOperateClient>();
         _authority = Services.GetService<IConsoleAuthorityBindingValidator>();
+        _authorityChanges = _authority as IConsoleAuthorityChangeSource;
+        if (_authorityChanges is not null) _authorityChanges.Changed += ProfileChanged;
         _profiles = Services.GetService<IConsoleEnvironmentProfileStore>();
         if (_profiles is not null) _profiles.ActiveProfileChanged += ProfileChanged;
         await LoadAsync();
@@ -151,7 +154,11 @@ public partial class OperateApiKeysPage
     private void DismissSecret() => _secret = null;
     private static string Expiry(DateTimeOffset? expiry) => expiry?.ToUniversalTime().ToString("u", System.Globalization.CultureInfo.InvariantCulture) ?? "Never";
 
-    private void ProfileChanged() => _ = InvokeAsync(() => { TargetChanged(); StateHasChanged(); });
+    private void ProfileChanged()
+    {
+        if (_disposed) return;
+        _ = InvokeAsync(() => { if (_disposed) return; TargetChanged(); StateHasChanged(); });
+    }
 
     private void TargetChanged()
     {
@@ -174,5 +181,6 @@ public partial class OperateApiKeysPage
         _disposed = true;
         ClearSensitiveState();
         if (_profiles is not null) _profiles.ActiveProfileChanged -= ProfileChanged;
+        if (_authorityChanges is not null) _authorityChanges.Changed -= ProfileChanged;
     }
 }

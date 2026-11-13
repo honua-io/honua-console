@@ -263,7 +263,7 @@ jobs:
 
       - name: Upload API keys presentation evidence
         if: always()
-        uses: actions/upload-artifact@cf43041c898312bd50442a0a839f0c15f99dfc4f # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4
         with:
           name: api-keys-presentation
           path: artifacts/catalog-preview/api-keys-*
