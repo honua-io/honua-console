@@ -93,7 +93,7 @@ export function nativeProcessRoute(input,method='GET') {
 export function capturedProcessFetch(session,{request=fetch,current=()=>session}={}) {
     const binding={...session};
     return (input,init={})=>{
-        if(binding.transport) return nativeProcessFetch(binding,current,input,init);
+        if(binding.transport) return nativeProcessFetch({binding,current},input,init);
         if(typeof input!=='string' || !input.startsWith('/api/processes/')) throw new Error('Unapproved Processes transport route.');
         const lease=current();
         if(!binding.principalId || !sameCookieAuthority(binding,lease)) throw new Error('The process connection changed. Reopen it after saving your work.');
@@ -107,12 +107,29 @@ export function capturedProcessFetch(session,{request=fetch,current=()=>session}
 
 // The Console transport owns cookie/bearer, CSRF and the API origin; the legacy partition and
 // environment headers were Console-host checks and are not sent to the native API.
-function nativeProcessFetch(binding,current,input,init) {
+function nativeProcessFetch({binding,current},input,init) {
     const route=nativeProcessRoute(input,init.method);
     const lease=current();
     if(!binding.principalId || !sameCookieAuthority(binding,lease) || lease?.transport?.principalId!==binding.transport.principalId)
         throw new Error('The process connection changed. Reopen it after saving your work.');
     const headers=new Headers(init.headers);
     for(const name of ['X-Honua-Environment','X-Honua-Session-Partition']) headers.delete(name);
-    return lease.transport.fetch(route,{...init,headers});
+    return lease.transport.fetch(route,{...init,headers}).then(response=>guardProcessResponse(response,()=>lease.transport.assertCurrent()));
+}
+
+// Processes reads JSON after fetch resolves, so header-time checks alone cannot protect its editor.
+function guardProcessResponse(response,assertCurrent) {
+    return new Proxy(response,{
+        get(target,key) {
+            if(key==='clone') return ()=>guardProcessResponse(target.clone(),assertCurrent);
+            if(['json','text','blob','arrayBuffer','formData','bytes'].includes(key)) return async()=>{
+                await assertCurrent();
+                const value=await target[key]();
+                await assertCurrent();
+                return value;
+            };
+            const value=Reflect.get(target,key,target);
+            return typeof value==='function' ? value.bind(target) : value;
+        },
+    });
 }

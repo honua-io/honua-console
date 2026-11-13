@@ -207,3 +207,25 @@ test('retained native Processes clients use a renewed same-authority capture wit
  await request('/api/processes/console/workflow-packages',{method:'POST',body:'{}'});
  assert.equal(oldCalls,0);assert.equal(newCalls,1);
 });
+
+for(const method of ['json','text']) test(`native Processes rejects session changes during ${method} consumption without replay`,async()=>{
+ let active=true,calls=0;
+ const transport={principalId:'actor',assertCurrent:async()=>{if(!active) throw new Error('Console session changed');},
+  fetch:async()=>{calls++;return {[method]:async()=>{active=false;return method==='json' ? {data:'old graph'} : 'old graph';}};}};
+ const binding={principalId:'actor',environmentId:'default',sourcePathBase:'',transport};
+ const response=await capturedProcessFetch(binding)('/api/processes/console/workflow-packages',{method:'POST',body:'{}'});
+ await assert.rejects(response[method](),/session changed/);
+ assert.equal(calls,1);
+});
+
+test('native Processes returns current JSON and protects cloned response bodies',async()=>{
+ let active=true;
+ const transport={principalId:'actor',assertCurrent:async()=>{if(!active) throw new Error('Console session changed');},fetch:async()=>new Response('{"data":"graph"}')};
+ const binding={principalId:'actor',environmentId:'default',sourcePathBase:'',transport};
+ const response=await capturedProcessFetch(binding)('/api/processes/console/workflow-packages');
+ const clone=response.clone();
+ assert.equal(response.ok,true);
+ assert.deepEqual(await response.json(),{data:'graph'});
+ active=false;
+ await assert.rejects(clone.json(),/session changed/);
+});

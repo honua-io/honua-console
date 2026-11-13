@@ -191,7 +191,9 @@ async function mountProcesses() {
         };
         if(typeof sourceApp.listProcessSources==='function' && typeof sourceApp.resolveProcessSource==='function')
             builtin.sourcePicker={list:async()=> (await pickerApp()).listProcessSources(),resolve:async id=>(await pickerApp()).resolveProcessSource(id)};
-        const workspace=window.honuaAgentWorkspace;
+        const candidate=window.honuaAgentWorkspace;
+        const workspace=session.transport && (candidate?.session?.principalId!==session.principalId
+            || candidate?.session?.environmentId!==session.environmentId) ? undefined : candidate;
         if(workspace) {
             workspace.prepareContextProvider=()=> location.pathname === '/studio/processes' ? processContextPreparation() : undefined;
             if(workspace.context?.task?.kind === 'workflow-package') {
@@ -210,7 +212,9 @@ async function mountProcesses() {
                 }
             } else await workspace.select([],null);
         }
-        if(processView!==view || !host.isConnected || workspace?.session?.principalId!==session.principalId || workspace?.session?.environmentId!==session.environmentId) return;
+        if(session.transport) await session.transport.assertCurrent();
+        if(processView!==view || !host.isConnected || (!session.transport
+            && (workspace?.session?.principalId!==session.principalId || workspace?.session?.environmentId!==session.environmentId))) return;
         custom.addEventListener('focusin',()=>{
             if(!host.isConnected || processView!==view) return;
             view.mode='custom';
