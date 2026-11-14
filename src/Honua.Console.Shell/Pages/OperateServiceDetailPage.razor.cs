@@ -68,22 +68,58 @@ public partial class OperateServiceDetailPage
     private bool _savingProtocols;
     private bool _savingAccess;
     private ServiceConfigurationResult? _configResult;
+    private string? _loadedServiceName;
+    private int _serviceGeneration;
+    private int _loadGeneration;
+    private int _settingsGeneration;
 
     protected override async Task OnParametersSetAsync()
     {
+        if (!string.Equals(_loadedServiceName, ServiceName, StringComparison.OrdinalIgnoreCase))
+        {
+            _loadedServiceName = ServiceName;
+            _serviceGeneration++;
+            _service = null;
+            _states = [];
+            _settings = ServiceSettingsView.Unbound(ServiceName, "Loading…");
+            _configResult = null;
+            _savingProtocols = false;
+            _savingAccess = false;
+            _folderUnsaved = new();
+            _metadataUnsaved = new();
+        }
+
+        var serviceName = ServiceName;
+        var generation = _serviceGeneration;
+        var load = ++_loadGeneration;
         _loading = true;
         var view = await OperateData.GetServicesViewAsync();
+        if (generation != _serviceGeneration || load != _loadGeneration)
+        {
+            return;
+        }
+
         _service = view.Services.FirstOrDefault(
-            service => string.Equals(service.Name, ServiceName, StringComparison.OrdinalIgnoreCase));
+            service => string.Equals(service.Name, serviceName, StringComparison.OrdinalIgnoreCase));
         _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Services", "Layers");
 
-        await LoadSettingsAsync();
-        _loading = false;
+        await LoadSettingsAsync(serviceName, generation);
+        if (generation == _serviceGeneration && load == _loadGeneration)
+        {
+            _loading = false;
+        }
     }
 
-    private async Task LoadSettingsAsync()
+    private async Task LoadSettingsAsync(string serviceName, int generation)
     {
-        _settings = await ServiceConfig.GetSettingsAsync(ServiceName);
+        var request = ++_settingsGeneration;
+        var settings = await ServiceConfig.GetSettingsAsync(serviceName);
+        if (generation != _serviceGeneration || request != _settingsGeneration)
+        {
+            return;
+        }
+
+        _settings = settings;
         _availableProtocols = _settings.AvailableProtocols.Count > 0
             ? _settings.AvailableProtocols
             : FallbackProtocols;
@@ -124,44 +160,76 @@ public partial class OperateServiceDetailPage
 
     private Task SaveProtocolsAsync()
     {
+        var serviceName = ServiceName;
+        var generation = _serviceGeneration;
+        var protocols = _selectedProtocols.ToArray();
         _configResult = null;
         return Notifications.RunGuardedAsync(
             async () =>
             {
-                _configResult = await ServiceConfig.UpdateProtocolsAsync(new ServiceProtocolsCommand
+                var result = await ServiceConfig.UpdateProtocolsAsync(new ServiceProtocolsCommand
                 {
-                    ServiceName = ServiceName,
-                    EnabledProtocols = _selectedProtocols.ToArray()
+                    ServiceName = serviceName,
+                    EnabledProtocols = protocols
                 });
-                if (_configResult.Succeeded)
+                if (generation != _serviceGeneration)
                 {
-                    await LoadSettingsAsync();
+                    return;
+                }
+
+                _configResult = result;
+                if (result.Succeeded)
+                {
+                    await LoadSettingsAsync(serviceName, generation);
                 }
             },
-            setBusy: busy => { _savingProtocols = busy; StateHasChanged(); },
+            setBusy: busy =>
+            {
+                if (generation == _serviceGeneration)
+                {
+                    _savingProtocols = busy;
+                    StateHasChanged();
+                }
+            },
             failureMessage: "Couldn't save protocols");
     }
 
     private Task SaveAccessAsync()
     {
+        var serviceName = ServiceName;
+        var generation = _serviceGeneration;
+        var command = new ServiceAccessPolicyCommand
+        {
+            ServiceName = serviceName,
+            AllowAnonymous = _allowAnonymous,
+            AllowAnonymousWrite = _allowAnonymousWrite,
+            AllowedRoles = ParseRoles(_allowedRoles),
+            AllowedWriteRoles = ParseRoles(_allowedWriteRoles)
+        };
         _configResult = null;
         return Notifications.RunGuardedAsync(
             async () =>
             {
-                _configResult = await ServiceConfig.UpdateAccessPolicyAsync(new ServiceAccessPolicyCommand
+                var result = await ServiceConfig.UpdateAccessPolicyAsync(command);
+                if (generation != _serviceGeneration)
                 {
-                    ServiceName = ServiceName,
-                    AllowAnonymous = _allowAnonymous,
-                    AllowAnonymousWrite = _allowAnonymousWrite,
-                    AllowedRoles = ParseRoles(_allowedRoles),
-                    AllowedWriteRoles = ParseRoles(_allowedWriteRoles)
-                });
-                if (_configResult.Succeeded)
+                    return;
+                }
+
+                _configResult = result;
+                if (result.Succeeded)
                 {
-                    await LoadSettingsAsync();
+                    await LoadSettingsAsync(serviceName, generation);
                 }
             },
-            setBusy: busy => { _savingAccess = busy; StateHasChanged(); },
+            setBusy: busy =>
+            {
+                if (generation == _serviceGeneration)
+                {
+                    _savingAccess = busy;
+                    StateHasChanged();
+                }
+            },
             failureMessage: "Couldn't save access policy");
     }
 
