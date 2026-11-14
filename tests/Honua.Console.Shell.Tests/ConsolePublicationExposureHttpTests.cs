@@ -80,7 +80,9 @@ public sealed class ConsolePublicationExposureHttpTests(ITestOutputHelper output
                 return Task.FromResult(Envelope(new
                 {
                     items = new[] { new { serviceName = "z-parcels", title = "Parcels", folderId = "public", folderName = "Public", layerCount } },
-                    page = 1, pageSize = 100, total = 1
+                    page = 1,
+                    pageSize = 100,
+                    total = 1
                 }));
             Assert.Equal("/api/v1/admin/connections/connection-one/layers/", uri.AbsolutePath);
             if (scenario == "denied") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
@@ -90,7 +92,9 @@ public sealed class ConsolePublicationExposureHttpTests(ITestOutputHelper output
             return Task.FromResult(Envelope(new
             {
                 items = layers.Select(id => new { layerId = id, layerName = id == 7 ? "Bridges" : $"Layer {id}", serviceName = "z-parcels", geometryType = "LineString" }).ToArray(),
-                page, pageSize = 100, total = layerCount
+                page,
+                pageSize = 100,
+                total = layerCount
             }));
         }
 
