@@ -1,17 +1,10 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { shippingPassword, signIn } from './sign-in';
 
 test('populated service endpoints use the public HTTPS origin and serve live features', async ({ page }, info) => {
-  const passwordFile = process.env.HONUA_SHIPPING_PASSWORD_FILE;
-  if (!passwordFile) throw new Error('HONUA_SHIPPING_PASSWORD_FILE is required');
-  const password = readFileSync(passwordFile, 'utf8').trim();
-  if (!password) throw new Error('The quickstart password file is empty');
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/console/auth/signin');
-  await page.locator('input[type="password"]').fill(password);
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await expect(page).not.toHaveURL(/\/auth\/signin/);
+  await signIn(page, shippingPassword());
   const services = await page.evaluate(async () => {
     const response = await fetch('/api/v1/admin/services');
     return { status: response.status, body: await response.json() };
