@@ -37,6 +37,43 @@ public sealed partial class ConsoleOpsFindingsClientTests
     }
 
     [Fact]
+    public async Task AlertsRejectCursorFromAnotherAuthorityWithoutSending()
+    {
+        var handler = new RecordingHandler(_ => throw new InvalidOperationException("Must not send."));
+        var result = await CreateClient(handler).ListAlertsAsync(cursor: "old-cursor",
+            expectedAuthority: AlertAuthority("previous-environment"));
+        Assert.Equal(OperateSectionStatus.Conflict, result.Status);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AlertsRejectResponsesAfterEnvironmentChanges(bool acknowledge)
+    {
+        var profile = new ConsoleEnvironmentProfile
+        {
+            Id = "live", ServerBaseUri = new Uri("https://server.example"),
+            Account = new() { AccountId = "operator.live" }
+        };
+        var profiles = new InMemoryConsoleEnvironmentProfileStore([profile]);
+        var handler = new ChangingAlertHandler(async () =>
+        {
+            await profiles.UpsertProfileAsync(profile with { ServerBaseUri = new Uri("https://other.example") });
+            return acknowledge
+                ? JsonResponse(new ObservabilityAlertEventResponse { EventId = 42, AcknowledgedAt = DateTimeOffset.UtcNow },
+                    OperateObservabilityJsonContext.Default.ObservabilityAlertEventResponse)
+                : JsonResponse(new ObservabilityAlertEventPageResponse(),
+                    OperateObservabilityJsonContext.Default.ObservabilityAlertEventPageResponse);
+        });
+        var client = new HttpConsoleOpsFindingsClient(new HttpClient(handler), profiles, BearerSessions());
+        var status = acknowledge
+            ? (await client.AcknowledgeAlertAsync(new(42, AlertAuthority(), "request-1"))).Status
+            : (await client.ListAlertsAsync()).Status;
+        Assert.Equal(OperateSectionStatus.Conflict, status);
+    }
+
+    [Fact]
     public async Task AlertAcknowledgementUsesOperatorAndStableRetryIdentity()
     {
         var handler = new RecordingHandler(_ => JsonResponse(
@@ -113,6 +150,11 @@ public sealed partial class ConsoleOpsFindingsClientTests
         var result = await client.AcknowledgeAlertAsync(new(42, AlertAuthority(), "request-1"));
         Assert.Equal(OperateSectionStatus.Unavailable, result.Status);
         Assert.Contains("not be confirmed", result.Message, StringComparison.Ordinal);
+    }
+
+    private sealed class ChangingAlertHandler(Func<Task<HttpResponseMessage>> respond) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => respond();
     }
 
     private sealed class IncompleteAlertContent(bool stall) : HttpContent

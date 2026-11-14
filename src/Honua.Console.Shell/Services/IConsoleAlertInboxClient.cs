@@ -6,7 +6,7 @@ namespace Honua.Console.Shell.Services;
 public interface IConsoleAlertInboxClient
 {
     Task<OperateSectionResult<ConsoleAlertInboxSnapshot>> ListAlertsAsync(
-        CancellationToken cancellationToken = default, string? cursor = null);
+        CancellationToken cancellationToken = default, string? cursor = null, ConsoleAlertAuthority? expectedAuthority = null);
 
     Task<OperateSectionResult<ObservabilityAlertEventResponse>> AcknowledgeAlertAsync(
         ConsoleAlertAcknowledgement acknowledgement, CancellationToken cancellationToken = default);

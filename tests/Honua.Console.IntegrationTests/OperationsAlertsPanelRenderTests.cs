@@ -1,4 +1,6 @@
 using Bunit;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Components.Authorization;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Components;
@@ -80,8 +82,63 @@ public sealed class OperationsAlertsPanelRenderTests
         Assert.Empty(panel.FindAll("[data-no-alerts]"));
     }
 
+    [Fact]
+    public async Task OperatorChangeDiscardsDelayedReadAndClearsPagination()
+    {
+        using var context = new BunitContext();
+        var authentication = new ChangingAuthentication();
+        var client = new AlertClient();
+        context.Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
+        var panel = context.Render<OperationsAlertsPanel>();
+        var delayed = new TaskCompletionSource<OperateSectionResult<ConsoleAlertInboxSnapshot>>();
+        client.PendingRead = delayed.Task;
+        panel.Find("[data-refresh-alerts]").Click();
+        client.PendingRead = null;
+        client.Page = new();
+        await panel.InvokeAsync(authentication.Change);
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-no-alerts]")));
+        delayed.SetResult(OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(new(
+            ConsoleAlertAuthority.Capture(new ConsoleEnvironmentProfile { Id = "old" }, null),
+            new() { Items = [new() { EventId = 99, RuleName = "Old operator alert" }], NextCursor = "old-cursor" })));
+        await panel.InvokeAsync(() => Task.CompletedTask);
+        Assert.DoesNotContain("Old operator alert", panel.Markup);
+        Assert.Empty(panel.FindAll("[data-next-alerts]"));
+    }
+
+    [Fact]
+    public async Task OperatorChangeDiscardsDelayedAcknowledgement()
+    {
+        using var context = new BunitContext();
+        var authentication = new ChangingAuthentication();
+        var client = new AlertClient();
+        context.Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
+        var panel = context.Render<OperationsAlertsPanel>();
+        var delayed = new TaskCompletionSource<OperateSectionResult<ObservabilityAlertEventResponse>>();
+        client.PendingAcknowledgement = delayed.Task;
+        panel.Find("[data-acknowledge-alert]").Click();
+        client.Page = new();
+        await panel.InvokeAsync(authentication.Change);
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-no-alerts]")));
+        delayed.SetResult(OperateSectionResult<ObservabilityAlertEventResponse>.Allowed(
+            new() { EventId = 42, AcknowledgedAt = DateTimeOffset.UtcNow }));
+        await panel.InvokeAsync(() => Task.CompletedTask);
+        Assert.Empty(panel.FindAll("[data-acknowledged]"));
+        Assert.Empty(panel.FindAll("[data-alert-action-message]"));
+    }
+
+    private sealed class ChangingAuthentication : AuthenticationStateProvider
+    {
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+            Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
+        public void Change() => NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+    }
+
     private sealed class AlertClient : IConsoleAlertInboxClient
     {
+        public Task<OperateSectionResult<ConsoleAlertInboxSnapshot>>? PendingRead { get; set; }
+        public Task<OperateSectionResult<ObservabilityAlertEventResponse>>? PendingAcknowledgement { get; set; }
         public bool Confirm { get; set; }
         public List<string?> Cursors { get; } = [];
         public List<ConsoleAlertAcknowledgement> Commands { get; } = [];
@@ -90,9 +147,11 @@ public sealed class OperationsAlertsPanelRenderTests
             Items = [new() { EventId = 42, RuleName = "A map needs attention", ServiceId = "Public maps" }]
         };
 
-        public Task<OperateSectionResult<ConsoleAlertInboxSnapshot>> ListAlertsAsync(CancellationToken cancellationToken = default, string? cursor = null)
+        public Task<OperateSectionResult<ConsoleAlertInboxSnapshot>> ListAlertsAsync(CancellationToken cancellationToken = default, string? cursor = null, ConsoleAlertAuthority? expectedAuthority = null)
         {
             Cursors.Add(cursor);
+            if (cursor is not null) { Assert.Equal("profile-1", expectedAuthority?.ProfileId); }
+            if (PendingRead is { } pending) { return pending; }
             return Task.FromResult(OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(new(ConsoleAlertAuthority.Capture(new ConsoleEnvironmentProfile { Id = "profile-1" }, null), Page)));
         }
 
@@ -100,6 +159,7 @@ public sealed class OperationsAlertsPanelRenderTests
             ConsoleAlertAcknowledgement acknowledgement, CancellationToken cancellationToken = default)
         {
             Commands.Add(acknowledgement);
+            if (PendingAcknowledgement is { } pending) { return pending; }
             return Task.FromResult(Confirm
                 ? OperateSectionResult<ObservabilityAlertEventResponse>.Allowed(Page.Items[0] with { AcknowledgedAt = DateTimeOffset.UtcNow })
                 : OperateSectionResult<ObservabilityAlertEventResponse>.Denied(OperateSectionStatus.Unavailable, "Acknowledgement not confirmed."));

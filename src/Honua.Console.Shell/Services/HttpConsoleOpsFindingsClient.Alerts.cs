@@ -8,7 +8,7 @@ namespace Honua.Console.Shell.Services;
 public sealed partial class HttpConsoleOpsFindingsClient
 {
     public async Task<OperateSectionResult<ConsoleAlertInboxSnapshot>> ListAlertsAsync(
-        CancellationToken cancellationToken = default, string? cursor = null)
+        CancellationToken cancellationToken = default, string? cursor = null, ConsoleAlertAuthority? expectedAuthority = null)
     {
         var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         if (profile is null)
@@ -19,6 +19,12 @@ public sealed partial class HttpConsoleOpsFindingsClient
 
         var authority = ConsoleAlertAuthority.Capture(profile,
             await _sessionStore.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false));
+        if (expectedAuthority is not null && authority != expectedAuthority)
+        {
+            return OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(OperateSectionStatus.Conflict,
+                "The connected environment changed. Refresh alerts before continuing.");
+        }
+
         var path = $"{OperateAdminRoutes.Alerts}?pageSize=50";
         if (!string.IsNullOrWhiteSpace(cursor)) { path += $"&cursor={Uri.EscapeDataString(cursor)}"; }
         using var request = new HttpRequestMessage(HttpMethod.Get,
@@ -28,6 +34,12 @@ public sealed partial class HttpConsoleOpsFindingsClient
         var result = await SendAlertRequestAsync(request,
             OperateObservabilityJsonContext.Default.ObservabilityAlertEventPageResponse,
             cancellationToken).ConfigureAwait(false);
+        if (!await IsAlertAuthorityCurrentAsync(authority, cancellationToken).ConfigureAwait(false))
+        {
+            return OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(OperateSectionStatus.Conflict,
+                "The connected environment changed. Refresh alerts before continuing.");
+        }
+
         return result.IsAllowed && result.Value is { } page
             ? OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(new(authority, page))
             : OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(result.Status, result.Message);
@@ -69,10 +81,23 @@ public sealed partial class HttpConsoleOpsFindingsClient
         var result = await SendAlertRequestAsync(request,
             OperateObservabilityJsonContext.Default.ObservabilityAlertEventResponse,
             cancellationToken).ConfigureAwait(false);
+        if (!await IsAlertAuthorityCurrentAsync(authority, cancellationToken).ConfigureAwait(false))
+        {
+            return OperateSectionResult<ObservabilityAlertEventResponse>.Denied(OperateSectionStatus.Conflict,
+                "The connected environment changed. Refresh alerts before continuing.");
+        }
+
         return result.IsAllowed && (result.Value is not { } alert || alert.EventId != eventId || alert.AcknowledgedAt is null)
             ? OperateSectionResult<ObservabilityAlertEventResponse>.Denied(OperateSectionStatus.Unavailable,
                 "Honua has not confirmed the acknowledgement. Refresh the alerts before trying again.")
             : result;
+    }
+
+    private async Task<bool> IsAlertAuthorityCurrentAsync(ConsoleAlertAuthority authority, CancellationToken cancellationToken)
+    {
+        var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        return profile is not null && authority == ConsoleAlertAuthority.Capture(profile,
+            await _sessionStore.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false));
     }
 
     private async Task<OperateSectionResult<T>> SendAlertRequestAsync<T>(HttpRequestMessage request,

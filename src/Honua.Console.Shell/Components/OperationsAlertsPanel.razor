@@ -1,3 +1,4 @@
+@using Microsoft.AspNetCore.Components.Authorization
 @using Honua.Console.Contracts
 @using Honua.Console.Shell.Services
 @inject IServiceProvider Services
@@ -63,25 +64,54 @@
     private readonly Dictionary<(ConsoleAlertAuthority Authority, long EventId), string> _requestIds = [];
     private OperateSectionResult<ConsoleAlertInboxSnapshot> _result = OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(
         OperateSectionStatus.Unavailable, "The alert connection is unavailable.");
+    private ConsoleEnvironmentSubscription? _subscription;
+    private int _generation;
     private bool _loaded;
     private bool _busy;
     private DateTimeOffset? _lastRefreshed;
     private string? _actionMessage;
     private IConsoleAlertInboxClient? Client => Services.GetService(typeof(IConsoleAlertInboxClient)) as IConsoleAlertInboxClient;
 
-    protected override Task OnInitializedAsync() => RefreshAsync();
+    protected override Task OnInitializedAsync()
+    {
+        _subscription = new(Services.GetService(typeof(IConsoleEnvironmentProfileStore)) as IConsoleEnvironmentProfileStore,
+            Services.GetService(typeof(AuthenticationStateProvider)) as AuthenticationStateProvider, OnAuthorityChanged);
+        return RefreshAsync();
+    }
+
+    private void OnAuthorityChanged()
+    {
+        ++_generation;
+        _ = InvokeAsync(async () =>
+        {
+            _result = OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(
+                OperateSectionStatus.Unavailable, "The connected environment changed. Refresh alerts before continuing.");
+            _requestIds.Clear();
+            _loaded = false;
+            _busy = false;
+            _lastRefreshed = null;
+            _actionMessage = null;
+            StateHasChanged();
+            await RefreshAsync();
+            StateHasChanged();
+        });
+    }
 
     private async Task RefreshAsync(string? cursor = null)
     {
         if (_busy) { return; }
+        var generation = _generation;
         _busy = true;
         _actionMessage = null;
         try
         {
             if (Client is { } client)
             {
-                _result = await ConsoleReadBudget.RunAsync(token => client.ListAlertsAsync(token, cursor), ConsoleReadBudget.Default,
+                var authority = cursor is null ? null : _result.Value?.Authority;
+                var result = await ConsoleReadBudget.RunAsync(token => client.ListAlertsAsync(token, cursor, authority), ConsoleReadBudget.Default,
                     "Honua did not respond. Try refreshing alerts again.", _lifetime.Token);
+                if (generation != _generation) { return; }
+                _result = result;
                 if (_result.IsAllowed && _result.Value is { } refreshed)
                 {
                     _lastRefreshed = DateTimeOffset.UtcNow;
@@ -91,14 +121,15 @@
                     }
                 }
             }
-            _loaded = true;
+            if (generation == _generation) { _loaded = true; }
         }
-        finally { _busy = false; }
+        finally { if (generation == _generation) { _busy = false; } }
     }
 
     private async Task AcknowledgeAsync(long eventId)
     {
         if (_busy || Client is not { } client || _result.Value is not { } snapshot) { return; }
+        var generation = _generation;
         _busy = true;
         _actionMessage = null;
         try
@@ -109,6 +140,7 @@
                 _requestIds[key] = requestId = Guid.NewGuid().ToString("N");
             }
             var result = await client.AcknowledgeAlertAsync(new(eventId, snapshot.Authority, requestId), _lifetime.Token);
+            if (generation != _generation) { return; }
             if (result.IsAllowed && result.Value is { } updated)
             {
                 _requestIds.Remove(key);
@@ -119,11 +151,13 @@
             else { _actionMessage = result.Message; }
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        finally { _busy = false; }
+        finally { if (generation == _generation) { _busy = false; } }
     }
 
     public void Dispose()
     {
+        ++_generation;
+        _subscription?.Dispose();
         _lifetime.Cancel();
         _lifetime.Dispose();
     }
