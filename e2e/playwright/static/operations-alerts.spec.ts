@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
 import { startStaticBundleServer } from '../static-bundle-server.mjs';
 import { createContractApi } from '../static-contract-server.mjs';
 
@@ -11,7 +12,8 @@ async function startInboxFixture() {
   const fallback = createContractApi({ allowedOrigin: origin });
   const requestIds: string[] = [];
   let acknowledged = false;
-  const server = await startStaticBundleServer('artifacts/static-publish/wwwroot/console', 5195, {
+  const server = await startStaticBundleServer(
+    fileURLToPath(new URL('../../../artifacts/static-publish/wwwroot/console', import.meta.url)), 5195, {
     configuration: { apiBaseUrl: '/', auth: { mode: 'builtin' }, v4Enabled: true },
     handleApi: async (req, res) => {
       const url = new URL(req.url, origin);
