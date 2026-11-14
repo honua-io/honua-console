@@ -79,6 +79,35 @@
     <p data-job-diagnostics-first-cursor="@(View.EventsFirstCursor ?? string.Empty)" hidden="@string.IsNullOrEmpty(View.EventsFirstCursor)"></p>
     <p data-job-diagnostics-next-cursor="@(View.EventsNextCursor ?? string.Empty)" hidden="@string.IsNullOrEmpty(View.EventsNextCursor)"></p>
 
+    <section data-job-diagnostics-artifacts="@View.Artifacts.State" aria-labelledby="job-diagnostics-artifacts-heading">
+        <h4 id="job-diagnostics-artifacts-heading">Artifacts</h4>
+        <p data-job-diagnostics-artifacts-summary>@View.Artifacts.Summary</p>
+        @if (View.Artifacts.Items.Count > 0)
+        {
+            <ul data-job-diagnostics-artifact-items>
+                @foreach (var artifact in View.Artifacts.Items)
+                {
+                    <li data-artifact-availability="@artifact.Availability">
+                        <span>@artifact.Label</span>: <strong>@artifact.Availability</strong>
+                        @if (!string.IsNullOrWhiteSpace(artifact.Message))
+                        {
+                            <span> — @artifact.Message</span>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+    @if (View.EvidenceNotes.Count > 0)
+    {
+        <ul data-job-diagnostics-notes aria-label="Recovery notes">
+            @foreach (var note in View.EvidenceNotes)
+            {
+                <li>@note</li>
+            }
+        </ul>
+    }
+
     @if (View.EvidenceMissing.Count > 0)
     {
         <ul data-job-diagnostics-missing>
