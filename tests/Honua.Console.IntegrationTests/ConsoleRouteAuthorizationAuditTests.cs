@@ -22,6 +22,7 @@ public sealed class ConsoleRouteAuthorizationAuditTests
         "/public",                      // SharePage — public-link / open-data hub (short route)
         "/share/public/items/{IdOrSlug}", // SharePublicItemPage — public open-data item
         "/public/items/{IdOrSlug}",     // SharePublicItemPage — public open-data item (short route)
+        "/maps/published/{*Route}",     // PublishedMapPage — Studio publication audience viewer
     };
 
     [Fact]

@@ -70,3 +70,23 @@ test('creating a map does not require starting the assistant conversation', () =
         mounted.dispose();
     } finally { globalThis.document = original; }
 });
+
+test('the approval handoff link stays inside the static Console base', () => {
+    const original = globalThis.document;
+    const ownerDocument = { baseURI: 'https://ops.example/console/' };
+    globalThis.document = { createElement: tag => ({ ...element(tag), ownerDocument }) };
+    try {
+        let form;
+        const host = { isConnected: true, querySelector: () => ({ before: value => { form = value; } }) };
+        const app = { isConnected: true, workspaceCookieBinding: { principalId: 'human', environmentId: 'local' },
+            workspace: { workspaceId: 'workspace', storage: { getItem: () => JSON.stringify({
+                packageKey: 'map', commandId: 'command', status: 'awaiting-approval',
+                receipt: { operationInstanceId: 'operation-1', proposalId: 'proposal_1' },
+            }) } } };
+        const mounted = mountStudioDraftCreate({ app, host });
+        const inbox = form.children.find(child => child.textContent === 'Review approval in Inbox');
+        assert.equal(inbox.hidden, false);
+        assert.equal(inbox.href, '/console/inbox?proposalId=proposal_1');
+        mounted.dispose();
+    } finally { globalThis.document = original; }
+});
