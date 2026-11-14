@@ -1,255 +1,97 @@
-# Agent Browser Testing (Claude Code + Playwright MCP)
+# Console browser testing
 
-Decision source: [ADR-0001: Unified Honua Console Runtime](../adr/0001-unified-honua-console-runtime.md).
-Route truth: [Console Route Map](../console-route-map.md).
-Run/bindings: [Local and Staging Startup](../deployment/LOCAL_AND_STAGING.md).
+The shipping Console is a static Blazor WebAssembly SPA. The browser loads the
+bundle at `/console/` and calls Honua Server APIs directly using the configured
+API base URL and the user's session or bearer token. A server-hosted Blazor
+fixture remains in this repository for regression tests; its results do not
+qualify the shipping SPA.
 
 For release qualification of the shipping WebAssembly Console, use
 [Shipping Console live replay](SHIPPING_LIVE_REPLAY.md). That suite runs the
 released bundle against the packaged HTTPS quickstart with a real server at
 1280 and 390 widths.
 
-The older interactive setup below describes the server-hosted browser test
-fixture. Its server-side credential and network model does not describe the
-shipping WebAssembly runtime, and a pass here does not qualify the release.
-HTTP/contract and bUnit checks also do not substitute for the shipping browser
-replay.
+## Choose the evidence you need
 
-## Topology
+| Goal | Harness | What a pass proves |
+| --- | --- | --- |
+| Published WASM boot, deep links and browser transport contracts | [`playwright.static.config.ts`](../../e2e/playwright/playwright.static.config.ts) | Published files work in desktop and mobile Chromium; transport fixtures exercise API contracts |
+| Legacy host rendering and missing-binding behavior | `npm run e2e:smoke` | Test-only server-hosted components render |
+| Legacy host workflows against a real server | `npm run e2e:live` | The selected live backend works with the regression fixture; see the [live harness guide](../../e2e/README.md) |
+| Release candidate customer journey | Deployed static bundle and live API, with an authenticated test operator | The recorded journey works on that particular Console/server pair |
 
-The supported layout is **app in WSL, browser + Claude Code on Windows**:
+The static suite uses local contract fixtures. A green result does not establish
+live sign-in, approval, provider execution or deployment readiness. Node tests
+and HTTP smoke checks are also useful but do not substitute for a browser journey.
 
-```
-  Windows (native)                          WSL2 (Ubuntu)
-  ----------------                          -------------
-  Claude Code  ──spawns──▶  Playwright MCP ─┐
-                            (Windows Chrome) │  http://localhost:5174
-                                             └─────────────▶  Honua Console (dotnet run)
-                                                                     │  server-side, in WSL
-                                                                     ▼
-                                                              honua-server (:8088)
-                                                                     ▼
-                                                              PostGIS (:5432 in-network)
-```
+## Test a published static bundle
 
-Only the **Console port (5174)** needs to be reachable from Windows. The browser never talks
-to honua-server or PostGIS directly — the Console calls those server-side, inside WSL. So you
-do **not** need to expose 8088/5432 to Windows.
+Use the [`Console static bundle` workflow](../../.github/workflows/static-bundle.yml)
+as the canonical build recipe. It selects the SDK pinned in
+`src/Honua.Console.Web/global.json`, restores locked dependencies, fetches and
+verifies Cesium and Studio assets, publishes WASM, runs browser tests and packages
+the release files. Do not substitute a legacy-host build for this artifact.
+Honua lanes run all .NET builds and tests through `remote-dotnet` or `remote-run`
+on the build host, including harnesses that start .NET implicitly.
 
-## Prerequisites
+Extract the published bundle's Console files into
+`artifacts/static-publish/wwwroot/console` (so that `index.html` is directly in
+that directory). With that bundle available, run these commands from the
+repository root on the browser test machine:
 
-**In WSL** (where the stack runs):
-- Docker (for PostGIS + honua-server). `docker version` should work.
-- .NET 11 SDK and Node.js 20+ (`dotnet --version`, `node --version`).
-- This repo checked out (you are reading its docs).
-
-**On Windows** (where Claude drives the browser):
-- [Claude Code for Windows](https://code.claude.com/docs) installed and signed in.
-- Node.js 20+ on the Windows side (`node --version`, `where npx`) — Playwright MCP runs as a
-  Windows process and downloads a Windows browser build the first time.
-
-## Part 1 — Bring up the PostGIS-backed server + Console (in WSL)
-
-The Console renders an explicit *missing-binding* surface unless a honua-server base URL is
-configured, so a live backend is required for meaningful browser tests. Select the server image
-by its immutable digest; record the selected revision with the test results.
-
-```bash
-export HONUA_CONSOLE_E2E_SERVER_IMAGE='ghcr.io/honua-io/honua-server@sha256:<digest>'
+```sh
+npm ci --prefix e2e/playwright
+(cd e2e/playwright && npx --no-install playwright install --with-deps chromium)
+(cd e2e/playwright && npx --no-install playwright test --config playwright.static.config.ts)
 ```
 
-> Admin-auth nuance: in `Development` the server requires a real API key — there is **no**
-> dev-auth bypass (that only activates when `ASPNETCORE_ENVIRONMENT=Test`). Set
-> `HONUA_ADMIN_PASSWORD` on the server and the **same value** as `HONUA_ADMIN_API_KEY` on the
-> Console; the Console sends it as the `X-API-Key` header.
+By default the suite serves that directory at
+`http://127.0.0.1:5184/console/`. Contract fixtures also use fixed ports
+5185, 5186, 5187, 5188, 5195 and 5196.
+`HONUA_CONSOLE_STATIC_ROOT` overrides the bundle path for the boot and transport
+fixtures only; the alert fixtures still require the default directory above.
+`HONUA_CONSOLE_STATIC_PORT` overrides the first port only. Keep ports 5184–5188,
+5195 and 5196 free, or the overridden first port plus the fixed fixture ports.
 
-### 1a. Create a testbed folder with two files
+Playwright retains failure traces and screenshots and writes an HTML report.
+Inspect these together with browser console and network errors before changing
+the application. The fixtures are test infrastructure, not deployment servers.
 
-`docker-compose.yml`:
+## Check a live candidate in a browser
 
-```yaml
-name: honua-console-testbed
-services:
-  postgres:
-    image: postgis/postgis:17-3.5-alpine
-    environment:
-      POSTGRES_DB: honua_dev
-      POSTGRES_USER: honua_user
-      POSTGRES_PASSWORD: honua_password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U honua_user -d honua_dev"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+Use the immutable Console bundle and server image selected for qualification.
+Record their versions/digests, public Console URL, API origin, authentication
+mode, journey steps and observed result. Preserve redacted browser/network
+failure evidence; never include credentials, cookies, bearer tokens or CSRF
+tokens in a report.
 
-  honua:
-    image: ${HONUA_CONSOLE_E2E_SERVER_IMAGE:?Set the selected server image digest}
-    ports:
-      - "8088:8080"   # REST/admin — only needed for the SDK check from WSL, not from Windows
-      - "8089:8081"   # gRPC
-    environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      HONUA_ADMIN_PASSWORD: "honua-console-dev-key"
-      ConnectionStrings__DefaultConnection: "Host=postgres;Database=honua_dev;Username=honua_user;Password=honua_password"
-      Security__ConnectionEncryption__MasterKey: "local-dev-master-key-not-for-production-0123456789"
-      Security__ConnectionEncryption__Salt: "MDEyMzQ1Njc4OWFiY2RlZg=="
-      Kestrel__Endpoints__Http__Url: "http://+:8080"
-      Kestrel__Endpoints__Http__Protocols: "Http1"
-      Kestrel__Endpoints__Grpc__Url: "http://+:8081"
-      Kestrel__Endpoints__Grpc__Protocols: "Http2"
-    depends_on:
-      postgres:
-        condition: service_healthy
+Check the deployed `config.json` at the Console mount: `apiBaseUrl` and `auth`
+must describe the intended server and identity provider. Exercise sign-in and
+refresh, navigate to a deep link, perform the task with an authenticated operator,
+and verify its persisted result through the live API. For approval journeys,
+verify the approval result and the destination after navigation as well.
 
-volumes:
-  postgres_data:
-```
+For same-origin hosting, the browser uses the server's session cookie and
+identity-bound CSRF token for mutations. For a separate Console origin, verify
+the configured bearer flow and the server's explicit CORS allowlist. Never put
+an admin API key in the static bundle or browser configuration.
 
-`init-db.sql` (PostGIS extensions the server expects):
-
-```sql
-CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE EXTENSION IF NOT EXISTS postgis_topology;
-CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
-CREATE EXTENSION IF NOT EXISTS postgis_tiger_geocoder;
-CREATE SCHEMA IF NOT EXISTS honua;
-```
-
-> Ports 8088/8089 are offset from the canonical `docker-compose.yml` in the `honua-server` repo
-> (which uses 8080) so this testbed does not collide with other local stacks. To build the
-> server from your local source instead of the nightly image, use that repo's
-> `docker-compose.yml` and add `HONUA_ADMIN_PASSWORD` to its `honua` service.
-
-### 1b. Start the backend and wait for health
-
-```bash
-cd /path/to/testbed
-docker compose up -d
-python -m pip install honua-admin
-python - <<'PY'
-from honua_admin import HonuaAdminClient
-
-with HonuaAdminClient(
-    "http://127.0.0.1:8088",
-    api_key="honua-console-dev-key",
-) as admin:
-    print(admin.get_version())
-PY
-```
-
-The version response means the server is up and the key is valid.
-
-### 1c. Run the Console, bound so Windows can reach it
-
-Bind to `0.0.0.0` (not `127.0.0.1`) so the Windows side can connect reliably — WSL2 localhost
-forwarding is more dependable when the listener is on all interfaces:
-
-```bash
-cd /home/<you>/honua-io/honua-console
-HONUA_SERVER_BASE_URL=http://127.0.0.1:8088 \
-HONUA_ADMIN_API_KEY=honua-console-dev-key \
-dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://0.0.0.0:5174
-```
-
-Leave this running (it is a long-running server — do **not** wrap it in the build lock).
-
-## Part 2 — Make the Console reachable from Windows
-
-Preferred: WSL2 forwards localhost to WSL services by default. Open
-<http://localhost:5174/version.json> in the Windows browser.
-
-If `localhost` does not resolve to the WSL service (some WSL/network configs disable
-forwarding), use the WSL IP directly. In WSL run `hostname -I` (take the first address, e.g.
-`172.x.x.x`), then open `http://172.x.x.x:5174/version.json` in the Windows browser.
-
-Whichever URL returns `version.json` is the **base URL** you will give Claude/Playwright.
-
-## Part 3 — Add Playwright MCP to Claude Code (on Windows)
-
-From your project directory on Windows:
-
-```powershell
-claude mcp add --scope project playwright -- npx -y @playwright/mcp@latest
-```
-
-This writes a project-scoped `.mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "playwright": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest"]
-    }
-  }
-}
-```
-
-Notes:
-- **No `cmd /c` wrapper** is needed; Claude Code on Windows runs the command directly.
-- **First start downloads ~200 MB** of browser binaries (cached afterward under
-  `%USERPROFILE%\.cache\ms-playwright`). If the server times out on first connect, raise the
-  startup timeout: PowerShell `$env:MCP_TIMEOUT = "60000"; claude`.
-- Scope choices: `--scope user` (all your projects), `--scope project` (shared via committed
-  `.mcp.json`), or omit `--scope` for local-only. A project-scoped `.mcp.json` triggers a
-  one-time **"approve MCP servers for this project?"** trust prompt on first use.
-- Useful flags go into `args` after `@playwright/mcp@latest`: `--headless` (no visible window),
-  `--browser=chromium|firefox|webkit|msedge`, `--isolated` (fresh profile per session). Default
-  is headed Chromium, which is handy for watching the agent work.
-
-Verify the connection:
-
-```powershell
-claude mcp list        # expect: ✓ Connected   playwright
-```
-
-…or inside a session run `/mcp` and confirm `playwright` is listed with its `browser_*` tools.
-
-## Part 4 — Run a browser test with Claude
-
-Start Claude Code in the project and prompt it against your base URL, e.g.:
-
-```
-Using playwright, open http://localhost:5174/operate and tell me what renders.
-Then click into each Operate section, screenshot each page, and report any error UI
-("An unhandled error has occurred") or blank panels.
-```
-
-The first time Claude calls a browser tool you'll get a permission prompt
-(*Allow `browser_navigate` from `playwright`?*). Approve it; you can pre-allow the
-`playwright` tools in `.claude/settings.json` (via the `/update-config` skill) to cut repeat
-prompts.
-
-What to expect: the backend starts **empty** (fresh PostGIS volume), so Operate/Catalog show
-real-but-empty data, not demo seed — that is the genuine live binding, not a failure. Seed a
-connection/layer through the UI or the admin API if you want populated pages to assert against.
-
-## Teardown
-
-```bash
-# stop the Console: Ctrl-C in its terminal (or kill the dotnet run process)
-cd /path/to/testbed
-docker compose down        # keep data
-docker compose down -v      # also wipe the PostGIS volume
-```
+An interactive browser tool, including Playwright MCP when installed, can drive
+these checks. The repository's Playwright tests also drive real browsers; MCP is
+not required to run them. A fixture response or scripted provider answer must be
+identified as such and cannot be recorded as a live release pass.
 
 ## Troubleshooting
 
-| Symptom | Cause / fix |
-| --- | --- |
-| Windows browser can't reach `localhost:5174` | Bind the Console to `0.0.0.0` (Part 1c) and/or use the WSL IP from `hostname -I` (Part 2). |
-| Every page renders then goes blank / "An unhandled error has occurred" | A Blazor circuit crash (e.g. an ambiguous-route regression). Check the `dotnet run` console output for the exception — this is an app bug, not a Playwright issue. |
-| Operate/Catalog show "missing binding" | `HONUA_SERVER_BASE_URL` / `HONUA_ADMIN_API_KEY` not set on the Console, or the server isn't up. Re-check Part 1c and the `admin.get_version()` SDK check. |
-| `401 API key required` from the server | `HONUA_ADMIN_API_KEY` (Console) must equal `HONUA_ADMIN_PASSWORD` (server). |
-| `claude mcp list` shows `✗ Failed to connect` | Run `npx -y @playwright/mcp@latest` directly on Windows to see the real error (Node missing, first-run browser download, PATH). Raise `MCP_TIMEOUT`. |
-| Pages are empty | Expected on a fresh DB — seed data first. |
-
-## Reference
-
-- Playwright MCP (Microsoft): <https://github.com/microsoft/playwright-mcp> — publishes the
-  `@playwright/mcp` npm package this guide uses.
-- [Claude Code MCP docs](https://code.claude.com/docs/en/mcp).
+- **Bundle fails before rendering:** inspect failed `_framework` requests, WASM
+  content types, missing assets and the `/console/` base path. Follow the static
+  workflow's asset verification steps.
+- **Deep link returns 404:** check that the host serves the SPA entry point for
+  Console navigation while leaving API routes with the API origin.
+- **401 or 403 on a live mutation:** inspect session expiry, operator permissions,
+  token audience, CSRF and the configured API origin. A working admin-key verifier
+  does not establish that the browser operator is authenticated.
+- **Separate-origin requests fail:** inspect CORS and the bearer flow rather than
+  adding credentials to the bundle.
+- **Legacy smoke passes but the candidate fails:** reproduce against the deployed
+  WASM artifact; the legacy fixture has a different host and authentication path.
