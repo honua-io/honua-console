@@ -14,18 +14,26 @@ const sizes = { frameworkRawBytes: 0, frameworkBrotliBytes: 0, publishedRawBytes
 async function inventory(path) {
   for (const entry of await readdir(path, { withFileTypes: true })) {
     const child = resolve(path, entry.name);
-    if (entry.isDirectory()) await inventory(child);
-    else {
-      const name = relative(root, child).replaceAll("\\", "/");
-      const { size } = await stat(child);
-      if (!/\.(br|gz)$/.test(name)) sizes.publishedRawBytes += size;
-      if (name.startsWith("_framework/")) {
-        if (name.endsWith(".br")) sizes.frameworkBrotliBytes += size;
-        else if (!name.endsWith(".gz")) sizes.frameworkRawBytes += size;
-      }
+    if (entry.isDirectory()) {
+      await inventory(child);
+      continue;
     }
+    const name = relative(root, child).replaceAll("\\", "/");
+    const { size } = await stat(child);
+    accountFile(name, size);
   }
 }
+
+function accountFile(name, size) {
+  if (!/\.(br|gz)$/.test(name)) sizes.publishedRawBytes += size;
+  if (!name.startsWith("_framework/")) return;
+  if (name.endsWith(".br")) {
+    sizes.frameworkBrotliBytes += size;
+    return;
+  }
+  if (!name.endsWith(".gz")) sizes.frameworkRawBytes += size;
+}
+
 await inventory(root);
 let origin;
 const server = await startStaticBundleServer(root, 0, {
