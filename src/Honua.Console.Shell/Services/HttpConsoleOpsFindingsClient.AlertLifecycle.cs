@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using Honua.Console.Contracts;
+using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
@@ -26,6 +27,15 @@ public sealed partial class HttpConsoleOpsFindingsClient
 
         var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         if (profile is null) { return AlertLifecycleAuthorityChanged(); }
+        var current = await ReadLifecycleAlertAsync(profile, command, cancellationToken).ConfigureAwait(false);
+        return current.IsAllowed
+            ? await SendLifecycleChangeAsync(profile, command, cancellationToken).ConfigureAwait(false)
+            : current;
+    }
+
+    private async Task<OperateSectionResult<ObservabilityAlertEventResponse>> ReadLifecycleAlertAsync(
+        ConsoleEnvironmentProfile profile, ConsoleAlertLifecycleCommand command, CancellationToken cancellationToken)
+    {
         // Read the current event before offering a lifecycle change; never snooze a critical alert.
         using var read = new HttpRequestMessage(HttpMethod.Get,
             ConsoleServerHttp.BuildUri(profile.ServerBaseUri, $"{OperateAdminRoutes.Alerts}/{command.EventId}"));
@@ -46,6 +56,12 @@ public sealed partial class HttpConsoleOpsFindingsClient
                 "Critical alerts and alerts with unknown severity cannot be snoozed.");
         }
 
+        return current;
+    }
+
+    private async Task<OperateSectionResult<ObservabilityAlertEventResponse>> SendLifecycleChangeAsync(
+        ConsoleEnvironmentProfile profile, ConsoleAlertLifecycleCommand command, CancellationToken cancellationToken)
+    {
         var route = command.Action == ConsoleAlertLifecycleAction.Snooze
             ? OperateAdminRoutes.AlertSuppress(command.EventId) : OperateAdminRoutes.AlertResolve(command.EventId);
         using var request = new HttpRequestMessage(HttpMethod.Post, ConsoleServerHttp.BuildUri(profile.ServerBaseUri, route));
