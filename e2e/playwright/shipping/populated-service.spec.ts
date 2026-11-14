@@ -21,9 +21,9 @@ async function checkEndpoints(page: Page, info: TestInfo) {
   await page.getByRole('tab', { name: 'Protocols', exact: true }).click();
   const urls = page.locator('.console-protocol-pill small');
   await expect(urls.first()).toBeVisible();
-  const endpoints = await urls.allTextContents();
+  const endpoints = (await urls.allTextContents()).map(value => value.trim());
   expect(endpoints.length).toBeGreaterThan(0);
-  for (const endpoint of endpoints.filter(value => value.startsWith('http'))) {
+  for (const endpoint of endpoints.filter(value => value !== 'No single service URL')) {
     expect(new URL(endpoint).origin).toBe('https://localhost:18083');
   }
   const featureUrl = endpoints.find(value => value.endsWith('/public-endpoint-check/FeatureServer'));
