@@ -21,6 +21,7 @@ The goal is to give design enough structure to create flows, screen maps, and in
 - [Information Model Summary](information-model-summary.md)
 - [Workflow Catalog](workflow-catalog.md)
 - [UI Surface Briefs](ui-surface-briefs.md)
+- [Asset Management Research Protocol](asset-management-research.md)
 - [Console Canvas Handoff](console-canvas/README.md)
 - [Console Canvas Model Decisions](console-canvas/decisions.md)
 
