@@ -131,17 +131,7 @@
                     _lastRefreshed = DateTimeOffset.UtcNow;
                     foreach (var item in refreshed.Page.Items)
                     {
-                        foreach (var action in Enum.GetValues<ConsoleAlertLifecycleAction>())
-                        {
-                            var key = (refreshed.Authority, item.EventId, action);
-                            if (_lifecycleCommands.TryGetValue(key, out var pending) &&
-                                (item.ResolvedAt is not null ||
-                                 (action == ConsoleAlertLifecycleAction.Snooze &&
-                                  (item.SuppressedUntil == pending.SuppressUntil || pending.SuppressUntil <= DateTimeOffset.UtcNow))))
-                            {
-                                _lifecycleCommands.Remove(key);
-                            }
-                        }
+                        ReconcileLifecycleCommands(refreshed.Authority, item);
                     }
                     foreach (var confirmed in refreshed.Page.Items.Where(item => item.AcknowledgedAt is not null))
                     {
@@ -184,9 +174,24 @@
         Func<IConsoleAlertInboxClient, ConsoleAlertInboxSnapshot, Task<OperateSectionResult<ObservabilityAlertEventResponse>>> Send,
         Action<ConsoleAlertAuthority> Confirm, string Message);
 
+    private void ReconcileLifecycleCommands(ConsoleAlertAuthority authority, ObservabilityAlertEventResponse item)
+    {
+        var key = (authority, item.EventId, ConsoleAlertLifecycleAction.Snooze);
+        _lifecycleCommands.TryGetValue(key, out var pending);
+        if (item.ResolvedAt is not null || (pending is not null && item.SuppressedUntil == pending.SuppressUntil))
+        {
+            RetireLifecycleCommands(authority, item.EventId);
+        }
+        else if (pending?.SuppressUntil <= DateTimeOffset.UtcNow)
+        {
+            _lifecycleCommands.Remove(key);
+        }
+    }
+
     private void RetireLifecycleCommands(ConsoleAlertAuthority authority, long eventId)
     {
         // A confirmed transition supersedes uncertain transitions for this event.
+        _requestIds.Remove((authority, eventId));
         foreach (var action in Enum.GetValues<ConsoleAlertLifecycleAction>())
         {
             _lifecycleCommands.Remove((authority, eventId, action));

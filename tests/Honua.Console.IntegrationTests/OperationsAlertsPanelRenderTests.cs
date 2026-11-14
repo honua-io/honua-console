@@ -148,8 +148,10 @@ public sealed class OperationsAlertsPanelRenderTests
         Assert.NotEqual(client.LifecycleCommands[1].RequestId, client.LifecycleCommands[2].RequestId);
     }
 
-    [Fact]
-    public void ConfirmedSnoozeRetiresAnUncertainResolveIdentity()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ConfirmedSnoozeRetiresAnUncertainResolveIdentity(bool loseSnoozeResponse)
     {
         using var context = new BunitContext();
         var client = new AlertClient();
@@ -164,7 +166,8 @@ public sealed class OperationsAlertsPanelRenderTests
                     SuppressedUntil = command.SuppressUntil,
                     ResolvedAt = command.Action == ConsoleAlertLifecycleAction.Resolve ? DateTimeOffset.UtcNow : null
                 };
-                if (consumed.Count == 1)
+                client.Page = client.Page with { Items = [stored] };
+                if (consumed.Count == 1 || (loseSnoozeResponse && consumed.Count == 2))
                 {
                     return OperateSectionResult<ObservabilityAlertEventResponse>.Denied(
                         OperateSectionStatus.Unavailable, "Response lost after commit.");
@@ -177,12 +180,46 @@ public sealed class OperationsAlertsPanelRenderTests
         panel.Find("[data-resolve-alert]").Click();
         panel.WaitForAssertion(() => Assert.Contains("Response lost", panel.Markup));
         panel.Find("[data-snooze-alert]").Click();
+        if (loseSnoozeResponse)
+        {
+            panel.WaitForAssertion(() => Assert.Equal(2, client.LifecycleCommands.Count));
+            panel.Find("[data-refresh-alerts]").Click();
+        }
         panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-snoozed]")));
         Assert.Equal(0, client.LifecycleCommands[1].SuppressUntil!.Value.Ticks % 10);
         panel.Find("[data-resolve-alert]").Click();
         panel.WaitForAssertion(() => Assert.Empty(panel.FindAll("[data-resolve-alert]")));
         Assert.Equal(3, consumed.Count);
         Assert.NotEqual(client.LifecycleCommands[0].RequestId, client.LifecycleCommands[2].RequestId);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ConfirmedSnoozeRetiresAnUncertainAcknowledgementIdentity(bool loseSnoozeResponse)
+    {
+        using var context = new BunitContext();
+        var client = new AlertClient();
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
+        var panel = context.Render<OperationsAlertsPanel>();
+        panel.Find("[data-acknowledge-alert]").Click();
+        panel.WaitForAssertion(() => Assert.Single(client.Commands));
+        client.Confirm = !loseSnoozeResponse;
+        panel.Find("[data-snooze-alert]").Click();
+        if (loseSnoozeResponse)
+        {
+            panel.WaitForAssertion(() => Assert.Single(client.LifecycleCommands));
+            client.Page = client.Page with { Items = [client.Page.Items[0] with
+            {
+                SuppressedUntil = client.LifecycleCommands[0].SuppressUntil
+            }] };
+            panel.Find("[data-refresh-alerts]").Click();
+        }
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-snoozed]")));
+        client.Confirm = true;
+        panel.Find("[data-acknowledge-alert]").Click();
+        panel.WaitForAssertion(() => Assert.Equal(2, client.Commands.Count));
+        Assert.NotEqual(client.Commands[0].RequestId, client.Commands[1].RequestId);
     }
 
     [Fact]

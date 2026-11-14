@@ -30,7 +30,7 @@ public sealed partial class ConsoleOpsFindingsClientTests
                 }
                 response = response with
                 {
-                    SuppressedUntil = action == ConsoleAlertLifecycleAction.Snooze ? until : null,
+                    SuppressedUntil = action == ConsoleAlertLifecycleAction.Snooze ? ConsoleAlertLifecycleCommand.NormalizeDeadline(until) : null,
                     ResolvedAt = action == ConsoleAlertLifecycleAction.Resolve ? DateTimeOffset.UtcNow : null
                 };
             }
