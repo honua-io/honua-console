@@ -63,6 +63,25 @@ public sealed record HonuaAdminLayerPage
 
 public static class HonuaAdminCatalogReader
 {
+    public static bool IsValidPage<TPage>(TPage page, HonuaAdminCatalogQuery query) => page switch
+    {
+        HonuaAdminServicePage services => Valid(new() { Page = services.Page, PageSize = services.PageSize, Total = services.Total, Count = services.Items?.Length }, query),
+        HonuaAdminLayerPage layers => Valid(new() { Page = layers.Page, PageSize = layers.PageSize, Total = layers.Total, Count = layers.Items?.Length }, query),
+        _ => false
+    };
+
+    private readonly record struct PageShape
+    {
+        public int Page { get; init; }
+        public int PageSize { get; init; }
+        public int Total { get; init; }
+        public int? Count { get; init; }
+    }
+
+    private static bool Valid(PageShape page, HonuaAdminCatalogQuery query) =>
+        page.Page == query.Page && page.Total >= 0 && page.Count is >= 0 && page.Count <= page.Total
+        && (page.Total == 0 ? page.Count == 0 && page.PageSize >= 0 : page.PageSize > 0 && page.Count > 0 && page.Count <= page.PageSize);
+
     public static async Task<HonuaAdminEndpointResult<IReadOnlyList<TItem>>> ReadAllAsync<TPage, TItem>(
         Func<HonuaAdminCatalogQuery, CancellationToken, Task<HonuaAdminEndpointResult<TPage>>> read,
         Func<TPage, IReadOnlyList<TItem>?> items,
@@ -79,19 +98,21 @@ public static class HonuaAdminCatalogReader
                 return HonuaAdminEndpointResult<IReadOnlyList<TItem>>.FromIssue(issue);
             }
 
-            if (result.Data is null)
+            if (result.Data is null || !IsValidPage(result.Data, query))
             {
                 return HonuaAdminEndpointResult<IReadOnlyList<TItem>>.FromIssue(new HonuaAdminEndpointIssue(
                     "Unavailable",
                     "catalog-page",
-                    "The server did not return a catalog page."));
+                    "The server did not return a valid catalog page."));
             }
 
             var pageItems = items(result.Data) ?? [];
-            collected.AddRange(pageItems);
             var matchTotal = total(result.Data);
-            var pageCount = query.PageSize <= 0 ? 1 : Math.Max(1, (matchTotal + query.PageSize - 1) / query.PageSize);
-            if (pageItems.Count == 0 || collected.Count >= matchTotal || query.Page >= pageCount)
+            if ((long)collected.Count + pageItems.Count > matchTotal)
+                return HonuaAdminEndpointResult<IReadOnlyList<TItem>>.FromIssue(new HonuaAdminEndpointIssue(
+                    "Unavailable", "catalog-page", "The catalog total changed during the read."));
+            collected.AddRange(pageItems);
+            if (collected.Count == matchTotal)
             {
                 return HonuaAdminEndpointResult<IReadOnlyList<TItem>>.FromData(collected);
             }

@@ -20,13 +20,15 @@ internal static class StudioAudienceBff
 
     public static void MapStudioAudienceBff(this WebApplication app)
     {
+        // The Shell assembly also routes /maps/published/{*Route} (the static bundle's page). This host keeps
+        // its standalone legacy document, so its endpoint must win instead of producing an ambiguous match.
         app.MapGet("/maps/published/{**route}", (HttpContext context, string? route) =>
         {
             context.Response.Headers.CacheControl = "no-store";
             return IsRoute(route)
                 ? (IResult)new RazorComponentResult<PublishedMapDocument>(new { PublishedRoute = route })
                 : Results.BadRequest();
-        }).AllowAnonymous();
+        }).AllowAnonymous().WithOrder(-1);
         app.MapGet("/api/studio/viewer/published/{**route}", ReadPublishedAsync).AllowAnonymous();
         app.MapGet("/api/studio/viewer/data/rest/services/{**path}", ReadFeaturesAsync).AllowAnonymous();
         app.MapGet("/api/studio/viewer/styles/{styleId}", ReadStyleAsync).AllowAnonymous();

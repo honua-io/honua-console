@@ -1,5 +1,6 @@
+import { consoleHref } from './console-links.mjs';
 import { capturedProcessFetch } from './cookie-workspace-transport.mjs';
-import { publishedMapPath } from './published-map-viewer.mjs';
+import { publishedMapPath, nativeViewerConnection, legacyViewerConnection } from './published-map-viewer.mjs';
 
 import { studioAuthority, studioResourceId as id } from './studio-workspace-authority.mjs';
 const audiences = new Set(['personal', 'team', 'organization', 'public']);
@@ -80,8 +81,28 @@ export class StudioPublicationSession {
     audienceLinks() {
         const record = this.read();
         if (!record || !this.bound(record) || record.receipt?.status !== 'accepted') return undefined;
-        const map = publishedMapPath(record.input.intent.route);
-        return {map, definition: '/api/studio/viewer/published/' + map.slice('/maps/published/'.length)};
+        const path = publishedMapPath(record.input.intent.route);
+        const key = path.slice('/maps/published/'.length);
+        // The static bundle reads the native resolver; only the legacy host still has its reader route.
+        const apiBase = globalThis.honuaConsoleApiBase;
+        return {map: consoleHref(path), definition: typeof apiBase === 'string'
+            ? new URL(`api/v1/studio/published/${key}`, apiBase).href : `/api/studio/viewer/published/${key}`};
+    }
+    async readDefinition() {
+        const context = this.viewContext(), links = this.audienceLinks();
+        if (!links) throw new Error('Publish this map before viewing its definition.');
+        const record = this.read();
+        const key = publishedMapPath(record.input.intent.route).slice('/maps/published/'.length);
+        const connect = typeof globalThis.honuaConsoleApiBase === 'string'
+            ? nativeViewerConnection() : legacyViewerConnection();
+        const connection = await connect(key);
+        const current = () => connection.current() && context === this.viewContext()
+            && this.audienceLinks()?.definition === links.definition;
+        if (!current()) throw new Error('The selected map or session changed.');
+        if (!connection.response.ok) throw new Error(`The map definition could not be read (${connection.response.status}).`);
+        const definition = await connection.response.json();
+        if (!current()) throw new Error('The selected map or session changed.');
+        return definition;
     }
     async review(versionId) {
         if (this.read()) throw new Error('Resolve the original publication before starting another.');
@@ -199,6 +220,23 @@ export class StudioPublicationSession {
     }
 }
 
+function createDefinitionPreview(session, run) {
+    const button = document.createElement('button'); button.type = 'button'; button.textContent = 'View map definition (JSON)';
+    const output = document.createElement('pre'); output.hidden = true;
+    output.setAttribute('aria-label', 'Published map definition');
+    let value;
+    button.addEventListener('click', () => {
+        value = undefined;
+        void run(async current => {
+            const definition = await session.readDefinition();
+            if (current()) value = JSON.stringify(definition, null, 2);
+        });
+    });
+    return { button, output,
+        clear() { value = undefined; output.textContent = ''; output.hidden = true; },
+        render() { output.textContent = value ?? ''; output.hidden = value === undefined; } };
+}
+
 let sourceAccessSequence = 0;
 
 export function mountStudioPublicationControls({ app, host, status }) {
@@ -230,21 +268,22 @@ export function mountStudioPublicationControls({ app, host, status }) {
     const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = 'Retry original submission';
     const refresh = document.createElement('button'); refresh.type = 'button'; refresh.textContent = 'Refresh publication status';
     const acknowledge = document.createElement('button'); acknowledge.type = 'button'; acknowledge.textContent = 'Acknowledge publication outcome';
-    const inbox = document.createElement('a'); inbox.href = '/inbox'; inbox.textContent = 'Review approvals';
+    const inbox = document.createElement('a'); inbox.href = consoleHref('/inbox'); inbox.textContent = 'Review approvals';
     const openMap = document.createElement('a'); openMap.textContent = 'Open published map';
-    const definition = document.createElement('a'); definition.textContent = 'View map definition (JSON)';
-    for (const link of [openMap, definition]) { link.target = '_blank'; link.rel = 'noopener noreferrer'; }
+    const definitionPreview = createDefinitionPreview(session, run);
+    const { button: definition, output: definitionOutput } = definitionPreview;
+    openMap.target = '_blank'; openMap.rel = 'noopener noreferrer';
     const audienceActions = document.createElement('div'); audienceActions.className = 'console-action-row';
     audienceActions.append(openMap, definition);
     const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel publication review';
     for (const field of [route, audience, warning]) field.className = 'console-input';
     for (const label of [routeField, audienceField, warningField]) label.className = 'publish-field';
-    for (const button of [publish, retry, refresh, acknowledge, cancel]) button.className = 'console-button console-button-secondary';
+    for (const button of [publish, retry, refresh, acknowledge, cancel, definition]) button.className = 'console-button console-button-secondary';
     publish.className = 'console-button';
     const fields = document.createElement('div'); fields.className = 'publish-field-grid'; fields.append(routeField, audienceField);
     const actions = document.createElement('div'); actions.className = 'console-action-row'; actions.append(publish, cancel);
     form.append(summary, fields, sourceAccess, diagnostics, warningField, actions);
-    section.append(notice, form, refresh, retry, acknowledge, inbox, audienceActions);
+    section.append(notice, form, refresh, retry, acknowledge, inbox, audienceActions, definitionOutput);
     const canvas = host.querySelector('[data-studio-mount]');
     if (canvas) canvas.before(section); else host.append(section);
     let busy = false, disposed = false, selectedContext, hasReview = false;
@@ -255,14 +294,15 @@ export function mountStudioPublicationControls({ app, host, status }) {
     function update() {
         if (disposed) return;
         form.hidden = retry.hidden = refresh.hidden = acknowledge.hidden = inbox.hidden = openMap.hidden = definition.hidden = true;
-        openMap.removeAttribute('href'); definition.removeAttribute('href');
+        openMap.removeAttribute('href');
+        definitionOutput.hidden = true; definitionOutput.textContent = '';
         if (!id(app.workspaceDraftIdentity?.draftId) || !['reviewWorkspacePublication', 'publishWorkspaceVersion', 'readWorkspacePublication']
             .every(name => typeof app[name] === 'function')) {
             section.hidden = true; hasReview = false; selectedContext = undefined; return;
         }
         try {
             const context = session.viewContext(), record = session.read();
-            if (selectedContext !== context) { hasReview = false; selectedContext = context; }
+            if (selectedContext !== context) { hasReview = false; definitionPreview.clear(); selectedContext = context; }
             section.hidden = !record && !hasReview;
             notice.textContent = '';
             if (record) {
@@ -286,15 +326,17 @@ export function mountStudioPublicationControls({ app, host, status }) {
                     retry.hidden = terminal(record.receipt) || canRefresh && !(record.receipt?.status === 'approval-completed' && !id(record.receipt.requestId));
                     acknowledge.hidden = !terminal(record.receipt);
                     inbox.hidden = !id(record.receipt?.proposalId);
-                    if (!inbox.hidden) inbox.href = `/inbox?proposalId=${encodeURIComponent(record.receipt.proposalId)}`;
+                    if (!inbox.hidden) inbox.href = consoleHref(`/inbox?proposalId=${encodeURIComponent(record.receipt.proposalId)}`);
                     const links = session.audienceLinks();
                     if (links) {
-                        openMap.href = links.map; definition.href = links.definition;
+                        openMap.href = links.map;
                         openMap.hidden = definition.hidden = false;
+                        definitionPreview.render();
                     }
                 }
             } else form.hidden = !hasReview;
         } catch (error) { section.hidden = false; notice.textContent = error.message; }
+        if (definition.hidden) definitionPreview.clear();
         sourceAccess.hidden = form.hidden || audience.value !== 'public';
         if (sourceAccess.hidden) audience.removeAttribute('aria-describedby');
         else audience.setAttribute('aria-describedby', sourceAccess.id);

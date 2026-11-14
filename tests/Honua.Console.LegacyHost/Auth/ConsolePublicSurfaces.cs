@@ -11,6 +11,7 @@ public static class ConsolePublicSurfaces
         "/embed/maps",          // public map embeds (EmbedMapPage)
         "/share/public",        // public-link / open-data hub + items (SharePage, SharePublicItemPage)
         "/public",              // public-link / open-data short routes (SharePage, SharePublicItemPage)
+        "/maps/published",      // Studio publication audience viewer (PublishedMapPage; server enforces visibility)
     ];
 
     public static bool IsPublicSurface(PathString path)

@@ -480,8 +480,27 @@ public static class OperateObservabilityMapper
             EventsNextCursor: events?.NextCursor,
             EventsTotalCount: events?.TotalCount ?? 0,
             EvidenceMissing: evidence?.Missing ?? [],
-            EvidenceTruncated: evidence?.Truncated ?? []);
+            EvidenceTruncated: evidence?.Truncated ?? [])
+        {
+            Artifacts = MapDiagnosticArtifacts(response.Artifacts),
+            EvidenceNotes = evidence?.Notes ?? [],
+        };
     }
+
+    private static OperateJobDiagnosticArtifacts MapDiagnosticArtifacts(ConsoleJobDiagnosticArtifacts? artifacts) =>
+        artifacts is null || string.IsNullOrWhiteSpace(artifacts.State)
+            ? OperateJobDiagnosticArtifacts.NotReported
+            : new OperateJobDiagnosticArtifacts(
+                artifacts.State,
+                new OperateJobArtifactCounts(artifacts.AvailableCount, artifacts.ExpiredCount, artifacts.UnavailableCount),
+                (artifacts.Items ?? [])
+                    .OfType<ConsoleJobArtifact>()
+                    .Select(item => new OperateJobDiagnosticArtifact(
+                        !string.IsNullOrWhiteSpace(item.Label) ? item.Label
+                            : !string.IsNullOrWhiteSpace(item.ArtifactId) ? item.ArtifactId : "(unnamed artifact)",
+                        string.IsNullOrWhiteSpace(item.Availability) ? "Unknown" : item.Availability,
+                        item.Message))
+                    .ToArray());
 
     public static OperateJobStepsView MapJobSteps(ConsoleJobStepsResponse response) =>
         new(

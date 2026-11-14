@@ -34,6 +34,14 @@ test('audience and definition links appear only for a confirmed publication in i
     assert.deepEqual(session.audienceLinks(), {
         map: '/maps/published/maps/parcels', definition: '/api/studio/viewer/published/maps/parcels',
     });
+    const previousDocument = globalThis.document;
+    globalThis.document = { baseURI: 'https://ops.example/console/' };
+    globalThis.honuaConsoleApiBase = 'https://api.example/';
+    try {
+        assert.deepEqual(session.audienceLinks(), {
+            map: '/console/maps/published/maps/parcels', definition: 'https://api.example/api/v1/studio/published/maps/parcels',
+        }, 'the static bundle links its own viewer page and the native resolver');
+    } finally { globalThis.document = previousDocument; delete globalThis.honuaConsoleApiBase; }
     app.workspaceCookieBinding.environmentId = 'another-target';
     assert.equal(session.audienceLinks(), undefined);
     app.workspaceCookieBinding.environmentId = 'local';
@@ -41,6 +49,55 @@ test('audience and definition links appear only for a confirmed publication in i
     session.acknowledge();
     assert.equal(session.audienceLinks(), undefined);
 });
+
+async function definitionFixture(outcome) {
+    const result = fixture();
+    await result.session.review('version'); await result.session.submit(input);
+    if (outcome !== 'pending') {
+        result.app.publishWorkspaceVersion = async () => ({ status: 'accepted', itemId: 'item', versionId: 'version', requestId: 'request' });
+        await result.session.retry();
+    }
+    return result;
+}
+
+for (const outcome of ['success', 'denied', 'session-changed', 'map-changed', 'pending']) {
+    test(`definition read uses the captured cross-origin bearer and handles ${outcome}`, async () => {
+        const { session, app } = await definitionFixture(outcome);
+        const previous = { api: globalThis.honuaConsoleApiBase,
+            authorize: globalThis.honuaConsoleCaptureResourceAuthorization, fetch: globalThis.fetch };
+        const calls = [];
+        let current = true;
+        const authorization = url => ({ api: true, url, headers: { Authorization: 'Bearer operator' }, credentials: 'omit' });
+        authorization.current = () => current;
+        globalThis.honuaConsoleApiBase = 'https://api.example/honua/';
+        globalThis.honuaConsoleCaptureResourceAuthorization = () => authorization;
+        globalThis.fetch = async (url, options) => {
+            calls.push({ url, options });
+            return { ok: outcome !== 'denied', status: outcome === 'denied' ? 403 : 200,
+                async json() {
+                    if (outcome === 'session-changed') current = false;
+                    if (outcome === 'map-changed') app.workspaceDraftIdentity.draftId = 'another-map';
+                    return { title: 'Published parcels' };
+                } };
+        };
+        try {
+            if (outcome === 'success') assert.deepEqual(await session.readDefinition(), { title: 'Published parcels' });
+            else await assert.rejects(session.readDefinition(), outcome === 'denied' ? /403/
+                : outcome === 'pending' ? /Publish this map/ : /map or session changed/);
+            assert.equal(calls.length, outcome === 'pending' ? 0 : 1);
+            if (calls.length) {
+                assert.equal(calls[0].url, 'https://api.example/honua/api/v1/studio/published/maps/parcels?includeSources=true');
+                assert.deepEqual(calls[0].options.headers, { Authorization: 'Bearer operator', Accept: 'application/json' });
+                assert.equal(calls[0].options.credentials, 'omit');
+                assert.equal(calls[0].options.redirect, 'error');
+            }
+        } finally {
+            globalThis.honuaConsoleApiBase = previous.api;
+            globalThis.honuaConsoleCaptureResourceAuthorization = previous.authorize;
+            globalThis.fetch = previous.fetch;
+        }
+    });
+}
 
 for (const change of ['principal', 'environment', 'source-path', 'map']) {
     test(`pending publication permits independent work after changing ${change} and recovers on return`, async () => {

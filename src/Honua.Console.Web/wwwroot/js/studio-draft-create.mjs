@@ -1,3 +1,4 @@
+import { consoleHref } from './console-links.mjs';
 import { capturedProcessFetch } from './cookie-workspace-transport.mjs';
 
 import { studioAuthority, studioResourceId as validId } from './studio-workspace-authority.mjs';
@@ -173,7 +174,7 @@ export function mountStudioDraftCreate({ app, host }) {
                         : `New map ${record.status}. The original action is retained.`;
             if (record.receipt) {
                 inbox.hidden = false;
-                inbox.href = `/inbox?proposalId=${encodeURIComponent(record.receipt.proposalId)}`;
+                inbox.href = consoleHref(`/inbox?proposalId=${encodeURIComponent(record.receipt.proposalId)}`, inbox.ownerDocument?.baseURI);
                 refresh.hidden = record.status !== 'awaiting-approval'; refresh.disabled = busy;
             }
         } catch (error) { notice.textContent = error.message; create.disabled = true; reset.hidden = !(error instanceof UnreadableHandoffError); reset.disabled = busy; }
