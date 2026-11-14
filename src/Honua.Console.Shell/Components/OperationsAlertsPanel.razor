@@ -28,19 +28,31 @@
             <article class="console-panel" data-alert-id="@alert.EventId" @key="alert.EventId">
                 <h3>@(string.IsNullOrWhiteSpace(alert.RuleName) ? "An alert needs review" : alert.RuleName)</h3>
                 <p>@(string.IsNullOrWhiteSpace(alert.ServiceId) ? "The affected service was not reported." : $"Affected service: {alert.ServiceId}")</p>
-                @if (alert.AcknowledgedAt is { } acknowledgedAt)
-                {
-                    <p role="status" data-acknowledged>Acknowledged @acknowledgedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm 'UTC'")</p>
-                }
-                else if (alert.ResolvedAt is not null || string.Equals(alert.LifecycleStatus, "resolved", StringComparison.OrdinalIgnoreCase))
+                @if (alert.ResolvedAt is not null || string.Equals(alert.LifecycleStatus, "resolved", StringComparison.OrdinalIgnoreCase))
                 {
                     <p>Marked resolved by Honua.</p>
+                }
+                else if (alert.AcknowledgedAt is { } acknowledgedAt)
+                {
+                    <p role="status" data-acknowledged>Acknowledged @acknowledgedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm 'UTC'")</p>
                 }
                 else
                 {
                     <button type="button" class="console-button" disabled="@_busy" @onclick="() => AcknowledgeAsync(alert.EventId)" data-acknowledge-alert>
                         Acknowledge
                     </button>
+                }
+                @if (alert.ResolvedAt is null && !string.Equals(alert.LifecycleStatus, "resolved", StringComparison.OrdinalIgnoreCase))
+                {
+                    @if (alert.SuppressedUntil is { } suppressedUntil && suppressedUntil > Clock.GetUtcNow())
+                    {
+                        <p role="status" data-snoozed>Snoozed until @suppressedUntil.ToUniversalTime().ToString("yyyy-MM-dd HH:mm 'UTC'")</p>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(alert.Severity) && !string.Equals(alert.Severity, "critical", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="() => ChangeLifecycleAsync(alert.EventId, ConsoleAlertLifecycleAction.Snooze)" data-snooze-alert>Snooze for one hour</button>
+                    }
+                    <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="() => ChangeLifecycleAsync(alert.EventId, ConsoleAlertLifecycleAction.Resolve)" data-resolve-alert>Mark resolved</button>
                 }
                 <ConsoleDiagnostics Summary="Technical details"
                                     Detail="@($"Alert {alert.EventId}; rule {alert.RuleId}; severity {alert.Severity}; state {alert.LifecycleStatus}; resource {alert.ResourceRef}")" />
@@ -64,6 +76,8 @@
     private readonly Dictionary<(ConsoleAlertAuthority Authority, long EventId), string> _requestIds = [];
     private OperateSectionResult<ConsoleAlertInboxSnapshot> _result = OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(
         OperateSectionStatus.Unavailable, "The alert connection is unavailable.");
+    private readonly Dictionary<(ConsoleAlertAuthority Authority, long EventId, ConsoleAlertLifecycleAction Action), ConsoleAlertLifecycleCommand> _lifecycleCommands = [];
+    private readonly Dictionary<(ConsoleAlertAuthority Authority, long EventId), AlertLifecycleState> _observedStates = [];
     private ConsoleEnvironmentSubscription? _subscription;
     private int _generation;
     private bool _loaded;
@@ -71,6 +85,8 @@
     private DateTimeOffset? _lastRefreshed;
     private string? _actionMessage;
     private IConsoleAlertInboxClient? Client => Services.GetService(typeof(IConsoleAlertInboxClient)) as IConsoleAlertInboxClient;
+
+    private TimeProvider Clock => Services.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System;
 
     protected override Task OnInitializedAsync()
     {
@@ -87,6 +103,8 @@
             _result = OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(
                 OperateSectionStatus.Unavailable, "The connected environment changed. Refresh alerts before continuing.");
             _requestIds.Clear();
+            _lifecycleCommands.Clear();
+            _observedStates.Clear();
             _loaded = false;
             _busy = false;
             _lastRefreshed = null;
@@ -114,10 +132,10 @@
                 _result = result;
                 if (_result.IsAllowed && _result.Value is { } refreshed)
                 {
-                    _lastRefreshed = DateTimeOffset.UtcNow;
-                    foreach (var confirmed in refreshed.Page.Items.Where(item => item.AcknowledgedAt is not null))
+                    _lastRefreshed = Clock.GetUtcNow();
+                    foreach (var item in refreshed.Page.Items)
                     {
-                        _requestIds.Remove((refreshed.Authority, confirmed.EventId));
+                        ReconcileLifecycleCommands(refreshed.Authority, item);
                     }
                 }
             }
@@ -126,7 +144,71 @@
         finally { if (generation == _generation) { _busy = false; } }
     }
 
-    private async Task AcknowledgeAsync(long eventId)
+    private Task AcknowledgeAsync(long eventId) => RunMutationAsync(eventId, new(async (client, snapshot) =>
+    {
+        var key = (snapshot.Authority, eventId);
+        if (!_requestIds.TryGetValue(key, out var requestId))
+        {
+            _requestIds[key] = requestId = Guid.NewGuid().ToString("N");
+        }
+        return await client.AcknowledgeAlertAsync(new(eventId, snapshot.Authority, requestId), _lifetime.Token);
+    }, authority => RetireLifecycleCommands(authority, eventId),
+        "Honua recorded that you have seen this alert. The underlying problem may still need attention."));
+
+    private Task ChangeLifecycleAsync(long eventId, ConsoleAlertLifecycleAction action) => RunMutationAsync(eventId, new(async (client, snapshot) =>
+    {
+        var key = (snapshot.Authority, eventId, action);
+        if (_lifecycleCommands.TryGetValue(key, out var pending) && pending.SuppressUntil <= Clock.GetUtcNow())
+        {
+            _lifecycleCommands.Remove(key);
+        }
+        if (!_lifecycleCommands.TryGetValue(key, out var command))
+        {
+            command = new(eventId, snapshot.Authority, Guid.NewGuid().ToString("N"), action,
+                action == ConsoleAlertLifecycleAction.Snooze
+                    ? ConsoleAlertLifecycleCommand.NormalizeDeadline(Clock.GetUtcNow().AddHours(1)) : null);
+            _lifecycleCommands[key] = command;
+        }
+        return await client.ChangeAlertLifecycleAsync(command, _lifetime.Token);
+    }, authority => RetireLifecycleCommands(authority, eventId), action == ConsoleAlertLifecycleAction.Snooze
+        ? "Honua recorded the snooze. The underlying problem may still need attention."
+        : "Honua marked this alert resolved. This does not confirm that the underlying problem is fixed."));
+
+    private sealed record AlertMutation(
+        Func<IConsoleAlertInboxClient, ConsoleAlertInboxSnapshot, Task<OperateSectionResult<ObservabilityAlertEventResponse>>> Send,
+        Action<ConsoleAlertAuthority> Confirm, string Message);
+
+    private sealed record AlertLifecycleState(DateTimeOffset? AcknowledgedAt, DateTimeOffset? SuppressedUntil, DateTimeOffset? ResolvedAt);
+
+    private void ReconcileLifecycleCommands(ConsoleAlertAuthority authority, ObservabilityAlertEventResponse item)
+    {
+        var key = (authority, item.EventId, ConsoleAlertLifecycleAction.Snooze);
+        _lifecycleCommands.TryGetValue(key, out var pending);
+        var eventKey = (authority, item.EventId);
+        var state = new AlertLifecycleState(item.AcknowledgedAt, item.SuppressedUntil, item.ResolvedAt);
+        var changed = _observedStates.TryGetValue(eventKey, out var previous) && previous != state;
+        _observedStates[eventKey] = state;
+        if (changed || (pending is not null && item.SuppressedUntil == pending.SuppressUntil))
+        {
+            RetireLifecycleCommands(authority, item.EventId);
+        }
+        else if (pending?.SuppressUntil <= Clock.GetUtcNow())
+        {
+            _lifecycleCommands.Remove(key);
+        }
+    }
+
+    private void RetireLifecycleCommands(ConsoleAlertAuthority authority, long eventId)
+    {
+        // A confirmed transition supersedes uncertain transitions for this event.
+        _requestIds.Remove((authority, eventId));
+        foreach (var action in Enum.GetValues<ConsoleAlertLifecycleAction>())
+        {
+            _lifecycleCommands.Remove((authority, eventId, action));
+        }
+    }
+
+    private async Task RunMutationAsync(long eventId, AlertMutation mutation)
     {
         if (_busy || Client is not { } client || _result.Value is not { } snapshot) { return; }
         var generation = _generation;
@@ -134,19 +216,15 @@
         _actionMessage = null;
         try
         {
-            var key = (snapshot.Authority, eventId);
-            if (!_requestIds.TryGetValue(key, out var requestId))
-            {
-                _requestIds[key] = requestId = Guid.NewGuid().ToString("N");
-            }
-            var result = await client.AcknowledgeAlertAsync(new(eventId, snapshot.Authority, requestId), _lifetime.Token);
+            var result = await mutation.Send(client, snapshot);
             if (generation != _generation) { return; }
             if (result.IsAllowed && result.Value is { } updated)
             {
-                _requestIds.Remove(key);
+                mutation.Confirm(snapshot.Authority);
+                _observedStates[(snapshot.Authority, eventId)] = new(updated.AcknowledgedAt, updated.SuppressedUntil, updated.ResolvedAt);
                 var page = snapshot.Page with { Items = snapshot.Page.Items.Select(item => item.EventId == eventId ? updated : item).ToArray() };
                 _result = OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(snapshot with { Page = page });
-                _actionMessage = "Honua recorded that you have seen this alert. The underlying problem may still need attention.";
+                _actionMessage = mutation.Message;
             }
             else { _actionMessage = result.Message; }
         }
