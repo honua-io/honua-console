@@ -63,9 +63,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: honua-io/honua-server
-          ref: ${{ inputs.server_source_sha }}
+          ref: trunk
           path: server-source
+          fetch-depth: 0
           persist-credentials: false
+      - name: Select a server commit already accepted on trunk
+        working-directory: server-source
+        run: |
+          git cat-file -e "$SERVER_SOURCE_SHA^{commit}"
+          git merge-base --is-ancestor "$SERVER_SOURCE_SHA" HEAD
+          git checkout --detach "$SERVER_SOURCE_SHA"
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: console-static-release

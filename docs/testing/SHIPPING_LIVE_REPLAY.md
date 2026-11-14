@@ -3,6 +3,7 @@
 Run **Shipping Console live replay** (`shipping-live.yml`) with a successful
 `static-bundle.yml` run ID, the independently selected zip SHA-256, immutable
 serving and matching executor image digests, and a full server source commit.
+The workflow accepts only server commits already merged into server trunk.
 That server source must contain the packaged static Console quickstart
 (honua-server #7693). Images must be accessible to the runner.
 
