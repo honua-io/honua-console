@@ -81,8 +81,12 @@ export class StudioPublicationSession {
     audienceLinks() {
         const record = this.read();
         if (!record || !this.bound(record) || record.receipt?.status !== 'accepted') return undefined;
-        const map = publishedMapPath(record.input.intent.route);
-        return {map, definition: '/api/studio/viewer/published/' + map.slice('/maps/published/'.length)};
+        const path = publishedMapPath(record.input.intent.route);
+        const key = path.slice('/maps/published/'.length);
+        // The static bundle reads the native resolver; only the legacy host still has its reader route.
+        const apiBase = globalThis.honuaConsoleApiBase;
+        return {map: consoleHref(path), definition: typeof apiBase === 'string'
+            ? new URL(`api/v1/studio/published/${key}`, apiBase).href : `/api/studio/viewer/published/${key}`};
     }
     async review(versionId) {
         if (this.read()) throw new Error('Resolve the original publication before starting another.');

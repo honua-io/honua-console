@@ -34,6 +34,14 @@ test('audience and definition links appear only for a confirmed publication in i
     assert.deepEqual(session.audienceLinks(), {
         map: '/maps/published/maps/parcels', definition: '/api/studio/viewer/published/maps/parcels',
     });
+    const previousDocument = globalThis.document;
+    globalThis.document = { baseURI: 'https://ops.example/console/' };
+    globalThis.honuaConsoleApiBase = 'https://api.example/';
+    try {
+        assert.deepEqual(session.audienceLinks(), {
+            map: '/console/maps/published/maps/parcels', definition: 'https://api.example/api/v1/studio/published/maps/parcels',
+        }, 'the static bundle links its own viewer page and the native resolver');
+    } finally { globalThis.document = previousDocument; delete globalThis.honuaConsoleApiBase; }
     app.workspaceCookieBinding.environmentId = 'another-target';
     assert.equal(session.audienceLinks(), undefined);
     app.workspaceCookieBinding.environmentId = 'local';

@@ -1,0 +1,170 @@
+@page "/maps/published/{*Route}"
+@* Audience surface for a Studio publication. A public publication opens for anonymous visitors, so this route
+   opts out of the operator-auth fallback; the server enforces each publication's visibility on every read
+   (GET api/v1/studio/published/{route}). The viewer module reads the native API with the visitor's own
+   Console session, or none. *@
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@layout EmbedLayout
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<PageTitle>Published map · Honua</PageTitle>
+<HeadContent>
+    <link rel="stylesheet" href="_studio/style.css" />
+    <link rel="stylesheet" href="css/published-map-viewer.css" />
+</HeadContent>
+
+@if (PublishedRoute is null)
+{
+    <ConsoleStateView Kind="missing" Kicker="Missing map" Title="Published map not found"
+                      Message="This published map address is not valid." />
+}
+else
+{
+    <section data-published-map data-published-route="@PublishedRoute" @ref="_host" @key="PublishedRoute">
+        <header class="published-map-header">
+            <h1 data-map-title>Published map</h1>
+            <button type="button" data-map-reload>Reload map</button>
+        </header>
+        <p role="status" aria-live="polite" data-map-status>@(_startFailed ? "The map viewer could not start. Reload the page." : "Loading map…")</p>
+        <div class="published-map-canvas" data-map-canvas aria-label="Published map"></div>
+        <div class="published-map-widgets" data-map-widgets aria-label="Map controls and data"></div>
+    </section>
+}
+
+@code {
+    [Parameter]
+    public string? Route { get; set; }
+
+    private ElementReference _host;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _viewer;
+    private string? _mountedRoute;
+    private bool _disposed;
+    private bool _startFailed;
+    private int _mountRun;
+
+    // The router may hand the catch-all value still percent-encoded (links encode each segment). Decode each
+    // segment once; a valid route never contains '%', '/' or '\' inside a segment after decoding.
+    private string? PublishedRoute => Normalize(Route);
+
+    internal static string? Normalize(string? route)
+    {
+        if (route is null or { Length: 0 or > 4096 })
+        {
+            return null;
+        }
+
+        // Malformed escapes stay as '%...' and fail IsRoute below.
+        var segments = route.Split('/').Select(Uri.UnescapeDataString).ToArray();
+
+        if (segments.Any(segment => segment.Contains('/')))
+        {
+            return null;
+        }
+
+        var decoded = string.Join('/', segments);
+        return IsRoute(decoded) ? decoded : null;
+    }
+
+    internal static bool IsRoute(string? route) => route is { Length: > 0 and <= 1024 }
+        && route.Split('/').All(segment => segment.Length > 0 && segment is not ("." or "..")
+            && !segment.Any(character => char.IsControl(character) || character is '\\' or '%'));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var route = PublishedRoute;
+        if (_disposed || string.Equals(_mountedRoute, route, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        // Each run owns a token; an earlier run that resumes after a later navigation must not mount.
+        var run = ++_mountRun;
+        _mountedRoute = route;
+        _startFailed = false;
+        await ReleaseViewerAsync();
+        if (route is null)
+        {
+            return;
+        }
+
+        bool IsLatest() => !_disposed && run == _mountRun;
+        try
+        {
+            if (_module is null)
+            {
+                var module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/published-map-viewer.mjs");
+                if (_disposed || _module is not null)
+                {
+                    await DisposeQuietlyAsync(module, dispose: false);
+                }
+                else
+                {
+                    _module = module;
+                }
+            }
+
+            if (!IsLatest() || _module is null)
+            {
+                return;
+            }
+
+            var viewer = await _module.InvokeAsync<IJSObjectReference>("mountPublishedMap", _host);
+            if (!IsLatest())
+            {
+                await DisposeQuietlyAsync(viewer, dispose: true);
+                return;
+            }
+
+            _viewer = viewer;
+        }
+        catch (Exception exception) when (exception is JSException or InvalidOperationException or TaskCanceledException)
+        {
+            // "Loading map…" is only true while a viewer runs. Say plainly that it did not start; the
+            // mounted route stays recorded so this render does not retry in a loop.
+            if (IsLatest())
+            {
+                _startFailed = true;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task ReleaseViewerAsync()
+    {
+        var viewer = _viewer;
+        _viewer = null;
+        await DisposeQuietlyAsync(viewer, dispose: true);
+    }
+
+    private static async Task DisposeQuietlyAsync(IJSObjectReference? reference, bool dispose)
+    {
+        if (reference is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (dispose)
+            {
+                await reference.InvokeVoidAsync("dispose");
+            }
+
+            await reference.DisposeAsync();
+        }
+        catch (Exception exception) when (exception is JSException or JSDisconnectedException or InvalidOperationException or TaskCanceledException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        await ReleaseViewerAsync();
+        await DisposeQuietlyAsync(_module, dispose: false);
+        _module = null;
+    }
+}
