@@ -6,7 +6,7 @@ using Honua.Console.Contracts;
 namespace Honua.Console.Shell.Services;
 
 // Findings responses are bare JSON, and a proposed action requires the operator bearer unless the profile is an explicit sessionless headless service.
-public sealed class HttpConsoleOpsFindingsClient : IConsoleOpsFindingsClient
+public sealed partial class HttpConsoleOpsFindingsClient : IConsoleOpsFindingsClient, IConsoleAlertInboxClient
 {
     private const string NoProfileMessage =
         "No active environment profile is selected. Connect an environment to load ops findings.";
@@ -171,6 +171,7 @@ public sealed class HttpConsoleOpsFindingsClient : IConsoleOpsFindingsClient
     private static OperateSectionStatus MapStatus(HttpStatusCode code) => code switch
     {
         HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => OperateSectionStatus.Forbidden,
+        HttpStatusCode.Conflict => OperateSectionStatus.Conflict,
         HttpStatusCode.NotFound => OperateSectionStatus.Missing,
         HttpStatusCode.NotImplemented => OperateSectionStatus.Unsupported,
         _ => OperateSectionStatus.Unavailable

@@ -347,6 +347,11 @@ public sealed record ObservabilityAuditRecordResponse
     public string Details { get; init; } = string.Empty;
 }
 
+public sealed record ObservabilityAlertAcknowledgeRequest
+{
+    public string? Note { get; init; }
+}
+
 public sealed record ObservabilityAlertEventPageResponse
 {
     public IReadOnlyList<ObservabilityAlertEventResponse> Items { get; init; } = [];
@@ -1001,4 +1006,6 @@ public sealed record InvestigationLinkResponse
 [JsonSerializable(typeof(ConsoleJobDiagnosticsResponse))]
 [JsonSerializable(typeof(InvestigationPageResponse))]
 [JsonSerializable(typeof(InvestigationResponse))]
+[JsonSerializable(typeof(ObservabilityAlertEventResponse))]
+[JsonSerializable(typeof(ObservabilityAlertAcknowledgeRequest))]
 public sealed partial class OperateObservabilityJsonContext : JsonSerializerContext;
