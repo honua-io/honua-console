@@ -39,10 +39,12 @@ npm ci --prefix e2e/playwright
 ```
 
 By default the suite serves `artifacts/static-publish/wwwroot/console` at
-`http://127.0.0.1:5184/console/` and starts a second contract fixture on port 5186.
+`http://127.0.0.1:5184/console/`. Contract fixtures also use fixed ports
+5185, 5186, 5187 and 5188.
 Set `HONUA_CONSOLE_STATIC_ROOT` to an absolute path to the extracted bundle's
 Console files if they are elsewhere. `HONUA_CONSOLE_STATIC_PORT` overrides the
-first port; the contract fixture still needs 5186. Keep both ports free.
+first port only; the contract fixtures still need 5185–5188. Keep the default
+range 5184–5188 free, or the overridden first port plus 5185–5188.
 
 Playwright retains failure traces and screenshots and writes an HTML report.
 Inspect these together with browser console and network errors before changing
