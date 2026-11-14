@@ -1,3 +1,4 @@
+import { consoleHref } from './console-links.mjs';
 import { capturedProcessFetch } from './cookie-workspace-transport.mjs';
 import { publishedMapPath } from './published-map-viewer.mjs';
 
@@ -230,7 +231,7 @@ export function mountStudioPublicationControls({ app, host, status }) {
     const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = 'Retry original submission';
     const refresh = document.createElement('button'); refresh.type = 'button'; refresh.textContent = 'Refresh publication status';
     const acknowledge = document.createElement('button'); acknowledge.type = 'button'; acknowledge.textContent = 'Acknowledge publication outcome';
-    const inbox = document.createElement('a'); inbox.href = '/inbox'; inbox.textContent = 'Review approvals';
+    const inbox = document.createElement('a'); inbox.href = consoleHref('/inbox'); inbox.textContent = 'Review approvals';
     const openMap = document.createElement('a'); openMap.textContent = 'Open published map';
     const definition = document.createElement('a'); definition.textContent = 'View map definition (JSON)';
     for (const link of [openMap, definition]) { link.target = '_blank'; link.rel = 'noopener noreferrer'; }
@@ -286,7 +287,7 @@ export function mountStudioPublicationControls({ app, host, status }) {
                     retry.hidden = terminal(record.receipt) || canRefresh && !(record.receipt?.status === 'approval-completed' && !id(record.receipt.requestId));
                     acknowledge.hidden = !terminal(record.receipt);
                     inbox.hidden = !id(record.receipt?.proposalId);
-                    if (!inbox.hidden) inbox.href = `/inbox?proposalId=${encodeURIComponent(record.receipt.proposalId)}`;
+                    if (!inbox.hidden) inbox.href = consoleHref(`/inbox?proposalId=${encodeURIComponent(record.receipt.proposalId)}`);
                     const links = session.audienceLinks();
                     if (links) {
                         openMap.href = links.map; definition.href = links.definition;
