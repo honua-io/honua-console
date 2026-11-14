@@ -1,3 +1,4 @@
+@inject IServiceProvider Services
 @page "/catalog"
 @inject IConsoleCatalogClient Catalog
 @inject IConsoleCatalogReadContextResolver ReadContexts
@@ -7,6 +8,15 @@
 
 <CatalogAvailabilityGate>
 <section class="console-page">
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Catalog">
+            <ChildContent><p>Find and reuse accessible content.</p></ChildContent>
+            <Actions><a class="console-button-link" href="@Navigation.ToConsoleHref("/operate/publishing")">Import…</a></Actions>
+        </ConsolePageHeading>
+    }
+    else
+    {
     <div class="console-page-heading console-detail-heading">
         <div>
             <p class="console-kicker">Catalog</p>
@@ -17,10 +27,13 @@
             <a class="console-button-link console-button-secondary" href="@Navigation.ToConsoleHref("/operate/publishing")">Import…</a>
         </div>
     </div>
+    }
 
+    @{
+        RenderFragment CatalogContent = @<text>
     @if (_accessResolved && !_requiresAuthentication)
     {
-        <form class="console-filter-bar" method="get" action="/catalog">
+        <form class="@(V4Enabled ? "console-filter-bar console-filter-bar-quiet" : "console-filter-bar")" method="get" action="/catalog">
             <label>
                 <span>Search</span>
                 <input name="q" value="@_search.Query" placeholder="Search title, summary, or tag" />
@@ -75,9 +88,18 @@
 
         @if (_result is null || _result.Succeeded)
         {
-            <div class="console-result-toolbar" role="status">
-                <span class="console-result-count">@(_result?.Items.Count ?? 0) items shown</span>
-            </div>
+            @if (V4Enabled)
+            {
+                <div class="console-summary" role="status">
+                    <ConsoleMetricTile Label="Items shown" Value="@(_result is { Succeeded: true } ? _result.Items.Count : (long?)null)" />
+                </div>
+            }
+            else
+            {
+                <div class="console-result-toolbar" role="status">
+                    <span class="console-result-count">@(_result?.Items.Count ?? 0) items shown</span>
+                </div>
+            }
 
             <nav class="console-type-strip" aria-label="Catalog content types">
                 <a class="@TypeStripClass(string.Empty)" href="@Navigation.ToConsoleLinkHref(BuildTypeHref(string.Empty))">
@@ -98,7 +120,7 @@
 
     @if (!_accessResolved)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="loading" Kicker="Loading" Title="Checking catalog access" Message="Your session is being checked before catalog summaries load." />
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="loading" Kicker="Loading" Title="Checking catalog access" Message="Your session is being checked before catalog summaries load." />
     }
     else if (_requiresAuthentication)
     {
@@ -106,7 +128,7 @@
     }
     else if (_result is null)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="loading" Kicker="Loading" Title="Loading catalog" Message="Catalog summaries are loading." />
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="loading" Kicker="Loading" Title="Loading catalog" Message="Catalog summaries are loading." />
     }
     else if (!_result.Succeeded)
     {
@@ -136,13 +158,13 @@
         }
         else
         {
-            <ConsoleStateView HeadingLevel="2" Kind="empty" Kicker="Empty catalog" Title="No content matched" Message="Try a broader search or publish the first item." ActionHref="/operate/publishing" ActionLabel="Open Publishing" />
+            <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="empty" Kicker="Empty catalog" Title="No content matched" Message="Try a broader search or publish the first item." ActionHref="/operate/publishing" ActionLabel="Open Publishing" />
         }
     }
     else
     {
         <ConsoleTableRegion Class="console-table-wrap" Label="Catalog items">
-            <table class="console-content-table">
+            <table class="console-content-table" style="@(V4Enabled ? "min-width: 54rem" : null)">
                 <thead>
                     <tr>
                         <th scope="col">Title</th>
@@ -198,10 +220,22 @@
             </table>
         </ConsoleTableRegion>
     }
+        </text>;
+    }
+    @if (V4Enabled)
+    {
+        <section class="console-section" aria-label="Catalog content">@CatalogContent</section>
+    }
+    else
+    {
+        @CatalogContent
+    }
 </section>
 </CatalogAvailabilityGate>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
 
     private CatalogSearchState _search = new();
     private CatalogSearchResult? _result;

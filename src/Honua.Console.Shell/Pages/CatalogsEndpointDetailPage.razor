@@ -1,3 +1,4 @@
+@inject IServiceProvider Services
 @inject NavigationManager ConsoleNavigation
 @page "/operate/catalogs/{Key}"
 @using Honua.Console.Shell.Models
@@ -15,14 +16,14 @@
 <section class="console-page catalogs-detail" data-catalogs-detail data-catalog-endpoint="@Key">
     @if (_loading)
     {
-        <ConsoleStateView Kind="loading"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="loading"
                           Kicker="Catalogs"
                           Title="Loading endpoint"
                           Message="Reading the catalog endpoint detail from honua-server." />
     }
     else if (_bindingState is not null)
     {
-        <ConsoleStateView Kind="missing"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="missing"
                           Kicker="@_bindingState.State"
                           Title="Catalog discovery endpoints are not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
@@ -31,6 +32,44 @@
     {
         var endpoint = detail.Endpoint;
 
+        @* Copy / Open act on the real endpoint URL the registry returns; both are honestly disabled
+           when this endpoint carries no URL. Rebuild index has no honua-server mutation contract in
+           the discovery-endpoints registry (honua-server#1279), so it is honestly disabled rather
+           than a clickable no-op (Charter §11). *@
+        RenderFragment HeaderActions = @<text>
+
+
+                <button class="console-button console-button-secondary" type="button"
+                        data-catalog-copy-url disabled="@(string.IsNullOrWhiteSpace(endpoint.Url))"
+                        @onclick="CopyEndpointUrlAsync">@(_copied ? "✓ Copied" : "⧉ Copy")</button>
+                @if (!string.IsNullOrWhiteSpace(endpoint.Url))
+                {
+                    <a class="console-button console-button-secondary" data-catalog-open-url
+                       href="@ConsoleNavigation.ToConsoleLinkHref(endpoint.Url)" target="_blank" rel="noopener noreferrer">Open ↗</a>
+                }
+                else
+                {
+                    <button class="console-button console-button-secondary" type="button" disabled
+                            title="This endpoint has no URL to open.">Open ↗</button>
+                }
+                <button class="console-button" type="button" disabled
+                        title="Index rebuild is managed on honua-server; no rebuild action is exposed by the discovery-endpoints registry.">Rebuild index</button>
+        </text>;
+        @if (V4Enabled)
+        {
+            <ConsolePageHeading Title="@endpoint.Title">
+                <ChildContent>
+                <a href="@ConsoleNavigation.ToConsoleLinkHref(CatalogsListHref)">Catalogs</a>
+
+                <span class="@(endpoint.Enabled ? "console-status console-state-success" : "console-status console-state-neutral")" data-catalog-state="@(endpoint.Enabled ? "on" : "off")">@(endpoint.Enabled ? "ON" : "OFF")</span>
+                @if (endpoint.HasIssues) { <span class="console-status console-state-warning" data-catalog-issues="@endpoint.IssueCount">@endpoint.IssueCount issues</span> }
+                @if (!string.IsNullOrWhiteSpace(detail.LastRebuild)) { <p class="console-muted">Last rebuild @detail.LastRebuild</p> }
+                </ChildContent>
+                <Actions>@HeaderActions</Actions>
+            </ConsolePageHeading>
+        }
+        else
+        {
         <div class="console-detail-heading">
             <div>
                 <p class="console-kicker">
@@ -57,34 +96,18 @@
                     }
                 </p>
             </div>
-            <div class="console-detail-actions">
-                @* Copy / Open act on the real endpoint URL the registry returns; both are honestly disabled
-                   when this endpoint carries no URL. Rebuild index has no honua-server mutation contract in
-                   the discovery-endpoints registry (honua-server#1279), so it is honestly disabled rather
-                   than a clickable no-op (Charter §11). *@
-                <button class="console-button console-button-secondary" type="button"
-                        data-catalog-copy-url disabled="@(string.IsNullOrWhiteSpace(endpoint.Url))"
-                        @onclick="CopyEndpointUrlAsync">@(_copied ? "✓ Copied" : "⧉ Copy")</button>
-                @if (!string.IsNullOrWhiteSpace(endpoint.Url))
-                {
-                    <a class="console-button console-button-secondary" data-catalog-open-url
-                       href="@ConsoleNavigation.ToConsoleLinkHref(endpoint.Url)" target="_blank" rel="noopener noreferrer">Open ↗</a>
-                }
-                else
-                {
-                    <button class="console-button console-button-secondary" type="button" disabled
-                            title="This endpoint has no URL to open.">Open ↗</button>
-                }
-                <button class="console-button" type="button" disabled
-                        title="Index rebuild is managed on honua-server; no rebuild action is exposed by the discovery-endpoints registry.">Rebuild index</button>
-            </div>
+            <div class="console-detail-actions">@HeaderActions</div>
         </div>
+        }
+
 
         <div class="catalogs-endpoint-bar" data-catalog-endpoint-url>
             <span class="console-kicker">Endpoint</span>
             <code class="catalogs-endpoint-url">@(endpoint.Url ?? "—")</code>
         </div>
 
+        @if (!V4Enabled)
+        {
         <nav class="console-tab-row" aria-label="Catalog endpoint tabs" data-catalog-tabs>
             <span class="console-button-active" data-catalog-tab="items">Items <small class="console-tab-count">@endpoint.Entries</small></span>
             <span data-catalog-tab="settings">Settings</span>
@@ -98,10 +121,13 @@
                 }
             </span>
         </nav>
+        }
+
+        RenderFragment ItemsContent = @<text>
 
         @if (detail.Items.Count == 0)
         {
-            <ConsoleStateView Kind="empty"
+            <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="@(V4Enabled ? 3 : 1)" Kind="empty"
                               Kicker="Items"
                               Title="No mirrored items"
                               Message="This endpoint has no published items yet." />
@@ -185,10 +211,23 @@
                 </p>
             }
         }
+            </text>;
+        @if (V4Enabled)
+        {
+            <ConsolePanel Title="Items" HeadingId="catalog-endpoint-items-heading" Surface="ConsolePanelSurface.Quiet" Class="console-summary">
+                <ConsoleMetricTile Label="Entries" Value="@endpoint.Entries" />
+                @ItemsContent
+            </ConsolePanel>
+        }
+        else
+        {
+            @ItemsContent
+        }
+
     }
     else
     {
-        <ConsoleStateView Kind="empty"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="empty"
                           Kicker="Catalogs"
                           Title="Endpoint not found"
                           Message="The catalog discovery-endpoints registry returned no detail for this endpoint." />
@@ -196,6 +235,8 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     [Parameter]
     public string Key { get; set; } = string.Empty;
 

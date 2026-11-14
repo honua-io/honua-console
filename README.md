@@ -46,7 +46,7 @@ lands here. Honest signal on maturity:
 
 Prerequisites:
 
-- **.NET 10 SDK**
+- **.NET 11 SDK**
 - **Node.js >= 20** (only for the smoke/e2e harnesses and build-metadata stamping)
 - Anonymous access to nuget.org. Every package, including `Honua.Sdk.Studio`
   and `Honua.Sdk.Abstractions`, restores from the single public source declared
@@ -179,8 +179,9 @@ the build host. The build still checks the release digest and asset provenance.
 `HONUA_STUDIO_RELEASE_CACHE` overrides the default cache under
 `${XDG_CACHE_HOME:-$HOME/.cache}/honua-console/studio`.
 
-The v4 presentation rollout uses one default-off switch: `Honua:Console:V4:Enabled`
-(or `HONUA_CONSOLE_V4_ENABLED=true`). Pages and shared components can consume the
+The v4 presentation is on by default. The shipped static Console reads `v4Enabled` from
+`config.json`; set it to `false` to roll back. The test host uses `Honua:Console:V4:Enabled`
+(or `HONUA_CONSOLE_V4_ENABLED`), also on unless set to `false`. Pages and shared components can consume the
 registered `ConsoleV4Options.Enabled`; capability and catalog access gates still apply.
 
 The parity smoke ([docs/smoke/parity.md](docs/smoke/parity.md)) drives the

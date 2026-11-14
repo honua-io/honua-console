@@ -11,7 +11,8 @@ export class StudioDraftCreateSession {
     constructor(app, { storage = app.workspace?.storage, uuid = () => crypto.randomUUID(), readOperation, isCurrent = () => true } = {}) {
         this.app = app; this.storage = storage; this.uuid = uuid; this.isCurrent = isCurrent;
         this.readOperation = readOperation ?? (async operationId => {
-            const request = capturedProcessFetch(app.session, { current: () => app.session });
+            const binding = () => app.workspaceProcessBinding ?? app.session;
+            const request = capturedProcessFetch(binding(), { current: binding });
             const response = await request(`/api/processes/operations/handles/${encodeURIComponent(operationId)}`);
             if (!response.ok) throw new Error(`Operation status could not be read (${response.status}). The original action is retained.`);
             return response.json();

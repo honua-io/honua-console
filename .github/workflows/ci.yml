@@ -319,6 +319,17 @@ jobs:
           path: artifacts/catalog-preview/data-connection*.png
           if-no-files-found: error
 
+      - name: Verify shared quiet section presentation
+        run: node e2e/playwright/quiet-sections-preview.mjs
+
+      - name: Upload shared quiet section presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: quiet-sections-presentation
+          path: artifacts/catalog-preview/quiet-sections-*.png
+          if-no-files-found: error
+
       - name: Verify rendered shared style editor presentation
         run: node e2e/playwright/studio-styles-preview.mjs
         env:
@@ -567,6 +578,19 @@ jobs:
         with:
           name: workflow-events-presentation
           path: artifacts/catalog-preview/events-*
+          if-no-files-found: error
+
+      - name: Verify rendered alert rules presentation
+        run: node e2e/playwright/alert-rules-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload alert rules presentation
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: alert-rules-presentation
+          path: artifacts/catalog-preview/alert-rules-*
           if-no-files-found: error
 
       - name: Verify rendered operate monitoring presentation

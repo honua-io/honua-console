@@ -1,3 +1,4 @@
+@inject IServiceProvider Services
 @inject NavigationManager ConsoleNavigation
 @page "/operate/catalogs"
 @using Honua.Console.Shell.Models
@@ -11,6 +12,15 @@
    unbound (Console Patterns Charter section 11). *@
 
 <section class="console-page catalogs-list" data-catalogs-list>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Catalogs">
+            <ChildContent><p>Discovery endpoints for your data.</p></ChildContent>
+            <Actions><a class="console-button-link console-button-secondary" href="@ConsoleNavigation.ToConsoleHref("/operate/settings")">Catalog endpoint settings</a></Actions>
+        </ConsolePageHeading>
+    }
+    else
+    {
     <div class="console-detail-heading">
         <div>
             <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Catalogs</p>
@@ -21,17 +31,18 @@
             </p>
         </div>
     </div>
+    }
 
     @if (_loading)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="loading"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="loading"
                           Kicker="Catalogs"
                           Title="Loading discovery endpoints"
                           Message="Reading the catalog discovery-endpoints registry from honua-server." />
     }
     else if (_bindingState is not null)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="missing"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="missing"
                           Kicker="@_bindingState.State"
                           Title="Catalog discovery endpoints are not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
@@ -39,10 +50,13 @@
     else if (_registry is { } registry)
     {
         <div class="console-toolbar console-toolbar-spread" data-catalogs-toolbar>
-            <div class="console-chip-row">
-                <span class="console-status console-state-info">status: any</span>
-                <span class="console-status console-state-neutral">has issues</span>
-            </div>
+            @if (!V4Enabled)
+            {
+                <div class="console-chip-row">
+                    <span class="console-status console-state-info">status: any</span>
+                    <span class="console-status console-state-neutral">has issues</span>
+                </div>
+            }
             <span class="console-muted" data-catalogs-counts>
                 @registry.AutoDefaultCount catalogs auto-default-on · @registry.OptInCount opt-in
             </span>
@@ -50,7 +64,7 @@
 
         @if (registry.Endpoints.Count == 0)
         {
-            <ConsoleStateView HeadingLevel="2" Kind="empty"
+            <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="empty"
                               Kicker="Catalogs"
                               Title="No discovery endpoints"
                               Message="The registry returned no catalog discovery endpoints on this server." />
@@ -60,16 +74,18 @@
             <div class="catalogs-grid" data-catalogs-grid>
                 @foreach (var endpoint in registry.Endpoints)
                 {
-                    <article class="console-overview-card catalogs-card @(endpoint.Enabled ? "catalogs-card--on" : "catalogs-card--off")"
+                    <article class="@(V4Enabled ? "console-section" : "console-overview-card") catalogs-card @(endpoint.Enabled ? "catalogs-card--on" : "catalogs-card--off")"
                              data-catalog-endpoint="@endpoint.Key"
                              data-catalog-dialect="@endpoint.Dialect"
                              data-catalog-enabled="@(endpoint.Enabled ? "true" : "false")"
                              data-catalog-default="@(endpoint.IsAutoDefault ? "auto-default" : "opt-in")">
+                        @{
+                            RenderFragment EndpointContent = @<text>
                         <header>
-                            <span class="catalogs-card__glyph" aria-hidden="true">⌘</span>
+                            @if (!V4Enabled) { <span class="catalogs-card__glyph" aria-hidden="true">⌘</span> }
                             <div class="catalogs-card__heading">
                                 <div class="console-chip-row">
-                                    <strong>@endpoint.Title</strong>
+                                    @if (!V4Enabled) { <strong>@endpoint.Title</strong> }
                                     <span class="@(endpoint.Enabled ? "console-status console-state-success" : "console-status console-state-neutral")"
                                           data-catalog-state="@(endpoint.Enabled ? "on" : "off")">
                                         @(endpoint.Enabled ? "ON" : "OFF")
@@ -94,14 +110,21 @@
 
                         @if (endpoint.Enabled)
                         {
+                            @if (V4Enabled)
+                            {
+                                <ConsoleMetricTile Label="Entries" Value="@endpoint.Entries" />
+                            }
                             <div class="console-overview-card-body catalogs-card__facts">
                                 <dl class="catalogs-facts">
                                     <dt>Endpoint</dt>
                                     <dd>
                                         <code class="catalogs-endpoint-url">@FormatUrl(registry.PublicHost, endpoint.Url)</code>
                                     </dd>
-                                    <dt>Entries</dt>
-                                    <dd><strong>@endpoint.Entries</strong></dd>
+                                    @if (!V4Enabled)
+                                    {
+                                        <dt>Entries</dt>
+                                        <dd><strong>@endpoint.Entries</strong></dd>
+                                    }
                                     <dt>Fed by</dt>
                                     <dd>
                                         @if (endpoint.Feeders.Count == 0)
@@ -140,6 +163,18 @@
                                 </p>
                             </div>
                         }
+                            </text>;
+                        }
+                        @if (V4Enabled)
+                        {
+                            <ConsolePanel Title="@endpoint.Title" HeadingId="@($"catalog-endpoint-{endpoint.Key}-heading")" Surface="ConsolePanelSurface.Quiet" Class="console-summary">
+                                @EndpointContent
+                            </ConsolePanel>
+                        }
+                        else
+                        {
+                            @EndpointContent
+                        }
                     </article>
                 }
             </div>
@@ -147,7 +182,7 @@
     }
     else
     {
-        <ConsoleStateView HeadingLevel="2" Kind="empty"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="empty"
                           Kicker="Catalogs"
                           Title="No discovery endpoints"
                           Message="The catalog discovery-endpoints registry returned no data on this server." />
@@ -155,6 +190,8 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     private CatalogDiscoveryRegistryView? _registry;
     private CatalogDiscoveryCapabilityState? _bindingState;
     private bool _loading = true;
