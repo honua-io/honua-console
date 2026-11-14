@@ -36,7 +36,7 @@ public sealed class OperateLayerStyleOverrideServerTests
         Assert.Equal(ResourceId, view.CanonicalResourceId);
         var layer = Assert.Single(view.Layers);
         Assert.Equal("1", layer.LayerId);
-        Assert.Equal("E2E Source", layer.ServiceDisplayName);
+        Assert.Equal("E2E Source", layer.LayerName);
         Assert.Contains("\"title\"", layer.PopupInfoJson!, StringComparison.Ordinal);
         Assert.Contains("\"fieldName\": \"name\"", layer.PopupInfoJson!, StringComparison.Ordinal); // pretty-printed
         Assert.Contains("\"uniqueValue\"", layer.DrawingInfoJson!, StringComparison.Ordinal);

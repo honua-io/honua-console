@@ -350,7 +350,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     }
 
     [Fact]
-    public async Task ColdLayerNavigationRejectsDelayedAncestryAfterAuthenticationChanges()
+    public void ColdLayerNavigationRejectsDelayedAncestryAfterAuthenticationChanges()
     {
         var source = new PublicationNavigationSource
         {
@@ -370,7 +370,8 @@ public sealed class ConsolePublicationNavigationRenderTests
         layout.WaitForAssertion(() => Assert.Equal(1, source.LayerPageReads));
         authorization.SetNotAuthorized();
         source.PendingLayers.SetResult(source.LayerResult);
-        await layout.InvokeAsync(() => Task.CompletedTask);
+        layout.WaitForAssertion(() => Assert.Equal("Bridges", layout.Find("h1").TextContent));
+        Assert.Null(layout.FindComponent<CascadingValue<ConsolePublicationLayerContext>>().Instance.Value.Selection);
         layout.WaitForAssertion(() => Assert.Empty(layout.FindAll("[role='tree']")));
         Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
     }
