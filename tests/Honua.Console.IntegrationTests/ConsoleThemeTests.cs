@@ -82,6 +82,8 @@ public sealed class ConsoleThemeTests
         return context;
     }
 
+    // Test provider publishes its own current state; it does not consume cached state.
+#pragma warning disable BL0013
     private sealed class AuthenticationSignals : AuthenticationStateProvider
     {
         private ClaimsPrincipal _user = User("operator-a");
@@ -95,4 +97,6 @@ public sealed class ConsoleThemeTests
             ? new ClaimsIdentity()
             : new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, id)], "test"));
     }
+#pragma warning restore BL0013
+
 }
