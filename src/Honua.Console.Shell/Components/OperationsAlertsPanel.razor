@@ -154,7 +154,7 @@
         finally { if (generation == _generation) { _busy = false; } }
     }
 
-    private Task AcknowledgeAsync(long eventId) => RunMutationAsync(eventId, async (client, snapshot) =>
+    private Task AcknowledgeAsync(long eventId) => RunMutationAsync(eventId, new(async (client, snapshot) =>
     {
         var key = (snapshot.Authority, eventId);
         if (!_requestIds.TryGetValue(key, out var requestId))
@@ -162,10 +162,10 @@
             _requestIds[key] = requestId = Guid.NewGuid().ToString("N");
         }
         return await client.AcknowledgeAlertAsync(new(eventId, snapshot.Authority, requestId), _lifetime.Token);
-    }, "Honua recorded that you have seen this alert. The underlying problem may still need attention.",
-        lifecycleChange: false);
+    }, authority => _requestIds.Remove((authority, eventId)),
+        "Honua recorded that you have seen this alert. The underlying problem may still need attention."));
 
-    private Task ChangeLifecycleAsync(long eventId, ConsoleAlertLifecycleAction action) => RunMutationAsync(eventId, async (client, snapshot) =>
+    private Task ChangeLifecycleAsync(long eventId, ConsoleAlertLifecycleAction action) => RunMutationAsync(eventId, new(async (client, snapshot) =>
     {
         var key = (snapshot.Authority, eventId, action);
         if (!_lifecycleCommands.TryGetValue(key, out var command))
@@ -176,14 +176,24 @@
             _lifecycleCommands[key] = command;
         }
         return await client.ChangeAlertLifecycleAsync(command, _lifetime.Token);
-    }, action == ConsoleAlertLifecycleAction.Snooze
+    }, authority => RetireLifecycleCommands(authority, eventId), action == ConsoleAlertLifecycleAction.Snooze
         ? "Honua recorded the snooze. The underlying problem may still need attention."
-        : "Honua marked this alert resolved. This does not confirm that the underlying problem is fixed.",
-        lifecycleChange: true);
+        : "Honua marked this alert resolved. This does not confirm that the underlying problem is fixed."));
 
-    private async Task RunMutationAsync(long eventId,
-        Func<IConsoleAlertInboxClient, ConsoleAlertInboxSnapshot, Task<OperateSectionResult<ObservabilityAlertEventResponse>>> mutate,
-        string confirmation, bool lifecycleChange)
+    private sealed record AlertMutation(
+        Func<IConsoleAlertInboxClient, ConsoleAlertInboxSnapshot, Task<OperateSectionResult<ObservabilityAlertEventResponse>>> Send,
+        Action<ConsoleAlertAuthority> Confirm, string Message);
+
+    private void RetireLifecycleCommands(ConsoleAlertAuthority authority, long eventId)
+    {
+        // A confirmed transition supersedes uncertain transitions for this event.
+        foreach (var action in Enum.GetValues<ConsoleAlertLifecycleAction>())
+        {
+            _lifecycleCommands.Remove((authority, eventId, action));
+        }
+    }
+
+    private async Task RunMutationAsync(long eventId, AlertMutation mutation)
     {
         if (_busy || Client is not { } client || _result.Value is not { } snapshot) { return; }
         var generation = _generation;
@@ -191,22 +201,15 @@
         _actionMessage = null;
         try
         {
-            var result = await mutate(client, snapshot);
+            var result = await mutation.Send(client, snapshot);
             if (generation != _generation) { return; }
             if (result.IsAllowed && result.Value is { } updated)
             {
-                if (lifecycleChange)
-                {
-                    // A confirmed transition supersedes uncertain transitions for this event.
-                    foreach (var action in Enum.GetValues<ConsoleAlertLifecycleAction>())
-                    {
-                        _lifecycleCommands.Remove((snapshot.Authority, eventId, action));
-                    }
-                }
+                mutation.Confirm(snapshot.Authority);
                 if (updated.AcknowledgedAt is not null) { _requestIds.Remove((snapshot.Authority, eventId)); }
                 var page = snapshot.Page with { Items = snapshot.Page.Items.Select(item => item.EventId == eventId ? updated : item).ToArray() };
                 _result = OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(snapshot with { Page = page });
-                _actionMessage = confirmation;
+                _actionMessage = mutation.Message;
             }
             else { _actionMessage = result.Message; }
         }
