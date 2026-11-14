@@ -1,5 +1,5 @@
-using Honua.Sdk.Admin.Models;
 using System.Text.Json;
+using Honua.Sdk.Admin.Models;
 
 namespace Honua.Console.Contracts;
 
@@ -173,7 +173,7 @@ public interface IHonuaAdminServerInfoClient
     Task<HonuaAdminEndpointResult<HonuaAdminLicenseStatusResponse>> GetLicenseStatusAsync(
         CancellationToken cancellationToken = default);
 
-    Task<HonuaAdminEndpointResult<HonuaAdminApiKeyResponse[]>> ListApiKeysAsync(
+    Task<HonuaAdminEndpointResult<AdminApiKeyResponse[]>> ListApiKeysAsync(
         CancellationToken cancellationToken = default);
 
     Task<HonuaAdminEndpointResult<HonuaAdminOidcProviderResponse[]>> ListOidcProvidersAsync(

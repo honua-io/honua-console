@@ -8,6 +8,7 @@ using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Web.Runtime;
 using Microsoft.Extensions.DependencyInjection;
+using Honua.Sdk.Admin.Models;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -72,9 +73,9 @@ public sealed class ApiKeySessionLifetimeTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            object data = request.Method == HttpMethod.Get ? Array.Empty<HonuaAdminApiKeyResponse>() : new
+            object data = request.Method == HttpMethod.Get ? Array.Empty<AdminApiKeyResponse>() : new
             {
-                apiKey = new HonuaAdminApiKeyResponse { Id = Guid.NewGuid(), Name = "Reporting app", Permissions = ["admin:read"], Status = "active" },
+                apiKey = new AdminApiKeyResponse { Id = Guid.NewGuid(), Name = "Reporting app", KeyPrefix = "hn_test", Permissions = ["admin:read"], Status = "active" },
                 key = "sensitive-key"
             };
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)

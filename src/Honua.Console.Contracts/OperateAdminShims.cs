@@ -415,9 +415,9 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             "GET /api/v1/admin/license",
             cancellationToken);
 
-    public Task<HonuaAdminEndpointResult<HonuaAdminApiKeyResponse[]>> ListApiKeysAsync(
+    public Task<HonuaAdminEndpointResult<AdminApiKeyResponse[]>> ListApiKeysAsync(
         CancellationToken cancellationToken = default) =>
-        GetEnvelopeAsync<HonuaAdminApiKeyResponse[]>(
+        GetEnvelopeAsync<AdminApiKeyResponse[]>(
             "/api/v1/admin/api-keys/",
             "GET /api/v1/admin/api-keys",
             cancellationToken);
@@ -1162,33 +1162,6 @@ public sealed record HonuaAdminEntitlementResponse
     public string? Name { get; init; }
 
     public bool? IsActive { get; init; }
-}
-
-public sealed record HonuaAdminApiKeyResponse
-{
-    public Guid Id { get; init; }
-
-    public string? Name { get; init; }
-
-    public string? KeyPrefix { get; init; }
-
-    public IReadOnlyList<string> Permissions { get; init; } = [];
-
-    public string? Status { get; init; }
-
-    public DateTimeOffset? CreatedAt { get; init; }
-
-    public DateTimeOffset? UpdatedAt { get; init; }
-
-    public DateTimeOffset? ExpiresAt { get; init; }
-
-    public DateTimeOffset? LastUsedAt { get; init; }
-
-    public DateTimeOffset? RotatedAt { get; init; }
-
-    public DateTimeOffset? RevokedAt { get; init; }
-
-    public string? CreatedBy { get; init; }
 }
 
 public sealed record HonuaAdminOidcProviderResponse

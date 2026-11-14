@@ -6,6 +6,7 @@ using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Microsoft.Extensions.DependencyInjection;
+using Honua.Sdk.Admin.Models;
 
 namespace Honua.Console.Shell.Tests;
 
@@ -104,7 +105,7 @@ public sealed class ApiKeyManagementTests
     }
 
     private static readonly Guid KeyId = Guid.Parse("f99f8453-9782-466a-848d-bb05f48672a0");
-    private static HonuaAdminApiKeyResponse Key => new() { Id = KeyId, Name = "Reporting app", KeyPrefix = "hn_test", Permissions = ["admin:read"], Status = "active" };
+    private static AdminApiKeyResponse Key => new() { Id = KeyId, Name = "Reporting app", KeyPrefix = "hn_test", Permissions = ["admin:read"], Status = "active" };
 
     private sealed class Fixture : IDisposable
     {
@@ -112,7 +113,7 @@ public sealed class ApiKeyManagementTests
         public ApiHandler Handler { get; } = new();
         public Authority Authority { get; } = new();
         public static Guid KeyId => ApiKeyManagementTests.KeyId;
-        public static HonuaAdminApiKeyResponse Key => ApiKeyManagementTests.Key;
+        public static AdminApiKeyResponse Key => ApiKeyManagementTests.Key;
         private readonly HonuaAdminOperateHttpClient _client;
 
         public Fixture()
@@ -155,7 +156,11 @@ public sealed class ApiKeyManagementTests
             if (Pending is not null) return await Pending;
             if (Status != HttpStatusCode.OK) return new(Status);
             return Path.EndsWith("/revoke", StringComparison.Ordinal)
-                ? Json(new { success = true, data = Key with { Status = "revoked", RevokedAt = DateTimeOffset.UtcNow } })
+                ? Json(new { success = true, data = new AdminApiKeyResponse
+                {
+                    Id = Key.Id, Name = Key.Name, KeyPrefix = Key.KeyPrefix,
+                    Permissions = Key.Permissions, Status = "revoked", RevokedAt = DateTimeOffset.UtcNow
+                } })
                 : Json(new { success = true, data = new { apiKey = Key, key = "one-time-secret" } });
         }
 

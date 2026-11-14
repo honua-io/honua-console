@@ -4,6 +4,7 @@ using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using Honua.Sdk.Admin.Models;
 
 namespace Honua.Console.Shell.Pages;
 
@@ -14,7 +15,7 @@ public partial class OperateApiKeysPage
     private IConsoleEnvironmentProfileStore? _profiles;
     private IConsoleAuthorityChangeSource? _authorityChanges;
     private ConsoleConfirmDialog? _confirm;
-    private IReadOnlyList<HonuaAdminApiKeyResponse> _keys = [];
+    private IReadOnlyList<AdminApiKeyResponse> _keys = [];
     private HonuaAdminEndpointIssue? _issue;
     private string? _binding;
     private string? _secret;
@@ -91,8 +92,10 @@ public partial class OperateApiKeysPage
         try
         {
             if (!await CurrentAsync(binding) || generation != _generation) return;
-            var request = new HonuaAdminCreateApiKeyRequest(_name.Trim(), permissions)
+            var request = new CreateAdminApiKeyRequest
             {
+                Name = _name.Trim(),
+                Permissions = permissions,
                 ExpiresAt = _expiry is { } expiry ? new DateTimeOffset(DateTime.SpecifyKind(expiry, DateTimeKind.Utc)) : null
             };
             var result = await _client.CreateApiKeyAsync(new(binding, request));
@@ -103,7 +106,7 @@ public partial class OperateApiKeysPage
         finally { _busy = false; }
     }
 
-    private void AcceptCreatedKey(HonuaAdminEndpointResult<HonuaAdminCreatedApiKey> result)
+    private void AcceptCreatedKey(HonuaAdminEndpointResult<AdminApiKeySecretResponse> result)
     {
         _issue = result.Issue;
         if (result.Issue is null && result.Data is { } created && !string.IsNullOrWhiteSpace(created.Key))
@@ -117,7 +120,7 @@ public partial class OperateApiKeysPage
         else _issue ??= new("Outcome unverified", "API keys", "The server did not return the new secret. Refresh the list and revoke the key before creating a replacement.");
     }
 
-    private void ConfirmRevoke(HonuaAdminApiKeyResponse key)
+    private void ConfirmRevoke(AdminApiKeyResponse key)
     {
         if (_busy || _needsRefresh || _binding is not { } binding) return;
         var revoke = EventCallback.Factory.Create(this, () => RevokeAsync(key.Id, binding));
