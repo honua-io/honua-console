@@ -18,6 +18,8 @@ work=$(mktemp -d)
 unset COMPOSE_PROJECT_NAME
 cleanup() {
   if [[ -f "$work/package/.env" ]]; then
+    (cd "$work/package" && docker compose ps -q honua | xargs -r docker inspect \
+      --format '{{json .State.Health}}' > "$out/health.json" 2>&1 || true)
     (cd "$work/package" && docker compose logs --no-color > "$out/compose.log" 2>&1 || true)
     (cd "$work/package" && docker compose down -v --remove-orphans > /dev/null 2>&1 || true)
   fi
@@ -40,7 +42,7 @@ python3 "$root/e2e/seed-shipping-service.py" "$SERVER_SOURCE" > "$work/seed.sql"
   docker compose exec -T postgres sh -c 'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
     < "$work/seed.sql" > "$out/seed.log"
   docker compose exec -T redis redis-cli FLUSHDB
-  docker compose restart server
+  docker compose restart honua
 ) > "$out/restart.log" 2>&1
 for attempt in {1..60}; do
   if curl -kfsS https://localhost:18083/healthz/ready > /dev/null 2>&1; then break; fi
