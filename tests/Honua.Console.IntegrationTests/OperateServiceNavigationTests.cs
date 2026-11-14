@@ -45,12 +45,14 @@ public sealed class OperateServiceNavigationTests
         var page = context.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, "first"));
         if (enabled) page.Find($"#service-{editor}-tab").Click();
         var firstSave = page.Find($"[data-save-{editor}]").ClickAsync(new());
-        Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
+        Assert.True(page.Find($"[data-save-{editor}]").HasAttribute("disabled"));
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.PendingOperationCount);
 
         page.Render(p => p.Add(c => c.ServiceName, "second"));
         Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
         var secondSave = page.Find($"[data-save-{editor}]").ClickAsync(new());
-        Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
+        Assert.True(page.Find($"[data-save-{editor}]").HasAttribute("disabled"));
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.PendingOperationCount);
         await page.InvokeAsync(() => operation.FirstSave.SetResult(new()
         {
             Succeeded = true,
@@ -59,7 +61,7 @@ public sealed class OperateServiceNavigationTests
         }));
         await firstSave;
 
-        Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.PendingOperationCount);
         Assert.True(page.Find($"[data-save-{editor}]").HasAttribute("disabled"));
         Assert.DoesNotContain("Previous service saved", page.Markup);
         Assert.Equal("second-role", page.Find("[data-allowed-roles]").GetAttribute("value"));
