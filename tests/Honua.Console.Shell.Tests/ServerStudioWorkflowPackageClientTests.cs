@@ -29,7 +29,7 @@ public sealed partial class ServerStudioWorkflowPackageClientTests
         var context = await client.OpenEditorAsync("new");
 
         Assert.NotNull(context.BindingState);
-        Assert.Equal("Studio workflow.package", context.BindingState!.Surface);
+        Assert.Equal("Studio workflow", context.BindingState!.Surface);
         Assert.Equal("Unavailable", context.BindingState.State);
         Assert.Null(context.Draft);
         Assert.Empty(context.NodeDefinitions);

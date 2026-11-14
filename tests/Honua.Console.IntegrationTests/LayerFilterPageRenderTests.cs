@@ -23,7 +23,7 @@ public sealed class LayerFilterPageRenderTests
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager("/console/"));
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(FixedServicesDataSource.WithLayer(
-            new OperateServiceLayerProjection(1, "Parcels", "polygon", ResourceId, "parcels")));
+            new OperateServiceLayer(1, "Parcels", "polygon", ResourceId, "parcels")));
         ctx.Services.AddSingleton<IConsoleLayerFilterOperation>(filter);
         var page = ctx.Render<OperateLayerFilterPage>(p => p.Add(x => x.ResourceId, ResourceId));
         page.WaitForAssertion(() => page.Find("[data-filter-save]"));

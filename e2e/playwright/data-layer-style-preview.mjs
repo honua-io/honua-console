@@ -14,13 +14,13 @@ await runV4PagePresentation({
     assert.equal(await page.getByRole("link", { name: "Back to layer" }).getAttribute("href"), "/console/operate/layers/res-1");
     assert.equal(await page.locator("section.console-panel[aria-labelledby]").count(), 2);
     if (name.endsWith("-unbound")) {
-      assert.equal(await page.locator("[data-slot-save], [data-slot-popup]").count(), 0);
+      assert.equal(await page.locator("[data-layer-style-save], [data-layer-style-popup]").count(), 0);
       assert.ok(await page.getByRole("heading", { name: "Layer overrides are not available", level: 3 }).isVisible());
     } else {
-      assert.equal(await page.locator("[data-slot-popup], [data-slot-drawing]").count(), 2);
+      assert.equal(await page.locator("[data-layer-style-popup], [data-layer-style-drawing]").count(), 2);
       assert.equal(await page.getByRole("button", { name: "Save override" }).count(), 1);
-      assert.equal(await page.locator("[data-style-slot].console-panel").count(), 0);
-      if (name.endsWith("-saved")) assert.ok(await page.locator("[data-slot-saved]").isVisible());
+      assert.equal(await page.locator("[data-layer-style].console-panel").count(), 0);
+      if (name.endsWith("-saved")) assert.ok(await page.locator("[data-layer-style-saved]").isVisible());
     }
   },
 });

@@ -35,7 +35,7 @@ public sealed record PublishingReview(
     string ResourceId,
     string ResourceName,
     PublishingResourceKind ResourceKind,
-    string Slot,
+    string Route,
     IReadOnlyList<PublishingEndpoint> GeneratedEndpoints,
     PublishingCatalogRegistration CatalogRegistration,
     string Policy,

@@ -23,7 +23,7 @@ public static class PublishingWorkspaceMapper
             ResourceId: route.PublicationId,
             ResourceName: resourceName,
             ResourceKind: kind,
-            Slot: BuildSlot(route),
+            Route: BuildRoute(route),
             GeneratedEndpoints: BuildEndpoints(route),
             CatalogRegistration: BuildCatalogRegistration(route),
             Policy: BuildPolicy(route.Policy ?? new()),
@@ -77,7 +77,7 @@ public static class PublishingWorkspaceMapper
         _ => PublishingResourceKind.CatalogEntry
     };
 
-    private static string BuildSlot(HonuaContentPublicationRouteState route) =>
+    private static string BuildRoute(HonuaContentPublicationRouteState route) =>
         string.Format(
             CultureInfo.InvariantCulture,
             "{0} · {1} (rev {2})",

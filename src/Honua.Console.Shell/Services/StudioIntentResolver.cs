@@ -49,7 +49,7 @@ public sealed class StudioIntentResolver : IStudioIntentResolver
                     detail: snapshot.Detail ?? "The capability registry snapshot is unavailable.");
         }
 
-        // A deferred package family (advertised as unsupported / absent) hides every phase for that family.
+        // A deferred content kind (advertised as unsupported / absent) hides every phase for that kind.
         if (!string.IsNullOrWhiteSpace(request.PackageFamilyId)
             && !snapshot.HasPackageFamily(request.PackageFamilyId))
         {
@@ -58,7 +58,7 @@ public sealed class StudioIntentResolver : IStudioIntentResolver
                 request.PackageFamilyId,
                 capabilityId,
                 state: "Unavailable",
-                detail: $"The '{request.PackageFamilyId}' package family is not advertised by this "
+                detail: $"The '{request.PackageFamilyId}' content kind is not advertised by this "
                     + "deployment (deferred), so its Studio authoring lifecycle is hidden.");
         }
 

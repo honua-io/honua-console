@@ -57,9 +57,9 @@
         Entities = LayerEntity is { } entity ? [entity] : [],
         Unsaved = new()
         {
-            ChangedFieldCount = _overrides.Slots.Sum(slot =>
-                (PopupValue(slot.SlotId) != (slot.PopupInfoJson ?? string.Empty) ? 1 : 0) +
-                (DrawingValue(slot.SlotId) != (slot.DrawingInfoJson ?? string.Empty) ? 1 : 0)),
+            ChangedFieldCount = _overrides.Layers.Sum(layer =>
+                (PopupValue(layer.LayerId) != (layer.PopupInfoJson ?? string.Empty) ? 1 : 0) +
+                (DrawingValue(layer.LayerId) != (layer.DrawingInfoJson ?? string.Empty) ? 1 : 0)),
             PendingOperationCount = (_loading ? 1 : 0) + (_saving ? 1 : 0)
         }
     };
@@ -102,38 +102,38 @@
                               Title="Layer overrides are not available"
                               Message="@(binding.Detail + " (contract: " + binding.Contract + ")")" />
         }
-        else if (_overrides.Slots.Count == 0)
+        else if (_overrides.Layers.Count == 0)
         {
             <EmptyState Area="operate" Subject="layer overrides" />
         }
         else
         {
-            @foreach (var slot in _overrides.Slots)
+            @foreach (var layer in _overrides.Layers)
             {
-                <article class="@(V4Enabled ? "console-section" : "console-panel")" data-style-slot="@slot.SlotId">
+                <article class="@(V4Enabled ? "console-section" : "console-panel")" data-layer-style="@layer.LayerId">
                     <div class="console-panel-heading">
                         <div>
-                            <p class="console-kicker">@slot.ServiceName</p>
-                            <h3>@slot.ServiceDisplayName</h3>
+                            <p class="console-kicker">@layer.ServiceName</p>
+                            <h3>@layer.ServiceDisplayName</h3>
                         </div>
                     </div>
                     <div class="studio-field-grid">
                         <label>
                             <span>Popup info (GeoServices popupInfo JSON — e.g. <code>{"title":"{name}","fieldInfos":[…]}</code>)</span>
-                            <textarea class="console-input console-mono" rows="6" data-slot-popup
-                                      value="@PopupValue(slot.SlotId)"
-                                      @onchange="e => SetPopup(slot.SlotId, e)"></textarea>
+                            <textarea class="console-input console-mono" rows="6" data-layer-style-popup
+                                      value="@PopupValue(layer.LayerId)"
+                                      @onchange="e => SetPopup(layer.LayerId, e)"></textarea>
                         </label>
                         <label>
                             <span>Drawing info (renderer JSON — e.g. <code>{"renderer":{"type":"uniqueValue",…}}</code>)</span>
-                            <textarea class="console-input console-mono" rows="6" data-slot-drawing
-                                      value="@DrawingValue(slot.SlotId)"
-                                      @onchange="e => SetDrawing(slot.SlotId, e)"></textarea>
+                            <textarea class="console-input console-mono" rows="6" data-layer-style-drawing
+                                      value="@DrawingValue(layer.LayerId)"
+                                      @onchange="e => SetDrawing(layer.LayerId, e)"></textarea>
                         </label>
                     </div>
                     <div class="console-action-row">
                         <button class="console-button" type="button" disabled="@_saving"
-                                @onclick="() => SaveSlotAsync(slot)" data-slot-save>
+                                @onclick="() => SaveLayerAsync(layer)" data-layer-style-save>
                             @(_saving ? "Saving..." : "Save override")
                         </button>
                     </div>
@@ -149,7 +149,7 @@
             }
             else if (_saveResult is { Succeeded: true })
             {
-                <div class="console-panel console-state-success" role="status" data-slot-saved>
+                <div class="console-panel console-state-success" role="status" data-layer-style-saved>
                     <p class="console-kicker">Saved</p>
                     <p>The layer presentation override was saved in the environment.</p>
                 </div>
@@ -168,7 +168,7 @@
     private OperateLayerStyleOverrideView _overrides = new(string.Empty, []);
     private OperateLayerStyleOverrideSaveResult? _saveResult;
 
-    // Per-slot edit state, keyed by slot id, seeded from the loaded overrides. popupInfo + drawingInfo are
+    // Per-layer edit state, keyed by layer id, seeded from the loaded overrides. popupInfo + drawingInfo are
     // authored as the raw GeoServices JSON documents that honua-server stores and emits back.
     private readonly Dictionary<string, string> _popupEdits = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _drawingEdits = new(StringComparer.Ordinal);
@@ -183,44 +183,44 @@
         if (attempt is { } read) PublicationContext!.CompleteStyleRead(read, _overrides);
         _popupEdits.Clear();
         _drawingEdits.Clear();
-        foreach (var slot in _overrides.Slots)
+        foreach (var layer in _overrides.Layers)
         {
-            _popupEdits[slot.SlotId] = slot.PopupInfoJson ?? string.Empty;
-            _drawingEdits[slot.SlotId] = slot.DrawingInfoJson ?? string.Empty;
+            _popupEdits[layer.LayerId] = layer.PopupInfoJson ?? string.Empty;
+            _drawingEdits[layer.LayerId] = layer.DrawingInfoJson ?? string.Empty;
         }
 
         _loading = false;
     }
 
-    private string PopupValue(string slotId) =>
-        _popupEdits.TryGetValue(slotId, out var value) ? value : string.Empty;
+    private string PopupValue(string layerId) =>
+        _popupEdits.TryGetValue(layerId, out var value) ? value : string.Empty;
 
-    private string DrawingValue(string slotId) =>
-        _drawingEdits.TryGetValue(slotId, out var value) ? value : string.Empty;
+    private string DrawingValue(string layerId) =>
+        _drawingEdits.TryGetValue(layerId, out var value) ? value : string.Empty;
 
-    private void SetPopup(string slotId, ChangeEventArgs e) =>
-        _popupEdits[slotId] = e.Value?.ToString() ?? string.Empty;
+    private void SetPopup(string layerId, ChangeEventArgs e) =>
+        _popupEdits[layerId] = e.Value?.ToString() ?? string.Empty;
 
-    private void SetDrawing(string slotId, ChangeEventArgs e) =>
-        _drawingEdits[slotId] = e.Value?.ToString() ?? string.Empty;
+    private void SetDrawing(string layerId, ChangeEventArgs e) =>
+        _drawingEdits[layerId] = e.Value?.ToString() ?? string.Empty;
 
-    private Task SaveSlotAsync(OperateLayerSlotStyleOverride slot)
+    private Task SaveLayerAsync(OperateLayerStyleOverride layer)
     {
         _saveResult = null;
         return Notifications.RunGuardedAsync(
             async () =>
             {
-                var edit = new OperateLayerSlotStyleOverrideEdit(
+                var edit = new OperateLayerStyleOverrideEdit(
                     ResourceId,
-                    slot.SlotId,
-                    PopupInfoJson: PopupValue(slot.SlotId),
-                    DrawingInfoJson: DrawingValue(slot.SlotId));
+                    layer.LayerId,
+                    PopupInfoJson: PopupValue(layer.LayerId),
+                    DrawingInfoJson: DrawingValue(layer.LayerId));
                 _saveResult = await OverrideData.SaveOverrideAsync(edit);
                 if (_saveResult.Succeeded)
                 {
                     _overrides = _overrides with
                     {
-                        Slots = _overrides.Slots.Select(current => current.SlotId == slot.SlotId
+                        Layers = _overrides.Layers.Select(current => current.LayerId == layer.LayerId
                             ? current with { PopupInfoJson = edit.PopupInfoJson, DrawingInfoJson = edit.DrawingInfoJson }
                             : current).ToArray()
                     };

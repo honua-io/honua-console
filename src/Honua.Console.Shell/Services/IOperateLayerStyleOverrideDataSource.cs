@@ -9,6 +9,6 @@ public interface IOperateLayerStyleOverrideDataSource
         CancellationToken cancellationToken = default);
 
     Task<OperateLayerStyleOverrideSaveResult> SaveOverrideAsync(
-        OperateLayerSlotStyleOverrideEdit edit,
+        OperateLayerStyleOverrideEdit edit,
         CancellationToken cancellationToken = default);
 }

@@ -22,7 +22,7 @@ public sealed class ServingProtocolRouteTests
     [InlineData("Stac", "/stac")]
     public void ProtocolUrl_FolderPublication_UsesTheRegisteredPublicEndpoint(string protocol, string path)
     {
-        var projection = new OperatePublicationProjection(new Uri("https://server.example/arcgis/"));
+        var projection = new OperateServiceEndpointResolver(new Uri("https://server.example/arcgis/"));
 
         Assert.Equal(path, HonuaServedRoutes.PathFor("Parcels", protocol, "Public Folder"));
         Assert.Equal("https://server.example/arcgis" + path, projection.ProtocolUrl("Parcels", protocol, "Public Folder"));

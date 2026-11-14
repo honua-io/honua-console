@@ -106,6 +106,14 @@ public sealed class ConsoleBuildMetadataTests : IDisposable
         Assert.Equal(registryAreas, areas);
     }
 
+    [Fact]
+    public void ShippedRuntimeConfigPinsTheRc2V4Default()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(
+            LocateRepoFile(Path.Combine("src", "Honua.Console.Web", "wwwroot", "config.json"))));
+        Assert.True(document.RootElement.GetProperty("v4Enabled").GetBoolean());
+    }
+
     private static string LocateRepoFile(string relativePath)
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

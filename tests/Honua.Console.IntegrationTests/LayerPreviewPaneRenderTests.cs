@@ -11,7 +11,7 @@ public sealed class LayerPreviewPaneRenderTests
     private static readonly LayerPreviewPane.PreviewSelection Selection =
         new("conn-1-layer-7", "Parcels", "featureserver", "FeatureServer", "/rest/services/cadastre/FeatureServer/7");
 
-    private static readonly OperateServiceLayerProjection Parcels =
+    private static readonly OperateServiceLayer Parcels =
         new(7, "Parcels", "Polygon", "conn-1-layer-7", "parcels", [-158.3, 21.2, -157.6, 21.7]);
 
     [Fact]

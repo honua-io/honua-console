@@ -19,7 +19,7 @@ test('retired Studio builder route cannot restore the legacy product', async ({ 
   await page.goto('/studio/map', { waitUntil: 'domcontentloaded' });
 
   await expect(page.locator('[data-legacy-studio-retired]')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Open Studio workspace' })).toHaveAttribute('href', '/studio');
+  await expect(page.getByRole('link', { name: 'Open Studio' })).toHaveAttribute('href', '/studio');
   await expect(page.locator('[data-map-builder], [data-authoring-contract]')).toHaveCount(0);
 });
 

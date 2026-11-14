@@ -198,7 +198,7 @@ public sealed class LayerRelationshipsAndTimeInfoRenderTests
     }
 
     private static FixedServicesDataSource LayerData() =>
-        FixedServicesDataSource.WithLayer(new OperateServiceLayerProjection(1, "Parcels", "polygon", ResourceId, "parcels"));
+        FixedServicesDataSource.WithLayer(new OperateServiceLayer(1, "Parcels", "polygon", ResourceId, "parcels"));
 
     private sealed class FakeRelationships : IConsoleLayerRelationshipsOperation
     {

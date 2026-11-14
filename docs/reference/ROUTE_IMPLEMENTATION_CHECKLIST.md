@@ -264,7 +264,7 @@ The seam is `IConsoleCatalogClient` in
 `src/Honua.Console.Shell/Services/IConsoleCatalogClient.cs`, keyed off
 `Honua.Console.Contracts` types (`CatalogListRequest`,
 `CatalogReadContext`) and returning result records with a status enum
-(`CatalogSearchResult`, `CatalogItemReadResult`, `MapPackageReadResult`,
+(`CatalogSearchResult`, `CatalogItemReadResult`, `MapReadResult`,
 `CatalogReadStatus`) so the route maps each status to a §7 surface.
 
 The read context is resolved by
@@ -296,7 +296,7 @@ covers the seam and read-context decisions, e.g.:
   `ActiveSessionTokenlessReadsUseAuthenticatedContext` — the resolver's
   gate decision.
 - `UnsupportedStatesUseSharedReadStatuses` — status → surface mapping
-  (`UnsupportedServiceMetadata`, `UnsupportedPackageBinding`).
+  (`UnsupportedServiceMetadata`, `UnsupportedContentBinding`).
 
 `CatalogSearchStateTests.cs` covers the `q/type/tag/owner/visibility/
 sort/cursor` query contract and unknown-key handling. Per Step 6, these

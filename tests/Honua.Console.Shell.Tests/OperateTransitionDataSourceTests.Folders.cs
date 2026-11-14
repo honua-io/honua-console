@@ -31,7 +31,7 @@ public sealed partial class OperateTransitionDataSourceTests
         var source = CreateServerDataSource(handler);
         var service = Assert.Single((await source.GetServicesViewAsync()).Services);
         Assert.Equal("logical-id", service.Name);
-        Assert.Equal(expectedUrl, Assert.Single(service.PublicationSlots).Url);
+        Assert.Equal(expectedUrl, Assert.Single(service.Endpoints).Url);
         Assert.Equal("Publication path needs reconciliation.", Assert.Single(service.FolderMutationIssues));
     }
 }

@@ -177,8 +177,9 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
       }
       for (const item of services) {
         await page.goto(`/operate/services/${encodeURIComponent(item.service)}/settings`);
-        await expect(page.locator('[data-allow-anonymous]')).toBeVisible();
         await expect(page.locator('[data-allow-anonymous]')).toBeEnabled();
+        await page.getByRole('tab', { name: 'Access', exact: true }).click();
+        await expect(page.locator('[data-allow-anonymous]')).toBeVisible();
         await page.locator('[data-allow-anonymous]').check();
         await page.locator('[data-save-access]').click();
         await expect.poll(async () => {
@@ -651,7 +652,7 @@ test('New map keyboard creation persists a real draft without browser errors', a
   try {
     await expect(page.locator('[data-studio-status]')).toContainText('Connected to');
     const key = `keyboard-map-${nonce()}`;
-    await page.getByRole('textbox', { name: 'New map package key', exact: true }).focus();
+    await page.getByRole('textbox', { name: 'New map key', exact: true }).focus();
     await page.keyboard.type(key);
     await page.keyboard.press('Tab');
     await expect(page.getByRole('button', { name: 'New map', exact: true })).toBeFocused();

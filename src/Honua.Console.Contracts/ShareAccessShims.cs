@@ -261,7 +261,7 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
         {
             HttpStatusCode.Unauthorized => "The Honua server rejected the request because admin authentication is missing.",
             HttpStatusCode.Forbidden => "The Honua server rejected the request because the current principal lacks Console share permission.",
-            HttpStatusCode.NotFound => "The Honua server Console content item or share token was not found.",
+            HttpStatusCode.NotFound => "The Honua server has no Console item or share token with that ID.",
             HttpStatusCode.Conflict => "The Console share change was blocked by the dependency closure or share state.",
             HttpStatusCode.BadRequest => "The Honua server rejected the Console share request.",
             HttpStatusCode.MethodNotAllowed => "The Honua server exposes the Console share route but not the required verb.",

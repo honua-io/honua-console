@@ -67,7 +67,7 @@
             <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="empty"
                               Kicker="Catalogs"
                               Title="No discovery endpoints"
-                              Message="The registry returned no catalog discovery endpoints for this workspace." />
+                              Message="The registry returned no catalog discovery endpoints on this server." />
         }
         else
         {
@@ -185,7 +185,7 @@
         <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="empty"
                           Kicker="Catalogs"
                           Title="No discovery endpoints"
-                          Message="The catalog discovery-endpoints registry returned no data for this workspace." />
+                          Message="The catalog discovery-endpoints registry returned no data on this server." />
     }
 </section>
 
@@ -222,7 +222,7 @@
 
     // Carry the active workspace through drill-down links so browsing a non-default workspace's registry
     // (e.g. /operate/catalogs?workspace=tenant-a) does not silently switch the detail/item pages back to the
-    // current workspace. An absent workspace stays absent (ToQueryString drops empty values), so the default
+    // `current` default. An absent workspace stays absent (ToQueryString drops empty values), so the default
     // never gains a spurious ?workspace=current.
     private string DetailHref(string key) =>
         $"/operate/catalogs/{Uri.EscapeDataString(key)}{WorkspaceQuery()}";

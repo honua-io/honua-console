@@ -139,7 +139,7 @@ export function mountStudioDraftCreate({ app, host }) {
     const form = document.createElement('form');
     const key = document.createElement('input');
     key.required = true; key.maxLength = 200; key.pattern = '(?:[A-Za-z0-9._]|-){1,200}';
-    key.placeholder = 'Map package key'; key.setAttribute('aria-label', 'New map package key');
+    key.placeholder = 'Map key'; key.setAttribute('aria-label', 'New map key');
     const create = document.createElement('button'); create.type = 'submit'; create.textContent = 'New map';
     const notice = document.createElement('p'); notice.setAttribute('role', 'status');
     const inbox = document.createElement('a'); inbox.textContent = 'Review approval in Inbox';

@@ -538,7 +538,7 @@ public sealed partial class OperateTransitionDataSourceTests
     public void ProtocolSlotUrlsUseEachProtocolsRealRoute()
     {
         // Classic OGC links share public-name and Folder resolution with GeoServices.
-        var publications = new OperatePublicationProjection(new Uri("https://server.example"));
+        var publications = new OperateServiceEndpointResolver(new Uri("https://server.example"));
         const string svc = "e2e_src_fs";
 
         // GeoServices REST.
@@ -575,7 +575,7 @@ public sealed partial class OperateTransitionDataSourceTests
     {
         // Terrain and elevation are served per dataset (/terrain/{datasetId}/..., /elevation/{datasetId}/...)
         // and gRPC per RPC method, so no single URL addresses the service; an unknown protocol gets none either.
-        var publications = new OperatePublicationProjection(new Uri("https://server.example"));
+        var publications = new OperateServiceEndpointResolver(new Uri("https://server.example"));
 
         Assert.Null(publications.ProtocolUrl("e2e_src_fs", protocol));
     }
@@ -644,8 +644,8 @@ public sealed partial class OperateTransitionDataSourceTests
     {
         var service = new OperateServiceDetail("sample", "Sample", "FeatureServer", "Ready", "server", [], [],
         [
-            new OperatePublicationSlot("FeatureServer", "https://server.example/rest/services/sample/FeatureServer", "Exposed by honua-server"),
-            new OperatePublicationSlot("Terrain", null, "Exposed by honua-server"),
+            new OperateServiceEndpoint("FeatureServer", "https://server.example/rest/services/sample/FeatureServer", "Exposed by honua-server"),
+            new OperateServiceEndpoint("Terrain", null, "Exposed by honua-server"),
         ]);
         var dataSource = new StubOperateTransitionDataSource(new OperateTransitionWorkspace([], [], [service], [], []));
         var html = await RenderPageAsync<OperateServiceDetailPage>(dataSource,

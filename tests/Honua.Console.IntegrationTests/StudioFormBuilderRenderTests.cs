@@ -28,7 +28,7 @@ public sealed class StudioFormBuilderRenderTests
         var page = ctx.Render<StudioFormBuilderPage>();
 
         page.WaitForAssertion(
-            () => Assert.Contains("Form package lifecycle is not bound", page.Markup, StringComparison.Ordinal),
+            () => Assert.Contains("Form lifecycle is not bound", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.DoesNotContain("data-form-builder", page.Markup, StringComparison.Ordinal);
 
@@ -293,7 +293,7 @@ public sealed class StudioFormBuilderRenderTests
         "Form builder",
         "Missing binding",
         "Honua:Server:BaseUrl",
-        "Configure Honua:Server:BaseUrl so the form builder can bind the server-owned form package lifecycle.");
+        "Configure Honua:Server:BaseUrl so the form builder can bind the server-owned form lifecycle.");
 
     private sealed class FakeFormDataSource : IStudioFormPackageDataSource
     {

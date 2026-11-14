@@ -20,11 +20,11 @@ public sealed class OperateEnvironmentEndpointTests
         var (services, _) = await ReadAsync(fixture.Source, surface);
         var service = Assert.Single(services);
         Assert.Equal("https://active.example/active-mount/rest/services/Places%20North/FeatureServer",
-            service.PublicationSlots.Single(slot => slot.Name == "FeatureServer").Url);
+            service.Endpoints.Single(slot => slot.Name == "FeatureServer").Url);
         Assert.Equal("https://active.example/active-mount/rest/services/Places%20North/MapServer/WMS",
-            service.PublicationSlots.Single(slot => slot.Name == "Wms").Url);
+            service.Endpoints.Single(slot => slot.Name == "Wms").Url);
         Assert.Equal("https://active.example/active-mount/ogc/features",
-            service.PublicationSlots.Single(slot => slot.Name == "OgcFeatures").Url);
+            service.Endpoints.Single(slot => slot.Name == "OgcFeatures").Url);
         Assert.NotEmpty(fixture.Handler.Requests);
         Assert.All(fixture.Handler.Requests, uri => Assert.StartsWith("https://active.example/active-mount/", uri.AbsoluteUri));
     }
@@ -45,9 +45,9 @@ public sealed class OperateEnvironmentEndpointTests
         Assert.Equal("survey", service.FolderId);
         Assert.Equal("Review publication path.", Assert.Single(service.FolderMutationIssues));
         Assert.Equal("https://active.example/active-mount/rest/services/Survey%20North/Public%20parcels/FeatureServer",
-            service.PublicationSlots.Single(slot => slot.Name == "FeatureServer").Url);
+            service.Endpoints.Single(slot => slot.Name == "FeatureServer").Url);
         Assert.Equal("https://active.example/active-mount/rest/services/Survey%20North/Public%20parcels/MapServer/WMS",
-            service.PublicationSlots.Single(slot => slot.Name == "Wms").Url);
+            service.Endpoints.Single(slot => slot.Name == "Wms").Url);
     }
 
     [Theory]
@@ -127,7 +127,7 @@ public sealed class OperateEnvironmentEndpointTests
     {
         var service = Assert.Single(services);
         Assert.Equal("https://startup.example/startup-mount/rest/services/Places%20North/FeatureServer",
-            service.PublicationSlots.Single(slot => slot.Name == "FeatureServer").Url);
+            service.Endpoints.Single(slot => slot.Name == "FeatureServer").Url);
         Assert.DoesNotContain(states, state => state.Contract == "Active Environment");
     }
 

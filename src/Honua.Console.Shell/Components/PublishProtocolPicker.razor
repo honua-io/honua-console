@@ -29,12 +29,12 @@
 
     <div class="publish-protocol-picker__slot">
         <span class="studio-form-label">Service</span>
-        <code data-service-slot>@ServiceSlot</code>
+        <code data-service-slot>@ServiceName</code>
         <span class="console-muted">(the service that exposes this dataset)</span>
     </div>
 
     @{
-        var plans = PublishProtocolCatalog.PlanPublications(ServiceSlot, Enabled);
+        var plans = PublishProtocolCatalog.PlanPublications(ServiceName, Enabled);
     }
     @if (plans.Count == 0)
     {
@@ -58,7 +58,7 @@
     public EventCallback<IReadOnlyCollection<string>> EnabledChanged { get; set; }
 
     [Parameter]
-    public string ServiceSlot { get; set; } = "service";
+    public string ServiceName { get; set; } = "service";
 
     private async Task Toggle(string protocolId, ChangeEventArgs args)
     {

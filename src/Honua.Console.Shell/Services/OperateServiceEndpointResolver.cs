@@ -2,10 +2,10 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-internal sealed class OperatePublicationProjection(Uri serverBaseUri)
+internal sealed class OperateServiceEndpointResolver(Uri serverBaseUri)
 {
-    public IReadOnlyList<OperatePublicationSlot> ForService(string? serviceName, IReadOnlyList<string> protocols, string? folderName = null) =>
-        protocols.Select(protocol => new OperatePublicationSlot(
+    public IReadOnlyList<OperateServiceEndpoint> ForService(string? serviceName, IReadOnlyList<string> protocols, string? folderName = null) =>
+        protocols.Select(protocol => new OperateServiceEndpoint(
             protocol, ProtocolUrl(serviceName, protocol, folderName), "Exposed by honua-server")).ToArray();
 
     internal string? ProtocolUrl(string? serviceName, string protocol, string? folderName = null) =>

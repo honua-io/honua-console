@@ -130,9 +130,9 @@ public sealed record OperateServiceDetail(
     string ServiceType,
     string RuntimeStatus,
     string MetadataOwnership,
-    IReadOnlyList<OperateServiceLayerProjection> Layers,
+    IReadOnlyList<OperateServiceLayer> Layers,
     IReadOnlyList<OperateRuntimeSetting> RuntimeSettings,
-    IReadOnlyList<OperatePublicationSlot> PublicationSlots)
+    IReadOnlyList<OperateServiceEndpoint> Endpoints)
 {
     public string? FolderId { get; init; }
     public string? FolderName { get; init; }
@@ -145,7 +145,7 @@ public sealed record OperateServiceDetail(
     public bool Serves(string protocol) => Protocols.Contains(protocol, StringComparer.OrdinalIgnoreCase);
 }
 
-public sealed record OperateServiceLayerProjection(
+public sealed record OperateServiceLayer(
     int LayerId,
     string Name,
     string Geometry,
@@ -162,7 +162,7 @@ public sealed record OperateRuntimeSetting(
     string ApplyScope,
     bool RequiresRestart);
 
-public sealed record OperatePublicationSlot(
+public sealed record OperateServiceEndpoint(
     string Name,
     string? Url,
     string Status);

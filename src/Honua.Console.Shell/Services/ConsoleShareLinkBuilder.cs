@@ -18,7 +18,7 @@ public static class ConsoleShareLinkBuilder
             if (string.IsNullOrWhiteSpace(item.Access.PublicLinkToken))
             {
                 throw new InvalidOperationException(
-                    $"Content item '{SlugOrId(item)}' is shared as public-link but carries no public-link token; " +
+                    $"Item '{SlugOrId(item)}' is shared as public-link but carries no public-link token; " +
                     "a tokenless public-link route would not grant anonymous read access.");
             }
 
