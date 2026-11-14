@@ -728,6 +728,7 @@ public sealed class ConsolePublicationNavigationRenderTests
 
     [Theory]
     [InlineData("denied", false)]
+    [InlineData("invalid-page", false)]
     [InlineData("changed-before", false)]
     [InlineData("changed-after", false)]
     [InlineData("success", true)]
@@ -742,6 +743,10 @@ public sealed class ConsolePublicationNavigationRenderTests
         changes.Changed += () => reloads++;
         context.Services.AddSingleton(changes);
         if (outcome == "denied") source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Forbidden, "Catalog denied");
+        if (outcome == "invalid-page") source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Allowed(new()
+        {
+            Items = [new() { ServiceName = "service-000", LayerCount = 10 }], Page = 2, PageSize = 100, Total = 1
+        });
         if (outcome == "changed-after") source.OnServiceRead = () => authority.Current = false;
         context.Services.AddSingleton<IConsoleAuthorityBindingValidator>(authority);
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
