@@ -1,5 +1,5 @@
 # Test fixture for legacy server-auth and Studio regressions; never a release artifact.
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.13@sha256:d5633778c754e89a386882eddf8dbee6942447a8a4b8267c19cf1e1158d0b0ac
+FROM mcr.microsoft.com/dotnet/aspnet:11.0.0@sha256:bc0d6653979efba491ab3d6f589d691f96c309c3c3ef81325efa6978e7b7f242
 ARG HONUA_CONSOLE_COMMIT_SHA=unknown
 LABEL org.opencontainers.image.revision=$HONUA_CONSOLE_COMMIT_SHA
 WORKDIR /app

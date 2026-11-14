@@ -9,13 +9,16 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class CatalogAdminPageTests
 {
-    [Fact]
-    public void FlagDisabled_DoesNotReadOrShowFixtureContent()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FlagDisabled_DoesNotReadOrShowFixtureContent(bool enabled)
     {
         using var context = new BunitContext();
         var source = new FixtureCatalogAdminSource();
         context.Services.AddSingleton<ICatalogAdminSource>(source);
         context.Services.AddSingleton(new CatalogAdminOptions());
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         var page = context.Render<CatalogAdminPage>();
         Assert.Contains("Catalogs are not enabled", page.Markup);
         Assert.DoesNotContain("Open data", page.Markup);
@@ -23,10 +26,13 @@ public sealed class CatalogAdminPageTests
         Assert.Single(page.FindAll(".console-state-disabled"));
     }
 
-    [Fact]
-    public void List_UsesLabeledFiltersAndAudience_WithoutClaimingLive()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void List_UsesLabeledFiltersAndAudience_WithoutClaimingLive(bool enabled)
     {
         using var context = Context(new FixtureCatalogAdminSource());
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         var page = context.Render<CatalogAdminPage>();
         page.WaitForAssertion(() => Assert.Contains("Open data", page.Markup));
         Assert.NotNull(page.Find("label[for='catalog-query']"));
@@ -34,16 +40,21 @@ public sealed class CatalogAdminPageTests
         Assert.Contains("Signed-in users", page.Markup);
         Assert.Contains("Fixture preview", page.Markup);
         Assert.DoesNotContain(">Live<", page.Markup);
-        CatalogAdminPreview.Capture("list", page.Markup);
+        Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
+        if (enabled) CatalogAdminPreview.CaptureV4("catalog-admin-list-v4", page.Markup);
+        else CatalogAdminPreview.Capture("list", page.Markup);
         page.Find("#catalog-audience").Change("signed-in");
         Assert.DoesNotContain("Open data", page.Find("tbody").TextContent);
         Assert.Contains("Staff", page.Find("tbody").TextContent);
     }
 
-    [Fact]
-    public void Overview_DistinguishesAdminCountsFromPublicResults()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Overview_DistinguishesAdminCountsFromPublicResults(bool enabled)
     {
         using var context = Context(new FixtureCatalogAdminSource());
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         var page = context.Render<CatalogAdminPage>(parameters => parameters.Add(p => p.CatalogId, "open-data"));
         page.WaitForAssertion(() => Assert.Contains("Audience-restricted", page.Markup));
         Assert.Contains("Admin visibility counts", page.Markup);
@@ -51,6 +62,7 @@ public sealed class CatalogAdminPageTests
         Assert.Contains("Missing description", page.Markup);
         Assert.Contains("Not reported", page.Markup);
         Assert.DoesNotContain("Approve", page.Markup);
+        if (enabled) CatalogAdminPreview.CaptureV4("catalog-admin-overview-v4", page.Markup);
     }
 
     [Fact]
@@ -79,13 +91,16 @@ public sealed class CatalogAdminPageTests
         Assert.DoesNotContain("Open data", page.Markup);
     }
 
-    [Fact]
-    public void List_PagesAndResetsAfterSearch()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void List_PagesAndResetsAfterSearch(bool enabled)
     {
         var rows = Enumerable.Range(1, 25).Select(index =>
             new CatalogAdminRow($"catalog-{index}", $"Catalog {index:00}", "public", "All kinds", null)).ToArray();
         using var context = Context(new CallbackCatalogAdminSource((_, _) =>
             Task.FromResult(new CatalogAdminRead(rows, null, "fixture", null))));
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         var page = context.Render<CatalogAdminPage>();
         Assert.Equal(12, page.FindAll("tbody tr").Count);
         page.FindAll("nav button")[1].Click();
@@ -102,10 +117,13 @@ public sealed class CatalogAdminPageTests
         Assert.True(page.Find("nav button").HasAttribute("disabled"));
     }
 
-    [Fact]
-    public void MismatchedOverview_DoesNotShowItsTitleOrCounts()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MismatchedOverview_DoesNotShowItsTitleOrCounts(bool enabled)
     {
         using var context = Context(new FixtureCatalogAdminSource());
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         var page = context.Render<CatalogAdminPage>(parameters => parameters.Add(p => p.CatalogId, "other"));
         page.WaitForAssertion(() => Assert.Contains("Catalog is unavailable", page.Markup));
         Assert.DoesNotContain("Open data", page.Markup);
