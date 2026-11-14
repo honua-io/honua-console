@@ -40,7 +40,8 @@ public sealed class ConsolePublicationLayerContext
     {
         var exposure = exposures.FirstOrDefault();
         Complete(attempt, exposure is null ? null : new(
-            exposure.Layer.CanonicalResourceId, exposure.Service.Name, exposure.Layer.Name) { GeometryType = exposure.Layer.Geometry });
+            exposure.Layer.CanonicalResourceId, exposure.Service.Name, exposure.Layer.Name)
+        { GeometryType = exposure.Layer.Geometry });
     }
 
     public void CompleteStyleRead(ReadAttempt attempt, OperateLayerStyleOverrideView view)

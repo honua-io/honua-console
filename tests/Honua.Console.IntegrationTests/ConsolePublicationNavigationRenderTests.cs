@@ -745,7 +745,10 @@ public sealed class ConsolePublicationNavigationRenderTests
         if (outcome == "denied") source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Forbidden, "Catalog denied");
         if (outcome == "invalid-page") source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Allowed(new()
         {
-            Items = [new() { ServiceName = "service-000", LayerCount = 10 }], Page = 2, PageSize = 100, Total = 1
+            Items = [new() { ServiceName = "service-000", LayerCount = 10 }],
+            Page = 2,
+            PageSize = 100,
+            Total = 1
         });
         if (outcome == "changed-after") source.OnServiceRead = () => authority.Current = false;
         context.Services.AddSingleton<IConsoleAuthorityBindingValidator>(authority);
