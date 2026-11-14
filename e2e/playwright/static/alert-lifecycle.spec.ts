@@ -18,7 +18,7 @@ async function startLifecycleFixture() {
     configuration: { apiBaseUrl: '/', auth: { mode: 'builtin' }, v4Enabled: true },
     handleApi: async (req, res) => {
       const url = new URL(req.url, origin);
-      if (url.pathname !== prefix && !url.pathname.startsWith(`${prefix}/42/`)) return fallback(req, res);
+      if (url.pathname !== prefix && url.pathname !== `${prefix}/42` && !url.pathname.startsWith(`${prefix}/42/`)) return fallback(req, res);
       if (!req.headers.cookie?.includes('console-fixture-session=issued')) { res.writeHead(401).end(); return; }
       if (req.method === 'POST') {
         let raw = '';
@@ -51,7 +51,10 @@ test('inbox retains snooze retry identity and confirms resolution', async ({ pag
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
     const panel = page.locator('[data-operations-alerts]');
     await expect(panel.getByRole('heading', { name: initial.ruleName })).toBeVisible();
+    const failedSnooze = page.waitForResponse(response =>
+      response.url().endsWith(`${prefix}/42/suppress`) && response.request().method() === 'POST');
     await panel.locator('[data-snooze-alert]').click();
+    expect((await failedSnooze).status()).toBe(503);
     await expect(panel.locator('[data-alert-action-message]')).toContainText('could not complete');
     await expect(panel.locator('[data-snoozed]')).toHaveCount(0);
     await panel.locator('[data-snooze-alert]').click();
